@@ -18,6 +18,7 @@
     "vue": "^3.5.28"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0",
     "@tsconfig/node24": "^24.0.4",
     "@types/jsdom": "^27.0.0",
     "@types/node": "^24.10.13",
