@@ -448,24 +448,24 @@ function colGroupClass(colIdx: number): string {
   background: #ffff99;
   border-radius: 6px;
   width: fit-content;
-  color: #3a3518;
+  color: #2d2a1e;
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 0.8rem;
   transition: background 0.4s, color 0.4s;
 }
 
 .quiz-meta--error {
-  background: #7f2020;
-  color: #f0d0d0;
+  background: #991b1b;
+  color: #fecaca;
 }
 
 .quiz-meta--complete {
-  background: #2a6038;
-  color: #d0ecd8;
+  background: #166534;
+  color: #bbf7d0;
 }
 
 .meta-sep {
-  color: #d4c850;
+  color: #b8a030;
   font-size: 1rem;
   user-select: none;
 }
@@ -479,18 +479,18 @@ function colGroupClass(colIdx: number): string {
 .meta-label {
   font-size: 0.75rem;
   font-weight: 500;
-  color: #7a7430;
+  color: #5c5630;
 }
 
 .meta-field input[type='number'] {
   width: 2.5rem;
   padding: 0.15rem 0.3rem;
-  border: 1px solid #d4c850;
+  border: 1px solid #bbb060;
   border-radius: 4px;
   font-size: 0.8rem;
   text-align: center;
   background: #fff;
-  color: #3a3518;
+  color: #2d2a1e;
 }
 .meta-field input[type='number']:focus {
   outline: 1px solid #3b82f6;
@@ -513,7 +513,7 @@ function colGroupClass(colIdx: number): string {
   display: inline-block;
   width: 1.75rem;
   height: 1rem;
-  background: #d4c850;
+  background: #bbb060;
   border-radius: 999px;
   position: relative;
   transition: background 0.2s;
@@ -536,10 +536,10 @@ function colGroupClass(colIdx: number): string {
 }
 .meta-field--toggle .meta-label {
   font-size: 0.75rem;
-  color: #7a7430;
+  color: #5c5630;
 }
 .meta-field--toggle input:checked ~ .meta-label {
-  color: #3a3518;
+  color: #2d2a1e;
   font-weight: 600;
 }
 
@@ -554,12 +554,12 @@ function colGroupClass(colIdx: number): string {
 
 .scoresheet th,
 .scoresheet td {
-  border: 1px solid #d8d0a8;
+  border: 1px solid #c4bfa6;
   padding: 0.25rem 0.4rem;
   text-align: center;
   min-width: 2rem;
   height: 1.8rem;
-  background: #fdfbe8;
+  background: #fff;
 }
 
 /* Sticky first column */
@@ -567,7 +567,7 @@ function colGroupClass(colIdx: number): string {
   position: sticky;
   left: 0;
   z-index: 2;
-  background: #fdfbe8;
+  background: #fff;
 }
 
 .col--name {
@@ -580,7 +580,7 @@ function colGroupClass(colIdx: number): string {
 .col--total {
   min-width: 3rem;
   font-weight: 600;
-  background: #ece6c8;
+  background: #ddd8c4;
 }
 
 /* Column group shading */
@@ -593,19 +593,19 @@ function colGroupClass(colIdx: number): string {
 }
 
 /* Question header */
-.col--question {
+.scoresheet .col--question {
   font-weight: 700;
-  background: #4a4020 !important;
-  color: #fff !important;
+  background: #2d2a1e;
+  color: #fff;
   font-size: 0.75rem;
 }
 .col--question.col--ab {
-  background: #4a4020;
+  background: #2d2a1e;
   color: #fff;
   border-bottom: 2px solid #854d0e;
 }
 .col--question.col--overtime {
-  background: #4a4020;
+  background: #2d2a1e;
   color: #fff;
   border-bottom: 2px solid #9d174d;
 }
@@ -624,29 +624,29 @@ function colGroupClass(colIdx: number): string {
   color: #f0fdfa !important;
 }
 .col--header-missed-bonus {
-  background: #8a8050 !important;
-  color: #f5f0dc !important;
+  background: #78716c !important;
+  color: #fafaf9 !important;
 }
 .col--header-no-jump {
   background: repeating-linear-gradient(
     -45deg,
-    #3a3518,
-    #3a3518 3px,
-    #302c12 3px,
-    #302c12 6px
+    #2d2a1e,
+    #2d2a1e 3px,
+    #3d3930 3px,
+    #3d3930 6px
   ) !important;
 }
 
 /* Team header row */
 .row--team-header {
-  background: #3a3518;
-  color: #f5f0dc;
+  background: #2d2a1e;
+  color: #f5f5f0;
 }
 .row--team-header .team-name {
   font-weight: 700;
   font-size: 0.85rem;
-  background: #3a3518;
-  color: #f5f0dc;
+  background: #2d2a1e;
+  color: #f5f5f0;
   text-align: left;
   padding-left: 0.5rem;
 }
@@ -658,13 +658,13 @@ function colGroupClass(colIdx: number): string {
   border-radius: 3px;
   margin-right: 0.4rem;
   vertical-align: middle;
-  border: 1px solid #8a8050;
+  border: 1px solid #78716c;
 }
 .row--team-header.team--red .team-name::before {
   background: #dc2626;
 }
 .row--team-header.team--white .team-name::before {
-  background: #f5f0dc;
+  background: #f5f5f0;
 }
 .row--team-header.team--blue .team-name::before {
   background: #2563eb;
@@ -672,24 +672,24 @@ function colGroupClass(colIdx: number): string {
 
 /* Quizzer rows */
 .row--quizzer:hover {
-  background: #f8f4e0;
+  background: #f5f3ed;
 }
 
 /* Team total row */
 .row--team-total {
-  background: #ece6c8;
+  background: #e8e4d4;
   font-weight: 600;
   font-size: 0.75rem;
-  color: #3a3518;
+  color: #2d2a1e;
 }
 .row--team-total .sticky-col {
-  background: #ece6c8;
+  background: #e8e4d4;
 }
 .row--team-total .cell--total.col--ab {
-  background: #e8e2c0;
+  background: #e4dfc8;
 }
 .row--team-total .cell--total.col--overtime {
-  background: #e8e2c0;
+  background: #e4dfc8;
 }
 .team-total-value {
   font-size: 0.9rem;
@@ -713,46 +713,46 @@ function colGroupClass(colIdx: number): string {
   height: 0.9rem;
   border-radius: 2px;
   font-size: 0.65rem;
-  border: 1px solid #8a8050;
+  border: 1px solid #78716c;
   color: transparent;
   transition: all 0.15s;
 }
 .on-time--active .on-time-box {
-  color: #d4c850;
-  border-color: #8a8050;
+  color: #fff;
+  border-color: #a8a290;
 }
 .on-time-label {
   font-size: 0.65rem;
   font-weight: 400;
-  color: #8a8050;
+  color: #a8a290;
   text-transform: lowercase;
 }
 
 /* No-jump row */
 .row--no-jump {
-  border-top: 3px solid #3a3518;
+  border-top: 3px solid #2d2a1e;
 }
 .row--no-jump .sticky-col {
   font-weight: 600;
-  color: #6a6440;
+  color: #57534e;
 }
 .cell--no-jump {
   cursor: pointer;
   user-select: none;
-  color: #6a6440;
+  color: #57534e;
   font-weight: 700;
 }
 .cell--no-jump:hover {
-  outline: 2px solid #8a8050;
+  outline: 2px solid #78716c;
   outline-offset: -2px;
 }
 .cell--no-jump-active {
   background: repeating-linear-gradient(
     -45deg,
-    #ece6c8,
-    #ece6c8 3px,
-    #dcd4a8 3px,
-    #dcd4a8 6px
+    #e8e4d4,
+    #e8e4d4 3px,
+    #d5d0be 3px,
+    #d5d0be 6px
   ) !important;
   opacity: 0.6;
 }
@@ -786,8 +786,8 @@ function colGroupClass(colIdx: number): string {
   background-color: #ccfbf1 !important;
 }
 .cell--missed-bonus {
-  color: #8a8050;
-  background-color: #f5f0dc !important;
+  color: #78716c;
+  background-color: #f5f5f0 !important;
 }
 
 /* Column appear animation */
@@ -838,10 +838,10 @@ function colGroupClass(colIdx: number): string {
 .cell--greyed {
   background: repeating-linear-gradient(
     -45deg,
-    #ece6c8,
-    #ece6c8 3px,
-    #dcd4a8 3px,
-    #dcd4a8 6px
+    #e8e4d4,
+    #e8e4d4 3px,
+    #d5d0be 3px,
+    #d5d0be 6px
   ) !important;
   cursor: default;
   opacity: 0.6;
