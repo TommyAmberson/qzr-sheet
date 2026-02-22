@@ -579,7 +579,7 @@ function colGroupClass(colIdx: number): string {
   background: #fff;
 }
 
-.col--name {
+.scoresheet .col--name {
   text-align: left;
   min-width: 7rem;
   max-width: 10rem;
@@ -783,6 +783,7 @@ thead .col--name {
   font-weight: 600;
   color: #57534e;
   font-size: 0.75rem;
+  text-align: right !important;
 }
 .no-jump-total {
   background: transparent !important;
