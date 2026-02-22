@@ -1,4 +1,4 @@
-export enum Answer {
+export enum AnswerValue {
   Correct = 'c',
   Error = 'e',
   Foul = 'f',
@@ -7,7 +7,7 @@ export enum Answer {
   Empty = '',
 }
 
-export enum QuestionType = {
+export enum QuestionType {
     Normal = '',
     A = 'A',
     B = 'B',
@@ -18,17 +18,23 @@ export interface Question {
     type: QuestionType;
 }
 
-export interface QuizzerRow {
-  seat: number;
-  name: string;
-  results: Map<Question, Answer>;
+export interface Answer {
+    quizzerId: number;
+    questionId: string;
+    value: AnswerValue;
 }
 
-export interface TeamBlock {
-  teamName: string
+export interface Quizzer {
+  id: number;
+  name: string;
+  teamId: number;
+}
+
+export interface Team {
+  id: number;
+  name: string
   onTime: boolean
   timeouts: number[]
-  quizzers: QuizzerRow[]
 }
 
 export interface QuizMeta {
