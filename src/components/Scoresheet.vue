@@ -97,6 +97,25 @@ function teamHasErrors(ti: number): boolean {
   return false
 }
 
+/** Whether any validation errors exist across the whole sheet */
+const hasAnyErrors = computed(() => validationErrors.value.size > 0)
+
+/** Whether all required questions are resolved */
+const allQuestionsComplete = computed(() => {
+  for (let ci = 0; ci < columns.length; ci++) {
+    const col = columns[ci]!
+    // Skip overtime columns when overtime is off
+    if (col.isOvertime && !quizMeta.value.overtime) continue
+    // Skip A/B columns that aren't needed
+    if ((col.type === QuestionType.A || col.type === QuestionType.B) && !abColumnNeeded(ci)) continue
+    // Column is complete if it has an answer or is no-jumped
+    if (noJumps.value[ci]) continue
+    if (colAnswerValue(ci) !== CellValue.Empty) continue
+    return false
+  }
+  return true
+})
+
 /** Check if a no-jump column has any answers (conflict) */
 function noJumpHasConflict(colIdx: number): boolean {
   if (!noJumps.value[colIdx]) return false
@@ -274,15 +293,17 @@ function colGroupClass(colIdx: number): string {
 
 <template>
   <div class="scoresheet-wrapper">
-    <div class="quiz-meta">
+    <div :class="['quiz-meta', { 'quiz-meta--error': hasAnyErrors, 'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors }]">
       <label class="meta-field">
         <span class="meta-label">Division</span>
         <input v-model.number="quizMeta.division" type="number" min="1" />
       </label>
+      <span class="meta-sep">·</span>
       <label class="meta-field">
-        <span class="meta-label">Quiz #</span>
+        <span class="meta-label">Quiz</span>
         <input v-model.number="quizMeta.quizNumber" type="number" min="1" />
       </label>
+      <span class="meta-sep">·</span>
       <label class="meta-field meta-field--toggle">
         <input v-model="quizMeta.overtime" type="checkbox" />
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
@@ -420,52 +441,67 @@ function colGroupClass(colIdx: number): string {
 
 .quiz-meta {
   display: flex;
-  gap: 1.25rem;
-  align-items: flex-end;
-  margin-bottom: 0.75rem;
-  padding: 0.6rem 0.75rem;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: #ffff99;
   border-radius: 6px;
   width: fit-content;
+  color: #3a3518;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.8rem;
+  transition: background 0.4s, color 0.4s;
+}
+
+.quiz-meta--error {
+  background: #7f2020;
+  color: #f0d0d0;
+}
+
+.quiz-meta--complete {
+  background: #2a6038;
+  color: #d0ecd8;
+}
+
+.meta-sep {
+  color: #d4c850;
+  font-size: 1rem;
+  user-select: none;
 }
 
 .meta-field {
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .meta-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #7a7430;
 }
 
 .meta-field input[type='number'] {
-  width: 4rem;
-  padding: 0.3rem 0.4rem;
-  border: 1px solid #cbd5e1;
+  width: 2.5rem;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid #d4c850;
   border-radius: 4px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   text-align: center;
   background: #fff;
+  color: #3a3518;
 }
 .meta-field input[type='number']:focus {
-  outline: 2px solid #3b82f6;
-  outline-offset: -1px;
+  outline: 1px solid #3b82f6;
+  outline-offset: 0;
   border-color: #3b82f6;
 }
 
 /* Toggle switch */
 .meta-field--toggle {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   cursor: pointer;
-  padding-bottom: 0.15rem;
 }
 .meta-field--toggle input[type='checkbox'] {
   position: absolute;
@@ -475,9 +511,9 @@ function colGroupClass(colIdx: number): string {
 }
 .toggle-track {
   display: inline-block;
-  width: 2rem;
-  height: 1.1rem;
-  background: #cbd5e1;
+  width: 1.75rem;
+  height: 1rem;
+  background: #d4c850;
   border-radius: 999px;
   position: relative;
   transition: background 0.2s;
@@ -489,19 +525,22 @@ function colGroupClass(colIdx: number): string {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: calc(1.1rem - 4px);
-  height: calc(1.1rem - 4px);
+  width: calc(1rem - 4px);
+  height: calc(1rem - 4px);
   background: #fff;
   border-radius: 50%;
   transition: transform 0.2s;
 }
 .meta-field--toggle input:checked + .toggle-track .toggle-thumb {
-  transform: translateX(calc(2rem - 1.1rem));
+  transform: translateX(calc(1.75rem - 1rem));
 }
 .meta-field--toggle .meta-label {
   font-size: 0.75rem;
-  text-transform: none;
-  color: #475569;
+  color: #7a7430;
+}
+.meta-field--toggle input:checked ~ .meta-label {
+  color: #3a3518;
+  font-weight: 600;
 }
 
 .scoresheet {
@@ -515,11 +554,12 @@ function colGroupClass(colIdx: number): string {
 
 .scoresheet th,
 .scoresheet td {
-  border: 1px solid #94a3b8;
+  border: 1px solid #d8d0a8;
   padding: 0.25rem 0.4rem;
   text-align: center;
   min-width: 2rem;
   height: 1.8rem;
+  background: #fdfbe8;
 }
 
 /* Sticky first column */
@@ -527,7 +567,7 @@ function colGroupClass(colIdx: number): string {
   position: sticky;
   left: 0;
   z-index: 2;
-  background: #f8fafc;
+  background: #fdfbe8;
 }
 
 .col--name {
@@ -540,7 +580,7 @@ function colGroupClass(colIdx: number): string {
 .col--total {
   min-width: 3rem;
   font-weight: 600;
-  background: #f1f5f9;
+  background: #ece6c8;
 }
 
 /* Column group shading */
@@ -555,18 +595,18 @@ function colGroupClass(colIdx: number): string {
 /* Question header */
 .col--question {
   font-weight: 700;
-  background: #475569;
-  color: #f1f5f9;
+  background: #4a4020 !important;
+  color: #fff !important;
   font-size: 0.75rem;
 }
 .col--question.col--ab {
-  background: #4a5568;
-  color: #f1f5f9;
+  background: #4a4020;
+  color: #fff;
   border-bottom: 2px solid #854d0e;
 }
 .col--question.col--overtime {
-  background: #4a5568;
-  color: #f1f5f9;
+  background: #4a4020;
+  color: #fff;
   border-bottom: 2px solid #9d174d;
 }
 
@@ -584,29 +624,29 @@ function colGroupClass(colIdx: number): string {
   color: #f0fdfa !important;
 }
 .col--header-missed-bonus {
-  background: #64748b !important;
-  color: #f1f5f9 !important;
+  background: #8a8050 !important;
+  color: #f5f0dc !important;
 }
 .col--header-no-jump {
   background: repeating-linear-gradient(
     -45deg,
-    #475569,
-    #475569 3px,
-    #3b4a5c 3px,
-    #3b4a5c 6px
+    #3a3518,
+    #3a3518 3px,
+    #302c12 3px,
+    #302c12 6px
   ) !important;
 }
 
 /* Team header row */
 .row--team-header {
-  background: #334155;
-  color: #f8fafc;
+  background: #3a3518;
+  color: #f5f0dc;
 }
 .row--team-header .team-name {
   font-weight: 700;
   font-size: 0.85rem;
-  background: #334155;
-  color: #f8fafc;
+  background: #3a3518;
+  color: #f5f0dc;
   text-align: left;
   padding-left: 0.5rem;
 }
@@ -618,13 +658,13 @@ function colGroupClass(colIdx: number): string {
   border-radius: 3px;
   margin-right: 0.4rem;
   vertical-align: middle;
-  border: 1px solid #94a3b8;
+  border: 1px solid #8a8050;
 }
 .row--team-header.team--red .team-name::before {
   background: #dc2626;
 }
 .row--team-header.team--white .team-name::before {
-  background: #f1f5f9;
+  background: #f5f0dc;
 }
 .row--team-header.team--blue .team-name::before {
   background: #2563eb;
@@ -632,24 +672,24 @@ function colGroupClass(colIdx: number): string {
 
 /* Quizzer rows */
 .row--quizzer:hover {
-  background: #f1f5f9;
+  background: #f8f4e0;
 }
 
 /* Team total row */
 .row--team-total {
-  background: #f5f0e8;
+  background: #ece6c8;
   font-weight: 600;
   font-size: 0.75rem;
-  color: #78716c;
+  color: #3a3518;
 }
 .row--team-total .sticky-col {
-  background: #f5f0e8;
+  background: #ece6c8;
 }
 .row--team-total .cell--total.col--ab {
-  background: #f5eedd;
+  background: #e8e2c0;
 }
 .row--team-total .cell--total.col--overtime {
-  background: #f5e8e8;
+  background: #e8e2c0;
 }
 .team-total-value {
   font-size: 0.9rem;
@@ -673,46 +713,46 @@ function colGroupClass(colIdx: number): string {
   height: 0.9rem;
   border-radius: 2px;
   font-size: 0.65rem;
-  border: 1px solid #64748b;
+  border: 1px solid #8a8050;
   color: transparent;
   transition: all 0.15s;
 }
 .on-time--active .on-time-box {
-  color: #cbd5e1;
-  border-color: #94a3b8;
+  color: #d4c850;
+  border-color: #8a8050;
 }
 .on-time-label {
   font-size: 0.65rem;
   font-weight: 400;
-  color: #94a3b8;
+  color: #8a8050;
   text-transform: lowercase;
 }
 
 /* No-jump row */
 .row--no-jump {
-  border-top: 3px solid #334155;
+  border-top: 3px solid #3a3518;
 }
 .row--no-jump .sticky-col {
   font-weight: 600;
-  color: #64748b;
+  color: #6a6440;
 }
 .cell--no-jump {
   cursor: pointer;
   user-select: none;
-  color: #64748b;
+  color: #6a6440;
   font-weight: 700;
 }
 .cell--no-jump:hover {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid #8a8050;
   outline-offset: -2px;
 }
 .cell--no-jump-active {
   background: repeating-linear-gradient(
     -45deg,
-    #f1f5f9,
-    #f1f5f9 3px,
-    #e2e8f0 3px,
-    #e2e8f0 6px
+    #ece6c8,
+    #ece6c8 3px,
+    #dcd4a8 3px,
+    #dcd4a8 6px
   ) !important;
   opacity: 0.6;
 }
@@ -746,8 +786,8 @@ function colGroupClass(colIdx: number): string {
   background-color: #ccfbf1 !important;
 }
 .cell--missed-bonus {
-  color: #64748b;
-  background-color: #f1f5f9 !important;
+  color: #8a8050;
+  background-color: #f5f0dc !important;
 }
 
 /* Column appear animation */
@@ -798,10 +838,10 @@ function colGroupClass(colIdx: number): string {
 .cell--greyed {
   background: repeating-linear-gradient(
     -45deg,
-    #f1f5f9,
-    #f1f5f9 3px,
-    #e2e8f0 3px,
-    #e2e8f0 6px
+    #ece6c8,
+    #ece6c8 3px,
+    #dcd4a8 3px,
+    #dcd4a8 6px
   ) !important;
   cursor: default;
   opacity: 0.6;

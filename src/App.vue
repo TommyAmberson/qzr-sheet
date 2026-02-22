@@ -22,14 +22,14 @@ import Scoresheet from './components/Scoresheet.vue'
 
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: #f8fafc;
-  color: #1e293b;
+  background: #f5f0dc;
+  color: #3a3518;
 }
 
 .app-header {
   padding: 0.75rem 1rem;
-  background: #1e293b;
-  color: #f8fafc;
+  background: #3a3518;
+  color: #f5f0dc;
 }
 
 .app-header h1 {
