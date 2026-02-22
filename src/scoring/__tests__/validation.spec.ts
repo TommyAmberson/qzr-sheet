@@ -433,4 +433,51 @@ describe('cell validation', () => {
     const errors = validateCells(cells, columns, grey)
     expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.QuizzerOut)).toBe(true)
   })
+
+  // --- Foul on question blocks quizzer from sub-parts ---
+
+  it('quizzer who fouled on base question answering A is invalid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17')] = F  // quizzer 0 fouls on Q17
+    cells[0]![0]![ci('17A')] = C // quizzer 0 answers Q17A — invalid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('17A'), ValidationCode.FouledOnQuestion)).toBe(true)
+  })
+
+  it('quizzer who fouled on base question answering B is invalid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17')] = F  // quizzer 0 fouls on Q17
+    cells[0]![0]![ci('17B')] = B // quizzer 0 answers Q17B — invalid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.FouledOnQuestion)).toBe(true)
+  })
+
+  it('quizzer who fouled on A question answering B is invalid', () => {
+    const cells = blankCells()
+    cells[1]![2]![ci('18A')] = F // quizzer 2 fouls on Q18A
+    cells[1]![2]![ci('18B')] = B // quizzer 2 answers Q18B — invalid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 1, 2, ci('18B'), ValidationCode.FouledOnQuestion)).toBe(true)
+  })
+
+  it('different quizzer on same team can still answer after teammate foul', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17')] = F  // quizzer 0 fouls on Q17
+    cells[0]![1]![ci('17A')] = C // quizzer 1 answers Q17A — valid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 1, ci('17A'), ValidationCode.FouledOnQuestion)).toBe(false)
+  })
+
+  it('fouling again on a sub-part after fouling on base is still flagged', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17')] = F  // quizzer 0 fouls on Q17
+    cells[0]![0]![ci('17A')] = F // quizzer 0 fouls again on Q17A — invalid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('17A'), ValidationCode.FouledOnQuestion)).toBe(true)
+  })
 })

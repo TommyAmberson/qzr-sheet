@@ -277,4 +277,50 @@ describe('greyed-out logic', () => {
     expect(isGreyed(result, 1, ci('16B'))).toBe(true)
     expect(isGreyed(result, 2, ci('16B'))).toBe(true)
   })
+
+  // --- Quizzer foul on A/B question greys subsequent sub-parts ---
+
+  it('quizzer foul on base A/B question greys that quizzer on A and B', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17')] = F // team 0, quizzer 0 fouls on Q17
+    const result = computeGreyedOut(cells, columns)
+    expect(result.fouledQuizzers.has(`0:0:${ci('17A')}`)).toBe(true)
+    expect(result.fouledQuizzers.has(`0:0:${ci('17B')}`)).toBe(true)
+    // Other quizzers on the same team are NOT affected
+    expect(result.fouledQuizzers.has(`0:1:${ci('17A')}`)).toBe(false)
+    // Other teams are NOT affected
+    expect(result.fouledQuizzers.has(`1:0:${ci('17A')}`)).toBe(false)
+  })
+
+  it('quizzer foul on A question greys that quizzer on B', () => {
+    const cells = blankCells()
+    cells[1]![2]![ci('18A')] = F // team 1, quizzer 2 fouls on Q18A
+    const result = computeGreyedOut(cells, columns)
+    expect(result.fouledQuizzers.has(`1:2:${ci('18B')}`)).toBe(true)
+    // NOT greyed on 18A itself (that's where the foul happened)
+    expect(result.fouledQuizzers.has(`1:2:${ci('18A')}`)).toBe(false)
+  })
+
+  it('quizzer foul on B question does not propagate further', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17B')] = F // foul on B — nowhere to propagate
+    const result = computeGreyedOut(cells, columns)
+    // No fouledQuizzers entries for Q18 or beyond from this
+    expect(result.fouledQuizzers.has(`0:0:${ci('18')}`)).toBe(false)
+  })
+
+  it('foul on normal (non-AB) question does not create fouledQuizzers entries', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = F // Q1 is not A/B
+    const result = computeGreyedOut(cells, columns)
+    expect(result.fouledQuizzers.size).toBe(0)
+  })
+
+  it('foul on Q16 (AB but not error-points) still greys quizzer on 16A and 16B', () => {
+    const cells = blankCells()
+    cells[2]![1]![ci('16')] = F // team 2, quizzer 1 fouls on Q16
+    const result = computeGreyedOut(cells, columns)
+    expect(result.fouledQuizzers.has(`2:1:${ci('16A')}`)).toBe(true)
+    expect(result.fouledQuizzers.has(`2:1:${ci('16B')}`)).toBe(true)
+  })
 })

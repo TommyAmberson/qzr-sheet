@@ -76,6 +76,7 @@ import { validateCells, ValidationCode } from '../scoring/validation'
 const greyedOutResult = computed(() => computeGreyedOut(cells.value, columns))
 const greyedOut = computed(() => greyedOutResult.value.disabled)
 const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
+const fouledQuizzers = computed(() => greyedOutResult.value.fouledQuizzers)
 
 const validationErrors = computed(() => validateCells(cells.value, columns, greyedOutResult.value, noJumps.value))
 
@@ -93,6 +94,11 @@ function isInvalid(ti: number, qi: number, ci: number): boolean {
 function isAfterOut(ti: number, qi: number, colIdx: number): boolean {
   const outCol = scoring.value[ti]?.quizzers[qi]?.outAfterCol ?? -1
   return outCol >= 0 && colIdx > outCol && cells.value[ti][qi][colIdx] === CellValue.Empty
+}
+
+/** Check if a quizzer is blocked from this column due to fouling on the same question */
+function isFouledOnQuestion(ti: number, qi: number, colIdx: number): boolean {
+  return fouledQuizzers.value.has(`${ti}:${qi}:${colIdx}`)
 }
 
 /** Check if a team has any validation errors */
@@ -412,7 +418,7 @@ function colGroupClass(colIdx: number): string {
                 'cell',
                 cellClass[cells[ti][qi][idx]],
                 colGroupClass(idx),
-                { 'cell--greyed': ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) },
+                { 'cell--greyed': ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) || (isFouledOnQuestion(ti, qi, idx) && cells[ti][qi][idx] === '') },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
               ]"
               @click="openSelector(ti, qi, idx, $event)"

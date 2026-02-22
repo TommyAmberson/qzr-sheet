@@ -17,6 +17,8 @@ export interface GreyedOutResult {
   disabled: Set<string>
   /** Teams that can't jump on a column due to toss-up/error chain: Set of "teamIdx:colIdx" */
   tossedUp: Set<string>
+  /** Quizzers who fouled on a question and can't answer sub-parts: Set of "teamIdx:quizzerIdx:colIdx" */
+  fouledQuizzers: Set<string>
 }
 
 export function computeGreyedOut(
@@ -161,5 +163,34 @@ export function computeGreyedOut(
     }
   }
 
-  return { disabled, tossedUp: tossedUpSet }
+  // Build fouledQuizzers: quizzers who fouled on a numbered question
+  // can't answer subsequent sub-parts (A/B) of the same question
+  const fouledQuizzers = new Set<string>()
+  for (let colIdx = 0; colIdx < cols.length; colIdx++) {
+    const col = cols[colIdx]!
+    if (!col.isAB) continue
+
+    for (let ti = 0; ti < teamCount; ti++) {
+      const team = cellData[ti]!
+      for (let qi = 0; qi < team.length; qi++) {
+        if (team[qi]![colIdx] !== CellValue.Foul) continue
+
+        // Foul on Normal → grey this quizzer on A and B
+        if (col.type === QuestionType.Normal) {
+          const aIdx = keyToIdx.get(`${col.number}A`)
+          const bIdx = keyToIdx.get(`${col.number}B`)
+          if (aIdx !== undefined) fouledQuizzers.add(`${ti}:${qi}:${aIdx}`)
+          if (bIdx !== undefined) fouledQuizzers.add(`${ti}:${qi}:${bIdx}`)
+        }
+        // Foul on A → grey this quizzer on B
+        if (col.type === QuestionType.A) {
+          const bIdx = keyToIdx.get(`${col.number}B`)
+          if (bIdx !== undefined) fouledQuizzers.add(`${ti}:${qi}:${bIdx}`)
+        }
+        // Foul on B → nothing further
+      }
+    }
+  }
+
+  return { disabled, tossedUp: tossedUpSet, fouledQuizzers }
 }

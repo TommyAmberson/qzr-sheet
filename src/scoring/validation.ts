@@ -16,6 +16,8 @@ export enum ValidationCode {
   NoJump = 'no-jump',
   /** Non-foul answer by a quizzer who has already quizzed out or errored/fouled out */
   QuizzerOut = 'quizzer-out',
+  /** Quizzer fouled on this question and can't answer sub-parts */
+  FouledOnQuestion = 'fouled-on-question',
 }
 
 function isAnswer(v: CellValue): boolean {
@@ -122,6 +124,11 @@ export function validateCells(
           qErrorsFouls[ti]![qi]!++
         } else if (v === CellValue.Foul && !col.isOvertime) {
           qErrorsFouls[ti]![qi]!++
+        }
+
+        // --- Fouled on question (can't answer sub-parts) ---
+        if (greyResult.fouledQuizzers.has(`${ti}:${qi}:${ci}`)) {
+          addError(ti, qi, ci, ValidationCode.FouledOnQuestion)
         }
 
         // --- Tossed up ---
