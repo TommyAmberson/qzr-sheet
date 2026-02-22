@@ -1,5 +1,11 @@
-import { CellValue, QuestionType, type Column } from '../types/scoresheet'
+import { CellValue, QuestionType, KEY_TO_IDX, type Column } from '../types/scoresheet'
 import type { GreyedOutResult } from './greyedOut'
+import {
+  isAnswer,
+  anyTeamHasValue as _anyTeamHasValue,
+  isResolved as _isResolved,
+  isBonusSituation,
+} from './helpers'
 
 export enum ValidationCode {
   /** Two+ quizzers on the same team have answers (non-foul) on the same column */
@@ -20,10 +26,6 @@ export enum ValidationCode {
   FouledOnQuestion = 'fouled-on-question',
 }
 
-function isAnswer(v: CellValue): boolean {
-  return v !== CellValue.Empty && v !== CellValue.Foul
-}
-
 /**
  * Validate all cells and return a map of "ti:qi:ci" → ValidationCode[].
  * Only cells with problems appear in the map.
@@ -37,6 +39,10 @@ export function validateCells(
   const errors = new Map<string, ValidationCode[]>()
   const teamCount = cellData.length
 
+  // Bind helpers to this cellData
+  const anyTeamHasValue = (ci: number, v: CellValue) => _anyTeamHasValue(cellData, ci, v)
+  const isResolved = (ci: number) => _isResolved(cellData, ci)
+
   function addError(ti: number, qi: number, ci: number, code: ValidationCode) {
     const key = `${ti}:${qi}:${ci}`
     const existing = errors.get(key)
@@ -45,19 +51,6 @@ export function validateCells(
     } else {
       errors.set(key, [code])
     }
-  }
-
-  // Build lookup for resolved columns (A/B cascade from greyedOut)
-  const keyToIdx = new Map<string, number>()
-  cols.forEach((col, i) => keyToIdx.set(col.key, i))
-
-  function anyTeamHasValue(colIdx: number, value: CellValue): boolean {
-    for (let ti = 0; ti < teamCount; ti++) {
-      for (const row of cellData[ti]!) {
-        if (row[colIdx] === value) return true
-      }
-    }
-    return false
   }
 
   // Track per-quizzer running counts for out detection (left-to-right)
@@ -92,20 +85,14 @@ export function validateCells(
           }
         } else {
           // Non-B columns: check bonus situation for this team
-          const isBonusSituation = (() => {
-            let tossedTeams = 0
-            for (let t = 0; t < teamCount; t++) {
-              if (t !== ti && greyResult.tossedUp.has(`${t}:${ci}`)) tossedTeams++
-            }
-            return tossedTeams === teamCount - 1
-          })()
+          const isBonus = isBonusSituation(greyResult.tossedUp, ti, ci, teamCount)
 
           // B/MB only valid if it's a bonus situation
-          if ((v === CellValue.Bonus || v === CellValue.MissedBonus) && !isBonusSituation) {
+          if ((v === CellValue.Bonus || v === CellValue.MissedBonus) && !isBonus) {
             addError(ti, qi, ci, ValidationCode.WrongCellType)
           }
           // C/E invalid if it IS a bonus situation (should be B/MB)
-          if ((v === CellValue.Correct || v === CellValue.Error) && isBonusSituation) {
+          if ((v === CellValue.Correct || v === CellValue.Error) && isBonus) {
             addError(ti, qi, ci, ValidationCode.WrongCellType)
           }
         }
@@ -145,33 +132,13 @@ export function validateCells(
         if (isAnswer(v)) {
           let resolved = false
           if (col.type === QuestionType.A) {
-            // Check if base normal question was resolved (C/B/MB)
-            const baseIdx = keyToIdx.get(`${col.number}`)
-            if (baseIdx !== undefined) {
-              resolved =
-                anyTeamHasValue(baseIdx, CellValue.Correct) ||
-                anyTeamHasValue(baseIdx, CellValue.Bonus) ||
-                anyTeamHasValue(baseIdx, CellValue.MissedBonus)
-            }
+            const baseIdx = KEY_TO_IDX.get(`${col.number}`)
+            if (baseIdx !== undefined) resolved = isResolved(baseIdx)
           } else if (col.type === QuestionType.B) {
-            // Check if A question was resolved
-            const aIdx = keyToIdx.get(`${col.number}A`)
-            if (aIdx !== undefined) {
-              const aResolved =
-                anyTeamHasValue(aIdx, CellValue.Correct) ||
-                anyTeamHasValue(aIdx, CellValue.Bonus) ||
-                anyTeamHasValue(aIdx, CellValue.MissedBonus)
-              if (aResolved) resolved = true
-            }
-            // Also check if base was resolved (C/B/MB, not E)
-            const baseIdx = keyToIdx.get(`${col.number}`)
-            if (baseIdx !== undefined) {
-              const baseResolved =
-                anyTeamHasValue(baseIdx, CellValue.Correct) ||
-                anyTeamHasValue(baseIdx, CellValue.Bonus) ||
-                anyTeamHasValue(baseIdx, CellValue.MissedBonus)
-              if (baseResolved) resolved = true
-            }
+            const aIdx = KEY_TO_IDX.get(`${col.number}A`)
+            if (aIdx !== undefined && isResolved(aIdx)) resolved = true
+            const baseIdx = KEY_TO_IDX.get(`${col.number}`)
+            if (baseIdx !== undefined && isResolved(baseIdx)) resolved = true
           }
           if (resolved) {
             addError(ti, qi, ci, ValidationCode.QuestionResolved)

@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { CellValue, QuestionType } from '../types/scoresheet'
+import { CellValue, QuestionType, KEY_TO_IDX } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
+import {
+  anyTeamHasValue as _anyTeamHasValue,
+  colHasAnyContent as _colHasAnyContent,
+  isBonusSituation,
+} from '../scoring/helpers'
 
 const { columns, quiz, teams, quizzers, cells, noJumps, scoring, setCell, toggleNoJump, store } = useScoresheet()
 
@@ -13,17 +18,9 @@ const teamQuizzers = computed(() =>
 /** Active cell selector state */
 const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
 
-/** Check if a column is a bonus situation for a given team
- *  (team is the only one not tossed-up on that column) */
+/** Check if a column is a bonus situation for a given team */
 function isBonusForTeam(teamIdx: number, colIdx: number): boolean {
-  const teamCount = teams.value.length
-  let tossedTeams = 0
-  for (let ti = 0; ti < teamCount; ti++) {
-    if (ti !== teamIdx && tossedUpSet.value.has(`${ti}:${colIdx}`)) {
-      tossedTeams++
-    }
-  }
-  return tossedTeams === teamCount - 1
+  return isBonusSituation(tossedUpSet.value, teamIdx, colIdx, teams.value.length)
 }
 
 const bonusOptions = [
@@ -151,40 +148,18 @@ function noJumpHasConflict(colIdx: number): boolean {
   return false
 }
 
-/** Check if any team has a specific value on a column */
-function anyTeamHasValue(colIdx: number, value: CellValue): boolean {
-  for (const team of cells.value) {
-    for (const row of team) {
-      if (row[colIdx] === value) return true
-    }
-  }
-  return false
-}
-
-/** Check if any cell on a column is non-empty */
-function colHasAnyContent(colIdx: number): boolean {
-  for (const team of cells.value) {
-    for (const row of team) {
-      if (row[colIdx] !== CellValue.Empty) return true
-    }
-  }
-  return false
-}
-
 /** Check if an A/B column is needed (parent has error or column already has answers) */
 function abColumnNeeded(colIdx: number): boolean {
-  if (colHasAnyContent(colIdx)) return true
+  if (_colHasAnyContent(cells.value, colIdx)) return true
 
   const col = columns[colIdx]!
   if (col.type === QuestionType.A) {
-    // Show A if the base question has an error (unresolved)
-    const baseIdx = columns.findIndex(c => c.key === `${col.number}`)
-    return baseIdx !== -1 && anyTeamHasValue(baseIdx, CellValue.Error)
+    const baseIdx = KEY_TO_IDX.get(`${col.number}`)
+    return baseIdx !== undefined && _anyTeamHasValue(cells.value, baseIdx, CellValue.Error)
   }
   if (col.type === QuestionType.B) {
-    // Show B if the A question has an error
-    const aIdx = columns.findIndex(c => c.key === `${col.number}A`)
-    return aIdx !== -1 && anyTeamHasValue(aIdx, CellValue.Error)
+    const aIdx = KEY_TO_IDX.get(`${col.number}A`)
+    return aIdx !== undefined && _anyTeamHasValue(cells.value, aIdx, CellValue.Error)
   }
   return false
 }
