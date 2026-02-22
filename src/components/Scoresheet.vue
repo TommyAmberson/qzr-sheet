@@ -639,20 +639,20 @@ thead .col--name {
 
 /* Question header colours based on answer */
 .col--header-correct {
-  background: #15803d !important;
-  color: #f0fdf4 !important;
+  background: #3d7a4a !important;
+  color: #fff !important;
 }
 .col--header-error {
-  background: #b91c1c !important;
-  color: #fef2f2 !important;
+  background: #9e3030 !important;
+  color: #fff !important;
 }
 .col--header-bonus {
-  background: #0d9488 !important;
-  color: #f0fdfa !important;
+  background: #2a7a8a !important;
+  color: #fff !important;
 }
 .col--header-missed-bonus {
-  background: #78716c !important;
-  color: #fafaf9 !important;
+  background: #8a8070 !important;
+  color: #fff !important;
 }
 .col--header-no-jump {
   background: repeating-linear-gradient(
@@ -823,24 +823,24 @@ thead .col--name {
 }
 
 .cell--correct {
-  color: #15803d;
-  background-color: #f0fdf4 !important;
+  color: #fff;
+  background-color: #3d7a4a !important;
 }
 .cell--error {
-  color: #b91c1c;
-  background-color: #fef2f2 !important;
+  color: #fff;
+  background-color: #9e3030 !important;
 }
 .cell--foul {
-  color: #ea580c;
-  background-color: #ffedd5 !important;
+  color: #fff;
+  background-color: #b86e30 !important;
 }
 .cell--bonus {
-  color: #0d9488;
-  background-color: #ccfbf1 !important;
+  color: #fff;
+  background-color: #2a7a8a !important;
 }
 .cell--missed-bonus {
-  color: #78716c;
-  background-color: #f5f5f0 !important;
+  color: #fff;
+  background-color: #8a8070 !important;
 }
 
 /* Column appear animation */
@@ -955,34 +955,39 @@ thead .col--name {
 }
 
 .opt--correct {
-  color: #15803d;
+  color: #3d7a4a;
 }
 .opt--correct:hover {
-  background: #f0fdf4;
+  background: #3d7a4a;
+  color: #fff;
 }
 .opt--error {
-  color: #b91c1c;
+  color: #9e3030;
 }
 .opt--error:hover {
-  background: #fef2f2;
+  background: #9e3030;
+  color: #fff;
 }
 .opt--foul {
-  color: #ea580c;
+  color: #b86e30;
 }
 .opt--foul:hover {
-  background: #ffedd5;
+  background: #b86e30;
+  color: #fff;
 }
 .opt--bonus {
-  color: #0d9488;
+  color: #2a7a8a;
 }
 .opt--bonus:hover {
-  background: #ccfbf1;
+  background: #2a7a8a;
+  color: #fff;
 }
 .opt--missed-bonus {
-  color: #64748b;
+  color: #8a8070;
 }
 .opt--missed-bonus:hover {
-  background: #f1f5f9;
+  background: #8a8070;
+  color: #fff;
 }
 .opt--clear {
   color: #94a3b8;
