@@ -36,6 +36,10 @@ export interface TeamScoring {
   teamErrorCount: number
   /** Team foul count */
   teamFoulCount: number
+  /** Column indices where a unique quizzer bonus (+10) was awarded → ordinal (3/4/5) */
+  uniqueQuizzerBonusCols: Map<number, number>
+  /** Column indices where a quizout bonus (+10) was awarded */
+  quizoutBonusCols: Set<number>
 }
 
 /**
@@ -66,6 +70,8 @@ export function scoreTeam(
   let teamErrors = 0
   let teamFouls = 0
   let uniqueCorrectCount = 0
+  const uniqueBonusCols = new Map<number, number>()
+  const quizoutBonusCols = new Set<number>()
 
   // Running total built column by column
   let runningScore = 0
@@ -101,6 +107,7 @@ export function scoreTeam(
             uniqueCorrectCount++
             if (uniqueCorrectCount >= 3) {
               colPoints += 10
+              uniqueBonusCols.set(ci, uniqueCorrectCount)
             }
           }
 
@@ -108,6 +115,7 @@ export function scoreTeam(
           if (qCorrect[qi] === 4 && qError[qi] === 0) {
             qHasQuizoutBonus[qi] = true
             colPoints += 10
+            quizoutBonusCols.add(ci)
           }
 
           // Track quiz-out column
@@ -220,5 +228,7 @@ export function scoreTeam(
     uniqueCorrectQuizzers: uniqueCorrectCount,
     teamErrorCount: teamErrors,
     teamFoulCount: teamFouls,
+    uniqueQuizzerBonusCols: uniqueBonusCols,
+    quizoutBonusCols,
   }
 }

@@ -455,8 +455,17 @@ function colGroupClass(colIdx: number): string {
               v-for="{ col, idx } in displayColumns"
               :key="col.key"
               :class="['cell--total', colGroupClass(idx)]"
+              style="position: relative;"
             >
               {{ scoring[ti]?.runningTotals[idx] ?? '' }}
+              <span
+                v-if="scoring[ti]?.uniqueQuizzerBonusCols.has(idx)"
+                class="running-total-badge running-total-badge--unique"
+              >{{ scoring[ti]!.uniqueQuizzerBonusCols.get(idx) === 3 ? '3rd' : scoring[ti]!.uniqueQuizzerBonusCols.get(idx) === 4 ? '4th' : '5th' }}</span>
+              <span
+                v-if="scoring[ti]?.quizoutBonusCols.has(idx)"
+                class="running-total-badge running-total-badge--quizout"
+              >Q</span>
             </td>
             <td class="running-total-spacer"></td>
           </tr>
@@ -975,6 +984,26 @@ thead .col--name {
 @keyframes pulse-invalid {
   0%, 100% { outline-color: #dc2626; }
   50% { outline-color: #f87171; }
+}
+
+/* Running total badges */
+.running-total-badge {
+  position: absolute;
+  top: -0.1rem;
+  right: 0;
+  font-size: 0.45rem;
+  font-weight: 700;
+  padding: 0 0.15rem;
+  border-radius: 2px;
+  line-height: 1.3;
+  color: #fff;
+  pointer-events: none;
+}
+.running-total-badge--unique {
+  background: #3d7a4a;
+}
+.running-total-badge--quizout {
+  background: #15803d;
 }
 
 /* Team status indicators */
