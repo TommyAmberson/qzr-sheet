@@ -315,7 +315,7 @@ function colGroupClass(colIdx: number): string {
       <!-- Question header row -->
       <thead>
         <tr>
-          <th class="col--name sticky-col">Question</th>
+          <th class="col--name sticky-col"></th>
           <th
             v-for="{ col, idx } in displayColumns"
             :key="col.key"
@@ -323,7 +323,7 @@ function colGroupClass(colIdx: number): string {
           >
             {{ col.label }}
           </th>
-          <th class="col--total">Total</th>
+          <th class="col--total col--total-header"></th>
         </tr>
       </thead>
 
@@ -331,10 +331,7 @@ function colGroupClass(colIdx: number): string {
         <template v-for="(team, ti) in teams" :key="team.id">
           <!-- Team header row -->
           <tr :class="['row--team-header', teamColors[ti]]">
-            <td
-              class="col--name sticky-col team-name"
-              :colspan="displayColumns.length + 2"
-            >
+            <td class="col--name sticky-col team-name">
               {{ team.name }}
               <span
                 class="on-time"
@@ -345,6 +342,12 @@ function colGroupClass(colIdx: number): string {
                 <span class="on-time-label">on time</span>
               </span>
             </td>
+            <td
+              v-for="{ col } in displayColumns"
+              :key="col.key"
+              class="team-header-spacer"
+            ></td>
+            <td class="col--name team-score-label">Score</td>
           </tr>
 
           <!-- Quizzer rows -->
@@ -368,11 +371,11 @@ function colGroupClass(colIdx: number): string {
             >
               {{ cellDisplay[cells[ti][qi][idx]] }}
             </td>
-            <!-- Team total spans all quizzer rows + running total row -->
+            <!-- Team total spans quizzer rows only -->
             <td
               v-if="qi === 0"
               :class="['col--total', 'team-total-value', { 'cell--invalid': teamHasErrors(ti) }]"
-              :rowspan="team.quizzers.length + 1"
+              :rowspan="team.quizzers.length"
             >
               {{ scoring[ti]?.total ?? 0 }}
             </td>
@@ -380,7 +383,7 @@ function colGroupClass(colIdx: number): string {
 
           <!-- Team running total row -->
           <tr class="row--team-total">
-            <td class="col--name sticky-col">Running Total</td>
+            <td class="col--name sticky-col"></td>
             <td
               v-for="{ col, idx } in displayColumns"
               :key="col.key"
@@ -388,7 +391,7 @@ function colGroupClass(colIdx: number): string {
             >
               {{ scoring[ti]?.runningTotals[idx] ?? '' }}
             </td>
-            <!-- total cell already covered by rowspan above -->
+            <td class="running-total-spacer"></td>
           </tr>
         </template>
       </tbody>
@@ -396,7 +399,7 @@ function colGroupClass(colIdx: number): string {
       <!-- No-jump row at bottom -->
       <tfoot>
         <tr class="row--no-jump">
-          <td class="col--name sticky-col">No Jump</td>
+          <td class="col--name sticky-col"></td>
           <td
             v-for="{ col, idx } in displayColumns"
             :key="col.key"
@@ -405,7 +408,7 @@ function colGroupClass(colIdx: number): string {
           >
             {{ noJumps[idx] ? '✗' : '' }}
           </td>
-          <td class="col--total"></td>
+          <td class="col--total no-jump-total"></td>
         </tr>
       </tfoot>
     </table>
@@ -554,7 +557,7 @@ function colGroupClass(colIdx: number): string {
 
 .scoresheet th,
 .scoresheet td {
-  border: 1px solid #c4bfa6;
+  border: 1px solid #a09a85;
   padding: 0.25rem 0.4rem;
   text-align: center;
   min-width: 2rem;
@@ -582,6 +585,10 @@ function colGroupClass(colIdx: number): string {
   font-weight: 600;
   background: #ddd8c4;
 }
+.col--total-header {
+  background: transparent !important;
+  border: none !important;
+}
 
 /* Column group shading */
 .col--ab {
@@ -590,6 +597,12 @@ function colGroupClass(colIdx: number): string {
 
 .col--overtime {
   background-color: #fdf2f811;
+}
+
+/* Question header row — empty name cell blends with background */
+thead .col--name {
+  background: transparent !important;
+  border: none !important;
 }
 
 /* Question header */
@@ -639,8 +652,24 @@ function colGroupClass(colIdx: number): string {
 
 /* Team header row */
 .row--team-header {
-  background: #2d2a1e;
+  background: transparent;
   color: #f5f5f0;
+}
+.team-header-spacer {
+  background: transparent !important;
+  border: none !important;
+}
+.team-score-label {
+  background: transparent !important;
+  color: #2d2a1e;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-align: center !important;
+  border: none !important;
+}
+.running-total-spacer {
+  background: transparent !important;
+  border: none !important;
 }
 .row--team-header .team-name {
   font-weight: 700;
@@ -649,6 +678,7 @@ function colGroupClass(colIdx: number): string {
   color: #f5f5f0;
   text-align: left;
   padding-left: 0.5rem;
+  border-radius: 4px;
 }
 .row--team-header .team-name::before {
   content: '';
@@ -677,19 +707,17 @@ function colGroupClass(colIdx: number): string {
 
 /* Team total row */
 .row--team-total {
-  background: #e8e4d4;
+  background: transparent;
   font-weight: 600;
   font-size: 0.75rem;
-  color: #2d2a1e;
+  color: #57534e;
+}
+.row--team-total td {
+  background: transparent !important;
+  border: none !important;
 }
 .row--team-total .sticky-col {
-  background: #e8e4d4;
-}
-.row--team-total .cell--total.col--ab {
-  background: #e4dfc8;
-}
-.row--team-total .cell--total.col--overtime {
-  background: #e4dfc8;
+  background: transparent;
 }
 .team-total-value {
   font-size: 0.9rem;
@@ -730,11 +758,15 @@ function colGroupClass(colIdx: number): string {
 
 /* No-jump row */
 .row--no-jump {
-  border-top: 3px solid #2d2a1e;
+  border-top: none;
 }
 .row--no-jump .sticky-col {
-  font-weight: 600;
-  color: #57534e;
+  background: transparent !important;
+  border: none !important;
+}
+.no-jump-total {
+  background: transparent !important;
+  border: none !important;
 }
 .cell--no-jump {
   cursor: pointer;
