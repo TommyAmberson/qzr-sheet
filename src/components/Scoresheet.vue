@@ -1,27 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { CellValue, QuestionType, KEY_TO_IDX } from '../types/scoresheet'
+import { CellValue, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
-import {
-  anyTeamHasValue as _anyTeamHasValue,
-  colHasAnyContent as _colHasAnyContent,
-  isBonusSituation,
-} from '../scoring/helpers'
 
-const { columns, quiz, teams, quizzers, cells, noJumps, scoring, setCell, toggleNoJump, store } = useScoresheet()
-
-/** Quizzers per team, indexed by team position (teams already sorted by seatOrder) */
-const teamQuizzers = computed(() =>
-  teams.value.map((team) => store.quizzersByTeam(team.id)),
-)
+const {
+  columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
+  isBonusForTeam, isGreyedOut, isInvalid, isAfterOut, isFouledOnQuestion,
+  teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
+  visibleColumns, allQuestionsComplete,
+  validationErrors,
+} = useScoresheet()
 
 /** Active cell selector state */
 const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
-
-/** Check if a column is a bonus situation for a given team */
-function isBonusForTeam(teamIdx: number, colIdx: number): boolean {
-  return isBonusSituation(tossedUpSet.value, teamIdx, colIdx, teams.value.length)
-}
 
 const bonusOptions = [
   { value: CellValue.Bonus, label: 'B', cls: 'opt--bonus' },
@@ -72,107 +63,6 @@ function closeSelector() {
   selector.value = null
 }
 
-import { computeGreyedOut } from '../scoring/greyedOut'
-import { validateCells, ValidationCode } from '../scoring/validation'
-
-const greyedOutResult = computed(() => computeGreyedOut(cells.value, columns))
-const greyedOut = computed(() => greyedOutResult.value.disabled)
-const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
-const fouledQuizzers = computed(() => greyedOutResult.value.fouledQuizzers)
-
-const validationErrors = computed(() => validateCells(cells.value, columns, greyedOutResult.value, noJumps.value))
-
-/** Check if a cell should be greyed out */
-function isGreyedOut(teamIdx: number, colIdx: number): boolean {
-  return greyedOut.value.has(`${teamIdx}:${colIdx}`)
-}
-
-/** Check if a cell has validation errors */
-function isInvalid(ti: number, qi: number, ci: number): boolean {
-  return validationErrors.value.has(`${ti}:${qi}:${ci}`)
-}
-
-/** Check if a cell is after the quizzer's out column (empty cells greyed) */
-function isAfterOut(ti: number, qi: number, colIdx: number): boolean {
-  const qs = scoring.value[ti]?.quizzers[qi]
-  if (!qs || qs.outAfterCol < 0 || colIdx <= qs.outAfterCol) return false
-  if (cells.value[ti][qi][colIdx] !== CellValue.Empty) return false
-  // Quiz-out: stays on bench, can still answer bonus (B columns or bonus situations)
-  if (qs.quizzedOut && !qs.erroredOut) {
-    if (columns[colIdx]?.type === QuestionType.B || isBonusForTeam(ti, colIdx)) return false
-  }
-  return true
-}
-
-/** Check if a quizzer is blocked from this column due to fouling on the same question */
-function isFouledOnQuestion(ti: number, qi: number, colIdx: number): boolean {
-  return fouledQuizzers.value.has(`${ti}:${qi}:${colIdx}`)
-}
-
-/** Check if a team has any validation errors */
-function teamHasErrors(ti: number): boolean {
-  for (const key of validationErrors.value.keys()) {
-    if (key.startsWith(`${ti}:`)) return true
-  }
-  return false
-}
-
-/** Whether any validation errors exist across the whole sheet */
-const hasAnyErrors = computed(() => validationErrors.value.size > 0)
-
-/** Whether all required questions are resolved */
-const allQuestionsComplete = computed(() => {
-  for (let ci = 0; ci < columns.length; ci++) {
-    const col = columns[ci]!
-    // Skip overtime columns when overtime is off
-    if (col.isOvertime && !quiz.value.overtime) continue
-    // Skip A/B columns that aren't needed
-    if ((col.type === QuestionType.A || col.type === QuestionType.B) && !abColumnNeeded(ci)) continue
-    // Column is complete if it has an answer or is no-jumped
-    if (noJumps.value[ci]) continue
-    if (colAnswerValue(ci) !== CellValue.Empty) continue
-    return false
-  }
-  return true
-})
-
-/** Check if a no-jump column has any answers (conflict) */
-function noJumpHasConflict(colIdx: number): boolean {
-  if (!noJumps.value[colIdx]) return false
-  for (const key of validationErrors.value.keys()) {
-    if (key.endsWith(`:${colIdx}`)) {
-      const codes = validationErrors.value.get(key)
-      if (codes?.includes(ValidationCode.NoJump)) return true
-    }
-  }
-  return false
-}
-
-/** Check if an A/B column is needed (parent has error or column already has answers) */
-function abColumnNeeded(colIdx: number): boolean {
-  if (_colHasAnyContent(cells.value, colIdx)) return true
-
-  const col = columns[colIdx]!
-  if (col.type === QuestionType.A) {
-    const baseIdx = KEY_TO_IDX.get(`${col.number}`)
-    return baseIdx !== undefined && _anyTeamHasValue(cells.value, baseIdx, CellValue.Error)
-  }
-  if (col.type === QuestionType.B) {
-    const aIdx = KEY_TO_IDX.get(`${col.number}A`)
-    return aIdx !== undefined && _anyTeamHasValue(cells.value, aIdx, CellValue.Error)
-  }
-  return false
-}
-
-const visibleColumns = computed(() =>
-  columns.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
-    // Overtime columns: only when overtime enabled
-    if (col.isOvertime) return quiz.value.overtime
-    // A/B sub-columns: only when needed
-    if (col.type === QuestionType.A || col.type === QuestionType.B) return abColumnNeeded(idx)
-    return true
-  }),
-)
 
 /** Columns actually rendered — includes departing columns during shrink animation */
 const displayColumns = ref(visibleColumns.value.map(vc => ({ ...vc, leaving: false })))
@@ -247,17 +137,6 @@ watch(visibleColumns, (curr) => {
     }, 350)
   }
 })
-
-/** Get the answer value for a column (first non-empty, non-foul value) */
-function colAnswerValue(colIdx: number): CellValue {
-  for (const team of cells.value) {
-    for (const row of team) {
-      const v = row[colIdx]
-      if (v !== CellValue.Empty && v !== CellValue.Foul) return v
-    }
-  }
-  return CellValue.Empty
-}
 
 const headerAnswerClass: Record<CellValue, string> = {
   [CellValue.Correct]: 'col--header-correct',
