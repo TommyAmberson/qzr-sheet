@@ -92,8 +92,14 @@ function isInvalid(ti: number, qi: number, ci: number): boolean {
 
 /** Check if a cell is after the quizzer's out column (empty cells greyed) */
 function isAfterOut(ti: number, qi: number, colIdx: number): boolean {
-  const outCol = scoring.value[ti]?.quizzers[qi]?.outAfterCol ?? -1
-  return outCol >= 0 && colIdx > outCol && cells.value[ti][qi][colIdx] === CellValue.Empty
+  const qs = scoring.value[ti]?.quizzers[qi]
+  if (!qs || qs.outAfterCol < 0 || colIdx <= qs.outAfterCol) return false
+  if (cells.value[ti][qi][colIdx] !== CellValue.Empty) return false
+  // Quiz-out: stays on bench, can still answer bonus (B columns or bonus situations)
+  if (qs.quizzedOut && !qs.erroredOut) {
+    if (columns[colIdx]?.type === QuestionType.B || isBonusForTeam(ti, colIdx)) return false
+  }
+  return true
 }
 
 /** Check if a quizzer is blocked from this column due to fouling on the same question */

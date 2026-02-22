@@ -111,9 +111,14 @@ export function validateCells(
         }
 
         // --- Quizzer out ---
-        // Check BEFORE updating counts: if already out, flag non-foul values
-        const isOut = qCorrects[ti]![qi]! >= 4 || qErrorsFouls[ti]![qi]! >= 3
-        if (isOut && v !== CellValue.Foul) {
+        // Check BEFORE updating counts: if already out, flag appropriately
+        const isQuizzedOut = qCorrects[ti]![qi]! >= 4
+        const isErrorFoulOut = qErrorsFouls[ti]![qi]! >= 3
+        if (isErrorFoulOut && v !== CellValue.Foul) {
+          // Error/foul out: must leave, can't answer anything (except fouls)
+          addError(ti, qi, ci, ValidationCode.QuizzerOut)
+        } else if (isQuizzedOut && v !== CellValue.Foul && v !== CellValue.Bonus && v !== CellValue.MissedBonus) {
+          // Quiz out: stays on bench, can still answer bonus (B/MB) but not C/E
           addError(ti, qi, ci, ValidationCode.QuizzerOut)
         }
 

@@ -422,13 +422,47 @@ describe('cell validation', () => {
     expect(hasCode(errors, 0, 0, ci('4'), ValidationCode.QuizzerOut)).toBe(false)
   })
 
-  it('bonus answer after quiz-out is invalid', () => {
+  it('bonus answer after quiz-out is valid (stays on bench)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('1')] = C
     cells[0]![0]![ci('2')] = C
     cells[0]![0]![ci('3')] = C
     cells[0]![0]![ci('4')] = C // quizzed out
-    cells[0]![0]![ci('17B')] = B // should be invalid
+    cells[0]![0]![ci('17B')] = B // stays on bench, can answer bonus
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.QuizzerOut)).toBe(false)
+  })
+
+  it('missed bonus after quiz-out is valid (stays on bench)', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = C
+    cells[0]![0]![ci('2')] = C
+    cells[0]![0]![ci('3')] = C
+    cells[0]![0]![ci('4')] = C // quizzed out
+    cells[0]![0]![ci('17B')] = MB // stays on bench, can attempt bonus
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.QuizzerOut)).toBe(false)
+  })
+
+  it('bonus answer after error-out is invalid (must leave)', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = E
+    cells[0]![0]![ci('2')] = E
+    cells[0]![0]![ci('3')] = E // errored out
+    cells[0]![0]![ci('17B')] = B // must leave, can't answer bonus
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.QuizzerOut)).toBe(true)
+  })
+
+  it('bonus answer after foul-out is invalid (must leave)', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = F
+    cells[0]![0]![ci('2')] = F
+    cells[0]![0]![ci('3')] = F // fouled out
+    cells[0]![0]![ci('17B')] = B // must leave, can't answer bonus
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
     expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.QuizzerOut)).toBe(true)
