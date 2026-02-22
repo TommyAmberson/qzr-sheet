@@ -92,3 +92,11 @@ number just with an 'A' (18A). Similarly, a bonus question would have a 'B'
 * If a numbered question is correct, then the A/B questions are not asked.
 * If an 'A' question is correct, then the 'B' question is not asked.
 
+### Fouls
+
+* Every 3 fouls by a team is -10 pts to the team.
+* 3 fouls by the same quizzer eliminates that quizzer from the quiz. -10 pts to
+  the individual and the team score. (if also third team foul does not stack to
+  -20 pts to the team).
+* The quizzer upon whom a foul is called becomes ineligible to answer that
+  numbered question, including the toss-up or bonus question.
