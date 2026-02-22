@@ -4,8 +4,8 @@ import { mount } from '@vue/test-utils'
 import App from '../App.vue'
 
 describe('App', () => {
-  it('mounts and renders scoresheet', () => {
+  it('mounts renders properly', () => {
     const wrapper = mount(App)
-    expect(wrapper.find('.scoresheet').exists()).toBe(true)
+    expect(wrapper.text()).toContain('You did it!')
   })
 })
