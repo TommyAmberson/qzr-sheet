@@ -173,8 +173,12 @@ export function scoreTeam(
           }
         }
         teamFouls++
-        // Every 3rd team foul: -10
-        if (teamFouls % 3 === 0) {
+
+        // Deduct -10 for every 3rd team foul OR 3rd individual foul (foul-out),
+        // but don't stack if both happen on the same foul
+        const isTeamFoulDeduct = teamFouls % 3 === 0
+        const isFoulOut = !isOvertime && qFoul[qi] === 3
+        if (isTeamFoulDeduct || isFoulOut) {
           colPoints -= 10
         }
       }
@@ -206,6 +210,8 @@ export function scoreTeam(
     let points = correct * 20
     // Quizout without error bonus
     if (quizoutBonus) points += 10
+    // Foul-out penalty: -10 to individual
+    if (fouledOut) points -= 10
 
     quizzers.push({
       points,

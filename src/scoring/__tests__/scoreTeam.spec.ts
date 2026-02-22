@@ -122,6 +122,36 @@ describe('scoreTeam', () => {
     expect(result.total).toBe(-10)
   })
 
+  it('deducts -10 for 3rd individual foul (foul-out) even if not 3rd team foul', () => {
+    const cells = blankCells()
+    cells[1]![colIdx('1')] = F // quizzer 2, team foul 1
+    cells[0]![colIdx('2')] = F // quizzer 1, team foul 2, individual 1
+    cells[0]![colIdx('3')] = F // quizzer 1, team foul 3, individual 2 → team -10
+    cells[0]![colIdx('4')] = F // quizzer 1, team foul 4, individual 3 → foul-out -10
+    const result = scoreTeam(cells, columns, false)
+    expect(result.total).toBe(-20) // -10 for 3rd team + -10 for foul-out
+  })
+
+  it('3rd individual foul deduction does not stack with 3rd team foul deduction', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = F // quizzer 1, team foul 1, individual 1
+    cells[0]![colIdx('2')] = F // quizzer 1, team foul 2, individual 2
+    cells[0]![colIdx('3')] = F // quizzer 1, team foul 3, individual 3 → both 3rd team and foul-out
+    const result = scoreTeam(cells, columns, false)
+    expect(result.total).toBe(-10) // only -10, not -20
+  })
+
+  it('deducts -10 from individual quizzer points on foul-out (3rd foul)', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = C // +20
+    cells[0]![colIdx('2')] = F // foul 1
+    cells[0]![colIdx('3')] = F // foul 2
+    cells[0]![colIdx('4')] = F // foul 3 → foul-out
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.points).toBe(10) // 20 - 10 = 10
+    expect(result.quizzers[0]!.fouledOut).toBe(true)
+  })
+
   it('scores bonus before Q17 as +20', () => {
     const cells = blankCells()
     cells[0]![colIdx('16B')] = B
