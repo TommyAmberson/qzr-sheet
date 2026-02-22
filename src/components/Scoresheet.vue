@@ -547,13 +547,13 @@ function colGroupClass(colIdx: number): string {
 }
 
 .quiz-meta--error {
-  background: #991b1b;
-  color: #fecaca;
+  background: #9e3030;
+  color: #fee2e2;
 }
 
 .quiz-meta--complete {
-  background: #166534;
-  color: #bbf7d0;
+  background: #15803d;
+  color: #dcfce7;
 }
 
 .meta-sep {
@@ -722,7 +722,7 @@ thead .col--name {
 
 /* Question header colours based on answer */
 .col--header-correct {
-  background: #3d7a4a !important;
+  background: #15803d !important;
   color: #fff !important;
 }
 .col--header-error {
@@ -789,7 +789,7 @@ thead .col--name {
   border: 1px solid #78716c;
 }
 .row--team-header.team--red .team-name::before {
-  background: #dc2626;
+  background: #9e3030;
 }
 .row--team-header.team--white .team-name::before {
   background: #f5f5f0;
@@ -907,7 +907,7 @@ thead .col--name {
 
 .cell--correct {
   color: #fff;
-  background-color: #3d7a4a !important;
+  background-color: #15803d !important;
 }
 .cell--error {
   color: #fff;
@@ -987,13 +987,13 @@ thead .col--name {
 }
 
 .cell--invalid {
-  outline: 2px solid #dc2626;
+  outline: 2px solid #ef4444;
   outline-offset: -2px;
   animation: pulse-invalid 1.5s ease-in-out infinite;
 }
 @keyframes pulse-invalid {
-  0%, 100% { outline-color: #dc2626; }
-  50% { outline-color: #f87171; }
+  0%, 100% { outline-color: #ef4444; }
+  50% { outline-color: #fca5a5; }
 }
 
 /* Running total badges */
@@ -1010,7 +1010,7 @@ thead .col--name {
   pointer-events: none;
 }
 .running-total-badge--unique {
-  background: #3d7a4a;
+  background: #15803d;
 }
 .running-total-badge--quizout {
   background: #15803d;
@@ -1058,11 +1058,11 @@ thead .col--name {
   color: #fff;
 }
 .stat-badge--quizout {
-  background: #3d7a4a;
+  background: #15803d;
 }
 .stat-badge--quizout-bonus {
   background: #15803d;
-  box-shadow: 0 0 0 2px #bbf7d0;
+  box-shadow: 0 0 0 2px #dcfce7;
 }
 .stat-badge--errorout {
   background: #9e3030;
@@ -1071,7 +1071,7 @@ thead .col--name {
   background: #b86e30;
 }
 .stat-badge--unique {
-  background: #3d7a4a;
+  background: #15803d;
   border-radius: 4px;
   width: auto;
   padding: 0 0.3rem;
@@ -1087,15 +1087,15 @@ thead .col--name {
   line-height: 1.2;
 }
 .stat-count--correct {
-  color: #166534;
+  color: #15803d;
   background: #dcfce7;
 }
 .stat-count--error {
-  color: #991b1b;
+  color: #9e3030;
   background: #fee2e2;
 }
 .stat-count--foul {
-  color: #92400e;
+  color: #b86e30;
   background: #fef3c7;
 }
 
@@ -1142,10 +1142,10 @@ thead .col--name {
 }
 
 .opt--correct {
-  color: #3d7a4a;
+  color: #15803d;
 }
 .opt--correct:hover {
-  background: #3d7a4a;
+  background: #15803d;
   color: #fff;
 }
 .opt--error {
