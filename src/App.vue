@@ -1,29 +1,11 @@
-<script setup lang="ts">
-import Scoresheet from '@/components/Scoresheet.vue'
-</script>
+<script setup lang="ts"></script>
 
 <template>
-  <Scoresheet />
+  <h1>You did it!</h1>
+  <p>
+    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
+    documentation
+  </p>
 </template>
 
-<style>
-*,
-*::before,
-*::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family:
-    'Inter',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  overflow: hidden;
-}
-</style>
+<style scoped></style>
