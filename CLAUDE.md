@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+slight preference to writing tests before features.
+
 ## 🏗️ Tech Stack
 
 **Tauri 2 + Vue 3 + Vite**
@@ -61,3 +63,40 @@ which is the same as saying:
 - 1st: score/10 with min of 10
 - 2nd: score/10 - 1 with min of 5
 - 3rd: score/10 - 3 with min of 1
+
+## 📋 Other rules
+
+### Toss-up and Bonus Questions
+
+If a quizzer gets a question incorrect, the quizzers on that team cannot jump
+on the next question. This is called a "toss-up" question. If a quizzer (on a
+different team) gets a toss-up question correct, then all three teams can jump
+on the next question. If a quizzer gets a toss-up question incorrect, then that
+team cannot jump on the next question either. This leaves only one team and is
+called a 'bonus' question ('b'/'mb').
+
+### A/B Questions
+
+From question 17 onwards, error points apply even for the first error, and
+bonuses are worth 10 points instead of 20.
+
+Questions 17-20 all must have all three teams jumping. This means that if a
+quizzer gets a question wrong (say on question 18), the tossup is the same
+number just with an 'A' (18A). Similarly, a bonus question would have a 'B'
+(18B). This ensures that all three teams can jump on the next numbered question
+(question 19 in this example). Because this starts with question 17, question
+16 can also have A/B parts to ensure that 17 can have all three teams jumping
+(is not a toss-up or bonus).
+
+* All of questions 16-20 can have A/B parts, but only 17-20 have the new scoring rules.
+* If a numbered question is correct, then the A/B questions are not asked.
+* If an 'A' question is correct, then the 'B' question is not asked.
+
+### Fouls
+
+* Every 3 fouls by a team is -10 pts to the team.
+* 3 fouls by the same quizzer eliminates that quizzer from the quiz. -10 pts to
+  the individual and the team score. (if also third team foul does not stack to
+  -20 pts to the team).
+* The quizzer upon whom a foul is called becomes ineligible to answer that
+  numbered question, including the toss-up or bonus question.

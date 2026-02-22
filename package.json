@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "tauri": "WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 tauri",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "test:unit": "vitest",
@@ -13,8 +14,6 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
-    "ag-grid-community": "^35.1.0",
-    "ag-grid-vue3": "^35.1.0",
     "vue": "^3.5.28"
   },
   "devDependencies": {

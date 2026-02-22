@@ -8,12 +8,6 @@ importers:
 
   .:
     dependencies:
-      ag-grid-community:
-        specifier: ^35.1.0
-        version: 35.1.0
-      ag-grid-vue3:
-        specifier: ^35.1.0
-        version: 35.1.0(vue@3.5.28(typescript@5.9.3))
       vue:
         specifier: ^3.5.28
         version: 3.5.28(typescript@5.9.3)
@@ -825,17 +819,6 @@ packages:
   abbrev@2.0.0:
     resolution: {integrity: sha512-6/mh1E2u2YgEsCHdY0Yx5oW+61gZU+1vXaoiHHrpKeuRNNgFvS+/jrwHiQhB5apAf5oB7UB7E19ol2R2LKH8hQ==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
-
-  ag-charts-types@13.1.0:
-    resolution: {integrity: sha512-DytRM3CXli+Y013SC1Mr8lQBrhVTACK+11ilDHOhwUM0sRpmGuR51XFGcBKOliW1Vas1AycP31Cm3Pp0jx3hqw==}
-
-  ag-grid-community@35.1.0:
-    resolution: {integrity: sha512-yWFQfRNjv3KUBkHHzFdDOYGjPcDMU0B8Up4qG651diFlGRUGEGVs94SK73niWvk1FDZdpV9oWrwq3f30/qAoVg==}
-
-  ag-grid-vue3@35.1.0:
-    resolution: {integrity: sha512-BvM7yrFxRB/r5hZ4xSyE6T2lU2Rj+Ls6RH5tTu/n8DmhCTmLj4QCEkoU7EuaE0/Az3uEHOubYMaCX4jcDf181A==}
-    peerDependencies:
-      vue: ^3.5.0
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -2399,17 +2382,6 @@ snapshots:
       vue: 3.5.28(typescript@5.9.3)
 
   abbrev@2.0.0: {}
-
-  ag-charts-types@13.1.0: {}
-
-  ag-grid-community@35.1.0:
-    dependencies:
-      ag-charts-types: 13.1.0
-
-  ag-grid-vue3@35.1.0(vue@3.5.28(typescript@5.9.3)):
-    dependencies:
-      ag-grid-community: 35.1.0
-      vue: 3.5.28(typescript@5.9.3)
 
   agent-base@7.1.4: {}
 
