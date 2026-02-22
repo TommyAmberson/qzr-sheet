@@ -231,6 +231,33 @@ watch(visibleColumns, (curr) => {
   }
 })
 
+/** Get the answer value for a column (first non-empty, non-foul value) */
+function colAnswerValue(colIdx: number): CellValue {
+  for (const team of cells.value) {
+    for (const row of team) {
+      const v = row[colIdx]
+      if (v !== CellValue.Empty && v !== CellValue.Foul) return v
+    }
+  }
+  return CellValue.Empty
+}
+
+const headerAnswerClass: Record<CellValue, string> = {
+  [CellValue.Correct]: 'col--header-correct',
+  [CellValue.Error]: 'col--header-error',
+  [CellValue.Foul]: '',
+  [CellValue.Bonus]: 'col--header-bonus',
+  [CellValue.MissedBonus]: 'col--header-missed-bonus',
+  [CellValue.Empty]: '',
+}
+
+function headerClass(colIdx: number): string {
+  const answer = headerAnswerClass[colAnswerValue(colIdx)]
+  if (answer) return answer
+  if (noJumps.value[colIdx]) return 'col--header-no-jump'
+  return ''
+}
+
 /** Column CSS class for visual grouping */
 function colGroupClass(colIdx: number): string {
   const col = columns[colIdx]
@@ -271,7 +298,7 @@ function colGroupClass(colIdx: number): string {
           <th
             v-for="{ col, idx } in displayColumns"
             :key="col.key"
-            :class="['col--question', colGroupClass(idx)]"
+            :class="['col--question', colGroupClass(idx), headerClass(idx)]"
           >
             {{ col.label }}
           </th>
@@ -518,11 +545,11 @@ function colGroupClass(colIdx: number): string {
 
 /* Column group shading */
 .col--ab {
-  background-color: #fefce8aa;
+  background-color: #fefce811;
 }
 
 .col--overtime {
-  background-color: #fdf2f8aa;
+  background-color: #fdf2f811;
 }
 
 /* Question header */
@@ -533,12 +560,41 @@ function colGroupClass(colIdx: number): string {
   font-size: 0.75rem;
 }
 .col--question.col--ab {
-  background: #854d0e;
-  color: #fef9c3;
+  background: #4a5568;
+  color: #f1f5f9;
+  border-bottom: 2px solid #854d0e;
 }
 .col--question.col--overtime {
-  background: #9d174d;
-  color: #fce7f3;
+  background: #4a5568;
+  color: #f1f5f9;
+  border-bottom: 2px solid #9d174d;
+}
+
+/* Question header colours based on answer */
+.col--header-correct {
+  background: #15803d !important;
+  color: #f0fdf4 !important;
+}
+.col--header-error {
+  background: #b91c1c !important;
+  color: #fef2f2 !important;
+}
+.col--header-bonus {
+  background: #0d9488 !important;
+  color: #f0fdfa !important;
+}
+.col--header-missed-bonus {
+  background: #64748b !important;
+  color: #f1f5f9 !important;
+}
+.col--header-no-jump {
+  background: repeating-linear-gradient(
+    -45deg,
+    #475569,
+    #475569 3px,
+    #3b4a5c 3px,
+    #3b4a5c 6px
+  ) !important;
 }
 
 /* Team header row */
@@ -674,20 +730,20 @@ function colGroupClass(colIdx: number): string {
 }
 
 .cell--correct {
-  color: #16a34a;
-  background-color: #dcfce7 !important;
+  color: #15803d;
+  background-color: #f0fdf4 !important;
 }
 .cell--error {
-  color: #dc2626;
-  background-color: #fee2e2 !important;
+  color: #b91c1c;
+  background-color: #fef2f2 !important;
 }
 .cell--foul {
   color: #ea580c;
   background-color: #ffedd5 !important;
 }
 .cell--bonus {
-  color: #2563eb;
-  background-color: #dbeafe !important;
+  color: #0d9488;
+  background-color: #ccfbf1 !important;
 }
 .cell--missed-bonus {
   color: #64748b;
@@ -806,16 +862,16 @@ function colGroupClass(colIdx: number): string {
 }
 
 .opt--correct {
-  color: #16a34a;
+  color: #15803d;
 }
 .opt--correct:hover {
-  background: #dcfce7;
+  background: #f0fdf4;
 }
 .opt--error {
-  color: #dc2626;
+  color: #b91c1c;
 }
 .opt--error:hover {
-  background: #fee2e2;
+  background: #fef2f2;
 }
 .opt--foul {
   color: #ea580c;
@@ -824,10 +880,10 @@ function colGroupClass(colIdx: number): string {
   background: #ffedd5;
 }
 .opt--bonus {
-  color: #2563eb;
+  color: #0d9488;
 }
 .opt--bonus:hover {
-  background: #dbeafe;
+  background: #ccfbf1;
 }
 .opt--missed-bonus {
   color: #64748b;
