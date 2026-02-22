@@ -9,7 +9,7 @@ A digital scoresheet for Quizmeet tournaments. Replaces paper sheets and spreads
 - [x] Native dev environment (`pnpm tauri dev`)
 
 ### Phase 1: Core UI
-- [ ] AG-Grid layout matching screenshot
+- [ ] Table layout matching screenshot
 - [ ] Templated result cells (C/E/F)
 - [ ] Live scoring calculations
 - [ ] Question highlighting (complete etc.)
