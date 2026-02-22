@@ -3,7 +3,12 @@ import { computed, ref, watch } from 'vue'
 import { CellValue, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 
-const { columns, teams, cells, noJumps, quizMeta, scoring, setCell, toggleNoJump, columnGroups } = useScoresheet()
+const { columns, quiz, teams, quizzers, cells, noJumps, scoring, setCell, toggleNoJump, store } = useScoresheet()
+
+/** Quizzers per team, indexed by team position (teams already sorted by seatOrder) */
+const teamQuizzers = computed(() =>
+  teams.value.map((team) => store.quizzersByTeam(team.id)),
+)
 
 /** Active cell selector state */
 const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
@@ -123,7 +128,7 @@ const allQuestionsComplete = computed(() => {
   for (let ci = 0; ci < columns.length; ci++) {
     const col = columns[ci]!
     // Skip overtime columns when overtime is off
-    if (col.isOvertime && !quizMeta.value.overtime) continue
+    if (col.isOvertime && !quiz.value.overtime) continue
     // Skip A/B columns that aren't needed
     if ((col.type === QuestionType.A || col.type === QuestionType.B) && !abColumnNeeded(ci)) continue
     // Column is complete if it has an answer or is no-jumped
@@ -187,7 +192,7 @@ function abColumnNeeded(colIdx: number): boolean {
 const visibleColumns = computed(() =>
   columns.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
     // Overtime columns: only when overtime enabled
-    if (col.isOvertime) return quizMeta.value.overtime
+    if (col.isOvertime) return quiz.value.overtime
     // A/B sub-columns: only when needed
     if (col.type === QuestionType.A || col.type === QuestionType.B) return abColumnNeeded(idx)
     return true
@@ -314,16 +319,16 @@ function colGroupClass(colIdx: number): string {
     <div :class="['quiz-meta', { 'quiz-meta--error': hasAnyErrors, 'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors }]">
       <label class="meta-field">
         <span class="meta-label">Division</span>
-        <input v-model.number="quizMeta.division" type="number" min="1" />
+        <input v-model.number="quiz.division" type="number" min="1" />
       </label>
       <span class="meta-sep">·</span>
       <label class="meta-field">
         <span class="meta-label">Quiz</span>
-        <input v-model.number="quizMeta.quizNumber" type="number" min="1" />
+        <input v-model.number="quiz.quizNumber" type="number" min="1" />
       </label>
       <span class="meta-sep">·</span>
       <label class="meta-field meta-field--toggle">
-        <input v-model="quizMeta.overtime" type="checkbox" />
+        <input v-model="quiz.overtime" type="checkbox" />
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
         <span class="meta-label">Overtime</span>
       </label>
@@ -382,7 +387,7 @@ function colGroupClass(colIdx: number): string {
 
           <!-- Quizzer rows -->
           <tr
-            v-for="(quizzer, qi) in team.quizzers"
+            v-for="(quizzer, qi) in teamQuizzers[ti]"
             :key="quizzer.id"
             :class="[
               'row--quizzer',
@@ -444,7 +449,7 @@ function colGroupClass(colIdx: number): string {
             <td
               v-if="qi === 0"
               :class="['col--total', 'team-total-value', { 'cell--invalid': teamHasErrors(ti) }]"
-              :rowspan="team.quizzers.length"
+              :rowspan="teamQuizzers[ti]?.length ?? 5"
             >
               {{ scoring[ti]?.total ?? 0 }}
             </td>

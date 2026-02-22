@@ -1,74 +1,53 @@
-import { ref, computed } from 'vue'
-import { CellValue, buildColumns, type Team, type Column, type QuizMeta } from '../types/scoresheet'
+import { ref, computed, triggerRef } from 'vue'
+import { CellValue, COLUMNS, type Quiz, type Team, type Quizzer } from '../types/scoresheet'
+import { createQuizStore } from '../stores/quizStore'
 import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
 
-/** Create a blank cell grid for a team's quizzers */
-function blankCells(quizzerCount: number, columns: Column[]): CellValue[][] {
-  return Array.from({ length: quizzerCount }, () => columns.map(() => CellValue.Empty))
-}
-
-function createDefaultTeams(): Team[] {
-  return [1, 2, 3].map((id) => ({
-    id,
-    name: `Team ${id}`,
-    onTime: true,
-    timeouts: [],
-    quizzers: Array.from({ length: 5 }, (_, i) => ({
-      id: (id - 1) * 5 + i + 1,
-      name: `Quizzer ${i + 1}`,
-      teamId: id,
-    })),
-  }))
-}
-
 export function useScoresheet() {
-  const columns = buildColumns()
-  const teams = ref<Team[]>(createDefaultTeams())
-  const noJumps = ref<boolean[]>(columns.map(() => false))
-  const quizMeta = ref<QuizMeta>({
-    division: 1,
-    quizNumber: 1,
-    overtime: false,
-  })
+  const store = createQuizStore()
+  const columns = COLUMNS
 
-  // cells[teamIndex][quizzerIndex][colIndex] = CellValue
-  const cells = ref<CellValue[][][]>(
-    teams.value.map((t) => blankCells(t.quizzers.length, columns)),
+  // --- Reactive wrappers around store data ---
+  // The store is plain objects; we wrap in refs so Vue tracks changes.
+
+  const quiz = ref<Quiz>(store.quiz)
+  const noJumps = ref<boolean[]>(store.noJumps)
+
+  // Bump this to force recomputation of cells/scoring after answer changes
+  const answerVersion = ref(0)
+
+  /** Teams sorted by seat order — this is the canonical iteration order */
+  const teams = computed<Team[]>(() =>
+    [...store.teams].sort((a, b) => a.seatOrder - b.seatOrder),
   )
 
-  /** Get a cell value with bounds checking */
-  function getCell(teamIdx: number, quizzerIdx: number, colIdx: number): CellValue {
-    return cells.value[teamIdx]?.[quizzerIdx]?.[colIdx] ?? CellValue.Empty
-  }
+  /** All quizzers (flat list) */
+  const quizzers = computed<Quizzer[]>(() => store.quizzers)
 
-  /** Set a cell value */
+  /** Derived cell grid — recomputes when answerVersion changes */
+  const cells = computed<CellValue[][][]>(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    answerVersion.value // reactive dependency
+    return store.cellGrid()
+  })
+
+  /** Set a cell value using positional indices (for UI compatibility) */
   function setCell(teamIdx: number, quizzerIdx: number, colIdx: number, value: CellValue) {
-    const teamCells = cells.value[teamIdx]
-    if (teamCells?.[quizzerIdx]) {
-      teamCells[quizzerIdx][colIdx] = value
-    }
-  }
-
-  /** Cycle through cell values on click */
-  function cycleCell(teamIdx: number, quizzerIdx: number, colIdx: number) {
-    const current = getCell(teamIdx, quizzerIdx, colIdx)
-    const cycle: CellValue[] = [
-      CellValue.Empty,
-      CellValue.Correct,
-      CellValue.Error,
-      CellValue.Foul,
-      CellValue.Bonus,
-      CellValue.MissedBonus,
-    ]
-    const idx = cycle.indexOf(current)
-    const next = cycle[(idx + 1) % cycle.length]!
-    setCell(teamIdx, quizzerIdx, colIdx, next)
+    const team = teams.value[teamIdx]
+    if (!team) return
+    const qzrs = store.quizzersByTeam(team.id)
+    const qzr = qzrs[quizzerIdx]
+    const col = columns[colIdx]
+    if (!qzr || !col) return
+    store.setAnswer(qzr.id, col.key, value)
+    answerVersion.value++
   }
 
   /** Live scoring for all teams */
-  const scoring = computed<TeamScoring[]>(() =>
-    teams.value.map((team, ti) => scoreTeam(cells.value[ti]!, columns, team.onTime)),
-  )
+  const scoring = computed<TeamScoring[]>(() => {
+    const grid = cells.value
+    return teams.value.map((team, ti) => scoreTeam(grid[ti]!, columns, team.onTime))
+  })
 
   /** Column index ranges for visual grouping */
   const columnGroups = computed(() => {
@@ -85,19 +64,21 @@ export function useScoresheet() {
 
   /** Toggle no-jump for a column */
   function toggleNoJump(colIdx: number) {
-    noJumps.value[colIdx] = !noJumps.value[colIdx]
+    store.toggleNoJump(colIdx)
+    triggerRef(noJumps)
   }
 
   return {
     columns,
+    quiz,
     teams,
+    quizzers,
     cells,
     noJumps,
-    quizMeta,
     scoring,
     setCell,
-    cycleCell,
     toggleNoJump,
     columnGroups,
+    store,
   }
 }
