@@ -1,9 +1,140 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CellValue } from '../types/scoresheet'
+import { CellValue, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 
 const { columns, teams, cells, noJumps, quizMeta, scoring, cycleCell, toggleNoJump, columnGroups } = useScoresheet()
+
+/**
+ * Determine which cells are greyed out.
+ * Returns a Set of "teamIdx:colIdx" keys that should be disabled.
+ */
+const greyedOut = computed(() => {
+  const disabled = new Set<string>()
+  const teamCount = teams.value.length
+
+  // Helper: does any quizzer on any team have a specific value at a column?
+  function anyTeamHasValue(colIdx: number, value: CellValue): boolean {
+    for (let ti = 0; ti < teamCount; ti++) {
+      for (const row of cells.value[ti]!) {
+        if (row[colIdx] === value) return true
+      }
+    }
+    return false
+  }
+
+  // Helper: does any quizzer on a specific team have a value at a column?
+  function teamHasValue(teamIdx: number, colIdx: number, value: CellValue): boolean {
+    for (const row of cells.value[teamIdx]!) {
+      if (row[colIdx] === value) return true
+    }
+    return false
+  }
+
+  // Helper: does any quizzer on a specific team have an answer (not foul) at a column?
+  function teamHasAnswer(teamIdx: number, colIdx: number): boolean {
+    for (const row of cells.value[teamIdx]!) {
+      const v = row[colIdx]
+      if (v !== CellValue.Empty && v !== CellValue.Foul) return true
+    }
+    return false
+  }
+
+  // Helper: does any quizzer on a specific team have a foul at a column?
+  function teamHasFoul(teamIdx: number, colIdx: number): boolean {
+    for (const row of cells.value[teamIdx]!) {
+      if (row[colIdx] === CellValue.Foul) return true
+    }
+    return false
+  }
+
+  // Helper: does any team have an answer (C/E/B/MB, not foul) at a column?
+  function anyTeamHasAnswer(colIdx: number): boolean {
+    for (let ti = 0; ti < teamCount; ti++) {
+      if (teamHasAnswer(ti, colIdx)) return true
+    }
+    return false
+  }
+
+  // Helper: grey out all teams at a column
+  function greyAllTeams(colIdx: number) {
+    for (let ti = 0; ti < teamCount; ti++) {
+      disabled.add(`${ti}:${colIdx}`)
+    }
+  }
+
+  // Build a map from column key to column index for quick lookup
+  const keyToIdx = new Map<string, number>()
+  columns.forEach((col, i) => keyToIdx.set(col.key, i))
+
+  for (let ci = 0; ci < columns.length; ci++) {
+    const col = columns[ci]!
+
+    // 1. If a question has an answer (C/E/B/MB), it's done — grey out all teams
+    //    on that column. Fouls don't count (question is re-asked).
+    if (anyTeamHasAnswer(ci)) {
+      greyAllTeams(ci)
+    }
+
+    // 2. If a base question (Normal) was answered (C/E/B/MB), grey out A and B
+    if (col.type === QuestionType.Normal && col.isAB) {
+      if (anyTeamHasAnswer(ci)) {
+        const aIdx = keyToIdx.get(`${col.number}A`)
+        const bIdx = keyToIdx.get(`${col.number}B`)
+        if (aIdx !== undefined) greyAllTeams(aIdx)
+        if (bIdx !== undefined) greyAllTeams(bIdx)
+      }
+    }
+
+    // 3. If an A question was answered (C/E/B/MB), grey out B
+    if (col.type === QuestionType.A) {
+      if (anyTeamHasAnswer(ci)) {
+        const bIdx = keyToIdx.get(`${col.number}B`)
+        if (bIdx !== undefined) greyAllTeams(bIdx)
+      }
+    }
+
+    // 4. Fouls: no greying — question is re-asked, any quizzer can still jump
+
+    // 5. Toss-up: if a team had an error on this column, grey out the
+    //    NEXT question column for that team
+    for (let ti = 0; ti < teamCount; ti++) {
+      if (teamHasValue(ti, ci, CellValue.Error)) {
+        // Find the next question column
+        let nextColIdx: number | undefined
+
+        if (col.isAB) {
+          // For A/B-eligible questions:
+          // Error on Normal → next is A of same number
+          // Error on A → next is B of same number
+          // Error on B → next numbered question's Normal
+          if (col.type === QuestionType.Normal) {
+            nextColIdx = keyToIdx.get(`${col.number}A`)
+          } else if (col.type === QuestionType.A) {
+            nextColIdx = keyToIdx.get(`${col.number}B`)
+          } else {
+            // B — find next numbered question
+            nextColIdx = keyToIdx.get(`${col.number + 1}`)
+          }
+        } else {
+          // Normal questions (1-15): next is just the next number
+          nextColIdx = keyToIdx.get(`${col.number + 1}`)
+        }
+
+        if (nextColIdx !== undefined) {
+          disabled.add(`${ti}:${nextColIdx}`)
+        }
+      }
+    }
+  }
+
+  return disabled
+})
+
+/** Check if a cell should be greyed out */
+function isGreyedOut(teamIdx: number, colIdx: number): boolean {
+  return greyedOut.value.has(`${teamIdx}:${colIdx}`)
+}
 
 const visibleColumns = computed(() =>
   columns.map((col, i) => ({ col, idx: i })).filter(({ col }) => !col.isOvertime || quizMeta.value.overtime),
@@ -108,6 +239,7 @@ function colGroupClass(colIdx: number): string {
                 'cell',
                 cellClass[cells[ti][qi][idx]],
                 colGroupClass(idx),
+                { 'cell--greyed': isGreyedOut(ti, idx) && cells[ti][qi][idx] === '' },
               ]"
               @click="cycleCell(ti, qi, idx)"
             >
@@ -443,8 +575,8 @@ function colGroupClass(colIdx: number): string {
   background-color: #fee2e2 !important;
 }
 .cell--foul {
-  color: #9333ea;
-  background-color: #f3e8ff !important;
+  color: #ea580c;
+  background-color: #ffedd5 !important;
 }
 .cell--bonus {
   color: #2563eb;
@@ -453,5 +585,14 @@ function colGroupClass(colIdx: number): string {
 .cell--missed-bonus {
   color: #ea580c;
   background-color: #ffedd5 !important;
+}
+
+.cell--greyed {
+  background-color: #e2e8f0 !important;
+  cursor: default;
+  opacity: 0.5;
+}
+.cell--greyed:hover {
+  outline: none;
 }
 </style>
