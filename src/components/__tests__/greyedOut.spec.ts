@@ -196,4 +196,85 @@ describe('greyed-out logic', () => {
     expect(isGreyed(result, 1, ci('18'))).toBe(false)
     expect(isGreyed(result, 2, ci('18'))).toBe(false)
   })
+
+  // --- Q16 special cases ---
+
+  it('Q15 error → Q16 is toss-up, Q16 error → Q16A is bonus, Q16B not asked', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('15')] = E // team 0 errors on Q15
+    cells[1]![0]![ci('16')] = E // team 1 errors on Q16 (toss-up)
+    const result = computeGreyedOut(cells, columns)
+    // Q16: team 0 was greyed (toss-up from Q15 error)
+    expect(isGreyed(result, 0, ci('16'))).toBe(true)
+    // Q16A: team 0 carried forward + team 1 error → bonus for team 2
+    expect(isGreyed(result, 0, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16A'))).toBe(false)
+    expect(isBonusFor(result, 2, ci('16A'))).toBe(true)
+  })
+
+  it('Q16A bonus answered → Q16B not asked', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('15')] = E // team 0 errors on Q15
+    cells[1]![0]![ci('16')] = E // team 1 errors on Q16 (toss-up)
+    cells[2]![0]![ci('16A')] = B // team 2 gets bonus on Q16A
+    const result = computeGreyedOut(cells, columns)
+    // Q16A is done
+    expect(isGreyed(result, 0, ci('16A'))).toBe(true)
+    // Q16B: greyed for all (A was answered correctly via bonus)
+    expect(isGreyed(result, 0, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16B'))).toBe(true)
+  })
+
+  it('Q16A bonus missed → Q16B not asked', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('15')] = E // team 0 errors on Q15
+    cells[1]![0]![ci('16')] = E // team 1 errors on Q16 (toss-up)
+    cells[2]![0]![ci('16A')] = MB // team 2 misses bonus on Q16A
+    const result = computeGreyedOut(cells, columns)
+    // Q16B: greyed for all — bonus was the last chance
+    expect(isGreyed(result, 0, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16B'))).toBe(true)
+  })
+
+  it('Q16 is already a bonus (Q14+Q15 error chain) → Q16A and Q16B not asked', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('14')] = E // team 0 errors on Q14
+    cells[1]![0]![ci('15')] = E // team 1 errors on Q15 (toss-up from Q14)
+    // Q16: team 0 + team 1 greyed → bonus for team 2
+    const result = computeGreyedOut(cells, columns)
+    expect(isBonusFor(result, 2, ci('16'))).toBe(true)
+    // Q16A and Q16B: not asked since Q16 is a bonus
+    // (they should be greyed once Q16 is answered)
+  })
+
+  it('Q16 bonus answered → Q16A and Q16B greyed', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('14')] = E
+    cells[1]![0]![ci('15')] = E
+    cells[2]![0]![ci('16')] = B // team 2 gets Q16 bonus
+    const result = computeGreyedOut(cells, columns)
+    expect(isGreyed(result, 0, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 0, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16B'))).toBe(true)
+  })
+
+  it('Q16 bonus missed → Q16A and Q16B greyed', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('14')] = E
+    cells[1]![0]![ci('15')] = E
+    cells[2]![0]![ci('16')] = MB // team 2 misses Q16 bonus
+    const result = computeGreyedOut(cells, columns)
+    expect(isGreyed(result, 0, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 0, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16B'))).toBe(true)
+  })
 })

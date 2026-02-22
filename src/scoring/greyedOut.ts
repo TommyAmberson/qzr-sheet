@@ -84,10 +84,14 @@ export function computeGreyedOut(
       greyAllTeams(colIdx)
     }
 
-    // 2. If a base question (Normal) was answered CORRECTLY, grey out A and B
-    //    (errors go to A/B as toss-ups, so don't grey them all)
+    // 2. If a base question (Normal) was resolved (C/B/MB), grey out A and B.
+    //    Errors don't resolve — they lead to toss-ups on A.
     if (col.type === QuestionType.Normal && col.isAB) {
-      if (anyTeamHasValue(colIdx, CellValue.Correct)) {
+      const resolved =
+        anyTeamHasValue(colIdx, CellValue.Correct) ||
+        anyTeamHasValue(colIdx, CellValue.Bonus) ||
+        anyTeamHasValue(colIdx, CellValue.MissedBonus)
+      if (resolved) {
         const aIdx = keyToIdx.get(`${col.number}A`)
         const bIdx = keyToIdx.get(`${col.number}B`)
         if (aIdx !== undefined) greyAllTeams(aIdx)
@@ -95,9 +99,14 @@ export function computeGreyedOut(
       }
     }
 
-    // 3. If an A question was answered CORRECTLY, grey out B
+    // 3. If an A question was resolved (C/B/MB), grey out B.
+    //    Errors don't resolve — they lead to toss-ups on B.
     if (col.type === QuestionType.A) {
-      if (anyTeamHasValue(colIdx, CellValue.Correct)) {
+      const resolved =
+        anyTeamHasValue(colIdx, CellValue.Correct) ||
+        anyTeamHasValue(colIdx, CellValue.Bonus) ||
+        anyTeamHasValue(colIdx, CellValue.MissedBonus)
+      if (resolved) {
         const bIdx = keyToIdx.get(`${col.number}B`)
         if (bIdx !== undefined) greyAllTeams(bIdx)
       }
@@ -114,9 +123,10 @@ export function computeGreyedOut(
 
     // Only errors cause toss-ups and carry-forward — not B/MB
     const hasError = anyTeamHasValue(colIdx, CellValue.Error)
-    const resolvedByCorrect =
+    const resolved =
       anyTeamHasValue(colIdx, CellValue.Correct) ||
-      anyTeamHasValue(colIdx, CellValue.Bonus)
+      anyTeamHasValue(colIdx, CellValue.Bonus) ||
+      anyTeamHasValue(colIdx, CellValue.MissedBonus)
 
     for (let ti = 0; ti < teamCount; ti++) {
       // If this team errored, they can't jump on the next question
@@ -130,7 +140,7 @@ export function computeGreyedOut(
         tossedUp[colIdx]!.has(`${ti}`) &&
         !teamHasAnswer(ti, colIdx) &&
         hasError &&
-        !resolvedByCorrect
+        !resolved
       ) {
         tossedUp[nq]!.add(`${ti}`)
       }
