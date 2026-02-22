@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { CellValue, buildColumns, type Team, type Column, type QuizMeta } from '../types/scoresheet'
+import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
 
 /** Create a blank cell grid for a team's quizzers */
 function blankCells(quizzerCount: number, columns: Column[]): CellValue[][] {
@@ -64,6 +65,11 @@ export function useScoresheet() {
     setCell(teamIdx, quizzerIdx, colIdx, next)
   }
 
+  /** Live scoring for all teams */
+  const scoring = computed<TeamScoring[]>(() =>
+    teams.value.map((team, ti) => scoreTeam(cells.value[ti]!, columns, team.onTime)),
+  )
+
   /** Column index ranges for visual grouping */
   const columnGroups = computed(() => {
     const normal: number[] = []
@@ -88,6 +94,7 @@ export function useScoresheet() {
     cells,
     noJumps,
     quizMeta,
+    scoring,
     setCell,
     cycleCell,
     toggleNoJump,

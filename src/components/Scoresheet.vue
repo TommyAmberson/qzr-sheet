@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { CellValue } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 
-const { columns, teams, cells, noJumps, quizMeta, cycleCell, toggleNoJump, columnGroups } = useScoresheet()
+const { columns, teams, cells, noJumps, quizMeta, scoring, cycleCell, toggleNoJump, columnGroups } = useScoresheet()
 
 const visibleColumns = computed(() =>
   columns.map((col, i) => ({ col, idx: i })).filter(({ col }) => !col.isOvertime || quizMeta.value.overtime),
@@ -38,29 +38,6 @@ function colGroupClass(colIdx: number): string {
   return ''
 }
 
-/** Running total per team (count of correct answers × 20, simplified for layout) */
-const teamTotals = computed(() =>
-  cells.value.map((teamCells) => {
-    let total = 0
-    for (const quizzerRow of teamCells) {
-      for (const cell of quizzerRow) {
-        if (cell === CellValue.Correct) total += 20
-      }
-    }
-    return total
-  }),
-)
-
-/** Per-quizzer running total */
-function quizzerTotal(teamIdx: number, quizzerIdx: number): number {
-  const row = cells.value[teamIdx]?.[quizzerIdx]
-  if (!row) return 0
-  let total = 0
-  for (const cell of row) {
-    if (cell === CellValue.Correct) total += 20
-  }
-  return total
-}
 </script>
 
 <template>
@@ -142,7 +119,7 @@ function quizzerTotal(teamIdx: number, quizzerIdx: number): number {
               class="col--total team-total-value"
               :rowspan="team.quizzers.length + 1"
             >
-              {{ teamTotals[ti] }}
+              {{ scoring[ti]?.total ?? 0 }}
             </td>
           </tr>
 
@@ -153,7 +130,9 @@ function quizzerTotal(teamIdx: number, quizzerIdx: number): number {
               v-for="{ col, idx } in visibleColumns"
               :key="col.key"
               :class="['cell--total', colGroupClass(idx)]"
-            ></td>
+            >
+              {{ scoring[ti]?.runningTotals[idx] ?? '' }}
+            </td>
             <!-- total cell already covered by rowspan above -->
           </tr>
         </template>

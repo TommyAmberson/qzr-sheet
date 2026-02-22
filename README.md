@@ -11,7 +11,7 @@ A digital scoresheet for Quizmeet tournaments. Replaces paper sheets and spreads
 ### Phase 1: Core UI
 - [x] Table layout
 - [ ] Templated result cells (C/E/F)
-- [ ] Live scoring calculations
+- [x] Live scoring calculations
 - [ ] Question highlighting (complete etc.)
 - [ ] Quiz validation and explanation
 - [ ] Overtime support
