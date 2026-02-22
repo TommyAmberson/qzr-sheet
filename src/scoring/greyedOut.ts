@@ -84,9 +84,10 @@ export function computeGreyedOut(
       greyAllTeams(colIdx)
     }
 
-    // 2. If a base question (Normal) was answered, grey out A and B
+    // 2. If a base question (Normal) was answered CORRECTLY, grey out A and B
+    //    (errors go to A/B as toss-ups, so don't grey them all)
     if (col.type === QuestionType.Normal && col.isAB) {
-      if (anyTeamHasAnswer(colIdx)) {
+      if (anyTeamHasValue(colIdx, CellValue.Correct)) {
         const aIdx = keyToIdx.get(`${col.number}A`)
         const bIdx = keyToIdx.get(`${col.number}B`)
         if (aIdx !== undefined) greyAllTeams(aIdx)
@@ -94,9 +95,9 @@ export function computeGreyedOut(
       }
     }
 
-    // 3. If an A question was answered, grey out B
+    // 3. If an A question was answered CORRECTLY, grey out B
     if (col.type === QuestionType.A) {
-      if (anyTeamHasAnswer(colIdx)) {
+      if (anyTeamHasValue(colIdx, CellValue.Correct)) {
         const bIdx = keyToIdx.get(`${col.number}B`)
         if (bIdx !== undefined) greyAllTeams(bIdx)
       }
@@ -111,7 +112,8 @@ export function computeGreyedOut(
     const nq = nextQuestion(col)
     if (nq === undefined) continue
 
-    const questionAnswered = anyTeamHasAnswer(colIdx)
+    // Only errors cause toss-ups and carry-forward — not B/MB
+    const hasError = anyTeamHasValue(colIdx, CellValue.Error)
     const resolvedByCorrect =
       anyTeamHasValue(colIdx, CellValue.Correct) ||
       anyTeamHasValue(colIdx, CellValue.Bonus)
@@ -122,13 +124,12 @@ export function computeGreyedOut(
         tossedUp[nq]!.add(`${ti}`)
       }
 
-      // If this team was tossed up (couldn't jump) and the question was
-      // answered by someone else with an error (not resolved by correct/bonus),
-      // carry forward
+      // If this team was tossed up (couldn't jump) and someone else errored
+      // (not resolved by correct/bonus), carry forward
       if (
         tossedUp[colIdx]!.has(`${ti}`) &&
         !teamHasAnswer(ti, colIdx) &&
-        questionAnswered &&
+        hasError &&
         !resolvedByCorrect
       ) {
         tossedUp[nq]!.add(`${ti}`)

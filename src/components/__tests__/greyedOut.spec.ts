@@ -158,4 +158,42 @@ describe('greyed-out logic', () => {
     expect(isGreyed(result, 0, ci('17B'))).toBe(true)
     expect(isGreyed(result, 1, ci('17B'))).toBe(false)
   })
+
+  it('error on base A/B question does NOT grey out A and B for all teams', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('16')] = E // team 0 errors on Q16
+    const result = computeGreyedOut(cells, columns)
+    // Q16 is done (greyed for all)
+    expect(isGreyed(result, 0, ci('16'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16'))).toBe(true)
+    // Q16A: only team 0 greyed (toss-up), not all teams
+    expect(isGreyed(result, 0, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16A'))).toBe(false)
+    expect(isGreyed(result, 2, ci('16A'))).toBe(false)
+    // Q16B: not greyed at all yet
+    expect(isGreyed(result, 0, ci('16B'))).toBe(false)
+    expect(isGreyed(result, 1, ci('16B'))).toBe(false)
+  })
+
+  it('missed bonus does NOT cause toss-up on next question', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17B')] = MB // team 0 misses bonus on Q17B
+    const result = computeGreyedOut(cells, columns)
+    // Q17B is done (greyed for all)
+    expect(isGreyed(result, 0, ci('17B'))).toBe(true)
+    // Q18: nobody greyed — MB doesn't cause toss-up
+    expect(isGreyed(result, 0, ci('18'))).toBe(false)
+    expect(isGreyed(result, 1, ci('18'))).toBe(false)
+    expect(isGreyed(result, 2, ci('18'))).toBe(false)
+  })
+
+  it('bonus answer does NOT cause toss-up on next question', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17B')] = B // team 0 gets bonus on Q17B
+    const result = computeGreyedOut(cells, columns)
+    // Q18: nobody greyed
+    expect(isGreyed(result, 0, ci('18'))).toBe(false)
+    expect(isGreyed(result, 1, ci('18'))).toBe(false)
+    expect(isGreyed(result, 2, ci('18'))).toBe(false)
+  })
 })
