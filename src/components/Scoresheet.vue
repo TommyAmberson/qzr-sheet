@@ -362,6 +362,13 @@ function colGroupClass(colIdx: number): string {
                 <span class="on-time-box">✓</span>
                 <span class="on-time-label">on time</span>
               </span>
+              <span class="team-stats">
+                <span
+                  v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
+                  class="stat-badge stat-badge--unique"
+                  :title="`${scoring[ti]!.uniqueCorrectQuizzers} quizzers jumped (+10 each from 3rd)`"
+                >{{ scoring[ti]!.uniqueCorrectQuizzers >= 5 ? '5th' : scoring[ti]!.uniqueCorrectQuizzers >= 4 ? '4th' : '3rd' }}</span>
+              </span>
             </td>
             <td
               v-for="{ col } in displayColumns"
@@ -970,6 +977,14 @@ thead .col--name {
   50% { outline-color: #f87171; }
 }
 
+/* Team status indicators */
+.team-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  float: right;
+}
+
 /* Quizzer status indicators */
 .quizzer-name {
   margin-right: 0.25rem;
@@ -1007,6 +1022,13 @@ thead .col--name {
 }
 .stat-badge--foulout {
   background: #b86e30;
+}
+.stat-badge--unique {
+  background: #3d7a4a;
+  border-radius: 4px;
+  width: auto;
+  padding: 0 0.3rem;
+  font-size: 0.55rem;
 }
 
 /* Running count chips (1c, 2e, 1f) */
