@@ -1,24 +1,11 @@
-<script setup lang="ts">
-import ScoresheetTable from '@/components/ScoresheetTable.vue'
-</script>
+<script setup lang="ts"></script>
 
 <template>
-  <ScoresheetTable />
+  <h1>You did it!</h1>
+  <p>
+    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
+    documentation
+  </p>
 </template>
 
-<style>
-/* Global reset */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: #fafafa;
-  color: #1a1a1a;
-}
-</style>
+<style scoped></style>
