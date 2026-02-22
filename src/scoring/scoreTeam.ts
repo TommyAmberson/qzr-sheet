@@ -17,6 +17,8 @@ export interface QuizzerScoring {
   fouledOut: boolean
   /** Quizout bonus earned (4 correct with 0 errors) */
   quizoutBonus: boolean
+  /** Column index where this quizzer became out, or -1 if not out */
+  outAfterCol: number
 }
 
 export interface TeamScoring {
@@ -55,6 +57,7 @@ export function scoreTeam(
   const qError = new Array(quizzerCount).fill(0) as number[]
   const qFoul = new Array(quizzerCount).fill(0) as number[]
   const qHasQuizoutBonus = new Array(quizzerCount).fill(false) as boolean[]
+  const qOutAfterCol = new Array(quizzerCount).fill(-1) as number[]
 
   // Track which quizzers have gotten at least one correct (for 3rd/4th/5th bonus)
   const quizzerHasCorrect = new Array(quizzerCount).fill(false) as boolean[]
@@ -106,6 +109,11 @@ export function scoreTeam(
             qHasQuizoutBonus[qi] = true
             colPoints += 10
           }
+
+          // Track quiz-out column
+          if (qCorrect[qi] === 4 && qOutAfterCol[qi] === -1) {
+            qOutAfterCol[qi] = ci
+          }
         }
       } else if (isBonus) {
         // Bonus question correct
@@ -121,6 +129,11 @@ export function scoreTeam(
       } else if (cell === CellValue.Error) {
         if (!isOvertime) {
           qError[qi]++
+
+          // Track error/foul-out column
+          if (qError[qi]! + qFoul[qi]! >= 3 && qOutAfterCol[qi] === -1) {
+            qOutAfterCol[qi] = ci
+          }
         }
         teamErrors++
 
@@ -145,6 +158,11 @@ export function scoreTeam(
       } else if (cell === CellValue.Foul) {
         if (!isOvertime) {
           qFoul[qi]++
+
+          // Track error/foul-out column
+          if (qError[qi]! + qFoul[qi]! >= 3 && qOutAfterCol[qi] === -1) {
+            qOutAfterCol[qi] = ci
+          }
         }
         teamFouls++
         // Every 3rd team foul: -10
@@ -190,6 +208,7 @@ export function scoreTeam(
       erroredOut,
       fouledOut,
       quizoutBonus,
+      outAfterCol: qOutAfterCol[qi]!,
     })
   }
 

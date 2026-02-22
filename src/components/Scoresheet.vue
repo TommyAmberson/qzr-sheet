@@ -89,6 +89,12 @@ function isInvalid(ti: number, qi: number, ci: number): boolean {
   return validationErrors.value.has(`${ti}:${qi}:${ci}`)
 }
 
+/** Check if a cell is after the quizzer's out column (empty cells greyed) */
+function isAfterOut(ti: number, qi: number, colIdx: number): boolean {
+  const outCol = scoring.value[ti]?.quizzers[qi]?.outAfterCol ?? -1
+  return outCol >= 0 && colIdx > outCol && cells.value[ti][qi][colIdx] === CellValue.Empty
+}
+
 /** Check if a team has any validation errors */
 function teamHasErrors(ti: number): boolean {
   for (const key of validationErrors.value.keys()) {
@@ -406,7 +412,7 @@ function colGroupClass(colIdx: number): string {
                 'cell',
                 cellClass[cells[ti][qi][idx]],
                 colGroupClass(idx),
-                { 'cell--greyed': (isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '' },
+                { 'cell--greyed': ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
               ]"
               @click="openSelector(ti, qi, idx, $event)"

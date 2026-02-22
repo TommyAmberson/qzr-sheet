@@ -249,6 +249,51 @@ describe('scoreTeam', () => {
     expect(result.quizzers[1]!.erroredOut).toBe(false)
   })
 
+  it('outAfterCol is the column index of the 4th correct (quiz-out)', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = C
+    cells[0]![colIdx('2')] = C
+    cells[0]![colIdx('3')] = C
+    cells[0]![colIdx('4')] = C // quizzed out here
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.outAfterCol).toBe(colIdx('4'))
+  })
+
+  it('outAfterCol is the column index of the 3rd error (error-out)', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = E
+    cells[0]![colIdx('3')] = E
+    cells[0]![colIdx('5')] = E // errored out here
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.outAfterCol).toBe(colIdx('5'))
+  })
+
+  it('outAfterCol is the column index of the 3rd foul (foul-out)', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('2')] = F
+    cells[0]![colIdx('4')] = F
+    cells[0]![colIdx('6')] = F // fouled out here
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.outAfterCol).toBe(colIdx('6'))
+  })
+
+  it('outAfterCol is -1 when quizzer is not out', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = C
+    cells[0]![colIdx('2')] = C
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.outAfterCol).toBe(-1)
+  })
+
+  it('outAfterCol handles mixed errors and fouls', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = E
+    cells[0]![colIdx('2')] = F
+    cells[0]![colIdx('7')] = E // 3rd error+foul → out here
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.outAfterCol).toBe(colIdx('7'))
+  })
+
   it('running totals are null when unchanged from previous column', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = C
