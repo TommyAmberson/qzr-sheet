@@ -337,4 +337,100 @@ describe('cell validation', () => {
     const errors = validateCells(cells, columns, grey, noJumps)
     expect(hasCode(errors, 0, 0, ci('3'), ValidationCode.NoJump)).toBe(false)
   })
+
+  // --- Quizzer out violations ---
+
+  it('correct answer after quiz-out (4 correct) is invalid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = C
+    cells[0]![0]![ci('2')] = C
+    cells[0]![0]![ci('3')] = C
+    cells[0]![0]![ci('4')] = C // quizzed out
+    cells[0]![0]![ci('5')] = C // should be invalid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('5'), ValidationCode.QuizzerOut)).toBe(true)
+    // The 4th correct itself should NOT be flagged
+    expect(hasCode(errors, 0, 0, ci('4'), ValidationCode.QuizzerOut)).toBe(false)
+  })
+
+  it('error after quiz-out is invalid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = C
+    cells[0]![0]![ci('2')] = C
+    cells[0]![0]![ci('3')] = C
+    cells[0]![0]![ci('4')] = C // quizzed out
+    cells[0]![0]![ci('5')] = E // should be invalid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('5'), ValidationCode.QuizzerOut)).toBe(true)
+  })
+
+  it('foul after quiz-out is NOT invalid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = C
+    cells[0]![0]![ci('2')] = C
+    cells[0]![0]![ci('3')] = C
+    cells[0]![0]![ci('4')] = C // quizzed out
+    cells[0]![0]![ci('5')] = F // fouls are still allowed
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('5'), ValidationCode.QuizzerOut)).toBe(false)
+  })
+
+  it('correct answer after error-out (3 errors) is invalid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = E
+    cells[0]![0]![ci('2')] = E
+    cells[0]![0]![ci('3')] = E // errored out
+    cells[0]![0]![ci('4')] = C // should be invalid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('4'), ValidationCode.QuizzerOut)).toBe(true)
+  })
+
+  it('foul after error-out is NOT invalid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = E
+    cells[0]![0]![ci('2')] = E
+    cells[0]![0]![ci('3')] = E // errored out
+    cells[0]![0]![ci('5')] = F // fouls still allowed
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('5'), ValidationCode.QuizzerOut)).toBe(false)
+  })
+
+  it('error after foul-out (3 fouls) is invalid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = F
+    cells[0]![0]![ci('2')] = F
+    cells[0]![0]![ci('3')] = F // fouled out
+    cells[0]![0]![ci('4')] = E // should be invalid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('4'), ValidationCode.QuizzerOut)).toBe(true)
+  })
+
+  it('quizzer not yet out has no QuizzerOut error', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = C
+    cells[0]![0]![ci('2')] = C
+    cells[0]![0]![ci('3')] = C // 3 correct, not 4
+    cells[0]![0]![ci('4')] = C // 4th correct = quiz-out, not invalid itself
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('4'), ValidationCode.QuizzerOut)).toBe(false)
+  })
+
+  it('bonus answer after quiz-out is invalid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = C
+    cells[0]![0]![ci('2')] = C
+    cells[0]![0]![ci('3')] = C
+    cells[0]![0]![ci('4')] = C // quizzed out
+    cells[0]![0]![ci('17B')] = B // should be invalid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.QuizzerOut)).toBe(true)
+  })
 })

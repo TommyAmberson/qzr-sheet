@@ -13,6 +13,8 @@ export interface QuizzerScoring {
   quizzedOut: boolean
   /** Errored/fouled out (3 errors+fouls) */
   erroredOut: boolean
+  /** Fouled out specifically (3+ fouls, 0 errors) */
+  fouledOut: boolean
   /** Quizout bonus earned (4 correct with 0 errors) */
   quizoutBonus: boolean
 }
@@ -171,6 +173,7 @@ export function scoreTeam(
     const fouls = qFoul[qi]!
     const quizzedOut = correct >= 4
     const erroredOut = errors + fouls >= 3
+    const fouledOut = erroredOut && errors === 0
     const quizoutBonus = qHasQuizoutBonus[qi]!
 
     // Individual points: 20 per correct (non-bonus, non-OT)
@@ -185,6 +188,7 @@ export function scoreTeam(
       foulCount: fouls,
       quizzedOut,
       erroredOut,
+      fouledOut,
       quizoutBonus,
     })
   }

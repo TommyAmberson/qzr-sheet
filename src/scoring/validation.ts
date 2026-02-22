@@ -14,6 +14,8 @@ export enum ValidationCode {
   QuestionResolved = 'question-resolved',
   /** Answer on a column marked as no-jump */
   NoJump = 'no-jump',
+  /** Non-foul answer by a quizzer who has already quizzed out or errored/fouled out */
+  QuizzerOut = 'quizzer-out',
 }
 
 function isAnswer(v: CellValue): boolean {
@@ -55,6 +57,11 @@ export function validateCells(
     }
     return false
   }
+
+  // Track per-quizzer running counts for out detection (left-to-right)
+  // qCorrects[ti][qi], qErrorsFouls[ti][qi]
+  const qCorrects: number[][] = cellData.map(team => new Array(team.length).fill(0))
+  const qErrorsFouls: number[][] = cellData.map(team => new Array(team.length).fill(0))
 
   for (let ci = 0; ci < cols.length; ci++) {
     const col = cols[ci]!
@@ -99,6 +106,22 @@ export function validateCells(
           if ((v === CellValue.Correct || v === CellValue.Error) && isBonusSituation) {
             addError(ti, qi, ci, ValidationCode.WrongCellType)
           }
+        }
+
+        // --- Quizzer out ---
+        // Check BEFORE updating counts: if already out, flag non-foul values
+        const isOut = qCorrects[ti]![qi]! >= 4 || qErrorsFouls[ti]![qi]! >= 3
+        if (isOut && v !== CellValue.Foul) {
+          addError(ti, qi, ci, ValidationCode.QuizzerOut)
+        }
+
+        // Update running counts for this quizzer
+        if (v === CellValue.Correct && !col.isOvertime) {
+          qCorrects[ti]![qi]!++
+        } else if (v === CellValue.Error && !col.isOvertime) {
+          qErrorsFouls[ti]![qi]!++
+        } else if (v === CellValue.Foul && !col.isOvertime) {
+          qErrorsFouls[ti]![qi]!++
         }
 
         // --- Tossed up ---

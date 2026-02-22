@@ -357,9 +357,48 @@ function colGroupClass(colIdx: number): string {
           <tr
             v-for="(quizzer, qi) in team.quizzers"
             :key="quizzer.id"
-            class="row--quizzer"
+            :class="[
+              'row--quizzer',
+              { 'row--quizzed-out': scoring[ti]?.quizzers[qi]?.quizzedOut },
+              { 'row--errored-out': scoring[ti]?.quizzers[qi]?.erroredOut && !scoring[ti]?.quizzers[qi]?.fouledOut },
+              { 'row--fouled-out': scoring[ti]?.quizzers[qi]?.fouledOut },
+            ]"
           >
-            <td class="col--name sticky-col">{{ quizzer.name }}</td>
+            <td class="col--name sticky-col">
+              <span class="quizzer-name">{{ quizzer.name }}</span>
+              <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
+                <span
+                  v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
+                  :class="['stat-badge', 'stat-badge--quizout', { 'stat-badge--quizout-bonus': scoring[ti]!.quizzers[qi]!.quizoutBonus }]"
+                  :title="scoring[ti]!.quizzers[qi]!.quizoutBonus ? 'Quiz-out with bonus (+10)' : 'Quiz-out'"
+                >Q</span>
+                <span
+                  v-else-if="scoring[ti]!.quizzers[qi]!.erroredOut && !scoring[ti]!.quizzers[qi]!.fouledOut"
+                  class="stat-badge stat-badge--errorout"
+                  title="Errored out"
+                >E</span>
+                <span
+                  v-else-if="scoring[ti]!.quizzers[qi]!.fouledOut"
+                  class="stat-badge stat-badge--foulout"
+                  title="Fouled out"
+                >F</span>
+                <span
+                  v-if="scoring[ti]!.quizzers[qi]!.correctCount > 0 && !scoring[ti]!.quizzers[qi]!.quizzedOut"
+                  class="stat-count stat-count--correct"
+                  :title="`${scoring[ti]!.quizzers[qi]!.correctCount} correct`"
+                >{{ scoring[ti]!.quizzers[qi]!.correctCount }}c</span>
+                <span
+                  v-if="scoring[ti]!.quizzers[qi]!.errorCount > 0 && !(scoring[ti]!.quizzers[qi]!.erroredOut && !scoring[ti]!.quizzers[qi]!.fouledOut)"
+                  class="stat-count stat-count--error"
+                  :title="`${scoring[ti]!.quizzers[qi]!.errorCount} error(s)`"
+                >{{ scoring[ti]!.quizzers[qi]!.errorCount }}e</span>
+                <span
+                  v-if="scoring[ti]!.quizzers[qi]!.foulCount > 0 && !scoring[ti]!.quizzers[qi]!.fouledOut"
+                  class="stat-count stat-count--foul"
+                  :title="`${scoring[ti]!.quizzers[qi]!.foulCount} foul(s)`"
+                >{{ scoring[ti]!.quizzers[qi]!.foulCount }}f</span>
+              </span>
+            </td>
             <td
               v-for="{ col, idx } in displayColumns"
               :key="col.key"
@@ -912,6 +951,67 @@ thead .col--name {
   0%, 100% { outline-color: #dc2626; }
   50% { outline-color: #f87171; }
 }
+
+/* Quizzer status indicators */
+.quizzer-name {
+  margin-right: 0.25rem;
+}
+.quizzer-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: auto;
+  float: right;
+}
+
+/* Out badges (Q, E, F) */
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+.stat-badge--quizout {
+  background: #3d7a4a;
+}
+.stat-badge--quizout-bonus {
+  background: #15803d;
+  box-shadow: 0 0 0 2px #bbf7d0;
+}
+.stat-badge--errorout {
+  background: #9e3030;
+}
+.stat-badge--foulout {
+  background: #b86e30;
+}
+
+/* Running count chips (1c, 2e, 1f) */
+.stat-count {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.05rem 0.25rem;
+  border-radius: 3px;
+  line-height: 1.2;
+}
+.stat-count--correct {
+  color: #166534;
+  background: #dcfce7;
+}
+.stat-count--error {
+  color: #991b1b;
+  background: #fee2e2;
+}
+.stat-count--foul {
+  color: #92400e;
+  background: #fef3c7;
+}
+
 
 </style>
 

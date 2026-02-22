@@ -185,6 +185,70 @@ describe('scoreTeam', () => {
     expect(result.quizzers[0]!.erroredOut).toBe(true)
   })
 
+  it('detects foul out (3 fouls, 0 errors)', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = F
+    cells[0]![colIdx('2')] = F
+    cells[0]![colIdx('3')] = F
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.erroredOut).toBe(true)
+    expect(result.quizzers[0]!.fouledOut).toBe(true)
+  })
+
+  it('fouledOut is false when errors contribute to out', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = E
+    cells[0]![colIdx('2')] = F
+    cells[0]![colIdx('3')] = F
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.erroredOut).toBe(true)
+    expect(result.quizzers[0]!.fouledOut).toBe(false)
+  })
+
+  it('tracks correct count per quizzer', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = C
+    cells[0]![colIdx('3')] = C
+    cells[0]![colIdx('5')] = C
+    cells[1]![colIdx('2')] = C
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.correctCount).toBe(3)
+    expect(result.quizzers[1]!.correctCount).toBe(1)
+    expect(result.quizzers[2]!.correctCount).toBe(0)
+  })
+
+  it('tracks error count per quizzer', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = E
+    cells[0]![colIdx('3')] = E
+    cells[1]![colIdx('2')] = E
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.errorCount).toBe(2)
+    expect(result.quizzers[1]!.errorCount).toBe(1)
+  })
+
+  it('tracks foul count per quizzer', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = F
+    cells[0]![colIdx('2')] = F
+    cells[1]![colIdx('3')] = F
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.foulCount).toBe(2)
+    expect(result.quizzers[1]!.foulCount).toBe(1)
+  })
+
+  it('not quizzed out or errored out with fewer than threshold', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = C
+    cells[0]![colIdx('2')] = C
+    cells[0]![colIdx('3')] = C // 3 correct, not 4
+    cells[1]![colIdx('4')] = E
+    cells[1]![colIdx('5')] = E // 2 errors+fouls, not 3
+    const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.quizzedOut).toBe(false)
+    expect(result.quizzers[1]!.erroredOut).toBe(false)
+  })
+
   it('running totals are null when unchanged from previous column', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = C
