@@ -9,51 +9,45 @@ const { columns, teams, cells, noJumps, quizMeta, scoring, setCell, toggleNoJump
 const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
 
 /** Check if a column is a bonus situation for a given team
- *  (team is the only one not greyed out on that column) */
+ *  (team is the only one not tossed-up on that column) */
 function isBonusForTeam(teamIdx: number, colIdx: number): boolean {
   const teamCount = teams.value.length
-  let greyedTeams = 0
+  let tossedTeams = 0
   for (let ti = 0; ti < teamCount; ti++) {
-    if (ti !== teamIdx && greyedOut.value.has(`${ti}:${colIdx}`)) {
-      greyedTeams++
+    if (ti !== teamIdx && tossedUpSet.value.has(`${ti}:${colIdx}`)) {
+      tossedTeams++
     }
   }
-  return greyedTeams === teamCount - 1
+  return tossedTeams === teamCount - 1
 }
+
+const bonusOptions = [
+  { value: CellValue.Bonus, label: 'B', cls: 'opt--bonus' },
+  { value: CellValue.MissedBonus, label: 'MB', cls: 'opt--missed-bonus' },
+  { value: CellValue.Foul, label: 'F', cls: 'opt--foul' },
+  { value: CellValue.Empty, label: '✕', cls: 'opt--clear' },
+]
+const normalOptions = [
+  { value: CellValue.Correct, label: 'C', cls: 'opt--correct' },
+  { value: CellValue.Error, label: 'E', cls: 'opt--error' },
+  { value: CellValue.Foul, label: 'F', cls: 'opt--foul' },
+  { value: CellValue.Empty, label: '✕', cls: 'opt--clear' },
+]
 
 /** Options to show in the selector based on column type and context */
 const selectorOptions = computed(() => {
   if (!selector.value) return []
-  const { ti, ci } = selector.value
+  const { ti, qi, ci } = selector.value
   const col = columns[ci]
   if (!col) return []
 
   // B columns always show bonus options
-  if (col.type === QuestionType.B) {
-    return [
-      { value: CellValue.Bonus, label: 'B', cls: 'opt--bonus' },
-      { value: CellValue.MissedBonus, label: 'MB', cls: 'opt--missed-bonus' },
-      { value: CellValue.Foul, label: 'F', cls: 'opt--foul' },
-      { value: CellValue.Empty, label: '✕', cls: 'opt--clear' },
-    ]
-  }
+  if (col.type === QuestionType.B) return bonusOptions
 
-  // If this team is the only one not greyed (bonus situation), show B/MB
-  if (isBonusForTeam(ti, ci)) {
-    return [
-      { value: CellValue.Bonus, label: 'B', cls: 'opt--bonus' },
-      { value: CellValue.MissedBonus, label: 'MB', cls: 'opt--missed-bonus' },
-      { value: CellValue.Foul, label: 'F', cls: 'opt--foul' },
-      { value: CellValue.Empty, label: '✕', cls: 'opt--clear' },
-    ]
-  }
+  // Bonus situation (other 2 teams tossed-up) — show B/MB regardless of current value
+  if (isBonusForTeam(ti, ci)) return bonusOptions
 
-  return [
-    { value: CellValue.Correct, label: 'C', cls: 'opt--correct' },
-    { value: CellValue.Error, label: 'E', cls: 'opt--error' },
-    { value: CellValue.Foul, label: 'F', cls: 'opt--foul' },
-    { value: CellValue.Empty, label: '✕', cls: 'opt--clear' },
-  ]
+  return normalOptions
 })
 
 function openSelector(ti: number, qi: number, ci: number, event: MouseEvent) {
@@ -77,12 +71,22 @@ function closeSelector() {
 }
 
 import { computeGreyedOut } from '../scoring/greyedOut'
+import { validateCells } from '../scoring/validation'
 
-const greyedOut = computed(() => computeGreyedOut(cells.value, columns))
+const greyedOutResult = computed(() => computeGreyedOut(cells.value, columns))
+const greyedOut = computed(() => greyedOutResult.value.disabled)
+const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
+
+const validationErrors = computed(() => validateCells(cells.value, columns, greyedOutResult.value))
 
 /** Check if a cell should be greyed out */
 function isGreyedOut(teamIdx: number, colIdx: number): boolean {
   return greyedOut.value.has(`${teamIdx}:${colIdx}`)
+}
+
+/** Check if a cell has validation errors */
+function isInvalid(ti: number, qi: number, ci: number): boolean {
+  return validationErrors.value.has(`${ti}:${qi}:${ci}`)
 }
 
 const visibleColumns = computed(() =>
@@ -189,6 +193,7 @@ function colGroupClass(colIdx: number): string {
                 cellClass[cells[ti][qi][idx]],
                 colGroupClass(idx),
                 { 'cell--greyed': isGreyedOut(ti, idx) && cells[ti][qi][idx] === '' },
+                { 'cell--invalid': isInvalid(ti, qi, idx) },
               ]"
               @click="openSelector(ti, qi, idx, $event)"
             >
@@ -562,6 +567,16 @@ function colGroupClass(colIdx: number): string {
 }
 .cell--greyed:hover {
   outline: none;
+}
+
+.cell--invalid {
+  outline: 2px solid #dc2626;
+  outline-offset: -2px;
+  animation: pulse-invalid 1.5s ease-in-out infinite;
+}
+@keyframes pulse-invalid {
+  0%, 100% { outline-color: #dc2626; }
+  50% { outline-color: #f87171; }
 }
 
 </style>

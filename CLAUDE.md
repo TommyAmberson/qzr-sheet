@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+slight preference to writing tests before features.
+
 ## 🏗️ Tech Stack
 
 **Tauri 2 + Vue 3 + Vite**

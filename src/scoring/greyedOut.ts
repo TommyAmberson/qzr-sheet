@@ -13,10 +13,16 @@ import { CellValue, QuestionType, type Column } from '../types/scoresheet'
  *
  * Fouls don't end a question — it's re-asked.
  */
+export interface GreyedOutResult {
+  disabled: Set<string>
+  /** Teams that can't jump on a column due to toss-up/error chain: Set of "teamIdx:colIdx" */
+  tossedUp: Set<string>
+}
+
 export function computeGreyedOut(
   cellData: CellValue[][][],
   cols: Column[],
-): Set<string> {
+): GreyedOutResult {
   const disabled = new Set<string>()
   const teamCount = cellData.length
 
@@ -147,5 +153,13 @@ export function computeGreyedOut(
     }
   }
 
-  return disabled
+  // Flatten tossedUp array into a single Set of "ti:colIdx" for easy lookup
+  const tossedUpSet = new Set<string>()
+  for (let colIdx = 0; colIdx < cols.length; colIdx++) {
+    for (const tiStr of tossedUp[colIdx]!) {
+      tossedUpSet.add(`${tiStr}:${colIdx}`)
+    }
+  }
+
+  return { disabled, tossedUp: tossedUpSet }
 }

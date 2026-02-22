@@ -18,17 +18,17 @@ function ci(key: string): number {
 }
 
 /** Helper: check if a team is greyed at a column */
-function isGreyed(set: Set<string>, ti: number, colIdx: number): boolean {
-  return set.has(`${ti}:${colIdx}`)
+function isGreyed(result: { disabled: Set<string> }, ti: number, colIdx: number): boolean {
+  return result.disabled.has(`${ti}:${colIdx}`)
 }
 
-/** Helper: check if a column is a bonus for a team (other 2 teams greyed) */
-function isBonusFor(set: Set<string>, ti: number, colIdx: number, teamCount = 3): boolean {
-  let greyedTeams = 0
+/** Helper: check if a column is a bonus for a team (other 2 teams tossed-up) */
+function isBonusFor(result: { tossedUp: Set<string> }, ti: number, colIdx: number, teamCount = 3): boolean {
+  let tossedTeams = 0
   for (let t = 0; t < teamCount; t++) {
-    if (t !== ti && set.has(`${t}:${colIdx}`)) greyedTeams++
+    if (t !== ti && result.tossedUp.has(`${t}:${colIdx}`)) tossedTeams++
   }
-  return greyedTeams === teamCount - 1
+  return tossedTeams === teamCount - 1
 }
 
 /** Helper: blank 3-team, 5-quizzer grid */
