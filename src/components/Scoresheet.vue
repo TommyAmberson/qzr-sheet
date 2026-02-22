@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { CellValue, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 
@@ -109,9 +109,56 @@ function noJumpHasConflict(colIdx: number): boolean {
   return false
 }
 
+/** Check if any team has a specific value on a column */
+function anyTeamHasValue(colIdx: number, value: CellValue): boolean {
+  for (const team of cells.value) {
+    for (const row of team) {
+      if (row[colIdx] === value) return true
+    }
+  }
+  return false
+}
+
+/** Check if any cell on a column is non-empty */
+function colHasAnyContent(colIdx: number): boolean {
+  for (const team of cells.value) {
+    for (const row of team) {
+      if (row[colIdx] !== CellValue.Empty) return true
+    }
+  }
+  return false
+}
+
+/** Check if an A/B column is needed (parent has error or column already has answers) */
+function abColumnNeeded(colIdx: number): boolean {
+  if (colHasAnyContent(colIdx)) return true
+
+  const col = columns[colIdx]!
+  if (col.type === QuestionType.A) {
+    // Show A if the base question has an error (unresolved)
+    const baseIdx = columns.findIndex(c => c.key === `${col.number}`)
+    return baseIdx !== -1 && anyTeamHasValue(baseIdx, CellValue.Error)
+  }
+  if (col.type === QuestionType.B) {
+    // Show B if the A question has an error
+    const aIdx = columns.findIndex(c => c.key === `${col.number}A`)
+    return aIdx !== -1 && anyTeamHasValue(aIdx, CellValue.Error)
+  }
+  return false
+}
+
 const visibleColumns = computed(() =>
-  columns.map((col, i) => ({ col, idx: i })).filter(({ col }) => !col.isOvertime || quizMeta.value.overtime),
+  columns.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
+    // Overtime columns: only when overtime enabled
+    if (col.isOvertime) return quizMeta.value.overtime
+    // A/B sub-columns: only when needed
+    if (col.type === QuestionType.A || col.type === QuestionType.B) return abColumnNeeded(idx)
+    return true
+  }),
 )
+
+/** Columns actually rendered — includes departing columns during shrink animation */
+const displayColumns = ref(visibleColumns.value.map(vc => ({ ...vc, leaving: false })))
 
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
@@ -133,13 +180,67 @@ const cellClass: Record<CellValue, string> = {
   [CellValue.Empty]: '',
 }
 
+/** Track which column indices are entering or leaving for animation */
+const enteringCols = ref(new Set<number>())
+const leavingCols = ref(new Set<number>())
+let prevVisibleKeys = new Set(visibleColumns.value.map(({ col }) => col.key))
+
+watch(visibleColumns, (curr) => {
+  const currKeys = new Set(curr.map(({ col }) => col.key))
+  const prev = prevVisibleKeys
+
+  // Detect entering columns
+  const entering = new Set<number>()
+  for (const { col, idx } of curr) {
+    if (!prev.has(col.key)) entering.add(idx)
+  }
+
+  // Detect leaving columns — were in prev but not in curr
+  const leavingEntries: { col: typeof columns[0]; idx: number }[] = []
+  for (const dc of displayColumns.value) {
+    if (!currKeys.has(dc.col.key) && prev.has(dc.col.key)) {
+      leavingEntries.push({ col: dc.col, idx: dc.idx })
+    }
+  }
+
+  prevVisibleKeys = currKeys
+
+  // Build new display list: current visible + leaving columns in their original position
+  const result = curr.map(vc => ({ ...vc, leaving: false }))
+  for (const le of leavingEntries) {
+    // Insert at the right position by idx
+    const insertAt = result.findIndex(r => r.idx > le.idx)
+    const entry = { col: le.col, idx: le.idx, leaving: true }
+    if (insertAt === -1) result.push(entry)
+    else result.splice(insertAt, 0, entry)
+  }
+  displayColumns.value = result
+
+  // Set animation classes
+  if (entering.size > 0) {
+    enteringCols.value = entering
+    setTimeout(() => { enteringCols.value = new Set() }, 400)
+  }
+  if (leavingEntries.length > 0) {
+    leavingCols.value = new Set(leavingEntries.map(e => e.idx))
+    // Remove leaving columns from display after animation
+    setTimeout(() => {
+      displayColumns.value = displayColumns.value.filter(dc => !dc.leaving)
+      leavingCols.value = new Set()
+    }, 350)
+  }
+})
+
 /** Column CSS class for visual grouping */
 function colGroupClass(colIdx: number): string {
   const col = columns[colIdx]
   if (!col) return ''
-  if (col.isOvertime) return 'col--overtime'
-  if (col.isAB && col.isErrorPoints) return 'col--ab'
-  return ''
+  const classes: string[] = []
+  if (col.isOvertime) classes.push('col--overtime')
+  else if (col.isAB && col.isErrorPoints) classes.push('col--ab')
+  if (enteringCols.value.has(colIdx)) classes.push('col--appear')
+  if (leavingCols.value.has(colIdx)) classes.push('col--leave')
+  return classes.join(' ')
 }
 
 </script>
@@ -168,7 +269,7 @@ function colGroupClass(colIdx: number): string {
         <tr>
           <th class="col--name sticky-col">Question</th>
           <th
-            v-for="{ col, idx } in visibleColumns"
+            v-for="{ col, idx } in displayColumns"
             :key="col.key"
             :class="['col--question', colGroupClass(idx)]"
           >
@@ -184,7 +285,7 @@ function colGroupClass(colIdx: number): string {
           <tr :class="['row--team-header', teamColors[ti]]">
             <td
               class="col--name sticky-col team-name"
-              :colspan="visibleColumns.length + 2"
+              :colspan="displayColumns.length + 2"
             >
               {{ team.name }}
               <span
@@ -206,7 +307,7 @@ function colGroupClass(colIdx: number): string {
           >
             <td class="col--name sticky-col">{{ quizzer.name }}</td>
             <td
-              v-for="{ col, idx } in visibleColumns"
+              v-for="{ col, idx } in displayColumns"
               :key="col.key"
               :class="[
                 'cell',
@@ -233,7 +334,7 @@ function colGroupClass(colIdx: number): string {
           <tr class="row--team-total">
             <td class="col--name sticky-col">Running Total</td>
             <td
-              v-for="{ col, idx } in visibleColumns"
+              v-for="{ col, idx } in displayColumns"
               :key="col.key"
               :class="['cell--total', colGroupClass(idx)]"
             >
@@ -249,7 +350,7 @@ function colGroupClass(colIdx: number): string {
         <tr class="row--no-jump">
           <td class="col--name sticky-col">No Jump</td>
           <td
-            v-for="{ col, idx } in visibleColumns"
+            v-for="{ col, idx } in displayColumns"
             :key="col.key"
             :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx], 'cell--invalid': noJumpHasConflict(idx) }]"
             @click="toggleNoJump(idx)"
@@ -578,6 +679,51 @@ function colGroupClass(colIdx: number): string {
 .cell--missed-bonus {
   color: #ea580c;
   background-color: #ffedd5 !important;
+}
+
+/* Column appear animation */
+.col--appear {
+  animation: col-grow 0.35s ease-out both;
+  overflow: hidden;
+}
+@keyframes col-grow {
+  from {
+    width: 2px;
+    min-width: 2px;
+    max-width: 2px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  to {
+    width: 2rem;
+    min-width: 2rem;
+    max-width: 2rem;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+}
+
+/* Column leave animation (reverse of appear) */
+.col--leave {
+  animation: col-shrink 0.35s ease-in both;
+  overflow: hidden;
+  pointer-events: none;
+}
+@keyframes col-shrink {
+  from {
+    width: 2rem;
+    min-width: 2rem;
+    max-width: 2rem;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+  to {
+    width: 2px;
+    min-width: 2px;
+    max-width: 2px;
+    padding-left: 0;
+    padding-right: 0;
+  }
 }
 
 .cell--greyed {
