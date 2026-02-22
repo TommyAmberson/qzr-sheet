@@ -199,11 +199,9 @@ export function scoreTeam(
 
   // Convert raw totals: null out columns where the total didn't change
   // Always show the first column so the on-time bonus is visible
-  // Also show on free error columns to reinforce the "no deduction" indicator
   const runningTotals: (number | null)[] = rawTotals.map((val, i) => {
     if (i === 0) return val
     if (val !== rawTotals[i - 1]) return val
-    if (freeErrorCols.has(i)) return val
     return null
   })
 

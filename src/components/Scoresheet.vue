@@ -344,7 +344,9 @@ function colGroupClass(colIdx: number): string {
           <th class="col--total col--total-header"></th>
         </tr>
         <tr class="spacer-row">
-          <td :colspan="displayColumns.length + 2"></td>
+          <td class="sticky-col"></td>
+          <td v-for="{ col, idx } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx)]"></td>
+          <td></td>
         </tr>
       </thead>
 
@@ -470,7 +472,7 @@ function colGroupClass(colIdx: number): string {
                 v-if="scoring[ti]?.freeErrorCols.has(idx)"
                 class="running-total-badge running-total-badge--free-error"
                 title="Free error (no deduction)"
-              >−0</span>
+              >≈</span>
               <span
                 v-if="scoring[ti]?.foulDeductCols.has(idx)"
                 class="running-total-badge running-total-badge--foul-deduct"
@@ -479,13 +481,22 @@ function colGroupClass(colIdx: number): string {
             </td>
             <td class="running-total-spacer"></td>
           </tr>
+
+          <!-- Spacer between teams -->
+          <tr v-if="ti < teams.length - 1" class="spacer-row">
+            <td class="sticky-col"></td>
+            <td v-for="{ col, idx } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx)]"></td>
+            <td></td>
+          </tr>
         </template>
       </tbody>
 
       <!-- No-jump row at bottom -->
       <tfoot>
         <tr class="spacer-row">
-          <td :colspan="displayColumns.length + 2"></td>
+          <td class="sticky-col"></td>
+          <td v-for="{ col, idx } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx)]"></td>
+          <td></td>
         </tr>
         <tr class="row--no-jump">
           <td class="col--name sticky-col no-jump-label">No Jump</td>
@@ -654,6 +665,7 @@ function colGroupClass(colIdx: number): string {
   background: #fff;
 }
 
+
 /* Sticky first column */
 .sticky-col {
   position: sticky;
@@ -695,6 +707,10 @@ function colGroupClass(colIdx: number): string {
   border: none !important;
   background: transparent !important;
 }
+.spacer-row .spacer-cell {
+  border-left: 1px solid #e0ddd4 !important;
+  border-right: 1px solid #e0ddd4 !important;
+}
 
 /* Question header row — empty name cell blends with background */
 thead .col--name {
@@ -705,46 +721,37 @@ thead .col--name {
 /* Question header */
 .scoresheet .col--question {
   font-weight: 700;
-  background: #2d2a1e;
-  color: #fff;
+  background: transparent;
+  color: #2d2a1e;
   font-size: 0.75rem;
+  border: none;
+  border-top: 1px solid #e0ddd4;
+  border-left: 1px solid #e0ddd4;
+  border-right: 1px solid #e0ddd4;
 }
 .col--question.col--ab {
-  background: #2d2a1e;
-  color: #fff;
-  border-bottom: 2px solid #854d0e;
+  border-top: 2px solid #854d0e;
 }
 .col--question.col--overtime {
-  background: #2d2a1e;
-  color: #fff;
-  border-bottom: 2px solid #9d174d;
+  border-top: 2px solid #9d174d;
 }
 
 /* Question header colours based on answer */
 .col--header-correct {
-  background: #15803d !important;
-  color: #fff !important;
+  color: #15803d !important;
 }
 .col--header-error {
-  background: #9e3030 !important;
-  color: #fff !important;
+  color: #9e3030 !important;
 }
 .col--header-bonus {
-  background: #2a7a8a !important;
-  color: #fff !important;
+  color: #2a7a8a !important;
 }
 .col--header-missed-bonus {
-  background: #8a8070 !important;
-  color: #fff !important;
+  color: #8a8070 !important;
 }
 .col--header-no-jump {
-  background: repeating-linear-gradient(
-    -45deg,
-    #2d2a1e,
-    #2d2a1e 3px,
-    #3d3930 3px,
-    #3d3930 6px
-  ) !important;
+  color: #a8a290 !important;
+  text-decoration: line-through;
 }
 
 /* Team header row */
@@ -755,12 +762,14 @@ thead .col--name {
 .team-header-spacer {
   background: transparent !important;
   border: none !important;
+  border-left: 1px solid #e0ddd4 !important;
+  border-right: 1px solid #e0ddd4 !important;
 }
 .team-score-label {
   background: transparent !important;
   color: #2d2a1e;
-  font-weight: 700;
-  font-size: 0.85rem;
+  font-weight: 800;
+  font-size: 1rem;
   text-align: center !important;
   border: none !important;
 }
@@ -808,17 +817,22 @@ thead .col--name {
   background: transparent;
   font-weight: 600;
   font-size: 0.75rem;
+  font-style: italic;
   color: #57534e;
 }
 .row--team-total td {
   background: transparent !important;
   border: none !important;
 }
+.row--team-total .cell--total {
+  border-left: 1px solid #e0ddd4 !important;
+  border-right: 1px solid #e0ddd4 !important;
+}
 .row--team-total .sticky-col {
   background: transparent;
 }
 .team-total-value {
-  font-size: 0.9rem;
+  font-size: 2.5rem;
   vertical-align: middle;
 }
 
@@ -999,12 +1013,12 @@ thead .col--name {
 /* Running total badges */
 .running-total-badge {
   position: absolute;
-  top: -0.1rem;
+  top: 0;
   right: 0;
-  font-size: 0.45rem;
+  font-size: 0.6rem;
   font-weight: 700;
-  padding: 0 0.15rem;
-  border-radius: 2px;
+  padding: 0.05rem 0.2rem;
+  border-radius: 3px;
   line-height: 1.3;
   color: #fff;
   pointer-events: none;
@@ -1016,7 +1030,8 @@ thead .col--name {
   background: #15803d;
 }
 .running-total-badge--free-error {
-  background: #9e3030;
+  background: #f0e8e0;
+  color: #9e3030;
 }
 .running-total-badge--foul-deduct {
   background: #b86e30;

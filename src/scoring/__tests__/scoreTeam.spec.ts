@@ -400,12 +400,12 @@ describe('scoreTeam', () => {
     expect(result.freeErrorCols.has(colIdx('1'))).toBe(true)
   })
 
-  it('shows running total on free error column even when score unchanged', () => {
+  it('does not repeat running total on free error column', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = C // +20
     cells[0]![colIdx('2')] = E // free error, score stays at 20
     const result = scoreTeam(cells, columns, false)
-    expect(result.runningTotals[colIdx('2')]).toBe(20)
+    expect(result.runningTotals[colIdx('2')]).toBeNull()
   })
 
   it('does not mark free error for 2nd individual error', () => {
