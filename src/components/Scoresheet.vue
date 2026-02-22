@@ -325,6 +325,9 @@ function colGroupClass(colIdx: number): string {
           </th>
           <th class="col--total col--total-header"></th>
         </tr>
+        <tr class="spacer-row">
+          <td :colspan="displayColumns.length + 2"></td>
+        </tr>
       </thead>
 
       <tbody>
@@ -398,8 +401,11 @@ function colGroupClass(colIdx: number): string {
 
       <!-- No-jump row at bottom -->
       <tfoot>
+        <tr class="spacer-row">
+          <td :colspan="displayColumns.length + 2"></td>
+        </tr>
         <tr class="row--no-jump">
-          <td class="col--name sticky-col"></td>
+          <td class="col--name sticky-col no-jump-label">No Jump</td>
           <td
             v-for="{ col, idx } in displayColumns"
             :key="col.key"
@@ -599,6 +605,14 @@ function colGroupClass(colIdx: number): string {
   background-color: #fdf2f811;
 }
 
+/* Spacer row — half-height transparent gap */
+.spacer-row td {
+  height: 0.5rem;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
 /* Question header row — empty name cell blends with background */
 thead .col--name {
   background: transparent !important;
@@ -679,6 +693,7 @@ thead .col--name {
   text-align: left;
   padding-left: 0.5rem;
   border-radius: 4px;
+  border: none !important;
 }
 .row--team-header .team-name::before {
   content: '';
@@ -763,6 +778,11 @@ thead .col--name {
 .row--no-jump .sticky-col {
   background: transparent !important;
   border: none !important;
+}
+.no-jump-label {
+  font-weight: 600;
+  color: #57534e;
+  font-size: 0.75rem;
 }
 .no-jump-total {
   background: transparent !important;
