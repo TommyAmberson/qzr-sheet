@@ -310,14 +310,14 @@ describe('cell validation', () => {
     expect(hasCode(errors, 0, 0, ci('3'), ValidationCode.NoJump)).toBe(true)
   })
 
-  it('foul on a no-jump column is also invalid', () => {
+  it('foul on a no-jump column is valid', () => {
     const cells = blankCells()
     const noJumps = blankNoJumps()
     noJumps[ci('3')] = true
     cells[0]![0]![ci('3')] = F
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey, noJumps)
-    expect(hasCode(errors, 0, 0, ci('3'), ValidationCode.NoJump)).toBe(true)
+    expect(hasCode(errors, 0, 0, ci('3'), ValidationCode.NoJump)).toBe(false)
   })
 
   it('empty cell on a no-jump column has no error', () => {

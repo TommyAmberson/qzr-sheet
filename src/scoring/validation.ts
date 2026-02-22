@@ -79,8 +79,8 @@ export function validateCells(
         const v = cellData[ti]![qi]![ci]!
         if (v === CellValue.Empty) continue
 
-        // --- No-jump ---
-        if (noJumps?.[ci]) {
+        // --- No-jump (fouls are still valid on no-jump columns) ---
+        if (noJumps?.[ci] && v !== CellValue.Foul) {
           addError(ti, qi, ci, ValidationCode.NoJump)
         }
 
