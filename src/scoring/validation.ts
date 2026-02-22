@@ -12,6 +12,8 @@ export enum ValidationCode {
   WrongCellType = 'wrong-cell-type',
   /** Answer on a column that's already resolved by a parent (e.g. 17A when 17 was correct) */
   QuestionResolved = 'question-resolved',
+  /** Answer on a column marked as no-jump */
+  NoJump = 'no-jump',
 }
 
 function isAnswer(v: CellValue): boolean {
@@ -26,6 +28,7 @@ export function validateCells(
   cellData: CellValue[][][],
   cols: Column[],
   greyResult: GreyedOutResult,
+  noJumps?: boolean[],
 ): Map<string, ValidationCode[]> {
   const errors = new Map<string, ValidationCode[]>()
   const teamCount = cellData.length
@@ -66,6 +69,11 @@ export function validateCells(
       for (let qi = 0; qi < quizzerCount; qi++) {
         const v = cellData[ti]![qi]![ci]!
         if (v === CellValue.Empty) continue
+
+        // --- No-jump ---
+        if (noJumps?.[ci]) {
+          addError(ti, qi, ci, ValidationCode.NoJump)
+        }
 
         // --- Wrong cell type ---
         if (col.type === QuestionType.B) {

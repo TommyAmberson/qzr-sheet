@@ -71,13 +71,13 @@ function closeSelector() {
 }
 
 import { computeGreyedOut } from '../scoring/greyedOut'
-import { validateCells } from '../scoring/validation'
+import { validateCells, ValidationCode } from '../scoring/validation'
 
 const greyedOutResult = computed(() => computeGreyedOut(cells.value, columns))
 const greyedOut = computed(() => greyedOutResult.value.disabled)
 const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
 
-const validationErrors = computed(() => validateCells(cells.value, columns, greyedOutResult.value))
+const validationErrors = computed(() => validateCells(cells.value, columns, greyedOutResult.value, noJumps.value))
 
 /** Check if a cell should be greyed out */
 function isGreyedOut(teamIdx: number, colIdx: number): boolean {
@@ -87,6 +87,26 @@ function isGreyedOut(teamIdx: number, colIdx: number): boolean {
 /** Check if a cell has validation errors */
 function isInvalid(ti: number, qi: number, ci: number): boolean {
   return validationErrors.value.has(`${ti}:${qi}:${ci}`)
+}
+
+/** Check if a team has any validation errors */
+function teamHasErrors(ti: number): boolean {
+  for (const key of validationErrors.value.keys()) {
+    if (key.startsWith(`${ti}:`)) return true
+  }
+  return false
+}
+
+/** Check if a no-jump column has any answers (conflict) */
+function noJumpHasConflict(colIdx: number): boolean {
+  if (!noJumps.value[colIdx]) return false
+  for (const key of validationErrors.value.keys()) {
+    if (key.endsWith(`:${colIdx}`)) {
+      const codes = validationErrors.value.get(key)
+      if (codes?.includes(ValidationCode.NoJump)) return true
+    }
+  }
+  return false
 }
 
 const visibleColumns = computed(() =>
@@ -192,7 +212,7 @@ function colGroupClass(colIdx: number): string {
                 'cell',
                 cellClass[cells[ti][qi][idx]],
                 colGroupClass(idx),
-                { 'cell--greyed': isGreyedOut(ti, idx) && cells[ti][qi][idx] === '' },
+                { 'cell--greyed': (isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '' },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
               ]"
               @click="openSelector(ti, qi, idx, $event)"
@@ -202,7 +222,7 @@ function colGroupClass(colIdx: number): string {
             <!-- Team total spans all quizzer rows + running total row -->
             <td
               v-if="qi === 0"
-              class="col--total team-total-value"
+              :class="['col--total', 'team-total-value', { 'cell--invalid': teamHasErrors(ti) }]"
               :rowspan="team.quizzers.length + 1"
             >
               {{ scoring[ti]?.total ?? 0 }}
@@ -231,7 +251,7 @@ function colGroupClass(colIdx: number): string {
           <td
             v-for="{ col, idx } in visibleColumns"
             :key="col.key"
-            :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx] }]"
+            :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx], 'cell--invalid': noJumpHasConflict(idx) }]"
             @click="toggleNoJump(idx)"
           >
             {{ noJumps[idx] ? '✗' : '' }}

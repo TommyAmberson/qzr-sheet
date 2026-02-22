@@ -18,6 +18,11 @@ function ci(key: string): number {
   return idx
 }
 
+/** Helper: blank no-jumps array */
+function blankNoJumps(): boolean[] {
+  return columns.map(() => false)
+}
+
 /** Helper: blank 3-team, 5-quizzer grid */
 function blankCells(): CellValue[][][] {
   return [0, 1, 2].map(() =>
@@ -291,5 +296,45 @@ describe('cell validation', () => {
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
     expect(hasCode(errors, 1, 0, ci('17A'), ValidationCode.QuestionResolved)).toBe(false)
+  })
+
+  // --- No-jump violations ---
+
+  it('answer on a no-jump column is invalid', () => {
+    const cells = blankCells()
+    const noJumps = blankNoJumps()
+    noJumps[ci('3')] = true
+    cells[0]![0]![ci('3')] = C
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, noJumps)
+    expect(hasCode(errors, 0, 0, ci('3'), ValidationCode.NoJump)).toBe(true)
+  })
+
+  it('foul on a no-jump column is also invalid', () => {
+    const cells = blankCells()
+    const noJumps = blankNoJumps()
+    noJumps[ci('3')] = true
+    cells[0]![0]![ci('3')] = F
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, noJumps)
+    expect(hasCode(errors, 0, 0, ci('3'), ValidationCode.NoJump)).toBe(true)
+  })
+
+  it('empty cell on a no-jump column has no error', () => {
+    const cells = blankCells()
+    const noJumps = blankNoJumps()
+    noJumps[ci('3')] = true
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, noJumps)
+    expect(errors.size).toBe(0)
+  })
+
+  it('answer on a column without no-jump is not flagged', () => {
+    const cells = blankCells()
+    const noJumps = blankNoJumps()
+    cells[0]![0]![ci('3')] = C
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, noJumps)
+    expect(hasCode(errors, 0, 0, ci('3'), ValidationCode.NoJump)).toBe(false)
   })
 })
