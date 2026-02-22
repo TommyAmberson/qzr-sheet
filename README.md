@@ -1,10 +1,40 @@
-# .
+# Quizmeet Scoresheet
 
-This template should help get you started developing with Vue 3 in Vite.
+A digital scoresheet for Quizmeet tournaments. Replaces paper sheets and spreadsheets with a modern, portable app.
 
-## Recommended IDE Setup
+## Development Roadmap
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+### Phase 0: Foundation (Complete)
+- [x] Tauri 2 + Vue 3 + Vite template setup
+- [x] Native dev environment (`pnpm tauri dev`)
+
+### Phase 1: Core UI
+- [ ] AG-Grid layout matching screenshot
+- [ ] Templated result cells (C/E/F)
+- [ ] Live scoring calculations
+- [ ] Question highlighting (complete etc.)
+- [ ] Quiz validation and explanation
+- [ ] Overtime support
+
+### Phase 1.5: UX Polish (optional)
+- [ ] Tablet-optimized touch UI
+- [ ] Drag-drop quizzer reordering
+- [ ] Hidden A/B question columns
+- [ ] Loading/error states
+
+### Phase 2: Data Management
+- [ ] Save results as JSON
+- [ ] ODS/LibreOffice import/export
+- [ ] Local storage backup
+
+### Phase 3: Quizmeet Integration
+- [ ] Quizmeet admin dashboard
+- [ ] Load teams/quizzers from API
+
+### Phase 4: Distribution
+- [ ] GitHub releases (.exe/.app/.deb/.rpm)
+- [ ] PWA manifest + web deployment
+- [ ] Auto-updater
 
 ## Recommended Browser Setup
 
@@ -26,23 +56,28 @@ See [Vite Configuration Reference](https://vite.dev/config/).
 ## Project Setup
 
 ```sh
-npm install
+pnpm i
 ```
 
 ### Compile and Hot-Reload for Development
 
 ```sh
-npm run dev
+pnpm run dev
+```
+
+or with backend server:
+```sh
+pnpm tauri dev
 ```
 
 ### Type-Check, Compile and Minify for Production
 
 ```sh
-npm run build
+pnpm tauri build
 ```
 
 ### Run Unit Tests with [Vitest](https://vitest.dev/)
 
 ```sh
-npm run test:unit
+pnpm run test:unit
 ```
