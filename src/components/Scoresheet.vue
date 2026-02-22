@@ -386,8 +386,9 @@ function colGroupClass(colIdx: number): string {
 <style scoped>
 .scoresheet-wrapper {
   overflow-x: auto;
-  max-width: 100vw;
+  width: 100%;
   padding: 1rem;
+  box-sizing: border-box;
 }
 
 .quiz-meta {
@@ -481,6 +482,8 @@ function colGroupClass(colIdx: number): string {
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 0.8rem;
   white-space: nowrap;
+  width: 100%;
+  table-layout: auto;
 }
 
 .scoresheet th,
@@ -525,14 +528,17 @@ function colGroupClass(colIdx: number): string {
 /* Question header */
 .col--question {
   font-weight: 700;
-  background: #e2e8f0;
+  background: #475569;
+  color: #f1f5f9;
   font-size: 0.75rem;
 }
 .col--question.col--ab {
-  background: #fef9c3;
+  background: #854d0e;
+  color: #fef9c3;
 }
 .col--question.col--overtime {
-  background: #fce7f3;
+  background: #9d174d;
+  color: #fce7f3;
 }
 
 /* Team header row */
@@ -575,17 +581,19 @@ function colGroupClass(colIdx: number): string {
 
 /* Team total row */
 .row--team-total {
-  background: #e2e8f0;
+  background: #f5f0e8;
   font-weight: 600;
+  font-size: 0.75rem;
+  color: #78716c;
 }
 .row--team-total .sticky-col {
-  background: #e2e8f0;
+  background: #f5f0e8;
 }
 .row--team-total .cell--total.col--ab {
-  background: #fef9c322;
+  background: #f5eedd;
 }
 .row--team-total .cell--total.col--overtime {
-  background: #fce7f322;
+  background: #f5e8e8;
 }
 .team-total-value {
   font-size: 0.9rem;
@@ -626,17 +634,16 @@ function colGroupClass(colIdx: number): string {
 
 /* No-jump row */
 .row--no-jump {
-  background: #f8fafc;
+  border-top: 3px solid #334155;
 }
 .row--no-jump .sticky-col {
-  background: #f8fafc;
   font-weight: 600;
   color: #64748b;
 }
 .cell--no-jump {
   cursor: pointer;
   user-select: none;
-  color: #94a3b8;
+  color: #64748b;
   font-weight: 700;
 }
 .cell--no-jump:hover {
@@ -644,8 +651,14 @@ function colGroupClass(colIdx: number): string {
   outline-offset: -2px;
 }
 .cell--no-jump-active {
-  color: #dc2626;
-  background-color: #fee2e2 !important;
+  background: repeating-linear-gradient(
+    -45deg,
+    #f1f5f9,
+    #f1f5f9 3px,
+    #e2e8f0 3px,
+    #e2e8f0 6px
+  ) !important;
+  opacity: 0.6;
 }
 
 /* Cell values */
@@ -677,8 +690,8 @@ function colGroupClass(colIdx: number): string {
   background-color: #dbeafe !important;
 }
 .cell--missed-bonus {
-  color: #ea580c;
-  background-color: #ffedd5 !important;
+  color: #64748b;
+  background-color: #f1f5f9 !important;
 }
 
 /* Column appear animation */
@@ -727,9 +740,15 @@ function colGroupClass(colIdx: number): string {
 }
 
 .cell--greyed {
-  background-color: #e2e8f0 !important;
+  background: repeating-linear-gradient(
+    -45deg,
+    #f1f5f9,
+    #f1f5f9 3px,
+    #e2e8f0 3px,
+    #e2e8f0 6px
+  ) !important;
   cursor: default;
-  opacity: 0.5;
+  opacity: 0.6;
 }
 .cell--greyed:hover {
   outline: none;
@@ -811,10 +830,10 @@ function colGroupClass(colIdx: number): string {
   background: #dbeafe;
 }
 .opt--missed-bonus {
-  color: #ea580c;
+  color: #64748b;
 }
 .opt--missed-bonus:hover {
-  background: #ffedd5;
+  background: #f1f5f9;
 }
 .opt--clear {
   color: #94a3b8;
