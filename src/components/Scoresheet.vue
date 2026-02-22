@@ -1,135 +1,84 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { CellValue, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 
-const { columns, teams, cells, noJumps, quizMeta, scoring, cycleCell, toggleNoJump, columnGroups } = useScoresheet()
+const { columns, teams, cells, noJumps, quizMeta, scoring, setCell, toggleNoJump, columnGroups } = useScoresheet()
 
-/**
- * Determine which cells are greyed out.
- * Returns a Set of "teamIdx:colIdx" keys that should be disabled.
- */
-const greyedOut = computed(() => {
-  const disabled = new Set<string>()
+/** Active cell selector state */
+const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
+
+/** Check if a column is a bonus situation for a given team
+ *  (team is the only one not greyed out on that column) */
+function isBonusForTeam(teamIdx: number, colIdx: number): boolean {
   const teamCount = teams.value.length
-
-  // Helper: does any quizzer on any team have a specific value at a column?
-  function anyTeamHasValue(colIdx: number, value: CellValue): boolean {
-    for (let ti = 0; ti < teamCount; ti++) {
-      for (const row of cells.value[ti]!) {
-        if (row[colIdx] === value) return true
-      }
-    }
-    return false
-  }
-
-  // Helper: does any quizzer on a specific team have a value at a column?
-  function teamHasValue(teamIdx: number, colIdx: number, value: CellValue): boolean {
-    for (const row of cells.value[teamIdx]!) {
-      if (row[colIdx] === value) return true
-    }
-    return false
-  }
-
-  // Helper: does any quizzer on a specific team have an answer (not foul) at a column?
-  function teamHasAnswer(teamIdx: number, colIdx: number): boolean {
-    for (const row of cells.value[teamIdx]!) {
-      const v = row[colIdx]
-      if (v !== CellValue.Empty && v !== CellValue.Foul) return true
-    }
-    return false
-  }
-
-  // Helper: does any quizzer on a specific team have a foul at a column?
-  function teamHasFoul(teamIdx: number, colIdx: number): boolean {
-    for (const row of cells.value[teamIdx]!) {
-      if (row[colIdx] === CellValue.Foul) return true
-    }
-    return false
-  }
-
-  // Helper: does any team have an answer (C/E/B/MB, not foul) at a column?
-  function anyTeamHasAnswer(colIdx: number): boolean {
-    for (let ti = 0; ti < teamCount; ti++) {
-      if (teamHasAnswer(ti, colIdx)) return true
-    }
-    return false
-  }
-
-  // Helper: grey out all teams at a column
-  function greyAllTeams(colIdx: number) {
-    for (let ti = 0; ti < teamCount; ti++) {
-      disabled.add(`${ti}:${colIdx}`)
+  let greyedTeams = 0
+  for (let ti = 0; ti < teamCount; ti++) {
+    if (ti !== teamIdx && greyedOut.value.has(`${ti}:${colIdx}`)) {
+      greyedTeams++
     }
   }
+  return greyedTeams === teamCount - 1
+}
 
-  // Build a map from column key to column index for quick lookup
-  const keyToIdx = new Map<string, number>()
-  columns.forEach((col, i) => keyToIdx.set(col.key, i))
+/** Options to show in the selector based on column type and context */
+const selectorOptions = computed(() => {
+  if (!selector.value) return []
+  const { ti, ci } = selector.value
+  const col = columns[ci]
+  if (!col) return []
 
-  for (let ci = 0; ci < columns.length; ci++) {
-    const col = columns[ci]!
-
-    // 1. If a question has an answer (C/E/B/MB), it's done — grey out all teams
-    //    on that column. Fouls don't count (question is re-asked).
-    if (anyTeamHasAnswer(ci)) {
-      greyAllTeams(ci)
-    }
-
-    // 2. If a base question (Normal) was answered (C/E/B/MB), grey out A and B
-    if (col.type === QuestionType.Normal && col.isAB) {
-      if (anyTeamHasAnswer(ci)) {
-        const aIdx = keyToIdx.get(`${col.number}A`)
-        const bIdx = keyToIdx.get(`${col.number}B`)
-        if (aIdx !== undefined) greyAllTeams(aIdx)
-        if (bIdx !== undefined) greyAllTeams(bIdx)
-      }
-    }
-
-    // 3. If an A question was answered (C/E/B/MB), grey out B
-    if (col.type === QuestionType.A) {
-      if (anyTeamHasAnswer(ci)) {
-        const bIdx = keyToIdx.get(`${col.number}B`)
-        if (bIdx !== undefined) greyAllTeams(bIdx)
-      }
-    }
-
-    // 4. Fouls: no greying — question is re-asked, any quizzer can still jump
-
-    // 5. Toss-up: if a team had an error on this column, grey out the
-    //    NEXT question column for that team
-    for (let ti = 0; ti < teamCount; ti++) {
-      if (teamHasValue(ti, ci, CellValue.Error)) {
-        // Find the next question column
-        let nextColIdx: number | undefined
-
-        if (col.isAB) {
-          // For A/B-eligible questions:
-          // Error on Normal → next is A of same number
-          // Error on A → next is B of same number
-          // Error on B → next numbered question's Normal
-          if (col.type === QuestionType.Normal) {
-            nextColIdx = keyToIdx.get(`${col.number}A`)
-          } else if (col.type === QuestionType.A) {
-            nextColIdx = keyToIdx.get(`${col.number}B`)
-          } else {
-            // B — find next numbered question
-            nextColIdx = keyToIdx.get(`${col.number + 1}`)
-          }
-        } else {
-          // Normal questions (1-15): next is just the next number
-          nextColIdx = keyToIdx.get(`${col.number + 1}`)
-        }
-
-        if (nextColIdx !== undefined) {
-          disabled.add(`${ti}:${nextColIdx}`)
-        }
-      }
-    }
+  // B columns always show bonus options
+  if (col.type === QuestionType.B) {
+    return [
+      { value: CellValue.Bonus, label: 'B', cls: 'opt--bonus' },
+      { value: CellValue.MissedBonus, label: 'MB', cls: 'opt--missed-bonus' },
+      { value: CellValue.Foul, label: 'F', cls: 'opt--foul' },
+      { value: CellValue.Empty, label: '✕', cls: 'opt--clear' },
+    ]
   }
 
-  return disabled
+  // If this team is the only one not greyed (bonus situation), show B/MB
+  if (isBonusForTeam(ti, ci)) {
+    return [
+      { value: CellValue.Bonus, label: 'B', cls: 'opt--bonus' },
+      { value: CellValue.MissedBonus, label: 'MB', cls: 'opt--missed-bonus' },
+      { value: CellValue.Foul, label: 'F', cls: 'opt--foul' },
+      { value: CellValue.Empty, label: '✕', cls: 'opt--clear' },
+    ]
+  }
+
+  return [
+    { value: CellValue.Correct, label: 'C', cls: 'opt--correct' },
+    { value: CellValue.Error, label: 'E', cls: 'opt--error' },
+    { value: CellValue.Foul, label: 'F', cls: 'opt--foul' },
+    { value: CellValue.Empty, label: '✕', cls: 'opt--clear' },
+  ]
 })
+
+function openSelector(ti: number, qi: number, ci: number, event: MouseEvent) {
+  const td = event.currentTarget as HTMLElement
+  const rect = td.getBoundingClientRect()
+  selector.value = {
+    ti, qi, ci,
+    x: rect.left + rect.width / 2,
+    y: rect.bottom + 4,
+  }
+}
+
+function selectValue(value: CellValue) {
+  if (!selector.value) return
+  setCell(selector.value.ti, selector.value.qi, selector.value.ci, value)
+  selector.value = null
+}
+
+function closeSelector() {
+  selector.value = null
+}
+
+import { computeGreyedOut } from '../scoring/greyedOut'
+
+const greyedOut = computed(() => computeGreyedOut(cells.value, columns))
 
 /** Check if a cell should be greyed out */
 function isGreyedOut(teamIdx: number, colIdx: number): boolean {
@@ -241,7 +190,7 @@ function colGroupClass(colIdx: number): string {
                 colGroupClass(idx),
                 { 'cell--greyed': isGreyedOut(ti, idx) && cells[ti][qi][idx] === '' },
               ]"
-              @click="cycleCell(ti, qi, idx)"
+              @click="openSelector(ti, qi, idx, $event)"
             >
               {{ cellDisplay[cells[ti][qi][idx]] }}
             </td>
@@ -286,6 +235,25 @@ function colGroupClass(colIdx: number): string {
         </tr>
       </tfoot>
     </table>
+    <!-- Cell selector popup -->
+    <Teleport to="body">
+      <div v-if="selector" class="selector-backdrop" @click="closeSelector">
+        <div
+          class="selector-popup"
+          :style="{ left: selector.x + 'px', top: selector.y + 'px' }"
+          @click.stop
+        >
+          <button
+            v-for="opt in selectorOptions"
+            :key="opt.label"
+            :class="['selector-opt', opt.cls]"
+            @click="selectValue(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -594,5 +562,83 @@ function colGroupClass(colIdx: number): string {
 }
 .cell--greyed:hover {
   outline: none;
+}
+
+</style>
+
+<style>
+/* Cell selector popup (unscoped for Teleport) */
+.selector-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.selector-popup {
+  position: fixed;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 101;
+}
+
+.selector-opt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 1.8rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.1s;
+  background: #f8fafc;
+}
+.selector-opt:hover {
+  transform: scale(1.1);
+}
+
+.opt--correct {
+  color: #16a34a;
+}
+.opt--correct:hover {
+  background: #dcfce7;
+}
+.opt--error {
+  color: #dc2626;
+}
+.opt--error:hover {
+  background: #fee2e2;
+}
+.opt--foul {
+  color: #ea580c;
+}
+.opt--foul:hover {
+  background: #ffedd5;
+}
+.opt--bonus {
+  color: #2563eb;
+}
+.opt--bonus:hover {
+  background: #dbeafe;
+}
+.opt--missed-bonus {
+  color: #ea580c;
+}
+.opt--missed-bonus:hover {
+  background: #ffedd5;
+}
+.opt--clear {
+  color: #94a3b8;
+}
+.opt--clear:hover {
+  background: #e2e8f0;
 }
 </style>
