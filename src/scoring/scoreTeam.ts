@@ -40,6 +40,10 @@ export interface TeamScoring {
   uniqueQuizzerBonusCols: Map<number, number>
   /** Column indices where a quizout bonus (+10) was awarded */
   quizoutBonusCols: Set<number>
+  /** Column indices where a foul caused a point deduction (-10) */
+  foulDeductCols: Set<number>
+  /** Column indices where an error had no point deduction */
+  freeErrorCols: Set<number>
 }
 
 /**
@@ -72,6 +76,8 @@ export function scoreTeam(
   let uniqueCorrectCount = 0
   const uniqueBonusCols = new Map<number, number>()
   const quizoutBonusCols = new Set<number>()
+  const foulDeductCols = new Set<number>()
+  const freeErrorCols = new Set<number>()
 
   // Running total built column by column
   let runningScore = 0
@@ -162,6 +168,8 @@ export function scoreTeam(
         }
         if (deduct) {
           colPoints -= 10
+        } else {
+          freeErrorCols.add(ci)
         }
       } else if (cell === CellValue.Foul) {
         if (!isOvertime) {
@@ -180,6 +188,7 @@ export function scoreTeam(
         const isFoulOut = !isOvertime && qFoul[qi] === 3
         if (isTeamFoulDeduct || isFoulOut) {
           colPoints -= 10
+          foulDeductCols.add(ci)
         }
       }
     }
@@ -190,9 +199,12 @@ export function scoreTeam(
 
   // Convert raw totals: null out columns where the total didn't change
   // Always show the first column so the on-time bonus is visible
+  // Also show on free error columns to reinforce the "no deduction" indicator
   const runningTotals: (number | null)[] = rawTotals.map((val, i) => {
     if (i === 0) return val
-    return val !== rawTotals[i - 1] ? val : null
+    if (val !== rawTotals[i - 1]) return val
+    if (freeErrorCols.has(i)) return val
+    return null
   })
 
   // Build per-quizzer results
@@ -236,5 +248,7 @@ export function scoreTeam(
     teamFoulCount: teamFouls,
     uniqueQuizzerBonusCols: uniqueBonusCols,
     quizoutBonusCols,
+    foulDeductCols,
+    freeErrorCols,
   }
 }

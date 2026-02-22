@@ -359,6 +359,82 @@ describe('scoreTeam', () => {
     expect(result.total).toBe(20)
   })
 
+  it('marks foul deduction on 3rd team foul', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = F
+    cells[1]![colIdx('2')] = F
+    cells[2]![colIdx('3')] = F // 3rd team foul → -10
+    const result = scoreTeam(cells, columns, false)
+    expect(result.foulDeductCols.has(colIdx('3'))).toBe(true)
+    expect(result.foulDeductCols.has(colIdx('1'))).toBe(false)
+    expect(result.foulDeductCols.has(colIdx('2'))).toBe(false)
+  })
+
+  it('marks foul deduction on foul-out', () => {
+    const cells = blankCells()
+    cells[1]![colIdx('1')] = F // quizzer 2, team 1 → no deduction
+    cells[0]![colIdx('2')] = F // quizzer 1, team 2 → no deduction
+    cells[0]![colIdx('3')] = F // quizzer 1, team 3 → -10 (3rd team)
+    cells[0]![colIdx('4')] = F // quizzer 1, team 4, individual 3 → -10 (foul-out)
+    const result = scoreTeam(cells, columns, false)
+    expect(result.foulDeductCols.has(colIdx('3'))).toBe(true)
+    expect(result.foulDeductCols.has(colIdx('4'))).toBe(true)
+    expect(result.foulDeductCols.has(colIdx('1'))).toBe(false)
+    expect(result.foulDeductCols.has(colIdx('2'))).toBe(false)
+  })
+
+  it('does not mark foul deduction for non-penalized fouls', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = F // 1st team foul → no deduction
+    cells[0]![colIdx('2')] = F // 2nd team foul → no deduction
+    const result = scoreTeam(cells, columns, false)
+    expect(result.foulDeductCols.has(colIdx('1'))).toBe(false)
+    expect(result.foulDeductCols.has(colIdx('2'))).toBe(false)
+  })
+
+  it('marks free error for 1st individual error before Q17 with team errors < 3', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = E // 1st individual, 1st team, not Q17+ → free
+    const result = scoreTeam(cells, columns, false)
+    expect(result.total).toBe(0)
+    expect(result.freeErrorCols.has(colIdx('1'))).toBe(true)
+  })
+
+  it('shows running total on free error column even when score unchanged', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = C // +20
+    cells[0]![colIdx('2')] = E // free error, score stays at 20
+    const result = scoreTeam(cells, columns, false)
+    expect(result.runningTotals[colIdx('2')]).toBe(20)
+  })
+
+  it('does not mark free error for 2nd individual error', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = E // free
+    cells[0]![colIdx('2')] = E // 2nd individual → not free
+    const result = scoreTeam(cells, columns, false)
+    expect(result.freeErrorCols.has(colIdx('1'))).toBe(true)
+    expect(result.freeErrorCols.has(colIdx('2'))).toBe(false)
+  })
+
+  it('does not mark free error on Q17+', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('17')] = E // Q17+ always deducts
+    const result = scoreTeam(cells, columns, false)
+    expect(result.freeErrorCols.has(colIdx('17'))).toBe(false)
+  })
+
+  it('does not mark free error for 3rd+ team error', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = E // free (1st individual, 1st team)
+    cells[1]![colIdx('2')] = E // free (1st individual, 2nd team)
+    cells[2]![colIdx('3')] = E // 3rd team → not free
+    const result = scoreTeam(cells, columns, false)
+    expect(result.freeErrorCols.has(colIdx('1'))).toBe(true)
+    expect(result.freeErrorCols.has(colIdx('2'))).toBe(true)
+    expect(result.freeErrorCols.has(colIdx('3'))).toBe(false)
+  })
+
   it('complex scenario: on-time + 3 quizzers + errors + Q17 bonus', () => {
     const cells = blankCells()
     // On time: +20

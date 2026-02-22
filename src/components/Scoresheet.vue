@@ -466,6 +466,16 @@ function colGroupClass(colIdx: number): string {
                 v-if="scoring[ti]?.quizoutBonusCols.has(idx)"
                 class="running-total-badge running-total-badge--quizout"
               >Q</span>
+              <span
+                v-if="scoring[ti]?.freeErrorCols.has(idx)"
+                class="running-total-badge running-total-badge--free-error"
+                title="Free error (no deduction)"
+              >−0</span>
+              <span
+                v-if="scoring[ti]?.foulDeductCols.has(idx)"
+                class="running-total-badge running-total-badge--foul-deduct"
+                title="Foul deduction (-10)"
+              >F</span>
             </td>
             <td class="running-total-spacer"></td>
           </tr>
@@ -1004,6 +1014,14 @@ thead .col--name {
 }
 .running-total-badge--quizout {
   background: #15803d;
+}
+.running-total-badge--free-error {
+  background: #9e3030;
+}
+.running-total-badge--foul-deduct {
+  background: #b86e30;
+  right: auto;
+  left: 0;
 }
 
 /* Team status indicators */
