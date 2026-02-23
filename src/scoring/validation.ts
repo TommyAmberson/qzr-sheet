@@ -10,6 +10,8 @@ export enum ValidationCode {
   DuplicateAnswer = 'duplicate-answer',
   /** Quizzer's team is tossed-up on this column — they can't jump */
   TossedUp = 'tossed-up',
+  /** Team answered a bonus question that belongs to another team */
+  WrongTeamBonus = 'wrong-team-bonus',
   /** C/E on a bonus question — should use B/MB */
   IsBonus = 'is-bonus',
   /** B/MB on a non-bonus column — this is not a bonus question */
@@ -28,15 +30,16 @@ export enum ValidationCode {
 
 /** Human-readable message for each validation code */
 const validationMessages: Record<ValidationCode, string> = {
-  [ValidationCode.DuplicateAnswer]: 'Only one quizzer can answer this question',
-  [ValidationCode.TossedUp]: "This is a toss-up — team can't jump",
-  [ValidationCode.IsBonus]: 'This is a bonus question — use B/MB',
-  [ValidationCode.NotBonus]: 'This is not a bonus question',
-  [ValidationCode.QuestionNotNeeded]: "This question shouldn't be asked",
-  [ValidationCode.NoJump]: 'Quizzer answered but this question is marked no-jump',
-  [ValidationCode.QuizzerOut]: 'Quizzer has already quizzed/errored/fouled out',
-  [ValidationCode.FouledOnQuestion]: 'Quizzer fouled on this numbered question — ineligible to answer',
-  [ValidationCode.NotInOvertime]: 'Team is not eligible for overtime',
+  [ValidationCode.DuplicateAnswer]: 'Only one quizzer can answer per question — multiple answered',
+  [ValidationCode.TossedUp]: "Team can't jump on this question — it's a toss-up",
+  [ValidationCode.WrongTeamBonus]: "Only one team can answer a bonus — this team isn't eligible",
+  [ValidationCode.IsBonus]: 'This is a bonus question — answer must be a bonus',
+  [ValidationCode.NotBonus]: 'This is not a bonus question — bonus answers are not allowed',
+  [ValidationCode.QuestionNotNeeded]: "This question shouldn't exist — no error triggered it",
+  [ValidationCode.NoJump]: 'No-jump means no one answered — but an answer is recorded here',
+  [ValidationCode.QuizzerOut]: 'Quizzer has quizzed/errored/fouled out — they cannot answer',
+  [ValidationCode.FouledOnQuestion]: 'A foul on this numbered question makes the quizzer ineligible',
+  [ValidationCode.NotInOvertime]: 'Only tied teams can answer in overtime — this team is not tied',
 }
 
 /** Get the human-readable message for a validation code */
@@ -156,9 +159,17 @@ export function validateCells(
           addError(ti, qi, ci, ValidationCode.FouledOnQuestion)
         }
 
-        // --- Tossed up ---
+        // --- Tossed up / wrong team bonus ---
         if (isAnswer(v) && greyResult.tossedUp.has(`${ti}:${ci}`)) {
-          addError(ti, qi, ci, ValidationCode.TossedUp)
+          // Check if some other team has a bonus situation on this column
+          let isBonusForOther = false
+          for (let oti = 0; oti < teamCount; oti++) {
+            if (oti !== ti && isBonusSituation(greyResult.tossedUp, oti, ci, teamCount)) {
+              isBonusForOther = true
+              break
+            }
+          }
+          addError(ti, qi, ci, isBonusForOther ? ValidationCode.WrongTeamBonus : ValidationCode.TossedUp)
         }
 
         // --- Question resolved (A/B cascade) ---
