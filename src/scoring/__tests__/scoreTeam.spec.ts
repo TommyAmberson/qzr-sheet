@@ -207,13 +207,25 @@ describe('scoreTeam', () => {
     expect(result.quizzers[0]!.erroredOut).toBe(true)
   })
 
-  it('detects error out with mix of errors and fouls', () => {
+  it('2 errors + 1 foul is NOT error out (errors and fouls tracked separately)', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('3')] = E
     const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.erroredOut).toBe(false)
+    expect(result.quizzers[0]!.fouledOut).toBe(false)
+    expect(result.quizzers[0]!.outAfterCol).toBe(-1)
+  })
+
+  it('3 errors = error out (no fouls needed)', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = E
+    cells[0]![colIdx('2')] = E
+    cells[0]![colIdx('3')] = E
+    const result = scoreTeam(cells, columns, false)
     expect(result.quizzers[0]!.erroredOut).toBe(true)
+    expect(result.quizzers[0]!.fouledOut).toBe(false)
   })
 
   it('detects foul out (3 fouls, 0 errors)', () => {
@@ -226,14 +238,15 @@ describe('scoreTeam', () => {
     expect(result.quizzers[0]!.fouledOut).toBe(true)
   })
 
-  it('fouledOut is false when errors contribute to out', () => {
+  it('1 error + 2 fouls is NOT out (errors and fouls tracked separately)', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('3')] = F
     const result = scoreTeam(cells, columns, false)
-    expect(result.quizzers[0]!.erroredOut).toBe(true)
+    expect(result.quizzers[0]!.erroredOut).toBe(false)
     expect(result.quizzers[0]!.fouledOut).toBe(false)
+    expect(result.quizzers[0]!.outAfterCol).toBe(-1)
   })
 
   it('tracks correct count per quizzer', () => {
@@ -316,13 +329,16 @@ describe('scoreTeam', () => {
     expect(result.quizzers[0]!.outAfterCol).toBe(-1)
   })
 
-  it('outAfterCol handles mixed errors and fouls', () => {
+  it('outAfterCol is set at the 3rd error (not combined with fouls)', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E
-    cells[0]![colIdx('2')] = F
-    cells[0]![colIdx('7')] = E // 3rd error+foul → out here
+    cells[0]![colIdx('2')] = F // foul doesn't count toward error out
+    cells[0]![colIdx('3')] = E
+    cells[0]![colIdx('7')] = E // 3rd error → out here
     const result = scoreTeam(cells, columns, false)
     expect(result.quizzers[0]!.outAfterCol).toBe(colIdx('7'))
+    expect(result.quizzers[0]!.erroredOut).toBe(true)
+    expect(result.quizzers[0]!.fouledOut).toBe(false)
   })
 
   it('running totals are null when unchanged from previous column', () => {

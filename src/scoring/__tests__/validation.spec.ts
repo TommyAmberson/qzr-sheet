@@ -428,6 +428,17 @@ describe('cell validation', () => {
     expect(hasCode(errors, 0, 0, ci('4'), ValidationCode.QuizzerOut)).toBe(true)
   })
 
+  it('2 errors + 1 foul is NOT out (errors and fouls tracked separately)', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = E
+    cells[0]![0]![ci('2')] = F
+    cells[0]![0]![ci('3')] = E // 2 errors + 1 foul: NOT out
+    cells[0]![0]![ci('4')] = C // should be valid — quizzer is still in
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('4'), ValidationCode.QuizzerOut)).toBe(false)
+  })
+
   it('quizzer not yet out has no QuizzerOut error', () => {
     const cells = blankCells()
     cells[0]![0]![ci('1')] = C

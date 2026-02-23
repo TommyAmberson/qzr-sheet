@@ -11,9 +11,9 @@ export interface QuizzerScoring {
   foulCount: number
   /** Quizzed out (4 correct) */
   quizzedOut: boolean
-  /** Errored/fouled out (3 errors+fouls) */
+  /** Errored out (3 errors) */
   erroredOut: boolean
-  /** Fouled out specifically (3+ fouls, 0 errors) */
+  /** Fouled out (3 fouls) */
   fouledOut: boolean
   /** Quizout bonus earned (4 correct with 0 errors) */
   quizoutBonus: boolean
@@ -144,8 +144,8 @@ export function scoreTeam(
         if (!isOvertime) {
           qError[qi]++
 
-          // Track error/foul-out column
-          if (qError[qi]! + qFoul[qi]! >= 3 && qOutAfterCol[qi] === -1) {
+          // Track error-out column (3 errors = out)
+          if (qError[qi] === 3 && qOutAfterCol[qi] === -1) {
             qOutAfterCol[qi] = ci
           }
         }
@@ -175,8 +175,8 @@ export function scoreTeam(
         if (!isOvertime) {
           qFoul[qi]++
 
-          // Track error/foul-out column
-          if (qError[qi]! + qFoul[qi]! >= 3 && qOutAfterCol[qi] === -1) {
+          // Track foul-out column (3 fouls = out)
+          if (qFoul[qi] === 3 && qOutAfterCol[qi] === -1) {
             qOutAfterCol[qi] = ci
           }
         }
@@ -212,8 +212,8 @@ export function scoreTeam(
     const errors = qError[qi]!
     const fouls = qFoul[qi]!
     const quizzedOut = correct >= 4
-    const erroredOut = errors + fouls >= 3
-    const fouledOut = erroredOut && errors === 0
+    const erroredOut = errors >= 3
+    const fouledOut = fouls >= 3
     const quizoutBonus = qHasQuizoutBonus[qi]!
 
     // Individual points: 20 per correct (non-bonus, non-OT)
