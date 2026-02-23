@@ -1,6 +1,6 @@
 /* ── Raw palette — every unique color value, defined once ── */
 :root {
-  /* Answer palette (shared across themes) */
+  /* Answers */
   --palette-correct:      #3d7a4a;
   --palette-correct-alt:  #e4f2e7;
   --palette-error:        #8b4038;
@@ -14,55 +14,51 @@
   --palette-no-jump:      #5c5848;
   --palette-no-jump-alt:  #e8e6df;
 
-  /* Neutral palette */
+  /* Neutrals — light (white → dark) */
   --palette-white:        #fff;
+  --palette-linen:        #faf6ee;
   --palette-cream:        #f0e8e0;
+  --palette-parchment:    #e8e4d8;
+  --palette-bone:         #e6e0d4;
   --palette-sand:         #e0ddd4;
+  --palette-dune:         #d4d0c6;
+  --palette-tan:          #c9c0a8;
   --palette-khaki:        #a09a85;
   --palette-stone:        #78716c;
   --palette-slate:        #57534e;
   --palette-charcoal:     #2d2a1e;
 
-  /* Dark neutral palette */
-  --palette-dk-100:       #b8b4a8;
-  --palette-dk-200:       #a8a290;
-  --palette-dk-300:       #5c5848;
-  --palette-dk-400:       #3a3730;
-  --palette-dk-500:       #2a2724;
-  --palette-dk-600:       #1a1816;
+  /* Neutrals — dark (light → dark) */
+  --palette-ash:          #b8b4a8;
+  --palette-drift:        #a8a290;
+  --palette-umber:        #8a7d3a;
+  --palette-dusk:         #4a4540;
+  --palette-bark:         #4a4538;
+  --palette-shadow:       #3a3730;
+  --palette-soot:         #383330;
+  --palette-coal:         #2a2724;
+  --palette-walnut:       #2a2720;
+  --palette-obsidian:     #1a1816;
 
-  /* Accent palette */
-  --palette-accent:       #3b82f6;
-  --palette-accent-bright:#60a5fa;
+  /* Accents */
+  --palette-blue:         #3b82f6;
+  --palette-sky:          #60a5fa;
   --palette-red:          #dc2626;
-  --palette-red-bright:   #ef4444;
-  --palette-red-muted:    #f87171;
-  --palette-red-deep:     #991b1b;
+  --palette-ember:        #ef4444;
+  --palette-coral:        #f87171;
+  --palette-maroon:       #991b1b;
   --palette-gold:         #e6d98a;
   --palette-amber:        #854d0e;
-  --palette-amber-bright: #c47a1a;
+  --palette-tawny:        #c47a1a;
   --palette-rose:         #9d174d;
+  --palette-scarlet:      #ff0000;
+  --palette-cobalt:       #0000ff;
 
-  /* Team identity palette */
-  --palette-team-red:     #ff0000;
-  --palette-team-blue:    #0000ff;
-
-  /* Light meta palette */
-  --palette-meta-bg:      #faf6ee;
-  --palette-meta-accent:  #c9c0a8;
-
-  /* Dark meta palette */
-  --palette-meta-bg-dk:   #2a2720;
-  --palette-meta-accent-dk:#4a4538;
-  --palette-meta-border-dk:#8a7d3a;
-
-  /* Stripe palette */
-  --palette-stripe-a:     #d4d0c6;
-  --palette-stripe-b:     #e6e0d4;
-  --palette-stripe-a-dk:  #4a4540;
-  --palette-stripe-b-dk:  #383330;
+  /* Team identity — fixed, not themed */
+  --color-team-red:       #ff0000;
+  --color-team-white:     #ffffff;
+  --color-team-blue:      #0000ff;
 }
-
 /* ── Light theme (default) ── */
 :root {
   /* Answer colors — same in both themes */
@@ -81,7 +77,7 @@
 
   /* Validation */
   --color-invalid:        var(--palette-red);
-  --color-invalid-alt:    var(--palette-red-muted);
+  --color-invalid-alt:    var(--palette-coral);
 
   /* UI chrome */
   --color-bg:             var(--palette-white);
@@ -91,22 +87,16 @@
   --color-text:           var(--palette-charcoal);
   --color-text-muted:     var(--palette-slate);
   --color-text-faint:     var(--palette-stone);
-  --color-accent:         var(--palette-accent);
-
-
-  /* Team identity */
-  --color-team-red:       var(--palette-team-red);
-  --color-team-white:     var(--palette-white);
-  --color-team-blue:      var(--palette-team-blue);
+  --color-accent:         var(--palette-blue);
 
   /* Quiz meta bar */
-  --color-meta-bg:        var(--palette-meta-bg);
-  --color-meta-accent:    var(--palette-meta-accent);
+  --color-meta-bg:        var(--palette-linen);
+  --color-meta-accent:    var(--palette-tan);
   --color-meta-border:    var(--palette-gold);
 
   /* Greyed-out stripes */
-  --color-grey-stripe-a:  var(--palette-stripe-a);
-  --color-grey-stripe-b:  var(--palette-stripe-b);
+  --color-grey-stripe-a:  var(--palette-dune);
+  --color-grey-stripe-b:  var(--palette-bone);
 
   /* A/B and overtime column top borders */
   --color-ab-border:      var(--palette-amber);
@@ -116,34 +106,29 @@
 /* ── Dark theme — reassign palette tokens ── */
 [data-theme="dark"] {
   /* Validation */
-  --color-invalid:        var(--palette-red-bright);
-  --color-invalid-alt:    var(--palette-red-deep);
+  --color-invalid:        var(--palette-ember);
+  --color-invalid-alt:    var(--palette-maroon);
 
-  /* UI chrome — swap light↔dark palette tokens */
-  --color-bg:             var(--palette-dk-500);
-  --color-bg-warm:        var(--palette-dk-600);
-  --color-border:         var(--palette-dk-300);
-  --color-border-alt:     var(--palette-dk-400);
-  --color-text:           var(--palette-dk-100);
-  --color-text-muted:     var(--palette-dk-200);
+  /* UI chrome */
+  --color-bg:             var(--palette-coal);
+  --color-bg-warm:        var(--palette-obsidian);
+  --color-border:         var(--palette-no-jump);
+  --color-border-alt:     var(--palette-shadow);
+  --color-text:           var(--palette-ash);
+  --color-text-muted:     var(--palette-drift);
   --color-text-faint:     var(--palette-stone);
-  --color-accent:         var(--palette-accent-bright);
-
-  /* Team identity */
-  --color-team-red:       var(--palette-team-red);
-  --color-team-white:     var(--palette-white);
-  --color-team-blue:      var(--palette-team-blue);
+  --color-accent:         var(--palette-sky);
 
   /* Quiz meta bar */
-  --color-meta-bg:        var(--palette-meta-bg-dk);
-  --color-meta-accent:    var(--palette-meta-accent-dk);
-  --color-meta-border:    var(--palette-meta-border-dk);
+  --color-meta-bg:        var(--palette-walnut);
+  --color-meta-accent:    var(--palette-bark);
+  --color-meta-border:    var(--palette-umber);
 
   /* Greyed-out stripes */
-  --color-grey-stripe-a:  var(--palette-stripe-a-dk);
-  --color-grey-stripe-b:  var(--palette-stripe-b-dk);
+  --color-grey-stripe-a:  var(--palette-dusk);
+  --color-grey-stripe-b:  var(--palette-soot);
 
   /* A/B and overtime column top borders */
-  --color-ab-border:      var(--palette-amber-bright);
+  --color-ab-border:      var(--palette-tawny);
   --color-ot-border:      var(--palette-rose);
 }
