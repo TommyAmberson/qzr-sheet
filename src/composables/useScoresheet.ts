@@ -284,6 +284,25 @@ export function useScoresheet() {
     return computePlacements(regScores, checkpoints, true)
   })
 
+  /** Update a team name by positional index */
+  function setTeamName(teamIdx: number, name: string) {
+    const team = teams.value[teamIdx]
+    if (!team) return
+    store.setTeamName(team.id, name)
+    teamVersion.value++
+  }
+
+  /** Update a quizzer name by positional indices */
+  function setQuizzerName(teamIdx: number, quizzerIdx: number, name: string) {
+    const team = teams.value[teamIdx]
+    if (!team) return
+    const qzrs = store.quizzersByTeam(team.id)
+    const qzr = qzrs[quizzerIdx]
+    if (!qzr) return
+    store.setQuizzerName(qzr.id, name)
+    teamVersion.value++
+  }
+
   /** Toggle on-time for a team by index */
   function toggleOnTime(teamIdx: number) {
     const team = teams.value[teamIdx]
@@ -314,6 +333,8 @@ export function useScoresheet() {
     setCell,
     toggleNoJump,
     toggleOnTime,
+    setTeamName,
+    setQuizzerName,
     store,
 
     // Grey-out & validation

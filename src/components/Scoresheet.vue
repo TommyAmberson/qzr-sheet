@@ -11,6 +11,7 @@ const {
   visibleColumns, allQuestionsComplete,
   validationErrors,
   placements,
+  setTeamName, setQuizzerName,
 } = useScoresheet()
 
 /** All unique validation messages for the status tooltip */
@@ -218,7 +219,13 @@ function colGroupClass(colIdx: number): string {
           <!-- Team header row -->
           <tr :class="['row--team-header', teamColors[ti]]">
             <td class="col--name sticky-col team-name" colspan="2">
-              {{ team.name }}
+              <input
+                class="editable-name editable-name--team"
+                :value="team.name"
+                @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
+                @focus="($event.target as HTMLInputElement).select()"
+                :placeholder="`Team ${ti + 1}`"
+              />
               <span class="team-stats">
                 <span
                   v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
@@ -251,7 +258,13 @@ function colGroupClass(colIdx: number): string {
               :class="['col--name', 'sticky-col', { 'cell--invalid': quizzerHasErrors(ti, qi), 'col--name--active': selector?.ti === ti && selector?.qi === qi }]"
               :title="quizzerHasErrors(ti, qi) ? quizzerValidationMessages(ti, qi).join('\n') : undefined"
             >
-              <span class="quizzer-name">{{ quizzer.name }}</span>
+              <input
+                class="editable-name editable-name--quizzer"
+                :value="quizzer.name"
+                @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
+                @focus="($event.target as HTMLInputElement).select()"
+                :placeholder="`Quizzer ${qi + 1}`"
+              />
               <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
                 <span
                   v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
@@ -1010,10 +1023,38 @@ thead .col--name {
   float: right;
 }
 
-/* Quizzer status indicators */
-.quizzer-name {
+/* Editable name inputs */
+.editable-name {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  width: 100%;
+  min-width: 0;
+}
+.editable-name::placeholder {
+  color: var(--color-text-faint);
+  opacity: 0.6;
+}
+.editable-name:focus {
+  border-bottom: 1.5px solid var(--color-accent);
+}
+.editable-name--team {
+  font-weight: 700;
+  font-size: 0.85rem;
+  max-width: 6rem;
+}
+.editable-name--quizzer {
+  font-weight: 500;
+  font-size: 0.8rem;
+  max-width: 5.5rem;
   margin-right: 0.25rem;
 }
+
+/* Quizzer status indicators */
 .quizzer-stats {
   display: inline-flex;
   align-items: center;

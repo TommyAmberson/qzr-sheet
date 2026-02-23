@@ -50,7 +50,7 @@ Invalid cells pulse red with a native tooltip showing the reason(s). Question
 number headers also pulse red when any cell in their column has a validation
 error.
 
-#### 1.10 Editable team/quizzer names
+#### 1.10 Editable team/quizzer names ✅
 Replace hardcoded "Team 1" / "Quizzer 1" with inline-editable text fields.
 
 #### 1.11 Placement points

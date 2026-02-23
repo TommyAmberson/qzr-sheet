@@ -71,6 +71,12 @@ export interface QuizStore {
   /** Set an answer value (Empty removes the answer) */
   setAnswer(quizzerId: number, columnKey: string, value: CellValue): void
 
+  /** Update a team's name */
+  setTeamName(teamId: number, name: string): void
+
+  /** Update a quizzer's name */
+  setQuizzerName(quizzerId: number, name: string): void
+
   /**
    * Derive the positional cell grid for scoring functions.
    * Returns cells[teamIdx][quizzerIdx][colIdx] ordered by seatOrder.
@@ -113,6 +119,16 @@ export function createQuizStore(): QuizStore {
     }
   }
 
+  function setTeamName(teamId: number, name: string): void {
+    const team = teams.find((t) => t.id === teamId)
+    if (team) team.name = name
+  }
+
+  function setQuizzerName(quizzerId: number, name: string): void {
+    const qzr = quizzers.find((q) => q.id === quizzerId)
+    if (qzr) qzr.name = name
+  }
+
   function cellGrid(columns: Column[]): CellValue[][][] {
     const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
 
@@ -132,6 +148,8 @@ export function createQuizStore(): QuizStore {
     teamForQuizzer,
     getAnswer,
     setAnswer,
+    setTeamName,
+    setQuizzerName,
     cellGrid,
     get answers() {
       return [...answerMap.values()]
