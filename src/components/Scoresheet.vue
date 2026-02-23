@@ -829,7 +829,7 @@ thead .col--name {
   font-weight: 700;
   font-size: 0.85rem;
   background: var(--color-text-muted);
-  color: #f0ece0;
+  color: var(--color-bg-warm);
   text-align: left;
   padding-left: 0.5rem;
   border-radius: 4px;
