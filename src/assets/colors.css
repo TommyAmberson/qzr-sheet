@@ -99,7 +99,7 @@
   --color-accent:         var(--palette-blue);
 
   /* Quiz meta bar */
-  --color-meta-bg:        var(--palette-coal);
+  --color-meta-bg:        var(--palette-shadow);
   --color-meta-accent:    var(--palette-slate);
   --color-meta-border:    var(--palette-gold);
 
