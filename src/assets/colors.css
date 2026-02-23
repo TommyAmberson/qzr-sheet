@@ -47,3 +47,52 @@
   --color-ab-border: #854d0e;
   --color-ot-border: #9d174d;
 }
+
+/* Dark theme */
+[data-theme="dark"] {
+  /* Answer colors — brighter on dark backgrounds */
+  --color-correct: #4caf65;
+  --color-correct-alt: #1a3320;
+  --color-error: #cf6b63;
+  --color-error-alt: #3a1c19;
+  --color-foul: #d4944e;
+  --color-foul-alt: #3a2a16;
+  --color-bonus: #4caaaa;
+  --color-bonus-alt: #1a3333;
+  --color-missed-bonus: #a09a88;
+  --color-missed-bonus-alt: #2e2c26;
+  --color-no-jump: #8a8478;
+  --color-no-jump-alt: #2e2c26;
+
+  /* Validation */
+  --color-invalid: #ef4444;
+  --color-invalid-alt: #991b1b;
+
+  /* UI chrome */
+  --color-bg: #1e1c18;
+  --color-bg-warm: #2a2720;
+  --color-border: #5c5848;
+  --color-border-alt: #3a3730;
+  --color-text: #e8e4d8;
+  --color-text-muted: #a8a290;
+  --color-text-faint: #78716c;
+  --color-accent: #60a5fa;
+
+  /* Team identity */
+  --color-team-red: #ef4444;
+  --color-team-white: #e8e4d8;
+  --color-team-blue: #60a5fa;
+
+  /* Quiz meta bar */
+  --color-meta-bg: #2a2720;
+  --color-meta-accent: #4a4538;
+  --color-meta-border: #8a7d3a;
+
+  /* Greyed-out stripes */
+  --color-grey-stripe-a: var(--color-border-alt);
+  --color-grey-stripe-b: var(--color-bg-warm);
+
+  /* A/B and overtime column top borders */
+  --color-ab-border: #c47a1a;
+  --color-ot-border: #d44a7a;
+}
