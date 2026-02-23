@@ -278,6 +278,18 @@ describe('greyed-out logic', () => {
     expect(isGreyed(result, 2, ci('16B'))).toBe(true)
   })
 
+  it('Q16 error → Q16A error → Q16B is bonus for remaining team', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('16')] = E  // team 0 errors on Q16
+    cells[1]![0]![ci('16A')] = E // team 1 errors on Q16A toss-up
+    const result = computeGreyedOut(cells, columns)
+    // Q16B: team 0 + team 1 greyed → bonus for team 2
+    expect(isGreyed(result, 0, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16B'))).toBe(false)
+    expect(isBonusFor(result, 2, ci('16B'))).toBe(true)
+  })
+
   // --- Quizzer foul on A/B question greys subsequent sub-parts ---
 
   it('quizzer foul on base A/B question greys that quizzer on A and B', () => {
@@ -387,5 +399,46 @@ describe('greyed-out logic', () => {
     const cells = blankCells()
     const result = computeGreyedOut(cells, columns)
     expect(result.cascadeDisabled.size).toBe(0)
+  })
+
+  // --- Overtime eligibility greying ---
+
+  it('non-eligible teams are greyed on overtime columns', () => {
+    const otCols = buildColumns(1)
+    const otCells = [0, 1, 2].map(() =>
+      Array.from({ length: 5 }, () => otCols.map(() => _)),
+    )
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    // Only teams 0 and 1 eligible
+    const eligible = new Set([0, 1])
+    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Team 2 greyed on all OT columns
+    expect(isGreyed(result, 2, otCi('21'))).toBe(true)
+    expect(isGreyed(result, 2, otCi('22'))).toBe(true)
+    expect(isGreyed(result, 2, otCi('23'))).toBe(true)
+    // Teams 0 and 1 NOT greyed
+    expect(isGreyed(result, 0, otCi('21'))).toBe(false)
+    expect(isGreyed(result, 1, otCi('21'))).toBe(false)
+  })
+
+  it('eligible teams are NOT greyed on regulation columns', () => {
+    const otCols = buildColumns(1)
+    const otCells = [0, 1, 2].map(() =>
+      Array.from({ length: 5 }, () => otCols.map(() => _)),
+    )
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    const eligible = new Set([0, 1])
+    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Team 2 NOT greyed on regulation
+    expect(isGreyed(result, 2, otCi('1'))).toBe(false)
+    expect(isGreyed(result, 2, otCi('15'))).toBe(false)
   })
 })

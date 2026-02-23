@@ -22,6 +22,10 @@ export enum ValidationCode {
   QuizzerOut = 'quizzer-out',
   /** Quizzer fouled on this question and can't answer sub-parts */
   FouledOnQuestion = 'fouled-on-question',
+  /** Non-foul answer on an overtime column by a team not eligible for overtime */
+  NotInOvertime = 'not-in-overtime',
+  /** Content on a column that is not active (orphaned A/B or OT column) */
+  ColumnNotActive = 'column-not-active',
 }
 
 /**
@@ -33,6 +37,8 @@ export function validateCells(
   cols: Column[],
   greyResult: GreyedOutResult,
   noJumps?: boolean[],
+  otEligibleTeams?: Set<number>,
+  orphanedColumns?: Set<number>,
 ): Map<string, ValidationCode[]> {
   const errors = new Map<string, ValidationCode[]>()
   const teamCount = cellData.length
@@ -48,9 +54,10 @@ export function validateCells(
   }
 
   // Track per-quizzer running counts for out detection (left-to-right)
-  // qCorrects[ti][qi], qErrorsFouls[ti][qi]
+  // qCorrects[ti][qi], qErrors[ti][qi], qFouls[ti][qi]
   const qCorrects: number[][] = cellData.map(team => new Array(team.length).fill(0))
-  const qErrorsFouls: number[][] = cellData.map(team => new Array(team.length).fill(0))
+  const qErrors: number[][] = cellData.map(team => new Array(team.length).fill(0))
+  const qFouls: number[][] = cellData.map(team => new Array(team.length).fill(0))
 
   for (let ci = 0; ci < cols.length; ci++) {
     const col = cols[ci]!
@@ -65,6 +72,21 @@ export function validateCells(
       for (let qi = 0; qi < quizzerCount; qi++) {
         const v = cellData[ti]![qi]![ci]!
         if (v === CellValue.Empty) continue
+
+        // --- Column not active (orphaned) ---
+        if (orphanedColumns?.has(ci)) {
+          addError(ti, qi, ci, ValidationCode.ColumnNotActive)
+        }
+
+        // --- Not in overtime ---
+        if (
+          col.isOvertime &&
+          otEligibleTeams &&
+          !otEligibleTeams.has(ti) &&
+          v !== CellValue.Foul
+        ) {
+          addError(ti, qi, ci, ValidationCode.NotInOvertime)
+        }
 
         // --- No-jump (fouls are still valid on no-jump columns) ---
         if (noJumps?.[ci] && v !== CellValue.Foul) {
@@ -94,8 +116,9 @@ export function validateCells(
         // --- Quizzer out ---
         // Check BEFORE updating counts: if already out, flag appropriately
         const isQuizzedOut = qCorrects[ti]![qi]! >= 4
-        const isErrorFoulOut = qErrorsFouls[ti]![qi]! >= 3
-        if (isErrorFoulOut && v !== CellValue.Foul) {
+        const isErrorOut = qErrors[ti]![qi]! >= 3
+        const isFoulOut = qFouls[ti]![qi]! >= 3
+        if ((isErrorOut || isFoulOut) && v !== CellValue.Foul) {
           // Error/foul out: must leave, can't answer anything (except fouls)
           addError(ti, qi, ci, ValidationCode.QuizzerOut)
         } else if (isQuizzedOut && v !== CellValue.Foul && v !== CellValue.Bonus && v !== CellValue.MissedBonus) {
@@ -107,9 +130,9 @@ export function validateCells(
         if (v === CellValue.Correct && !col.isOvertime) {
           qCorrects[ti]![qi]!++
         } else if (v === CellValue.Error && !col.isOvertime) {
-          qErrorsFouls[ti]![qi]!++
+          qErrors[ti]![qi]!++
         } else if (v === CellValue.Foul && !col.isOvertime) {
-          qErrorsFouls[ti]![qi]!++
+          qFouls[ti]![qi]!++
         }
 
         // --- Fouled on question (can't answer sub-parts) ---

@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { createQuizStore } from '../quizStore'
-import { CellValue, COLUMNS, KEY_TO_IDX } from '../../types/scoresheet'
+import { CellValue, buildColumns, buildKeyToIdx } from '../../types/scoresheet'
+
+const COLUMNS = buildColumns()
+const KEY_TO_IDX = buildKeyToIdx(COLUMNS)
 
 const C = CellValue.Correct
 const E = CellValue.Error
@@ -107,7 +110,7 @@ describe('quizStore', () => {
 
   it('cellGrid returns a 3D array indexed by [teamIdx][quizzerIdx][colIdx]', () => {
     const store = createQuizStore()
-    const grid = store.cellGrid()
+    const grid = store.cellGrid(COLUMNS)
     expect(grid).toHaveLength(3)
     for (const teamCells of grid) {
       expect(teamCells).toHaveLength(5)
@@ -129,7 +132,7 @@ describe('quizStore', () => {
     store.setAnswer(qzrs0[2]!.id, '5', F)
     store.setAnswer(qzrs1[1]!.id, '17B', B)
 
-    const grid = store.cellGrid()
+    const grid = store.cellGrid(COLUMNS)
     expect(grid[0]![0]![ci('1')]).toBe(C)
     expect(grid[0]![2]![ci('5')]).toBe(F)
     expect(grid[1]![1]![ci('17B')]).toBe(B)
@@ -143,10 +146,10 @@ describe('quizStore', () => {
     const store = createQuizStore()
     const qzr = store.quizzersByTeam(store.teams[0]!.id)[0]!
     store.setAnswer(qzr.id, '1', C)
-    expect(store.cellGrid()[0]![0]![ci('1')]).toBe(C)
+    expect(store.cellGrid(COLUMNS)[0]![0]![ci('1')]).toBe(C)
 
     store.setAnswer(qzr.id, '1', E)
-    expect(store.cellGrid()[0]![0]![ci('1')]).toBe(E)
+    expect(store.cellGrid(COLUMNS)[0]![0]![ci('1')]).toBe(E)
   })
 
   it('cellGrid updates when an answer is removed', () => {
@@ -154,7 +157,7 @@ describe('quizStore', () => {
     const qzr = store.quizzersByTeam(store.teams[0]!.id)[0]!
     store.setAnswer(qzr.id, '1', C)
     store.setAnswer(qzr.id, '1', _)
-    expect(store.cellGrid()[0]![0]![ci('1')]).toBe(_)
+    expect(store.cellGrid(COLUMNS)[0]![0]![ci('1')]).toBe(_)
   })
 
   it('cellGrid respects team seat order', () => {
@@ -168,7 +171,7 @@ describe('quizStore', () => {
     store.setAnswer(qzr0.id, '1', C)
     store.setAnswer(qzr2.id, '1', E)
 
-    const grid = store.cellGrid()
+    const grid = store.cellGrid(COLUMNS)
     expect(grid[0]![0]![ci('1')]).toBe(C)
     expect(grid[2]![0]![ci('1')]).toBe(E)
   })
@@ -181,25 +184,9 @@ describe('quizStore', () => {
     store.setAnswer(qzrs[0]!.id, '1', C)
     store.setAnswer(qzrs[4]!.id, '2', E)
 
-    const grid = store.cellGrid()
+    const grid = store.cellGrid(COLUMNS)
     expect(grid[0]![0]![ci('1')]).toBe(C)
     expect(grid[0]![4]![ci('2')]).toBe(E)
-  })
-
-  // --- No-jump ---
-
-  it('noJumps starts all false', () => {
-    const store = createQuizStore()
-    expect(store.noJumps.every((v) => v === false)).toBe(true)
-    expect(store.noJumps).toHaveLength(COLUMNS.length)
-  })
-
-  it('toggleNoJump flips a column', () => {
-    const store = createQuizStore()
-    store.toggleNoJump(ci('3'))
-    expect(store.noJumps[ci('3')]).toBe(true)
-    store.toggleNoJump(ci('3'))
-    expect(store.noJumps[ci('3')]).toBe(false)
   })
 
   // --- Quiz metadata ---

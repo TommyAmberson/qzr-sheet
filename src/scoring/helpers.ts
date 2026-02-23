@@ -1,4 +1,4 @@
-import { CellValue, KEY_TO_IDX } from '../types/scoresheet'
+import { CellValue } from '../types/scoresheet'
 
 /**
  * Shared helper functions for querying the positional cell grid.
@@ -94,7 +94,3 @@ export function isBonusSituation(
   return tossedTeams === teamCount - 1
 }
 
-/** Column index lookup by key — delegates to the pre-built constant */
-export function colIdx(key: string): number | undefined {
-  return KEY_TO_IDX.get(key)
-}

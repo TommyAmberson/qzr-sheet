@@ -1,25 +1,46 @@
-import { ref, computed, triggerRef } from 'vue'
-import { CellValue, COLUMNS, KEY_TO_IDX, QuestionType, type Quiz, type Team, type Quizzer } from '../types/scoresheet'
+import { ref, computed, watch } from 'vue'
+import { CellValue, buildColumns, buildKeyToIdx, QuestionType, type Column, type Quiz, type Team, type Quizzer } from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
 import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
 import { validateCells, ValidationCode } from '../scoring/validation'
 import {
-  anyTeamHasValue,
-  colHasAnyContent,
   isBonusSituation,
 } from '../scoring/helpers'
+import { computeVisibleColumns, computeOrphanedColumns, abColumnNeeded as _abColumnNeeded } from '../scoring/columnVisibility'
+import { getOvertimeEligibleTeams, computeOvertimeRounds, computeOtCheckpointScores, computeRegulationScores, questionsComplete } from '../scoring/overtime'
+import { computePlacements } from '../scoring/placement'
 
 export function useScoresheet() {
   const store = createQuizStore()
-  const columns = COLUMNS
 
   // --- Reactive wrappers around store data ---
   const quiz = ref<Quiz>(store.quiz)
-  const noJumps = ref<boolean[]>(store.noJumps)
 
   // Bump this to force recomputation of cells/scoring after answer changes
   const answerVersion = ref(0)
+
+  /**
+   * Internally tracked overtime round count.
+   * Starts at 1 when OT is enabled, auto-grows when content is added.
+   */
+  const internalOtRounds = ref(1)
+
+  /** Columns built reactively — regulation when OT is off, + OT rounds when on */
+  const columns = computed<Column[]>(() => {
+    const rounds = quiz.value.overtime ? internalOtRounds.value : 0
+    return buildColumns(rounds)
+  })
+
+  /** Key→index lookup, kept in sync with columns */
+  const keyToIdx = computed(() => buildKeyToIdx(columns.value))
+
+  /** No-jump flags — grows/shrinks with columns */
+  const noJumpMap = ref(new Map<string, boolean>())
+
+  const noJumps = computed<boolean[]>(() =>
+    columns.value.map((col) => noJumpMap.value.get(col.key) ?? false),
+  )
 
   /** Teams sorted by seat order — this is the canonical iteration order */
   const teams = computed<Team[]>(() =>
@@ -34,11 +55,11 @@ export function useScoresheet() {
   /** All quizzers (flat list) */
   const quizzers = computed<Quizzer[]>(() => store.quizzers)
 
-  /** Derived cell grid — recomputes when answerVersion changes */
+  /** Derived cell grid — recomputes when answerVersion or columns change */
   const cells = computed<CellValue[][][]>(() => {
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     answerVersion.value // reactive dependency
-    return store.cellGrid()
+    return store.cellGrid(columns.value)
   })
 
   /** Set a cell value using positional indices (for UI compatibility) */
@@ -47,7 +68,7 @@ export function useScoresheet() {
     if (!team) return
     const qzrs = store.quizzersByTeam(team.id)
     const qzr = qzrs[quizzerIdx]
-    const col = columns[colIdx]
+    const col = columns.value[colIdx]
     if (!qzr || !col) return
     store.setAnswer(qzr.id, col.key, value)
     answerVersion.value++
@@ -56,20 +77,33 @@ export function useScoresheet() {
   // --- Scoring ---
 
   const scoring = computed<TeamScoring[]>(() => {
+    const cols = columns.value
     const grid = cells.value
-    return teams.value.map((team, ti) => scoreTeam(grid[ti]!, columns, team.onTime))
+    return teams.value.map((team, ti) => scoreTeam(grid[ti]!, cols, team.onTime))
   })
 
   // --- Grey-out & validation ---
 
+  const otEligibleTeams = computed(() =>
+    getOvertimeEligibleTeams(
+      cells.value,
+      columns.value,
+      teams.value.map((t) => t.onTime),
+    ),
+  )
+
   const greyedOutResult = computed<GreyedOutResult>(() =>
-    computeGreyedOut(cells.value, columns),
+    computeGreyedOut(cells.value, columns.value, otEligibleTeams.value),
   )
 
   const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
 
+  const orphanedColumns = computed(() =>
+    computeOrphanedColumns(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
+  )
+
   const validationErrors = computed(() =>
-    validateCells(cells.value, columns, greyedOutResult.value, noJumps.value),
+    validateCells(cells.value, columns.value, greyedOutResult.value, noJumps.value, otEligibleTeams.value, orphanedColumns.value),
   )
 
   // --- Query helpers (business logic the template needs) ---
@@ -91,7 +125,7 @@ export function useScoresheet() {
     if (!qs || qs.outAfterCol < 0 || colIdx <= qs.outAfterCol) return false
     if (cells.value[ti]![qi]![colIdx] !== CellValue.Empty) return false
     if (qs.quizzedOut && !qs.erroredOut) {
-      if (columns[colIdx]?.type === QuestionType.B || isBonusForTeam(ti, colIdx)) return false
+      if (columns.value[colIdx]?.type === QuestionType.B || isBonusForTeam(ti, colIdx)) return false
     }
     return true
   }
@@ -122,6 +156,8 @@ export function useScoresheet() {
 
   function noJumpHasConflict(colIdx: number): boolean {
     if (!noJumps.value[colIdx]) return false
+    // No-jump on an orphaned column is itself invalid
+    if (orphanedColumns.value.has(colIdx)) return true
     for (const key of validationErrors.value.keys()) {
       if (key.endsWith(`:${colIdx}`)) {
         const codes = validationErrors.value.get(key)
@@ -133,32 +169,36 @@ export function useScoresheet() {
 
   // --- Column visibility ---
 
-  function abColumnNeeded(colIdx: number): boolean {
-    if (colHasAnyContent(cells.value, colIdx)) return true
-    const col = columns[colIdx]!
-    if (col.type === QuestionType.A) {
-      const baseIdx = KEY_TO_IDX.get(`${col.number}`)
-      return baseIdx !== undefined && anyTeamHasValue(cells.value, baseIdx, CellValue.Error)
+  /** How many OT rounds should be visible (0 = none, 1 = Q21-23, etc.) */
+  const visibleOtRounds = computed(() => {
+    if (!quiz.value.overtime) return 0
+    return computeOvertimeRounds(
+      cells.value,
+      columns.value,
+      teams.value.map((t) => t.onTime),
+      noJumps.value,
+    )
+  })
+
+  /** Grow internal allocation when more rounds are needed */
+  watch(visibleOtRounds, (needed) => {
+    if (needed > internalOtRounds.value) {
+      internalOtRounds.value = needed
     }
-    if (col.type === QuestionType.B) {
-      const aIdx = KEY_TO_IDX.get(`${col.number}A`)
-      return aIdx !== undefined && anyTeamHasValue(cells.value, aIdx, CellValue.Error)
-    }
-    return false
-  }
+  })
 
   const visibleColumns = computed(() =>
-    columns.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
-      if (col.isOvertime) return quiz.value.overtime
-      if (col.type === QuestionType.A || col.type === QuestionType.B) return abColumnNeeded(idx)
-      return true
-    }),
+    computeVisibleColumns(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
   )
 
+  function abColumnNeeded(colIdx: number): boolean {
+    return _abColumnNeeded(cells.value, columns.value, noJumps.value, colIdx)
+  }
+
   const allQuestionsComplete = computed(() => {
-    for (let ci = 0; ci < columns.length; ci++) {
-      const col = columns[ci]!
-      if (col.isOvertime && !quiz.value.overtime) continue
+    const cols = columns.value
+    for (let ci = 0; ci < cols.length; ci++) {
+      const col = cols[ci]!
       if ((col.type === QuestionType.A || col.type === QuestionType.B) && !abColumnNeeded(ci)) continue
       if (noJumps.value[ci]) continue
       if (colAnswerValue(ci) !== CellValue.Empty) continue
@@ -167,10 +207,30 @@ export function useScoresheet() {
     return true
   })
 
-  /** Toggle no-jump for a column */
+  /** Whether regulation questions (Q1–20) are fully filled out */
+  const regulationComplete = computed(() =>
+    questionsComplete(cells.value, columns.value, noJumps.value, 1, 20),
+  )
+
+  /** Placement medals: 1/2/3 per team, or null if not yet placed */
+  const placements = computed(() => {
+    if (!regulationComplete.value || hasAnyErrors.value) {
+      return teams.value.map(() => null)
+    }
+    const onTimes = teams.value.map((t) => t.onTime)
+    const regScores = computeRegulationScores(cells.value, columns.value, onTimes)
+    const checkpoints = computeOtCheckpointScores(cells.value, columns.value, onTimes, noJumps.value)
+    return computePlacements(regScores, checkpoints, true)
+  })
+
+  /** Toggle no-jump for a column by key */
   function toggleNoJump(colIdx: number) {
-    store.toggleNoJump(colIdx)
-    triggerRef(noJumps)
+    const key = columns.value[colIdx]?.key
+    if (!key) return
+    const current = noJumpMap.value.get(key) ?? false
+    noJumpMap.value.set(key, !current)
+    // Trigger reactivity on the map ref
+    noJumpMap.value = new Map(noJumpMap.value)
   }
 
   return {
@@ -206,5 +266,8 @@ export function useScoresheet() {
     visibleColumns,
     allQuestionsComplete,
     abColumnNeeded,
+
+    // Placements
+    placements,
   }
 }

@@ -124,10 +124,10 @@ describe('scoreTeam', () => {
 
   it('deducts -10 for 3rd individual foul (foul-out) even if not 3rd team foul', () => {
     const cells = blankCells()
-    cells[1]![colIdx('1')] = F // quizzer 2, team foul 1
-    cells[0]![colIdx('2')] = F // quizzer 1, team foul 2, individual 1
-    cells[0]![colIdx('3')] = F // quizzer 1, team foul 3, individual 2 → team -10
-    cells[0]![colIdx('4')] = F // quizzer 1, team foul 4, individual 3 → foul-out -10
+    cells[1]![colIdx('1')] = F // quizzer 2, team foul 1, quizzer 1 individual 0
+    cells[0]![colIdx('2')] = F // quizzer 1, team foul 2, quizzer 1 individual 1
+    cells[0]![colIdx('3')] = F // quizzer 1, team foul 3, quizzer 1 individual 2 → team -10
+    cells[0]![colIdx('4')] = F // quizzer 1, team foul 4, quizzer 1 individual 3 → foul-out -10
     const result = scoreTeam(cells, columns, false)
     expect(result.total).toBe(-20) // -10 for 3rd team + -10 for foul-out
   })
@@ -188,11 +188,12 @@ describe('scoreTeam', () => {
   it('no quizout bonus if quizzer has errors', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = C
-    cells[0]![colIdx('2')] = E // error
+    cells[0]![colIdx('2')] = E // error (1st individual, no deduct)
     cells[0]![colIdx('3')] = C
     cells[0]![colIdx('4')] = C
-    cells[0]![colIdx('5')] = C
+    cells[0]![colIdx('5')] = C // 4th correct = quiz-out, but has error → no bonus
     const result = scoreTeam(cells, columns, false)
+    expect(result.total).toBe(80) // 4×20 + 0 (no quizout bonus)
     expect(result.quizzers[0]!.quizzedOut).toBe(true)
     expect(result.quizzers[0]!.quizoutBonus).toBe(false)
   })
@@ -206,13 +207,25 @@ describe('scoreTeam', () => {
     expect(result.quizzers[0]!.erroredOut).toBe(true)
   })
 
-  it('detects error out with mix of errors and fouls', () => {
+  it('2 errors + 1 foul is NOT error out (errors and fouls tracked separately)', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('3')] = E
     const result = scoreTeam(cells, columns, false)
+    expect(result.quizzers[0]!.erroredOut).toBe(false)
+    expect(result.quizzers[0]!.fouledOut).toBe(false)
+    expect(result.quizzers[0]!.outAfterCol).toBe(-1)
+  })
+
+  it('3 errors = error out (no fouls needed)', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = E
+    cells[0]![colIdx('2')] = E
+    cells[0]![colIdx('3')] = E
+    const result = scoreTeam(cells, columns, false)
     expect(result.quizzers[0]!.erroredOut).toBe(true)
+    expect(result.quizzers[0]!.fouledOut).toBe(false)
   })
 
   it('detects foul out (3 fouls, 0 errors)', () => {
@@ -225,14 +238,15 @@ describe('scoreTeam', () => {
     expect(result.quizzers[0]!.fouledOut).toBe(true)
   })
 
-  it('fouledOut is false when errors contribute to out', () => {
+  it('1 error + 2 fouls is NOT out (errors and fouls tracked separately)', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('3')] = F
     const result = scoreTeam(cells, columns, false)
-    expect(result.quizzers[0]!.erroredOut).toBe(true)
+    expect(result.quizzers[0]!.erroredOut).toBe(false)
     expect(result.quizzers[0]!.fouledOut).toBe(false)
+    expect(result.quizzers[0]!.outAfterCol).toBe(-1)
   })
 
   it('tracks correct count per quizzer', () => {
@@ -315,13 +329,16 @@ describe('scoreTeam', () => {
     expect(result.quizzers[0]!.outAfterCol).toBe(-1)
   })
 
-  it('outAfterCol handles mixed errors and fouls', () => {
+  it('outAfterCol is set at the 3rd error (not combined with fouls)', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E
-    cells[0]![colIdx('2')] = F
-    cells[0]![colIdx('7')] = E // 3rd error+foul → out here
+    cells[0]![colIdx('2')] = F // foul doesn't count toward error out
+    cells[0]![colIdx('3')] = E
+    cells[0]![colIdx('7')] = E // 3rd error → out here
     const result = scoreTeam(cells, columns, false)
     expect(result.quizzers[0]!.outAfterCol).toBe(colIdx('7'))
+    expect(result.quizzers[0]!.erroredOut).toBe(true)
+    expect(result.quizzers[0]!.fouledOut).toBe(false)
   })
 
   it('running totals are null when unchanged from previous column', () => {
@@ -433,6 +450,53 @@ describe('scoreTeam', () => {
     expect(result.freeErrorCols.has(colIdx('1'))).toBe(true)
     expect(result.freeErrorCols.has(colIdx('2'))).toBe(true)
     expect(result.freeErrorCols.has(colIdx('3'))).toBe(false)
+  })
+
+  it('error deduction does not stack: 2nd individual + 3rd team = only -10', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = E // team 1st, quizzer 1 1st: no deduct
+    cells[1]![colIdx('2')] = E // team 2nd, quizzer 2 1st: no deduct
+    cells[0]![colIdx('3')] = E // team 3rd + quizzer 1 2nd: -10 (not -20)
+    const result = scoreTeam(cells, columns, false)
+    expect(result.total).toBe(-10)
+  })
+
+  it('no individual points for bonus answers', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('16B')] = B // bonus before Q17: +20 team
+    cells[0]![colIdx('17B')] = B // bonus Q17+: +10 team
+    const result = scoreTeam(cells, columns, false)
+    expect(result.total).toBe(30) // 20 + 10
+    expect(result.quizzers[0]!.points).toBe(0) // no individual credit
+  })
+
+  it('no individual points for overtime correct answers', () => {
+    const otColumns = buildColumns(1)
+    const otCells = Array.from({ length: 5 }, () => otColumns.map(() => _))
+    const otColIdx = (key: string) => {
+      const idx = otColumns.findIndex((c) => c.key === key)
+      if (idx === -1) throw new Error(`Column ${key} not found`)
+      return idx
+    }
+    otCells[0]![otColIdx('21')] = C
+    const result = scoreTeam(otCells, otColumns, false)
+    expect(result.total).toBe(20) // +20 team points
+    expect(result.quizzers[0]!.points).toBe(0) // no individual credit for OT
+    expect(result.quizzers[0]!.correctCount).toBe(0) // OT doesn't count
+  })
+
+  it('deducts -10 at every 3rd team foul (6th foul)', () => {
+    const cells = blankCells()
+    cells[0]![colIdx('1')] = F // team 1
+    cells[0]![colIdx('2')] = F // team 2
+    cells[0]![colIdx('3')] = F // team 3 → -10
+    cells[1]![colIdx('4')] = F // team 4
+    cells[1]![colIdx('5')] = F // team 5
+    cells[1]![colIdx('6')] = F // team 6 → -10
+    const result = scoreTeam(cells, columns, false)
+    expect(result.total).toBe(-20) // -10 (3rd team foul / q0 foul-out) + -10 (6th team foul / q1 foul-out)
+    expect(result.foulDeductCols.has(colIdx('3'))).toBe(true)
+    expect(result.foulDeductCols.has(colIdx('6'))).toBe(true)
   })
 
   it('complex scenario: on-time + 3 quizzers + errors + Q17 bonus', () => {
