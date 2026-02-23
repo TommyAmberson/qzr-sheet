@@ -5,7 +5,7 @@ import { useScoresheet } from '../composables/useScoresheet'
 
 const {
   columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
-  isBonusForTeam, isGreyedOut, isInvalid, isAfterOut, isFouledOnQuestion,
+  isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, isAfterOut, isFouledOnQuestion,
   teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
   visibleColumns, allQuestionsComplete,
   validationErrors,
@@ -130,10 +130,12 @@ const headerAnswerClass: Record<CellValue, string> = {
 }
 
 function headerClass(colIdx: number): string {
+  const classes: string[] = []
   const answer = headerAnswerClass[colAnswerValue(colIdx)]
-  if (answer) return answer
-  if (noJumps.value[colIdx]) return 'col--header-no-jump'
-  return ''
+  if (answer) classes.push(answer)
+  else if (noJumps.value[colIdx]) classes.push('col--header-no-jump')
+  if (columnHasErrors(colIdx)) classes.push('col--header-invalid')
+  return classes.join(' ')
 }
 
 /** Column CSS class for visual grouping (no animation — that's on the display entry) */
@@ -276,6 +278,7 @@ function colGroupClass(colIdx: number): string {
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
                 { 'col--entering': entering },
               ]"
+              :title="isInvalid(ti, qi, idx) ? cellValidationMessages(ti, qi, idx).join('\n') : undefined"
               @click="openSelector(ti, qi, idx, $event)"
             >
               {{ cellDisplay[cells[ti][qi][idx]] }}
@@ -593,6 +596,11 @@ thead .col--name {
 .col--header-no-jump {
   color: #a8a290 !important;
   text-decoration: line-through;
+}
+.col--header-invalid {
+  outline: 2px solid #ef4444;
+  outline-offset: -2px;
+  animation: pulse-invalid 1.5s ease-in-out infinite;
 }
 
 /* Team header row */

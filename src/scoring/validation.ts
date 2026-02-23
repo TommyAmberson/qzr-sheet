@@ -6,16 +6,16 @@ import {
 } from './helpers'
 
 export enum ValidationCode {
-  /** Two+ quizzers on the same team have answers (non-foul) on the same column */
+  /** Two+ quizzers answered the same question (same team or different teams) */
   DuplicateAnswer = 'duplicate-answer',
   /** Quizzer's team is tossed-up on this column — they can't jump */
   TossedUp = 'tossed-up',
-  /** Two+ teams have answers (non-foul) on the same column */
-  MultipleTeams = 'multiple-teams',
-  /** Wrong cell type for the column (e.g. C/E on a B column, or B/MB without bonus situation) */
-  WrongCellType = 'wrong-cell-type',
-  /** Answer on a column that's already resolved by a parent (e.g. 17A when 17 was correct) */
-  QuestionResolved = 'question-resolved',
+  /** C/E on a bonus question — should use B/MB */
+  IsBonus = 'is-bonus',
+  /** B/MB on a non-bonus column — this is not a bonus question */
+  NotBonus = 'not-bonus',
+  /** Answer on a question that shouldn't be asked (resolved A/B, orphaned column, etc.) */
+  QuestionNotNeeded = 'question-not-needed',
   /** Answer on a column marked as no-jump */
   NoJump = 'no-jump',
   /** Non-foul answer by a quizzer who has already quizzed out or errored/fouled out */
@@ -24,8 +24,24 @@ export enum ValidationCode {
   FouledOnQuestion = 'fouled-on-question',
   /** Non-foul answer on an overtime column by a team not eligible for overtime */
   NotInOvertime = 'not-in-overtime',
-  /** Content on a column that is not active (orphaned A/B or OT column) */
-  ColumnNotActive = 'column-not-active',
+}
+
+/** Human-readable message for each validation code */
+const validationMessages: Record<ValidationCode, string> = {
+  [ValidationCode.DuplicateAnswer]: 'Only one quizzer can answer this question',
+  [ValidationCode.TossedUp]: "This is a toss-up — team can't jump",
+  [ValidationCode.IsBonus]: 'This is a bonus question — use B/MB',
+  [ValidationCode.NotBonus]: 'This is not a bonus question',
+  [ValidationCode.QuestionNotNeeded]: "This question shouldn't be asked",
+  [ValidationCode.NoJump]: 'Quizzer answered but this question is marked no-jump',
+  [ValidationCode.QuizzerOut]: 'Quizzer has already quizzed/errored/fouled out',
+  [ValidationCode.FouledOnQuestion]: 'Quizzer fouled on this numbered question — ineligible to answer',
+  [ValidationCode.NotInOvertime]: 'Team is not eligible for overtime',
+}
+
+/** Get the human-readable message for a validation code */
+export function validationMessage(code: ValidationCode): string {
+  return validationMessages[code]
 }
 
 /**
@@ -75,7 +91,7 @@ export function validateCells(
 
         // --- Column not active (orphaned) ---
         if (orphanedColumns?.has(ci)) {
-          addError(ti, qi, ci, ValidationCode.ColumnNotActive)
+          addError(ti, qi, ci, ValidationCode.QuestionNotNeeded)
         }
 
         // --- Not in overtime ---
@@ -97,7 +113,7 @@ export function validateCells(
         if (col.type === QuestionType.B) {
           // B columns: only B/MB/F allowed
           if (v === CellValue.Correct || v === CellValue.Error) {
-            addError(ti, qi, ci, ValidationCode.WrongCellType)
+            addError(ti, qi, ci, ValidationCode.IsBonus)
           }
         } else {
           // Non-B columns: check bonus situation for this team
@@ -105,11 +121,11 @@ export function validateCells(
 
           // B/MB only valid if it's a bonus situation
           if ((v === CellValue.Bonus || v === CellValue.MissedBonus) && !isBonus) {
-            addError(ti, qi, ci, ValidationCode.WrongCellType)
+            addError(ti, qi, ci, ValidationCode.NotBonus)
           }
           // C/E invalid if it IS a bonus situation (should be B/MB)
           if ((v === CellValue.Correct || v === CellValue.Error) && isBonus) {
-            addError(ti, qi, ci, ValidationCode.WrongCellType)
+            addError(ti, qi, ci, ValidationCode.IsBonus)
           }
         }
 
@@ -148,7 +164,7 @@ export function validateCells(
         // --- Question resolved (A/B cascade) ---
         if (isAnswer(v)) {
           if (greyResult.cascadeDisabled.has(ci)) {
-            addError(ti, qi, ci, ValidationCode.QuestionResolved)
+            addError(ti, qi, ci, ValidationCode.QuestionNotNeeded)
           }
 
           teamAnswers.push({ ti, qi })
@@ -169,7 +185,7 @@ export function validateCells(
     const uniqueTeams = new Set(teamsWithAnswers.map(({ ti }) => ti))
     if (uniqueTeams.size > 1) {
       for (const { ti, qi } of teamsWithAnswers) {
-        addError(ti, qi, ci, ValidationCode.MultipleTeams)
+        addError(ti, qi, ci, ValidationCode.DuplicateAnswer)
       }
     }
   }

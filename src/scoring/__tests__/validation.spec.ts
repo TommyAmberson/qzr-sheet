@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut } from '../greyedOut'
-import { validateCells, ValidationCode } from '../validation'
+import { validateCells, ValidationCode, validationMessage } from '../validation'
 import { getOvertimeEligibleTeams } from '../overtime'
 import { computeOrphanedColumns } from '../columnVisibility'
 
@@ -53,6 +53,28 @@ function hasAny(
 ): boolean {
   return errors.has(`${ti}:${qi}:${colIdx}`)
 }
+
+describe('validationMessage', () => {
+  it('returns a human-readable string for every ValidationCode', () => {
+    for (const code of Object.values(ValidationCode)) {
+      const msg = validationMessage(code)
+      expect(typeof msg).toBe('string')
+      expect(msg.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('maps specific codes to expected messages', () => {
+    expect(validationMessage(ValidationCode.DuplicateAnswer)).toContain('one quizzer')
+    expect(validationMessage(ValidationCode.TossedUp)).toContain('toss-up')
+    expect(validationMessage(ValidationCode.IsBonus)).toContain('bonus question')
+    expect(validationMessage(ValidationCode.NotBonus)).toContain('not a bonus')
+    expect(validationMessage(ValidationCode.QuestionNotNeeded)).toContain("shouldn't be asked")
+    expect(validationMessage(ValidationCode.NoJump)).toContain('no-jump')
+    expect(validationMessage(ValidationCode.QuizzerOut)).toContain('out')
+    expect(validationMessage(ValidationCode.FouledOnQuestion)).toContain('numbered question')
+    expect(validationMessage(ValidationCode.NotInOvertime)).toContain('overtime')
+  })
+})
 
 describe('cell validation', () => {
   it('clean sheet has no errors', () => {
@@ -162,18 +184,18 @@ describe('cell validation', () => {
     cells[1]![0]![ci('1')] = E // team 1 also answered Q1
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.MultipleTeams)).toBe(true)
-    expect(hasCode(errors, 1, 0, ci('1'), ValidationCode.MultipleTeams)).toBe(true)
+    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.DuplicateAnswer)).toBe(true)
+    expect(hasCode(errors, 1, 0, ci('1'), ValidationCode.DuplicateAnswer)).toBe(true)
   })
 
-  it('fouls from multiple teams on same column do not trigger multi-team error', () => {
+  it('fouls from multiple teams on same column do not trigger duplicate answer', () => {
     const cells = blankCells()
     cells[0]![0]![ci('1')] = F
     cells[1]![0]![ci('1')] = F
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.MultipleTeams)).toBe(false)
-    expect(hasCode(errors, 1, 0, ci('1'), ValidationCode.MultipleTeams)).toBe(false)
+    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.DuplicateAnswer)).toBe(false)
+    expect(hasCode(errors, 1, 0, ci('1'), ValidationCode.DuplicateAnswer)).toBe(false)
   })
 
   it('foul from one team + answer from another on same column is valid', () => {
@@ -182,26 +204,26 @@ describe('cell validation', () => {
     cells[1]![0]![ci('1')] = C
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.MultipleTeams)).toBe(false)
-    expect(hasCode(errors, 1, 0, ci('1'), ValidationCode.MultipleTeams)).toBe(false)
+    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.DuplicateAnswer)).toBe(false)
+    expect(hasCode(errors, 1, 0, ci('1'), ValidationCode.DuplicateAnswer)).toBe(false)
   })
 
   // --- Wrong cell type for column ---
 
-  it('C/E on a B column is invalid', () => {
+  it('C/E on a B column is invalid (IsBonus)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17B')] = C
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.WrongCellType)).toBe(true)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.IsBonus)).toBe(true)
   })
 
-  it('E on a B column is invalid', () => {
+  it('E on a B column is invalid (IsBonus)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17B')] = E
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.WrongCellType)).toBe(true)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.IsBonus)).toBe(true)
   })
 
   it('B on a B column is valid', () => {
@@ -209,7 +231,7 @@ describe('cell validation', () => {
     cells[0]![0]![ci('17B')] = B
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.WrongCellType)).toBe(false)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.IsBonus)).toBe(false)
   })
 
   it('MB on a B column is valid', () => {
@@ -217,7 +239,7 @@ describe('cell validation', () => {
     cells[0]![0]![ci('17B')] = MB
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.WrongCellType)).toBe(false)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.IsBonus)).toBe(false)
   })
 
   it('F on a B column is valid', () => {
@@ -225,23 +247,23 @@ describe('cell validation', () => {
     cells[0]![0]![ci('17B')] = F
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.WrongCellType)).toBe(false)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.IsBonus)).toBe(false)
   })
 
-  it('B/MB on a normal column (non-bonus situation) is invalid', () => {
+  it('B/MB on a normal column (non-bonus situation) is invalid (NotBonus)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('1')] = B // bonus on Q1 with no toss-up chain — invalid
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.WrongCellType)).toBe(true)
+    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.NotBonus)).toBe(true)
   })
 
-  it('MB on a normal column (non-bonus situation) is invalid', () => {
+  it('MB on a normal column (non-bonus situation) is invalid (NotBonus)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('1')] = MB // missed bonus on Q1 with no toss-up chain — invalid
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.WrongCellType)).toBe(true)
+    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.NotBonus)).toBe(true)
   })
 
   it('B on a normal column in actual bonus situation is valid', () => {
@@ -251,30 +273,31 @@ describe('cell validation', () => {
     cells[2]![0]![ci('3')] = B // team 2 bonus on Q3 — valid
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 2, 0, ci('3'), ValidationCode.WrongCellType)).toBe(false)
+    expect(hasCode(errors, 2, 0, ci('3'), ValidationCode.NotBonus)).toBe(false)
+    expect(hasCode(errors, 2, 0, ci('3'), ValidationCode.IsBonus)).toBe(false)
   })
 
-  it('C on a column that is a bonus situation is invalid (should be B)', () => {
+  it('C on a column that is a bonus situation is invalid (IsBonus)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('4')] = E // team 0 errors Q4
     cells[1]![0]![ci('5')] = E // team 1 errors Q5 toss-up
     cells[2]![0]![ci('6')] = C // team 2 marks C on Q6 — but it's a bonus!
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 2, 0, ci('6'), ValidationCode.WrongCellType)).toBe(true)
+    expect(hasCode(errors, 2, 0, ci('6'), ValidationCode.IsBonus)).toBe(true)
   })
 
-  it('E on a column that is a bonus situation is invalid (should be MB)', () => {
+  it('E on a column that is a bonus situation is invalid (IsBonus)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('4')] = E // team 0 errors Q4
     cells[1]![0]![ci('5')] = E // team 1 errors Q5 toss-up
     cells[2]![0]![ci('6')] = E // team 2 marks E on Q6 — but it's a bonus!
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 2, 0, ci('6'), ValidationCode.WrongCellType)).toBe(true)
+    expect(hasCode(errors, 2, 0, ci('6'), ValidationCode.IsBonus)).toBe(true)
   })
 
-  it('C/E marked first then errors added before — retroactively invalid', () => {
+  it('C/E marked first then errors added before — retroactively invalid (IsBonus)', () => {
     // User marks Q6 as C first, then goes back and marks Q4 E, Q5 E
     // The C on Q6 should now be flagged
     const cells = blankCells()
@@ -283,7 +306,7 @@ describe('cell validation', () => {
     cells[1]![0]![ci('5')] = E // added later
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 2, 0, ci('6'), ValidationCode.WrongCellType)).toBe(true)
+    expect(hasCode(errors, 2, 0, ci('6'), ValidationCode.IsBonus)).toBe(true)
   })
 
   // --- Answer on cascaded-grey column ---
@@ -294,7 +317,7 @@ describe('cell validation', () => {
     cells[1]![0]![ci('17A')] = C // Q17A answered — but Q17 was already resolved!
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 1, 0, ci('17A'), ValidationCode.QuestionResolved)).toBe(true)
+    expect(hasCode(errors, 1, 0, ci('17A'), ValidationCode.QuestionNotNeeded)).toBe(true)
   })
 
   it('answer on B column when A was correct is invalid', () => {
@@ -304,7 +327,7 @@ describe('cell validation', () => {
     cells[2]![0]![ci('17B')] = B // Q17B answered — but 17A resolved it!
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 2, 0, ci('17B'), ValidationCode.QuestionResolved)).toBe(true)
+    expect(hasCode(errors, 2, 0, ci('17B'), ValidationCode.QuestionNotNeeded)).toBe(true)
   })
 
   it('answer on A column when base question was error is valid (toss-up)', () => {
@@ -313,7 +336,7 @@ describe('cell validation', () => {
     cells[1]![0]![ci('17A')] = C // Q17A correct via toss-up — valid
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 1, 0, ci('17A'), ValidationCode.QuestionResolved)).toBe(false)
+    expect(hasCode(errors, 1, 0, ci('17A'), ValidationCode.QuestionNotNeeded)).toBe(false)
   })
 
   // --- No-jump violations ---
@@ -546,41 +569,41 @@ describe('cell validation', () => {
 
   // --- Column not active (orphaned columns) ---
 
-  it('content on A column without parent error is ColumnNotActive', () => {
+  it('content on A column without parent error is QuestionNotNeeded', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17A')] = C // no error on Q17
     const grey = computeGreyedOut(cells, columns)
     const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
     const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
-    expect(hasCode(errors, 0, 0, ci('17A'), ValidationCode.ColumnNotActive)).toBe(true)
+    expect(hasCode(errors, 0, 0, ci('17A'), ValidationCode.QuestionNotNeeded)).toBe(true)
   })
 
-  it('content on B column without A error is ColumnNotActive', () => {
+  it('content on B column without A error is QuestionNotNeeded', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17B')] = B // no error on Q17A
     const grey = computeGreyedOut(cells, columns)
     const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
     const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
-    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.ColumnNotActive)).toBe(true)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.QuestionNotNeeded)).toBe(true)
   })
 
-  it('content on A column with parent error is NOT ColumnNotActive', () => {
+  it('content on A column with parent error is NOT QuestionNotNeeded', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17')] = E // error triggers 17A
     cells[1]![0]![ci('17A')] = C
     const grey = computeGreyedOut(cells, columns)
     const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
     const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
-    expect(hasCode(errors, 1, 0, ci('17A'), ValidationCode.ColumnNotActive)).toBe(false)
+    expect(hasCode(errors, 1, 0, ci('17A'), ValidationCode.QuestionNotNeeded)).toBe(false)
   })
 
-  it('foul on orphaned A/B column is still ColumnNotActive', () => {
+  it('foul on orphaned A/B column is still QuestionNotNeeded', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17A')] = F // foul on orphaned column
     const grey = computeGreyedOut(cells, columns)
     const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
     const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
-    expect(hasCode(errors, 0, 0, ci('17A'), ValidationCode.ColumnNotActive)).toBe(true)
+    expect(hasCode(errors, 0, 0, ci('17A'), ValidationCode.QuestionNotNeeded)).toBe(true)
   })
 
   // --- Not in overtime ---
@@ -701,22 +724,22 @@ describe('cell validation', () => {
       expect(otHasCode(errors, 0, 0, otCi('21'), ValidationCode.NotInOvertime)).toBe(false)
     })
 
-    it('content on OT column beyond visible rounds is ColumnNotActive', () => {
+    it('content on OT column beyond visible rounds is QuestionNotNeeded', () => {
       const cells = otBlankCells()
       cells[0]![0]![otCi('21')] = C
       const grey = computeGreyedOut(cells, otColumns)
       const orphaned = computeOrphanedColumns(cells, otColumns, otBlankNoJumps(), 0)
       const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), undefined, orphaned)
-      expect(otHasCode(errors, 0, 0, otCi('21'), ValidationCode.ColumnNotActive)).toBe(true)
+      expect(otHasCode(errors, 0, 0, otCi('21'), ValidationCode.QuestionNotNeeded)).toBe(true)
     })
 
-    it('content on OT column within visible rounds is NOT ColumnNotActive', () => {
+    it('content on OT column within visible rounds is NOT QuestionNotNeeded', () => {
       const cells = otBlankCells()
       cells[0]![0]![otCi('21')] = C
       const grey = computeGreyedOut(cells, otColumns)
       const orphaned = computeOrphanedColumns(cells, otColumns, otBlankNoJumps(), 1)
       const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), undefined, orphaned)
-      expect(otHasCode(errors, 0, 0, otCi('21'), ValidationCode.ColumnNotActive)).toBe(false)
+      expect(otHasCode(errors, 0, 0, otCi('21'), ValidationCode.QuestionNotNeeded)).toBe(false)
     })
 
     it('team not tied at highest score cannot answer OT', () => {
