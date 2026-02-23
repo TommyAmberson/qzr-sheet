@@ -408,7 +408,7 @@ function colGroupClass(colIdx: number): string {
 }
 
 .quiz-meta--error {
-  background: #9e3030;
+  background: #dc2626;
   color: #fee2e2;
 }
 
@@ -588,13 +588,13 @@ thead .col--name {
 
 /* Question header colours based on answer */
 .col--header-correct {
-  color: #15803d !important;
+  color: #3d7a4a !important;
 }
 .col--header-error {
-  color: #9e3030 !important;
+  color: #8b4038 !important;
 }
 .col--header-bonus {
-  color: #2a7a8a !important;
+  color: #3d7a7a !important;
 }
 .col--header-missed-bonus {
   color: #8a8070 !important;
@@ -604,7 +604,7 @@ thead .col--name {
   text-decoration: line-through;
 }
 .col--header-invalid {
-  outline: 2px solid #ef4444;
+  outline: 2px solid #dc2626;
   outline-offset: -2px;
   animation: pulse-invalid 1.5s ease-in-out infinite;
 }
@@ -653,7 +653,7 @@ thead .col--name {
   border: 1px solid #78716c;
 }
 .row--team-header.team--red .team-name::before {
-  background: #9e3030;
+  background: #8b4038;
 }
 .row--team-header.team--white .team-name::before {
   background: #f5f5f0;
@@ -785,23 +785,23 @@ thead .col--name {
 
 .cell--correct {
   color: #fff;
-  background-color: #15803d !important;
+  background-color: #3d7a4a !important;
 }
 .cell--error {
   color: #fff;
-  background-color: #9e3030 !important;
+  background-color: #8b4038 !important;
 }
 .cell--foul {
   color: #fff;
-  background-color: #b86e30 !important;
+  background-color: #a67038 !important;
 }
 .cell--bonus {
   color: #fff;
-  background-color: #2a7a8a !important;
+  background-color: #3d7a7a !important;
 }
 .cell--missed-bonus {
   color: #fff;
-  background-color: #8a8070 !important;
+  background-color: #7a7568 !important;
 }
 
 /* Column enter transition — col--entering is the collapsed initial state,
@@ -844,13 +844,13 @@ thead .col--name {
 }
 
 .cell--invalid {
-  outline: 2px solid #ef4444;
+  outline: 2px solid #dc2626;
   outline-offset: -2px;
   animation: pulse-invalid 1.5s ease-in-out infinite;
 }
 @keyframes pulse-invalid {
-  0%, 100% { outline-color: #ef4444; }
-  50% { outline-color: #fca5a5; }
+  0%, 100% { outline-color: #dc2626; }
+  50% { outline-color: #f87171; }
 }
 
 /* Running total badges */
@@ -867,17 +867,17 @@ thead .col--name {
   pointer-events: none;
 }
 .running-total-badge--unique {
-  background: #15803d;
+  background: #3d7a4a;
 }
 .running-total-badge--quizout {
-  background: #15803d;
+  background: #3d7a4a;
 }
 .running-total-badge--free-error {
   background: #f0e8e0;
-  color: #9e3030;
+  color: #8b4038;
 }
 .running-total-badge--foul-deduct {
-  background: #b86e30;
+  background: #a67038;
   right: auto;
   left: 0;
 }
@@ -916,20 +916,20 @@ thead .col--name {
   color: #fff;
 }
 .stat-badge--quizout {
-  background: #15803d;
+  background: #3d7a4a;
 }
 .stat-badge--quizout-bonus {
-  background: #15803d;
+  background: #3d7a4a;
   box-shadow: 0 0 0 2px #dcfce7;
 }
 .stat-badge--errorout {
-  background: #9e3030;
+  background: #8b4038;
 }
 .stat-badge--foulout {
-  background: #b86e30;
+  background: #a67038;
 }
 .stat-badge--unique {
-  background: #15803d;
+  background: #3d7a4a;
   border-radius: 4px;
   width: auto;
   padding: 0 0.3rem;
@@ -945,16 +945,16 @@ thead .col--name {
   line-height: 1.2;
 }
 .stat-count--correct {
-  color: #15803d;
-  background: #dcfce7;
+  color: #3d7a4a;
+  background: #e4f2e7;
 }
 .stat-count--error {
-  color: #9e3030;
-  background: #fee2e2;
+  color: #8b4038;
+  background: #f2e4e2;
 }
 .stat-count--foul {
-  color: #b86e30;
-  background: #fef3c7;
+  color: #a67038;
+  background: #f2ece2;
 }
 
 
@@ -1000,38 +1000,38 @@ thead .col--name {
 }
 
 .opt--correct {
-  color: #15803d;
+  color: #3d7a4a;
 }
 .opt--correct:hover {
-  background: #15803d;
+  background: #3d7a4a;
   color: #fff;
 }
 .opt--error {
-  color: #9e3030;
+  color: #8b4038;
 }
 .opt--error:hover {
-  background: #9e3030;
+  background: #8b4038;
   color: #fff;
 }
 .opt--foul {
-  color: #b86e30;
+  color: #a67038;
 }
 .opt--foul:hover {
-  background: #b86e30;
+  background: #a67038;
   color: #fff;
 }
 .opt--bonus {
-  color: #2a7a8a;
+  color: #3d7a7a;
 }
 .opt--bonus:hover {
-  background: #2a7a8a;
+  background: #3d7a7a;
   color: #fff;
 }
 .opt--missed-bonus {
-  color: #8a8070;
+  color: #7a7568;
 }
 .opt--missed-bonus:hover {
-  background: #8a8070;
+  background: #7a7568;
   color: #fff;
 }
 .opt--clear {
