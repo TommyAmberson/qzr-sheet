@@ -1004,15 +1004,15 @@ thead .col--name {
 }
 
 .cell--correct {
-  color: var(--color-bg);
+  color: var(--color-correct-light);
   background-color: var(--color-correct) !important;
 }
 .cell--error {
-  color: var(--color-bg);
+  color: var(--color-error-light);
   background-color: var(--color-error) !important;
 }
 .cell--foul {
-  color: var(--color-bg);
+  color: var(--color-foul-light);
   background-color: var(--color-foul) !important;
 }
 .cell--bonus {
