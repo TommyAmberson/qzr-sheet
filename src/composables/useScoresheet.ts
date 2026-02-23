@@ -9,6 +9,7 @@ import {
   colHasAnyContent,
   isBonusSituation,
 } from '../scoring/helpers'
+import { overtimeQuestionsNeeded } from '../scoring/overtime'
 
 export function useScoresheet() {
   const store = createQuizStore()
@@ -147,9 +148,27 @@ export function useScoresheet() {
     return false
   }
 
+  /** How many overtime questions are visible (0, 3, or 6) */
+  const overtimeCount = computed(() => {
+    const teamScores = scoring.value.map((s) => s.total)
+    return overtimeQuestionsNeeded(
+      quiz.value.overtime,
+      cells.value,
+      columns,
+      noJumps.value,
+      teamScores,
+    )
+  })
+
+  /** Max overtime question number currently visible (0 = none, 23 = first round, 26 = second) */
+  const maxOvertimeQuestion = computed(() => {
+    if (overtimeCount.value === 0) return 0
+    return 20 + overtimeCount.value
+  })
+
   const visibleColumns = computed(() =>
     columns.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
-      if (col.isOvertime) return quiz.value.overtime
+      if (col.isOvertime) return col.number <= maxOvertimeQuestion.value
       if (col.type === QuestionType.A || col.type === QuestionType.B) return abColumnNeeded(idx)
       return true
     }),
@@ -158,7 +177,7 @@ export function useScoresheet() {
   const allQuestionsComplete = computed(() => {
     for (let ci = 0; ci < columns.length; ci++) {
       const col = columns[ci]!
-      if (col.isOvertime && !quiz.value.overtime) continue
+      if (col.isOvertime && col.number > maxOvertimeQuestion.value) continue
       if ((col.type === QuestionType.A || col.type === QuestionType.B) && !abColumnNeeded(ci)) continue
       if (noJumps.value[ci]) continue
       if (colAnswerValue(ci) !== CellValue.Empty) continue
