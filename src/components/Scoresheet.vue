@@ -80,7 +80,7 @@ const hoverCol = ref<number | null>(null)
 
 /** Pointer-based drag reorder state */
 const dragState = ref<{ ti: number; qi: number } | null>(null)
-const dropTarget = ref<{ ti: number; qi: number } | null>(null)
+const dropTarget = ref<{ ti: number; qi: number; below: boolean } | null>(null)
 /** Map of "ti:qi" → element for hit-testing during drag */
 const quizzerRowEls = new Map<string, HTMLElement>()
 
@@ -112,7 +112,7 @@ function onPointerMove(event: PointerEvent) {
     }
   }
   if (found !== null && found !== dragState.value.qi) {
-    dropTarget.value = { ti, qi: found }
+    dropTarget.value = { ti, qi: found, below: found > dragState.value.qi }
   } else {
     dropTarget.value = null
   }
@@ -305,7 +305,8 @@ function colGroupClass(colIdx: number): string {
               { 'row--errored-out': scoring[ti]?.quizzers[qi]?.erroredOut && !scoring[ti]?.quizzers[qi]?.fouledOut },
               { 'row--fouled-out': scoring[ti]?.quizzers[qi]?.fouledOut },
               { 'row--dragging': dragState?.ti === ti && dragState?.qi === qi },
-              { 'row--drop-target': dropTarget?.ti === ti && dropTarget?.qi === qi && !(dragState?.ti === ti && dragState?.qi === qi) },
+              { 'row--drop-above': dropTarget?.ti === ti && dropTarget?.qi === qi && !dropTarget?.below && !(dragState?.ti === ti && dragState?.qi === qi) },
+              { 'row--drop-below': dropTarget?.ti === ti && dropTarget?.qi === qi && dropTarget?.below && !(dragState?.ti === ti && dragState?.qi === qi) },
             ]"
           >
             <td
@@ -1124,8 +1125,11 @@ thead .col--name {
 .row--dragging > td {
   opacity: 0.4;
 }
-.row--drop-target > td {
+.row--drop-above > td {
   border-top: 2px solid var(--color-accent) !important;
+}
+.row--drop-below > td {
+  border-bottom: 2px solid var(--color-accent) !important;
 }
 
 /* Editable name inputs */
