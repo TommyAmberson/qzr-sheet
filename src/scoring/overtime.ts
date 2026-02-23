@@ -48,7 +48,7 @@ export function getOvertimeEligibleTeams(
  * A question is "complete" if its normal column is resolved (C/B/MB) or no-jumped.
  * A/B sub-columns don't need to be checked — they only exist when the normal col had an error.
  */
-function questionsComplete(
+export function questionsComplete(
   cellData: CellValue[][][],
   cols: Column[],
   noJumps: boolean[],
@@ -126,4 +126,66 @@ export function computeOvertimeRounds(
 
   // All existing rounds complete and still tied — need one more
   return totalRounds + 1
+}
+
+/**
+ * Compute team scores at each completed OT round checkpoint.
+ *
+ * Returns an array where each entry is the per-team total scores
+ * through that OT round. Only includes rounds that are fully complete.
+ */
+export function computeOtCheckpointScores(
+  cellData: CellValue[][][],
+  cols: Column[],
+  onTimes: boolean[],
+  noJumps: boolean[],
+): number[][] {
+  const checkpoints: number[][] = []
+  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
+  const totalRounds = Math.ceil(otNormals.length / 3)
+
+  for (let r = 0; r < totalRounds; r++) {
+    const firstQ = 21 + r * 3
+    const lastQ = firstQ + 2
+    if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) break
+
+    const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
+    const throughCells = cellData.map((teamCells) =>
+      teamCells.map((row) =>
+        throughCols.map((_, i) => {
+          const fullIdx = cols.indexOf(throughCols[i]!)
+          return row[fullIdx]!
+        }),
+      ),
+    )
+    checkpoints.push(
+      throughCells.map((teamCells, ti) =>
+        scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+      ),
+    )
+  }
+
+  return checkpoints
+}
+
+/**
+ * Compute regulation-only scores for each team.
+ */
+export function computeRegulationScores(
+  cellData: CellValue[][][],
+  cols: Column[],
+  onTimes: boolean[],
+): number[] {
+  const regCols = cols.filter((c) => !c.isOvertime)
+  const regCells = cellData.map((teamCells) =>
+    teamCells.map((quizzerRow) =>
+      regCols.map((_, ri) => {
+        const fullIdx = cols.indexOf(regCols[ri]!)
+        return quizzerRow[fullIdx]!
+      }),
+    ),
+  )
+  return regCells.map((teamCells, ti) =>
+    scoreTeam(teamCells, regCols, onTimes[ti] ?? true).total,
+  )
 }

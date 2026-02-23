@@ -9,7 +9,7 @@ import {
   colHasAnyContent,
   isBonusSituation,
 } from '../scoring/helpers'
-import { getOvertimeEligibleTeams, computeOvertimeRounds } from '../scoring/overtime'
+import { getOvertimeEligibleTeams, computeOvertimeRounds, computeOtCheckpointScores, computeRegulationScores, questionsComplete } from '../scoring/overtime'
 import { computePlacements } from '../scoring/placement'
 
 export function useScoresheet() {
@@ -219,11 +219,20 @@ export function useScoresheet() {
     return true
   })
 
-  /** Placement medals: 1/2/3 per team, or null if quiz incomplete */
+  /** Whether regulation questions (Q1–20) are fully filled out */
+  const regulationComplete = computed(() =>
+    questionsComplete(cells.value, columns.value, noJumps.value, 1, 20),
+  )
+
+  /** Placement medals: 1/2/3 per team, or null if not yet placed */
   const placements = computed(() => {
-    const totals = scoring.value.map((s) => s.total)
-    const complete = allQuestionsComplete.value && !hasAnyErrors.value
-    return computePlacements(totals, otEligibleTeams.value, complete)
+    if (!regulationComplete.value || hasAnyErrors.value) {
+      return teams.value.map(() => null)
+    }
+    const onTimes = teams.value.map((t) => t.onTime)
+    const regScores = computeRegulationScores(cells.value, columns.value, onTimes)
+    const checkpoints = computeOtCheckpointScores(cells.value, columns.value, onTimes, noJumps.value)
+    return computePlacements(regScores, checkpoints, true)
   })
 
   /** Toggle no-jump for a column by key */
