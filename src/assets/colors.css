@@ -28,7 +28,6 @@
   --color-text-faint: #78716c;
   --color-accent: #3b82f6;
 
-
   /* Team identity */
   --color-team-red: #ff0000;
   --color-team-white: #ffffff;
@@ -39,9 +38,9 @@
   --color-meta-accent: #c9c0a8;
   --color-meta-border: #e6d98a;
 
-  /* Greyed-out stripes (aliases for readability) */
-  --color-grey-stripe-a: var(--color-border-alt);
-  --color-grey-stripe-b: var(--color-bg-warm);
+  /* Greyed-out stripes */
+  --color-grey-stripe-a: #d4d0c6;
+  --color-grey-stripe-b: #e6e0d4;
 
   /* A/B and overtime column top borders */
   --color-ab-border: #854d0e;
@@ -69,11 +68,11 @@
   --color-invalid-alt: #991b1b;
 
   /* UI chrome */
-  --color-bg: #1e1c18;
-  --color-bg-warm: #2a2720;
+  --color-bg: #2a2724;
+  --color-bg-warm: #1a1816;
   --color-border: #5c5848;
   --color-border-alt: #3a3730;
-  --color-text: #e8e4d8;
+  --color-text: #b8b4a8;
   --color-text-muted: #a8a290;
   --color-text-faint: #78716c;
   --color-accent: #60a5fa;
@@ -89,8 +88,8 @@
   --color-meta-border: #8a7d3a;
 
   /* Greyed-out stripes */
-  --color-grey-stripe-a: var(--color-border-alt);
-  --color-grey-stripe-b: var(--color-bg-warm);
+  --color-grey-stripe-a: #4a4540;
+  --color-grey-stripe-b: #383330;
 
   /* A/B and overtime column top borders */
   --color-ab-border: #c47a1a;

@@ -828,8 +828,8 @@ thead .col--name {
 .row--team-header .team-name {
   font-weight: 700;
   font-size: 0.85rem;
-  background: var(--color-text);
-  color: var(--color-team-white);
+  background: var(--color-text-muted);
+  color: #f0ece0;
   text-align: left;
   padding-left: 0.5rem;
   border-radius: 4px;
