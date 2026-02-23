@@ -198,10 +198,9 @@ export function scoreTeam(
   }
 
   // Convert raw totals: null out columns where the total didn't change
-  // Always show the first column so the on-time bonus is visible
   const runningTotals: (number | null)[] = rawTotals.map((val, i) => {
-    if (i === 0) return val
-    if (val !== rawTotals[i - 1]) return val
+    const prev = i === 0 ? onTimeBonus : rawTotals[i - 1]
+    if (val !== prev) return val
     return null
   })
 

@@ -20,6 +20,9 @@ export function useScoresheet() {
   // Bump this to force recomputation of cells/scoring after answer changes
   const answerVersion = ref(0)
 
+  // Bump this to force recomputation when team metadata (e.g. onTime) changes
+  const teamVersion = ref(0)
+
   /**
    * Internally tracked overtime round count.
    * Starts at 1 when OT is enabled, auto-grows when content is added.
@@ -43,9 +46,11 @@ export function useScoresheet() {
   )
 
   /** Teams sorted by seat order — this is the canonical iteration order */
-  const teams = computed<Team[]>(() =>
-    [...store.teams].sort((a, b) => a.seatOrder - b.seatOrder),
-  )
+  const teams = computed<Team[]>(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    teamVersion.value // reactive dependency
+    return [...store.teams].sort((a, b) => a.seatOrder - b.seatOrder)
+  })
 
   /** Quizzers per team, indexed by team position */
   const teamQuizzers = computed(() =>
@@ -279,6 +284,14 @@ export function useScoresheet() {
     return computePlacements(regScores, checkpoints, true)
   })
 
+  /** Toggle on-time for a team by index */
+  function toggleOnTime(teamIdx: number) {
+    const team = teams.value[teamIdx]
+    if (!team) return
+    team.onTime = !team.onTime
+    teamVersion.value++
+  }
+
   /** Toggle no-jump for a column by key */
   function toggleNoJump(colIdx: number) {
     const key = columns.value[colIdx]?.key
@@ -300,6 +313,7 @@ export function useScoresheet() {
     scoring,
     setCell,
     toggleNoJump,
+    toggleOnTime,
     store,
 
     // Grey-out & validation

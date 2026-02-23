@@ -6,7 +6,7 @@ import { validationMessage } from '../scoring/validation'
 
 const {
   columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
-  isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, columnValidationMessages, quizzerHasErrors, quizzerValidationMessages, teamValidationMessages, isAfterOut, isFouledOnQuestion,
+  isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, columnValidationMessages, quizzerHasErrors, quizzerValidationMessages, teamValidationMessages, isAfterOut, isFouledOnQuestion, toggleOnTime,
   teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
   visibleColumns, allQuestionsComplete,
   validationErrors,
@@ -195,6 +195,7 @@ function colGroupClass(colIdx: number): string {
       <thead>
         <tr>
           <th class="col--name sticky-col"></th>
+          <th class="col--ontime-header"></th>
           <th
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
@@ -207,6 +208,7 @@ function colGroupClass(colIdx: number): string {
         </tr>
         <tr class="spacer-row">
           <td class="sticky-col"></td>
+          <td class="spacer-cell"></td>
           <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
           <td></td>
         </tr>
@@ -216,12 +218,12 @@ function colGroupClass(colIdx: number): string {
         <template v-for="(team, ti) in teams" :key="team.id">
           <!-- Team header row -->
           <tr :class="['row--team-header', teamColors[ti]]">
-            <td class="col--name sticky-col team-name">
+            <td class="col--name sticky-col team-name" colspan="2">
               {{ team.name }}
               <span
                 class="on-time"
                 :class="{ 'on-time--active': team.onTime }"
-                @click.stop="team.onTime = !team.onTime"
+                @click.stop="toggleOnTime(ti)"
               >
                 <span class="on-time-box">✓</span>
                 <span class="on-time-label">on time</span>
@@ -254,6 +256,7 @@ function colGroupClass(colIdx: number): string {
             ]"
           >
             <td
+              colspan="2"
               :class="['col--name', 'sticky-col', { 'cell--invalid': quizzerHasErrors(ti, qi), 'col--name--active': selector?.ti === ti && selector?.qi === qi }]"
               :title="quizzerHasErrors(ti, qi) ? quizzerValidationMessages(ti, qi).join('\n') : undefined"
             >
@@ -326,6 +329,12 @@ function colGroupClass(colIdx: number): string {
           <tr class="row--team-total">
             <td class="col--name sticky-col"></td>
             <td
+              class="cell--total cell--total-ontime"
+              style="position: relative;"
+            >
+              {{ scoring[ti]?.onTimeBonus || '' }}
+            </td>
+            <td
               v-for="{ col, idx, entering } in displayColumns"
               :key="col.key"
               :class="['cell--total', colGroupClass(idx), { 'col--entering': entering }]"
@@ -357,6 +366,7 @@ function colGroupClass(colIdx: number): string {
           <!-- Spacer between teams -->
           <tr v-if="ti < teams.length - 1" class="spacer-row">
             <td class="sticky-col"></td>
+            <td class="spacer-cell"></td>
             <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
             <td></td>
           </tr>
@@ -367,11 +377,12 @@ function colGroupClass(colIdx: number): string {
       <tfoot>
         <tr class="spacer-row">
           <td class="sticky-col"></td>
+          <td class="spacer-cell"></td>
           <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
           <td></td>
         </tr>
         <tr class="row--no-jump">
-          <td class="col--name sticky-col no-jump-label">No Jump</td>
+          <td class="col--name sticky-col no-jump-label" colspan="2">No Jump</td>
           <td
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
@@ -924,6 +935,16 @@ thead .col--name {
 }
 
 /* Running total badges */
+/* On-time bonus column */
+.col--ontime-header {
+  background: transparent !important;
+  border: none !important;
+}
+.cell--total-ontime {
+  border-left: 1px solid var(--color-border-light) !important;
+  border-right: 1px solid var(--color-border-light) !important;
+}
+
 .running-total-badge {
   position: absolute;
   top: 0;
