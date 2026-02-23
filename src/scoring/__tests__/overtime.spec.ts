@@ -109,8 +109,19 @@ describe('overtimeQuestionsNeeded', () => {
     cells[1]![0]![ci('21')] = C
     cells[1]![1]![ci('22')] = C
     cells[1]![2]![ci('23')] = C
-    // Tie broken — no need for second OT round
+    // Tie broken — first round stays visible since it has content
     const teamScores = [100, 160, 20]
+    const result = overtimeQuestionsNeeded(true, cells, columns, noJumps, teamScores)
+    expect(result).toBe(3)
+  })
+
+  it('returns 3 when tie broken mid-round (OT has content)', () => {
+    const cells = blankCells()
+    const noJumps = blankNoJumps()
+    fillRegulation(cells, noJumps)
+    // One OT answer breaks the tie, but round stays visible
+    cells[1]![0]![ci('21')] = C
+    const teamScores = [100, 120, 20]
     const result = overtimeQuestionsNeeded(true, cells, columns, noJumps, teamScores)
     expect(result).toBe(3)
   })

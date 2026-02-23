@@ -21,21 +21,23 @@ export function overtimeQuestionsNeeded(
 ): number {
   if (!overtimeEnabled) return 0
 
-  // Check regulation is complete (questions 1–20 including any needed A/B)
-  if (!regulationComplete(cellData, cols, noJumps)) return 0
+  // If second OT round already has content, keep both rounds visible
+  if (otRoundHasContent(cellData, cols, 24, 26)) return 6
 
-  // Check if at least two teams are tied for a placement position
+  // If first OT round already has content, keep it visible
+  if (otRoundHasContent(cellData, cols, 21, 23)) {
+    // Check if first round is complete and still tied — show second round
+    if (otRoundComplete(cellData, cols, noJumps, 21, 23) && hasRelevantTie(teamScores)) {
+      return 6
+    }
+    return 3
+  }
+
+  // No OT content yet — only show first round if regulation complete and tied
+  if (!regulationComplete(cellData, cols, noJumps)) return 0
   if (!hasRelevantTie(teamScores)) return 0
 
-  // First OT round (Q21–23) always shown when we reach here
-  // Check if first round is complete
-  if (!otRoundComplete(cellData, cols, noJumps, 21, 23)) return 3
-
-  // First round complete — check if still tied
-  if (!hasRelevantTie(teamScores)) return 3
-
-  // Still tied — show second round (Q24–26)
-  return 6
+  return 3
 }
 
 /** Whether all regulation questions (1–20) are answered or no-jumped */
@@ -58,6 +60,22 @@ function regulationComplete(
   }
 
   return true
+}
+
+/** Whether any column in an overtime round has content (answers or fouls) */
+function otRoundHasContent(
+  cellData: CellValue[][][],
+  cols: Column[],
+  fromQ: number,
+  toQ: number,
+): boolean {
+  for (let ci = 0; ci < cols.length; ci++) {
+    const col = cols[ci]!
+    if (!col.isOvertime) continue
+    if (col.number < fromQ || col.number > toQ) continue
+    if (colHasAnyContent(cellData, ci)) return true
+  }
+  return false
 }
 
 /** Whether an overtime round (e.g. Q21–23 or Q24–26) is complete */
