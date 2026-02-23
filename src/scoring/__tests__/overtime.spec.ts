@@ -190,13 +190,15 @@ describe('computeOvertimeRounds', () => {
     const { cols, cells, idx } = setup(2)
     const noJumps = cols.map(() => false)
     // Team 0 gets more corrects than others
+    // Team 0: 3 correct = 80, Team 1: 2 correct = 60, Team 2: 1 correct = 40
     cells[0]![0]![idx('1')] = C
     cells[0]![1]![idx('2')] = C
     cells[0]![2]![idx('3')] = C
     cells[1]![0]![idx('4')] = C
-    cells[2]![0]![idx('5')] = C
+    cells[1]![1]![idx('5')] = C
+    cells[2]![0]![idx('6')] = C
     // No-jump the rest
-    for (let n = 6; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 7; n <= 20; n++) noJumps[idx(`${n}`)] = true
     expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(0)
   })
 
