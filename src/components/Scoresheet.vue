@@ -777,32 +777,43 @@ thead .col--name {
 .on-time {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  margin-right: 0.35rem;
+  gap: 0.3rem;
   cursor: pointer;
   vertical-align: middle;
+  padding: 0.15rem 0.4rem 0.15rem 0.25rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.on-time:hover {
+  background: var(--color-border-light);
 }
 .on-time-box {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 0.9rem;
-  height: 0.9rem;
-  border-radius: 2px;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 3px;
   font-size: 0.65rem;
-  border: 1px solid var(--color-text-faint);
+  border: 1.5px solid var(--color-text-faint);
   color: transparent;
+  background: var(--color-bg);
   transition: all 0.15s;
 }
 .on-time--active .on-time-box {
+  background: var(--color-text);
+  border-color: var(--color-text);
   color: var(--color-bg);
-  border-color: var(--color-no-jump);
 }
 .on-time-label {
   font-size: 0.65rem;
-  font-weight: 400;
-  color: var(--color-no-jump);
+  font-weight: 600;
+  color: var(--color-text-faint);
   text-transform: lowercase;
+  transition: color 0.15s;
+}
+.on-time--active .on-time-label {
+  color: var(--color-text-muted);
 }
 
 /* No-jump row */
