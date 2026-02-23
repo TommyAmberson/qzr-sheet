@@ -2,15 +2,25 @@
 import { computed, ref, watch } from 'vue'
 import { CellValue, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
+import { validationMessage } from '../scoring/validation'
 
 const {
   columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
-  isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, columnValidationMessages, quizzerHasErrors, quizzerValidationMessages, teamValidationMessages, isAfterOut, isFouledOnQuestion,
+  isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, columnValidationMessages, quizzerHasErrors, quizzerValidationMessages, teamValidationMessages, isAfterOut, isFouledOnQuestion, toggleOnTime,
   teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
   visibleColumns, allQuestionsComplete,
   validationErrors,
   placements,
 } = useScoresheet()
+
+/** All unique validation messages for the status tooltip */
+const allValidationMessages = computed(() => {
+  const msgs = new Set<string>()
+  for (const codes of validationErrors.value.values()) {
+    for (const code of codes) msgs.add(validationMessage(code))
+  }
+  return [...msgs]
+})
 
 /** Active cell selector state */
 const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
@@ -158,12 +168,12 @@ function colGroupClass(colIdx: number): string {
     <div :class="['quiz-meta', { 'quiz-meta--error': hasAnyErrors, 'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors }]">
       <label class="meta-field">
         <span class="meta-label">Division</span>
-        <input v-model.number="quiz.division" type="number" min="1" />
+        <input v-model="quiz.division" type="text" placeholder="1" />
       </label>
       <span class="meta-sep">·</span>
       <label class="meta-field">
         <span class="meta-label">Quiz</span>
-        <input v-model.number="quiz.quizNumber" type="number" min="1" />
+        <input v-model="quiz.quizNumber" type="text" />
       </label>
       <span class="meta-sep">·</span>
       <label class="meta-field meta-field--toggle">
@@ -171,6 +181,13 @@ function colGroupClass(colIdx: number): string {
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
         <span class="meta-label">Overtime</span>
       </label>
+      <span class="meta-sep">·</span>
+      <span class="meta-field meta-field--status" :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined">
+        <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
+        <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete">✓</span>
+        <span v-else class="meta-status meta-status--pending">○</span>
+        <span class="meta-label">{{ hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress' }}</span>
+      </span>
     </div>
 
     <table class="scoresheet">
@@ -178,6 +195,7 @@ function colGroupClass(colIdx: number): string {
       <thead>
         <tr>
           <th class="col--name sticky-col"></th>
+          <th class="col--ontime-header"></th>
           <th
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
@@ -189,7 +207,7 @@ function colGroupClass(colIdx: number): string {
           <th class="col--total col--total-header"></th>
         </tr>
         <tr class="spacer-row">
-          <td class="sticky-col"></td>
+          <td class="sticky-col" colspan="2"></td>
           <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
           <td></td>
         </tr>
@@ -199,16 +217,8 @@ function colGroupClass(colIdx: number): string {
         <template v-for="(team, ti) in teams" :key="team.id">
           <!-- Team header row -->
           <tr :class="['row--team-header', teamColors[ti]]">
-            <td class="col--name sticky-col team-name">
+            <td class="col--name sticky-col team-name" colspan="2">
               {{ team.name }}
-              <span
-                class="on-time"
-                :class="{ 'on-time--active': team.onTime }"
-                @click.stop="team.onTime = !team.onTime"
-              >
-                <span class="on-time-box">✓</span>
-                <span class="on-time-label">on time</span>
-              </span>
               <span class="team-stats">
                 <span
                   v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
@@ -237,6 +247,7 @@ function colGroupClass(colIdx: number): string {
             ]"
           >
             <td
+              colspan="2"
               :class="['col--name', 'sticky-col', { 'cell--invalid': quizzerHasErrors(ti, qi), 'col--name--active': selector?.ti === ti && selector?.qi === qi }]"
               :title="quizzerHasErrors(ti, qi) ? quizzerValidationMessages(ti, qi).join('\n') : undefined"
             >
@@ -307,7 +318,23 @@ function colGroupClass(colIdx: number): string {
 
           <!-- Team running total row -->
           <tr class="row--team-total">
-            <td class="col--name sticky-col"></td>
+            <td class="col--name sticky-col running-total-label">
+              <span
+                class="on-time"
+                :class="{ 'on-time--active': team.onTime }"
+                @click.stop="toggleOnTime(ti)"
+              >
+                <span class="on-time-box">✓</span>
+                <span class="on-time-label">on time</span>
+              </span>
+              Score
+            </td>
+            <td
+              class="cell--total cell--total-ontime"
+              style="position: relative;"
+            >
+              {{ scoring[ti]?.onTimeBonus ?? 0 }}
+            </td>
             <td
               v-for="{ col, idx, entering } in displayColumns"
               :key="col.key"
@@ -338,8 +365,8 @@ function colGroupClass(colIdx: number): string {
           </tr>
 
           <!-- Spacer between teams -->
-          <tr v-if="ti < teams.length - 1" class="spacer-row">
-            <td class="sticky-col"></td>
+          <tr v-if="ti < teams.length - 1" class="spacer-row spacer-row--team">
+            <td class="sticky-col" colspan="2"></td>
             <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
             <td></td>
           </tr>
@@ -349,12 +376,12 @@ function colGroupClass(colIdx: number): string {
       <!-- No-jump row at bottom -->
       <tfoot>
         <tr class="spacer-row">
-          <td class="sticky-col"></td>
+          <td class="sticky-col" colspan="2"></td>
           <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
           <td></td>
         </tr>
         <tr class="row--no-jump">
-          <td class="col--name sticky-col no-jump-label">No Jump</td>
+          <td class="col--name sticky-col no-jump-label" colspan="2">No Jump</td>
           <td
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
@@ -400,32 +427,76 @@ function colGroupClass(colIdx: number): string {
 
 .quiz-meta {
   display: flex;
-  gap: 0.6rem;
+  gap: 0.75rem;
   align-items: center;
   margin-bottom: 0.5rem;
-  padding: 0.4rem 0.75rem;
+  padding: 0.5rem 0.85rem;
   background: var(--color-meta-bg);
+  border: 1px solid var(--color-meta-accent);
+  border-left: 3px solid var(--color-meta-border);
   border-radius: 6px;
   width: fit-content;
   color: var(--color-text);
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 0.8rem;
-  transition: background 0.4s, color 0.4s;
+  transition: background 0.4s, color 0.4s, border-color 0.4s;
 }
 
 .quiz-meta--error {
-  background: var(--color-invalid);
-  color: var(--color-invalid-light);
+  background: var(--color-error-light);
+  border-color: var(--color-invalid);
+  border-left-color: var(--color-invalid);
+}
+.quiz-meta--error .meta-label {
+  color: var(--color-error);
 }
 
 .quiz-meta--complete {
-  background: var(--color-correct);
-  color: var(--color-correct-light);
+  border-left-color: var(--color-accent);
+}
+
+.meta-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 800;
+  margin-left: 0.25rem;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+.meta-status--pending {
+  color: var(--color-meta-accent);
+  font-size: 1rem;
+}
+.meta-status--complete {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+.meta-status--error {
+  background: var(--color-invalid);
+  color: var(--color-bg);
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
+
+.meta-field--status .meta-label {
+  text-transform: none;
+  letter-spacing: normal;
+}
+.meta-status--complete + .meta-label {
+  color: var(--color-accent);
+}
+.meta-status--error + .meta-label {
+  color: var(--color-invalid);
 }
 
 .meta-sep {
   color: var(--color-meta-accent);
-  font-size: 1rem;
+  font-size: 0.9rem;
   user-select: none;
 }
 
@@ -437,21 +508,24 @@ function colGroupClass(colIdx: number): string {
 
 .meta-label {
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-.meta-field input[type='number'] {
-  width: 2.5rem;
-  padding: 0.15rem 0.3rem;
+.meta-field input[type='text'] {
+  width: 3rem;
+  padding: 0.2rem 0.3rem;
   border: 1px solid var(--color-meta-accent);
   border-radius: 4px;
   font-size: 0.8rem;
+  font-weight: 600;
   text-align: center;
   background: var(--color-bg);
   color: var(--color-text);
 }
-.meta-field input[type='number']:focus {
+.meta-field input[type='text']:focus {
   outline: 1px solid var(--color-accent);
   outline-offset: 0;
   border-color: var(--color-accent);
@@ -551,10 +625,13 @@ function colGroupClass(colIdx: number): string {
 
 /* Spacer row — half-height transparent gap */
 .spacer-row td {
-  height: 0.5rem;
+  height: 0.35rem;
   padding: 0 !important;
   border: none !important;
   background: transparent !important;
+}
+.spacer-row--team td {
+  height: 1rem;
 }
 .spacer-row .spacer-cell {
   border-left: 1px solid var(--color-border-light) !important;
@@ -700,32 +777,43 @@ thead .col--name {
 .on-time {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  margin-left: 0.75rem;
+  gap: 0.3rem;
   cursor: pointer;
   vertical-align: middle;
+  padding: 0.15rem 0.4rem 0.15rem 0.25rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.on-time:hover {
+  background: var(--color-border-light);
 }
 .on-time-box {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 0.9rem;
-  height: 0.9rem;
-  border-radius: 2px;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 3px;
   font-size: 0.65rem;
-  border: 1px solid var(--color-text-faint);
+  border: 1.5px solid var(--color-text-faint);
   color: transparent;
+  background: var(--color-bg);
   transition: all 0.15s;
 }
 .on-time--active .on-time-box {
+  background: var(--color-text);
+  border-color: var(--color-text);
   color: var(--color-bg);
-  border-color: var(--color-no-jump);
 }
 .on-time-label {
   font-size: 0.65rem;
-  font-weight: 400;
-  color: var(--color-no-jump);
+  font-weight: 600;
+  color: var(--color-text-faint);
   text-transform: lowercase;
+  transition: color 0.15s;
+}
+.on-time--active .on-time-label {
+  color: var(--color-text-muted);
 }
 
 /* No-jump row */
@@ -860,6 +948,32 @@ thead .col--name {
 }
 
 /* Running total badges */
+/* On-time bonus column */
+.running-total-label {
+  font-weight: 600 !important;
+  font-style: normal !important;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-align: right !important;
+  padding-right: 0.6rem !important;
+  position: relative;
+}
+.running-total-label .on-time {
+  position: absolute;
+  left: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.col--ontime-header {
+  background: transparent !important;
+  border: none !important;
+}
+.cell--total-ontime {
+  border-left: 1px solid var(--color-border-light) !important;
+  border-right: 1px solid var(--color-border-light) !important;
+}
+
 .running-total-badge {
   position: absolute;
   top: 0;

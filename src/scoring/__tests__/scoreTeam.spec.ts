@@ -234,7 +234,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('3')] = F
     const result = scoreTeam(cells, columns, false)
-    expect(result.quizzers[0]!.erroredOut).toBe(true)
+    expect(result.quizzers[0]!.erroredOut).toBe(false)
     expect(result.quizzers[0]!.fouledOut).toBe(true)
   })
 
@@ -369,10 +369,10 @@ describe('scoreTeam', () => {
     expect(result.runningTotals[colIdx('5')]).toBeNull() // unchanged after
   })
 
-  it('first column always shows running total', () => {
+  it('first column is null when only on-time bonus (shown in its own cell)', () => {
     const cells = blankCells()
     const result = scoreTeam(cells, columns, true)
-    expect(result.runningTotals[colIdx('1')]).toBe(20) // on-time bonus visible
+    expect(result.runningTotals[colIdx('1')]).toBeNull() // on-time bonus in its own cell
     expect(result.total).toBe(20)
   })
 
