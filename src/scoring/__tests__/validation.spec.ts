@@ -141,7 +141,7 @@ describe('cell validation', () => {
     cells[0]![1]![ci('2')] = C // team 0 answers Q2 — but they're tossed up!
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 1, ci('2'), ValidationCode.TossedUp)).toBe(true)
+    expect(hasCode(errors, 0, 1, ci('2'), ValidationCode.WrongTeamTossUp)).toBe(true)
   })
 
   it('different team answering toss-up is valid', () => {
@@ -162,16 +162,16 @@ describe('cell validation', () => {
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
     expect(hasCode(errors, 0, 1, ci('3'), ValidationCode.WrongTeamBonus)).toBe(true)
-    expect(hasCode(errors, 0, 1, ci('3'), ValidationCode.TossedUp)).toBe(false)
+    expect(hasCode(errors, 0, 1, ci('3'), ValidationCode.WrongTeamTossUp)).toBe(false)
   })
 
-  it('toss-up (not bonus) uses TossedUp not WrongTeamBonus', () => {
+  it('toss-up (not bonus) uses WrongTeamTossUp not WrongTeamBonus', () => {
     const cells = blankCells()
     cells[0]![0]![ci('1')] = E // team 0 errors on Q1
     cells[0]![1]![ci('2')] = C // team 0 answers Q2 — tossed up but not a bonus
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
-    expect(hasCode(errors, 0, 1, ci('2'), ValidationCode.TossedUp)).toBe(true)
+    expect(hasCode(errors, 0, 1, ci('2'), ValidationCode.WrongTeamTossUp)).toBe(true)
     expect(hasCode(errors, 0, 1, ci('2'), ValidationCode.WrongTeamBonus)).toBe(false)
   })
 

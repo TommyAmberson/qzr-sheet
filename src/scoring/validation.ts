@@ -8,8 +8,8 @@ import {
 export enum ValidationCode {
   /** Two+ quizzers answered the same question (same team or different teams) */
   DuplicateAnswer = 'duplicate-answer',
-  /** Quizzer's team is tossed-up on this column — they can't jump */
-  TossedUp = 'tossed-up',
+  /** Team answered a toss-up question they can't jump on */
+  WrongTeamTossUp = 'wrong-team-toss-up',
   /** Team answered a bonus question that belongs to another team */
   WrongTeamBonus = 'wrong-team-bonus',
   /** C/E on a bonus question — should use B/MB */
@@ -31,8 +31,8 @@ export enum ValidationCode {
 /** Human-readable message for each validation code */
 const validationMessages: Record<ValidationCode, string> = {
   [ValidationCode.DuplicateAnswer]: 'Only one quizzer can answer per question — multiple answered',
-  [ValidationCode.TossedUp]: "Team can't jump on this question — it's a toss-up",
-  [ValidationCode.WrongTeamBonus]: "Only one team can answer a bonus — this team isn't eligible",
+  [ValidationCode.WrongTeamTossUp]: "Team can't jump on this question — it's a toss-up",
+  [ValidationCode.WrongTeamBonus]: "Team can't answer this question — it's another team's bonus",
   [ValidationCode.IsBonus]: 'This is a bonus question — answer must be a bonus',
   [ValidationCode.NotBonus]: 'This is not a bonus question — bonus answers are not allowed',
   [ValidationCode.QuestionNotNeeded]: "This question shouldn't exist — no error triggered it",
@@ -169,7 +169,7 @@ export function validateCells(
               break
             }
           }
-          addError(ti, qi, ci, isBonusForOther ? ValidationCode.WrongTeamBonus : ValidationCode.TossedUp)
+          addError(ti, qi, ci, isBonusForOther ? ValidationCode.WrongTeamBonus : ValidationCode.WrongTeamTossUp)
         }
 
         // --- Question resolved (A/B cascade) ---
