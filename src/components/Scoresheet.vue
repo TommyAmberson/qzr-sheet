@@ -362,6 +362,12 @@ function colGroupClass(colIdx: number): string {
                   @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
                   @focus="($event.target as HTMLInputElement).select()"
                 />
+                <button
+                  v-if="quizzer.name"
+                  class="name-clear"
+                  title="Clear name (empty seat)"
+                  @click.stop="setQuizzerName(ti, qi, '')"
+                >×</button>
                 <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
                 <span
                   v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
@@ -1207,6 +1213,32 @@ thead .col--name {
 .editable-name--quizzer {
   font-weight: 500;
   font-size: 0.8rem;
+}
+
+/* Clear name button */
+.name-clear {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--color-text-faint);
+  font-size: 0.7rem;
+  line-height: 1;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  margin-left: 0.1rem;
+}
+.name-cell-inner:hover .name-clear {
+  display: inline-flex;
+}
+.name-clear:hover {
+  background: var(--color-border-light);
+  color: var(--color-error);
 }
 
 /* Quizzer status indicators */
