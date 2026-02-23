@@ -16,21 +16,15 @@
 
   /* Neutrals (light → dark) */
   --palette-white:        #fff;
-  --palette-linen:        #faf6ee;
   --palette-cream:        #f0e8e0;
-  --palette-bone:         #e6e0d4;
   --palette-sand:         #e0ddd4;
-  --palette-dune:         #d4d0c6;
   --palette-tan:          #c9c0a8;
   --palette-ash:          #b8b4a8;
-  --palette-drift:        #a8a290;
   --palette-khaki:        #a09a85;
   --palette-stone:        #78716c;
   --palette-slate:        #57534e;
   --palette-dusk:         #4a4540;
   --palette-shadow:       #3a3730;
-  --palette-soot:         #383330;
-  --palette-charcoal:     #2d2a1e;
   --palette-coal:         #2a2724;
   --palette-obsidian:     #1a1816;
 
@@ -70,19 +64,19 @@
   --color-bg-warm:        var(--palette-cream);
   --color-border:         var(--palette-khaki);
   --color-border-alt:     var(--palette-sand);
-  --color-text:           var(--palette-charcoal);
+  --color-text:           var(--palette-coal);
   --color-text-muted:     var(--palette-slate);
   --color-text-faint:     var(--palette-stone);
   --color-accent:         var(--palette-blue);
 
   /* Quiz meta bar */
-  --color-meta-bg:        var(--palette-linen);
+  --color-meta-bg:        var(--palette-cream);
   --color-meta-accent:    var(--palette-tan);
   --color-meta-border:    var(--palette-gold);
 
   /* Greyed-out stripes */
-  --color-grey-stripe-a:  var(--palette-dune);
-  --color-grey-stripe-b:  var(--palette-bone);
+  --color-grey-stripe-a:  var(--palette-tan);
+  --color-grey-stripe-b:  var(--palette-sand);
 
   /* A/B and overtime column top borders */
   --color-ab-border:      var(--palette-amber);
@@ -97,7 +91,7 @@
   --color-border:         var(--palette-no-jump);
   --color-border-alt:     var(--palette-shadow);
   --color-text:           var(--palette-ash);
-  --color-text-muted:     var(--palette-drift);
+  --color-text-muted:     var(--palette-khaki);
   --color-text-faint:     var(--palette-stone);
   --color-accent:         var(--palette-blue);
 
@@ -108,7 +102,7 @@
 
   /* Greyed-out stripes */
   --color-grey-stripe-a:  var(--palette-dusk);
-  --color-grey-stripe-b:  var(--palette-soot);
+  --color-grey-stripe-b:  var(--palette-shadow);
 
   /* A/B and overtime column top borders */
   --color-ab-border:      var(--palette-amber);
