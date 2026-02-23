@@ -92,16 +92,22 @@ export function computeOvertimeRounds(
   const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes)
   if (eligible.size < 2) return 0
 
-  // Check each existing OT round: if complete and still tied, need another
+  // Check each existing OT round: if complete and still tied, need another.
+  // Only check ties among the originally-eligible teams — a non-eligible team
+  // matching an eligible team's score is not a real tie.
+  const eligibleTeams = [...eligible]
   const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
   const totalRounds = Math.ceil(otNormals.length / 3)
+
+  // Track which eligible teams are still competing (haven't been resolved yet)
+  let competing = [...eligibleTeams]
 
   for (let r = 0; r < totalRounds; r++) {
     const firstQ = 21 + r * 3
     const lastQ = firstQ + 2
     if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) return r + 1
 
-    // Round is complete — check if teams are still tied (using all cols up to this round)
+    // Round is complete — check if competing teams are still tied
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
     const throughCells = cellData.map((teamCells) =>
       teamCells.map((row) =>
@@ -114,14 +120,22 @@ export function computeOvertimeRounds(
     const scores = throughCells.map((teamCells, ti) =>
       scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
     )
-    // Check if any two teams are still tied
-    let stillTied = false
-    for (let i = 0; i < scores.length; i++) {
-      for (let j = i + 1; j < scores.length; j++) {
-        if (scores[i] === scores[j]) stillTied = true
+
+    // Find which competing teams are still tied with each other
+    const stillTied = new Set<number>()
+    for (let i = 0; i < competing.length; i++) {
+      for (let j = i + 1; j < competing.length; j++) {
+        if (scores[competing[i]!] === scores[competing[j]!]) {
+          stillTied.add(competing[i]!)
+          stillTied.add(competing[j]!)
+        }
       }
     }
-    if (!stillTied) return r + 1
+
+    if (stillTied.size < 2) return r + 1
+
+    // Narrow competing to only those still tied
+    competing = competing.filter((i) => stillTied.has(i))
   }
 
   // All existing rounds complete and still tied — need one more

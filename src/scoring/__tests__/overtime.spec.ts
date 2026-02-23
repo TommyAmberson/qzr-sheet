@@ -218,15 +218,30 @@ describe('computeOvertimeRounds', () => {
     expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(2)
   })
 
-  it('returns 1 when OT round 1 is complete and tie is broken', () => {
+  it('returns 1 when OT round 1 fully breaks the tie', () => {
     const { cols, cells, idx } = setup(2)
     const noJumps = cols.map(() => false)
     fillRegulationTiedSimple(cells, idx, noJumps)
-    // Only team 0 gets a correct in OT → tie broken
+    // Team 0 gets Q21, Team 1 gets Q22, Team 2 gets Q23
+    // Each gets +20 → 140 each → still tied... need different point values.
+    // Instead: Team 0 gets Q21 (+20) and Q22 (+20), Team 1 gets Q23 (+20)
+    // Scores: Team 0: 160, Team 1: 140, Team 2: 120 → all unique
+    cells[0]![0]![idx('21')] = C
+    cells[0]![1]![idx('22')] = C
+    cells[1]![0]![idx('23')] = C
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
+  })
+
+  it('returns 2 when OT round 1 only partially breaks a 3-way tie', () => {
+    const { cols, cells, idx } = setup(2)
+    const noJumps = cols.map(() => false)
+    fillRegulationTiedSimple(cells, idx, noJumps)
+    // Only team 0 gets a correct, teams 1 & 2 no-jump
+    // Scores: Team 0: 140, Team 1: 120, Team 2: 120 → 1 & 2 still tied
     cells[0]![0]![idx('21')] = C
     noJumps[idx('22')] = true
     noJumps[idx('23')] = true
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(2)
   })
 
   it('returns 1 when OT round 1 is partially filled (not complete yet)', () => {
@@ -236,5 +251,50 @@ describe('computeOvertimeRounds', () => {
     // Only 1 of 3 OT questions answered
     cells[0]![0]![idx('21')] = C
     expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
+  })
+
+  it('does not trigger another round when a non-eligible team happens to match an eligible team score', () => {
+    // Regulation: Team 0 & Team 2 tied, Team 1 ahead (not tied)
+    // After OT round 1: Team 1 & Team 2 have the same score,
+    // but Team 1 was never in OT — this is NOT a real tie.
+    const { cols, cells, idx } = setup(2)
+    const noJumps = cols.map(() => false)
+
+    // Team 0: 5 corrects on Q1,4,7,10,13 → 120
+    // Team 1: 5 corrects on Q2,5,8,11,14 → 120
+    // Team 2: 5 corrects on Q3,6,9,12,15 → 120
+    // (start from the 3-way tie helper)
+    fillRegulationTiedSimple(cells, idx, noJumps)
+
+    // Now give Team 1 an extra correct to break out of the tie
+    // Use Q16 for Team 1 → Team 1: 140, Teams 0 & 2: 120
+    cells[1]![1]![idx('16')] = C
+    // No-jump remaining regulation
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+
+    // OT round 1: Team 2 gets correct on Q21, others no-jump
+    // Team 0: 120, Team 1: 140, Team 2: 140
+    // Team 1 & 2 now share 140, but Team 1 was never tied —
+    // the originally-tied teams (0 & 2) are NO LONGER tied → done
+    cells[2]![0]![idx('21')] = C
+    noJumps[idx('22')] = true
+    noJumps[idx('23')] = true
+
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
+  })
+
+  it('triggers another round when originally-tied teams are still tied after OT', () => {
+    // 3-way regulation tie, OT round 1 breaks one team out but two remain tied
+    const { cols, cells, idx } = setup(2)
+    const noJumps = cols.map(() => false)
+    fillRegulationTiedSimple(cells, idx, noJumps)
+
+    // OT round 1: Teams 0 & 1 each get a correct, Team 2 no-jumped
+    // Team 0: 140, Team 1: 140, Team 2: 120 → 0 & 1 still tied
+    cells[0]![0]![idx('21')] = C
+    cells[1]![0]![idx('22')] = C
+    noJumps[idx('23')] = true
+
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(2)
   })
 })
