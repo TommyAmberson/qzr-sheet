@@ -20,8 +20,8 @@ export function resetIdCounter(start = 1) {
 function createDefaultQuiz(): Quiz {
   return {
     id: genId(),
-    division: 1,
-    quizNumber: 1,
+    division: '1',
+    quizNumber: '1',
     overtime: false,
   }
 }

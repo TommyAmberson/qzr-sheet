@@ -15,8 +15,8 @@ export enum QuestionType {
 
 export interface Quiz {
   id: number
-  division: number
-  quizNumber: number
+  division: string
+  quizNumber: string
   /** Whether overtime is enabled */
   overtime: boolean
 }

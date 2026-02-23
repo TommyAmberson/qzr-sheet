@@ -168,12 +168,12 @@ function colGroupClass(colIdx: number): string {
     <div :class="['quiz-meta', { 'quiz-meta--error': hasAnyErrors, 'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors }]">
       <label class="meta-field">
         <span class="meta-label">Division</span>
-        <input v-model.number="quiz.division" type="number" min="1" />
+        <input v-model="quiz.division" type="text" placeholder="1" />
       </label>
       <span class="meta-sep">·</span>
       <label class="meta-field">
         <span class="meta-label">Quiz</span>
-        <input v-model.number="quiz.quizNumber" type="number" min="1" />
+        <input v-model="quiz.quizNumber" type="text" />
       </label>
       <span class="meta-sep">·</span>
       <label class="meta-field meta-field--toggle">
@@ -504,8 +504,8 @@ function colGroupClass(colIdx: number): string {
   letter-spacing: 0.03em;
 }
 
-.meta-field input[type='number'] {
-  width: 2.5rem;
+.meta-field input[type='text'] {
+  width: 3rem;
   padding: 0.2rem 0.3rem;
   border: 1px solid var(--color-meta-accent);
   border-radius: 4px;
@@ -515,7 +515,7 @@ function colGroupClass(colIdx: number): string {
   background: var(--color-bg);
   color: var(--color-text);
 }
-.meta-field input[type='number']:focus {
+.meta-field input[type='text']:focus {
   outline: 1px solid var(--color-accent);
   outline-offset: 0;
   border-color: var(--color-accent);
