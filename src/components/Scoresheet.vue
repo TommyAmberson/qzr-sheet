@@ -408,7 +408,7 @@ function colGroupClass(colIdx: number): string {
 }
 
 .quiz-meta--error {
-  background: #dc2626;
+  background: var(--color-invalid);
   color: #fee2e2;
 }
 
@@ -588,13 +588,13 @@ thead .col--name {
 
 /* Question header colours based on answer */
 .col--header-correct {
-  color: #3d7a4a !important;
+  color: var(--color-correct) !important;
 }
 .col--header-error {
-  color: #8b4038 !important;
+  color: var(--color-error) !important;
 }
 .col--header-bonus {
-  color: #3d7a7a !important;
+  color: var(--color-bonus) !important;
 }
 .col--header-missed-bonus {
   color: #8a8070 !important;
@@ -604,7 +604,7 @@ thead .col--name {
   text-decoration: line-through;
 }
 .col--header-invalid {
-  outline: 2px solid #dc2626;
+  outline: 2px solid var(--color-invalid);
   outline-offset: -2px;
   animation: pulse-invalid 1.5s ease-in-out infinite;
 }
@@ -653,7 +653,7 @@ thead .col--name {
   border: 1px solid #78716c;
 }
 .row--team-header.team--red .team-name::before {
-  background: #8b4038;
+  background: var(--color-error);
 }
 .row--team-header.team--white .team-name::before {
   background: #f5f5f0;
@@ -785,23 +785,23 @@ thead .col--name {
 
 .cell--correct {
   color: #fff;
-  background-color: #3d7a4a !important;
+  background-color: var(--color-correct) !important;
 }
 .cell--error {
   color: #fff;
-  background-color: #8b4038 !important;
+  background-color: var(--color-error) !important;
 }
 .cell--foul {
   color: #fff;
-  background-color: #a67038 !important;
+  background-color: var(--color-foul) !important;
 }
 .cell--bonus {
   color: #fff;
-  background-color: #3d7a7a !important;
+  background-color: var(--color-bonus) !important;
 }
 .cell--missed-bonus {
   color: #fff;
-  background-color: #7a7568 !important;
+  background-color: var(--color-missed-bonus) !important;
 }
 
 /* Column enter transition — col--entering is the collapsed initial state,
@@ -844,13 +844,13 @@ thead .col--name {
 }
 
 .cell--invalid {
-  outline: 2px solid #dc2626;
+  outline: 2px solid var(--color-invalid);
   outline-offset: -2px;
   animation: pulse-invalid 1.5s ease-in-out infinite;
 }
 @keyframes pulse-invalid {
-  0%, 100% { outline-color: #dc2626; }
-  50% { outline-color: #f87171; }
+  0%, 100% { outline-color: var(--color-invalid); }
+  50% { outline-color: var(--color-invalid-light); }
 }
 
 /* Running total badges */
@@ -867,17 +867,17 @@ thead .col--name {
   pointer-events: none;
 }
 .running-total-badge--unique {
-  background: #3d7a4a;
+  background: var(--color-correct);
 }
 .running-total-badge--quizout {
-  background: #3d7a4a;
+  background: var(--color-correct);
 }
 .running-total-badge--free-error {
   background: #f0e8e0;
-  color: #8b4038;
+  color: var(--color-error);
 }
 .running-total-badge--foul-deduct {
-  background: #a67038;
+  background: var(--color-foul);
   right: auto;
   left: 0;
 }
@@ -916,20 +916,20 @@ thead .col--name {
   color: #fff;
 }
 .stat-badge--quizout {
-  background: #3d7a4a;
+  background: var(--color-correct);
 }
 .stat-badge--quizout-bonus {
-  background: #3d7a4a;
-  box-shadow: 0 0 0 2px #dcfce7;
+  background: var(--color-correct);
+  box-shadow: 0 0 0 2px var(--color-correct-light);
 }
 .stat-badge--errorout {
-  background: #8b4038;
+  background: var(--color-error);
 }
 .stat-badge--foulout {
-  background: #a67038;
+  background: var(--color-foul);
 }
 .stat-badge--unique {
-  background: #3d7a4a;
+  background: var(--color-correct);
   border-radius: 4px;
   width: auto;
   padding: 0 0.3rem;
@@ -945,22 +945,39 @@ thead .col--name {
   line-height: 1.2;
 }
 .stat-count--correct {
-  color: #3d7a4a;
-  background: #e4f2e7;
+  color: var(--color-correct);
+  background: var(--color-correct-light);
 }
 .stat-count--error {
-  color: #8b4038;
-  background: #f2e4e2;
+  color: var(--color-error);
+  background: var(--color-error-light);
 }
 .stat-count--foul {
-  color: #a67038;
-  background: #f2ece2;
+  color: var(--color-foul);
+  background: var(--color-foul-light);
 }
 
 
 </style>
 
 <style>
+/* Color palette */
+:root {
+  /* Answer colors — earthy, muted tones that fit the warm beige UI */
+  --color-correct: #3d7a4a;
+  --color-correct-light: #e4f2e7;
+  --color-error: #8b4038;
+  --color-error-light: #f2e4e2;
+  --color-foul: #a67038;
+  --color-foul-light: #f2ece2;
+  --color-bonus: #3d7a7a;
+  --color-missed-bonus: #7a7568;
+
+  /* Validation invalid — bright, stands out from the earthy palette */
+  --color-invalid: #dc2626;
+  --color-invalid-light: #f87171;
+}
+
 /* Cell selector popup (unscoped for Teleport) */
 .selector-backdrop {
   position: fixed;
@@ -1000,38 +1017,38 @@ thead .col--name {
 }
 
 .opt--correct {
-  color: #3d7a4a;
+  color: var(--color-correct);
 }
 .opt--correct:hover {
-  background: #3d7a4a;
+  background: var(--color-correct);
   color: #fff;
 }
 .opt--error {
-  color: #8b4038;
+  color: var(--color-error);
 }
 .opt--error:hover {
-  background: #8b4038;
+  background: var(--color-error);
   color: #fff;
 }
 .opt--foul {
-  color: #a67038;
+  color: var(--color-foul);
 }
 .opt--foul:hover {
-  background: #a67038;
+  background: var(--color-foul);
   color: #fff;
 }
 .opt--bonus {
-  color: #3d7a7a;
+  color: var(--color-bonus);
 }
 .opt--bonus:hover {
-  background: #3d7a7a;
+  background: var(--color-bonus);
   color: #fff;
 }
 .opt--missed-bonus {
-  color: #7a7568;
+  color: var(--color-missed-bonus);
 }
 .opt--missed-bonus:hover {
-  background: #7a7568;
+  background: var(--color-missed-bonus);
   color: #fff;
 }
 .opt--clear {
