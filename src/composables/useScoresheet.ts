@@ -135,6 +135,47 @@ export function useScoresheet() {
     return false
   }
 
+  /** Get deduplicated validation messages for all cells in a column */
+  function columnValidationMessages(ci: number): string[] {
+    const msgs = new Set<string>()
+    for (const [key, codes] of validationErrors.value) {
+      if (key.endsWith(`:${ci}`)) {
+        for (const code of codes) msgs.add(validationMessage(code))
+      }
+    }
+    return [...msgs]
+  }
+
+  /** Whether any cell for a specific quizzer has a validation error */
+  function quizzerHasErrors(ti: number, qi: number): boolean {
+    for (const key of validationErrors.value.keys()) {
+      if (key.startsWith(`${ti}:${qi}:`)) return true
+    }
+    return false
+  }
+
+  /** Get deduplicated validation messages for a specific quizzer */
+  function quizzerValidationMessages(ti: number, qi: number): string[] {
+    const msgs = new Set<string>()
+    for (const [key, codes] of validationErrors.value) {
+      if (key.startsWith(`${ti}:${qi}:`)) {
+        for (const code of codes) msgs.add(validationMessage(code))
+      }
+    }
+    return [...msgs]
+  }
+
+  /** Get deduplicated validation messages for all cells in a team */
+  function teamValidationMessages(ti: number): string[] {
+    const msgs = new Set<string>()
+    for (const [key, codes] of validationErrors.value) {
+      if (key.startsWith(`${ti}:`)) {
+        for (const code of codes) msgs.add(validationMessage(code))
+      }
+    }
+    return [...msgs]
+  }
+
   function isAfterOut(ti: number, qi: number, colIdx: number): boolean {
     const qs = scoring.value[ti]?.quizzers[qi]
     if (!qs || qs.outAfterCol < 0 || colIdx <= qs.outAfterCol) return false
@@ -272,6 +313,10 @@ export function useScoresheet() {
     isInvalid,
     cellValidationMessages,
     columnHasErrors,
+    columnValidationMessages,
+    quizzerHasErrors,
+    quizzerValidationMessages,
+    teamValidationMessages,
     isAfterOut,
     isFouledOnQuestion,
     teamHasErrors,

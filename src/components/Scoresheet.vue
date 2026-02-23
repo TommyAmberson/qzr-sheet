@@ -5,7 +5,7 @@ import { useScoresheet } from '../composables/useScoresheet'
 
 const {
   columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
-  isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, isAfterOut, isFouledOnQuestion,
+  isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, columnValidationMessages, quizzerHasErrors, quizzerValidationMessages, teamValidationMessages, isAfterOut, isFouledOnQuestion,
   teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
   visibleColumns, allQuestionsComplete,
   validationErrors,
@@ -179,6 +179,7 @@ function colGroupClass(colIdx: number): string {
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
             :class="['col--question', colGroupClass(idx), headerClass(idx), { 'col--entering': entering }]"
+            :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
           >
             {{ col.label }}
           </th>
@@ -232,7 +233,10 @@ function colGroupClass(colIdx: number): string {
               { 'row--fouled-out': scoring[ti]?.quizzers[qi]?.fouledOut },
             ]"
           >
-            <td class="col--name sticky-col">
+            <td
+              :class="['col--name', 'sticky-col', { 'cell--invalid': quizzerHasErrors(ti, qi) }]"
+              :title="quizzerHasErrors(ti, qi) ? quizzerValidationMessages(ti, qi).join('\n') : undefined"
+            >
               <span class="quizzer-name">{{ quizzer.name }}</span>
               <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
                 <span
@@ -288,6 +292,7 @@ function colGroupClass(colIdx: number): string {
               v-if="qi === 0"
               :class="['col--total', 'team-total-value', { 'cell--invalid': teamHasErrors(ti) }]"
               :rowspan="teamQuizzers[ti]?.length ?? 5"
+              :title="teamHasErrors(ti) ? teamValidationMessages(ti).join('\n') : undefined"
             >
               <span v-if="placements[ti]" class="placement-medal">{{ placements[ti] === 1 ? '🥇' : placements[ti] === 2 ? '🥈' : '🥉' }}</span>
               {{ scoring[ti]?.total ?? 0 }}
@@ -348,6 +353,7 @@ function colGroupClass(colIdx: number): string {
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
             :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx], 'cell--invalid': noJumpHasConflict(idx), 'col--entering': entering }]"
+            :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
             @click="toggleNoJump(idx)"
           >
             {{ noJumps[idx] ? '✗' : '' }}
