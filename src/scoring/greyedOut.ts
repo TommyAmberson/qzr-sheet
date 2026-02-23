@@ -26,6 +26,8 @@ export interface GreyedOutResult {
   tossedUp: Set<string>
   /** Quizzers who fouled on a question and can't answer sub-parts: Set of "teamIdx:quizzerIdx:colIdx" */
   fouledQuizzers: Set<string>
+  /** Column indices disabled because a parent (Normal or A) was resolved (C/B/MB cascade): Set of colIdx */
+  cascadeDisabled: Set<number>
 }
 
 export function computeGreyedOut(
@@ -33,6 +35,7 @@ export function computeGreyedOut(
   cols: Column[],
 ): GreyedOutResult {
   const disabled = new Set<string>()
+  const cascadeDisabled = new Set<number>()
   const teamCount = cellData.length
 
   // Bind helpers to this cellData for convenience
@@ -77,15 +80,15 @@ export function computeGreyedOut(
     if (col.type === QuestionType.Normal && col.isAB && isResolved(colIdx)) {
       const aIdx = KEY_TO_IDX.get(`${col.number}A`)
       const bIdx = KEY_TO_IDX.get(`${col.number}B`)
-      if (aIdx !== undefined) greyAllTeams(aIdx)
-      if (bIdx !== undefined) greyAllTeams(bIdx)
+      if (aIdx !== undefined) { greyAllTeams(aIdx); cascadeDisabled.add(aIdx) }
+      if (bIdx !== undefined) { greyAllTeams(bIdx); cascadeDisabled.add(bIdx) }
     }
 
     // 3. If an A question was resolved (C/B/MB), grey out B.
     //    Errors don't resolve — they lead to toss-ups on B.
     if (col.type === QuestionType.A && isResolved(colIdx)) {
       const bIdx = KEY_TO_IDX.get(`${col.number}B`)
-      if (bIdx !== undefined) greyAllTeams(bIdx)
+      if (bIdx !== undefined) { greyAllTeams(bIdx); cascadeDisabled.add(bIdx) }
     }
 
     // 4. Toss-up greying: teams in tossedUp set are greyed on this column
@@ -157,5 +160,5 @@ export function computeGreyedOut(
     }
   }
 
-  return { disabled, tossedUp: tossedUpSet, fouledQuizzers }
+  return { disabled, tossedUp: tossedUpSet, fouledQuizzers, cascadeDisabled }
 }

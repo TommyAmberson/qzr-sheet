@@ -1,9 +1,7 @@
-import { CellValue, QuestionType, KEY_TO_IDX, type Column } from '../types/scoresheet'
+import { CellValue, QuestionType, type Column } from '../types/scoresheet'
 import type { GreyedOutResult } from './greyedOut'
 import {
   isAnswer,
-  anyTeamHasValue as _anyTeamHasValue,
-  isResolved as _isResolved,
   isBonusSituation,
 } from './helpers'
 
@@ -38,10 +36,6 @@ export function validateCells(
 ): Map<string, ValidationCode[]> {
   const errors = new Map<string, ValidationCode[]>()
   const teamCount = cellData.length
-
-  // Bind helpers to this cellData
-  const anyTeamHasValue = (ci: number, v: CellValue) => _anyTeamHasValue(cellData, ci, v)
-  const isResolved = (ci: number) => _isResolved(cellData, ci)
 
   function addError(ti: number, qi: number, ci: number, code: ValidationCode) {
     const key = `${ti}:${qi}:${ci}`
@@ -130,17 +124,7 @@ export function validateCells(
 
         // --- Question resolved (A/B cascade) ---
         if (isAnswer(v)) {
-          let resolved = false
-          if (col.type === QuestionType.A) {
-            const baseIdx = KEY_TO_IDX.get(`${col.number}`)
-            if (baseIdx !== undefined) resolved = isResolved(baseIdx)
-          } else if (col.type === QuestionType.B) {
-            const aIdx = KEY_TO_IDX.get(`${col.number}A`)
-            if (aIdx !== undefined && isResolved(aIdx)) resolved = true
-            const baseIdx = KEY_TO_IDX.get(`${col.number}`)
-            if (baseIdx !== undefined && isResolved(baseIdx)) resolved = true
-          }
-          if (resolved) {
+          if (greyResult.cascadeDisabled.has(ci)) {
             addError(ti, qi, ci, ValidationCode.QuestionResolved)
           }
 

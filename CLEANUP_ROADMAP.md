@@ -6,7 +6,7 @@ phases make later ones easier.
 
 ---
 
-## Phase 1 — Relational data model
+## ~~Phase 1 — Relational data model~~ ✅
 
 **Problem:** Data lives in a positional 3D array (`cells[teamIdx][quizzerIdx][colIdx]`).
 This is fragile (reordering breaks it), hard to serialize, and couples storage
@@ -44,7 +44,7 @@ insulated by the adapter layer.
 
 ---
 
-## Phase 2 — Shared helpers & deduplication
+## ~~Phase 2 — Shared helpers & deduplication~~ ✅
 
 **Problem:** Three files (`greyedOut.ts`, `validation.ts`, `Scoresheet.vue`)
 each independently implement the same helpers: `anyTeamHasValue`,
@@ -62,7 +62,7 @@ each independently implement the same helpers: `anyTeamHasValue`,
 
 ---
 
-## Phase 3 — Move business logic out of Scoresheet.vue
+## ~~Phase 3 — Move business logic out of Scoresheet.vue~~ ✅
 
 **Problem:** `Scoresheet.vue` is ~600 lines mixing scoring logic, animation
 state, and rendering. Functions like `isBonusForTeam`, `abColumnNeeded`,
@@ -83,7 +83,7 @@ belong in the composable or scoring layer, not in a component.
 
 ---
 
-## Phase 4 — Simplify validation by leveraging greyedOut
+## ~~Phase 4 — Simplify validation by leveraging greyedOut~~ ✅
 
 **Problem:** `validateCells` re-derives "is this question resolved?" by
 scanning parent columns for `Correct/Bonus/MissedBonus` — the exact same
@@ -103,7 +103,7 @@ tests already cover the cascade logic thoroughly.
 
 ---
 
-## Phase 5 — Replace string-key Sets with flat arrays
+## ~~Phase 5 — Replace string-key Sets with flat arrays~~ ⏭️ Skipped
 
 **Problem:** `greyedOut` and `validation` use `Set<string>` with keys like
 `"0:2:15"` and `"1:42"`. Every recompute allocates hundreds of string
@@ -123,9 +123,12 @@ this creates unnecessary GC pressure.
 
 **Risk:** Medium — touches every call site. Run full test suite after.
 
+**Status:** Skipped — pure optimization with no clarity benefit. String keys
+are self-documenting and the dataset is small (3×5×~48).
+
 ---
 
-## Phase 6 — Persistence
+## Phase 6 — Persistence ⏳ Deferred
 
 **Problem:** No save/load at all. Page refresh loses everything. The Tauri
 backend is an empty shell.
