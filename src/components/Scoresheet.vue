@@ -793,7 +793,7 @@ thead .col--name {
   color: var(--color-missed-bonus) !important;
 }
 .col--header-no-jump {
-  color: var(--color-no-jump) !important;
+  color: var(--palette-no-jump) !important;
   text-decoration: line-through;
 }
 .col--header-invalid {

@@ -11,7 +11,7 @@
   --palette-bonus-alt:    #e2f0f0;
   --palette-mb:           #7a7568;
   --palette-mb-alt:       #e8e7e2;
-  --palette-no-jump:      #5c5848;
+  --palette-no-jump:      #6e6a5c;
   --palette-no-jump-alt:  #e8e6df;
 
   /* Neutrals (light → dark) */
@@ -68,6 +68,10 @@
   --color-text-muted:     var(--palette-slate);
   --color-text-faint:     var(--palette-stone);
   --color-accent:         var(--palette-blue);
+
+  /* No-jump — inverted in dark mode */
+  --color-no-jump:        var(--palette-no-jump-alt);
+  --color-no-jump-alt:    var(--palette-no-jump);
 
   /* Quiz meta bar */
   --color-meta-bg:        var(--palette-cream);
