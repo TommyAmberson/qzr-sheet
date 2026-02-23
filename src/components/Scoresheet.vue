@@ -409,16 +409,16 @@ function colGroupClass(colIdx: number): string {
 
 .quiz-meta--error {
   background: var(--color-invalid);
-  color: var(--color-meta-error-text);
+  color: var(--color-invalid-light);
 }
 
 .quiz-meta--complete {
-  background: var(--color-complete);
-  color: var(--color-complete-light);
+  background: var(--color-correct);
+  color: var(--color-correct-light);
 }
 
 .meta-sep {
-  color: var(--color-meta-sep);
+  color: var(--color-meta-accent);
   font-size: 1rem;
   user-select: none;
 }
@@ -432,13 +432,13 @@ function colGroupClass(colIdx: number): string {
 .meta-label {
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--color-meta-label);
+  color: var(--color-text-muted);
 }
 
 .meta-field input[type='number'] {
   width: 2.5rem;
   padding: 0.15rem 0.3rem;
-  border: 1px solid var(--color-meta-input-border);
+  border: 1px solid var(--color-meta-accent);
   border-radius: 4px;
   font-size: 0.8rem;
   text-align: center;
@@ -466,7 +466,7 @@ function colGroupClass(colIdx: number): string {
   display: inline-block;
   width: 1.75rem;
   height: 1rem;
-  background: var(--color-meta-input-border);
+  background: var(--color-meta-accent);
   border-radius: 999px;
   position: relative;
   transition: background 0.2s;
@@ -489,7 +489,7 @@ function colGroupClass(colIdx: number): string {
 }
 .meta-field--toggle .meta-label {
   font-size: 0.75rem;
-  color: var(--color-meta-label);
+  color: var(--color-text-muted);
 }
 .meta-field--toggle input:checked ~ .meta-label {
   color: var(--color-text);
@@ -534,7 +534,7 @@ function colGroupClass(colIdx: number): string {
 .col--total {
   min-width: 3rem;
   font-weight: 600;
-  background: var(--color-bg-total);
+  background: var(--color-border-light);
 }
 .col--total-header {
   background: transparent !important;
@@ -542,13 +542,6 @@ function colGroupClass(colIdx: number): string {
 }
 
 /* Column group shading */
-.col--ab {
-  background-color: var(--color-col-ab-tint);
-}
-
-.col--overtime {
-  background-color: var(--color-col-ot-tint);
-}
 
 /* Spacer row — half-height transparent gap */
 .spacer-row td {
@@ -664,7 +657,7 @@ thead .col--name {
 
 /* Quizzer rows */
 .row--quizzer:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-border-light);
 }
 
 /* Team total row */
@@ -784,23 +777,23 @@ thead .col--name {
 }
 
 .cell--correct {
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
   background-color: var(--color-correct) !important;
 }
 .cell--error {
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
   background-color: var(--color-error) !important;
 }
 .cell--foul {
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
   background-color: var(--color-foul) !important;
 }
 .cell--bonus {
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
   background-color: var(--color-bonus) !important;
 }
 .cell--missed-bonus {
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
   background-color: var(--color-missed-bonus) !important;
 }
 
@@ -863,7 +856,7 @@ thead .col--name {
   padding: 0.05rem 0.2rem;
   border-radius: 3px;
   line-height: 1.3;
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
   pointer-events: none;
 }
 .running-total-badge--unique {
@@ -913,7 +906,7 @@ thead .col--name {
   font-size: 0.6rem;
   font-weight: 800;
   line-height: 1;
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
 }
 .stat-badge--quizout {
   background: var(--color-correct);
@@ -974,8 +967,8 @@ thead .col--name {
   display: flex;
   gap: 2px;
   padding: 3px;
-  background: var(--color-selector-bg);
-  border: 1px solid var(--color-selector-border);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-light);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 101;
@@ -993,7 +986,7 @@ thead .col--name {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.1s;
-  background: var(--color-selector-opt-bg);
+  background: var(--color-bg);
 }
 .selector-opt:hover {
   transform: scale(1.1);
@@ -1004,40 +997,40 @@ thead .col--name {
 }
 .opt--correct:hover {
   background: var(--color-correct);
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
 }
 .opt--error {
   color: var(--color-error);
 }
 .opt--error:hover {
   background: var(--color-error);
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
 }
 .opt--foul {
   color: var(--color-foul);
 }
 .opt--foul:hover {
   background: var(--color-foul);
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
 }
 .opt--bonus {
   color: var(--color-bonus);
 }
 .opt--bonus:hover {
   background: var(--color-bonus);
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
 }
 .opt--missed-bonus {
   color: var(--color-missed-bonus);
 }
 .opt--missed-bonus:hover {
   background: var(--color-missed-bonus);
-  color: var(--color-text-inverse);
+  color: var(--color-bg);
 }
 .opt--clear {
-  color: var(--color-clear);
+  color: var(--color-no-jump);
 }
 .opt--clear:hover {
-  background: var(--color-clear-hover);
+  background: var(--color-border-light);
 }
 </style>

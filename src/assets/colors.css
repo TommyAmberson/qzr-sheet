@@ -9,24 +9,22 @@
   --color-foul-light: #f2ece2;
   --color-bonus: #3d7a7a;
   --color-missed-bonus: #7a7568;
-
   --color-no-jump: #a8a290;
 
-  /* Validation invalid — bright, stands out from the earthy palette */
+  /* Validation — bright, stands out from the earthy palette */
   --color-invalid: #dc2626;
   --color-invalid-light: #f87171;
 
   /* UI chrome */
   --color-bg: #fff;
-  --color-bg-hover: #f5f3ed;
   --color-bg-warm: #f0e8e0;
-  --color-bg-total: #ddd8c4;
   --color-border: #a09a85;
   --color-border-light: #e0ddd4;
   --color-text: #2d2a1e;
   --color-text-muted: #57534e;
   --color-text-faint: #78716c;
   --color-accent: #3b82f6;
+
 
   /* Team identity */
   --color-team-red: #ff0000;
@@ -35,32 +33,13 @@
 
   /* Quiz meta bar */
   --color-meta-bg: #ffff99;
-  --color-meta-sep: #b8a030;
-  --color-meta-label: #5c5630;
-  --color-meta-input-border: #bbb060;
-  --color-meta-error-text: #fee2e2;
-  --color-complete: #15803d;
-  --color-complete-light: #dcfce7;
+  --color-meta-accent: #b8a030;
 
-  /* Greyed-out stripes */
-  --color-grey-stripe-a: #e8e4d4;
-  --color-grey-stripe-b: #d5d0be;
+  /* Greyed-out stripes (aliases for readability) */
+  --color-grey-stripe-a: var(--color-border-light);
+  --color-grey-stripe-b: var(--color-bg-warm);
 
   /* A/B and overtime column top borders */
   --color-ab-border: #854d0e;
   --color-ot-border: #9d174d;
-
-  /* Column group tints */
-  --color-col-ab-tint: #fefce811;
-  --color-col-ot-tint: #fdf2f811;
-
-  /* Inverse text (white on colored backgrounds) */
-  --color-text-inverse: #fff;
-
-  /* Selector popup */
-  --color-selector-bg: #fff;
-  --color-selector-border: #cbd5e1;
-  --color-selector-opt-bg: #f8fafc;
-  --color-clear: #94a3b8;
-  --color-clear-hover: #e2e8f0;
 }
