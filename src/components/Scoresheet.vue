@@ -207,8 +207,7 @@ function colGroupClass(colIdx: number): string {
           <th class="col--total col--total-header"></th>
         </tr>
         <tr class="spacer-row">
-          <td class="sticky-col"></td>
-          <td class="spacer-cell"></td>
+          <td class="sticky-col" colspan="2"></td>
           <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
           <td></td>
         </tr>
@@ -366,9 +365,8 @@ function colGroupClass(colIdx: number): string {
           </tr>
 
           <!-- Spacer between teams -->
-          <tr v-if="ti < teams.length - 1" class="spacer-row">
-            <td class="sticky-col"></td>
-            <td class="spacer-cell"></td>
+          <tr v-if="ti < teams.length - 1" class="spacer-row spacer-row--team">
+            <td class="sticky-col" colspan="2"></td>
             <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
             <td></td>
           </tr>
@@ -378,8 +376,7 @@ function colGroupClass(colIdx: number): string {
       <!-- No-jump row at bottom -->
       <tfoot>
         <tr class="spacer-row">
-          <td class="sticky-col"></td>
-          <td class="spacer-cell"></td>
+          <td class="sticky-col" colspan="2"></td>
           <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
           <td></td>
         </tr>
@@ -628,10 +625,13 @@ function colGroupClass(colIdx: number): string {
 
 /* Spacer row — half-height transparent gap */
 .spacer-row td {
-  height: 0.5rem;
+  height: 0.35rem;
   padding: 0 !important;
   border: none !important;
   background: transparent !important;
+}
+.spacer-row--team td {
+  height: 1rem;
 }
 .spacer-row .spacer-cell {
   border-left: 1px solid var(--color-border-light) !important;
