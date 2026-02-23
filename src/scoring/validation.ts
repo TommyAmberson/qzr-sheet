@@ -22,6 +22,8 @@ export enum ValidationCode {
   QuizzerOut = 'quizzer-out',
   /** Quizzer fouled on this question and can't answer sub-parts */
   FouledOnQuestion = 'fouled-on-question',
+  /** Non-foul answer on an overtime column by a team not eligible for overtime */
+  NotInOvertime = 'not-in-overtime',
 }
 
 /**
@@ -33,6 +35,7 @@ export function validateCells(
   cols: Column[],
   greyResult: GreyedOutResult,
   noJumps?: boolean[],
+  otEligibleTeams?: Set<number>,
 ): Map<string, ValidationCode[]> {
   const errors = new Map<string, ValidationCode[]>()
   const teamCount = cellData.length
@@ -65,6 +68,16 @@ export function validateCells(
       for (let qi = 0; qi < quizzerCount; qi++) {
         const v = cellData[ti]![qi]![ci]!
         if (v === CellValue.Empty) continue
+
+        // --- Not in overtime ---
+        if (
+          col.isOvertime &&
+          otEligibleTeams &&
+          !otEligibleTeams.has(ti) &&
+          v !== CellValue.Foul
+        ) {
+          addError(ti, qi, ci, ValidationCode.NotInOvertime)
+        }
 
         // --- No-jump (fouls are still valid on no-jump columns) ---
         if (noJumps?.[ci] && v !== CellValue.Foul) {

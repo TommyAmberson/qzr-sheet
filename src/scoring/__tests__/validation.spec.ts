@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut } from '../greyedOut'
 import { validateCells, ValidationCode } from '../validation'
+import { getOvertimeEligibleTeams } from '../overtime'
 
 const columns = buildColumns()
 const C = CellValue.Correct
@@ -21,6 +22,11 @@ function ci(key: string): number {
 /** Helper: blank no-jumps array */
 function blankNoJumps(): boolean[] {
   return columns.map(() => false)
+}
+
+/** Helper: compute OT eligible teams */
+function otEligible(cells: CellValue[][][], onTimes = [true, true, true]): Set<number> {
+  return getOvertimeEligibleTeams(cells, columns, onTimes)
 }
 
 /** Helper: blank 3-team, 5-quizzer grid */
@@ -513,5 +519,108 @@ describe('cell validation', () => {
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
     expect(hasCode(errors, 0, 0, ci('17A'), ValidationCode.FouledOnQuestion)).toBe(true)
+  })
+
+  // --- Not in overtime ---
+
+  it('team not part of the tie answering OT question is invalid', () => {
+    const cells = blankCells()
+    // Team 0: 3 correct = 80 (60 + 20 on-time)
+    cells[0]![0]![ci('1')] = C
+    cells[0]![1]![ci('2')] = C
+    cells[0]![2]![ci('3')] = C
+    // Teams 1 and 2: 1 correct each = 40 (20 + 20 on-time) — tied
+    cells[1]![0]![ci('4')] = C
+    cells[2]![0]![ci('5')] = C
+    const eligible = otEligible(cells)
+    // Team 0 is not tied, teams 1 & 2 are
+    expect(eligible.has(0)).toBe(false)
+    expect(eligible.has(1)).toBe(true)
+    expect(eligible.has(2)).toBe(true)
+
+    // Team 0 answers OT question — invalid
+    cells[0]![3]![ci('21')] = C
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), eligible)
+    expect(hasCode(errors, 0, 3, ci('21'), ValidationCode.NotInOvertime)).toBe(true)
+  })
+
+  it('team part of the tie answering OT question is valid', () => {
+    const cells = blankCells()
+    // Both team 0 and team 1 get one correct each — tied at 40
+    cells[0]![0]![ci('1')] = C
+    cells[1]![0]![ci('2')] = C
+    const eligible = otEligible(cells)
+    expect(eligible.has(0)).toBe(true)
+    expect(eligible.has(1)).toBe(true)
+
+    cells[0]![1]![ci('21')] = C
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), eligible)
+    expect(hasCode(errors, 0, 1, ci('21'), ValidationCode.NotInOvertime)).toBe(false)
+  })
+
+  it('foul on OT question by non-eligible team is not flagged (fouls always valid)', () => {
+    const cells = blankCells()
+    // Team 0 high score, teams 1 & 2 tied lower
+    cells[0]![0]![ci('1')] = C
+    cells[0]![1]![ci('2')] = C
+    cells[1]![0]![ci('3')] = C
+    cells[2]![0]![ci('4')] = C
+    const eligible = otEligible(cells)
+    expect(eligible.has(0)).toBe(false)
+
+    cells[0]![2]![ci('21')] = F // foul is always allowed
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), eligible)
+    expect(hasCode(errors, 0, 2, ci('21'), ValidationCode.NotInOvertime)).toBe(false)
+  })
+
+  it('all three teams tied — all can answer OT', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = C
+    cells[1]![0]![ci('2')] = C
+    cells[2]![0]![ci('3')] = C
+    const eligible = otEligible(cells)
+    expect(eligible.has(0)).toBe(true)
+    expect(eligible.has(1)).toBe(true)
+    expect(eligible.has(2)).toBe(true)
+
+    cells[0]![1]![ci('21')] = C
+    cells[1]![1]![ci('22')] = C
+    cells[2]![1]![ci('23')] = C
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), eligible)
+    expect(hasCode(errors, 0, 1, ci('21'), ValidationCode.NotInOvertime)).toBe(false)
+    expect(hasCode(errors, 1, 1, ci('22'), ValidationCode.NotInOvertime)).toBe(false)
+    expect(hasCode(errors, 2, 1, ci('23'), ValidationCode.NotInOvertime)).toBe(false)
+  })
+
+  it('no eligible teams passed — no NotInOvertime errors', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('21')] = C
+    const grey = computeGreyedOut(cells, columns)
+    // No otEligibleTeams parameter — should not flag
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('21'), ValidationCode.NotInOvertime)).toBe(false)
+  })
+
+  it('team not tied at highest score cannot answer OT', () => {
+    const cells = blankCells()
+    // Team 0: 3 correct = 80 (60 + 20 on-time)
+    cells[0]![0]![ci('1')] = C
+    cells[0]![1]![ci('2')] = C
+    cells[0]![2]![ci('3')] = C
+    // Teams 1 and 2: 1 correct each = 40 (20 + 20 on-time) — tied but not highest
+    cells[1]![0]![ci('4')] = C
+    cells[2]![0]![ci('5')] = C
+    const eligible = otEligible(cells)
+    // Only teams 1 & 2 are tied — team 0 is not in the tie
+    expect(eligible.has(0)).toBe(false)
+
+    cells[0]![3]![ci('21')] = C // team 0 answers OT — shouldn't be in OT
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), eligible)
+    expect(hasCode(errors, 0, 3, ci('21'), ValidationCode.NotInOvertime)).toBe(true)
   })
 })

@@ -40,7 +40,8 @@ Questions 21–26 toggle via the overtime checkbox in quiz metadata.
 
 #### 1.8 Validation ✅
 Invalid cells pulse red and the team total highlights. Checks for duplicate
-answers, toss-up violations, wrong cell types, quizzer-out, and more.
+answers, toss-up violations, wrong cell types, quizzer-out, overtime
+eligibility, and more.
 
 #### 1.9 Validation explanation
 Invalid cells pulse red but the user can't see *why*. Show the reason in a

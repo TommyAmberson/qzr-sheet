@@ -9,7 +9,7 @@ import {
   colHasAnyContent,
   isBonusSituation,
 } from '../scoring/helpers'
-import { overtimeQuestionsNeeded } from '../scoring/overtime'
+import { overtimeQuestionsNeeded, getOvertimeEligibleTeams } from '../scoring/overtime'
 
 export function useScoresheet() {
   const store = createQuizStore()
@@ -69,8 +69,16 @@ export function useScoresheet() {
 
   const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
 
+  const otEligibleTeams = computed(() =>
+    getOvertimeEligibleTeams(
+      cells.value,
+      columns,
+      teams.value.map((t) => t.onTime),
+    ),
+  )
+
   const validationErrors = computed(() =>
-    validateCells(cells.value, columns, greyedOutResult.value, noJumps.value),
+    validateCells(cells.value, columns, greyedOutResult.value, noJumps.value, otEligibleTeams.value),
   )
 
   // --- Query helpers (business logic the template needs) ---
@@ -148,17 +156,10 @@ export function useScoresheet() {
     return false
   }
 
-  /** How many overtime questions are visible (0, 3, or 6) */
-  const overtimeCount = computed(() => {
-    const teamScores = scoring.value.map((s) => s.total)
-    return overtimeQuestionsNeeded(
-      quiz.value.overtime,
-      cells.value,
-      columns,
-      noJumps.value,
-      teamScores,
-    )
-  })
+  /** How many overtime questions are visible (0 or 6) */
+  const overtimeCount = computed(() =>
+    overtimeQuestionsNeeded(quiz.value.overtime),
+  )
 
   /** Max overtime question number currently visible (0 = none, 23 = first round, 26 = second) */
   const maxOvertimeQuestion = computed(() => {
