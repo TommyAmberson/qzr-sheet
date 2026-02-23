@@ -171,6 +171,13 @@ function colGroupClass(colIdx: number): string {
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
         <span class="meta-label">Overtime</span>
       </label>
+      <span class="meta-sep">·</span>
+      <span class="meta-field meta-field--status">
+        <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
+        <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete">✓</span>
+        <span v-else class="meta-status meta-status--pending">○</span>
+        <span class="meta-label">{{ hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress' }}</span>
+      </span>
     </div>
 
     <table class="scoresheet">
@@ -400,32 +407,76 @@ function colGroupClass(colIdx: number): string {
 
 .quiz-meta {
   display: flex;
-  gap: 0.6rem;
+  gap: 0.75rem;
   align-items: center;
   margin-bottom: 0.5rem;
-  padding: 0.4rem 0.75rem;
+  padding: 0.5rem 0.85rem;
   background: var(--color-meta-bg);
+  border: 1px solid var(--color-meta-accent);
+  border-left: 3px solid var(--color-meta-border);
   border-radius: 6px;
   width: fit-content;
   color: var(--color-text);
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 0.8rem;
-  transition: background 0.4s, color 0.4s;
+  transition: background 0.4s, color 0.4s, border-color 0.4s;
 }
 
 .quiz-meta--error {
-  background: var(--color-invalid);
-  color: var(--color-invalid-light);
+  background: var(--color-error-light);
+  border-color: var(--color-invalid);
+  border-left-color: var(--color-invalid);
+}
+.quiz-meta--error .meta-label {
+  color: var(--color-error);
 }
 
 .quiz-meta--complete {
-  background: var(--color-correct);
-  color: var(--color-correct-light);
+  border-left-color: var(--color-accent);
+}
+
+.meta-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 800;
+  margin-left: 0.25rem;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+.meta-status--pending {
+  color: var(--color-meta-accent);
+  font-size: 1rem;
+}
+.meta-status--complete {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+.meta-status--error {
+  background: var(--color-invalid);
+  color: var(--color-bg);
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
+
+.meta-field--status .meta-label {
+  text-transform: none;
+  letter-spacing: normal;
+}
+.meta-status--complete + .meta-label {
+  color: var(--color-accent);
+}
+.meta-status--error + .meta-label {
+  color: var(--color-invalid);
 }
 
 .meta-sep {
   color: var(--color-meta-accent);
-  font-size: 1rem;
+  font-size: 0.9rem;
   user-select: none;
 }
 
@@ -437,16 +488,19 @@ function colGroupClass(colIdx: number): string {
 
 .meta-label {
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .meta-field input[type='number'] {
   width: 2.5rem;
-  padding: 0.15rem 0.3rem;
+  padding: 0.2rem 0.3rem;
   border: 1px solid var(--color-meta-accent);
   border-radius: 4px;
   font-size: 0.8rem;
+  font-weight: 600;
   text-align: center;
   background: var(--color-bg);
   color: var(--color-text);

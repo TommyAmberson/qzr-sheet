@@ -32,8 +32,9 @@
   --color-team-blue: #0000ff;
 
   /* Quiz meta bar */
-  --color-meta-bg: #ffff99;
-  --color-meta-accent: #b8a030;
+  --color-meta-bg: #faf6ee;
+  --color-meta-accent: #c9c0a8;
+  --color-meta-border: #e6d98a;
 
   /* Greyed-out stripes (aliases for readability) */
   --color-grey-stripe-a: var(--color-border-light);
