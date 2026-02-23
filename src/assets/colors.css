@@ -16,13 +16,13 @@
 
   /* Validation — bright, stands out from the earthy palette */
   --color-invalid: #dc2626;
-  --color-invalid-light: #f87171;
+  --color-invalid-alt: #f87171;
 
   /* UI chrome */
   --color-bg: #fff;
   --color-bg-warm: #f0e8e0;
   --color-border: #a09a85;
-  --color-border-light: #e0ddd4;
+  --color-border-alt: #e0ddd4;
   --color-text: #2d2a1e;
   --color-text-muted: #57534e;
   --color-text-faint: #78716c;
@@ -40,7 +40,7 @@
   --color-meta-border: #e6d98a;
 
   /* Greyed-out stripes (aliases for readability) */
-  --color-grey-stripe-a: var(--color-border-light);
+  --color-grey-stripe-a: var(--color-border-alt);
   --color-grey-stripe-b: var(--color-bg-warm);
 
   /* A/B and overtime column top borders */

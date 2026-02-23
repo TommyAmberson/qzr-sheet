@@ -731,7 +731,7 @@ function colGroupClass(colIdx: number): string {
 .col--total {
   min-width: 3rem;
   font-weight: 600;
-  background: var(--color-border-light);
+  background: var(--color-border-alt);
 }
 .col--total-header {
   background: transparent !important;
@@ -751,8 +751,8 @@ function colGroupClass(colIdx: number): string {
   height: 1rem;
 }
 .spacer-row .spacer-cell {
-  border-left: 1px solid var(--color-border-light) !important;
-  border-right: 1px solid var(--color-border-light) !important;
+  border-left: 1px solid var(--color-border-alt) !important;
+  border-right: 1px solid var(--color-border-alt) !important;
 }
 
 /* Question header row — empty name cell blends with background */
@@ -768,9 +768,9 @@ thead .col--name {
   color: var(--color-text);
   font-size: 0.75rem;
   border: none;
-  border-top: 1px solid var(--color-border-light);
-  border-left: 1px solid var(--color-border-light);
-  border-right: 1px solid var(--color-border-light);
+  border-top: 1px solid var(--color-border-alt);
+  border-left: 1px solid var(--color-border-alt);
+  border-right: 1px solid var(--color-border-alt);
 }
 .col--question.col--ab {
   border-top: 2px solid var(--color-ab-border);
@@ -810,8 +810,8 @@ thead .col--name {
 .team-header-spacer {
   background: transparent !important;
   border: none !important;
-  border-left: 1px solid var(--color-border-light) !important;
-  border-right: 1px solid var(--color-border-light) !important;
+  border-left: 1px solid var(--color-border-alt) !important;
+  border-right: 1px solid var(--color-border-alt) !important;
 }
 .team-score-label {
   background: transparent !important;
@@ -869,8 +869,8 @@ thead .col--name {
   border: none !important;
 }
 .row--team-total .cell--total {
-  border-left: 1px solid var(--color-border-light) !important;
-  border-right: 1px solid var(--color-border-light) !important;
+  border-left: 1px solid var(--color-border-alt) !important;
+  border-right: 1px solid var(--color-border-alt) !important;
 }
 .row--team-total .sticky-col {
   background: transparent;
@@ -902,7 +902,7 @@ thead .col--name {
   transition: background 0.15s;
 }
 .on-time:hover {
-  background: var(--color-border-light);
+  background: var(--color-border-alt);
 }
 .on-time-box {
   display: inline-flex;
@@ -1071,7 +1071,7 @@ thead .col--name {
 }
 @keyframes pulse-invalid {
   0%, 100% { outline-color: var(--color-invalid); }
-  50% { outline-color: var(--color-invalid-light); }
+  50% { outline-color: var(--color-invalid-alt); }
 }
 
 /* Running total badges */
@@ -1097,8 +1097,8 @@ thead .col--name {
   border: none !important;
 }
 .cell--total-ontime {
-  border-left: 1px solid var(--color-border-light) !important;
-  border-right: 1px solid var(--color-border-light) !important;
+  border-left: 1px solid var(--color-border-alt) !important;
+  border-right: 1px solid var(--color-border-alt) !important;
 }
 
 .running-total-badge {
@@ -1167,7 +1167,7 @@ thead .col--name {
 }
 .drag-handle:hover {
   color: var(--color-text-muted);
-  background: var(--color-border-light);
+  background: var(--color-border-alt);
 }
 .drag-handle:active {
   cursor: grabbing;
@@ -1247,7 +1247,7 @@ thead .col--name {
   display: inline-flex;
 }
 .name-clear:hover {
-  background: var(--color-border-light);
+  background: var(--color-border-alt);
   color: var(--color-error);
 }
 
@@ -1334,7 +1334,7 @@ thead .col--name {
   gap: 2px;
   padding: 3px;
   background: var(--color-bg);
-  border: 1px solid var(--color-border-light);
+  border: 1px solid var(--color-border-alt);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 101;
@@ -1397,6 +1397,6 @@ thead .col--name {
   color: var(--color-no-jump);
 }
 .opt--clear:hover {
-  background: var(--color-border-light);
+  background: var(--color-border-alt);
 }
 </style>
