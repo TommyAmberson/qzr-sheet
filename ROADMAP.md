@@ -50,7 +50,7 @@ Invalid cells pulse red with a native tooltip showing the reason(s). Question
 number headers also pulse red when any cell in their column has a validation
 error.
 
-#### 1.10 Editable team/quizzer names
+#### 1.10 Editable team/quizzer names ✅
 Replace hardcoded "Team 1" / "Quizzer 1" with inline-editable text fields.
 
 #### 1.11 Placement points
@@ -60,12 +60,15 @@ Calculate and display placement points after quiz completion — 1st gets
 #### 1.12 Individual quizzer scores
 Show each quizzer's individual point total at the end of their row.
 
+#### 1.13 Question type dropdown
+Beneath the No Jump row, a dropdown to set the question type (INT, MA, etc.).
+
 ### Phase 1.5: Optional Core UI features
 
 #### 1.5.1 Tablet-optimized touch targets
 Larger hit areas and touch-friendly spacing for use during live quizzes.
 
-#### 1.5.2 Drag-drop quizzer reordering
+#### 1.5.2 Drag-drop quizzer reordering ✅
 Drag quizzer rows to reorder within a team, updating seat order in the store.
 
 #### 1.5.3 Hidden A/B question columns ✅

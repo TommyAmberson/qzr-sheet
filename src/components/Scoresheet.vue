@@ -6,11 +6,12 @@ import { validationMessage } from '../scoring/validation'
 
 const {
   columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
-  isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, columnValidationMessages, quizzerHasErrors, quizzerValidationMessages, teamValidationMessages, isAfterOut, isFouledOnQuestion, toggleOnTime,
+  isEmptySeat, isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, columnValidationMessages, quizzerHasErrors, quizzerValidationMessages, teamValidationMessages, isAfterOut, isFouledOnQuestion, toggleOnTime,
   teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
   visibleColumns, allQuestionsComplete,
   validationErrors,
   placements,
+  setTeamName, setQuizzerName, moveQuizzer,
 } = useScoresheet()
 
 /** All unique validation messages for the status tooltip */
@@ -76,6 +77,94 @@ function closeSelector() {
 
 /** Hovered column index for crosshair highlight */
 const hoverCol = ref<number | null>(null)
+
+/** Pointer-based drag reorder state */
+const dragState = ref<{ ti: number; qi: number } | null>(null)
+const dropTarget = ref<{ ti: number; qi: number; below: boolean } | null>(null)
+/** Map of "ti:qi" → element for hit-testing during drag */
+const quizzerRowEls = new Map<string, HTMLElement>()
+/** Indicator width computed from last question column */
+const dropIndicatorWidth = ref('100%')
+
+function registerRowEl(ti: number, qi: number, el: HTMLElement | null) {
+  const key = `${ti}:${qi}`
+  if (el) quizzerRowEls.set(key, el)
+  else quizzerRowEls.delete(key)
+}
+
+function updateIndicatorWidth() {
+  // Find the first quizzer row's name cell and the last visible question cell
+  // to compute the indicator width (excluding the Score total column)
+  const firstRow = quizzerRowEls.values().next().value as HTMLElement | undefined
+  if (!firstRow) return
+  const nameCell = firstRow.querySelector('.col--name') as HTMLElement | null
+  const allCells = firstRow.querySelectorAll('.cell')
+  const lastCell = allCells[allCells.length - 1] as HTMLElement | undefined
+  if (!nameCell || !lastCell) return
+  const nameRect = nameCell.getBoundingClientRect()
+  const lastRect = lastCell.getBoundingClientRect()
+  dropIndicatorWidth.value = `${lastRect.right - nameRect.left}px`
+}
+
+function onPointerDown(ti: number, qi: number, event: PointerEvent) {
+  event.preventDefault()
+  // Clear any text selection to prevent native drag (crashes on Linux/X11)
+  window.getSelection()?.removeAllRanges()
+  dragState.value = { ti, qi }
+  updateIndicatorWidth()
+  document.addEventListener('pointermove', onPointerMove)
+  document.addEventListener('pointerup', onPointerUp)
+}
+
+function onPointerMove(event: PointerEvent) {
+  if (!dragState.value) return
+  const ti = dragState.value.ti
+  const count = teamQuizzers.value[ti]?.length ?? 0
+
+  // Get bounding rects for the team's rows
+  const firstEl = quizzerRowEls.get(`${ti}:0`)
+  const lastEl = quizzerRowEls.get(`${ti}:${count - 1}`)
+  if (!firstEl || !lastEl) return
+  const teamTop = firstEl.getBoundingClientRect().top
+  const teamBottom = lastEl.getBoundingClientRect().bottom
+
+  let found: number | null = null
+
+  if (event.clientY < teamTop) {
+    // Above the team — clamp to first row
+    found = 0
+  } else if (event.clientY >= teamBottom) {
+    // Below the team — clamp to last row
+    found = count - 1
+  } else {
+    // Within the team — find the hovered row
+    for (let qi = 0; qi < count; qi++) {
+      const el = quizzerRowEls.get(`${ti}:${qi}`)
+      if (!el) continue
+      const rect = el.getBoundingClientRect()
+      if (event.clientY >= rect.top && event.clientY < rect.bottom) {
+        found = qi
+        break
+      }
+    }
+  }
+
+  if (found !== null && found !== dragState.value.qi) {
+    dropTarget.value = { ti, qi: found, below: found > dragState.value.qi }
+  } else {
+    dropTarget.value = null
+  }
+}
+
+function onPointerUp() {
+  document.removeEventListener('pointermove', onPointerMove)
+  document.removeEventListener('pointerup', onPointerUp)
+  if (dragState.value && dropTarget.value) {
+    moveQuizzer(dragState.value.ti, dragState.value.qi, dropTarget.value.qi)
+  }
+  dragState.value = null
+  dropTarget.value = null
+}
 
 
 /** Columns actually rendered — entering columns start collapsed, then expand */
@@ -164,7 +253,7 @@ function colGroupClass(colIdx: number): string {
 </script>
 
 <template>
-  <div class="scoresheet-wrapper">
+  <div class="scoresheet-wrapper" @dragstart.prevent>
     <div :class="['quiz-meta', { 'quiz-meta--error': hasAnyErrors, 'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors }]">
       <label class="meta-field">
         <span class="meta-label">Division</span>
@@ -190,7 +279,7 @@ function colGroupClass(colIdx: number): string {
       </span>
     </div>
 
-    <table class="scoresheet">
+    <table class="scoresheet" :style="{ '--drop-indicator-width': dropIndicatorWidth } as any">
       <!-- Question header row -->
       <thead>
         <tr>
@@ -218,14 +307,21 @@ function colGroupClass(colIdx: number): string {
           <!-- Team header row -->
           <tr :class="['row--team-header', teamColors[ti]]">
             <td class="col--name sticky-col team-name" colspan="2">
-              {{ team.name }}
-              <span class="team-stats">
+              <div class="name-cell-inner">
+                <input
+                  class="editable-name editable-name--team"
+                  :value="team.name"
+                  @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
+                  @focus="($event.target as HTMLInputElement).select()"
+                />
+                <span class="team-stats">
                 <span
                   v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
                   class="stat-badge stat-badge--unique"
                   :title="`${scoring[ti]!.uniqueCorrectQuizzers} quizzers jumped (+10 each from 3rd)`"
                 >{{ scoring[ti]!.uniqueCorrectQuizzers >= 5 ? '5th' : scoring[ti]!.uniqueCorrectQuizzers >= 4 ? '4th' : '3rd' }}</span>
-              </span>
+                </span>
+              </div>
             </td>
             <td
               v-for="{ col, entering } in displayColumns"
@@ -239,11 +335,15 @@ function colGroupClass(colIdx: number): string {
           <tr
             v-for="(quizzer, qi) in teamQuizzers[ti]"
             :key="quizzer.id"
+            :ref="(el: any) => registerRowEl(ti, qi, el as HTMLElement)"
             :class="[
               'row--quizzer',
               { 'row--quizzed-out': scoring[ti]?.quizzers[qi]?.quizzedOut },
               { 'row--errored-out': scoring[ti]?.quizzers[qi]?.erroredOut && !scoring[ti]?.quizzers[qi]?.fouledOut },
               { 'row--fouled-out': scoring[ti]?.quizzers[qi]?.fouledOut },
+              { 'row--dragging': dragState?.ti === ti && dragState?.qi === qi },
+              { 'row--drop-above': dropTarget?.ti === ti && dropTarget?.qi === qi && !dropTarget?.below && !(dragState?.ti === ti && dragState?.qi === qi) },
+              { 'row--drop-below': dropTarget?.ti === ti && dropTarget?.qi === qi && dropTarget?.below && !(dragState?.ti === ti && dragState?.qi === qi) },
             ]"
           >
             <td
@@ -251,8 +351,24 @@ function colGroupClass(colIdx: number): string {
               :class="['col--name', 'sticky-col', { 'cell--invalid': quizzerHasErrors(ti, qi), 'col--name--active': selector?.ti === ti && selector?.qi === qi }]"
               :title="quizzerHasErrors(ti, qi) ? quizzerValidationMessages(ti, qi).join('\n') : undefined"
             >
-              <span class="quizzer-name">{{ quizzer.name }}</span>
-              <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
+              <div class="name-cell-inner">
+                <span
+                  class="drag-handle"
+                  @pointerdown="onPointerDown(ti, qi, $event)"
+                >⠿</span>
+                <input
+                  class="editable-name editable-name--quizzer"
+                  :value="quizzer.name"
+                  @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
+                  @focus="($event.target as HTMLInputElement).select()"
+                />
+                <button
+                  v-if="quizzer.name"
+                  class="name-clear"
+                  title="Clear name (empty seat)"
+                  @click.stop="setQuizzerName(ti, qi, '')"
+                >×</button>
+                <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
                 <span
                   v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
                   :class="['stat-badge', 'stat-badge--quizout', { 'stat-badge--quizout-bonus': scoring[ti]!.quizzers[qi]!.quizoutBonus }]"
@@ -283,7 +399,8 @@ function colGroupClass(colIdx: number): string {
                   class="stat-count stat-count--foul"
                   :title="`${scoring[ti]!.quizzers[qi]!.foulCount} foul(s)`"
                 >{{ scoring[ti]!.quizzers[qi]!.foulCount }}f</span>
-              </span>
+                </span>
+              </div>
             </td>
             <td
               v-for="{ col, idx, entering } in displayColumns"
@@ -292,7 +409,7 @@ function colGroupClass(colIdx: number): string {
                 'cell',
                 cellClass[cells[ti][qi][idx]],
                 colGroupClass(idx),
-                { 'cell--greyed': ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) || (isFouledOnQuestion(ti, qi, idx) && cells[ti][qi][idx] === '') },
+                { 'cell--greyed': (isEmptySeat(ti, qi) && cells[ti][qi][idx] === '') || ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) || (isFouledOnQuestion(ti, qi, idx) && cells[ti][qi][idx] === '') },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
                 { 'col--entering': entering },
                 { 'col--hover': hoverCol === idx },
@@ -718,23 +835,23 @@ thead .col--name {
   border-radius: 4px;
   border: none !important;
 }
-.row--team-header .team-name::before {
+.row--team-header .team-name .name-cell-inner::before {
   content: '';
-  display: inline-block;
+  display: block;
   width: 0.85rem;
   height: 0.85rem;
   border-radius: 3px;
   margin-right: 0.4rem;
-  vertical-align: middle;
+  flex-shrink: 0;
   border: 1px solid var(--color-text-faint);
 }
-.row--team-header.team--red .team-name::before {
+.row--team-header.team--red .team-name .name-cell-inner::before {
   background: var(--color-team-red);
 }
-.row--team-header.team--white .team-name::before {
+.row--team-header.team--white .team-name .name-cell-inner::before {
   background: var(--color-team-white);
 }
-.row--team-header.team--blue .team-name::before {
+.row--team-header.team--blue .team-name .name-cell-inner::before {
   background: var(--color-team-blue);
 }
 
@@ -1007,19 +1124,130 @@ thead .col--name {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  float: right;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Name cell inner wrapper — flex container inside table cell */
+.name-cell-inner {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Drag handle */
+.drag-handle {
+  cursor: grab;
+  color: var(--color-text-faint);
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.1rem;
+  margin-right: 0.2rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+  user-select: none;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.row--quizzer:hover .drag-handle,
+.row--dragging .drag-handle,
+.drag-handle:focus {
+  opacity: 1;
+}
+.drag-handle:hover {
+  color: var(--color-text-muted);
+  background: var(--color-border-light);
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Drag-and-drop row states */
+.row--dragging > td {
+  opacity: 0.4;
+}
+.row--drop-above > .col--name,
+.row--drop-below > .col--name {
+  position: relative;
+}
+.row--drop-above > .col--name::after,
+.row--drop-below > .col--name::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: var(--drop-indicator-width, 100%);
+  height: 2px;
+  background: var(--color-accent);
+  pointer-events: none;
+  z-index: 3;
+}
+.row--drop-above > .col--name::after {
+  top: -1px;
+}
+.row--drop-below > .col--name::after {
+  bottom: -1px;
+}
+
+/* Editable name inputs */
+.editable-name {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  width: 100%;
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+}
+.editable-name:focus {
+  border-bottom: 1.5px solid var(--color-accent);
+}
+.editable-name--team {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.editable-name--quizzer {
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+/* Clear name button */
+.name-clear {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--color-text-faint);
+  font-size: 0.7rem;
+  line-height: 1;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  margin-left: 0.1rem;
+}
+.name-cell-inner:hover .name-clear {
+  display: inline-flex;
+}
+.name-clear:hover {
+  background: var(--color-border-light);
+  color: var(--color-error);
 }
 
 /* Quizzer status indicators */
-.quizzer-name {
-  margin-right: 0.25rem;
-}
 .quizzer-stats {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
   margin-left: auto;
-  float: right;
+  flex-shrink: 0;
 }
 
 /* Out badges (Q, E, F) */

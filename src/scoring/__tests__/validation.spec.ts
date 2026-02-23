@@ -771,4 +771,49 @@ describe('cell validation', () => {
       expect(otHasCode(errors, 0, 3, otCi('21'), ValidationCode.NotInOvertime)).toBe(true)
     })
   })
+
+  // --- Empty seat ---
+
+  it('answer by empty-seat quizzer is invalid (EmptySeat)', () => {
+    const cells = blankCells()
+    const emptySeats = new Set(['0:0'])
+    cells[0]![0]![ci('1')] = C
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, undefined, emptySeats)
+    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.EmptySeat)).toBe(true)
+  })
+
+  it('foul by empty-seat quizzer is also invalid', () => {
+    const cells = blankCells()
+    const emptySeats = new Set(['0:0'])
+    cells[0]![0]![ci('1')] = F
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, undefined, emptySeats)
+    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.EmptySeat)).toBe(true)
+  })
+
+  it('empty cell by empty-seat quizzer has no error', () => {
+    const cells = blankCells()
+    const emptySeats = new Set(['0:0'])
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, undefined, emptySeats)
+    expect(errors.size).toBe(0)
+  })
+
+  it('non-empty-seat quizzer is not flagged', () => {
+    const cells = blankCells()
+    const emptySeats = new Set(['0:1']) // quizzer 1 is empty
+    cells[0]![0]![ci('1')] = C // quizzer 0 answers — not empty seat
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, undefined, emptySeats)
+    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.EmptySeat)).toBe(false)
+  })
+
+  it('no emptySeats param means no EmptySeat errors', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = C
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.EmptySeat)).toBe(false)
+  })
 })

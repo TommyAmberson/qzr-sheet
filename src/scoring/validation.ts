@@ -6,6 +6,8 @@ import {
 } from './helpers'
 
 export enum ValidationCode {
+  /** Answer by a quizzer with no name (empty seat) */
+  EmptySeat = 'empty-seat',
   /** Two+ quizzers answered the same question (same team or different teams) */
   DuplicateAnswer = 'duplicate-answer',
   /** Team answered a toss-up question they can't jump on */
@@ -30,6 +32,7 @@ export enum ValidationCode {
 
 /** Human-readable message for each validation code */
 const validationMessages: Record<ValidationCode, string> = {
+  [ValidationCode.EmptySeat]: 'This seat is empty — add a quizzer name first',
   [ValidationCode.DuplicateAnswer]: 'Only one quizzer can answer per question — multiple answered',
   [ValidationCode.WrongTeamTossUp]: "Team can't answer this question — it's a toss-up",
   [ValidationCode.WrongTeamBonus]: "Team can't answer this question — it's another team's bonus",
@@ -58,6 +61,7 @@ export function validateCells(
   noJumps?: boolean[],
   otEligibleTeams?: Set<number>,
   orphanedColumns?: Set<number>,
+  emptySeats?: Set<string>,
 ): Map<string, ValidationCode[]> {
   const errors = new Map<string, ValidationCode[]>()
   const teamCount = cellData.length
@@ -91,6 +95,11 @@ export function validateCells(
       for (let qi = 0; qi < quizzerCount; qi++) {
         const v = cellData[ti]![qi]![ci]!
         if (v === CellValue.Empty) continue
+
+        // --- Empty seat ---
+        if (emptySeats?.has(`${ti}:${qi}`)) {
+          addError(ti, qi, ci, ValidationCode.EmptySeat)
+        }
 
         // --- Column not active (orphaned) ---
         if (orphanedColumns?.has(ci)) {

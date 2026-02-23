@@ -44,7 +44,7 @@ function createDefaultTeams(quizId: number): { teams: Team[]; quizzers: Quizzer[
       quizzers.push({
         id: genId(),
         teamId,
-        name: `Quizzer ${q + 1}`,
+        name: q < 4 ? `Quizzer ${q + 1}` : '',
         seatOrder: q,
       })
     }
@@ -70,6 +70,18 @@ export interface QuizStore {
 
   /** Set an answer value (Empty removes the answer) */
   setAnswer(quizzerId: number, columnKey: string, value: CellValue): void
+
+  /** Update a team's name */
+  setTeamName(teamId: number, name: string): void
+
+  /** Update a quizzer's name */
+  setQuizzerName(quizzerId: number, name: string): void
+
+  /** Move a quizzer from one seat to another within a team (insert, not swap) */
+  moveQuizzer(teamId: number, fromSeat: number, toSeat: number): void
+
+  /** Check if a quizzer is an empty seat (blank/whitespace name) */
+  isEmptySeat(quizzerId: number): boolean
 
   /**
    * Derive the positional cell grid for scoring functions.
@@ -113,6 +125,37 @@ export function createQuizStore(): QuizStore {
     }
   }
 
+  function setTeamName(teamId: number, name: string): void {
+    const team = teams.find((t) => t.id === teamId)
+    if (team) team.name = name
+  }
+
+  function setQuizzerName(quizzerId: number, name: string): void {
+    const qzr = quizzers.find((q) => q.id === quizzerId)
+    if (qzr) qzr.name = name
+  }
+
+  function isEmptySeat(quizzerId: number): boolean {
+    const qzr = quizzers.find((q) => q.id === quizzerId)
+    return qzr ? !qzr.name.trim() : false
+  }
+
+  function moveQuizzer(teamId: number, fromSeat: number, toSeat: number): void {
+    if (fromSeat === toSeat) return
+    const sorted = quizzersByTeam(teamId)
+    if (fromSeat < 0 || fromSeat >= sorted.length) return
+    if (toSeat < 0 || toSeat >= sorted.length) return
+
+    // Remove from old position and insert at new position
+    const [moved] = sorted.splice(fromSeat, 1)
+    sorted.splice(toSeat, 0, moved!)
+
+    // Reassign seatOrder to match new array order
+    for (let i = 0; i < sorted.length; i++) {
+      sorted[i]!.seatOrder = i
+    }
+  }
+
   function cellGrid(columns: Column[]): CellValue[][][] {
     const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
 
@@ -132,6 +175,10 @@ export function createQuizStore(): QuizStore {
     teamForQuizzer,
     getAnswer,
     setAnswer,
+    setTeamName,
+    setQuizzerName,
+    moveQuizzer,
+    isEmptySeat,
     cellGrid,
     get answers() {
       return [...answerMap.values()]

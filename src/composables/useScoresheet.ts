@@ -107,8 +107,22 @@ export function useScoresheet() {
     computeOrphanedColumns(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
   )
 
+  /** Set of "ti:qi" keys for quizzers with empty/blank names */
+  const emptySeats = computed(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    teamVersion.value // reactive dependency
+    const set = new Set<string>()
+    teams.value.forEach((team, ti) => {
+      const qzrs = store.quizzersByTeam(team.id)
+      qzrs.forEach((qzr, qi) => {
+        if (store.isEmptySeat(qzr.id)) set.add(`${ti}:${qi}`)
+      })
+    })
+    return set
+  })
+
   const validationErrors = computed(() =>
-    validateCells(cells.value, columns.value, greyedOutResult.value, noJumps.value, otEligibleTeams.value, orphanedColumns.value),
+    validateCells(cells.value, columns.value, greyedOutResult.value, noJumps.value, otEligibleTeams.value, orphanedColumns.value, emptySeats.value),
   )
 
   // --- Query helpers (business logic the template needs) ---
@@ -215,6 +229,16 @@ export function useScoresheet() {
     return CellValue.Empty
   }
 
+  /** Check if a quizzer is an empty seat by positional indices */
+  function isEmptySeat(teamIdx: number, quizzerIdx: number): boolean {
+    const team = teams.value[teamIdx]
+    if (!team) return false
+    const qzrs = store.quizzersByTeam(team.id)
+    const qzr = qzrs[quizzerIdx]
+    if (!qzr) return false
+    return store.isEmptySeat(qzr.id)
+  }
+
   function noJumpHasConflict(colIdx: number): boolean {
     if (!noJumps.value[colIdx]) return false
     // No-jump on an orphaned column is itself invalid
@@ -284,6 +308,33 @@ export function useScoresheet() {
     return computePlacements(regScores, checkpoints, true)
   })
 
+  /** Update a team name by positional index */
+  function setTeamName(teamIdx: number, name: string) {
+    const team = teams.value[teamIdx]
+    if (!team) return
+    store.setTeamName(team.id, name)
+    teamVersion.value++
+  }
+
+  /** Move a quizzer within a team by positional indices */
+  function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
+    const team = teams.value[teamIdx]
+    if (!team) return
+    store.moveQuizzer(team.id, fromSeat, toSeat)
+    teamVersion.value++
+  }
+
+  /** Update a quizzer name by positional indices */
+  function setQuizzerName(teamIdx: number, quizzerIdx: number, name: string) {
+    const team = teams.value[teamIdx]
+    if (!team) return
+    const qzrs = store.quizzersByTeam(team.id)
+    const qzr = qzrs[quizzerIdx]
+    if (!qzr) return
+    store.setQuizzerName(qzr.id, name)
+    teamVersion.value++
+  }
+
   /** Toggle on-time for a team by index */
   function toggleOnTime(teamIdx: number) {
     const team = teams.value[teamIdx]
@@ -314,6 +365,9 @@ export function useScoresheet() {
     setCell,
     toggleNoJump,
     toggleOnTime,
+    setTeamName,
+    setQuizzerName,
+    moveQuizzer,
     store,
 
     // Grey-out & validation
@@ -322,6 +376,7 @@ export function useScoresheet() {
     validationErrors,
 
     // Query helpers
+    isEmptySeat,
     isBonusForTeam,
     isGreyedOut,
     isInvalid,
