@@ -83,6 +83,8 @@ const dragState = ref<{ ti: number; qi: number } | null>(null)
 const dropTarget = ref<{ ti: number; qi: number; below: boolean } | null>(null)
 /** Map of "ti:qi" → element for hit-testing during drag */
 const quizzerRowEls = new Map<string, HTMLElement>()
+/** Indicator width computed from last question column */
+const dropIndicatorWidth = ref('100%')
 
 function registerRowEl(ti: number, qi: number, el: HTMLElement | null) {
   const key = `${ti}:${qi}`
@@ -90,9 +92,24 @@ function registerRowEl(ti: number, qi: number, el: HTMLElement | null) {
   else quizzerRowEls.delete(key)
 }
 
+function updateIndicatorWidth() {
+  // Find the first quizzer row's name cell and the last visible question cell
+  // to compute the indicator width (excluding the Score total column)
+  const firstRow = quizzerRowEls.values().next().value as HTMLElement | undefined
+  if (!firstRow) return
+  const nameCell = firstRow.querySelector('.col--name') as HTMLElement | null
+  const allCells = firstRow.querySelectorAll('.cell')
+  const lastCell = allCells[allCells.length - 1] as HTMLElement | undefined
+  if (!nameCell || !lastCell) return
+  const nameRect = nameCell.getBoundingClientRect()
+  const lastRect = lastCell.getBoundingClientRect()
+  dropIndicatorWidth.value = `${lastRect.right - nameRect.left}px`
+}
+
 function onPointerDown(ti: number, qi: number, event: PointerEvent) {
   event.preventDefault()
   dragState.value = { ti, qi }
+  updateIndicatorWidth()
   document.addEventListener('pointermove', onPointerMove)
   document.addEventListener('pointerup', onPointerUp)
 }
@@ -101,16 +118,35 @@ function onPointerMove(event: PointerEvent) {
   if (!dragState.value) return
   const ti = dragState.value.ti
   const count = teamQuizzers.value[ti]?.length ?? 0
+
+  // Get bounding rects for the team's rows
+  const firstEl = quizzerRowEls.get(`${ti}:0`)
+  const lastEl = quizzerRowEls.get(`${ti}:${count - 1}`)
+  if (!firstEl || !lastEl) return
+  const teamTop = firstEl.getBoundingClientRect().top
+  const teamBottom = lastEl.getBoundingClientRect().bottom
+
   let found: number | null = null
-  for (let qi = 0; qi < count; qi++) {
-    const el = quizzerRowEls.get(`${ti}:${qi}`)
-    if (!el) continue
-    const rect = el.getBoundingClientRect()
-    if (event.clientY >= rect.top && event.clientY < rect.bottom) {
-      found = qi
-      break
+
+  if (event.clientY < teamTop) {
+    // Above the team — clamp to first row
+    found = 0
+  } else if (event.clientY >= teamBottom) {
+    // Below the team — clamp to last row
+    found = count - 1
+  } else {
+    // Within the team — find the hovered row
+    for (let qi = 0; qi < count; qi++) {
+      const el = quizzerRowEls.get(`${ti}:${qi}`)
+      if (!el) continue
+      const rect = el.getBoundingClientRect()
+      if (event.clientY >= rect.top && event.clientY < rect.bottom) {
+        found = qi
+        break
+      }
     }
   }
+
   if (found !== null && found !== dragState.value.qi) {
     dropTarget.value = { ti, qi: found, below: found > dragState.value.qi }
   } else {
@@ -241,7 +277,7 @@ function colGroupClass(colIdx: number): string {
       </span>
     </div>
 
-    <table class="scoresheet">
+    <table class="scoresheet" :style="{ '--drop-indicator-width': dropIndicatorWidth } as any">
       <!-- Question header row -->
       <thead>
         <tr>
@@ -1134,7 +1170,7 @@ thead .col--name {
   content: '';
   position: absolute;
   left: 0;
-  width: 100vw;
+  width: var(--drop-indicator-width, 100%);
   height: 2px;
   background: var(--color-accent);
   pointer-events: none;
