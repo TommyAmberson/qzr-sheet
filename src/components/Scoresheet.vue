@@ -560,7 +560,7 @@ function colGroupClass(colIdx: number): string {
 }
 
 .quiz-meta--error {
-  background: var(--color-error-light);
+  background: var(--color-error-alt);
   border-color: var(--color-invalid);
   border-left-color: var(--color-invalid);
 }
@@ -962,8 +962,9 @@ thead .col--name {
   outline-offset: -2px;
 }
 .cell--no-jump-active {
-  background: var(--color-no-jump) !important;
-  color: var(--color-bg) !important;
+  background: var(--color-no-jump-alt) !important;
+  color: var(--color-no-jump) !important;
+  font-size: 0.9rem;
   opacity: 1;
 }
 .cell--no-jump-answered {
@@ -1004,23 +1005,23 @@ thead .col--name {
 }
 
 .cell--correct {
-  color: var(--color-correct-light);
+  color: var(--color-correct-alt);
   background-color: var(--color-correct) !important;
 }
 .cell--error {
-  color: var(--color-error-light);
+  color: var(--color-error-alt);
   background-color: var(--color-error) !important;
 }
 .cell--foul {
-  color: var(--color-foul-light);
+  color: var(--color-foul-alt);
   background-color: var(--color-foul) !important;
 }
 .cell--bonus {
-  color: var(--color-bg);
+  color: var(--color-bonus-alt);
   background-color: var(--color-bonus) !important;
 }
 .cell--missed-bonus {
-  color: var(--color-bg);
+  color: var(--color-missed-bonus-alt);
   background-color: var(--color-missed-bonus) !important;
 }
 
@@ -1277,7 +1278,7 @@ thead .col--name {
 }
 .stat-badge--quizout-bonus {
   background: var(--color-correct);
-  box-shadow: 0 0 0 2px var(--color-correct-light);
+  box-shadow: 0 0 0 2px var(--color-correct-alt);
 }
 .stat-badge--errorout {
   background: var(--color-error);
@@ -1303,15 +1304,15 @@ thead .col--name {
 }
 .stat-count--correct {
   color: var(--color-correct);
-  background: var(--color-correct-light);
+  background: var(--color-correct-alt);
 }
 .stat-count--error {
   color: var(--color-error);
-  background: var(--color-error-light);
+  background: var(--color-error-alt);
 }
 .stat-count--foul {
   color: var(--color-foul);
-  background: var(--color-foul-light);
+  background: var(--color-foul-alt);
 }
 
 
