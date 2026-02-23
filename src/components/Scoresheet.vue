@@ -220,14 +220,6 @@ function colGroupClass(colIdx: number): string {
           <tr :class="['row--team-header', teamColors[ti]]">
             <td class="col--name sticky-col team-name" colspan="2">
               {{ team.name }}
-              <span
-                class="on-time"
-                :class="{ 'on-time--active': team.onTime }"
-                @click.stop="toggleOnTime(ti)"
-              >
-                <span class="on-time-box">✓</span>
-                <span class="on-time-label">on time</span>
-              </span>
               <span class="team-stats">
                 <span
                   v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
@@ -327,7 +319,17 @@ function colGroupClass(colIdx: number): string {
 
           <!-- Team running total row -->
           <tr class="row--team-total">
-            <td class="col--name sticky-col running-total-label">Score</td>
+            <td class="col--name sticky-col running-total-label">
+              <span
+                class="on-time"
+                :class="{ 'on-time--active': team.onTime }"
+                @click.stop="toggleOnTime(ti)"
+              >
+                <span class="on-time-box">✓</span>
+                <span class="on-time-label">on time</span>
+              </span>
+              Score
+            </td>
             <td
               class="cell--total cell--total-ontime"
               style="position: relative;"
@@ -776,7 +778,7 @@ thead .col--name {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  margin-left: 0.75rem;
+  margin-right: 0.35rem;
   cursor: pointer;
   vertical-align: middle;
 }
@@ -942,6 +944,14 @@ thead .col--name {
   color: var(--color-text-muted);
   font-size: 0.75rem;
   text-align: right !important;
+  padding-right: 0.6rem !important;
+  position: relative;
+}
+.running-total-label .on-time {
+  position: absolute;
+  left: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .col--ontime-header {
