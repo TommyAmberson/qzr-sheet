@@ -219,20 +219,22 @@ function colGroupClass(colIdx: number): string {
           <!-- Team header row -->
           <tr :class="['row--team-header', teamColors[ti]]">
             <td class="col--name sticky-col team-name" colspan="2">
-              <input
-                class="editable-name editable-name--team"
-                :value="team.name"
-                @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
-                @focus="($event.target as HTMLInputElement).select()"
-                :placeholder="`Team ${ti + 1}`"
-              />
-              <span class="team-stats">
+              <div class="name-cell-inner">
+                <input
+                  class="editable-name editable-name--team"
+                  :value="team.name"
+                  @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
+                  @focus="($event.target as HTMLInputElement).select()"
+                  :placeholder="`Team ${ti + 1}`"
+                />
+                <span class="team-stats">
                 <span
                   v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
                   class="stat-badge stat-badge--unique"
                   :title="`${scoring[ti]!.uniqueCorrectQuizzers} quizzers jumped (+10 each from 3rd)`"
                 >{{ scoring[ti]!.uniqueCorrectQuizzers >= 5 ? '5th' : scoring[ti]!.uniqueCorrectQuizzers >= 4 ? '4th' : '3rd' }}</span>
-              </span>
+                </span>
+              </div>
             </td>
             <td
               v-for="{ col, entering } in displayColumns"
@@ -258,14 +260,15 @@ function colGroupClass(colIdx: number): string {
               :class="['col--name', 'sticky-col', { 'cell--invalid': quizzerHasErrors(ti, qi), 'col--name--active': selector?.ti === ti && selector?.qi === qi }]"
               :title="quizzerHasErrors(ti, qi) ? quizzerValidationMessages(ti, qi).join('\n') : undefined"
             >
-              <input
-                class="editable-name editable-name--quizzer"
-                :value="quizzer.name"
-                @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
-                @focus="($event.target as HTMLInputElement).select()"
-                :placeholder="`Quizzer ${qi + 1}`"
-              />
-              <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
+              <div class="name-cell-inner">
+                <input
+                  class="editable-name editable-name--quizzer"
+                  :value="quizzer.name"
+                  @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
+                  @focus="($event.target as HTMLInputElement).select()"
+                  :placeholder="`Quizzer ${qi + 1}`"
+                />
+                <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
                 <span
                   v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
                   :class="['stat-badge', 'stat-badge--quizout', { 'stat-badge--quizout-bonus': scoring[ti]!.quizzers[qi]!.quizoutBonus }]"
@@ -296,7 +299,8 @@ function colGroupClass(colIdx: number): string {
                   class="stat-count stat-count--foul"
                   :title="`${scoring[ti]!.quizzers[qi]!.foulCount} foul(s)`"
                 >{{ scoring[ti]!.quizzers[qi]!.foulCount }}f</span>
-              </span>
+                </span>
+              </div>
             </td>
             <td
               v-for="{ col, idx, entering } in displayColumns"
@@ -731,23 +735,23 @@ thead .col--name {
   border-radius: 4px;
   border: none !important;
 }
-.row--team-header .team-name::before {
+.row--team-header .team-name .name-cell-inner::before {
   content: '';
-  display: inline-block;
+  display: block;
   width: 0.85rem;
   height: 0.85rem;
   border-radius: 3px;
   margin-right: 0.4rem;
-  vertical-align: middle;
+  flex-shrink: 0;
   border: 1px solid var(--color-text-faint);
 }
-.row--team-header.team--red .team-name::before {
+.row--team-header.team--red .team-name .name-cell-inner::before {
   background: var(--color-team-red);
 }
-.row--team-header.team--white .team-name::before {
+.row--team-header.team--white .team-name .name-cell-inner::before {
   background: var(--color-team-white);
 }
-.row--team-header.team--blue .team-name::before {
+.row--team-header.team--blue .team-name .name-cell-inner::before {
   background: var(--color-team-blue);
 }
 
@@ -1020,7 +1024,15 @@ thead .col--name {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  float: right;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Name cell inner wrapper — flex container inside table cell */
+.name-cell-inner {
+  display: flex;
+  align-items: center;
+  width: 100%;
 }
 
 /* Editable name inputs */
@@ -1034,6 +1046,8 @@ thead .col--name {
   outline: none;
   width: 100%;
   min-width: 0;
+  flex: 1;
+  height: 100%;
 }
 .editable-name::placeholder {
   color: var(--color-text-faint);
@@ -1045,13 +1059,10 @@ thead .col--name {
 .editable-name--team {
   font-weight: 700;
   font-size: 0.85rem;
-  max-width: 6rem;
 }
 .editable-name--quizzer {
   font-weight: 500;
   font-size: 0.8rem;
-  max-width: 5.5rem;
-  margin-right: 0.25rem;
 }
 
 /* Quizzer status indicators */
@@ -1060,7 +1071,7 @@ thead .col--name {
   align-items: center;
   gap: 0.2rem;
   margin-left: auto;
-  float: right;
+  flex-shrink: 0;
 }
 
 /* Out badges (Q, E, F) */
