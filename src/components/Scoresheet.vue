@@ -11,7 +11,7 @@ const {
   visibleColumns, allQuestionsComplete,
   validationErrors,
   placements,
-  setTeamName, setQuizzerName,
+  setTeamName, setQuizzerName, moveQuizzer,
 } = useScoresheet()
 
 /** All unique validation messages for the status tooltip */
@@ -77,6 +77,42 @@ function closeSelector() {
 
 /** Hovered column index for crosshair highlight */
 const hoverCol = ref<number | null>(null)
+
+/** Drag-and-drop reorder state */
+const dragState = ref<{ ti: number; qi: number } | null>(null)
+const dropTarget = ref<{ ti: number; qi: number } | null>(null)
+
+function onDragStart(ti: number, qi: number, event: DragEvent) {
+  dragState.value = { ti, qi }
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', '')
+  }
+}
+
+function onDragOver(ti: number, qi: number, event: DragEvent) {
+  if (!dragState.value || dragState.value.ti !== ti) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dropTarget.value = { ti, qi }
+}
+
+function onDragLeave() {
+  dropTarget.value = null
+}
+
+function onDrop(ti: number, qi: number, event: DragEvent) {
+  event.preventDefault()
+  if (!dragState.value || dragState.value.ti !== ti) return
+  moveQuizzer(ti, dragState.value.qi, qi)
+  dragState.value = null
+  dropTarget.value = null
+}
+
+function onDragEnd() {
+  dragState.value = null
+  dropTarget.value = null
+}
 
 
 /** Columns actually rendered — entering columns start collapsed, then expand */
@@ -253,7 +289,12 @@ function colGroupClass(colIdx: number): string {
               { 'row--quizzed-out': scoring[ti]?.quizzers[qi]?.quizzedOut },
               { 'row--errored-out': scoring[ti]?.quizzers[qi]?.erroredOut && !scoring[ti]?.quizzers[qi]?.fouledOut },
               { 'row--fouled-out': scoring[ti]?.quizzers[qi]?.fouledOut },
+              { 'row--dragging': dragState?.ti === ti && dragState?.qi === qi },
+              { 'row--drop-target': dropTarget?.ti === ti && dropTarget?.qi === qi && !(dragState?.ti === ti && dragState?.qi === qi) },
             ]"
+            @dragover="onDragOver(ti, qi, $event)"
+            @dragleave="onDragLeave"
+            @drop="onDrop(ti, qi, $event)"
           >
             <td
               colspan="2"
@@ -261,6 +302,12 @@ function colGroupClass(colIdx: number): string {
               :title="quizzerHasErrors(ti, qi) ? quizzerValidationMessages(ti, qi).join('\n') : undefined"
             >
               <div class="name-cell-inner">
+                <span
+                  class="drag-handle"
+                  draggable="true"
+                  @dragstart="onDragStart(ti, qi, $event)"
+                  @dragend="onDragEnd"
+                >⠿</span>
                 <input
                   class="editable-name editable-name--quizzer"
                   :value="quizzer.name"
@@ -1033,6 +1080,40 @@ thead .col--name {
   display: flex;
   align-items: center;
   width: 100%;
+}
+
+/* Drag handle */
+.drag-handle {
+  cursor: grab;
+  color: var(--color-text-faint);
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.1rem;
+  margin-right: 0.2rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.row--quizzer:hover .drag-handle,
+.drag-handle:focus {
+  opacity: 1;
+}
+.drag-handle:hover {
+  color: var(--color-text-muted);
+  background: var(--color-border-light);
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Drag-and-drop row states */
+.row--dragging > td {
+  opacity: 0.4;
+}
+.row--drop-target > td {
+  border-top: 2px solid var(--color-accent) !important;
 }
 
 /* Editable name inputs */

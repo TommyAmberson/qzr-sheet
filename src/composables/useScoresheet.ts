@@ -292,6 +292,14 @@ export function useScoresheet() {
     teamVersion.value++
   }
 
+  /** Move a quizzer within a team by positional indices */
+  function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
+    const team = teams.value[teamIdx]
+    if (!team) return
+    store.moveQuizzer(team.id, fromSeat, toSeat)
+    teamVersion.value++
+  }
+
   /** Update a quizzer name by positional indices */
   function setQuizzerName(teamIdx: number, quizzerIdx: number, name: string) {
     const team = teams.value[teamIdx]
@@ -335,6 +343,7 @@ export function useScoresheet() {
     toggleOnTime,
     setTeamName,
     setQuizzerName,
+    moveQuizzer,
     store,
 
     // Grey-out & validation

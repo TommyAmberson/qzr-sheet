@@ -77,6 +77,9 @@ export interface QuizStore {
   /** Update a quizzer's name */
   setQuizzerName(quizzerId: number, name: string): void
 
+  /** Move a quizzer from one seat to another within a team (insert, not swap) */
+  moveQuizzer(teamId: number, fromSeat: number, toSeat: number): void
+
   /**
    * Derive the positional cell grid for scoring functions.
    * Returns cells[teamIdx][quizzerIdx][colIdx] ordered by seatOrder.
@@ -129,6 +132,22 @@ export function createQuizStore(): QuizStore {
     if (qzr) qzr.name = name
   }
 
+  function moveQuizzer(teamId: number, fromSeat: number, toSeat: number): void {
+    if (fromSeat === toSeat) return
+    const sorted = quizzersByTeam(teamId)
+    if (fromSeat < 0 || fromSeat >= sorted.length) return
+    if (toSeat < 0 || toSeat >= sorted.length) return
+
+    // Remove from old position and insert at new position
+    const [moved] = sorted.splice(fromSeat, 1)
+    sorted.splice(toSeat, 0, moved!)
+
+    // Reassign seatOrder to match new array order
+    for (let i = 0; i < sorted.length; i++) {
+      sorted[i]!.seatOrder = i
+    }
+  }
+
   function cellGrid(columns: Column[]): CellValue[][][] {
     const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
 
@@ -150,6 +169,7 @@ export function createQuizStore(): QuizStore {
     setAnswer,
     setTeamName,
     setQuizzerName,
+    moveQuizzer,
     cellGrid,
     get answers() {
       return [...answerMap.values()]
