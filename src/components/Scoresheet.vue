@@ -1125,11 +1125,26 @@ thead .col--name {
 .row--dragging > td {
   opacity: 0.4;
 }
-.row--drop-above > td {
-  border-top: 2px solid var(--color-accent) !important;
+.row--drop-above > .col--name,
+.row--drop-below > .col--name {
+  position: relative;
 }
-.row--drop-below > td {
-  border-bottom: 2px solid var(--color-accent) !important;
+.row--drop-above > .col--name::after,
+.row--drop-below > .col--name::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100vw;
+  height: 2px;
+  background: var(--color-accent);
+  pointer-events: none;
+  z-index: 3;
+}
+.row--drop-above > .col--name::after {
+  top: -1px;
+}
+.row--drop-below > .col--name::after {
+  bottom: -1px;
 }
 
 /* Editable name inputs */
