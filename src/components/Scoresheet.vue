@@ -5,6 +5,7 @@ import { useScoresheet } from '../composables/useScoresheet'
 
 const {
   columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
+  addOvertimeRound, removeOvertimeRound,
   isBonusForTeam, isGreyedOut, isInvalid, isAfterOut, isFouledOnQuestion,
   teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
   visibleColumns, allQuestionsComplete,
@@ -160,11 +161,12 @@ function colGroupClass(colIdx: number): string {
         <input v-model.number="quiz.quizNumber" type="number" min="1" />
       </label>
       <span class="meta-sep">·</span>
-      <label class="meta-field meta-field--toggle">
-        <input v-model="quiz.overtime" type="checkbox" />
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        <span class="meta-label">Overtime</span>
-      </label>
+      <span class="meta-field meta-field--ot">
+        <span class="meta-label">OT</span>
+        <button class="ot-btn" :disabled="quiz.overtimeRounds <= 0" @click="removeOvertimeRound">−</button>
+        <span class="ot-count">{{ quiz.overtimeRounds }}</span>
+        <button class="ot-btn" @click="addOvertimeRound">+</button>
+      </span>
     </div>
 
     <table class="scoresheet">
@@ -440,49 +442,42 @@ function colGroupClass(colIdx: number): string {
   border-color: #3b82f6;
 }
 
-/* Toggle switch */
-.meta-field--toggle {
-  gap: 0.35rem;
-  cursor: pointer;
+/* Overtime round controls */
+.meta-field--ot {
+  gap: 0.25rem;
 }
-.meta-field--toggle input[type='checkbox'] {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.toggle-track {
-  display: inline-block;
-  width: 1.75rem;
-  height: 1rem;
-  background: #bbb060;
-  border-radius: 999px;
-  position: relative;
-  transition: background 0.2s;
-}
-.meta-field--toggle input:checked + .toggle-track {
-  background: #3b82f6;
-}
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: calc(1rem - 4px);
-  height: calc(1rem - 4px);
+.ot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border: 1px solid #bbb060;
+  border-radius: 4px;
   background: #fff;
-  border-radius: 50%;
-  transition: transform 0.2s;
-}
-.meta-field--toggle input:checked + .toggle-track .toggle-thumb {
-  transform: translateX(calc(1.75rem - 1rem));
-}
-.meta-field--toggle .meta-label {
-  font-size: 0.75rem;
-  color: #5c5630;
-}
-.meta-field--toggle input:checked ~ .meta-label {
   color: #2d2a1e;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.ot-btn:hover:not(:disabled) {
+  background: #f0edd8;
+  border-color: #8a8040;
+}
+.ot-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.ot-count {
+  display: inline-block;
+  min-width: 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #2d2a1e;
 }
 
 .scoresheet {

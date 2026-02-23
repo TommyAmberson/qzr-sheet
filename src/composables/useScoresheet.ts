@@ -1,5 +1,5 @@
 import { ref, computed, triggerRef } from 'vue'
-import { CellValue, COLUMNS, KEY_TO_IDX, QuestionType, type Quiz, type Team, type Quizzer } from '../types/scoresheet'
+import { CellValue, COLUMNS, KEY_TO_IDX, QuestionType, MAX_OVERTIME_ROUNDS, type Quiz, type Team, type Quizzer } from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
 import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
@@ -156,16 +156,30 @@ export function useScoresheet() {
     return false
   }
 
-  /** How many overtime questions are visible (0 or 6) */
+  /** How many overtime questions are visible (0, 3, 6, 9, …) */
   const overtimeCount = computed(() =>
-    overtimeQuestionsNeeded(quiz.value.overtime),
+    overtimeQuestionsNeeded(quiz.value.overtimeRounds),
   )
 
-  /** Max overtime question number currently visible (0 = none, 23 = first round, 26 = second) */
+  /** Max overtime question number currently visible (0 = none, 23 = round 1, 26 = round 2, …) */
   const maxOvertimeQuestion = computed(() => {
     if (overtimeCount.value === 0) return 0
     return 20 + overtimeCount.value
   })
+
+  /** Add another overtime round (3 questions) */
+  function addOvertimeRound() {
+    if (quiz.value.overtimeRounds < MAX_OVERTIME_ROUNDS) {
+      quiz.value.overtimeRounds++
+    }
+  }
+
+  /** Remove the last overtime round (won't go below 0) */
+  function removeOvertimeRound() {
+    if (quiz.value.overtimeRounds > 0) {
+      quiz.value.overtimeRounds--
+    }
+  }
 
   const visibleColumns = computed(() =>
     columns.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
@@ -206,6 +220,8 @@ export function useScoresheet() {
     scoring,
     setCell,
     toggleNoJump,
+    addOvertimeRound,
+    removeOvertimeRound,
     store,
 
     // Grey-out & validation

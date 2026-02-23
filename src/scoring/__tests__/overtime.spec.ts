@@ -21,12 +21,27 @@ function blankCells(): CellValue[][][] {
 }
 
 describe('overtimeQuestionsNeeded', () => {
-  it('returns 0 when overtime is not enabled', () => {
-    expect(overtimeQuestionsNeeded(false)).toBe(0)
+  it('returns 0 for 0 rounds', () => {
+    expect(overtimeQuestionsNeeded(0)).toBe(0)
   })
 
-  it('returns 6 when overtime is enabled', () => {
-    expect(overtimeQuestionsNeeded(true)).toBe(6)
+  it('returns 3 for 1 round', () => {
+    expect(overtimeQuestionsNeeded(1)).toBe(3)
+  })
+
+  it('returns 6 for 2 rounds', () => {
+    expect(overtimeQuestionsNeeded(2)).toBe(6)
+  })
+
+  it('returns 9 for 3 rounds', () => {
+    expect(overtimeQuestionsNeeded(3)).toBe(9)
+  })
+
+  it('clamps to MAX_OVERTIME_QUESTIONS', () => {
+    // 5 rounds × 3 = 15 is the max
+    expect(overtimeQuestionsNeeded(5)).toBe(15)
+    expect(overtimeQuestionsNeeded(6)).toBe(15)
+    expect(overtimeQuestionsNeeded(99)).toBe(15)
   })
 })
 

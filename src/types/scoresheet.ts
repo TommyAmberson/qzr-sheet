@@ -17,7 +17,8 @@ export interface Quiz {
   id: number
   division: number
   quizNumber: number
-  overtime: boolean
+  /** Number of overtime rounds (0 = no overtime, each round = 3 questions) */
+  overtimeRounds: number
 }
 
 export interface Team {
@@ -47,17 +48,23 @@ export interface Column {
   key: string
   /** Display label for the header */
   label: string
-  /** The question number (1-26) */
+  /** The question number (1–35) */
   number: number
   /** Normal / A / B sub-part */
   type: QuestionType
-  /** Is this an A/B eligible column (questions 16-20)? */
+  /** Is this an A/B eligible column (questions 16–20, overtime)? */
   isAB: boolean
-  /** Do error-point rules apply (questions 17-20, 21-26)? */
+  /** Do error-point rules apply (questions 17–20, overtime)? */
   isErrorPoints: boolean
-  /** Is this an overtime column (21-26)? */
+  /** Is this an overtime column (21+)? */
   isOvertime: boolean
 }
+
+/** Maximum number of overtime rounds (each round = 3 questions) */
+export const MAX_OVERTIME_ROUNDS = 5
+
+/** Maximum number of overtime questions (MAX_OVERTIME_ROUNDS × 3) */
+export const MAX_OVERTIME_QUESTIONS = MAX_OVERTIME_ROUNDS * 3
 
 /** Build the ordered list of question columns */
 export function buildColumns(): Column[] {
@@ -108,8 +115,10 @@ export function buildColumns(): Column[] {
     })
   }
 
-  // Questions 21-26: overtime (with A/B parts)
-  for (let n = 21; n <= 26; n++) {
+  // Questions 21-35: overtime (with A/B parts)
+  // Pre-allocated for up to MAX_OVERTIME_ROUNDS rounds of 3 questions each.
+  // Only visible columns are shown based on the overtimeRounds setting.
+  for (let n = 21; n <= 20 + MAX_OVERTIME_QUESTIONS; n++) {
     cols.push({
       key: `${n}`,
       label: `${n}`,

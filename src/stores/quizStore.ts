@@ -23,7 +23,7 @@ function createDefaultQuiz(): Quiz {
     id: genId(),
     division: 1,
     quizNumber: 1,
-    overtime: false,
+    overtimeRounds: 0,
   }
 }
 

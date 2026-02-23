@@ -208,7 +208,7 @@ describe('quizStore', () => {
     const store = createQuizStore()
     expect(store.quiz.division).toBe(1)
     expect(store.quiz.quizNumber).toBe(1)
-    expect(store.quiz.overtime).toBe(false)
+    expect(store.quiz.overtimeRounds).toBe(0)
   })
 
   // --- quizzersByTeam ---
