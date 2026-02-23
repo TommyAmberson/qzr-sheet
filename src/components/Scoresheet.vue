@@ -398,10 +398,10 @@ function colGroupClass(colIdx: number): string {
   align-items: center;
   margin-bottom: 0.5rem;
   padding: 0.4rem 0.75rem;
-  background: #ffff99;
+  background: var(--color-meta-bg);
   border-radius: 6px;
   width: fit-content;
-  color: #2d2a1e;
+  color: var(--color-text);
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 0.8rem;
   transition: background 0.4s, color 0.4s;
@@ -409,16 +409,16 @@ function colGroupClass(colIdx: number): string {
 
 .quiz-meta--error {
   background: var(--color-invalid);
-  color: #fee2e2;
+  color: var(--color-meta-error-text);
 }
 
 .quiz-meta--complete {
-  background: #15803d;
-  color: #dcfce7;
+  background: var(--color-complete);
+  color: var(--color-complete-light);
 }
 
 .meta-sep {
-  color: #b8a030;
+  color: var(--color-meta-sep);
   font-size: 1rem;
   user-select: none;
 }
@@ -432,23 +432,23 @@ function colGroupClass(colIdx: number): string {
 .meta-label {
   font-size: 0.75rem;
   font-weight: 500;
-  color: #5c5630;
+  color: var(--color-meta-label);
 }
 
 .meta-field input[type='number'] {
   width: 2.5rem;
   padding: 0.15rem 0.3rem;
-  border: 1px solid #bbb060;
+  border: 1px solid var(--color-meta-input-border);
   border-radius: 4px;
   font-size: 0.8rem;
   text-align: center;
-  background: #fff;
-  color: #2d2a1e;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 .meta-field input[type='number']:focus {
-  outline: 1px solid #3b82f6;
+  outline: 1px solid var(--color-accent);
   outline-offset: 0;
-  border-color: #3b82f6;
+  border-color: var(--color-accent);
 }
 
 /* Toggle switch */
@@ -466,13 +466,13 @@ function colGroupClass(colIdx: number): string {
   display: inline-block;
   width: 1.75rem;
   height: 1rem;
-  background: #bbb060;
+  background: var(--color-meta-input-border);
   border-radius: 999px;
   position: relative;
   transition: background 0.2s;
 }
 .meta-field--toggle input:checked + .toggle-track {
-  background: #3b82f6;
+  background: var(--color-accent);
 }
 .toggle-thumb {
   position: absolute;
@@ -480,7 +480,7 @@ function colGroupClass(colIdx: number): string {
   left: 2px;
   width: calc(1rem - 4px);
   height: calc(1rem - 4px);
-  background: #fff;
+  background: var(--color-bg);
   border-radius: 50%;
   transition: transform 0.2s;
 }
@@ -489,10 +489,10 @@ function colGroupClass(colIdx: number): string {
 }
 .meta-field--toggle .meta-label {
   font-size: 0.75rem;
-  color: #5c5630;
+  color: var(--color-meta-label);
 }
 .meta-field--toggle input:checked ~ .meta-label {
-  color: #2d2a1e;
+  color: var(--color-text);
   font-weight: 600;
 }
 
@@ -507,12 +507,12 @@ function colGroupClass(colIdx: number): string {
 
 .scoresheet th,
 .scoresheet td {
-  border: 1px solid #a09a85;
+  border: 1px solid var(--color-border);
   padding: 0.25rem 0.4rem;
   text-align: center;
   min-width: 2rem;
   height: 1.8rem;
-  background: #fff;
+  background: var(--color-bg);
 }
 
 
@@ -521,7 +521,7 @@ function colGroupClass(colIdx: number): string {
   position: sticky;
   left: 0;
   z-index: 2;
-  background: #fff;
+  background: var(--color-bg);
 }
 
 .scoresheet .col--name {
@@ -534,7 +534,7 @@ function colGroupClass(colIdx: number): string {
 .col--total {
   min-width: 3rem;
   font-weight: 600;
-  background: #ddd8c4;
+  background: var(--color-bg-total);
 }
 .col--total-header {
   background: transparent !important;
@@ -543,11 +543,11 @@ function colGroupClass(colIdx: number): string {
 
 /* Column group shading */
 .col--ab {
-  background-color: #fefce811;
+  background-color: var(--color-col-ab-tint);
 }
 
 .col--overtime {
-  background-color: #fdf2f811;
+  background-color: var(--color-col-ot-tint);
 }
 
 /* Spacer row — half-height transparent gap */
@@ -558,8 +558,8 @@ function colGroupClass(colIdx: number): string {
   background: transparent !important;
 }
 .spacer-row .spacer-cell {
-  border-left: 1px solid #e0ddd4 !important;
-  border-right: 1px solid #e0ddd4 !important;
+  border-left: 1px solid var(--color-border-light) !important;
+  border-right: 1px solid var(--color-border-light) !important;
 }
 
 /* Question header row — empty name cell blends with background */
@@ -572,18 +572,18 @@ thead .col--name {
 .scoresheet .col--question {
   font-weight: 700;
   background: transparent;
-  color: #2d2a1e;
+  color: var(--color-text);
   font-size: 0.75rem;
   border: none;
-  border-top: 1px solid #e0ddd4;
-  border-left: 1px solid #e0ddd4;
-  border-right: 1px solid #e0ddd4;
+  border-top: 1px solid var(--color-border-light);
+  border-left: 1px solid var(--color-border-light);
+  border-right: 1px solid var(--color-border-light);
 }
 .col--question.col--ab {
-  border-top: 2px solid #854d0e;
+  border-top: 2px solid var(--color-ab-border);
 }
 .col--question.col--overtime {
-  border-top: 2px solid #9d174d;
+  border-top: 2px solid var(--color-ot-border);
 }
 
 /* Question header colours based on answer */
@@ -597,10 +597,10 @@ thead .col--name {
   color: var(--color-bonus) !important;
 }
 .col--header-missed-bonus {
-  color: #8a8070 !important;
+  color: var(--color-missed-bonus) !important;
 }
 .col--header-no-jump {
-  color: #a8a290 !important;
+  color: var(--color-no-jump) !important;
   text-decoration: line-through;
 }
 .col--header-invalid {
@@ -612,17 +612,17 @@ thead .col--name {
 /* Team header row */
 .row--team-header {
   background: transparent;
-  color: #f5f5f0;
+  color: var(--color-team-white);
 }
 .team-header-spacer {
   background: transparent !important;
   border: none !important;
-  border-left: 1px solid #e0ddd4 !important;
-  border-right: 1px solid #e0ddd4 !important;
+  border-left: 1px solid var(--color-border-light) !important;
+  border-right: 1px solid var(--color-border-light) !important;
 }
 .team-score-label {
   background: transparent !important;
-  color: #2d2a1e;
+  color: var(--color-text);
   font-weight: 800;
   font-size: 1rem;
   text-align: center !important;
@@ -635,8 +635,8 @@ thead .col--name {
 .row--team-header .team-name {
   font-weight: 700;
   font-size: 0.85rem;
-  background: #2d2a1e;
-  color: #f5f5f0;
+  background: var(--color-text);
+  color: var(--color-team-white);
   text-align: left;
   padding-left: 0.5rem;
   border-radius: 4px;
@@ -650,21 +650,21 @@ thead .col--name {
   border-radius: 3px;
   margin-right: 0.4rem;
   vertical-align: middle;
-  border: 1px solid #78716c;
+  border: 1px solid var(--color-text-faint);
 }
 .row--team-header.team--red .team-name::before {
-  background: var(--color-error);
+  background: var(--color-team-red);
 }
 .row--team-header.team--white .team-name::before {
-  background: #f5f5f0;
+  background: var(--color-team-white);
 }
 .row--team-header.team--blue .team-name::before {
-  background: #2563eb;
+  background: var(--color-team-blue);
 }
 
 /* Quizzer rows */
 .row--quizzer:hover {
-  background: #f5f3ed;
+  background: var(--color-bg-hover);
 }
 
 /* Team total row */
@@ -673,15 +673,15 @@ thead .col--name {
   font-weight: 600;
   font-size: 0.75rem;
   font-style: italic;
-  color: #57534e;
+  color: var(--color-text-muted);
 }
 .row--team-total td {
   background: transparent !important;
   border: none !important;
 }
 .row--team-total .cell--total {
-  border-left: 1px solid #e0ddd4 !important;
-  border-right: 1px solid #e0ddd4 !important;
+  border-left: 1px solid var(--color-border-light) !important;
+  border-right: 1px solid var(--color-border-light) !important;
 }
 .row--team-total .sticky-col {
   background: transparent;
@@ -718,18 +718,18 @@ thead .col--name {
   height: 0.9rem;
   border-radius: 2px;
   font-size: 0.65rem;
-  border: 1px solid #78716c;
+  border: 1px solid var(--color-text-faint);
   color: transparent;
   transition: all 0.15s;
 }
 .on-time--active .on-time-box {
-  color: #fff;
-  border-color: #a8a290;
+  color: var(--color-bg);
+  border-color: var(--color-no-jump);
 }
 .on-time-label {
   font-size: 0.65rem;
   font-weight: 400;
-  color: #a8a290;
+  color: var(--color-no-jump);
   text-transform: lowercase;
 }
 
@@ -743,7 +743,7 @@ thead .col--name {
 }
 .no-jump-label {
   font-weight: 600;
-  color: #57534e;
+  color: var(--color-text-muted);
   font-size: 0.75rem;
   text-align: right !important;
 }
@@ -754,20 +754,20 @@ thead .col--name {
 .cell--no-jump {
   cursor: pointer;
   user-select: none;
-  color: #57534e;
+  color: var(--color-text-muted);
   font-weight: 700;
 }
 .cell--no-jump:hover {
-  outline: 2px solid #78716c;
+  outline: 2px solid var(--color-text-faint);
   outline-offset: -2px;
 }
 .cell--no-jump-active {
   background: repeating-linear-gradient(
     -45deg,
-    #e8e4d4,
-    #e8e4d4 3px,
-    #d5d0be 3px,
-    #d5d0be 6px
+    var(--color-grey-stripe-a),
+    var(--color-grey-stripe-a) 3px,
+    var(--color-grey-stripe-b) 3px,
+    var(--color-grey-stripe-b) 6px
   ) !important;
   opacity: 0.6;
 }
@@ -779,28 +779,28 @@ thead .col--name {
   font-weight: 700;
 }
 .cell:hover {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--color-accent);
   outline-offset: -2px;
 }
 
 .cell--correct {
-  color: #fff;
+  color: var(--color-text-inverse);
   background-color: var(--color-correct) !important;
 }
 .cell--error {
-  color: #fff;
+  color: var(--color-text-inverse);
   background-color: var(--color-error) !important;
 }
 .cell--foul {
-  color: #fff;
+  color: var(--color-text-inverse);
   background-color: var(--color-foul) !important;
 }
 .cell--bonus {
-  color: #fff;
+  color: var(--color-text-inverse);
   background-color: var(--color-bonus) !important;
 }
 .cell--missed-bonus {
-  color: #fff;
+  color: var(--color-text-inverse);
   background-color: var(--color-missed-bonus) !important;
 }
 
@@ -831,10 +831,10 @@ thead .col--name {
 .cell--greyed {
   background: repeating-linear-gradient(
     -45deg,
-    #e8e4d4,
-    #e8e4d4 3px,
-    #d5d0be 3px,
-    #d5d0be 6px
+    var(--color-grey-stripe-a),
+    var(--color-grey-stripe-a) 3px,
+    var(--color-grey-stripe-b) 3px,
+    var(--color-grey-stripe-b) 6px
   ) !important;
   cursor: default;
   opacity: 0.6;
@@ -863,7 +863,7 @@ thead .col--name {
   padding: 0.05rem 0.2rem;
   border-radius: 3px;
   line-height: 1.3;
-  color: #fff;
+  color: var(--color-text-inverse);
   pointer-events: none;
 }
 .running-total-badge--unique {
@@ -873,7 +873,7 @@ thead .col--name {
   background: var(--color-correct);
 }
 .running-total-badge--free-error {
-  background: #f0e8e0;
+  background: var(--color-bg-warm);
   color: var(--color-error);
 }
 .running-total-badge--foul-deduct {
@@ -913,7 +913,7 @@ thead .col--name {
   font-size: 0.6rem;
   font-weight: 800;
   line-height: 1;
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 .stat-badge--quizout {
   background: var(--color-correct);
@@ -961,23 +961,6 @@ thead .col--name {
 </style>
 
 <style>
-/* Color palette */
-:root {
-  /* Answer colors — earthy, muted tones that fit the warm beige UI */
-  --color-correct: #3d7a4a;
-  --color-correct-light: #e4f2e7;
-  --color-error: #8b4038;
-  --color-error-light: #f2e4e2;
-  --color-foul: #a67038;
-  --color-foul-light: #f2ece2;
-  --color-bonus: #3d7a7a;
-  --color-missed-bonus: #7a7568;
-
-  /* Validation invalid — bright, stands out from the earthy palette */
-  --color-invalid: #dc2626;
-  --color-invalid-light: #f87171;
-}
-
 /* Cell selector popup (unscoped for Teleport) */
 .selector-backdrop {
   position: fixed;
@@ -991,8 +974,8 @@ thead .col--name {
   display: flex;
   gap: 2px;
   padding: 3px;
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--color-selector-bg);
+  border: 1px solid var(--color-selector-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 101;
@@ -1010,7 +993,7 @@ thead .col--name {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.1s;
-  background: #f8fafc;
+  background: var(--color-selector-opt-bg);
 }
 .selector-opt:hover {
   transform: scale(1.1);
@@ -1021,40 +1004,40 @@ thead .col--name {
 }
 .opt--correct:hover {
   background: var(--color-correct);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 .opt--error {
   color: var(--color-error);
 }
 .opt--error:hover {
   background: var(--color-error);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 .opt--foul {
   color: var(--color-foul);
 }
 .opt--foul:hover {
   background: var(--color-foul);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 .opt--bonus {
   color: var(--color-bonus);
 }
 .opt--bonus:hover {
   background: var(--color-bonus);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 .opt--missed-bonus {
   color: var(--color-missed-bonus);
 }
 .opt--missed-bonus:hover {
   background: var(--color-missed-bonus);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 .opt--clear {
-  color: #94a3b8;
+  color: var(--color-clear);
 }
 .opt--clear:hover {
-  background: #e2e8f0;
+  background: var(--color-clear-hover);
 }
 </style>
