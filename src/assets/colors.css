@@ -23,7 +23,6 @@
   --palette-khaki:        #a09a85;
   --palette-stone:        #78716c;
   --palette-slate:        #57534e;
-  --palette-dusk:         #4a4540;
   --palette-shadow:       #3a3730;
   --palette-coal:         #2a2724;
   --palette-obsidian:     #1a1816;
@@ -79,8 +78,8 @@
   --color-meta-border:    var(--palette-gold);
 
   /* Greyed-out stripes */
-  --color-grey-stripe-a:  var(--palette-tan);
-  --color-grey-stripe-b:  var(--palette-sand);
+  --color-grey-stripe-a:  var(--palette-khaki);
+  --color-grey-stripe-b:  var(--palette-tan);
 
   /* A/B and overtime column top borders */
   --color-ab-border:      var(--palette-amber);
@@ -101,12 +100,12 @@
 
   /* Quiz meta bar */
   --color-meta-bg:        var(--palette-coal);
-  --color-meta-accent:    var(--palette-dusk);
+  --color-meta-accent:    var(--palette-slate);
   --color-meta-border:    var(--palette-gold);
 
   /* Greyed-out stripes */
-  --color-grey-stripe-a:  var(--palette-slate);
-  --color-grey-stripe-b:  var(--palette-dusk);
+  --color-grey-stripe-a:  var(--palette-stone);
+  --color-grey-stripe-b:  var(--palette-khaki);
 
   /* A/B and overtime column top borders */
   --color-ab-border:      var(--palette-amber);
