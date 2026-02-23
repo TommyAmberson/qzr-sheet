@@ -61,7 +61,7 @@ function openSelector(ti: number, qi: number, ci: number, event: MouseEvent) {
   selector.value = {
     ti, qi, ci,
     x: rect.left + rect.width / 2,
-    y: rect.bottom + 4,
+    y: rect.top + rect.height / 2,
   }
 }
 
@@ -1318,8 +1318,9 @@ thead .col--name {
 
 .selector-popup {
   position: fixed;
-  transform: translateX(-50%);
-  display: flex;
+  transform: translate(-50%, -50%);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 2px;
   padding: 3px;
   background: var(--color-bg);
