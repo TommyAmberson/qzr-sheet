@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { CellValue, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
+import { validationMessage } from '../scoring/validation'
 
 const {
   columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
@@ -11,6 +12,15 @@ const {
   validationErrors,
   placements,
 } = useScoresheet()
+
+/** All unique validation messages for the status tooltip */
+const allValidationMessages = computed(() => {
+  const msgs = new Set<string>()
+  for (const codes of validationErrors.value.values()) {
+    for (const code of codes) msgs.add(validationMessage(code))
+  }
+  return [...msgs]
+})
 
 /** Active cell selector state */
 const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
@@ -172,7 +182,7 @@ function colGroupClass(colIdx: number): string {
         <span class="meta-label">Overtime</span>
       </label>
       <span class="meta-sep">·</span>
-      <span class="meta-field meta-field--status">
+      <span class="meta-field meta-field--status" :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined">
         <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
         <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete">✓</span>
         <span v-else class="meta-status meta-status--pending">○</span>
