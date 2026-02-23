@@ -24,11 +24,6 @@ function blankNoJumps(): boolean[] {
   return columns.map(() => false)
 }
 
-/** Helper: compute OT eligible teams */
-function otEligible(cells: CellValue[][][], onTimes = [true, true, true]): Set<number> {
-  return getOvertimeEligibleTeams(cells, columns, onTimes)
-}
-
 /** Helper: blank 3-team, 5-quizzer grid */
 function blankCells(): CellValue[][][] {
   return [0, 1, 2].map(() =>
@@ -224,9 +219,25 @@ describe('cell validation', () => {
     expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.WrongCellType)).toBe(false)
   })
 
+  it('F on a B column is valid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17B')] = F
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.WrongCellType)).toBe(false)
+  })
+
   it('B/MB on a normal column (non-bonus situation) is invalid', () => {
     const cells = blankCells()
     cells[0]![0]![ci('1')] = B // bonus on Q1 with no toss-up chain — invalid
+    const grey = computeGreyedOut(cells, columns)
+    const errors = validateCells(cells, columns, grey)
+    expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.WrongCellType)).toBe(true)
+  })
+
+  it('MB on a normal column (non-bonus situation) is invalid', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = MB // missed bonus on Q1 with no toss-up chain — invalid
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
     expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.WrongCellType)).toBe(true)

@@ -35,9 +35,15 @@ describe('computePlacements', () => {
   })
 
   it('places non-tied team 3rd when it has lowest score', () => {
-    // Team 0: 80, Teams 1 & 2: 120 (tied)
+    // Team 0: 80, Teams 1 & 2: 120 (tied for 1st/2nd)
     const result = computePlacements([80, 120, 120], [], true)
     expect(result).toEqual([3, null, null])
+  })
+
+  it('places non-tied team 1st when tied teams are below', () => {
+    // Team 0: 140, Teams 1 & 2: 100 (tied for 2nd/3rd)
+    const result = computePlacements([140, 100, 100], [], true)
+    expect(result).toEqual([1, null, null])
   })
 
   // --- OT round 1 breaks tie ---
@@ -102,6 +108,18 @@ describe('computePlacements', () => {
       true,
     )
     expect(result).toEqual([1, null, null])
+  })
+
+  it('OT breaks 2nd/3rd place tie — tied teams cannot pass 1st', () => {
+    // Regulation: Team 0: 140, Teams 1 & 2: 100 (tied for 2nd/3rd)
+    // After OT round 1: Team 1: 160, Team 2: 120 — tie broken
+    // Team 1 has higher score than Team 0, but still 2nd
+    const result = computePlacements(
+      [140, 100, 100],
+      [[140, 160, 120]],
+      true,
+    )
+    expect(result).toEqual([1, 2, 3])
   })
 
   // --- Edge: all teams tied, all resolve at once ---

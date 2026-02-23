@@ -278,6 +278,18 @@ describe('greyed-out logic', () => {
     expect(isGreyed(result, 2, ci('16B'))).toBe(true)
   })
 
+  it('Q16 error → Q16A error → Q16B is bonus for remaining team', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('16')] = E  // team 0 errors on Q16
+    cells[1]![0]![ci('16A')] = E // team 1 errors on Q16A toss-up
+    const result = computeGreyedOut(cells, columns)
+    // Q16B: team 0 + team 1 greyed → bonus for team 2
+    expect(isGreyed(result, 0, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16B'))).toBe(false)
+    expect(isBonusFor(result, 2, ci('16B'))).toBe(true)
+  })
+
   // --- Quizzer foul on A/B question greys subsequent sub-parts ---
 
   it('quizzer foul on base A/B question greys that quizzer on A and B', () => {
