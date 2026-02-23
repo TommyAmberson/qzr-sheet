@@ -313,7 +313,6 @@ function colGroupClass(colIdx: number): string {
                   :value="team.name"
                   @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
                   @focus="($event.target as HTMLInputElement).select()"
-                  :placeholder="`Team ${ti + 1}`"
                 />
                 <span class="team-stats">
                 <span
@@ -362,7 +361,6 @@ function colGroupClass(colIdx: number): string {
                   :value="quizzer.name"
                   @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
                   @focus="($event.target as HTMLInputElement).select()"
-                  :placeholder="`Quizzer ${qi + 1}`"
                 />
                 <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
                 <span
@@ -1198,10 +1196,6 @@ thead .col--name {
   min-width: 0;
   flex: 1;
   height: 100%;
-}
-.editable-name::placeholder {
-  color: var(--color-text-faint);
-  opacity: 0.6;
 }
 .editable-name:focus {
   border-bottom: 1.5px solid var(--color-accent);
