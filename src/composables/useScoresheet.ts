@@ -1,5 +1,5 @@
-import { ref, computed, triggerRef } from 'vue'
-import { CellValue, COLUMNS, KEY_TO_IDX, QuestionType, MAX_OVERTIME_ROUNDS, type Quiz, type Team, type Quizzer } from '../types/scoresheet'
+import { ref, computed, watch } from 'vue'
+import { CellValue, buildColumns, buildKeyToIdx, QuestionType, type Column, type Quiz, type Team, type Quizzer } from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
 import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
@@ -9,18 +9,37 @@ import {
   colHasAnyContent,
   isBonusSituation,
 } from '../scoring/helpers'
-import { overtimeQuestionsNeeded, getOvertimeEligibleTeams } from '../scoring/overtime'
+import { getOvertimeEligibleTeams } from '../scoring/overtime'
 
 export function useScoresheet() {
   const store = createQuizStore()
-  const columns = COLUMNS
 
   // --- Reactive wrappers around store data ---
   const quiz = ref<Quiz>(store.quiz)
-  const noJumps = ref<boolean[]>(store.noJumps)
 
   // Bump this to force recomputation of cells/scoring after answer changes
   const answerVersion = ref(0)
+
+  // Auto-start at 1 round when overtime is first enabled
+  watch(() => quiz.value.overtime, (on) => {
+    if (on && quiz.value.overtimeRounds < 1) quiz.value.overtimeRounds = 1
+  })
+
+  /** Columns built reactively — regulation when OT is off, + OT rounds when on */
+  const columns = computed<Column[]>(() => {
+    const rounds = quiz.value.overtime ? quiz.value.overtimeRounds : 0
+    return buildColumns(rounds)
+  })
+
+  /** Key→index lookup, kept in sync with columns */
+  const keyToIdx = computed(() => buildKeyToIdx(columns.value))
+
+  /** No-jump flags — grows/shrinks with columns */
+  const noJumpMap = ref(new Map<string, boolean>())
+
+  const noJumps = computed<boolean[]>(() =>
+    columns.value.map((col) => noJumpMap.value.get(col.key) ?? false),
+  )
 
   /** Teams sorted by seat order — this is the canonical iteration order */
   const teams = computed<Team[]>(() =>
@@ -35,11 +54,11 @@ export function useScoresheet() {
   /** All quizzers (flat list) */
   const quizzers = computed<Quizzer[]>(() => store.quizzers)
 
-  /** Derived cell grid — recomputes when answerVersion changes */
+  /** Derived cell grid — recomputes when answerVersion or columns change */
   const cells = computed<CellValue[][][]>(() => {
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     answerVersion.value // reactive dependency
-    return store.cellGrid()
+    return store.cellGrid(columns.value)
   })
 
   /** Set a cell value using positional indices (for UI compatibility) */
@@ -48,7 +67,7 @@ export function useScoresheet() {
     if (!team) return
     const qzrs = store.quizzersByTeam(team.id)
     const qzr = qzrs[quizzerIdx]
-    const col = columns[colIdx]
+    const col = columns.value[colIdx]
     if (!qzr || !col) return
     store.setAnswer(qzr.id, col.key, value)
     answerVersion.value++
@@ -57,14 +76,15 @@ export function useScoresheet() {
   // --- Scoring ---
 
   const scoring = computed<TeamScoring[]>(() => {
+    const cols = columns.value
     const grid = cells.value
-    return teams.value.map((team, ti) => scoreTeam(grid[ti]!, columns, team.onTime))
+    return teams.value.map((team, ti) => scoreTeam(grid[ti]!, cols, team.onTime))
   })
 
   // --- Grey-out & validation ---
 
   const greyedOutResult = computed<GreyedOutResult>(() =>
-    computeGreyedOut(cells.value, columns),
+    computeGreyedOut(cells.value, columns.value),
   )
 
   const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
@@ -72,13 +92,13 @@ export function useScoresheet() {
   const otEligibleTeams = computed(() =>
     getOvertimeEligibleTeams(
       cells.value,
-      columns,
+      columns.value,
       teams.value.map((t) => t.onTime),
     ),
   )
 
   const validationErrors = computed(() =>
-    validateCells(cells.value, columns, greyedOutResult.value, noJumps.value, otEligibleTeams.value),
+    validateCells(cells.value, columns.value, greyedOutResult.value, noJumps.value, otEligibleTeams.value),
   )
 
   // --- Query helpers (business logic the template needs) ---
@@ -100,7 +120,7 @@ export function useScoresheet() {
     if (!qs || qs.outAfterCol < 0 || colIdx <= qs.outAfterCol) return false
     if (cells.value[ti]![qi]![colIdx] !== CellValue.Empty) return false
     if (qs.quizzedOut && !qs.erroredOut) {
-      if (columns[colIdx]?.type === QuestionType.B || isBonusForTeam(ti, colIdx)) return false
+      if (columns.value[colIdx]?.type === QuestionType.B || isBonusForTeam(ti, colIdx)) return false
     }
     return true
   }
@@ -144,34 +164,21 @@ export function useScoresheet() {
 
   function abColumnNeeded(colIdx: number): boolean {
     if (colHasAnyContent(cells.value, colIdx)) return true
-    const col = columns[colIdx]!
+    const col = columns.value[colIdx]!
     if (col.type === QuestionType.A) {
-      const baseIdx = KEY_TO_IDX.get(`${col.number}`)
+      const baseIdx = keyToIdx.value.get(`${col.number}`)
       return baseIdx !== undefined && anyTeamHasValue(cells.value, baseIdx, CellValue.Error)
     }
     if (col.type === QuestionType.B) {
-      const aIdx = KEY_TO_IDX.get(`${col.number}A`)
+      const aIdx = keyToIdx.value.get(`${col.number}A`)
       return aIdx !== undefined && anyTeamHasValue(cells.value, aIdx, CellValue.Error)
     }
     return false
   }
 
-  /** How many overtime questions are visible (0, 3, 6, 9, …) */
-  const overtimeCount = computed(() =>
-    overtimeQuestionsNeeded(quiz.value.overtimeRounds),
-  )
-
-  /** Max overtime question number currently visible (0 = none, 23 = round 1, 26 = round 2, …) */
-  const maxOvertimeQuestion = computed(() => {
-    if (overtimeCount.value === 0) return 0
-    return 20 + overtimeCount.value
-  })
-
   /** Add another overtime round (3 questions) */
   function addOvertimeRound() {
-    if (quiz.value.overtimeRounds < MAX_OVERTIME_ROUNDS) {
-      quiz.value.overtimeRounds++
-    }
+    quiz.value.overtimeRounds++
   }
 
   /** Remove the last overtime round (won't go below 0) */
@@ -182,19 +189,17 @@ export function useScoresheet() {
   }
 
   const visibleColumns = computed(() =>
-    columns.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
-      // Overtime columns: hidden unless within the current OT round
-      if (col.isOvertime && col.number > maxOvertimeQuestion.value) return false
-      // A/B columns (both regulation and overtime): only show when needed
+    columns.value.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
+      // A/B columns: only show when needed
       if (col.type === QuestionType.A || col.type === QuestionType.B) return abColumnNeeded(idx)
       return true
     }),
   )
 
   const allQuestionsComplete = computed(() => {
-    for (let ci = 0; ci < columns.length; ci++) {
-      const col = columns[ci]!
-      if (col.isOvertime && col.number > maxOvertimeQuestion.value) continue
+    const cols = columns.value
+    for (let ci = 0; ci < cols.length; ci++) {
+      const col = cols[ci]!
       if ((col.type === QuestionType.A || col.type === QuestionType.B) && !abColumnNeeded(ci)) continue
       if (noJumps.value[ci]) continue
       if (colAnswerValue(ci) !== CellValue.Empty) continue
@@ -203,10 +208,14 @@ export function useScoresheet() {
     return true
   })
 
-  /** Toggle no-jump for a column */
+  /** Toggle no-jump for a column by key */
   function toggleNoJump(colIdx: number) {
-    store.toggleNoJump(colIdx)
-    triggerRef(noJumps)
+    const key = columns.value[colIdx]?.key
+    if (!key) return
+    const current = noJumpMap.value.get(key) ?? false
+    noJumpMap.value.set(key, !current)
+    // Trigger reactivity on the map ref
+    noJumpMap.value = new Map(noJumpMap.value)
   }
 
   return {

@@ -1,7 +1,6 @@
 import {
   CellValue,
-  COLUMNS,
-  KEY_TO_IDX,
+  type Column,
   type Quiz,
   type Team,
   type Quizzer,
@@ -23,6 +22,7 @@ function createDefaultQuiz(): Quiz {
     id: genId(),
     division: 1,
     quizNumber: 1,
+    overtime: false,
     overtimeRounds: 0,
   }
 }
@@ -59,7 +59,6 @@ export interface QuizStore {
   teams: Team[]
   quizzers: Quizzer[]
   answers: Answer[]
-  noJumps: boolean[]
 
   /** Get quizzers for a team, sorted by seatOrder */
   quizzersByTeam(teamId: number): Quizzer[]
@@ -73,14 +72,11 @@ export interface QuizStore {
   /** Set an answer value (Empty removes the answer) */
   setAnswer(quizzerId: number, columnKey: string, value: CellValue): void
 
-  /** Toggle noJump for a column index */
-  toggleNoJump(colIdx: number): void
-
   /**
    * Derive the positional cell grid for scoring functions.
    * Returns cells[teamIdx][quizzerIdx][colIdx] ordered by seatOrder.
    */
-  cellGrid(): CellValue[][][]
+  cellGrid(columns: Column[]): CellValue[][][]
 }
 
 export function createQuizStore(): QuizStore {
@@ -89,8 +85,6 @@ export function createQuizStore(): QuizStore {
 
   // Answers stored in a Map keyed by "quizzerId:columnKey" for O(1) lookup
   const answerMap = new Map<string, Answer>()
-
-  const noJumps = COLUMNS.map(() => false)
 
   // Pre-build quizzer lookup by team
   function quizzersByTeam(teamId: number): Quizzer[] {
@@ -120,17 +114,13 @@ export function createQuizStore(): QuizStore {
     }
   }
 
-  function toggleNoJump(colIdx: number): void {
-    noJumps[colIdx] = !noJumps[colIdx]
-  }
-
-  function cellGrid(): CellValue[][][] {
+  function cellGrid(columns: Column[]): CellValue[][][] {
     const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
 
     return sortedTeams.map((team) => {
       const teamQuizzers = quizzersByTeam(team.id)
       return teamQuizzers.map((qzr) =>
-        COLUMNS.map((col) => getAnswer(qzr.id, col.key)),
+        columns.map((col) => getAnswer(qzr.id, col.key)),
       )
     })
   }
@@ -139,12 +129,10 @@ export function createQuizStore(): QuizStore {
     quiz,
     teams,
     quizzers,
-    noJumps,
     quizzersByTeam,
     teamForQuizzer,
     getAnswer,
     setAnswer,
-    toggleNoJump,
     cellGrid,
     get answers() {
       return [...answerMap.values()]

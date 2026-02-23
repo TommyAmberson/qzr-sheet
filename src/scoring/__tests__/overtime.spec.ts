@@ -1,10 +1,51 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
-import { overtimeQuestionsNeeded, getOvertimeEligibleTeams } from '../overtime'
+import { getOvertimeEligibleTeams } from '../overtime'
 
-const columns = buildColumns()
 const C = CellValue.Correct
 const _ = CellValue.Empty
+
+describe('buildColumns overtime', () => {
+  it('builds no OT columns with 0 rounds', () => {
+    const cols = buildColumns(0)
+    expect(cols.some((c) => c.isOvertime)).toBe(false)
+  })
+
+  it('builds 3 OT normal columns for 1 round (Q21–23 with A/B)', () => {
+    const cols = buildColumns(1)
+    const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
+    expect(otNormals.map((c) => c.number)).toEqual([21, 22, 23])
+  })
+
+  it('builds 6 OT normal columns for 2 rounds (Q21–26)', () => {
+    const cols = buildColumns(2)
+    const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
+    expect(otNormals.map((c) => c.number)).toEqual([21, 22, 23, 24, 25, 26])
+  })
+
+  it('builds 9 OT normal columns for 3 rounds (Q21–29)', () => {
+    const cols = buildColumns(3)
+    const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
+    expect(otNormals.map((c) => c.number)).toEqual([21, 22, 23, 24, 25, 26, 27, 28, 29])
+  })
+
+  it('each OT question has A and B sub-columns', () => {
+    const cols = buildColumns(1)
+    expect(cols.find((c) => c.key === '21A')).toBeDefined()
+    expect(cols.find((c) => c.key === '21B')).toBeDefined()
+    expect(cols.find((c) => c.key === '23B')).toBeDefined()
+  })
+
+  it('no cap — can build many rounds', () => {
+    const cols = buildColumns(10)
+    const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
+    expect(otNormals).toHaveLength(30)
+    expect(otNormals[29]!.number).toBe(50)
+  })
+})
+
+/** Columns with 2 OT rounds for eligible-team tests */
+const columns = buildColumns(2)
 
 /** Find column index by key */
 function ci(key: string): number {
@@ -19,31 +60,6 @@ function blankCells(): CellValue[][][] {
     Array.from({ length: 5 }, () => columns.map(() => _)),
   )
 }
-
-describe('overtimeQuestionsNeeded', () => {
-  it('returns 0 for 0 rounds', () => {
-    expect(overtimeQuestionsNeeded(0)).toBe(0)
-  })
-
-  it('returns 3 for 1 round', () => {
-    expect(overtimeQuestionsNeeded(1)).toBe(3)
-  })
-
-  it('returns 6 for 2 rounds', () => {
-    expect(overtimeQuestionsNeeded(2)).toBe(6)
-  })
-
-  it('returns 9 for 3 rounds', () => {
-    expect(overtimeQuestionsNeeded(3)).toBe(9)
-  })
-
-  it('clamps to MAX_OVERTIME_QUESTIONS', () => {
-    // 5 rounds × 3 = 15 is the max
-    expect(overtimeQuestionsNeeded(5)).toBe(15)
-    expect(overtimeQuestionsNeeded(6)).toBe(15)
-    expect(overtimeQuestionsNeeded(99)).toBe(15)
-  })
-})
 
 describe('getOvertimeEligibleTeams', () => {
   const onTimes = [true, true, true]

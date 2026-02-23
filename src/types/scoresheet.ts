@@ -17,7 +17,9 @@ export interface Quiz {
   id: number
   division: number
   quizNumber: number
-  /** Number of overtime rounds (0 = no overtime, each round = 3 questions) */
+  /** Whether overtime is enabled */
+  overtime: boolean
+  /** Number of overtime rounds (each round = 3 questions) */
   overtimeRounds: number
 }
 
@@ -60,14 +62,8 @@ export interface Column {
   isOvertime: boolean
 }
 
-/** Maximum number of overtime rounds (each round = 3 questions) */
-export const MAX_OVERTIME_ROUNDS = 5
-
-/** Maximum number of overtime questions (MAX_OVERTIME_ROUNDS × 3) */
-export const MAX_OVERTIME_QUESTIONS = MAX_OVERTIME_ROUNDS * 3
-
 /** Build the ordered list of question columns */
-export function buildColumns(): Column[] {
+export function buildColumns(overtimeRounds = 0): Column[] {
   const cols: Column[] = []
 
   // Questions 1-15: normal only
@@ -115,10 +111,9 @@ export function buildColumns(): Column[] {
     })
   }
 
-  // Questions 21-35: overtime (with A/B parts)
-  // Pre-allocated for up to MAX_OVERTIME_ROUNDS rounds of 3 questions each.
-  // Only visible columns are shown based on the overtimeRounds setting.
-  for (let n = 21; n <= 20 + MAX_OVERTIME_QUESTIONS; n++) {
+  // Overtime questions (with A/B parts) — only as many as requested
+  const otQuestions = Math.max(0, overtimeRounds) * 3
+  for (let n = 21; n <= 20 + otQuestions; n++) {
     cols.push({
       key: `${n}`,
       label: `${n}`,
@@ -151,10 +146,7 @@ export function buildColumns(): Column[] {
   return cols
 }
 
-/** Static column list — built once, never changes */
-export const COLUMNS = buildColumns()
-
-/** Lookup column index by key (e.g. "1", "17A", "21B") */
-export const KEY_TO_IDX = new Map<string, number>(
-  COLUMNS.map((col, i) => [col.key, i]),
-)
+/** Build a key→index lookup map for a column list */
+export function buildKeyToIdx(cols: Column[]): Map<string, number> {
+  return new Map(cols.map((col, i) => [col.key, i]))
+}

@@ -1,21 +1,5 @@
-import { CellValue, MAX_OVERTIME_QUESTIONS, type Column } from '../types/scoresheet'
+import { CellValue, type Column } from '../types/scoresheet'
 import { scoreTeam } from './scoreTeam'
-
-/**
- * Determine how many overtime questions (columns) should be visible.
- *
- * @param overtimeRounds - Number of overtime rounds (0 = off, each round = 3 questions)
- * @returns Number of overtime questions to show (0, 3, 6, 9, … up to MAX_OVERTIME_QUESTIONS)
- *
- * A/B sub-columns for each OT question follow the same show/hide logic as
- * regulation A/B columns (handled separately by abColumnNeeded).
- */
-export function overtimeQuestionsNeeded(
-  overtimeRounds: number,
-): number {
-  if (overtimeRounds <= 0) return 0
-  return Math.min(overtimeRounds * 3, MAX_OVERTIME_QUESTIONS)
-}
 
 /**
  * Determine which teams are eligible for overtime based on regulation-only scores.

@@ -32,7 +32,7 @@ const normalOptions = [
 const selectorOptions = computed(() => {
   if (!selector.value) return []
   const { ti, qi, ci } = selector.value
-  const col = columns[ci]
+  const col = columns.value[ci]
   if (!col) return []
 
   // B columns always show bonus options
@@ -138,7 +138,7 @@ function headerClass(colIdx: number): string {
 
 /** Column CSS class for visual grouping (no animation — that's on the display entry) */
 function colGroupClass(colIdx: number): string {
-  const col = columns[colIdx]
+  const col = columns.value[colIdx]
   if (!col) return ''
   const classes: string[] = []
   if (col.isOvertime) classes.push('col--overtime')
@@ -161,9 +161,13 @@ function colGroupClass(colIdx: number): string {
         <input v-model.number="quiz.quizNumber" type="number" min="1" />
       </label>
       <span class="meta-sep">·</span>
-      <span class="meta-field meta-field--ot">
-        <span class="meta-label">OT</span>
-        <button class="ot-btn" :disabled="quiz.overtimeRounds <= 0" @click="removeOvertimeRound">−</button>
+      <label class="meta-field meta-field--toggle">
+        <input v-model="quiz.overtime" type="checkbox" />
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="meta-label">Overtime</span>
+      </label>
+      <span v-if="quiz.overtime" class="meta-field meta-field--ot">
+        <button class="ot-btn" :disabled="quiz.overtimeRounds <= 1" @click="removeOvertimeRound">−</button>
         <span class="ot-count">{{ quiz.overtimeRounds }}</span>
         <button class="ot-btn" @click="addOvertimeRound">+</button>
       </span>
@@ -440,6 +444,51 @@ function colGroupClass(colIdx: number): string {
   outline: 1px solid #3b82f6;
   outline-offset: 0;
   border-color: #3b82f6;
+}
+
+/* Toggle switch */
+.meta-field--toggle {
+  gap: 0.35rem;
+  cursor: pointer;
+}
+.meta-field--toggle input[type='checkbox'] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-track {
+  display: inline-block;
+  width: 1.75rem;
+  height: 1rem;
+  background: #bbb060;
+  border-radius: 999px;
+  position: relative;
+  transition: background 0.2s;
+}
+.meta-field--toggle input:checked + .toggle-track {
+  background: #3b82f6;
+}
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(1rem - 4px);
+  height: calc(1rem - 4px);
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.meta-field--toggle input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(calc(1.75rem - 1rem));
+}
+.meta-field--toggle .meta-label {
+  font-size: 0.75rem;
+  color: #5c5630;
+}
+.meta-field--toggle input:checked ~ .meta-label {
+  color: #2d2a1e;
+  font-weight: 600;
 }
 
 /* Overtime round controls */
