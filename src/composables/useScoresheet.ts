@@ -168,7 +168,9 @@ export function useScoresheet() {
 
   const visibleColumns = computed(() =>
     columns.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
-      if (col.isOvertime) return col.number <= maxOvertimeQuestion.value
+      // Overtime columns: hidden unless within the current OT round
+      if (col.isOvertime && col.number > maxOvertimeQuestion.value) return false
+      // A/B columns (both regulation and overtime): only show when needed
       if (col.type === QuestionType.A || col.type === QuestionType.B) return abColumnNeeded(idx)
       return true
     }),
