@@ -327,7 +327,7 @@ function colGroupClass(colIdx: number): string {
 
           <!-- Team running total row -->
           <tr class="row--team-total">
-            <td class="col--name sticky-col"></td>
+            <td class="col--name sticky-col running-total-label">Score</td>
             <td
               class="cell--total cell--total-ontime"
               style="position: relative;"
@@ -936,6 +936,14 @@ thead .col--name {
 
 /* Running total badges */
 /* On-time bonus column */
+.running-total-label {
+  font-weight: 600 !important;
+  font-style: normal !important;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-align: right !important;
+}
+
 .col--ontime-header {
   background: transparent !important;
   border: none !important;
