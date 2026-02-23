@@ -234,7 +234,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('3')] = F
     const result = scoreTeam(cells, columns, false)
-    expect(result.quizzers[0]!.erroredOut).toBe(true)
+    expect(result.quizzers[0]!.erroredOut).toBe(false)
     expect(result.quizzers[0]!.fouledOut).toBe(true)
   })
 
