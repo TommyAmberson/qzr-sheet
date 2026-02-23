@@ -1058,6 +1058,7 @@ thead .col--name {
     var(--color-grey-stripe-b) 6px
   ) !important;
   cursor: default;
+  opacity: 0.8;
 }
 .cell--greyed:hover {
   outline: none;
