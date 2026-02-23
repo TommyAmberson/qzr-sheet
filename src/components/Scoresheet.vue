@@ -334,7 +334,7 @@ function colGroupClass(colIdx: number): string {
               class="cell--total cell--total-ontime"
               style="position: relative;"
             >
-              {{ scoring[ti]?.onTimeBonus || '' }}
+              {{ scoring[ti]?.onTimeBonus ?? 0 }}
             </td>
             <td
               v-for="{ col, idx, entering } in displayColumns"
