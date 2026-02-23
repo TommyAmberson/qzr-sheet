@@ -45,9 +45,10 @@ Invalid cells pulse red and the team total highlights. Checks for duplicate
 answers, toss-up violations, wrong cell types, quizzer-out, overtime
 eligibility, and more.
 
-#### 1.9 Validation explanation
-Invalid cells pulse red but the user can't see *why*. Show the reason in a
-tooltip (e.g. "Team is tossed up", "Quizzer has quizzed out").
+#### 1.9 Validation explanation ✅
+Invalid cells pulse red with a native tooltip showing the reason(s). Question
+number headers also pulse red when any cell in their column has a validation
+error.
 
 #### 1.10 Editable team/quizzer names
 Replace hardcoded "Team 1" / "Quizzer 1" with inline-editable text fields.

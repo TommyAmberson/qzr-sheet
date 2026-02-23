@@ -1,0 +1,45 @@
+/* Color palette */
+:root {
+  /* Answer colors — earthy, muted tones that fit the warm beige UI */
+  --color-correct: #3d7a4a;
+  --color-correct-light: #e4f2e7;
+  --color-error: #8b4038;
+  --color-error-light: #f2e4e2;
+  --color-foul: #a67038;
+  --color-foul-light: #f2ece2;
+  --color-bonus: #3d7a7a;
+  --color-missed-bonus: #7a7568;
+  --color-no-jump: #a8a290;
+
+  /* Validation — bright, stands out from the earthy palette */
+  --color-invalid: #dc2626;
+  --color-invalid-light: #f87171;
+
+  /* UI chrome */
+  --color-bg: #fff;
+  --color-bg-warm: #f0e8e0;
+  --color-border: #a09a85;
+  --color-border-light: #e0ddd4;
+  --color-text: #2d2a1e;
+  --color-text-muted: #57534e;
+  --color-text-faint: #78716c;
+  --color-accent: #3b82f6;
+
+
+  /* Team identity */
+  --color-team-red: #ff0000;
+  --color-team-white: #ffffff;
+  --color-team-blue: #0000ff;
+
+  /* Quiz meta bar */
+  --color-meta-bg: #ffff99;
+  --color-meta-accent: #b8a030;
+
+  /* Greyed-out stripes (aliases for readability) */
+  --color-grey-stripe-a: var(--color-border-light);
+  --color-grey-stripe-b: var(--color-bg-warm);
+
+  /* A/B and overtime column top borders */
+  --color-ab-border: #854d0e;
+  --color-ot-border: #9d174d;
+}

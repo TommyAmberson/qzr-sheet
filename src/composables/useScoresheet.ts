@@ -3,7 +3,7 @@ import { CellValue, buildColumns, buildKeyToIdx, QuestionType, type Column, type
 import { createQuizStore } from '../stores/quizStore'
 import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
-import { validateCells, ValidationCode } from '../scoring/validation'
+import { validateCells, ValidationCode, validationMessage } from '../scoring/validation'
 import {
   isBonusSituation,
 } from '../scoring/helpers'
@@ -118,6 +118,62 @@ export function useScoresheet() {
 
   function isInvalid(ti: number, qi: number, ci: number): boolean {
     return validationErrors.value.has(`${ti}:${qi}:${ci}`)
+  }
+
+  /** Get human-readable validation messages for a cell (deduplicated) */
+  function cellValidationMessages(ti: number, qi: number, ci: number): string[] {
+    const codes = validationErrors.value.get(`${ti}:${qi}:${ci}`)
+    if (!codes) return []
+    return [...new Set(codes.map(validationMessage))]
+  }
+
+  /** Whether any cell in a column has a validation error */
+  function columnHasErrors(ci: number): boolean {
+    for (const key of validationErrors.value.keys()) {
+      if (key.endsWith(`:${ci}`)) return true
+    }
+    return false
+  }
+
+  /** Get deduplicated validation messages for all cells in a column */
+  function columnValidationMessages(ci: number): string[] {
+    const msgs = new Set<string>()
+    for (const [key, codes] of validationErrors.value) {
+      if (key.endsWith(`:${ci}`)) {
+        for (const code of codes) msgs.add(validationMessage(code))
+      }
+    }
+    return [...msgs]
+  }
+
+  /** Whether any cell for a specific quizzer has a validation error */
+  function quizzerHasErrors(ti: number, qi: number): boolean {
+    for (const key of validationErrors.value.keys()) {
+      if (key.startsWith(`${ti}:${qi}:`)) return true
+    }
+    return false
+  }
+
+  /** Get deduplicated validation messages for a specific quizzer */
+  function quizzerValidationMessages(ti: number, qi: number): string[] {
+    const msgs = new Set<string>()
+    for (const [key, codes] of validationErrors.value) {
+      if (key.startsWith(`${ti}:${qi}:`)) {
+        for (const code of codes) msgs.add(validationMessage(code))
+      }
+    }
+    return [...msgs]
+  }
+
+  /** Get deduplicated validation messages for all cells in a team */
+  function teamValidationMessages(ti: number): string[] {
+    const msgs = new Set<string>()
+    for (const [key, codes] of validationErrors.value) {
+      if (key.startsWith(`${ti}:`)) {
+        for (const code of codes) msgs.add(validationMessage(code))
+      }
+    }
+    return [...msgs]
   }
 
   function isAfterOut(ti: number, qi: number, colIdx: number): boolean {
@@ -255,6 +311,12 @@ export function useScoresheet() {
     isBonusForTeam,
     isGreyedOut,
     isInvalid,
+    cellValidationMessages,
+    columnHasErrors,
+    columnValidationMessages,
+    quizzerHasErrors,
+    quizzerValidationMessages,
+    teamValidationMessages,
     isAfterOut,
     isFouledOnQuestion,
     teamHasErrors,

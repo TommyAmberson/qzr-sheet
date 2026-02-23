@@ -5,7 +5,7 @@ import { useScoresheet } from '../composables/useScoresheet'
 
 const {
   columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
-  isBonusForTeam, isGreyedOut, isInvalid, isAfterOut, isFouledOnQuestion,
+  isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, columnValidationMessages, quizzerHasErrors, quizzerValidationMessages, teamValidationMessages, isAfterOut, isFouledOnQuestion,
   teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
   visibleColumns, allQuestionsComplete,
   validationErrors,
@@ -63,6 +63,9 @@ function selectValue(value: CellValue) {
 function closeSelector() {
   selector.value = null
 }
+
+/** Hovered column index for crosshair highlight */
+const hoverCol = ref<number | null>(null)
 
 
 /** Columns actually rendered — entering columns start collapsed, then expand */
@@ -130,10 +133,12 @@ const headerAnswerClass: Record<CellValue, string> = {
 }
 
 function headerClass(colIdx: number): string {
+  const classes: string[] = []
   const answer = headerAnswerClass[colAnswerValue(colIdx)]
-  if (answer) return answer
-  if (noJumps.value[colIdx]) return 'col--header-no-jump'
-  return ''
+  if (answer) classes.push(answer)
+  else if (noJumps.value[colIdx]) classes.push('col--header-no-jump')
+  if (columnHasErrors(colIdx)) classes.push('col--header-invalid')
+  return classes.join(' ')
 }
 
 /** Column CSS class for visual grouping (no animation — that's on the display entry) */
@@ -176,7 +181,8 @@ function colGroupClass(colIdx: number): string {
           <th
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
-            :class="['col--question', colGroupClass(idx), headerClass(idx), { 'col--entering': entering }]"
+            :class="['col--question', colGroupClass(idx), headerClass(idx), { 'col--entering': entering, 'col--hover': hoverCol === idx || selector?.ci === idx }]"
+            :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
           >
             {{ col.label }}
           </th>
@@ -230,7 +236,10 @@ function colGroupClass(colIdx: number): string {
               { 'row--fouled-out': scoring[ti]?.quizzers[qi]?.fouledOut },
             ]"
           >
-            <td class="col--name sticky-col">
+            <td
+              :class="['col--name', 'sticky-col', { 'cell--invalid': quizzerHasErrors(ti, qi), 'col--name--active': selector?.ti === ti && selector?.qi === qi }]"
+              :title="quizzerHasErrors(ti, qi) ? quizzerValidationMessages(ti, qi).join('\n') : undefined"
+            >
               <span class="quizzer-name">{{ quizzer.name }}</span>
               <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
                 <span
@@ -275,8 +284,12 @@ function colGroupClass(colIdx: number): string {
                 { 'cell--greyed': ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) || (isFouledOnQuestion(ti, qi, idx) && cells[ti][qi][idx] === '') },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
                 { 'col--entering': entering },
+                { 'col--hover': hoverCol === idx },
               ]"
+              :title="isInvalid(ti, qi, idx) ? cellValidationMessages(ti, qi, idx).join('\n') : undefined"
               @click="openSelector(ti, qi, idx, $event)"
+              @mouseenter="hoverCol = idx"
+              @mouseleave="hoverCol = null"
             >
               {{ cellDisplay[cells[ti][qi][idx]] }}
             </td>
@@ -285,6 +298,7 @@ function colGroupClass(colIdx: number): string {
               v-if="qi === 0"
               :class="['col--total', 'team-total-value', { 'cell--invalid': teamHasErrors(ti) }]"
               :rowspan="teamQuizzers[ti]?.length ?? 5"
+              :title="teamHasErrors(ti) ? teamValidationMessages(ti).join('\n') : undefined"
             >
               <span v-if="placements[ti]" class="placement-medal">{{ placements[ti] === 1 ? '🥇' : placements[ti] === 2 ? '🥈' : '🥉' }}</span>
               {{ scoring[ti]?.total ?? 0 }}
@@ -345,6 +359,7 @@ function colGroupClass(colIdx: number): string {
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
             :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx], 'cell--invalid': noJumpHasConflict(idx), 'col--entering': entering }]"
+            :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
             @click="toggleNoJump(idx)"
           >
             {{ noJumps[idx] ? '✗' : '' }}
@@ -389,27 +404,27 @@ function colGroupClass(colIdx: number): string {
   align-items: center;
   margin-bottom: 0.5rem;
   padding: 0.4rem 0.75rem;
-  background: #ffff99;
+  background: var(--color-meta-bg);
   border-radius: 6px;
   width: fit-content;
-  color: #2d2a1e;
+  color: var(--color-text);
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 0.8rem;
   transition: background 0.4s, color 0.4s;
 }
 
 .quiz-meta--error {
-  background: #9e3030;
-  color: #fee2e2;
+  background: var(--color-invalid);
+  color: var(--color-invalid-light);
 }
 
 .quiz-meta--complete {
-  background: #15803d;
-  color: #dcfce7;
+  background: var(--color-correct);
+  color: var(--color-correct-light);
 }
 
 .meta-sep {
-  color: #b8a030;
+  color: var(--color-meta-accent);
   font-size: 1rem;
   user-select: none;
 }
@@ -423,23 +438,23 @@ function colGroupClass(colIdx: number): string {
 .meta-label {
   font-size: 0.75rem;
   font-weight: 500;
-  color: #5c5630;
+  color: var(--color-text-muted);
 }
 
 .meta-field input[type='number'] {
   width: 2.5rem;
   padding: 0.15rem 0.3rem;
-  border: 1px solid #bbb060;
+  border: 1px solid var(--color-meta-accent);
   border-radius: 4px;
   font-size: 0.8rem;
   text-align: center;
-  background: #fff;
-  color: #2d2a1e;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 .meta-field input[type='number']:focus {
-  outline: 1px solid #3b82f6;
+  outline: 1px solid var(--color-accent);
   outline-offset: 0;
-  border-color: #3b82f6;
+  border-color: var(--color-accent);
 }
 
 /* Toggle switch */
@@ -457,13 +472,13 @@ function colGroupClass(colIdx: number): string {
   display: inline-block;
   width: 1.75rem;
   height: 1rem;
-  background: #bbb060;
+  background: var(--color-meta-accent);
   border-radius: 999px;
   position: relative;
   transition: background 0.2s;
 }
 .meta-field--toggle input:checked + .toggle-track {
-  background: #3b82f6;
+  background: var(--color-accent);
 }
 .toggle-thumb {
   position: absolute;
@@ -471,7 +486,7 @@ function colGroupClass(colIdx: number): string {
   left: 2px;
   width: calc(1rem - 4px);
   height: calc(1rem - 4px);
-  background: #fff;
+  background: var(--color-bg);
   border-radius: 50%;
   transition: transform 0.2s;
 }
@@ -480,10 +495,10 @@ function colGroupClass(colIdx: number): string {
 }
 .meta-field--toggle .meta-label {
   font-size: 0.75rem;
-  color: #5c5630;
+  color: var(--color-text-muted);
 }
 .meta-field--toggle input:checked ~ .meta-label {
-  color: #2d2a1e;
+  color: var(--color-text);
   font-weight: 600;
 }
 
@@ -498,12 +513,12 @@ function colGroupClass(colIdx: number): string {
 
 .scoresheet th,
 .scoresheet td {
-  border: 1px solid #a09a85;
+  border: 1px solid var(--color-border);
   padding: 0.25rem 0.4rem;
   text-align: center;
   min-width: 2rem;
   height: 1.8rem;
-  background: #fff;
+  background: var(--color-bg);
 }
 
 
@@ -512,7 +527,7 @@ function colGroupClass(colIdx: number): string {
   position: sticky;
   left: 0;
   z-index: 2;
-  background: #fff;
+  background: var(--color-bg);
 }
 
 .scoresheet .col--name {
@@ -525,7 +540,7 @@ function colGroupClass(colIdx: number): string {
 .col--total {
   min-width: 3rem;
   font-weight: 600;
-  background: #ddd8c4;
+  background: var(--color-border-light);
 }
 .col--total-header {
   background: transparent !important;
@@ -533,13 +548,6 @@ function colGroupClass(colIdx: number): string {
 }
 
 /* Column group shading */
-.col--ab {
-  background-color: #fefce811;
-}
-
-.col--overtime {
-  background-color: #fdf2f811;
-}
 
 /* Spacer row — half-height transparent gap */
 .spacer-row td {
@@ -549,8 +557,8 @@ function colGroupClass(colIdx: number): string {
   background: transparent !important;
 }
 .spacer-row .spacer-cell {
-  border-left: 1px solid #e0ddd4 !important;
-  border-right: 1px solid #e0ddd4 !important;
+  border-left: 1px solid var(--color-border-light) !important;
+  border-right: 1px solid var(--color-border-light) !important;
 }
 
 /* Question header row — empty name cell blends with background */
@@ -563,52 +571,57 @@ thead .col--name {
 .scoresheet .col--question {
   font-weight: 700;
   background: transparent;
-  color: #2d2a1e;
+  color: var(--color-text);
   font-size: 0.75rem;
   border: none;
-  border-top: 1px solid #e0ddd4;
-  border-left: 1px solid #e0ddd4;
-  border-right: 1px solid #e0ddd4;
+  border-top: 1px solid var(--color-border-light);
+  border-left: 1px solid var(--color-border-light);
+  border-right: 1px solid var(--color-border-light);
 }
 .col--question.col--ab {
-  border-top: 2px solid #854d0e;
+  border-top: 2px solid var(--color-ab-border);
 }
 .col--question.col--overtime {
-  border-top: 2px solid #9d174d;
+  border-top: 2px solid var(--color-ot-border);
 }
 
 /* Question header colours based on answer */
 .col--header-correct {
-  color: #15803d !important;
+  color: var(--color-correct) !important;
 }
 .col--header-error {
-  color: #9e3030 !important;
+  color: var(--color-error) !important;
 }
 .col--header-bonus {
-  color: #2a7a8a !important;
+  color: var(--color-bonus) !important;
 }
 .col--header-missed-bonus {
-  color: #8a8070 !important;
+  color: var(--color-missed-bonus) !important;
 }
 .col--header-no-jump {
-  color: #a8a290 !important;
+  color: var(--color-no-jump) !important;
   text-decoration: line-through;
+}
+.col--header-invalid {
+  outline: 2px solid var(--color-invalid);
+  outline-offset: -2px;
+  animation: pulse-invalid 1.5s ease-in-out infinite;
 }
 
 /* Team header row */
 .row--team-header {
   background: transparent;
-  color: #f5f5f0;
+  color: var(--color-team-white);
 }
 .team-header-spacer {
   background: transparent !important;
   border: none !important;
-  border-left: 1px solid #e0ddd4 !important;
-  border-right: 1px solid #e0ddd4 !important;
+  border-left: 1px solid var(--color-border-light) !important;
+  border-right: 1px solid var(--color-border-light) !important;
 }
 .team-score-label {
   background: transparent !important;
-  color: #2d2a1e;
+  color: var(--color-text);
   font-weight: 800;
   font-size: 1rem;
   text-align: center !important;
@@ -621,8 +634,8 @@ thead .col--name {
 .row--team-header .team-name {
   font-weight: 700;
   font-size: 0.85rem;
-  background: #2d2a1e;
-  color: #f5f5f0;
+  background: var(--color-text);
+  color: var(--color-team-white);
   text-align: left;
   padding-left: 0.5rem;
   border-radius: 4px;
@@ -636,22 +649,18 @@ thead .col--name {
   border-radius: 3px;
   margin-right: 0.4rem;
   vertical-align: middle;
-  border: 1px solid #78716c;
+  border: 1px solid var(--color-text-faint);
 }
 .row--team-header.team--red .team-name::before {
-  background: #9e3030;
+  background: var(--color-team-red);
 }
 .row--team-header.team--white .team-name::before {
-  background: #f5f5f0;
+  background: var(--color-team-white);
 }
 .row--team-header.team--blue .team-name::before {
-  background: #2563eb;
+  background: var(--color-team-blue);
 }
 
-/* Quizzer rows */
-.row--quizzer:hover {
-  background: #f5f3ed;
-}
 
 /* Team total row */
 .row--team-total {
@@ -659,15 +668,15 @@ thead .col--name {
   font-weight: 600;
   font-size: 0.75rem;
   font-style: italic;
-  color: #57534e;
+  color: var(--color-text-muted);
 }
 .row--team-total td {
   background: transparent !important;
   border: none !important;
 }
 .row--team-total .cell--total {
-  border-left: 1px solid #e0ddd4 !important;
-  border-right: 1px solid #e0ddd4 !important;
+  border-left: 1px solid var(--color-border-light) !important;
+  border-right: 1px solid var(--color-border-light) !important;
 }
 .row--team-total .sticky-col {
   background: transparent;
@@ -704,18 +713,18 @@ thead .col--name {
   height: 0.9rem;
   border-radius: 2px;
   font-size: 0.65rem;
-  border: 1px solid #78716c;
+  border: 1px solid var(--color-text-faint);
   color: transparent;
   transition: all 0.15s;
 }
 .on-time--active .on-time-box {
-  color: #fff;
-  border-color: #a8a290;
+  color: var(--color-bg);
+  border-color: var(--color-no-jump);
 }
 .on-time-label {
   font-size: 0.65rem;
   font-weight: 400;
-  color: #a8a290;
+  color: var(--color-no-jump);
   text-transform: lowercase;
 }
 
@@ -729,7 +738,7 @@ thead .col--name {
 }
 .no-jump-label {
   font-weight: 600;
-  color: #57534e;
+  color: var(--color-text-muted);
   font-size: 0.75rem;
   text-align: right !important;
 }
@@ -740,20 +749,20 @@ thead .col--name {
 .cell--no-jump {
   cursor: pointer;
   user-select: none;
-  color: #57534e;
+  color: var(--color-text-muted);
   font-weight: 700;
 }
 .cell--no-jump:hover {
-  outline: 2px solid #78716c;
+  outline: 2px solid var(--color-text-faint);
   outline-offset: -2px;
 }
 .cell--no-jump-active {
   background: repeating-linear-gradient(
     -45deg,
-    #e8e4d4,
-    #e8e4d4 3px,
-    #d5d0be 3px,
-    #d5d0be 6px
+    var(--color-grey-stripe-a),
+    var(--color-grey-stripe-a) 3px,
+    var(--color-grey-stripe-b) 3px,
+    var(--color-grey-stripe-b) 6px
   ) !important;
   opacity: 0.6;
 }
@@ -765,29 +774,40 @@ thead .col--name {
   font-weight: 700;
 }
 .cell:hover {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* Crosshair highlight — quizzer name + question header only */
+.row--quizzer:hover > .col--name,
+.col--name--active {
+  outline: 2px solid var(--color-border);
+  outline-offset: -2px;
+}
+.col--question.col--hover {
+  outline: 2px solid var(--color-border);
   outline-offset: -2px;
 }
 
 .cell--correct {
-  color: #fff;
-  background-color: #15803d !important;
+  color: var(--color-bg);
+  background-color: var(--color-correct) !important;
 }
 .cell--error {
-  color: #fff;
-  background-color: #9e3030 !important;
+  color: var(--color-bg);
+  background-color: var(--color-error) !important;
 }
 .cell--foul {
-  color: #fff;
-  background-color: #b86e30 !important;
+  color: var(--color-bg);
+  background-color: var(--color-foul) !important;
 }
 .cell--bonus {
-  color: #fff;
-  background-color: #2a7a8a !important;
+  color: var(--color-bg);
+  background-color: var(--color-bonus) !important;
 }
 .cell--missed-bonus {
-  color: #fff;
-  background-color: #8a8070 !important;
+  color: var(--color-bg);
+  background-color: var(--color-missed-bonus) !important;
 }
 
 /* Column enter transition — col--entering is the collapsed initial state,
@@ -817,10 +837,10 @@ thead .col--name {
 .cell--greyed {
   background: repeating-linear-gradient(
     -45deg,
-    #e8e4d4,
-    #e8e4d4 3px,
-    #d5d0be 3px,
-    #d5d0be 6px
+    var(--color-grey-stripe-a),
+    var(--color-grey-stripe-a) 3px,
+    var(--color-grey-stripe-b) 3px,
+    var(--color-grey-stripe-b) 6px
   ) !important;
   cursor: default;
   opacity: 0.6;
@@ -830,13 +850,13 @@ thead .col--name {
 }
 
 .cell--invalid {
-  outline: 2px solid #ef4444;
+  outline: 2px solid var(--color-invalid);
   outline-offset: -2px;
   animation: pulse-invalid 1.5s ease-in-out infinite;
 }
 @keyframes pulse-invalid {
-  0%, 100% { outline-color: #ef4444; }
-  50% { outline-color: #fca5a5; }
+  0%, 100% { outline-color: var(--color-invalid); }
+  50% { outline-color: var(--color-invalid-light); }
 }
 
 /* Running total badges */
@@ -849,21 +869,21 @@ thead .col--name {
   padding: 0.05rem 0.2rem;
   border-radius: 3px;
   line-height: 1.3;
-  color: #fff;
+  color: var(--color-bg);
   pointer-events: none;
 }
 .running-total-badge--unique {
-  background: #15803d;
+  background: var(--color-correct);
 }
 .running-total-badge--quizout {
-  background: #15803d;
+  background: var(--color-correct);
 }
 .running-total-badge--free-error {
-  background: #f0e8e0;
-  color: #9e3030;
+  background: var(--color-bg-warm);
+  color: var(--color-error);
 }
 .running-total-badge--foul-deduct {
-  background: #b86e30;
+  background: var(--color-foul);
   right: auto;
   left: 0;
 }
@@ -899,23 +919,23 @@ thead .col--name {
   font-size: 0.6rem;
   font-weight: 800;
   line-height: 1;
-  color: #fff;
+  color: var(--color-bg);
 }
 .stat-badge--quizout {
-  background: #15803d;
+  background: var(--color-correct);
 }
 .stat-badge--quizout-bonus {
-  background: #15803d;
-  box-shadow: 0 0 0 2px #dcfce7;
+  background: var(--color-correct);
+  box-shadow: 0 0 0 2px var(--color-correct-light);
 }
 .stat-badge--errorout {
-  background: #9e3030;
+  background: var(--color-error);
 }
 .stat-badge--foulout {
-  background: #b86e30;
+  background: var(--color-foul);
 }
 .stat-badge--unique {
-  background: #15803d;
+  background: var(--color-correct);
   border-radius: 4px;
   width: auto;
   padding: 0 0.3rem;
@@ -931,16 +951,16 @@ thead .col--name {
   line-height: 1.2;
 }
 .stat-count--correct {
-  color: #15803d;
-  background: #dcfce7;
+  color: var(--color-correct);
+  background: var(--color-correct-light);
 }
 .stat-count--error {
-  color: #9e3030;
-  background: #fee2e2;
+  color: var(--color-error);
+  background: var(--color-error-light);
 }
 .stat-count--foul {
-  color: #b86e30;
-  background: #fef3c7;
+  color: var(--color-foul);
+  background: var(--color-foul-light);
 }
 
 
@@ -960,8 +980,8 @@ thead .col--name {
   display: flex;
   gap: 2px;
   padding: 3px;
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-light);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 101;
@@ -979,51 +999,51 @@ thead .col--name {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.1s;
-  background: #f8fafc;
+  background: var(--color-bg);
 }
 .selector-opt:hover {
   transform: scale(1.1);
 }
 
 .opt--correct {
-  color: #15803d;
+  color: var(--color-correct);
 }
 .opt--correct:hover {
-  background: #15803d;
-  color: #fff;
+  background: var(--color-correct);
+  color: var(--color-bg);
 }
 .opt--error {
-  color: #9e3030;
+  color: var(--color-error);
 }
 .opt--error:hover {
-  background: #9e3030;
-  color: #fff;
+  background: var(--color-error);
+  color: var(--color-bg);
 }
 .opt--foul {
-  color: #b86e30;
+  color: var(--color-foul);
 }
 .opt--foul:hover {
-  background: #b86e30;
-  color: #fff;
+  background: var(--color-foul);
+  color: var(--color-bg);
 }
 .opt--bonus {
-  color: #2a7a8a;
+  color: var(--color-bonus);
 }
 .opt--bonus:hover {
-  background: #2a7a8a;
-  color: #fff;
+  background: var(--color-bonus);
+  color: var(--color-bg);
 }
 .opt--missed-bonus {
-  color: #8a8070;
+  color: var(--color-missed-bonus);
 }
 .opt--missed-bonus:hover {
-  background: #8a8070;
-  color: #fff;
+  background: var(--color-missed-bonus);
+  color: var(--color-bg);
 }
 .opt--clear {
-  color: #94a3b8;
+  color: var(--color-no-jump);
 }
 .opt--clear:hover {
-  background: #e2e8f0;
+  background: var(--color-border-light);
 }
 </style>
