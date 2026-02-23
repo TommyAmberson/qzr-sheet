@@ -64,6 +64,9 @@ function closeSelector() {
   selector.value = null
 }
 
+/** Hovered column index for crosshair highlight */
+const hoverCol = ref<number | null>(null)
+
 
 /** Columns actually rendered — entering columns start collapsed, then expand */
 const displayColumns = ref(visibleColumns.value.map(vc => ({ ...vc, entering: false })))
@@ -178,7 +181,7 @@ function colGroupClass(colIdx: number): string {
           <th
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
-            :class="['col--question', colGroupClass(idx), headerClass(idx), { 'col--entering': entering }]"
+            :class="['col--question', colGroupClass(idx), headerClass(idx), { 'col--entering': entering, 'col--hover': hoverCol === idx }]"
             :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
           >
             {{ col.label }}
@@ -281,9 +284,12 @@ function colGroupClass(colIdx: number): string {
                 { 'cell--greyed': ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) || (isFouledOnQuestion(ti, qi, idx) && cells[ti][qi][idx] === '') },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
                 { 'col--entering': entering },
+                { 'col--hover': hoverCol === idx },
               ]"
               :title="isInvalid(ti, qi, idx) ? cellValidationMessages(ti, qi, idx).join('\n') : undefined"
               @click="openSelector(ti, qi, idx, $event)"
+              @mouseenter="hoverCol = idx"
+              @mouseleave="hoverCol = null"
             >
               {{ cellDisplay[cells[ti][qi][idx]] }}
             </td>
@@ -655,10 +661,6 @@ thead .col--name {
   background: var(--color-team-blue);
 }
 
-/* Quizzer rows */
-.row--quizzer:hover {
-  background: var(--color-border-light);
-}
 
 /* Team total row */
 .row--team-total {
@@ -773,6 +775,16 @@ thead .col--name {
 }
 .cell:hover {
   outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* Crosshair highlight — quizzer name + question header only */
+.row--quizzer:hover > .col--name {
+  outline: 2px solid var(--color-border);
+  outline-offset: -2px;
+}
+.col--question.col--hover {
+  outline: 2px solid var(--color-border);
   outline-offset: -2px;
 }
 
