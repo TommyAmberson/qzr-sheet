@@ -35,7 +35,7 @@ after-out quizzers, and fouled-on-question situations.
 A and B sub-columns for questions 16–20 auto show/hide based on errors,
 with a smooth enter animation.
 
-#### 1.7 Overtime columns (started - not working correctly)
+#### 1.7 Overtime columns ✅
 Overtime toggle enables/disables overtime columns. When disabled, no overtime
 logic at all. When enabled, additional rounds appear if quiz is tied after
 being filled out.
