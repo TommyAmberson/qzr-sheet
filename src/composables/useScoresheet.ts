@@ -84,12 +84,6 @@ export function useScoresheet() {
 
   // --- Grey-out & validation ---
 
-  const greyedOutResult = computed<GreyedOutResult>(() =>
-    computeGreyedOut(cells.value, columns.value),
-  )
-
-  const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
-
   const otEligibleTeams = computed(() =>
     getOvertimeEligibleTeams(
       cells.value,
@@ -97,6 +91,12 @@ export function useScoresheet() {
       teams.value.map((t) => t.onTime),
     ),
   )
+
+  const greyedOutResult = computed<GreyedOutResult>(() =>
+    computeGreyedOut(cells.value, columns.value, otEligibleTeams.value),
+  )
+
+  const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
 
   const validationErrors = computed(() =>
     validateCells(cells.value, columns.value, greyedOutResult.value, noJumps.value, otEligibleTeams.value),

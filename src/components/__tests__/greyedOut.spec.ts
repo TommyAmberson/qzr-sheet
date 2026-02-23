@@ -388,4 +388,45 @@ describe('greyed-out logic', () => {
     const result = computeGreyedOut(cells, columns)
     expect(result.cascadeDisabled.size).toBe(0)
   })
+
+  // --- Overtime eligibility greying ---
+
+  it('non-eligible teams are greyed on overtime columns', () => {
+    const otCols = buildColumns(1)
+    const otCells = [0, 1, 2].map(() =>
+      Array.from({ length: 5 }, () => otCols.map(() => _)),
+    )
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    // Only teams 0 and 1 eligible
+    const eligible = new Set([0, 1])
+    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Team 2 greyed on all OT columns
+    expect(isGreyed(result, 2, otCi('21'))).toBe(true)
+    expect(isGreyed(result, 2, otCi('22'))).toBe(true)
+    expect(isGreyed(result, 2, otCi('23'))).toBe(true)
+    // Teams 0 and 1 NOT greyed
+    expect(isGreyed(result, 0, otCi('21'))).toBe(false)
+    expect(isGreyed(result, 1, otCi('21'))).toBe(false)
+  })
+
+  it('eligible teams are NOT greyed on regulation columns', () => {
+    const otCols = buildColumns(1)
+    const otCells = [0, 1, 2].map(() =>
+      Array.from({ length: 5 }, () => otCols.map(() => _)),
+    )
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    const eligible = new Set([0, 1])
+    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Team 2 NOT greyed on regulation
+    expect(isGreyed(result, 2, otCi('1'))).toBe(false)
+    expect(isGreyed(result, 2, otCi('15'))).toBe(false)
+  })
 })

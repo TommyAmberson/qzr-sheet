@@ -33,6 +33,7 @@ export interface GreyedOutResult {
 export function computeGreyedOut(
   cellData: CellValue[][][],
   cols: Column[],
+  otEligibleTeams?: Set<number>,
 ): GreyedOutResult {
   const disabled = new Set<string>()
   const cascadeDisabled = new Set<number>()
@@ -157,6 +158,18 @@ export function computeGreyedOut(
           if (bIdx !== undefined) fouledQuizzers.add(`${ti}:${qi}:${bIdx}`)
         }
         // Foul on B → nothing further
+      }
+    }
+  }
+
+  // Grey out non-eligible teams on overtime columns
+  if (otEligibleTeams) {
+    for (let colIdx = 0; colIdx < cols.length; colIdx++) {
+      if (!cols[colIdx]!.isOvertime) continue
+      for (let ti = 0; ti < teamCount; ti++) {
+        if (!otEligibleTeams.has(ti)) {
+          disabled.add(`${ti}:${colIdx}`)
+        }
       }
     }
   }
