@@ -9,7 +9,7 @@ import {
   colHasAnyContent,
   isBonusSituation,
 } from '../scoring/helpers'
-import { getOvertimeEligibleTeams } from '../scoring/overtime'
+import { getOvertimeEligibleTeams, computeOvertimeRounds } from '../scoring/overtime'
 
 export function useScoresheet() {
   const store = createQuizStore()
@@ -20,14 +20,15 @@ export function useScoresheet() {
   // Bump this to force recomputation of cells/scoring after answer changes
   const answerVersion = ref(0)
 
-  // Auto-start at 1 round when overtime is first enabled
-  watch(() => quiz.value.overtime, (on) => {
-    if (on && quiz.value.overtimeRounds < 1) quiz.value.overtimeRounds = 1
-  })
+  /**
+   * Internally tracked overtime round count.
+   * Starts at 1 when OT is enabled, auto-grows when content is added.
+   */
+  const internalOtRounds = ref(1)
 
   /** Columns built reactively — regulation when OT is off, + OT rounds when on */
   const columns = computed<Column[]>(() => {
-    const rounds = quiz.value.overtime ? quiz.value.overtimeRounds : 0
+    const rounds = quiz.value.overtime ? internalOtRounds.value : 0
     return buildColumns(rounds)
   })
 
@@ -176,17 +177,14 @@ export function useScoresheet() {
     return false
   }
 
-  /** Add another overtime round (3 questions) */
-  function addOvertimeRound() {
-    quiz.value.overtimeRounds++
-  }
-
-  /** Remove the last overtime round (won't go below 0) */
-  function removeOvertimeRound() {
-    if (quiz.value.overtimeRounds > 0) {
-      quiz.value.overtimeRounds--
+  /** Auto-manage overtime rounds based on cell content */
+  watch(cells, (grid) => {
+    if (!quiz.value.overtime) return
+    const needed = computeOvertimeRounds(grid, columns.value)
+    if (needed !== internalOtRounds.value) {
+      internalOtRounds.value = needed
     }
-  }
+  })
 
   const visibleColumns = computed(() =>
     columns.value.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
@@ -229,8 +227,6 @@ export function useScoresheet() {
     scoring,
     setCell,
     toggleNoJump,
-    addOvertimeRound,
-    removeOvertimeRound,
     store,
 
     // Grey-out & validation

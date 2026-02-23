@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
-import { getOvertimeEligibleTeams } from '../overtime'
+import { getOvertimeEligibleTeams, computeOvertimeRounds } from '../overtime'
 
 const C = CellValue.Correct
 const _ = CellValue.Empty
@@ -135,5 +135,57 @@ describe('getOvertimeEligibleTeams', () => {
     expect(eligible.has(0)).toBe(false)
     expect(eligible.has(1)).toBe(true)
     expect(eligible.has(2)).toBe(true)
+  })
+})
+
+describe('computeOvertimeRounds', () => {
+  /** Build blank cells for a given number of OT rounds */
+  function blankOtCells(rounds: number): { cells: CellValue[][][]; cols: ReturnType<typeof buildColumns> } {
+    const cols = buildColumns(rounds)
+    const cells = [0, 1, 2].map(() =>
+      Array.from({ length: 5 }, () => cols.map(() => _)),
+    )
+    return { cells, cols }
+  }
+
+  function otCi(cols: ReturnType<typeof buildColumns>, key: string): number {
+    const idx = cols.findIndex((c) => c.key === key)
+    if (idx === -1) throw new Error(`Column ${key} not found`)
+    return idx
+  }
+
+  it('returns 1 when no overtime content exists', () => {
+    const { cells, cols } = blankOtCells(1)
+    expect(computeOvertimeRounds(cells, cols)).toBe(1)
+  })
+
+  it('returns 2 when round 1 has content (need empty round ahead)', () => {
+    const { cells, cols } = blankOtCells(2)
+    cells[0]![0]![otCi(cols, '21')] = C
+    expect(computeOvertimeRounds(cells, cols)).toBe(2)
+  })
+
+  it('returns 3 when round 2 has content', () => {
+    const { cells, cols } = blankOtCells(3)
+    cells[0]![0]![otCi(cols, '24')] = C
+    expect(computeOvertimeRounds(cells, cols)).toBe(3)
+  })
+
+  it('detects content in A/B sub-columns', () => {
+    const { cells, cols } = blankOtCells(2)
+    cells[1]![2]![otCi(cols, '22A')] = CellValue.Error
+    expect(computeOvertimeRounds(cells, cols)).toBe(2)
+  })
+
+  it('returns 1 when only regulation content exists', () => {
+    const { cells, cols } = blankOtCells(2)
+    cells[0]![0]![otCi(cols, '1')] = C
+    expect(computeOvertimeRounds(cells, cols)).toBe(1)
+  })
+
+  it('handles foul content in overtime columns', () => {
+    const { cells, cols } = blankOtCells(2)
+    cells[2]![3]![otCi(cols, '23')] = CellValue.Foul
+    expect(computeOvertimeRounds(cells, cols)).toBe(2)
   })
 })

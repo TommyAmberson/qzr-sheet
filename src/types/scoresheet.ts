@@ -19,8 +19,6 @@ export interface Quiz {
   quizNumber: number
   /** Whether overtime is enabled */
   overtime: boolean
-  /** Number of overtime rounds (each round = 3 questions) */
-  overtimeRounds: number
 }
 
 export interface Team {

@@ -36,7 +36,9 @@ A and B sub-columns for questions 16–20 auto show/hide based on errors,
 with a smooth enter animation.
 
 #### 1.7 Overtime columns (started - not working correctly)
-Questions 21–26 toggle via the overtime checkbox in quiz metadata.
+Overtime toggle enables/disables overtime columns. When disabled, no overtime
+logic at all. When enabled, additional rounds appear if quiz is tied after
+being filled out.
 
 #### 1.8 Validation ✅
 Invalid cells pulse red and the team total highlights. Checks for duplicate
