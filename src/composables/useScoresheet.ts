@@ -156,6 +156,8 @@ export function useScoresheet() {
 
   function noJumpHasConflict(colIdx: number): boolean {
     if (!noJumps.value[colIdx]) return false
+    // No-jump on an orphaned column is itself invalid
+    if (orphanedColumns.value.has(colIdx)) return true
     for (const key of validationErrors.value.keys()) {
       if (key.endsWith(`:${colIdx}`)) {
         const codes = validationErrors.value.get(key)
