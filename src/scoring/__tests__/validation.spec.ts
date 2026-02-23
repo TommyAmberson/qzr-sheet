@@ -3,6 +3,7 @@ import { CellValue, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut } from '../greyedOut'
 import { validateCells, ValidationCode } from '../validation'
 import { getOvertimeEligibleTeams } from '../overtime'
+import { computeOrphanedColumns } from '../columnVisibility'
 
 const columns = buildColumns()
 const C = CellValue.Correct
@@ -543,6 +544,45 @@ describe('cell validation', () => {
     expect(hasCode(errors, 0, 0, ci('17A'), ValidationCode.FouledOnQuestion)).toBe(true)
   })
 
+  // --- Column not active (orphaned columns) ---
+
+  it('content on A column without parent error is ColumnNotActive', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17A')] = C // no error on Q17
+    const grey = computeGreyedOut(cells, columns)
+    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
+    expect(hasCode(errors, 0, 0, ci('17A'), ValidationCode.ColumnNotActive)).toBe(true)
+  })
+
+  it('content on B column without A error is ColumnNotActive', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17B')] = B // no error on Q17A
+    const grey = computeGreyedOut(cells, columns)
+    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
+    expect(hasCode(errors, 0, 0, ci('17B'), ValidationCode.ColumnNotActive)).toBe(true)
+  })
+
+  it('content on A column with parent error is NOT ColumnNotActive', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17')] = E // error triggers 17A
+    cells[1]![0]![ci('17A')] = C
+    const grey = computeGreyedOut(cells, columns)
+    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
+    expect(hasCode(errors, 1, 0, ci('17A'), ValidationCode.ColumnNotActive)).toBe(false)
+  })
+
+  it('foul on orphaned A/B column is still ColumnNotActive', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17A')] = F // foul on orphaned column
+    const grey = computeGreyedOut(cells, columns)
+    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
+    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
+    expect(hasCode(errors, 0, 0, ci('17A'), ValidationCode.ColumnNotActive)).toBe(true)
+  })
+
   // --- Not in overtime ---
   // OT tests need columns with OT rounds so column 21+ exist
   describe('overtime validation', () => {
@@ -659,6 +699,24 @@ describe('cell validation', () => {
       // No otEligibleTeams parameter — should not flag
       const errors = validateCells(cells, otColumns, grey)
       expect(otHasCode(errors, 0, 0, otCi('21'), ValidationCode.NotInOvertime)).toBe(false)
+    })
+
+    it('content on OT column beyond visible rounds is ColumnNotActive', () => {
+      const cells = otBlankCells()
+      cells[0]![0]![otCi('21')] = C
+      const grey = computeGreyedOut(cells, otColumns)
+      const orphaned = computeOrphanedColumns(cells, otColumns, otBlankNoJumps(), 0)
+      const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), undefined, orphaned)
+      expect(otHasCode(errors, 0, 0, otCi('21'), ValidationCode.ColumnNotActive)).toBe(true)
+    })
+
+    it('content on OT column within visible rounds is NOT ColumnNotActive', () => {
+      const cells = otBlankCells()
+      cells[0]![0]![otCi('21')] = C
+      const grey = computeGreyedOut(cells, otColumns)
+      const orphaned = computeOrphanedColumns(cells, otColumns, otBlankNoJumps(), 1)
+      const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), undefined, orphaned)
+      expect(otHasCode(errors, 0, 0, otCi('21'), ValidationCode.ColumnNotActive)).toBe(false)
     })
 
     it('team not tied at highest score cannot answer OT', () => {

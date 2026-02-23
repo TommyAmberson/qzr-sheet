@@ -24,6 +24,8 @@ export enum ValidationCode {
   FouledOnQuestion = 'fouled-on-question',
   /** Non-foul answer on an overtime column by a team not eligible for overtime */
   NotInOvertime = 'not-in-overtime',
+  /** Content on a column that is not active (orphaned A/B or OT column) */
+  ColumnNotActive = 'column-not-active',
 }
 
 /**
@@ -36,6 +38,7 @@ export function validateCells(
   greyResult: GreyedOutResult,
   noJumps?: boolean[],
   otEligibleTeams?: Set<number>,
+  orphanedColumns?: Set<number>,
 ): Map<string, ValidationCode[]> {
   const errors = new Map<string, ValidationCode[]>()
   const teamCount = cellData.length
@@ -69,6 +72,11 @@ export function validateCells(
       for (let qi = 0; qi < quizzerCount; qi++) {
         const v = cellData[ti]![qi]![ci]!
         if (v === CellValue.Empty) continue
+
+        // --- Column not active (orphaned) ---
+        if (orphanedColumns?.has(ci)) {
+          addError(ti, qi, ci, ValidationCode.ColumnNotActive)
+        }
 
         // --- Not in overtime ---
         if (

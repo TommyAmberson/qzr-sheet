@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { CellValue, buildColumns, QuestionType } from '../../types/scoresheet'
-import { computeVisibleColumns } from '../columnVisibility'
+import { CellValue, buildColumns } from '../../types/scoresheet'
+import { computeVisibleColumns, computeOrphanedColumns } from '../columnVisibility'
 
 const C = CellValue.Correct
 const E = CellValue.Error
@@ -178,6 +178,150 @@ describe('computeVisibleColumns', () => {
       for (let n = 1; n <= 20; n++) {
         expect(keys).toContain(`${n}`)
       }
+    })
+  })
+})
+
+describe('computeOrphanedColumns', () => {
+  describe('A/B orphans', () => {
+    const columns = buildColumns()
+    const ci = (key: string) => {
+      const idx = columns.findIndex((c) => c.key === key)
+      if (idx === -1) throw new Error(`Column ${key} not found`)
+      return idx
+    }
+
+    it('A column with content but no parent error is orphaned', () => {
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('17A')] = C
+      const noJumps = columns.map(() => false)
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      expect(orphaned.has(ci('17A'))).toBe(true)
+    })
+
+    it('B column with content but no A error is orphaned', () => {
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('17B')] = B
+      const noJumps = columns.map(() => false)
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      expect(orphaned.has(ci('17B'))).toBe(true)
+    })
+
+    it('A column with no-jump but no parent error is orphaned', () => {
+      const cells = blankCells(columns.length)
+      const noJumps = columns.map(() => false)
+      noJumps[ci('17A')] = true
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      expect(orphaned.has(ci('17A'))).toBe(true)
+    })
+
+    it('A column triggered by parent error is NOT orphaned', () => {
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('17')] = E
+      cells[1]![0]![ci('17A')] = C
+      const noJumps = columns.map(() => false)
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      expect(orphaned.has(ci('17A'))).toBe(false)
+    })
+
+    it('B column triggered by A error is NOT orphaned', () => {
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('17')] = E
+      cells[1]![0]![ci('17A')] = E
+      cells[2]![0]![ci('17B')] = B
+      const noJumps = columns.map(() => false)
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      expect(orphaned.has(ci('17B'))).toBe(false)
+    })
+
+    it('hidden A/B columns (no content, no parent error) are NOT orphaned', () => {
+      const cells = blankCells(columns.length)
+      const noJumps = columns.map(() => false)
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      expect(orphaned.has(ci('17A'))).toBe(false)
+      expect(orphaned.has(ci('17B'))).toBe(false)
+    })
+
+    it('normal regulation columns are never orphaned', () => {
+      const cells = blankCells(columns.length)
+      const noJumps = columns.map(() => false)
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      for (let n = 1; n <= 20; n++) {
+        expect(orphaned.has(ci(`${n}`))).toBe(false)
+      }
+    })
+  })
+
+  describe('OT orphans', () => {
+    it('OT column with content beyond visible rounds is orphaned', () => {
+      const columns = buildColumns(2)
+      const ci = (key: string) => {
+        const idx = columns.findIndex((c) => c.key === key)
+        if (idx === -1) throw new Error(`Column ${key} not found`)
+        return idx
+      }
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('21')] = C
+      const noJumps = columns.map(() => false)
+      // visibleOtRounds = 0, so Q21 is beyond max
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      expect(orphaned.has(ci('21'))).toBe(true)
+    })
+
+    it('OT column with no-jump beyond visible rounds is orphaned', () => {
+      const columns = buildColumns(2)
+      const ci = (key: string) => {
+        const idx = columns.findIndex((c) => c.key === key)
+        if (idx === -1) throw new Error(`Column ${key} not found`)
+        return idx
+      }
+      const cells = blankCells(columns.length)
+      const noJumps = columns.map(() => false)
+      noJumps[ci('22')] = true
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      expect(orphaned.has(ci('22'))).toBe(true)
+    })
+
+    it('OT column within visible rounds is NOT orphaned', () => {
+      const columns = buildColumns(2)
+      const ci = (key: string) => {
+        const idx = columns.findIndex((c) => c.key === key)
+        if (idx === -1) throw new Error(`Column ${key} not found`)
+        return idx
+      }
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('21')] = C
+      const noJumps = columns.map(() => false)
+      // visibleOtRounds = 1, Q21 is within range
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 1)
+      expect(orphaned.has(ci('21'))).toBe(false)
+    })
+
+    it('empty OT column beyond visible rounds is NOT orphaned (just hidden)', () => {
+      const columns = buildColumns(2)
+      const ci = (key: string) => {
+        const idx = columns.findIndex((c) => c.key === key)
+        if (idx === -1) throw new Error(`Column ${key} not found`)
+        return idx
+      }
+      const cells = blankCells(columns.length)
+      const noJumps = columns.map(() => false)
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      expect(orphaned.has(ci('24'))).toBe(false)
+    })
+
+    it('OT A/B column with content beyond visible rounds is orphaned', () => {
+      const columns = buildColumns(1)
+      const ci = (key: string) => {
+        const idx = columns.findIndex((c) => c.key === key)
+        if (idx === -1) throw new Error(`Column ${key} not found`)
+        return idx
+      }
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('21A')] = C
+      const noJumps = columns.map(() => false)
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0)
+      expect(orphaned.has(ci('21A'))).toBe(true)
     })
   })
 })

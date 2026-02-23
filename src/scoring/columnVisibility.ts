@@ -47,6 +47,59 @@ export function abColumnNeeded(
 }
 
 /**
+ * Compute which columns are "orphaned" — visible only because they have
+ * content or a no-jump marker, not because game logic requires them.
+ *
+ * These columns should be shown so users can clear the data, but all
+ * content on them should be flagged as invalid by validation.
+ */
+export function computeOrphanedColumns(
+  cellData: CellValue[][][],
+  cols: Column[],
+  noJumps: boolean[],
+  visibleOtRounds: number,
+): Set<number> {
+  const maxOtQuestion = 20 + visibleOtRounds * 3
+  const keyToIdx = buildKeyToIdx(cols)
+  const orphaned = new Set<number>()
+
+  for (let idx = 0; idx < cols.length; idx++) {
+    const col = cols[idx]!
+
+    if (col.type === QuestionType.A || col.type === QuestionType.B) {
+      // A/B column: orphaned if visible only due to content/no-jump
+      // (i.e., parent didn't have an error to trigger it)
+      const hasContent = colHasAnyContent(cellData, idx) || noJumps[idx]
+      if (!hasContent) continue // not visible at all — not orphaned
+
+      // Check if the parent error legitimately triggers this column
+      let parentTriggered = false
+      if (col.type === QuestionType.A) {
+        const baseIdx = keyToIdx.get(`${col.number}`)
+        parentTriggered = baseIdx !== undefined && anyTeamHasValue(cellData, baseIdx, CellValue.Error)
+      } else {
+        const aIdx = keyToIdx.get(`${col.number}A`)
+        parentTriggered = aIdx !== undefined && anyTeamHasValue(cellData, aIdx, CellValue.Error)
+      }
+
+      // Also orphaned if the OT column itself is beyond visible rounds
+      const otOrphaned = col.isOvertime && col.number > maxOtQuestion
+
+      if (!parentTriggered || otOrphaned) {
+        orphaned.add(idx)
+      }
+    } else if (col.isOvertime && col.number > maxOtQuestion) {
+      // OT normal column beyond visible rounds: orphaned if has content/no-jump
+      if (colHasAnyContent(cellData, idx) || noJumps[idx]) {
+        orphaned.add(idx)
+      }
+    }
+  }
+
+  return orphaned
+}
+
+/**
  * Compute which columns should be visible in the scoresheet.
  *
  * General rule: if a column has content or a no-jump marker, always show it

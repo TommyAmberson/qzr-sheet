@@ -7,7 +7,7 @@ import { validateCells, ValidationCode } from '../scoring/validation'
 import {
   isBonusSituation,
 } from '../scoring/helpers'
-import { computeVisibleColumns, abColumnNeeded as _abColumnNeeded } from '../scoring/columnVisibility'
+import { computeVisibleColumns, computeOrphanedColumns, abColumnNeeded as _abColumnNeeded } from '../scoring/columnVisibility'
 import { getOvertimeEligibleTeams, computeOvertimeRounds, computeOtCheckpointScores, computeRegulationScores, questionsComplete } from '../scoring/overtime'
 import { computePlacements } from '../scoring/placement'
 
@@ -98,8 +98,12 @@ export function useScoresheet() {
 
   const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
 
+  const orphanedColumns = computed(() =>
+    computeOrphanedColumns(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
+  )
+
   const validationErrors = computed(() =>
-    validateCells(cells.value, columns.value, greyedOutResult.value, noJumps.value, otEligibleTeams.value),
+    validateCells(cells.value, columns.value, greyedOutResult.value, noJumps.value, otEligibleTeams.value, orphanedColumns.value),
   )
 
   // --- Query helpers (business logic the template needs) ---
