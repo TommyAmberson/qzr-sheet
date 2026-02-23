@@ -9,6 +9,7 @@ const {
   teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
   visibleColumns, allQuestionsComplete,
   validationErrors,
+  placements,
 } = useScoresheet()
 
 /** Active cell selector state */
@@ -285,6 +286,7 @@ function colGroupClass(colIdx: number): string {
               :class="['col--total', 'team-total-value', { 'cell--invalid': teamHasErrors(ti) }]"
               :rowspan="teamQuizzers[ti]?.length ?? 5"
             >
+              <span v-if="placements[ti]" class="placement-medal">{{ placements[ti] === 1 ? '🥇' : placements[ti] === 2 ? '🥈' : '🥉' }}</span>
               {{ scoring[ti]?.total ?? 0 }}
             </td>
           </tr>
@@ -673,6 +675,16 @@ thead .col--name {
 .team-total-value {
   font-size: 2.5rem;
   vertical-align: middle;
+  position: relative;
+}
+
+/* Placement medal */
+.placement-medal {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.2rem;
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 /* On-time tick */

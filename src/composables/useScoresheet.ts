@@ -10,6 +10,7 @@ import {
   isBonusSituation,
 } from '../scoring/helpers'
 import { getOvertimeEligibleTeams, computeOvertimeRounds } from '../scoring/overtime'
+import { computePlacements } from '../scoring/placement'
 
 export function useScoresheet() {
   const store = createQuizStore()
@@ -218,6 +219,13 @@ export function useScoresheet() {
     return true
   })
 
+  /** Placement medals: 1/2/3 per team, or null if quiz incomplete */
+  const placements = computed(() => {
+    const totals = scoring.value.map((s) => s.total)
+    const complete = allQuestionsComplete.value && !hasAnyErrors.value
+    return computePlacements(totals, otEligibleTeams.value, complete)
+  })
+
   /** Toggle no-jump for a column by key */
   function toggleNoJump(colIdx: number) {
     const key = columns.value[colIdx]?.key
@@ -261,5 +269,8 @@ export function useScoresheet() {
     visibleColumns,
     allQuestionsComplete,
     abColumnNeeded,
+
+    // Placements
+    placements,
   }
 }
