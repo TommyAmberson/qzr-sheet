@@ -60,6 +60,9 @@ Calculate and display placement points after quiz completion — 1st gets
 #### 1.12 Individual quizzer scores
 Show each quizzer's individual point total at the end of their row.
 
+#### 1.13 Question type dropdown
+Beneath the No Jump row, a dropdown to set the question type (INT, MA, etc.).
+
 ### Phase 1.5: Optional Core UI features
 
 #### 1.5.1 Tablet-optimized touch targets
