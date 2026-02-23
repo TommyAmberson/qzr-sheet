@@ -64,8 +64,8 @@ function closeSelector() {
 }
 
 
-/** Columns actually rendered — includes departing columns during shrink animation */
-const displayColumns = ref(visibleColumns.value.map(vc => ({ ...vc, entering: false, leaving: false })))
+/** Columns actually rendered — entering columns start collapsed, then expand */
+const displayColumns = ref(visibleColumns.value.map(vc => ({ ...vc, entering: false })))
 
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
@@ -90,8 +90,8 @@ const cellClass: Record<CellValue, string> = {
 let prevVisibleKeys = new Set(visibleColumns.value.map(({ col }) => col.key))
 
 watch(visibleColumns, (curr) => {
-  const currKeys = new Set(curr.map(({ col }) => col.key))
   const prev = prevVisibleKeys
+  prevVisibleKeys = new Set(curr.map(({ col }) => col.key))
 
   // Detect entering column keys
   const enteringKeys = new Set<string>()
@@ -99,47 +99,25 @@ watch(visibleColumns, (curr) => {
     if (!prev.has(col.key)) enteringKeys.add(col.key)
   }
 
-  // Detect leaving columns — were in prev but not in curr
-  const leavingEntries: { col: typeof columns[0]; idx: number }[] = []
-  for (const dc of displayColumns.value) {
-    if (!currKeys.has(dc.col.key) && prev.has(dc.col.key)) {
-      leavingEntries.push({ col: dc.col, idx: dc.idx })
-    }
-  }
-
-  prevVisibleKeys = currKeys
-
-  // Build new display list: current visible + leaving columns in their original position
-  const result = curr.map(vc => ({
+  // Build new display list — leaving columns are simply dropped (instant removal)
+  displayColumns.value = curr.map(vc => ({
     ...vc,
     entering: enteringKeys.has(vc.col.key),
-    leaving: false,
   }))
-  for (const le of leavingEntries) {
-    const insertAt = result.findIndex(r => r.idx > le.idx)
-    const entry = { col: le.col, idx: le.idx, entering: false, leaving: true }
-    if (insertAt === -1) result.push(entry)
-    else result.splice(insertAt, 0, entry)
-  }
-  displayColumns.value = result
 
-  // Entering columns: start collapsed, then expand on next frame
+  // Entering columns: start collapsed, then expand after the browser paints.
+  // Double-rAF ensures the collapsed state is rendered before we transition.
   if (enteringKeys.size > 0) {
     requestAnimationFrame(() => {
-      displayColumns.value = displayColumns.value.map(dc => ({
-        ...dc,
-        entering: false,
-      }))
+      requestAnimationFrame(() => {
+        displayColumns.value = displayColumns.value.map(dc => ({
+          ...dc,
+          entering: false,
+        }))
+      })
     })
   }
 })
-
-/** Remove a leaving column from displayColumns after its transition ends */
-function onColTransitionEnd(event: TransitionEvent, colKey: string) {
-  // Only react to max-width transitions to avoid double-firing
-  if (event.propertyName !== 'max-width') return
-  displayColumns.value = displayColumns.value.filter(dc => !(dc.leaving && dc.col.key === colKey))
-}
 
 const headerAnswerClass: Record<CellValue, string> = {
   [CellValue.Correct]: 'col--header-correct',
@@ -195,10 +173,9 @@ function colGroupClass(colIdx: number): string {
         <tr>
           <th class="col--name sticky-col"></th>
           <th
-            v-for="{ col, idx, entering, leaving } in displayColumns"
+            v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
-            :class="['col--question', colGroupClass(idx), headerClass(idx), { 'col--entering': entering, 'col--leaving': leaving }]"
-            @transitionend="leaving ? onColTransitionEnd($event, col.key) : undefined"
+            :class="['col--question', colGroupClass(idx), headerClass(idx), { 'col--entering': entering }]"
           >
             {{ col.label }}
           </th>
@@ -206,7 +183,7 @@ function colGroupClass(colIdx: number): string {
         </tr>
         <tr class="spacer-row">
           <td class="sticky-col"></td>
-          <td v-for="{ col, idx, entering, leaving } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering, 'col--leaving': leaving }]"></td>
+          <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
           <td></td>
         </tr>
       </thead>
@@ -234,9 +211,9 @@ function colGroupClass(colIdx: number): string {
               </span>
             </td>
             <td
-              v-for="{ col, entering, leaving } in displayColumns"
+              v-for="{ col, entering } in displayColumns"
               :key="col.key"
-              :class="['team-header-spacer', { 'col--entering': entering, 'col--leaving': leaving }]"
+              :class="['team-header-spacer', { 'col--entering': entering }]"
             ></td>
             <td class="col--name team-score-label">Score</td>
           </tr>
@@ -288,7 +265,7 @@ function colGroupClass(colIdx: number): string {
               </span>
             </td>
             <td
-              v-for="{ col, idx, entering, leaving } in displayColumns"
+              v-for="{ col, idx, entering } in displayColumns"
               :key="col.key"
               :class="[
                 'cell',
@@ -296,7 +273,7 @@ function colGroupClass(colIdx: number): string {
                 colGroupClass(idx),
                 { 'cell--greyed': ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) || (isFouledOnQuestion(ti, qi, idx) && cells[ti][qi][idx] === '') },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
-                { 'col--entering': entering, 'col--leaving': leaving },
+                { 'col--entering': entering },
               ]"
               @click="openSelector(ti, qi, idx, $event)"
             >
@@ -316,9 +293,9 @@ function colGroupClass(colIdx: number): string {
           <tr class="row--team-total">
             <td class="col--name sticky-col"></td>
             <td
-              v-for="{ col, idx, entering, leaving } in displayColumns"
+              v-for="{ col, idx, entering } in displayColumns"
               :key="col.key"
-              :class="['cell--total', colGroupClass(idx), { 'col--entering': entering, 'col--leaving': leaving }]"
+              :class="['cell--total', colGroupClass(idx), { 'col--entering': entering }]"
               style="position: relative;"
             >
               {{ scoring[ti]?.runningTotals[idx] ?? '' }}
@@ -347,7 +324,7 @@ function colGroupClass(colIdx: number): string {
           <!-- Spacer between teams -->
           <tr v-if="ti < teams.length - 1" class="spacer-row">
             <td class="sticky-col"></td>
-            <td v-for="{ col, idx, entering, leaving } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering, 'col--leaving': leaving }]"></td>
+            <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
             <td></td>
           </tr>
         </template>
@@ -357,15 +334,15 @@ function colGroupClass(colIdx: number): string {
       <tfoot>
         <tr class="spacer-row">
           <td class="sticky-col"></td>
-          <td v-for="{ col, idx, entering, leaving } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering, 'col--leaving': leaving }]"></td>
+          <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
           <td></td>
         </tr>
         <tr class="row--no-jump">
           <td class="col--name sticky-col no-jump-label">No Jump</td>
           <td
-            v-for="{ col, idx, entering, leaving } in displayColumns"
+            v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
-            :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx], 'cell--invalid': noJumpHasConflict(idx), 'col--entering': entering, 'col--leaving': leaving }]"
+            :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx], 'cell--invalid': noJumpHasConflict(idx), 'col--entering': entering }]"
             @click="toggleNoJump(idx)"
           >
             {{ noJumps[idx] ? '✗' : '' }}
@@ -801,32 +778,28 @@ thead .col--name {
   background-color: #8a8070 !important;
 }
 
-/* Column enter/leave transitions — driven by class toggle, not keyframes.
- * col--entering = initial collapsed state (added on insert, removed next frame)
- * col--leaving  = collapsed target state (added when column departs, removed on transitionend)
+/* Column enter transition — col--entering is the collapsed initial state,
+ * removed on the next frame so the cell transitions to its natural size.
+ * Leaving columns are removed from the DOM instantly (no leave animation).
  */
-.col--entering,
-.col--leaving {
+.col--entering {
+  width: 0 !important;
   max-width: 0 !important;
   min-width: 0 !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-  border-left-width: 0 !important;
-  border-right-width: 0 !important;
-  border-color: transparent !important;
+  padding: 0 !important;
+  border: none !important;
   overflow: hidden;
   opacity: 0;
-}
-.col--leaving {
-  pointer-events: none;
+  font-size: 0 !important;
+  line-height: 0 !important;
 }
 
 /* Shared transition for column enter/leave animation + cell background */
 .scoresheet th,
 .scoresheet td {
-  transition: max-width 0.3s ease, min-width 0.3s ease, padding 0.3s ease,
-              border-width 0.3s ease, border-color 0.3s ease, opacity 0.3s ease,
-              background-color 0.1s;
+  transition: width 0.3s ease, max-width 0.3s ease, min-width 0.3s ease,
+              padding 0.3s ease, opacity 0.3s ease, border 0.3s ease,
+              font-size 0.3s ease, line-height 0.3s ease, background-color 0.1s;
 }
 
 .cell--greyed {
