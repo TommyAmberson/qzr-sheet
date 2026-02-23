@@ -78,38 +78,52 @@ function closeSelector() {
 /** Hovered column index for crosshair highlight */
 const hoverCol = ref<number | null>(null)
 
-/** Drag-and-drop reorder state */
+/** Pointer-based drag reorder state */
 const dragState = ref<{ ti: number; qi: number } | null>(null)
 const dropTarget = ref<{ ti: number; qi: number } | null>(null)
+/** Map of "ti:qi" → element for hit-testing during drag */
+const quizzerRowEls = new Map<string, HTMLElement>()
 
-function onDragStart(ti: number, qi: number, event: DragEvent) {
+function registerRowEl(ti: number, qi: number, el: HTMLElement | null) {
+  const key = `${ti}:${qi}`
+  if (el) quizzerRowEls.set(key, el)
+  else quizzerRowEls.delete(key)
+}
+
+function onPointerDown(ti: number, qi: number, event: PointerEvent) {
+  event.preventDefault()
   dragState.value = { ti, qi }
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', '')
+  document.addEventListener('pointermove', onPointerMove)
+  document.addEventListener('pointerup', onPointerUp)
+}
+
+function onPointerMove(event: PointerEvent) {
+  if (!dragState.value) return
+  const ti = dragState.value.ti
+  const count = teamQuizzers.value[ti]?.length ?? 0
+  let found: number | null = null
+  for (let qi = 0; qi < count; qi++) {
+    const el = quizzerRowEls.get(`${ti}:${qi}`)
+    if (!el) continue
+    const rect = el.getBoundingClientRect()
+    if (event.clientY >= rect.top && event.clientY < rect.bottom) {
+      found = qi
+      break
+    }
+  }
+  if (found !== null && found !== dragState.value.qi) {
+    dropTarget.value = { ti, qi: found }
+  } else {
+    dropTarget.value = null
   }
 }
 
-function onDragOver(ti: number, qi: number, event: DragEvent) {
-  if (!dragState.value || dragState.value.ti !== ti) return
-  event.preventDefault()
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-  dropTarget.value = { ti, qi }
-}
-
-function onDragLeave() {
-  dropTarget.value = null
-}
-
-function onDrop(ti: number, qi: number, event: DragEvent) {
-  event.preventDefault()
-  if (!dragState.value || dragState.value.ti !== ti) return
-  moveQuizzer(ti, dragState.value.qi, qi)
-  dragState.value = null
-  dropTarget.value = null
-}
-
-function onDragEnd() {
+function onPointerUp() {
+  document.removeEventListener('pointermove', onPointerMove)
+  document.removeEventListener('pointerup', onPointerUp)
+  if (dragState.value && dropTarget.value) {
+    moveQuizzer(dragState.value.ti, dragState.value.qi, dropTarget.value.qi)
+  }
   dragState.value = null
   dropTarget.value = null
 }
@@ -284,6 +298,7 @@ function colGroupClass(colIdx: number): string {
           <tr
             v-for="(quizzer, qi) in teamQuizzers[ti]"
             :key="quizzer.id"
+            :ref="(el: any) => registerRowEl(ti, qi, el as HTMLElement)"
             :class="[
               'row--quizzer',
               { 'row--quizzed-out': scoring[ti]?.quizzers[qi]?.quizzedOut },
@@ -292,9 +307,6 @@ function colGroupClass(colIdx: number): string {
               { 'row--dragging': dragState?.ti === ti && dragState?.qi === qi },
               { 'row--drop-target': dropTarget?.ti === ti && dropTarget?.qi === qi && !(dragState?.ti === ti && dragState?.qi === qi) },
             ]"
-            @dragover="onDragOver(ti, qi, $event)"
-            @dragleave="onDragLeave"
-            @drop="onDrop(ti, qi, $event)"
           >
             <td
               colspan="2"
@@ -304,9 +316,7 @@ function colGroupClass(colIdx: number): string {
               <div class="name-cell-inner">
                 <span
                   class="drag-handle"
-                  draggable="true"
-                  @dragstart="onDragStart(ti, qi, $event)"
-                  @dragend="onDragEnd"
+                  @pointerdown="onPointerDown(ti, qi, $event)"
                 >⠿</span>
                 <input
                   class="editable-name editable-name--quizzer"
@@ -1093,10 +1103,12 @@ thead .col--name {
   border-radius: 3px;
   flex-shrink: 0;
   user-select: none;
+  touch-action: none;
   opacity: 0;
   transition: opacity 0.15s, color 0.15s;
 }
 .row--quizzer:hover .drag-handle,
+.row--dragging .drag-handle,
 .drag-handle:focus {
   opacity: 1;
 }
