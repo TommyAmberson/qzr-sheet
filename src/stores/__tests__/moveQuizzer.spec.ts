@@ -11,11 +11,11 @@ describe('moveQuizzer', () => {
     const store = createQuizStore()
     const team = store.teams[0]!
     const before = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(before).toEqual(['Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', 'Quizzer 5'])
+    expect(before).toEqual(['Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', ''])
 
     store.moveQuizzer(team.id, 0, 2)
     const after = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(after).toEqual(['Quizzer 2', 'Quizzer 3', 'Quizzer 1', 'Quizzer 4', 'Quizzer 5'])
+    expect(after).toEqual(['Quizzer 2', 'Quizzer 3', 'Quizzer 1', 'Quizzer 4', ''])
   })
 
   it('answers follow the quizzer after reorder', () => {
@@ -47,7 +47,7 @@ describe('moveQuizzer', () => {
     const team = store.teams[0]!
     store.moveQuizzer(team.id, 1, 1)
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(names).toEqual(['Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', 'Quizzer 5'])
+    expect(names).toEqual(['Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', ''])
   })
 
   it('no-op for unknown team', () => {
@@ -61,7 +61,7 @@ describe('moveQuizzer', () => {
     const team = store.teams[0]!
     store.moveQuizzer(team.id, 0, 10)
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(names).toEqual(['Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', 'Quizzer 5'])
+    expect(names).toEqual(['Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', ''])
   })
 
   it('move last to first', () => {
@@ -69,7 +69,7 @@ describe('moveQuizzer', () => {
     const team = store.teams[0]!
     store.moveQuizzer(team.id, 4, 0)
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(names).toEqual(['Quizzer 5', 'Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4'])
+    expect(names).toEqual(['', 'Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4'])
   })
 
   it('move first to last', () => {
@@ -77,7 +77,7 @@ describe('moveQuizzer', () => {
     const team = store.teams[0]!
     store.moveQuizzer(team.id, 0, 4)
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(names).toEqual(['Quizzer 2', 'Quizzer 3', 'Quizzer 4', 'Quizzer 5', 'Quizzer 1'])
+    expect(names).toEqual(['Quizzer 2', 'Quizzer 3', 'Quizzer 4', '', 'Quizzer 1'])
   })
 
   it('does not affect other teams', () => {
@@ -86,7 +86,7 @@ describe('moveQuizzer', () => {
     const team1 = store.teams[1]!
     store.moveQuizzer(team0.id, 0, 2)
     const team1Names = store.quizzersByTeam(team1.id).map((q) => q.name)
-    expect(team1Names).toEqual(['Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', 'Quizzer 5'])
+    expect(team1Names).toEqual(['Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', ''])
   })
 
   it('multiple moves compose correctly', () => {
@@ -98,7 +98,7 @@ describe('moveQuizzer', () => {
     store.moveQuizzer(team.id, 2, 0)
     // After: [Q3, Q2, Q1, Q4, Q5]
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(names).toEqual(['Quizzer 3', 'Quizzer 2', 'Quizzer 1', 'Quizzer 4', 'Quizzer 5'])
+    expect(names).toEqual(['Quizzer 3', 'Quizzer 2', 'Quizzer 1', 'Quizzer 4', ''])
   })
 
   it('adjacent swap (move down one)', () => {
@@ -106,7 +106,7 @@ describe('moveQuizzer', () => {
     const team = store.teams[0]!
     store.moveQuizzer(team.id, 1, 2)
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(names).toEqual(['Quizzer 1', 'Quizzer 3', 'Quizzer 2', 'Quizzer 4', 'Quizzer 5'])
+    expect(names).toEqual(['Quizzer 1', 'Quizzer 3', 'Quizzer 2', 'Quizzer 4', ''])
   })
 
   it('adjacent swap (move up one)', () => {
@@ -114,6 +114,6 @@ describe('moveQuizzer', () => {
     const team = store.teams[0]!
     store.moveQuizzer(team.id, 2, 1)
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(names).toEqual(['Quizzer 1', 'Quizzer 3', 'Quizzer 2', 'Quizzer 4', 'Quizzer 5'])
+    expect(names).toEqual(['Quizzer 1', 'Quizzer 3', 'Quizzer 2', 'Quizzer 4', ''])
   })
 })

@@ -44,7 +44,7 @@ function createDefaultTeams(quizId: number): { teams: Team[]; quizzers: Quizzer[
       quizzers.push({
         id: genId(),
         teamId,
-        name: `Quizzer ${q + 1}`,
+        name: q < 4 ? `Quizzer ${q + 1}` : '',
         seatOrder: q,
       })
     }

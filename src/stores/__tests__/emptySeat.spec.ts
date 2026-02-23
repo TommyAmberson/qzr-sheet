@@ -6,13 +6,14 @@ const C = CellValue.Correct
 const _ = CellValue.Empty
 
 describe('empty seat', () => {
-  it('isEmptySeat returns false for default names', () => {
+  it('isEmptySeat returns false for named quizzers, true for 5th (empty seat)', () => {
     const store = createQuizStore()
     for (const team of store.teams) {
       const qzrs = store.quizzersByTeam(team.id)
-      for (const qzr of qzrs) {
-        expect(store.isEmptySeat(qzr.id)).toBe(false)
+      for (let i = 0; i < 4; i++) {
+        expect(store.isEmptySeat(qzrs[i]!.id)).toBe(false)
       }
+      expect(store.isEmptySeat(qzrs[4]!.id)).toBe(true)
     }
   })
 

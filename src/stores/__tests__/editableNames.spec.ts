@@ -32,13 +32,14 @@ describe('editable names', () => {
 
   // --- Quizzer names ---
 
-  it('quizzers have default names', () => {
+  it('quizzers have default names (5th is empty seat)', () => {
     const store = createQuizStore()
     for (const team of store.teams) {
       const quizzers = store.quizzersByTeam(team.id)
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 4; i++) {
         expect(quizzers[i]!.name).toBe(`Quizzer ${i + 1}`)
       }
+      expect(quizzers[4]!.name).toBe('')
     }
   })
 
@@ -52,9 +53,14 @@ describe('editable names', () => {
   it('setQuizzerName does nothing for unknown quizzer', () => {
     const store = createQuizStore()
     store.setQuizzerName(999, 'Nope')
-    // No crash
-    const allNames = store.quizzers.map((q) => q.name)
-    expect(allNames.every((n) => n.startsWith('Quizzer '))).toBe(true)
+    // No crash — first 4 still have names, 5th still empty
+    for (const team of store.teams) {
+      const quizzers = store.quizzersByTeam(team.id)
+      for (let i = 0; i < 4; i++) {
+        expect(quizzers[i]!.name).toBe(`Quizzer ${i + 1}`)
+      }
+      expect(quizzers[4]!.name).toBe('')
+    }
   })
 
   it('setQuizzerName allows empty string', () => {
