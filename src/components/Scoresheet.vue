@@ -6,7 +6,7 @@ import { validationMessage } from '../scoring/validation'
 
 const {
   columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
-  isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, columnValidationMessages, quizzerHasErrors, quizzerValidationMessages, teamValidationMessages, isAfterOut, isFouledOnQuestion, toggleOnTime,
+  isEmptySeat, isBonusForTeam, isGreyedOut, isInvalid, cellValidationMessages, columnHasErrors, columnValidationMessages, quizzerHasErrors, quizzerValidationMessages, teamValidationMessages, isAfterOut, isFouledOnQuestion, toggleOnTime,
   teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
   visibleColumns, allQuestionsComplete,
   validationErrors,
@@ -405,7 +405,7 @@ function colGroupClass(colIdx: number): string {
                 'cell',
                 cellClass[cells[ti][qi][idx]],
                 colGroupClass(idx),
-                { 'cell--greyed': ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) || (isFouledOnQuestion(ti, qi, idx) && cells[ti][qi][idx] === '') },
+                { 'cell--greyed': (isEmptySeat(ti, qi) && cells[ti][qi][idx] === '') || ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) || (isFouledOnQuestion(ti, qi, idx) && cells[ti][qi][idx] === '') },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
                 { 'col--entering': entering },
                 { 'col--hover': hoverCol === idx },

@@ -80,6 +80,9 @@ export interface QuizStore {
   /** Move a quizzer from one seat to another within a team (insert, not swap) */
   moveQuizzer(teamId: number, fromSeat: number, toSeat: number): void
 
+  /** Check if a quizzer is an empty seat (blank/whitespace name) */
+  isEmptySeat(quizzerId: number): boolean
+
   /**
    * Derive the positional cell grid for scoring functions.
    * Returns cells[teamIdx][quizzerIdx][colIdx] ordered by seatOrder.
@@ -132,6 +135,11 @@ export function createQuizStore(): QuizStore {
     if (qzr) qzr.name = name
   }
 
+  function isEmptySeat(quizzerId: number): boolean {
+    const qzr = quizzers.find((q) => q.id === quizzerId)
+    return qzr ? !qzr.name.trim() : false
+  }
+
   function moveQuizzer(teamId: number, fromSeat: number, toSeat: number): void {
     if (fromSeat === toSeat) return
     const sorted = quizzersByTeam(teamId)
@@ -170,6 +178,7 @@ export function createQuizStore(): QuizStore {
     setTeamName,
     setQuizzerName,
     moveQuizzer,
+    isEmptySeat,
     cellGrid,
     get answers() {
       return [...answerMap.values()]

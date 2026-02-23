@@ -107,8 +107,22 @@ export function useScoresheet() {
     computeOrphanedColumns(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
   )
 
+  /** Set of "ti:qi" keys for quizzers with empty/blank names */
+  const emptySeats = computed(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    teamVersion.value // reactive dependency
+    const set = new Set<string>()
+    teams.value.forEach((team, ti) => {
+      const qzrs = store.quizzersByTeam(team.id)
+      qzrs.forEach((qzr, qi) => {
+        if (store.isEmptySeat(qzr.id)) set.add(`${ti}:${qi}`)
+      })
+    })
+    return set
+  })
+
   const validationErrors = computed(() =>
-    validateCells(cells.value, columns.value, greyedOutResult.value, noJumps.value, otEligibleTeams.value, orphanedColumns.value),
+    validateCells(cells.value, columns.value, greyedOutResult.value, noJumps.value, otEligibleTeams.value, orphanedColumns.value, emptySeats.value),
   )
 
   // --- Query helpers (business logic the template needs) ---
@@ -213,6 +227,16 @@ export function useScoresheet() {
       }
     }
     return CellValue.Empty
+  }
+
+  /** Check if a quizzer is an empty seat by positional indices */
+  function isEmptySeat(teamIdx: number, quizzerIdx: number): boolean {
+    const team = teams.value[teamIdx]
+    if (!team) return false
+    const qzrs = store.quizzersByTeam(team.id)
+    const qzr = qzrs[quizzerIdx]
+    if (!qzr) return false
+    return store.isEmptySeat(qzr.id)
   }
 
   function noJumpHasConflict(colIdx: number): boolean {
@@ -352,6 +376,7 @@ export function useScoresheet() {
     validationErrors,
 
     // Query helpers
+    isEmptySeat,
     isBonusForTeam,
     isGreyedOut,
     isInvalid,
