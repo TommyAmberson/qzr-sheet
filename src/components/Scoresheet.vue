@@ -108,6 +108,8 @@ function updateIndicatorWidth() {
 
 function onPointerDown(ti: number, qi: number, event: PointerEvent) {
   event.preventDefault()
+  // Clear any text selection to prevent native drag (crashes on Linux/X11)
+  window.getSelection()?.removeAllRanges()
   dragState.value = { ti, qi }
   updateIndicatorWidth()
   document.addEventListener('pointermove', onPointerMove)
@@ -251,7 +253,7 @@ function colGroupClass(colIdx: number): string {
 </script>
 
 <template>
-  <div class="scoresheet-wrapper">
+  <div class="scoresheet-wrapper" @dragstart.prevent>
     <div :class="['quiz-meta', { 'quiz-meta--error': hasAnyErrors, 'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors }]">
       <label class="meta-field">
         <span class="meta-label">Division</span>
