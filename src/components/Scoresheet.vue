@@ -61,7 +61,7 @@ function openSelector(ti: number, qi: number, ci: number, event: MouseEvent) {
   selector.value = {
     ti, qi, ci,
     x: rect.left + rect.width / 2,
-    y: rect.bottom + 4,
+    y: rect.top + rect.height / 2,
   }
 }
 
@@ -502,7 +502,7 @@ function colGroupClass(colIdx: number): string {
           <td
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
-            :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx], 'cell--invalid': noJumpHasConflict(idx), 'col--entering': entering }]"
+            :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx] && colAnswerValue(idx) === CellValue.Empty, 'cell--no-jump-answered': colAnswerValue(idx) !== CellValue.Empty, 'cell--invalid': noJumpHasConflict(idx), 'col--entering': entering }]"
             :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
             @click="toggleNoJump(idx)"
           >
@@ -560,7 +560,7 @@ function colGroupClass(colIdx: number): string {
 }
 
 .quiz-meta--error {
-  background: var(--color-error-light);
+  background: var(--color-error-alt);
   border-color: var(--color-invalid);
   border-left-color: var(--color-invalid);
 }
@@ -731,7 +731,7 @@ function colGroupClass(colIdx: number): string {
 .col--total {
   min-width: 3rem;
   font-weight: 600;
-  background: var(--color-border-light);
+  background: var(--color-border-alt);
 }
 .col--total-header {
   background: transparent !important;
@@ -751,8 +751,8 @@ function colGroupClass(colIdx: number): string {
   height: 1rem;
 }
 .spacer-row .spacer-cell {
-  border-left: 1px solid var(--color-border-light) !important;
-  border-right: 1px solid var(--color-border-light) !important;
+  border-left: 1px solid var(--color-border-alt) !important;
+  border-right: 1px solid var(--color-border-alt) !important;
 }
 
 /* Question header row — empty name cell blends with background */
@@ -768,9 +768,9 @@ thead .col--name {
   color: var(--color-text);
   font-size: 0.75rem;
   border: none;
-  border-top: 1px solid var(--color-border-light);
-  border-left: 1px solid var(--color-border-light);
-  border-right: 1px solid var(--color-border-light);
+  border-top: 1px solid var(--color-border-alt);
+  border-left: 1px solid var(--color-border-alt);
+  border-right: 1px solid var(--color-border-alt);
 }
 .col--question.col--ab {
   border-top: 2px solid var(--color-ab-border);
@@ -793,7 +793,7 @@ thead .col--name {
   color: var(--color-missed-bonus) !important;
 }
 .col--header-no-jump {
-  color: var(--color-no-jump) !important;
+  color: var(--palette-no-jump) !important;
   text-decoration: line-through;
 }
 .col--header-invalid {
@@ -810,8 +810,8 @@ thead .col--name {
 .team-header-spacer {
   background: transparent !important;
   border: none !important;
-  border-left: 1px solid var(--color-border-light) !important;
-  border-right: 1px solid var(--color-border-light) !important;
+  border-left: 1px solid var(--color-border-alt) !important;
+  border-right: 1px solid var(--color-border-alt) !important;
 }
 .team-score-label {
   background: transparent !important;
@@ -828,8 +828,8 @@ thead .col--name {
 .row--team-header .team-name {
   font-weight: 700;
   font-size: 0.85rem;
-  background: var(--color-text);
-  color: var(--color-team-white);
+  background: var(--color-text-muted);
+  color: var(--color-bg-warm);
   text-align: left;
   padding-left: 0.5rem;
   border-radius: 4px;
@@ -869,8 +869,8 @@ thead .col--name {
   border: none !important;
 }
 .row--team-total .cell--total {
-  border-left: 1px solid var(--color-border-light) !important;
-  border-right: 1px solid var(--color-border-light) !important;
+  border-left: 1px solid var(--color-border-alt) !important;
+  border-right: 1px solid var(--color-border-alt) !important;
 }
 .row--team-total .sticky-col {
   background: transparent;
@@ -902,7 +902,7 @@ thead .col--name {
   transition: background 0.15s;
 }
 .on-time:hover {
-  background: var(--color-border-light);
+  background: var(--color-border-alt);
 }
 .on-time-box {
   display: inline-flex;
@@ -962,6 +962,12 @@ thead .col--name {
   outline-offset: -2px;
 }
 .cell--no-jump-active {
+  background: var(--color-no-jump-alt) !important;
+  color: var(--color-no-jump) !important;
+  font-size: 0.9rem;
+  opacity: 1;
+}
+.cell--no-jump-answered {
   background: repeating-linear-gradient(
     -45deg,
     var(--color-grey-stripe-a),
@@ -970,6 +976,10 @@ thead .col--name {
     var(--color-grey-stripe-b) 6px
   ) !important;
   opacity: 0.6;
+  cursor: default;
+}
+.cell--no-jump-answered:hover {
+  outline: none;
 }
 
 /* Cell values */
@@ -995,23 +1005,23 @@ thead .col--name {
 }
 
 .cell--correct {
-  color: var(--color-bg);
+  color: var(--color-correct-alt);
   background-color: var(--color-correct) !important;
 }
 .cell--error {
-  color: var(--color-bg);
+  color: var(--color-error-alt);
   background-color: var(--color-error) !important;
 }
 .cell--foul {
-  color: var(--color-bg);
+  color: var(--color-foul-alt);
   background-color: var(--color-foul) !important;
 }
 .cell--bonus {
-  color: var(--color-bg);
+  color: var(--color-bonus-alt);
   background-color: var(--color-bonus) !important;
 }
 .cell--missed-bonus {
-  color: var(--color-bg);
+  color: var(--color-missed-bonus-alt);
   background-color: var(--color-missed-bonus) !important;
 }
 
@@ -1048,7 +1058,6 @@ thead .col--name {
     var(--color-grey-stripe-b) 6px
   ) !important;
   cursor: default;
-  opacity: 0.6;
 }
 .cell--greyed:hover {
   outline: none;
@@ -1061,7 +1070,7 @@ thead .col--name {
 }
 @keyframes pulse-invalid {
   0%, 100% { outline-color: var(--color-invalid); }
-  50% { outline-color: var(--color-invalid-light); }
+  50% { outline-color: var(--color-invalid-alt); }
 }
 
 /* Running total badges */
@@ -1087,8 +1096,8 @@ thead .col--name {
   border: none !important;
 }
 .cell--total-ontime {
-  border-left: 1px solid var(--color-border-light) !important;
-  border-right: 1px solid var(--color-border-light) !important;
+  border-left: 1px solid var(--color-border-alt) !important;
+  border-right: 1px solid var(--color-border-alt) !important;
 }
 
 .running-total-badge {
@@ -1157,7 +1166,7 @@ thead .col--name {
 }
 .drag-handle:hover {
   color: var(--color-text-muted);
-  background: var(--color-border-light);
+  background: var(--color-border-alt);
 }
 .drag-handle:active {
   cursor: grabbing;
@@ -1237,7 +1246,7 @@ thead .col--name {
   display: inline-flex;
 }
 .name-clear:hover {
-  background: var(--color-border-light);
+  background: var(--color-border-alt);
   color: var(--color-error);
 }
 
@@ -1268,7 +1277,7 @@ thead .col--name {
 }
 .stat-badge--quizout-bonus {
   background: var(--color-correct);
-  box-shadow: 0 0 0 2px var(--color-correct-light);
+  box-shadow: 0 0 0 2px var(--color-correct-alt);
 }
 .stat-badge--errorout {
   background: var(--color-error);
@@ -1294,15 +1303,15 @@ thead .col--name {
 }
 .stat-count--correct {
   color: var(--color-correct);
-  background: var(--color-correct-light);
+  background: var(--color-correct-alt);
 }
 .stat-count--error {
   color: var(--color-error);
-  background: var(--color-error-light);
+  background: var(--color-error-alt);
 }
 .stat-count--foul {
   color: var(--color-foul);
-  background: var(--color-foul-light);
+  background: var(--color-foul-alt);
 }
 
 
@@ -1318,12 +1327,13 @@ thead .col--name {
 
 .selector-popup {
   position: fixed;
-  transform: translateX(-50%);
-  display: flex;
+  transform: translate(-50%, -50%);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 2px;
   padding: 3px;
   background: var(--color-bg);
-  border: 1px solid var(--color-border-light);
+  border: 1px solid var(--color-border-alt);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 101;
@@ -1386,6 +1396,6 @@ thead .col--name {
   color: var(--color-no-jump);
 }
 .opt--clear:hover {
-  background: var(--color-border-light);
+  background: var(--color-border-alt);
 }
 </style>
