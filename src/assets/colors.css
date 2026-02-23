@@ -10,6 +10,7 @@
   --color-bonus: #3d7a7a;
   --color-missed-bonus: #7a7568;
   --color-no-jump: #a8a290;
+  --color-no-jump-light: #e8e6df;
 
   /* Validation — bright, stands out from the earthy palette */
   --color-invalid: #dc2626;

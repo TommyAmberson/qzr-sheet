@@ -502,7 +502,7 @@ function colGroupClass(colIdx: number): string {
           <td
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
-            :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx], 'cell--invalid': noJumpHasConflict(idx), 'col--entering': entering }]"
+            :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx] && colAnswerValue(idx) === CellValue.Empty, 'cell--no-jump-answered': colAnswerValue(idx) !== CellValue.Empty, 'cell--invalid': noJumpHasConflict(idx), 'col--entering': entering }]"
             :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
             @click="toggleNoJump(idx)"
           >
@@ -962,6 +962,11 @@ thead .col--name {
   outline-offset: -2px;
 }
 .cell--no-jump-active {
+  background: var(--color-no-jump) !important;
+  color: var(--color-bg) !important;
+  opacity: 1;
+}
+.cell--no-jump-answered {
   background: repeating-linear-gradient(
     -45deg,
     var(--color-grey-stripe-a),
@@ -970,6 +975,10 @@ thead .col--name {
     var(--color-grey-stripe-b) 6px
   ) !important;
   opacity: 0.6;
+  cursor: default;
+}
+.cell--no-jump-answered:hover {
+  outline: none;
 }
 
 /* Cell values */
