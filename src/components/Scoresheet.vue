@@ -181,7 +181,7 @@ function colGroupClass(colIdx: number): string {
           <th
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
-            :class="['col--question', colGroupClass(idx), headerClass(idx), { 'col--entering': entering, 'col--hover': hoverCol === idx }]"
+            :class="['col--question', colGroupClass(idx), headerClass(idx), { 'col--entering': entering, 'col--hover': hoverCol === idx || selector?.ci === idx }]"
             :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
           >
             {{ col.label }}
@@ -237,7 +237,7 @@ function colGroupClass(colIdx: number): string {
             ]"
           >
             <td
-              :class="['col--name', 'sticky-col', { 'cell--invalid': quizzerHasErrors(ti, qi) }]"
+              :class="['col--name', 'sticky-col', { 'cell--invalid': quizzerHasErrors(ti, qi), 'col--name--active': selector?.ti === ti && selector?.qi === qi }]"
               :title="quizzerHasErrors(ti, qi) ? quizzerValidationMessages(ti, qi).join('\n') : undefined"
             >
               <span class="quizzer-name">{{ quizzer.name }}</span>
@@ -779,7 +779,8 @@ thead .col--name {
 }
 
 /* Crosshair highlight — quizzer name + question header only */
-.row--quizzer:hover > .col--name {
+.row--quizzer:hover > .col--name,
+.col--name--active {
   outline: 2px solid var(--color-border);
   outline-offset: -2px;
 }
