@@ -1,4 +1,11 @@
-import { CellValue, QuestionType, type Column } from '../types/scoresheet'
+import { CellValue, QuestionType, KEY_TO_IDX, type Column } from '../types/scoresheet'
+import {
+  teamHasValue as _teamHasValue,
+  teamHasAnswer as _teamHasAnswer,
+  anyTeamHasAnswer as _anyTeamHasAnswer,
+  anyTeamHasValue as _anyTeamHasValue,
+  isResolved as _isResolved,
+} from './helpers'
 
 /**
  * Compute which cells are greyed out (disabled).
@@ -19,6 +26,8 @@ export interface GreyedOutResult {
   tossedUp: Set<string>
   /** Quizzers who fouled on a question and can't answer sub-parts: Set of "teamIdx:quizzerIdx:colIdx" */
   fouledQuizzers: Set<string>
+  /** Column indices disabled because a parent (Normal or A) was resolved (C/B/MB cascade): Set of colIdx */
+  cascadeDisabled: Set<number>
 }
 
 export function computeGreyedOut(
@@ -26,38 +35,15 @@ export function computeGreyedOut(
   cols: Column[],
 ): GreyedOutResult {
   const disabled = new Set<string>()
+  const cascadeDisabled = new Set<number>()
   const teamCount = cellData.length
 
-  function teamHasValue(teamIdx: number, colIdx: number, value: CellValue): boolean {
-    for (const row of cellData[teamIdx]!) {
-      if (row[colIdx] === value) return true
-    }
-    return false
-  }
-
-  function teamHasAnswer(teamIdx: number, colIdx: number): boolean {
-    for (const row of cellData[teamIdx]!) {
-      const v = row[colIdx]
-      if (v !== CellValue.Empty && v !== CellValue.Foul) return true
-    }
-    return false
-  }
-
-  function anyTeamHasAnswer(colIdx: number): boolean {
-    for (let ti = 0; ti < teamCount; ti++) {
-      if (teamHasAnswer(ti, colIdx)) return true
-    }
-    return false
-  }
-
-  function anyTeamHasValue(colIdx: number, value: CellValue): boolean {
-    for (let ti = 0; ti < teamCount; ti++) {
-      for (const row of cellData[ti]!) {
-        if (row[colIdx] === value) return true
-      }
-    }
-    return false
-  }
+  // Bind helpers to this cellData for convenience
+  const teamHasValue = (ti: number, ci: number, v: CellValue) => _teamHasValue(cellData, ti, ci, v)
+  const teamHasAnswer = (ti: number, ci: number) => _teamHasAnswer(cellData, ti, ci)
+  const anyTeamHasAnswer = (ci: number) => _anyTeamHasAnswer(cellData, ci)
+  const anyTeamHasValue = (ci: number, v: CellValue) => _anyTeamHasValue(cellData, ci, v)
+  const isResolved = (ci: number) => _isResolved(cellData, ci)
 
   function greyAllTeams(colIdx: number) {
     for (let ti = 0; ti < teamCount; ti++) {
@@ -65,17 +51,14 @@ export function computeGreyedOut(
     }
   }
 
-  const keyToIdx = new Map<string, number>()
-  cols.forEach((col, i) => keyToIdx.set(col.key, i))
-
   /** Find the next question column index */
   function nextQuestion(col: Column): number | undefined {
     if (col.isAB) {
-      if (col.type === QuestionType.Normal) return keyToIdx.get(`${col.number}A`)
-      if (col.type === QuestionType.A) return keyToIdx.get(`${col.number}B`)
-      return keyToIdx.get(`${col.number + 1}`)
+      if (col.type === QuestionType.Normal) return KEY_TO_IDX.get(`${col.number}A`)
+      if (col.type === QuestionType.A) return KEY_TO_IDX.get(`${col.number}B`)
+      return KEY_TO_IDX.get(`${col.number + 1}`)
     }
-    return keyToIdx.get(`${col.number + 1}`)
+    return KEY_TO_IDX.get(`${col.number + 1}`)
   }
 
   // Track which teams are tossed-up (can't jump) per column due to error chain.
@@ -94,30 +77,18 @@ export function computeGreyedOut(
 
     // 2. If a base question (Normal) was resolved (C/B/MB), grey out A and B.
     //    Errors don't resolve — they lead to toss-ups on A.
-    if (col.type === QuestionType.Normal && col.isAB) {
-      const resolved =
-        anyTeamHasValue(colIdx, CellValue.Correct) ||
-        anyTeamHasValue(colIdx, CellValue.Bonus) ||
-        anyTeamHasValue(colIdx, CellValue.MissedBonus)
-      if (resolved) {
-        const aIdx = keyToIdx.get(`${col.number}A`)
-        const bIdx = keyToIdx.get(`${col.number}B`)
-        if (aIdx !== undefined) greyAllTeams(aIdx)
-        if (bIdx !== undefined) greyAllTeams(bIdx)
-      }
+    if (col.type === QuestionType.Normal && col.isAB && isResolved(colIdx)) {
+      const aIdx = KEY_TO_IDX.get(`${col.number}A`)
+      const bIdx = KEY_TO_IDX.get(`${col.number}B`)
+      if (aIdx !== undefined) { greyAllTeams(aIdx); cascadeDisabled.add(aIdx) }
+      if (bIdx !== undefined) { greyAllTeams(bIdx); cascadeDisabled.add(bIdx) }
     }
 
     // 3. If an A question was resolved (C/B/MB), grey out B.
     //    Errors don't resolve — they lead to toss-ups on B.
-    if (col.type === QuestionType.A) {
-      const resolved =
-        anyTeamHasValue(colIdx, CellValue.Correct) ||
-        anyTeamHasValue(colIdx, CellValue.Bonus) ||
-        anyTeamHasValue(colIdx, CellValue.MissedBonus)
-      if (resolved) {
-        const bIdx = keyToIdx.get(`${col.number}B`)
-        if (bIdx !== undefined) greyAllTeams(bIdx)
-      }
+    if (col.type === QuestionType.A && isResolved(colIdx)) {
+      const bIdx = KEY_TO_IDX.get(`${col.number}B`)
+      if (bIdx !== undefined) { greyAllTeams(bIdx); cascadeDisabled.add(bIdx) }
     }
 
     // 4. Toss-up greying: teams in tossedUp set are greyed on this column
@@ -131,10 +102,7 @@ export function computeGreyedOut(
 
     // Only errors cause toss-ups and carry-forward — not B/MB
     const hasError = anyTeamHasValue(colIdx, CellValue.Error)
-    const resolved =
-      anyTeamHasValue(colIdx, CellValue.Correct) ||
-      anyTeamHasValue(colIdx, CellValue.Bonus) ||
-      anyTeamHasValue(colIdx, CellValue.MissedBonus)
+    const resolved = isResolved(colIdx)
 
     for (let ti = 0; ti < teamCount; ti++) {
       // If this team errored, they can't jump on the next question
@@ -177,14 +145,14 @@ export function computeGreyedOut(
 
         // Foul on Normal → grey this quizzer on A and B
         if (col.type === QuestionType.Normal) {
-          const aIdx = keyToIdx.get(`${col.number}A`)
-          const bIdx = keyToIdx.get(`${col.number}B`)
+          const aIdx = KEY_TO_IDX.get(`${col.number}A`)
+          const bIdx = KEY_TO_IDX.get(`${col.number}B`)
           if (aIdx !== undefined) fouledQuizzers.add(`${ti}:${qi}:${aIdx}`)
           if (bIdx !== undefined) fouledQuizzers.add(`${ti}:${qi}:${bIdx}`)
         }
         // Foul on A → grey this quizzer on B
         if (col.type === QuestionType.A) {
-          const bIdx = keyToIdx.get(`${col.number}B`)
+          const bIdx = KEY_TO_IDX.get(`${col.number}B`)
           if (bIdx !== undefined) fouledQuizzers.add(`${ti}:${qi}:${bIdx}`)
         }
         // Foul on B → nothing further
@@ -192,5 +160,5 @@ export function computeGreyedOut(
     }
   }
 
-  return { disabled, tossedUp: tossedUpSet, fouledQuizzers }
+  return { disabled, tossedUp: tossedUpSet, fouledQuizzers, cascadeDisabled }
 }

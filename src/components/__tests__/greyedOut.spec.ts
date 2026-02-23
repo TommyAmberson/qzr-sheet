@@ -323,4 +323,69 @@ describe('greyed-out logic', () => {
     expect(result.fouledQuizzers.has(`2:1:${ci('16A')}`)).toBe(true)
     expect(result.fouledQuizzers.has(`2:1:${ci('16B')}`)).toBe(true)
   })
+
+  // --- cascadeDisabled ---
+
+  it('cascadeDisabled includes A and B when base question is correct', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17')] = C
+    const result = computeGreyedOut(cells, columns)
+    expect(result.cascadeDisabled.has(ci('17A'))).toBe(true)
+    expect(result.cascadeDisabled.has(ci('17B'))).toBe(true)
+  })
+
+  it('cascadeDisabled includes B when A is resolved (correct)', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17')] = E  // error on base → toss-up to A
+    cells[1]![0]![ci('17A')] = C // A correct → B disabled
+    const result = computeGreyedOut(cells, columns)
+    expect(result.cascadeDisabled.has(ci('17A'))).toBe(false) // A was the toss-up, not cascade-disabled
+    expect(result.cascadeDisabled.has(ci('17B'))).toBe(true)
+  })
+
+  it('cascadeDisabled includes A and B when base is bonus (B answer)', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('16')] = B // bonus on base
+    const result = computeGreyedOut(cells, columns)
+    expect(result.cascadeDisabled.has(ci('16A'))).toBe(true)
+    expect(result.cascadeDisabled.has(ci('16B'))).toBe(true)
+  })
+
+  it('cascadeDisabled includes A and B when base is missed bonus (MB)', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('16')] = MB
+    const result = computeGreyedOut(cells, columns)
+    expect(result.cascadeDisabled.has(ci('16A'))).toBe(true)
+    expect(result.cascadeDisabled.has(ci('16B'))).toBe(true)
+  })
+
+  it('cascadeDisabled includes B when A is bonus/missed-bonus', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('18')] = E   // error on base
+    cells[1]![0]![ci('18A')] = MB // missed bonus on A → B disabled
+    const result = computeGreyedOut(cells, columns)
+    expect(result.cascadeDisabled.has(ci('18B'))).toBe(true)
+  })
+
+  it('cascadeDisabled does NOT include A when base has error (toss-up, not cascade)', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('17')] = E // error on base
+    const result = computeGreyedOut(cells, columns)
+    expect(result.cascadeDisabled.has(ci('17A'))).toBe(false)
+    expect(result.cascadeDisabled.has(ci('17B'))).toBe(false)
+  })
+
+  it('cascadeDisabled does NOT include non-AB columns', () => {
+    const cells = blankCells()
+    cells[0]![0]![ci('1')] = C
+    const result = computeGreyedOut(cells, columns)
+    // Q2 is not cascade-disabled, it's just a different question
+    expect(result.cascadeDisabled.has(ci('2'))).toBe(false)
+  })
+
+  it('cascadeDisabled is empty for a clean sheet', () => {
+    const cells = blankCells()
+    const result = computeGreyedOut(cells, columns)
+    expect(result.cascadeDisabled.size).toBe(0)
+  })
 })

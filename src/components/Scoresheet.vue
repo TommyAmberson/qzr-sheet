@@ -3,23 +3,16 @@ import { computed, ref, watch } from 'vue'
 import { CellValue, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 
-const { columns, teams, cells, noJumps, quizMeta, scoring, setCell, toggleNoJump, columnGroups } = useScoresheet()
+const {
+  columns, quiz, teams, teamQuizzers, cells, noJumps, scoring, setCell, toggleNoJump,
+  isBonusForTeam, isGreyedOut, isInvalid, isAfterOut, isFouledOnQuestion,
+  teamHasErrors, hasAnyErrors, colAnswerValue, noJumpHasConflict,
+  visibleColumns, allQuestionsComplete,
+  validationErrors,
+} = useScoresheet()
 
 /** Active cell selector state */
 const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
-
-/** Check if a column is a bonus situation for a given team
- *  (team is the only one not tossed-up on that column) */
-function isBonusForTeam(teamIdx: number, colIdx: number): boolean {
-  const teamCount = teams.value.length
-  let tossedTeams = 0
-  for (let ti = 0; ti < teamCount; ti++) {
-    if (ti !== teamIdx && tossedUpSet.value.has(`${ti}:${colIdx}`)) {
-      tossedTeams++
-    }
-  }
-  return tossedTeams === teamCount - 1
-}
 
 const bonusOptions = [
   { value: CellValue.Bonus, label: 'B', cls: 'opt--bonus' },
@@ -70,132 +63,9 @@ function closeSelector() {
   selector.value = null
 }
 
-import { computeGreyedOut } from '../scoring/greyedOut'
-import { validateCells, ValidationCode } from '../scoring/validation'
 
-const greyedOutResult = computed(() => computeGreyedOut(cells.value, columns))
-const greyedOut = computed(() => greyedOutResult.value.disabled)
-const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
-const fouledQuizzers = computed(() => greyedOutResult.value.fouledQuizzers)
-
-const validationErrors = computed(() => validateCells(cells.value, columns, greyedOutResult.value, noJumps.value))
-
-/** Check if a cell should be greyed out */
-function isGreyedOut(teamIdx: number, colIdx: number): boolean {
-  return greyedOut.value.has(`${teamIdx}:${colIdx}`)
-}
-
-/** Check if a cell has validation errors */
-function isInvalid(ti: number, qi: number, ci: number): boolean {
-  return validationErrors.value.has(`${ti}:${qi}:${ci}`)
-}
-
-/** Check if a cell is after the quizzer's out column (empty cells greyed) */
-function isAfterOut(ti: number, qi: number, colIdx: number): boolean {
-  const qs = scoring.value[ti]?.quizzers[qi]
-  if (!qs || qs.outAfterCol < 0 || colIdx <= qs.outAfterCol) return false
-  if (cells.value[ti][qi][colIdx] !== CellValue.Empty) return false
-  // Quiz-out: stays on bench, can still answer bonus (B columns or bonus situations)
-  if (qs.quizzedOut && !qs.erroredOut) {
-    if (columns[colIdx]?.type === QuestionType.B || isBonusForTeam(ti, colIdx)) return false
-  }
-  return true
-}
-
-/** Check if a quizzer is blocked from this column due to fouling on the same question */
-function isFouledOnQuestion(ti: number, qi: number, colIdx: number): boolean {
-  return fouledQuizzers.value.has(`${ti}:${qi}:${colIdx}`)
-}
-
-/** Check if a team has any validation errors */
-function teamHasErrors(ti: number): boolean {
-  for (const key of validationErrors.value.keys()) {
-    if (key.startsWith(`${ti}:`)) return true
-  }
-  return false
-}
-
-/** Whether any validation errors exist across the whole sheet */
-const hasAnyErrors = computed(() => validationErrors.value.size > 0)
-
-/** Whether all required questions are resolved */
-const allQuestionsComplete = computed(() => {
-  for (let ci = 0; ci < columns.length; ci++) {
-    const col = columns[ci]!
-    // Skip overtime columns when overtime is off
-    if (col.isOvertime && !quizMeta.value.overtime) continue
-    // Skip A/B columns that aren't needed
-    if ((col.type === QuestionType.A || col.type === QuestionType.B) && !abColumnNeeded(ci)) continue
-    // Column is complete if it has an answer or is no-jumped
-    if (noJumps.value[ci]) continue
-    if (colAnswerValue(ci) !== CellValue.Empty) continue
-    return false
-  }
-  return true
-})
-
-/** Check if a no-jump column has any answers (conflict) */
-function noJumpHasConflict(colIdx: number): boolean {
-  if (!noJumps.value[colIdx]) return false
-  for (const key of validationErrors.value.keys()) {
-    if (key.endsWith(`:${colIdx}`)) {
-      const codes = validationErrors.value.get(key)
-      if (codes?.includes(ValidationCode.NoJump)) return true
-    }
-  }
-  return false
-}
-
-/** Check if any team has a specific value on a column */
-function anyTeamHasValue(colIdx: number, value: CellValue): boolean {
-  for (const team of cells.value) {
-    for (const row of team) {
-      if (row[colIdx] === value) return true
-    }
-  }
-  return false
-}
-
-/** Check if any cell on a column is non-empty */
-function colHasAnyContent(colIdx: number): boolean {
-  for (const team of cells.value) {
-    for (const row of team) {
-      if (row[colIdx] !== CellValue.Empty) return true
-    }
-  }
-  return false
-}
-
-/** Check if an A/B column is needed (parent has error or column already has answers) */
-function abColumnNeeded(colIdx: number): boolean {
-  if (colHasAnyContent(colIdx)) return true
-
-  const col = columns[colIdx]!
-  if (col.type === QuestionType.A) {
-    // Show A if the base question has an error (unresolved)
-    const baseIdx = columns.findIndex(c => c.key === `${col.number}`)
-    return baseIdx !== -1 && anyTeamHasValue(baseIdx, CellValue.Error)
-  }
-  if (col.type === QuestionType.B) {
-    // Show B if the A question has an error
-    const aIdx = columns.findIndex(c => c.key === `${col.number}A`)
-    return aIdx !== -1 && anyTeamHasValue(aIdx, CellValue.Error)
-  }
-  return false
-}
-
-const visibleColumns = computed(() =>
-  columns.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
-    // Overtime columns: only when overtime enabled
-    if (col.isOvertime) return quizMeta.value.overtime
-    // A/B sub-columns: only when needed
-    if (col.type === QuestionType.A || col.type === QuestionType.B) return abColumnNeeded(idx)
-    return true
-  }),
-)
-
-/** Columns actually rendered — includes departing columns during shrink animation */
-const displayColumns = ref(visibleColumns.value.map(vc => ({ ...vc, leaving: false })))
+/** Columns actually rendered — entering columns start collapsed, then expand */
+const displayColumns = ref(visibleColumns.value.map(vc => ({ ...vc, entering: false })))
 
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
@@ -217,67 +87,37 @@ const cellClass: Record<CellValue, string> = {
   [CellValue.Empty]: '',
 }
 
-/** Track which column indices are entering or leaving for animation */
-const enteringCols = ref(new Set<number>())
-const leavingCols = ref(new Set<number>())
 let prevVisibleKeys = new Set(visibleColumns.value.map(({ col }) => col.key))
 
 watch(visibleColumns, (curr) => {
-  const currKeys = new Set(curr.map(({ col }) => col.key))
   const prev = prevVisibleKeys
+  prevVisibleKeys = new Set(curr.map(({ col }) => col.key))
 
-  // Detect entering columns
-  const entering = new Set<number>()
-  for (const { col, idx } of curr) {
-    if (!prev.has(col.key)) entering.add(idx)
+  // Detect entering column keys
+  const enteringKeys = new Set<string>()
+  for (const { col } of curr) {
+    if (!prev.has(col.key)) enteringKeys.add(col.key)
   }
 
-  // Detect leaving columns — were in prev but not in curr
-  const leavingEntries: { col: typeof columns[0]; idx: number }[] = []
-  for (const dc of displayColumns.value) {
-    if (!currKeys.has(dc.col.key) && prev.has(dc.col.key)) {
-      leavingEntries.push({ col: dc.col, idx: dc.idx })
-    }
-  }
+  // Build new display list — leaving columns are simply dropped (instant removal)
+  displayColumns.value = curr.map(vc => ({
+    ...vc,
+    entering: enteringKeys.has(vc.col.key),
+  }))
 
-  prevVisibleKeys = currKeys
-
-  // Build new display list: current visible + leaving columns in their original position
-  const result = curr.map(vc => ({ ...vc, leaving: false }))
-  for (const le of leavingEntries) {
-    // Insert at the right position by idx
-    const insertAt = result.findIndex(r => r.idx > le.idx)
-    const entry = { col: le.col, idx: le.idx, leaving: true }
-    if (insertAt === -1) result.push(entry)
-    else result.splice(insertAt, 0, entry)
-  }
-  displayColumns.value = result
-
-  // Set animation classes
-  if (entering.size > 0) {
-    enteringCols.value = entering
-    setTimeout(() => { enteringCols.value = new Set() }, 400)
-  }
-  if (leavingEntries.length > 0) {
-    leavingCols.value = new Set(leavingEntries.map(e => e.idx))
-    // Remove leaving columns from display after animation
-    setTimeout(() => {
-      displayColumns.value = displayColumns.value.filter(dc => !dc.leaving)
-      leavingCols.value = new Set()
-    }, 350)
+  // Entering columns: start collapsed, then expand after the browser paints.
+  // Double-rAF ensures the collapsed state is rendered before we transition.
+  if (enteringKeys.size > 0) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        displayColumns.value = displayColumns.value.map(dc => ({
+          ...dc,
+          entering: false,
+        }))
+      })
+    })
   }
 })
-
-/** Get the answer value for a column (first non-empty, non-foul value) */
-function colAnswerValue(colIdx: number): CellValue {
-  for (const team of cells.value) {
-    for (const row of team) {
-      const v = row[colIdx]
-      if (v !== CellValue.Empty && v !== CellValue.Foul) return v
-    }
-  }
-  return CellValue.Empty
-}
 
 const headerAnswerClass: Record<CellValue, string> = {
   [CellValue.Correct]: 'col--header-correct',
@@ -295,15 +135,13 @@ function headerClass(colIdx: number): string {
   return ''
 }
 
-/** Column CSS class for visual grouping */
+/** Column CSS class for visual grouping (no animation — that's on the display entry) */
 function colGroupClass(colIdx: number): string {
   const col = columns[colIdx]
   if (!col) return ''
   const classes: string[] = []
   if (col.isOvertime) classes.push('col--overtime')
   else if (col.isAB && col.isErrorPoints) classes.push('col--ab')
-  if (enteringCols.value.has(colIdx)) classes.push('col--appear')
-  if (leavingCols.value.has(colIdx)) classes.push('col--leave')
   return classes.join(' ')
 }
 
@@ -314,16 +152,16 @@ function colGroupClass(colIdx: number): string {
     <div :class="['quiz-meta', { 'quiz-meta--error': hasAnyErrors, 'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors }]">
       <label class="meta-field">
         <span class="meta-label">Division</span>
-        <input v-model.number="quizMeta.division" type="number" min="1" />
+        <input v-model.number="quiz.division" type="number" min="1" />
       </label>
       <span class="meta-sep">·</span>
       <label class="meta-field">
         <span class="meta-label">Quiz</span>
-        <input v-model.number="quizMeta.quizNumber" type="number" min="1" />
+        <input v-model.number="quiz.quizNumber" type="number" min="1" />
       </label>
       <span class="meta-sep">·</span>
       <label class="meta-field meta-field--toggle">
-        <input v-model="quizMeta.overtime" type="checkbox" />
+        <input v-model="quiz.overtime" type="checkbox" />
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
         <span class="meta-label">Overtime</span>
       </label>
@@ -335,16 +173,18 @@ function colGroupClass(colIdx: number): string {
         <tr>
           <th class="col--name sticky-col"></th>
           <th
-            v-for="{ col, idx } in displayColumns"
+            v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
-            :class="['col--question', colGroupClass(idx), headerClass(idx)]"
+            :class="['col--question', colGroupClass(idx), headerClass(idx), { 'col--entering': entering }]"
           >
             {{ col.label }}
           </th>
           <th class="col--total col--total-header"></th>
         </tr>
         <tr class="spacer-row">
-          <td :colspan="displayColumns.length + 2"></td>
+          <td class="sticky-col"></td>
+          <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
+          <td></td>
         </tr>
       </thead>
 
@@ -371,16 +211,16 @@ function colGroupClass(colIdx: number): string {
               </span>
             </td>
             <td
-              v-for="{ col } in displayColumns"
+              v-for="{ col, entering } in displayColumns"
               :key="col.key"
-              class="team-header-spacer"
+              :class="['team-header-spacer', { 'col--entering': entering }]"
             ></td>
             <td class="col--name team-score-label">Score</td>
           </tr>
 
           <!-- Quizzer rows -->
           <tr
-            v-for="(quizzer, qi) in team.quizzers"
+            v-for="(quizzer, qi) in teamQuizzers[ti]"
             :key="quizzer.id"
             :class="[
               'row--quizzer',
@@ -425,7 +265,7 @@ function colGroupClass(colIdx: number): string {
               </span>
             </td>
             <td
-              v-for="{ col, idx } in displayColumns"
+              v-for="{ col, idx, entering } in displayColumns"
               :key="col.key"
               :class="[
                 'cell',
@@ -433,6 +273,7 @@ function colGroupClass(colIdx: number): string {
                 colGroupClass(idx),
                 { 'cell--greyed': ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') || isAfterOut(ti, qi, idx) || (isFouledOnQuestion(ti, qi, idx) && cells[ti][qi][idx] === '') },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
+                { 'col--entering': entering },
               ]"
               @click="openSelector(ti, qi, idx, $event)"
             >
@@ -442,7 +283,7 @@ function colGroupClass(colIdx: number): string {
             <td
               v-if="qi === 0"
               :class="['col--total', 'team-total-value', { 'cell--invalid': teamHasErrors(ti) }]"
-              :rowspan="team.quizzers.length"
+              :rowspan="teamQuizzers[ti]?.length ?? 5"
             >
               {{ scoring[ti]?.total ?? 0 }}
             </td>
@@ -452,9 +293,9 @@ function colGroupClass(colIdx: number): string {
           <tr class="row--team-total">
             <td class="col--name sticky-col"></td>
             <td
-              v-for="{ col, idx } in displayColumns"
+              v-for="{ col, idx, entering } in displayColumns"
               :key="col.key"
-              :class="['cell--total', colGroupClass(idx)]"
+              :class="['cell--total', colGroupClass(idx), { 'col--entering': entering }]"
               style="position: relative;"
             >
               {{ scoring[ti]?.runningTotals[idx] ?? '' }}
@@ -470,7 +311,7 @@ function colGroupClass(colIdx: number): string {
                 v-if="scoring[ti]?.freeErrorCols.has(idx)"
                 class="running-total-badge running-total-badge--free-error"
                 title="Free error (no deduction)"
-              >−0</span>
+              >≈</span>
               <span
                 v-if="scoring[ti]?.foulDeductCols.has(idx)"
                 class="running-total-badge running-total-badge--foul-deduct"
@@ -479,20 +320,29 @@ function colGroupClass(colIdx: number): string {
             </td>
             <td class="running-total-spacer"></td>
           </tr>
+
+          <!-- Spacer between teams -->
+          <tr v-if="ti < teams.length - 1" class="spacer-row">
+            <td class="sticky-col"></td>
+            <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
+            <td></td>
+          </tr>
         </template>
       </tbody>
 
       <!-- No-jump row at bottom -->
       <tfoot>
         <tr class="spacer-row">
-          <td :colspan="displayColumns.length + 2"></td>
+          <td class="sticky-col"></td>
+          <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
+          <td></td>
         </tr>
         <tr class="row--no-jump">
           <td class="col--name sticky-col no-jump-label">No Jump</td>
           <td
-            v-for="{ col, idx } in displayColumns"
+            v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
-            :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx], 'cell--invalid': noJumpHasConflict(idx) }]"
+            :class="['cell cell--no-jump', colGroupClass(idx), { 'cell--no-jump-active': noJumps[idx], 'cell--invalid': noJumpHasConflict(idx), 'col--entering': entering }]"
             @click="toggleNoJump(idx)"
           >
             {{ noJumps[idx] ? '✗' : '' }}
@@ -654,6 +504,7 @@ function colGroupClass(colIdx: number): string {
   background: #fff;
 }
 
+
 /* Sticky first column */
 .sticky-col {
   position: sticky;
@@ -695,6 +546,10 @@ function colGroupClass(colIdx: number): string {
   border: none !important;
   background: transparent !important;
 }
+.spacer-row .spacer-cell {
+  border-left: 1px solid #e0ddd4 !important;
+  border-right: 1px solid #e0ddd4 !important;
+}
 
 /* Question header row — empty name cell blends with background */
 thead .col--name {
@@ -705,46 +560,37 @@ thead .col--name {
 /* Question header */
 .scoresheet .col--question {
   font-weight: 700;
-  background: #2d2a1e;
-  color: #fff;
+  background: transparent;
+  color: #2d2a1e;
   font-size: 0.75rem;
+  border: none;
+  border-top: 1px solid #e0ddd4;
+  border-left: 1px solid #e0ddd4;
+  border-right: 1px solid #e0ddd4;
 }
 .col--question.col--ab {
-  background: #2d2a1e;
-  color: #fff;
-  border-bottom: 2px solid #854d0e;
+  border-top: 2px solid #854d0e;
 }
 .col--question.col--overtime {
-  background: #2d2a1e;
-  color: #fff;
-  border-bottom: 2px solid #9d174d;
+  border-top: 2px solid #9d174d;
 }
 
 /* Question header colours based on answer */
 .col--header-correct {
-  background: #15803d !important;
-  color: #fff !important;
+  color: #15803d !important;
 }
 .col--header-error {
-  background: #9e3030 !important;
-  color: #fff !important;
+  color: #9e3030 !important;
 }
 .col--header-bonus {
-  background: #2a7a8a !important;
-  color: #fff !important;
+  color: #2a7a8a !important;
 }
 .col--header-missed-bonus {
-  background: #8a8070 !important;
-  color: #fff !important;
+  color: #8a8070 !important;
 }
 .col--header-no-jump {
-  background: repeating-linear-gradient(
-    -45deg,
-    #2d2a1e,
-    #2d2a1e 3px,
-    #3d3930 3px,
-    #3d3930 6px
-  ) !important;
+  color: #a8a290 !important;
+  text-decoration: line-through;
 }
 
 /* Team header row */
@@ -755,12 +601,14 @@ thead .col--name {
 .team-header-spacer {
   background: transparent !important;
   border: none !important;
+  border-left: 1px solid #e0ddd4 !important;
+  border-right: 1px solid #e0ddd4 !important;
 }
 .team-score-label {
   background: transparent !important;
   color: #2d2a1e;
-  font-weight: 700;
-  font-size: 0.85rem;
+  font-weight: 800;
+  font-size: 1rem;
   text-align: center !important;
   border: none !important;
 }
@@ -808,17 +656,22 @@ thead .col--name {
   background: transparent;
   font-weight: 600;
   font-size: 0.75rem;
+  font-style: italic;
   color: #57534e;
 }
 .row--team-total td {
   background: transparent !important;
   border: none !important;
 }
+.row--team-total .cell--total {
+  border-left: 1px solid #e0ddd4 !important;
+  border-right: 1px solid #e0ddd4 !important;
+}
 .row--team-total .sticky-col {
   background: transparent;
 }
 .team-total-value {
-  font-size: 0.9rem;
+  font-size: 2.5rem;
   vertical-align: middle;
 }
 
@@ -897,7 +750,6 @@ thead .col--name {
 .cell {
   cursor: pointer;
   user-select: none;
-  transition: background-color 0.1s;
   font-weight: 700;
 }
 .cell:hover {
@@ -926,49 +778,28 @@ thead .col--name {
   background-color: #8a8070 !important;
 }
 
-/* Column appear animation */
-.col--appear {
-  animation: col-grow 0.35s ease-out both;
+/* Column enter transition — col--entering is the collapsed initial state,
+ * removed on the next frame so the cell transitions to its natural size.
+ * Leaving columns are removed from the DOM instantly (no leave animation).
+ */
+.col--entering {
+  width: 0 !important;
+  max-width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
   overflow: hidden;
-}
-@keyframes col-grow {
-  from {
-    width: 2px;
-    min-width: 2px;
-    max-width: 2px;
-    padding-left: 0;
-    padding-right: 0;
-  }
-  to {
-    width: 2rem;
-    min-width: 2rem;
-    max-width: 2rem;
-    padding-left: 0.4rem;
-    padding-right: 0.4rem;
-  }
+  opacity: 0;
+  font-size: 0 !important;
+  line-height: 0 !important;
 }
 
-/* Column leave animation (reverse of appear) */
-.col--leave {
-  animation: col-shrink 0.35s ease-in both;
-  overflow: hidden;
-  pointer-events: none;
-}
-@keyframes col-shrink {
-  from {
-    width: 2rem;
-    min-width: 2rem;
-    max-width: 2rem;
-    padding-left: 0.4rem;
-    padding-right: 0.4rem;
-  }
-  to {
-    width: 2px;
-    min-width: 2px;
-    max-width: 2px;
-    padding-left: 0;
-    padding-right: 0;
-  }
+/* Shared transition for column enter/leave animation + cell background */
+.scoresheet th,
+.scoresheet td {
+  transition: width 0.3s ease, max-width 0.3s ease, min-width 0.3s ease,
+              padding 0.3s ease, opacity 0.3s ease, border 0.3s ease,
+              font-size 0.3s ease, line-height 0.3s ease, background-color 0.1s;
 }
 
 .cell--greyed {
@@ -999,12 +830,12 @@ thead .col--name {
 /* Running total badges */
 .running-total-badge {
   position: absolute;
-  top: -0.1rem;
+  top: 0;
   right: 0;
-  font-size: 0.45rem;
+  font-size: 0.6rem;
   font-weight: 700;
-  padding: 0 0.15rem;
-  border-radius: 2px;
+  padding: 0.05rem 0.2rem;
+  border-radius: 3px;
   line-height: 1.3;
   color: #fff;
   pointer-events: none;
@@ -1016,7 +847,8 @@ thead .col--name {
   background: #15803d;
 }
 .running-total-badge--free-error {
-  background: #9e3030;
+  background: #f0e8e0;
+  color: #9e3030;
 }
 .running-total-badge--foul-deduct {
   background: #b86e30;

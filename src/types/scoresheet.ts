@@ -13,35 +13,32 @@ export enum QuestionType {
   B = 'B',
 }
 
-export interface Question {
-  number: number
-  type: QuestionType
-}
-
-export interface Answer {
-  quizzerId: number
-  questionId: string
-  value: CellValue
-}
-
-export interface Quizzer {
+export interface Quiz {
   id: number
-  name: string
-  teamId: number
+  division: number
+  quizNumber: number
+  overtime: boolean
 }
 
 export interface Team {
   id: number
+  quizId: number
   name: string
   onTime: boolean
-  timeouts: number[]
-  quizzers: Quizzer[]
+  seatOrder: number
 }
 
-export interface QuizMeta {
-  division: number
-  quizNumber: number
-  overtime: boolean
+export interface Quizzer {
+  id: number
+  teamId: number
+  name: string
+  seatOrder: number
+}
+
+export interface Answer {
+  quizzerId: number
+  columnKey: string
+  value: CellValue
 }
 
 /** All columns in the scoresheet grid */
@@ -144,3 +141,11 @@ export function buildColumns(): Column[] {
 
   return cols
 }
+
+/** Static column list — built once, never changes */
+export const COLUMNS = buildColumns()
+
+/** Lookup column index by key (e.g. "1", "17A", "21B") */
+export const KEY_TO_IDX = new Map<string, number>(
+  COLUMNS.map((col, i) => [col.key, i]),
+)

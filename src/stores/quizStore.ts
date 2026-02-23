@@ -1,0 +1,155 @@
+import {
+  CellValue,
+  COLUMNS,
+  KEY_TO_IDX,
+  type Quiz,
+  type Team,
+  type Quizzer,
+  type Answer,
+} from '../types/scoresheet'
+
+let nextId = 1
+function genId(): number {
+  return nextId++
+}
+
+/** Reset the ID counter (for testing) */
+export function resetIdCounter(start = 1) {
+  nextId = start
+}
+
+function createDefaultQuiz(): Quiz {
+  return {
+    id: genId(),
+    division: 1,
+    quizNumber: 1,
+    overtime: false,
+  }
+}
+
+function createDefaultTeams(quizId: number): { teams: Team[]; quizzers: Quizzer[] } {
+  const teams: Team[] = []
+  const quizzers: Quizzer[] = []
+
+  for (let t = 0; t < 3; t++) {
+    const teamId = genId()
+    teams.push({
+      id: teamId,
+      quizId,
+      name: `Team ${t + 1}`,
+      onTime: true,
+      seatOrder: t,
+    })
+
+    for (let q = 0; q < 5; q++) {
+      quizzers.push({
+        id: genId(),
+        teamId,
+        name: `Quizzer ${q + 1}`,
+        seatOrder: q,
+      })
+    }
+  }
+
+  return { teams, quizzers }
+}
+
+export interface QuizStore {
+  quiz: Quiz
+  teams: Team[]
+  quizzers: Quizzer[]
+  answers: Answer[]
+  noJumps: boolean[]
+
+  /** Get quizzers for a team, sorted by seatOrder */
+  quizzersByTeam(teamId: number): Quizzer[]
+
+  /** Get the teamId for a quizzer */
+  teamForQuizzer(quizzerId: number): number | undefined
+
+  /** Get a single answer value (Empty if not set) */
+  getAnswer(quizzerId: number, columnKey: string): CellValue
+
+  /** Set an answer value (Empty removes the answer) */
+  setAnswer(quizzerId: number, columnKey: string, value: CellValue): void
+
+  /** Toggle noJump for a column index */
+  toggleNoJump(colIdx: number): void
+
+  /**
+   * Derive the positional cell grid for scoring functions.
+   * Returns cells[teamIdx][quizzerIdx][colIdx] ordered by seatOrder.
+   */
+  cellGrid(): CellValue[][][]
+}
+
+export function createQuizStore(): QuizStore {
+  const quiz = createDefaultQuiz()
+  const { teams, quizzers } = createDefaultTeams(quiz.id)
+
+  // Answers stored in a Map keyed by "quizzerId:columnKey" for O(1) lookup
+  const answerMap = new Map<string, Answer>()
+
+  const noJumps = COLUMNS.map(() => false)
+
+  // Pre-build quizzer lookup by team
+  function quizzersByTeam(teamId: number): Quizzer[] {
+    return quizzers
+      .filter((q) => q.teamId === teamId)
+      .sort((a, b) => a.seatOrder - b.seatOrder)
+  }
+
+  function teamForQuizzer(quizzerId: number): number | undefined {
+    return quizzers.find((q) => q.id === quizzerId)?.teamId
+  }
+
+  function answerKey(quizzerId: number, columnKey: string): string {
+    return `${quizzerId}:${columnKey}`
+  }
+
+  function getAnswer(quizzerId: number, columnKey: string): CellValue {
+    return answerMap.get(answerKey(quizzerId, columnKey))?.value ?? CellValue.Empty
+  }
+
+  function setAnswer(quizzerId: number, columnKey: string, value: CellValue): void {
+    const key = answerKey(quizzerId, columnKey)
+    if (value === CellValue.Empty) {
+      answerMap.delete(key)
+    } else {
+      answerMap.set(key, { quizzerId, columnKey, value })
+    }
+  }
+
+  function toggleNoJump(colIdx: number): void {
+    noJumps[colIdx] = !noJumps[colIdx]
+  }
+
+  function cellGrid(): CellValue[][][] {
+    const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
+
+    return sortedTeams.map((team) => {
+      const teamQuizzers = quizzersByTeam(team.id)
+      return teamQuizzers.map((qzr) =>
+        COLUMNS.map((col) => getAnswer(qzr.id, col.key)),
+      )
+    })
+  }
+
+  const store: QuizStore = {
+    quiz,
+    teams,
+    quizzers,
+    noJumps,
+    quizzersByTeam,
+    teamForQuizzer,
+    getAnswer,
+    setAnswer,
+    toggleNoJump,
+    cellGrid,
+    get answers() {
+      return [...answerMap.values()]
+    },
+  }
+
+  return store
+}
