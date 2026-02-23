@@ -177,22 +177,34 @@ export function useScoresheet() {
     return false
   }
 
-  /** Auto-manage overtime rounds based on cell content */
-  watch(cells, (grid) => {
-    if (!quiz.value.overtime) return
-    const needed = computeOvertimeRounds(grid, columns.value)
-    if (needed !== internalOtRounds.value) {
+  /** How many OT rounds should be visible (0 = none, 1 = Q21-23, etc.) */
+  const visibleOtRounds = computed(() => {
+    if (!quiz.value.overtime) return 0
+    return computeOvertimeRounds(
+      cells.value,
+      columns.value,
+      teams.value.map((t) => t.onTime),
+      noJumps.value,
+    )
+  })
+
+  /** Grow internal allocation when more rounds are needed */
+  watch(visibleOtRounds, (needed) => {
+    if (needed > internalOtRounds.value) {
       internalOtRounds.value = needed
     }
   })
 
-  const visibleColumns = computed(() =>
-    columns.value.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
+  const visibleColumns = computed(() => {
+    const maxOtQuestion = 20 + visibleOtRounds.value * 3
+    return columns.value.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
+      // Hide OT columns beyond visible rounds
+      if (col.isOvertime && col.number > maxOtQuestion) return false
       // A/B columns: only show when needed
       if (col.type === QuestionType.A || col.type === QuestionType.B) return abColumnNeeded(idx)
       return true
-    }),
-  )
+    })
+  })
 
   const allQuestionsComplete = computed(() => {
     const cols = columns.value

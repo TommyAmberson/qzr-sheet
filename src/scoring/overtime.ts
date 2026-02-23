@@ -1,6 +1,6 @@
 import { CellValue, type Column } from '../types/scoresheet'
 import { scoreTeam } from './scoreTeam'
-import { colHasAnyContent } from './helpers'
+import { isResolved } from './helpers'
 
 /**
  * Determine which teams are eligible for overtime based on regulation-only scores.
@@ -44,46 +44,86 @@ export function getOvertimeEligibleTeams(
 }
 
 /**
- * Compute how many overtime rounds are needed based on cell content.
+ * Check whether a range of questions is completely filled out.
+ * A question is "complete" if its normal column is resolved (C/B/MB) or no-jumped.
+ * A/B sub-columns don't need to be checked — they only exist when the normal col had an error.
+ */
+function questionsComplete(
+  cellData: CellValue[][][],
+  cols: Column[],
+  noJumps: boolean[],
+  fromQ: number,
+  toQ: number,
+): boolean {
+  for (let ci = 0; ci < cols.length; ci++) {
+    const col = cols[ci]!
+    if (col.type !== '') continue // skip A/B sub-columns
+    if (col.number < fromQ || col.number > toQ) continue
+    if (noJumps[ci]) continue
+    if (isResolved(cellData, ci)) continue
+    return false
+  }
+  return true
+}
+
+/**
+ * Compute how many overtime rounds should be shown.
  *
- * Rules:
- * - Always at least 1 round when overtime is enabled
- * - If any column in the last round has content, add another round
- * - Trailing empty rounds beyond the first are removed
+ * Returns 0 if regulation is incomplete or no teams are tied.
+ * Returns 1 if regulation is complete and tied (show Q21-23).
+ * Returns N+1 if OT round N is complete and teams are still tied.
  *
- * @param cellData - the full cell grid (may have fewer columns than `cols`)
- * @param cols - the current column list (must include OT columns)
- * @returns the number of overtime rounds needed
+ * @param cellData - the full cell grid
+ * @param cols - all column definitions (including OT columns already built)
+ * @param onTimes - per-team on-time flags
+ * @param noJumps - per-column no-jump flags
+ * @returns number of overtime rounds to display
  */
 export function computeOvertimeRounds(
   cellData: CellValue[][][],
   cols: Column[],
+  onTimes: boolean[],
+  noJumps: boolean[],
 ): number {
-  // Find all overtime normal-question numbers present in the column list
-  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
-  if (otNormals.length === 0) return 1
+  // Regulation must be completely filled out (Q1-20)
+  if (!questionsComplete(cellData, cols, noJumps, 1, 20)) return 0
 
-  // Group into rounds of 3
+  // At least two teams must be tied on regulation scores
+  const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes)
+  if (eligible.size < 2) return 0
+
+  // Check each existing OT round: if complete and still tied, need another
+  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
   const totalRounds = Math.ceil(otNormals.length / 3)
 
-  // Find the last round that has any content
-  let lastUsedRound = 0
   for (let r = 0; r < totalRounds; r++) {
-    const roundStart = r * 3
-    const roundEnd = Math.min(roundStart + 3, otNormals.length)
-    for (let q = roundStart; q < roundEnd; q++) {
-      const qNum = otNormals[q]!.number
-      // Check all columns for this question number (normal + A + B)
-      for (let ci = 0; ci < cols.length; ci++) {
-        if (cols[ci]!.number === qNum && cols[ci]!.isOvertime) {
-          if (colHasAnyContent(cellData, ci)) {
-            lastUsedRound = r + 1
-          }
-        }
+    const firstQ = 21 + r * 3
+    const lastQ = firstQ + 2
+    if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) return r + 1
+
+    // Round is complete — check if teams are still tied (using all cols up to this round)
+    const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
+    const throughCells = cellData.map((teamCells) =>
+      teamCells.map((row) =>
+        throughCols.map((_, i) => {
+          const fullIdx = cols.indexOf(throughCols[i]!)
+          return row[fullIdx]!
+        }),
+      ),
+    )
+    const scores = throughCells.map((teamCells, ti) =>
+      scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+    )
+    // Check if any two teams are still tied
+    let stillTied = false
+    for (let i = 0; i < scores.length; i++) {
+      for (let j = i + 1; j < scores.length; j++) {
+        if (scores[i] === scores[j]) stillTied = true
       }
     }
+    if (!stillTied) return r + 1
   }
 
-  // Need at least 1 round, and always one empty round beyond last used
-  return Math.max(1, lastUsedRound + 1)
+  // All existing rounds complete and still tied — need one more
+  return totalRounds + 1
 }

@@ -139,53 +139,102 @@ describe('getOvertimeEligibleTeams', () => {
 })
 
 describe('computeOvertimeRounds', () => {
-  /** Build blank cells for a given number of OT rounds */
-  function blankOtCells(rounds: number): { cells: CellValue[][][]; cols: ReturnType<typeof buildColumns> } {
+  const onTimes = [true, true, true]
+
+  /**
+   * Helper: build a grid with N OT rounds.
+   * Returns cols, blank cells, and a column-index lookup.
+   */
+  function setup(rounds: number) {
     const cols = buildColumns(rounds)
     const cells = [0, 1, 2].map(() =>
       Array.from({ length: 5 }, () => cols.map(() => _)),
     )
-    return { cells, cols }
+    const idx = (key: string) => {
+      const i = cols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    return { cols, cells, idx }
   }
 
-  function otCi(cols: ReturnType<typeof buildColumns>, key: string): number {
-    const idx = cols.findIndex((c) => c.key === key)
-    if (idx === -1) throw new Error(`Column ${key} not found`)
-    return idx
+  /**
+   * Fill regulation with a 3-way tie: each team gets 5 corrects, rest no-jumped.
+   * Each team: 20 on-time + 5×20 = 120 pts.
+   */
+  function fillRegulationTiedSimple(
+    cells: CellValue[][][],
+    idx: (k: string) => number,
+    noJumps: boolean[],
+  ) {
+    // 5 corrects per team → each team: 20 on-time + 5*20 = 120
+    const team0Qs = ['1', '4', '7', '10', '13']
+    const team1Qs = ['2', '5', '8', '11', '14']
+    const team2Qs = ['3', '6', '9', '12', '15']
+    for (const q of team0Qs) cells[0]![0]![idx(q)] = C
+    for (const q of team1Qs) cells[1]![0]![idx(q)] = C
+    for (const q of team2Qs) cells[2]![0]![idx(q)] = C
+    // Mark remaining regulation normal columns as no-jump
+    for (let n = 16; n <= 20; n++) noJumps[idx(`${n}`)] = true
   }
 
-  it('returns 1 when no overtime content exists', () => {
-    const { cells, cols } = blankOtCells(1)
-    expect(computeOvertimeRounds(cells, cols)).toBe(1)
+  it('returns 0 when regulation is not completely filled out', () => {
+    const { cols, cells } = setup(2)
+    const noJumps = cols.map(() => false)
+    // Only a couple answers — regulation incomplete
+    cells[0]![0]![0] = C
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(0)
   })
 
-  it('returns 2 when round 1 has content (need empty round ahead)', () => {
-    const { cells, cols } = blankOtCells(2)
-    cells[0]![0]![otCi(cols, '21')] = C
-    expect(computeOvertimeRounds(cells, cols)).toBe(2)
+  it('returns 0 when regulation is complete but no teams are tied', () => {
+    const { cols, cells, idx } = setup(2)
+    const noJumps = cols.map(() => false)
+    // Team 0 gets more corrects than others
+    cells[0]![0]![idx('1')] = C
+    cells[0]![1]![idx('2')] = C
+    cells[0]![2]![idx('3')] = C
+    cells[1]![0]![idx('4')] = C
+    cells[2]![0]![idx('5')] = C
+    // No-jump the rest
+    for (let n = 6; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(0)
   })
 
-  it('returns 3 when round 2 has content', () => {
-    const { cells, cols } = blankOtCells(3)
-    cells[0]![0]![otCi(cols, '24')] = C
-    expect(computeOvertimeRounds(cells, cols)).toBe(3)
+  it('returns 1 when regulation is complete and teams are tied', () => {
+    const { cols, cells, idx } = setup(2)
+    const noJumps = cols.map(() => false)
+    fillRegulationTiedSimple(cells, idx, noJumps)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
   })
 
-  it('detects content in A/B sub-columns', () => {
-    const { cells, cols } = blankOtCells(2)
-    cells[1]![2]![otCi(cols, '22A')] = CellValue.Error
-    expect(computeOvertimeRounds(cells, cols)).toBe(2)
+  it('returns 2 when OT round 1 is complete and still tied', () => {
+    const { cols, cells, idx } = setup(2)
+    const noJumps = cols.map(() => false)
+    fillRegulationTiedSimple(cells, idx, noJumps)
+    // Fill OT round 1 — each eligible team gets 1 correct → still tied
+    cells[0]![0]![idx('21')] = C
+    cells[1]![0]![idx('22')] = C
+    cells[2]![0]![idx('23')] = C
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(2)
   })
 
-  it('returns 1 when only regulation content exists', () => {
-    const { cells, cols } = blankOtCells(2)
-    cells[0]![0]![otCi(cols, '1')] = C
-    expect(computeOvertimeRounds(cells, cols)).toBe(1)
+  it('returns 1 when OT round 1 is complete and tie is broken', () => {
+    const { cols, cells, idx } = setup(2)
+    const noJumps = cols.map(() => false)
+    fillRegulationTiedSimple(cells, idx, noJumps)
+    // Only team 0 gets a correct in OT → tie broken
+    cells[0]![0]![idx('21')] = C
+    noJumps[idx('22')] = true
+    noJumps[idx('23')] = true
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
   })
 
-  it('handles foul content in overtime columns', () => {
-    const { cells, cols } = blankOtCells(2)
-    cells[2]![3]![otCi(cols, '23')] = CellValue.Foul
-    expect(computeOvertimeRounds(cells, cols)).toBe(2)
+  it('returns 1 when OT round 1 is partially filled (not complete yet)', () => {
+    const { cols, cells, idx } = setup(2)
+    const noJumps = cols.map(() => false)
+    fillRegulationTiedSimple(cells, idx, noJumps)
+    // Only 1 of 3 OT questions answered
+    cells[0]![0]![idx('21')] = C
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
   })
 })
