@@ -1,97 +1,149 @@
-/* Color palette */
+/* ── Raw palette — every unique color value, defined once ── */
 :root {
-  /* Answer colors — earthy, muted tones that fit the warm beige UI */
-  --color-correct: #3d7a4a;
-  --color-correct-alt: #e4f2e7;
-  --color-error: #8b4038;
-  --color-error-alt: #f2e4e2;
-  --color-foul: #a67038;
-  --color-foul-alt: #f2ece2;
-  --color-bonus: #3d7a7a;
-  --color-bonus-alt: #e2f0f0;
-  --color-missed-bonus: #7a7568;
-  --color-missed-bonus-alt: #e8e7e2;
-  --color-no-jump: #5c5848;
-  --color-no-jump-alt: #e8e6df;
+  /* Answer palette (shared across themes) */
+  --palette-correct:      #3d7a4a;
+  --palette-correct-alt:  #e4f2e7;
+  --palette-error:        #8b4038;
+  --palette-error-alt:    #f2e4e2;
+  --palette-foul:         #a67038;
+  --palette-foul-alt:     #f2ece2;
+  --palette-bonus:        #3d7a7a;
+  --palette-bonus-alt:    #e2f0f0;
+  --palette-mb:           #7a7568;
+  --palette-mb-alt:       #e8e7e2;
+  --palette-no-jump:      #5c5848;
+  --palette-no-jump-alt:  #e8e6df;
 
-  /* Validation — bright, stands out from the earthy palette */
-  --color-invalid: #dc2626;
-  --color-invalid-alt: #f87171;
+  /* Neutral palette */
+  --palette-white:        #fff;
+  --palette-cream:        #f0e8e0;
+  --palette-sand:         #e0ddd4;
+  --palette-khaki:        #a09a85;
+  --palette-stone:        #78716c;
+  --palette-slate:        #57534e;
+  --palette-charcoal:     #2d2a1e;
 
-  /* UI chrome */
-  --color-bg: #fff;
-  --color-bg-warm: #f0e8e0;
-  --color-border: #a09a85;
-  --color-border-alt: #e0ddd4;
-  --color-text: #2d2a1e;
-  --color-text-muted: #57534e;
-  --color-text-faint: #78716c;
-  --color-accent: #3b82f6;
+  /* Dark neutral palette */
+  --palette-dk-100:       #b8b4a8;
+  --palette-dk-200:       #a8a290;
+  --palette-dk-300:       #5c5848;
+  --palette-dk-400:       #3a3730;
+  --palette-dk-500:       #2a2724;
+  --palette-dk-600:       #1a1816;
 
-  /* Team identity */
-  --color-team-red: #ff0000;
-  --color-team-white: #ffffff;
-  --color-team-blue: #0000ff;
+  /* Accent palette */
+  --palette-accent:       #3b82f6;
+  --palette-accent-bright:#60a5fa;
+  --palette-red:          #dc2626;
+  --palette-red-bright:   #ef4444;
+  --palette-red-muted:    #f87171;
+  --palette-red-deep:     #991b1b;
+  --palette-gold:         #e6d98a;
+  --palette-amber:        #854d0e;
+  --palette-amber-bright: #c47a1a;
+  --palette-rose:         #9d174d;
 
-  /* Quiz meta bar */
-  --color-meta-bg: #faf6ee;
-  --color-meta-accent: #c9c0a8;
-  --color-meta-border: #e6d98a;
+  /* Team identity palette */
+  --palette-team-red:     #ff0000;
+  --palette-team-blue:    #0000ff;
 
-  /* Greyed-out stripes */
-  --color-grey-stripe-a: #d4d0c6;
-  --color-grey-stripe-b: #e6e0d4;
+  /* Light meta palette */
+  --palette-meta-bg:      #faf6ee;
+  --palette-meta-accent:  #c9c0a8;
 
-  /* A/B and overtime column top borders */
-  --color-ab-border: #854d0e;
-  --color-ot-border: #9d174d;
+  /* Dark meta palette */
+  --palette-meta-bg-dk:   #2a2720;
+  --palette-meta-accent-dk:#4a4538;
+  --palette-meta-border-dk:#8a7d3a;
+
+  /* Stripe palette */
+  --palette-stripe-a:     #d4d0c6;
+  --palette-stripe-b:     #e6e0d4;
+  --palette-stripe-a-dk:  #4a4540;
+  --palette-stripe-b-dk:  #383330;
 }
 
-/* Dark theme */
-[data-theme="dark"] {
-  /* Answer colors — brighter on dark backgrounds */
-  --color-correct: #4caf65;
-  --color-correct-alt: #1a3320;
-  --color-error: #cf6b63;
-  --color-error-alt: #3a1c19;
-  --color-foul: #d4944e;
-  --color-foul-alt: #3a2a16;
-  --color-bonus: #4caaaa;
-  --color-bonus-alt: #1a3333;
-  --color-missed-bonus: #a09a88;
-  --color-missed-bonus-alt: #2e2c26;
-  --color-no-jump: #8a8478;
-  --color-no-jump-alt: #2e2c26;
+/* ── Light theme (default) ── */
+:root {
+  /* Answer colors — same in both themes */
+  --color-correct:        var(--palette-correct);
+  --color-correct-alt:    var(--palette-correct-alt);
+  --color-error:          var(--palette-error);
+  --color-error-alt:      var(--palette-error-alt);
+  --color-foul:           var(--palette-foul);
+  --color-foul-alt:       var(--palette-foul-alt);
+  --color-bonus:          var(--palette-bonus);
+  --color-bonus-alt:      var(--palette-bonus-alt);
+  --color-missed-bonus:   var(--palette-mb);
+  --color-missed-bonus-alt: var(--palette-mb-alt);
+  --color-no-jump:        var(--palette-no-jump);
+  --color-no-jump-alt:    var(--palette-no-jump-alt);
 
   /* Validation */
-  --color-invalid: #ef4444;
-  --color-invalid-alt: #991b1b;
+  --color-invalid:        var(--palette-red);
+  --color-invalid-alt:    var(--palette-red-muted);
 
   /* UI chrome */
-  --color-bg: #2a2724;
-  --color-bg-warm: #1a1816;
-  --color-border: #5c5848;
-  --color-border-alt: #3a3730;
-  --color-text: #b8b4a8;
-  --color-text-muted: #a8a290;
-  --color-text-faint: #78716c;
-  --color-accent: #60a5fa;
+  --color-bg:             var(--palette-white);
+  --color-bg-warm:        var(--palette-cream);
+  --color-border:         var(--palette-khaki);
+  --color-border-alt:     var(--palette-sand);
+  --color-text:           var(--palette-charcoal);
+  --color-text-muted:     var(--palette-slate);
+  --color-text-faint:     var(--palette-stone);
+  --color-accent:         var(--palette-accent);
+
 
   /* Team identity */
-  --color-team-red: #ef4444;
-  --color-team-white: #e8e4d8;
-  --color-team-blue: #60a5fa;
+  --color-team-red:       var(--palette-team-red);
+  --color-team-white:     var(--palette-white);
+  --color-team-blue:      var(--palette-team-blue);
 
   /* Quiz meta bar */
-  --color-meta-bg: #2a2720;
-  --color-meta-accent: #4a4538;
-  --color-meta-border: #8a7d3a;
+  --color-meta-bg:        var(--palette-meta-bg);
+  --color-meta-accent:    var(--palette-meta-accent);
+  --color-meta-border:    var(--palette-gold);
 
   /* Greyed-out stripes */
-  --color-grey-stripe-a: #4a4540;
-  --color-grey-stripe-b: #383330;
+  --color-grey-stripe-a:  var(--palette-stripe-a);
+  --color-grey-stripe-b:  var(--palette-stripe-b);
 
   /* A/B and overtime column top borders */
-  --color-ab-border: #c47a1a;
-  --color-ot-border: #d44a7a;
+  --color-ab-border:      var(--palette-amber);
+  --color-ot-border:      var(--palette-rose);
+}
+
+/* ── Dark theme — reassign palette tokens ── */
+[data-theme="dark"] {
+  /* Validation */
+  --color-invalid:        var(--palette-red-bright);
+  --color-invalid-alt:    var(--palette-red-deep);
+
+  /* UI chrome — swap light↔dark palette tokens */
+  --color-bg:             var(--palette-dk-500);
+  --color-bg-warm:        var(--palette-dk-600);
+  --color-border:         var(--palette-dk-300);
+  --color-border-alt:     var(--palette-dk-400);
+  --color-text:           var(--palette-dk-100);
+  --color-text-muted:     var(--palette-dk-200);
+  --color-text-faint:     var(--palette-stone);
+  --color-accent:         var(--palette-accent-bright);
+
+  /* Team identity */
+  --color-team-red:       var(--palette-team-red);
+  --color-team-white:     var(--palette-white);
+  --color-team-blue:      var(--palette-team-blue);
+
+  /* Quiz meta bar */
+  --color-meta-bg:        var(--palette-meta-bg-dk);
+  --color-meta-accent:    var(--palette-meta-accent-dk);
+  --color-meta-border:    var(--palette-meta-border-dk);
+
+  /* Greyed-out stripes */
+  --color-grey-stripe-a:  var(--palette-stripe-a-dk);
+  --color-grey-stripe-b:  var(--palette-stripe-b-dk);
+
+  /* A/B and overtime column top borders */
+  --color-ab-border:      var(--palette-amber-bright);
+  --color-ot-border:      var(--palette-rose);
 }
