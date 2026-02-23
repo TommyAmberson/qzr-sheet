@@ -31,11 +31,11 @@ export enum ValidationCode {
 /** Human-readable message for each validation code */
 const validationMessages: Record<ValidationCode, string> = {
   [ValidationCode.DuplicateAnswer]: 'Only one quizzer can answer per question — multiple answered',
-  [ValidationCode.WrongTeamTossUp]: "Team can't jump on this question — it's a toss-up",
+  [ValidationCode.WrongTeamTossUp]: "Team can't answer this question — it's a toss-up",
   [ValidationCode.WrongTeamBonus]: "Team can't answer this question — it's another team's bonus",
   [ValidationCode.IsBonus]: 'This is a bonus question — answer must be a bonus',
   [ValidationCode.NotBonus]: 'This is not a bonus question — bonus answers are not allowed',
-  [ValidationCode.QuestionNotNeeded]: "This question shouldn't exist — no error triggered it",
+  [ValidationCode.QuestionNotNeeded]: "This question shouldn't be asked",
   [ValidationCode.NoJump]: 'No-jump means no one answered — but an answer is recorded here',
   [ValidationCode.QuizzerOut]: 'Quizzer has quizzed/errored/fouled out — they cannot answer',
   [ValidationCode.FouledOnQuestion]: 'A foul on this numbered question makes the quizzer ineligible',
