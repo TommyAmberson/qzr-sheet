@@ -41,10 +41,6 @@
   --color-team-blue:      #0000ff;
   --color-invalid:        var(--palette-red);
   --color-invalid-alt:    var(--palette-coral);
-}
-/* ── Light theme (default) ── */
-:root {
-  /* Answer colors — same in both themes */
   --color-correct:        var(--palette-correct);
   --color-correct-alt:    var(--palette-correct-alt);
   --color-error:          var(--palette-error);
@@ -57,8 +53,14 @@
   --color-missed-bonus-alt: var(--palette-mb-alt);
   --color-no-jump:        var(--palette-no-jump);
   --color-no-jump-alt:    var(--palette-no-jump-alt);
+  --color-accent:         var(--palette-blue);
+  --color-ab-border:      var(--palette-amber);
+  --color-ot-border:      var(--palette-rose);
+  --color-meta-border:    var(--palette-gold);
+}
 
-  /* UI chrome */
+/* ── Light theme ── */
+:root {
   --color-bg:             var(--palette-white);
   --color-bg-warm:        var(--palette-cream);
   --color-border:         var(--palette-khaki);
@@ -66,29 +68,14 @@
   --color-text:           var(--palette-coal);
   --color-text-muted:     var(--palette-slate);
   --color-text-faint:     var(--palette-stone);
-  --color-accent:         var(--palette-blue);
-
-  /* No-jump — inverted in dark mode */
-  --color-no-jump:        var(--palette-no-jump-alt);
-  --color-no-jump-alt:    var(--palette-no-jump);
-
-  /* Quiz meta bar */
   --color-meta-bg:        var(--palette-cream);
   --color-meta-accent:    var(--palette-tan);
-  --color-meta-border:    var(--palette-gold);
-
-  /* Greyed-out stripes */
-  --color-grey-stripe-a:  var(--palette-khaki);
-  --color-grey-stripe-b:  var(--palette-tan);
-
-  /* A/B and overtime column top borders */
-  --color-ab-border:      var(--palette-amber);
-  --color-ot-border:      var(--palette-rose);
+  --color-grey-stripe-a:  var(--palette-sand);
+  --color-grey-stripe-b:  var(--palette-cream);
 }
 
-/* ── Dark theme — reassign palette tokens ── */
+/* ── Dark theme ── */
 [data-theme="dark"] {
-  /* UI chrome */
   --color-bg:             var(--palette-coal);
   --color-bg-warm:        var(--palette-obsidian);
   --color-border:         var(--palette-no-jump);
@@ -96,18 +83,10 @@
   --color-text:           var(--palette-ash);
   --color-text-muted:     var(--palette-khaki);
   --color-text-faint:     var(--palette-stone);
-  --color-accent:         var(--palette-blue);
-
-  /* Quiz meta bar */
+  --color-no-jump:        var(--palette-no-jump-alt);
+  --color-no-jump-alt:    var(--palette-no-jump);
   --color-meta-bg:        var(--palette-shadow);
   --color-meta-accent:    var(--palette-slate);
-  --color-meta-border:    var(--palette-gold);
-
-  /* Greyed-out stripes */
   --color-grey-stripe-a:  var(--palette-stone);
   --color-grey-stripe-b:  var(--palette-khaki);
-
-  /* A/B and overtime column top borders */
-  --color-ab-border:      var(--palette-amber);
-  --color-ot-border:      var(--palette-rose);
 }
