@@ -5,10 +5,9 @@ import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
 import { validateCells, ValidationCode } from '../scoring/validation'
 import {
-  anyTeamHasValue,
-  colHasAnyContent,
   isBonusSituation,
 } from '../scoring/helpers'
+import { computeVisibleColumns, abColumnNeeded as _abColumnNeeded } from '../scoring/columnVisibility'
 import { getOvertimeEligibleTeams, computeOvertimeRounds, computeOtCheckpointScores, computeRegulationScores, questionsComplete } from '../scoring/overtime'
 import { computePlacements } from '../scoring/placement'
 
@@ -164,20 +163,6 @@ export function useScoresheet() {
 
   // --- Column visibility ---
 
-  function abColumnNeeded(colIdx: number): boolean {
-    if (colHasAnyContent(cells.value, colIdx)) return true
-    const col = columns.value[colIdx]!
-    if (col.type === QuestionType.A) {
-      const baseIdx = keyToIdx.value.get(`${col.number}`)
-      return baseIdx !== undefined && anyTeamHasValue(cells.value, baseIdx, CellValue.Error)
-    }
-    if (col.type === QuestionType.B) {
-      const aIdx = keyToIdx.value.get(`${col.number}A`)
-      return aIdx !== undefined && anyTeamHasValue(cells.value, aIdx, CellValue.Error)
-    }
-    return false
-  }
-
   /** How many OT rounds should be visible (0 = none, 1 = Q21-23, etc.) */
   const visibleOtRounds = computed(() => {
     if (!quiz.value.overtime) return 0
@@ -196,16 +181,13 @@ export function useScoresheet() {
     }
   })
 
-  const visibleColumns = computed(() => {
-    const maxOtQuestion = 20 + visibleOtRounds.value * 3
-    return columns.value.map((col, i) => ({ col, idx: i })).filter(({ col, idx }) => {
-      // Hide OT columns beyond visible rounds
-      if (col.isOvertime && col.number > maxOtQuestion) return false
-      // A/B columns: only show when needed
-      if (col.type === QuestionType.A || col.type === QuestionType.B) return abColumnNeeded(idx)
-      return true
-    })
-  })
+  const visibleColumns = computed(() =>
+    computeVisibleColumns(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
+  )
+
+  function abColumnNeeded(colIdx: number): boolean {
+    return _abColumnNeeded(cells.value, columns.value, noJumps.value, colIdx)
+  }
 
   const allQuestionsComplete = computed(() => {
     const cols = columns.value
