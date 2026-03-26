@@ -9,7 +9,11 @@ const { theme, toggleTheme } = useTheme()
   <div class="app">
     <header class="app-header">
       <h1>Quizmeet Scoresheet</h1>
-      <button class="theme-toggle" @click="toggleTheme" :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`">
+      <button
+        class="theme-toggle"
+        :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
+        @click="toggleTheme"
+      >
         {{ theme === 'light' ? '🌙' : '☀️' }}
       </button>
     </header>

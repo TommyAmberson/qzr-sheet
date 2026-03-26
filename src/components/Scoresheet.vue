@@ -253,38 +253,66 @@ function colGroupClass(colIdx: number): string {
 </script>
 
 <template>
-  <div class="scoresheet-wrapper" @dragstart.prevent>
+  <div
+    class="scoresheet-wrapper"
+    @dragstart.prevent
+  >
     <div :class="['quiz-meta', { 'quiz-meta--error': hasAnyErrors, 'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors }]">
       <label class="meta-field">
         <span class="meta-label">Division</span>
-        <input v-model="quiz.division" type="text" placeholder="1" />
+        <input
+          v-model="quiz.division"
+          type="text"
+          placeholder="1"
+        >
       </label>
       <span class="meta-sep">·</span>
       <label class="meta-field">
         <span class="meta-label">Quiz</span>
-        <input v-model="quiz.quizNumber" type="text" />
+        <input
+          v-model="quiz.quizNumber"
+          type="text"
+        >
       </label>
       <span class="meta-sep">·</span>
       <label class="meta-field meta-field--toggle">
-        <input v-model="quiz.overtime" type="checkbox" />
-        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <input
+          v-model="quiz.overtime"
+          type="checkbox"
+        >
+        <span class="toggle-track"><span class="toggle-thumb" /></span>
         <span class="meta-label">Overtime</span>
       </label>
       <span class="meta-sep">·</span>
-      <span class="meta-field meta-field--status" :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined">
-        <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
-        <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete">✓</span>
-        <span v-else class="meta-status meta-status--pending">○</span>
+      <span
+        class="meta-field meta-field--status"
+        :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
+      >
+        <span
+          v-if="hasAnyErrors"
+          class="meta-status meta-status--error"
+        >⚠</span>
+        <span
+          v-else-if="allQuestionsComplete"
+          class="meta-status meta-status--complete"
+        >✓</span>
+        <span
+          v-else
+          class="meta-status meta-status--pending"
+        >○</span>
         <span class="meta-label">{{ hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress' }}</span>
       </span>
     </div>
 
-    <table class="scoresheet" :style="{ '--drop-indicator-width': dropIndicatorWidth } as any">
+    <table
+      class="scoresheet"
+      :style="{ '--drop-indicator-width': dropIndicatorWidth } as any"
+    >
       <!-- Question header row -->
       <thead>
         <tr>
-          <th class="col--name sticky-col"></th>
-          <th class="col--ontime-header"></th>
+          <th class="col--name sticky-col" />
+          <th class="col--ontime-header" />
           <th
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
@@ -293,33 +321,46 @@ function colGroupClass(colIdx: number): string {
           >
             {{ col.label }}
           </th>
-          <th class="col--total col--total-header"></th>
+          <th class="col--total col--total-header" />
         </tr>
         <tr class="spacer-row">
-          <td class="sticky-col" colspan="2"></td>
-          <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
-          <td></td>
+          <td
+            class="sticky-col"
+            colspan="2"
+          />
+          <td
+            v-for="{ col, idx, entering } in displayColumns"
+            :key="col.key"
+            :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
+          />
+          <td />
         </tr>
       </thead>
 
       <tbody>
-        <template v-for="(team, ti) in teams" :key="team.id">
+        <template
+          v-for="(team, ti) in teams"
+          :key="team.id"
+        >
           <!-- Team header row -->
           <tr :class="['row--team-header', teamColors[ti]]">
-            <td class="col--name sticky-col team-name" colspan="2">
+            <td
+              class="col--name sticky-col team-name"
+              colspan="2"
+            >
               <div class="name-cell-inner">
                 <input
                   class="editable-name editable-name--team"
                   :value="team.name"
                   @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
                   @focus="($event.target as HTMLInputElement).select()"
-                />
+                >
                 <span class="team-stats">
-                <span
-                  v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
-                  class="stat-badge stat-badge--unique"
-                  :title="`${scoring[ti]!.uniqueCorrectQuizzers} quizzers jumped (+10 each from 3rd)`"
-                >{{ scoring[ti]!.uniqueCorrectQuizzers >= 5 ? '5th' : scoring[ti]!.uniqueCorrectQuizzers >= 4 ? '4th' : '3rd' }}</span>
+                  <span
+                    v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
+                    class="stat-badge stat-badge--unique"
+                    :title="`${scoring[ti]!.uniqueCorrectQuizzers} quizzers jumped (+10 each from 3rd)`"
+                  >{{ scoring[ti]!.uniqueCorrectQuizzers >= 5 ? '5th' : scoring[ti]!.uniqueCorrectQuizzers >= 4 ? '4th' : '3rd' }}</span>
                 </span>
               </div>
             </td>
@@ -327,8 +368,10 @@ function colGroupClass(colIdx: number): string {
               v-for="{ col, entering } in displayColumns"
               :key="col.key"
               :class="['team-header-spacer', { 'col--entering': entering }]"
-            ></td>
-            <td class="col--name team-score-label">Score</td>
+            />
+            <td class="col--name team-score-label">
+              Score
+            </td>
           </tr>
 
           <!-- Quizzer rows -->
@@ -361,44 +404,49 @@ function colGroupClass(colIdx: number): string {
                   :value="quizzer.name"
                   @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
                   @focus="($event.target as HTMLInputElement).select()"
-                />
+                >
                 <button
                   v-if="quizzer.name"
                   class="name-clear"
                   title="Clear name (empty seat)"
                   @click.stop="setQuizzerName(ti, qi, '')"
-                >×</button>
-                <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
+                >
+                  ×
+                </button>
                 <span
-                  v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
-                  :class="['stat-badge', 'stat-badge--quizout', { 'stat-badge--quizout-bonus': scoring[ti]!.quizzers[qi]!.quizoutBonus }]"
-                  :title="scoring[ti]!.quizzers[qi]!.quizoutBonus ? 'Quiz-out with bonus (+10)' : 'Quiz-out'"
-                >Q</span>
-                <span
-                  v-else-if="scoring[ti]!.quizzers[qi]!.erroredOut && !scoring[ti]!.quizzers[qi]!.fouledOut"
-                  class="stat-badge stat-badge--errorout"
-                  title="Errored out"
-                >E</span>
-                <span
-                  v-else-if="scoring[ti]!.quizzers[qi]!.fouledOut"
-                  class="stat-badge stat-badge--foulout"
-                  title="Fouled out"
-                >F</span>
-                <span
-                  v-if="scoring[ti]!.quizzers[qi]!.correctCount > 0 && !scoring[ti]!.quizzers[qi]!.quizzedOut"
-                  class="stat-count stat-count--correct"
-                  :title="`${scoring[ti]!.quizzers[qi]!.correctCount} correct`"
-                >{{ scoring[ti]!.quizzers[qi]!.correctCount }}c</span>
-                <span
-                  v-if="scoring[ti]!.quizzers[qi]!.errorCount > 0 && !(scoring[ti]!.quizzers[qi]!.erroredOut && !scoring[ti]!.quizzers[qi]!.fouledOut)"
-                  class="stat-count stat-count--error"
-                  :title="`${scoring[ti]!.quizzers[qi]!.errorCount} error(s)`"
-                >{{ scoring[ti]!.quizzers[qi]!.errorCount }}e</span>
-                <span
-                  v-if="scoring[ti]!.quizzers[qi]!.foulCount > 0 && !scoring[ti]!.quizzers[qi]!.fouledOut"
-                  class="stat-count stat-count--foul"
-                  :title="`${scoring[ti]!.quizzers[qi]!.foulCount} foul(s)`"
-                >{{ scoring[ti]!.quizzers[qi]!.foulCount }}f</span>
+                  v-if="scoring[ti]?.quizzers[qi]"
+                  class="quizzer-stats"
+                >
+                  <span
+                    v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
+                    :class="['stat-badge', 'stat-badge--quizout', { 'stat-badge--quizout-bonus': scoring[ti]!.quizzers[qi]!.quizoutBonus }]"
+                    :title="scoring[ti]!.quizzers[qi]!.quizoutBonus ? 'Quiz-out with bonus (+10)' : 'Quiz-out'"
+                  >Q</span>
+                  <span
+                    v-else-if="scoring[ti]!.quizzers[qi]!.erroredOut && !scoring[ti]!.quizzers[qi]!.fouledOut"
+                    class="stat-badge stat-badge--errorout"
+                    title="Errored out"
+                  >E</span>
+                  <span
+                    v-else-if="scoring[ti]!.quizzers[qi]!.fouledOut"
+                    class="stat-badge stat-badge--foulout"
+                    title="Fouled out"
+                  >F</span>
+                  <span
+                    v-if="scoring[ti]!.quizzers[qi]!.correctCount > 0 && !scoring[ti]!.quizzers[qi]!.quizzedOut"
+                    class="stat-count stat-count--correct"
+                    :title="`${scoring[ti]!.quizzers[qi]!.correctCount} correct`"
+                  >{{ scoring[ti]!.quizzers[qi]!.correctCount }}c</span>
+                  <span
+                    v-if="scoring[ti]!.quizzers[qi]!.errorCount > 0 && !(scoring[ti]!.quizzers[qi]!.erroredOut && !scoring[ti]!.quizzers[qi]!.fouledOut)"
+                    class="stat-count stat-count--error"
+                    :title="`${scoring[ti]!.quizzers[qi]!.errorCount} error(s)`"
+                  >{{ scoring[ti]!.quizzers[qi]!.errorCount }}e</span>
+                  <span
+                    v-if="scoring[ti]!.quizzers[qi]!.foulCount > 0 && !scoring[ti]!.quizzers[qi]!.fouledOut"
+                    class="stat-count stat-count--foul"
+                    :title="`${scoring[ti]!.quizzers[qi]!.foulCount} foul(s)`"
+                  >{{ scoring[ti]!.quizzers[qi]!.foulCount }}f</span>
                 </span>
               </div>
             </td>
@@ -428,7 +476,10 @@ function colGroupClass(colIdx: number): string {
               :rowspan="teamQuizzers[ti]?.length ?? 5"
               :title="teamHasErrors(ti) ? teamValidationMessages(ti).join('\n') : undefined"
             >
-              <span v-if="placements[ti]" class="placement-medal">{{ placements[ti] === 1 ? '🥇' : placements[ti] === 2 ? '🥈' : '🥉' }}</span>
+              <span
+                v-if="placements[ti]"
+                class="placement-medal"
+              >{{ placements[ti] === 1 ? '🥇' : placements[ti] === 2 ? '🥈' : '🥉' }}</span>
               {{ scoring[ti]?.total ?? 0 }}
             </td>
           </tr>
@@ -478,14 +529,24 @@ function colGroupClass(colIdx: number): string {
                 title="Foul deduction (-10)"
               >F</span>
             </td>
-            <td class="running-total-spacer"></td>
+            <td class="running-total-spacer" />
           </tr>
 
           <!-- Spacer between teams -->
-          <tr v-if="ti < teams.length - 1" class="spacer-row spacer-row--team">
-            <td class="sticky-col" colspan="2"></td>
-            <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
-            <td></td>
+          <tr
+            v-if="ti < teams.length - 1"
+            class="spacer-row spacer-row--team"
+          >
+            <td
+              class="sticky-col"
+              colspan="2"
+            />
+            <td
+              v-for="{ col, idx, entering } in displayColumns"
+              :key="col.key"
+              :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
+            />
+            <td />
           </tr>
         </template>
       </tbody>
@@ -493,12 +554,24 @@ function colGroupClass(colIdx: number): string {
       <!-- No-jump row at bottom -->
       <tfoot>
         <tr class="spacer-row">
-          <td class="sticky-col" colspan="2"></td>
-          <td v-for="{ col, idx, entering } in displayColumns" :key="col.key" :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"></td>
-          <td></td>
+          <td
+            class="sticky-col"
+            colspan="2"
+          />
+          <td
+            v-for="{ col, idx, entering } in displayColumns"
+            :key="col.key"
+            :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
+          />
+          <td />
         </tr>
         <tr class="row--no-jump">
-          <td class="col--name sticky-col no-jump-label" colspan="2">No Jump</td>
+          <td
+            class="col--name sticky-col no-jump-label"
+            colspan="2"
+          >
+            No Jump
+          </td>
           <td
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
@@ -508,13 +581,17 @@ function colGroupClass(colIdx: number): string {
           >
             {{ noJumps[idx] ? '✗' : '' }}
           </td>
-          <td class="col--total no-jump-total"></td>
+          <td class="col--total no-jump-total" />
         </tr>
       </tfoot>
     </table>
     <!-- Cell selector popup -->
     <Teleport to="body">
-      <div v-if="selector" class="selector-backdrop" @click="closeSelector">
+      <div
+        v-if="selector"
+        class="selector-backdrop"
+        @click="closeSelector"
+      >
         <div
           class="selector-popup"
           :style="{ left: selector.x + 'px', top: selector.y + 'px' }"
