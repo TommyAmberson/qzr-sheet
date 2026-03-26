@@ -40,6 +40,9 @@ docs/
 * Column keys: `"1"`–`"15"`, `"16"`/`"16A"`/`"16B"` through `"20B"`, `"21"`+ for overtime.
 * Tests live in `__tests__/` subdirectories next to the code they test.
 * Slight preference for writing tests before features.
+* Redundant comments are not helpful. Prefer to make the code readable and maintainable instead of
+  just adding comments. Only add comments to explain "why" if not immediately obvious, or to explain
+  complex logic.
 
 ## Gotchas
 
