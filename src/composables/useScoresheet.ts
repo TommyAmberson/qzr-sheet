@@ -2,7 +2,6 @@ import { ref, computed, watch } from 'vue'
 import {
   CellValue,
   buildColumns,
-  buildKeyToIdx,
   QuestionType,
   type Column,
   type Quiz,
@@ -51,9 +50,6 @@ export function useScoresheet() {
     const rounds = quiz.value.overtime ? internalOtRounds.value : 0
     return buildColumns(rounds)
   })
-
-  /** Key→index lookup, kept in sync with columns */
-  const keyToIdx = computed(() => buildKeyToIdx(columns.value))
 
   /** No-jump flags — grows/shrinks with columns */
   const noJumpMap = ref(new Map<string, boolean>())

@@ -68,7 +68,7 @@ const normalOptions = [
 /** Options to show in the selector based on column type and context */
 const selectorOptions = computed(() => {
   if (!selector.value) return []
-  const { ti, qi, ci } = selector.value
+  const { ti, qi: _qi, ci } = selector.value
   const col = columns.value[ci]
   if (!col) return []
 

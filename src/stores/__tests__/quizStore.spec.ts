@@ -9,7 +9,6 @@ const C = CellValue.Correct
 const E = CellValue.Error
 const F = CellValue.Foul
 const B = CellValue.Bonus
-const MB = CellValue.MissedBonus
 const _ = CellValue.Empty
 
 function ci(key: string): number {

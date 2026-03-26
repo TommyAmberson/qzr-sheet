@@ -1,4 +1,5 @@
 import js from '@eslint/js'
+import prettier from 'eslint-config-prettier'
 import pluginVue from 'eslint-plugin-vue'
 import tseslint from 'typescript-eslint'
 
@@ -19,7 +20,12 @@ export default tseslint.config(
     rules: {
       'prefer-const': 'error',
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+      }],
       '@typescript-eslint/no-explicit-any': 'warn',
       'vue/component-api-style': ['error', ['script-setup']],
       'vue/block-order': ['error', { order: ['script', 'template', 'style'] }],
@@ -37,11 +43,12 @@ export default tseslint.config(
     rules: {
       'prefer-const': 'error',
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
     },
   },
   {
     ignores: ['dist/**', 'node_modules/**', 'src-tauri/**'],
   },
+  prettier,
 )
