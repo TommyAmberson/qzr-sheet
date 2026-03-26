@@ -12,7 +12,16 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "format": "prettier --write --experimental-cli src/",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm lint-staged"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,vue}": "eslint --fix",
+    "src/**/*.{ts,vue,css}": "prettier --write --experimental-cli",
+    "**/*.{md,dockerfile}": "dprint fmt"
   },
   "dependencies": {
     "vue": "^3.5.28"
@@ -22,6 +31,8 @@
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-vue": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "simple-git-hooks": "^2.0.0",
     "typescript-eslint": "^8.0.0",
     "@tauri-apps/cli": "^2.10.0",
     "@tsconfig/node24": "^24.0.4",
