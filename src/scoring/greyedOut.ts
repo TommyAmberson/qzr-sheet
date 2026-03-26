@@ -82,15 +82,24 @@ export function computeGreyedOut(
     if (col.type === QuestionType.Normal && col.isAB && isResolved(colIdx)) {
       const aIdx = keyToIdx.get(`${col.number}A`)
       const bIdx = keyToIdx.get(`${col.number}B`)
-      if (aIdx !== undefined) { greyAllTeams(aIdx); cascadeDisabled.add(aIdx) }
-      if (bIdx !== undefined) { greyAllTeams(bIdx); cascadeDisabled.add(bIdx) }
+      if (aIdx !== undefined) {
+        greyAllTeams(aIdx)
+        cascadeDisabled.add(aIdx)
+      }
+      if (bIdx !== undefined) {
+        greyAllTeams(bIdx)
+        cascadeDisabled.add(bIdx)
+      }
     }
 
     // 3. If an A question was resolved (C/B/MB), grey out B.
     //    Errors don't resolve — they lead to toss-ups on B.
     if (col.type === QuestionType.A && isResolved(colIdx)) {
       const bIdx = keyToIdx.get(`${col.number}B`)
-      if (bIdx !== undefined) { greyAllTeams(bIdx); cascadeDisabled.add(bIdx) }
+      if (bIdx !== undefined) {
+        greyAllTeams(bIdx)
+        cascadeDisabled.add(bIdx)
+      }
     }
 
     // 4. Toss-up greying: teams in tossedUp set are greyed on this column
@@ -114,12 +123,7 @@ export function computeGreyedOut(
 
       // If this team was tossed up (couldn't jump) and someone else errored
       // (not resolved by correct/bonus), carry forward
-      if (
-        tossedUp[colIdx]!.has(`${ti}`) &&
-        !teamHasAnswer(ti, colIdx) &&
-        hasError &&
-        !resolved
-      ) {
+      if (tossedUp[colIdx]!.has(`${ti}`) && !teamHasAnswer(ti, colIdx) && hasError && !resolved) {
         tossedUp[nq]!.add(`${ti}`)
       }
     }

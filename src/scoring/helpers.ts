@@ -36,11 +36,7 @@ export function teamHasValue(
 }
 
 /** Whether a specific team has any answer (non-empty, non-foul) on a column */
-export function teamHasAnswer(
-  cellData: CellValue[][][],
-  teamIdx: number,
-  colIdx: number,
-): boolean {
+export function teamHasAnswer(cellData: CellValue[][][], teamIdx: number, colIdx: number): boolean {
   for (const row of cellData[teamIdx]!) {
     if (isAnswer(row[colIdx]!)) return true
   }
@@ -93,4 +89,3 @@ export function isBonusSituation(
   }
   return tossedTeams === teamCount - 1
 }
-

@@ -1,9 +1,6 @@
 import { CellValue, QuestionType, type Column } from '../types/scoresheet'
 import type { GreyedOutResult } from './greyedOut'
-import {
-  isAnswer,
-  isBonusSituation,
-} from './helpers'
+import { isAnswer, isBonusSituation } from './helpers'
 
 export enum ValidationCode {
   /** Answer by a quizzer with no name (empty seat) */
@@ -41,7 +38,8 @@ const validationMessages: Record<ValidationCode, string> = {
   [ValidationCode.QuestionNotNeeded]: "This question shouldn't be asked",
   [ValidationCode.NoJump]: 'No-jump means no one answered — but an answer is recorded here',
   [ValidationCode.QuizzerOut]: 'Quizzer has quizzed/errored/fouled out — they cannot answer',
-  [ValidationCode.FouledOnQuestion]: 'A foul on this numbered question makes the quizzer ineligible',
+  [ValidationCode.FouledOnQuestion]:
+    'A foul on this numbered question makes the quizzer ineligible',
   [ValidationCode.NotInOvertime]: 'Only tied teams can answer in overtime — this team is not tied',
 }
 
@@ -78,9 +76,9 @@ export function validateCells(
 
   // Track per-quizzer running counts for out detection (left-to-right)
   // qCorrects[ti][qi], qErrors[ti][qi], qFouls[ti][qi]
-  const qCorrects: number[][] = cellData.map(team => new Array(team.length).fill(0))
-  const qErrors: number[][] = cellData.map(team => new Array(team.length).fill(0))
-  const qFouls: number[][] = cellData.map(team => new Array(team.length).fill(0))
+  const qCorrects: number[][] = cellData.map((team) => new Array(team.length).fill(0))
+  const qErrors: number[][] = cellData.map((team) => new Array(team.length).fill(0))
+  const qFouls: number[][] = cellData.map((team) => new Array(team.length).fill(0))
 
   for (let ci = 0; ci < cols.length; ci++) {
     const col = cols[ci]!
@@ -107,12 +105,7 @@ export function validateCells(
         }
 
         // --- Not in overtime ---
-        if (
-          col.isOvertime &&
-          otEligibleTeams &&
-          !otEligibleTeams.has(ti) &&
-          v !== CellValue.Foul
-        ) {
+        if (col.isOvertime && otEligibleTeams && !otEligibleTeams.has(ti) && v !== CellValue.Foul) {
           addError(ti, qi, ci, ValidationCode.NotInOvertime)
         }
 
@@ -149,7 +142,12 @@ export function validateCells(
         if ((isErrorOut || isFoulOut) && v !== CellValue.Foul) {
           // Error/foul out: must leave, can't answer anything (except fouls)
           addError(ti, qi, ci, ValidationCode.QuizzerOut)
-        } else if (isQuizzedOut && v !== CellValue.Foul && v !== CellValue.Bonus && v !== CellValue.MissedBonus) {
+        } else if (
+          isQuizzedOut &&
+          v !== CellValue.Foul &&
+          v !== CellValue.Bonus &&
+          v !== CellValue.MissedBonus
+        ) {
           // Quiz out: stays on bench, can still answer bonus (B/MB) but not C/E
           addError(ti, qi, ci, ValidationCode.QuizzerOut)
         }
@@ -178,7 +176,12 @@ export function validateCells(
               break
             }
           }
-          addError(ti, qi, ci, isBonusForOther ? ValidationCode.WrongTeamBonus : ValidationCode.WrongTeamTossUp)
+          addError(
+            ti,
+            qi,
+            ci,
+            isBonusForOther ? ValidationCode.WrongTeamBonus : ValidationCode.WrongTeamTossUp,
+          )
         }
 
         // --- Question resolved (A/B cascade) ---

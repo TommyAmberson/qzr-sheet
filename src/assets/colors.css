@@ -1,95 +1,95 @@
 /* ── Raw palette — every unique color value, defined once ── */
 :root {
   /* Answers */
-  --palette-correct:      #3d7a4a;
-  --palette-correct-alt:  #e4f2e7;
-  --palette-error:        #8b4038;
-  --palette-error-alt:    #f2e4e2;
-  --palette-foul:         #a67038;
-  --palette-foul-alt:     #f2ece2;
-  --palette-bonus:        #3d7a7a;
-  --palette-bonus-alt:    #e2f0f0;
-  --palette-mb:           #7a7568;
-  --palette-mb-alt:       #e8e7e2;
-  --palette-no-jump:      #6e6a5c;
-  --palette-no-jump-alt:  #e8e6df;
+  --palette-correct: #3d7a4a;
+  --palette-correct-alt: #e4f2e7;
+  --palette-error: #8b4038;
+  --palette-error-alt: #f2e4e2;
+  --palette-foul: #a67038;
+  --palette-foul-alt: #f2ece2;
+  --palette-bonus: #3d7a7a;
+  --palette-bonus-alt: #e2f0f0;
+  --palette-mb: #7a7568;
+  --palette-mb-alt: #e8e7e2;
+  --palette-no-jump: #6e6a5c;
+  --palette-no-jump-alt: #e8e6df;
 
   /* Neutrals (light → dark) */
-  --palette-white:        #fff;
-  --palette-eggshell:     #f5f2ec;
-  --palette-cream:        #f0e8e0;
-  --palette-sand:         #e0ddd4;
-  --palette-tan:          #c9c0a8;
-  --palette-ash:          #b8b4a8;
-  --palette-khaki:        #a09a85;
-  --palette-stone:        #78716c;
-  --palette-slate:        #57534e;
-  --palette-flint:        #3e3a34;
-  --palette-shadow:       #3a3730;
-  --palette-charcoal:     #33302a;
-  --palette-coal:         #2a2724;
-  --palette-obsidian:     #1a1816;
+  --palette-white: #fff;
+  --palette-eggshell: #f5f2ec;
+  --palette-cream: #f0e8e0;
+  --palette-sand: #e0ddd4;
+  --palette-tan: #c9c0a8;
+  --palette-ash: #b8b4a8;
+  --palette-khaki: #a09a85;
+  --palette-stone: #78716c;
+  --palette-slate: #57534e;
+  --palette-flint: #3e3a34;
+  --palette-shadow: #3a3730;
+  --palette-charcoal: #33302a;
+  --palette-coal: #2a2724;
+  --palette-obsidian: #1a1816;
 
   /* Accents */
-  --palette-blue:         #60a5fa;
-  --palette-red:          #dc2626;
-  --palette-coral:        #f87171;
-  --palette-gold:         #e6d98a;
-  --palette-amber:        #c47a1a;
-  --palette-rose:         #9d174d;
+  --palette-blue: #60a5fa;
+  --palette-red: #dc2626;
+  --palette-coral: #f87171;
+  --palette-gold: #e6d98a;
+  --palette-amber: #c47a1a;
+  --palette-rose: #9d174d;
 
   /* Fixed — not themed */
-  --color-team-red:       #ff0000;
-  --color-team-white:     #ffffff;
-  --color-team-blue:      #0000ff;
-  --color-invalid:        var(--palette-red);
-  --color-invalid-alt:    var(--palette-coral);
-  --color-correct:        var(--palette-correct);
-  --color-correct-alt:    var(--palette-correct-alt);
-  --color-error:          var(--palette-error);
-  --color-error-alt:      var(--palette-error-alt);
-  --color-foul:           var(--palette-foul);
-  --color-foul-alt:       var(--palette-foul-alt);
-  --color-bonus:          var(--palette-bonus);
-  --color-bonus-alt:      var(--palette-bonus-alt);
-  --color-missed-bonus:   var(--palette-mb);
+  --color-team-red: #ff0000;
+  --color-team-white: #ffffff;
+  --color-team-blue: #0000ff;
+  --color-invalid: var(--palette-red);
+  --color-invalid-alt: var(--palette-coral);
+  --color-correct: var(--palette-correct);
+  --color-correct-alt: var(--palette-correct-alt);
+  --color-error: var(--palette-error);
+  --color-error-alt: var(--palette-error-alt);
+  --color-foul: var(--palette-foul);
+  --color-foul-alt: var(--palette-foul-alt);
+  --color-bonus: var(--palette-bonus);
+  --color-bonus-alt: var(--palette-bonus-alt);
+  --color-missed-bonus: var(--palette-mb);
   --color-missed-bonus-alt: var(--palette-mb-alt);
-  --color-no-jump:        var(--palette-no-jump);
-  --color-no-jump-alt:    var(--palette-no-jump-alt);
-  --color-accent:         var(--palette-blue);
-  --color-ab-border:      var(--palette-amber);
-  --color-ot-border:      var(--palette-rose);
-  --color-meta-border:    var(--palette-gold);
+  --color-no-jump: var(--palette-no-jump);
+  --color-no-jump-alt: var(--palette-no-jump-alt);
+  --color-accent: var(--palette-blue);
+  --color-ab-border: var(--palette-amber);
+  --color-ot-border: var(--palette-rose);
+  --color-meta-border: var(--palette-gold);
 }
 
 /* ── Light theme ── */
 :root {
-  --color-bg:             var(--palette-white);
-  --color-bg-warm:        var(--palette-cream);
-  --color-border:         var(--palette-khaki);
-  --color-border-alt:     var(--palette-sand);
-  --color-text:           var(--palette-coal);
-  --color-text-muted:     var(--palette-slate);
-  --color-text-faint:     var(--palette-stone);
-  --color-meta-bg:        var(--palette-cream);
-  --color-meta-accent:    var(--palette-tan);
-  --color-grey-stripe-a:  var(--palette-cream);
-  --color-grey-stripe-b:  var(--palette-eggshell);
+  --color-bg: var(--palette-white);
+  --color-bg-warm: var(--palette-cream);
+  --color-border: var(--palette-khaki);
+  --color-border-alt: var(--palette-sand);
+  --color-text: var(--palette-coal);
+  --color-text-muted: var(--palette-slate);
+  --color-text-faint: var(--palette-stone);
+  --color-meta-bg: var(--palette-cream);
+  --color-meta-accent: var(--palette-tan);
+  --color-grey-stripe-a: var(--palette-cream);
+  --color-grey-stripe-b: var(--palette-eggshell);
 }
 
 /* ── Dark theme ── */
-[data-theme="dark"] {
-  --color-bg:             var(--palette-coal);
-  --color-bg-warm:        var(--palette-obsidian);
-  --color-border:         var(--palette-no-jump);
-  --color-border-alt:     var(--palette-shadow);
-  --color-text:           var(--palette-ash);
-  --color-text-muted:     var(--palette-khaki);
-  --color-text-faint:     var(--palette-stone);
-  --color-no-jump:        var(--palette-no-jump-alt);
-  --color-no-jump-alt:    var(--palette-no-jump);
-  --color-meta-bg:        var(--palette-shadow);
-  --color-meta-accent:    var(--palette-slate);
-  --color-grey-stripe-a:  var(--palette-flint);
-  --color-grey-stripe-b:  var(--palette-charcoal);
+[data-theme='dark'] {
+  --color-bg: var(--palette-coal);
+  --color-bg-warm: var(--palette-obsidian);
+  --color-border: var(--palette-no-jump);
+  --color-border-alt: var(--palette-shadow);
+  --color-text: var(--palette-ash);
+  --color-text-muted: var(--palette-khaki);
+  --color-text-faint: var(--palette-stone);
+  --color-no-jump: var(--palette-no-jump-alt);
+  --color-no-jump-alt: var(--palette-no-jump);
+  --color-meta-bg: var(--palette-shadow);
+  --color-meta-accent: var(--palette-slate);
+  --color-grey-stripe-a: var(--palette-flint);
+  --color-grey-stripe-b: var(--palette-charcoal);
 }

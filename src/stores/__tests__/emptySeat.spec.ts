@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createQuizStore } from '../quizStore'
-import { CellValue, buildColumns } from '../../types/scoresheet'
+import { CellValue } from '../../types/scoresheet'
 
 const C = CellValue.Correct
 const _ = CellValue.Empty

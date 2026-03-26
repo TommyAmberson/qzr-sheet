@@ -11,9 +11,7 @@ const _ = CellValue.Empty
 
 /** Build blank 3-team, 5-quizzer cell grid for given columns */
 function blankCells(colCount: number): CellValue[][][] {
-  return [0, 1, 2].map(() =>
-    Array.from({ length: 5 }, () => new Array(colCount).fill(_)),
-  )
+  return [0, 1, 2].map(() => Array.from({ length: 5 }, () => new Array(colCount).fill(_)))
 }
 
 describe('computeVisibleColumns', () => {

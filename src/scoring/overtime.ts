@@ -25,8 +25,8 @@ export function getOvertimeEligibleTeams(
       }),
     ),
   )
-  const scores = regCells.map((teamCells, ti) =>
-    scoreTeam(teamCells, regCols, onTimes[ti] ?? true).total,
+  const scores = regCells.map(
+    (teamCells, ti) => scoreTeam(teamCells, regCols, onTimes[ti] ?? true).total,
   )
 
   // Find teams that share a score with at least one other team
@@ -117,8 +117,8 @@ export function computeOvertimeRounds(
         }),
       ),
     )
-    const scores = throughCells.map((teamCells, ti) =>
-      scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+    const scores = throughCells.map(
+      (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
     )
 
     // Find which competing teams are still tied with each other
@@ -173,8 +173,8 @@ export function computeOtCheckpointScores(
       ),
     )
     checkpoints.push(
-      throughCells.map((teamCells, ti) =>
-        scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+      throughCells.map(
+        (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
       ),
     )
   }
@@ -199,7 +199,5 @@ export function computeRegulationScores(
       }),
     ),
   )
-  return regCells.map((teamCells, ti) =>
-    scoreTeam(teamCells, regCols, onTimes[ti] ?? true).total,
-  )
+  return regCells.map((teamCells, ti) => scoreTeam(teamCells, regCols, onTimes[ti] ?? true).total)
 }

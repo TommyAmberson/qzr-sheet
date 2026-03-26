@@ -1,0 +1,15 @@
+{
+  "markdown": {
+    "lineWidth": 100,
+    "unorderedListKind": "asterisks",
+    "textWrap": "always"
+  },
+  "excludes": [
+    "submodules/**",
+    "build*/**"
+  ],
+  "plugins": [
+    "https://plugins.dprint.dev/markdown-0.17.1.wasm",
+    "https://plugins.dprint.dev/dockerfile-0.3.2.wasm"
+  ]
+}
