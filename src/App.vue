@@ -31,10 +31,16 @@ const { theme, toggleTheme } = useTheme()
 }
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
   background: var(--color-bg-warm);
   color: var(--color-text);
-  transition: background 0.3s, color 0.3s;
+  transition:
+    background 0.3s,
+    color 0.3s;
 }
 
 .app-header {
@@ -44,7 +50,9 @@ body {
   padding: 0.75rem 1rem;
   background: var(--color-text);
   color: var(--color-bg-warm);
-  transition: background 0.3s, color 0.3s;
+  transition:
+    background 0.3s,
+    color 0.3s;
 }
 
 .app-header h1 {

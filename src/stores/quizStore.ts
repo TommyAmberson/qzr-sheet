@@ -99,9 +99,7 @@ export function createQuizStore(): QuizStore {
 
   // Pre-build quizzer lookup by team
   function quizzersByTeam(teamId: number): Quizzer[] {
-    return quizzers
-      .filter((q) => q.teamId === teamId)
-      .sort((a, b) => a.seatOrder - b.seatOrder)
+    return quizzers.filter((q) => q.teamId === teamId).sort((a, b) => a.seatOrder - b.seatOrder)
   }
 
   function teamForQuizzer(quizzerId: number): number | undefined {
@@ -161,9 +159,7 @@ export function createQuizStore(): QuizStore {
 
     return sortedTeams.map((team) => {
       const teamQuizzers = quizzersByTeam(team.id)
-      return teamQuizzers.map((qzr) =>
-        columns.map((col) => getAnswer(qzr.id, col.key)),
-      )
+      return teamQuizzers.map((qzr) => columns.map((col) => getAnswer(qzr.id, col.key)))
     })
   }
 

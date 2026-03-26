@@ -56,9 +56,7 @@ function ci(key: string): number {
 
 /** Helper: blank 3-team, 5-quizzer grid */
 function blankCells(): CellValue[][][] {
-  return [0, 1, 2].map(() =>
-    Array.from({ length: 5 }, () => columns.map(() => _)),
-  )
+  return [0, 1, 2].map(() => Array.from({ length: 5 }, () => columns.map(() => _)))
 }
 
 describe('getOvertimeEligibleTeams', () => {
@@ -147,9 +145,7 @@ describe('computeOvertimeRounds', () => {
    */
   function setup(rounds: number) {
     const cols = buildColumns(rounds)
-    const cells = [0, 1, 2].map(() =>
-      Array.from({ length: 5 }, () => cols.map(() => _)),
-    )
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
     const idx = (key: string) => {
       const i = cols.findIndex((c) => c.key === key)
       if (i === -1) throw new Error(`Column ${key} not found`)

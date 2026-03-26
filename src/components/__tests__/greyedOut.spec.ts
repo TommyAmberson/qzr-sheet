@@ -23,7 +23,12 @@ function isGreyed(result: { disabled: Set<string> }, ti: number, colIdx: number)
 }
 
 /** Helper: check if a column is a bonus for a team (other 2 teams tossed-up) */
-function isBonusFor(result: { tossedUp: Set<string> }, ti: number, colIdx: number, teamCount = 3): boolean {
+function isBonusFor(
+  result: { tossedUp: Set<string> },
+  ti: number,
+  colIdx: number,
+  teamCount = 3,
+): boolean {
   let tossedTeams = 0
   for (let t = 0; t < teamCount; t++) {
     if (t !== ti && result.tossedUp.has(`${t}:${colIdx}`)) tossedTeams++
@@ -33,9 +38,7 @@ function isBonusFor(result: { tossedUp: Set<string> }, ti: number, colIdx: numbe
 
 /** Helper: blank 3-team, 5-quizzer grid */
 function blankCells(): CellValue[][][] {
-  return [0, 1, 2].map(() =>
-    Array.from({ length: 5 }, () => columns.map(() => _)),
-  )
+  return [0, 1, 2].map(() => Array.from({ length: 5 }, () => columns.map(() => _)))
 }
 
 describe('greyed-out logic', () => {
@@ -280,7 +283,7 @@ describe('greyed-out logic', () => {
 
   it('Q16 error → Q16A error → Q16B is bonus for remaining team', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('16')] = E  // team 0 errors on Q16
+    cells[0]![0]![ci('16')] = E // team 0 errors on Q16
     cells[1]![0]![ci('16A')] = E // team 1 errors on Q16A toss-up
     const result = computeGreyedOut(cells, columns)
     // Q16B: team 0 + team 1 greyed → bonus for team 2
@@ -348,7 +351,7 @@ describe('greyed-out logic', () => {
 
   it('cascadeDisabled includes B when A is resolved (correct)', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('17')] = E  // error on base → toss-up to A
+    cells[0]![0]![ci('17')] = E // error on base → toss-up to A
     cells[1]![0]![ci('17A')] = C // A correct → B disabled
     const result = computeGreyedOut(cells, columns)
     expect(result.cascadeDisabled.has(ci('17A'))).toBe(false) // A was the toss-up, not cascade-disabled
@@ -373,7 +376,7 @@ describe('greyed-out logic', () => {
 
   it('cascadeDisabled includes B when A is bonus/missed-bonus', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('18')] = E   // error on base
+    cells[0]![0]![ci('18')] = E // error on base
     cells[1]![0]![ci('18A')] = MB // missed bonus on A → B disabled
     const result = computeGreyedOut(cells, columns)
     expect(result.cascadeDisabled.has(ci('18B'))).toBe(true)
@@ -405,9 +408,7 @@ describe('greyed-out logic', () => {
 
   it('non-eligible teams are greyed on overtime columns', () => {
     const otCols = buildColumns(1)
-    const otCells = [0, 1, 2].map(() =>
-      Array.from({ length: 5 }, () => otCols.map(() => _)),
-    )
+    const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
     const otCi = (key: string) => {
       const i = otCols.findIndex((c) => c.key === key)
       if (i === -1) throw new Error(`Column ${key} not found`)
@@ -427,9 +428,7 @@ describe('greyed-out logic', () => {
 
   it('eligible teams are NOT greyed on regulation columns', () => {
     const otCols = buildColumns(1)
-    const otCells = [0, 1, 2].map(() =>
-      Array.from({ length: 5 }, () => otCols.map(() => _)),
-    )
+    const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
     const otCi = (key: string) => {
       const i = otCols.findIndex((c) => c.key === key)
       if (i === -1) throw new Error(`Column ${key} not found`)

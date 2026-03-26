@@ -1,14 +1,31 @@
 import { ref, computed, watch } from 'vue'
-import { CellValue, buildColumns, buildKeyToIdx, QuestionType, type Column, type Quiz, type Team, type Quizzer } from '../types/scoresheet'
+import {
+  CellValue,
+  buildColumns,
+  buildKeyToIdx,
+  QuestionType,
+  type Column,
+  type Quiz,
+  type Team,
+  type Quizzer,
+} from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
 import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
 import { validateCells, ValidationCode, validationMessage } from '../scoring/validation'
+import { isBonusSituation } from '../scoring/helpers'
 import {
-  isBonusSituation,
-} from '../scoring/helpers'
-import { computeVisibleColumns, computeOrphanedColumns, abColumnNeeded as _abColumnNeeded } from '../scoring/columnVisibility'
-import { getOvertimeEligibleTeams, computeOvertimeRounds, computeOtCheckpointScores, computeRegulationScores, questionsComplete } from '../scoring/overtime'
+  computeVisibleColumns,
+  computeOrphanedColumns,
+  abColumnNeeded as _abColumnNeeded,
+} from '../scoring/columnVisibility'
+import {
+  getOvertimeEligibleTeams,
+  computeOvertimeRounds,
+  computeOtCheckpointScores,
+  computeRegulationScores,
+  questionsComplete,
+} from '../scoring/overtime'
 import { computePlacements } from '../scoring/placement'
 
 export function useScoresheet() {
@@ -53,9 +70,7 @@ export function useScoresheet() {
   })
 
   /** Quizzers per team, indexed by team position */
-  const teamQuizzers = computed(() =>
-    teams.value.map((team) => store.quizzersByTeam(team.id)),
-  )
+  const teamQuizzers = computed(() => teams.value.map((team) => store.quizzersByTeam(team.id)))
 
   /** All quizzers (flat list) */
   const quizzers = computed<Quizzer[]>(() => store.quizzers)
@@ -122,7 +137,15 @@ export function useScoresheet() {
   })
 
   const validationErrors = computed(() =>
-    validateCells(cells.value, columns.value, greyedOutResult.value, noJumps.value, otEligibleTeams.value, orphanedColumns.value, emptySeats.value),
+    validateCells(
+      cells.value,
+      columns.value,
+      greyedOutResult.value,
+      noJumps.value,
+      otEligibleTeams.value,
+      orphanedColumns.value,
+      emptySeats.value,
+    ),
   )
 
   // --- Query helpers (business logic the template needs) ---
@@ -284,7 +307,8 @@ export function useScoresheet() {
     const cols = columns.value
     for (let ci = 0; ci < cols.length; ci++) {
       const col = cols[ci]!
-      if ((col.type === QuestionType.A || col.type === QuestionType.B) && !abColumnNeeded(ci)) continue
+      if ((col.type === QuestionType.A || col.type === QuestionType.B) && !abColumnNeeded(ci))
+        continue
       if (noJumps.value[ci]) continue
       if (colAnswerValue(ci) !== CellValue.Empty) continue
       return false
@@ -304,7 +328,12 @@ export function useScoresheet() {
     }
     const onTimes = teams.value.map((t) => t.onTime)
     const regScores = computeRegulationScores(cells.value, columns.value, onTimes)
-    const checkpoints = computeOtCheckpointScores(cells.value, columns.value, onTimes, noJumps.value)
+    const checkpoints = computeOtCheckpointScores(
+      cells.value,
+      columns.value,
+      onTimes,
+      noJumps.value,
+    )
     return computePlacements(regScores, checkpoints, true)
   })
 

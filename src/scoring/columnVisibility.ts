@@ -76,7 +76,8 @@ export function computeOrphanedColumns(
       let parentTriggered = false
       if (col.type === QuestionType.A) {
         const baseIdx = keyToIdx.get(`${col.number}`)
-        parentTriggered = baseIdx !== undefined && anyTeamHasValue(cellData, baseIdx, CellValue.Error)
+        parentTriggered =
+          baseIdx !== undefined && anyTeamHasValue(cellData, baseIdx, CellValue.Error)
       } else {
         const aIdx = keyToIdx.get(`${col.number}A`)
         parentTriggered = aIdx !== undefined && anyTeamHasValue(cellData, aIdx, CellValue.Error)

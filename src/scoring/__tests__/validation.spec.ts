@@ -27,9 +27,7 @@ function blankNoJumps(): boolean[] {
 
 /** Helper: blank 3-team, 5-quizzer grid */
 function blankCells(): CellValue[][][] {
-  return [0, 1, 2].map(() =>
-    Array.from({ length: 5 }, () => columns.map(() => _)),
-  )
+  return [0, 1, 2].map(() => Array.from({ length: 5 }, () => columns.map(() => _)))
 }
 
 /** Check if a specific cell has a specific validation code */
@@ -323,7 +321,7 @@ describe('cell validation', () => {
 
   it('answer on A column when base question was correct is invalid', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('17')] = C  // Q17 correct
+    cells[0]![0]![ci('17')] = C // Q17 correct
     cells[1]![0]![ci('17A')] = C // Q17A answered — but Q17 was already resolved!
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
@@ -332,7 +330,7 @@ describe('cell validation', () => {
 
   it('answer on B column when A was correct is invalid', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('17')] = E  // Q17 error → toss-up to 17A
+    cells[0]![0]![ci('17')] = E // Q17 error → toss-up to 17A
     cells[1]![0]![ci('17A')] = C // Q17A correct
     cells[2]![0]![ci('17B')] = B // Q17B answered — but 17A resolved it!
     const grey = computeGreyedOut(cells, columns)
@@ -342,7 +340,7 @@ describe('cell validation', () => {
 
   it('answer on A column when base question was error is valid (toss-up)', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('17')] = E  // Q17 error
+    cells[0]![0]![ci('17')] = E // Q17 error
     cells[1]![0]![ci('17A')] = C // Q17A correct via toss-up — valid
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
@@ -534,7 +532,7 @@ describe('cell validation', () => {
 
   it('quizzer who fouled on base question answering A is invalid', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('17')] = F  // quizzer 0 fouls on Q17
+    cells[0]![0]![ci('17')] = F // quizzer 0 fouls on Q17
     cells[0]![0]![ci('17A')] = C // quizzer 0 answers Q17A — invalid
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
@@ -543,7 +541,7 @@ describe('cell validation', () => {
 
   it('quizzer who fouled on base question answering B is invalid', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('17')] = F  // quizzer 0 fouls on Q17
+    cells[0]![0]![ci('17')] = F // quizzer 0 fouls on Q17
     cells[0]![0]![ci('17B')] = B // quizzer 0 answers Q17B — invalid
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
@@ -561,7 +559,7 @@ describe('cell validation', () => {
 
   it('different quizzer on same team can still answer after teammate foul', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('17')] = F  // quizzer 0 fouls on Q17
+    cells[0]![0]![ci('17')] = F // quizzer 0 fouls on Q17
     cells[0]![1]![ci('17A')] = C // quizzer 1 answers Q17A — valid
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
@@ -570,7 +568,7 @@ describe('cell validation', () => {
 
   it('fouling again on a sub-part after fouling on base is still flagged', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('17')] = F  // quizzer 0 fouls on Q17
+    cells[0]![0]![ci('17')] = F // quizzer 0 fouls on Q17
     cells[0]![0]![ci('17A')] = F // quizzer 0 fouls again on Q17A — invalid
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey)
@@ -628,9 +626,7 @@ describe('cell validation', () => {
     }
 
     function otBlankCells(): CellValue[][][] {
-      return [0, 1, 2].map(() =>
-        Array.from({ length: 5 }, () => otColumns.map(() => _)),
-      )
+      return [0, 1, 2].map(() => Array.from({ length: 5 }, () => otColumns.map(() => _)))
     }
 
     function otBlankNoJumps(): boolean[] {
@@ -779,7 +775,15 @@ describe('cell validation', () => {
     const emptySeats = new Set(['0:0'])
     cells[0]![0]![ci('1')] = C
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, undefined, emptySeats)
+    const errors = validateCells(
+      cells,
+      columns,
+      grey,
+      blankNoJumps(),
+      undefined,
+      undefined,
+      emptySeats,
+    )
     expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.EmptySeat)).toBe(true)
   })
 
@@ -788,7 +792,15 @@ describe('cell validation', () => {
     const emptySeats = new Set(['0:0'])
     cells[0]![0]![ci('1')] = F
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, undefined, emptySeats)
+    const errors = validateCells(
+      cells,
+      columns,
+      grey,
+      blankNoJumps(),
+      undefined,
+      undefined,
+      emptySeats,
+    )
     expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.EmptySeat)).toBe(true)
   })
 
@@ -796,7 +808,15 @@ describe('cell validation', () => {
     const cells = blankCells()
     const emptySeats = new Set(['0:0'])
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, undefined, emptySeats)
+    const errors = validateCells(
+      cells,
+      columns,
+      grey,
+      blankNoJumps(),
+      undefined,
+      undefined,
+      emptySeats,
+    )
     expect(errors.size).toBe(0)
   })
 
@@ -805,7 +825,15 @@ describe('cell validation', () => {
     const emptySeats = new Set(['0:1']) // quizzer 1 is empty
     cells[0]![0]![ci('1')] = C // quizzer 0 answers — not empty seat
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, undefined, emptySeats)
+    const errors = validateCells(
+      cells,
+      columns,
+      grey,
+      blankNoJumps(),
+      undefined,
+      undefined,
+      emptySeats,
+    )
     expect(hasCode(errors, 0, 0, ci('1'), ValidationCode.EmptySeat)).toBe(false)
   })
 

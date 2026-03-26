@@ -51,11 +51,7 @@ describe('computePlacements', () => {
   it('places all teams when OT round breaks 2-way tie', () => {
     // Regulation: Team 0: 140, Teams 1 & 2: 120 (tied)
     // After OT round 1: Team 1: 140, Team 2: 130 — tie broken
-    const result = computePlacements(
-      [140, 120, 120],
-      [[140, 140, 130]],
-      true,
-    )
+    const result = computePlacements([140, 120, 120], [[140, 140, 130]], true)
     expect(result).toEqual([1, 2, 3])
   })
 
@@ -63,11 +59,7 @@ describe('computePlacements', () => {
     // Regulation: Team 0: 140, Teams 1 & 2: 120 (tied)
     // After OT round 1: Team 1: 160, Team 2: 140 — tie broken
     // Team 1 has higher score than team 0, but still 2nd
-    const result = computePlacements(
-      [140, 120, 120],
-      [[140, 160, 140]],
-      true,
-    )
+    const result = computePlacements([140, 120, 120], [[140, 160, 140]], true)
     expect(result).toEqual([1, 2, 3])
   })
 
@@ -77,11 +69,7 @@ describe('computePlacements', () => {
     // Regulation: all 120
     // After OT round 1: Team 0: 140, Team 1: 140, Team 2: 130
     // Team 2 drops out (3rd), Teams 0 & 1 still tied
-    const result = computePlacements(
-      [120, 120, 120],
-      [[140, 140, 130]],
-      true,
-    )
+    const result = computePlacements([120, 120, 120], [[140, 140, 130]], true)
     expect(result).toEqual([null, null, 3])
   })
 
@@ -91,7 +79,10 @@ describe('computePlacements', () => {
     // After OT round 2: Team 0: 160, Team 1: 150 → tie broken
     const result = computePlacements(
       [120, 120, 120],
-      [[140, 140, 130], [160, 150, 130]],
+      [
+        [140, 140, 130],
+        [160, 150, 130],
+      ],
       true,
     )
     expect(result).toEqual([1, 2, 3])
@@ -102,11 +93,7 @@ describe('computePlacements', () => {
   it('leaves tied teams as null when OT round does not break tie', () => {
     // Regulation: Team 0: 140, Teams 1 & 2: 120
     // After OT round 1: Teams 1 & 2 both at 140 — still tied
-    const result = computePlacements(
-      [140, 120, 120],
-      [[140, 140, 140]],
-      true,
-    )
+    const result = computePlacements([140, 120, 120], [[140, 140, 140]], true)
     expect(result).toEqual([1, null, null])
   })
 
@@ -114,11 +101,7 @@ describe('computePlacements', () => {
     // Regulation: Team 0: 140, Teams 1 & 2: 100 (tied for 2nd/3rd)
     // After OT round 1: Team 1: 160, Team 2: 120 — tie broken
     // Team 1 has higher score than Team 0, but still 2nd
-    const result = computePlacements(
-      [140, 100, 100],
-      [[140, 160, 120]],
-      true,
-    )
+    const result = computePlacements([140, 100, 100], [[140, 160, 120]], true)
     expect(result).toEqual([1, 2, 3])
   })
 
@@ -127,11 +110,7 @@ describe('computePlacements', () => {
   it('3-way tie all resolved in 1 round', () => {
     // Regulation: all 120
     // After OT round 1: 160, 140, 130 — all different
-    const result = computePlacements(
-      [120, 120, 120],
-      [[160, 140, 130]],
-      true,
-    )
+    const result = computePlacements([120, 120, 120], [[160, 140, 130]], true)
     expect(result).toEqual([1, 2, 3])
   })
 })
