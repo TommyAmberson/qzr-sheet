@@ -1,102 +1,58 @@
-# CLAUDE.md
+# qzr-sheet
 
-slight preference to writing tests before features.
+Bible Quiz scoresheet app. Tauri 2 + Vue 3 + Vite + TypeScript.
 
-## 🏗️ Tech Stack
+## Commands
 
-**Tauri 2 + Vue 3 + Vite**
+```sh
+pnpm dev          # Vite dev server (web only)
+pnpm tauri dev    # Tauri native window (hot-reload)
+pnpm test:unit    # Vitest unit tests
+pnpm type-check   # vue-tsc
+pnpm format       # Prettier (no semi, single quotes, 100 col)
+```
 
-## 📊 Scoresheet Layout
+## Project Structure
 
-### Layout  
+```
+src/
+  types/scoresheet.ts          # Core types: CellValue, Column, Quiz, Team, Quizzer
+  stores/quizStore.ts           # In-memory store, cell grid derivation
+  scoring/
+    scoreTeam.ts               # Per-team scoring (pure function)
+    greyedOut.ts               # Disabled/tossed-up/foul-cascade cell state
+    columnVisibility.ts        # Which columns render (A/B auto show/hide)
+    validation.ts              # ValidationCode enum + validateCells()
+    overtime.ts                # OT eligibility, round count, checkpoint scores
+    placement.ts               # 1st/2nd/3rd placement derivation
+    helpers.ts                 # Pure cell-grid query helpers
+  composables/useScoresheet.ts  # Vue reactivity layer over store + scoring
+  components/Scoresheet.vue     # Single-component UI
+src-tauri/                      # Tauri 2 Rust backend (minimal, no custom commands yet)
+docs/
+  scoring-rules.md             # Full domain rules reference
+  architecture.md              # Data flow and design decisions
+```
 
-#### Rows
-* Question header row
-* 3 teams
-* up to 5 quizzers per team
-* running totals row at bottom for each team
+## Key Conventions
 
-#### Columns
-* Quizzer/Team header column
-* 15 normal questions
-* 5 question with A/B parts (questions 16-20)
-* 6 questions for overtime (questions 21-26)
-* Running total column at end for each team
+- Scoring functions are **pure** — `cells[teamIdx][quizzerIdx][colIdx]` in, result out. No Vue.
+- Column keys: `"1"`–`"15"`, `"16"`/`"16A"`/`"16B"` through `"20B"`, `"21"`+ for overtime.
+- Tests live in `__tests__/` subdirectories next to the code they test.
+- Slight preference for writing tests before features.
 
-#### Cell Types
-* `c` = correct answer
-* `e` = error
-* `f` = foul
-* `mb`/`b` = missed/bonus
+## Gotchas
 
-## 🎯 Scoring Rules Summary
+- `createQuizStore()` is a factory — no singleton. Call `resetIdCounter()` before each test suite.
+- `buildColumns(n)` takes an overtime round count; `n=0` means no OT columns at all.
+- `isErrorPoints` is true for Q17–20 and all OT columns — **not** Q16.
+- Foul deduction does not stack: 3rd-team-foul + foul-out on the same foul = only −10.
+- Drag reorder uses pointer events only (no HTML5 drag API — crashes on Linux/X11).
 
-**20 Points:**
-- Correct answer
-- Toss-up questions
-- Full team present (+20 start bonus)
-- Bonus before question 17
+## Reference Docs
 
-**10 Point Bonuses:**
-- 3rd/4th/5th quizzer correct
-- Quizout without error (4 correct with no errors by one quizzer)
-- Q17+ bonuses ("B" questions)
+When working on scoring logic, rules, or architecture, read the relevant file first:
 
-**10 Point Deductions:**
-- Every 3 team fouls
-- 2nd+ overruled challenge
-- Incorrect if (does not stack):
-    - 2nd+ quizzer error
-    - 3rd+ team error (does not count for individual error if 1st quizzer error)
-    - after Q17 (even if 1st quizzer error or 1st/2nd team error)
+- `docs/scoring-rules.md` — cell types, point values, toss-up/bonus/A-B/foul/overtime/placement
+- `docs/architecture.md` — data flow, layer responsibilities, key design decisions
 
-**Quizzer Rules:**
-- Out after **4 correct** (quizout) or **3 errors/fouls** (error/foul out)
-- No individual pts for bonuses/overtime
-
-**Placement Points:**
-- 1st: 10 + (score-100)/10
-- 2nd: 5 + (score-60)/10
-- 3rd: 1 + (score-30)/10
-
-which is the same as saying:
-- 1st: score/10 with min of 10
-- 2nd: score/10 - 1 with min of 5
-- 3rd: score/10 - 3 with min of 1
-
-## 📋 Other rules
-
-### Toss-up and Bonus Questions
-
-If a quizzer gets a question incorrect, the quizzers on that team cannot jump
-on the next question. This is called a "toss-up" question. If a quizzer (on a
-different team) gets a toss-up question correct, then all three teams can jump
-on the next question. If a quizzer gets a toss-up question incorrect, then that
-team cannot jump on the next question either. This leaves only one team and is
-called a 'bonus' question ('b'/'mb').
-
-### A/B Questions
-
-From question 17 onwards, error points apply even for the first error, and
-bonuses are worth 10 points instead of 20.
-
-Questions 17-20 all must have all three teams jumping. This means that if a
-quizzer gets a question wrong (say on question 18), the tossup is the same
-number just with an 'A' (18A). Similarly, a bonus question would have a 'B'
-(18B). This ensures that all three teams can jump on the next numbered question
-(question 19 in this example). Because this starts with question 17, question
-16 can also have A/B parts to ensure that 17 can have all three teams jumping
-(is not a toss-up or bonus).
-
-* All of questions 16-20 can have A/B parts, but only 17-20 have the new scoring rules.
-* If a numbered question is correct, then the A/B questions are not asked.
-* If an 'A' question is correct, then the 'B' question is not asked.
-
-### Fouls
-
-* Every 3 fouls by a team is -10 pts to the team.
-* 3 fouls by the same quizzer eliminates that quizzer from the quiz. -10 pts to
-  the individual and the team score. (if also third team foul does not stack to
-  -20 pts to the team).
-* The quizzer upon whom a foul is called becomes ineligible to answer that
-  numbered question, including the toss-up or bonus question.
