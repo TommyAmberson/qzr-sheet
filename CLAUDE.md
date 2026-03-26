@@ -36,24 +36,24 @@ docs/
 
 ## Key Conventions
 
-- Scoring functions are **pure** — `cells[teamIdx][quizzerIdx][colIdx]` in, result out. No Vue.
-- Column keys: `"1"`–`"15"`, `"16"`/`"16A"`/`"16B"` through `"20B"`, `"21"`+ for overtime.
-- Tests live in `__tests__/` subdirectories next to the code they test.
-- Slight preference for writing tests before features.
+* Scoring functions are **pure** — `cells[teamIdx][quizzerIdx][colIdx]` in, result out. No Vue.
+* Column keys: `"1"`–`"15"`, `"16"`/`"16A"`/`"16B"` through `"20B"`, `"21"`+ for overtime.
+* Tests live in `__tests__/` subdirectories next to the code they test.
+* Slight preference for writing tests before features.
 
 ## Gotchas
 
-- `createQuizStore()` is a factory — no singleton. Call `resetIdCounter()` before each test suite.
-- `buildColumns(n)` takes an overtime round count; `n=0` means no OT columns at all.
-- `isErrorPoints` is true for Q17–20 and all OT columns — **not** Q16.
-- Foul deduction does not stack: 3rd-team-foul + foul-out on the same foul = only −10.
-- Drag reorder uses pointer events only (no HTML5 drag API — crashes on Linux/X11).
+* `createQuizStore()` is a factory — no singleton. Call `resetIdCounter()` before each test suite.
+* `buildColumns(n)` takes an overtime round count; `n=0` means no OT columns at all.
+* `isErrorPoints` is true for Q17–20 and all OT columns — **not** Q16.
+* Foul deduction does not stack: 3rd-team-foul + foul-out on the same foul = only −10.
+* Drag reorder uses pointer events only (no HTML5 drag API — crashes on Linux/X11).
 
 ## Reference Docs
 
 When working on scoring logic, rules, or architecture, read the relevant file first:
 
-- `docs/scoring-rules-explained.md` — cell types, point values, toss-up/bonus/A-B/foul/overtime/placement
-- `docs/rules.md` -- full rules from official pdf
-- `docs/architecture.md` — data flow, layer responsibilities, key design decisions
-
+* `docs/scoring-rules-explained.md` — cell types, point values,
+  toss-up/bonus/A-B/foul/overtime/placement
+* `docs/rules.md` -- full rules from official pdf
+* `docs/architecture.md` — data flow, layer responsibilities, key design decisions
