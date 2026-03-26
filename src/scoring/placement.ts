@@ -1,6 +1,7 @@
+import { PlacementFormula } from '../types/scoresheet'
+
 /**
  * Compute team placements (1st, 2nd, 3rd) progressively.
- *
  * Placements are assigned at each "checkpoint" — after regulation and after
  * each completed OT round. Teams that are no longer tied at a checkpoint
  * receive their placement immediately, even if other teams continue into
@@ -13,12 +14,15 @@
  *   checkpointScores[0] = scores through OT round 1, etc.
  *   Only includes rounds that are fully complete.
  * @param regulationComplete - whether all regulation questions are filled out
+ * @param overtimeEnabled - when false, remaining ties after regulation are final and
+ *   tied teams share their placement; when true, tied teams stay null until OT resolves them
  * @returns array of placements (1/2/3) per team, or null if not yet placed
  */
 export function computePlacements(
   regulationScores: number[],
   checkpointScores: number[][],
   regulationComplete: boolean,
+  overtimeEnabled = true,
 ): (number | null)[] {
   const teamCount = regulationScores.length
   const placements: (number | null)[] = new Array(teamCount).fill(null)
@@ -82,7 +86,13 @@ export function computePlacements(
     }
   }
 
-  // If remaining teams are still tied (OT not finished), leave them as null
+  // If remaining teams are still tied: assign shared placement when OT is disabled
+  // (tie is final), leave as null when OT is enabled (more rounds may come).
+  if (!overtimeEnabled && remaining.length > 1) {
+    for (const i of remaining) {
+      placements[i] = tiedRank
+    }
+  }
 
   return placements
 }
@@ -117,6 +127,35 @@ function findTiedTeamsInGroup(group: number[], scores: number[]): Set<number> {
     }
   }
   return tied
+}
+
+/**
+ * Compute placement points for a team given their regulation score and place (1/2/3).
+ *
+ * Per rules §1.e.4, placement points are always based on the score at end of Q20,
+ * even when overtime was played to break the tie. Callers must pass the regulation
+ * score, not the total including overtime.
+ *
+ * | Place | Formula          | Minimum |
+ * |-------|------------------|---------|
+ * | 1st   | score / 10       | 10 pts  |
+ * | 2nd   | score / 10 − 1   | 5 pts   |
+ * | 3rd   | score / 10 − 3   | 1 pt    |
+ *
+ * Returns null if place is null (not yet determined).
+ */
+export function computePlacementPoints(
+  score: number,
+  place: number | null,
+  formula = PlacementFormula.Rules,
+): number | null {
+  if (place === null) return null
+  const base = Math.floor(score / 10)
+  const offset = formula === PlacementFormula.Spreadsheet ? 2 : 0
+  if (place === 1) return Math.max(10, base + offset)
+  if (place === 2) return Math.max(5, base - 1 + offset)
+  if (place === 3) return Math.max(1, base - 2 + offset)
+  return null
 }
 
 /** Rank a group by score descending, assigning placements starting at startPlace */

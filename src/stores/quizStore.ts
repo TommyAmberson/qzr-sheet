@@ -1,5 +1,6 @@
 import {
   CellValue,
+  PlacementFormula,
   type Column,
   type Quiz,
   type Team,
@@ -23,6 +24,7 @@ function createDefaultQuiz(): Quiz {
     division: '1',
     quizNumber: '1',
     overtime: false,
+    placementFormula: PlacementFormula.Rules,
   }
 }
 
