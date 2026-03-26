@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { computePlacements, computePlacementPoints } from '../placement'
+import { PlacementFormula } from '../../types/scoresheet'
 
 describe('computePlacements', () => {
   // --- Regulation incomplete ---
@@ -136,37 +137,67 @@ describe('computePlacementPoints', () => {
     expect(computePlacementPoints(120, null)).toBeNull()
   })
 
-  it('1st: score/10, minimum 10', () => {
-    expect(computePlacementPoints(140, 1)).toBe(14)
-    expect(computePlacementPoints(100, 1)).toBe(10)
-    expect(computePlacementPoints(60, 1)).toBe(10) // clamped to min
-  })
-
-  it('2nd: score/10 − 1, minimum 5', () => {
-    expect(computePlacementPoints(140, 2)).toBe(13)
-    expect(computePlacementPoints(60, 2)).toBe(5)
-    expect(computePlacementPoints(30, 2)).toBe(5) // clamped to min
-  })
-
-  it('3rd: score/10 − 3, minimum 1', () => {
-    expect(computePlacementPoints(140, 3)).toBe(11)
-    expect(computePlacementPoints(40, 3)).toBe(1)
-    expect(computePlacementPoints(0, 3)).toBe(1) // clamped to min
-  })
-
-  it('floors score/10 (does not round up)', () => {
-    expect(computePlacementPoints(145, 1)).toBe(14)
-    expect(computePlacementPoints(149, 2)).toBe(13)
+  it('returns null for unknown placement values', () => {
+    expect(computePlacementPoints(100, 4)).toBeNull()
   })
 
   it('uses regulation score (Q20), not OT total — caller responsibility', () => {
-    // Same placement formula either way; this documents that callers must pass
-    // the regulation score per rules §1.e.4: tie points awarded per Q20 score.
-    expect(computePlacementPoints(140, 1)).toBe(14) // reg score 140
-    expect(computePlacementPoints(160, 1)).toBe(16) // OT inflated score would differ
+    // Documents that callers must pass regulation score per rules §1.e.4
+    expect(computePlacementPoints(140, 1, PlacementFormula.Rules)).toBe(14)
+    expect(computePlacementPoints(160, 1, PlacementFormula.Rules)).toBe(16)
   })
 
-  it('returns null for unknown placement values', () => {
-    expect(computePlacementPoints(100, 4)).toBeNull()
+  describe('Rules formula (official rulebook)', () => {
+    const f = PlacementFormula.Rules
+
+    it('1st: score/10, minimum 10', () => {
+      expect(computePlacementPoints(140, 1, f)).toBe(14)
+      expect(computePlacementPoints(120, 1, f)).toBe(12)
+      expect(computePlacementPoints(100, 1, f)).toBe(10)
+      expect(computePlacementPoints(60, 1, f)).toBe(10) // clamped to min
+    })
+
+    it('2nd: score/10 − 1, minimum 5', () => {
+      expect(computePlacementPoints(140, 2, f)).toBe(13)
+      expect(computePlacementPoints(110, 2, f)).toBe(10)
+      expect(computePlacementPoints(60, 2, f)).toBe(5)
+      expect(computePlacementPoints(30, 2, f)).toBe(5) // clamped to min
+    })
+
+    it('3rd: score/10 − 2, minimum 1', () => {
+      expect(computePlacementPoints(140, 3, f)).toBe(12)
+      expect(computePlacementPoints(60, 3, f)).toBe(4)
+      expect(computePlacementPoints(30, 3, f)).toBe(1)
+      expect(computePlacementPoints(0, 3, f)).toBe(1) // clamped to min
+    })
+  })
+
+  describe('Spreadsheet formula (legacy)', () => {
+    const f = PlacementFormula.Spreadsheet
+
+    it('1st: score/10 + 2, minimum 10', () => {
+      expect(computePlacementPoints(140, 1, f)).toBe(16)
+      expect(computePlacementPoints(120, 1, f)).toBe(14)
+      expect(computePlacementPoints(60, 1, f)).toBe(10) // clamped to min
+    })
+
+    it('2nd: score/10, minimum 5', () => {
+      expect(computePlacementPoints(140, 2, f)).toBe(14)
+      expect(computePlacementPoints(110, 2, f)).toBe(11)
+      expect(computePlacementPoints(60, 2, f)).toBe(6)
+      expect(computePlacementPoints(30, 2, f)).toBe(5) // clamped to min
+    })
+
+    it('3rd: score/10 − 1, minimum 1', () => {
+      expect(computePlacementPoints(140, 3, f)).toBe(13)
+      expect(computePlacementPoints(60, 3, f)).toBe(5)
+      expect(computePlacementPoints(10, 3, f)).toBe(1) // clamped to min
+    })
+
+    it('matches legacy spreadsheet example (120→14, 110→11, 60−5)', () => {
+      expect(computePlacementPoints(120, 1, f)).toBe(14)
+      expect(computePlacementPoints(110, 2, f)).toBe(11)
+      expect(computePlacementPoints(60, 3, f)).toBe(5)
+    })
   })
 })

@@ -1,6 +1,7 @@
 import { ref, computed, watch } from 'vue'
 import {
   CellValue,
+  PlacementFormula,
   buildColumns,
   QuestionType,
   type Column,
@@ -339,7 +340,11 @@ export function useScoresheet() {
     const onTimes = teams.value.map((t) => t.onTime)
     const regScores = computeRegulationScores(cells.value, columns.value, onTimes)
     return teams.value.map((_, ti) =>
-      computePlacementPoints(regScores[ti] ?? 0, placements.value[ti] ?? null),
+      computePlacementPoints(
+        regScores[ti] ?? 0,
+        placements.value[ti] ?? null,
+        quiz.value.placementFormula,
+      ),
     )
   })
 
@@ -436,5 +441,7 @@ export function useScoresheet() {
     // Placements
     placements,
     placementPoints,
+    PlacementFormula,
+    quiz,
   }
 }

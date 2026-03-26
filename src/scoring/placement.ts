@@ -1,6 +1,7 @@
+import { PlacementFormula } from '../types/scoresheet'
+
 /**
  * Compute team placements (1st, 2nd, 3rd) progressively.
- *
  * Placements are assigned at each "checkpoint" — after regulation and after
  * each completed OT round. Teams that are no longer tied at a checkpoint
  * receive their placement immediately, even if other teams continue into
@@ -143,12 +144,17 @@ function findTiedTeamsInGroup(group: number[], scores: number[]): Set<number> {
  *
  * Returns null if place is null (not yet determined).
  */
-export function computePlacementPoints(score: number, place: number | null): number | null {
+export function computePlacementPoints(
+  score: number,
+  place: number | null,
+  formula = PlacementFormula.Rules,
+): number | null {
   if (place === null) return null
   const base = Math.floor(score / 10)
-  if (place === 1) return Math.max(10, base)
-  if (place === 2) return Math.max(5, base - 1)
-  if (place === 3) return Math.max(1, base - 3)
+  const offset = formula === PlacementFormula.Spreadsheet ? 2 : 0
+  if (place === 1) return Math.max(10, base + offset)
+  if (place === 2) return Math.max(5, base - 1 + offset)
+  if (place === 3) return Math.max(1, base - 2 + offset)
   return null
 }
 

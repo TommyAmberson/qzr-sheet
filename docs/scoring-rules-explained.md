@@ -111,15 +111,23 @@ are eligible to answer overtime questions.
 
 ## Placement Points
 
-Placements are awarded once regulation is complete (and ties resolved via overtime):
+Placements points are awarded once the quiz is complete. If overtime is involved, then the ties are
+broken by OT but the scores used are the scores the teams had at the end of regulation.
+
+Two formula variants are available via the **Legacy pts** toggle:
+
+**Rules (official rulebook):**
 
 | Place | Formula          | Minimum |
 | ----- | ---------------- | ------- |
 | 1st   | `score / 10`     | 10 pts  |
 | 2nd   | `score / 10 − 1` | 5 pts   |
-| 3rd   | `score / 10 − 3` | 1 pt    |
+| 3rd   | `score / 10 − 2` | 1 pt    |
 
-Equivalent to: 1st = `10 + (score−100)/10`, 2nd = `5 + (score−60)/10`, 3rd = `1 + (score−30)/10`.
+**Spreadsheet (legacy, matches historical scoresheets):**
 
-Placement is assigned progressively at each overtime checkpoint — teams that fall behind are placed
-immediately without waiting for remaining tied teams to finish.
+| Place | Formula          | Minimum |
+| ----- | ---------------- | ------- |
+| 1st   | `score / 10 + 2` | 10 pts  |
+| 2nd   | `score / 10`     | 5 pts   |
+| 3rd   | `score / 10 − 1` | 1 pt    |

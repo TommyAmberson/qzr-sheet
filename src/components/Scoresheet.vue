@@ -36,6 +36,7 @@ const {
   validationErrors,
   placements,
   placementPoints,
+  PlacementFormula,
   setTeamName,
   setQuizzerName,
   moveQuizzer,
@@ -300,10 +301,31 @@ function colGroupClass(colIdx: number): string {
         <input v-model="quiz.quizNumber" type="text" />
       </label>
       <span class="meta-sep">·</span>
-      <label class="meta-field meta-field--toggle">
+      <label
+        class="meta-field meta-field--toggle"
+        :title="
+          quiz.placementFormula === PlacementFormula.Spreadsheet
+            ? 'Legacy pts (spreadsheet): 1st=score/10+2, 2nd=score/10, 3rd=score/10−1'
+            : 'Rules pts (official rulebook): 1st=score/10, 2nd=score/10−1, 3rd=score/10−2'
+        "
+      >
         <input v-model="quiz.overtime" type="checkbox" />
         <span class="toggle-track"><span class="toggle-thumb" /></span>
         <span class="meta-label">Overtime</span>
+      </label>
+      <span class="meta-sep">·</span>
+      <label class="meta-field meta-field--toggle">
+        <input
+          type="checkbox"
+          :checked="quiz.placementFormula === PlacementFormula.Spreadsheet"
+          @change="
+            quiz.placementFormula = ($event.target as HTMLInputElement).checked
+              ? PlacementFormula.Spreadsheet
+              : PlacementFormula.Rules
+          "
+        />
+        <span class="toggle-track"><span class="toggle-thumb" /></span>
+        <span class="meta-label">Legacy pts</span>
       </label>
       <span class="meta-sep">·</span>
       <span

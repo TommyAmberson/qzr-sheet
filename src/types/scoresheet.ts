@@ -13,12 +13,20 @@ export enum QuestionType {
   B = 'B',
 }
 
+export enum PlacementFormula {
+  /** Official rulebook: 1st=score/10, 2nd=score/10−1, 3rd=score/10−2 */
+  Rules = 'rules',
+  /** Legacy spreadsheet: 1st=score/10+2, 2nd=score/10, 3rd=score/10−1 */
+  Spreadsheet = 'spreadsheet',
+}
+
 export interface Quiz {
   id: number
   division: string
   quizNumber: string
   /** Whether overtime is enabled */
   overtime: boolean
+  placementFormula: PlacementFormula
 }
 
 export interface Team {
