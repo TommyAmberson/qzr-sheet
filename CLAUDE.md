@@ -53,6 +53,7 @@ docs/
 
 When working on scoring logic, rules, or architecture, read the relevant file first:
 
-- `docs/scoring-rules.md` — cell types, point values, toss-up/bonus/A-B/foul/overtime/placement
+- `docs/scoring-rules-explained.md` — cell types, point values, toss-up/bonus/A-B/foul/overtime/placement
+- `docs/rules.md` -- full rules from official pdf
 - `docs/architecture.md` — data flow, layer responsibilities, key design decisions
 

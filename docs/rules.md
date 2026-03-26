@@ -1,0 +1,889 @@
+# UB David and I'll Be Jonathan — Quiz Meet Program
+
+## Official Rule Book
+
+*Revised 2015*
+
+---
+
+## Table of Contents
+
+- Who can Quiz?
+- How to Quiz?
+  - 1. Local Level
+  - 2. Weekend Quiz Meets
+- Who Can Help?
+  - 1. Selection of Officials
+  - 2. Quizmaster
+  - 3. Judges
+  - 4. Scorekeepers
+- Quiz Meet Regulations and Guidelines
+  - 1. Platform Protocol
+  - 2. Team Captains
+  - 3. Jumping and Pre-Jumping
+  - 4. Correct Answers
+  - 5. Incorrect Answers
+  - 6. Fouls
+  - 7. Time Limits
+  - 8. Time-Outs
+  - 9. Substitutions
+- Types of Quizzes
+  - 1. Three-Team Quiz
+  - 2. Tie-Breaker Quiz
+  - 3. Two-Team 20-Question Quiz
+- Question Types and Content Distribution
+  - 1. Types of Questions
+    - a. Straight Forward Question
+    - b. Finish-The-Verse Question
+    - c. Finish-The-Verse and the Reference Question
+    - d. Quote Question
+    - e. Reference Questions
+    - f. Multiple Answer Questions
+    - g. Situation Questions
+  - 2. Invalid Questions
+- Challenges and Protests
+  - 1. Challenging
+  - 2. Protesting
+- Scoring
+  - 1. Team Points
+    - a. Twenty Points Earned
+    - b. Ten Points Earned
+    - c. Ten Points Deduction
+    - d. Tie-Score
+    - e. Team Placement Points
+  - 2. Individual Points
+    - a. Points Earned
+    - b. Points Deducted
+- Rules for Tournament
+  - 1. Preliminary Round
+  - 2. Elimination Round
+  - 3. Championship Quizzes
+- Tournament Brackets
+- Elimination Round Brackets with Championship Final
+  - Bracket A
+  - Bracket B
+  - Bracket C
+- Capernwray Scholarships
+
+---
+
+## Who can Quiz?
+
+1. All quizzers in Quiz Meet must be at least 12 years old and in the seventh grade. Any individual
+   who starts the quiz year who is 18 years old and still in high school through the entire year is
+   also eligible. Anyone who is married is ineligible.
+2. Each quizzer must have a connection to a local Church
+3. All teams must have at least 1 coach who is approved by the lead Pastor of the church running
+   Quiz Meet. Any team can have an assistant coach who must also be approved by the lead Pastor
+   of the church running Quiz Meet.
+4. All individuals must quiz with their local church program if such a program exists.
+
+---
+
+## How to Quiz?
+
+### 1. Local Level
+
+a. Church group is encouraged to meet once a week at the time of their choosing.
+b. Any number of eligible individuals may participate.
+c. Leadership is given by the local churches head coach.
+d. A church set of questions is provided, with the local Quiz Meet program providing the
+   individuals to run their own meetings.
+e. Follow the rules as closely as possible to prepare for the Quiz Meets.
+
+### 2. Weekend Quiz Meets
+
+a. Held 3 times a year from September to April.
+b. All churches running Quiz Meet will be eligible to participate.
+c. All rules must be observed.
+d. The Quizmaster and Officials will be the responsibility of the Quiz Meet director.
+e. All activities at Quiz Meets must be approved by the Quiz Meet director.
+f. If possible, electronic jump sets should be used for each quiz.
+g. All Scripture material must be covered by the final Weekend Quiz Meet.
+
+---
+
+## Who Can Help?
+
+### 1. Selection of Officials (Scorekeeper, Answer Judge, Quizmaster)
+
+a. A Quiz Meet official must be 18 years of age or older, and cannot be eligible to quiz.
+
+### 2. Quizmaster
+
+a. Quizmaster must:
+   i. Be acquainted with all the rules and procedures of Quiz Meet.
+   ii. Be impartial and render decisions consistently.
+   iii. Sees that all officials are briefed regarding rules and procedures.
+   iv. Read at a normal conversation rate. Hesitating or reading too quickly must be
+       avoided since either may cause inaccurate quizzing.
+   v. Read all questions at the same rate of speed with the ability to stop reading the
+       question at the exact moment a jump is made.
+   vi. Keep the quiz moving at a consistent pace. A quiz should not be rushed, but it is
+       important to maintain the quickest pace which does not interfere with accuracy.
+   vii. Be open to challenges and be willing to evaluate whatever the captains feel is in error.
+   viii. Double-check the questions for accuracy and throw out any questions that are found to be invalid.
+   ix. Facilitate a positive, uplifting environment throughout the quiz. Quizmasters should speak
+       clearly and be enthusiastic about quizzing. To this end, quizzers should be called by name,
+       the score should be announced often (when a scoreboard is not present), and bonuses and
+       quiz-outs should be promptly recognized.
+   x. Call a foul or rule infraction related to jumping and pre-jumping.
+   xi. Acknowledge the quizzer who wins the jump.
+
+b. The Quizmaster should:
+   i. Rule immediately upon an obviously correct or incorrect answer if there is no
+      indication from the answer judge to the contrary.
+   ii. During the 30-second answering period use the following prompts:
+      1. If a quizzer has provided all the information in the answer, except the
+         clarification of a pronoun present which is part of the answer, the quizmaster
+         will say, "Can you clarify?" or "Can you be more specific?" A pronoun needs to
+         be clarified only if the clarification (antecedent) is in context.
+      2. On a Chapter-Verse Reference Question (CVR) or Chapter-Only Reference
+         Question (CR), if the quizzer has given all the information in the question and
+         the answer and the complete question was not read, the quizmaster will ask,
+         "What is your question?"
+      3. On a Finish-The-Verse (FTV), Finish-The-Verse and Reference (FTVR), Quote, or
+         Finish This (FT) type question, once the quizzer has quoted to the end of the
+         required verse, if the verse is not yet correct, the quizmaster will say, "Again."
+         This will occur as often as needed until the quizzer quotes the verse perfectly
+         or the 30 second time limit expires.
+      4. If a quizzer answers the question correctly, but is missing information found in
+         the question, the quizmaster may ask the quizzer, "More."
+      5. On a Situation (SIT) type question, when the quizzer has completed the
+         quotation required for the question the quizmaster will say, "What's the Situation?"
+      6. Consult with the Answer Judge any time they feel it is necessary, provided it
+         does not infringe upon the 30 seconds allotted the quizzer.
+      7. Call "time" when the 30 seconds has ended.
+   iii. When deemed necessary, the quizmaster or any official may be replaced from
+        their position during a meet by the director.
+
+### 3. Judges
+
+a. Answer Judges
+   i. There shall be one answer judge in addition to the quizmaster in every quiz;
+      this number may vary.
+   ii. All conferring among officials shall be done privately. The Quizmaster will
+       announce the decision.
+   iii. No comment other than "correct" or "incorrect" need be announced by the head
+        answer judge in making a decision. However, at the discretion of the judges and
+        quizmaster or at the request of the captain, a statement may be made by the spokesperson. If an
+        explanation is requested by a captain, the right to challenge has been forfeited
+        for that question.
+   iv. Answer judges will watch the quizmaster's questions for accuracy of reading.
+   v. When an answer given is in question, answer judges will determine the accuracy
+      of its content and make a ruling accordingly.
+   vi. Answer judges will check the reference for each question when asked to verify
+       the accuracy of the written answer.
+   vii. If possible all questions should be checked for accuracy, construction, and
+        distribution by the head answer judge prior to the quiz.
+
+### 4. Scorekeepers
+
+a. Paper Score Sheets
+   i. Tabulate the results of each question on official score sheets in every Quiz. They
+      shall keep a running score of each quiz.
+   ii. Tally and immediately announce when a quizzer has erred out, quizzed out, or fouled out.
+   iii. Keep record of all time-outs.
+   iv. Determine eligibility for re-substitution; the scorekeepers will keep record of the
+       number of questions a substituted quizzer has remained out.
+   v. Have the score sheets signed by the coaches at the conclusion of each quiz, and
+      report to the statistician.
+
+b. Electronic Score Sheets
+   i. Input the results of each question on official score sheets in every Quiz.
+   ii. Immediately announce when a quizzer has erred out, quizzed out, or fouled out.
+   iii. Keep record of all time-outs.
+   iv. Determine eligibility for re-substitution; the Scorekeepers will keep record of
+       the number of questions a substituted quizzer has remained out.
+   v. Have the draw slot signed by the coaches at the conclusion of each quiz, and
+      report to the statistician.
+
+---
+
+## Quiz Meet Regulations and Guidelines
+
+### 1. Platform Protocol
+
+a. Quizzers will be seated facing the audience and Quizmaster.
+b. Hands of the quizzers must not touch any part of the chair or floor.
+c. Feet of the quizzers are to be on the floor if at all possible, and not on the bench.
+d. No talking or visual communication is permitted between team members, coaches, or
+   the audience from the time the Quizmaster calls question until the points have been awarded.
+e. Only a coach from a team presently seated on the platform may confer with the officials.
+f. Spectators are not allowed to confer with the coaches or officials during a quiz.
+g. Coaches may have quiz material(s) on the platform prior to quizzing.
+h. If available push-button quizzing may be permitted for physically disabled quizzers.
+
+### 2. Team Captains
+
+a. Captains must be on the platform at all times. In the event the captain leaves, the
+   co-captain will become acting captain.
+b. Only the team captain may challenge a decision.
+c. Captains may sit in any chair. Scorekeepers must be notified which quizzer is captain
+   before the quizzers take their seats to begin the quiz.
+d. The team captain may change during a given competition but not during a quiz.
+
+### 3. Jumping and Pre-Jumping
+
+a. Failure to answer after jumping and being recognized by the Quizmaster will constitute
+   an error.
+b. If a quizzer's light comes on after a question has been called and before the question
+   has discernibly begun, a foul will be called. The quizzer is ineligible to answer that
+   numbered question, including the toss-up or bonus question.
+c. If a quizzer's light comes on after the quizmaster has discernibly begun reading the
+   question, this will be considered a pre-jump, and the quizzer will be given an opportunity
+   to answer.
+d. The first quizzer to rise and trigger his light, provided there has been no foul, will be
+   recognized.
+e. If, in the judgment of the officials, a deliberate attempt is made to forfeit a question,
+   an error will be charged and 10 points deducted from the team score. The next question
+   will be numbered the same.
+
+### 4. Correct Answers
+
+a. An answer is correct when:
+   i. It contains the information requested. If the Quizmaster did not complete the
+      reading of the question, the quizzer's answer must include the information in the
+      remainder of the question as well as the answer. It is not required to be in question
+      and answer form, except in the case of a reference question.
+   ii. The quotation must be word-for-word as found in the NKJV in Finish-The-Verse,
+       Finish-This, Finish-The-Verse and Reference, and Quote Questions. In these
+       questions the quizzers may go back to correct their answers if done in the
+       30-second time limit. The quizzer may not change to another verse.
+   iii. Mispronounced names are still recognizable as the answer.
+   iv. Only the first answer of the quizzer will be considered correct.
+   v. All material given by a quizzer must be from the context of the question.
+      Context shall be limited to five verses before or after the verse or the paragraph,
+      whichever is greater.
+   vi. Deity Rule
+      1. The correct person of the Deity must be given. The quizzer may not move
+         between persons of the deity when answering.
+      2. If a quizzer refers to the Deity as either "God" or "Lord", these must be
+         clarified by the quizzer within 30 seconds when the text requires a more
+         specific answer. "Jesus" and "Christ" may be interchanged.
+      3. If a pronoun is used in the text to name the Deity, any of the names for that
+         person of the deity within context may be considered an acceptable answer
+         when clarifying.
+      4. When there is a special name of the Deity given in the text, which
+         imparts specific character qualities or attributes to that person of the
+         Deity, the specific name must be given in the quizzer's answer. (i.e. "The
+         Lord God Almighty", "The Bread of Life", "Spirit of the Living God".) The
+         quizzer may not state other such names which are not in context, even
+         if they refer to the same person of the Deity
+      5. When a quizzer gives other names for the same person of the Deity, used
+         within context, these should be allowed to be clarified within 30 seconds
+         when a more specific answer is needed.
+
+### 5. Incorrect Answers
+
+a. An answer is incorrect when:
+   i. Incorrect information has been given that is not part of the context even though
+      the right answer may be included in it.
+   ii. The information given is incomplete.
+   iii. The time limit has elapsed before the complete answer is given.
+   iv. Any word is omitted or added in a Finish-The-Verse, Finish-This,
+       Finish-The-Verse and Reference, or Quote question, or the wrong verse is begun.
+   v. If the wrong person (i.e. Father, Son, Holy Spirit) in the Deity (God) is given.
+
+### 6. Fouls
+
+a. The following shall be considered fouls:
+   i. Team members talking with each other, other teams, or with their coaches or the
+      audience between the time "Question" is introduced and points are awarded.
+   ii. The use of the hands to assist in jumping. Hands may not touch any part of the
+       chair from the time "Question" is called until the Quizmaster recognizes the first
+       one up.
+   iii. If any light goes on after the Quizmaster calls "Question" and before he begins to
+        read the question.
+   iv. During a Reference question or Quote question, if any light goes on after the
+       Quizmaster calls "Question" and before he begins to read the chapter number.
+   v. Starting to answer before being recognized by the Quizmaster.
+   vi. Having more than the designated team members, one coach, and an assistant coach
+       on the quiz platform during a time-out.
+   vii. If a captain confers with his coach or teammates prior to issuing a challenge.
+        In addition, the challenge will not be allowed.
+   viii. Infraction of the rules, in spirit as well as letter, as discerned by the quiz officials.
+
+b. Three fouls by a quizzer eliminate that quizzer from the quiz. The quizzer must leave
+   the platform. Three fouls by a quizzer will constitute a deduction of 10 points for the
+   individual and team. If the third foul on a quizzer should be the third team foul,
+   20 points would not be deducted.
+
+c. For every three team fouls 10 points will be deducted from the team score.
+
+d. Fouls may be called by any quiz official: the Quizmaster, Answer Judge, or Scorekeeper
+
+e. A foul must be called before the Quizmaster calls for the next question.
+
+f. If the officials fail to call a foul, a coach or team captain may call it to the attention
+   of the Quizmaster. If in the Quizmaster's (and/or the Judge's) opinion a foul might
+   have been committed, the Quizmaster will give due warning to the violating team.
+   A foul may not be charged and points deducted when the quizmaster receives such
+   help from a coach or captain.
+
+g. The quizzer upon whom a foul is called becomes ineligible to answer that numbered
+   question, including the toss-up or bonus question.
+
+### 7. Time Limits
+
+a. Any team more than 10 minutes late (after the announced time for the quiz) forfeits the quiz.
+b. Quizzers have five seconds in which to jump after the question is completed.
+c. A quizzer has a total of 30 seconds to complete his/her answer after being recognized.
+
+### 8. Time-Outs
+
+a. Each team is allowed two, one-minute time-outs. No time-outs will be allowed prior to a
+   bonus question. No timeout can be called after question 17 is introduced.
+b. Captains or coaches may call for a time-out.
+c. Only the coach, assistant coach, and substitute may converse with the team during a time-out.
+
+### 9. Substitutions
+
+a. Substitutions may be made only during the time-outs.
+b. A quizzer being removed from a quiz must stay out for at least three questions before
+   entering back into the quiz, except in the event of a quiz-out or error-out. When a
+   quizzer is returned to competition, the quizzer may be substituted for any chair.
+c. A quizzer who has answered four questions correctly, excluding bonus questions, may
+   remain in the quiz to answer bonus questions.
+d. A quizzer who has answered four questions correctly, has fouled out, or erred out, may
+   be substituted without a time-out. (NOTE: Quizzers who quiz out, foul out, or error out
+   may not return.)
+e. Only one substitution is allowed per time-out per team.
+f. If a quizzer errors out or fouls out, the quizzer must leave the platform immediately.
+g. The quizzer who quizzes out has the option to remain on the platform. However, if the
+   quizzer remains, a later substitution will require a time-out, and that quizzer may not
+   return to the platform.
+
+---
+
+## Types of Quizzes
+
+### 1. Three-Team Quiz
+
+a. There will be 20 questions in a quiz.
+b. Each question will be read only once.
+c. All questions have a value of 20 points when two or three teams are eligible.
+d. In the event the quiz ends in a tie, additional units of three overtime questions will be
+   used until the tie is broken. Two-team rules will apply in overtime if only two teams
+   are involved.
+e. A toss-up question is the result of an error by one team. The two remaining teams will
+   have the opportunity to jump, but the team making the error is ineligible for that question.
+f. If question 1 to 15 is erred, the next numbered question will be a toss-up question.
+g. If toss-up question 2 to 15 is erred, then the next numbered question is awarded as a
+   20-point bonus question to the corresponding chair of the team that has not erred.
+h. If question 16 is erred, the toss-up question will be question 16A. If 16A is erred,
+   then 16B is awarded as a 20-point bonus question to the corresponding chair of the
+   team that has not erred.
+i. If question 16 is a toss-up question and is erred, 16A is awarded as a 20-point bonus
+   question to the corresponding chair of the team that has not erred.
+j. Error points begin at question 17.
+k. The first error committed, beginning at question 17, results in a toss-up question,
+   which is numbered 17A, for the two remaining teams. If there is an error on 17A,
+   the next question will be 17B and will be a 10-point bonus for the team that has not
+   committed an error. This process applies for the remainder of the quiz. Three teams
+   must be enlisted to jump on questions 17, 18, 19, and 20.
+
+### 2. Tie-Breaker Quiz
+
+a. In the event three teams are involved, a 20-question tie-breaker quiz will be used.
+   The above rules for a three-team, 20-question quiz apply.
+b. In the event two teams are involved, a 15-question tie-breaker quiz will be used
+   with the following guidelines:
+   i. If an error occurs on questions 1 through 11, the next numbered question is a
+      20-point bonus to the corresponding chair on the team that did not error.
+   ii. If questions 12, 13, 14, or 15 are erred, the bonus question will remain on the
+       same question number and will not be counted in the basic 15 questions. Both
+       teams must jump on questions 13, 14, and 15.
+   iii. All bonus questions up to and including 12B are worth 20 points.
+   iv. All bonus questions from 13 to the end of the quiz are worth 10 points.
+   v. Error points begin at question 13.
+   vi. A quizzer will be ineligible to jump when the quizzer has answered three
+       questions correctly or committed three fouls or three errors.
+
+### 3. Two-Team 20-Question Quiz
+
+a. There will be 20 questions in a quiz. Each question will be read once.
+b. All questions have a value of 20 points when two teams are eligible.
+c. If a question is missed, a bonus question will be read for the corresponding chair on
+   the other team.
+   i. The bonus question will be the next numbered question, except for questions
+      16 and following.
+   ii. All bonus questions throughout the whole quiz are 10 points.
+d. Both teams must be eligible to jump on questions 17 to 20.
+e. A quizzer will be ineligible to jump when the quizzer has answered four questions
+   correctly or committed three fouls or three errors.
+f. In the event the quiz ends in a tie, additional units of three overtime questions each
+   will be used until the tie is broken.
+
+---
+
+## Question Types and Content Distribution
+
+All questions will be based on the New King James Version of the Bible
+(New King James Version Copyright © 1982 by Thomas Nelson, Inc.).
+
+### 1. Types of Questions
+
+#### a. Straight Forward Question (INT)
+
+i. Questions should not be overly long and should be clear and precise.
+ii. A Straight Forward question must be worded exactly as it appears in the text
+    and must contain a completed key word or phrase in the first five words.
+    1. A key word is a word that appears only once in the material.
+    2. A key phrase is two or three words — the sequence of which distinguishes
+       them from the rest of the material.
+iii. Straight Forward questions drawing from the context of Scripture without a
+     direct key word or key phrase are invalid.
+iv. The seven permissible interrogatives are who (or a form of it), what, why,
+    where, when, which, and how. One of these interrogatives must be in each
+    Straight Forward question, either at the beginning or end.
+
+**There shall be a minimum of eight and a maximum of twelve Interrogative Questions in each quiz.**
+
+#### b. Finish-The-Verse Question (FTV, FT)
+
+i. Will be direct quotes from Scripture and must be quoted word-perfect.
+ii. Must be strong enough to stand on its own without requiring additional verses
+    to explain it.
+iii. Must be of spiritual value or be significant to the chapter.
+iv. Another form of this question is a FT (Finish-This), which begins in the middle
+    of a verse and finishes at the end of the verse. A FT must start at the beginning
+    of a sentence or the beginning of a quotation.
+v. The quizmaster may give no more than five words of the verse.
+vi. Quizzers may go back and correct their answers if done in the 30-second time limit.
+vii. The quizzer may not go back and fix an error if they proceed to the next verse.
+viii. If the quizzer finishes the verse correctly and goes into the next verse before the
+      Quizmaster can call them correct, they will still be called correct.
+
+#### c. Finish-The-Verse and the Reference Question (FTVR)
+
+i. Rules are the same as the FTV and FT
+ii. The Quizmaster will ask for the reference once the quizzer has finished the
+    verse correctly.
+iii. Quizzer must give the correct reference the first time.
+
+**There shall be no less than two and no more than three FTV or FT in each quiz. One of these questions may be an FTVR.**
+
+#### d. Quote Question (QT)
+
+i. Quote questions are questions in which the Quizmaster gives only the book,
+   chapter, and verse reference for the verse. It must be quoted directly from
+   Scripture. The quizzers will answer this question as they would answer a
+   Finish-The-Verse Question.
+ii. Will be direct quotes from Scripture and must be quoted word-perfect.
+iii. Must be strong enough to stand on its own without requiring additional verses
+     to explain it.
+iv. Must be spiritually significant.
+v. Quote questions should be read: "Quote (book name), chapter (number), verse
+   (number)", i.e., "Quote John chapter 1 verse 12."
+
+**There shall be one or two Quote questions in each quiz.**
+
+#### e. Reference Questions (CR/CVR/MACVR/MACR)– used to distinguish similar words from
+different passages.
+
+i. All Reference questions should be read: "According to (book name), chapter
+   (number), verse (number)" i.e., "According to John chapter 12 verse 6."
+ii. Reference questions may refer to chapter and verse or chapter only.
+iii. The Quizmaster shall specify whether chapter and verse (CVR) or chapter only
+     (CR) are required.
+iv. Chapter-Reference and Chapter-Verse-Reference questions: A question is
+    required if a jump is made prior to the complete reading of the question. The
+    question given must be a similar question to the one on the card and fulfill the
+    requirements of the question and answer on the card. The quizzer must stay
+    within context on a Chapter-Reference question and may not change to another
+    verse on a Chapter-Verse-Reference question.
+v. They may be selected from any of these types:
+   1. Chapter Reference: similar material appearing only once in a chapter.
+   2. Chapter and Verse Reference: similar material appearing more than once
+      in a chapter.
+   3. Multiple-Answer Reference.
+
+**There shall be no less than three and no more than five Reference Questions per quiz.**
+
+#### f. Multiple Answer Questions (MA)
+
+i. Must have more than one answer to the question.
+ii. The clarification of a single answer can be a multiple answer question.
+iii. Multiple Answer questions must be worded exactly as they appear in the text
+     and must contain a completed key word or phrase in the first five words.
+
+**There shall no less than two and no more than 5 Multiple Answer (MA) questions in a quiz.**
+
+#### g. Situation Questions
+
+i. Used only when narrative material is available (Four Gospels and Acts).
+ii. Must be a direct quote from Scripture by a person or an entity.
+iii. The quotation required by the question writer must be reasonable in length,
+     not exceeding two consecutive verses. The quizzer is not required to repeat
+     the quotation word-perfect but must be substantially close without leaving
+     out key components of the quotation.
+iv. Ask for who said it, to whom, how, why, when, where, or about whom.
+    No other interrogatives are permissible. A maximum of three situation
+    questions may be asked about the quote.
+v. Must start at the beginning of a quotation or the beginning of a sentence
+   within the quotation.
+vi. The answer to the Situation question must be in context.
+
+**There may be up to four Situation Questions in a quiz.**
+
+### 2. Invalid Questions
+
+a. Invalid Questions – Questions should be declared invalid by the Quizmaster or Answer
+   Judges if:
+   i. The answer requires interpretation by the quizzer.
+   ii. The question can be answered, "yes" or "no," "true" or "false."
+   iii. A Multiple-Answer, Reference, Finish-The-Verse, Situation, or Quote Question is
+        not preceded by a statement to that effect.
+   iv. The question is ambiguous, tricky, or misleading.
+   v. The question might have two different or conflicting answers.
+   vi. The question is multiple-choice.
+   vii. The written question is not word for word as taken from the NKJV.
+   viii. The question is not preceded by the quizmaster calling, "Question."
+   ix. The question is a Cross-Reference Question (meaning the question and answer
+       or, in the case of a Multiple-Answer Question, both answers must come from
+       the same verse or consecutive verses).
+   x. An Interrogative or Multiple-Answer Question does not contain a key word or
+      complete key phrase within the first five words of the question.
+   xi. A Finish-The-Verse or Finish-This or Finish-The-Verse and Reference Question
+       begins with the same first five words as another Finish-The-Verse or Finish-This
+       or finish-The-Verse and Reference Question, or if a Situation Question begins
+       with the same first five words as another Situation Question.
+   xii. When a question is deemed invalid and thrown out, it must be replaced with
+        the same type of question. (i.e. Straight Forward replaces with Straight Forward,
+        CVRMA replaced with CVRMA, etc.) If a CVRMA or CRMA cannot be found, it
+        may be replaced by the same question type. (i.e. CVRMA with CVR, etc.)
+
+---
+
+## Challenges and Protests
+
+### 1. Challenging
+
+a. If there is reason to believe the Quizmaster or Judges have ruled incorrectly on
+   an answer or question, the team captain may challenge the decision subject to
+   the following rules:
+   i. A challenge must be made immediately at the time of the Quizmaster's
+      decision and before the next question is called.
+   ii. Only the team captain may challenge (co-captain if the captain has been removed).
+   iii. The captain may not confer in any way with his/her coach or teammates before
+        challenging. Such a conference will constitute a foul and the loss of the right
+        to challenge.
+   iv. Once a clarification on a ruling has been given, all teams lose their right to challenge.
+   v. The judges' ruling on a challenge may not be challenged.
+   vi. If the challenge is sustained, points or error points that were awarded for the
+       initial ruling of the judge will be deducted. Points or error points which reflect
+       the new ruling will be recorded. A new question of the same number will be
+       given if the question is ruled illegal.
+   vii. Any question, including toss-up and bonus, is open to challenge.
+   viii. Ten points will be deducted from the challenging team's score on the second
+         and each subsequent overruled challenge.
+   ix. When a challenge is made, the Quizmaster must give the captain(s) of the
+       opposing team(s) an opportunity to speak to the challenge before making a
+       ruling on the challenge.
+   x. A question may be challenged by the team captain anytime he/she feels that a
+      violation of the rules has taken place. Some examples would be:
+      1. If incorrect information is given in the question or if a significant
+         mispronunciation is made by the Quizmaster.
+      2. If the question does not come from the Scripture that is the basis of
+         competition.
+      3. If, in a Finish-The-Verse Question, the first five words of the verse are
+         the same as the first five words of another verse that is a part of the
+         Scripture being used as the basis of competition.
+      4. If the question is not word for word as it appears in the NKJV.
+
+### 2. Protesting
+
+a. Any coach (none other) may place a quiz under protest.
+   i. When the coach feels a decision made is in violation of the rules.
+   ii. It must be made before the next question is called.
+   iii. May not confer with anyone except his or her assistant coach.
+
+b. The Quizmaster, officials, and coaches involved will attempt to come to an agreement.
+   If no agreement is reached within 10 minutes, the meet director will arbitrate and
+   determine the just solution.
+
+c. If a protest is launched after question number 20 is completed it must be done
+   immediately after the ruling is announced and before the quizzers leave the platform.
+
+---
+
+## Scoring
+
+### 1. Team Points
+
+#### a. Twenty Points Earned
+
+i. A team with all of its registered members present at the scheduled time for
+   quizzing will receive 20 bonus points.
+ii. Each correct answer is worth 20 points.
+iii. All toss-up questions are worth 20 points.
+iv. If, in the first 15 questions, two teams error on consecutive questions, a
+    20-point bonus question will be awarded to the third team on the next
+    numbered question.
+v. If question 15 is erred, question 16 becomes a toss-up for the other two teams.
+   If both questions 15 and 16 are erred, 16A becomes a 20-point bonus.
+vi. If question 15 is answered correctly and 16 is erred, 16A becomes a toss-up
+    and 16B will be a 20-point bonus.
+vii. When a quizzer errors on the tie-breaker question, it will be treated as a
+     regular question and the quiz will continue as normal.
+
+#### b. Ten Points Earned
+
+i. When the third, fourth, or fifth quizzer on the same team jumps and correctly
+   answers a question in the same quiz, a 10-point team bonus is awarded.
+ii. When three teams are competing, all bonus questions numbered 17 through
+    the end of the quiz are worth 10 points. These will always be on the "B" questions.
+iii. When two teams are competing, the bonus is worth 10 points but is the next
+     numbered question on questions 1 to 15. On questions 17 to 20 both teams
+     must be jumping.
+
+#### c. Ten Points Deduction
+
+i. Beginning on question 17, 10 points will be deducted for each team error.
+ii. Two errors made by the same quizzer will be a 10-point team and individual deduction.
+iii. The third team error and each subsequent error will constitute a deduction of
+     10 points from the team score.
+iv. For every three team fouls, 10 points will be deducted from the team score.
+v. Ten points are deducted for a team's second overruled challenge and each
+   subsequent overruled challenge.
+vi. Never will more than 10 points be deducted from the team score for a single
+    infraction (error, foul, or overruled challenge).
+vii. If, in the judgment of the officials, a deliberate attempt is made to forfeit a
+     question, an error will be charged and 10 points deducted from the team score.
+     The next question will be numbered the same.
+
+#### d. Tie-Score
+
+i. In the case of a tie score, quizzing will continue with sets of three additional
+   questions until the tie is broken. Scoring will continue as above.
+
+#### e. Team Placement Points
+
+Team placement points for determining positions shall be awarded as follows:
+
+1. First Place: 10 points, plus 1 point for each 10 points over 100.
+2. Second Place: 5 points, plus 1 point for each 10 points over 60.
+3. Third Place: 1 point, plus 1 point for each 10 points over 30.
+4. In case of a tie, points are awarded according to the team score at the
+   end of question 20.
+
+### 2. Individual Points
+
+#### a. Points Earned
+
+i. Each correct answer is worth 20 points.
+ii. All toss-up questions are worth 20 points.
+iii. Four correct answers by a quizzer, without error, earns a 10-point individual bonus.
+iv. No individual points are added for bonus questions answered.
+v. No individual points are added for questions answered during overtime.
+
+#### b. Points Deducted
+
+i. When a quizzer makes a second error within a quiz 10 points are deducted
+   from his individual score. An additional 10 points are deducted for his third error.
+ii. Three individual fouls will result in a 10-point individual deduction.
+iii. Individual points are not deducted when a quizzer makes an error during error
+     point deductions (questions 17-20) unless it is his second or third individual error.
+iv. No individual points are deducted for errors on bonus questions.
+v. No individual points are deducted for errors on questions during overtime.
+
+---
+
+## Rules for Tournament
+
+The tournament brackets are based on three things: A preliminary round, an elimination round,
+and championship quizzes.
+
+### 1. Preliminary Round
+
+a. The team will all receive ten points as follows:
+   i. First place in a quiz: 10 points, plus 1 point for every 10 points over 100.
+   ii. Second place in a quiz: 5 points, plus 1 point for every 10 points over 60.
+   iii. Third place in a quiz: 1 point, plus 1 point for every 10 points over 30.
+   iv. In case of a tie, points are awarded according to the team score at the end
+       of question 20.
+b. Preliminary Round Brackets follow.
+
+### 2. Elimination Round
+
+a. When more than nine teams are involved, the following should be done: If there
+   are 10 to 14 teams, the top 9 should be placed into a final nine championship
+   bracket after the opening round, for the elimination round, and the remaining
+   teams dropped. If there are 15 to 20 teams, after the opening round the top 6
+   teams should be placed in the championship bracket, the next 9 places (7
+   through 15) should quiz in the intermediate quizzes given below (XYZ) and the
+   remaining teams should be dropped. If there are more than 24 teams, the top 6
+   should be placed in the championship bracket, teams 7–15 should quiz in the
+   XYZ quizzes to determine places 7–15. Teams 16–24 will quiz in XXYYZZ
+   intermediate quizzes to determine their placement. A Consolation final 9 bracket
+   will be used for positions 10-15 (determined by XYZ quizzes) and places
+   16-18 determined by XXYYZZ quizzes. If you are in the XYZ quizzes, you cannot move
+   below position 15, regardless of how low their XYZ quiz score was. Likewise, those in the
+   XXYYZZ quizzes cannot move above position 16, regardless of how high their
+   intermediate quiz scores were.
+   - QUIZ X: Teams 7, 12, 15
+   - QUIZ Y: Teams 8, 11, 14
+   - QUIZ Z: Teams 9, 10, 13
+   - QUIZ XX: Teams 16, 21, 24
+   - QUIZ YY: Teams 17, 20, 23
+   - QUIZ ZZ: Teams 18, 19, 22
+
+b. There will be a tie-breaker quiz for positions 6, 15, and 24. Ties for positions
+   7 through 14 will be broken in accordance with the following priorities:
+   i. Head-to-head competition in previous quizzes.
+   ii. 2. Total points scored in preliminaries.
+   iii. 3. Least number of errors.
+
+   Points earned in these quizzes should be added to the points earned in the opening
+   round by each team. The highest three teams, based on the point system above, are then
+   placed in the above bracket. The next six teams are placed in the lower bracket.
+
+c. Elimination Round Brackets: Teams will be placed in the elimination round
+   brackets according to their placement after the preliminary round. Several
+   options for elimination round brackets follow.
+
+### 3. Championship Quizzes
+
+a. A team must win twice to become the champion team. All three teams will
+   continue to quiz until one team wins twice.
+b. If the same team wins the first two championship quizzes:
+   i. And each of the other teams takes a second and a third, the final placement
+      for second and third place will be determined by Clarification III.E (below).
+   ii. And another team takes two thirds, then the team with the two firsts takes
+       first place, the team with the two seconds takes second place, and the team
+       with the two thirds takes third place.
+c. If no team takes two firsts in the first two championship quizzes, then all three
+   teams advance to the third championship quiz.
+   i. If the winner of either the first or second quiz wins the third quiz, that team
+      is the champion team. Second and third places will be determined by
+      Clarification III.E.
+   ii. If the winner of either of the first two quizzes does not win the third quiz,
+       then all three teams advance to a fourth quiz.
+d. If a fourth quiz is necessary, the winner of that quiz is the champion team.
+   Second place will be given to the remaining team that has the most seconds
+   in the four Championship Quizzes. If this is a tie then Clarification III.E
+   (below) will be applied.
+e. Clarification for second and third place:
+   Second place will be determined as follows:
+   i. The team that scored the most points in the Championship Quizzes; or if
+      there is a tie,
+   ii. The winner if the two teams quizzed earlier; or
+
+   iii. The team with the highest average points in the final nine; or if there is
+        a tie,
+   iv. The highest standing in the preliminary round.
+
+---
+
+## Tournament Brackets
+
+### Preliminary Round Brackets
+
+The following are pairings for preliminary round quizzing with three quizzes per team.
+(In quizzes with four to six teams, some teams compete with each other twice.)
+
+| Teams | Quizzes |
+|-------|---------|
+| 4  | 1. ABC  2. DAB  3. CDA  4. BCD |
+| 5  | 1. ABC  2. DEA  3. BCD  4. EAB  5. CDE |
+| 6  | 1. ACF  2. BDA  3. CEB  4. DFC  5. EAD  6. FBE |
+| 7  | 1. ACG  2. BDA  3. CEB  4. DFC  5. EGD  6. FAE  7. GBF |
+| 8  | 1. ABC  2. DEF  3. GHA  4. GCE  5. ADF  6. BEH  7. FHC  8. GBD |
+| 9  | 1. ABC  2. DEF  3. GHI  4. ADG  5. BEH  6. CDH  7. AEI  8. BFG  9. CFI |
+| 10 | 1. ABC  2. DEF  3. GHI  4. JBF  5. ADG  6. BEH  7. CFI  8. JEG  9. CDH  10. IJA |
+| 11 | 1. ABJ  2. BCK  3. CDA  4. DEB  5. EFC  6. FGD  7. GHE  8. HIF  9. IJG  10. JKH  11. KAI |
+| 12 | 1. ABK  2. CFE  3. GIJ  4. EDB  5. FHI  6. AJL  7. EGH  8. ACD  9. KJH  10. LCB  11. DFG  12. ILK |
+| 13 | 1. CFG  2. IHE  3. GJK  4. LIM  5. BKA  6. DMC  7. BEF  8. HGD  9. FJI  10. KLH  11. AJM  12. CBL  13. DAE |
+| 14 | 1. ADE  2. CFG  3. EHI  4. ILM  5. GJK  6. KNA  7. BMC  8. LKH  9. FIJ  10. DHG  11. BEF  12. JMN  13. ABL  14. NCD |
+| 15 | 1. BEF  2. GJK  3. EDA  4. DCO  5. NBC  6. ALO  7. CFG  8. FIJ  9. IML  10. HGD  11. MJN  12. LKH  13. ABM  14. IHE  15. ONK |
+| 16 | 1. CFG  2. ADE  3. DGH  4. LOP  5. EBF  6. KON  7. PDC  8. HEI  9. HKL  10. BCO  11. FIJ  12. NAB  13. ILM  14. GJK  15. JMN  16. MPA |
+| 17 | 1. CDL  2. EGO  3. HFM  4. KIP  5. NJQ  6. FAL  7. BMG  8. DOI  9. HCN  10. EKQ  11. JPB  12. MNO  13. DEF  14. ABC  15. GHI  16. JLK  17. PQA |
+| 18 | 1. AJR  2. BPK  3. FIM  4. DGN  5. CLQ  6. EOH  7. GMA  8. JDP  9. HBN  10. ICO  11. KEQ  12. LRF  13. BAC  14. DFE  15. GHI  16. JKL  17. MNO  18. PQR |
+| 19 | 1. IOS  2. HFN  3. LCP  4. EGM  5. AJQ  6. KRD  7. CIN  8. BMH  9. FLQ  10. JDO  11. EPK  12. RSB  13. GHI  14. DEF  15. ABC  16. JKL  17. MNO  18. PQR  19. SAG |
+| 20 | 1. HSO  2. TGP  3. CJM  4. NFQ  5. BIR  6. ELS  7. KDT  8. HCN  9. JPB  10. FAL  11. DOI  12. EQK  13. RMG  14. ABC  15. DEF  16. GHI  17. JKL  18. MNO  19. PRQ  20. STA |
+| 21 | 1. DAG  2. JMP  3. BHE  4. KNQ  5. LRO  6. CFI  7. SPA  8. HUR  9. TLQ  10. MDI  11. SCJ  12. FKU  13. ETN  14. OGB  15. PQR  16. TSU  17. DEF  18. ABC  19. GIH  20. KJL  21. MON |
+
+---
+
+## Elimination Round Brackets with Championship Final
+
+**Tournament Bracket "A"** — Based on the "winner-move-up" philosophy; designed to select
+the best team out of nine through winning rather than losing. Teams are arranged in order
+(first to ninth) by points. The winners of quizzes A, D, and F meet in quiz G for the
+championship. The top three teams are in a triple elimination, the middle three in a double
+elimination, and the last three in a single elimination.
+
+### Bracket A
+
+*(This bracket does not require each team to lose to be eliminated.)*
+
+- Quiz A: Teams 1, 2, 3
+- Quiz B: Teams 4, 5, 6
+- Quiz C: Teams 7, 8, 9
+- Quiz D: 2nd Quiz A, 3rd Quiz A, 1st Quiz B
+- Quiz E: 2nd Quiz B, 3rd Quiz B, 1st Quiz C
+- Quiz F: 2nd Quiz D, 3rd Quiz D, 1st Quiz E
+- **Championship Quiz G:** Winner Quiz A, Winner Quiz D, Winner Quiz F
+- **Championship Quiz H:** Three teams from Quiz G
+- **Championship Quiz I:** If the winner of Quiz G does not win Quiz H, Quiz I will have the
+  winners of Quiz G and H. The other team will have been eliminated.
+
+**Tournament Bracket "B"** — Each team in the final nine must lose twice. A team may reach
+the finals by winning only one quiz.
+
+### Bracket B
+
+- Quiz A: Teams 1, 4, 9
+- Quiz B: Teams 2, 5, 7
+- Quiz C: Teams 3, 6, 8
+- Quiz D: 1st Quiz A, 1st Quiz C, 2nd Quiz B
+- Quiz E: 1st Quiz B, 2nd Quiz A, 2nd Quiz C
+- Quiz F: 3rd Quiz A, 3rd Quiz B, 3rd Quiz C
+- Quiz G: 3rd Quiz D, 3rd Quiz E, 1st Quiz F
+- Quiz H: 2nd Quiz D, 2nd Quiz E, 1st Quiz G
+- **Championship Quiz I:** 1st Quiz D, 1st Quiz E, 1st Quiz H
+- **Championship Quiz J:** 2nd Quiz I, 1st Quiz I, 3rd Quiz I
+- **Championship Quiz K (if needed):** 2nd Quiz J, 1st Quiz J, 3rd Quiz J
+  - *If the same team took third in both Quiz I and J, Quiz K will be a two-team quiz
+    to determine first and second place.*
+- **Championship Quiz L (if needed):** 3rd Quiz K, 1st Quiz K, 2nd Quiz K
+
+**Tournament Bracket "C"** — A combination of Brackets A and B. A team must win at least
+two quizzes to obtain a position in the finals.
+
+### Bracket C
+
+- Quiz A: Teams 1, 4, 9
+- Quiz B: Teams 2, 5, 7
+- Quiz C: Teams 3, 6, 8
+- Quiz D: 1st Quiz A, 1st Quiz B, 1st Quiz C
+- Quiz E: 2nd Quiz A, 2nd Quiz B, 2nd Quiz C
+- Quiz F: 3rd Quiz A, 3rd Quiz B, 3rd Quiz C
+- Quiz G: 2nd Quiz D, 3rd Quiz D, 1st Quiz E
+- Quiz H: 2nd Quiz E, 3rd Quiz E, 1st Quiz F
+- Quiz I: 2nd Quiz G, 3rd Quiz G, 1st Quiz H
+- **Championship Quiz J:** 1st Quiz D, 1st Quiz G, 1st Quiz I
+- **Championship Quiz K:** 2nd Quiz J, 1st Quiz J, 3rd Quiz J
+- **Championship Quiz L (if needed):** 2nd Quiz K, 1st Quiz K, 3rd Quiz K
+  - *If the same team took third in both Quiz J and K, Quiz L will be a two-team quiz
+    to determine first and second place.*
+- **Championship Quiz M (if needed):** 3rd Quiz L, 1st Quiz L, 2nd Quiz L
+
+---
+
+## Capernwray Scholarships
+
+1. Awarded to the top 3 quizzers with the highest yearly averages (Must be in grade 10-12)
+   after the final weekend Quiz Meet in Division I.
+   a. Yearly averages will be based on the 3 Weekend Quiz Meets from September to April.
+      - 1st Weekend Quiz Meet is worth 20%
+      - 2nd Weekend Quiz Meet is worth 30%
+      - 3rd Weekend Quiz Meet is worth 50%
+   b. Scholarships must be used the year following graduation.
+   c. A quizzer may not use more than 1 scholarship.
+   d. A yearly average will not be awarded to those in Division II.
+
+2. Scholarship Values
+   - Thetis Island, BC — $2,500.00
+   - His Hill, Comfort, TX — $1,000.00
