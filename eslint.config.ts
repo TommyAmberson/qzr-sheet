@@ -8,6 +8,7 @@ export default tseslint.config(
   ...pluginVue.configs['flat/recommended'],
   {
     files: ['src/**/*.{ts,vue}'],
+    ignores: ['src/**/__tests__/**'],
     languageOptions: {
       parserOptions: {
         parser: tseslint.parser,
@@ -16,22 +17,27 @@ export default tseslint.config(
       },
     },
     rules: {
-      // Prefer const
       'prefer-const': 'error',
-      // Use TS version for better Vue SFC support
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      // Warn rather than error to start
       '@typescript-eslint/no-explicit-any': 'warn',
-      // Vue: enforce script-setup style and block order
       'vue/component-api-style': ['error', ['script-setup']],
       'vue/block-order': ['error', { order: ['script', 'template', 'style'] }],
+      'vue/multi-word-component-names': 'off',
     },
   },
   {
-    // Looser rules for test files
     files: ['src/**/__tests__/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser,
+        project: './tsconfig.vitest.json',
+      },
+    },
     rules: {
+      'prefer-const': 'error',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'off',
     },
   },
