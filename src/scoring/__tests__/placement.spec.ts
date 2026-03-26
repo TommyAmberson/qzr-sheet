@@ -88,7 +88,23 @@ describe('computePlacements', () => {
     expect(result).toEqual([1, 2, 3])
   })
 
-  // --- OT still tied ---
+  // --- Overtime disabled (ties are final) ---
+
+  it('assigns shared placement to tied teams when overtime is disabled', () => {
+    // No OT toggle — tie is final, both teams get 2nd
+    const result = computePlacements([140, 120, 120], [], true, false)
+    expect(result).toEqual([1, 2, 2])
+  })
+
+  it('3-way tie with OT disabled — all get 1st', () => {
+    const result = computePlacements([120, 120, 120], [], true, false)
+    expect(result).toEqual([1, 1, 1])
+  })
+
+  it('OT enabled with no rounds completed — tied teams still null', () => {
+    const result = computePlacements([140, 120, 120], [], true, true)
+    expect(result).toEqual([1, null, null])
+  })
 
   it('leaves tied teams as null when OT round does not break tie', () => {
     // Regulation: Team 0: 140, Teams 1 & 2: 120

@@ -13,12 +13,15 @@
  *   checkpointScores[0] = scores through OT round 1, etc.
  *   Only includes rounds that are fully complete.
  * @param regulationComplete - whether all regulation questions are filled out
+ * @param overtimeEnabled - when false, remaining ties after regulation are final and
+ *   tied teams share their placement; when true, tied teams stay null until OT resolves them
  * @returns array of placements (1/2/3) per team, or null if not yet placed
  */
 export function computePlacements(
   regulationScores: number[],
   checkpointScores: number[][],
   regulationComplete: boolean,
+  overtimeEnabled = true,
 ): (number | null)[] {
   const teamCount = regulationScores.length
   const placements: (number | null)[] = new Array(teamCount).fill(null)
@@ -82,7 +85,13 @@ export function computePlacements(
     }
   }
 
-  // If remaining teams are still tied (OT not finished), leave them as null
+  // If remaining teams are still tied: assign shared placement when OT is disabled
+  // (tie is final), leave as null when OT is enabled (more rounds may come).
+  if (!overtimeEnabled && remaining.length > 1) {
+    for (const i of remaining) {
+      placements[i] = tiedRank
+    }
+  }
 
   return placements
 }

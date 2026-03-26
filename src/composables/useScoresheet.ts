@@ -330,7 +330,7 @@ export function useScoresheet() {
       onTimes,
       noJumps.value,
     )
-    return computePlacements(regScores, checkpoints, true)
+    return computePlacements(regScores, checkpoints, true, visibleOtRounds.value > 0)
   })
 
   /** Placement points per team (null if not yet placed), derived from placement + regulation score.
