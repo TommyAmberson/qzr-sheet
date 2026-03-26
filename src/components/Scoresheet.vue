@@ -35,6 +35,7 @@ const {
   allQuestionsComplete,
   validationErrors,
   placements,
+  placementPoints,
   setTeamName,
   setQuizzerName,
   moveQuizzer,
@@ -546,6 +547,9 @@ function colGroupClass(colIdx: number): string {
                 placements[ti] === 1 ? '🥇' : placements[ti] === 2 ? '🥈' : '🥉'
               }}</span>
               {{ scoring[ti]?.total ?? 0 }}
+              <span v-if="placementPoints[ti] !== null" class="placement-points">
+                {{ placementPoints[ti] }} pts
+              </span>
             </td>
           </tr>
 
@@ -1029,6 +1033,17 @@ thead .col--name {
   right: 0.2rem;
   font-size: 1.1rem;
   line-height: 1;
+}
+
+/* Placement points */
+.placement-points {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-style: normal;
+  color: var(--color-text-muted);
+  line-height: 1;
+  margin-top: 0.2rem;
 }
 
 /* On-time tick */

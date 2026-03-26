@@ -25,7 +25,7 @@ import {
   computeRegulationScores,
   questionsComplete,
 } from '../scoring/overtime'
-import { computePlacements } from '../scoring/placement'
+import { computePlacements, computePlacementPoints } from '../scoring/placement'
 
 export function useScoresheet() {
   const store = createQuizStore()
@@ -333,6 +333,16 @@ export function useScoresheet() {
     return computePlacements(regScores, checkpoints, true)
   })
 
+  /** Placement points per team (null if not yet placed), derived from placement + regulation score.
+   * Per rules §1.e.4: in case of a tie, placement points use the score at end of Q20, not OT. */
+  const placementPoints = computed(() => {
+    const onTimes = teams.value.map((t) => t.onTime)
+    const regScores = computeRegulationScores(cells.value, columns.value, onTimes)
+    return teams.value.map((_, ti) =>
+      computePlacementPoints(regScores[ti] ?? 0, placements.value[ti] ?? null),
+    )
+  })
+
   /** Update a team name by positional index */
   function setTeamName(teamIdx: number, name: string) {
     const team = teams.value[teamIdx]
@@ -425,5 +435,6 @@ export function useScoresheet() {
 
     // Placements
     placements,
+    placementPoints,
   }
 }

@@ -119,6 +119,30 @@ function findTiedTeamsInGroup(group: number[], scores: number[]): Set<number> {
   return tied
 }
 
+/**
+ * Compute placement points for a team given their regulation score and place (1/2/3).
+ *
+ * Per rules §1.e.4, placement points are always based on the score at end of Q20,
+ * even when overtime was played to break the tie. Callers must pass the regulation
+ * score, not the total including overtime.
+ *
+ * | Place | Formula          | Minimum |
+ * |-------|------------------|---------|
+ * | 1st   | score / 10       | 10 pts  |
+ * | 2nd   | score / 10 − 1   | 5 pts   |
+ * | 3rd   | score / 10 − 3   | 1 pt    |
+ *
+ * Returns null if place is null (not yet determined).
+ */
+export function computePlacementPoints(score: number, place: number | null): number | null {
+  if (place === null) return null
+  const base = Math.floor(score / 10)
+  if (place === 1) return Math.max(10, base)
+  if (place === 2) return Math.max(5, base - 1)
+  if (place === 3) return Math.max(1, base - 3)
+  return null
+}
+
 /** Rank a group by score descending, assigning placements starting at startPlace */
 function rankGroup(
   group: number[],
