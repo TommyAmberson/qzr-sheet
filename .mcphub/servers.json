@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "git": {
+      "args": [
+        "mcp-server-git",
+        "--repository",
+        "${workspaceFolder}"
+      ],
+      "autoApprove": [
+        "git_status",
+        "git_show",
+        "git_log",
+        "git_branch",
+        "git_diff",
+        "git_diff_staged",
+        "git_diff_unstaged"
+      ],
+      "command": "uvx",
+      "custom_instructions": {
+        "text": "Try to make the commit style match other commits in the repo. If possible try to find the user's previous commits and match the style."
+      },
+      "disabled_tools": []
+    }
+  }
+}
