@@ -10,6 +10,10 @@ Project scaffolding with Tauri 2 backend and Vue 3 + Vite frontend.
 
 `pnpm tauri dev` for hot-reload development in the native window.
 
+#### 0.3 Tooling ✅
+
+ESLint (typescript-eslint + eslint-plugin-vue), Prettier, pre-commit hooks, and GitHub Actions CI.
+
 ### Phase 1: Core UI
 
 #### 1.1 Table layout ✅
@@ -62,12 +66,13 @@ pulse red when any cell in their column has a validation error.
 
 Replace hardcoded "Team 1" / "Quizzer 1" with inline-editable text fields.
 
-#### 1.11 Placement points
+#### 1.11 Placement points ✅
 
 Calculate and display placement points after quiz completion — 1st gets `score/10` (min 10), 2nd
-`score/10 − 1` (min 5), 3rd `score/10 − 3` (min 1).
+`score/10 − 1` (min 5), 3rd `score/10 − 2` (min 1). Toggle between official rulebook formula and
+legacy spreadsheet formula.
 
-#### 1.12 Individual quizzer scores
+#### 1.12 Individual quizzer scores ✅
 
 Show each quizzer's individual point total at the end of their row.
 
