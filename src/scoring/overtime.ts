@@ -1,4 +1,4 @@
-import { CellValue, type Column } from '../types/scoresheet'
+import { CellValue, buildKeyToIdx, type Column } from '../types/scoresheet'
 import { scoreTeam } from './scoreTeam'
 import { isResolved } from './helpers'
 
@@ -46,7 +46,7 @@ export function getOvertimeEligibleTeams(
 /**
  * Check whether a range of questions is completely filled out.
  * A question is "complete" if its normal column is resolved (C/B/MB) or no-jumped.
- * A/B sub-columns don't need to be checked — they only exist when the normal col had an error.
+ * For isAB questions (Q16–20, OT), resolving any sub-column (A or B) also counts.
  */
 export function questionsComplete(
   cellData: CellValue[][][],
@@ -55,12 +55,23 @@ export function questionsComplete(
   fromQ: number,
   toQ: number,
 ): boolean {
+  const keyToIdx = buildKeyToIdx(cols)
   for (let ci = 0; ci < cols.length; ci++) {
     const col = cols[ci]!
     if (col.type !== '') continue // skip A/B sub-columns
     if (col.number < fromQ || col.number > toQ) continue
     if (noJumps[ci]) continue
     if (isResolved(cellData, ci)) continue
+    // For isAB questions, the group is complete when any sub-column is resolved
+    if (col.isAB) {
+      const aIdx = keyToIdx.get(`${col.number}A`)
+      const bIdx = keyToIdx.get(`${col.number}B`)
+      if (
+        (aIdx !== undefined && isResolved(cellData, aIdx)) ||
+        (bIdx !== undefined && isResolved(cellData, bIdx))
+      )
+        continue
+    }
     return false
   }
   return true

@@ -1,9 +1,71 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
-import { getOvertimeEligibleTeams, computeOvertimeRounds } from '../overtime'
+import { getOvertimeEligibleTeams, computeOvertimeRounds, questionsComplete } from '../overtime'
 
 const C = CellValue.Correct
+const E = CellValue.Error
+const MB = CellValue.MissedBonus
 const _ = CellValue.Empty
+
+describe('questionsComplete', () => {
+  function setup() {
+    const cols = buildColumns(0)
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    const idx = (key: string) => {
+      const i = cols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    const noJumps = cols.map(() => false)
+    return { cols, cells, idx, noJumps }
+  }
+
+  it('returns false when regulation is not filled out at all', () => {
+    const { cols, cells, noJumps } = setup()
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(false)
+  })
+
+  it('returns true when all questions are no-jumped', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
+  })
+
+  it('returns true when every normal column is resolved directly', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    noJumps[idx('1')] = false
+    cells[0]![0]![idx('1')] = C
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
+  })
+
+  it('returns true when a Q16 normal has only errors but Q16A is resolved', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('16')] = E
+    cells[1]![0]![idx('16A')] = C
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
+  })
+
+  it('returns true when a Q17 normal has only errors but Q17B is resolved (MB)', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 16; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 18; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('17')] = E
+    cells[1]![0]![idx('17A')] = E
+    cells[2]![0]![idx('17B')] = MB
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
+  })
+
+  it('returns false when a Q16 normal has only errors and sub-columns are empty', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('16')] = E
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(false)
+  })
+})
 
 describe('buildColumns overtime', () => {
   it('builds no OT columns with 0 rounds', () => {
