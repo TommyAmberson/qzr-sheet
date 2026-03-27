@@ -371,14 +371,30 @@ function colGroupClass(colIdx: number): string {
           </th>
           <th class="col--total col--total-header" />
         </tr>
-        <tr class="spacer-row">
-          <td class="sticky-col" colspan="2" />
+        <tr class="row--question-type">
+          <td class="col--name sticky-col question-type-label" colspan="2" />
           <td
             v-for="{ col, idx, entering } in displayColumns"
             :key="col.key"
-            :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
-          />
-          <td />
+            :class="['cell cell--question-type', colGroupClass(idx), { 'col--entering': entering }]"
+          >
+            <select
+              class="question-type-select"
+              :value="quiz.questionTypes.get(col.key) ?? ''"
+              @change="
+                setQuestionType(
+                  idx,
+                  ($event.target as HTMLSelectElement).value
+                    ? (($event.target as HTMLSelectElement).value as QuestionCategory)
+                    : null,
+                )
+              "
+            >
+              <option value="" />
+              <option v-for="cat in QuestionCategory" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
+          </td>
+          <td class="col--total col--total-header" />
         </tr>
       </thead>
 
@@ -688,40 +704,6 @@ function colGroupClass(colIdx: number): string {
             @click="toggleNoJump(idx)"
           >
             {{ noJumps[idx] ? '✗' : '' }}
-          </td>
-          <td class="col--total no-jump-total" />
-        </tr>
-        <tr class="spacer-row">
-          <td class="sticky-col" colspan="2" />
-          <td
-            v-for="{ col, idx, entering } in displayColumns"
-            :key="col.key"
-            :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
-          />
-          <td />
-        </tr>
-        <tr class="row--question-type">
-          <td class="col--name sticky-col question-type-label" colspan="2">Type</td>
-          <td
-            v-for="{ col, idx, entering } in displayColumns"
-            :key="col.key"
-            :class="['cell cell--question-type', colGroupClass(idx), { 'col--entering': entering }]"
-          >
-            <select
-              class="question-type-select"
-              :value="quiz.questionTypes.get(col.key) ?? ''"
-              @change="
-                setQuestionType(
-                  idx,
-                  ($event.target as HTMLSelectElement).value
-                    ? (($event.target as HTMLSelectElement).value as QuestionCategory)
-                    : null,
-                )
-              "
-            >
-              <option value="" />
-              <option v-for="cat in QuestionCategory" :key="cat" :value="cat">{{ cat }}</option>
-            </select>
           </td>
           <td class="col--total no-jump-total" />
         </tr>
@@ -1208,19 +1190,18 @@ thead .col--name {
   outline: none;
 }
 
-/* Question type row */
-.row--question-type .sticky-col {
+/* Question type row — styled to blend with the question header above */
+.row--question-type td {
   background: transparent !important;
+  padding: 0 !important;
+  height: 0 !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
   border: none !important;
 }
-.question-type-label {
-  font-weight: 600;
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  text-align: right !important;
-}
-.cell--question-type {
-  padding: 0.1rem !important;
+.row--question-type .cell--question-type {
+  border-left: 1px solid var(--color-border-alt) !important;
+  border-right: 1px solid var(--color-border-alt) !important;
   cursor: default;
 }
 .cell--question-type:hover {
@@ -1231,18 +1212,21 @@ thead .col--name {
   border: none;
   background: transparent;
   font-family: inherit;
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--color-text-faint);
   text-align: center;
   cursor: pointer;
-  padding: 0.1rem 0;
+  padding: 0;
+  margin: 0;
+  height: 1rem;
+  line-height: 1rem;
   outline: none;
   appearance: none;
   -webkit-appearance: none;
 }
 .question-type-select:focus {
-  color: var(--color-text);
+  color: var(--color-text-muted);
 }
 .question-type-select option {
   background: var(--color-bg);
