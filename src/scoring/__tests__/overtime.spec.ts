@@ -1,9 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
-import { getOvertimeEligibleTeams, computeOvertimeRounds, questionsComplete } from '../overtime'
+import {
+  getOvertimeEligibleTeams,
+  computeOvertimeRounds,
+  questionsComplete,
+  quizJumpedComplete,
+} from '../overtime'
 
 const C = CellValue.Correct
 const E = CellValue.Error
+const F = CellValue.Foul
+const B = CellValue.Bonus
 const MB = CellValue.MissedBonus
 const _ = CellValue.Empty
 
@@ -31,7 +38,7 @@ describe('questionsComplete', () => {
     expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
   })
 
-  it('returns true when every normal column is resolved directly', () => {
+  it('returns true for a Q1-15 correct answer', () => {
     const { cols, cells, idx, noJumps } = setup()
     for (let n = 1; n <= 20; n++) noJumps[idx(`${n}`)] = true
     noJumps[idx('1')] = false
@@ -39,7 +46,14 @@ describe('questionsComplete', () => {
     expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
   })
 
-  it('returns true when a Q16 normal has only errors but Q16A is resolved', () => {
+  it('returns true for a Q1-15 error (question moved on via toss-up)', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    cells[0]![0]![idx('1')] = E
+    for (let n = 2; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
+  })
+
+  it('returns true when Q16 normal errors and Q16A is correct', () => {
     const { cols, cells, idx, noJumps } = setup()
     for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
     for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
@@ -48,22 +62,139 @@ describe('questionsComplete', () => {
     expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
   })
 
-  it('returns true when a Q17 normal has only errors but Q17B is resolved (MB)', () => {
+  it('returns true when Q16 normal errors, Q16A errors, Q16B is MB', () => {
     const { cols, cells, idx, noJumps } = setup()
-    for (let n = 1; n <= 16; n++) noJumps[idx(`${n}`)] = true
-    for (let n = 18; n <= 20; n++) noJumps[idx(`${n}`)] = true
-    cells[0]![0]![idx('17')] = E
-    cells[1]![0]![idx('17A')] = E
-    cells[2]![0]![idx('17B')] = MB
+    for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('16')] = E
+    cells[1]![0]![idx('16A')] = E
+    cells[2]![0]![idx('16B')] = MB
     expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
   })
 
-  it('returns false when a Q16 normal has only errors and sub-columns are empty', () => {
+  it('returns true when Q20 normal errors and Q20A is no-jumped', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 19; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('20')] = E
+    noJumps[idx('20A')] = true
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
+  })
+
+  it('returns true when Q20 normal errors, Q20A errors, Q20B is no-jumped', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 19; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('20')] = E
+    cells[1]![0]![idx('20A')] = E
+    noJumps[idx('20B')] = true
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
+  })
+
+  it('returns false when Q16 normal errors and sub-columns are empty', () => {
     const { cols, cells, idx, noJumps } = setup()
     for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
     for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
     cells[0]![0]![idx('16')] = E
     expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(false)
+  })
+
+  it('returns false when Q16 normal errors, Q16A errors, Q16B is empty', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('16')] = E
+    cells[1]![0]![idx('16A')] = E
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(false)
+  })
+})
+
+describe('quizJumpedComplete', () => {
+  function setup() {
+    const cols = buildColumns(1) // 1 OT round allocated
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    const idx = (key: string) => {
+      const i = cols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    const noJumps = cols.map(() => false)
+    return { cols, cells, idx, noJumps }
+  }
+
+  it('returns false when no questions answered', () => {
+    const { cols, cells, noJumps } = setup()
+    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(false)
+  })
+
+  it('returns true when all normal questions no-jumped', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+  })
+
+  it('returns true when errors count as jumped on', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    // Q1 error, Q2–20 no-jumped
+    cells[0]![0]![idx('1')] = E
+    for (let n = 2; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+  })
+
+  it('returns true when fouls do not count but the question was still answered', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    // Q1: foul (doesn\'t count) + correct = jumped
+    cells[0]![0]![idx('1')] = F
+    cells[1]![0]![idx('1')] = C
+    for (let n = 2; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+  })
+
+  it('returns false when Q1 has only a foul (not jumped)', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    cells[0]![0]![idx('1')] = F
+    for (let n = 2; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(false)
+  })
+
+  it('returns true when Q16 normal has only errors but Q16A has an answer', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('16')] = E
+    cells[1]![0]![idx('16A')] = C
+    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+  })
+
+  it('returns true when Q16 normal has only errors but Q16B has an answer', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('16')] = E
+    cells[1]![0]![idx('16A')] = E
+    cells[2]![0]![idx('16B')] = MB
+    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+  })
+
+  it('ignores allocated OT columns when visibleOtRounds is 0', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    // cols has Q21–23 allocated but visibleOtRounds=0 should ignore them
+    for (let n = 1; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+  })
+
+  it('returns false when OT round is visible but not yet answered', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    // visibleOtRounds=1 means Q21–23 must be answered
+    expect(quizJumpedComplete(cells, cols, noJumps, 1)).toBe(false)
+  })
+
+  it('returns true when OT round is visible and fully answered', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('21')] = C
+    cells[1]![0]![idx('22')] = C
+    cells[2]![0]![idx('23')] = C
+    expect(quizJumpedComplete(cells, cols, noJumps, 1)).toBe(true)
   })
 })
 
@@ -264,6 +395,18 @@ describe('computeOvertimeRounds', () => {
     const { cols, cells, idx } = setup(2)
     const noJumps = cols.map(() => false)
     fillRegulationTiedSimple(cells, idx, noJumps)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
+  })
+
+  it('returns 1 when regulation has error-only Q1-15 columns and teams are tied', () => {
+    // Regression: error-only non-isAB columns must count as complete, not block OT.
+    const { cols, cells, idx } = setup(2)
+    const noJumps = cols.map(() => false)
+    fillRegulationTiedSimple(cells, idx, noJumps)
+    // Un-no-jump Q1 and put an error there — Q1 now has only an error (no correct).
+    // questionsComplete must still treat it as done.
+    noJumps[idx('1')] = false
+    cells[0]![0]![idx('1')] = E
     expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
   })
 

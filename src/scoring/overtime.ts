@@ -1,6 +1,6 @@
 import { CellValue, buildKeyToIdx, type Column } from '../types/scoresheet'
 import { scoreTeam } from './scoreTeam'
-import { isResolved } from './helpers'
+import { isResolved, anyTeamHasAnswer } from './helpers'
 
 /**
  * Determine which teams are eligible for overtime based on regulation-only scores.
@@ -44,9 +44,48 @@ export function getOvertimeEligibleTeams(
 }
 
 /**
+ * Whether a question group (Normal + optional A/B) is complete.
+ *
+ * A group is complete when the chain has gone as far as it needs to and the
+ * last reached column was jumped on (any non-foul answer) or no-jumped.
+ * For non-isAB questions (Q1–15) there are no sub-columns so only the Normal
+ * is checked. For isAB questions (Q16–20, OT) the chain cascades: an error on
+ * Normal reaches A, an error on A reaches B.
+ */
+function questionGroupComplete(
+  cellData: CellValue[][][],
+  cols: Column[],
+  noJumps: boolean[],
+  keyToIdx: Map<string, number>,
+  ci: number,
+): boolean {
+  const col = cols[ci]!
+  if (noJumps[ci]) return true
+  if (!anyTeamHasAnswer(cellData, ci)) return false
+  // Jumped on. For non-isAB that's enough.
+  if (!col.isAB) return true
+  // isAB: if the Normal has an error (not a terminal answer), the chain
+  // continues to A — A must also be complete.
+  if (!isResolved(cellData, ci)) {
+    const aIdx = keyToIdx.get(`${col.number}A`)
+    if (aIdx === undefined) return false
+    if (noJumps[aIdx]) return true
+    if (!anyTeamHasAnswer(cellData, aIdx)) return false
+    // A was jumped on. If A had an error, chain continues to B.
+    if (!isResolved(cellData, aIdx)) {
+      const bIdx = keyToIdx.get(`${col.number}B`)
+      if (bIdx === undefined) return false
+      if (noJumps[bIdx]) return true
+      if (!anyTeamHasAnswer(cellData, bIdx)) return false
+    }
+  }
+  return true
+}
+
+/**
  * Check whether a range of questions is completely filled out.
- * A question is "complete" if its normal column is resolved (C/B/MB) or no-jumped.
- * For isAB questions (Q16–20, OT), resolving any sub-column (A or B) also counts.
+ * Uses question-group cascade logic: each group is done when the chain
+ * reached a jumped-on or no-jumped column.
  */
 export function questionsComplete(
   cellData: CellValue[][][],
@@ -60,28 +99,39 @@ export function questionsComplete(
     const col = cols[ci]!
     if (col.type !== '') continue // skip A/B sub-columns
     if (col.number < fromQ || col.number > toQ) continue
-    if (noJumps[ci]) continue
-    if (isResolved(cellData, ci)) continue
-    // For isAB questions, the group is complete when any sub-column is resolved
-    if (col.isAB) {
-      const aIdx = keyToIdx.get(`${col.number}A`)
-      const bIdx = keyToIdx.get(`${col.number}B`)
-      if (
-        (aIdx !== undefined && isResolved(cellData, aIdx)) ||
-        (bIdx !== undefined && isResolved(cellData, bIdx))
-      )
-        continue
-    }
-    return false
+    if (!questionGroupComplete(cellData, cols, noJumps, keyToIdx, ci)) return false
+  }
+  return true
+}
+
+/**
+ * Whether every question in the visible range has been jumped on or no-jumped.
+ * Used for the "Complete" status indicator.
+ *
+ * Identical cascade logic to questionsComplete but bounded by visible OT rounds
+ * rather than a question number range.
+ *
+ * @param visibleOtRounds - how many OT rounds are currently shown (0 = reg only)
+ */
+export function quizJumpedComplete(
+  cellData: CellValue[][][],
+  cols: Column[],
+  noJumps: boolean[],
+  visibleOtRounds: number,
+): boolean {
+  const maxOtQ = 20 + visibleOtRounds * 3
+  const keyToIdx = buildKeyToIdx(cols)
+  for (let ci = 0; ci < cols.length; ci++) {
+    const col = cols[ci]!
+    if (col.isOvertime && col.number > maxOtQ) continue
+    if (col.type !== '') continue // skip A/B sub-columns
+    if (!questionGroupComplete(cellData, cols, noJumps, keyToIdx, ci)) return false
   }
   return true
 }
 
 /**
  * Compute how many overtime rounds should be shown.
- *
- * Returns 0 if regulation is incomplete or no teams are tied.
- * Returns 1 if regulation is complete and tied (show Q21-23).
  * Returns N+1 if OT round N is complete and teams are still tied.
  *
  * @param cellData - the full cell grid

@@ -25,6 +25,7 @@ import {
   computeOtCheckpointScores,
   computeRegulationScores,
   questionsComplete,
+  quizJumpedComplete,
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
 
@@ -300,22 +301,14 @@ export function useScoresheet() {
     return _abColumnNeeded(cells.value, columns.value, noJumps.value, colIdx)
   }
 
-  const allQuestionsComplete = computed(() => {
-    const cols = columns.value
-    for (let ci = 0; ci < cols.length; ci++) {
-      const col = cols[ci]!
-      if ((col.type === QuestionType.A || col.type === QuestionType.B) && !abColumnNeeded(ci))
-        continue
-      if (noJumps.value[ci]) continue
-      if (colAnswerValue(ci) !== CellValue.Empty) continue
-      return false
-    }
-    return true
-  })
-
   /** Whether regulation questions (Q1–20) are fully filled out */
   const regulationComplete = computed(() =>
     questionsComplete(cells.value, columns.value, noJumps.value, 1, 20),
+  )
+
+  /** Whether all questions in the visible range have been jumped on or no-jumped */
+  const allQuestionsComplete = computed(() =>
+    quizJumpedComplete(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
   )
 
   /** Placement medals: 1/2/3 per team, or null if not yet placed */
