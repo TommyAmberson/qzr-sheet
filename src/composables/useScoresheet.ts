@@ -2,6 +2,7 @@ import { ref, computed, watch } from 'vue'
 import {
   CellValue,
   PlacementFormula,
+  QuestionCategory,
   buildColumns,
   QuestionType,
   type Column,
@@ -404,6 +405,14 @@ export function useScoresheet() {
     noJumpMap.value = new Map(noJumpMap.value)
   }
 
+  /** Set the question category for a column by index (null clears it) */
+  function setQuestionType(colIdx: number, category: QuestionCategory | null) {
+    const col = columns.value[colIdx]
+    if (!col) return
+    store.setQuestionType(col.key, category)
+    answerVersion.value++
+  }
+
   return {
     columns,
     quiz,
@@ -453,5 +462,9 @@ export function useScoresheet() {
     placements,
     placementPoints,
     PlacementFormula,
+
+    // Question types
+    QuestionCategory,
+    setQuestionType,
   }
 }

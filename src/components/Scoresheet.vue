@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { CellValue, QuestionType } from '../types/scoresheet'
+import { CellValue, QuestionType, QuestionCategory } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 import { validationMessage } from '../scoring/validation'
 
@@ -40,6 +40,7 @@ const {
   setTeamName,
   setQuizzerName,
   moveQuizzer,
+  setQuestionType,
 } = useScoresheet()
 
 /** All unique validation messages for the status tooltip */
@@ -690,6 +691,40 @@ function colGroupClass(colIdx: number): string {
           </td>
           <td class="col--total no-jump-total" />
         </tr>
+        <tr class="spacer-row">
+          <td class="sticky-col" colspan="2" />
+          <td
+            v-for="{ col, idx, entering } in displayColumns"
+            :key="col.key"
+            :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
+          />
+          <td />
+        </tr>
+        <tr class="row--question-type">
+          <td class="col--name sticky-col question-type-label" colspan="2">Type</td>
+          <td
+            v-for="{ col, idx, entering } in displayColumns"
+            :key="col.key"
+            :class="['cell cell--question-type', colGroupClass(idx), { 'col--entering': entering }]"
+          >
+            <select
+              class="question-type-select"
+              :value="quiz.questionTypes.get(col.key) ?? ''"
+              @change="
+                setQuestionType(
+                  idx,
+                  ($event.target as HTMLSelectElement).value
+                    ? (($event.target as HTMLSelectElement).value as QuestionCategory)
+                    : null,
+                )
+              "
+            >
+              <option value="" />
+              <option v-for="cat in QuestionCategory" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
+          </td>
+          <td class="col--total no-jump-total" />
+        </tr>
       </tfoot>
     </table>
     <!-- Cell selector popup -->
@@ -1171,6 +1206,47 @@ thead .col--name {
 }
 .cell--no-jump-answered:hover {
   outline: none;
+}
+
+/* Question type row */
+.row--question-type .sticky-col {
+  background: transparent !important;
+  border: none !important;
+}
+.question-type-label {
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-align: right !important;
+}
+.cell--question-type {
+  padding: 0.1rem !important;
+  cursor: default;
+}
+.cell--question-type:hover {
+  outline: none;
+}
+.question-type-select {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-align: center;
+  cursor: pointer;
+  padding: 0.1rem 0;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.question-type-select:focus {
+  color: var(--color-text);
+}
+.question-type-select option {
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 /* Cell values */

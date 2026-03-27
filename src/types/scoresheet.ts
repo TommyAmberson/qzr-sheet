@@ -13,6 +13,15 @@ export enum QuestionType {
   B = 'B',
 }
 
+export enum QuestionCategory {
+  INT = 'INT',
+  FTV = 'FTV',
+  REF = 'REF',
+  MA = 'MA',
+  Q = 'Q',
+  SIT = 'SIT',
+}
+
 export enum PlacementFormula {
   /** Official rulebook: 1st=score/10, 2nd=score/10−1, 3rd=score/10−2 */
   Rules = 'rules',
@@ -27,6 +36,8 @@ export interface Quiz {
   /** Whether overtime is enabled */
   overtime: boolean
   placementFormula: PlacementFormula
+  /** Question category per column key (e.g. "1" → INT, "16A" → FTV) */
+  questionTypes: Map<string, QuestionCategory>
 }
 
 export interface Team {
