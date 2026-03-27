@@ -1223,6 +1223,7 @@ thead .col--name {
 .question-type-select option {
   background: var(--color-bg);
   color: var(--color-text);
+  text-align: center;
 }
 
 /* Cell values */
