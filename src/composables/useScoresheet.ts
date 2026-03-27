@@ -453,6 +453,5 @@ export function useScoresheet() {
     placements,
     placementPoints,
     PlacementFormula,
-    quiz,
   }
 }
