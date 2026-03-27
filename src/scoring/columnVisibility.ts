@@ -1,5 +1,6 @@
 import { CellValue, QuestionType, buildKeyToIdx, type Column } from '../types/scoresheet'
-import { anyTeamHasValue, colHasAnyContent } from './helpers'
+import { ColStatus, colHasAnyContent } from './helpers'
+import { computeGreyedOut } from './greyedOut'
 
 export interface VisibleColumn {
   col: Column
@@ -13,7 +14,7 @@ function abColumnNeededWith(
   keyToIdx: Map<string, number>,
   noJumps: boolean[],
   colIdx: number,
-  cascadeDisabled: Set<number>,
+  colStatuses: ColStatus[],
 ): boolean {
   if (colHasAnyContent(cellData, colIdx)) return true
   if (noJumps[colIdx]) return true
@@ -22,16 +23,14 @@ function abColumnNeededWith(
   if (col.type === QuestionType.A) {
     const baseIdx = keyToIdx.get(`${col.number}`)
     if (baseIdx === undefined) return false
-    // Don't show A if it was bypassed (parent error routed to B instead)
-    if (cascadeDisabled.has(colIdx)) return false
-    return anyTeamHasValue(cellData, baseIdx, CellValue.Error)
+    return colStatuses[baseIdx] === ColStatus.Errored && colStatuses[colIdx] !== ColStatus.Skipped
   }
   if (col.type === QuestionType.B) {
     const aIdx = keyToIdx.get(`${col.number}A`)
     if (aIdx === undefined) return false
-    // Show B when A had an error (normal toss-up flow), or when A was bypassed (bonus routing)
-    const aWasBypassed = cascadeDisabled.has(aIdx) && !cascadeDisabled.has(colIdx)
-    return anyTeamHasValue(cellData, aIdx, CellValue.Error) || aWasBypassed
+    // B is needed when A errored (normal flow) or A was skipped/bypassed (but B was not)
+    if (colStatuses[aIdx] === ColStatus.Errored) return true
+    return colStatuses[aIdx] === ColStatus.Skipped && colStatuses[colIdx] !== ColStatus.Skipped
   }
   return false
 }
@@ -52,9 +51,10 @@ export function abColumnNeeded(
   cols: Column[],
   noJumps: boolean[],
   colIdx: number,
-  cascadeDisabled: Set<number> = new Set(),
+  colStatuses?: ColStatus[],
 ): boolean {
-  return abColumnNeededWith(cellData, cols, buildKeyToIdx(cols), noJumps, colIdx, cascadeDisabled)
+  const statuses = colStatuses ?? computeGreyedOut(cellData, cols).colStatuses
+  return abColumnNeededWith(cellData, cols, buildKeyToIdx(cols), noJumps, colIdx, statuses)
 }
 
 /**
@@ -69,8 +69,9 @@ export function computeOrphanedColumns(
   cols: Column[],
   noJumps: boolean[],
   visibleOtRounds: number,
-  cascadeDisabled: Set<number> = new Set(),
+  colStatuses?: ColStatus[],
 ): Set<number> {
+  const statuses = colStatuses ?? computeGreyedOut(cellData, cols).colStatuses
   const maxOtQuestion = 20 + visibleOtRounds * 3
   const keyToIdx = buildKeyToIdx(cols)
   const orphaned = new Set<number>()
@@ -79,35 +80,30 @@ export function computeOrphanedColumns(
     const col = cols[idx]!
 
     if (col.type === QuestionType.A || col.type === QuestionType.B) {
-      // A/B column: orphaned if visible only due to content/no-jump
-      // (i.e., parent didn't have an error to trigger it)
       const hasContent = colHasAnyContent(cellData, idx) || noJumps[idx]
-      if (!hasContent) continue // not visible at all — not orphaned
+      if (!hasContent) continue
 
-      // Check if the parent error legitimately triggers this column
       let parentTriggered = false
       if (col.type === QuestionType.A) {
         const baseIdx = keyToIdx.get(`${col.number}`)
         parentTriggered =
           baseIdx !== undefined &&
-          anyTeamHasValue(cellData, baseIdx, CellValue.Error) &&
-          !cascadeDisabled.has(idx)
+          statuses[baseIdx] === ColStatus.Errored &&
+          statuses[idx] !== ColStatus.Skipped
       } else {
         const aIdx = keyToIdx.get(`${col.number}A`)
         if (aIdx !== undefined) {
-          const aWasBypassed = cascadeDisabled.has(aIdx) && !cascadeDisabled.has(idx)
-          parentTriggered = anyTeamHasValue(cellData, aIdx, CellValue.Error) || aWasBypassed
+          parentTriggered =
+            statuses[aIdx] === ColStatus.Errored ||
+            (statuses[aIdx] === ColStatus.Skipped && statuses[idx] !== ColStatus.Skipped)
         }
       }
 
-      // Also orphaned if the OT column itself is beyond visible rounds
       const otOrphaned = col.isOvertime && col.number > maxOtQuestion
-
       if (!parentTriggered || otOrphaned) {
         orphaned.add(idx)
       }
     } else if (col.isOvertime && col.number > maxOtQuestion) {
-      // OT normal column beyond visible rounds: orphaned if has content/no-jump
       if (colHasAnyContent(cellData, idx) || noJumps[idx]) {
         orphaned.add(idx)
       }
@@ -133,8 +129,9 @@ export function computeVisibleColumns(
   cols: Column[],
   noJumps: boolean[],
   visibleOtRounds: number,
-  cascadeDisabled: Set<number> = new Set(),
+  colStatuses?: ColStatus[],
 ): VisibleColumn[] {
+  const statuses = colStatuses ?? computeGreyedOut(cellData, cols).colStatuses
   const maxOtQuestion = 20 + visibleOtRounds * 3
   const keyToIdx = buildKeyToIdx(cols)
 
@@ -143,7 +140,7 @@ export function computeVisibleColumns(
     .filter(({ col, idx }) => {
       // A/B columns: only show when needed
       if (col.type === QuestionType.A || col.type === QuestionType.B) {
-        return abColumnNeededWith(cellData, cols, keyToIdx, noJumps, idx, cascadeDisabled)
+        return abColumnNeededWith(cellData, cols, keyToIdx, noJumps, idx, statuses)
       }
 
       // OT normal columns beyond visible rounds: hide unless they have content/no-jump

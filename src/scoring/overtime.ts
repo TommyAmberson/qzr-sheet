@@ -1,6 +1,7 @@
 import { CellValue, buildKeyToIdx, type Column } from '../types/scoresheet'
 import { scoreTeam } from './scoreTeam'
-import { isResolved, anyTeamHasAnswer } from './helpers'
+import { ColStatus } from './helpers'
+import { computeGreyedOut } from './greyedOut'
 
 /**
  * Determine which teams are eligible for overtime based on regulation-only scores.
@@ -46,14 +47,11 @@ export function getOvertimeEligibleTeams(
 /**
  * Whether a question group (Normal + optional A/B) is complete.
  *
- * A group is complete when the chain has gone as far as it needs to and the
- * last reached column was jumped on (any non-foul answer) or no-jumped.
- * For non-isAB questions (Q1–15) there are no sub-columns so only the Normal
- * is checked. For isAB questions (Q16–20, OT) the chain cascades: an error on
- * Normal reaches A, an error on A reaches B.
+ * A group is complete when the chain has reached a terminal state:
+ * answered (Errored/Resolved), Skipped, or no-jumped at every level.
  */
 function questionGroupComplete(
-  cellData: CellValue[][][],
+  colStatuses: ColStatus[],
   cols: Column[],
   noJumps: boolean[],
   keyToIdx: Map<string, number>,
@@ -61,28 +59,25 @@ function questionGroupComplete(
 ): boolean {
   const col = cols[ci]!
   if (noJumps[ci]) return true
-  if (!anyTeamHasAnswer(cellData, ci)) return false
-  if (!col.isAB) return true
-  if (!isResolved(cellData, ci)) {
-    const aIdx = keyToIdx.get(`${col.number}A`)
-    if (aIdx === undefined) return false
-    if (noJumps[aIdx]) return true
-    if (!anyTeamHasAnswer(cellData, aIdx)) {
-      // A has no answer — it may have been bypassed (bonus-routing skipped
-      // straight to B). Fall through to check B directly.
-      const bIdx = keyToIdx.get(`${col.number}B`)
-      if (bIdx === undefined) return false
-      if (noJumps[bIdx]) return true
-      return anyTeamHasAnswer(cellData, bIdx)
-    }
-    if (!isResolved(cellData, aIdx)) {
-      const bIdx = keyToIdx.get(`${col.number}B`)
-      if (bIdx === undefined) return false
-      if (noJumps[bIdx]) return true
-      if (!anyTeamHasAnswer(cellData, bIdx)) return false
-    }
+  const s = colStatuses[ci]!
+  if (s === ColStatus.Pending) return false
+  if (!col.isAB || s === ColStatus.Resolved) return true
+
+  // Normal was Errored — check A
+  const aIdx = keyToIdx.get(`${col.number}A`)
+  if (aIdx === undefined) return false
+  const aS = colStatuses[aIdx]!
+  if (noJumps[aIdx] || aS === ColStatus.Resolved || aS === ColStatus.Skipped) return true
+  if (aS === ColStatus.Pending) {
+    // A has no answer — may have been bypassed; fall through to check B
+    const bIdx = keyToIdx.get(`${col.number}B`)
+    if (bIdx === undefined) return false
+    return noJumps[bIdx] || colStatuses[bIdx] !== ColStatus.Pending
   }
-  return true
+  // A was Errored — check B
+  const bIdx = keyToIdx.get(`${col.number}B`)
+  if (bIdx === undefined) return false
+  return noJumps[bIdx] || colStatuses[bIdx] !== ColStatus.Pending
 }
 
 /**
@@ -98,11 +93,12 @@ export function questionsComplete(
   toQ: number,
 ): boolean {
   const keyToIdx = buildKeyToIdx(cols)
+  const { colStatuses } = computeGreyedOut(cellData, cols)
   for (let ci = 0; ci < cols.length; ci++) {
     const col = cols[ci]!
     if (col.type !== '') continue
     if (col.number < fromQ || col.number > toQ) continue
-    if (!questionGroupComplete(cellData, cols, noJumps, keyToIdx, ci)) return false
+    if (!questionGroupComplete(colStatuses, cols, noJumps, keyToIdx, ci)) return false
   }
   return true
 }
@@ -124,11 +120,12 @@ export function quizJumpedComplete(
 ): boolean {
   const maxOtQ = 20 + visibleOtRounds * 3
   const keyToIdx = buildKeyToIdx(cols)
+  const { colStatuses } = computeGreyedOut(cellData, cols)
   for (let ci = 0; ci < cols.length; ci++) {
     const col = cols[ci]!
     if (col.isOvertime && col.number > maxOtQ) continue
     if (col.type !== '') continue
-    if (!questionGroupComplete(cellData, cols, noJumps, keyToIdx, ci)) return false
+    if (!questionGroupComplete(colStatuses, cols, noJumps, keyToIdx, ci)) return false
   }
   return true
 }

@@ -1,6 +1,6 @@
 import { CellValue, QuestionType, type Column } from '../types/scoresheet'
 import type { GreyedOutResult } from './greyedOut'
-import { isAnswer, isBonusSituation } from './helpers'
+import { ColStatus, isAnswer, isBonusSituation } from './helpers'
 
 export enum ValidationCode {
   /** Answer by a quizzer with no name (empty seat) */
@@ -186,7 +186,7 @@ export function validateCells(
 
         // --- Question resolved (A/B cascade) ---
         if (isAnswer(v)) {
-          if (greyResult.cascadeDisabled.has(ci)) {
+          if (greyResult.colStatuses[ci] === ColStatus.Skipped) {
             addError(ti, qi, ci, ValidationCode.QuestionNotNeeded)
           }
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import { computeVisibleColumns, computeOrphanedColumns } from '../columnVisibility'
+import { ColStatus } from '../helpers'
 
 const C = CellValue.Correct
 const E = CellValue.Error
@@ -33,33 +34,45 @@ describe('computeVisibleColumns', () => {
       expect(keys).not.toContain('17A')
     })
 
-    it('hides A column when it is bypassed (cascadeDisabled)', () => {
+    /** Build a colStatuses array with specific overrides */
+    function statuses(overrides: Record<string, ColStatus> = {}): ColStatus[] {
+      const s = columns.map(() => ColStatus.Pending)
+      for (const [key, status] of Object.entries(overrides)) {
+        s[ci(key)] = status
+      }
+      return s
+    }
+
+    it('hides A column when it is Skipped (bypassed)', () => {
       const cells = blankCells(columns.length)
       cells[0]![0]![ci('17')] = E
       const noJumps = columns.map(() => false)
-      // Simulate A being bypassed (bonus-routing)
-      const cascadeDisabled = new Set([ci('17A')])
-      const result = computeVisibleColumns(cells, columns, noJumps, 0, cascadeDisabled)
+      const s = statuses({ '17': ColStatus.Errored, '17A': ColStatus.Skipped })
+      const result = computeVisibleColumns(cells, columns, noJumps, 0, s)
       const keys = result.map((r) => r.col.key)
       expect(keys).not.toContain('17A')
     })
 
-    it('shows B column when A is bypassed (cascadeDisabled on A, not on B)', () => {
+    it('shows B column when A is Skipped but B is not', () => {
       const cells = blankCells(columns.length)
       cells[0]![0]![ci('17')] = E
       const noJumps = columns.map(() => false)
-      const cascadeDisabled = new Set([ci('17A')])
-      const result = computeVisibleColumns(cells, columns, noJumps, 0, cascadeDisabled)
+      const s = statuses({ '17': ColStatus.Errored, '17A': ColStatus.Skipped })
+      const result = computeVisibleColumns(cells, columns, noJumps, 0, s)
       const keys = result.map((r) => r.col.key)
       expect(keys).toContain('17B')
     })
 
-    it('does NOT show B when both A and B are cascadeDisabled (parent resolved)', () => {
+    it('does NOT show B when both A and B are Skipped (parent resolved)', () => {
       const cells = blankCells(columns.length)
       cells[0]![0]![ci('17')] = C
       const noJumps = columns.map(() => false)
-      const cascadeDisabled = new Set([ci('17A'), ci('17B')])
-      const result = computeVisibleColumns(cells, columns, noJumps, 0, cascadeDisabled)
+      const s = statuses({
+        '17': ColStatus.Resolved,
+        '17A': ColStatus.Skipped,
+        '17B': ColStatus.Skipped,
+      })
+      const result = computeVisibleColumns(cells, columns, noJumps, 0, s)
       const keys = result.map((r) => r.col.key)
       expect(keys).not.toContain('17A')
       expect(keys).not.toContain('17B')
@@ -221,23 +234,32 @@ describe('computeOrphanedColumns', () => {
       return idx
     }
 
-    it('A column with content but parent error is bypassed (cascadeDisabled) is orphaned', () => {
+    /** Build a colStatuses array with specific overrides */
+    function statuses(overrides: Record<string, ColStatus> = {}): ColStatus[] {
+      const s = columns.map(() => ColStatus.Pending)
+      for (const [key, status] of Object.entries(overrides)) {
+        s[ci(key)] = status
+      }
+      return s
+    }
+
+    it('A column with content but Skipped (bypassed) is orphaned', () => {
       const cells = blankCells(columns.length)
       cells[0]![0]![ci('17')] = E
-      cells[1]![0]![ci('17A')] = C // answer on bypassed A column
+      cells[1]![0]![ci('17A')] = C
       const noJumps = columns.map(() => false)
-      const cascadeDisabled = new Set([ci('17A')])
-      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0, cascadeDisabled)
+      const s = statuses({ '17': ColStatus.Errored, '17A': ColStatus.Skipped })
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0, s)
       expect(orphaned.has(ci('17A'))).toBe(true)
     })
 
-    it('B column with content is NOT orphaned when A was bypassed', () => {
+    it('B column with content is NOT orphaned when A was Skipped (bypassed)', () => {
       const cells = blankCells(columns.length)
       cells[0]![0]![ci('17')] = E
-      cells[1]![0]![ci('17B')] = B // answer on B, A was bypassed
+      cells[1]![0]![ci('17B')] = B
       const noJumps = columns.map(() => false)
-      const cascadeDisabled = new Set([ci('17A')])
-      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0, cascadeDisabled)
+      const s = statuses({ '17': ColStatus.Errored, '17A': ColStatus.Skipped })
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0, s)
       expect(orphaned.has(ci('17B'))).toBe(false)
     })
 

@@ -8,6 +8,24 @@ import { CellValue } from '../types/scoresheet'
  * any Vue reactivity dependency.
  */
 
+/**
+ * Game-logic state of a single column, computed once per grid and consumed
+ * by visibility, validation, and completeness checks.
+ *
+ * - `Pending`  — no non-foul answer yet; the column is waiting to be acted on.
+ * - `Errored`  — someone answered incorrectly (E); the chain continues to the
+ *                next sub-column (A or B) or the next numbered question.
+ * - `Resolved` — the question was settled (C/B/MB); any sub-columns are skipped.
+ * - `Skipped`  — this sub-column won't be asked because a parent resolved it,
+ *                or because A was bypassed via bonus-routing.
+ */
+export enum ColStatus {
+  Pending = 'pending',
+  Errored = 'errored',
+  Resolved = 'resolved',
+  Skipped = 'skipped',
+}
+
 /** Whether a value counts as an "answer" (non-empty, non-foul) */
 export function isAnswer(v: CellValue): boolean {
   return v !== CellValue.Empty && v !== CellValue.Foul

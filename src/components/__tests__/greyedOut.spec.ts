@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut } from '../../scoring/greyedOut'
+import { ColStatus } from '../../scoring/helpers'
 
 const columns = buildColumns()
 const C = CellValue.Correct
@@ -207,8 +208,8 @@ describe('greyed-out logic', () => {
     cells[0]![0]![ci('15')] = E // team 0 errors on Q15
     cells[1]![0]![ci('16')] = E // team 1 errors on Q16 (toss-up)
     const result = computeGreyedOut(cells, columns)
-    // Q16A: bypassed (cascadeDisabled), greyed for all
-    expect(result.cascadeDisabled.has(ci('16A'))).toBe(true)
+    // Q16A: bypassed (Skipped), greyed for all
+    expect(result.colStatuses[ci('16A')]).toBe(ColStatus.Skipped)
     expect(isGreyed(result, 0, ci('16A'))).toBe(true)
     expect(isGreyed(result, 1, ci('16A'))).toBe(true)
     expect(isGreyed(result, 2, ci('16A'))).toBe(true)
@@ -341,69 +342,68 @@ describe('greyed-out logic', () => {
     expect(result.fouledQuizzers.has(`2:1:${ci('16B')}`)).toBe(true)
   })
 
-  // --- cascadeDisabled ---
+  // --- colStatuses ---
 
-  it('cascadeDisabled includes A and B when base question is correct', () => {
+  it('colStatuses: A and B are Skipped when base question is correct', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17')] = C
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('17A'))).toBe(true)
-    expect(result.cascadeDisabled.has(ci('17B'))).toBe(true)
+    expect(result.colStatuses[ci('17A')]).toBe(ColStatus.Skipped)
+    expect(result.colStatuses[ci('17B')]).toBe(ColStatus.Skipped)
   })
 
-  it('cascadeDisabled includes B when A is resolved (correct)', () => {
+  it('colStatuses: B is Skipped when A is resolved (correct)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17')] = E // error on base → toss-up to A
-    cells[1]![0]![ci('17A')] = C // A correct → B disabled
+    cells[1]![0]![ci('17A')] = C // A correct → B skipped
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('17A'))).toBe(false) // A was the toss-up, not cascade-disabled
-    expect(result.cascadeDisabled.has(ci('17B'))).toBe(true)
+    expect(result.colStatuses[ci('17A')]).toBe(ColStatus.Resolved)
+    expect(result.colStatuses[ci('17B')]).toBe(ColStatus.Skipped)
   })
 
-  it('cascadeDisabled includes A and B when base is bonus (B answer)', () => {
+  it('colStatuses: A and B are Skipped when base is bonus (B answer)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('16')] = B // bonus on base
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('16A'))).toBe(true)
-    expect(result.cascadeDisabled.has(ci('16B'))).toBe(true)
+    expect(result.colStatuses[ci('16A')]).toBe(ColStatus.Skipped)
+    expect(result.colStatuses[ci('16B')]).toBe(ColStatus.Skipped)
   })
 
-  it('cascadeDisabled includes A and B when base is missed bonus (MB)', () => {
+  it('colStatuses: A and B are Skipped when base is missed bonus (MB)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('16')] = MB
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('16A'))).toBe(true)
-    expect(result.cascadeDisabled.has(ci('16B'))).toBe(true)
+    expect(result.colStatuses[ci('16A')]).toBe(ColStatus.Skipped)
+    expect(result.colStatuses[ci('16B')]).toBe(ColStatus.Skipped)
   })
 
-  it('cascadeDisabled includes B when A is bonus/missed-bonus', () => {
+  it('colStatuses: B is Skipped when A is bonus/missed-bonus', () => {
     const cells = blankCells()
     cells[0]![0]![ci('18')] = E // error on base
-    cells[1]![0]![ci('18A')] = MB // missed bonus on A → B disabled
+    cells[1]![0]![ci('18A')] = MB // missed bonus on A → B skipped
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('18B'))).toBe(true)
+    expect(result.colStatuses[ci('18B')]).toBe(ColStatus.Skipped)
   })
 
-  it('cascadeDisabled does NOT include A when base has error (toss-up, not cascade)', () => {
+  it('colStatuses: A is Pending (not Skipped) when base has error', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17')] = E // error on base
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('17A'))).toBe(false)
-    expect(result.cascadeDisabled.has(ci('17B'))).toBe(false)
+    expect(result.colStatuses[ci('17A')]).toBe(ColStatus.Pending)
+    expect(result.colStatuses[ci('17B')]).toBe(ColStatus.Pending)
   })
 
-  it('cascadeDisabled does NOT include non-AB columns', () => {
+  it('colStatuses: non-AB columns are never Skipped', () => {
     const cells = blankCells()
     cells[0]![0]![ci('1')] = C
     const result = computeGreyedOut(cells, columns)
-    // Q2 is not cascade-disabled, it's just a different question
-    expect(result.cascadeDisabled.has(ci('2'))).toBe(false)
+    expect(result.colStatuses[ci('2')]).toBe(ColStatus.Pending)
   })
 
-  it('cascadeDisabled is empty for a clean sheet', () => {
+  it('colStatuses: all Pending for a clean sheet', () => {
     const cells = blankCells()
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.size).toBe(0)
+    expect(result.colStatuses.every((s) => s === ColStatus.Pending)).toBe(true)
   })
 
   // --- Overtime eligibility greying ---

@@ -122,7 +122,7 @@ export function useScoresheet() {
       columns.value,
       noJumps.value,
       visibleOtRounds.value,
-      greyedOutResult.value.cascadeDisabled,
+      greyedOutResult.value.colStatuses,
     ),
   )
 
@@ -305,7 +305,7 @@ export function useScoresheet() {
       columns.value,
       noJumps.value,
       visibleOtRounds.value,
-      greyedOutResult.value.cascadeDisabled,
+      greyedOutResult.value.colStatuses,
     ),
   )
 
@@ -315,7 +315,7 @@ export function useScoresheet() {
       columns.value,
       noJumps.value,
       colIdx,
-      greyedOutResult.value.cascadeDisabled,
+      greyedOutResult.value.colStatuses,
     )
   }
 
