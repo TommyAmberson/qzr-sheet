@@ -31,8 +31,7 @@ Column keys: `"1"`–`"15"` (normal), `"16"`/`"16A"`/`"16B"` through `"20B"` (A/
 
 ## Store (`src/stores/quizStore.ts`)
 
-Plain factory function — **no singleton, no Vue reactivity**. Creates a fresh store per call
-(important for tests — call `resetIdCounter()` before each test suite).
+Plain factory function — **no singleton, no Vue reactivity**. Creates a fresh store per call.
 
 * Answers stored in a `Map<"quizzerId:columnKey", Answer>` for O(1) lookup.
 * `cellGrid(columns)` derives the `CellValue[][][]` grid on demand.

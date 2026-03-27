@@ -13,7 +13,6 @@ function genId(): number {
   return nextId++
 }
 
-/** Reset the ID counter (for testing) */
 export function resetIdCounter(start = 1) {
   nextId = start
 }

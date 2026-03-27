@@ -46,7 +46,7 @@ docs/
 
 ## Gotchas
 
-* `createQuizStore()` is a factory — no singleton. Call `resetIdCounter()` before each test suite.
+* `createQuizStore()` is a factory — no singleton. Call it fresh per test.
 * `buildColumns(n)` takes an overtime round count; `n=0` means no OT columns at all.
 * `isErrorPoints` is true for Q17–20 and all OT columns — **not** Q16.
 * Foul deduction does not stack: 3rd-team-foul + foul-out on the same foul = only −10.
@@ -56,6 +56,7 @@ docs/
 
 When working on scoring logic, rules, or architecture, read the relevant file first:
 
+* `ROADMAP.md` — feature breakdown and implementation plan
 * `docs/scoring-rules-explained.md` — cell types, point values,
   toss-up/bonus/A-B/foul/overtime/placement
 * `docs/rules.md` -- full rules from official pdf
