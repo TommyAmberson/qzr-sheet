@@ -53,6 +53,31 @@ describe('questionsComplete', () => {
     expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
   })
 
+  it('returns true when Q16 normal is answered correctly (no sub-columns needed)', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('16')] = C
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
+  })
+
+  it('returns false when Q16 normal has only a foul (not jumped)', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('16')] = F
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(false)
+  })
+
+  it('returns false when Q16 normal errors and Q16A has only a foul', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('16')] = E
+    cells[1]![0]![idx('16A')] = F
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(false)
+  })
+
   it('returns true when Q16 normal errors and Q16A is correct', () => {
     const { cols, cells, idx, noJumps } = setup()
     for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
@@ -87,6 +112,16 @@ describe('questionsComplete', () => {
     cells[1]![0]![idx('20A')] = E
     noJumps[idx('20B')] = true
     expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(true)
+  })
+
+  it('returns false when Q16 normal errors, Q16A errors, Q16B has only a foul', () => {
+    const { cols, cells, idx, noJumps } = setup()
+    for (let n = 1; n <= 15; n++) noJumps[idx(`${n}`)] = true
+    for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    cells[0]![0]![idx('16')] = E
+    cells[1]![0]![idx('16A')] = E
+    cells[2]![0]![idx('16B')] = F
+    expect(questionsComplete(cells, cols, noJumps, 1, 20)).toBe(false)
   })
 
   it('returns false when Q16 normal errors and sub-columns are empty', () => {
