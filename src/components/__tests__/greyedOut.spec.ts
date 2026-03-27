@@ -442,4 +442,65 @@ describe('greyed-out logic', () => {
     expect(isGreyed(result, 2, otCi('1'))).toBe(false)
     expect(isGreyed(result, 2, otCi('15'))).toBe(false)
   })
+
+  // --- 2-way OT tie: every numbered question is a toss-up ---
+
+  it('2-way OT: error on numbered question skips A, routes to B as bonus', () => {
+    const otCols = buildColumns(1)
+    const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    // Only teams 0 and 1 eligible (2-way tie)
+    const eligible = new Set([0, 1])
+    otCells[0]![0]![otCi('21')] = E // team 0 errors on Q21
+    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Q21A: skipped (bypassed) — only 1 eligible team remains
+    expect(result.colStatuses[otCi('21A')]).toBe(ColStatus.Skipped)
+    expect(isGreyed(result, 0, otCi('21A'))).toBe(true)
+    expect(isGreyed(result, 1, otCi('21A'))).toBe(true)
+    expect(isGreyed(result, 2, otCi('21A'))).toBe(true)
+    // Q21B: bonus for team 1
+    expect(isGreyed(result, 0, otCi('21B'))).toBe(true)
+    expect(isGreyed(result, 1, otCi('21B'))).toBe(false)
+    expect(isGreyed(result, 2, otCi('21B'))).toBe(true)
+    expect(isBonusFor(result, 1, otCi('21B'))).toBe(true)
+  })
+
+  it('2-way OT: correct on numbered question does not trigger A or B', () => {
+    const otCols = buildColumns(1)
+    const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    const eligible = new Set([0, 1])
+    otCells[0]![0]![otCi('21')] = C // team 0 correct on Q21
+    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Q21A and Q21B: skipped (parent resolved)
+    expect(result.colStatuses[otCi('21A')]).toBe(ColStatus.Skipped)
+    expect(result.colStatuses[otCi('21B')]).toBe(ColStatus.Skipped)
+  })
+
+  it('3-way OT: error on numbered question shows A as toss-up (not bypassed)', () => {
+    const otCols = buildColumns(1)
+    const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    // All 3 teams eligible (3-way tie)
+    const eligible = new Set([0, 1, 2])
+    otCells[0]![0]![otCi('21')] = E // team 0 errors on Q21
+    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Q21A: toss-up for teams 1 and 2 (not bypassed)
+    expect(result.colStatuses[otCi('21A')]).toBe(ColStatus.Pending)
+    expect(isGreyed(result, 0, otCi('21A'))).toBe(true) // team 0 tossed
+    expect(isGreyed(result, 1, otCi('21A'))).toBe(false)
+    expect(isGreyed(result, 2, otCi('21A'))).toBe(false)
+  })
 })

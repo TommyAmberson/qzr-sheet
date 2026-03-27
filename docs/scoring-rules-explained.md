@@ -115,6 +115,9 @@ are eligible to answer overtime questions.
 * A new round is shown only when the previous round is complete and teams are still tied.
 * Overtime correct answers do **not** count toward individual quizzer stats (no quiz-out, no
   individual points).
+* **2-way tie:** when only two teams are eligible, every numbered OT question is effectively a
+  toss-up (only two teams can jump). An error leaves one team → A is skipped, B is asked directly as
+  a bonus. The same A=toss-up / B=bonus rule from regulation applies.
 
 ## Placement Points
 

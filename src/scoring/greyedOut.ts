@@ -67,6 +67,21 @@ export function computeGreyedOut(
   // carries forward.
   const tossedUp: Set<string>[] = cols.map(() => new Set<string>())
 
+  // In OT, non-eligible teams can't jump at all. Seeding them into tossedUp
+  // (rather than only greying them) means the toss-up/bonus carry-forward
+  // sees them as locked out — so a 2-way OT tie correctly treats every
+  // numbered question as a toss-up and routes errors straight to B.
+  if (otEligibleTeams) {
+    for (let colIdx = 0; colIdx < cols.length; colIdx++) {
+      if (!cols[colIdx]!.isOvertime) continue
+      for (let ti = 0; ti < teamCount; ti++) {
+        if (!otEligibleTeams.has(ti)) {
+          tossedUp[colIdx]!.add(`${ti}`)
+        }
+      }
+    }
+  }
+
   for (let colIdx = 0; colIdx < cols.length; colIdx++) {
     const col = cols[colIdx]!
 
