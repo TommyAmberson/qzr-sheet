@@ -367,34 +367,30 @@ function colGroupClass(colIdx: number): string {
             ]"
             :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
           >
-            {{ col.label }}
+            <div class="col-header-inner">
+              <span class="col-header-number">{{ col.label }}</span>
+              <span v-if="quiz.questionTypes.get(col.key)" class="col-header-type">{{
+                quiz.questionTypes.get(col.key)
+              }}</span>
+              <span v-else class="col-header-type">&nbsp;</span>
+              <select
+                class="question-type-select"
+                :value="quiz.questionTypes.get(col.key) ?? ''"
+                @change="
+                  setQuestionType(
+                    idx,
+                    ($event.target as HTMLSelectElement).value
+                      ? (($event.target as HTMLSelectElement).value as QuestionCategory)
+                      : null,
+                  )
+                "
+              >
+                <option value="" />
+                <option v-for="cat in QuestionCategory" :key="cat" :value="cat">{{ cat }}</option>
+              </select>
+            </div>
           </th>
           <th class="col--total col--total-header" />
-        </tr>
-        <tr class="row--question-type">
-          <td class="col--name sticky-col question-type-label" colspan="2" />
-          <td
-            v-for="{ col, idx, entering } in displayColumns"
-            :key="col.key"
-            :class="['cell cell--question-type', colGroupClass(idx), { 'col--entering': entering }]"
-          >
-            <select
-              class="question-type-select"
-              :value="quiz.questionTypes.get(col.key) ?? ''"
-              @change="
-                setQuestionType(
-                  idx,
-                  ($event.target as HTMLSelectElement).value
-                    ? (($event.target as HTMLSelectElement).value as QuestionCategory)
-                    : null,
-                )
-              "
-            >
-              <option value="" />
-              <option v-for="cat in QuestionCategory" :key="cat" :value="cat">{{ cat }}</option>
-            </select>
-          </td>
-          <td class="col--total col--total-header" />
         </tr>
       </thead>
 
@@ -1190,43 +1186,39 @@ thead .col--name {
   outline: none;
 }
 
-/* Question type row — styled to blend with the question header above */
-.row--question-type td {
-  background: transparent !important;
-  padding: 0 !important;
-  height: 0 !important;
-  line-height: 0 !important;
-  font-size: 0 !important;
-  border: none !important;
+/* Question header inner — number + type stacked, select covers entire cell */
+.col-header-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
 }
-.row--question-type .cell--question-type {
-  border-left: 1px solid var(--color-border-alt) !important;
-  border-right: 1px solid var(--color-border-alt) !important;
-  cursor: default;
+.col-header-number {
+  line-height: 1.2;
+  pointer-events: none;
 }
-.cell--question-type:hover {
-  outline: none;
-}
-.question-type-select {
-  width: 100%;
-  border: none;
-  background: transparent;
-  font-family: inherit;
+.col-header-type {
   font-size: 0.6rem;
   font-weight: 700;
-  color: var(--color-text-faint);
-  text-align: center;
+  color: inherit;
+  opacity: 0.7;
+  line-height: 1;
+  margin-top: 0.15rem;
+  pointer-events: none;
+}
+.question-type-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
   cursor: pointer;
-  padding: 0;
-  margin: 0;
-  height: 1rem;
-  line-height: 1rem;
-  outline: none;
+  border: none;
+  background: transparent;
+  font-size: 0.75rem;
   appearance: none;
   -webkit-appearance: none;
-}
-.question-type-select:focus {
-  color: var(--color-text-muted);
 }
 .question-type-select option {
   background: var(--color-bg);
