@@ -51,6 +51,14 @@ const allValidationMessages = computed(() => {
   return [...msgs]
 })
 
+/** Show individual score if the quizzer jumped (correct or error) or fouled out. */
+function quizzerScoreLabel(ti: number, qi: number): string | null {
+  const q = scoring.value[ti]?.quizzers[qi]
+  if (!q) return null
+  if (q.correctCount === 0 && q.errorCount === 0 && !q.fouledOut) return null
+  return `${q.points}`
+}
+
 /** Active cell selector state */
 const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
 
@@ -527,6 +535,12 @@ function colGroupClass(colIdx: number): string {
                     class="stat-count stat-count--foul"
                     :title="`${scoring[ti]!.quizzers[qi]!.foulCount} foul(s)`"
                     >{{ scoring[ti]!.quizzers[qi]!.foulCount }}f</span
+                  >
+                  <span
+                    v-if="!isEmptySeat(ti, qi) && quizzerScoreLabel(ti, qi) !== null"
+                    class="stat-count stat-count--individual"
+                    title="Individual score"
+                    >{{ quizzerScoreLabel(ti, qi) }}</span
                   >
                 </span>
               </div>
@@ -1048,7 +1062,6 @@ thead .col--name {
   position: relative;
 }
 
-/* Placement medal */
 .placement-medal {
   position: absolute;
   top: 0.15rem;
@@ -1504,6 +1517,11 @@ thead .col--name {
 .stat-count--foul {
   color: var(--color-foul);
   background: var(--color-foul-alt);
+}
+.stat-count--individual {
+  color: var(--color-text-faint);
+  background: var(--color-border-alt);
+  margin-left: auto;
 }
 </style>
 

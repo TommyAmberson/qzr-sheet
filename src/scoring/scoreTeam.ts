@@ -219,6 +219,9 @@ export function scoreTeam(
     let points = correct * 20
     // Quizout without error bonus
     if (quizoutBonus) points += 10
+    // 2nd and 3rd individual error: -10 each
+    if (errors >= 2) points -= 10
+    if (errors >= 3) points -= 10
     // Foul-out penalty: -10 to individual
     if (fouledOut) points -= 10
 
