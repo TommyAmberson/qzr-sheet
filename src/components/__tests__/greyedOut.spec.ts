@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut } from '../../scoring/greyedOut'
+import { ColStatus } from '../../scoring/helpers'
 
 const columns = buildColumns()
 const C = CellValue.Correct
@@ -202,44 +203,46 @@ describe('greyed-out logic', () => {
 
   // --- Q16 special cases ---
 
-  it('Q15 error → Q16 is toss-up, Q16 error → Q16A is bonus, Q16B not asked', () => {
+  it('Q16 is toss-up (Q15 error), Q16 error → Q16B is bonus, Q16A bypassed', () => {
     const cells = blankCells()
     cells[0]![0]![ci('15')] = E // team 0 errors on Q15
     cells[1]![0]![ci('16')] = E // team 1 errors on Q16 (toss-up)
     const result = computeGreyedOut(cells, columns)
-    // Q16: team 0 was greyed (toss-up from Q15 error)
-    expect(isGreyed(result, 0, ci('16'))).toBe(true)
-    // Q16A: team 0 carried forward + team 1 error → bonus for team 2
+    // Q16A: bypassed (Skipped), greyed for all
+    expect(result.colStatuses[ci('16A')]).toBe(ColStatus.Skipped)
     expect(isGreyed(result, 0, ci('16A'))).toBe(true)
     expect(isGreyed(result, 1, ci('16A'))).toBe(true)
-    expect(isGreyed(result, 2, ci('16A'))).toBe(false)
-    expect(isBonusFor(result, 2, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16A'))).toBe(true)
+    // Q16B: team 0 and team 1 tossed → bonus for team 2
+    expect(isGreyed(result, 0, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 1, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16B'))).toBe(false)
+    expect(isBonusFor(result, 2, ci('16B'))).toBe(true)
   })
 
-  it('Q16A bonus answered → Q16B not asked', () => {
+  it('Q16 is toss-up, Q16 answered correctly → Q16A and Q16B not asked', () => {
     const cells = blankCells()
     cells[0]![0]![ci('15')] = E // team 0 errors on Q15
-    cells[1]![0]![ci('16')] = E // team 1 errors on Q16 (toss-up)
-    cells[2]![0]![ci('16A')] = B // team 2 gets bonus on Q16A
+    cells[1]![0]![ci('16')] = C // team 1 correct on Q16 (toss-up resolved)
     const result = computeGreyedOut(cells, columns)
-    // Q16A is done
     expect(isGreyed(result, 0, ci('16A'))).toBe(true)
-    // Q16B: greyed for all (A was answered correctly via bonus)
+    expect(isGreyed(result, 1, ci('16A'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16A'))).toBe(true)
     expect(isGreyed(result, 0, ci('16B'))).toBe(true)
     expect(isGreyed(result, 1, ci('16B'))).toBe(true)
     expect(isGreyed(result, 2, ci('16B'))).toBe(true)
   })
 
-  it('Q16A bonus missed → Q16B not asked', () => {
+  it('Q16 normal error → Q16A toss-up, Q16A error → Q16B bonus', () => {
     const cells = blankCells()
-    cells[0]![0]![ci('15')] = E // team 0 errors on Q15
-    cells[1]![0]![ci('16')] = E // team 1 errors on Q16 (toss-up)
-    cells[2]![0]![ci('16A')] = MB // team 2 misses bonus on Q16A
+    cells[0]![0]![ci('16')] = E // team 0 errors on Q16 (3 teams were eligible)
+    cells[1]![0]![ci('16A')] = E // team 1 errors on Q16A toss-up
     const result = computeGreyedOut(cells, columns)
-    // Q16B: greyed for all — bonus was the last chance
+    // Q16B: team 0 + team 1 greyed → bonus for team 2
     expect(isGreyed(result, 0, ci('16B'))).toBe(true)
     expect(isGreyed(result, 1, ci('16B'))).toBe(true)
-    expect(isGreyed(result, 2, ci('16B'))).toBe(true)
+    expect(isGreyed(result, 2, ci('16B'))).toBe(false)
+    expect(isBonusFor(result, 2, ci('16B'))).toBe(true)
   })
 
   it('Q16 is already a bonus (Q14+Q15 error chain) → Q16A and Q16B not asked', () => {
@@ -281,7 +284,7 @@ describe('greyed-out logic', () => {
     expect(isGreyed(result, 2, ci('16B'))).toBe(true)
   })
 
-  it('Q16 error → Q16A error → Q16B is bonus for remaining team', () => {
+  it('Q16 error → Q16A toss-up, Q16A error → Q16B is bonus for remaining team', () => {
     const cells = blankCells()
     cells[0]![0]![ci('16')] = E // team 0 errors on Q16
     cells[1]![0]![ci('16A')] = E // team 1 errors on Q16A toss-up
@@ -339,69 +342,68 @@ describe('greyed-out logic', () => {
     expect(result.fouledQuizzers.has(`2:1:${ci('16B')}`)).toBe(true)
   })
 
-  // --- cascadeDisabled ---
+  // --- colStatuses ---
 
-  it('cascadeDisabled includes A and B when base question is correct', () => {
+  it('colStatuses: A and B are Skipped when base question is correct', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17')] = C
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('17A'))).toBe(true)
-    expect(result.cascadeDisabled.has(ci('17B'))).toBe(true)
+    expect(result.colStatuses[ci('17A')]).toBe(ColStatus.Skipped)
+    expect(result.colStatuses[ci('17B')]).toBe(ColStatus.Skipped)
   })
 
-  it('cascadeDisabled includes B when A is resolved (correct)', () => {
+  it('colStatuses: B is Skipped when A is resolved (correct)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17')] = E // error on base → toss-up to A
-    cells[1]![0]![ci('17A')] = C // A correct → B disabled
+    cells[1]![0]![ci('17A')] = C // A correct → B skipped
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('17A'))).toBe(false) // A was the toss-up, not cascade-disabled
-    expect(result.cascadeDisabled.has(ci('17B'))).toBe(true)
+    expect(result.colStatuses[ci('17A')]).toBe(ColStatus.Resolved)
+    expect(result.colStatuses[ci('17B')]).toBe(ColStatus.Skipped)
   })
 
-  it('cascadeDisabled includes A and B when base is bonus (B answer)', () => {
+  it('colStatuses: A and B are Skipped when base is bonus (B answer)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('16')] = B // bonus on base
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('16A'))).toBe(true)
-    expect(result.cascadeDisabled.has(ci('16B'))).toBe(true)
+    expect(result.colStatuses[ci('16A')]).toBe(ColStatus.Skipped)
+    expect(result.colStatuses[ci('16B')]).toBe(ColStatus.Skipped)
   })
 
-  it('cascadeDisabled includes A and B when base is missed bonus (MB)', () => {
+  it('colStatuses: A and B are Skipped when base is missed bonus (MB)', () => {
     const cells = blankCells()
     cells[0]![0]![ci('16')] = MB
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('16A'))).toBe(true)
-    expect(result.cascadeDisabled.has(ci('16B'))).toBe(true)
+    expect(result.colStatuses[ci('16A')]).toBe(ColStatus.Skipped)
+    expect(result.colStatuses[ci('16B')]).toBe(ColStatus.Skipped)
   })
 
-  it('cascadeDisabled includes B when A is bonus/missed-bonus', () => {
+  it('colStatuses: B is Skipped when A is bonus/missed-bonus', () => {
     const cells = blankCells()
     cells[0]![0]![ci('18')] = E // error on base
-    cells[1]![0]![ci('18A')] = MB // missed bonus on A → B disabled
+    cells[1]![0]![ci('18A')] = MB // missed bonus on A → B skipped
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('18B'))).toBe(true)
+    expect(result.colStatuses[ci('18B')]).toBe(ColStatus.Skipped)
   })
 
-  it('cascadeDisabled does NOT include A when base has error (toss-up, not cascade)', () => {
+  it('colStatuses: A is Pending (not Skipped) when base has error', () => {
     const cells = blankCells()
     cells[0]![0]![ci('17')] = E // error on base
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.has(ci('17A'))).toBe(false)
-    expect(result.cascadeDisabled.has(ci('17B'))).toBe(false)
+    expect(result.colStatuses[ci('17A')]).toBe(ColStatus.Pending)
+    expect(result.colStatuses[ci('17B')]).toBe(ColStatus.Pending)
   })
 
-  it('cascadeDisabled does NOT include non-AB columns', () => {
+  it('colStatuses: non-AB columns are never Skipped', () => {
     const cells = blankCells()
     cells[0]![0]![ci('1')] = C
     const result = computeGreyedOut(cells, columns)
-    // Q2 is not cascade-disabled, it's just a different question
-    expect(result.cascadeDisabled.has(ci('2'))).toBe(false)
+    expect(result.colStatuses[ci('2')]).toBe(ColStatus.Pending)
   })
 
-  it('cascadeDisabled is empty for a clean sheet', () => {
+  it('colStatuses: all Pending for a clean sheet', () => {
     const cells = blankCells()
     const result = computeGreyedOut(cells, columns)
-    expect(result.cascadeDisabled.size).toBe(0)
+    expect(result.colStatuses.every((s) => s === ColStatus.Pending)).toBe(true)
   })
 
   // --- Overtime eligibility greying ---
@@ -439,5 +441,66 @@ describe('greyed-out logic', () => {
     // Team 2 NOT greyed on regulation
     expect(isGreyed(result, 2, otCi('1'))).toBe(false)
     expect(isGreyed(result, 2, otCi('15'))).toBe(false)
+  })
+
+  // --- 2-way OT tie: every numbered question is a toss-up ---
+
+  it('2-way OT: error on numbered question skips A, routes to B as bonus', () => {
+    const otCols = buildColumns(1)
+    const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    // Only teams 0 and 1 eligible (2-way tie)
+    const eligible = new Set([0, 1])
+    otCells[0]![0]![otCi('21')] = E // team 0 errors on Q21
+    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Q21A: skipped (bypassed) — only 1 eligible team remains
+    expect(result.colStatuses[otCi('21A')]).toBe(ColStatus.Skipped)
+    expect(isGreyed(result, 0, otCi('21A'))).toBe(true)
+    expect(isGreyed(result, 1, otCi('21A'))).toBe(true)
+    expect(isGreyed(result, 2, otCi('21A'))).toBe(true)
+    // Q21B: bonus for team 1
+    expect(isGreyed(result, 0, otCi('21B'))).toBe(true)
+    expect(isGreyed(result, 1, otCi('21B'))).toBe(false)
+    expect(isGreyed(result, 2, otCi('21B'))).toBe(true)
+    expect(isBonusFor(result, 1, otCi('21B'))).toBe(true)
+  })
+
+  it('2-way OT: correct on numbered question does not trigger A or B', () => {
+    const otCols = buildColumns(1)
+    const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    const eligible = new Set([0, 1])
+    otCells[0]![0]![otCi('21')] = C // team 0 correct on Q21
+    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Q21A and Q21B: skipped (parent resolved)
+    expect(result.colStatuses[otCi('21A')]).toBe(ColStatus.Skipped)
+    expect(result.colStatuses[otCi('21B')]).toBe(ColStatus.Skipped)
+  })
+
+  it('3-way OT: error on numbered question shows A as toss-up (not bypassed)', () => {
+    const otCols = buildColumns(1)
+    const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    // All 3 teams eligible (3-way tie)
+    const eligible = new Set([0, 1, 2])
+    otCells[0]![0]![otCi('21')] = E // team 0 errors on Q21
+    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Q21A: toss-up for teams 1 and 2 (not bypassed)
+    expect(result.colStatuses[otCi('21A')]).toBe(ColStatus.Pending)
+    expect(isGreyed(result, 0, otCi('21A'))).toBe(true) // team 0 tossed
+    expect(isGreyed(result, 1, otCi('21A'))).toBe(false)
+    expect(isGreyed(result, 2, otCi('21A'))).toBe(false)
   })
 })

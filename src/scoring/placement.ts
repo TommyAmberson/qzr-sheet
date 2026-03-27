@@ -136,11 +136,11 @@ function findTiedTeamsInGroup(group: number[], scores: number[]): Set<number> {
  * even when overtime was played to break the tie. Callers must pass the regulation
  * score, not the total including overtime.
  *
- * | Place | Formula          | Minimum |
- * |-------|------------------|---------|
- * | 1st   | score / 10       | 10 pts  |
- * | 2nd   | score / 10 − 1   | 5 pts   |
- * | 3rd   | score / 10 − 3   | 1 pt    |
+ * | Place | Rules formula    | Spreadsheet formula | Minimum |
+ * |-------|------------------|---------------------|---------|
+ * | 1st   | score / 10       | score / 10 + 2      | 10 pts  |
+ * | 2nd   | score / 10 − 1   | score / 10          | 5 pts   |
+ * | 3rd   | score / 10 − 2   | score / 10 − 1      | 1 pt    |
  *
  * Returns null if place is null (not yet determined).
  */
@@ -151,10 +151,10 @@ export function computePlacementPoints(
 ): number | null {
   if (place === null) return null
   const base = Math.floor(score / 10)
-  const offset = formula === PlacementFormula.Spreadsheet ? 2 : 0
-  if (place === 1) return Math.max(10, base + offset)
-  if (place === 2) return Math.max(5, base - 1 + offset)
-  if (place === 3) return Math.max(1, base - 2 + offset)
+  const ss = formula === PlacementFormula.Spreadsheet
+  if (place === 1) return Math.max(10, base + (ss ? 2 : 0))
+  if (place === 2) return Math.max(5, base + (ss ? 0 : -1))
+  if (place === 3) return Math.max(1, base + (ss ? -1 : -2))
   return null
 }
 

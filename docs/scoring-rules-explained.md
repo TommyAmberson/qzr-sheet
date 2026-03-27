@@ -78,12 +78,19 @@ When a quizzer answers incorrectly, their team **cannot jump** on the next quest
 Questions 16–20 have optional A and B sub-columns. These exist to preserve the rule that Q17–20
 always have all three teams eligible to jump.
 
+**A is always a toss-up (two teams eligible); B is always a bonus (one team eligible).**
+
 * If the **numbered question** (e.g. Q18) is answered correctly → A and B are not asked.
-* If the numbered question is answered incorrectly → the **A** sub-question becomes a toss-up for
-  the other two teams.
+* If the **numbered question** is answered incorrectly → the **A** sub-question is a toss-up for the
+  two remaining teams.
 * If the **A question** is answered correctly → B is not asked.
-* If the **A question** is also answered incorrectly → the **B** sub-question becomes a bonus for
-  the remaining eligible team.
+* If the **A question** is also answered incorrectly → the **B** sub-question is a bonus for the
+  remaining eligible team.
+
+**Special case — numbered question was already a toss-up:** If the numbered question was itself a
+toss-up (one team already locked out from a prior error) and is answered incorrectly, only one team
+remains eligible. There is no toss-up to ask, so **A is skipped entirely** and B is asked directly
+as a bonus.
 
 **Scoring difference:**
 
@@ -108,6 +115,9 @@ are eligible to answer overtime questions.
 * A new round is shown only when the previous round is complete and teams are still tied.
 * Overtime correct answers do **not** count toward individual quizzer stats (no quiz-out, no
   individual points).
+* **2-way tie:** when only two teams are eligible, every numbered OT question is effectively a
+  toss-up (only two teams can jump). An error leaves one team → A is skipped, B is asked directly as
+  a bonus. The same A=toss-up / B=bonus rule from regulation applies.
 
 ## Placement Points
 

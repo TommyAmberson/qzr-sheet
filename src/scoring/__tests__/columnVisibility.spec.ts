@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import { computeVisibleColumns, computeOrphanedColumns } from '../columnVisibility'
+import { ColStatus } from '../helpers'
 
 const C = CellValue.Correct
 const E = CellValue.Error
@@ -31,6 +32,50 @@ describe('computeVisibleColumns', () => {
       expect(keys).not.toContain('16A')
       expect(keys).not.toContain('16B')
       expect(keys).not.toContain('17A')
+    })
+
+    /** Build a colStatuses array with specific overrides */
+    function statuses(overrides: Record<string, ColStatus> = {}): ColStatus[] {
+      const s = columns.map(() => ColStatus.Pending)
+      for (const [key, status] of Object.entries(overrides)) {
+        s[ci(key)] = status
+      }
+      return s
+    }
+
+    it('hides A column when it is Skipped (bypassed)', () => {
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('17')] = E
+      const noJumps = columns.map(() => false)
+      const s = statuses({ '17': ColStatus.Errored, '17A': ColStatus.Skipped })
+      const result = computeVisibleColumns(cells, columns, noJumps, 0, s)
+      const keys = result.map((r) => r.col.key)
+      expect(keys).not.toContain('17A')
+    })
+
+    it('shows B column when A is Skipped but B is not', () => {
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('17')] = E
+      const noJumps = columns.map(() => false)
+      const s = statuses({ '17': ColStatus.Errored, '17A': ColStatus.Skipped })
+      const result = computeVisibleColumns(cells, columns, noJumps, 0, s)
+      const keys = result.map((r) => r.col.key)
+      expect(keys).toContain('17B')
+    })
+
+    it('does NOT show B when both A and B are Skipped (parent resolved)', () => {
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('17')] = C
+      const noJumps = columns.map(() => false)
+      const s = statuses({
+        '17': ColStatus.Resolved,
+        '17A': ColStatus.Skipped,
+        '17B': ColStatus.Skipped,
+      })
+      const result = computeVisibleColumns(cells, columns, noJumps, 0, s)
+      const keys = result.map((r) => r.col.key)
+      expect(keys).not.toContain('17A')
+      expect(keys).not.toContain('17B')
     })
 
     it('shows A column when parent has error', () => {
@@ -188,6 +233,35 @@ describe('computeOrphanedColumns', () => {
       if (idx === -1) throw new Error(`Column ${key} not found`)
       return idx
     }
+
+    /** Build a colStatuses array with specific overrides */
+    function statuses(overrides: Record<string, ColStatus> = {}): ColStatus[] {
+      const s = columns.map(() => ColStatus.Pending)
+      for (const [key, status] of Object.entries(overrides)) {
+        s[ci(key)] = status
+      }
+      return s
+    }
+
+    it('A column with content but Skipped (bypassed) is orphaned', () => {
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('17')] = E
+      cells[1]![0]![ci('17A')] = C
+      const noJumps = columns.map(() => false)
+      const s = statuses({ '17': ColStatus.Errored, '17A': ColStatus.Skipped })
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0, s)
+      expect(orphaned.has(ci('17A'))).toBe(true)
+    })
+
+    it('B column with content is NOT orphaned when A was Skipped (bypassed)', () => {
+      const cells = blankCells(columns.length)
+      cells[0]![0]![ci('17')] = E
+      cells[1]![0]![ci('17B')] = B
+      const noJumps = columns.map(() => false)
+      const s = statuses({ '17': ColStatus.Errored, '17A': ColStatus.Skipped })
+      const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0, s)
+      expect(orphaned.has(ci('17B'))).toBe(false)
+    })
 
     it('A column with content but no parent error is orphaned', () => {
       const cells = blankCells(columns.length)

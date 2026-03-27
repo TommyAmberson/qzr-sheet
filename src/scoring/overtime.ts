@@ -1,6 +1,7 @@
-import { CellValue, type Column } from '../types/scoresheet'
+import { CellValue, buildKeyToIdx, type Column } from '../types/scoresheet'
 import { scoreTeam } from './scoreTeam'
-import { isResolved } from './helpers'
+import { ColStatus } from './helpers'
+import { computeGreyedOut } from './greyedOut'
 
 /**
  * Determine which teams are eligible for overtime based on regulation-only scores.
@@ -44,9 +45,45 @@ export function getOvertimeEligibleTeams(
 }
 
 /**
+ * Whether a question group (Normal + optional A/B) is complete.
+ *
+ * A group is complete when the chain has reached a terminal state:
+ * answered (Errored/Resolved), Skipped, or no-jumped at every level.
+ */
+function questionGroupComplete(
+  colStatuses: ColStatus[],
+  cols: Column[],
+  noJumps: boolean[],
+  keyToIdx: Map<string, number>,
+  ci: number,
+): boolean {
+  const col = cols[ci]!
+  if (noJumps[ci]) return true
+  const s = colStatuses[ci]!
+  if (s === ColStatus.Pending) return false
+  if (!col.isAB || s === ColStatus.Resolved) return true
+
+  // Normal was Errored — check A
+  const aIdx = keyToIdx.get(`${col.number}A`)
+  if (aIdx === undefined) return false
+  const aS = colStatuses[aIdx]!
+  if (noJumps[aIdx] || aS === ColStatus.Resolved || aS === ColStatus.Skipped) return true
+  if (aS === ColStatus.Pending) {
+    // A has no answer — may have been bypassed; fall through to check B
+    const bIdx = keyToIdx.get(`${col.number}B`)
+    if (bIdx === undefined) return false
+    return noJumps[bIdx] || colStatuses[bIdx] !== ColStatus.Pending
+  }
+  // A was Errored — check B
+  const bIdx = keyToIdx.get(`${col.number}B`)
+  if (bIdx === undefined) return false
+  return noJumps[bIdx] || colStatuses[bIdx] !== ColStatus.Pending
+}
+
+/**
  * Check whether a range of questions is completely filled out.
- * A question is "complete" if its normal column is resolved (C/B/MB) or no-jumped.
- * A/B sub-columns don't need to be checked — they only exist when the normal col had an error.
+ * Uses question-group cascade logic: each group is done when the chain
+ * reached a jumped-on or no-jumped column.
  */
 export function questionsComplete(
   cellData: CellValue[][][],
@@ -55,22 +92,46 @@ export function questionsComplete(
   fromQ: number,
   toQ: number,
 ): boolean {
+  const keyToIdx = buildKeyToIdx(cols)
+  const { colStatuses } = computeGreyedOut(cellData, cols)
   for (let ci = 0; ci < cols.length; ci++) {
     const col = cols[ci]!
-    if (col.type !== '') continue // skip A/B sub-columns
+    if (col.type !== '') continue
     if (col.number < fromQ || col.number > toQ) continue
-    if (noJumps[ci]) continue
-    if (isResolved(cellData, ci)) continue
-    return false
+    if (!questionGroupComplete(colStatuses, cols, noJumps, keyToIdx, ci)) return false
+  }
+  return true
+}
+
+/**
+ * Whether every question in the visible range has been jumped on or no-jumped.
+ * Used for the "Complete" status indicator.
+ *
+ * Identical cascade logic to questionsComplete but bounded by visible OT rounds
+ * rather than a question number range.
+ *
+ * @param visibleOtRounds - how many OT rounds are currently shown (0 = reg only)
+ */
+export function quizJumpedComplete(
+  cellData: CellValue[][][],
+  cols: Column[],
+  noJumps: boolean[],
+  visibleOtRounds: number,
+): boolean {
+  const maxOtQ = 20 + visibleOtRounds * 3
+  const keyToIdx = buildKeyToIdx(cols)
+  const { colStatuses } = computeGreyedOut(cellData, cols)
+  for (let ci = 0; ci < cols.length; ci++) {
+    const col = cols[ci]!
+    if (col.isOvertime && col.number > maxOtQ) continue
+    if (col.type !== '') continue
+    if (!questionGroupComplete(colStatuses, cols, noJumps, keyToIdx, ci)) return false
   }
   return true
 }
 
 /**
  * Compute how many overtime rounds should be shown.
- *
- * Returns 0 if regulation is incomplete or no teams are tied.
- * Returns 1 if regulation is complete and tied (show Q21-23).
  * Returns N+1 if OT round N is complete and teams are still tied.
  *
  * @param cellData - the full cell grid
@@ -85,7 +146,6 @@ export function computeOvertimeRounds(
   onTimes: boolean[],
   noJumps: boolean[],
 ): number {
-  // Regulation must be completely filled out (Q1-20)
   if (!questionsComplete(cellData, cols, noJumps, 1, 20)) return 0
 
   // At least two teams must be tied on regulation scores
@@ -106,8 +166,6 @@ export function computeOvertimeRounds(
     const firstQ = 21 + r * 3
     const lastQ = firstQ + 2
     if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) return r + 1
-
-    // Round is complete — check if competing teams are still tied
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
     const throughCells = cellData.map((teamCells) =>
       teamCells.map((row) =>
