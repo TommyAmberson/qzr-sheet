@@ -108,23 +108,40 @@ export function computeGreyedOut(
     }
 
     // 5. Toss-up / bonus carry-forward
-    const nq = nextQuestion(col)
-    if (nq === undefined) continue
-
-    // Only errors cause toss-ups and carry-forward — not B/MB
+    // Only errors cause toss-ups — not B/MB
     const hasError = anyTeamHasValue(colIdx, CellValue.Error)
     const resolved = isResolved(colIdx)
 
-    for (let ti = 0; ti < teamCount; ti++) {
-      // If this team errored, they can't jump on the next question
-      if (teamHasValue(ti, colIdx, CellValue.Error)) {
-        tossedUp[nq]!.add(`${ti}`)
+    if (hasError && !resolved) {
+      // Determine which teams would be tossed on the next column
+      const wouldBeTossed: number[] = []
+      for (let ti = 0; ti < teamCount; ti++) {
+        if (teamHasValue(ti, colIdx, CellValue.Error)) {
+          wouldBeTossed.push(ti)
+        } else if (tossedUp[colIdx]!.has(`${ti}`) && !teamHasAnswer(ti, colIdx)) {
+          wouldBeTossed.push(ti)
+        }
       }
 
-      // If this team was tossed up (couldn't jump) and someone else errored
-      // (not resolved by correct/bonus), carry forward
-      if (tossedUp[colIdx]!.has(`${ti}`) && !teamHasAnswer(ti, colIdx) && hasError && !resolved) {
-        tossedUp[nq]!.add(`${ti}`)
+      // A is always a toss-up (2 teams eligible), B is always a bonus (1 team eligible).
+      // When a Normal isAB column's error would leave only one team eligible, skip A and
+      // route directly to B. Mark A as cascadeDisabled so answers on it are flagged invalid.
+      let nq: number | undefined
+      if (col.type === QuestionType.Normal && col.isAB && wouldBeTossed.length === teamCount - 1) {
+        nq = keyToIdx.get(`${col.number}B`)
+        const aIdx = keyToIdx.get(`${col.number}A`)
+        if (aIdx !== undefined) {
+          cascadeDisabled.add(aIdx)
+          greyAllTeams(aIdx)
+        }
+      } else {
+        nq = nextQuestion(col)
+      }
+
+      if (nq !== undefined) {
+        for (const ti of wouldBeTossed) {
+          tossedUp[nq]!.add(`${ti}`)
+        }
       }
     }
   }

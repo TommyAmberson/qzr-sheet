@@ -117,7 +117,13 @@ export function useScoresheet() {
   const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
 
   const orphanedColumns = computed(() =>
-    computeOrphanedColumns(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
+    computeOrphanedColumns(
+      cells.value,
+      columns.value,
+      noJumps.value,
+      visibleOtRounds.value,
+      greyedOutResult.value.cascadeDisabled,
+    ),
   )
 
   /** Set of "ti:qi" keys for quizzers with empty/blank names */
@@ -294,11 +300,23 @@ export function useScoresheet() {
   })
 
   const visibleColumns = computed(() =>
-    computeVisibleColumns(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
+    computeVisibleColumns(
+      cells.value,
+      columns.value,
+      noJumps.value,
+      visibleOtRounds.value,
+      greyedOutResult.value.cascadeDisabled,
+    ),
   )
 
   function abColumnNeeded(colIdx: number): boolean {
-    return _abColumnNeeded(cells.value, columns.value, noJumps.value, colIdx)
+    return _abColumnNeeded(
+      cells.value,
+      columns.value,
+      noJumps.value,
+      colIdx,
+      greyedOutResult.value.cascadeDisabled,
+    )
   }
 
   /** Whether regulation questions (Q1–20) are fully filled out */

@@ -13,6 +13,7 @@ function abColumnNeededWith(
   keyToIdx: Map<string, number>,
   noJumps: boolean[],
   colIdx: number,
+  cascadeDisabled: Set<number>,
 ): boolean {
   if (colHasAnyContent(cellData, colIdx)) return true
   if (noJumps[colIdx]) return true
@@ -20,11 +21,17 @@ function abColumnNeededWith(
   const col = cols[colIdx]!
   if (col.type === QuestionType.A) {
     const baseIdx = keyToIdx.get(`${col.number}`)
-    return baseIdx !== undefined && anyTeamHasValue(cellData, baseIdx, CellValue.Error)
+    if (baseIdx === undefined) return false
+    // Don't show A if it was bypassed (parent error routed to B instead)
+    if (cascadeDisabled.has(colIdx)) return false
+    return anyTeamHasValue(cellData, baseIdx, CellValue.Error)
   }
   if (col.type === QuestionType.B) {
     const aIdx = keyToIdx.get(`${col.number}A`)
-    return aIdx !== undefined && anyTeamHasValue(cellData, aIdx, CellValue.Error)
+    if (aIdx === undefined) return false
+    // Show B when A had an error (normal toss-up flow), or when A was bypassed (bonus routing)
+    const aWasBypassed = cascadeDisabled.has(aIdx) && !cascadeDisabled.has(colIdx)
+    return anyTeamHasValue(cellData, aIdx, CellValue.Error) || aWasBypassed
   }
   return false
 }
@@ -36,14 +43,18 @@ function abColumnNeededWith(
  * - It has any cell content (answers/fouls), OR
  * - It has a no-jump marker, OR
  * - Its parent column had an error (triggering the A/B flow)
+ *
+ * A columns are suppressed when the parent error bypassed them in favour of B
+ * (bonus-routing: only one team was eligible, so A toss-up is skipped).
  */
 export function abColumnNeeded(
   cellData: CellValue[][][],
   cols: Column[],
   noJumps: boolean[],
   colIdx: number,
+  cascadeDisabled: Set<number> = new Set(),
 ): boolean {
-  return abColumnNeededWith(cellData, cols, buildKeyToIdx(cols), noJumps, colIdx)
+  return abColumnNeededWith(cellData, cols, buildKeyToIdx(cols), noJumps, colIdx, cascadeDisabled)
 }
 
 /**
@@ -58,6 +69,7 @@ export function computeOrphanedColumns(
   cols: Column[],
   noJumps: boolean[],
   visibleOtRounds: number,
+  cascadeDisabled: Set<number> = new Set(),
 ): Set<number> {
   const maxOtQuestion = 20 + visibleOtRounds * 3
   const keyToIdx = buildKeyToIdx(cols)
@@ -77,10 +89,15 @@ export function computeOrphanedColumns(
       if (col.type === QuestionType.A) {
         const baseIdx = keyToIdx.get(`${col.number}`)
         parentTriggered =
-          baseIdx !== undefined && anyTeamHasValue(cellData, baseIdx, CellValue.Error)
+          baseIdx !== undefined &&
+          anyTeamHasValue(cellData, baseIdx, CellValue.Error) &&
+          !cascadeDisabled.has(idx)
       } else {
         const aIdx = keyToIdx.get(`${col.number}A`)
-        parentTriggered = aIdx !== undefined && anyTeamHasValue(cellData, aIdx, CellValue.Error)
+        if (aIdx !== undefined) {
+          const aWasBypassed = cascadeDisabled.has(aIdx) && !cascadeDisabled.has(idx)
+          parentTriggered = anyTeamHasValue(cellData, aIdx, CellValue.Error) || aWasBypassed
+        }
       }
 
       // Also orphaned if the OT column itself is beyond visible rounds
@@ -116,6 +133,7 @@ export function computeVisibleColumns(
   cols: Column[],
   noJumps: boolean[],
   visibleOtRounds: number,
+  cascadeDisabled: Set<number> = new Set(),
 ): VisibleColumn[] {
   const maxOtQuestion = 20 + visibleOtRounds * 3
   const keyToIdx = buildKeyToIdx(cols)
@@ -125,7 +143,7 @@ export function computeVisibleColumns(
     .filter(({ col, idx }) => {
       // A/B columns: only show when needed
       if (col.type === QuestionType.A || col.type === QuestionType.B) {
-        return abColumnNeededWith(cellData, cols, keyToIdx, noJumps, idx)
+        return abColumnNeededWith(cellData, cols, keyToIdx, noJumps, idx, cascadeDisabled)
       }
 
       // OT normal columns beyond visible rounds: hide unless they have content/no-jump
