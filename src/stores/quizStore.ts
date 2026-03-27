@@ -1,6 +1,7 @@
 import {
   CellValue,
   PlacementFormula,
+  QuestionCategory,
   type Column,
   type Quiz,
   type Team,
@@ -24,6 +25,7 @@ function createDefaultQuiz(): Quiz {
     quizNumber: '1',
     overtime: false,
     placementFormula: PlacementFormula.Rules,
+    questionTypes: new Map(),
   }
 }
 
@@ -84,6 +86,9 @@ export interface QuizStore {
   /** Check if a quizzer is an empty seat (blank/whitespace name) */
   isEmptySeat(quizzerId: number): boolean
 
+  /** Set the question category for a column (null clears it) */
+  setQuestionType(columnKey: string, category: QuestionCategory | null): void
+
   /**
    * Derive the positional cell grid for scoring functions.
    * Returns cells[teamIdx][quizzerIdx][colIdx] ordered by seatOrder.
@@ -139,6 +144,14 @@ export function createQuizStore(): QuizStore {
     return qzr ? !qzr.name.trim() : false
   }
 
+  function setQuestionType(columnKey: string, category: QuestionCategory | null): void {
+    if (category === null) {
+      quiz.questionTypes.delete(columnKey)
+    } else {
+      quiz.questionTypes.set(columnKey, category)
+    }
+  }
+
   function moveQuizzer(teamId: number, fromSeat: number, toSeat: number): void {
     if (fromSeat === toSeat) return
     const sorted = quizzersByTeam(teamId)
@@ -176,6 +189,7 @@ export function createQuizStore(): QuizStore {
     setQuizzerName,
     moveQuizzer,
     isEmptySeat,
+    setQuestionType,
     cellGrid,
     get answers() {
       return [...answerMap.values()]

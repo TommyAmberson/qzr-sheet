@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { CellValue, QuestionType } from '../types/scoresheet'
+import { CellValue, QuestionType, QuestionCategory } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 import { validationMessage } from '../scoring/validation'
 
@@ -40,6 +40,7 @@ const {
   setTeamName,
   setQuizzerName,
   moveQuizzer,
+  setQuestionType,
 } = useScoresheet()
 
 /** All unique validation messages for the status tooltip */
@@ -366,18 +367,30 @@ function colGroupClass(colIdx: number): string {
             ]"
             :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
           >
-            {{ col.label }}
+            <div class="col-header-inner">
+              <span class="col-header-number">{{ col.label }}</span>
+              <span v-if="quiz.questionTypes.get(col.key)" class="col-header-type">{{
+                quiz.questionTypes.get(col.key)
+              }}</span>
+              <span v-else class="col-header-type">&nbsp;</span>
+              <select
+                class="question-type-select"
+                :value="quiz.questionTypes.get(col.key) ?? ''"
+                @change="
+                  setQuestionType(
+                    idx,
+                    ($event.target as HTMLSelectElement).value
+                      ? (($event.target as HTMLSelectElement).value as QuestionCategory)
+                      : null,
+                  )
+                "
+              >
+                <option value="" />
+                <option v-for="cat in QuestionCategory" :key="cat" :value="cat">{{ cat }}</option>
+              </select>
+            </div>
           </th>
           <th class="col--total col--total-header" />
-        </tr>
-        <tr class="spacer-row">
-          <td class="sticky-col" colspan="2" />
-          <td
-            v-for="{ col, idx, entering } in displayColumns"
-            :key="col.key"
-            :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
-          />
-          <td />
         </tr>
       </thead>
 
@@ -1171,6 +1184,46 @@ thead .col--name {
 }
 .cell--no-jump-answered:hover {
   outline: none;
+}
+
+/* Question header inner — number + type stacked, select covers entire cell */
+.col-header-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.col-header-number {
+  line-height: 1.2;
+  pointer-events: none;
+}
+.col-header-type {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: inherit;
+  opacity: 0.7;
+  line-height: 1;
+  margin-top: 0.15rem;
+  pointer-events: none;
+}
+.question-type-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  font-size: 0.75rem;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.question-type-select option {
+  background: var(--color-bg);
+  color: var(--color-text);
+  text-align: center;
 }
 
 /* Cell values */

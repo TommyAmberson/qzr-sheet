@@ -76,9 +76,11 @@ legacy spreadsheet formula.
 
 Show each quizzer's individual point total at the end of their row.
 
-#### 1.13 Question type dropdown
+#### 1.13 Question type dropdown ✅
 
-Beneath the No Jump row, a dropdown to set the question type (INT, MA, etc.).
+Question category selector (INT, FTV, REF, MA, Q, SIT) inline in each column header. Clicking
+anywhere on the header opens the native dropdown. Type label shown beneath the question number at
+70% opacity, inheriting the header colour.
 
 ### Phase 1.5: Optional Core UI features
 
@@ -93,6 +95,11 @@ Drag quizzer rows to reorder within a team, updating seat order in the store.
 #### 1.5.3 Hidden A/B question columns ✅
 
 A/B columns only appear when needed (already implemented with animation).
+
+#### 1.5.6 Custom question type dropdown
+
+Replace the native `<select>` in column headers with a custom dropdown for centered options and
+consistent cross-browser styling.
 
 #### 1.5.4 Keyboard navigation
 
