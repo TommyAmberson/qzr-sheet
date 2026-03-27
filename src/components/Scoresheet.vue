@@ -490,7 +490,7 @@ function colGroupClass(colIdx: number): string {
                         ? 'Quiz-out with bonus (+10)'
                         : 'Quiz-out'
                     "
-                    >Q</span
+                    ><span class="stat-badge__label">Q</span></span
                   >
                   <span
                     v-else-if="
@@ -1475,23 +1475,32 @@ thead .col--name {
   font-size: 0.6rem;
   font-weight: 800;
   line-height: 1;
-  color: var(--color-bg);
 }
 .stat-badge--quizout {
   background: var(--color-correct);
+  color: var(--color-badge-circle-correct);
 }
 .stat-badge--quizout-bonus {
   background: var(--color-correct);
-  box-shadow: 0 0 0 2px var(--color-correct-alt);
+  color: var(--color-badge-circle-correct);
+  border-radius: 3px;
+  transform: rotate(45deg);
+}
+.stat-badge--quizout-bonus .stat-badge__label {
+  transform: rotate(-45deg);
+  display: inline-block;
 }
 .stat-badge--errorout {
   background: var(--color-error);
+  color: var(--color-badge-circle-error);
 }
 .stat-badge--foulout {
   background: var(--color-foul);
+  color: var(--color-badge-circle-foul);
 }
 .stat-badge--unique {
   background: var(--color-correct);
+  color: var(--color-badge-circle-correct);
   border-radius: 4px;
   width: auto;
   padding: 0 0.3rem;
@@ -1507,16 +1516,16 @@ thead .col--name {
   line-height: 1.2;
 }
 .stat-count--correct {
-  color: var(--color-correct);
-  background: var(--color-correct-alt);
+  color: var(--color-badge-correct-text);
+  background: var(--color-badge-correct-bg);
 }
 .stat-count--error {
-  color: var(--color-error);
-  background: var(--color-error-alt);
+  color: var(--color-badge-error-text);
+  background: var(--color-badge-error-bg);
 }
 .stat-count--foul {
-  color: var(--color-foul);
-  background: var(--color-foul-alt);
+  color: var(--color-badge-foul-text);
+  background: var(--color-badge-foul-bg);
 }
 .stat-count--individual {
   color: var(--color-text-faint);

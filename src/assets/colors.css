@@ -50,6 +50,17 @@
   --color-error-alt: var(--palette-error-alt);
   --color-foul: var(--palette-foul);
   --color-foul-alt: var(--palette-foul-alt);
+  /* Badge chip colors (text / background) */
+  --color-badge-correct-text: var(--palette-correct);
+  --color-badge-correct-bg: var(--palette-correct-alt);
+  --color-badge-error-text: var(--palette-error);
+  --color-badge-error-bg: var(--palette-error-alt);
+  --color-badge-foul-text: var(--palette-foul);
+  --color-badge-foul-bg: var(--palette-foul-alt);
+  /* Badge circle text — alt color contrasts against saturated circle bg */
+  --color-badge-circle-correct: var(--palette-correct-alt);
+  --color-badge-circle-error: var(--palette-error-alt);
+  --color-badge-circle-foul: var(--palette-foul-alt);
   --color-bonus: var(--palette-bonus);
   --color-bonus-alt: var(--palette-bonus-alt);
   --color-missed-bonus: var(--palette-mb);
@@ -92,4 +103,11 @@
   --color-meta-accent: var(--palette-slate);
   --color-grey-stripe-a: var(--palette-flint);
   --color-grey-stripe-b: var(--palette-charcoal);
+  /* Badge chips: swap to saturated bg + light text in dark mode */
+  --color-badge-correct-text: var(--palette-correct-alt);
+  --color-badge-correct-bg: var(--palette-correct);
+  --color-badge-error-text: var(--palette-error-alt);
+  --color-badge-error-bg: var(--palette-error);
+  --color-badge-foul-text: var(--palette-foul-alt);
+  --color-badge-foul-bg: var(--palette-foul);
 }
