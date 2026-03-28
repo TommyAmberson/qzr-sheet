@@ -83,21 +83,39 @@ function isCellNavigable(ti: number, qi: number, ci: number): boolean {
   return !isGreyedOut(ti, ci) && !isAfterOut(ti, qi, ci) && !isFouledOnQuestion(ti, qi, ci)
 }
 
-/** Move focus by dqi (quizzer rows) or dci (column steps) */
+/** ti=-1, qi=-1 represents the no-jump row */
+const NO_JUMP_ROW = { ti: -1, qi: -1 }
+
+function isNoJumpFocus(): boolean {
+  return focusedCell.value?.ti === -1
+}
+
+/** Build the ordered list of all navigable rows as {ti, qi} pairs, ending with no-jump */
+function allRows(): { ti: number; qi: number }[] {
+  const rows: { ti: number; qi: number }[] = []
+  for (let ti = 0; ti < teams.value.length; ti++) {
+    const count = teamQuizzers.value[ti]?.length ?? 0
+    for (let qi = 0; qi < count; qi++) {
+      rows.push({ ti, qi })
+    }
+  }
+  rows.push(NO_JUMP_ROW)
+  return rows
+}
+
+/** Move focus by dqi (quizzer rows, crosses teams + no-jump) or dci (column steps) */
 function moveFocus(dqi: number, dci: number) {
   const f = focusedCell.value
   if (!f) return
   const cols = displayColumns.value
-  const quizzers = teamQuizzers.value[f.ti] ?? []
 
   if (dci !== 0) {
-    // Find current position in displayColumns, step from there
     const curPos = cols.findIndex((c) => c.idx === f.ci)
     if (curPos === -1) return
     let pos = curPos + dci
     while (pos >= 0 && pos < cols.length) {
       const nextIdx = cols[pos]!.idx
-      if (isCellNavigable(f.ti, f.qi, nextIdx)) {
+      if (isNoJumpFocus() || isCellNavigable(f.ti, f.qi, nextIdx)) {
         focusCell(f.ti, f.qi, nextIdx)
         return
       }
@@ -106,13 +124,22 @@ function moveFocus(dqi: number, dci: number) {
   }
 
   if (dqi !== 0) {
-    let nextQi = f.qi + dqi
-    while (nextQi >= 0 && nextQi < quizzers.length) {
-      if (isCellNavigable(f.ti, nextQi, f.ci)) {
-        focusCell(f.ti, nextQi, f.ci)
+    const rows = allRows()
+    const curRowIdx = rows.findIndex((r) => r.ti === f.ti && r.qi === f.qi)
+    if (curRowIdx === -1) return
+    let next = curRowIdx + dqi
+    while (next >= 0 && next < rows.length) {
+      const row = rows[next]!
+      if (row.ti === -1) {
+        // No-jump row — always navigable
+        focusCell(-1, -1, f.ci)
         return
       }
-      nextQi += dqi
+      if (isCellNavigable(row.ti, row.qi, f.ci)) {
+        focusCell(row.ti, row.qi, f.ci)
+        return
+      }
+      next += dqi
     }
   }
 }
@@ -243,19 +270,22 @@ function onWrapperKeydown(event: KeyboardEvent) {
 
   if (!f) return
 
-  // Enter/Space: open selector
+  // Enter/Space: open selector, or toggle no-jump if on no-jump row
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
-    // If focus is on a no-jump cell (no team/quizzer — handled via colIdx only):
-    // For now open selector on focused cell
+    if (isNoJumpFocus()) {
+      toggleNoJump(f.ci)
+      return
+    }
     openSelectorOnCell(f.ti, f.qi, f.ci)
     return
   }
 
-  // Delete/Backspace: clear cell
+  // Delete/Backspace: clear cell (not applicable on no-jump row)
   if (event.key === 'Delete' || event.key === 'Backspace') {
     event.preventDefault()
-    if (isCellNavigable(f.ti, f.qi, f.ci)) setCell(f.ti, f.qi, f.ci, CellValue.Empty)
+    if (!isNoJumpFocus() && isCellNavigable(f.ti, f.qi, f.ci))
+      setCell(f.ti, f.qi, f.ci, CellValue.Empty)
     return
   }
 
@@ -266,16 +296,18 @@ function onWrapperKeydown(event: KeyboardEvent) {
     return
   }
 
-  // Letter keys: set value directly
-  const value = letterMap[event.key.toLowerCase()]
-  if (value !== undefined && isCellNavigable(f.ti, f.qi, f.ci)) {
-    event.preventDefault()
-    const col = columns.value[f.ci]
-    const isBonus = col?.type === QuestionType.B || isBonusForTeam(f.ti, f.ci)
-    const allowed = isBonus
-      ? [CellValue.Bonus, CellValue.MissedBonus, CellValue.Foul, CellValue.Empty]
-      : [CellValue.Correct, CellValue.Error, CellValue.Foul, CellValue.Empty]
-    if (allowed.includes(value)) setCell(f.ti, f.qi, f.ci, value)
+  // Letter keys: set value directly (not applicable on no-jump row)
+  if (!isNoJumpFocus()) {
+    const value = letterMap[event.key.toLowerCase()]
+    if (value !== undefined && isCellNavigable(f.ti, f.qi, f.ci)) {
+      event.preventDefault()
+      const col = columns.value[f.ci]
+      const isBonus = col?.type === QuestionType.B || isBonusForTeam(f.ti, f.ci)
+      const allowed = isBonus
+        ? [CellValue.Bonus, CellValue.MissedBonus, CellValue.Foul, CellValue.Empty]
+        : [CellValue.Correct, CellValue.Error, CellValue.Foul, CellValue.Empty]
+      if (allowed.includes(value)) setCell(f.ti, f.qi, f.ci, value)
+    }
   }
 }
 
@@ -310,6 +342,16 @@ const selectorOptions = computed(() => {
 
   return normalOptions
 })
+
+function onCellClick(ti: number, qi: number, ci: number, event: MouseEvent) {
+  focusCell(ti, qi, ci)
+  openSelector(ti, qi, ci, event)
+}
+
+function onNoJumpClick(ci: number) {
+  focusCell(-1, -1, ci)
+  toggleNoJump(ci)
+}
 
 function openSelector(ti: number, qi: number, ci: number, event: MouseEvent) {
   const td = event.currentTarget as HTMLElement
@@ -811,10 +853,7 @@ function colGroupClass(colIdx: number): string {
               :title="
                 isInvalid(ti, qi, idx) ? cellValidationMessages(ti, qi, idx).join('\n') : undefined
               "
-              @click="
-                focusCell(ti, qi, idx)
-                openSelector(ti, qi, idx, $event)
-              "
+              @click="onCellClick(ti, qi, idx, $event)"
               @mouseenter="hoverCol = idx"
               @mouseleave="hoverCol = null"
             >
@@ -933,10 +972,11 @@ function colGroupClass(colIdx: number): string {
                 'cell--no-jump-answered': colAnswerValue(idx) !== CellValue.Empty,
                 'cell--invalid': noJumpHasConflict(idx),
                 'col--entering': entering,
+                'cell--focused': !selector && isNoJumpFocus() && focusedCell?.ci === idx,
               },
             ]"
             :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
-            @click="toggleNoJump(idx)"
+            @click="onNoJumpClick(idx)"
           >
             {{ noJumps[idx] ? '✗' : '' }}
           </td>
