@@ -320,9 +320,9 @@ function colGroupClass(colIdx: number): string {
               </div>
             </td>
             <td
-              v-for="{ col, entering } in displayColumns"
+              v-for="{ col, idx, entering } in displayColumns"
               :key="col.key"
-              :class="['team-header-spacer', { 'col--entering': entering }]"
+              :class="['team-header-spacer', colGroupClass(idx), { 'col--entering': entering }]"
             />
             <td class="col--name team-score-label">Score</td>
           </tr>
@@ -910,9 +910,17 @@ thead .col--name {
   border-top: 2px solid var(--color-ot-border);
 }
 
-/* Left border at regulation→OT boundary and between OT rounds */
+/* Left border at regulation→OT boundary and between OT rounds.
+ * Needs enough specificity to beat the !important resets on spacer-cell,
+ * team-header-spacer, and row--team-total td. */
 .col--ot-start,
-.col--ot-round-start {
+.col--ot-round-start,
+.spacer-cell.col--ot-start,
+.spacer-cell.col--ot-round-start,
+.team-header-spacer.col--ot-start,
+.team-header-spacer.col--ot-round-start,
+.row--team-total .col--ot-start,
+.row--team-total .col--ot-round-start {
   border-left: 2px solid var(--color-ot-border) !important;
 }
 
