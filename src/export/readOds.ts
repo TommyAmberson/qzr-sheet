@@ -38,6 +38,15 @@ function getABDepth(sheet: string, odsCol: number): number {
 }
 
 /**
+ * Infer A/B depth from the answer values when footer rows are empty.
+ * Each error triggers the next sub-question, so error count = depth.
+ */
+function inferABDepth(rawAnswers: { quizzerId: number; q: number; value: CellValue }[]): number {
+  const errorCount = rawAnswers.filter((a) => a.value === CellValue.Error).length
+  return Math.min(errorCount, 2)
+}
+
+/**
  * Distribute answers for a Q16+ question across normal/A/B column keys.
  *
  * Uses the A/B depth from the footer rows and the error-first chain rule:
@@ -213,13 +222,15 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   // Second pass: assign column keys using footer rows to guess A/B depth
   for (const [q, rawAnswers] of rawAnswersByQ) {
     if (q < 16) {
-      // Q1–Q15: no A/B
       for (const a of rawAnswers) {
         answers.push({ quizzerId: a.quizzerId, columnKey: `${q}`, value: a.value })
       }
     } else {
       const odsCol = q <= 20 ? 3 + (q - 1) : 23 + (q - 21)
-      const depth = getABDepth(sheet, odsCol)
+      let depth = getABDepth(sheet, odsCol)
+      // If footer rows are empty, infer depth from the answers themselves:
+      // an error + any other answer means the question went to at least A.
+      if (depth === 0) depth = inferABDepth(rawAnswers)
       distributeABAnswers(answers, rawAnswers, q, depth)
     }
   }
