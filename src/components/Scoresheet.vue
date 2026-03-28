@@ -232,6 +232,14 @@ function onWrapperKeydown(event: KeyboardEvent) {
 
   // --- Selector is closed ---
 
+  // Arrow keys: focus top-left cell if nothing focused yet
+  if (!f && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+    event.preventDefault()
+    const firstCol = displayColumns.value[0]
+    if (firstCol) focusCell(0, 0, firstCol.idx)
+    return
+  }
+
   // Arrow keys: move cell focus
   if (event.key === 'ArrowUp') {
     event.preventDefault()
