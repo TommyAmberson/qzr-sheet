@@ -820,47 +820,6 @@ function colGroupClass(colIdx: number): string {
   cursor: default;
 }
 
-.meta-info {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-.meta-info__icon {
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
-  cursor: default;
-  line-height: 1;
-  padding: 0.1rem;
-  border-radius: 50%;
-  transition: color 0.15s;
-}
-.meta-info:hover .meta-info__icon {
-  color: var(--color-text-muted);
-}
-.meta-info__popover {
-  display: none;
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 18rem;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border-alt);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 0.5rem 0.65rem;
-  font-size: 0.72rem;
-  line-height: 1.5;
-  color: var(--color-text-muted);
-  z-index: 50;
-  white-space: normal;
-  text-align: left;
-  pointer-events: none;
-}
-.meta-info:hover .meta-info__popover {
-  display: block;
-}
-
 .scoresheet {
   border-collapse: collapse;
   font-family: 'Segoe UI', system-ui, sans-serif;
