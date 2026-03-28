@@ -139,7 +139,7 @@ Export the scoresheet as an ODS spreadsheet by filling a user-supplied OTS/ODS t
 Quiz sheet cells at known fixed addresses; all other sheets pass through unchanged so the template's
 formulas recalculate automatically in LibreOffice.
 
-#### 2.5 ODS import
+#### 2.5 ODS import ✅
 
 Import a filled ODS scoresheet back into the app. Read cell values from known Quiz sheet addresses
 and populate the store (teams, quizzers, answers, no-jumps, question types, metadata).
