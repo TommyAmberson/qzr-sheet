@@ -310,14 +310,7 @@ function colGroupClass(colIdx: number): string {
         <input v-model="quiz.quizNumber" type="text" />
       </label>
       <span class="meta-sep">·</span>
-      <label
-        class="meta-field meta-field--toggle"
-        :title="
-          quiz.placementFormula === PlacementFormula.Spreadsheet
-            ? 'Legacy pts (spreadsheet): 1st=score/10+2, 2nd=score/10, 3rd=score/10−1'
-            : 'Rules pts (official rulebook): 1st=score/10, 2nd=score/10−1, 3rd=score/10−2'
-        "
-      >
+      <label class="meta-field meta-field--toggle">
         <input v-model="quiz.overtime" type="checkbox" />
         <span class="toggle-track"><span class="toggle-thumb" /></span>
         <span class="meta-label">Overtime</span>
@@ -336,6 +329,14 @@ function colGroupClass(colIdx: number): string {
         <span class="toggle-track"><span class="toggle-thumb" /></span>
         <span class="meta-label">Legacy pts</span>
       </label>
+      <span class="meta-info">
+        <span class="meta-info__icon">&#9432;</span>
+        <span class="meta-info__popover">
+          <strong>Rules</strong> — equal 1-pt steps between places at any score.<br />
+          <strong>Legacy</strong> — historical spreadsheet formula; higher bonus for 1st, points
+          grow faster at high scores.
+        </span>
+      </span>
       <span class="meta-sep">·</span>
       <span
         class="meta-field meta-field--status"
@@ -891,6 +892,47 @@ function colGroupClass(colIdx: number): string {
 .meta-field--toggle input:checked ~ .meta-label {
   color: var(--color-text);
   font-weight: 600;
+}
+
+.meta-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.meta-info__icon {
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+  cursor: default;
+  line-height: 1;
+  padding: 0.1rem;
+  border-radius: 50%;
+  transition: color 0.15s;
+}
+.meta-info:hover .meta-info__icon {
+  color: var(--color-text-muted);
+}
+.meta-info__popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  z-index: 50;
+  white-space: normal;
+  text-align: left;
+  pointer-events: none;
+}
+.meta-info:hover .meta-info__popover {
+  display: block;
 }
 
 .scoresheet {
