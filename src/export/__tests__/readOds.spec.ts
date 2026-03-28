@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { zipSync, strToU8 } from 'fflate'
+import { deflateRawSync } from 'node:zlib'
 import { readOds } from '../readOds'
 import { CellValue } from '../../types/scoresheet'
 
@@ -49,10 +49,95 @@ function makeOds(sheetXml: string): Uint8Array {
     `<?xml version="1.0"?><office:document-content><office:body><office:spreadsheet>` +
     sheetXml +
     `</office:spreadsheet></office:body></office:document-content>`
-  return zipSync({
-    mimetype: strToU8('application/vnd.oasis.opendocument.spreadsheet'),
-    'content.xml': strToU8(contentXml),
-  })
+  return buildZip([
+    {
+      name: 'mimetype',
+      data: Buffer.from('application/vnd.oasis.opendocument.spreadsheet'),
+      compress: false,
+    },
+    { name: 'content.xml', data: Buffer.from(contentXml), compress: true },
+  ])
+}
+
+/**
+ * Build a minimal ZIP archive from an array of entries.
+ * Uses Node's deflateRawSync for compressed entries (method 8) and stores
+ * uncompressed entries as-is (method 0). No data-descriptor flags.
+ */
+function buildZip(entries: { name: string; data: Buffer; compress: boolean }[]): Uint8Array {
+  const parts: Buffer[] = []
+  const centralDir: Buffer[] = []
+  let offset = 0
+
+  for (const entry of entries) {
+    const nameBytes = Buffer.from(entry.name)
+    const payload = entry.compress ? deflateRawSync(entry.data) : entry.data
+    const method = entry.compress ? 8 : 0
+    const crc = crc32(entry.data)
+
+    // Local file header
+    const local = Buffer.alloc(30 + nameBytes.length)
+    local.writeUInt32LE(0x04034b50, 0) // signature
+    local.writeUInt16LE(20, 4) // version needed
+    local.writeUInt16LE(0, 6) // flags
+    local.writeUInt16LE(method, 8) // compression method
+    local.writeUInt16LE(0, 10) // mod time
+    local.writeUInt16LE(0, 12) // mod date
+    local.writeUInt32LE(crc, 14) // CRC-32
+    local.writeUInt32LE(payload.length, 18) // compressed size
+    local.writeUInt32LE(entry.data.length, 22) // uncompressed size
+    local.writeUInt16LE(nameBytes.length, 26) // file name length
+    local.writeUInt16LE(0, 28) // extra field length
+    nameBytes.copy(local, 30)
+
+    // Central directory entry
+    const central = Buffer.alloc(46 + nameBytes.length)
+    central.writeUInt32LE(0x02014b50, 0) // signature
+    central.writeUInt16LE(20, 4) // version made by
+    central.writeUInt16LE(20, 6) // version needed
+    central.writeUInt16LE(0, 8) // flags
+    central.writeUInt16LE(method, 10) // compression method
+    central.writeUInt16LE(0, 12) // mod time
+    central.writeUInt16LE(0, 14) // mod date
+    central.writeUInt32LE(crc, 16) // CRC-32
+    central.writeUInt32LE(payload.length, 20) // compressed size
+    central.writeUInt32LE(entry.data.length, 24) // uncompressed size
+    central.writeUInt16LE(nameBytes.length, 28) // file name length
+    central.writeUInt16LE(0, 30) // extra field length
+    central.writeUInt16LE(0, 32) // file comment length
+    central.writeUInt16LE(0, 34) // disk number start
+    central.writeUInt16LE(0, 36) // internal attributes
+    central.writeUInt32LE(0, 38) // external attributes
+    central.writeUInt32LE(offset, 42) // local header offset
+    nameBytes.copy(central, 46)
+
+    parts.push(local, payload)
+    centralDir.push(central)
+    offset += local.length + payload.length
+  }
+
+  const cdBuf = Buffer.concat(centralDir)
+  const eocd = Buffer.alloc(22)
+  eocd.writeUInt32LE(0x06054b50, 0) // end-of-central-directory signature
+  eocd.writeUInt16LE(0, 4) // disk number
+  eocd.writeUInt16LE(0, 6) // disk with CD start
+  eocd.writeUInt16LE(entries.length, 8) // entries on disk
+  eocd.writeUInt16LE(entries.length, 10) // total entries
+  eocd.writeUInt32LE(cdBuf.length, 12) // CD size
+  eocd.writeUInt32LE(offset, 16) // CD offset
+  eocd.writeUInt16LE(0, 20) // comment length
+
+  return new Uint8Array(Buffer.concat([...parts, cdBuf, eocd]))
+}
+
+/** CRC-32 using the standard polynomial. */
+function crc32(buf: Buffer): number {
+  let crc = 0xffffffff
+  for (const byte of buf) {
+    crc ^= byte
+    for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
+  }
+  return (crc ^ 0xffffffff) >>> 0
 }
 
 /** Convenience: set a single cell in a sparse cells map. */
