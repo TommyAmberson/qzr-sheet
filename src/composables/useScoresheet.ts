@@ -2,7 +2,6 @@ import { ref, computed, watch } from 'vue'
 import { useHistory } from './useHistory'
 import {
   CellValue,
-  PlacementFormula,
   QuestionCategory,
   buildColumns,
   QuestionType,
@@ -122,8 +121,6 @@ export function useScoresheet() {
     computeGreyedOut(cells.value, columns.value, otEligibleTeams.value),
   )
 
-  const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
-
   const orphanedColumns = computed(() =>
     computeOrphanedColumns(
       cells.value,
@@ -163,7 +160,7 @@ export function useScoresheet() {
   // --- Query helpers (business logic the template needs) ---
 
   function isBonusForTeam(teamIdx: number, colIdx: number): boolean {
-    return isBonusSituation(tossedUpSet.value, teamIdx, colIdx, teams.value.length)
+    return isBonusSituation(greyedOutResult.value.tossedUp, teamIdx, colIdx, teams.value.length)
   }
 
   function isGreyedOut(teamIdx: number, colIdx: number): boolean {
@@ -435,7 +432,6 @@ export function useScoresheet() {
     setTeamName,
     setQuizzerName,
     moveQuizzer,
-    store,
 
     // Grey-out & validation
     validationErrors,
@@ -465,7 +461,6 @@ export function useScoresheet() {
     // Placements
     placements,
     placementPoints,
-    PlacementFormula,
 
     // Undo/redo
     canUndo: history.canUndo,
@@ -474,7 +469,6 @@ export function useScoresheet() {
     redo: history.redo,
 
     // Question types
-    QuestionCategory,
     setQuestionType,
   }
 }
