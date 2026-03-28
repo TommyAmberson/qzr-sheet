@@ -18,7 +18,9 @@ export function useHistory(maxHistory = DEFAULT_MAX) {
   const canUndo = computed(() => undoStack.value.length > 0)
   const canRedo = computed(() => redoStack.value.length > 0)
 
-  const isDirty = computed(() => (undoStack.value.at(-1) ?? null) !== savedCommand.value)
+  const isDirty = computed(
+    () => (undoStack.value[undoStack.value.length - 1] ?? null) !== savedCommand.value,
+  )
 
   function push(command: HistoryCommand) {
     undoStack.value.push(command)
@@ -49,7 +51,7 @@ export function useHistory(maxHistory = DEFAULT_MAX) {
   }
 
   function markSaved() {
-    savedCommand.value = undoStack.value.at(-1) ?? null
+    savedCommand.value = undoStack.value[undoStack.value.length - 1] ?? null
   }
 
   return { canUndo, canRedo, isDirty, push, undo, redo, clear, markSaved }

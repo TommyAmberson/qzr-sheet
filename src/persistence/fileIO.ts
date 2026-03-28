@@ -121,7 +121,9 @@ export async function exportOdsFile(
       return false
     }
   } else {
-    const blob = new Blob([odsBytes], { type: 'application/vnd.oasis.opendocument.spreadsheet' })
+    const blob = new Blob([odsBytes as Uint8Array<ArrayBuffer>], {
+      type: 'application/vnd.oasis.opendocument.spreadsheet',
+    })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
