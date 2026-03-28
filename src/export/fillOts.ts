@@ -72,10 +72,10 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
 
   let sheetXml = xml.slice(tableTagStart, quizSheetEnd)
 
-  // --- 5. Fill metadata (row 3, 0-based) ---
-  // Row 3 = Row 4 in 1-based: Div at col 2, Quiz# at col 3
-  sheetXml = patchCell(sheetXml, 3, 2, quiz.division)
-  sheetXml = patchCell(sheetXml, 3, 3, quiz.quizNumber)
+  // --- 5. Fill metadata (row 2, 0-based) ---
+  // Row 3 in 1-based = 0-based row 2: Div input at col C (idx 2), Quiz# input at col E (idx 4)
+  sheetXml = patchCell(sheetXml, 2, 2, quiz.division)
+  sheetXml = patchCell(sheetXml, 2, 4, quiz.quizNumber)
 
   // --- 6. Fill each team block ---
   // Team layout (0-based rows):
@@ -88,17 +88,42 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
     { nameRow: 20, quizzerStartRow: 21, scoreRow: 26, onTimeRow: 19 },
   ] as const
 
-  // Column index for Q1..Q20 answers: col 3 = Q1, col 4 = Q2, ..., col 22 = Q20
-  // OT Q21..Q26: cols 23..28
-  // The column keys map to ODS col indices:
-  //   key "1"=col3, "2"=col4 ... "15"=col17
-  //   key "16"=col18, "16A"=col19, "16B"=col20
-  //   key "17"=col21... etc.
-  // We build a map from column key → ODS column index (0-based)
+  // ODS column mapping for quizzer rows:
+  //   Q1  → col 3 (D)  … Q15 → col 17 (R)
+  //   Q16 → col 18 (S), Q17 → col 19 (T), …, Q20 → col 22 (W)
+  //   OT Q21 → col 23 (X) … OT Q26 → col 28 (AC)
+  //
+  // Each question number maps to ONE column regardless of A/B sub-type.
+  // App keys like "16A" and "16B" write to rows 30/31, not separate columns.
+  // We build two maps:
+  //   colKeyToOdsCol  — quizzer-row column index (undefined for A/B sub-keys)
+  //   abKeyToRowAndCol — { row, col } for "16A"/"16B" etc. (rows 30/31)
   const colKeyToOdsCol = new Map<string, number>()
-  let odsCol = 3 // cols 0=quizzer#, 1-2=name, 3=Q1
+  const abKeyToRowAndCol = new Map<string, { row: number; col: number }>()
+
+  // Q1–Q15: sequential, no A/B
+  for (let q = 1; q <= 15; q++) {
+    colKeyToOdsCol.set(`${q}`, 3 + (q - 1))
+  }
+  // Q16–Q20: one ODS col per question; A/B sub-keys → rows 30/31
+  for (let q = 16; q <= 20; q++) {
+    const odsColIdx = 3 + (q - 1) // col 18–22
+    colKeyToOdsCol.set(`${q}`, odsColIdx)
+    abKeyToRowAndCol.set(`${q}A`, { row: 29, col: odsColIdx }) // row 30 (0-based 29)
+    abKeyToRowAndCol.set(`${q}B`, { row: 30, col: odsColIdx }) // row 31 (0-based 30)
+  }
+  // OT questions: one ODS col per question number; A/B sub-keys → rows 30/31
+  let otCol = 23
+  const seenOtNumbers = new Set<number>()
   for (const col of cols) {
-    colKeyToOdsCol.set(col.key, odsCol++)
+    if (!col.isOvertime) continue
+    if (!seenOtNumbers.has(col.number)) {
+      seenOtNumbers.add(col.number)
+      colKeyToOdsCol.set(`${col.number}`, otCol)
+      abKeyToRowAndCol.set(`${col.number}A`, { row: 29, col: otCol })
+      abKeyToRowAndCol.set(`${col.number}B`, { row: 30, col: otCol })
+      otCol++
+    }
   }
 
   // No-jump row (row 27, 0-based) and question type row (row 28, 0-based)
@@ -138,14 +163,18 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
       // Quizzer name
       sheetXml = patchCell(sheetXml, qRow, 1, qzr?.name ?? '')
 
-      // Answer cells
+      // Answer cells — all keys write to the quizzer row at the parent
+      // question's column. A/B answers go in the same ODS column as the
+      // parent question number (the ODS has one column per question).
       if (qzr) {
         for (let ci = 0; ci < cols.length; ci++) {
           const col = cols[ci]!
-          const odsColIdx = colKeyToOdsCol.get(col.key)
-          if (odsColIdx === undefined) continue
           const cell = teamCells[qi]?.[ci] ?? ''
-          if (cell !== '') {
+          if (cell === '') continue
+
+          // Normal keys map directly; A/B keys use the parent question number
+          const odsColIdx = colKeyToOdsCol.get(col.key) ?? colKeyToOdsCol.get(`${col.number}`)
+          if (odsColIdx !== undefined) {
             sheetXml = patchCell(sheetXml, qRow, odsColIdx, cell)
           }
         }
@@ -162,13 +191,24 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
     }
   }
 
-  // --- 8. Question types row ---
+  // --- 8. Question types rows ---
+  // Row 29 (0-based 28): toss-up / normal question types
+  // Row 30 (0-based 29): A sub-question types
+  // Row 31 (0-based 30): B sub-question types
   for (const col of cols) {
-    const odsColIdx = colKeyToOdsCol.get(col.key)
-    if (odsColIdx === undefined) continue
     const qt = quiz.questionTypes.get(col.key)
-    if (qt) {
+    if (!qt) continue
+
+    const odsColIdx = colKeyToOdsCol.get(col.key)
+    if (odsColIdx !== undefined) {
+      // Normal key → question types row 29
       sheetXml = patchCell(sheetXml, qtRow, odsColIdx, qt)
+    } else {
+      // A/B key → rows 30/31
+      const ab = abKeyToRowAndCol.get(col.key)
+      if (ab) {
+        sheetXml = patchCell(sheetXml, ab.row, ab.col, qt)
+      }
     }
   }
 
