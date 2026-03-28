@@ -966,6 +966,8 @@ function colGroupClass(colIdx: number): string {
             ]"
             :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
             @click="onNoJumpClick(idx)"
+            @mouseenter="hoverCol = idx"
+            @mouseleave="hoverCol = null"
           >
             {{ noJumps[idx] ? '✗' : '' }}
           </td>
