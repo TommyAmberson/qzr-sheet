@@ -235,7 +235,9 @@ async function exportOds() {
   try {
     const odsBytes = fillOts(otsBytes, quizFile)
     const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.ods`
-    await exportOdsFile(odsBytes, filename)
+    const saved = await exportOdsFile(odsBytes, filename)
+    if (saved)
+      alert('ODS exported.\n\nOpen in LibreOffice and press Ctrl+Shift+F9 to recalculate formulas.')
   } catch (e) {
     alert(`Failed to export ODS: ${e instanceof Error ? e.message : e}`)
   }
