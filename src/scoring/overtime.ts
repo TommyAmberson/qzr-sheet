@@ -3,6 +3,12 @@ import { scoreTeam } from './scoreTeam'
 import { ColStatus } from './helpers'
 import { computeGreyedOut } from './greyedOut'
 
+/** Slice a cell grid down to the given column subset, preserving team/quizzer structure */
+function sliceCells(cellData: CellValue[][][], cols: Column[], subset: Column[]): CellValue[][][] {
+  const indices = subset.map((c) => cols.indexOf(c))
+  return cellData.map((team) => team.map((row) => indices.map((i) => row[i]!)))
+}
+
 /**
  * Determine which teams are eligible for overtime based on regulation-only scores.
  *
@@ -16,16 +22,8 @@ export function getOvertimeEligibleTeams(
   cols: Column[],
   onTimes: boolean[],
 ): Set<number> {
-  // Score each team using only regulation columns
   const regCols = cols.filter((c) => !c.isOvertime)
-  const regCells = cellData.map((teamCells) =>
-    teamCells.map((quizzerRow) =>
-      regCols.map((_, ri) => {
-        const fullIdx = cols.indexOf(regCols[ri]!)
-        return quizzerRow[fullIdx]!
-      }),
-    ),
-  )
+  const regCells = sliceCells(cellData, cols, regCols)
   const scores = regCells.map(
     (teamCells, ti) => scoreTeam(teamCells, regCols, onTimes[ti] ?? true).total,
   )
@@ -167,19 +165,10 @@ export function computeOvertimeRounds(
     const lastQ = firstQ + 2
     if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) return r + 1
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
-    const throughCells = cellData.map((teamCells) =>
-      teamCells.map((row) =>
-        throughCols.map((_, i) => {
-          const fullIdx = cols.indexOf(throughCols[i]!)
-          return row[fullIdx]!
-        }),
-      ),
-    )
+    const throughCells = sliceCells(cellData, cols, throughCols)
     const scores = throughCells.map(
       (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
     )
-
-    // Find which competing teams are still tied with each other
     const stillTied = new Set<number>()
     for (let i = 0; i < competing.length; i++) {
       for (let j = i + 1; j < competing.length; j++) {
@@ -222,14 +211,7 @@ export function computeOtCheckpointScores(
     if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) break
 
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
-    const throughCells = cellData.map((teamCells) =>
-      teamCells.map((row) =>
-        throughCols.map((_, i) => {
-          const fullIdx = cols.indexOf(throughCols[i]!)
-          return row[fullIdx]!
-        }),
-      ),
-    )
+    const throughCells = sliceCells(cellData, cols, throughCols)
     checkpoints.push(
       throughCells.map(
         (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
@@ -249,13 +231,6 @@ export function computeRegulationScores(
   onTimes: boolean[],
 ): number[] {
   const regCols = cols.filter((c) => !c.isOvertime)
-  const regCells = cellData.map((teamCells) =>
-    teamCells.map((quizzerRow) =>
-      regCols.map((_, ri) => {
-        const fullIdx = cols.indexOf(regCols[ri]!)
-        return quizzerRow[fullIdx]!
-      }),
-    ),
-  )
+  const regCells = sliceCells(cellData, cols, regCols)
   return regCells.map((teamCells, ti) => scoreTeam(teamCells, regCols, onTimes[ti] ?? true).total)
 }
