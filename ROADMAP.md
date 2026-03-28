@@ -68,9 +68,10 @@ Replace hardcoded "Team 1" / "Quizzer 1" with inline-editable text fields.
 
 #### 1.11 Placement points ✅
 
-Calculate and display placement points after quiz completion. Toggle between official rulebook
-formula and legacy spreadsheet formula. Both formulas support tied placements via PlaceKey (1.2,
-1.3, 2.2). See `docs/scoring-rules-explained.md` for a full comparison.
+Calculate and display placement points after quiz completion. Uses the official rulebook formula
+with friendly ties; pre-2023 legacy formula available via `PlacementFormula.Legacy`. Both formulas
+support tied placements via PlaceKey (1.2, 1.3, 2.2). See `docs/scoring-rules-explained.md` for a
+full comparison.
 
 #### 1.12 Individual quizzer scores ✅
 
