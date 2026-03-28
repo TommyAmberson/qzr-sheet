@@ -291,15 +291,7 @@ function colGroupClass(colIdx: number): string {
           <button title="New quiz" @click="$emit('new')">＋</button>
         </div>
       </div>
-      <div
-        :class="[
-          'quiz-meta quiz-meta--right',
-          {
-            'quiz-meta--error': hasAnyErrors,
-            'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
-          },
-        ]"
-      >
+      <div class="quiz-meta quiz-meta--right">
         <label class="meta-field meta-field--toggle">
           <input v-model="quiz.overtime" type="checkbox" />
           <span class="toggle-track"><span class="toggle-thumb" /></span>
