@@ -101,9 +101,10 @@ A/B columns only appear when needed (already implemented with animation).
 Replace the native `<select>` in column headers with a custom dropdown for centered options and
 consistent cross-browser styling.
 
-#### 1.5.4 Keyboard navigation
+#### 1.5.4 Keyboard navigation ✅
 
-Arrow keys between cells, Enter to open selector, letter keys to set values directly.
+Arrow keys move between cells. Enter/Space opens the cell selector. Letter keys (c/e/f/b/m) set the
+value directly and advance focus. Escape closes the selector or clears focus.
 
 #### 1.5.5 Undo/redo
 
