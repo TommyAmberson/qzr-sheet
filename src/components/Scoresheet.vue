@@ -618,6 +618,7 @@ function colGroupClass(colIdx: number): string {
               {
                 'col--entering': entering,
                 'col--hover': !dragState && (hoverCol === idx || selector?.ci === idx),
+                'col--focus': focusedCell?.ci === idx,
               },
             ]"
             :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
@@ -723,6 +724,8 @@ function colGroupClass(colIdx: number): string {
                 {
                   'cell--invalid': quizzerHasErrors(ti, qi),
                   'col--name--active': !dragState && selector?.ti === ti && selector?.qi === qi,
+                  'col--name--focused':
+                    !dragState && focusedCell?.ti === ti && focusedCell?.qi === qi,
                 },
               ]"
               :title="
@@ -833,10 +836,7 @@ function colGroupClass(colIdx: number): string {
                 { 'col--hover': !dragState && hoverCol === idx },
                 {
                   'cell--focused':
-                    !selector &&
-                    focusedCell?.ti === ti &&
-                    focusedCell?.qi === qi &&
-                    focusedCell?.ci === idx,
+                    focusedCell?.ti === ti && focusedCell?.qi === qi && focusedCell?.ci === idx,
                 },
               ]"
               :title="
@@ -961,7 +961,7 @@ function colGroupClass(colIdx: number): string {
                 'cell--no-jump-answered': colAnswerValue(idx) !== CellValue.Empty,
                 'cell--invalid': noJumpHasConflict(idx),
                 'col--entering': entering,
-                'cell--focused': !selector && isNoJumpFocus() && focusedCell?.ci === idx,
+                'cell--focused': isNoJumpFocus() && focusedCell?.ci === idx,
               },
             ]"
             :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
@@ -1541,11 +1541,6 @@ thead .col--name {
   text-align: center;
 }
 
-.cell--focused {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
-
 /* Cell values */
 .cell {
   cursor: pointer;
@@ -1557,7 +1552,7 @@ thead .col--name {
   outline: none;
 }
 .cell:hover {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-border);
   outline-offset: -2px;
 }
 
@@ -1572,6 +1567,20 @@ thead .col--name {
 }
 .col--question.col--hover {
   outline: 2px solid var(--color-border);
+  outline-offset: -2px;
+}
+
+/* Focus — blue always overrides grey hover */
+.cell.cell--focused {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+.row--quizzer > .col--name.col--name--focused {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+.col--question.col--focus {
+  outline: 2px solid var(--color-accent);
   outline-offset: -2px;
 }
 
