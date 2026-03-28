@@ -160,11 +160,14 @@ page is fine to start.
 Deploy the scoresheet as a static site so it can run in any browser. Covers ChromeOS, tablets, and
 borrowed-laptop scenarios.
 
-Hosted on **Cloudflare Pages** (free tier) at `www.versevault.ca/scoresheet`. Vite is configured
-with `base: '/scoresheet'` for web builds and `base: '/'` for Tauri builds (detected via
-`TAURI_ENV_PLATFORM`). A `public/_redirects` rule handles SPA client-side routing within the
-subpath. Deploy with `pnpm build:web` then
-`wrangler pages deploy dist --project-name versevault-www`.
+Hosted on **Cloudflare Pages** (free tier) at `www.versevault.ca`. A `public/_redirects` rule
+handles SPA client-side routing. Deploy with `pnpm build:web` then
+`wrangler pages deploy dist --project-name versevault-www --branch master`.
+
+The app currently serves from the root (`/`). Once there are multiple tools on versevault.ca, move
+the scoresheet to `www.versevault.ca/scoresheet` by setting `base: '/scoresheet'` in
+`vite.config.ts`, updating `_redirects`, and moving all of `dist/` into `dist/scoresheet/` in the
+postbuild script.
 
 PWA manifest (offline support, home screen install) can be added later via `vite-plugin-pwa`.
 
