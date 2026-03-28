@@ -10,7 +10,7 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
-  base: '/',
+  base: '/scoresheet',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
