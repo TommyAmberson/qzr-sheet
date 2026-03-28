@@ -1,6 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
 import { buildColumns } from '../types/scoresheet'
 import { scoreTeam } from '../scoring/scoreTeam'
+import { computeOvertimeRounds } from '../scoring/overtime'
 import { patchCell } from './odsXml'
 import type { QuizFile } from '../persistence/quizFile'
 import { deserialize } from '../persistence/quizFile'
@@ -213,7 +214,14 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   }
 
   // --- 9. Overtime flag ---
-  sheetXml = patchCell(sheetXml, overtimeCell, 2, quiz.overtime ? 'y' : 'n')
+  // Only 'y' if OT rounds are actually shown (regulation complete + tie exists).
+  // The app hides OT columns when there's no tie, even if OT is enabled.
+  const noJumpFlags = cols.map((c) => !!noJumps.get(c.key))
+  const onTimes = sortedTeams.map((t) => t.onTime)
+  const visibleOtRounds = quiz.overtime
+    ? computeOvertimeRounds(cellGrid, cols, onTimes, noJumpFlags)
+    : 0
+  sheetXml = patchCell(sheetXml, overtimeCell, 2, visibleOtRounds > 0 ? 'y' : 'n')
 
   // --- 10. Splice patched sheet back into content.xml ---
   xml = xml.slice(0, tableTagStart) + sheetXml + xml.slice(quizSheetEnd)
