@@ -578,10 +578,10 @@ function colGroupClass(colIdx: number): string {
       <label class="meta-field meta-field--toggle">
         <input
           type="checkbox"
-          :checked="quiz.placementFormula === PlacementFormula.Spreadsheet"
+          :checked="quiz.placementFormula === PlacementFormula.Legacy"
           @change="
             quiz.placementFormula = ($event.target as HTMLInputElement).checked
-              ? PlacementFormula.Spreadsheet
+              ? PlacementFormula.Legacy
               : PlacementFormula.Rules
           "
         />

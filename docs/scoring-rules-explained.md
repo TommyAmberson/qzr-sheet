@@ -135,18 +135,14 @@ threshold** per place key:
 points = base + max(floor((score − threshold) / 10), 0)
 ```
 
-| PlaceKey | Base | Threshold | At 120 | At 110 | At 60 | At 20 | Description              |
-| -------- | ---- | --------- | ------ | ------ | ----- | ----- | ------------------------ |
-| `1`      | 10   | 80        | 14     | 13     | 10    | 10    | One team in 1st outright |
-| `1.2`    | 7    | 60        | 13     | 12     | 7     | 7     | Two teams tied for 1st   |
-| `1.3`    | 5    | 50        | 12     | 11     | 6     | 5     | Three teams tied for 1st |
-| `2`      | 5    | 50        | 12     | 11     | 6     | 5     | One team in 2nd outright |
-| `2.2`    | 3    | 30        | 12     | 11     | 5     | 3     | Two teams tied for 2nd   |
-| `3`      | 1    | 20        | 11     | 10     | 5     | 1     | One team in 3rd outright |
-
-The gap between 1st and 2nd (2 pts at score=120) is larger than the gap between 2nd and 3rd (1 pt).
-At lower scores the base values dominate and the gaps shrink — at score=60, `1.3`/`2`/`2.2` all give
-the same result.
+| PlaceKey | Base | Threshold | Description              | Alternate Calculation |
+| -------- | ---- | --------- | ------------------------ | --------------------- |
+| `1`      | 10   | 80        | One team in 1st outright | max(10, score/10 + 2) |
+| `1.2`    | 7    | 60        | Two teams tied for 1st   | max(7, score/10 + 1)  |
+| `1.3`    | 5    | 50        | Three teams tied for 1st | max(5, score/10)      |
+| `2`      | 5    | 50        | One team in 2nd outright | max(5, score/10)      |
+| `2.2`    | 3    | 30        | Two teams tied for 2nd   | max(3, score/10)      |
+| `3`      | 1    | 20        | One team in 3rd outright | max(1, score/10 - 1)  |
 
 ### Rules formula (official rulebook)
 
@@ -158,63 +154,14 @@ The rulebook specifies only solo placements and does not address ties:
 | 2nd   | `score / 10 − 1` | 5 pts   |
 | 3rd   | `score / 10 − 2` | 1 pt    |
 
-The spacing is **equal** — each place is exactly 1 pt apart at any score. Because ties are not
-addressed, this app extends the formula using the same equal-spacing principle, stepping the minimum
-down as the tie involves more teams or lower places:
+The spreadsheet formula was updated (in May 2023) to match the rulebook formula. It assumes friendly
+ties.
 
-| PlaceKey | Formula                 | Minimum | At 120 | At 110 | At 60 | At 20 | Description              |
-| -------- | ----------------------- | ------- | ------ | ------ | ----- | ----- | ------------------------ |
-| `1`      | `max(10, score/10)`     | 10      | 12     | 11     | 10    | 10    | One team in 1st outright |
-| `1.2`    | `max(7,  score/10)`     | 7       | 12     | 11     | 7     | 7     | Two teams tied for 1st   |
-| `1.3`    | `max(5,  score/10)`     | 5       | 12     | 11     | 6     | 5     | Three teams tied for 1st |
-| `2`      | `max(5,  score/10 − 1)` | 5       | 11     | 10     | 5     | 5     | One team in 2nd outright |
-| `2.2`    | `max(3,  score/10 − 1)` | 3       | 11     | 10     | 5     | 3     | Two teams tied for 2nd   |
-| `3`      | `max(1,  score/10 − 2)` | 1       | 10     | 9      | 4     | 1     | One team in 3rd outright |
-
-### Comparison across a prelim
-
-In a round robin prelim each team quizzes three times. Assuming score=200 in every quiz (rules:
-1st=20, 2nd=19, 3rd=18 — spreadsheet: 1st=22, 2nd=20, 3rd=19):
-
-| Finishes    | Rules | Spreadsheet |
-| ----------- | ----- | ----------- |
-| 1st/1st/1st | 60    | 66          |
-| 1st/1st/2nd | 59    | 64          |
-| 1st/1st/3rd | 58    | 63          |
-| 1st/2nd/2nd | 58    | 62          |
-| 1st/2nd/3rd | 57    | 61          |
-| 2nd/2nd/2nd | 57    | 60          |
-| 1st/3rd/3rd | 56    | 60          |
-| 2nd/2nd/3rd | 56    | 59          |
-| 2nd/3rd/3rd | 55    | 58          |
-| 3rd/3rd/3rd | 54    | 57          |
-
-`1st/2nd/3rd` and `2nd/2nd/2nd` tie under the rules formula (both 57) because equal spacing means
-the same average place gives the same total. Under the spreadsheet they split 61 vs 60.
-
-The gap between always-1st and always-2nd is **3 pts** under rules, **6 pts** under spreadsheet —
-wins count for more.
-
-Score level also matters. At score=60 (a weak team quizzing with stronger opposition) both formulas
-hit the same floor. The gap widens as scores rise:
-
-| Score | Place | Rules | Spreadsheet | Difference |
-| ----- | ----- | ----- | ----------- | ---------- |
-| 200   | 1st   | 20    | 22          | +2         |
-| 200   | 2nd   | 19    | 20          | +1         |
-| 200   | 3rd   | 18    | 19          | +1         |
-| 160   | 1st   | 16    | 18          | +2         |
-| 160   | 2nd   | 15    | 16          | +1         |
-| 160   | 3rd   | 14    | 15          | +1         |
-| 60    | 1st   | 10    | 10          | 0          |
-| 60    | 2nd   | 5     | 6           | +1         |
-| 60    | 3rd   | 4     | 5           | +1         |
-
-Over a 3-quiz prelim, a team winning every quiz at score=200 accumulates 6 more points under the
-spreadsheet than under the rules formula. A team winning at score=60 gets the same under both.
-
-In short: the spreadsheet formula rewards **1st place with a higher bonus** — at 200+ pts a 1st
-place finish gives 2 extra placement points over the rules formula, and that compounds across every
-round. The rules formula gives equal 1-pt steps between places at any score. For weaker teams
-scoring 20–80 pts both formulas hit the same floor (10/5/1), so there is no difference at the
-bottom. The gap shows up most in the mid-to-top range where scores spread out.
+| PlaceKey | Base | Threshold | Description              | Alternate Calculation |
+| -------- | ---- | --------- | ------------------------ | --------------------- |
+| `1`      | 10   | 100       | One team in 1st outright | max(10, score/10)     |
+| `1.2`    | 10   | 100       | Two teams tied for 1st   | max(10, score/10)     |
+| `1.3`    | 10   | 100       | Three teams tied for 1st | max(10, score/10)     |
+| `2`      | 5    | 60        | One team in 2nd outright | max(5, score/10 - 1)  |
+| `2.2`    | 5    | 60        | Two teams tied for 2nd   | max(5, score/10 - 1)  |
+| `3`      | 1    | 30        | One team in 3rd outright | max(1, score/10 - 2)  |

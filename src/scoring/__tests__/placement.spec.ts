@@ -160,55 +160,49 @@ describe('computePlacementPoints', () => {
     })
   })
 
-  describe('Spreadsheet formula (legacy)', () => {
-    const f = PlacementFormula.Spreadsheet
+  describe('Legacy formula (pre-2023)', () => {
+    const f = PlacementFormula.Legacy
 
-    it('1: base=10, threshold=80', () => {
-      expect(computePlacementPoints(200, 1, f)).toBe(22)
-      expect(computePlacementPoints(120, 1, f)).toBe(14)
-      expect(computePlacementPoints(80, 1, f)).toBe(10) // at threshold
+    it('1: base=10, threshold=100', () => {
+      expect(computePlacementPoints(200, 1, f)).toBe(20)
+      expect(computePlacementPoints(120, 1, f)).toBe(12)
+      expect(computePlacementPoints(100, 1, f)).toBe(10) // at threshold
       expect(computePlacementPoints(60, 1, f)).toBe(10) // clamped to base
     })
 
-    it('1.2: base=7, threshold=60', () => {
-      expect(computePlacementPoints(200, 1.2, f)).toBe(21)
-      expect(computePlacementPoints(120, 1.2, f)).toBe(13)
-      expect(computePlacementPoints(60, 1.2, f)).toBe(7) // at threshold
-      expect(computePlacementPoints(40, 1.2, f)).toBe(7) // clamped to base
+    it('1.2: base=10, threshold=100 (friendly tie — same as 1st)', () => {
+      expect(computePlacementPoints(200, 1.2, f)).toBe(20)
+      expect(computePlacementPoints(120, 1.2, f)).toBe(12)
+      expect(computePlacementPoints(100, 1.2, f)).toBe(10) // at threshold
+      expect(computePlacementPoints(60, 1.2, f)).toBe(10) // clamped to base
     })
 
-    it('1.3: base=5, threshold=50', () => {
+    it('1.3: base=10, threshold=100 (friendly tie — same as 1st)', () => {
       expect(computePlacementPoints(200, 1.3, f)).toBe(20)
       expect(computePlacementPoints(120, 1.3, f)).toBe(12)
-      expect(computePlacementPoints(50, 1.3, f)).toBe(5) // at threshold
-      expect(computePlacementPoints(30, 1.3, f)).toBe(5) // clamped to base
+      expect(computePlacementPoints(100, 1.3, f)).toBe(10) // at threshold
+      expect(computePlacementPoints(60, 1.3, f)).toBe(10) // clamped to base
     })
 
-    it('2: base=5, threshold=50', () => {
-      expect(computePlacementPoints(200, 2, f)).toBe(20)
-      expect(computePlacementPoints(120, 2, f)).toBe(12)
-      expect(computePlacementPoints(50, 2, f)).toBe(5) // at threshold
+    it('2: base=5, threshold=60', () => {
+      expect(computePlacementPoints(200, 2, f)).toBe(19)
+      expect(computePlacementPoints(120, 2, f)).toBe(11)
+      expect(computePlacementPoints(60, 2, f)).toBe(5) // at threshold
       expect(computePlacementPoints(30, 2, f)).toBe(5) // clamped to base
     })
 
-    it('2.2: base=3, threshold=30', () => {
-      expect(computePlacementPoints(200, 2.2, f)).toBe(20)
-      expect(computePlacementPoints(120, 2.2, f)).toBe(12)
-      expect(computePlacementPoints(30, 2.2, f)).toBe(3) // at threshold
-      expect(computePlacementPoints(10, 2.2, f)).toBe(3) // clamped to base
+    it('2.2: base=5, threshold=60 (friendly tie — same as 2nd)', () => {
+      expect(computePlacementPoints(200, 2.2, f)).toBe(19)
+      expect(computePlacementPoints(120, 2.2, f)).toBe(11)
+      expect(computePlacementPoints(60, 2.2, f)).toBe(5) // at threshold
+      expect(computePlacementPoints(30, 2.2, f)).toBe(5) // clamped to base
     })
 
-    it('3: base=1, threshold=20', () => {
-      expect(computePlacementPoints(200, 3, f)).toBe(19)
-      expect(computePlacementPoints(120, 3, f)).toBe(11)
-      expect(computePlacementPoints(20, 3, f)).toBe(1) // at threshold
+    it('3: base=1, threshold=30', () => {
+      expect(computePlacementPoints(200, 3, f)).toBe(18)
+      expect(computePlacementPoints(120, 3, f)).toBe(10)
+      expect(computePlacementPoints(30, 3, f)).toBe(1) // at threshold
       expect(computePlacementPoints(10, 3, f)).toBe(1) // clamped to base
-    })
-
-    it('matches legacy spreadsheet example: 120→14, 110→11, 60→5', () => {
-      expect(computePlacementPoints(120, 1, f)).toBe(14)
-      expect(computePlacementPoints(110, 2, f)).toBe(11)
-      expect(computePlacementPoints(60, 3, f)).toBe(5)
     })
   })
 })

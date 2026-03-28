@@ -30,10 +30,10 @@ export enum QuestionCategory {
 export type PlaceKey = 1 | 1.2 | 1.3 | 2 | 2.2 | 3
 
 export enum PlacementFormula {
-  /** Official rulebook: 1st=score/10, 2nd=score/10−1, 3rd=score/10−2 */
+  /** Official rulebook: 1st=score/10, 2nd=score/10−1, 3rd=score/10−2; friendly ties */
   Rules = 'rules',
-  /** Legacy spreadsheet: 1st=score/10+2, 2nd=score/10, 3rd=score/10−1 */
-  Spreadsheet = 'spreadsheet',
+  /** Pre-2023 spreadsheet formula: 1st=score/10+2, 2nd=score/10, 3rd=score/10−1 */
+  Legacy = 'legacy',
 }
 
 export interface Quiz {
