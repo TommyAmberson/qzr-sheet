@@ -501,7 +501,18 @@ export function useScoresheet() {
     if (persistTimer) clearTimeout(persistTimer)
     persistTimer = setTimeout(() => saveToStorage(store, noJumpMap.value), 300)
   }
-  watch([() => answerVersion.value, () => teamVersion.value, noJumpMap], schedulePersist)
+  watch(
+    [
+      () => answerVersion.value,
+      () => teamVersion.value,
+      noJumpMap,
+      () => quiz.value.division,
+      () => quiz.value.quizNumber,
+      () => quiz.value.overtime,
+      () => quiz.value.placementFormula,
+    ],
+    schedulePersist,
+  )
 
   return {
     columns,
