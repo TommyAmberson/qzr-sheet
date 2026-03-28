@@ -286,9 +286,9 @@ function colGroupClass(colIdx: number): string {
           }}</span>
         </span>
         <div class="meta-field meta-field--file">
-          <button title="Download quiz as JSON" @click="$emit('download')">⬇</button>
-          <button title="Open quiz from JSON file" @click="$emit('upload')">⬆</button>
-          <button title="New quiz" @click="$emit('new')">＋</button>
+          <button title="Save quiz as JSON (Ctrl+S)" @click="$emit('download')">⤓ Save</button>
+          <button title="Open quiz from JSON file (Ctrl+O)" @click="$emit('upload')">⤒ Open</button>
+          <button title="New quiz (Ctrl+N)" @click="$emit('new')">✦ New</button>
         </div>
       </div>
       <div class="quiz-meta quiz-meta--right">
@@ -898,24 +898,30 @@ function colGroupClass(colIdx: number): string {
   cursor: default;
 }
 
-/* File action buttons (download, upload, new) */
+/* File action buttons (save, open, new) */
 .meta-field--file {
   display: inline-flex;
-  gap: 0.15rem;
+  gap: 0.35rem;
 }
 .meta-field--file button {
   background: none;
-  border: none;
+  border: 1px solid var(--color-meta-accent);
   cursor: pointer;
   color: var(--color-text-muted);
-  font-size: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   line-height: 1;
-  padding: 0.1rem 0.25rem;
+  padding: 0.3rem 0.5rem;
   border-radius: 4px;
-  transition: color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
 }
 .meta-field--file button:hover {
   color: var(--color-text);
+  border-color: var(--color-text-faint);
+  background: var(--color-border-alt);
 }
 
 /* Theme toggle */

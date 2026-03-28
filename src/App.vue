@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue'
 import Scoresheet from './components/Scoresheet.vue'
 
 function onDownload() {
@@ -12,6 +13,23 @@ function onUpload() {
 function onNew() {
   // TODO Phase 2: confirm + reset store to defaults
 }
+
+function onFileShortcut(event: KeyboardEvent) {
+  if (!event.ctrlKey && !event.metaKey) return
+  if (event.key === 's' || event.key === 'S') {
+    event.preventDefault()
+    onDownload()
+  } else if (event.key === 'o' || event.key === 'O') {
+    event.preventDefault()
+    onUpload()
+  } else if (event.key === 'n' || event.key === 'N') {
+    event.preventDefault()
+    onNew()
+  }
+}
+
+onMounted(() => document.addEventListener('keydown', onFileShortcut, { capture: true }))
+onUnmounted(() => document.removeEventListener('keydown', onFileShortcut, { capture: true }))
 </script>
 
 <template>
