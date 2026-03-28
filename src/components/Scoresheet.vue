@@ -195,7 +195,7 @@ function saveFile() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `quiz-${quiz.value.division}-${quiz.value.quizNumber}.json`
+  a.download = `D${quiz.value.division}Q${quiz.value.quizNumber}.json`
   a.click()
   URL.revokeObjectURL(url)
 }
