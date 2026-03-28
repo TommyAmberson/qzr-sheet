@@ -15,7 +15,6 @@ interface KeyboardNavDeps {
   openSelectorOnCell: (ti: number, qi: number, ci: number) => void
   confirmFocusedOption: () => void
   closeSelector: () => void
-  selectValue: (value: CellValue) => void
   // Actions
   setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
   toggleNoJump: (ci: number) => void
@@ -49,7 +48,6 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
     openSelectorOnCell,
     confirmFocusedOption,
     closeSelector,
-    selectValue,
     setCell,
     toggleNoJump,
     isBonusForTeam,
@@ -261,7 +259,7 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
       if (value !== undefined && isCellNavigable(f.ti, f.qi, f.ci)) {
         event.preventDefault()
         const allowed = allowedValues(f.ti, f.ci)
-        if (allowed.includes(value)) selectValue(value)
+        if (allowed.includes(value)) setCell(f.ti, f.qi, f.ci, value)
       }
     }
   }

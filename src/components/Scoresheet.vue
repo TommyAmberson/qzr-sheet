@@ -119,7 +119,6 @@ const { focusedCell, focusCell, isNoJumpFocus } = useKeyboardNav({
   openSelectorOnCell,
   confirmFocusedOption,
   closeSelector,
-  selectValue,
   setCell,
   toggleNoJump,
   isBonusForTeam,
