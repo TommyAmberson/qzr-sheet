@@ -325,7 +325,24 @@ the app must guess which sub-question each answer belongs to. The heuristic uses
 This is a best-effort guess. Edge cases (fouls, missed bonuses on sub-questions) may not reconstruct
 perfectly — the user should verify after import.
 
-## Named Ranges (OTS original)
+## Known Limitations
+
+### Overtime y/n vs "Overtime Enabled" toggle
+
+The ODS template's Overtime cell (row 30 col C, named range `Overtime`) is a **visibility toggle**
+that the template's formulas use to show or hide the OT columns. It is `y` only when OT rounds are
+actually visible — i.e. regulation is complete and at least two teams are tied.
+
+The app's **Overtime Enabled** checkbox is a separate concept: it tells the app to _allocate_ OT
+columns and start tracking OT state. It can be turned on before regulation is finished. The ODS flag
+therefore does not directly mirror the checkbox — it mirrors whether OT columns are shown.
+
+### Two-round OT cap
+
+The ODS template has columns for exactly **two overtime rounds** (Q21–Q26, cols X–AC). Quizzes that
+go beyond round 2 (Q27+) will have those extra answers written to the app scoresheet but they cannot
+be represented in the exported ODS. The exported file will contain data for Q21–Q26 only; the user
+should note the additional rounds manually.
 
 | Name                 | Purpose                                  |
 | -------------------- | ---------------------------------------- |

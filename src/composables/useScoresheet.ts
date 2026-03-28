@@ -64,7 +64,7 @@ export function useScoresheet() {
             store.cellGrid(buildColumns(20)),
             buildColumns(20),
             restored.teams.map((t) => t.onTime),
-            [...restored.noJumps.entries()].map(([, v]) => v),
+            buildColumns(20).map((c) => restored.noJumps.get(c.key) ?? false),
           ),
         )
       : 1
@@ -469,7 +469,7 @@ export function useScoresheet() {
             store.cellGrid(buildColumns(20)),
             buildColumns(20),
             data.teams.map((t) => t.onTime),
-            [...data.noJumps.entries()].map(([, v]) => v),
+            buildColumns(20).map((c) => data.noJumps.get(c.key) ?? false),
           ),
         )
       : 1
