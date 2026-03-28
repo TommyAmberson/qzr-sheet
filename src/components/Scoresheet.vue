@@ -7,6 +7,7 @@ import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
 import { serializeStore, parseQuizFile } from '../persistence/quizFile'
+import { saveQuizToFile, openQuizFromFile, confirmAction } from '../persistence/fileIO'
 import { validationMessage } from '../scoring/validation'
 
 const { theme, toggleTheme } = useTheme()
@@ -186,41 +187,26 @@ const hoverCol = ref<number | null>(null)
 
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
-function saveFile() {
+async function saveFile() {
   const json = serializeStore(store, noJumpMap.value)
-  const blob = new Blob([json], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `D${quiz.value.division}Q${quiz.value.quizNumber}.json`
-  a.click()
-  URL.revokeObjectURL(url)
+  const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.json`
+  await saveQuizToFile(json, filename)
 }
 
-function openFile() {
-  if (!confirm('Open a quiz file? Unsaved changes will be lost.')) return
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.json'
-  input.onchange = () => {
-    const file = input.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        const data = parseQuizFile(reader.result as string)
-        loadFile(data)
-      } catch (e) {
-        alert(`Failed to load quiz file: ${e instanceof Error ? e.message : e}`)
-      }
-    }
-    reader.readAsText(file)
+async function openFile() {
+  if (!(await confirmAction('Open a quiz file? Unsaved changes will be lost.'))) return
+  const json = await openQuizFromFile()
+  if (!json) return
+  try {
+    const data = parseQuizFile(json)
+    loadFile(data)
+  } catch (e) {
+    alert(`Failed to load quiz file: ${e instanceof Error ? e.message : e}`)
   }
-  input.click()
 }
 
-function newQuiz() {
-  if (!confirm('Start a new quiz? Unsaved changes will be lost.')) return
+async function newQuiz() {
+  if (!(await confirmAction('Start a new quiz? Unsaved changes will be lost.'))) return
   resetStore()
 }
 
