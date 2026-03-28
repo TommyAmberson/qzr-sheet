@@ -5,6 +5,7 @@ import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
+import { useTheme } from '../composables/useTheme'
 import { validationMessage } from '../scoring/validation'
 
 defineEmits<{
@@ -12,6 +13,8 @@ defineEmits<{
   upload: []
   new: []
 }>()
+
+const { theme, toggleTheme } = useTheme()
 
 const {
   columns,
@@ -246,52 +249,70 @@ function colGroupClass(colIdx: number): string {
 
 <template>
   <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
-    <div
-      :class="[
-        'quiz-meta',
-        {
-          'quiz-meta--error': hasAnyErrors,
-          'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
-        },
-      ]"
-    >
-      <label class="meta-field">
-        <span class="meta-label">Division</span>
-        <input v-model="quiz.division" type="text" placeholder="1" />
-      </label>
-      <span class="meta-sep">·</span>
-      <label class="meta-field">
-        <span class="meta-label">Quiz</span>
-        <input v-model="quiz.quizNumber" type="text" />
-      </label>
-      <span class="meta-sep">·</span>
-      <div class="meta-field meta-field--undo">
-        <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
-        <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
-      </div>
-      <span class="meta-sep">·</span>
-      <span
-        class="meta-field meta-field--status"
-        :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
+    <div class="meta-row">
+      <div
+        :class="[
+          'quiz-meta quiz-meta--left',
+          {
+            'quiz-meta--error': hasAnyErrors,
+            'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
+          },
+        ]"
       >
-        <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
-        <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete">✓</span>
-        <span v-else class="meta-status meta-status--pending">○</span>
-        <span class="meta-label">{{
-          hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
-        }}</span>
-      </span>
-      <div class="meta-field meta-field--file">
-        <button title="Download quiz as JSON" @click="$emit('download')">⬇</button>
-        <button title="Open quiz from JSON file" @click="$emit('upload')">⬆</button>
-        <button title="New quiz" @click="$emit('new')">＋</button>
+        <label class="meta-field">
+          <span class="meta-label">Division</span>
+          <input v-model="quiz.division" type="text" placeholder="1" />
+        </label>
+        <span class="meta-sep">·</span>
+        <label class="meta-field">
+          <span class="meta-label">Quiz</span>
+          <input v-model="quiz.quizNumber" type="text" />
+        </label>
+        <span class="meta-sep">·</span>
+        <div class="meta-field meta-field--undo">
+          <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
+          <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
+        </div>
+        <span class="meta-sep">·</span>
+        <span
+          class="meta-field meta-field--status"
+          :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
+        >
+          <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
+          <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete">✓</span>
+          <span v-else class="meta-status meta-status--pending">○</span>
+          <span class="meta-label">{{
+            hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
+          }}</span>
+        </span>
+        <div class="meta-field meta-field--file">
+          <button title="Download quiz as JSON" @click="$emit('download')">⬇</button>
+          <button title="Open quiz from JSON file" @click="$emit('upload')">⬆</button>
+          <button title="New quiz" @click="$emit('new')">＋</button>
+        </div>
       </div>
-      <div class="meta-right">
+      <div
+        :class="[
+          'quiz-meta quiz-meta--right',
+          {
+            'quiz-meta--error': hasAnyErrors,
+            'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
+          },
+        ]"
+      >
         <label class="meta-field meta-field--toggle">
           <input v-model="quiz.overtime" type="checkbox" />
           <span class="toggle-track"><span class="toggle-thumb" /></span>
           <span class="meta-label">Overtime</span>
         </label>
+        <span class="meta-sep">·</span>
+        <button
+          class="theme-toggle"
+          :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
+          @click="toggleTheme"
+        >
+          {{ theme === 'light' ? '🌙' : '☀️' }}
+        </button>
       </div>
     </div>
 
@@ -706,7 +727,6 @@ function colGroupClass(colIdx: number): string {
   display: flex;
   gap: 0.75rem;
   align-items: center;
-  margin-bottom: 0.5rem;
   padding: 0.5rem 0.85rem;
   background: var(--color-meta-bg);
   border: 1px solid var(--color-meta-accent);
@@ -719,6 +739,13 @@ function colGroupClass(colIdx: number): string {
     background 0.4s,
     color 0.4s,
     border-color 0.4s;
+}
+
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .quiz-meta--error {
@@ -899,12 +926,20 @@ function colGroupClass(colIdx: number): string {
   color: var(--color-text);
 }
 
-/* Right-aligned quiz options */
-.meta-right {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-left: auto;
+/* Theme toggle */
+.theme-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+  transition: opacity 0.15s;
+  opacity: 0.6;
+}
+.theme-toggle:hover {
+  opacity: 1;
 }
 
 .scoresheet {
