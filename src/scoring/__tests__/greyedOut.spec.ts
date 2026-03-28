@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
-import { computeGreyedOut } from '../../scoring/greyedOut'
-import { ColStatus } from '../../scoring/helpers'
+import { computeGreyedOut } from '../greyedOut'
+import { ColStatus } from '../helpers'
 
 const columns = buildColumns()
 const C = CellValue.Correct
