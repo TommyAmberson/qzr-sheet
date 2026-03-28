@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { CellValue, QuestionType, QuestionCategory } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 import { validationMessage } from '../scoring/validation'
@@ -63,6 +63,225 @@ function quizzerScoreLabel(ti: number, qi: number): string | null {
 /** Active cell selector state */
 const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
 
+/** Keyboard-focused cell — drives arrow nav, Enter/letter shortcuts */
+const focusedCell = ref<{ ti: number; qi: number; ci: number } | null>(null)
+
+/** Map of "ti:qi:ci" → <td> element — kept for openSelectorOnCell rect lookup */
+const cellEls = new Map<string, HTMLElement>()
+
+function registerCellEl(ti: number, qi: number, ci: number, el: HTMLElement | null) {
+  const key = `${ti}:${qi}:${ci}`
+  if (el) cellEls.set(key, el)
+  else cellEls.delete(key)
+}
+
+function focusCell(ti: number, qi: number, ci: number) {
+  focusedCell.value = { ti, qi, ci }
+}
+
+function isCellNavigable(ti: number, qi: number, ci: number): boolean {
+  return !isGreyedOut(ti, ci) && !isAfterOut(ti, qi, ci) && !isFouledOnQuestion(ti, qi, ci)
+}
+
+/** Move focus by dqi (quizzer rows) or dci (column steps) */
+function moveFocus(dqi: number, dci: number) {
+  const f = focusedCell.value
+  if (!f) return
+  const cols = displayColumns.value
+  const quizzers = teamQuizzers.value[f.ti] ?? []
+
+  if (dci !== 0) {
+    // Find current position in displayColumns, step from there
+    const curPos = cols.findIndex((c) => c.idx === f.ci)
+    if (curPos === -1) return
+    let pos = curPos + dci
+    while (pos >= 0 && pos < cols.length) {
+      const nextIdx = cols[pos]!.idx
+      if (isCellNavigable(f.ti, f.qi, nextIdx)) {
+        focusCell(f.ti, f.qi, nextIdx)
+        return
+      }
+      pos += dci
+    }
+  }
+
+  if (dqi !== 0) {
+    let nextQi = f.qi + dqi
+    while (nextQi >= 0 && nextQi < quizzers.length) {
+      if (isCellNavigable(f.ti, nextQi, f.ci)) {
+        focusCell(f.ti, nextQi, f.ci)
+        return
+      }
+      nextQi += dqi
+    }
+  }
+}
+
+/** Index of the highlighted option inside the open selector popup */
+const selectorFocusIdx = ref(0)
+
+const letterMap: Partial<Record<string, CellValue>> = {
+  c: CellValue.Correct,
+  e: CellValue.Error,
+  f: CellValue.Foul,
+  b: CellValue.Bonus,
+  m: CellValue.MissedBonus,
+}
+
+function openSelectorOnCell(ti: number, qi: number, ci: number) {
+  const el = cellEls.get(`${ti}:${qi}:${ci}`)
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  selectorFocusIdx.value = 0
+  selector.value = { ti, qi, ci, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+}
+
+function confirmSelectorOption() {
+  const opt = selectorOptions.value[selectorFocusIdx.value]
+  if (!opt) return
+  selectValue(opt.value)
+}
+
+function onWrapperKeydown(event: KeyboardEvent) {
+  if (
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLSelectElement ||
+    event.target instanceof HTMLTextAreaElement
+  )
+    return
+
+  const f = focusedCell.value
+
+  // Escape: close selector then clear focus
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    if (selector.value) {
+      closeSelector()
+      return
+    }
+    focusedCell.value = null
+    return
+  }
+
+  // --- Selector is open ---
+  if (selector.value) {
+    const opts = selectorOptions.value
+    const cols = 2 // selector is always a 2-column grid
+
+    if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      selectorFocusIdx.value = Math.min(selectorFocusIdx.value + 1, opts.length - 1)
+      return
+    }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      selectorFocusIdx.value = Math.max(selectorFocusIdx.value - 1, 0)
+      return
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      selectorFocusIdx.value = Math.min(selectorFocusIdx.value + cols, opts.length - 1)
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      selectorFocusIdx.value = Math.max(selectorFocusIdx.value - cols, 0)
+      return
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      confirmSelectorOption()
+      return
+    }
+    // Letter key while selector open — set directly and close
+    const letterVal = letterMap[event.key.toLowerCase()]
+    if (letterVal !== undefined && f) {
+      event.preventDefault()
+      const col = columns.value[f.ci]
+      const isBonus = col?.type === QuestionType.B || isBonusForTeam(f.ti, f.ci)
+      const allowed = isBonus
+        ? [CellValue.Bonus, CellValue.MissedBonus, CellValue.Foul, CellValue.Empty]
+        : [CellValue.Correct, CellValue.Error, CellValue.Foul, CellValue.Empty]
+      if (allowed.includes(letterVal)) {
+        setCell(f.ti, f.qi, f.ci, letterVal)
+        closeSelector()
+      }
+      return
+    }
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault()
+      if (f) setCell(f.ti, f.qi, f.ci, CellValue.Empty)
+      closeSelector()
+      return
+    }
+    return
+  }
+
+  // --- Selector is closed ---
+
+  // Arrow keys: move cell focus
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    moveFocus(-1, 0)
+    return
+  }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    moveFocus(1, 0)
+    return
+  }
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault()
+    moveFocus(0, -1)
+    return
+  }
+  if (event.key === 'ArrowRight') {
+    event.preventDefault()
+    moveFocus(0, 1)
+    return
+  }
+
+  if (!f) return
+
+  // Enter/Space: open selector
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    // If focus is on a no-jump cell (no team/quizzer — handled via colIdx only):
+    // For now open selector on focused cell
+    openSelectorOnCell(f.ti, f.qi, f.ci)
+    return
+  }
+
+  // Delete/Backspace: clear cell
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    event.preventDefault()
+    if (isCellNavigable(f.ti, f.qi, f.ci)) setCell(f.ti, f.qi, f.ci, CellValue.Empty)
+    return
+  }
+
+  // x: toggle no-jump on current column
+  if (event.key === 'x' || event.key === 'X') {
+    event.preventDefault()
+    toggleNoJump(f.ci)
+    return
+  }
+
+  // Letter keys: set value directly
+  const value = letterMap[event.key.toLowerCase()]
+  if (value !== undefined && isCellNavigable(f.ti, f.qi, f.ci)) {
+    event.preventDefault()
+    const col = columns.value[f.ci]
+    const isBonus = col?.type === QuestionType.B || isBonusForTeam(f.ti, f.ci)
+    const allowed = isBonus
+      ? [CellValue.Bonus, CellValue.MissedBonus, CellValue.Foul, CellValue.Empty]
+      : [CellValue.Correct, CellValue.Error, CellValue.Foul, CellValue.Empty]
+    if (allowed.includes(value)) setCell(f.ti, f.qi, f.ci, value)
+  }
+}
+
+onMounted(() => document.addEventListener('keydown', onWrapperKeydown))
+onUnmounted(() => document.removeEventListener('keydown', onWrapperKeydown))
+
 const bonusOptions = [
   { value: CellValue.Bonus, label: 'B', cls: 'opt--bonus' },
   { value: CellValue.MissedBonus, label: 'MB', cls: 'opt--missed-bonus' },
@@ -95,6 +314,7 @@ const selectorOptions = computed(() => {
 function openSelector(ti: number, qi: number, ci: number, event: MouseEvent) {
   const td = event.currentTarget as HTMLElement
   const rect = td.getBoundingClientRect()
+  selectorFocusIdx.value = 0
   selector.value = {
     ti,
     qi,
@@ -565,6 +785,7 @@ function colGroupClass(colIdx: number): string {
             <td
               v-for="{ col, idx, entering } in displayColumns"
               :key="col.key"
+              :ref="(el: any) => registerCellEl(ti, qi, idx, el as HTMLElement | null)"
               :class="[
                 'cell',
                 cellClass[cells[ti][qi][idx]],
@@ -579,11 +800,21 @@ function colGroupClass(colIdx: number): string {
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
                 { 'col--entering': entering },
                 { 'col--hover': !dragState && hoverCol === idx },
+                {
+                  'cell--focused':
+                    !selector &&
+                    focusedCell?.ti === ti &&
+                    focusedCell?.qi === qi &&
+                    focusedCell?.ci === idx,
+                },
               ]"
               :title="
                 isInvalid(ti, qi, idx) ? cellValidationMessages(ti, qi, idx).join('\n') : undefined
               "
-              @click="openSelector(ti, qi, idx, $event)"
+              @click="
+                focusCell(ti, qi, idx)
+                openSelector(ti, qi, idx, $event)
+              "
               @mouseenter="hoverCol = idx"
               @mouseleave="hoverCol = null"
             >
@@ -722,10 +953,11 @@ function colGroupClass(colIdx: number): string {
           @click.stop
         >
           <button
-            v-for="opt in selectorOptions"
+            v-for="(opt, oi) in selectorOptions"
             :key="opt.label"
-            :class="['selector-opt', opt.cls]"
+            :class="['selector-opt', opt.cls, { 'selector-opt--focused': oi === selectorFocusIdx }]"
             @click="selectValue(opt.value)"
+            @mouseenter="selectorFocusIdx = oi"
           >
             {{ opt.label }}
           </button>
@@ -1280,11 +1512,20 @@ thead .col--name {
   text-align: center;
 }
 
+.cell--focused {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
 /* Cell values */
 .cell {
   cursor: pointer;
   user-select: none;
   font-weight: 700;
+  outline-offset: -2px;
+}
+.cell:focus {
+  outline: none;
 }
 .cell:hover {
   outline: 2px solid var(--color-accent);
@@ -1680,49 +1921,41 @@ thead .col--name {
   transition: all 0.1s;
   background: var(--color-bg);
 }
-.selector-opt:hover {
+.selector-opt:hover,
+.selector-opt--focused {
   transform: scale(1.1);
 }
 
 .opt--correct {
   color: var(--color-correct);
 }
-.opt--correct:hover {
+.opt--correct:hover,
+.opt--correct.selector-opt--focused {
   background: var(--color-correct);
   color: var(--color-bg);
 }
-.opt--error {
-  color: var(--color-error);
-}
-.opt--error:hover {
+.opt--error:hover,
+.opt--error.selector-opt--focused {
   background: var(--color-error);
   color: var(--color-bg);
 }
-.opt--foul {
-  color: var(--color-foul);
-}
-.opt--foul:hover {
+.opt--foul:hover,
+.opt--foul.selector-opt--focused {
   background: var(--color-foul);
   color: var(--color-bg);
 }
-.opt--bonus {
-  color: var(--color-bonus);
-}
-.opt--bonus:hover {
+.opt--bonus:hover,
+.opt--bonus.selector-opt--focused {
   background: var(--color-bonus);
   color: var(--color-bg);
 }
-.opt--missed-bonus {
-  color: var(--color-missed-bonus);
-}
-.opt--missed-bonus:hover {
+.opt--missed-bonus:hover,
+.opt--missed-bonus.selector-opt--focused {
   background: var(--color-missed-bonus);
   color: var(--color-bg);
 }
-.opt--clear {
-  color: var(--color-no-jump);
-}
-.opt--clear:hover {
+.opt--clear:hover,
+.opt--clear.selector-opt--focused {
   background: var(--color-border-alt);
 }
 </style>
