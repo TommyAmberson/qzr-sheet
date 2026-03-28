@@ -24,6 +24,7 @@
     "**/*.{md,dockerfile}": "dprint fmt"
   },
   "dependencies": {
+    "typebox": "^1.1.7",
     "vue": "^3.5.28"
   },
   "devDependencies": {
