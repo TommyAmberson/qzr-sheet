@@ -923,7 +923,7 @@ thead .col--name {
 .row--team-total .col--ot-round-start,
 .row--team-total .cell--total.col--ot-start,
 .row--team-total .cell--total.col--ot-round-start {
-  border-left: 2px solid var(--color-text-faint) !important;
+  border-left: 2px solid var(--color-border) !important;
 }
 
 /* Question header colours based on answer */
