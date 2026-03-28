@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { CellValue, QuestionCategory } from '../types/scoresheet'
+import { CellValue, QuestionCategory, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
@@ -187,7 +187,12 @@ function headerClass(colIdx: number): string {
 function colGroupClass(colIdx: number): string {
   const col = columns.value[colIdx]
   if (!col) return ''
-  if (col.isOvertime) return 'col--overtime'
+  if (col.isOvertime) {
+    if (col.type === QuestionType.Normal && (col.number - 21) % 3 === 0) {
+      return col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start'
+    }
+    return 'col--overtime'
+  }
   if (col.isAB && col.isErrorPoints) return 'col--ab'
   return ''
 }
@@ -903,6 +908,12 @@ thead .col--name {
 }
 .col--question.col--overtime {
   border-top: 2px solid var(--color-ot-border);
+}
+
+/* Left border at regulation→OT boundary and between OT rounds */
+.col--ot-start,
+.col--ot-round-start {
+  border-left: 2px solid var(--color-ot-border) !important;
 }
 
 /* Question header colours based on answer */
