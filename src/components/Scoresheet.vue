@@ -6,8 +6,15 @@ import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
-import { serializeStore, parseQuizFile } from '../persistence/quizFile'
-import { saveQuizToFile, openQuizFromFile, confirmAction } from '../persistence/fileIO'
+import { serializeStore, parseQuizFile, serialize } from '../persistence/quizFile'
+import {
+  saveQuizToFile,
+  openQuizFromFile,
+  confirmAction,
+  exportOdsFile,
+  openOtsFile,
+} from '../persistence/fileIO'
+import { fillOts } from '../export/fillOts'
 import { validationMessage } from '../scoring/validation'
 
 const { theme, toggleTheme } = useTheme()
@@ -215,7 +222,26 @@ async function newQuiz() {
   resetStore()
 }
 
-defineExpose({ saveFile, openFile, newQuiz })
+async function exportOds() {
+  const otsBytes = await openOtsFile()
+  if (!otsBytes) return
+  const quizFile = serialize({
+    quiz: store.quiz,
+    teams: store.teams,
+    quizzers: store.quizzers,
+    answers: store.answers,
+    noJumps: noJumpMap.value,
+  })
+  try {
+    const odsBytes = fillOts(otsBytes, quizFile)
+    const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.ods`
+    await exportOdsFile(odsBytes, filename)
+  } catch (e) {
+    alert(`Failed to export ODS: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
+defineExpose({ saveFile, openFile, newQuiz, exportOds })
 
 const cellDisplay: Record<CellValue, string> = {
   [CellValue.Correct]: 'C',
@@ -318,6 +344,7 @@ function colGroupClass(colIdx: number): string {
         <div class="meta-field meta-field--file">
           <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
           <button title="Open quiz from JSON file (Ctrl+O)" @click="openFile">⤒ Open</button>
+          <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ ODS</button>
           <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
         </div>
       </div>
