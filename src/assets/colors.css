@@ -101,6 +101,7 @@
   --color-no-jump-alt: var(--palette-no-jump);
   --color-meta-bg: var(--palette-shadow);
   --color-meta-accent: var(--palette-slate);
+  --color-error-alt: #3a2220;
   --color-grey-stripe-a: var(--palette-flint);
   --color-grey-stripe-b: var(--palette-charcoal);
   /* Badge chips: swap to saturated bg + light text in dark mode */
