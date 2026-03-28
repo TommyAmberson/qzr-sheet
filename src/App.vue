@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import Scoresheet from './components/Scoresheet.vue'
 
+const scoresheetRef = ref<InstanceType<typeof Scoresheet> | null>(null)
+
 function onDownload() {
-  // TODO Phase 2: serialize quiz state and trigger JSON file download
+  scoresheetRef.value?.saveFile()
 }
 
 function onUpload() {
@@ -34,7 +36,7 @@ onUnmounted(() => document.removeEventListener('keydown', onFileShortcut, { capt
 
 <template>
   <div class="app">
-    <Scoresheet @download="onDownload" @upload="onUpload" @new="onNew" />
+    <Scoresheet ref="scoresheetRef" @upload="onUpload" @new="onNew" />
   </div>
 </template>
 

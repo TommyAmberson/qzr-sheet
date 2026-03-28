@@ -6,10 +6,10 @@ import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
+import { serializeStore } from '../persistence/quizFile'
 import { validationMessage } from '../scoring/validation'
 
 defineEmits<{
-  download: []
   upload: []
   new: []
 }>()
@@ -53,6 +53,8 @@ const {
   setQuizzerName,
   moveQuizzer,
   setQuestionType,
+  store,
+  noJumpMap,
   canUndo,
   canRedo,
   undo,
@@ -187,6 +189,19 @@ const hoverCol = ref<number | null>(null)
 
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
+function saveFile() {
+  const json = serializeStore(store, noJumpMap.value)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `quiz-${quiz.value.division}-${quiz.value.quizNumber}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+defineExpose({ saveFile })
+
 const cellDisplay: Record<CellValue, string> = {
   [CellValue.Correct]: 'C',
   [CellValue.Error]: 'E',
@@ -286,7 +301,7 @@ function colGroupClass(colIdx: number): string {
           }}</span>
         </span>
         <div class="meta-field meta-field--file">
-          <button title="Save quiz as JSON (Ctrl+S)" @click="$emit('download')">⤓ Save</button>
+          <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
           <button title="Open quiz from JSON file (Ctrl+O)" @click="$emit('upload')">⤒ Open</button>
           <button title="New quiz (Ctrl+N)" @click="$emit('new')">✦ New</button>
         </div>
