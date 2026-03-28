@@ -7,9 +7,9 @@
     "dev": "vite",
     "tauri": "WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 tauri",
     "build": "run-p type-check \"build-only {@}\" --",
-    "build:web": "run-p type-check \"build-only {@}\" -- && node scripts/postbuild-web.mjs",
+    "build:web": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
-    "preview:web": "vite preview --base /scoresheet",
+
     "test:unit": "vitest",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
