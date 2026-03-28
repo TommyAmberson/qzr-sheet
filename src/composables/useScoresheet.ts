@@ -471,6 +471,7 @@ export function useScoresheet() {
 
     // Column visibility
     visibleColumns,
+    visibleOtRounds,
     allQuestionsComplete,
 
     // Placements

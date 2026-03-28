@@ -35,6 +35,7 @@ const {
   colAnswerValue,
   noJumpHasConflict,
   visibleColumns,
+  visibleOtRounds,
   allQuestionsComplete,
   validationErrors,
   placements,
@@ -64,6 +65,35 @@ function quizzerScoreLabel(ti: number, qi: number): string | null {
   if (!q) return null
   if (q.correctCount === 0 && q.errorCount === 0 && !q.fouledOut) return null
   return `${q.points}`
+}
+
+/**
+ * Column indices at which a round-boundary running total should always be shown.
+ * Q20 (regulation→OT) and the last question of each OT round (Q23, Q26, …).
+ * Only relevant when OT is active.
+ */
+const boundaryColIndices = computed<Set<number>>(() => {
+  const s = new Set<number>()
+  if (visibleOtRounds.value === 0) return s
+  const boundaryQs = [20]
+  for (let r = 0; r < visibleOtRounds.value - 1; r++) {
+    boundaryQs.push(23 + r * 3)
+  }
+  for (const q of boundaryQs) {
+    const idx = columns.value.findIndex((c) => c.key === `${q}`)
+    if (idx !== -1) s.add(idx)
+  }
+  return s
+})
+
+/** Running total at or before colIdx for a team (walks back to find last non-null). */
+function boundaryTotal(ti: number, colIdx: number): number | null {
+  const totals = scoring.value[ti]?.runningTotals
+  if (!totals) return null
+  for (let i = colIdx; i >= 0; i--) {
+    if (totals[i] !== null && totals[i] !== undefined) return totals[i]!
+  }
+  return scoring.value[ti]?.onTimeBonus ?? null
 }
 
 /** Columns actually rendered — entering columns start collapsed, then expand */
@@ -542,7 +572,10 @@ function colGroupClass(colIdx: number): string {
               :class="['cell--total', colGroupClass(idx), { 'col--entering': entering }]"
               style="position: relative"
             >
-              {{ scoring[ti]?.runningTotals[idx] ?? '' }}
+              {{
+                scoring[ti]?.runningTotals[idx] ??
+                (boundaryColIndices.has(idx) ? boundaryTotal(ti, idx) : '')
+              }}
               <span
                 v-if="scoring[ti]?.uniqueQuizzerBonusCols.has(idx)"
                 class="running-total-badge running-total-badge--unique"
