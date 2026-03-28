@@ -6,11 +6,10 @@ import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
-import { serializeStore } from '../persistence/quizFile'
+import { serializeStore, parseQuizFile } from '../persistence/quizFile'
 import { validationMessage } from '../scoring/validation'
 
 defineEmits<{
-  upload: []
   new: []
 }>()
 
@@ -55,6 +54,7 @@ const {
   setQuestionType,
   store,
   noJumpMap,
+  loadFile,
   canUndo,
   canRedo,
   undo,
@@ -200,7 +200,28 @@ function saveFile() {
   URL.revokeObjectURL(url)
 }
 
-defineExpose({ saveFile })
+function openFile() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.onchange = () => {
+    const file = input.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const data = parseQuizFile(reader.result as string)
+        loadFile(data)
+      } catch (e) {
+        alert(`Failed to load quiz file: ${e instanceof Error ? e.message : e}`)
+      }
+    }
+    reader.readAsText(file)
+  }
+  input.click()
+}
+
+defineExpose({ saveFile, openFile })
 
 const cellDisplay: Record<CellValue, string> = {
   [CellValue.Correct]: 'C',
@@ -302,7 +323,7 @@ function colGroupClass(colIdx: number): string {
         </span>
         <div class="meta-field meta-field--file">
           <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
-          <button title="Open quiz from JSON file (Ctrl+O)" @click="$emit('upload')">⤒ Open</button>
+          <button title="Open quiz from JSON file (Ctrl+O)" @click="openFile">⤒ Open</button>
           <button title="New quiz (Ctrl+N)" @click="$emit('new')">✦ New</button>
         </div>
       </div>

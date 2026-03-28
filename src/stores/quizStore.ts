@@ -90,6 +90,14 @@ export interface QuizStore {
    * Returns cells[teamIdx][quizzerIdx][colIdx] ordered by seatOrder.
    */
   cellGrid(columns: Column[]): CellValue[][][]
+
+  /** Replace all store state from a deserialized file */
+  loadState(state: {
+    quiz: Omit<Quiz, 'id'>
+    teams: Omit<Team, 'quizId'>[]
+    quizzers: Quizzer[]
+    answers: Answer[]
+  }): void
 }
 
 export function createQuizStore(): QuizStore {
@@ -173,6 +181,33 @@ export function createQuizStore(): QuizStore {
     })
   }
 
+  function loadState(state: {
+    quiz: Omit<Quiz, 'id'>
+    teams: Omit<Team, 'quizId'>[]
+    quizzers: Quizzer[]
+    answers: Answer[]
+  }): void {
+    quiz.division = state.quiz.division
+    quiz.quizNumber = state.quiz.quizNumber
+    quiz.overtime = state.quiz.overtime
+    quiz.placementFormula = state.quiz.placementFormula
+    quiz.questionTypes.clear()
+    for (const [k, v] of state.quiz.questionTypes) quiz.questionTypes.set(k, v)
+
+    teams.length = 0
+    for (const t of state.teams) teams.push({ ...t, quizId: quiz.id })
+
+    quizzers.length = 0
+    for (const q of state.quizzers) quizzers.push(q)
+
+    answerMap.clear()
+    for (const a of state.answers) {
+      if (a.value !== CellValue.Empty) {
+        answerMap.set(answerKey(a.quizzerId, a.columnKey), a)
+      }
+    }
+  }
+
   const store: QuizStore = {
     quiz,
     teams,
@@ -186,6 +221,7 @@ export function createQuizStore(): QuizStore {
     moveQuizzer,
     isEmptySeat,
     setQuestionType,
+    loadState,
     cellGrid,
     get answers() {
       return [...answerMap.values()]

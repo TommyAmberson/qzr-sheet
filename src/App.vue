@@ -9,7 +9,7 @@ function onDownload() {
 }
 
 function onUpload() {
-  // TODO Phase 2: open file picker and load JSON into store
+  scoresheetRef.value?.openFile()
 }
 
 function onNew() {
@@ -36,7 +36,7 @@ onUnmounted(() => document.removeEventListener('keydown', onFileShortcut, { capt
 
 <template>
   <div class="app">
-    <Scoresheet ref="scoresheetRef" @upload="onUpload" @new="onNew" />
+    <Scoresheet ref="scoresheetRef" @new="onNew" />
   </div>
 </template>
 
