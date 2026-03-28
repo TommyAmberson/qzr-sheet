@@ -920,8 +920,10 @@ thead .col--name {
 .team-header-spacer.col--ot-start,
 .team-header-spacer.col--ot-round-start,
 .row--team-total .col--ot-start,
-.row--team-total .col--ot-round-start {
-  border-left: 2px solid var(--color-ot-border) !important;
+.row--team-total .col--ot-round-start,
+.row--team-total .cell--total.col--ot-start,
+.row--team-total .cell--total.col--ot-round-start {
+  border-left: 2px solid var(--color-text-faint) !important;
 }
 
 /* Question header colours based on answer */
