@@ -1974,25 +1974,40 @@ thead .col--name {
   background: var(--color-correct);
   color: var(--color-bg);
 }
+.opt--error {
+  color: var(--color-error);
+}
 .opt--error:hover,
 .opt--error.selector-opt--focused {
   background: var(--color-error);
   color: var(--color-bg);
+}
+.opt--foul {
+  color: var(--color-foul);
 }
 .opt--foul:hover,
 .opt--foul.selector-opt--focused {
   background: var(--color-foul);
   color: var(--color-bg);
 }
+.opt--bonus {
+  color: var(--color-bonus);
+}
 .opt--bonus:hover,
 .opt--bonus.selector-opt--focused {
   background: var(--color-bonus);
   color: var(--color-bg);
 }
+.opt--missed-bonus {
+  color: var(--color-missed-bonus);
+}
 .opt--missed-bonus:hover,
 .opt--missed-bonus.selector-opt--focused {
   background: var(--color-missed-bonus);
   color: var(--color-bg);
+}
+.opt--clear {
+  color: var(--color-text);
 }
 .opt--clear:hover,
 .opt--clear.selector-opt--focused {
