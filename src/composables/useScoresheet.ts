@@ -18,7 +18,7 @@ import { isBonusSituation } from '../scoring/helpers'
 import { computeVisibleColumns, computeOrphanedColumns } from '../scoring/columnVisibility'
 import {
   getOvertimeEligibleTeams,
-  getActiveOtTeams,
+  computeOtIneligibility,
   computeOvertimeRounds,
   computeOtCheckpointScores,
   computeRegulationScores,
@@ -110,9 +110,11 @@ export function useScoresheet() {
 
   // --- Grey-out & validation ---
 
-  // For greying: narrows to only teams still competing after each completed OT round
-  const otActiveTeams = computed(() =>
-    getActiveOtTeams(
+  // Per-column ineligibility map: which teams can't jump on each OT column,
+  // scoped correctly so teams resolved out in round N aren't retroactively
+  // tossed-up on round N columns.
+  const otIneligibility = computed(() =>
+    computeOtIneligibility(
       cells.value,
       columns.value,
       teams.value.map((t) => t.onTime),
@@ -120,8 +122,8 @@ export function useScoresheet() {
     ),
   )
 
-  // For validation: regulation-only eligibility — a team's OT answers are never
-  // invalid just because they were resolved out in a later round
+  // Regulation-only eligibility for NotInOvertime validation — a team's OT
+  // answers are never invalid just because they were resolved out later.
   const otEligibleTeams = computed(() =>
     getOvertimeEligibleTeams(
       cells.value,
@@ -131,7 +133,7 @@ export function useScoresheet() {
   )
 
   const greyedOutResult = computed<GreyedOutResult>(() =>
-    computeGreyedOut(cells.value, columns.value, otActiveTeams.value),
+    computeGreyedOut(cells.value, columns.value, otIneligibility.value),
   )
 
   const orphanedColumns = computed(() =>
