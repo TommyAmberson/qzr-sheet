@@ -20,7 +20,7 @@ In code these are the `CellValue` enum in `src/types/scoresheet.ts`.
 
 * Q1–15: normal questions
 * Q16–20: normal + optional A/B sub-columns
-* Q21–26: overtime (3 questions per round, up to 2 rounds = 6 questions)
+* Q21+: overtime (3 questions per round, rounds added until the tie is broken)
 * Running total column per team (rightmost)
 
 ## Point Values
@@ -124,9 +124,11 @@ are eligible to answer overtime questions.
 Placement points are awarded once the quiz is complete, always based on the regulation score (end of
 Q20) even when overtime was played — per rules §1.e.4.
 
-Two formula variants are available via the **Legacy pts** toggle.
+Two formula variants are available via `PlacementFormula` in `src/types/scoresheet.ts`. The
+**Rules** formula is the default and is shown in the UI; the **Legacy** formula is retained for
+reference but the toggle is hidden.
 
-### Spreadsheet formula (legacy)
+### Legacy formula (pre-2023)
 
 Used in official quizmeets for many years. Uses a lookup table with a **base** (minimum) and **bonus
 threshold** per place key:
@@ -154,8 +156,8 @@ The rulebook specifies only solo placements and does not address ties:
 | 2nd   | `score / 10 − 1` | 5 pts   |
 | 3rd   | `score / 10 − 2` | 1 pt    |
 
-The spreadsheet formula was updated (in May 2023) to match the rulebook formula. It assumes friendly
-ties.
+The legacy formula predates May 2023. It gives a higher base for outright 1st place and
+distinguishes between tied and untied placements differently than the rulebook.
 
 | PlaceKey | Base | Threshold | Description              | Alternate Calculation |
 | -------- | ---- | --------- | ------------------------ | --------------------- |

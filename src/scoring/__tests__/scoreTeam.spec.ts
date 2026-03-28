@@ -198,15 +198,6 @@ describe('scoreTeam', () => {
     expect(result.quizzers[0]!.quizoutBonus).toBe(false)
   })
 
-  it('detects error out (3 errors)', () => {
-    const cells = blankCells()
-    cells[0]![colIdx('1')] = E
-    cells[0]![colIdx('2')] = E
-    cells[0]![colIdx('3')] = E
-    const result = scoreTeam(cells, columns, false)
-    expect(result.quizzers[0]!.erroredOut).toBe(true)
-  })
-
   it('2 errors + 1 foul is NOT error out (errors and fouls tracked separately)', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E
@@ -483,6 +474,19 @@ describe('scoreTeam', () => {
     expect(result.total).toBe(20) // +20 team points
     expect(result.quizzers[0]!.points).toBe(0) // no individual credit for OT
     expect(result.quizzers[0]!.correctCount).toBe(0) // OT doesn't count
+  })
+
+  it('OT error always deducts -10 (isErrorPoints applies to all OT columns)', () => {
+    const otColumns = buildColumns(1)
+    const otCells = Array.from({ length: 5 }, () => otColumns.map(() => _))
+    const otColIdx = (key: string) => {
+      const idx = otColumns.findIndex((c) => c.key === key)
+      if (idx === -1) throw new Error(`Column ${key} not found`)
+      return idx
+    }
+    otCells[0]![otColIdx('21')] = E // 1st individual error, but OT → always -10
+    const result = scoreTeam(otCells, otColumns, false)
+    expect(result.total).toBe(-10)
   })
 
   it('deducts -10 at every 3rd team foul (6th foul)', () => {

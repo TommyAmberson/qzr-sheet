@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
-import { CellValue, QuestionType, QuestionCategory } from '../types/scoresheet'
+import { computed, ref, watch } from 'vue'
+import { CellValue, QuestionCategory } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
+import { useCellSelector } from '../composables/useCellSelector'
+import { useKeyboardNav } from '../composables/useKeyboardNav'
+import { useDragReorder } from '../composables/useDragReorder'
 import { validationMessage } from '../scoring/validation'
 
 const {
@@ -63,304 +66,76 @@ function quizzerScoreLabel(ti: number, qi: number): string | null {
   return `${q.points}`
 }
 
-/** Active cell selector state */
-const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
+/** Columns actually rendered — entering columns start collapsed, then expand */
+const displayColumns = ref(visibleColumns.value.map((vc) => ({ ...vc, entering: false })))
 
-/** Keyboard-focused cell — drives arrow nav, Enter/letter shortcuts */
-const focusedCell = ref<{ ti: number; qi: number; ci: number } | null>(null)
+let prevVisibleKeys = new Set(visibleColumns.value.map(({ col }) => col.key))
 
-/** Map of "ti:qi:ci" → <td> element — kept for openSelectorOnCell rect lookup */
-const cellEls = new Map<string, HTMLElement>()
+watch(visibleColumns, (curr) => {
+  const prev = prevVisibleKeys
+  prevVisibleKeys = new Set(curr.map(({ col }) => col.key))
 
-function registerCellEl(ti: number, qi: number, ci: number, el: HTMLElement | null) {
-  const key = `${ti}:${qi}:${ci}`
-  if (el) cellEls.set(key, el)
-  else cellEls.delete(key)
-}
-
-function focusCell(ti: number, qi: number, ci: number) {
-  focusedCell.value = { ti, qi, ci }
-}
-
-function isCellNavigable(ti: number, qi: number, ci: number): boolean {
-  return !isAfterOut(ti, qi, ci) && !isFouledOnQuestion(ti, qi, ci)
-}
-
-/** ti=-1, qi=-1 represents the no-jump row */
-const NO_JUMP_ROW = { ti: -1, qi: -1 }
-
-function isNoJumpFocus(): boolean {
-  return focusedCell.value?.ti === -1
-}
-
-/** Build the ordered list of all navigable rows as {ti, qi} pairs, ending with no-jump */
-function allRows(): { ti: number; qi: number }[] {
-  const rows: { ti: number; qi: number }[] = []
-  for (let ti = 0; ti < teams.value.length; ti++) {
-    const count = teamQuizzers.value[ti]?.length ?? 0
-    for (let qi = 0; qi < count; qi++) {
-      rows.push({ ti, qi })
-    }
-  }
-  rows.push(NO_JUMP_ROW)
-  return rows
-}
-
-/** Move focus by dqi (quizzer rows, crosses teams + no-jump) or dci (column steps) */
-function moveFocus(dqi: number, dci: number) {
-  const f = focusedCell.value
-  if (!f) return
-  const cols = displayColumns.value
-
-  if (dci !== 0) {
-    const curPos = cols.findIndex((c) => c.idx === f.ci)
-    if (curPos === -1) return
-    const nextPos = curPos + dci
-    if (nextPos >= 0 && nextPos < cols.length) {
-      focusCell(f.ti, f.qi, cols[nextPos]!.idx)
-    }
+  const enteringKeys = new Set<string>()
+  for (const { col } of curr) {
+    if (!prev.has(col.key)) enteringKeys.add(col.key)
   }
 
-  if (dqi !== 0) {
-    const rows = allRows()
-    const curRowIdx = rows.findIndex((r) => r.ti === f.ti && r.qi === f.qi)
-    if (curRowIdx === -1) return
-    const nextRowIdx = curRowIdx + dqi
-    if (nextRowIdx >= 0 && nextRowIdx < rows.length) {
-      const row = rows[nextRowIdx]!
-      focusCell(row.ti, row.qi, f.ci)
-    }
+  displayColumns.value = curr.map((vc) => ({
+    ...vc,
+    entering: enteringKeys.has(vc.col.key),
+  }))
+
+  // Double-rAF: let the collapsed state render before transitioning to natural size
+  if (enteringKeys.size > 0) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        displayColumns.value = displayColumns.value.map((dc) => ({ ...dc, entering: false }))
+      })
+    })
   }
-}
-
-/** Index of the highlighted option inside the open selector popup */
-const selectorFocusIdx = ref(0)
-
-const letterMap: Partial<Record<string, CellValue>> = {
-  c: CellValue.Correct,
-  e: CellValue.Error,
-  f: CellValue.Foul,
-  b: CellValue.Bonus,
-  m: CellValue.MissedBonus,
-}
-
-function openSelectorOnCell(ti: number, qi: number, ci: number) {
-  const el = cellEls.get(`${ti}:${qi}:${ci}`)
-  if (!el) return
-  const rect = el.getBoundingClientRect()
-  selectorFocusIdx.value = 0
-  selector.value = { ti, qi, ci, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
-}
-
-function confirmSelectorOption() {
-  const opt = selectorOptions.value[selectorFocusIdx.value]
-  if (!opt) return
-  selectValue(opt.value)
-}
-
-function onWrapperKeydown(event: KeyboardEvent) {
-  if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
-    event.preventDefault()
-    if (event.shiftKey) {
-      redo()
-    } else {
-      undo()
-    }
-    return
-  }
-  if ((event.ctrlKey || event.metaKey) && event.key === 'y') {
-    event.preventDefault()
-    redo()
-    return
-  }
-
-  if (
-    event.target instanceof HTMLInputElement ||
-    event.target instanceof HTMLSelectElement ||
-    event.target instanceof HTMLTextAreaElement
-  )
-    return
-
-  const f = focusedCell.value
-
-  // Escape: close selector then clear focus
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    if (selector.value) {
-      closeSelector()
-      return
-    }
-    focusedCell.value = null
-    return
-  }
-
-  // --- Selector is open ---
-  if (selector.value) {
-    const opts = selectorOptions.value
-    const cols = 2 // selector is always a 2-column grid
-
-    if (event.key === 'ArrowRight') {
-      event.preventDefault()
-      selectorFocusIdx.value = Math.min(selectorFocusIdx.value + 1, opts.length - 1)
-      return
-    }
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault()
-      selectorFocusIdx.value = Math.max(selectorFocusIdx.value - 1, 0)
-      return
-    }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      selectorFocusIdx.value = Math.min(selectorFocusIdx.value + cols, opts.length - 1)
-      return
-    }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      selectorFocusIdx.value = Math.max(selectorFocusIdx.value - cols, 0)
-      return
-    }
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      confirmSelectorOption()
-      return
-    }
-    // Letter key while selector open — set directly and close
-    const letterVal = letterMap[event.key.toLowerCase()]
-    if (letterVal !== undefined && f) {
-      event.preventDefault()
-      const col = columns.value[f.ci]
-      const isBonus = col?.type === QuestionType.B || isBonusForTeam(f.ti, f.ci)
-      const allowed = isBonus
-        ? [CellValue.Bonus, CellValue.MissedBonus, CellValue.Foul, CellValue.Empty]
-        : [CellValue.Correct, CellValue.Error, CellValue.Foul, CellValue.Empty]
-      if (allowed.includes(letterVal)) {
-        setCell(f.ti, f.qi, f.ci, letterVal)
-        closeSelector()
-      }
-      return
-    }
-    if (event.key === 'Delete' || event.key === 'Backspace') {
-      event.preventDefault()
-      if (f) setCell(f.ti, f.qi, f.ci, CellValue.Empty)
-      closeSelector()
-      return
-    }
-    return
-  }
-
-  // --- Selector is closed ---
-
-  // Arrow keys: focus top-left cell if nothing focused yet
-  if (!f && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
-    event.preventDefault()
-    const firstCol = displayColumns.value[0]
-    if (firstCol) focusCell(0, 0, firstCol.idx)
-    return
-  }
-
-  // Arrow keys: move cell focus
-  if (event.key === 'ArrowUp') {
-    event.preventDefault()
-    moveFocus(-1, 0)
-    return
-  }
-  if (event.key === 'ArrowDown') {
-    event.preventDefault()
-    moveFocus(1, 0)
-    return
-  }
-  if (event.key === 'ArrowLeft') {
-    event.preventDefault()
-    moveFocus(0, -1)
-    return
-  }
-  if (event.key === 'ArrowRight') {
-    event.preventDefault()
-    moveFocus(0, 1)
-    return
-  }
-
-  if (!f) return
-
-  // Enter/Space: open selector, or toggle no-jump if on no-jump row
-  if (event.key === 'Enter' || event.key === ' ') {
-    event.preventDefault()
-    if (isNoJumpFocus()) {
-      toggleNoJump(f.ci)
-      return
-    }
-    openSelectorOnCell(f.ti, f.qi, f.ci)
-    return
-  }
-
-  // Delete/Backspace: clear cell or clear no-jump
-  if (event.key === 'Delete' || event.key === 'Backspace') {
-    event.preventDefault()
-    if (isNoJumpFocus()) {
-      if (noJumps.value[f.ci]) toggleNoJump(f.ci)
-    } else {
-      setCell(f.ti, f.qi, f.ci, CellValue.Empty)
-    }
-    return
-  }
-
-  // x: toggle no-jump on current column
-  if (event.key === 'x' || event.key === 'X') {
-    event.preventDefault()
-    toggleNoJump(f.ci)
-    return
-  }
-
-  // Letter keys: set value directly (not applicable on no-jump row)
-  if (!isNoJumpFocus()) {
-    const value = letterMap[event.key.toLowerCase()]
-    if (value !== undefined && isCellNavigable(f.ti, f.qi, f.ci)) {
-      event.preventDefault()
-      const col = columns.value[f.ci]
-      const isBonus = col?.type === QuestionType.B || isBonusForTeam(f.ti, f.ci)
-      const allowed = isBonus
-        ? [CellValue.Bonus, CellValue.MissedBonus, CellValue.Foul, CellValue.Empty]
-        : [CellValue.Correct, CellValue.Error, CellValue.Foul, CellValue.Empty]
-      if (allowed.includes(value)) setCell(f.ti, f.qi, f.ci, value)
-    }
-  }
-}
-
-onMounted(() => document.addEventListener('keydown', onWrapperKeydown))
-onUnmounted(() => document.removeEventListener('keydown', onWrapperKeydown))
-
-const bonusOptions = [
-  { value: CellValue.Bonus, label: 'B', cls: 'opt--bonus' },
-  { value: CellValue.MissedBonus, label: 'MB', cls: 'opt--missed-bonus' },
-  { value: CellValue.Foul, label: 'F', cls: 'opt--foul' },
-  { value: CellValue.Empty, label: '✕', cls: 'opt--clear' },
-]
-const normalOptions = [
-  { value: CellValue.Correct, label: 'C', cls: 'opt--correct' },
-  { value: CellValue.Error, label: 'E', cls: 'opt--error' },
-  { value: CellValue.Foul, label: 'F', cls: 'opt--foul' },
-  { value: CellValue.Empty, label: '✕', cls: 'opt--clear' },
-]
-
-/** Options to show in the selector based on column type and context */
-const selectorOptions = computed(() => {
-  if (!selector.value) return []
-  const { ti, qi: _qi, ci } = selector.value
-  const col = columns.value[ci]
-  if (!col) return []
-
-  // B columns always show bonus options
-  if (col.type === QuestionType.B) return bonusOptions
-
-  // Bonus situation (other 2 teams tossed-up) — show B/MB regardless of current value
-  if (isBonusForTeam(ti, ci)) return bonusOptions
-
-  return normalOptions
 })
+
+const {
+  selector,
+  selectorFocusIdx,
+  selectorOptions,
+  registerCellEl,
+  openFromClick: openSelectorFromClick,
+  openFromCell: openSelectorOnCell,
+  selectValue,
+  confirmFocusedOption,
+  close: closeSelector,
+} = useCellSelector(columns, isBonusForTeam, setCell)
+
+const { focusedCell, focusCell, isNoJumpFocus } = useKeyboardNav({
+  columns,
+  teams,
+  teamQuizzers,
+  noJumps,
+  displayColumns,
+  selector,
+  selectorFocusIdx,
+  selectorOptions,
+  openSelectorOnCell,
+  confirmFocusedOption,
+  closeSelector,
+  setCell,
+  toggleNoJump,
+  isBonusForTeam,
+  isAfterOut,
+  isFouledOnQuestion,
+  undo,
+  redo,
+})
+
+const { dragState, dropTarget, dropIndicatorWidth, registerRowEl, onPointerDown } = useDragReorder(
+  teamQuizzers,
+  moveQuizzer,
+)
 
 function onCellClick(ti: number, qi: number, ci: number, event: MouseEvent) {
   focusCell(ti, qi, ci)
-  openSelector(ti, qi, ci, event)
+  openSelectorFromClick(ti, qi, ci, event)
 }
 
 function onNoJumpClick(ci: number) {
@@ -368,122 +143,8 @@ function onNoJumpClick(ci: number) {
   toggleNoJump(ci)
 }
 
-function openSelector(ti: number, qi: number, ci: number, event: MouseEvent) {
-  const td = event.currentTarget as HTMLElement
-  const rect = td.getBoundingClientRect()
-  selectorFocusIdx.value = 0
-  selector.value = {
-    ti,
-    qi,
-    ci,
-    x: rect.left + rect.width / 2,
-    y: rect.top + rect.height / 2,
-  }
-}
-
-function selectValue(value: CellValue) {
-  if (!selector.value) return
-  setCell(selector.value.ti, selector.value.qi, selector.value.ci, value)
-  selector.value = null
-}
-
-function closeSelector() {
-  selector.value = null
-}
-
 /** Hovered column index for crosshair highlight */
 const hoverCol = ref<number | null>(null)
-
-/** Pointer-based drag reorder state */
-const dragState = ref<{ ti: number; qi: number } | null>(null)
-const dropTarget = ref<{ ti: number; qi: number; below: boolean } | null>(null)
-/** Map of "ti:qi" → element for hit-testing during drag */
-const quizzerRowEls = new Map<string, HTMLElement>()
-/** Indicator width computed from last question column */
-const dropIndicatorWidth = ref('100%')
-
-function registerRowEl(ti: number, qi: number, el: HTMLElement | null) {
-  const key = `${ti}:${qi}`
-  if (el) quizzerRowEls.set(key, el)
-  else quizzerRowEls.delete(key)
-}
-
-function updateIndicatorWidth() {
-  // Find the first quizzer row's name cell and the last visible question cell
-  // to compute the indicator width (excluding the Score total column)
-  const firstRow = quizzerRowEls.values().next().value as HTMLElement | undefined
-  if (!firstRow) return
-  const nameCell = firstRow.querySelector('.col--name') as HTMLElement | null
-  const allCells = firstRow.querySelectorAll('.cell')
-  const lastCell = allCells[allCells.length - 1] as HTMLElement | undefined
-  if (!nameCell || !lastCell) return
-  const nameRect = nameCell.getBoundingClientRect()
-  const lastRect = lastCell.getBoundingClientRect()
-  dropIndicatorWidth.value = `${lastRect.right - nameRect.left}px`
-}
-
-function onPointerDown(ti: number, qi: number, event: PointerEvent) {
-  event.preventDefault()
-  // Clear any text selection to prevent native drag (crashes on Linux/X11)
-  window.getSelection()?.removeAllRanges()
-  dragState.value = { ti, qi }
-  updateIndicatorWidth()
-  document.addEventListener('pointermove', onPointerMove)
-  document.addEventListener('pointerup', onPointerUp)
-}
-
-function onPointerMove(event: PointerEvent) {
-  if (!dragState.value) return
-  const ti = dragState.value.ti
-  const count = teamQuizzers.value[ti]?.length ?? 0
-
-  // Get bounding rects for the team's rows
-  const firstEl = quizzerRowEls.get(`${ti}:0`)
-  const lastEl = quizzerRowEls.get(`${ti}:${count - 1}`)
-  if (!firstEl || !lastEl) return
-  const teamTop = firstEl.getBoundingClientRect().top
-  const teamBottom = lastEl.getBoundingClientRect().bottom
-
-  let found: number | null = null
-
-  if (event.clientY < teamTop) {
-    // Above the team — clamp to first row
-    found = 0
-  } else if (event.clientY >= teamBottom) {
-    // Below the team — clamp to last row
-    found = count - 1
-  } else {
-    // Within the team — find the hovered row
-    for (let qi = 0; qi < count; qi++) {
-      const el = quizzerRowEls.get(`${ti}:${qi}`)
-      if (!el) continue
-      const rect = el.getBoundingClientRect()
-      if (event.clientY >= rect.top && event.clientY < rect.bottom) {
-        found = qi
-        break
-      }
-    }
-  }
-
-  if (found !== null && found !== dragState.value.qi) {
-    dropTarget.value = { ti, qi: found, below: found > dragState.value.qi }
-  } else {
-    dropTarget.value = null
-  }
-}
-
-function onPointerUp() {
-  document.removeEventListener('pointermove', onPointerMove)
-  document.removeEventListener('pointerup', onPointerUp)
-  if (dragState.value && dropTarget.value) {
-    moveQuizzer(dragState.value.ti, dragState.value.qi, dropTarget.value.qi)
-  }
-  dragState.value = null
-  dropTarget.value = null
-}
-
-/** Columns actually rendered — entering columns start collapsed, then expand */
-const displayColumns = ref(visibleColumns.value.map((vc) => ({ ...vc, entering: false })))
 
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
@@ -505,38 +166,6 @@ const cellClass: Record<CellValue, string> = {
   [CellValue.Empty]: '',
 }
 
-let prevVisibleKeys = new Set(visibleColumns.value.map(({ col }) => col.key))
-
-watch(visibleColumns, (curr) => {
-  const prev = prevVisibleKeys
-  prevVisibleKeys = new Set(curr.map(({ col }) => col.key))
-
-  // Detect entering column keys
-  const enteringKeys = new Set<string>()
-  for (const { col } of curr) {
-    if (!prev.has(col.key)) enteringKeys.add(col.key)
-  }
-
-  // Build new display list — leaving columns are simply dropped (instant removal)
-  displayColumns.value = curr.map((vc) => ({
-    ...vc,
-    entering: enteringKeys.has(vc.col.key),
-  }))
-
-  // Entering columns: start collapsed, then expand after the browser paints.
-  // Double-rAF ensures the collapsed state is rendered before we transition.
-  if (enteringKeys.size > 0) {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        displayColumns.value = displayColumns.value.map((dc) => ({
-          ...dc,
-          entering: false,
-        }))
-      })
-    })
-  }
-})
-
 const headerAnswerClass: Record<CellValue, string> = {
   [CellValue.Correct]: 'col--header-correct',
   [CellValue.Error]: 'col--header-error',
@@ -555,14 +184,12 @@ function headerClass(colIdx: number): string {
   return classes.join(' ')
 }
 
-/** Column CSS class for visual grouping (no animation — that's on the display entry) */
 function colGroupClass(colIdx: number): string {
   const col = columns.value[colIdx]
   if (!col) return ''
-  const classes: string[] = []
-  if (col.isOvertime) classes.push('col--overtime')
-  else if (col.isAB && col.isErrorPoints) classes.push('col--ab')
-  return classes.join(' ')
+  if (col.isOvertime) return 'col--overtime'
+  if (col.isAB && col.isErrorPoints) return 'col--ab'
+  return ''
 }
 </script>
 
@@ -1191,47 +818,6 @@ function colGroupClass(colIdx: number): string {
 .meta-field--undo button:disabled {
   opacity: 0.3;
   cursor: default;
-}
-
-.meta-info {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-.meta-info__icon {
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
-  cursor: default;
-  line-height: 1;
-  padding: 0.1rem;
-  border-radius: 50%;
-  transition: color 0.15s;
-}
-.meta-info:hover .meta-info__icon {
-  color: var(--color-text-muted);
-}
-.meta-info__popover {
-  display: none;
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 18rem;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border-alt);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 0.5rem 0.65rem;
-  font-size: 0.72rem;
-  line-height: 1.5;
-  color: var(--color-text-muted);
-  z-index: 50;
-  white-space: normal;
-  text-align: left;
-  pointer-events: none;
-}
-.meta-info:hover .meta-info__popover {
-  display: block;
 }
 
 .scoresheet {

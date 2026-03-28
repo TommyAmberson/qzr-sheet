@@ -3,6 +3,8 @@ import { CellValue, buildColumns } from '../../types/scoresheet'
 import {
   getOvertimeEligibleTeams,
   computeOvertimeRounds,
+  computeRegulationScores,
+  computeOtCheckpointScores,
   questionsComplete,
   quizJumpedComplete,
 } from '../overtime'
@@ -534,5 +536,115 @@ describe('computeOvertimeRounds', () => {
     noJumps[idx('23')] = true
 
     expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(2)
+  })
+})
+
+describe('computeRegulationScores', () => {
+  const onTimes = [true, true, true]
+
+  it('returns on-time bonus only for blank sheets', () => {
+    const cols = buildColumns()
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    const scores = computeRegulationScores(cells, cols, onTimes)
+    expect(scores).toEqual([20, 20, 20])
+  })
+
+  it('computes correct scores per team from regulation columns', () => {
+    const cols = buildColumns()
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    const idx = (key: string) => cols.findIndex((c) => c.key === key)
+    cells[0]![0]![idx('1')] = C // team 0: +20
+    cells[1]![0]![idx('2')] = C // team 1: +20
+    cells[1]![1]![idx('3')] = C // team 1: +20
+    const scores = computeRegulationScores(cells, cols, onTimes)
+    // on-time (+20) + corrects
+    expect(scores[0]).toBe(40) // 20 on-time + 20
+    expect(scores[1]).toBe(60) // 20 on-time + 20 + 20
+    expect(scores[2]).toBe(20) // 20 on-time only
+  })
+
+  it('ignores OT columns when computing regulation scores', () => {
+    const cols = buildColumns(1) // has Q21–23
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    const idx = (key: string) => cols.findIndex((c) => c.key === key)
+    cells[0]![0]![idx('1')] = C // regulation: +20
+    cells[0]![1]![idx('21')] = C // OT: should be ignored
+    const scores = computeRegulationScores(cells, cols, onTimes)
+    expect(scores[0]).toBe(40) // 20 on-time + 20 from Q1 only
+  })
+
+  it('respects onTime flag per team', () => {
+    const cols = buildColumns()
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    const scores = computeRegulationScores(cells, cols, [true, false, true])
+    expect(scores[0]).toBe(20) // on-time
+    expect(scores[1]).toBe(0) // not on-time
+    expect(scores[2]).toBe(20) // on-time
+  })
+})
+
+describe('computeOtCheckpointScores', () => {
+  const onTimes = [true, true, true]
+
+  function setup(rounds: number) {
+    const cols = buildColumns(rounds)
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    const idx = (key: string) => {
+      const i = cols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    const noJumps = cols.map(() => false)
+    return { cols, cells, idx, noJumps }
+  }
+
+  it('returns empty array when no OT rounds are complete', () => {
+    const { cols, cells, noJumps } = setup(1)
+    // Q21 not answered
+    expect(computeOtCheckpointScores(cells, cols, onTimes, noJumps)).toEqual([])
+  })
+
+  it('returns one checkpoint when OT round 1 is complete', () => {
+    const { cols, cells, idx, noJumps } = setup(1)
+    noJumps[idx('21')] = true
+    noJumps[idx('22')] = true
+    noJumps[idx('23')] = true
+    const checkpoints = computeOtCheckpointScores(cells, cols, onTimes, noJumps)
+    expect(checkpoints).toHaveLength(1)
+    // All teams: 20 on-time, no answers
+    expect(checkpoints[0]).toEqual([20, 20, 20])
+  })
+
+  it('checkpoint scores include points up through that OT round', () => {
+    const { cols, cells, idx, noJumps } = setup(2)
+    // Complete round 1: team 0 gets Q21 correct
+    cells[0]![0]![idx('21')] = C
+    noJumps[idx('22')] = true
+    noJumps[idx('23')] = true
+    // Complete round 2: team 1 gets Q24 correct
+    cells[1]![0]![idx('24')] = C
+    noJumps[idx('25')] = true
+    noJumps[idx('26')] = true
+    const checkpoints = computeOtCheckpointScores(cells, cols, onTimes, noJumps)
+    expect(checkpoints).toHaveLength(2)
+    // Round 1 checkpoint: team 0 has 20 on-time + 20 Q21 = 40
+    expect(checkpoints[0]![0]).toBe(40)
+    expect(checkpoints[0]![1]).toBe(20)
+    expect(checkpoints[0]![2]).toBe(20)
+    // Round 2 checkpoint: team 0 still 40, team 1 has 20 on-time + 20 Q24 = 40
+    expect(checkpoints[1]![0]).toBe(40)
+    expect(checkpoints[1]![1]).toBe(40)
+    expect(checkpoints[1]![2]).toBe(20)
+  })
+
+  it('stops at the first incomplete OT round', () => {
+    const { cols, cells, idx, noJumps } = setup(2)
+    // Round 1: complete
+    noJumps[idx('21')] = true
+    noJumps[idx('22')] = true
+    noJumps[idx('23')] = true
+    // Round 2: incomplete (Q24 not answered)
+    const checkpoints = computeOtCheckpointScores(cells, cols, onTimes, noJumps)
+    expect(checkpoints).toHaveLength(1)
   })
 })

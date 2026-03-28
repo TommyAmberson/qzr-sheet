@@ -18,7 +18,7 @@ ESLint (typescript-eslint + eslint-plugin-vue), Prettier, pre-commit hooks, and 
 
 #### 1.1 Table layout ✅
 
-Sticky name column, question headers (1–20 + overtime 21–26), three team blocks of five quizzers
+Sticky name column, question headers (1–20 + overtime rounds), three team blocks of five quizzers
 each, running total row per team.
 
 #### 1.2 Cell selector ✅
@@ -110,9 +110,10 @@ focus. Hover shows grey crosshair borders; keyboard focus shows blue crosshair b
 quizzer name, and question header. Blue focus always overrides grey hover. Focus ring persists while
 the selector popup is open.
 
-#### 1.5.5 Undo/redo
+#### 1.5.5 Undo/redo ✅
 
-History stack for cell changes with Ctrl+Z / Ctrl+Shift+Z.
+History stack for cell and no-jump changes (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y). Undo/redo buttons in
+the meta bar. Capped at 100 entries.
 
 ### Phase 2: Data Management
 

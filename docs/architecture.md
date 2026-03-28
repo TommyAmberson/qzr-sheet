@@ -12,10 +12,14 @@ useScoresheet  (Vue composable — reactivity layer)
     │   ├── greyedOutResult: GreyedOutResult from computeGreyedOut()
     │   ├── validationErrors: Map<key, codes> from validateCells()
     │   ├── visibleColumns: VisibleColumn[] from computeVisibleColumns()
-    │   └── placements: (number|null)[]     from computePlacements()
+    │   ├── placements: (number|null)[]     from computePlacements()
+    │   └── undo/redo                       via useHistory()
     │
     ▼
-Scoresheet.vue  (single component, reads composable only)
+Scoresheet.vue  (single component, delegates to UI composables)
+    ├── useCellSelector  (popup state, option list, open/close)
+    ├── useKeyboardNav   (arrow keys, letter shortcuts, undo hotkeys)
+    └── useDragReorder   (pointer-event drag, drop target, row refs)
 ```
 
 ## Core Types (`src/types/scoresheet.ts`)
@@ -72,9 +76,12 @@ A cell can be greyed without being invalid (e.g. a question already answered —
 just greyed). A cell can be invalid without being greyed (e.g. an answer recorded on a toss-up
 column the team shouldn't have jumped on).
 
-## Composable (`src/composables/useScoresheet.ts`)
+## Composables (`src/composables/`)
 
-The only place Vue reactivity lives. Wraps the store and scoring functions with `ref`/`computed`.
+### `useScoresheet.ts`
+
+The only place Vue reactivity lives for scoring state. Wraps the store and scoring functions with
+`ref`/`computed`.
 
 Key reactive dependencies:
 
@@ -85,15 +92,34 @@ Key reactive dependencies:
 `columns` is derived from `quiz.overtime` + `internalOtRounds`. All scoring/greyout/validation
 computeds depend on `columns` and `cells`.
 
+### `useHistory.ts`
+
+Generic command stack (undo/redo). Capped at 100 entries by default. `setCell` and `toggleNoJump` in
+`useScoresheet` push commands here.
+
+### `useCellSelector.ts`
+
+Manages the cell selector popup: open/close state, position, option list (normal vs. bonus), and the
+`registerCellEl` map used for keyboard-triggered opens.
+
+### `useKeyboardNav.ts`
+
+Global `keydown` listener (mounted/unmounted). Handles arrow navigation, letter shortcuts
+(c/e/f/b/m), Enter/Space, Delete/Backspace, Escape, and Ctrl+Z/Ctrl+Shift+Z undo hotkeys.
+
+### `useDragReorder.ts`
+
+Pointer-event drag for quizzer row reordering. Registers row element refs, hit-tests against rects
+on `pointermove`, calls `moveQuizzer` on `pointerup`. No HTML5 drag API (crashes on Linux/X11).
+
 ## Component (`src/components/Scoresheet.vue`)
 
-Single large component — all UI in one file. Reads exclusively from `useScoresheet()`.
+Single `.vue` file. Reads from `useScoresheet()` and delegates interaction to the three UI
+composables above.
 
 Notable patterns:
 
 * **Column enter animation**: new columns get `col--entering` class, removed on next double-rAF to
   trigger CSS width transition.
-* **Drag reorder**: pointer events only (no HTML5 drag API — avoids Linux/X11 crashes). Hit-testing
-  done manually against registered row element rects.
 * **Cell selector popup**: teleported to `<body>` to avoid table overflow clipping.
 * **Crosshair highlight**: `hoverCol` ref + `:hover` on quizzer name cell.

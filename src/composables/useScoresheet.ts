@@ -2,14 +2,12 @@ import { ref, computed, watch } from 'vue'
 import { useHistory } from './useHistory'
 import {
   CellValue,
-  PlacementFormula,
   QuestionCategory,
   buildColumns,
   QuestionType,
   type Column,
   type Quiz,
   type Team,
-  type Quizzer,
   type PlaceKey,
 } from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
@@ -17,11 +15,7 @@ import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
 import { validateCells, ValidationCode, validationMessage } from '../scoring/validation'
 import { isBonusSituation } from '../scoring/helpers'
-import {
-  computeVisibleColumns,
-  computeOrphanedColumns,
-  abColumnNeeded as _abColumnNeeded,
-} from '../scoring/columnVisibility'
+import { computeVisibleColumns, computeOrphanedColumns } from '../scoring/columnVisibility'
 import {
   getOvertimeEligibleTeams,
   computeOvertimeRounds,
@@ -73,9 +67,6 @@ export function useScoresheet() {
 
   /** Quizzers per team, indexed by team position */
   const teamQuizzers = computed(() => teams.value.map((team) => store.quizzersByTeam(team.id)))
-
-  /** All quizzers (flat list) */
-  const quizzers = computed<Quizzer[]>(() => store.quizzers)
 
   /** Derived cell grid — recomputes when answerVersion or columns change */
   const cells = computed<CellValue[][][]>(() => {
@@ -130,8 +121,6 @@ export function useScoresheet() {
     computeGreyedOut(cells.value, columns.value, otEligibleTeams.value),
   )
 
-  const tossedUpSet = computed(() => greyedOutResult.value.tossedUp)
-
   const orphanedColumns = computed(() =>
     computeOrphanedColumns(
       cells.value,
@@ -171,7 +160,7 @@ export function useScoresheet() {
   // --- Query helpers (business logic the template needs) ---
 
   function isBonusForTeam(teamIdx: number, colIdx: number): boolean {
-    return isBonusSituation(tossedUpSet.value, teamIdx, colIdx, teams.value.length)
+    return isBonusSituation(greyedOutResult.value.tossedUp, teamIdx, colIdx, teams.value.length)
   }
 
   function isGreyedOut(teamIdx: number, colIdx: number): boolean {
@@ -325,16 +314,6 @@ export function useScoresheet() {
     ),
   )
 
-  function abColumnNeeded(colIdx: number): boolean {
-    return _abColumnNeeded(
-      cells.value,
-      columns.value,
-      noJumps.value,
-      colIdx,
-      greyedOutResult.value.colStatuses,
-    )
-  }
-
   /** Whether regulation questions (Q1–20) are fully filled out */
   const regulationComplete = computed(() =>
     questionsComplete(cells.value, columns.value, noJumps.value, 1, 20),
@@ -444,7 +423,6 @@ export function useScoresheet() {
     quiz,
     teams,
     teamQuizzers,
-    quizzers,
     cells,
     noJumps,
     scoring,
@@ -454,11 +432,8 @@ export function useScoresheet() {
     setTeamName,
     setQuizzerName,
     moveQuizzer,
-    store,
 
     // Grey-out & validation
-    greyedOutResult,
-    tossedUpSet,
     validationErrors,
 
     // Query helpers
@@ -482,12 +457,10 @@ export function useScoresheet() {
     // Column visibility
     visibleColumns,
     allQuestionsComplete,
-    abColumnNeeded,
 
     // Placements
     placements,
     placementPoints,
-    PlacementFormula,
 
     // Undo/redo
     canUndo: history.canUndo,
@@ -496,7 +469,6 @@ export function useScoresheet() {
     redo: history.redo,
 
     // Question types
-    QuestionCategory,
     setQuestionType,
   }
 }

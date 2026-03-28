@@ -14,10 +14,6 @@ function genId(): number {
   return nextId++
 }
 
-export function resetIdCounter(start = 1) {
-  nextId = start
-}
-
 function createDefaultQuiz(): Quiz {
   return {
     id: genId(),

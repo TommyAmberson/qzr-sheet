@@ -98,11 +98,7 @@ describe('cell validation', () => {
     expect(hasCode(errors, 0, 1, ci('1'), ValidationCode.DuplicateAnswer)).toBe(true)
   })
 
-  it('two quizzers on different teams answering same question is valid', () => {
-    // This happens on toss-ups: T1 errors, T2 answers the toss-up
-    // The error and toss-up answer are on different columns though...
-    // Actually on the same column this shouldn't happen — only one answer per column.
-    // But an error on Q1 and correct on Q2 is fine.
+  it('error on Q1 + correct on Q2 toss-up has no errors', () => {
     const cells = blankCells()
     cells[0]![0]![ci('1')] = E
     cells[1]![0]![ci('2')] = C
