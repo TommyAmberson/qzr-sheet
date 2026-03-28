@@ -520,8 +520,10 @@ export function useScoresheet() {
     // Undo/redo
     canUndo: history.canUndo,
     canRedo: history.canRedo,
+    isDirty: history.isDirty,
     undo: history.undo,
     redo: history.redo,
+    markSaved: history.markSaved,
 
     // Persistence
     store,

@@ -11,8 +11,14 @@ export function useHistory(maxHistory = DEFAULT_MAX) {
   const undoStack = ref<HistoryCommand[]>([])
   const redoStack = ref<HistoryCommand[]>([])
 
+  // Tracks the command at the top of the undo stack when last saved.
+  // null means "saved at empty state" (fresh/cleared).
+  const savedCommand = ref<HistoryCommand | null>(null)
+
   const canUndo = computed(() => undoStack.value.length > 0)
   const canRedo = computed(() => redoStack.value.length > 0)
+
+  const isDirty = computed(() => (undoStack.value.at(-1) ?? null) !== savedCommand.value)
 
   function push(command: HistoryCommand) {
     undoStack.value.push(command)
@@ -39,7 +45,12 @@ export function useHistory(maxHistory = DEFAULT_MAX) {
   function clear() {
     undoStack.value = []
     redoStack.value = []
+    savedCommand.value = null
   }
 
-  return { canUndo, canRedo, push, undo, redo, clear }
+  function markSaved() {
+    savedCommand.value = undoStack.value.at(-1) ?? null
+  }
+
+  return { canUndo, canRedo, isDirty, push, undo, redo, clear, markSaved }
 }

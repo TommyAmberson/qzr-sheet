@@ -6,7 +6,7 @@
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
-export async function saveQuizToFile(json: string, defaultFilename: string): Promise<void> {
+export async function saveQuizToFile(json: string, defaultFilename: string): Promise<boolean> {
   if (isTauri) {
     const { save } = await import('@tauri-apps/plugin-dialog')
     const { writeTextFile } = await import('@tauri-apps/plugin-fs')
@@ -14,8 +14,22 @@ export async function saveQuizToFile(json: string, defaultFilename: string): Pro
       defaultPath: defaultFilename,
       filters: [{ name: 'Quiz JSON', extensions: ['json'] }],
     })
-    if (!path) return
+    if (!path) return false
     await writeTextFile(path, json)
+    return true
+  } else if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: defaultFilename,
+        types: [{ description: 'Quiz JSON', accept: { 'application/json': ['.json'] } }],
+      })
+      const writable = await handle.createWritable()
+      await writable.write(json)
+      await writable.close()
+      return true
+    } catch {
+      return false
+    }
   } else {
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -24,6 +38,7 @@ export async function saveQuizToFile(json: string, defaultFilename: string): Pro
     a.download = defaultFilename
     a.click()
     URL.revokeObjectURL(url)
+    return false
   }
 }
 

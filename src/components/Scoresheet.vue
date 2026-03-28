@@ -55,8 +55,10 @@ const {
   resetStore,
   canUndo,
   canRedo,
+  isDirty,
   undo,
   redo,
+  markSaved,
 } = useScoresheet()
 
 /** All unique validation messages for the status tooltip */
@@ -190,11 +192,13 @@ const teamColors = ['team--red', 'team--white', 'team--blue']
 async function saveFile() {
   const json = serializeStore(store, noJumpMap.value)
   const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.json`
-  await saveQuizToFile(json, filename)
+  const saved = await saveQuizToFile(json, filename)
+  if (saved) markSaved()
 }
 
 async function openFile() {
-  if (!(await confirmAction('Open a quiz file? Unsaved changes will be lost.'))) return
+  if (isDirty.value && !(await confirmAction('Open a quiz file? Unsaved changes will be lost.')))
+    return
   const json = await openQuizFromFile()
   if (!json) return
   try {
@@ -206,7 +210,8 @@ async function openFile() {
 }
 
 async function newQuiz() {
-  if (!(await confirmAction('Start a new quiz? Unsaved changes will be lost.'))) return
+  if (isDirty.value && !(await confirmAction('Start a new quiz? Unsaved changes will be lost.')))
+    return
   resetStore()
 }
 
