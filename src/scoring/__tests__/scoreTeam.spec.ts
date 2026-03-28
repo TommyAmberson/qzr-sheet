@@ -476,6 +476,19 @@ describe('scoreTeam', () => {
     expect(result.quizzers[0]!.correctCount).toBe(0) // OT doesn't count
   })
 
+  it('OT error always deducts -10 (isErrorPoints applies to all OT columns)', () => {
+    const otColumns = buildColumns(1)
+    const otCells = Array.from({ length: 5 }, () => otColumns.map(() => _))
+    const otColIdx = (key: string) => {
+      const idx = otColumns.findIndex((c) => c.key === key)
+      if (idx === -1) throw new Error(`Column ${key} not found`)
+      return idx
+    }
+    otCells[0]![otColIdx('21')] = E // 1st individual error, but OT → always -10
+    const result = scoreTeam(otCells, otColumns, false)
+    expect(result.total).toBe(-10)
+  })
+
   it('deducts -10 at every 3rd team foul (6th foul)', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = F // team 1
