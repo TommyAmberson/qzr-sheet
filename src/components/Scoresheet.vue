@@ -36,7 +36,6 @@ const {
   validationErrors,
   placements,
   placementPoints,
-  PlacementFormula,
   setTeamName,
   setQuizzerName,
   moveQuizzer,
@@ -574,28 +573,6 @@ function colGroupClass(colIdx: number): string {
         <span class="toggle-track"><span class="toggle-thumb" /></span>
         <span class="meta-label">Overtime</span>
       </label>
-      <span class="meta-sep">·</span>
-      <label class="meta-field meta-field--toggle">
-        <input
-          type="checkbox"
-          :checked="quiz.placementFormula === PlacementFormula.Spreadsheet"
-          @change="
-            quiz.placementFormula = ($event.target as HTMLInputElement).checked
-              ? PlacementFormula.Spreadsheet
-              : PlacementFormula.Rules
-          "
-        />
-        <span class="toggle-track"><span class="toggle-thumb" /></span>
-        <span class="meta-label">Legacy pts</span>
-      </label>
-      <span class="meta-info">
-        <span class="meta-info__icon">&#9432;</span>
-        <span class="meta-info__popover">
-          <strong>Rules</strong> — equal 1-pt steps between places at any score.<br />
-          <strong>Legacy</strong> — historical spreadsheet formula; higher bonus for 1st, points
-          grow faster at high scores.
-        </span>
-      </span>
       <span class="meta-sep">·</span>
       <span
         class="meta-field meta-field--status"

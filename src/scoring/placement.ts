@@ -153,7 +153,7 @@ function rankGroup(
 
 type PlacementTableEntry = { base: number; threshold: number }
 
-const SPREADSHEET_TABLE: Record<string, PlacementTableEntry> = {
+const LEGACY_TABLE: Record<string, PlacementTableEntry> = {
   '1': { base: 10, threshold: 80 },
   '1.2': { base: 7, threshold: 60 },
   '1.3': { base: 5, threshold: 50 },
@@ -164,10 +164,10 @@ const SPREADSHEET_TABLE: Record<string, PlacementTableEntry> = {
 
 const RULES_TABLE: Record<string, PlacementTableEntry> = {
   '1': { base: 10, threshold: 100 },
-  '1.2': { base: 7, threshold: 70 },
-  '1.3': { base: 5, threshold: 50 },
+  '1.2': { base: 10, threshold: 100 },
+  '1.3': { base: 10, threshold: 100 },
   '2': { base: 5, threshold: 60 },
-  '2.2': { base: 3, threshold: 40 },
+  '2.2': { base: 5, threshold: 60 },
   '3': { base: 1, threshold: 30 },
 }
 
@@ -189,7 +189,7 @@ export function computePlacementPoints(
   formula = PlacementFormula.Rules,
 ): number | null {
   if (place === null) return null
-  const table = formula === PlacementFormula.Spreadsheet ? SPREADSHEET_TABLE : RULES_TABLE
+  const table = formula === PlacementFormula.Legacy ? LEGACY_TABLE : RULES_TABLE
   const entry = table[String(place)]
   if (!entry) return null
   return entry.base + Math.max(Math.floor((score - entry.threshold) / 10), 0)
