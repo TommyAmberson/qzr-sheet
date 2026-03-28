@@ -1,6 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
 import { buildColumns } from '../types/scoresheet'
-import { scoreTeam } from '../scoring/scoreTeam'
 import { computeOvertimeRounds } from '../scoring/overtime'
 import { patchCell } from './odsXml'
 import type { QuizFile } from '../persistence/quizFile'
@@ -80,13 +79,13 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
 
   // --- 6. Fill each team block ---
   // Team layout (0-based rows):
-  //   Team 1: name=row4 col1, quizzers=rows5-9, score=row10
-  //   Team 2: name=row12 col1, quizzers=rows13-17, score=row18
-  //   Team 3: name=row20 col1, quizzers=rows21-25, score=row26
+  //   Team 1: name=row4 col1, quizzers=rows5-9
+  //   Team 2: name=row12 col1, quizzers=rows13-17
+  //   Team 3: name=row20 col1, quizzers=rows21-25
   const teamRows = [
-    { nameRow: 4, quizzerStartRow: 5, scoreRow: 10, onTimeRow: 3 },
-    { nameRow: 12, quizzerStartRow: 13, scoreRow: 18, onTimeRow: 11 },
-    { nameRow: 20, quizzerStartRow: 21, scoreRow: 26, onTimeRow: 19 },
+    { nameRow: 4, quizzerStartRow: 5, onTimeRow: 3 },
+    { nameRow: 12, quizzerStartRow: 13, onTimeRow: 11 },
+    { nameRow: 20, quizzerStartRow: 21, onTimeRow: 19 },
   ] as const
 
   // ODS column mapping for quizzer rows:
@@ -134,7 +133,7 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
 
   for (let ti = 0; ti < sortedTeams.length; ti++) {
     const team = sortedTeams[ti]!
-    const { nameRow, quizzerStartRow, scoreRow, onTimeRow } = teamRows[ti]!
+    const { nameRow, quizzerStartRow, onTimeRow } = teamRows[ti]!
     const tQuizzers = quizzersByTeam.get(team.id) ?? []
     const teamCells = cellGrid[ti]!
 
@@ -143,18 +142,6 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
 
     // On-time (col 6 in separator/header row)
     sheetXml = patchCell(sheetXml, onTimeRow, 6, team.onTime ? 'y' : 'n')
-
-    // Score row: per-question running totals
-    const scoring = scoreTeam(teamCells, cols, team.onTime)
-    for (let ci = 0; ci < cols.length; ci++) {
-      const col = cols[ci]!
-      const odsColIdx = colKeyToOdsCol.get(col.key)
-      if (odsColIdx === undefined) continue
-      const runningTotal = scoring.runningTotals[ci]
-      if (runningTotal !== null && runningTotal !== undefined) {
-        sheetXml = patchCell(sheetXml, scoreRow, odsColIdx, runningTotal)
-      }
-    }
 
     // Quizzer rows
     for (let qi = 0; qi < 5; qi++) {
