@@ -24,9 +24,65 @@ function getRepeat(attrs: string, attr: string): number {
   return m ? parseInt(m[1]!, 10) : 1
 }
 
+/** Unescape XML text content. */
+export function unescapeXml(s: string): string {
+  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+}
+
 /** Escape XML text content. */
 export function escapeXml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * Read the text value of a cell in a row at a logical column index.
+ * Returns the text content of the first <text:p> element, or '' if empty.
+ */
+export function readCellInRow(rowXml: string, targetCol: number): string {
+  CELL_OPEN.lastIndex = 0
+  let logical = 0
+  let m: RegExpExecArray | null
+
+  while ((m = CELL_OPEN.exec(rowXml)) !== null) {
+    const fullMatch = m[0]!
+    const attrs = m[2]!
+    const selfClose = m[3] === '/'
+    const colRepeats = getRepeat(attrs, 'table:number-columns-repeated')
+
+    if (logical + colRepeats <= targetCol) {
+      logical += colRepeats
+      continue
+    }
+
+    // This cell covers targetCol
+    if (selfClose) return ''
+
+    const tagEnd = m.index + fullMatch.length
+    const closeTag = '</table:table-cell>'
+    const cellEnd = rowXml.indexOf(closeTag, tagEnd)
+    if (cellEnd === -1) return ''
+
+    const inner = rowXml.slice(tagEnd, cellEnd)
+    const textMatch = inner.match(/<text:p>([\s\S]*?)<\/text:p>/)
+    if (!textMatch) return ''
+    return unescapeXml(textMatch[1]!.replace(/<text:s\/>/g, ' ').replace(/<[^>]+>/g, '')).trim()
+  }
+  return ''
+}
+
+/**
+ * Read the text value of a single cell in the sheet XML.
+ *
+ * @param sheetXml - the full Quiz <table:table>...</table:table> element
+ * @param row - 0-based logical row index
+ * @param col - 0-based logical column index
+ * @returns the cell's text content, or '' if empty
+ */
+export function readCell(sheetXml: string, row: number, col: number): string {
+  const rowStart = findRowStart(sheetXml, row)
+  if (rowStart === -1) return ''
+  const rowXml = extractRow(sheetXml, rowStart)
+  return readCellInRow(rowXml, col)
 }
 
 /**

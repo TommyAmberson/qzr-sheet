@@ -6,7 +6,7 @@ import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
-import { serializeStore, parseQuizFile, serialize } from '../persistence/quizFile'
+import { serializeStore, parseQuizFile, serialize, deserialize } from '../persistence/quizFile'
 import {
   saveQuizToFile,
   openQuizFromFile,
@@ -15,6 +15,7 @@ import {
   openOtsFile,
 } from '../persistence/fileIO'
 import { fillOts } from '../export/fillOts'
+import { readOds } from '../export/readOds'
 import { validationMessage } from '../scoring/validation'
 
 const { theme, toggleTheme } = useTheme()
@@ -243,7 +244,21 @@ async function exportOds() {
   }
 }
 
-defineExpose({ saveFile, openFile, newQuiz, exportOds })
+async function importOds() {
+  if (isDirty.value && !(await confirmAction('Import from ODS? Unsaved changes will be lost.')))
+    return
+  const odsBytes = await openOtsFile()
+  if (!odsBytes) return
+  try {
+    const quizFile = readOds(odsBytes)
+    const data = deserialize(quizFile)
+    loadFile(data)
+  } catch (e) {
+    alert(`Failed to import ODS: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
+defineExpose({ saveFile, openFile, newQuiz, exportOds, importOds })
 
 const cellDisplay: Record<CellValue, string> = {
   [CellValue.Correct]: 'C',
@@ -346,7 +361,8 @@ function colGroupClass(colIdx: number): string {
         <div class="meta-field meta-field--file">
           <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
           <button title="Open quiz from JSON file (Ctrl+O)" @click="openFile">⤒ Open</button>
-          <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ ODS</button>
+          <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ Export</button>
+          <button title="Import quiz from ODS spreadsheet" @click="importOds">⬡ Import</button>
           <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
         </div>
       </div>
