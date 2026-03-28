@@ -148,30 +148,59 @@ and populate the store (teams, quizzers, answers, no-jumps, question types, meta
 
 CSS print styles that hide UI chrome and format for A4/letter paper.
 
-### Phase 3: Quizmeet Integration
+### Phase 3: Distribution
 
-#### 3.1 Load teams/quizzers from API
+#### 3.1 CI/CD release pipeline
 
-Pull team rosters and quizzer names from the quizmeet API.
+GitHub Actions workflow to build platform-specific artifacts on tag push. Separate jobs for Windows,
+macOS (universal binary), and Linux.
 
-#### 3.2 Submit results
+#### 3.2 Packaged releases
 
-Push completed scores and placement points back to quizmeet.
+Platform-specific installers (.exe/.msi, .dmg, .deb, .AppImage) published to GitHub Releases.
 
-#### 3.3 Admin dashboard
+#### 3.3 Code signing
 
-View upcoming quizzes, assign scorekeepers, review submitted results.
+macOS notarization and Windows code signing so installers run without security warnings.
 
-### Phase 4: Distribution
-
-#### 4.1 Packaged releases
-
-Platform-specific installers (.exe, .app, .deb, .rpm) via GitHub Releases.
-
-#### 4.2 Auto-updater
+#### 3.4 Auto-updater
 
 Tauri's built-in update mechanism for seamless version updates.
 
-#### 4.3 PWA / web deployment
+#### 3.5 PWA / web deployment
 
-Static web deployment with PWA manifest as a native app fallback.
+Static web deployment with PWA manifest as a native app fallback for platforms without a Tauri
+build.
+
+### Phase 4: Quizmeet Integration
+
+See `docs/auth-proposal.md` for the full design.
+
+#### 4.1 Authentication
+
+OAuth sign-in (Google, GitHub, etc.). First login creates a `normal` account with no meet access.
+
+#### 4.2 Meet join codes
+
+Enter a code (or follow a join link) to gain a meet-scoped role: `head_coach`, `official`, or
+`viewer`. Officials and viewers can use guest JWTs without creating an account.
+
+#### 4.3 Official flow
+
+Load assigned quiz details (teams, quizzers, room) from the API and pre-populate the scoresheet.
+Submit completed `QuizFile` results back to the server.
+
+#### 4.4 Coach flow
+
+Create and manage churches, teams, and quizzer rosters for a meet. Link quizzers to historical
+identities for cross-meet career stats.
+
+#### 4.5 Viewer access
+
+Read-only view of meet standings, stats, and schedules. No account required — guest JWT issued via
+viewer code or join link.
+
+#### 4.6 Admin dashboard
+
+Create and manage quiz meets. Generate and rotate coach, official, and viewer codes. Review
+submitted results and manage accounts.
