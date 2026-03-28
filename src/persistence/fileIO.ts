@@ -123,7 +123,7 @@ export async function openOtsFile(): Promise<Uint8Array | null> {
     const { readFile } = await import('@tauri-apps/plugin-fs')
     const path = await open({
       multiple: false,
-      filters: [{ name: 'Scoresheet Template', extensions: ['ots'] }],
+      filters: [{ name: 'Scoresheet', extensions: ['ots', 'ods'] }],
     })
     if (!path) return null
     return readFile(path as string)
@@ -131,7 +131,7 @@ export async function openOtsFile(): Promise<Uint8Array | null> {
     return new Promise((resolve) => {
       const input = document.createElement('input')
       input.type = 'file'
-      input.accept = '.ots'
+      input.accept = '.ots,.ods'
       input.onchange = () => {
         const file = input.files?.[0]
         if (!file) {
