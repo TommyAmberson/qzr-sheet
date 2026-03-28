@@ -1,5 +1,12 @@
 {
   "mcpServers": {
+    "cloudflare-api": {
+      "autoApprove": [
+        "execute",
+        "search"
+      ],
+      "url": "https://mcp.cloudflare.com/mcp"
+    },
     "git": {
       "args": [
         "mcp-server-git",
