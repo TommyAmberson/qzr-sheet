@@ -43,6 +43,55 @@ export function getOvertimeEligibleTeams(
 }
 
 /**
+ * Determine which teams are still actively competing in overtime.
+ *
+ * Starts from the regulation-eligible teams, then walks completed OT rounds
+ * and narrows to only those still tied after each round. Teams that broke
+ * out of the tie in a completed round are excluded from subsequent rounds.
+ *
+ * Returns the same set as getOvertimeEligibleTeams when no OT rounds are
+ * complete, or a subset once rounds have resolved some teams out.
+ */
+export function getActiveOtTeams(
+  cellData: CellValue[][][],
+  cols: Column[],
+  onTimes: boolean[],
+  noJumps: boolean[],
+): Set<number> {
+  const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes)
+  if (eligible.size < 2) return eligible
+
+  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
+  const totalRounds = Math.ceil(otNormals.length / 3)
+  let competing = [...eligible]
+
+  for (let r = 0; r < totalRounds; r++) {
+    const firstQ = 21 + r * 3
+    const lastQ = firstQ + 2
+    if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) break
+
+    const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
+    const throughCells = sliceCells(cellData, cols, throughCols)
+    const scores = throughCells.map(
+      (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+    )
+    const stillTied = new Set<number>()
+    for (let i = 0; i < competing.length; i++) {
+      for (let j = i + 1; j < competing.length; j++) {
+        if (scores[competing[i]!] === scores[competing[j]!]) {
+          stillTied.add(competing[i]!)
+          stillTied.add(competing[j]!)
+        }
+      }
+    }
+    if (stillTied.size < 2) break
+    competing = competing.filter((i) => stillTied.has(i))
+  }
+
+  return new Set(competing)
+}
+
+/**
  * Whether a question group (Normal + optional A/B) is complete.
  *
  * A group is complete when the chain has reached a terminal state:
