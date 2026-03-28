@@ -5,7 +5,12 @@ import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
+import { useTheme } from '../composables/useTheme'
+import { serializeStore, parseQuizFile } from '../persistence/quizFile'
+import { saveQuizToFile, openQuizFromFile, confirmAction } from '../persistence/fileIO'
 import { validationMessage } from '../scoring/validation'
+
+const { theme, toggleTheme } = useTheme()
 
 const {
   columns,
@@ -44,10 +49,16 @@ const {
   setQuizzerName,
   moveQuizzer,
   setQuestionType,
+  store,
+  noJumpMap,
+  loadFile,
+  resetStore,
   canUndo,
   canRedo,
+  isDirty,
   undo,
   redo,
+  markSaved,
 } = useScoresheet()
 
 /** All unique validation messages for the status tooltip */
@@ -178,6 +189,34 @@ const hoverCol = ref<number | null>(null)
 
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
+async function saveFile() {
+  const json = serializeStore(store, noJumpMap.value)
+  const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.json`
+  const saved = await saveQuizToFile(json, filename)
+  if (saved) markSaved()
+}
+
+async function openFile() {
+  if (isDirty.value && !(await confirmAction('Open a quiz file? Unsaved changes will be lost.')))
+    return
+  const json = await openQuizFromFile()
+  if (!json) return
+  try {
+    const data = parseQuizFile(json)
+    loadFile(data)
+  } catch (e) {
+    alert(`Failed to load quiz file: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
+async function newQuiz() {
+  if (isDirty.value && !(await confirmAction('Start a new quiz? Unsaved changes will be lost.')))
+    return
+  resetStore()
+}
+
+defineExpose({ saveFile, openFile, newQuiz })
+
 const cellDisplay: Record<CellValue, string> = {
   [CellValue.Correct]: 'C',
   [CellValue.Error]: 'E',
@@ -240,47 +279,63 @@ function colGroupClass(colIdx: number): string {
 
 <template>
   <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
-    <div
-      :class="[
-        'quiz-meta',
-        {
-          'quiz-meta--error': hasAnyErrors,
-          'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
-        },
-      ]"
-    >
-      <label class="meta-field">
-        <span class="meta-label">Division</span>
-        <input v-model="quiz.division" type="text" placeholder="1" />
-      </label>
-      <span class="meta-sep">·</span>
-      <label class="meta-field">
-        <span class="meta-label">Quiz</span>
-        <input v-model="quiz.quizNumber" type="text" />
-      </label>
-      <span class="meta-sep">·</span>
-      <label class="meta-field meta-field--toggle">
-        <input v-model="quiz.overtime" type="checkbox" />
-        <span class="toggle-track"><span class="toggle-thumb" /></span>
-        <span class="meta-label">Overtime</span>
-      </label>
-      <span class="meta-sep">·</span>
-      <div class="meta-field meta-field--undo">
-        <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
-        <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
-      </div>
-      <span class="meta-sep">·</span>
-      <span
-        class="meta-field meta-field--status"
-        :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
+    <div class="meta-row">
+      <div
+        :class="[
+          'quiz-meta quiz-meta--left',
+          {
+            'quiz-meta--error': hasAnyErrors,
+            'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
+          },
+        ]"
       >
-        <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
-        <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete">✓</span>
-        <span v-else class="meta-status meta-status--pending">○</span>
-        <span class="meta-label">{{
-          hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
-        }}</span>
-      </span>
+        <label class="meta-field">
+          <span class="meta-label">Division</span>
+          <input v-model="quiz.division" type="text" placeholder="1" />
+        </label>
+        <span class="meta-sep">·</span>
+        <label class="meta-field">
+          <span class="meta-label">Quiz</span>
+          <input v-model="quiz.quizNumber" type="text" />
+        </label>
+        <span class="meta-sep">·</span>
+        <div class="meta-field meta-field--undo">
+          <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
+          <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
+        </div>
+        <span class="meta-sep">·</span>
+        <span
+          class="meta-field meta-field--status"
+          :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
+        >
+          <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
+          <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete">✓</span>
+          <span v-else class="meta-status meta-status--pending">○</span>
+          <span class="meta-label">{{
+            hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
+          }}</span>
+        </span>
+        <div class="meta-field meta-field--file">
+          <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
+          <button title="Open quiz from JSON file (Ctrl+O)" @click="openFile">⤒ Open</button>
+          <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
+        </div>
+      </div>
+      <div class="quiz-meta quiz-meta--right">
+        <label class="meta-field meta-field--toggle">
+          <input v-model="quiz.overtime" type="checkbox" />
+          <span class="toggle-track"><span class="toggle-thumb" /></span>
+          <span class="meta-label">Overtime</span>
+        </label>
+        <span class="meta-sep">·</span>
+        <button
+          class="theme-toggle"
+          :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
+          @click="toggleTheme"
+        >
+          {{ theme === 'light' ? '🌙' : '☀️' }}
+        </button>
+      </div>
     </div>
 
     <table class="scoresheet" :style="{ '--drop-indicator-width': dropIndicatorWidth } as any">
@@ -694,13 +749,11 @@ function colGroupClass(colIdx: number): string {
   display: flex;
   gap: 0.75rem;
   align-items: center;
-  margin-bottom: 0.5rem;
   padding: 0.5rem 0.85rem;
   background: var(--color-meta-bg);
   border: 1px solid var(--color-meta-accent);
   border-left: 3px solid var(--color-meta-border);
   border-radius: 6px;
-  width: fit-content;
   color: var(--color-text);
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 0.8rem;
@@ -708,6 +761,13 @@ function colGroupClass(colIdx: number): string {
     background 0.4s,
     color 0.4s,
     border-color 0.4s;
+}
+
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .quiz-meta--error {
@@ -866,6 +926,48 @@ function colGroupClass(colIdx: number): string {
 .meta-field--undo button:disabled {
   opacity: 0.3;
   cursor: default;
+}
+
+/* File action buttons (save, open, new) */
+.meta-field--file {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+.meta-field--file button {
+  background: none;
+  border: 1px solid var(--color-meta-accent);
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+.meta-field--file button:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-faint);
+  background: var(--color-border-alt);
+}
+
+/* Theme toggle */
+.theme-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+  transition: opacity 0.15s;
+  opacity: 0.6;
+}
+.theme-toggle:hover {
+  opacity: 1;
 }
 
 .scoresheet {

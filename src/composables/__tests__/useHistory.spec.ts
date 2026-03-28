@@ -91,4 +91,79 @@ describe('useHistory', () => {
     expect(h.canUndo.value).toBe(false)
     expect(h.canRedo.value).toBe(false)
   })
+
+  describe('isDirty / markSaved', () => {
+    it('is not dirty initially', () => {
+      const h = useHistory()
+      expect(h.isDirty.value).toBe(false)
+    })
+
+    it('is dirty after a push', () => {
+      const h = useHistory()
+      h.push({ undo: () => {}, redo: () => {} })
+      expect(h.isDirty.value).toBe(true)
+    })
+
+    it('is not dirty after markSaved', () => {
+      const h = useHistory()
+      h.push({ undo: () => {}, redo: () => {} })
+      h.markSaved()
+      expect(h.isDirty.value).toBe(false)
+    })
+
+    it('is dirty after push following markSaved', () => {
+      const h = useHistory()
+      h.push({ undo: () => {}, redo: () => {} })
+      h.markSaved()
+      h.push({ undo: () => {}, redo: () => {} })
+      expect(h.isDirty.value).toBe(true)
+    })
+
+    it('is dirty after undo from saved point', () => {
+      const h = useHistory()
+      h.push({ undo: () => {}, redo: () => {} })
+      h.markSaved()
+      h.undo()
+      expect(h.isDirty.value).toBe(true)
+    })
+
+    it('is not dirty after undo then redo back to saved point', () => {
+      const h = useHistory()
+      h.push({ undo: () => {}, redo: () => {} })
+      h.markSaved()
+      h.undo()
+      h.redo()
+      expect(h.isDirty.value).toBe(false)
+    })
+
+    it('is not dirty after clear', () => {
+      const h = useHistory()
+      h.push({ undo: () => {}, redo: () => {} })
+      h.markSaved()
+      h.push({ undo: () => {}, redo: () => {} })
+      h.clear()
+      expect(h.isDirty.value).toBe(false)
+    })
+
+    it('stays dirty when saved command is trimmed by maxHistory', () => {
+      const h = useHistory(2)
+      h.push({ undo: () => {}, redo: () => {} })
+      h.markSaved()
+      h.push({ undo: () => {}, redo: () => {} })
+      h.push({ undo: () => {}, redo: () => {} })
+      // saved command was shifted out
+      h.undo()
+      h.undo()
+      expect(h.isDirty.value).toBe(true)
+    })
+
+    it('is dirty after undo-then-push (new branch) even at same depth', () => {
+      const h = useHistory()
+      h.push({ undo: () => {}, redo: () => {} })
+      h.markSaved()
+      h.undo()
+      h.push({ undo: () => {}, redo: () => {} })
+      expect(h.isDirty.value).toBe(true)
+    })
+  })
 })

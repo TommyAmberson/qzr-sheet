@@ -4,8 +4,8 @@ import { mount } from '@vue/test-utils'
 import App from '../App.vue'
 
 describe('App', () => {
-  it('mounts and renders properly', () => {
+  it('mounts and renders the scoresheet', () => {
     const wrapper = mount(App)
-    expect(wrapper.text()).toContain('Quizmeet Scoresheet')
+    expect(wrapper.find('.scoresheet-wrapper').exists()).toBe(true)
   })
 })

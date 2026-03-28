@@ -26,6 +26,7 @@ import {
   quizJumpedComplete,
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
+import type { DeserializeResult } from '../persistence/quizFile'
 
 export function useScoresheet() {
   const store = createQuizStore()
@@ -433,6 +434,44 @@ export function useScoresheet() {
     answerVersion.value++
   }
 
+  /** Load a deserialized quiz file into the store, replacing all state */
+  function loadFile(data: DeserializeResult) {
+    store.loadState(data)
+    quiz.value = store.quiz
+    noJumpMap.value = data.noJumps
+    internalOtRounds.value = data.quiz.overtime
+      ? Math.max(
+          1,
+          computeOvertimeRounds(
+            store.cellGrid(buildColumns(20)),
+            buildColumns(20),
+            data.teams.map((t) => t.onTime),
+            [...data.noJumps.entries()].map(([, v]) => v),
+          ),
+        )
+      : 1
+    answerVersion.value++
+    teamVersion.value++
+    history.clear()
+  }
+
+  /** Reset the store to a blank default quiz */
+  function resetStore() {
+    const fresh = createQuizStore()
+    store.loadState({
+      quiz: fresh.quiz,
+      teams: fresh.teams,
+      quizzers: fresh.quizzers,
+      answers: [],
+    })
+    quiz.value = store.quiz
+    noJumpMap.value = new Map()
+    internalOtRounds.value = 1
+    answerVersion.value++
+    teamVersion.value++
+    history.clear()
+  }
+
   return {
     columns,
     quiz,
@@ -481,8 +520,16 @@ export function useScoresheet() {
     // Undo/redo
     canUndo: history.canUndo,
     canRedo: history.canRedo,
+    isDirty: history.isDirty,
     undo: history.undo,
     redo: history.redo,
+    markSaved: history.markSaved,
+
+    // Persistence
+    store,
+    noJumpMap,
+    loadFile,
+    resetStore,
 
     // Question types
     setQuestionType,

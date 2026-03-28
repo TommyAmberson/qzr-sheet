@@ -1,25 +1,42 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
 import Scoresheet from './components/Scoresheet.vue'
-import { useTheme } from './composables/useTheme'
 
-const { theme, toggleTheme } = useTheme()
+const scoresheetRef = ref<InstanceType<typeof Scoresheet> | null>(null)
+
+function onDownload() {
+  scoresheetRef.value?.saveFile()
+}
+
+function onUpload() {
+  scoresheetRef.value?.openFile()
+}
+
+function onNew() {
+  scoresheetRef.value?.newQuiz()
+}
+
+function onFileShortcut(event: KeyboardEvent) {
+  if (!event.ctrlKey && !event.metaKey) return
+  if (event.key === 's' || event.key === 'S') {
+    event.preventDefault()
+    onDownload()
+  } else if (event.key === 'o' || event.key === 'O') {
+    event.preventDefault()
+    onUpload()
+  } else if (event.key === 'n' || event.key === 'N') {
+    event.preventDefault()
+    onNew()
+  }
+}
+
+onMounted(() => document.addEventListener('keydown', onFileShortcut, { capture: true }))
+onUnmounted(() => document.removeEventListener('keydown', onFileShortcut, { capture: true }))
 </script>
 
 <template>
   <div class="app">
-    <header class="app-header">
-      <h1>Quizmeet Scoresheet</h1>
-      <button
-        class="theme-toggle"
-        :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
-        @click="toggleTheme"
-      >
-        {{ theme === 'light' ? '🌙' : '☀️' }}
-      </button>
-    </header>
-    <main>
-      <Scoresheet />
-    </main>
+    <Scoresheet ref="scoresheetRef" />
   </div>
 </template>
 
@@ -41,36 +58,5 @@ body {
   transition:
     background 0.3s,
     color 0.3s;
-}
-
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  background: var(--color-text);
-  color: var(--color-bg-warm);
-  transition:
-    background 0.3s,
-    color 0.3s;
-}
-
-.app-header h1 {
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.theme-toggle {
-  background: none;
-  border: 1px solid var(--color-text-faint);
-  border-radius: 6px;
-  padding: 0.3rem 0.5rem;
-  font-size: 1rem;
-  cursor: pointer;
-  line-height: 1;
-  transition: background 0.15s;
-}
-.theme-toggle:hover {
-  background: var(--color-border-alt);
 }
 </style>
