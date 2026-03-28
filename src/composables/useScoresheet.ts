@@ -375,6 +375,7 @@ export function useScoresheet() {
     if (!team) return
     store.moveQuizzer(team.id, fromSeat, toSeat)
     teamVersion.value++
+    answerVersion.value++
   }
 
   /** Update a quizzer name by positional indices */

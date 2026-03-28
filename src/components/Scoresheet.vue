@@ -290,7 +290,7 @@ function colGroupClass(colIdx: number): string {
 </script>
 
 <template>
-  <div class="scoresheet-wrapper" @dragstart.prevent>
+  <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
     <div
       :class="[
         'quiz-meta',
@@ -364,7 +364,10 @@ function colGroupClass(colIdx: number): string {
               'col--question',
               colGroupClass(idx),
               headerClass(idx),
-              { 'col--entering': entering, 'col--hover': hoverCol === idx || selector?.ci === idx },
+              {
+                'col--entering': entering,
+                'col--hover': !dragState && (hoverCol === idx || selector?.ci === idx),
+              },
             ]"
             :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
           >
@@ -468,7 +471,7 @@ function colGroupClass(colIdx: number): string {
                 'sticky-col',
                 {
                   'cell--invalid': quizzerHasErrors(ti, qi),
-                  'col--name--active': selector?.ti === ti && selector?.qi === qi,
+                  'col--name--active': !dragState && selector?.ti === ti && selector?.qi === qi,
                 },
               ]"
               :title="
@@ -575,7 +578,7 @@ function colGroupClass(colIdx: number): string {
                 },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
                 { 'col--entering': entering },
-                { 'col--hover': hoverCol === idx },
+                { 'col--hover': !dragState && hoverCol === idx },
               ]"
               :title="
                 isInvalid(ti, qi, idx) ? cellValidationMessages(ti, qi, idx).join('\n') : undefined
@@ -1035,7 +1038,12 @@ thead .col--name {
 }
 .col--header-no-jump {
   color: var(--palette-no-jump) !important;
+}
+.col--header-no-jump .col-header-number {
   text-decoration: line-through;
+}
+.col--header-no-jump .col-header-type {
+  text-decoration: none;
 }
 .col--header-invalid {
   outline: 2px solid var(--color-invalid);
@@ -1288,6 +1296,9 @@ thead .col--name {
 .col--name--active {
   outline: 2px solid var(--color-border);
   outline-offset: -2px;
+}
+.is-dragging .row--quizzer:hover > .col--name {
+  outline: none;
 }
 .col--question.col--hover {
   outline: 2px solid var(--color-border);
