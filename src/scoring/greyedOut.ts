@@ -1,11 +1,5 @@
 import { CellValue, QuestionType, buildKeyToIdx, type Column } from '../types/scoresheet'
-import {
-  ColStatus,
-  teamHasValue as _teamHasValue,
-  teamHasAnswer as _teamHasAnswer,
-  anyTeamHasAnswer as _anyTeamHasAnswer,
-  isResolved as _isResolved,
-} from './helpers'
+import { ColStatus, teamHasValue, teamHasAnswer, anyTeamHasAnswer, isResolved } from './helpers'
 
 /**
  * Compute which cells are greyed out (disabled).
@@ -40,11 +34,11 @@ export function computeGreyedOut(
   const teamCount = cellData.length
   const keyToIdx = buildKeyToIdx(cols)
 
-  // Bind helpers to this cellData for convenience
-  const teamHasValue = (ti: number, ci: number, v: CellValue) => _teamHasValue(cellData, ti, ci, v)
-  const teamHasAnswer = (ti: number, ci: number) => _teamHasAnswer(cellData, ti, ci)
-  const anyTeamHasAnswer = (ci: number) => _anyTeamHasAnswer(cellData, ci)
-  const isResolved = (ci: number) => _isResolved(cellData, ci)
+  // Partially apply cellData so call sites read cleanly
+  const hasAnswer = (ti: number, ci: number) => teamHasAnswer(cellData, ti, ci)
+  const hasValue = (ti: number, ci: number, v: CellValue) => teamHasValue(cellData, ti, ci, v)
+  const anyHasAnswer = (ci: number) => anyTeamHasAnswer(cellData, ci)
+  const colResolved = (ci: number) => isResolved(cellData, ci)
 
   function greyAllTeams(colIdx: number) {
     for (let ti = 0; ti < teamCount; ti++) {
@@ -87,11 +81,10 @@ export function computeGreyedOut(
 
     // 1. If a question has an answer (C/E/B/MB), it's done — grey out all teams
     //    on that column. Fouls don't count (question is re-asked).
-    if (anyTeamHasAnswer(colIdx)) {
+    if (anyHasAnswer(colIdx)) {
       greyAllTeams(colIdx)
-      // Only set Errored/Resolved if not already Skipped by a parent cascade
       if (colStatuses[colIdx] === ColStatus.Pending) {
-        colStatuses[colIdx] = isResolved(colIdx) ? ColStatus.Resolved : ColStatus.Errored
+        colStatuses[colIdx] = colResolved(colIdx) ? ColStatus.Resolved : ColStatus.Errored
       }
     }
 
@@ -135,9 +128,9 @@ export function computeGreyedOut(
       // Determine which teams would be tossed on the next column
       const wouldBeTossed: number[] = []
       for (let ti = 0; ti < teamCount; ti++) {
-        if (teamHasValue(ti, colIdx, CellValue.Error)) {
+        if (hasValue(ti, colIdx, CellValue.Error)) {
           wouldBeTossed.push(ti)
-        } else if (tossedUp[colIdx]!.has(`${ti}`) && !teamHasAnswer(ti, colIdx)) {
+        } else if (tossedUp[colIdx]!.has(`${ti}`) && !hasAnswer(ti, colIdx)) {
           wouldBeTossed.push(ti)
         }
       }
