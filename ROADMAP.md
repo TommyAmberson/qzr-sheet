@@ -144,7 +144,7 @@ formulas recalculate automatically in LibreOffice.
 Import a filled ODS scoresheet back into the app. Read cell values from known Quiz sheet addresses
 and populate the store (teams, quizzers, answers, no-jumps, question types, metadata).
 
-#### 2.6 Print-friendly layout
+#### 2.6 Print-friendly layout (optional)
 
 CSS print styles that hide UI chrome and format for A4/letter paper.
 
