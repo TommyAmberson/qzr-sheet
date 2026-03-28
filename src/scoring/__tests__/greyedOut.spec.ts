@@ -439,8 +439,8 @@ describe('greyed-out logic', () => {
     for (let n = 5; n <= 20; n++) noJumps[otCi(`${n}`)] = true
     const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
     const result = computeGreyedOut(otCells, otCols, ineligibility)
-    // Team 2 NOT greyed on regulation
-    expect(isGreyed(result, 2, otCi('1'))).toBe(false)
+    // Team 2 NOT greyed on unanswered regulation columns (OT ineligibility doesn't affect regulation)
+    expect(isGreyed(result, 2, otCi('14'))).toBe(false)
     expect(isGreyed(result, 2, otCi('15'))).toBe(false)
   })
 
