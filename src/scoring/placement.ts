@@ -33,7 +33,7 @@ export function computePlacements(
     (a, b) => regulationScores[b]! - regulationScores[a]!,
   )
 
-  const regTied = findTiedTeams(regulationScores)
+  const regTied = findTied(allTeamIndices(teamCount), regulationScores)
 
   // Place non-tied teams at their natural rank
   let place = 1
@@ -57,7 +57,7 @@ export function computePlacements(
   let bottomPlace = tiedRank + tiedTeams.length - 1
   for (let r = 0; r < checkpointScores.length; r++) {
     const scores = checkpointScores[r]!
-    const stillTied = findTiedTeamsInGroup(remaining, scores)
+    const stillTied = findTied(remaining, scores)
 
     const resolved = remaining.filter((i) => !stillTied.has(i))
     if (resolved.length > 0) {
@@ -99,20 +99,7 @@ function allTeamIndices(count: number): number[] {
   return Array.from({ length: count }, (_, i) => i)
 }
 
-function findTiedTeams(scores: number[]): Set<number> {
-  const tied = new Set<number>()
-  for (let i = 0; i < scores.length; i++) {
-    for (let j = i + 1; j < scores.length; j++) {
-      if (scores[i] === scores[j]) {
-        tied.add(i)
-        tied.add(j)
-      }
-    }
-  }
-  return tied
-}
-
-function findTiedTeamsInGroup(group: number[], scores: number[]): Set<number> {
+function findTied(group: number[], scores: number[]): Set<number> {
   const tied = new Set<number>()
   for (let i = 0; i < group.length; i++) {
     for (let j = i + 1; j < group.length; j++) {
