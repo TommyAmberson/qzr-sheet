@@ -13,7 +13,7 @@ function onUpload() {
 }
 
 function onNew() {
-  // TODO Phase 2: confirm + reset store to defaults
+  scoresheetRef.value?.newQuiz()
 }
 
 function onFileShortcut(event: KeyboardEvent) {
@@ -36,7 +36,7 @@ onUnmounted(() => document.removeEventListener('keydown', onFileShortcut, { capt
 
 <template>
   <div class="app">
-    <Scoresheet ref="scoresheetRef" @new="onNew" />
+    <Scoresheet ref="scoresheetRef" />
   </div>
 </template>
 

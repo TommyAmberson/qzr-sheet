@@ -9,10 +9,6 @@ import { useTheme } from '../composables/useTheme'
 import { serializeStore, parseQuizFile } from '../persistence/quizFile'
 import { validationMessage } from '../scoring/validation'
 
-defineEmits<{
-  new: []
-}>()
-
 const { theme, toggleTheme } = useTheme()
 
 const {
@@ -55,6 +51,7 @@ const {
   store,
   noJumpMap,
   loadFile,
+  resetStore,
   canUndo,
   canRedo,
   undo,
@@ -221,7 +218,12 @@ function openFile() {
   input.click()
 }
 
-defineExpose({ saveFile, openFile })
+function newQuiz() {
+  if (!confirm('Start a new quiz? Unsaved changes will be lost.')) return
+  resetStore()
+}
+
+defineExpose({ saveFile, openFile, newQuiz })
 
 const cellDisplay: Record<CellValue, string> = {
   [CellValue.Correct]: 'C',
@@ -324,7 +326,7 @@ function colGroupClass(colIdx: number): string {
         <div class="meta-field meta-field--file">
           <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
           <button title="Open quiz from JSON file (Ctrl+O)" @click="openFile">⤒ Open</button>
-          <button title="New quiz (Ctrl+N)" @click="$emit('new')">✦ New</button>
+          <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
         </div>
       </div>
       <div class="quiz-meta quiz-meta--right">

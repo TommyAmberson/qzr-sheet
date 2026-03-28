@@ -455,6 +455,23 @@ export function useScoresheet() {
     history.clear()
   }
 
+  /** Reset the store to a blank default quiz */
+  function resetStore() {
+    const fresh = createQuizStore()
+    store.loadState({
+      quiz: fresh.quiz,
+      teams: fresh.teams,
+      quizzers: fresh.quizzers,
+      answers: [],
+    })
+    quiz.value = store.quiz
+    noJumpMap.value = new Map()
+    internalOtRounds.value = 1
+    answerVersion.value++
+    teamVersion.value++
+    history.clear()
+  }
+
   return {
     columns,
     quiz,
@@ -510,6 +527,7 @@ export function useScoresheet() {
     store,
     noJumpMap,
     loadFile,
+    resetStore,
 
     // Question types
     setQuestionType,
