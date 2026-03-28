@@ -36,28 +36,6 @@ function abColumnNeededWith(
 }
 
 /**
- * Whether an A/B column should be shown.
- *
- * An A/B column is visible if:
- * - It has any cell content (answers/fouls), OR
- * - It has a no-jump marker, OR
- * - Its parent column had an error (triggering the A/B flow)
- *
- * A columns are suppressed when the parent error bypassed them in favour of B
- * (bonus-routing: only one team was eligible, so A toss-up is skipped).
- */
-export function abColumnNeeded(
-  cellData: CellValue[][][],
-  cols: Column[],
-  noJumps: boolean[],
-  colIdx: number,
-  colStatuses?: ColStatus[],
-): boolean {
-  const statuses = colStatuses ?? computeGreyedOut(cellData, cols).colStatuses
-  return abColumnNeededWith(cellData, cols, buildKeyToIdx(cols), noJumps, colIdx, statuses)
-}
-
-/**
  * Compute which columns are "orphaned" — visible only because they have
  * content or a no-jump marker, not because game logic requires them.
  *
