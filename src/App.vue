@@ -3,6 +3,18 @@ import Scoresheet from './components/Scoresheet.vue'
 import { useTheme } from './composables/useTheme'
 
 const { theme, toggleTheme } = useTheme()
+
+function onDownload() {
+  // TODO Phase 2: serialize quiz state and trigger JSON file download
+}
+
+function onUpload() {
+  // TODO Phase 2: open file picker and load JSON into store
+}
+
+function onNew() {
+  // TODO Phase 2: confirm + reset store to defaults
+}
 </script>
 
 <template>
@@ -18,7 +30,7 @@ const { theme, toggleTheme } = useTheme()
       </button>
     </header>
     <main>
-      <Scoresheet />
+      <Scoresheet @download="onDownload" @upload="onUpload" @new="onNew" />
     </main>
   </div>
 </template>
@@ -47,7 +59,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 1rem;
   background: var(--color-text);
   color: var(--color-bg-warm);
   transition:

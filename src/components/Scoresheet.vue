@@ -7,6 +7,12 @@ import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { validationMessage } from '../scoring/validation'
 
+defineEmits<{
+  download: []
+  upload: []
+  new: []
+}>()
+
 const {
   columns,
   quiz,
@@ -259,12 +265,6 @@ function colGroupClass(colIdx: number): string {
         <input v-model="quiz.quizNumber" type="text" />
       </label>
       <span class="meta-sep">·</span>
-      <label class="meta-field meta-field--toggle">
-        <input v-model="quiz.overtime" type="checkbox" />
-        <span class="toggle-track"><span class="toggle-thumb" /></span>
-        <span class="meta-label">Overtime</span>
-      </label>
-      <span class="meta-sep">·</span>
       <div class="meta-field meta-field--undo">
         <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
         <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
@@ -281,6 +281,18 @@ function colGroupClass(colIdx: number): string {
           hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
         }}</span>
       </span>
+      <div class="meta-field meta-field--file">
+        <button title="Download quiz as JSON" @click="$emit('download')">⬇</button>
+        <button title="Open quiz from JSON file" @click="$emit('upload')">⬆</button>
+        <button title="New quiz" @click="$emit('new')">＋</button>
+      </div>
+      <div class="meta-right">
+        <label class="meta-field meta-field--toggle">
+          <input v-model="quiz.overtime" type="checkbox" />
+          <span class="toggle-track"><span class="toggle-thumb" /></span>
+          <span class="meta-label">Overtime</span>
+        </label>
+      </div>
     </div>
 
     <table class="scoresheet" :style="{ '--drop-indicator-width': dropIndicatorWidth } as any">
@@ -700,7 +712,6 @@ function colGroupClass(colIdx: number): string {
   border: 1px solid var(--color-meta-accent);
   border-left: 3px solid var(--color-meta-border);
   border-radius: 6px;
-  width: fit-content;
   color: var(--color-text);
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 0.8rem;
@@ -866,6 +877,34 @@ function colGroupClass(colIdx: number): string {
 .meta-field--undo button:disabled {
   opacity: 0.3;
   cursor: default;
+}
+
+/* File action buttons (download, upload, new) */
+.meta-field--file {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+.meta-field--file button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.meta-field--file button:hover {
+  color: var(--color-text);
+}
+
+/* Right-aligned quiz options */
+.meta-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
 }
 
 .scoresheet {
