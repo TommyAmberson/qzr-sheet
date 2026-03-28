@@ -484,6 +484,10 @@ export function useScoresheet() {
     undo: history.undo,
     redo: history.redo,
 
+    // Persistence
+    store,
+    noJumpMap,
+
     // Question types
     setQuestionType,
   }
