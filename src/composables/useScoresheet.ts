@@ -9,7 +9,6 @@ import {
   type Column,
   type Quiz,
   type Team,
-  type Quizzer,
   type PlaceKey,
 } from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
@@ -17,11 +16,7 @@ import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
 import { validateCells, ValidationCode, validationMessage } from '../scoring/validation'
 import { isBonusSituation } from '../scoring/helpers'
-import {
-  computeVisibleColumns,
-  computeOrphanedColumns,
-  abColumnNeeded as _abColumnNeeded,
-} from '../scoring/columnVisibility'
+import { computeVisibleColumns, computeOrphanedColumns } from '../scoring/columnVisibility'
 import {
   getOvertimeEligibleTeams,
   computeOvertimeRounds,
@@ -73,9 +68,6 @@ export function useScoresheet() {
 
   /** Quizzers per team, indexed by team position */
   const teamQuizzers = computed(() => teams.value.map((team) => store.quizzersByTeam(team.id)))
-
-  /** All quizzers (flat list) */
-  const quizzers = computed<Quizzer[]>(() => store.quizzers)
 
   /** Derived cell grid — recomputes when answerVersion or columns change */
   const cells = computed<CellValue[][][]>(() => {
@@ -325,16 +317,6 @@ export function useScoresheet() {
     ),
   )
 
-  function abColumnNeeded(colIdx: number): boolean {
-    return _abColumnNeeded(
-      cells.value,
-      columns.value,
-      noJumps.value,
-      colIdx,
-      greyedOutResult.value.colStatuses,
-    )
-  }
-
   /** Whether regulation questions (Q1–20) are fully filled out */
   const regulationComplete = computed(() =>
     questionsComplete(cells.value, columns.value, noJumps.value, 1, 20),
@@ -444,7 +426,6 @@ export function useScoresheet() {
     quiz,
     teams,
     teamQuizzers,
-    quizzers,
     cells,
     noJumps,
     scoring,
@@ -457,8 +438,6 @@ export function useScoresheet() {
     store,
 
     // Grey-out & validation
-    greyedOutResult,
-    tossedUpSet,
     validationErrors,
 
     // Query helpers
@@ -482,7 +461,6 @@ export function useScoresheet() {
     // Column visibility
     visibleColumns,
     allQuestionsComplete,
-    abColumnNeeded,
 
     // Placements
     placements,
