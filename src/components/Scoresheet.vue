@@ -190,7 +190,6 @@ function colGroupClass(colIdx: number): string {
 
   const classes: string[] = []
   const dc = displayColumns.value
-  if (dc[0]?.idx === colIdx) classes.push('col--first')
   if (dc[dc.length - 1]?.idx === colIdx) classes.push('col--last')
 
   if (col.isOvertime) {
@@ -921,28 +920,22 @@ thead .col--name {
   border-top: 2px solid var(--color-ot-border);
 }
 
-/* Left border at regulation→OT boundary and between OT rounds.
- * Needs enough specificity to beat the !important resets on spacer-cell,
- * team-header-spacer, and row--team-total td. */
-.col--ot-start,
-.col--ot-round-start,
-.col--first,
+/* Dotted boundary borders on light-border rows (spacers, team header, running total, question headers).
+ * Regular cell rows keep their normal solid border — no override needed there. */
+.col--question.col--ot-start,
+.col--question.col--ot-round-start,
 .spacer-cell.col--ot-start,
 .spacer-cell.col--ot-round-start,
-.spacer-cell.col--first,
 .team-header-spacer.col--ot-start,
 .team-header-spacer.col--ot-round-start,
-.team-header-spacer.col--first,
 .row--team-total .col--ot-start,
 .row--team-total .col--ot-round-start,
-.row--team-total .col--first,
 .row--team-total .cell--total.col--ot-start,
-.row--team-total .cell--total.col--ot-round-start,
-.row--team-total .cell--total.col--first {
+.row--team-total .cell--total.col--ot-round-start {
   border-left: 2px dotted var(--color-border) !important;
 }
-.col--last,
 .spacer-cell.col--last,
+.col--question.col--last,
 .team-header-spacer.col--last,
 .row--team-total .col--last,
 .row--team-total .cell--total.col--last {
