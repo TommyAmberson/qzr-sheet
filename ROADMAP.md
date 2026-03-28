@@ -103,8 +103,11 @@ consistent cross-browser styling.
 
 #### 1.5.4 Keyboard navigation ✅
 
-Arrow keys move between cells. Enter/Space opens the cell selector. Letter keys (c/e/f/b/m) set the
-value directly and advance focus. Escape closes the selector or clears focus.
+Arrow keys move between cells (focus top-left cell if nothing focused). Enter/Space opens the cell
+selector. Letter keys (c/e/f/b/m) set the value directly. Escape closes the selector or clears
+focus. Hover shows grey crosshair borders; keyboard focus shows blue crosshair borders on the cell,
+quizzer name, and question header. Blue focus always overrides grey hover. Focus ring persists while
+the selector popup is open.
 
 #### 1.5.5 Undo/redo
 
