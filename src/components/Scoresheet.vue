@@ -187,14 +187,25 @@ function headerClass(colIdx: number): string {
 function colGroupClass(colIdx: number): string {
   const col = columns.value[colIdx]
   if (!col) return ''
+
+  const classes: string[] = []
+  const dc = displayColumns.value
+  if (dc[0]?.idx === colIdx) classes.push('col--first')
+  if (dc[dc.length - 1]?.idx === colIdx) classes.push('col--last')
+
   if (col.isOvertime) {
     if (col.type === QuestionType.Normal && (col.number - 21) % 3 === 0) {
-      return col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start'
+      classes.push(
+        col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start',
+      )
+    } else {
+      classes.push('col--overtime')
     }
-    return 'col--overtime'
+  } else if (col.isAB && col.isErrorPoints) {
+    classes.push('col--ab')
   }
-  if (col.isAB && col.isErrorPoints) return 'col--ab'
-  return ''
+
+  return classes.join(' ')
 }
 </script>
 
@@ -915,15 +926,27 @@ thead .col--name {
  * team-header-spacer, and row--team-total td. */
 .col--ot-start,
 .col--ot-round-start,
+.col--first,
 .spacer-cell.col--ot-start,
 .spacer-cell.col--ot-round-start,
+.spacer-cell.col--first,
 .team-header-spacer.col--ot-start,
 .team-header-spacer.col--ot-round-start,
+.team-header-spacer.col--first,
 .row--team-total .col--ot-start,
 .row--team-total .col--ot-round-start,
+.row--team-total .col--first,
 .row--team-total .cell--total.col--ot-start,
-.row--team-total .cell--total.col--ot-round-start {
+.row--team-total .cell--total.col--ot-round-start,
+.row--team-total .cell--total.col--first {
   border-left: 2px dotted var(--color-border) !important;
+}
+.col--last,
+.spacer-cell.col--last,
+.team-header-spacer.col--last,
+.row--team-total .col--last,
+.row--team-total .cell--total.col--last {
+  border-right: 2px dotted var(--color-border) !important;
 }
 
 /* Question header colours based on answer */
