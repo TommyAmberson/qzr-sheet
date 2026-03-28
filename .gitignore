@@ -41,3 +41,6 @@ __screenshots__/
 
 # OTS inspection folder
 .scoresheet-ots-inspect
+
+# LibreOffice lock files
+.~lock.*#
