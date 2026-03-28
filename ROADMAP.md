@@ -66,11 +66,27 @@ pulse red when any cell in their column has a validation error.
 
 Replace hardcoded "Team 1" / "Quizzer 1" with inline-editable text fields.
 
-#### 1.11 Placement points ✅
+#### 1.11 Placement points ⚠️
 
-Calculate and display placement points after quiz completion — 1st gets `score/10` (min 10), 2nd
-`score/10 − 1` (min 5), 3rd `score/10 − 2` (min 1). Toggle between official rulebook formula and
-legacy spreadsheet formula.
+Calculate and display placement points after quiz completion. Toggle between official rulebook
+formula and legacy spreadsheet formula.
+
+> **TODO:** The current implementation doesn't handle tied placements correctly. The legacy
+> spreadsheet uses a lookup table with separate rows for ties (1.2 = two-way tie for 1st, 1.3 =
+> three-way tie, 2.2 = two-way tie for 2nd) with different base and bonus point values. The official
+> rules don't specify tie handling at all, which is likely why the legacy formula has been the
+> default in practice. The placement points formula needs to be reworked to support this table:
+>
+> | Place | Base | Bonus | Description              |
+> | ----- | ---- | ----- | ------------------------ |
+> | 1     | 10   | 80    | One team in 1st place    |
+> | 1.2   | 7    | 60    | Two teams tied for 1st   |
+> | 1.3   | 5    | 50    | Three teams tied for 1st |
+> | 2     | 5    | 50    | One team in 2nd place    |
+> | 2.2   | 3    | 30    | Two teams tied for 2nd   |
+> | 3     | 1    | 20    | One team in 3rd place    |
+>
+> Formula: `base + max((score - bonus) / 10, 0)`
 
 #### 1.12 Individual quizzer scores ✅
 

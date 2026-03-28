@@ -290,7 +290,7 @@ function colGroupClass(colIdx: number): string {
 </script>
 
 <template>
-  <div class="scoresheet-wrapper" @dragstart.prevent>
+  <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
     <div
       :class="[
         'quiz-meta',
@@ -310,14 +310,7 @@ function colGroupClass(colIdx: number): string {
         <input v-model="quiz.quizNumber" type="text" />
       </label>
       <span class="meta-sep">·</span>
-      <label
-        class="meta-field meta-field--toggle"
-        :title="
-          quiz.placementFormula === PlacementFormula.Spreadsheet
-            ? 'Legacy pts (spreadsheet): 1st=score/10+2, 2nd=score/10, 3rd=score/10−1'
-            : 'Rules pts (official rulebook): 1st=score/10, 2nd=score/10−1, 3rd=score/10−2'
-        "
-      >
+      <label class="meta-field meta-field--toggle">
         <input v-model="quiz.overtime" type="checkbox" />
         <span class="toggle-track"><span class="toggle-thumb" /></span>
         <span class="meta-label">Overtime</span>
@@ -336,6 +329,14 @@ function colGroupClass(colIdx: number): string {
         <span class="toggle-track"><span class="toggle-thumb" /></span>
         <span class="meta-label">Legacy pts</span>
       </label>
+      <span class="meta-info">
+        <span class="meta-info__icon">&#9432;</span>
+        <span class="meta-info__popover">
+          <strong>Rules</strong> — equal 1-pt steps between places at any score.<br />
+          <strong>Legacy</strong> — historical spreadsheet formula; higher bonus for 1st, points
+          grow faster at high scores.
+        </span>
+      </span>
       <span class="meta-sep">·</span>
       <span
         class="meta-field meta-field--status"
@@ -363,7 +364,10 @@ function colGroupClass(colIdx: number): string {
               'col--question',
               colGroupClass(idx),
               headerClass(idx),
-              { 'col--entering': entering, 'col--hover': hoverCol === idx || selector?.ci === idx },
+              {
+                'col--entering': entering,
+                'col--hover': !dragState && (hoverCol === idx || selector?.ci === idx),
+              },
             ]"
             :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
           >
@@ -467,7 +471,7 @@ function colGroupClass(colIdx: number): string {
                 'sticky-col',
                 {
                   'cell--invalid': quizzerHasErrors(ti, qi),
-                  'col--name--active': selector?.ti === ti && selector?.qi === qi,
+                  'col--name--active': !dragState && selector?.ti === ti && selector?.qi === qi,
                 },
               ]"
               :title="
@@ -574,7 +578,7 @@ function colGroupClass(colIdx: number): string {
                 },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
                 { 'col--entering': entering },
-                { 'col--hover': hoverCol === idx },
+                { 'col--hover': !dragState && hoverCol === idx },
               ]"
               :title="
                 isInvalid(ti, qi, idx) ? cellValidationMessages(ti, qi, idx).join('\n') : undefined
@@ -593,7 +597,11 @@ function colGroupClass(colIdx: number): string {
               :title="teamHasErrors(ti) ? teamValidationMessages(ti).join('\n') : undefined"
             >
               <span v-if="placements[ti]" class="placement-medal">{{
-                placements[ti] === 1 ? '🥇' : placements[ti] === 2 ? '🥈' : '🥉'
+                Math.floor(placements[ti]!) === 1
+                  ? '🥇'
+                  : Math.floor(placements[ti]!) === 2
+                    ? '🥈'
+                    : '🥉'
               }}</span>
               {{ scoring[ti]?.total ?? 0 }}
               <span v-if="placementPoints[ti] !== null" class="placement-points">
@@ -889,6 +897,47 @@ function colGroupClass(colIdx: number): string {
   font-weight: 600;
 }
 
+.meta-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.meta-info__icon {
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+  cursor: default;
+  line-height: 1;
+  padding: 0.1rem;
+  border-radius: 50%;
+  transition: color 0.15s;
+}
+.meta-info:hover .meta-info__icon {
+  color: var(--color-text-muted);
+}
+.meta-info__popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  z-index: 50;
+  white-space: normal;
+  text-align: left;
+  pointer-events: none;
+}
+.meta-info:hover .meta-info__popover {
+  display: block;
+}
+
 .scoresheet {
   border-collapse: collapse;
   font-family: 'Segoe UI', system-ui, sans-serif;
@@ -989,7 +1038,12 @@ thead .col--name {
 }
 .col--header-no-jump {
   color: var(--palette-no-jump) !important;
+}
+.col--header-no-jump .col-header-number {
   text-decoration: line-through;
+}
+.col--header-no-jump .col-header-type {
+  text-decoration: none;
 }
 .col--header-invalid {
   outline: 2px solid var(--color-invalid);
@@ -1242,6 +1296,9 @@ thead .col--name {
 .col--name--active {
   outline: 2px solid var(--color-border);
   outline-offset: -2px;
+}
+.is-dragging .row--quizzer:hover > .col--name {
+  outline: none;
 }
 .col--question.col--hover {
   outline: 2px solid var(--color-border);

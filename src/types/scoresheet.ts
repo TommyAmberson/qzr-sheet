@@ -22,6 +22,13 @@ export enum QuestionCategory {
   SIT = 'SIT',
 }
 
+/**
+ * Encodes both rank and tie-width for placement points lookup.
+ * 1 = solo 1st, 1.2 = two-way tie for 1st, 1.3 = three-way tie for 1st,
+ * 2 = solo 2nd, 2.2 = two-way tie for 2nd, 3 = solo 3rd.
+ */
+export type PlaceKey = 1 | 1.2 | 1.3 | 2 | 2.2 | 3
+
 export enum PlacementFormula {
   /** Official rulebook: 1st=score/10, 2nd=score/10−1, 3rd=score/10−2 */
   Rules = 'rules',
