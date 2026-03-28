@@ -307,6 +307,24 @@ For scoring the quizzer-cell totals (correct count, error count), Calculations r
 Quiz rows 6–26 at cols S–W (Q16–Q20), so quizzer cells for those columns always use the same
 `c`/`e`/`f` values as Q1–Q15.
 
+## Import from ODS
+
+The import reads cell values from the known Quiz sheet addresses and maps them back to the app's
+data model. Since the ODS has no concept of IDs, team and quizzer IDs are generated sequentially.
+
+### A/B Answer Guessing
+
+The ODS stores all sub-question answers (toss-up, A, B) in **one column per question**. On import
+the app must guess which sub-question each answer belongs to. The heuristic uses the footer rows
+(29–31) to determine how far the chain went, then applies the error-first rule:
+
+* **depth 0** (no A/B type in footer): all answers → normal key
+* **depth 1** (A type present): first error → normal key, rest → A key
+* **depth 2** (B type present): first error → normal, second error → A, rest → B
+
+This is a best-effort guess. Edge cases (fouls, missed bonuses on sub-questions) may not reconstruct
+perfectly — the user should verify after import.
+
 ## Named Ranges (OTS original)
 
 | Name                 | Purpose                                  |

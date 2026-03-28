@@ -28,6 +28,61 @@ function extractQuizSheet(xml: string): string {
 }
 
 /**
+ * Determine how deep the A/B chain went for a question column.
+ * 0 = toss-up only, 1 = through A, 2 = through B.
+ */
+function getABDepth(sheet: string, odsCol: number): number {
+  if (readCell(sheet, 30, odsCol)) return 2
+  if (readCell(sheet, 29, odsCol)) return 1
+  return 0
+}
+
+/**
+ * Distribute answers for a Q16+ question across normal/A/B column keys.
+ *
+ * Uses the A/B depth from the footer rows and the error-first chain rule:
+ * - depth 0: all answers → normal key
+ * - depth 1: first error → normal, rest → A
+ * - depth 2: first error → normal, second error → A, rest → B
+ *
+ * Errors are assigned to earlier sub-questions since they trigger the
+ * next sub-question in the chain.
+ */
+function distributeABAnswers(
+  out: QuizFile['answers'],
+  rawAnswers: { quizzerId: number; q: number; value: CellValue }[],
+  q: number,
+  depth: number,
+): void {
+  if (depth === 0) {
+    for (const a of rawAnswers) {
+      out.push({ quizzerId: a.quizzerId, columnKey: `${q}`, value: a.value })
+    }
+    return
+  }
+
+  // Separate errors from non-errors to assign them in chain order
+  const errors = rawAnswers.filter((a) => a.value === CellValue.Error)
+  const nonErrors = rawAnswers.filter((a) => a.value !== CellValue.Error)
+
+  const keys = [`${q}`, `${q}A`, `${q}B`]
+  let errorIdx = 0
+
+  // Assign errors to progressively deeper keys (normal first, then A, then B)
+  for (const a of errors) {
+    const key = keys[Math.min(errorIdx, depth - 1)]!
+    out.push({ quizzerId: a.quizzerId, columnKey: key, value: a.value })
+    errorIdx++
+  }
+
+  // Non-errors go to the deepest reached key
+  const resolvedKey = keys[depth]!
+  for (const a of nonErrors) {
+    out.push({ quizzerId: a.quizzerId, columnKey: resolvedKey, value: a.value })
+  }
+}
+
+/**
  * Read an ODS/OTS file and return a QuizFile.
  *
  * Reads cell values from the known Quiz sheet layout and maps them
@@ -112,6 +167,14 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   const teams: QuizFile['teams'] = []
   const answers: QuizFile['answers'] = []
 
+  // First pass: build teams/quizzers and collect raw answer values
+  interface RawAnswer {
+    quizzerId: number
+    q: number
+    value: CellValue
+  }
+  const rawAnswersByQ = new Map<number, RawAnswer[]>()
+
   for (let ti = 0; ti < TEAM_BLOCKS.length; ti++) {
     const block = TEAM_BLOCKS[ti]!
     const teamId = nextId++
@@ -127,27 +190,38 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
 
       quizzers.push({ id: quizzerId, name: quizzerName, seatOrder: qi })
 
-      // Q1–Q20 answers: cols 3–22
-      // The ODS stores all sub-question answers (normal/A/B) in the same
-      // column. On import we map them to the normal key; the app's scoring
-      // will use question type metadata to handle A/B logic.
       for (let q = 1; q <= 20; q++) {
         const val = readCell(sheet, qRow, 3 + (q - 1)).toLowerCase()
         if (val && VALID_CELL_VALUES.has(val)) {
-          answers.push({ quizzerId, columnKey: `${q}`, value: val as CellValue })
+          if (!rawAnswersByQ.has(q)) rawAnswersByQ.set(q, [])
+          rawAnswersByQ.get(q)!.push({ quizzerId, q, value: val as CellValue })
         }
       }
 
-      // OT Q21–Q26 answers: cols 23–28
       for (let q = 21; q <= 26; q++) {
         const val = readCell(sheet, qRow, 23 + (q - 21)).toLowerCase()
         if (val && VALID_CELL_VALUES.has(val)) {
-          answers.push({ quizzerId, columnKey: `${q}`, value: val as CellValue })
+          if (!rawAnswersByQ.has(q)) rawAnswersByQ.set(q, [])
+          rawAnswersByQ.get(q)!.push({ quizzerId, q, value: val as CellValue })
         }
       }
     }
 
     teams.push({ id: teamId, name: teamName, onTime, seatOrder: ti, quizzers })
+  }
+
+  // Second pass: assign column keys using footer rows to guess A/B depth
+  for (const [q, rawAnswers] of rawAnswersByQ) {
+    if (q < 16) {
+      // Q1–Q15: no A/B
+      for (const a of rawAnswers) {
+        answers.push({ quizzerId: a.quizzerId, columnKey: `${q}`, value: a.value })
+      }
+    } else {
+      const odsCol = q <= 20 ? 3 + (q - 1) : 23 + (q - 21)
+      const depth = getABDepth(sheet, odsCol)
+      distributeABAnswers(answers, rawAnswers, q, depth)
+    }
   }
 
   return {
