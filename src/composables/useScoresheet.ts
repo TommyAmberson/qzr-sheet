@@ -27,6 +27,7 @@ import {
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
 import type { DeserializeResult } from '../persistence/quizFile'
+import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/autoSave'
 
 export function useScoresheet() {
   const store = createQuizStore()
@@ -47,14 +48,36 @@ export function useScoresheet() {
    */
   const internalOtRounds = ref(1)
 
+  /** No-jump flags — grows/shrinks with columns */
+  const noJumpMap = ref(new Map<string, boolean>())
+
+  // --- Restore persisted state from localStorage ---
+  const restored = loadFromStorage()
+  if (restored) {
+    store.loadState(restored)
+    quiz.value = store.quiz
+    noJumpMap.value = restored.noJumps
+    internalOtRounds.value = restored.quiz.overtime
+      ? Math.max(
+          1,
+          computeOvertimeRounds(
+            store.cellGrid(buildColumns(20)),
+            buildColumns(20),
+            restored.teams.map((t) => t.onTime),
+            [...restored.noJumps.entries()].map(([, v]) => v),
+          ),
+        )
+      : 1
+    if (restored.answers.length > 0 || restored.quizzers.some((q) => q.name.trim())) {
+      history.push({ undo: () => {}, redo: () => {} })
+    }
+  }
+
   /** Columns built reactively — regulation when OT is off, + OT rounds when on */
   const columns = computed<Column[]>(() => {
     const rounds = quiz.value.overtime ? internalOtRounds.value : 0
     return buildColumns(rounds)
   })
-
-  /** No-jump flags — grows/shrinks with columns */
-  const noJumpMap = ref(new Map<string, boolean>())
 
   const noJumps = computed<boolean[]>(() =>
     columns.value.map((col) => noJumpMap.value.get(col.key) ?? false),
@@ -453,9 +476,8 @@ export function useScoresheet() {
     answerVersion.value++
     teamVersion.value++
     history.clear()
+    saveToStorage(store, data.noJumps)
   }
-
-  /** Reset the store to a blank default quiz */
   function resetStore() {
     const fresh = createQuizStore()
     store.loadState({
@@ -470,7 +492,16 @@ export function useScoresheet() {
     answerVersion.value++
     teamVersion.value++
     history.clear()
+    clearStorage()
   }
+
+  // --- Auto-persist to localStorage ---
+  let persistTimer: ReturnType<typeof setTimeout> | null = null
+  function schedulePersist() {
+    if (persistTimer) clearTimeout(persistTimer)
+    persistTimer = setTimeout(() => saveToStorage(store, noJumpMap.value), 300)
+  }
+  watch([() => answerVersion.value, () => teamVersion.value, noJumpMap], schedulePersist)
 
   return {
     columns,
