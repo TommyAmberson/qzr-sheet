@@ -150,27 +150,32 @@ CSS print styles that hide UI chrome and format for A4/letter paper.
 
 ### Phase 3: Distribution
 
-#### 3.1 CI/CD release pipeline
+#### 3.1 Website / landing page
+
+Static site with app description, screenshots, download links, and a link to the web app. Single
+page is fine to start.
+
+#### 3.2 PWA / web deployment
+
+Deploy the scoresheet as a static site with a PWA manifest so it can run in any browser and be
+"installed" to a home screen. Covers ChromeOS, tablets, and borrowed-laptop scenarios.
+
+#### 3.3 CI/CD release pipeline
 
 GitHub Actions workflow to build platform-specific artifacts on tag push. Separate jobs for Windows,
 macOS (universal binary), and Linux.
 
-#### 3.2 Packaged releases
+#### 3.4 Packaged releases
 
 Platform-specific installers (.exe/.msi, .dmg, .deb, .AppImage) published to GitHub Releases.
 
-#### 3.3 Code signing
+#### 3.5 Code signing
 
 macOS notarization and Windows code signing so installers run without security warnings.
 
-#### 3.4 Auto-updater
+#### 3.6 Auto-updater
 
 Tauri's built-in update mechanism for seamless version updates.
-
-#### 3.5 PWA / web deployment
-
-Static web deployment with PWA manifest as a native app fallback for platforms without a Tauri
-build.
 
 ### Phase 4: Quizmeet Integration
 
