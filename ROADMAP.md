@@ -155,15 +155,26 @@ CSS print styles that hide UI chrome and format for A4/letter paper.
 Static site with app description, screenshots, download links, and a link to the web app. Single
 page is fine to start.
 
-#### 3.2 PWA / web deployment
+#### 3.2 PWA / web deployment 🚧
 
-Deploy the scoresheet as a static site with a PWA manifest so it can run in any browser and be
-"installed" to a home screen. Covers ChromeOS, tablets, and borrowed-laptop scenarios.
+Deploy the scoresheet as a static site so it can run in any browser. Covers ChromeOS, tablets, and
+borrowed-laptop scenarios.
+
+Hosted on **Cloudflare Pages** (free tier) at `www.versevault.ca/scoresheet`. Vite is configured
+with `base: '/scoresheet'` for web builds and `base: '/'` for Tauri builds (detected via
+`TAURI_ENV_PLATFORM`). A `public/_redirects` rule handles SPA client-side routing within the
+subpath. Deploy with `pnpm build:web` then
+`wrangler pages deploy dist --project-name versevault-www`.
+
+PWA manifest (offline support, home screen install) can be added later via `vite-plugin-pwa`.
 
 #### 3.3 CI/CD release pipeline
 
-GitHub Actions workflow to build platform-specific artifacts on tag push. Separate jobs for Windows,
-macOS (universal binary), and Linux.
+GitHub Actions workflow to build and deploy on push to `main`. Two jobs:
+
+* **Web**: `pnpm build:web` → `wrangler pages deploy` to Cloudflare Pages
+* **Native**: build platform-specific artifacts on tag push — separate jobs for Windows, macOS
+  (universal binary), and Linux
 
 #### 3.4 Packaged releases
 
