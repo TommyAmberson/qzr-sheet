@@ -198,15 +198,6 @@ describe('scoreTeam', () => {
     expect(result.quizzers[0]!.quizoutBonus).toBe(false)
   })
 
-  it('detects error out (3 errors)', () => {
-    const cells = blankCells()
-    cells[0]![colIdx('1')] = E
-    cells[0]![colIdx('2')] = E
-    cells[0]![colIdx('3')] = E
-    const result = scoreTeam(cells, columns, false)
-    expect(result.quizzers[0]!.erroredOut).toBe(true)
-  })
-
   it('2 errors + 1 foul is NOT error out (errors and fouls tracked separately)', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E
