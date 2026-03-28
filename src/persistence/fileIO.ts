@@ -42,21 +42,29 @@ export async function saveQuizToFile(json: string, defaultFilename: string): Pro
   }
 }
 
-export async function openQuizFromFile(): Promise<string | null> {
+export type OpenedQuizFile =
+  | { type: 'json'; content: string }
+  | { type: 'ods'; content: Uint8Array }
+
+export async function openAnyQuizFile(): Promise<OpenedQuizFile | null> {
   if (isTauri) {
     const { open } = await import('@tauri-apps/plugin-dialog')
-    const { readTextFile } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, readFile } = await import('@tauri-apps/plugin-fs')
     const path = await open({
       multiple: false,
-      filters: [{ name: 'Quiz JSON', extensions: ['json'] }],
+      filters: [{ name: 'Quiz files', extensions: ['json', 'ods'] }],
     })
     if (!path) return null
-    return readTextFile(path as string)
+    const p = path as string
+    if (p.endsWith('.ods')) {
+      return { type: 'ods', content: await readFile(p) }
+    }
+    return { type: 'json', content: await readTextFile(p) }
   } else {
     return new Promise((resolve) => {
       const input = document.createElement('input')
       input.type = 'file'
-      input.accept = '.json'
+      input.accept = '.json,.ods'
       input.onchange = () => {
         const file = input.files?.[0]
         if (!file) {
@@ -64,9 +72,16 @@ export async function openQuizFromFile(): Promise<string | null> {
           return
         }
         const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = () => resolve(null)
-        reader.readAsText(file)
+        if (file.name.endsWith('.ods')) {
+          reader.onload = () =>
+            resolve({ type: 'ods', content: new Uint8Array(reader.result as ArrayBuffer) })
+          reader.onerror = () => resolve(null)
+          reader.readAsArrayBuffer(file)
+        } else {
+          reader.onload = () => resolve({ type: 'json', content: reader.result as string })
+          reader.onerror = () => resolve(null)
+          reader.readAsText(file)
+        }
       }
       input.click()
     })
@@ -117,18 +132,32 @@ export async function exportOdsFile(
   }
 }
 
-export async function openOtsFile(): Promise<Uint8Array | null> {
+export async function confirmAction(message: string): Promise<boolean> {
   if (isTauri) {
-    const { open } = await import('@tauri-apps/plugin-dialog')
+    const { ask } = await import('@tauri-apps/plugin-dialog')
+    return ask(message, { title: 'qzr-sheet', kind: 'warning' })
+  } else {
+    return confirm(message)
+  }
+}
+
+export async function openOtsTemplate(): Promise<Uint8Array | null> {
+  if (isTauri) {
+    const { message, open } = await import('@tauri-apps/plugin-dialog')
+    await message('Select your Scoresheet.ots file (or a quiz file you want to overwrite).', {
+      title: 'Select Scoresheet Template',
+      kind: 'info',
+    })
     const { readFile } = await import('@tauri-apps/plugin-fs')
     const path = await open({
       multiple: false,
-      filters: [{ name: 'Scoresheet', extensions: ['ots', 'ods'] }],
+      filters: [{ name: 'Scoresheet Template', extensions: ['ots', 'ods'] }],
     })
     if (!path) return null
     return readFile(path as string)
   } else {
     return new Promise((resolve) => {
+      alert('Select your Scoresheet.ots file (or a quiz file you want to overwrite).')
       const input = document.createElement('input')
       input.type = 'file'
       input.accept = '.ots,.ods'
@@ -145,14 +174,5 @@ export async function openOtsFile(): Promise<Uint8Array | null> {
       }
       input.click()
     })
-  }
-}
-
-export async function confirmAction(message: string): Promise<boolean> {
-  if (isTauri) {
-    const { ask } = await import('@tauri-apps/plugin-dialog')
-    return ask(message, { title: 'qzr-sheet', kind: 'warning' })
-  } else {
-    return confirm(message)
   }
 }

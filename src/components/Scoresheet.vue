@@ -9,10 +9,10 @@ import { useTheme } from '../composables/useTheme'
 import { serializeStore, parseQuizFile, serialize, deserialize } from '../persistence/quizFile'
 import {
   saveQuizToFile,
-  openQuizFromFile,
+  openAnyQuizFile,
   confirmAction,
   exportOdsFile,
-  openOtsFile,
+  openOtsTemplate,
 } from '../persistence/fileIO'
 import { fillOts } from '../export/fillOts'
 import { readOds } from '../export/readOds'
@@ -205,15 +205,18 @@ async function saveFile() {
 }
 
 async function openFile() {
-  if (isDirty.value && !(await confirmAction('Open a quiz file? Unsaved changes will be lost.')))
-    return
-  const json = await openQuizFromFile()
-  if (!json) return
+  if (isDirty.value && !(await confirmAction('Open a file? Unsaved changes will be lost.'))) return
+  const result = await openAnyQuizFile()
+  if (!result) return
   try {
-    const data = parseQuizFile(json)
-    loadFile(data)
+    if (result.type === 'ods') {
+      const data = deserialize(readOds(result.content))
+      loadFile(data)
+    } else {
+      loadFile(parseQuizFile(result.content))
+    }
   } catch (e) {
-    alert(`Failed to load quiz file: ${e instanceof Error ? e.message : e}`)
+    alert(`Failed to open file: ${e instanceof Error ? e.message : e}`)
   }
 }
 
@@ -224,7 +227,7 @@ async function newQuiz() {
 }
 
 async function exportOds() {
-  const otsBytes = await openOtsFile()
+  const otsBytes = await openOtsTemplate()
   if (!otsBytes) return
   const quizFile = serialize({
     quiz: store.quiz,
@@ -244,21 +247,7 @@ async function exportOds() {
   }
 }
 
-async function importOds() {
-  if (isDirty.value && !(await confirmAction('Import from ODS? Unsaved changes will be lost.')))
-    return
-  const odsBytes = await openOtsFile()
-  if (!odsBytes) return
-  try {
-    const quizFile = readOds(odsBytes)
-    const data = deserialize(quizFile)
-    loadFile(data)
-  } catch (e) {
-    alert(`Failed to import ODS: ${e instanceof Error ? e.message : e}`)
-  }
-}
-
-defineExpose({ saveFile, openFile, newQuiz, exportOds, importOds })
+defineExpose({ saveFile, openFile, newQuiz, exportOds })
 
 const cellDisplay: Record<CellValue, string> = {
   [CellValue.Correct]: 'C',
@@ -360,9 +349,8 @@ function colGroupClass(colIdx: number): string {
         </span>
         <div class="meta-field meta-field--file">
           <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
-          <button title="Open quiz from JSON file (Ctrl+O)" @click="openFile">⤒ Open</button>
+          <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
           <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ Export</button>
-          <button title="Import quiz from ODS spreadsheet" @click="importOds">⬡ Import</button>
           <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
         </div>
       </div>
