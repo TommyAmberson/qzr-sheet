@@ -198,6 +198,7 @@ function saveFile() {
 }
 
 function openFile() {
+  if (!confirm('Open a quiz file? Unsaved changes will be lost.')) return
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = '.json'
