@@ -80,7 +80,7 @@ function focusCell(ti: number, qi: number, ci: number) {
 }
 
 function isCellNavigable(ti: number, qi: number, ci: number): boolean {
-  return !isGreyedOut(ti, ci) && !isAfterOut(ti, qi, ci) && !isFouledOnQuestion(ti, qi, ci)
+  return !isAfterOut(ti, qi, ci) && !isFouledOnQuestion(ti, qi, ci)
 }
 
 /** ti=-1, qi=-1 represents the no-jump row */
@@ -112,14 +112,9 @@ function moveFocus(dqi: number, dci: number) {
   if (dci !== 0) {
     const curPos = cols.findIndex((c) => c.idx === f.ci)
     if (curPos === -1) return
-    let pos = curPos + dci
-    while (pos >= 0 && pos < cols.length) {
-      const nextIdx = cols[pos]!.idx
-      if (isNoJumpFocus() || isCellNavigable(f.ti, f.qi, nextIdx)) {
-        focusCell(f.ti, f.qi, nextIdx)
-        return
-      }
-      pos += dci
+    const nextPos = curPos + dci
+    if (nextPos >= 0 && nextPos < cols.length) {
+      focusCell(f.ti, f.qi, cols[nextPos]!.idx)
     }
   }
 
@@ -127,19 +122,10 @@ function moveFocus(dqi: number, dci: number) {
     const rows = allRows()
     const curRowIdx = rows.findIndex((r) => r.ti === f.ti && r.qi === f.qi)
     if (curRowIdx === -1) return
-    let next = curRowIdx + dqi
-    while (next >= 0 && next < rows.length) {
-      const row = rows[next]!
-      if (row.ti === -1) {
-        // No-jump row — always navigable
-        focusCell(-1, -1, f.ci)
-        return
-      }
-      if (isCellNavigable(row.ti, row.qi, f.ci)) {
-        focusCell(row.ti, row.qi, f.ci)
-        return
-      }
-      next += dqi
+    const nextRowIdx = curRowIdx + dqi
+    if (nextRowIdx >= 0 && nextRowIdx < rows.length) {
+      const row = rows[nextRowIdx]!
+      focusCell(row.ti, row.qi, f.ci)
     }
   }
 }
@@ -281,11 +267,14 @@ function onWrapperKeydown(event: KeyboardEvent) {
     return
   }
 
-  // Delete/Backspace: clear cell (not applicable on no-jump row)
+  // Delete/Backspace: clear cell or clear no-jump
   if (event.key === 'Delete' || event.key === 'Backspace') {
     event.preventDefault()
-    if (!isNoJumpFocus() && isCellNavigable(f.ti, f.qi, f.ci))
+    if (isNoJumpFocus()) {
+      if (noJumps.value[f.ci]) toggleNoJump(f.ci)
+    } else {
       setCell(f.ti, f.qi, f.ci, CellValue.Empty)
+    }
     return
   }
 
