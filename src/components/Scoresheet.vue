@@ -337,6 +337,11 @@ function onCellClick(ti: number, qi: number, ci: number, event: MouseEvent) {
   openSelector(ti, qi, ci, event)
 }
 
+function onCellMouseEnter(ti: number, qi: number, ci: number) {
+  hoverCol.value = ci
+  focusCell(ti, qi, ci)
+}
+
 function onNoJumpClick(ci: number) {
   focusCell(-1, -1, ci)
   toggleNoJump(ci)
@@ -843,7 +848,7 @@ function colGroupClass(colIdx: number): string {
                 isInvalid(ti, qi, idx) ? cellValidationMessages(ti, qi, idx).join('\n') : undefined
               "
               @click="onCellClick(ti, qi, idx, $event)"
-              @mouseenter="hoverCol = idx"
+              @mouseenter="onCellMouseEnter(ti, qi, idx)"
               @mouseleave="hoverCol = null"
             >
               {{ cellDisplay[cells[ti][qi][idx]] }}
@@ -966,6 +971,7 @@ function colGroupClass(colIdx: number): string {
             ]"
             :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
             @click="onNoJumpClick(idx)"
+            @mouseenter="focusCell(-1, -1, idx)"
           >
             {{ noJumps[idx] ? '✗' : '' }}
           </td>
