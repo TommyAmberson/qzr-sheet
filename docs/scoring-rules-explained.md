@@ -166,9 +166,9 @@ down as the tie involves more teams or lower places:
 | -------- | ----------------------- | ------- | ------ | ------ | ----- | ----- | ------------------------ |
 | `1`      | `max(10, score/10)`     | 10      | 12     | 11     | 10    | 10    | One team in 1st outright |
 | `1.2`    | `max(7,  score/10)`     | 7       | 12     | 11     | 7     | 7     | Two teams tied for 1st   |
-| `1.3`    | `max(5,  score/10)`     | 5       | 12     | 11     | 5     | 5     | Three teams tied for 1st |
+| `1.3`    | `max(5,  score/10)`     | 5       | 12     | 11     | 6     | 5     | Three teams tied for 1st |
 | `2`      | `max(5,  score/10 − 1)` | 5       | 11     | 10     | 5     | 5     | One team in 2nd outright |
-| `2.2`    | `max(3,  score/10 − 1)` | 3       | 11     | 10     | 3     | 3     | Two teams tied for 2nd   |
+| `2.2`    | `max(3,  score/10 − 1)` | 3       | 11     | 10     | 5     | 3     | Two teams tied for 2nd   |
 | `3`      | `max(1,  score/10 − 2)` | 1       | 10     | 9      | 4     | 1     | One team in 3rd outright |
 
 ### Comparison across a prelim

@@ -9,6 +9,7 @@ import {
   type Quiz,
   type Team,
   type Quizzer,
+  type PlaceKey,
 } from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
 import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
@@ -330,10 +331,10 @@ export function useScoresheet() {
     quizJumpedComplete(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
   )
 
-  /** Placement medals: 1/2/3 per team, or null if not yet placed */
+  /** Placement medals per team: PlaceKey (encoding rank + tie-width), or null if not yet placed */
   const placements = computed(() => {
     if (!regulationComplete.value || hasAnyErrors.value) {
-      return teams.value.map(() => null)
+      return teams.value.map((): PlaceKey | null => null)
     }
     const onTimes = teams.value.map((t) => t.onTime)
     const regScores = computeRegulationScores(cells.value, columns.value, onTimes)

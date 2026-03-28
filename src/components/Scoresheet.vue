@@ -593,7 +593,11 @@ function colGroupClass(colIdx: number): string {
               :title="teamHasErrors(ti) ? teamValidationMessages(ti).join('\n') : undefined"
             >
               <span v-if="placements[ti]" class="placement-medal">{{
-                placements[ti] === 1 ? '🥇' : placements[ti] === 2 ? '🥈' : '🥉'
+                Math.floor(placements[ti]!) === 1
+                  ? '🥇'
+                  : Math.floor(placements[ti]!) === 2
+                    ? '🥈'
+                    : '🥉'
               }}</span>
               {{ scoring[ti]?.total ?? 0 }}
               <span v-if="placementPoints[ti] !== null" class="placement-points">
