@@ -7,7 +7,7 @@
     "dev": "vite",
     "tauri": "WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 tauri",
     "build": "run-p type-check \"build-only {@}\" --",
-    "build:web": "run-p type-check \"build-only {@}\" -- && echo 'Web build complete → dist/'",
+    "build:web": "run-p type-check \"build-only {@}\" -- && node scripts/postbuild-web.mjs",
     "preview": "vite preview",
     "preview:web": "vite preview --base /scoresheet",
     "test:unit": "vitest",
