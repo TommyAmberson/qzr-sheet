@@ -133,11 +133,18 @@ no-jump change. Restored on startup before computeds run. Reset clears storage.
 Ctrl+N / button clears all state and localStorage. Confirmation prompt when there are unsaved
 changes.
 
-#### 2.4 ODS/LibreOffice export
+#### 2.4 ODS/LibreOffice export ✅
 
-Export the scoresheet as an ODS spreadsheet matching the physical layout.
+Export the scoresheet as an ODS spreadsheet by filling a user-supplied OTS/ODS template. Patches the
+Quiz sheet cells at known fixed addresses; all other sheets pass through unchanged so the template's
+formulas recalculate automatically in LibreOffice.
 
-#### 2.5 Print-friendly layout
+#### 2.5 ODS import ✅
+
+Import a filled ODS scoresheet back into the app. Read cell values from known Quiz sheet addresses
+and populate the store (teams, quizzers, answers, no-jumps, question types, metadata).
+
+#### 2.6 Print-friendly layout
 
 CSS print styles that hide UI chrome and format for A4/letter paper.
 

@@ -43,6 +43,8 @@ docs/
 * Redundant comments are not helpful. Prefer to make the code readable and maintainable instead of
   just adding comments. Only add comments to explain "why" if not immediately obvious, or to explain
   complex logic.
+* Commits should be atomic and self-contained, with conventional commit messages. Use branches for
+  larger features or refactors.
 
 ## Gotchas
 

@@ -37,3 +37,10 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+
+# OTS inspection folder
+.scoresheet-ots-inspect
+
+# LibreOffice lock files
+.~lock.*#

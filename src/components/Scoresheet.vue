@@ -6,8 +6,16 @@ import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
-import { serializeStore, parseQuizFile } from '../persistence/quizFile'
-import { saveQuizToFile, openQuizFromFile, confirmAction } from '../persistence/fileIO'
+import { serializeStore, parseQuizFile, serialize, deserialize } from '../persistence/quizFile'
+import {
+  saveQuizToFile,
+  openAnyQuizFile,
+  confirmAction,
+  exportOdsFile,
+  openOtsTemplate,
+} from '../persistence/fileIO'
+import { fillOts } from '../export/fillOts'
+import { readOds } from '../export/readOds'
 import { validationMessage } from '../scoring/validation'
 
 const { theme, toggleTheme } = useTheme()
@@ -197,15 +205,18 @@ async function saveFile() {
 }
 
 async function openFile() {
-  if (isDirty.value && !(await confirmAction('Open a quiz file? Unsaved changes will be lost.')))
-    return
-  const json = await openQuizFromFile()
-  if (!json) return
+  if (isDirty.value && !(await confirmAction('Open a file? Unsaved changes will be lost.'))) return
+  const result = await openAnyQuizFile()
+  if (!result) return
   try {
-    const data = parseQuizFile(json)
-    loadFile(data)
+    if (result.type === 'ods') {
+      const data = deserialize(readOds(result.content))
+      loadFile(data)
+    } else {
+      loadFile(parseQuizFile(result.content))
+    }
   } catch (e) {
-    alert(`Failed to load quiz file: ${e instanceof Error ? e.message : e}`)
+    alert(`Failed to open file: ${e instanceof Error ? e.message : e}`)
   }
 }
 
@@ -215,7 +226,28 @@ async function newQuiz() {
   resetStore()
 }
 
-defineExpose({ saveFile, openFile, newQuiz })
+async function exportOds() {
+  const otsBytes = await openOtsTemplate()
+  if (!otsBytes) return
+  const quizFile = serialize({
+    quiz: store.quiz,
+    teams: store.teams,
+    quizzers: store.quizzers,
+    answers: store.answers,
+    noJumps: noJumpMap.value,
+  })
+  try {
+    const odsBytes = fillOts(otsBytes, quizFile)
+    const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.ods`
+    const saved = await exportOdsFile(odsBytes, filename)
+    if (saved)
+      alert('ODS exported.\n\nOpen in LibreOffice and press Ctrl+Shift+F9 to recalculate formulas.')
+  } catch (e) {
+    alert(`Failed to export ODS: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
+defineExpose({ saveFile, openFile, newQuiz, exportOds })
 
 const cellDisplay: Record<CellValue, string> = {
   [CellValue.Correct]: 'C',
@@ -317,7 +349,8 @@ function colGroupClass(colIdx: number): string {
         </span>
         <div class="meta-field meta-field--file">
           <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
-          <button title="Open quiz from JSON file (Ctrl+O)" @click="openFile">⤒ Open</button>
+          <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
+          <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ Export</button>
           <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
         </div>
       </div>
