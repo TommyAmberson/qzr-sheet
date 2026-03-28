@@ -16,7 +16,8 @@
     "postinstall": "simple-git-hooks"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm lint-staged"
+    "pre-commit": "pnpm lint-staged",
+    "commit-msg": "pnpm commitlint --edit $1"
   },
   "lint-staged": {
     "src/**/*.{ts,vue}": "eslint --fix",
@@ -36,6 +37,8 @@
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-vue": "^9.0.0",
     "lint-staged": "^15.0.0",
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
     "simple-git-hooks": "^2.0.0",
     "typescript-eslint": "^8.0.0",
     "@tauri-apps/cli": "^2.10.0",
