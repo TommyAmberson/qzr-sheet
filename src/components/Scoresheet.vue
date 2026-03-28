@@ -40,6 +40,10 @@ const {
   setQuizzerName,
   moveQuizzer,
   setQuestionType,
+  canUndo,
+  canRedo,
+  undo,
+  redo,
 } = useScoresheet()
 
 /** All unique validation messages for the status tooltip */
@@ -155,6 +159,16 @@ function confirmSelectorOption() {
 }
 
 function onWrapperKeydown(event: KeyboardEvent) {
+  if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+    event.preventDefault()
+    if (event.shiftKey) {
+      redo()
+    } else {
+      undo()
+    }
+    return
+  }
+
   if (
     event.target instanceof HTMLInputElement ||
     event.target instanceof HTMLSelectElement ||
@@ -573,6 +587,11 @@ function colGroupClass(colIdx: number): string {
         <span class="toggle-track"><span class="toggle-thumb" /></span>
         <span class="meta-label">Overtime</span>
       </label>
+      <span class="meta-sep">·</span>
+      <div class="meta-field meta-field--undo">
+        <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
+        <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
+      </div>
       <span class="meta-sep">·</span>
       <span
         class="meta-field meta-field--status"
@@ -1143,6 +1162,30 @@ function colGroupClass(colIdx: number): string {
 .meta-field--toggle input:checked ~ .meta-label {
   color: var(--color-text);
   font-weight: 600;
+}
+
+/* Undo/redo buttons */
+.meta-field--undo {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+.meta-field--undo button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.meta-field--undo button:not(:disabled):hover {
+  color: var(--color-text);
+}
+.meta-field--undo button:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .meta-info {

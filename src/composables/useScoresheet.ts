@@ -1,4 +1,5 @@
 import { ref, computed, watch } from 'vue'
+import { useHistory } from './useHistory'
 import {
   CellValue,
   PlacementFormula,
@@ -33,6 +34,7 @@ import { computePlacements, computePlacementPoints } from '../scoring/placement'
 
 export function useScoresheet() {
   const store = createQuizStore()
+  const history = useHistory()
 
   // --- Reactive wrappers around store data ---
   const quiz = ref<Quiz>(store.quiz)
@@ -90,8 +92,20 @@ export function useScoresheet() {
     const qzr = qzrs[quizzerIdx]
     const col = columns.value[colIdx]
     if (!qzr || !col) return
+    const prev = store.getAnswer(qzr.id, col.key)
+    if (prev === value) return
     store.setAnswer(qzr.id, col.key, value)
     answerVersion.value++
+    history.push({
+      undo: () => {
+        store.setAnswer(qzr.id, col.key, prev)
+        answerVersion.value++
+      },
+      redo: () => {
+        store.setAnswer(qzr.id, col.key, value)
+        answerVersion.value++
+      },
+    })
   }
 
   // --- Scoring ---
@@ -401,10 +415,20 @@ export function useScoresheet() {
   function toggleNoJump(colIdx: number) {
     const key = columns.value[colIdx]?.key
     if (!key) return
-    const current = noJumpMap.value.get(key) ?? false
-    noJumpMap.value.set(key, !current)
-    // Trigger reactivity on the map ref
+    const prev = noJumpMap.value.get(key) ?? false
+    const next = !prev
+    noJumpMap.value.set(key, next)
     noJumpMap.value = new Map(noJumpMap.value)
+    history.push({
+      undo: () => {
+        noJumpMap.value.set(key, prev)
+        noJumpMap.value = new Map(noJumpMap.value)
+      },
+      redo: () => {
+        noJumpMap.value.set(key, next)
+        noJumpMap.value = new Map(noJumpMap.value)
+      },
+    })
   }
 
   /** Set the question category for a column by index (null clears it) */
@@ -464,6 +488,12 @@ export function useScoresheet() {
     placements,
     placementPoints,
     PlacementFormula,
+
+    // Undo/redo
+    canUndo: history.canUndo,
+    canRedo: history.canRedo,
+    undo: history.undo,
+    redo: history.redo,
 
     // Question types
     QuestionCategory,
