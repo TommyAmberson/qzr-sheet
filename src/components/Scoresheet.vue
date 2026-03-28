@@ -159,13 +159,18 @@ function confirmSelectorOption() {
 }
 
 function onWrapperKeydown(event: KeyboardEvent) {
-  if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+  if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
     event.preventDefault()
     if (event.shiftKey) {
       redo()
     } else {
       undo()
     }
+    return
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key === 'y') {
+    event.preventDefault()
+    redo()
     return
   }
 
