@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut } from '../greyedOut'
 import { ColStatus } from '../helpers'
+import { computeOtIneligibility } from '../overtime'
 
 const columns = buildColumns()
 const C = CellValue.Correct
@@ -404,9 +405,15 @@ describe('greyed-out logic', () => {
       if (i === -1) throw new Error(`Column ${key} not found`)
       return i
     }
-    // Only teams 0 and 1 eligible
-    const eligible = new Set([0, 1])
-    const result = computeGreyedOut(otCells, otCols, eligible)
+    // Teams 0 & 1 tied in regulation, team 2 has different score
+    const noJumps = otCols.map(() => false)
+    otCells[0]![0]![otCi('1')] = C
+    otCells[1]![0]![otCi('2')] = C
+    otCells[2]![0]![otCi('3')] = C
+    otCells[2]![1]![otCi('4')] = C
+    for (let n = 5; n <= 20; n++) noJumps[otCi(`${n}`)] = true
+    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
+    const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Team 2 greyed on all OT columns
     expect(isGreyed(result, 2, otCi('21'))).toBe(true)
     expect(isGreyed(result, 2, otCi('22'))).toBe(true)
@@ -424,8 +431,14 @@ describe('greyed-out logic', () => {
       if (i === -1) throw new Error(`Column ${key} not found`)
       return i
     }
-    const eligible = new Set([0, 1])
-    const result = computeGreyedOut(otCells, otCols, eligible)
+    const noJumps = otCols.map(() => false)
+    otCells[0]![0]![otCi('1')] = C
+    otCells[1]![0]![otCi('2')] = C
+    otCells[2]![0]![otCi('3')] = C
+    otCells[2]![1]![otCi('4')] = C
+    for (let n = 5; n <= 20; n++) noJumps[otCi(`${n}`)] = true
+    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
+    const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Team 2 NOT greyed on regulation
     expect(isGreyed(result, 2, otCi('1'))).toBe(false)
     expect(isGreyed(result, 2, otCi('15'))).toBe(false)
@@ -441,10 +454,15 @@ describe('greyed-out logic', () => {
       if (i === -1) throw new Error(`Column ${key} not found`)
       return i
     }
-    // Only teams 0 and 1 eligible (2-way tie)
-    const eligible = new Set([0, 1])
+    // Teams 0 & 1 tied in regulation (2-way tie), team 2 not tied
+    // Give teams 0 & 1 one correct each, team 2 nothing, no-jump the rest of regulation
+    const noJumps = otCols.map(() => false)
+    otCells[0]![0]![otCi('1')] = C
+    otCells[1]![0]![otCi('2')] = C
+    for (let n = 3; n <= 20; n++) noJumps[otCi(`${n}`)] = true
+    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
     otCells[0]![0]![otCi('21')] = E // team 0 errors on Q21
-    const result = computeGreyedOut(otCells, otCols, eligible)
+    const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Q21A: skipped (bypassed) — only 1 eligible team remains
     expect(result.colStatuses[otCi('21A')]).toBe(ColStatus.Skipped)
     expect(isGreyed(result, 0, otCi('21A'))).toBe(true)
@@ -465,9 +483,13 @@ describe('greyed-out logic', () => {
       if (i === -1) throw new Error(`Column ${key} not found`)
       return i
     }
-    const eligible = new Set([0, 1])
+    const noJumps = otCols.map(() => false)
+    otCells[0]![0]![otCi('1')] = C
+    otCells[1]![0]![otCi('2')] = C
+    for (let n = 3; n <= 20; n++) noJumps[otCi(`${n}`)] = true
+    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
     otCells[0]![0]![otCi('21')] = C // team 0 correct on Q21
-    const result = computeGreyedOut(otCells, otCols, eligible)
+    const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Q21A and Q21B: skipped (parent resolved)
     expect(result.colStatuses[otCi('21A')]).toBe(ColStatus.Skipped)
     expect(result.colStatuses[otCi('21B')]).toBe(ColStatus.Skipped)
@@ -481,14 +503,52 @@ describe('greyed-out logic', () => {
       if (i === -1) throw new Error(`Column ${key} not found`)
       return i
     }
-    // All 3 teams eligible (3-way tie)
-    const eligible = new Set([0, 1, 2])
+    // All 3 teams tied in regulation
+    const noJumps = otCols.map(() => false)
+    otCells[0]![0]![otCi('1')] = C
+    otCells[1]![0]![otCi('2')] = C
+    otCells[2]![0]![otCi('3')] = C
+    for (let n = 4; n <= 20; n++) noJumps[otCi(`${n}`)] = true
+    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
     otCells[0]![0]![otCi('21')] = E // team 0 errors on Q21
-    const result = computeGreyedOut(otCells, otCols, eligible)
+    const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Q21A: toss-up for teams 1 and 2 (not bypassed)
     expect(result.colStatuses[otCi('21A')]).toBe(ColStatus.Pending)
     expect(isGreyed(result, 0, otCi('21A'))).toBe(true) // team 0 tossed
     expect(isGreyed(result, 1, otCi('21A'))).toBe(false)
     expect(isGreyed(result, 2, otCi('21A'))).toBe(false)
+  })
+
+  it('team resolved out after OT round 1 is greyed on round 2 but not round 1', () => {
+    const otCols = buildColumns(2)
+    const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
+    const otCi = (key: string) => {
+      const i = otCols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    // 3-way regulation tie
+    const noJumps = otCols.map(() => false)
+    otCells[0]![0]![otCi('1')] = C
+    otCells[1]![0]![otCi('2')] = C
+    otCells[2]![0]![otCi('3')] = C
+    for (let n = 4; n <= 20; n++) noJumps[otCi(`${n}`)] = true
+    // OT round 1: team 0 gets Q21+Q22, teams 1 & 2 get nothing — team 0 breaks out
+    otCells[0]![0]![otCi('21')] = C
+    otCells[0]![1]![otCi('22')] = C
+    noJumps[otCi('23')] = true
+    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
+    const result = computeGreyedOut(otCells, otCols, ineligibility)
+    // Team 0 was eligible in round 1 — NOT greyed on round 1 columns
+    expect(isGreyed(result, 0, otCi('21'))).toBe(true) // greyed because answered
+    expect(result.tossedUp.has(`0:${otCi('21')}`)).toBe(false)
+    expect(result.tossedUp.has(`0:${otCi('22')}`)).toBe(false)
+    expect(result.tossedUp.has(`0:${otCi('23')}`)).toBe(false)
+    // Team 0 IS greyed/tossed on round 2 columns
+    expect(isGreyed(result, 0, otCi('24'))).toBe(true)
+    expect(result.tossedUp.has(`0:${otCi('24')}`)).toBe(true)
+    // Teams 1 & 2 still competing in round 2
+    expect(isGreyed(result, 1, otCi('24'))).toBe(false)
+    expect(isGreyed(result, 2, otCi('24'))).toBe(false)
   })
 })

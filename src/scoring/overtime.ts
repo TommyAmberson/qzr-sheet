@@ -43,6 +43,119 @@ export function getOvertimeEligibleTeams(
 }
 
 /**
+ * Determine which teams are still actively competing in overtime.
+ *
+ * Starts from the regulation-eligible teams, then walks completed OT rounds
+ * and narrows to only those still tied after each round. Teams that broke
+ * out of the tie in a completed round are excluded from subsequent rounds.
+ *
+ * Returns the same set as getOvertimeEligibleTeams when no OT rounds are
+ * complete, or a subset once rounds have resolved some teams out.
+ */
+export function getActiveOtTeams(
+  cellData: CellValue[][][],
+  cols: Column[],
+  onTimes: boolean[],
+  noJumps: boolean[],
+): Set<number> {
+  const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes)
+  if (eligible.size < 2) return eligible
+
+  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
+  const totalRounds = Math.ceil(otNormals.length / 3)
+  let competing = [...eligible]
+
+  for (let r = 0; r < totalRounds; r++) {
+    const firstQ = 21 + r * 3
+    const lastQ = firstQ + 2
+    if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) break
+
+    const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
+    const throughCells = sliceCells(cellData, cols, throughCols)
+    const scores = throughCells.map(
+      (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+    )
+    const stillTied = new Set<number>()
+    for (let i = 0; i < competing.length; i++) {
+      for (let j = i + 1; j < competing.length; j++) {
+        if (scores[competing[i]!] === scores[competing[j]!]) {
+          stillTied.add(competing[i]!)
+          stillTied.add(competing[j]!)
+        }
+      }
+    }
+    if (stillTied.size < 2) break
+    competing = competing.filter((i) => stillTied.has(i))
+  }
+
+  return new Set(competing)
+}
+
+/**
+ * Build a per-column ineligibility map for overtime.
+ *
+ * For each OT column, records which teams cannot jump. A team becomes
+ * ineligible from the first round after they break out of the tie.
+ * Teams that were never in the regulation tie are ineligible from round 1.
+ *
+ * Used by computeGreyedOut so tossedUp seeding is scoped correctly —
+ * a team resolved out in round 1 is not retroactively tossed-up on
+ * round 1 columns, only on round 2+.
+ */
+export function computeOtIneligibility(
+  cellData: CellValue[][][],
+  cols: Column[],
+  onTimes: boolean[],
+  noJumps: boolean[],
+): Map<number, Set<number>> {
+  const teamCount = cellData.length
+  const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes)
+  const ineligible = new Map<number, Set<number>>()
+
+  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
+  const totalRounds = Math.ceil(otNormals.length / 3)
+  let competing = [...eligible]
+
+  for (let r = 0; r < totalRounds; r++) {
+    const firstQ = 21 + r * 3
+    const lastQ = firstQ + 2
+
+    // Teams not competing this round are ineligible on all its columns
+    const ineligibleThisRound = new Set<number>()
+    for (let ti = 0; ti < teamCount; ti++) {
+      if (!competing.includes(ti)) ineligibleThisRound.add(ti)
+    }
+    for (let ci = 0; ci < cols.length; ci++) {
+      const col = cols[ci]!
+      if (!col.isOvertime) continue
+      if (col.number < firstQ || col.number > lastQ) continue
+      ineligible.set(ci, new Set(ineligibleThisRound))
+    }
+
+    if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) break
+
+    const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
+    const throughCells = sliceCells(cellData, cols, throughCols)
+    const scores = throughCells.map(
+      (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+    )
+    const stillTied = new Set<number>()
+    for (let i = 0; i < competing.length; i++) {
+      for (let j = i + 1; j < competing.length; j++) {
+        if (scores[competing[i]!] === scores[competing[j]!]) {
+          stillTied.add(competing[i]!)
+          stillTied.add(competing[j]!)
+        }
+      }
+    }
+    if (stillTied.size < 2) break
+    competing = competing.filter((i) => stillTied.has(i))
+  }
+
+  return ineligible
+}
+
+/**
  * Whether a question group (Normal + optional A/B) is complete.
  *
  * A group is complete when the chain has reached a terminal state:

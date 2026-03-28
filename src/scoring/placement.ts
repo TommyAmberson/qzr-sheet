@@ -51,9 +51,13 @@ export function computePlacements(
 
   const tiedRank = sorted.indexOf(tiedTeams[0]!) + 1
 
-  // Walk OT checkpoints, peeling off teams that break from the tied group.
-  // Teams that drop out get the bottom slots; still-tied teams compete for top.
+  // Walk OT checkpoints, resolving teams that break out of the tied group.
+  // Resolved teams may score above or below the still-tied group:
+  //   - above: they take ranks from tiedRank upward
+  //   - below: they take ranks from the bottom of the block downward
+  // The still-tied group always occupies whatever contiguous rank range remains.
   let remaining = [...tiedTeams]
+  let topPlace = tiedRank
   let bottomPlace = tiedRank + tiedTeams.length - 1
   for (let r = 0; r < checkpointScores.length; r++) {
     const scores = checkpointScores[r]!
@@ -61,15 +65,26 @@ export function computePlacements(
 
     const resolved = remaining.filter((i) => !stillTied.has(i))
     if (resolved.length > 0) {
-      const resolvedStartPlace = bottomPlace - resolved.length + 1
-      rankGroup(resolved, scores, resolvedStartPlace, placements)
-      bottomPlace -= resolved.length
+      // Split resolved into those above vs below the still-tied score
+      const tiedScore = stillTied.size > 0 ? scores[[...stillTied][0]!]! : -Infinity
+      const above = resolved.filter((i) => scores[i]! > tiedScore)
+      const below = resolved.filter((i) => scores[i]! <= tiedScore)
+
+      if (above.length > 0) {
+        rankGroup(above, scores, topPlace, placements)
+        topPlace += above.length
+      }
+      if (below.length > 0) {
+        const belowStart = bottomPlace - below.length + 1
+        rankGroup(below, scores, belowStart, placements)
+        bottomPlace -= below.length
+      }
     }
 
     remaining = remaining.filter((i) => stillTied.has(i))
     if (remaining.length <= 1) {
       if (remaining.length === 1) {
-        placements[remaining[0]!] = tiedRank as PlaceKey
+        placements[remaining[0]!] = topPlace as PlaceKey
       }
       break
     }

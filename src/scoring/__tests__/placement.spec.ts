@@ -70,7 +70,34 @@ describe('computePlacements', () => {
     expect(computePlacements([120, 120, 120], [[160, 140, 130]], true)).toEqual([1, 2, 3])
   })
 
-  // --- OT disabled (ties are final) — PlaceKey encodes tie-width ---
+  it('3-way tie: team breaks ahead in round 1, other two continue', () => {
+    // Team 0 scores highest in round 1, teams 1 & 2 still tied
+    expect(computePlacements([80, 80, 80], [[120, 70, 70]], true)).toEqual([1, null, null])
+  })
+
+  it('3-way tie: team breaks ahead, remaining two resolved in round 2', () => {
+    expect(
+      computePlacements(
+        [80, 80, 80],
+        [
+          [120, 70, 70],
+          [120, 100, 80],
+        ],
+        true,
+      ),
+    ).toEqual([1, 2, 3])
+  })
+
+  it('3-way tie all resolved in 1 round with one team ahead', () => {
+    // Team 0 breaks ahead, teams 1 & 2 are distinct below
+    expect(computePlacements([80, 80, 80], [[120, 90, 70]], true)).toEqual([1, 2, 3])
+  })
+
+  it('3-way tie: one team drops below, one breaks ahead in round 1', () => {
+    // Team 0 breaks ahead (highest), team 2 falls behind (lowest), team 1 in middle
+    // All three resolved in round 1
+    expect(computePlacements([80, 80, 80], [[120, 80, 60]], true)).toEqual([1, 2, 3])
+  })
 
   it('2-way tie for 2nd with OT disabled returns 1 / 2.2 / 2.2', () => {
     expect(computePlacements([140, 120, 120], [], true, false)).toEqual([1, 2.2, 2.2])

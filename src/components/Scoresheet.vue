@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { CellValue, QuestionCategory } from '../types/scoresheet'
+import { CellValue, QuestionCategory, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
@@ -35,6 +35,7 @@ const {
   colAnswerValue,
   noJumpHasConflict,
   visibleColumns,
+  visibleOtRounds,
   allQuestionsComplete,
   validationErrors,
   placements,
@@ -64,6 +65,35 @@ function quizzerScoreLabel(ti: number, qi: number): string | null {
   if (!q) return null
   if (q.correctCount === 0 && q.errorCount === 0 && !q.fouledOut) return null
   return `${q.points}`
+}
+
+/**
+ * Column indices at which a round-boundary running total should always be shown.
+ * Q20 (regulation→OT) and the last question of each OT round (Q23, Q26, …).
+ * Only relevant when OT is active.
+ */
+const boundaryColIndices = computed<Set<number>>(() => {
+  const s = new Set<number>()
+  if (visibleOtRounds.value === 0) return s
+  const boundaryQs = [20]
+  for (let r = 0; r < visibleOtRounds.value - 1; r++) {
+    boundaryQs.push(23 + r * 3)
+  }
+  for (const q of boundaryQs) {
+    const idx = columns.value.findIndex((c) => c.key === `${q}`)
+    if (idx !== -1) s.add(idx)
+  }
+  return s
+})
+
+/** Running total at or before colIdx for a team (walks back to find last non-null). */
+function boundaryTotal(ti: number, colIdx: number): number | null {
+  const totals = scoring.value[ti]?.runningTotals
+  if (!totals) return null
+  for (let i = colIdx; i >= 0; i--) {
+    if (totals[i] !== null && totals[i] !== undefined) return totals[i]!
+  }
+  return scoring.value[ti]?.onTimeBonus ?? null
 }
 
 /** Columns actually rendered — entering columns start collapsed, then expand */
@@ -187,9 +217,24 @@ function headerClass(colIdx: number): string {
 function colGroupClass(colIdx: number): string {
   const col = columns.value[colIdx]
   if (!col) return ''
-  if (col.isOvertime) return 'col--overtime'
-  if (col.isAB && col.isErrorPoints) return 'col--ab'
-  return ''
+
+  const classes: string[] = []
+  const dc = displayColumns.value
+  if (dc[dc.length - 1]?.idx === colIdx) classes.push('col--last')
+
+  if (col.isOvertime) {
+    if (col.type === QuestionType.Normal && (col.number - 21) % 3 === 0) {
+      classes.push(
+        col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start',
+      )
+    } else {
+      classes.push('col--overtime')
+    }
+  } else if (col.isAB && col.isErrorPoints) {
+    classes.push('col--ab')
+  }
+
+  return classes.join(' ')
 }
 </script>
 
@@ -315,9 +360,9 @@ function colGroupClass(colIdx: number): string {
               </div>
             </td>
             <td
-              v-for="{ col, entering } in displayColumns"
+              v-for="{ col, idx, entering } in displayColumns"
               :key="col.key"
-              :class="['team-header-spacer', { 'col--entering': entering }]"
+              :class="['team-header-spacer', colGroupClass(idx), { 'col--entering': entering }]"
             />
             <td class="col--name team-score-label">Score</td>
           </tr>
@@ -527,7 +572,10 @@ function colGroupClass(colIdx: number): string {
               :class="['cell--total', colGroupClass(idx), { 'col--entering': entering }]"
               style="position: relative"
             >
-              {{ scoring[ti]?.runningTotals[idx] ?? '' }}
+              {{
+                scoring[ti]?.runningTotals[idx] ??
+                (boundaryColIndices.has(idx) ? boundaryTotal(ti, idx) : '')
+              }}
               <span
                 v-if="scoring[ti]?.uniqueQuizzerBonusCols.has(idx)"
                 class="running-total-badge running-total-badge--unique"
@@ -903,6 +951,28 @@ thead .col--name {
 }
 .col--question.col--overtime {
   border-top: 2px solid var(--color-ot-border);
+}
+
+/* Dotted boundary borders on light-border rows (spacers, team header, running total, question headers).
+ * Regular cell rows keep their normal solid border — no override needed there. */
+.col--question.col--ot-start,
+.col--question.col--ot-round-start,
+.spacer-cell.col--ot-start,
+.spacer-cell.col--ot-round-start,
+.team-header-spacer.col--ot-start,
+.team-header-spacer.col--ot-round-start,
+.row--team-total .col--ot-start,
+.row--team-total .col--ot-round-start,
+.row--team-total .cell--total.col--ot-start,
+.row--team-total .cell--total.col--ot-round-start {
+  border-left: 2px dotted var(--color-border) !important;
+}
+.spacer-cell.col--last,
+.col--question.col--last,
+.team-header-spacer.col--last,
+.row--team-total .col--last,
+.row--team-total .cell--total.col--last {
+  border-right: 2px dotted var(--color-border) !important;
 }
 
 /* Question header colours based on answer */

@@ -27,7 +27,7 @@ export interface GreyedOutResult {
 export function computeGreyedOut(
   cellData: CellValue[][][],
   cols: Column[],
-  otEligibleTeams?: Set<number>,
+  otIneligibility?: Map<number, Set<number>>,
 ): GreyedOutResult {
   const disabled = new Set<string>()
   const colStatuses: ColStatus[] = cols.map(() => ColStatus.Pending)
@@ -65,13 +65,12 @@ export function computeGreyedOut(
   // (rather than only greying them) means the toss-up/bonus carry-forward
   // sees them as locked out — so a 2-way OT tie correctly treats every
   // numbered question as a toss-up and routes errors straight to B.
-  if (otEligibleTeams) {
-    for (let colIdx = 0; colIdx < cols.length; colIdx++) {
-      if (!cols[colIdx]!.isOvertime) continue
-      for (let ti = 0; ti < teamCount; ti++) {
-        if (!otEligibleTeams.has(ti)) {
-          tossedUp[colIdx]!.add(`${ti}`)
-        }
+  // Ineligibility is scoped per-round so teams resolved out in round N are
+  // not retroactively tossed-up on round N columns.
+  if (otIneligibility) {
+    for (const [colIdx, ineligible] of otIneligibility) {
+      for (const ti of ineligible) {
+        tossedUp[colIdx]!.add(`${ti}`)
       }
     }
   }
@@ -196,13 +195,10 @@ export function computeGreyedOut(
   }
 
   // Grey out non-eligible teams on overtime columns
-  if (otEligibleTeams) {
-    for (let colIdx = 0; colIdx < cols.length; colIdx++) {
-      if (!cols[colIdx]!.isOvertime) continue
-      for (let ti = 0; ti < teamCount; ti++) {
-        if (!otEligibleTeams.has(ti)) {
-          disabled.add(`${ti}:${colIdx}`)
-        }
+  if (otIneligibility) {
+    for (const [colIdx, ineligible] of otIneligibility) {
+      for (const ti of ineligible) {
+        disabled.add(`${ti}:${colIdx}`)
       }
     }
   }

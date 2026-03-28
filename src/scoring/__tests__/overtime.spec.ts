@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import {
   getOvertimeEligibleTeams,
+  getActiveOtTeams,
   computeOvertimeRounds,
   computeRegulationScores,
   computeOtCheckpointScores,
@@ -646,5 +647,71 @@ describe('computeOtCheckpointScores', () => {
     // Round 2: incomplete (Q24 not answered)
     const checkpoints = computeOtCheckpointScores(cells, cols, onTimes, noJumps)
     expect(checkpoints).toHaveLength(1)
+  })
+})
+
+describe('getActiveOtTeams', () => {
+  const onTimes = [true, true, true]
+
+  function setup(rounds: number) {
+    const cols = buildColumns(rounds)
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    const idx = (key: string) => {
+      const i = cols.findIndex((c) => c.key === key)
+      if (i === -1) throw new Error(`Column ${key} not found`)
+      return i
+    }
+    const noJumps = cols.map(() => false)
+    return { cols, cells, idx, noJumps }
+  }
+
+  function fillRegTied(cells: CellValue[][][], idx: (k: string) => number, noJumps: boolean[]) {
+    // 5 corrects each → 20 on-time + 100 = 120 per team
+    for (const q of ['1', '4', '7', '10', '13']) cells[0]![0]![idx(q)] = C
+    for (const q of ['2', '5', '8', '11', '14']) cells[1]![0]![idx(q)] = C
+    for (const q of ['3', '6', '9', '12', '15']) cells[2]![0]![idx(q)] = C
+    for (let n = 16; n <= 20; n++) noJumps[idx(`${n}`)] = true
+  }
+
+  it('returns all eligible teams when no OT rounds are complete', () => {
+    const { cols, cells, idx, noJumps } = setup(1)
+    fillRegTied(cells, idx, noJumps)
+    const active = getActiveOtTeams(cells, cols, onTimes, noJumps)
+    expect(active).toEqual(new Set([0, 1, 2]))
+  })
+
+  it('returns all eligible teams when OT round 1 is complete but still tied', () => {
+    const { cols, cells, idx, noJumps } = setup(2)
+    fillRegTied(cells, idx, noJumps)
+    // Each team gets one correct in round 1 — still all tied
+    cells[0]![0]![idx('21')] = C
+    cells[1]![0]![idx('22')] = C
+    cells[2]![0]![idx('23')] = C
+    const active = getActiveOtTeams(cells, cols, onTimes, noJumps)
+    expect(active).toEqual(new Set([0, 1, 2]))
+  })
+
+  it('excludes a team that broke out of the tie after OT round 1', () => {
+    const { cols, cells, idx, noJumps } = setup(2)
+    fillRegTied(cells, idx, noJumps)
+    // Team 0 gets Q21 + Q22, teams 1 & 2 get nothing → team 0 breaks out
+    // Team 0: 120+40=160, Team 1: 120, Team 2: 120 → teams 1 & 2 still tied
+    cells[0]![0]![idx('21')] = C
+    cells[0]![1]![idx('22')] = C
+    noJumps[idx('23')] = true
+    const active = getActiveOtTeams(cells, cols, onTimes, noJumps)
+    expect(active.has(0)).toBe(false)
+    expect(active.has(1)).toBe(true)
+    expect(active.has(2)).toBe(true)
+  })
+
+  it('returns empty set when no teams are tied in regulation', () => {
+    const { cols, cells, idx, noJumps } = setup(1)
+    cells[0]![0]![idx('1')] = C
+    cells[0]![1]![idx('2')] = C
+    cells[1]![0]![idx('3')] = C
+    for (let n = 4; n <= 20; n++) noJumps[idx(`${n}`)] = true
+    const active = getActiveOtTeams(cells, cols, onTimes, noJumps)
+    expect(active.size).toBe(0)
   })
 })
