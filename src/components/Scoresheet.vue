@@ -1651,6 +1651,10 @@ thead .col--name {
 .cell--greyed:hover {
   outline: none;
 }
+.cell.cell--greyed.cell--focused {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
 
 .cell--invalid {
   outline: 2px solid var(--color-invalid);
