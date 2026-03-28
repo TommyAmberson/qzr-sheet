@@ -105,7 +105,7 @@ export function scoreTeam(
         colPoints += 20
 
         if (!isOvertime) {
-          qCorrect[qi]++
+          qCorrect[qi]!++
 
           // 3rd/4th/5th unique quizzer bonus
           if (!quizzerHasCorrect[qi]) {
@@ -142,10 +142,10 @@ export function scoreTeam(
         // No points for missed bonus
       } else if (cell === CellValue.Error) {
         if (!isOvertime) {
-          qError[qi]++
+          qError[qi]!++
 
           // Track error-out column (3 errors = out)
-          if (qError[qi] === 3 && qOutAfterCol[qi] === -1) {
+          if (qError[qi]! === 3 && qOutAfterCol[qi] === -1) {
             qOutAfterCol[qi] = ci
           }
         }
@@ -158,7 +158,7 @@ export function scoreTeam(
         let deduct = false
         if (col.isErrorPoints) {
           deduct = true
-        } else if (qError[qi] >= 2) {
+        } else if (qError[qi]! >= 2) {
           // 2nd+ individual error
           deduct = true
         } else if (teamErrors >= 3 && qError[qi] === 1) {
@@ -173,7 +173,7 @@ export function scoreTeam(
         }
       } else if (cell === CellValue.Foul) {
         if (!isOvertime) {
-          qFoul[qi]++
+          qFoul[qi]!++
 
           // Track foul-out column (3 fouls = out)
           if (qFoul[qi] === 3 && qOutAfterCol[qi] === -1) {

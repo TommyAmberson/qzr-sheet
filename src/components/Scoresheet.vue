@@ -503,14 +503,14 @@ function colGroupClass(colIdx: number): string {
               :ref="(el: any) => registerCellEl(ti, qi, idx, el as HTMLElement | null)"
               :class="[
                 'cell',
-                cellClass[cells[ti][qi][idx]],
+                cellClass[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty],
                 colGroupClass(idx),
                 {
                   'cell--greyed':
-                    (isEmptySeat(ti, qi) && cells[ti][qi][idx] === '') ||
-                    ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti][qi][idx] === '') ||
+                    (isEmptySeat(ti, qi) && cells[ti]?.[qi]?.[idx] === '') ||
+                    ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti]?.[qi]?.[idx] === '') ||
                     isAfterOut(ti, qi, idx) ||
-                    (isFouledOnQuestion(ti, qi, idx) && cells[ti][qi][idx] === ''),
+                    (isFouledOnQuestion(ti, qi, idx) && cells[ti]?.[qi]?.[idx] === ''),
                 },
                 { 'cell--invalid': isInvalid(ti, qi, idx) },
                 { 'col--entering': entering },
@@ -527,7 +527,7 @@ function colGroupClass(colIdx: number): string {
               @mouseenter="hoverCol = idx"
               @mouseleave="hoverCol = null"
             >
-              {{ cellDisplay[cells[ti][qi][idx]] }}
+              {{ cellDisplay[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty] }}
             </td>
             <!-- Team total spans quizzer rows only -->
             <td
