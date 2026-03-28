@@ -117,17 +117,21 @@ the meta bar. Capped at 100 entries.
 
 ### Phase 2: Data Management
 
-#### 2.1 Save/load as JSON
+#### 2.1 Save/load as JSON ✅
 
-Persist quiz state to localStorage or `tauri-plugin-store`. Load on startup, fall back to defaults.
+TypeBox schema for the quiz file format. Save to disk via Ctrl+S / button (native dialog in Tauri,
+`showSaveFilePicker` in Chrome, `<a>` download fallback). Open via Ctrl+O / button. Unsaved-changes
+popup skipped when history is clean; dirty tracking via undo-stack identity.
 
-#### 2.2 Auto-save
+#### 2.2 Auto-save ✅
 
-Debounced save on every cell change, name edit, or metadata toggle.
+Debounced (300ms) persist to `localStorage` on every cell change, name edit, metadata toggle, or
+no-jump change. Restored on startup before computeds run. Reset clears storage.
 
-#### 2.3 New Quiz / Reset
+#### 2.3 New Quiz / Reset ✅
 
-Clear saved state and reinitialize with blank defaults. Confirmation prompt.
+Ctrl+N / button clears all state and localStorage. Confirmation prompt when there are unsaved
+changes.
 
 #### 2.4 ODS/LibreOffice export
 
