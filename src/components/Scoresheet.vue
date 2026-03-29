@@ -1172,11 +1172,9 @@ thead tr th.sticky-col {
 .spacer-row .spacer-cell {
   border-right: 1px solid var(--color-border-alt) !important;
 }
-.spacer-row td:nth-child(2) {
-  border-left: 1px solid var(--color-border-alt) !important;
-}
 .spacer-row .sticky-col {
   box-shadow: none;
+  border-right: 1px solid var(--color-border-alt) !important;
 }
 
 /* Question header row — empty name cell blends with background */
