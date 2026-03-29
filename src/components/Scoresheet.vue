@@ -1165,7 +1165,9 @@ thead tr th.sticky-col {
 .spacer-cell.col--last,
 .team-header-spacer.col--last,
 .row--team-total .col--last,
-.row--team-total .cell--total.col--last,
+.row--team-total .cell--total.col--last {
+  border-right: 2px dotted var(--color-border) !important;
+}
 .spacer-cell.col--reg-last,
 .team-header-spacer.col--reg-last,
 .row--team-total .col--reg-last,
@@ -1174,7 +1176,7 @@ thead tr th.sticky-col {
 .team-header-spacer.col--ot-round-end,
 .row--team-total .col--ot-round-end,
 .row--team-total .cell--total.col--ot-round-end {
-  border-right: 2px dotted var(--color-border) !important;
+  border-right: 2px dotted var(--color-ot-border) !important;
 }
 
 .col--question.col--last,
