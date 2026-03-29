@@ -6,7 +6,10 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 export default defineConfig({
   plugins: [vue(), vueDevTools()],
-  base: '/',
+  base: '/scoresheet/',
+  build: {
+    outDir: 'dist/scoresheet',
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
