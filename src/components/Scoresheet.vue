@@ -445,6 +445,7 @@ function colGroupClass(colIdx: number): string {
                       :value="team.name"
                       @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
                       @focus="($event.target as HTMLInputElement).select()"
+                      @keydown.enter="($event.target as HTMLInputElement).blur()"
                     />
                   </span>
                   <span class="team-stats">
@@ -531,6 +532,7 @@ function colGroupClass(colIdx: number): string {
                       :value="quizzer.name"
                       @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
                       @focus="($event.target as HTMLInputElement).select()"
+                      @keydown.enter="($event.target as HTMLInputElement).blur()"
                     />
                   </span>
                   <button
