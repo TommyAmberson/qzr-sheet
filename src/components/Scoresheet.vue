@@ -1164,11 +1164,7 @@ thead tr th.sticky-col {
 .spacer-cell.col--last,
 .team-header-spacer.col--last,
 .row--team-total .col--last,
-.row--team-total .cell--total.col--last,
-.spacer-cell.col--reg-last,
-.team-header-spacer.col--reg-last,
-.row--team-total .col--reg-last,
-.row--team-total .cell--total.col--reg-last {
+.row--team-total .cell--total.col--last {
   border-right: 2px dotted var(--color-border) !important;
 }
 .col--question.col--last,
