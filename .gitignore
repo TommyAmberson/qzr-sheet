@@ -47,4 +47,16 @@ __screenshots__/
 
 # PWA generated icons (produced by `pnpm pwa-icons`)
 public/pwa-*.png
+public/maskable-icon*.png
+public/apple-touch-icon*.png
+public/favicon.ico
+
+
+# Tauri icon dir: pwa-icons accidentally generated here if run without public/icon.png present
+src-tauri/icons/pwa-*.png
+src-tauri/icons/maskable-icon*.png
+src-tauri/icons/apple-touch-icon*.png
+src-tauri/icons/favicon.ico
+
+
 

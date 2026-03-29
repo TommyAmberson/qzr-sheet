@@ -28,6 +28,11 @@ export default defineConfig({
               scope: '/scoresheet/',
               icons: [
                 {
+                  src: '/scoresheet/pwa-64x64.png',
+                  sizes: '64x64',
+                  type: 'image/png',
+                },
+                {
                   src: '/scoresheet/pwa-192x192.png',
                   sizes: '192x192',
                   type: 'image/png',
@@ -38,7 +43,7 @@ export default defineConfig({
                   type: 'image/png',
                 },
                 {
-                  src: '/scoresheet/pwa-512x512.png',
+                  src: '/scoresheet/maskable-icon-512x512.png',
                   sizes: '512x512',
                   type: 'image/png',
                   purpose: 'maskable',
