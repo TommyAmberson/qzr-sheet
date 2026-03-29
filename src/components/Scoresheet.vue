@@ -1429,6 +1429,7 @@ thead tr th.sticky-col {
   font-size: 0.75rem;
   text-align: right !important;
   background: var(--color-bg-warm) !important;
+  border-top: 1px solid var(--color-border) !important;
 }
 .no-jump-total {
   background: transparent !important;
@@ -1439,6 +1440,7 @@ thead tr th.sticky-col {
   user-select: none;
   color: var(--color-text-muted);
   font-weight: 700;
+  border-top: 1px solid var(--color-border);
 }
 .cell--no-jump:hover {
   outline: 2px solid var(--color-text-faint);
