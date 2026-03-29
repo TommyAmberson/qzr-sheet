@@ -1116,7 +1116,6 @@ thead tr th.sticky-col {
   height: 1rem;
 }
 .spacer-row .spacer-cell {
-  border-left: 1px solid var(--color-border-alt) !important;
   border-right: 1px solid var(--color-border-alt) !important;
 }
 
@@ -1267,6 +1266,7 @@ thead tr th.sticky-col {
   font-size: 2.5rem;
   vertical-align: middle;
   position: relative;
+  border-top: none !important;
 }
 
 .placement-medal {
