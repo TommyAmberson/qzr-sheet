@@ -7,7 +7,9 @@
     "dev": "vite",
     "tauri": "WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 tauri",
     "build": "run-p type-check \"build-only {@}\" --",
+    "build:web": "run-p type-check \"build-only {@}\" -- && cp _redirects dist/_redirects",
     "preview": "vite preview",
+
     "test:unit": "vitest",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
@@ -17,12 +19,13 @@
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm lint-staged",
+    "pre-push": "pnpm type-check",
     "commit-msg": "pnpm commitlint --edit $1"
   },
   "lint-staged": {
     "src/**/*.{ts,vue}": "eslint --fix",
     "src/**/*.{ts,vue,css}": "prettier --write --experimental-cli",
-    "**/*.{md,dockerfile}": "dprint fmt"
+    "**/*.{md,dockerfile}": "pnpm exec dprint fmt"
   },
   "dependencies": {
     "@tauri-apps/plugin-dialog": "^2",
@@ -50,6 +53,7 @@
     "@vue/tsconfig": "^0.8.1",
     "jsdom": "^28.1.0",
     "npm-run-all2": "^8.0.4",
+    "dprint": "^0.49.0",
     "prettier": "3.8.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",

@@ -14,9 +14,7 @@ const TEAM_BLOCKS = [
 ] as const
 
 const VALID_CELL_VALUES = new Set<string>(['c', 'e', 'f', 'b', 'mb'])
-const VALID_QUESTION_CATEGORIES = new Set<string>(
-  Object.values(QuestionCategory).filter((v) => v !== ''),
-)
+const VALID_QUESTION_CATEGORIES = new Set<string>(Object.values(QuestionCategory))
 
 /** Extract the Quiz sheet XML from the full content.xml string. */
 function extractQuizSheet(xml: string): string {

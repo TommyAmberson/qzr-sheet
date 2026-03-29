@@ -10,6 +10,7 @@ pnpm tauri dev    # Tauri native window (hot-reload)
 pnpm test:unit    # Vitest unit tests
 pnpm type-check   # vue-tsc
 pnpm format       # Prettier (no semi, single quotes, 100 col)
+pnpm build:web && wrangler pages deploy dist --project-name versevault-www --branch master  # Deploy to www.versevault.ca
 ```
 
 ## Project Structure
