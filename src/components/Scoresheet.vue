@@ -1286,7 +1286,7 @@ thead tr th.sticky-col {
 .col--question.col--last,
 .col--question.col--reg-last,
 .col--question.col--ot-round-end {
-  border-right: 2px solid var(--color-ot-border) !important;
+  border-right: 1px solid var(--color-border) !important;
 }
 /* Spacer/team-header/running-total: dotted plain border */
 .spacer-cell.col--last,
