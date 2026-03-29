@@ -1059,23 +1059,11 @@ thead tr th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--color-bg);
+  background: var(--color-bg-warm);
 }
 
 /* Top-left corner: sticky on both axes — highest z-index */
 thead tr th.sticky-col {
-  z-index: 4;
-}
-
-/* Sticky no-jump footer row */
-.row--no-jump td {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  background: var(--color-bg);
-}
-
-.row--no-jump td.sticky-col {
   z-index: 4;
 }
 
@@ -1117,7 +1105,7 @@ thead tr th.sticky-col {
 /* Question number label inside header cell */
 .scoresheet .col--question {
   font-weight: 700;
-  background: var(--color-bg);
+  background: var(--color-bg-warm);
   color: var(--color-text);
   font-size: 0.75rem;
 }
