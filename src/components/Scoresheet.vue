@@ -1149,8 +1149,7 @@ thead tr th.sticky-col {
  * and border-right for right edge. */
 .col--question.col--ot-start,
 .col--question.col--ot-round-start {
-  border-left: 2px dotted var(--color-border) !important;
-  box-shadow: none !important;
+  border-left: none !important;
 }
 .spacer-cell.col--ot-start,
 .spacer-cell.col--ot-round-start,
