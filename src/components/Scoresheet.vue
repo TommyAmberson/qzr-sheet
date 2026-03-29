@@ -798,7 +798,7 @@ function colGroupClass(colIdx: number): string {
   overflow: auto;
   flex: 1;
   min-height: 0;
-  padding: 1rem;
+  padding: 0 1rem 1rem;
   box-sizing: border-box;
   touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
@@ -809,6 +809,7 @@ function colGroupClass(colIdx: number): string {
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+  padding-top: 1rem;
   min-width: max-content;
 }
 
