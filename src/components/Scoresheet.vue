@@ -1138,8 +1138,9 @@ thead tr th.sticky-col {
   border-top: 2px solid var(--color-ot-border);
 }
 
-/* Dotted boundary borders on light-border rows (spacers, team header, running total, question headers).
- * Regular cell rows keep their normal solid border — no override needed there. */
+/* Dotted boundary borders on light-border rows.
+ * Use box-shadow for left edge (avoids doubling with border-separate)
+ * and border-right for right edge. */
 .col--question.col--ot-start,
 .col--question.col--ot-round-start,
 .spacer-cell.col--ot-start,
@@ -1150,7 +1151,8 @@ thead tr th.sticky-col {
 .row--team-total .col--ot-round-start,
 .row--team-total .cell--total.col--ot-start,
 .row--team-total .cell--total.col--ot-round-start {
-  border-left: 2px dotted var(--color-border) !important;
+  border-left: none !important;
+  box-shadow: -2px 0 0 var(--color-border) !important;
 }
 .spacer-cell.col--last,
 .col--question.col--last,
@@ -1196,9 +1198,9 @@ thead tr th.sticky-col {
 .team-header-spacer {
   background: transparent !important;
   border-top: none !important;
-  border-bottom: 1px solid var(--color-border) !important;
-  border-left: 1px solid var(--color-border-alt) !important;
+  border-left: none !important;
   border-right: 1px solid var(--color-border-alt) !important;
+  border-bottom: 1px solid var(--color-border) !important;
 }
 .team-score-label {
   background: transparent !important;
@@ -1260,7 +1262,7 @@ thead tr th.sticky-col {
   border: none !important;
 }
 .row--team-total .cell--total {
-  border-left: 1px solid var(--color-border-alt) !important;
+  border-left: none !important;
   border-right: 1px solid var(--color-border-alt) !important;
 }
 .row--team-total .sticky-col {
@@ -1583,7 +1585,7 @@ thead tr th.sticky-col {
   box-shadow: 0 1px 0 var(--color-border);
 }
 .cell--total-ontime {
-  border-left: 1px solid var(--color-border-alt) !important;
+  border-left: none !important;
   border-right: 1px solid var(--color-border-alt) !important;
 }
 
