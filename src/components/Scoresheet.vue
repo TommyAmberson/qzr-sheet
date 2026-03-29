@@ -311,67 +311,69 @@ function colGroupClass(colIdx: number): string {
 
 <template>
   <div class="scoresheet-outer">
-    <div class="meta-row">
-      <div
-        :class="[
-          'quiz-meta quiz-meta--left',
-          {
-            'quiz-meta--error': hasAnyErrors,
-            'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
-          },
-        ]"
-      >
-        <label class="meta-field">
-          <span class="meta-label">Division</span>
-          <input v-model="quiz.division" type="text" placeholder="1" />
-        </label>
-        <span class="meta-sep">·</span>
-        <label class="meta-field">
-          <span class="meta-label">Quiz</span>
-          <input v-model="quiz.quizNumber" type="text" />
-        </label>
-        <span class="meta-sep">·</span>
-        <div class="meta-field meta-field--undo">
-          <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
-          <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
-        </div>
-        <span class="meta-sep">·</span>
-        <span
-          class="meta-field meta-field--status"
-          :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
-        >
-          <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
-          <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete">✓</span>
-          <span v-else class="meta-status meta-status--pending">○</span>
-          <span class="meta-label">{{
-            hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
-          }}</span>
-        </span>
-        <div class="meta-field meta-field--file">
-          <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
-          <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
-          <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ Export</button>
-          <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
-        </div>
-      </div>
-      <div class="quiz-meta quiz-meta--right">
-        <label class="meta-field meta-field--toggle">
-          <input v-model="quiz.overtime" type="checkbox" />
-          <span class="toggle-track"><span class="toggle-thumb" /></span>
-          <span class="meta-label">Overtime</span>
-        </label>
-        <span class="meta-sep">·</span>
-        <button
-          class="theme-toggle"
-          :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
-          @click="toggleTheme"
-        >
-          {{ theme === 'light' ? '🌙' : '☀️' }}
-        </button>
-      </div>
-    </div>
-
     <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
+      <div class="meta-row">
+        <div
+          :class="[
+            'quiz-meta quiz-meta--left',
+            {
+              'quiz-meta--error': hasAnyErrors,
+              'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
+            },
+          ]"
+        >
+          <label class="meta-field">
+            <span class="meta-label">Division</span>
+            <input v-model="quiz.division" type="text" placeholder="1" />
+          </label>
+          <span class="meta-sep">·</span>
+          <label class="meta-field">
+            <span class="meta-label">Quiz</span>
+            <input v-model="quiz.quizNumber" type="text" />
+          </label>
+          <span class="meta-sep">·</span>
+          <div class="meta-field meta-field--undo">
+            <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
+            <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
+          </div>
+          <span class="meta-sep">·</span>
+          <span
+            class="meta-field meta-field--status"
+            :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
+          >
+            <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
+            <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete"
+              >✓</span
+            >
+            <span v-else class="meta-status meta-status--pending">○</span>
+            <span class="meta-label">{{
+              hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
+            }}</span>
+          </span>
+          <div class="meta-field meta-field--file">
+            <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
+            <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
+            <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ Export</button>
+            <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
+          </div>
+        </div>
+        <div class="quiz-meta quiz-meta--right">
+          <label class="meta-field meta-field--toggle">
+            <input v-model="quiz.overtime" type="checkbox" />
+            <span class="toggle-track"><span class="toggle-thumb" /></span>
+            <span class="meta-label">Overtime</span>
+          </label>
+          <span class="meta-sep">·</span>
+          <button
+            class="theme-toggle"
+            :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
+            @click="toggleTheme"
+          >
+            {{ theme === 'light' ? '🌙' : '☀️' }}
+          </button>
+        </div>
+      </div>
+
       <table class="scoresheet" :style="{ '--drop-indicator-width': dropIndicatorWidth } as any">
         <!-- Question header row -->
         <thead>
@@ -782,17 +784,6 @@ function colGroupClass(colIdx: number): string {
 </template>
 
 <style scoped>
-.scoresheet-wrapper {
-  overflow: auto;
-  flex: 1;
-  min-height: 0;
-  padding: 1rem;
-  box-sizing: border-box;
-  /* Enable smooth 2-axis panning on touch devices */
-  touch-action: pan-x pan-y;
-  -webkit-overflow-scrolling: touch;
-}
-
 .scoresheet-outer {
   display: flex;
   flex-direction: column;
@@ -800,12 +791,22 @@ function colGroupClass(colIdx: number): string {
   overflow: hidden;
 }
 
+.scoresheet-wrapper {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 1rem;
+  box-sizing: border-box;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
 .meta-row {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.75rem 1rem 0.75rem;
-  flex-shrink: 0;
+  margin-bottom: 0.75rem;
+  min-width: max-content;
 }
 
 .quiz-meta {
@@ -1045,23 +1046,23 @@ function colGroupClass(colIdx: number): string {
   background: var(--color-bg);
 }
 
-/* Sticky first column */
+/* Sticky first column — above sticky header row */
 .sticky-col {
   position: sticky;
   left: 0;
-  z-index: 2;
-  background: var(--color-bg);
-}
-
-/* Sticky header row */
-thead tr th {
-  position: sticky;
-  top: 0;
   z-index: 3;
   background: var(--color-bg);
 }
 
-/* Top-left corner: sticky on both axes */
+/* Sticky header row — below sticky column */
+thead tr th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-bg);
+}
+
+/* Top-left corner: sticky on both axes — highest z-index */
 thead tr th.sticky-col {
   z-index: 4;
 }
@@ -1070,7 +1071,7 @@ thead tr th.sticky-col {
 .row--no-jump td {
   position: sticky;
   bottom: 0;
-  z-index: 3;
+  z-index: 2;
   background: var(--color-bg);
 }
 
@@ -1113,21 +1114,12 @@ thead tr th.sticky-col {
 }
 
 /* Question header row — empty name cell blends with background */
-thead .col--name {
-  background: transparent !important;
-  border: none !important;
-}
-
-/* Question header */
+/* Question number label inside header cell */
 .scoresheet .col--question {
   font-weight: 700;
-  background: transparent;
+  background: var(--color-bg);
   color: var(--color-text);
   font-size: 0.75rem;
-  border: none;
-  border-top: 1px solid var(--color-border-alt);
-  border-left: 1px solid var(--color-border-alt);
-  border-right: 1px solid var(--color-border-alt);
 }
 .col--question.col--ab {
   border-top: 2px solid var(--color-ab-border);
