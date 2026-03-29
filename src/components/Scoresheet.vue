@@ -439,12 +439,19 @@ function colGroupClass(colIdx: number): string {
               <td class="col--left-spacer" />
               <td class="col--name sticky-col team-name" colspan="2">
                 <div class="name-cell-inner">
-                  <input
-                    class="editable-name editable-name--team"
-                    :value="team.name"
-                    @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
-                    @focus="($event.target as HTMLInputElement).select()"
-                  />
+                  <span class="name-main">
+                    <span
+                      class="name-input-sizer name-input-sizer--team"
+                      :data-value="team.name || ' '"
+                    >
+                      <input
+                        class="editable-name editable-name--team"
+                        :value="team.name"
+                        @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
+                        @focus="($event.target as HTMLInputElement).select()"
+                      />
+                    </span>
+                  </span>
                   <span class="team-stats">
                     <span
                       v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
@@ -522,21 +529,28 @@ function colGroupClass(colIdx: number): string {
                 "
               >
                 <div class="name-cell-inner">
-                  <span class="drag-handle" @pointerdown="onPointerDown(ti, qi, $event)">⠿</span>
-                  <input
-                    class="editable-name editable-name--quizzer"
-                    :value="quizzer.name"
-                    @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
-                    @focus="($event.target as HTMLInputElement).select()"
-                  />
-                  <button
-                    v-if="quizzer.name"
-                    class="name-clear"
-                    title="Clear name (empty seat)"
-                    @click.stop="setQuizzerName(ti, qi, '')"
-                  >
-                    ×
-                  </button>
+                  <span class="name-main">
+                    <span class="drag-handle" @pointerdown="onPointerDown(ti, qi, $event)">⠿</span>
+                    <span
+                      class="name-input-sizer name-input-sizer--quizzer"
+                      :data-value="quizzer.name || ' '"
+                    >
+                      <input
+                        class="editable-name editable-name--quizzer"
+                        :value="quizzer.name"
+                        @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
+                        @focus="($event.target as HTMLInputElement).select()"
+                      />
+                    </span>
+                    <button
+                      v-if="quizzer.name"
+                      class="name-clear"
+                      title="Clear name (empty seat)"
+                      @click.stop="setQuizzerName(ti, qi, '')"
+                    >
+                      ×
+                    </button>
+                  </span>
                   <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
                     <span
                       v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
@@ -1074,7 +1088,8 @@ function colGroupClass(colIdx: number): string {
   padding: 0.25rem 0.4rem;
   text-align: center;
   min-width: 2rem;
-  height: 1.8rem;
+  min-height: 1.8rem;
+  height: auto;
   background: var(--color-bg);
 }
 
@@ -1688,17 +1703,24 @@ thead tr th.sticky-col {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
+  flex-shrink: 0;
   margin-left: auto;
-  flex-shrink: 1;
-  overflow: hidden;
-  min-width: 0;
 }
 
-/* Name cell inner wrapper — flex container inside table cell */
+/* Name cell inner wrapper — flex row; wraps only when badges don't fit.
+ * .name-main keeps drag handle + sizer as one unbreakable unit. */
 .name-cell-inner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   width: 100%;
+  gap: 0.2rem;
+}
+.name-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
 }
 
 /* Drag handle */
@@ -1766,9 +1788,6 @@ thead tr th.sticky-col {
   padding: 0;
   margin: 0;
   outline: none;
-  width: 100%;
-  min-width: 0;
-  flex: 1;
   height: 100%;
 }
 .editable-name:focus {
@@ -1779,6 +1798,37 @@ thead tr th.sticky-col {
   font-size: 0.85rem;
 }
 .editable-name--quizzer {
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+/* Sizer span: invisible mirror of the input value that drives the width.
+ * The input is overlaid on top via position:absolute, filling the span. */
+.name-input-sizer {
+  position: relative;
+  display: inline-block;
+  min-width: 2ch;
+}
+.name-input-sizer::after {
+  content: attr(data-value);
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+  display: block;
+  font-family: inherit;
+  padding: 0;
+}
+.name-input-sizer .editable-name {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.name-input-sizer--team::after {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.name-input-sizer--quizzer::after {
   font-weight: 500;
   font-size: 0.8rem;
 }
@@ -1801,7 +1851,7 @@ thead tr th.sticky-col {
   padding: 0;
   margin-left: 0.1rem;
 }
-.name-cell-inner:hover .name-clear {
+.name-main:hover .name-clear {
   display: inline-flex;
 }
 .name-clear:hover {
@@ -1814,8 +1864,8 @@ thead tr th.sticky-col {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  margin-left: auto;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* Out badges (Q, E, F) */
