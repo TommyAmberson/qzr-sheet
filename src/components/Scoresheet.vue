@@ -1076,11 +1076,12 @@ thead tr th {
   box-shadow: 0 1px 0 var(--color-border);
 }
 
-/* Top-left corner: sticky on both axes — highest z-index */
+/* Top-left corner: sticky on both axes — highest z-index, fully invisible */
 thead tr th.sticky-col {
   z-index: 4;
   background: var(--color-bg-warm);
-  box-shadow: 1px 1px 0 var(--color-border);
+  box-shadow: none;
+  border: none !important;
 }
 
 .scoresheet .col--name {
