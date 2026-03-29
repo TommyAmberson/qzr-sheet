@@ -381,6 +381,7 @@ function colGroupClass(colIdx: number): string {
         <!-- Question header row -->
         <thead>
           <tr>
+            <th class="col--left-spacer" />
             <th class="col--name sticky-col" />
             <th class="col--ontime-header" />
             <th
@@ -429,6 +430,7 @@ function colGroupClass(colIdx: number): string {
           <template v-for="(team, ti) in teams" :key="team.id">
             <!-- Team header row -->
             <tr :class="['row--team-header', teamColors[ti]]">
+              <td class="col--left-spacer" />
               <td class="col--name sticky-col team-name" colspan="2">
                 <div class="name-cell-inner">
                   <input
@@ -491,6 +493,7 @@ function colGroupClass(colIdx: number): string {
                 },
               ]"
             >
+              <td class="col--left-spacer" />
               <td
                 colspan="2"
                 :class="[
@@ -651,6 +654,7 @@ function colGroupClass(colIdx: number): string {
 
             <!-- Team running total row -->
             <tr class="row--team-total">
+              <td class="col--left-spacer" />
               <td class="col--name sticky-col running-total-label">
                 <span
                   class="on-time"
@@ -709,6 +713,7 @@ function colGroupClass(colIdx: number): string {
 
             <!-- Spacer between teams -->
             <tr v-if="ti < teams.length - 1" class="spacer-row spacer-row--team">
+              <td class="col--left-spacer" />
               <td class="sticky-col" colspan="2" />
               <td
                 v-for="{ col, idx, entering } in displayColumns"
@@ -723,6 +728,7 @@ function colGroupClass(colIdx: number): string {
         <!-- No-jump row at bottom -->
         <tfoot>
           <tr class="spacer-row">
+            <td class="col--left-spacer" />
             <td class="sticky-col" colspan="2" />
             <td
               v-for="{ col, idx, entering } in displayColumns"
@@ -732,6 +738,7 @@ function colGroupClass(colIdx: number): string {
             <td />
           </tr>
           <tr class="row--no-jump">
+            <td class="col--left-spacer" />
             <td class="col--name sticky-col no-jump-label" colspan="2">No Jump</td>
             <td
               v-for="{ col, idx, entering } in displayColumns"
@@ -798,7 +805,7 @@ function colGroupClass(colIdx: number): string {
   overflow: auto;
   flex: 1;
   min-height: 0;
-  padding: 0 1rem 1rem;
+  padding: 0 1rem 1rem 0;
   box-sizing: border-box;
   touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
@@ -1060,6 +1067,17 @@ function colGroupClass(colIdx: number): string {
 .scoresheet thead tr:first-child th,
 .scoresheet tbody tr:first-child td {
   border-top: 1px solid var(--color-border);
+}
+
+/* Left spacer column — scrolls away to give breathing room at rest */
+.col--left-spacer {
+  width: 1rem;
+  min-width: 1rem;
+  max-width: 1rem;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 /* Sticky first column — above sticky header row */
