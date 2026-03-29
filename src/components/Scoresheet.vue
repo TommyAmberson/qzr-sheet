@@ -1147,8 +1147,8 @@ thead tr th.sticky-col {
  * and border-right for right edge. */
 .col--question.col--ot-start,
 .col--question.col--ot-round-start {
-  border-left: none !important;
-  box-shadow: -2px 0 0 var(--color-ot-border) !important;
+  border-left: 2px dotted var(--color-border) !important;
+  box-shadow: none !important;
 }
 .spacer-cell.col--ot-start,
 .spacer-cell.col--ot-round-start,
@@ -1158,8 +1158,8 @@ thead tr th.sticky-col {
 .row--team-total .col--ot-round-start,
 .row--team-total .cell--total.col--ot-start,
 .row--team-total .cell--total.col--ot-round-start {
-  border-left: none !important;
-  box-shadow: -2px 0 0 var(--color-border) !important;
+  border-left: 2px dotted var(--color-border) !important;
+  box-shadow: none !important;
 }
 .spacer-cell.col--last,
 .team-header-spacer.col--last,
