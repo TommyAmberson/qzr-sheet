@@ -44,3 +44,7 @@ __screenshots__/
 
 # LibreOffice lock files
 .~lock.*#
+
+# PWA generated icons (produced by `pnpm pwa-icons`)
+public/pwa-*.png
+
