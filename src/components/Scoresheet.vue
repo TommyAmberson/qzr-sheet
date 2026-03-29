@@ -1377,7 +1377,6 @@ thead tr th.sticky-col {
   border-top: none;
 }
 .row--no-jump .sticky-col {
-  background: transparent !important;
   border: none !important;
 }
 .no-jump-label {
@@ -1385,6 +1384,7 @@ thead tr th.sticky-col {
   color: var(--color-text-muted);
   font-size: 0.75rem;
   text-align: right !important;
+  background: var(--color-bg-warm) !important;
 }
 .no-jump-total {
   background: transparent !important;
