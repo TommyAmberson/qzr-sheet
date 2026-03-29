@@ -49,7 +49,7 @@ __screenshots__/
 public/pwa-*.png
 public/maskable-icon*.png
 public/apple-touch-icon*.png
-public/favicon.ico
+
 
 
 # Tauri icon dir: pwa-icons accidentally generated here if run without public/icon.png present
