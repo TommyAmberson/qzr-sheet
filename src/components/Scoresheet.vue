@@ -1079,7 +1079,7 @@ thead tr th {
 /* Top-left corner: sticky on both axes — highest z-index, fully invisible */
 thead tr th.sticky-col {
   z-index: 4;
-  background: var(--color-bg-warm);
+  background: transparent !important;
   box-shadow: none;
   border: none !important;
 }
