@@ -1168,6 +1168,7 @@ thead tr th.sticky-col {
 }
 
 /* Question header colours based on answer */
+.col--header-correct {
   color: var(--color-correct) !important;
 }
 .col--header-error {
