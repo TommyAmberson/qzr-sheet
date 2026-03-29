@@ -64,7 +64,11 @@ pulse red when any cell in their column has a validation error.
 
 #### 1.10 Editable team/quizzer names ✅
 
-Replace hardcoded "Team 1" / "Quizzer 1" with inline-editable text fields.
+Replace hardcoded "Team 1" / "Quizzer 1" with inline-editable text fields. Name inputs are sized
+exactly to their text content via a CSS sizer span (invisible `::after` mirror drives the width;
+input overlays it absolutely). Drag handle, sizer, and clear button are grouped as one unbreakable
+unit. Badges sit to the right and wrap to a new line only when there isn't room, staying
+right-aligned either way.
 
 #### 1.11 Placement points ✅
 
