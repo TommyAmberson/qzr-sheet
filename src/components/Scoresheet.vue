@@ -156,26 +156,27 @@ const {
   close: closeSelector,
 } = useCellSelector(columns, isBonusForTeam, setCell)
 
-const { focusedCell, focusCell, isNoJumpFocus } = useKeyboardNav({
-  columns,
-  teams,
-  teamQuizzers,
-  noJumps,
-  displayColumns,
-  selector,
-  selectorFocusIdx,
-  selectorOptions,
-  openSelectorOnCell,
-  confirmFocusedOption,
-  closeSelector,
-  setCell,
-  toggleNoJump,
-  isBonusForTeam,
-  isAfterOut,
-  isFouledOnQuestion,
-  undo,
-  redo,
-})
+const { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardMode } =
+  useKeyboardNav({
+    columns,
+    teams,
+    teamQuizzers,
+    noJumps,
+    displayColumns,
+    selector,
+    selectorFocusIdx,
+    selectorOptions,
+    openSelectorOnCell,
+    confirmFocusedOption,
+    closeSelector,
+    setCell,
+    toggleNoJump,
+    isBonusForTeam,
+    isAfterOut,
+    isFouledOnQuestion,
+    undo,
+    redo,
+  })
 
 const { dragState, dropTarget, dropIndicatorWidth, registerRowEl, onPointerDown } = useDragReorder(
   teamQuizzers,
@@ -183,11 +184,13 @@ const { dragState, dropTarget, dropIndicatorWidth, registerRowEl, onPointerDown 
 )
 
 function onCellClick(ti: number, qi: number, ci: number, event: MouseEvent) {
+  deactivateKeyboardMode()
   focusCell(ti, qi, ci)
   openSelectorFromClick(ti, qi, ci, event)
 }
 
 function onNoJumpClick(ci: number) {
+  deactivateKeyboardMode()
   focusCell(-1, -1, ci)
   toggleNoJump(ci)
 }
@@ -397,7 +400,7 @@ function colGroupClass(colIdx: number): string {
                 {
                   'col--entering': entering,
                   'col--hover': !dragState && (hoverCol === idx || selector?.ci === idx),
-                  'col--focus': focusedCell?.ci === idx,
+                  'col--focus': keyboardMode && focusedCell?.ci === idx,
                 },
               ]"
               :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
@@ -512,7 +515,10 @@ function colGroupClass(colIdx: number): string {
                     'cell--invalid': quizzerHasErrors(ti, qi),
                     'col--name--active': !dragState && selector?.ti === ti && selector?.qi === qi,
                     'col--name--focused':
-                      !dragState && focusedCell?.ti === ti && focusedCell?.qi === qi,
+                      !dragState &&
+                      keyboardMode &&
+                      focusedCell?.ti === ti &&
+                      focusedCell?.qi === qi,
                   },
                 ]"
                 :title="
@@ -632,7 +638,10 @@ function colGroupClass(colIdx: number): string {
                   { 'col--hover': !dragState && hoverCol === idx },
                   {
                     'cell--focused':
-                      focusedCell?.ti === ti && focusedCell?.qi === qi && focusedCell?.ci === idx,
+                      keyboardMode &&
+                      focusedCell?.ti === ti &&
+                      focusedCell?.qi === qi &&
+                      focusedCell?.ci === idx,
                   },
                 ]"
                 :title="
@@ -766,7 +775,7 @@ function colGroupClass(colIdx: number): string {
                   'cell--no-jump-answered': colAnswerValue(idx) !== CellValue.Empty,
                   'cell--invalid': noJumpHasConflict(idx),
                   'col--entering': entering,
-                  'cell--focused': isNoJumpFocus() && focusedCell?.ci === idx,
+                  'cell--focused': keyboardMode && isNoJumpFocus() && focusedCell?.ci === idx,
                 },
               ]"
               :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
