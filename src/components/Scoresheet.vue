@@ -1122,6 +1122,9 @@ thead tr th.sticky-col {
 .spacer-row td:nth-child(2) {
   border-left: 1px solid var(--color-border-alt) !important;
 }
+.spacer-row .sticky-col {
+  box-shadow: none;
+}
 
 /* Question header row — empty name cell blends with background */
 /* Question number label inside header cell */
@@ -1267,6 +1270,7 @@ thead tr th.sticky-col {
 }
 .row--team-total .sticky-col {
   background: transparent;
+  box-shadow: none;
 }
 .team-total-value {
   font-size: 2.5rem;
@@ -1585,7 +1589,7 @@ thead tr th.sticky-col {
   box-shadow: 0 1px 0 var(--color-border);
 }
 .cell--total-ontime {
-  border-left: none !important;
+  border-left: 1px solid var(--color-border-alt) !important;
   border-right: 1px solid var(--color-border-alt) !important;
 }
 
