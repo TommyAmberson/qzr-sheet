@@ -1224,12 +1224,6 @@ thead tr th.sticky-col {
 .col--header-no-jump {
   color: var(--palette-no-jump) !important;
 }
-.col--header-no-jump .col-header-number {
-  text-decoration: line-through;
-}
-.col--header-no-jump .col-header-type {
-  text-decoration: none;
-}
 .col--header-invalid {
   outline: 2px solid var(--color-invalid);
   outline-offset: -2px;
