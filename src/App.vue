@@ -47,6 +47,11 @@ onUnmounted(() => document.removeEventListener('keydown', onFileShortcut, { capt
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   font-family:
     'Segoe UI',
@@ -58,5 +63,12 @@ body {
   transition:
     background 0.3s,
     color 0.3s;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
 }
 </style>
