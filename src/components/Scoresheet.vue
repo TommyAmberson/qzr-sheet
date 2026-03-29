@@ -1270,9 +1270,7 @@ thead tr th.sticky-col {
   color: var(--color-bg-warm);
   text-align: left;
   padding-left: 0.5rem;
-  border-top: none !important;
-  border-left: none !important;
-  border-right: none !important;
+  border: 1px solid var(--color-text-muted) !important;
   border-bottom: 1px solid var(--color-border) !important;
 }
 .row--team-header .team-name .name-cell-inner::before {
@@ -1537,6 +1535,8 @@ thead tr th.sticky-col {
  * through the sticky layer above the team-header's border-bottom */
 .row--quizzer > .col--name {
   border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-text-muted) !important;
+  border-right: none;
 }
 
 /* Focus — blue always overrides grey hover */
