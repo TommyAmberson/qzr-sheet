@@ -316,64 +316,67 @@ function colGroupClass(colIdx: number): string {
   <div class="scoresheet-outer">
     <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
       <div class="meta-row">
-        <div
-          :class="[
-            'quiz-meta quiz-meta--left',
-            {
-              'quiz-meta--error': hasAnyErrors,
-              'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
-            },
-          ]"
-        >
-          <label class="meta-field">
-            <span class="meta-label">Division</span>
-            <input v-model="quiz.division" type="text" placeholder="1" />
-          </label>
-          <span class="meta-sep">·</span>
-          <label class="meta-field">
-            <span class="meta-label">Quiz</span>
-            <input v-model="quiz.quizNumber" type="text" />
-          </label>
-          <span class="meta-sep">·</span>
-          <div class="meta-field meta-field--undo">
-            <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
-            <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
-          </div>
-          <span class="meta-sep">·</span>
-          <span
-            class="meta-field meta-field--status"
-            :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
+        <div class="col--left-spacer" />
+        <div class="meta-row-inner">
+          <div
+            :class="[
+              'quiz-meta quiz-meta--left',
+              {
+                'quiz-meta--error': hasAnyErrors,
+                'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
+              },
+            ]"
           >
-            <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
-            <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete"
-              >✓</span
+            <label class="meta-field">
+              <span class="meta-label">Division</span>
+              <input v-model="quiz.division" type="text" placeholder="1" />
+            </label>
+            <span class="meta-sep">·</span>
+            <label class="meta-field">
+              <span class="meta-label">Quiz</span>
+              <input v-model="quiz.quizNumber" type="text" />
+            </label>
+            <span class="meta-sep">·</span>
+            <div class="meta-field meta-field--undo">
+              <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
+              <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
+            </div>
+            <span class="meta-sep">·</span>
+            <span
+              class="meta-field meta-field--status"
+              :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
             >
-            <span v-else class="meta-status meta-status--pending">○</span>
-            <span class="meta-label">{{
-              hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
-            }}</span>
-          </span>
-          <div class="meta-field meta-field--file">
-            <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
-            <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
-            <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ Export</button>
-            <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
+              <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
+              <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete"
+                >✓</span
+              >
+              <span v-else class="meta-status meta-status--pending">○</span>
+              <span class="meta-label">{{
+                hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
+              }}</span>
+            </span>
+            <div class="meta-field meta-field--file">
+              <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
+              <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
+              <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ Export</button>
+              <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
+            </div>
           </div>
-        </div>
-        <div class="quiz-meta quiz-meta--right">
-          <label class="meta-field meta-field--toggle">
-            <input v-model="quiz.overtime" type="checkbox" />
-            <span class="toggle-track"><span class="toggle-thumb" /></span>
-            <span class="meta-label">Overtime</span>
-          </label>
-          <span class="meta-sep">·</span>
-          <button
-            class="theme-toggle"
-            :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
-            @click="toggleTheme"
-          >
-            {{ theme === 'light' ? '🌙' : '☀️' }}
-          </button>
+          <div class="quiz-meta quiz-meta--right">
+            <label class="meta-field meta-field--toggle">
+              <input v-model="quiz.overtime" type="checkbox" />
+              <span class="toggle-track"><span class="toggle-thumb" /></span>
+              <span class="meta-label">Overtime</span>
+            </label>
+            <span class="meta-sep">·</span>
+            <button
+              class="theme-toggle"
+              :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
+              @click="toggleTheme"
+            >
+              {{ theme === 'light' ? '🌙' : '☀️' }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -813,11 +816,18 @@ function colGroupClass(colIdx: number): string {
 
 .meta-row {
   display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
+  align-items: flex-start;
+  gap: 0;
   margin-bottom: 0.75rem;
   padding-top: 1rem;
   min-width: max-content;
+}
+
+.meta-row-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex: 1;
 }
 
 .quiz-meta {
@@ -1072,8 +1082,8 @@ function colGroupClass(colIdx: number): string {
 /* Left spacer column — scrolls away to give breathing room at rest */
 .col--left-spacer {
   width: 1rem;
-  min-width: 1rem;
-  max-width: 1rem;
+  min-width: 1rem !important;
+  max-width: 1rem !important;
   padding: 0 !important;
   border: none !important;
   background: transparent !important;
@@ -1677,7 +1687,9 @@ thead tr th.sticky-col {
   align-items: center;
   gap: 0.2rem;
   margin-left: auto;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  min-width: 0;
 }
 
 /* Name cell inner wrapper — flex container inside table cell */
