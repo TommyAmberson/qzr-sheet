@@ -24,8 +24,8 @@
       ],
       "command": "uvx",
       "custom_instructions": {
-        "text": "Try to make the commit style match other commits in the repo. If possible try to find the user's previous commits and match the style."
-      },
+        "text": "Try to make the commit style match other commits in the repo. If possible try to find the user's previous commits and match the style. When calling git_commit, always pass the message as a real multi-line string with actual newline characters — never use \\n escape sequences, as they will be treated as literal text and fail the commit-msg hook."
+      }
       "disabled_tools": []
     }
   }

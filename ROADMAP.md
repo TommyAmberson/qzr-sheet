@@ -155,7 +155,7 @@ CSS print styles that hide UI chrome and format for A4/letter paper.
 Static site with app description, screenshots, download links, and a link to the web app. Single
 page is fine to start.
 
-#### 3.2 PWA / web deployment 🚧
+#### 3.2 PWA / web deployment ✅
 
 Deploy the scoresheet as a static site so it can run in any browser. Covers ChromeOS, tablets, and
 borrowed-laptop scenarios.
@@ -164,12 +164,11 @@ Hosted on **Cloudflare Pages** (free tier) at `www.versevault.ca`. A `public/_re
 handles SPA client-side routing. Deploy with `pnpm build:web` then
 `wrangler pages deploy dist --project-name versevault-www --branch master`.
 
-The app currently serves from the root (`/`). Once there are multiple tools on versevault.ca, move
-the scoresheet to `www.versevault.ca/scoresheet` by setting `base: '/scoresheet'` in
-`vite.config.ts`, updating `_redirects`, and moving all of `dist/` into `dist/scoresheet/` in the
-postbuild script.
-
-PWA manifest (offline support, home screen install) can be added later via `vite-plugin-pwa`.
+Serves from `/scoresheet/` with `base: '/scoresheet/'` in `vite.config.ts` and
+`outDir: dist/scoresheet`. PWA support via `vite-plugin-pwa`: service worker with `autoUpdate`, full
+offline caching via Workbox, and a web manifest so the app is installable from any browser. Icons
+generated from the Tauri source icon via `pnpm pwa-icons` (`@vite-pwa/assets-generator`). The PWA
+plugin is conditionaly skipped for Tauri builds (`TAURI_ENV_PLATFORM` guard).
 
 #### 3.3 CI/CD release pipeline
 

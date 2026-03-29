@@ -7,7 +7,8 @@
     "dev": "vite",
     "tauri": "WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 tauri",
     "build": "run-p type-check \"build-only {@}\" --",
-    "build:web": "run-p type-check \"build-only {@}\" -- && cp _redirects dist/_redirects",
+    "pwa-icons": "cp src-tauri/icons/icon.png public/icon.png && pwa-assets-generator --config pwa-assets.config.ts && rm public/icon.png",
+    "build:web": "pnpm pwa-icons && run-p type-check \"build-only {@}\" -- && cp _redirects dist/_redirects",
     "preview": "vite preview",
 
     "test:unit": "vitest",
@@ -35,6 +36,7 @@
     "vue": "^3.5.28"
   },
   "devDependencies": {
+    "@vite-pwa/assets-generator": "^1.0.0",
     "@eslint/js": "^9.0.0",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.0.0",
@@ -57,6 +59,7 @@
     "prettier": "3.8.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
+    "vite-plugin-pwa": "^1.0.0",
     "vite-plugin-vue-devtools": "^8.0.6",
     "vitest": "^4.0.18",
     "vue-tsc": "^3.2.4"
