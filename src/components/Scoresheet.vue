@@ -1167,14 +1167,7 @@ thead tr th.sticky-col {
   box-shadow: none !important;
 }
 
-.col--question.col--last,
-.col--question.col--reg-last,
-.col--question.col--ot-round-end {
-  border-right: 2px solid var(--color-ot-border) !important;
-}
-
 /* Question header colours based on answer */
-.col--header-correct {
   color: var(--color-correct) !important;
 }
 .col--header-error {
@@ -1288,26 +1281,32 @@ thead tr th.sticky-col {
 }
 
 /* Boundary border rules — must come after all row-specific overrides */
-/* Boundary border rules — must come after all row-specific overrides.
- * Also applied to regular cell rows (.cell) for consistent colouring. */
+/* Question header: solid ot-border colour on all boundaries */
+.col--question.col--last,
+.col--question.col--reg-last,
+.col--question.col--ot-round-end {
+  border-right: 2px solid var(--color-ot-border) !important;
+}
+/* Spacer/team-header/running-total: dotted plain border */
 .spacer-cell.col--last,
 .team-header-spacer.col--last,
 .row--team-total .col--last,
 .row--team-total .cell--total.col--last,
-.cell.col--last {
-  border-right: 2px dotted var(--color-border) !important;
-}
 .spacer-cell.col--reg-last,
 .team-header-spacer.col--reg-last,
 .row--team-total .col--reg-last,
 .row--team-total .cell--total.col--reg-last,
-.cell.col--reg-last,
 .spacer-cell.col--ot-round-end,
 .team-header-spacer.col--ot-round-end,
 .row--team-total .col--ot-round-end,
-.row--team-total .cell--total.col--ot-round-end,
+.row--team-total .cell--total.col--ot-round-end {
+  border-right: 2px dotted var(--color-border) !important;
+}
+/* Answer/no-jump cells: same as normal cell borders */
+.cell.col--last,
+.cell.col--reg-last,
 .cell.col--ot-round-end {
-  border-right: 2px dotted var(--color-ot-border) !important;
+  border-right: 1px solid var(--color-border) !important;
 }
 
 .placement-medal {
