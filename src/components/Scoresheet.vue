@@ -1138,10 +1138,14 @@ thead tr th.sticky-col {
   font-size: 0.75rem;
 }
 .col--question.col--ab {
-  border-top: 2px solid var(--color-ab-border);
+  box-shadow:
+    0 1px 0 var(--color-border),
+    inset 0 2px 0 var(--color-ab-border);
 }
 .col--question.col--overtime {
-  border-top: 2px solid var(--color-ot-border);
+  box-shadow:
+    0 1px 0 var(--color-border),
+    inset 0 2px 0 var(--color-ot-border);
 }
 
 /* Dotted boundary borders on light-border rows.
@@ -1161,22 +1165,6 @@ thead tr th.sticky-col {
 .row--team-total .cell--total.col--ot-round-start {
   border-left: none !important;
   box-shadow: none !important;
-}
-.spacer-cell.col--last,
-.team-header-spacer.col--last,
-.row--team-total .col--last,
-.row--team-total .cell--total.col--last {
-  border-right: 2px dotted var(--color-border) !important;
-}
-.spacer-cell.col--reg-last,
-.team-header-spacer.col--reg-last,
-.row--team-total .col--reg-last,
-.row--team-total .cell--total.col--reg-last,
-.spacer-cell.col--ot-round-end,
-.team-header-spacer.col--ot-round-end,
-.row--team-total .col--ot-round-end,
-.row--team-total .cell--total.col--ot-round-end {
-  border-right: 2px dotted var(--color-ot-border) !important;
 }
 
 .col--question.col--last,
@@ -1297,6 +1285,24 @@ thead tr th.sticky-col {
   vertical-align: middle;
   position: relative;
   border-top: none !important;
+}
+
+/* Boundary border rules — must come after all row-specific overrides */
+.spacer-cell.col--last,
+.team-header-spacer.col--last,
+.row--team-total .col--last,
+.row--team-total .cell--total.col--last {
+  border-right: 2px dotted var(--color-border) !important;
+}
+.spacer-cell.col--reg-last,
+.team-header-spacer.col--reg-last,
+.row--team-total .col--reg-last,
+.row--team-total .cell--total.col--reg-last,
+.spacer-cell.col--ot-round-end,
+.team-header-spacer.col--ot-round-end,
+.row--team-total .col--ot-round-end,
+.row--team-total .cell--total.col--ot-round-end {
+  border-right: 2px dotted var(--color-ot-border) !important;
 }
 
 .placement-medal {
