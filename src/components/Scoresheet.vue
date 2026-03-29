@@ -299,6 +299,8 @@ function colGroupClass(colIdx: number): string {
       classes.push(
         col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start',
       )
+    } else if (col.type === QuestionType.Normal && (col.number - 20) % 3 === 0) {
+      classes.push('col--overtime col--ot-round-end')
     } else {
       classes.push('col--overtime')
     }
@@ -1158,17 +1160,27 @@ thead tr th.sticky-col {
 .row--team-total .col--ot-round-start,
 .row--team-total .cell--total.col--ot-start,
 .row--team-total .cell--total.col--ot-round-start {
-  border-left: 2px dotted var(--color-border) !important;
+  border-left: none !important;
   box-shadow: none !important;
 }
 .spacer-cell.col--last,
 .team-header-spacer.col--last,
 .row--team-total .col--last,
-.row--team-total .cell--total.col--last {
+.row--team-total .cell--total.col--last,
+.spacer-cell.col--reg-last,
+.team-header-spacer.col--reg-last,
+.row--team-total .col--reg-last,
+.row--team-total .cell--total.col--reg-last,
+.spacer-cell.col--ot-round-end,
+.team-header-spacer.col--ot-round-end,
+.row--team-total .col--ot-round-end,
+.row--team-total .cell--total.col--ot-round-end {
   border-right: 2px dotted var(--color-border) !important;
 }
+
 .col--question.col--last,
-.col--question.col--reg-last {
+.col--question.col--reg-last,
+.col--question.col--ot-round-end {
   border-right: 2px solid var(--color-ot-border) !important;
 }
 
