@@ -439,18 +439,12 @@ function colGroupClass(colIdx: number): string {
               <td class="col--left-spacer" />
               <td class="col--name sticky-col team-name" colspan="2">
                 <div class="name-cell-inner">
-                  <span
-                    class="name-input-sizer name-input-sizer--team"
-                    :data-value="team.name || ' '"
-                  >
-                    <input
-                      class="editable-name editable-name--team"
-                      :value="team.name"
-                      @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
-                      @focus="($event.target as HTMLInputElement).select()"
-                      @keydown.enter="($event.target as HTMLInputElement).blur()"
-                    />
-                  </span>
+                  <input
+                    class="editable-name editable-name--team"
+                    :value="team.name"
+                    @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
+                    @focus="($event.target as HTMLInputElement).select()"
+                  />
                   <span class="team-stats">
                     <span
                       v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
@@ -529,18 +523,12 @@ function colGroupClass(colIdx: number): string {
               >
                 <div class="name-cell-inner">
                   <span class="drag-handle" @pointerdown="onPointerDown(ti, qi, $event)">⠿</span>
-                  <span
-                    class="name-input-sizer name-input-sizer--quizzer"
-                    :data-value="quizzer.name || ' '"
-                  >
-                    <input
-                      class="editable-name editable-name--quizzer"
-                      :value="quizzer.name"
-                      @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
-                      @focus="($event.target as HTMLInputElement).select()"
-                      @keydown.enter="($event.target as HTMLInputElement).blur()"
-                    />
-                  </span>
+                  <input
+                    class="editable-name editable-name--quizzer"
+                    :value="quizzer.name"
+                    @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
+                    @focus="($event.target as HTMLInputElement).select()"
+                  />
                   <button
                     v-if="quizzer.name"
                     class="name-clear"
@@ -1700,11 +1688,10 @@ thead tr th.sticky-col {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 0;
+  margin-left: auto;
+  flex-shrink: 1;
+  overflow: hidden;
+  min-width: 0;
 }
 
 /* Name cell inner wrapper — flex container inside table cell */
@@ -1712,8 +1699,6 @@ thead tr th.sticky-col {
   display: flex;
   align-items: center;
   width: 100%;
-  position: relative;
-  overflow: hidden;
 }
 
 /* Drag handle */
@@ -1772,30 +1757,8 @@ thead tr th.sticky-col {
   bottom: -1px;
 }
 
-/* Editable name inputs — auto-sizing via CSS grid mirror trick */
-.name-input-sizer {
-  display: inline-grid;
-  flex: 0 0 auto;
-  max-width: 100%;
-  overflow: hidden;
-  background: inherit;
-  position: relative;
-  z-index: 1;
-}
-.name-input-sizer::after {
-  content: attr(data-value);
-  visibility: hidden;
-  white-space: pre;
-  grid-area: 1 / 1;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  padding: 0;
-  margin: 0;
-  pointer-events: none;
-}
+/* Editable name inputs */
 .editable-name {
-  grid-area: 1 / 1;
   border: none;
   background: transparent;
   font-family: inherit;
@@ -1804,19 +1767,18 @@ thead tr th.sticky-col {
   margin: 0;
   outline: none;
   width: 100%;
-  min-width: 2rem;
+  min-width: 0;
+  flex: 1;
   height: 100%;
 }
 .editable-name:focus {
   border-bottom: 1.5px solid var(--color-accent);
 }
-.editable-name--team,
-.name-input-sizer--team {
+.editable-name--team {
   font-weight: 700;
   font-size: 0.85rem;
 }
-.editable-name--quizzer,
-.name-input-sizer--quizzer {
+.editable-name--quizzer {
   font-weight: 500;
   font-size: 0.8rem;
 }
@@ -1852,9 +1814,8 @@ thead tr th.sticky-col {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  position: absolute;
-  right: 0;
-  pointer-events: none;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* Out badges (Q, E, F) */
