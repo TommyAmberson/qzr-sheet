@@ -1101,6 +1101,7 @@ thead tr th.sticky-col {
   border-right: none !important;
   border-bottom: none !important;
   border-top: none !important;
+  box-shadow: none !important;
 }
 
 /* Column group shading */
@@ -1117,6 +1118,9 @@ thead tr th.sticky-col {
 }
 .spacer-row .spacer-cell {
   border-right: 1px solid var(--color-border-alt) !important;
+}
+.spacer-row .spacer-cell:first-of-type {
+  border-left: 1px solid var(--color-border-alt) !important;
 }
 
 /* Question header row — empty name cell blends with background */
@@ -1447,6 +1451,12 @@ thead tr th.sticky-col {
 .col--question.col--hover {
   outline: 2px solid var(--color-border);
   outline-offset: -2px;
+}
+
+/* Sticky quizzer name cell needs explicit border-top so it shows
+ * through the sticky layer above the team-header's border-bottom */
+.row--quizzer > .col--name {
+  border-top: 1px solid var(--color-border);
 }
 
 /* Focus — blue always overrides grey hover */
