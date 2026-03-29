@@ -1288,20 +1288,25 @@ thead tr th.sticky-col {
 }
 
 /* Boundary border rules — must come after all row-specific overrides */
+/* Boundary border rules — must come after all row-specific overrides.
+ * Also applied to regular cell rows (.cell) for consistent colouring. */
 .spacer-cell.col--last,
 .team-header-spacer.col--last,
 .row--team-total .col--last,
-.row--team-total .cell--total.col--last {
+.row--team-total .cell--total.col--last,
+.cell.col--last {
   border-right: 2px dotted var(--color-border) !important;
 }
 .spacer-cell.col--reg-last,
 .team-header-spacer.col--reg-last,
 .row--team-total .col--reg-last,
 .row--team-total .cell--total.col--reg-last,
+.cell.col--reg-last,
 .spacer-cell.col--ot-round-end,
 .team-header-spacer.col--ot-round-end,
 .row--team-total .col--ot-round-end,
-.row--team-total .cell--total.col--ot-round-end {
+.row--team-total .cell--total.col--ot-round-end,
+.cell.col--ot-round-end {
   border-right: 2px dotted var(--color-ot-border) !important;
 }
 
