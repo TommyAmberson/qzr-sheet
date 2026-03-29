@@ -292,6 +292,7 @@ function colGroupClass(colIdx: number): string {
   const classes: string[] = []
   const dc = displayColumns.value
   if (dc[dc.length - 1]?.idx === colIdx) classes.push('col--last')
+  if (!col.isOvertime && col.number === 20) classes.push('col--reg-last')
 
   if (col.isOvertime) {
     if (col.type === QuestionType.Normal && (col.number - 21) % 3 === 0) {
@@ -1145,7 +1146,10 @@ thead tr th.sticky-col {
  * Use box-shadow for left edge (avoids doubling with border-separate)
  * and border-right for right edge. */
 .col--question.col--ot-start,
-.col--question.col--ot-round-start,
+.col--question.col--ot-round-start {
+  border-left: none !important;
+  box-shadow: -2px 0 0 var(--color-ot-border) !important;
+}
 .spacer-cell.col--ot-start,
 .spacer-cell.col--ot-round-start,
 .team-header-spacer.col--ot-start,
@@ -1158,11 +1162,18 @@ thead tr th.sticky-col {
   box-shadow: -2px 0 0 var(--color-border) !important;
 }
 .spacer-cell.col--last,
-.col--question.col--last,
 .team-header-spacer.col--last,
 .row--team-total .col--last,
-.row--team-total .cell--total.col--last {
+.row--team-total .cell--total.col--last,
+.spacer-cell.col--reg-last,
+.team-header-spacer.col--reg-last,
+.row--team-total .col--reg-last,
+.row--team-total .cell--total.col--reg-last {
   border-right: 2px dotted var(--color-border) !important;
+}
+.col--question.col--last,
+.col--question.col--reg-last {
+  border-right: 2px solid var(--color-ot-border) !important;
 }
 
 /* Question header colours based on answer */
