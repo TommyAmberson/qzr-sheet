@@ -1270,7 +1270,6 @@ thead tr th.sticky-col {
   color: var(--color-bg-warm);
   text-align: left;
   padding-left: 0.5rem;
-  border-radius: 4px;
   border-top: none !important;
   border-left: none !important;
   border-right: none !important;
