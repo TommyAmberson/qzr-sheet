@@ -1119,7 +1119,7 @@ thead tr th.sticky-col {
 .spacer-row .spacer-cell {
   border-right: 1px solid var(--color-border-alt) !important;
 }
-.spacer-row .spacer-cell:first-of-type {
+.spacer-row td:nth-child(2) {
   border-left: 1px solid var(--color-border-alt) !important;
 }
 
