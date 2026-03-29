@@ -1098,7 +1098,9 @@ thead tr th.sticky-col {
 }
 .col--total-header {
   background: transparent !important;
-  border: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-top: none !important;
 }
 
 /* Column group shading */
@@ -1190,7 +1192,8 @@ thead tr th.sticky-col {
 }
 .team-header-spacer {
   background: transparent !important;
-  border: none !important;
+  border-top: none !important;
+  border-bottom: 1px solid var(--color-border) !important;
   border-left: 1px solid var(--color-border-alt) !important;
   border-right: 1px solid var(--color-border-alt) !important;
 }
@@ -1200,7 +1203,9 @@ thead tr th.sticky-col {
   font-weight: 800;
   font-size: 1rem;
   text-align: center !important;
-  border: none !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: 1px solid var(--color-border) !important;
 }
 .running-total-spacer {
   background: transparent !important;
@@ -1214,7 +1219,10 @@ thead tr th.sticky-col {
   text-align: left;
   padding-left: 0.5rem;
   border-radius: 4px;
-  border: none !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: 1px solid var(--color-border) !important;
 }
 .row--team-header .team-name .name-cell-inner::before {
   content: '';
@@ -1560,7 +1568,8 @@ thead tr th.sticky-col {
 
 .col--ontime-header {
   background: var(--color-bg-warm) !important;
-  border: none !important;
+  border-top: none !important;
+  border-bottom: none !important;
   box-shadow: 0 1px 0 var(--color-border);
 }
 .cell--total-ontime {
