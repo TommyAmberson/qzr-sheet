@@ -4,29 +4,17 @@ import Scoresheet from './components/Scoresheet.vue'
 
 const scoresheetRef = ref<InstanceType<typeof Scoresheet> | null>(null)
 
-function onDownload() {
-  scoresheetRef.value?.saveFile()
-}
-
-function onUpload() {
-  scoresheetRef.value?.openFile()
-}
-
-function onNew() {
-  scoresheetRef.value?.newQuiz()
-}
-
 function onFileShortcut(event: KeyboardEvent) {
   if (!event.ctrlKey && !event.metaKey) return
   if (event.key === 's' || event.key === 'S') {
     event.preventDefault()
-    onDownload()
+    scoresheetRef.value?.saveFile()
   } else if (event.key === 'o' || event.key === 'O') {
     event.preventDefault()
-    onUpload()
+    scoresheetRef.value?.openFile()
   } else if (event.key === 'n' || event.key === 'N') {
     event.preventDefault()
-    onNew()
+    scoresheetRef.value?.newQuiz()
   }
 }
 
@@ -36,7 +24,9 @@ onUnmounted(() => document.removeEventListener('keydown', onFileShortcut, { capt
 
 <template>
   <div class="app">
-    <Scoresheet ref="scoresheetRef" />
+    <RouterView v-slot="{ Component }">
+      <component :is="Component" ref="scoresheetRef" />
+    </RouterView>
   </div>
 </template>
 
