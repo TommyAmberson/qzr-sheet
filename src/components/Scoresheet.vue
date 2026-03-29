@@ -1028,7 +1028,8 @@ function colGroupClass(colIdx: number): string {
 }
 
 .scoresheet {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 0.8rem;
   white-space: nowrap;
@@ -1038,12 +1039,23 @@ function colGroupClass(colIdx: number): string {
 
 .scoresheet th,
 .scoresheet td {
-  border: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
   padding: 0.25rem 0.4rem;
   text-align: center;
   min-width: 2rem;
   height: 1.8rem;
   background: var(--color-bg);
+}
+
+/* Left and top outer edges */
+.scoresheet tr th:first-child,
+.scoresheet tr td:first-child {
+  border-left: 1px solid var(--color-border);
+}
+.scoresheet thead tr:first-child th,
+.scoresheet tbody tr:first-child td {
+  border-top: 1px solid var(--color-border);
 }
 
 /* Sticky first column — above sticky header row */
@@ -1052,6 +1064,7 @@ function colGroupClass(colIdx: number): string {
   left: 0;
   z-index: 3;
   background: var(--color-bg);
+  box-shadow: 1px 0 0 var(--color-border);
 }
 
 /* Sticky header row — below sticky column */
@@ -1060,11 +1073,14 @@ thead tr th {
   top: 0;
   z-index: 2;
   background: var(--color-bg-warm);
+  box-shadow: 0 1px 0 var(--color-border);
 }
 
 /* Top-left corner: sticky on both axes — highest z-index */
 thead tr th.sticky-col {
   z-index: 4;
+  background: var(--color-bg-warm);
+  box-shadow: 1px 1px 0 var(--color-border);
 }
 
 .scoresheet .col--name {
@@ -1542,8 +1558,9 @@ thead tr th.sticky-col {
 }
 
 .col--ontime-header {
-  background: transparent !important;
+  background: var(--color-bg-warm) !important;
   border: none !important;
+  box-shadow: 0 1px 0 var(--color-border);
 }
 .cell--total-ontime {
   border-left: 1px solid var(--color-border-alt) !important;
