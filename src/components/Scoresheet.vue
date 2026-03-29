@@ -1089,7 +1089,7 @@ thead tr th.sticky-col {
 
 .scoresheet .col--name {
   text-align: left;
-  min-width: 7rem;
+  min-width: 10rem;
   max-width: 10rem;
   font-weight: 500;
 }
