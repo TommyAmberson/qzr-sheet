@@ -156,26 +156,27 @@ const {
   close: closeSelector,
 } = useCellSelector(columns, isBonusForTeam, setCell)
 
-const { focusedCell, focusCell, isNoJumpFocus } = useKeyboardNav({
-  columns,
-  teams,
-  teamQuizzers,
-  noJumps,
-  displayColumns,
-  selector,
-  selectorFocusIdx,
-  selectorOptions,
-  openSelectorOnCell,
-  confirmFocusedOption,
-  closeSelector,
-  setCell,
-  toggleNoJump,
-  isBonusForTeam,
-  isAfterOut,
-  isFouledOnQuestion,
-  undo,
-  redo,
-})
+const { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardMode } =
+  useKeyboardNav({
+    columns,
+    teams,
+    teamQuizzers,
+    noJumps,
+    displayColumns,
+    selector,
+    selectorFocusIdx,
+    selectorOptions,
+    openSelectorOnCell,
+    confirmFocusedOption,
+    closeSelector,
+    setCell,
+    toggleNoJump,
+    isBonusForTeam,
+    isAfterOut,
+    isFouledOnQuestion,
+    undo,
+    redo,
+  })
 
 const { dragState, dropTarget, dropIndicatorWidth, registerRowEl, onPointerDown } = useDragReorder(
   teamQuizzers,
@@ -183,11 +184,13 @@ const { dragState, dropTarget, dropIndicatorWidth, registerRowEl, onPointerDown 
 )
 
 function onCellClick(ti: number, qi: number, ci: number, event: MouseEvent) {
+  deactivateKeyboardMode()
   focusCell(ti, qi, ci)
   openSelectorFromClick(ti, qi, ci, event)
 }
 
 function onNoJumpClick(ci: number) {
+  deactivateKeyboardMode()
   focusCell(-1, -1, ci)
   toggleNoJump(ci)
 }
@@ -397,7 +400,7 @@ function colGroupClass(colIdx: number): string {
                 {
                   'col--entering': entering,
                   'col--hover': !dragState && (hoverCol === idx || selector?.ci === idx),
-                  'col--focus': focusedCell?.ci === idx,
+                  'col--focus': keyboardMode && focusedCell?.ci === idx,
                 },
               ]"
               :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
@@ -436,17 +439,18 @@ function colGroupClass(colIdx: number): string {
               <td class="col--left-spacer" />
               <td class="col--name sticky-col team-name" colspan="2">
                 <div class="name-cell-inner">
-                  <span
-                    class="name-input-sizer name-input-sizer--team"
-                    :data-value="team.name || ' '"
-                  >
-                    <input
-                      class="editable-name editable-name--team"
-                      :value="team.name"
-                      @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
-                      @focus="($event.target as HTMLInputElement).select()"
-                      @keydown.enter="($event.target as HTMLInputElement).blur()"
-                    />
+                  <span class="name-main">
+                    <span
+                      class="name-input-sizer name-input-sizer--team"
+                      :data-value="team.name || ' '"
+                    >
+                      <input
+                        class="editable-name editable-name--team"
+                        :value="team.name"
+                        @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
+                        @focus="($event.target as HTMLInputElement).select()"
+                      />
+                    </span>
                   </span>
                   <span class="team-stats">
                     <span
@@ -512,7 +516,10 @@ function colGroupClass(colIdx: number): string {
                     'cell--invalid': quizzerHasErrors(ti, qi),
                     'col--name--active': !dragState && selector?.ti === ti && selector?.qi === qi,
                     'col--name--focused':
-                      !dragState && focusedCell?.ti === ti && focusedCell?.qi === qi,
+                      !dragState &&
+                      keyboardMode &&
+                      focusedCell?.ti === ti &&
+                      focusedCell?.qi === qi,
                   },
                 ]"
                 :title="
@@ -522,27 +529,28 @@ function colGroupClass(colIdx: number): string {
                 "
               >
                 <div class="name-cell-inner">
-                  <span class="drag-handle" @pointerdown="onPointerDown(ti, qi, $event)">⠿</span>
-                  <span
-                    class="name-input-sizer name-input-sizer--quizzer"
-                    :data-value="quizzer.name || ' '"
-                  >
-                    <input
-                      class="editable-name editable-name--quizzer"
-                      :value="quizzer.name"
-                      @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
-                      @focus="($event.target as HTMLInputElement).select()"
-                      @keydown.enter="($event.target as HTMLInputElement).blur()"
-                    />
+                  <span class="name-main">
+                    <span class="drag-handle" @pointerdown="onPointerDown(ti, qi, $event)">⠿</span>
+                    <span
+                      class="name-input-sizer name-input-sizer--quizzer"
+                      :data-value="quizzer.name || ' '"
+                    >
+                      <input
+                        class="editable-name editable-name--quizzer"
+                        :value="quizzer.name"
+                        @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
+                        @focus="($event.target as HTMLInputElement).select()"
+                      />
+                    </span>
+                    <button
+                      v-if="quizzer.name"
+                      class="name-clear"
+                      title="Clear name (empty seat)"
+                      @click.stop="setQuizzerName(ti, qi, '')"
+                    >
+                      ×
+                    </button>
                   </span>
-                  <button
-                    v-if="quizzer.name"
-                    class="name-clear"
-                    title="Clear name (empty seat)"
-                    @click.stop="setQuizzerName(ti, qi, '')"
-                  >
-                    ×
-                  </button>
                   <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
                     <span
                       v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
@@ -632,7 +640,10 @@ function colGroupClass(colIdx: number): string {
                   { 'col--hover': !dragState && hoverCol === idx },
                   {
                     'cell--focused':
-                      focusedCell?.ti === ti && focusedCell?.qi === qi && focusedCell?.ci === idx,
+                      keyboardMode &&
+                      focusedCell?.ti === ti &&
+                      focusedCell?.qi === qi &&
+                      focusedCell?.ci === idx,
                   },
                 ]"
                 :title="
@@ -766,7 +777,7 @@ function colGroupClass(colIdx: number): string {
                   'cell--no-jump-answered': colAnswerValue(idx) !== CellValue.Empty,
                   'cell--invalid': noJumpHasConflict(idx),
                   'col--entering': entering,
-                  'cell--focused': isNoJumpFocus() && focusedCell?.ci === idx,
+                  'cell--focused': keyboardMode && isNoJumpFocus() && focusedCell?.ci === idx,
                 },
               ]"
               :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
@@ -1077,7 +1088,8 @@ function colGroupClass(colIdx: number): string {
   padding: 0.25rem 0.4rem;
   text-align: center;
   min-width: 2rem;
-  height: 1.8rem;
+  min-height: 1.8rem;
+  height: auto;
   background: var(--color-bg);
 }
 
@@ -1163,11 +1175,9 @@ thead tr th.sticky-col {
 .spacer-row .spacer-cell {
   border-right: 1px solid var(--color-border-alt) !important;
 }
-.spacer-row td:nth-child(2) {
-  border-left: 1px solid var(--color-border-alt) !important;
-}
 .spacer-row .sticky-col {
   box-shadow: none;
+  border-right: 1px solid var(--color-border-alt) !important;
 }
 
 /* Question header row — empty name cell blends with background */
@@ -1263,10 +1273,7 @@ thead tr th.sticky-col {
   color: var(--color-bg-warm);
   text-align: left;
   padding-left: 0.5rem;
-  border-radius: 4px;
-  border-top: none !important;
-  border-left: none !important;
-  border-right: none !important;
+  border: 1px solid var(--color-text-muted) !important;
   border-bottom: 1px solid var(--color-border) !important;
 }
 .row--team-header .team-name .name-cell-inner::before {
@@ -1420,6 +1427,7 @@ thead tr th.sticky-col {
   font-size: 0.75rem;
   text-align: right !important;
   background: var(--color-bg-warm) !important;
+  border-top: 1px solid var(--color-border) !important;
 }
 .no-jump-total {
   background: transparent !important;
@@ -1430,6 +1438,7 @@ thead tr th.sticky-col {
   user-select: none;
   color: var(--color-text-muted);
   font-weight: 700;
+  border-top: 1px solid var(--color-border);
 }
 .cell--no-jump:hover {
   outline: 2px solid var(--color-text-faint);
@@ -1529,6 +1538,8 @@ thead tr th.sticky-col {
  * through the sticky layer above the team-header's border-bottom */
 .row--quizzer > .col--name {
   border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-text-muted) !important;
+  border-right: none;
 }
 
 /* Focus — blue always overrides grey hover */
@@ -1692,20 +1703,24 @@ thead tr th.sticky-col {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 0;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
-/* Name cell inner wrapper — flex container inside table cell */
+/* Name cell inner wrapper — flex row; wraps only when badges don't fit.
+ * .name-main keeps drag handle + sizer as one unbreakable unit. */
 .name-cell-inner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   width: 100%;
-  position: relative;
-  overflow: hidden;
+  gap: 0.2rem;
+}
+.name-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
 }
 
 /* Drag handle */
@@ -1764,30 +1779,8 @@ thead tr th.sticky-col {
   bottom: -1px;
 }
 
-/* Editable name inputs — auto-sizing via CSS grid mirror trick */
-.name-input-sizer {
-  display: inline-grid;
-  flex: 0 0 auto;
-  max-width: 100%;
-  overflow: hidden;
-  background: inherit;
-  position: relative;
-  z-index: 1;
-}
-.name-input-sizer::after {
-  content: attr(data-value);
-  visibility: hidden;
-  white-space: pre;
-  grid-area: 1 / 1;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  padding: 0;
-  margin: 0;
-  pointer-events: none;
-}
+/* Editable name inputs */
 .editable-name {
-  grid-area: 1 / 1;
   border: none;
   background: transparent;
   font-family: inherit;
@@ -1795,20 +1788,47 @@ thead tr th.sticky-col {
   padding: 0;
   margin: 0;
   outline: none;
-  width: 100%;
-  min-width: 2rem;
   height: 100%;
 }
 .editable-name:focus {
   border-bottom: 1.5px solid var(--color-accent);
 }
-.editable-name--team,
-.name-input-sizer--team {
+.editable-name--team {
   font-weight: 700;
   font-size: 0.85rem;
 }
-.editable-name--quizzer,
-.name-input-sizer--quizzer {
+.editable-name--quizzer {
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+/* Sizer span: invisible mirror of the input value that drives the width.
+ * The input is overlaid on top via position:absolute, filling the span. */
+.name-input-sizer {
+  position: relative;
+  display: inline-block;
+  min-width: 2ch;
+}
+.name-input-sizer::after {
+  content: attr(data-value);
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+  display: block;
+  font-family: inherit;
+  padding: 0;
+}
+.name-input-sizer .editable-name {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.name-input-sizer--team::after {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.name-input-sizer--quizzer::after {
   font-weight: 500;
   font-size: 0.8rem;
 }
@@ -1831,7 +1851,7 @@ thead tr th.sticky-col {
   padding: 0;
   margin-left: 0.1rem;
 }
-.name-cell-inner:hover .name-clear {
+.name-main:hover .name-clear {
   display: inline-flex;
 }
 .name-clear:hover {
@@ -1844,9 +1864,8 @@ thead tr th.sticky-col {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  position: absolute;
-  right: 0;
-  pointer-events: none;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* Out badges (Q, E, F) */

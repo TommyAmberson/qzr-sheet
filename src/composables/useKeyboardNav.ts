@@ -58,6 +58,25 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
   } = deps
 
   const focusedCell = ref<{ ti: number; qi: number; ci: number } | null>(null)
+  const keyboardMode = ref(false)
+  let keyboardModeTimer: ReturnType<typeof setTimeout> | null = null
+
+  function activateKeyboardMode() {
+    keyboardMode.value = true
+    if (keyboardModeTimer !== null) clearTimeout(keyboardModeTimer)
+    keyboardModeTimer = setTimeout(() => {
+      keyboardMode.value = false
+      keyboardModeTimer = null
+    }, 30_000)
+  }
+
+  function deactivateKeyboardMode() {
+    if (keyboardModeTimer !== null) {
+      clearTimeout(keyboardModeTimer)
+      keyboardModeTimer = null
+    }
+    keyboardMode.value = false
+  }
 
   function focusCell(ti: number, qi: number, ci: number) {
     focusedCell.value = { ti, qi, ci }
@@ -114,6 +133,7 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
   }
 
   function onKeydown(event: KeyboardEvent) {
+    activateKeyboardMode()
     // Undo/redo — always handled first, before input guard
     if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {
       event.preventDefault()
@@ -265,7 +285,10 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
   }
 
   onMounted(() => document.addEventListener('keydown', onKeydown))
-  onUnmounted(() => document.removeEventListener('keydown', onKeydown))
+  onUnmounted(() => {
+    document.removeEventListener('keydown', onKeydown)
+    if (keyboardModeTimer !== null) clearTimeout(keyboardModeTimer)
+  })
 
-  return { focusedCell, focusCell, isNoJumpFocus }
+  return { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardMode }
 }
