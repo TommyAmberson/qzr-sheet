@@ -14,6 +14,7 @@ pnpm test:unit    # Vitest unit tests
 pnpm type-check   # vue-tsc (also runs as part of build)
 pnpm lint         # ESLint (also runs on pre-commit)
 pnpm format       # Prettier (no semi, single quotes, 100 col)
+pnpm build:web && wrangler pages deploy dist --project-name versevault-www --branch master  # Deploy to www.versevault.ca
 ```
 
 ## Project Structure
