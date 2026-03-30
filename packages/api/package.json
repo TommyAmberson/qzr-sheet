@@ -7,6 +7,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply qzr-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply qzr-db --remote"
@@ -20,6 +21,7 @@
     "@cloudflare/workers-types": "^4.0.0",
     "drizzle-kit": "^0.31.0",
     "typescript": "~5.9.3",
+    "vitest": "^3.0.0",
     "wrangler": "^4.0.0"
   }
 }
