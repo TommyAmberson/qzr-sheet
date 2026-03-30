@@ -1,12 +1,11 @@
 <script setup lang="ts">
 const scoresheetUrl = __SCORESHEET_URL__
-const year = new Date().getFullYear()
 </script>
 
 <template>
   <footer class="footer">
     <div class="footer-inner">
-      <span class="footer-copy">© {{ year }} VerseVault</span>
+      <span class="footer-copy">qzr-sheet</span>
       <div class="footer-links">
         <a
           href="https://github.com/TommyAmberson/qzr-sheet"

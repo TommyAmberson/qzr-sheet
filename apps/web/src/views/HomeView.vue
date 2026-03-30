@@ -7,106 +7,94 @@ const scoresheetUrl = __SCORESHEET_URL__
     <!-- Hero -->
     <section class="hero">
       <div class="container">
-        <div class="hero-content">
-          <h1 class="hero-heading">
-            Bible Quiz tools for<br />
-            <span class="hero-highlight">coaches and officials</span>
-          </h1>
-          <p class="hero-sub">
-            Free, offline-first scoresheet for live quizzes. Works in the browser or as a desktop
-            app on Windows, macOS, and Linux.
-          </p>
-          <div class="hero-actions">
-            <a :href="scoresheetUrl" class="btn btn--primary">Open Scoresheet</a>
-            <a
-              href="https://github.com/TommyAmberson/qzr-sheet/releases/latest"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="btn btn--secondary"
-            >
-              Download Desktop App
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features -->
-    <section class="features">
-      <div class="container">
-        <h2 class="section-heading">Everything you need at a quiz meet</h2>
-        <div class="feature-grid">
-          <div class="feature-card">
-            <div class="feature-icon">⚡</div>
-            <h3 class="feature-title">Live scoring</h3>
-            <p class="feature-desc">
-              Click any cell to record correct answers, errors, fouls, and bonuses. Scores update
-              instantly across all quizzers and teams.
-            </p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">✈️</div>
-            <h3 class="feature-title">Offline-first</h3>
-            <p class="feature-desc">
-              No internet required. Auto-saves to local storage so you never lose work. Export to
-              JSON or ODS for record-keeping.
-            </p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">📋</div>
-            <h3 class="feature-title">Full rule support</h3>
-            <p class="feature-desc">
-              Toss-ups, bonuses, A/B columns, foul-outs, 20-question overtime — every rule from the
-              official rulebook is modelled and validated.
-            </p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">🖥️</div>
-            <h3 class="feature-title">Web + Desktop</h3>
-            <p class="feature-desc">
-              Use the PWA from any browser, or install the native desktop app on Windows, macOS, or
-              Linux for file-system access and offline reliability.
-            </p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">⌨️</div>
-            <h3 class="feature-title">Keyboard-driven</h3>
-            <p class="feature-desc">
-              Full keyboard navigation, undo/redo, and shortcuts for save, open, and new quiz. Move
-              fast without reaching for the mouse.
-            </p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">🆓</div>
-            <h3 class="feature-title">Free and open source</h3>
-            <p class="feature-desc">
-              No account required. No ads. No tracking. The source code is on GitHub for anyone to
-              inspect, fork, or contribute to.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Download CTA -->
-    <section class="download">
-      <div class="container">
-        <div class="download-inner">
-          <div class="download-text">
-            <h2 class="download-heading">Install the desktop app</h2>
-            <p class="download-sub">
-              Native file dialogs, no browser required, works fully offline. Installers available
-              for Windows, macOS, and Linux from GitHub Releases.
-            </p>
-          </div>
+        <div class="wip-badge">Early development</div>
+        <h1 class="hero-heading">Bible Quiz tools</h1>
+        <p class="hero-sub">
+          A scoresheet for Bible Quiz — meets, practices, or anything in between. A meet management
+          platform is in the works. No name yet.
+        </p>
+        <div class="hero-actions">
+          <a :href="scoresheetUrl" class="btn btn--primary">Open Scoresheet</a>
           <a
             href="https://github.com/TommyAmberson/qzr-sheet/releases/latest"
             target="_blank"
             rel="noopener noreferrer"
-            class="btn btn--primary"
+            class="btn btn--secondary"
           >
-            Download latest release
+            Desktop app
           </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scoresheet -->
+    <section class="section">
+      <div class="container">
+        <h2 class="section-heading">qzr-sheet <span class="badge badge--done">Available</span></h2>
+        <p class="section-desc">
+          A scoresheet for quiz meets and practices. Works in the browser or as a native desktop app
+          on Windows, macOS, and Linux.
+        </p>
+        <ul class="feature-list">
+          <li>
+            Correct answers, errors, fouls, and bonuses — full rule support including toss-ups, A/B
+            columns, foul-outs, and overtime
+          </li>
+          <li>Running team scores and placement points update as you go</li>
+          <li>Validation catches illegal cell states with inline messages</li>
+          <li>Keyboard navigation, undo/redo, drag reorder</li>
+          <li>Auto-saves to localStorage; export and import JSON or ODS</li>
+          <li>Fully offline — no account, no server</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Platform -->
+    <section class="section section--muted">
+      <div class="container">
+        <h2 class="section-heading">
+          Meet platform <span class="badge badge--planned">Planned</span>
+        </h2>
+        <p class="section-desc">
+          The scoresheet is standalone today. The goal is to connect it to a platform that handles
+          the rest of what a quiz meet needs.
+        </p>
+        <div class="roadmap">
+          <div class="roadmap-item">
+            <span class="roadmap-label">Standings and stats</span>
+            <p class="roadmap-desc">
+              Submitted scoresheets feed into team and individual stats. Coaches, quizzers, and
+              spectators can follow along from their phones without needing an account.
+            </p>
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-label">Schedule</span>
+            <p class="roadmap-desc">
+              Published round schedules showing which teams are in which rooms. Officials see their
+              assigned quizzes; coaches see when their teams are up.
+            </p>
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-label">Rosters</span>
+            <p class="roadmap-desc">
+              Coaches register churches, build team rosters, and link quizzers to a persistent
+              identity for cross-meet career stats.
+            </p>
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-label">Official flow</span>
+            <p class="roadmap-desc">
+              Load assigned quiz details directly into the scoresheet and submit results when done.
+              No manual data entry after the fact.
+            </p>
+          </div>
+          <div class="roadmap-item">
+            <span class="roadmap-label">Meet administration</span>
+            <p class="roadmap-desc">
+              Create meets, manage room assignments, generate join codes for coaches and officials,
+              and review submitted results.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -115,39 +103,45 @@ const scoresheetUrl = __SCORESHEET_URL__
 
 <style scoped>
 .container {
-  max-width: 72rem;
+  max-width: 52rem;
   margin: 0 auto;
   padding: 0 1.5rem;
 }
 
 /* Hero */
 .hero {
-  padding: 5rem 0 4rem;
+  padding: 4rem 0 3.5rem;
   background: var(--color-bg-warm);
 }
 
-.hero-content {
-  max-width: 44rem;
-}
-
-.hero-heading {
-  font-size: clamp(2rem, 5vw, 3rem);
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -0.03em;
-  color: var(--color-heading);
+.wip-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
   margin-bottom: 1.25rem;
 }
 
-.hero-highlight {
-  color: var(--color-accent);
+.hero-heading {
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--color-heading);
+  margin-bottom: 1rem;
 }
 
 .hero-sub {
-  font-size: 1.125rem;
+  font-size: 1rem;
   color: var(--color-text-muted);
   max-width: 36rem;
   margin-bottom: 2rem;
+  line-height: 1.65;
 }
 
 .hero-actions {
@@ -160,16 +154,15 @@ const scoresheetUrl = __SCORESHEET_URL__
 .btn {
   display: inline-flex;
   align-items: center;
-  padding: 0.6rem 1.25rem;
-  border-radius: 7px;
-  font-size: 0.9rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
   font-weight: 600;
   text-decoration: none;
   transition:
     background 0.15s,
     color 0.15s,
-    border-color 0.15s,
-    opacity 0.15s;
+    border-color 0.15s;
   white-space: nowrap;
 }
 
@@ -198,80 +191,101 @@ const scoresheetUrl = __SCORESHEET_URL__
   text-decoration: none;
 }
 
-/* Features */
-.features {
-  padding: 4rem 0;
+/* Sections */
+.section {
+  padding: 3rem 0;
   background: var(--color-bg);
 }
 
-.section-heading {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--color-heading);
-  margin-bottom: 2.5rem;
-}
-
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-  gap: 1.5rem;
-}
-
-.feature-card {
-  padding: 1.5rem;
-  border: 1px solid var(--color-border-alt);
-  border-radius: 10px;
-  background: var(--color-bg-raised);
-}
-
-.feature-icon {
-  font-size: 1.5rem;
-  margin-bottom: 0.75rem;
-  line-height: 1;
-}
-
-.feature-title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  margin-bottom: 0.5rem;
-}
-
-.feature-desc {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  line-height: 1.6;
-}
-
-/* Download CTA */
-.download {
-  padding: 3.5rem 0;
+.section--muted {
   background: var(--color-bg-warm);
   border-top: 1px solid var(--color-border-alt);
 }
 
-.download-inner {
+.section-heading {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-heading);
+  margin-bottom: 0.75rem;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 2rem;
-  flex-wrap: wrap;
+  gap: 0.6rem;
 }
 
-.download-text {
-  max-width: 36rem;
-}
-
-.download-heading {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  margin-bottom: 0.5rem;
-}
-
-.download-sub {
+.section-desc {
   font-size: 0.9rem;
   color: var(--color-text-muted);
+  max-width: 36rem;
+  line-height: 1.65;
+  margin-bottom: 1.5rem;
+}
+
+.badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+}
+
+.badge--done {
+  background: var(--color-correct);
+  color: var(--palette-correct-alt);
+}
+
+.badge--planned {
+  background: var(--color-border-alt);
+  color: var(--color-text-faint);
+}
+
+/* Feature list */
+.feature-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.feature-list li {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  padding-left: 1.1rem;
+  position: relative;
+  line-height: 1.5;
+}
+
+.feature-list li::before {
+  content: '–';
+  position: absolute;
+  left: 0;
+  color: var(--color-border);
+}
+
+/* Roadmap */
+.roadmap {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.roadmap-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.roadmap-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.roadmap-desc {
+  font-size: 0.875rem;
+  color: var(--color-text-faint);
+  line-height: 1.6;
+  max-width: 36rem;
 }
 </style>

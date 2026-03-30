@@ -6,11 +6,17 @@ const scoresheetUrl = __SCORESHEET_URL__
   <header class="header">
     <div class="header-inner">
       <RouterLink to="/" class="logo">
-        <span class="logo-mark">qzr</span>
-        <span class="logo-name">VerseVault</span>
+        <span class="logo-mark">qzr-sheet</span>
       </RouterLink>
       <nav class="nav">
-        <a :href="scoresheetUrl" class="nav-link nav-link--cta">Open Scoresheet</a>
+        <a :href="scoresheetUrl" class="nav-link">Scoresheet</a>
+        <a
+          href="https://github.com/TommyAmberson/qzr-sheet"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="nav-link"
+          >GitHub</a
+        >
       </nav>
     </div>
   </header>
@@ -23,10 +29,10 @@ const scoresheetUrl = __SCORESHEET_URL__
 }
 
 .header-inner {
-  max-width: 72rem;
+  max-width: 52rem;
   margin: 0 auto;
   padding: 0 1.5rem;
-  height: 3.5rem;
+  height: 3.25rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -45,15 +51,14 @@ const scoresheetUrl = __SCORESHEET_URL__
 }
 
 .logo-mark {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 800;
   letter-spacing: -0.04em;
   color: var(--color-accent);
-  font-family: 'Segoe UI', system-ui, sans-serif;
 }
 
 .logo-name {
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--color-text-muted);
 }
@@ -61,35 +66,18 @@ const scoresheetUrl = __SCORESHEET_URL__
 .nav {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .nav-link {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
   text-decoration: none;
   transition: color 0.15s;
 }
 
 .nav-link:hover {
-  color: var(--color-text);
-  text-decoration: none;
-}
-
-.nav-link--cta {
-  padding: 0.4rem 0.9rem;
-  border: 1px solid var(--color-accent);
-  border-radius: 6px;
-  color: var(--color-accent);
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-
-.nav-link--cta:hover {
-  background: var(--color-accent);
-  color: var(--color-bg);
+  color: var(--color-text-muted);
   text-decoration: none;
 }
 </style>
