@@ -141,6 +141,307 @@ the server issues a guest JWT valid for the duration of the meet.
 > and parents follow their kids. Requires an account to persist preferences across sessions — guest
 > JWT viewers would not get this feature.
 
+## App Architecture
+
+Three deployable units in a single monorepo (pnpm workspaces):
+
+```
+qzr/
+├── apps/
+│   ├── scoresheet/        # existing Vue 3 + Tauri 2 app (offline-first tool)
+│   └── web/               # portal: coach, admin, viewer, official schedule
+├── packages/
+│   ├── shared/            # QuizFile schema, API types, role enums
+│   └── api/               # Hono + D1 + Drizzle (Cloudflare Workers)
+└── src-tauri/             # Tauri 2 Rust backend
+```
+
+### Scoresheet app (`apps/scoresheet`)
+
+The scoresheet is a standalone offline-first tool. No router, no pages — a single-page scoring
+interface. Phase 4 adds a thin optional API client (sign-in, load quiz, submit result) but no
+portal-style views. When not signed in, the app works exactly as it does today.
+
+Connected-mode additions:
+
+* **Sign-in button** — OAuth popup (web) or system browser flow (Tauri). Stores a JWT.
+* **Load Quiz** — modal/drawer to pick a meet and select an assigned quiz. Fetches teams and
+  quizzers from the API and pre-populates the store.
+* **Submit** — POSTs the serialized `QuizFile` to the API. Appears when authenticated and the quiz
+  has data.
+* **Connected status** in the meta bar — signed-in name, current quiz info, sign-out action.
+
+The scoresheet's API surface is minimal:
+
+```
+1. Sign in        →  OAuth flow → JWT
+2. Load quiz      →  GET  /quizzes/{id}         → { teams, quizzers, room }
+3. Submit result   →  POST /quizzes/{id}/result  → QuizFile body
+```
+
+### Portal (`apps/web`)
+
+A separate web app for everything that isn't live scoring: admin dashboard, coach roster management,
+official schedule, and viewer standings. Uses Vue 3 + vue-router (or Nuxt for SSR if viewer pages
+need to be indexable/shareable).
+
+The portal links into the scoresheet with context. An official viewing their schedule clicks a quiz
+and is taken to `/scoresheet/?quiz=abc123`. The scoresheet reads the JWT from `localStorage` (shared
+via same origin) and the quiz ID from the URL, then auto-fetches and pre-populates.
+
+Two entry points to the same result:
+
+| Path                             | Flow                                                  |
+| -------------------------------- | ----------------------------------------------------- |
+| Portal → click quiz              | Opens `/scoresheet/?quiz=abc`, JWT already stored     |
+| Scoresheet → sign in → load quiz | OAuth flow, pick from list in a modal, same end state |
+
+### API (`packages/api`)
+
+Hono on Cloudflare Workers with D1 and Drizzle. Serves both the scoresheet and the portal from the
+same endpoints.
+
+| Concern   | Tech               | Rationale                                               |
+| --------- | ------------------ | ------------------------------------------------------- |
+| Runtime   | Cloudflare Workers | Already deploying to CF, free tier, zero cold start     |
+| Framework | Hono               | Lightweight, TS-native, CF Workers first-class          |
+| Database  | Cloudflare D1      | Managed SQLite at the edge, binding-only access         |
+| ORM       | Drizzle            | Type-safe, SQLite/D1 support, auto-generated migrations |
+| Auth      | `arctic`           | Proven OAuth library, handles the provider dance        |
+| JWTs      | `hono/jwt`         | Stateless guest sessions for officials and viewers      |
+
+#### Hono
+
+[Hono](https://hono.dev) is a lightweight TypeScript web framework built on Web Standards
+(`Request`/`Response`). Cloudflare recommends it as the default framework for Workers. Express-like
+routing and middleware, but fully typed — route handlers, environment bindings, and middleware all
+participate in TypeScript inference.
+
+The `hono/tiny` preset is under 14KB with zero dependencies. Built-in middleware covers CORS, JWT
+validation, logging, and more. Cloudflare injects environment bindings (D1 databases, secrets, KV
+stores) into the request context as `c.env`, and the `Bindings` generic makes them type-safe.
+
+#### Cloudflare D1
+
+[D1](https://developers.cloudflare.com/d1/) is Cloudflare's managed SQLite database. It runs at the
+edge alongside the Worker — same network, minimal latency.
+
+* **No public endpoint.** D1 is only accessible through a Worker binding. There is no host, port, or
+  connection string. If a route doesn't query it, there is no network path to the data.
+* **SQLite.** The auth-proposal data model is straightforward relational. SQLite handles it without
+  the operational weight of Postgres.
+* **Free tier.** 5M reads/day, 100K writes/day, 5 GB storage. Quiz meets are bursty weekend events —
+  this will likely never be exceeded.
+* **Same infra.** Already deploying to Cloudflare. D1 is one binding in `wrangler.toml`, not a
+  separate service to provision or maintain.
+* **Local dev.** `wrangler dev` runs a real local SQLite instance that behaves identically to
+  production. No remote database needed during development.
+
+Setup is `wrangler d1 create qzr-db` + a binding in `wrangler.toml`. After that, `c.env.DB` in any
+Hono route is a live D1 connection.
+
+#### Drizzle ORM
+
+[Drizzle](https://orm.drizzle.team) is a TypeScript ORM with first-class D1 support. Tables are
+defined as TypeScript objects that map directly to the data model sketch below. Queries are
+type-safe end-to-end — return types are inferred from the schema with no manual annotations or
+casting.
+
+Migrations are auto-generated: `drizzle-kit generate` diffs the schema against the previous snapshot
+and emits SQL migration files. Apply locally with `wrangler d1 migrations apply --local`, apply to
+production with `--remote`. No hand-written SQL.
+
+#### How they connect
+
+```
+Request
+  → Cloudflare Worker (V8 isolate at the edge)
+    → Hono (routing, CORS, JWT middleware)
+      → Drizzle (typed query builder)
+        → D1 (SQLite, same-network binding)
+      ← typed result
+    ← c.json(result)
+  ← Response
+```
+
+The entire stack is TypeScript from route handler to database row. Since `packages/shared` exports
+the same types the scoresheet uses, the API validates and returns data the frontend can consume
+without casting or mapping.
+
+### Shared package (`packages/shared`)
+
+Types and schemas consumed by both frontend apps and the API:
+
+* `QuizFile` TypeBox schema (extracted from `src/persistence/quizFile.ts`)
+* API request/response types
+* Role and code enums
+* Shared validation logic
+
+### Deployment
+
+| URL                             | App              | Infra      |
+| ------------------------------- | ---------------- | ---------- |
+| `www.versevault.ca/scoresheet/` | Scoresheet PWA   | CF Pages   |
+| `www.versevault.ca/`            | Portal + landing | CF Pages   |
+| `api.versevault.ca/`            | API              | CF Workers |
+
+Both frontend apps deploy to the same Cloudflare Pages project (same origin) so they share
+`localStorage` for auth tokens with zero CORS complexity. The API is a separate Workers project on
+the `api` subdomain.
+
+### Tauri desktop
+
+The Tauri build bundles the scoresheet only — portal views are web-only. An official using the
+native app can either:
+
+* Sign in and load a quiz directly from within the scoresheet (system browser OAuth + quiz picker
+  modal)
+* Browse the portal in a regular browser, click a quiz, and open the scoresheet PWA in another tab
+
+Deep links (`versevault://quiz/abc123`) from the portal to the native app are a future nice-to-have.
+
+## OAuth in Tauri
+
+OAuth sign-in works in both web and Tauri contexts, but the redirect mechanism differs.
+
+### Web (PWA in browser)
+
+Standard OAuth popup. The provider redirects back to `www.versevault.ca/auth/callback`, the page
+extracts the authorization code, sends it to the API to exchange for a JWT, and stores the JWT in
+`localStorage`.
+
+### Tauri (native desktop)
+
+The Tauri webview can't receive an `https://` redirect directly.
+[`tauri-plugin-oauth`](https://github.com/FabianLars/tauri-plugin-oauth) solves this by spinning up
+a temporary localhost server on a random port:
+
+```
+1. User clicks "Sign in"
+2. Plugin starts http://localhost:{port}, opens system browser to provider
+3. User consents in their real browser (with saved passwords, extensions, etc.)
+4. Provider redirects to http://localhost:{port}/callback?code=xyz
+5. Plugin captures the code, emits event to Tauri frontend, shuts down server
+6. Frontend sends code to the API to exchange for a JWT
+7. JWT stored in localStorage (or tauri-plugin-store for encrypted storage)
+```
+
+The user signs in in their **real browser**, not an in-app webview — better UX and avoids
+platform-specific webview restrictions.
+
+### Platform-aware auth client
+
+The scoresheet already has this pattern — `fileIO.ts` detects Tauri via `__TAURI_INTERNALS__` and
+branches between native dialogs and web APIs. The auth client follows the same approach:
+
+```
+signIn()
+  ├── isTauri?  →  tauri-plugin-oauth (localhost redirect)
+  └── isWeb?    →  window.open() popup (standard OAuth)
+
+  both  →  send auth code to API  →  receive JWT  →  store in localStorage
+```
+
+The API's OAuth configuration must allow **both** redirect URIs: the production callback URL and
+`http://localhost` (Google and GitHub both support localhost redirects for native apps).
+
+### Token storage
+
+`localStorage` works identically in both contexts and keeps the code simple. For Tauri,
+`tauri-plugin-store` or the OS keychain can provide encrypted storage as a future security upgrade.
+
+## Security
+
+### Infrastructure defaults
+
+The Workers + D1 stack is secure by default in ways a traditional VPS + database setup is not:
+
+* **No exposed database.** D1 has no public endpoint — no host, no port, no connection string to
+  leak. The only code path to the data is through Worker bindings. A traditional database needs
+  firewall rules, VPC configuration, and credential management; D1 needs none of these.
+* **V8 isolates.** Each Worker request runs in its own V8 isolate with no shared memory, no
+  filesystem, and no process access. Smaller attack surface than a container or VPS running Node.
+* **Managed runtime.** Cloudflare maintains the runtime, patches the engine, and handles DDoS
+  protection at the network level. No OS to patch, no `node_modules` audit on the server.
+* **Secrets management.** OAuth client secrets and JWT signing keys are stored as Worker secrets
+  (encrypted at rest, injected at runtime via `c.env`). They never appear in source code, logs, or
+  the frontend.
+
+### OAuth
+
+The authorization code exchange always happens server-side in the Worker. The frontend receives only
+the finished JWT — OAuth client secrets never leave the server.
+
+The API's OAuth configuration must allow two redirect URIs: the production callback URL
+(`www.versevault.ca/auth/callback`) and `http://localhost` for Tauri desktop. Google and GitHub both
+support localhost redirects for native apps.
+
+### JWT tokens
+
+* **Account JWTs** should be short-lived (e.g. 1 hour) with a refresh token flow for longer
+  sessions.
+* **Guest JWTs** (officials and viewers) are scoped to a single meet and expire after 24 hours or
+  when the meet ends, whichever is sooner. No refresh — re-enter the code to get a new token.
+* All JWTs are signed with a Worker secret. The server validates signature and expiry on every
+  request — no database lookup needed for guest sessions.
+
+### Token storage
+
+`localStorage` is the standard approach for SPAs calling APIs on a different subdomain (`www.` →
+`api.`). The XSS risk is minimal: the app is a first-party SPA with no user-generated HTML content,
+and the Tauri webview is even more locked down.
+
+For Tauri, `tauri-plugin-store` or the OS keychain can provide encrypted token storage as a future
+hardening step. For web, `HttpOnly` cookies with `SameSite` and same-origin API proxying is an
+option if the threat model changes.
+
+### Join codes
+
+* **Coach and official codes** are secrets. Store them hashed (bcrypt or scrypt) so a database leak
+  does not expose valid codes. Codes should be long enough (12+ random characters) to make brute
+  force impractical.
+* **Viewer codes** are semi-public by design (meant to be shared verbally). Hashing is optional but
+  reasonable.
+* **Rate-limit** the `POST /meets/{id}/guest-session` endpoint. Cloudflare has built-in rate
+  limiting that can be applied per-route. This prevents brute-forcing codes even if they are short.
+* **Rotation** invalidates the old code and any previously shared join links immediately.
+
+### CORS
+
+The API at `api.versevault.ca` must return CORS headers allowing `www.versevault.ca` as the origin.
+Hono's built-in CORS middleware handles this. The allowed origin should be explicit — never `*`.
+
+### Tauri localhost OAuth
+
+`tauri-plugin-oauth` spins up a temporary localhost server on a random port to capture the OAuth
+redirect. Any local process could theoretically hit that port during the brief window it is open.
+This is the same trade-off VS Code, Slack, and every Electron/Tauri app makes for desktop OAuth.
+Mitigations:
+
+* The authorization code is single-use — the provider rejects replays.
+* The localhost server shuts down immediately after capturing the code.
+* The code exchange requires the OAuth client secret, which is on the Worker, not locally.
+  Intercepting the code alone is not sufficient.
+
+### SQL injection
+
+Drizzle uses parameterized queries by default. Even raw D1 queries use `.bind()` for
+parameterization. SQL injection requires deliberately concatenating user input into query strings.
+
+### Comparison to traditional stacks
+
+| Concern               | Traditional (VPS + Postgres)        | This stack (Workers + D1)              |
+| --------------------- | ----------------------------------- | -------------------------------------- |
+| DB network exposure   | Public or VPC, needs firewall rules | No network path — binding only         |
+| Server attack surface | Full OS, Node process, filesystem   | V8 isolate, no OS access               |
+| Secrets management    | `.env` files, SSH access            | CF Worker secrets, encrypted at rest   |
+| DDoS                  | Self-managed or paid protection     | Cloudflare network handles it for free |
+| SQL injection         | Depends on ORM discipline           | Drizzle parameterizes by default       |
+| Runtime patching      | Manual OS and Node updates          | Cloudflare maintains the runtime       |
+
+The main trade-off is flexibility — no raw filesystem, no long-running processes, no WebSockets
+without Durable Objects. None of that is needed for this API.
+
 ## Data Model Sketch
 
 ```
