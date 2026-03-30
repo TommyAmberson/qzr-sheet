@@ -13,7 +13,7 @@
     "build:all": "pnpm build:web && pnpm build:portal && cp -r apps/scoresheet/dist/scoresheet apps/web/dist/scoresheet",
     "deploy": "pnpm build:all && wrangler pages deploy apps/web/dist --project-name versevault-www --branch master",
     "dev:api": "pnpm --filter @qzr/api dev",
-    "test:unit": "pnpm --filter scoresheet test:unit && pnpm --filter @qzr/api test",
+    "test:unit": "pnpm --filter scoresheet test:unit && pnpm --filter @qzr/api test:unit",
     "type-check": "pnpm --filter @qzr/shared type-check && pnpm --filter scoresheet type-check && pnpm --filter @qzr/web type-check && pnpm --filter @qzr/api type-check",
     "format": "prettier --write --experimental-cli apps/scoresheet/src/ apps/web/src/ packages/shared/src/ packages/api/src/",
     "lint": "eslint",
