@@ -313,432 +313,460 @@ function colGroupClass(colIdx: number): string {
 
   return classes.join(' ')
 }
+
+declare const __APP_VERSION__: string
+const appVersion: string = __APP_VERSION__
 </script>
 
 <template>
   <div class="scoresheet-outer">
     <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
-      <div class="meta-row">
-        <div class="col--left-spacer" />
-        <div class="meta-row-inner">
-          <div
-            :class="[
-              'quiz-meta quiz-meta--left',
-              {
-                'quiz-meta--error': hasAnyErrors,
-                'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
-              },
-            ]"
-          >
-            <label class="meta-field">
-              <span class="meta-label">Division</span>
-              <input v-model="quiz.division" type="text" placeholder="1" />
-            </label>
-            <span class="meta-sep">·</span>
-            <label class="meta-field">
-              <span class="meta-label">Quiz</span>
-              <input v-model="quiz.quizNumber" type="text" />
-            </label>
-            <span class="meta-sep">·</span>
-            <div class="meta-field meta-field--undo">
-              <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
-              <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
-            </div>
-            <span class="meta-sep">·</span>
-            <span
-              class="meta-field meta-field--status"
-              :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
+      <div class="scoresheet-content">
+        <div class="meta-row">
+          <div class="col--left-spacer" />
+          <div class="meta-row-inner">
+            <div
+              :class="[
+                'quiz-meta quiz-meta--left',
+                {
+                  'quiz-meta--error': hasAnyErrors,
+                  'quiz-meta--complete': allQuestionsComplete && !hasAnyErrors,
+                },
+              ]"
             >
-              <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
-              <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete"
-                >✓</span
+              <label class="meta-field">
+                <span class="meta-label">Division</span>
+                <input v-model="quiz.division" type="text" placeholder="1" />
+              </label>
+              <span class="meta-sep">·</span>
+              <label class="meta-field">
+                <span class="meta-label">Quiz</span>
+                <input v-model="quiz.quizNumber" type="text" />
+              </label>
+              <span class="meta-sep">·</span>
+              <div class="meta-field meta-field--undo">
+                <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
+                <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
+              </div>
+              <span class="meta-sep">·</span>
+              <span
+                class="meta-field meta-field--status"
+                :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
               >
-              <span v-else class="meta-status meta-status--pending">○</span>
-              <span class="meta-label">{{
-                hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
-              }}</span>
-            </span>
-            <div class="meta-field meta-field--file">
-              <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
-              <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
-              <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ Export</button>
-              <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
+                <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
+                <span v-else-if="allQuestionsComplete" class="meta-status meta-status--complete"
+                  >✓</span
+                >
+                <span v-else class="meta-status meta-status--pending">○</span>
+                <span class="meta-label">{{
+                  hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
+                }}</span>
+              </span>
+              <div class="meta-field meta-field--file">
+                <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
+                <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
+                <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ Export</button>
+                <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
+              </div>
             </div>
-          </div>
-          <div class="quiz-meta quiz-meta--right">
-            <label class="meta-field meta-field--toggle">
-              <input v-model="quiz.overtime" type="checkbox" />
-              <span class="toggle-track"><span class="toggle-thumb" /></span>
-              <span class="meta-label">Overtime</span>
-            </label>
-            <span class="meta-sep">·</span>
-            <button
-              class="theme-toggle"
-              :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
-              @click="toggleTheme"
-            >
-              {{ theme === 'light' ? '🌙' : '☀️' }}
-            </button>
+            <div class="quiz-meta quiz-meta--right">
+              <label class="meta-field meta-field--toggle">
+                <input v-model="quiz.overtime" type="checkbox" />
+                <span class="toggle-track"><span class="toggle-thumb" /></span>
+                <span class="meta-label">Overtime</span>
+              </label>
+              <span class="meta-sep">·</span>
+              <button
+                class="theme-toggle"
+                :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
+                @click="toggleTheme"
+              >
+                {{ theme === 'light' ? '🌙' : '☀️' }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <table class="scoresheet" :style="{ '--drop-indicator-width': dropIndicatorWidth } as any">
-        <!-- Question header row -->
-        <thead>
-          <tr>
-            <th class="col--left-spacer" />
-            <th class="col--name sticky-col" />
-            <th class="col--ontime-header" />
-            <th
-              v-for="{ col, idx, entering } in displayColumns"
-              :key="col.key"
-              :class="[
-                'col--question',
-                colGroupClass(idx),
-                headerClass(idx),
-                {
-                  'col--entering': entering,
-                  'col--hover': !dragState && (hoverCol === idx || selector?.ci === idx),
-                  'col--focus': keyboardMode && focusedCell?.ci === idx,
-                },
-              ]"
-              :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
-            >
-              <div class="col-header-inner">
-                <span class="col-header-number">{{ col.label }}</span>
-                <span v-if="quiz.questionTypes.get(col.key)" class="col-header-type">{{
-                  quiz.questionTypes.get(col.key)
-                }}</span>
-                <span v-else class="col-header-type">&nbsp;</span>
-                <select
-                  class="question-type-select"
-                  :value="quiz.questionTypes.get(col.key) ?? ''"
-                  @change="
-                    setQuestionType(
-                      idx,
-                      ($event.target as HTMLSelectElement).value
-                        ? (($event.target as HTMLSelectElement).value as QuestionCategory)
-                        : null,
-                    )
+        <table class="scoresheet" :style="{ '--drop-indicator-width': dropIndicatorWidth } as any">
+          <!-- Question header row -->
+          <thead>
+            <tr>
+              <th class="col--left-spacer" />
+              <th class="col--name sticky-col" />
+              <th class="col--ontime-header" />
+              <th
+                v-for="{ col, idx, entering } in displayColumns"
+                :key="col.key"
+                :class="[
+                  'col--question',
+                  colGroupClass(idx),
+                  headerClass(idx),
+                  {
+                    'col--entering': entering,
+                    'col--hover': !dragState && (hoverCol === idx || selector?.ci === idx),
+                    'col--focus': keyboardMode && focusedCell?.ci === idx,
+                  },
+                ]"
+                :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
+              >
+                <div class="col-header-inner">
+                  <span class="col-header-number">{{ col.label }}</span>
+                  <span v-if="quiz.questionTypes.get(col.key)" class="col-header-type">{{
+                    quiz.questionTypes.get(col.key)
+                  }}</span>
+                  <span v-else class="col-header-type">&nbsp;</span>
+                  <select
+                    class="question-type-select"
+                    :value="quiz.questionTypes.get(col.key) ?? ''"
+                    @change="
+                      setQuestionType(
+                        idx,
+                        ($event.target as HTMLSelectElement).value
+                          ? (($event.target as HTMLSelectElement).value as QuestionCategory)
+                          : null,
+                      )
+                    "
+                  >
+                    <option value="" />
+                    <option v-for="cat in QuestionCategory" :key="cat" :value="cat">
+                      {{ cat }}
+                    </option>
+                  </select>
+                </div>
+              </th>
+              <th class="col--total col--total-header" />
+            </tr>
+          </thead>
+
+          <tbody>
+            <template v-for="(team, ti) in teams" :key="team.id">
+              <!-- Team header row -->
+              <tr :class="['row--team-header', teamColors[ti]]">
+                <td class="col--left-spacer" />
+                <td class="col--name sticky-col team-name" colspan="2">
+                  <div class="name-cell-inner">
+                    <span class="name-main">
+                      <span
+                        class="name-input-sizer name-input-sizer--team"
+                        :data-value="team.name || ' '"
+                      >
+                        <input
+                          class="editable-name editable-name--team"
+                          :value="team.name"
+                          @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
+                          @focus="($event.target as HTMLInputElement).select()"
+                        />
+                      </span>
+                    </span>
+                    <span class="team-stats">
+                      <span
+                        v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
+                        class="stat-badge stat-badge--unique"
+                        :title="`${scoring[ti]!.uniqueCorrectQuizzers} quizzers jumped (+10 each from 3rd)`"
+                        >{{
+                          scoring[ti]!.uniqueCorrectQuizzers >= 5
+                            ? '5th'
+                            : scoring[ti]!.uniqueCorrectQuizzers >= 4
+                              ? '4th'
+                              : '3rd'
+                        }}</span
+                      >
+                    </span>
+                  </div>
+                </td>
+                <td
+                  v-for="{ col, idx, entering } in displayColumns"
+                  :key="col.key"
+                  :class="['team-header-spacer', colGroupClass(idx), { 'col--entering': entering }]"
+                />
+                <td class="col--name team-score-label">Score</td>
+              </tr>
+
+              <!-- Quizzer rows -->
+              <tr
+                v-for="(quizzer, qi) in teamQuizzers[ti]"
+                :key="quizzer.id"
+                :ref="(el: any) => registerRowEl(ti, qi, el as HTMLElement)"
+                :class="[
+                  'row--quizzer',
+                  { 'row--quizzed-out': scoring[ti]?.quizzers[qi]?.quizzedOut },
+                  {
+                    'row--errored-out':
+                      scoring[ti]?.quizzers[qi]?.erroredOut &&
+                      !scoring[ti]?.quizzers[qi]?.fouledOut,
+                  },
+                  { 'row--fouled-out': scoring[ti]?.quizzers[qi]?.fouledOut },
+                  { 'row--dragging': dragState?.ti === ti && dragState?.qi === qi },
+                  {
+                    'row--drop-above':
+                      dropTarget?.ti === ti &&
+                      dropTarget?.qi === qi &&
+                      !dropTarget?.below &&
+                      !(dragState?.ti === ti && dragState?.qi === qi),
+                  },
+                  {
+                    'row--drop-below':
+                      dropTarget?.ti === ti &&
+                      dropTarget?.qi === qi &&
+                      dropTarget?.below &&
+                      !(dragState?.ti === ti && dragState?.qi === qi),
+                  },
+                ]"
+              >
+                <td class="col--left-spacer" />
+                <td
+                  colspan="2"
+                  :class="[
+                    'col--name',
+                    'sticky-col',
+                    {
+                      'cell--invalid': quizzerHasErrors(ti, qi),
+                      'col--name--active': !dragState && selector?.ti === ti && selector?.qi === qi,
+                      'col--name--focused':
+                        !dragState &&
+                        keyboardMode &&
+                        focusedCell?.ti === ti &&
+                        focusedCell?.qi === qi,
+                    },
+                  ]"
+                  :title="
+                    quizzerHasErrors(ti, qi)
+                      ? quizzerValidationMessages(ti, qi).join('\n')
+                      : undefined
                   "
                 >
-                  <option value="" />
-                  <option v-for="cat in QuestionCategory" :key="cat" :value="cat">{{ cat }}</option>
-                </select>
-              </div>
-            </th>
-            <th class="col--total col--total-header" />
-          </tr>
-        </thead>
-
-        <tbody>
-          <template v-for="(team, ti) in teams" :key="team.id">
-            <!-- Team header row -->
-            <tr :class="['row--team-header', teamColors[ti]]">
-              <td class="col--left-spacer" />
-              <td class="col--name sticky-col team-name" colspan="2">
-                <div class="name-cell-inner">
-                  <span class="name-main">
-                    <span
-                      class="name-input-sizer name-input-sizer--team"
-                      :data-value="team.name || ' '"
-                    >
-                      <input
-                        class="editable-name editable-name--team"
-                        :value="team.name"
-                        @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
-                        @focus="($event.target as HTMLInputElement).select()"
-                      />
+                  <div class="name-cell-inner">
+                    <span class="name-main">
+                      <span class="drag-handle" @pointerdown="onPointerDown(ti, qi, $event)"
+                        >⠿</span
+                      >
+                      <span
+                        class="name-input-sizer name-input-sizer--quizzer"
+                        :data-value="quizzer.name || ' '"
+                      >
+                        <input
+                          class="editable-name editable-name--quizzer"
+                          :value="quizzer.name"
+                          @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
+                          @focus="($event.target as HTMLInputElement).select()"
+                        />
+                      </span>
+                      <button
+                        v-if="quizzer.name"
+                        class="name-clear"
+                        title="Clear name (empty seat)"
+                        @click.stop="setQuizzerName(ti, qi, '')"
+                      >
+                        ×
+                      </button>
                     </span>
-                  </span>
-                  <span class="team-stats">
-                    <span
-                      v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
-                      class="stat-badge stat-badge--unique"
-                      :title="`${scoring[ti]!.uniqueCorrectQuizzers} quizzers jumped (+10 each from 3rd)`"
-                      >{{
-                        scoring[ti]!.uniqueCorrectQuizzers >= 5
-                          ? '5th'
-                          : scoring[ti]!.uniqueCorrectQuizzers >= 4
-                            ? '4th'
-                            : '3rd'
-                      }}</span
-                    >
-                  </span>
-                </div>
-              </td>
-              <td
-                v-for="{ col, idx, entering } in displayColumns"
-                :key="col.key"
-                :class="['team-header-spacer', colGroupClass(idx), { 'col--entering': entering }]"
-              />
-              <td class="col--name team-score-label">Score</td>
-            </tr>
-
-            <!-- Quizzer rows -->
-            <tr
-              v-for="(quizzer, qi) in teamQuizzers[ti]"
-              :key="quizzer.id"
-              :ref="(el: any) => registerRowEl(ti, qi, el as HTMLElement)"
-              :class="[
-                'row--quizzer',
-                { 'row--quizzed-out': scoring[ti]?.quizzers[qi]?.quizzedOut },
-                {
-                  'row--errored-out':
-                    scoring[ti]?.quizzers[qi]?.erroredOut && !scoring[ti]?.quizzers[qi]?.fouledOut,
-                },
-                { 'row--fouled-out': scoring[ti]?.quizzers[qi]?.fouledOut },
-                { 'row--dragging': dragState?.ti === ti && dragState?.qi === qi },
-                {
-                  'row--drop-above':
-                    dropTarget?.ti === ti &&
-                    dropTarget?.qi === qi &&
-                    !dropTarget?.below &&
-                    !(dragState?.ti === ti && dragState?.qi === qi),
-                },
-                {
-                  'row--drop-below':
-                    dropTarget?.ti === ti &&
-                    dropTarget?.qi === qi &&
-                    dropTarget?.below &&
-                    !(dragState?.ti === ti && dragState?.qi === qi),
-                },
-              ]"
-            >
-              <td class="col--left-spacer" />
-              <td
-                colspan="2"
-                :class="[
-                  'col--name',
-                  'sticky-col',
-                  {
-                    'cell--invalid': quizzerHasErrors(ti, qi),
-                    'col--name--active': !dragState && selector?.ti === ti && selector?.qi === qi,
-                    'col--name--focused':
-                      !dragState &&
-                      keyboardMode &&
-                      focusedCell?.ti === ti &&
-                      focusedCell?.qi === qi,
-                  },
-                ]"
-                :title="
-                  quizzerHasErrors(ti, qi)
-                    ? quizzerValidationMessages(ti, qi).join('\n')
-                    : undefined
-                "
-              >
-                <div class="name-cell-inner">
-                  <span class="name-main">
-                    <span class="drag-handle" @pointerdown="onPointerDown(ti, qi, $event)">⠿</span>
-                    <span
-                      class="name-input-sizer name-input-sizer--quizzer"
-                      :data-value="quizzer.name || ' '"
-                    >
-                      <input
-                        class="editable-name editable-name--quizzer"
-                        :value="quizzer.name"
-                        @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
-                        @focus="($event.target as HTMLInputElement).select()"
-                      />
-                    </span>
-                    <button
-                      v-if="quizzer.name"
-                      class="name-clear"
-                      title="Clear name (empty seat)"
-                      @click.stop="setQuizzerName(ti, qi, '')"
-                    >
-                      ×
-                    </button>
-                  </span>
-                  <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
-                    <span
-                      v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
-                      :class="[
-                        'stat-badge',
-                        'stat-badge--quizout',
-                        { 'stat-badge--quizout-bonus': scoring[ti]!.quizzers[qi]!.quizoutBonus },
-                      ]"
-                      :title="
-                        scoring[ti]!.quizzers[qi]!.quizoutBonus
-                          ? 'Quiz-out with bonus (+10)'
-                          : 'Quiz-out'
-                      "
-                      ><span class="stat-badge__label">Q</span></span
-                    >
-                    <span
-                      v-else-if="
-                        scoring[ti]!.quizzers[qi]!.erroredOut &&
-                        !scoring[ti]!.quizzers[qi]!.fouledOut
-                      "
-                      class="stat-badge stat-badge--errorout"
-                      title="Errored out"
-                      >E</span
-                    >
-                    <span
-                      v-else-if="scoring[ti]!.quizzers[qi]!.fouledOut"
-                      class="stat-badge stat-badge--foulout"
-                      title="Fouled out"
-                      >F</span
-                    >
-                    <span
-                      v-if="
-                        scoring[ti]!.quizzers[qi]!.correctCount > 0 &&
-                        !scoring[ti]!.quizzers[qi]!.quizzedOut
-                      "
-                      class="stat-count stat-count--correct"
-                      :title="`${scoring[ti]!.quizzers[qi]!.correctCount} correct`"
-                      >{{ scoring[ti]!.quizzers[qi]!.correctCount }}c</span
-                    >
-                    <span
-                      v-if="
-                        scoring[ti]!.quizzers[qi]!.errorCount > 0 &&
-                        !(
+                    <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
+                      <span
+                        v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
+                        :class="[
+                          'stat-badge',
+                          'stat-badge--quizout',
+                          { 'stat-badge--quizout-bonus': scoring[ti]!.quizzers[qi]!.quizoutBonus },
+                        ]"
+                        :title="
+                          scoring[ti]!.quizzers[qi]!.quizoutBonus
+                            ? 'Quiz-out with bonus (+10)'
+                            : 'Quiz-out'
+                        "
+                        ><span class="stat-badge__label">Q</span></span
+                      >
+                      <span
+                        v-else-if="
                           scoring[ti]!.quizzers[qi]!.erroredOut &&
                           !scoring[ti]!.quizzers[qi]!.fouledOut
-                        )
-                      "
-                      class="stat-count stat-count--error"
-                      :title="`${scoring[ti]!.quizzers[qi]!.errorCount} error(s)`"
-                      >{{ scoring[ti]!.quizzers[qi]!.errorCount }}e</span
-                    >
-                    <span
-                      v-if="
-                        scoring[ti]!.quizzers[qi]!.foulCount > 0 &&
-                        !scoring[ti]!.quizzers[qi]!.fouledOut
-                      "
-                      class="stat-count stat-count--foul"
-                      :title="`${scoring[ti]!.quizzers[qi]!.foulCount} foul(s)`"
-                      >{{ scoring[ti]!.quizzers[qi]!.foulCount }}f</span
-                    >
-                    <span
-                      v-if="!isEmptySeat(ti, qi) && quizzerScoreLabel(ti, qi) !== null"
-                      class="stat-count stat-count--individual"
-                      title="Individual score"
-                      >{{ quizzerScoreLabel(ti, qi) }}</span
-                    >
+                        "
+                        class="stat-badge stat-badge--errorout"
+                        title="Errored out"
+                        >E</span
+                      >
+                      <span
+                        v-else-if="scoring[ti]!.quizzers[qi]!.fouledOut"
+                        class="stat-badge stat-badge--foulout"
+                        title="Fouled out"
+                        >F</span
+                      >
+                      <span
+                        v-if="
+                          scoring[ti]!.quizzers[qi]!.correctCount > 0 &&
+                          !scoring[ti]!.quizzers[qi]!.quizzedOut
+                        "
+                        class="stat-count stat-count--correct"
+                        :title="`${scoring[ti]!.quizzers[qi]!.correctCount} correct`"
+                        >{{ scoring[ti]!.quizzers[qi]!.correctCount }}c</span
+                      >
+                      <span
+                        v-if="
+                          scoring[ti]!.quizzers[qi]!.errorCount > 0 &&
+                          !(
+                            scoring[ti]!.quizzers[qi]!.erroredOut &&
+                            !scoring[ti]!.quizzers[qi]!.fouledOut
+                          )
+                        "
+                        class="stat-count stat-count--error"
+                        :title="`${scoring[ti]!.quizzers[qi]!.errorCount} error(s)`"
+                        >{{ scoring[ti]!.quizzers[qi]!.errorCount }}e</span
+                      >
+                      <span
+                        v-if="
+                          scoring[ti]!.quizzers[qi]!.foulCount > 0 &&
+                          !scoring[ti]!.quizzers[qi]!.fouledOut
+                        "
+                        class="stat-count stat-count--foul"
+                        :title="`${scoring[ti]!.quizzers[qi]!.foulCount} foul(s)`"
+                        >{{ scoring[ti]!.quizzers[qi]!.foulCount }}f</span
+                      >
+                      <span
+                        v-if="!isEmptySeat(ti, qi) && quizzerScoreLabel(ti, qi) !== null"
+                        class="stat-count stat-count--individual"
+                        title="Individual score"
+                        >{{ quizzerScoreLabel(ti, qi) }}</span
+                      >
+                    </span>
+                  </div>
+                </td>
+                <td
+                  v-for="{ col, idx, entering } in displayColumns"
+                  :key="col.key"
+                  :ref="(el: any) => registerCellEl(ti, qi, idx, el as HTMLElement | null)"
+                  :class="[
+                    'cell',
+                    cellClass[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty],
+                    colGroupClass(idx),
+                    {
+                      'cell--greyed':
+                        (isEmptySeat(ti, qi) && cells[ti]?.[qi]?.[idx] === '') ||
+                        ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti]?.[qi]?.[idx] === '') ||
+                        isAfterOut(ti, qi, idx) ||
+                        (isFouledOnQuestion(ti, qi, idx) && cells[ti]?.[qi]?.[idx] === ''),
+                    },
+                    { 'cell--invalid': isInvalid(ti, qi, idx) },
+                    { 'col--entering': entering },
+                    { 'col--hover': !dragState && hoverCol === idx },
+                    {
+                      'cell--focused':
+                        keyboardMode &&
+                        focusedCell?.ti === ti &&
+                        focusedCell?.qi === qi &&
+                        focusedCell?.ci === idx,
+                    },
+                  ]"
+                  :title="
+                    isInvalid(ti, qi, idx)
+                      ? cellValidationMessages(ti, qi, idx).join('\n')
+                      : undefined
+                  "
+                  @click="onCellClick(ti, qi, idx, $event)"
+                  @mouseenter="hoverCol = idx"
+                  @mouseleave="hoverCol = null"
+                >
+                  {{ cellDisplay[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty] }}
+                </td>
+                <!-- Team total spans quizzer rows only -->
+                <td
+                  v-if="qi === 0"
+                  :class="[
+                    'col--total',
+                    'team-total-value',
+                    { 'cell--invalid': teamHasErrors(ti) },
+                  ]"
+                  :rowspan="teamQuizzers[ti]?.length ?? 5"
+                  :title="teamHasErrors(ti) ? teamValidationMessages(ti).join('\n') : undefined"
+                >
+                  <span v-if="placements[ti]" class="placement-medal">{{
+                    Math.floor(placements[ti]!) === 1
+                      ? '🥇'
+                      : Math.floor(placements[ti]!) === 2
+                        ? '🥈'
+                        : '🥉'
+                  }}</span>
+                  {{ scoring[ti]?.total ?? 0 }}
+                  <span v-if="placementPoints[ti] !== null" class="placement-points">
+                    {{ placementPoints[ti] }} pts
                   </span>
-                </div>
-              </td>
-              <td
-                v-for="{ col, idx, entering } in displayColumns"
-                :key="col.key"
-                :ref="(el: any) => registerCellEl(ti, qi, idx, el as HTMLElement | null)"
-                :class="[
-                  'cell',
-                  cellClass[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty],
-                  colGroupClass(idx),
-                  {
-                    'cell--greyed':
-                      (isEmptySeat(ti, qi) && cells[ti]?.[qi]?.[idx] === '') ||
-                      ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti]?.[qi]?.[idx] === '') ||
-                      isAfterOut(ti, qi, idx) ||
-                      (isFouledOnQuestion(ti, qi, idx) && cells[ti]?.[qi]?.[idx] === ''),
-                  },
-                  { 'cell--invalid': isInvalid(ti, qi, idx) },
-                  { 'col--entering': entering },
-                  { 'col--hover': !dragState && hoverCol === idx },
-                  {
-                    'cell--focused':
-                      keyboardMode &&
-                      focusedCell?.ti === ti &&
-                      focusedCell?.qi === qi &&
-                      focusedCell?.ci === idx,
-                  },
-                ]"
-                :title="
-                  isInvalid(ti, qi, idx)
-                    ? cellValidationMessages(ti, qi, idx).join('\n')
-                    : undefined
-                "
-                @click="onCellClick(ti, qi, idx, $event)"
-                @mouseenter="hoverCol = idx"
-                @mouseleave="hoverCol = null"
-              >
-                {{ cellDisplay[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty] }}
-              </td>
-              <!-- Team total spans quizzer rows only -->
-              <td
-                v-if="qi === 0"
-                :class="['col--total', 'team-total-value', { 'cell--invalid': teamHasErrors(ti) }]"
-                :rowspan="teamQuizzers[ti]?.length ?? 5"
-                :title="teamHasErrors(ti) ? teamValidationMessages(ti).join('\n') : undefined"
-              >
-                <span v-if="placements[ti]" class="placement-medal">{{
-                  Math.floor(placements[ti]!) === 1
-                    ? '🥇'
-                    : Math.floor(placements[ti]!) === 2
-                      ? '🥈'
-                      : '🥉'
-                }}</span>
-                {{ scoring[ti]?.total ?? 0 }}
-                <span v-if="placementPoints[ti] !== null" class="placement-points">
-                  {{ placementPoints[ti] }} pts
-                </span>
-              </td>
-            </tr>
+                </td>
+              </tr>
 
-            <!-- Team running total row -->
-            <tr class="row--team-total">
-              <td class="col--left-spacer" />
-              <td class="col--name sticky-col running-total-label">
-                <span
-                  class="on-time"
-                  :class="{ 'on-time--active': team.onTime }"
-                  @click.stop="toggleOnTime(ti)"
+              <!-- Team running total row -->
+              <tr class="row--team-total">
+                <td class="col--left-spacer" />
+                <td class="col--name sticky-col running-total-label">
+                  <span
+                    class="on-time"
+                    :class="{ 'on-time--active': team.onTime }"
+                    @click.stop="toggleOnTime(ti)"
+                  >
+                    <span class="on-time-box">✓</span>
+                    <span class="on-time-label">on time</span>
+                  </span>
+                  Score
+                </td>
+                <td class="cell--total cell--total-ontime" style="position: relative">
+                  {{ scoring[ti]?.onTimeBonus ?? 0 }}
+                </td>
+                <td
+                  v-for="{ col, idx, entering } in displayColumns"
+                  :key="col.key"
+                  :class="['cell--total', colGroupClass(idx), { 'col--entering': entering }]"
+                  style="position: relative"
                 >
-                  <span class="on-time-box">✓</span>
-                  <span class="on-time-label">on time</span>
-                </span>
-                Score
-              </td>
-              <td class="cell--total cell--total-ontime" style="position: relative">
-                {{ scoring[ti]?.onTimeBonus ?? 0 }}
-              </td>
-              <td
-                v-for="{ col, idx, entering } in displayColumns"
-                :key="col.key"
-                :class="['cell--total', colGroupClass(idx), { 'col--entering': entering }]"
-                style="position: relative"
-              >
-                {{
-                  scoring[ti]?.runningTotals[idx] ??
-                  (boundaryColIndices.has(idx) ? boundaryTotal(ti, idx) : '')
-                }}
-                <span
-                  v-if="scoring[ti]?.uniqueQuizzerBonusCols.has(idx)"
-                  class="running-total-badge running-total-badge--unique"
-                  >{{
-                    scoring[ti]!.uniqueQuizzerBonusCols.get(idx) === 3
-                      ? '3rd'
-                      : scoring[ti]!.uniqueQuizzerBonusCols.get(idx) === 4
-                        ? '4th'
-                        : '5th'
-                  }}</span
-                >
-                <span
-                  v-if="scoring[ti]?.quizoutBonusCols.has(idx)"
-                  class="running-total-badge running-total-badge--quizout"
-                  >Q</span
-                >
-                <span
-                  v-if="scoring[ti]?.freeErrorCols.has(idx)"
-                  class="running-total-badge running-total-badge--free-error"
-                  title="Free error (no deduction)"
-                  >≈</span
-                >
-                <span
-                  v-if="scoring[ti]?.foulDeductCols.has(idx)"
-                  class="running-total-badge running-total-badge--foul-deduct"
-                  title="Foul deduction (-10)"
-                  >F</span
-                >
-              </td>
-              <td class="running-total-spacer" />
-            </tr>
+                  {{
+                    scoring[ti]?.runningTotals[idx] ??
+                    (boundaryColIndices.has(idx) ? boundaryTotal(ti, idx) : '')
+                  }}
+                  <span
+                    v-if="scoring[ti]?.uniqueQuizzerBonusCols.has(idx)"
+                    class="running-total-badge running-total-badge--unique"
+                    >{{
+                      scoring[ti]!.uniqueQuizzerBonusCols.get(idx) === 3
+                        ? '3rd'
+                        : scoring[ti]!.uniqueQuizzerBonusCols.get(idx) === 4
+                          ? '4th'
+                          : '5th'
+                    }}</span
+                  >
+                  <span
+                    v-if="scoring[ti]?.quizoutBonusCols.has(idx)"
+                    class="running-total-badge running-total-badge--quizout"
+                    >Q</span
+                  >
+                  <span
+                    v-if="scoring[ti]?.freeErrorCols.has(idx)"
+                    class="running-total-badge running-total-badge--free-error"
+                    title="Free error (no deduction)"
+                    >≈</span
+                  >
+                  <span
+                    v-if="scoring[ti]?.foulDeductCols.has(idx)"
+                    class="running-total-badge running-total-badge--foul-deduct"
+                    title="Foul deduction (-10)"
+                    >F</span
+                  >
+                </td>
+                <td class="running-total-spacer" />
+              </tr>
 
-            <!-- Spacer between teams -->
-            <tr v-if="ti < teams.length - 1" class="spacer-row spacer-row--team">
+              <!-- Spacer between teams -->
+              <tr v-if="ti < teams.length - 1" class="spacer-row spacer-row--team">
+                <td class="col--left-spacer" />
+                <td class="sticky-col" colspan="2" />
+                <td
+                  v-for="{ col, idx, entering } in displayColumns"
+                  :key="col.key"
+                  :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
+                />
+                <td />
+              </tr>
+            </template>
+          </tbody>
+
+          <!-- No-jump row at bottom -->
+          <tfoot>
+            <tr class="spacer-row">
               <td class="col--left-spacer" />
               <td class="sticky-col" colspan="2" />
               <td
@@ -748,49 +776,48 @@ function colGroupClass(colIdx: number): string {
               />
               <td />
             </tr>
-          </template>
-        </tbody>
-
-        <!-- No-jump row at bottom -->
-        <tfoot>
-          <tr class="spacer-row">
-            <td class="col--left-spacer" />
-            <td class="sticky-col" colspan="2" />
-            <td
-              v-for="{ col, idx, entering } in displayColumns"
-              :key="col.key"
-              :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
-            />
-            <td />
-          </tr>
-          <tr class="row--no-jump">
-            <td class="col--left-spacer" />
-            <td class="col--name sticky-col no-jump-label" colspan="2">No Jump</td>
-            <td
-              v-for="{ col, idx, entering } in displayColumns"
-              :key="col.key"
-              :class="[
-                'cell cell--no-jump',
-                colGroupClass(idx),
-                {
-                  'cell--no-jump-active': noJumps[idx] && colAnswerValue(idx) === CellValue.Empty,
-                  'cell--no-jump-answered': colAnswerValue(idx) !== CellValue.Empty,
-                  'cell--invalid': noJumpHasConflict(idx),
-                  'col--entering': entering,
-                  'cell--focused': keyboardMode && isNoJumpFocus() && focusedCell?.ci === idx,
-                },
-              ]"
-              :title="noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined"
-              @click="onNoJumpClick(idx)"
-              @mouseenter="hoverCol = idx"
-              @mouseleave="hoverCol = null"
-            >
-              {{ noJumps[idx] ? '✗' : '' }}
-            </td>
-            <td class="col--total no-jump-total" />
-          </tr>
-        </tfoot>
-      </table>
+            <tr class="row--no-jump">
+              <td class="col--left-spacer" />
+              <td class="col--name sticky-col no-jump-label" colspan="2">No Jump</td>
+              <td
+                v-for="{ col, idx, entering } in displayColumns"
+                :key="col.key"
+                :class="[
+                  'cell cell--no-jump',
+                  colGroupClass(idx),
+                  {
+                    'cell--no-jump-active': noJumps[idx] && colAnswerValue(idx) === CellValue.Empty,
+                    'cell--no-jump-answered': colAnswerValue(idx) !== CellValue.Empty,
+                    'cell--invalid': noJumpHasConflict(idx),
+                    'col--entering': entering,
+                    'cell--focused': keyboardMode && isNoJumpFocus() && focusedCell?.ci === idx,
+                  },
+                ]"
+                :title="
+                  noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined
+                "
+                @click="onNoJumpClick(idx)"
+                @mouseenter="hoverCol = idx"
+                @mouseleave="hoverCol = null"
+              >
+                {{ noJumps[idx] ? '✗' : '' }}
+              </td>
+              <td class="col--total no-jump-total" />
+            </tr>
+          </tfoot>
+        </table>
+        <div class="table-footer">
+          <span>v{{ appVersion }}</span>
+          <span class="table-footer__sep">·</span>
+          <a href="https://github.com/TommyAmberson/qzr-sheet" target="_blank" rel="noopener"
+            >GitHub</a
+          >
+          <span class="table-footer__sep">·</span>
+          <a href="https://github.com/TommyAmberson/qzr-sheet/issues" target="_blank" rel="noopener"
+            >Issues &amp; feature requests</a
+          >
+        </div>
+      </div>
       <!-- Cell selector popup -->
       <Teleport to="body">
         <div v-if="selector" class="selector-backdrop" @click="closeSelector">
@@ -831,10 +858,18 @@ function colGroupClass(colIdx: number): string {
   overflow: auto;
   flex: 1;
   min-height: 0;
-  padding: 0 1rem 1rem 0;
+  padding: 0 0 1rem 0;
   box-sizing: border-box;
   touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
+}
+
+.scoresheet-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  min-width: min-content;
+  padding-right: 1rem;
 }
 
 .meta-row {
@@ -844,6 +879,7 @@ function colGroupClass(colIdx: number): string {
   margin-bottom: 0.75rem;
   padding-top: 1rem;
   min-width: max-content;
+  flex-shrink: 0;
 }
 
 .meta-row-inner {
@@ -1079,6 +1115,7 @@ function colGroupClass(colIdx: number): string {
   white-space: nowrap;
   width: 100%;
   table-layout: auto;
+  flex-shrink: 0;
 }
 
 .scoresheet th,
@@ -1931,12 +1968,40 @@ thead tr th.sticky-col {
   color: var(--color-badge-foul-text);
   background: var(--color-badge-foul-bg);
 }
-.stat-count--individual {
-  color: var(--color-text-faint);
-  background: var(--color-border-alt);
-  margin-left: auto;
+
+.row--table-footer td {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
 }
-</style>
+
+.row--table-footer .sticky-col {
+  box-shadow: none !important;
+}
+
+.table-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1.5rem 0 0.75rem;
+  font-size: 0.65rem;
+  color: var(--color-text-faint);
+  margin-top: auto;
+  align-self: flex-end;
+}
+
+.table-footer a {
+  color: var(--color-text-faint);
+  text-decoration: none;
+}
+.table-footer a:hover {
+  color: var(--color-text-muted);
+  text-decoration: underline;
+}
+
+.table-footer__sep {
+  user-select: none;
+}
 
 <style>
 /* Cell selector popup (unscoped for Teleport) */
