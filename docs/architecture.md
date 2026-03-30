@@ -7,13 +7,13 @@ quizStore  (plain objects, no Vue)
     │
     ▼
 useScoresheet  (Vue composable — reactivity layer)
-    │   ├── cells: CellValue[][][]          from store.cellGrid()
-    │   ├── scoring: TeamScoring[]          from scoreTeam()
-    │   ├── greyedOutResult: GreyedOutResult from computeGreyedOut()
+    │   ├── cells: CellValue[][][]            from store.cellGrid()
+    │   ├── scoring: TeamScoring[]            from scoreTeam()
+    │   ├── greyedOutResult: GreyedOutResult  from computeGreyedOut()
     │   ├── validationErrors: Map<key, codes> from validateCells()
-    │   ├── visibleColumns: VisibleColumn[] from computeVisibleColumns()
-    │   ├── placements: (number|null)[]     from computePlacements()
-    │   └── undo/redo                       via useHistory()
+    │   ├── visibleColumns: VisibleColumn[]   from computeVisibleColumns()
+    │   ├── placements: (number|null)[]       from computePlacements()
+    │   └── undo/redo                         via useHistory()
     │
     ▼
 Scoresheet.vue  (single component, delegates to UI composables)
@@ -22,13 +22,25 @@ Scoresheet.vue  (single component, delegates to UI composables)
     └── useDragReorder   (pointer-event drag, drop target, row refs)
 ```
 
+Persistence is a side-channel — not part of the reactive graph:
+
+```
+useScoresheet  ──setCell/toggleNoJump──▶  autoSave  ──▶  localStorage
+               ◀─────────────────────── loadFromStorage (on startup)
+
+useScoresheet  ──serialize()──▶  fileIO  ──▶  .json / .ods file
+               ◀──deserialize()─  fileIO  ◀──  .json / .ods file
+```
+
 ## Core Types (`src/types/scoresheet.ts`)
 
 * **`CellValue`** — enum: `Correct | Error | Foul | Bonus | MissedBonus | Empty`
 * **`Column`** — `{ key, label, number, type, isAB, isErrorPoints, isOvertime }`
-* **`Quiz`** — metadata: division, quizNumber, overtime toggle
+* **`Quiz`** — metadata: division, quizNumber, overtime toggle, placementFormula, questionTypes
 * **`Team`** — name, onTime, seatOrder
 * **`Quizzer`** — name, teamId, seatOrder
+* **`PlacementFormula`** — enum: `Rules` (official rulebook) | `Legacy` (pre-2023 spreadsheet)
+* **`PlaceKey`** — encodes rank + tie-width: `1`, `1.2`, `1.3`, `2`, `2.2`, `3`
 
 Column keys: `"1"`–`"15"` (normal), `"16"`/`"16A"`/`"16B"` through `"20B"` (A/B), `"21"`+
 (overtime).
@@ -105,12 +117,57 @@ Manages the cell selector popup: open/close state, position, option list (normal
 ### `useKeyboardNav.ts`
 
 Global `keydown` listener (mounted/unmounted). Handles arrow navigation, letter shortcuts
-(c/e/f/b/m), Enter/Space, Delete/Backspace, Escape, and Ctrl+Z/Ctrl+Shift+Z undo hotkeys.
+(c/e/f/b/m), Enter/Space, Delete/Backspace, Escape, and Ctrl+Z/Ctrl+Shift+Z undo hotkeys. Exposes
+`keyboardMode` — only true after a keypress, suppressed on mouse click — which gates all focus CSS
+classes so focus rings only appear during keyboard use.
 
 ### `useDragReorder.ts`
 
 Pointer-event drag for quizzer row reordering. Registers row element refs, hit-tests against rects
 on `pointermove`, calls `moveQuizzer` on `pointerup`. No HTML5 drag API (crashes on Linux/X11).
+
+### `useTheme.ts`
+
+Dark/light theme toggle. Persists preference to `localStorage`.
+
+## Persistence (`src/persistence/`)
+
+### `quizFile.ts`
+
+TypeBox schema for the `.json` save format (`QuizFile`). `serialize()` converts store state to a
+`QuizFile`; `deserialize()` validates and returns a `DeserializeResult` (ok or error with details).
+
+### `fileIO.ts`
+
+Platform-aware file I/O. Detects Tauri via `__TAURI_INTERNALS__` and uses the native dialog/fs
+plugins; falls back to `showSaveFilePicker` (Chrome) then `<a>` download for web.
+
+Exports: `saveQuizToFile`, `openAnyQuizFile` (handles `.json` and `.ods`), `exportOdsFile`,
+`openOtsTemplate`, `confirmAction`.
+
+### `autoSave.ts`
+
+Debounced (300 ms) `saveToStorage` writes serialized state to `localStorage`. `loadFromStorage`
+returns the saved state on startup; `clearStorage` is called on New Quiz / Reset.
+
+## Export (`src/export/`)
+
+### `fillOts.ts`
+
+Opens a user-supplied `.ots`/`.ods` template as a ZIP, patches the `Quiz` sheet at known fixed cell
+addresses with the current quiz data, and returns the modified bytes. All other sheets pass through
+unchanged so the template's formulas recalculate in LibreOffice.
+
+### `readOds.ts`
+
+Parses a filled `.ods` file and maps the fixed cell addresses back into store format (teams,
+quizzers, answers, no-jumps, question types, metadata). Infers A/B column depth from error counts
+when footer rows are empty.
+
+### `odsXml.ts`
+
+Low-level helpers for reading/writing ODS XML: ZIP entry parsing via `fflate`, cell value
+extraction, and XML patching.
 
 ## Component (`src/components/Scoresheet.vue`)
 

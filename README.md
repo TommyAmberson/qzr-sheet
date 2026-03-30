@@ -1,68 +1,77 @@
-# Quizmeet Scoresheet
+# qzr-sheet
 
-A digital scoresheet for Quizmeet tournaments. Replaces paper sheets and spreadsheets with a modern,
-portable app.
+Digital scoresheet for Quizmeet Bible Quiz tournaments. Replaces paper sheets and spreadsheets with
+a fast, portable app that runs natively on Windows/macOS/Linux (via [Tauri 2](https://tauri.app))
+and in any browser as an installable PWA.
 
-See [ROADMAP.md](./ROADMAP.md) for the feature breakdown and implementation plan.
+**Live web app:** [www.versevault.ca/scoresheet](https://www.versevault.ca/scoresheet)
 
-## Commands
+## Features
 
-```sh
-pnpm dev          # Vite dev server (web only)
-pnpm tauri dev    # Tauri native window (hot-reload)
-pnpm test:unit    # Vitest unit tests
-pnpm type-check   # vue-tsc (also runs as part of build)
-pnpm lint         # ESLint (also runs on pre-commit)
-pnpm format       # Prettier (no semi, single quotes, 100 col)
-pnpm build:web && wrangler pages deploy dist --project-name versevault-www --branch master  # Deploy to www.versevault.ca
-```
+> See [ROADMAP.md](./ROADMAP.md) for the full feature breakdown and what's planned next.
 
-## Project Structure
+* **Live scoring** — running totals, per-quizzer stats (quiz-out, error-out, foul-out), and running
+  total annotations (bonus points, foul deductions, free errors)
+* **A/B columns** — Q16–20 sub-columns auto show/hide based on errors, with enter animation
+* **Overtime** — toggle enables extra rounds; columns appear when tied scores require them
+* **Placement points** — 1st/2nd/3rd calculated after completion, with tied-placement support
+* **Question types** — inline INT/FTV/REF/MA/Q/SIT selector per column header
+* **Validation** — invalid cells pulse red with tooltip reasons; headers pulse when any cell in that
+  column has an error
+* **Keyboard navigation** — arrow keys, letter shortcuts (c/e/f/b/m), undo hotkeys
+* **Drag-drop reordering** — reorder quizzers within a team
+* **Undo/redo** — Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, capped at 100 entries
+* **Save/load JSON** — Ctrl+S / Ctrl+O; native file dialog in Tauri, `showSaveFilePicker` in Chrome,
+  `<a>` download fallback
+* **ODS export/import** — fill a LibreOffice Calc template (.ots/.ods) with quiz data, or import a
+  filled ODS back into the app
+* **Auto-save** — debounced persist to `localStorage` on every change; restored on startup
+* **Offline PWA** — installable from any browser, full offline support via Workbox
+* **Sticky headers + touch panning** — thead and name column stay fixed; smooth 2-axis touch scroll
 
-```
-src/
-  types/scoresheet.ts          # Core types: CellValue, Column, Quiz, Team, Quizzer
-  stores/quizStore.ts           # In-memory store, cell grid derivation
-  scoring/
-    scoreTeam.ts               # Per-team scoring (pure function)
-    greyedOut.ts               # Disabled/tossed-up/foul-cascade cell state
-    columnVisibility.ts        # Which columns render (A/B auto show/hide)
-    validation.ts              # ValidationCode enum + validateCells()
-    overtime.ts                # OT eligibility, round count, checkpoint scores
-    placement.ts               # 1st/2nd/3rd placement derivation
-    helpers.ts                 # Pure cell-grid query helpers
-  composables/
-    useScoresheet.ts           # Vue reactivity layer over store + scoring
-    useHistory.ts              # Generic undo/redo command stack
-    useCellSelector.ts         # Cell selector popup state
-    useKeyboardNav.ts          # Keyboard navigation and shortcuts
-    useDragReorder.ts          # Pointer-event drag reorder
-  components/Scoresheet.vue    # Single-component UI
-src-tauri/                      # Tauri 2 Rust backend
-docs/
-  scoring-rules-explained.md  # Full domain rules reference
-  architecture.md              # Data flow and design decisions
-```
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI
-with `vue-tsc` for type checking. In editors, we need
-[Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript
-language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+## Setup
 
 ```sh
 pnpm i
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+## Commands
 
 ```sh
-pnpm test:unit
+pnpm dev               # Vite dev server (web only)
+pnpm tauri dev         # Tauri native window (hot-reload)
+pnpm test:unit         # Vitest unit tests
+pnpm type-check        # vue-tsc
+pnpm lint              # ESLint
+pnpm format            # Prettier (no semi, single quotes, 100 col)
+pnpm pwa-icons         # Regenerate PWA icons from src-tauri/icons/icon.png
+
+# Deploy to www.versevault.ca
+pnpm build:web && wrangler pages deploy dist --project-name versevault-www --branch master
 ```
+
+## Project Structure
+
+See [docs/architecture.md](./docs/architecture.md) for the full data flow and design decisions.
+
+```
+src/
+  types/           # Core types
+  stores/          # In-memory quiz store
+  scoring/         # Pure scoring, validation, placement, greyed-out logic
+  composables/     # Vue reactivity layer, undo/redo, keyboard nav, drag reorder
+  export/          # ODS template fill + import
+  persistence/     # JSON schema, file I/O, localStorage auto-save
+  components/      # Scoresheet.vue (single-component UI)
+src-tauri/         # Tauri 2 Rust backend
+docs/
+  scoring-rules-explained.md  # Cell types, point values, all scoring rules
+  architecture.md             # Data flow and design decisions
+  rules.md                    # Full rules from the official rulebook PDF
+  auth-proposal.md            # Phase 4 Quizmeet integration design
+```
+
+## Editor Setup
+
+[Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) is required for TypeScript
+type support in `.vue` files.
