@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.quizmeet.sheet",
   "build": {
-    "frontendDist": "../dist/scoresheet",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build"

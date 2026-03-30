@@ -59,9 +59,9 @@ export default defineConfig({
         ]
       : []),
   ],
-  base: '/scoresheet/',
+  base: isTauri ? '/' : '/scoresheet/',
   build: {
-    outDir: 'dist/scoresheet',
+    outDir: isTauri ? 'dist' : 'dist/scoresheet',
   },
   resolve: {
     alias: {
