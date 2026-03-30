@@ -52,7 +52,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: ${{ github.ref_name }}
-          releaseBody: 'See [ROADMAP.md](https://github.com/${{ github.repository }}/blob/master/ROADMAP.md) for what changed.'
+          releaseBody: 'See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/master/CHANGELOG.md) for details.'
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}
