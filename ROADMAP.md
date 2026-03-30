@@ -65,10 +65,11 @@ Restructure the repo into a pnpm workspace monorepo before adding new packages.
 
 ### 4.1 Website / landing page ✓
 
-Static landing page at `www.versevault.ca/`. Scaffolded `apps/web` as a full Vue 3 + vue-router app.
-Hero, feature highlights, download CTA, shared colour palette with the scoresheet. Combined build:
-`pnpm build:all` produces `apps/web/dist/` with the scoresheet output nested at `scoresheet/`;
-`pnpm deploy` builds and publishes both to the CF Pages project.
+Scaffolded `apps/web` as a full Vue 3 + vue-router Vite app. Landing page covers what the scoresheet
+does today and sketches the planned meet platform (standings, schedule, rosters, official flow,
+admin). Honest WIP framing — no branding name yet. Combined build: `pnpm build:all` produces
+`apps/web/dist/` with the scoresheet output nested at `scoresheet/`; `pnpm deploy` builds and
+publishes both to the CF Pages project.
 
 ### 4.2 API + database
 
