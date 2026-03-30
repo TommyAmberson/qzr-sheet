@@ -1,8 +1,9 @@
-# qzr-sheet
+# qzr
 
 Digital scoresheet for Quizmeet Bible Quiz tournaments. Replaces paper sheets and spreadsheets with
 a fast, portable app that runs natively on Windows/macOS/Linux (via [Tauri 2](https://tauri.app))
-and in any browser as an installable PWA.
+and in any browser as an installable PWA. Monorepo with a planned web portal and API for quiz meet
+management.
 
 **Live web app:** [www.versevault.ca/scoresheet](https://www.versevault.ca/scoresheet)
 
@@ -45,31 +46,39 @@ pnpm test:unit         # Vitest unit tests
 pnpm type-check        # vue-tsc
 pnpm lint              # ESLint
 pnpm format            # Prettier (no semi, single quotes, 100 col)
-pnpm pwa-icons         # Regenerate PWA icons from src-tauri/icons/icon.png
 
 # Deploy to www.versevault.ca
-pnpm build:web && wrangler pages deploy dist --project-name versevault-www --branch master
+pnpm build:web && wrangler pages deploy apps/scoresheet/dist --project-name versevault-www --branch master
 ```
+
+All root scripts delegate to the scoresheet workspace via `pnpm --filter scoresheet`.
 
 ## Project Structure
 
-See [docs/architecture.md](./docs/architecture.md) for the full data flow and design decisions.
+See [docs/architecture.md](./docs/architecture.md) for the full data flow and design decisions. See
+[docs/auth-proposal.md](./docs/auth-proposal.md) for the Phase 4 architecture and API design.
 
 ```
-src/
-  types/           # Core types
-  stores/          # In-memory quiz store
-  scoring/         # Pure scoring, validation, placement, greyed-out logic
-  composables/     # Vue reactivity layer, undo/redo, keyboard nav, drag reorder
-  export/          # ODS template fill + import
-  persistence/     # JSON schema, file I/O, localStorage auto-save
-  components/      # Scoresheet.vue (single-component UI)
-src-tauri/         # Tauri 2 Rust backend
+apps/
+  scoresheet/                    # Vue 3 + Tauri 2 scoresheet app
+    src/
+      types/                     # Core types
+      stores/                    # In-memory quiz store
+      scoring/                   # Pure scoring, validation, placement, greyed-out logic
+      composables/               # Vue reactivity layer, undo/redo, keyboard nav, drag reorder
+      export/                    # ODS template fill + import
+      persistence/               # JSON schema, file I/O, localStorage auto-save
+      components/                # Scoresheet.vue (single-component UI)
+    src-tauri/                   # Tauri 2 Rust backend
+  web/                           # Portal app (planned — coach, admin, viewer, schedule)
+packages/
+  shared/                        # Shared types and schemas (planned)
+  api/                           # Hono + D1 + Drizzle API (planned)
 docs/
-  scoring-rules-explained.md  # Cell types, point values, all scoring rules
-  architecture.md             # Data flow and design decisions
-  rules.md                    # Full rules from the official rulebook PDF
-  auth-proposal.md            # Phase 4 Quizmeet integration design
+  scoring-rules-explained.md     # Cell types, point values, all scoring rules
+  architecture.md                # Data flow and design decisions
+  rules.md                       # Full rules from the official rulebook PDF
+  auth-proposal.md               # Phase 4 architecture, API stack, security
 ```
 
 ## Editor Setup

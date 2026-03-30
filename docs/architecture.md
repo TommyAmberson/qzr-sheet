@@ -1,5 +1,8 @@
 # Architecture Reference
 
+This document covers the scoresheet app (`apps/scoresheet/`). For the overall monorepo architecture,
+API stack, and Phase 4 design, see [auth-proposal.md](./auth-proposal.md).
+
 ## Data Flow
 
 ```
