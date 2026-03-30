@@ -75,7 +75,64 @@ export default tseslint.config(
     },
   },
   {
+    files: ['packages/shared/src/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser,
+        project: './packages/shared/tsconfig.json',
+      },
+    },
+    rules: {
+      'prefer-const': 'error',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+      }],
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+  {
+    files: ['packages/api/src/**/*.ts'],
+    ignores: ['packages/api/src/**/__tests__/**'],
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser,
+        project: './packages/api/tsconfig.json',
+      },
+    },
+    rules: {
+      'prefer-const': 'error',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+      }],
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+  {
+    files: ['packages/api/src/**/__tests__/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser,
+        project: './packages/api/tsconfig.json',
+      },
+    },
+    rules: {
+      'prefer-const': 'error',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
     ignores: ['dist/**', 'node_modules/**', 'apps/scoresheet/src-tauri/**', 'scripts/**'],
   },
   prettier,
 )
+
