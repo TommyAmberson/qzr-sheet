@@ -1,6 +1,6 @@
-# qzr-sheet
+# qzr
 
-Bible Quiz scoresheet app. Tauri 2 + Vue 3 + Vite + TypeScript.
+Bible Quiz scoresheet app. Tauri 2 + Vue 3 + Vite + TypeScript. Monorepo with pnpm workspaces.
 
 ## Commands
 
@@ -10,29 +10,39 @@ pnpm tauri dev    # Tauri native window (hot-reload)
 pnpm test:unit    # Vitest unit tests
 pnpm type-check   # vue-tsc
 pnpm format       # Prettier (no semi, single quotes, 100 col)
-pnpm build:web && wrangler pages deploy dist --project-name versevault-www --branch master  # Deploy to www.versevault.ca
+pnpm build:web && wrangler pages deploy apps/scoresheet/dist --project-name versevault-www --branch master  # Deploy to www.versevault.ca
 ```
+
+All root scripts delegate to the scoresheet workspace via `pnpm --filter scoresheet`.
 
 ## Project Structure
 
 ```
-src/
-  types/scoresheet.ts          # Core types: CellValue, Column, Quiz, Team, Quizzer
-  stores/quizStore.ts           # In-memory store, cell grid derivation
-  scoring/
-    scoreTeam.ts               # Per-team scoring (pure function)
-    greyedOut.ts               # Disabled/tossed-up/foul-cascade cell state
-    columnVisibility.ts        # Which columns render (A/B auto show/hide)
-    validation.ts              # ValidationCode enum + validateCells()
-    overtime.ts                # OT eligibility, round count, checkpoint scores
-    placement.ts               # 1st/2nd/3rd placement derivation
-    helpers.ts                 # Pure cell-grid query helpers
-  composables/useScoresheet.ts  # Vue reactivity layer over store + scoring
-  components/Scoresheet.vue     # Single-component UI
-src-tauri/                      # Tauri 2 Rust backend (minimal, no custom commands yet)
+apps/
+  scoresheet/                    # Vue 3 + Tauri 2 scoresheet app
+    src/
+      types/scoresheet.ts        # Core types: CellValue, Column, Quiz, Team, Quizzer
+      stores/quizStore.ts        # In-memory store, cell grid derivation
+      scoring/
+        scoreTeam.ts             # Per-team scoring (pure function)
+        greyedOut.ts             # Disabled/tossed-up/foul-cascade cell state
+        columnVisibility.ts      # Which columns render (A/B auto show/hide)
+        validation.ts            # ValidationCode enum + validateCells()
+        overtime.ts              # OT eligibility, round count, checkpoint scores
+        placement.ts             # 1st/2nd/3rd placement derivation
+        helpers.ts               # Pure cell-grid query helpers
+      composables/useScoresheet.ts  # Vue reactivity layer over store + scoring
+      components/Scoresheet.vue     # Single-component UI
+    src-tauri/                   # Tauri 2 Rust backend (minimal, no custom commands yet)
+  web/                           # Portal app (planned)
+packages/
+  shared/                        # Shared types and schemas (planned)
+  api/                           # Hono + D1 + Drizzle API (planned)
 docs/
-  scoring-rules.md             # Full domain rules reference
-  architecture.md              # Data flow and design decisions
+  scoring-rules-explained.md     # Cell types, point values, all scoring rules
+  architecture.md                # Scoresheet data flow and design decisions
+  rules.md                       # Full rules from official pdf
+  auth-proposal.md               # Phase 4 architecture, API stack, security
 ```
 
 ## Key Conventions
@@ -64,3 +74,4 @@ When working on scoring logic, rules, or architecture, read the relevant file fi
   toss-up/bonus/A-B/foul/overtime/placement
 * `docs/rules.md` -- full rules from official pdf
 * `docs/architecture.md` — data flow, layer responsibilities, key design decisions
+* `docs/auth-proposal.md` — Phase 4 architecture, API stack, security, data model

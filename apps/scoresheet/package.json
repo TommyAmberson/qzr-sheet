@@ -1,0 +1,42 @@
+{
+  "name": "scoresheet",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "tauri": "tauri",
+    "tauri:linux-x11": "WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 tauri",
+    "build": "run-p type-check \"build-only {@}\" --",
+    "pwa-icons": "cp src-tauri/icons/icon.png public/icon.png && pwa-assets-generator --config pwa-assets.config.ts && rm public/icon.png",
+    "build:web": "pnpm pwa-icons && run-p type-check \"build-only {@}\" -- && cp _redirects dist/_redirects",
+    "preview": "vite preview",
+    "test:unit": "vitest",
+    "build-only": "vite build",
+    "type-check": "vue-tsc --build"
+  },
+  "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "fflate": "^0.8.2",
+    "typebox": "^1.1.7",
+    "vue": "^3.5.28"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0",
+    "@tsconfig/node24": "^24.0.4",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^24.10.13",
+    "@vite-pwa/assets-generator": "^1.0.0",
+    "@vitejs/plugin-vue": "^6.0.4",
+    "@vue/test-utils": "^2.4.6",
+    "@vue/tsconfig": "^0.8.1",
+    "jsdom": "^28.1.0",
+    "npm-run-all2": "^8.0.4",
+    "vite": "^7.3.1",
+    "vite-plugin-pwa": "^1.0.0",
+    "vite-plugin-vue-devtools": "^8.0.6",
+    "vitest": "^4.0.18",
+    "vue-tsc": "^3.2.4"
+  }
+}

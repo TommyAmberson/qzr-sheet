@@ -55,4 +55,5 @@ jobs:
           releaseBody: 'See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/master/CHANGELOG.md) for details.'
           releaseDraft: true
           prerelease: false
+          projectPath: apps/scoresheet
           args: --target ${{ matrix.target }}

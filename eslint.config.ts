@@ -8,12 +8,12 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
   {
-    files: ['src/**/*.{ts,vue}'],
-    ignores: ['src/**/__tests__/**'],
+    files: ['apps/scoresheet/src/**/*.{ts,vue}'],
+    ignores: ['apps/scoresheet/src/**/__tests__/**'],
     languageOptions: {
       parserOptions: {
         parser: tseslint.parser,
-        project: './tsconfig.app.json',
+        project: './apps/scoresheet/tsconfig.app.json',
         extraFileExtensions: ['.vue'],
       },
     },
@@ -33,11 +33,11 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/**/__tests__/**/*.ts'],
+    files: ['apps/scoresheet/src/**/__tests__/**/*.ts'],
     languageOptions: {
       parserOptions: {
         parser: tseslint.parser,
-        project: './tsconfig.vitest.json',
+        project: './apps/scoresheet/tsconfig.vitest.json',
       },
     },
     rules: {
@@ -48,7 +48,7 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', 'src-tauri/**', 'scripts/**'],
+    ignores: ['dist/**', 'node_modules/**', 'apps/scoresheet/src-tauri/**', 'scripts/**'],
   },
   prettier,
 )

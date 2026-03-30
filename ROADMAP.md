@@ -1,228 +1,105 @@
 # Roadmap
 
-### Phase 0: Foundation (Complete)
+## Completed
 
-#### 0.1 Tauri 2 + Vue 3 + Vite template ✅
+**Phase 0: Foundation** — Tauri 2 + Vue 3 + Vite scaffolding, native dev environment, ESLint,
+Prettier, pre-commit hooks, GitHub Actions CI.
 
-Project scaffolding with Tauri 2 backend and Vue 3 + Vite frontend.
+**Phase 1: Core UI** — Table layout, cell selector, live scoring, question highlighting, greyed-out
+cells, A/B columns, overtime, validation with tooltips, editable names, placement points, individual
+scores, question type dropdown, drag-drop reorder, keyboard navigation, undo/redo.
 
-#### 0.2 Native dev environment ✅
+**Phase 2: Data Management** — Save/load JSON (TypeBox schema), auto-save to localStorage, new
+quiz/reset, ODS export (template-based), ODS import.
 
-`pnpm tauri dev` for hot-reload development in the native window.
+**Phase 3: Distribution** — PWA on Cloudflare Pages (`www.versevault.ca/scoresheet/`), CI/CD
+pipeline (deploy on tag), packaged releases for Windows/macOS/Linux via GitHub Releases.
 
-#### 0.3 Tooling ✅
+## Backlog
 
-ESLint (typescript-eslint + eslint-plugin-vue), Prettier, pre-commit hooks, and GitHub Actions CI.
+Optional items that can happen any time, independent of Phase 4.
 
-### Phase 1: Core UI
+* **Tablet-optimized touch targets** — larger hit areas and touch-friendly spacing for live quizzes
+* **Custom question type dropdown** — replace native `<select>` for consistent cross-browser styling
+* **Print-friendly layout** — CSS print styles, hide UI chrome, format for A4/letter
+* **Code signing** — macOS notarization and Windows signing for warning-free installers
+* **Auto-updater** — Tauri's built-in update mechanism
 
-#### 1.1 Table layout ✅
+## Phase 4: Quizmeet Integration
 
-Sticky name column, question headers (1–20 + overtime rounds), three team blocks of five quizzers
-each, running total row per team.
+See `docs/auth-proposal.md` for the full design — architecture, API stack, security, data model, and
+OAuth flows.
 
-#### 1.2 Cell selector ✅
+### 4.0 Monorepo conversion
 
-Click a cell to open a context-aware popup — C/E/F on normal columns, B/MB/F on bonus columns or
-bonus situations.
+Restructure the repo into a pnpm workspace monorepo before adding new packages.
 
-#### 1.3 Live scoring ✅
+#### Move under `apps/scoresheet/`
 
-Running totals, team totals, per-quizzer stat badges (quiz-out, error-out, foul-out,
-correct/error/foul counts), and running total annotations (3rd/4th/5th quizzer bonus, quizout bonus,
-free error, foul deduction).
+* `src/`, `public/`, `index.html`
+* `vite.config.ts`, `vitest.config.ts`, `pwa-assets.config.ts`
+* `tsconfig.app.json`, `tsconfig.vitest.json`
+* `src-tauri/` (relative paths in `tauri.conf.json` updated accordingly)
+* Own `package.json` with the app's dependencies
 
-#### 1.4 Question highlighting ✅
+#### Stay at root
 
-Column headers change color based on the answer state — green for correct, red for error, teal for
-bonus, grey strikethrough for no-jump.
+* `package.json` (workspace root — scripts, shared devDependencies)
+* `pnpm-workspace.yaml` (new)
+* `eslint.config.ts`, `.prettierrc.json`, `commitlint.config.js` (shared tooling)
+* `tsconfig.json`, `tsconfig.node.json` (base configs that packages extend)
+* `.github/` (workflows updated for new paths)
+* `docs/`, `ROADMAP.md`, `README.md`
 
-#### 1.5 Greyed-out cells ✅
+#### Scaffold new packages
 
-Cells are visually disabled for answered questions, toss-up teams, after-out quizzers, and
-fouled-on-question situations.
+* `packages/shared/` — `package.json`, `tsconfig.json`, extract `QuizFile` schema and shared types
+* `packages/api/` — `package.json`, `tsconfig.json`, `wrangler.toml`, minimal Hono app
+* `apps/web/` — placeholder for the portal
 
-#### 1.6 A/B question columns ✅
+#### Config updates
 
-A and B sub-columns for questions 16–20 auto show/hide based on errors, with a smooth enter
-animation.
+* `tauri.conf.json` — `$schema` path, `beforeDevCommand`, `beforeBuildCommand`, `frontendDist`
+* CI workflows — `working-directory` for build steps, updated deploy paths
+* Root `package.json` — workspace scripts (e.g. `pnpm --filter scoresheet dev`)
 
-#### 1.7 Overtime columns ✅
+### 4.1 Website / landing page
 
-Overtime toggle enables/disables overtime columns. When disabled, no overtime logic at all. When
-enabled, additional rounds appear if quiz is tied after being filled out.
+Static site with app description, screenshots, download links, and a link to the scoresheet. Lives
+at `www.versevault.ca/` as part of the portal app.
 
-#### 1.8 Validation ✅
+### 4.2 API + database
 
-Invalid cells pulse red and the team total highlights. Checks for duplicate answers, toss-up
-violations, wrong cell types, quizzer-out, overtime eligibility, and more.
+Hono on Cloudflare Workers with D1 and Drizzle. Drizzle schema matching the data model in
+`docs/auth-proposal.md`. Deploy to `api.versevault.ca/`.
 
-#### 1.9 Validation explanation ✅
+### 4.3 Authentication
 
-Invalid cells pulse red with a native tooltip showing the reason(s). Question number headers also
-pulse red when any cell in their column has a validation error.
+OAuth sign-in (Google, GitHub, etc.). Platform-aware auth client — popup on web,
+`tauri-plugin-oauth` on desktop. First login creates a `normal` account with no meet access.
 
-#### 1.10 Editable team/quizzer names ✅
-
-Replace hardcoded "Team 1" / "Quizzer 1" with inline-editable text fields. Name inputs are sized
-exactly to their text content via a CSS sizer span (invisible `::after` mirror drives the width;
-input overlays it absolutely). Drag handle, sizer, and clear button are grouped as one unbreakable
-unit. Badges sit to the right and wrap to a new line only when there isn't room, staying
-right-aligned either way.
-
-#### 1.11 Placement points ✅
-
-Calculate and display placement points after quiz completion. Uses the official rulebook formula
-with friendly ties; pre-2023 legacy formula available via `PlacementFormula.Legacy`. Both formulas
-support tied placements via PlaceKey (1.2, 1.3, 2.2). See `docs/scoring-rules-explained.md` for a
-full comparison.
-
-#### 1.12 Individual quizzer scores ✅
-
-Show each quizzer's individual point total at the end of their row.
-
-#### 1.13 Question type dropdown ✅
-
-Question category selector (INT, FTV, REF, MA, Q, SIT) inline in each column header. Clicking
-anywhere on the header opens the native dropdown. Type label shown beneath the question number at
-70% opacity, inheriting the header colour.
-
-### Phase 1.5: Optional Core UI features
-
-#### 1.5.1 Tablet-optimized touch targets
-
-Larger hit areas and touch-friendly spacing for use during live quizzes.
-
-#### 1.5.2 Drag-drop quizzer reordering ✅
-
-Drag quizzer rows to reorder within a team, updating seat order in the store.
-
-#### 1.5.3 Hidden A/B question columns ✅
-
-A/B columns only appear when needed (already implemented with animation).
-
-#### 1.5.6 Custom question type dropdown
-
-Replace the native `<select>` in column headers with a custom dropdown for centered options and
-consistent cross-browser styling.
-
-#### 1.5.4 Keyboard navigation ✅
-
-Arrow keys move between cells (focus top-left cell if nothing focused). Enter/Space opens the cell
-selector. Letter keys (c/e/f/b/m) set the value directly. Escape closes the selector or clears
-focus. Hover shows grey crosshair borders; keyboard focus shows blue crosshair borders on the cell,
-quizzer name, and question header. Blue focus always overrides grey hover. Focus ring persists while
-the selector popup is open.
-
-#### 1.5.5 Undo/redo ✅
-
-History stack for cell and no-jump changes (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y). Undo/redo buttons in
-the meta bar. Capped at 100 entries.
-
-### Phase 2: Data Management
-
-#### 2.1 Save/load as JSON ✅
-
-TypeBox schema for the quiz file format. Save to disk via Ctrl+S / button (native dialog in Tauri,
-`showSaveFilePicker` in Chrome, `<a>` download fallback). Open via Ctrl+O / button. Unsaved-changes
-popup skipped when history is clean; dirty tracking via undo-stack identity.
-
-#### 2.2 Auto-save ✅
-
-Debounced (300ms) persist to `localStorage` on every cell change, name edit, metadata toggle, or
-no-jump change. Restored on startup before computeds run. Reset clears storage.
-
-#### 2.3 New Quiz / Reset ✅
-
-Ctrl+N / button clears all state and localStorage. Confirmation prompt when there are unsaved
-changes.
-
-#### 2.4 ODS/LibreOffice export ✅
-
-Export the scoresheet as an ODS spreadsheet by filling a user-supplied OTS/ODS template. Patches the
-Quiz sheet cells at known fixed addresses; all other sheets pass through unchanged so the template's
-formulas recalculate automatically in LibreOffice.
-
-#### 2.5 ODS import ✅
-
-Import a filled ODS scoresheet back into the app. Read cell values from known Quiz sheet addresses
-and populate the store (teams, quizzers, answers, no-jumps, question types, metadata).
-
-#### 2.6 Print-friendly layout (optional)
-
-CSS print styles that hide UI chrome and format for A4/letter paper.
-
-### Phase 3: Distribution
-
-#### 3.1 Website / landing page
-
-Static site with app description, screenshots, download links, and a link to the web app. Single
-page is fine to start.
-
-#### 3.2 PWA / web deployment ✅
-
-Deploy the scoresheet as a static site so it can run in any browser. Covers ChromeOS, tablets, and
-borrowed-laptop scenarios.
-
-Hosted on **Cloudflare Pages** (free tier) at `www.versevault.ca`. A `public/_redirects` rule
-handles SPA client-side routing. Deploy with `pnpm build:web` then
-`wrangler pages deploy dist --project-name versevault-www --branch master`.
-
-Serves from `/scoresheet/` with `base: '/scoresheet/'` in `vite.config.ts` and
-`outDir: dist/scoresheet`. PWA support via `vite-plugin-pwa`: service worker with `autoUpdate`, full
-offline caching via Workbox, and a web manifest so the app is installable from any browser. Icons
-generated from the Tauri source icon via `pnpm pwa-icons` (`@vite-pwa/assets-generator`). The PWA
-plugin is conditionaly skipped for Tauri builds (`TAURI_ENV_PLATFORM` guard).
-
-#### 3.3 CI/CD release pipeline
-
-GitHub Actions workflow to build and deploy on push to `main`. Two jobs:
-
-* **Web**: `pnpm build:web` → `wrangler pages deploy` to Cloudflare Pages
-* **Native**: build platform-specific artifacts on tag push — separate jobs for Windows, macOS
-  (universal binary), and Linux
-
-#### 3.4 Packaged releases
-
-Platform-specific installers (.exe/.msi, .dmg, .deb, .AppImage) published to GitHub Releases.
-
-#### 3.5 Code signing
-
-macOS notarization and Windows code signing so installers run without security warnings.
-
-#### 3.6 Auto-updater
-
-Tauri's built-in update mechanism for seamless version updates.
-
-### Phase 4: Quizmeet Integration
-
-See `docs/auth-proposal.md` for the full design.
-
-#### 4.1 Authentication
-
-OAuth sign-in (Google, GitHub, etc.). First login creates a `normal` account with no meet access.
-
-#### 4.2 Meet join codes
+### 4.4 Meet join codes
 
 Enter a code (or follow a join link) to gain a meet-scoped role: `head_coach`, `official`, or
 `viewer`. Officials and viewers can use guest JWTs without creating an account.
 
-#### 4.3 Official flow
+### 4.5 Official flow
 
-Load assigned quiz details (teams, quizzers, room) from the API and pre-populate the scoresheet.
-Submit completed `QuizFile` results back to the server.
+Load assigned quiz details (teams, quizzers, room) from the API and pre-populate the scoresheet. Two
+entry points: portal schedule click (`/scoresheet/?quiz=id`) or scoresheet sign-in + quiz picker
+modal. Submit completed `QuizFile` results back to the server.
 
-#### 4.4 Coach flow
+### 4.6 Coach flow
 
 Create and manage churches, teams, and quizzer rosters for a meet. Link quizzers to historical
 identities for cross-meet career stats.
 
-#### 4.5 Viewer access
+### 4.7 Viewer access
 
 Read-only view of meet standings, stats, and schedules. No account required — guest JWT issued via
 viewer code or join link.
 
-#### 4.6 Admin dashboard
+### 4.8 Admin dashboard
 
 Create and manage quiz meets. Generate and rotate coach, official, and viewer codes. Review
 submitted results and manage accounts.
