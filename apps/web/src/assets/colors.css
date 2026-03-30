@@ -1,0 +1,65 @@
+/* ── Raw palette — shared with apps/scoresheet ── */
+:root {
+  /* Answers */
+  --palette-correct: #3d7a4a;
+  --palette-correct-alt: #e4f2e7;
+  --palette-error: #8b4038;
+  --palette-error-alt: #f2e4e2;
+  --palette-bonus: #3d7a7a;
+  --palette-bonus-alt: #e2f0f0;
+
+  /* Neutrals (light → dark) */
+  --palette-white: #fff;
+  --palette-eggshell: #f5f2ec;
+  --palette-cream: #f0e8e0;
+  --palette-sand: #e0ddd4;
+  --palette-tan: #c9c0a8;
+  --palette-ash: #b8b4a8;
+  --palette-khaki: #a09a85;
+  --palette-stone: #78716c;
+  --palette-slate: #57534e;
+  --palette-flint: #3e3a34;
+  --palette-shadow: #3a3730;
+  --palette-charcoal: #33302a;
+  --palette-coal: #2a2724;
+  --palette-obsidian: #1a1816;
+
+  /* Accents */
+  --palette-blue: #60a5fa;
+  --palette-gold: #e6d98a;
+  --palette-amber: #c47a1a;
+
+  /* Fixed */
+  --color-accent: var(--palette-blue);
+  --color-accent-hover: #93c5fd;
+  --color-correct: var(--palette-correct);
+  --color-bonus: var(--palette-bonus);
+}
+
+/* ── Light theme ── */
+:root {
+  --color-bg: var(--palette-white);
+  --color-bg-warm: var(--palette-cream);
+  --color-bg-raised: var(--palette-eggshell);
+  --color-border: var(--palette-tan);
+  --color-border-alt: var(--palette-sand);
+  --color-text: var(--palette-coal);
+  --color-text-muted: var(--palette-slate);
+  --color-text-faint: var(--palette-stone);
+  --color-heading: var(--palette-flint);
+}
+
+/* ── Dark theme ── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: var(--palette-coal);
+    --color-bg-warm: var(--palette-obsidian);
+    --color-bg-raised: var(--palette-shadow);
+    --color-border: var(--palette-slate);
+    --color-border-alt: var(--palette-flint);
+    --color-text: var(--palette-ash);
+    --color-text-muted: var(--palette-khaki);
+    --color-text-faint: var(--palette-stone);
+    --color-heading: var(--palette-tan);
+  }
+}

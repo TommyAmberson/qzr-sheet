@@ -5,11 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter scoresheet dev",
+    "dev:web": "pnpm --filter @qzr/web dev",
+    "dev:all": "pnpm --parallel --filter scoresheet --filter @qzr/web dev",
     "build": "pnpm --filter scoresheet build",
     "build:web": "pnpm --filter scoresheet build:web",
+    "build:portal": "pnpm --filter @qzr/web build",
+    "build:all": "pnpm build:web && pnpm build:portal && cp -r apps/scoresheet/dist/scoresheet apps/web/dist/scoresheet",
+    "deploy": "pnpm build:all && wrangler pages deploy apps/web/dist --project-name versevault-www --branch master",
     "test:unit": "pnpm --filter scoresheet test:unit",
-    "type-check": "pnpm --filter scoresheet type-check",
-    "format": "prettier --write --experimental-cli apps/scoresheet/src/",
+    "type-check": "pnpm --filter scoresheet type-check && pnpm --filter @qzr/web type-check",
+    "format": "prettier --write --experimental-cli apps/scoresheet/src/ apps/web/src/",
     "lint": "eslint",
     "tauri": "pnpm --filter scoresheet tauri",
     "tauri:linux-x11": "pnpm --filter scoresheet tauri:linux-x11",
@@ -22,7 +27,9 @@
   },
   "lint-staged": {
     "apps/scoresheet/src/**/*.{ts,vue}": "eslint --fix",
+    "apps/web/src/**/*.{ts,vue}": "eslint --fix",
     "apps/scoresheet/src/**/*.{ts,vue,css}": "prettier --write --experimental-cli",
+    "apps/web/src/**/*.{ts,vue,css}": "prettier --write --experimental-cli",
     "**/*.{md,dockerfile}": "pnpm exec dprint fmt"
   },
   "devDependencies": {

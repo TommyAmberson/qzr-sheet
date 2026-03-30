@@ -63,10 +63,12 @@ Restructure the repo into a pnpm workspace monorepo before adding new packages.
 * CI workflows — `working-directory` for build steps, updated deploy paths
 * Root `package.json` — workspace scripts (e.g. `pnpm --filter scoresheet dev`)
 
-### 4.1 Website / landing page
+### 4.1 Website / landing page ✓
 
-Static site with app description, screenshots, download links, and a link to the scoresheet. Lives
-at `www.versevault.ca/` as part of the portal app.
+Static landing page at `www.versevault.ca/`. Scaffolded `apps/web` as a full Vue 3 + vue-router app.
+Hero, feature highlights, download CTA, shared colour palette with the scoresheet. Combined build:
+`pnpm build:all` produces `apps/web/dist/` with the scoresheet output nested at `scoresheet/`;
+`pnpm deploy` builds and publishes both to the CF Pages project.
 
 ### 4.2 API + database
 

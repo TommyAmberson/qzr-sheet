@@ -39,16 +39,19 @@ pnpm i
 ## Commands
 
 ```sh
-pnpm dev               # Vite dev server (web only)
+pnpm dev               # Vite dev server — scoresheet (web only)
+pnpm dev:web           # Vite dev server — portal / landing page
 pnpm tauri dev         # Tauri native window (hot-reload)
 pnpm tauri:linux-x11 dev   # Same, with Linux/X11 GPU workarounds
 pnpm test:unit         # Vitest unit tests
-pnpm type-check        # vue-tsc
+pnpm type-check        # vue-tsc (scoresheet + web)
 pnpm lint              # ESLint
 pnpm format            # Prettier (no semi, single quotes, 100 col)
 
-# Deploy to www.versevault.ca
-pnpm build:web && wrangler pages deploy apps/scoresheet/dist --project-name versevault-www --branch master
+# Deploy both apps to www.versevault.ca
+pnpm deploy
+# Or build the combined output manually:
+pnpm build:all && wrangler pages deploy apps/web/dist --project-name versevault-www --branch master
 ```
 
 All root scripts delegate to the scoresheet workspace via `pnpm --filter scoresheet`.
