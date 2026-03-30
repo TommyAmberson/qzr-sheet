@@ -6,6 +6,22 @@
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
+interface FileSystemWritableFileStream {
+  write(data: string | ArrayBuffer | Blob | Uint8Array): Promise<void>
+  close(): Promise<void>
+}
+
+interface SaveFilePickerOptions {
+  suggestedName?: string
+  types?: { description: string; accept: Record<string, string[]> }[]
+}
+
+interface WindowWithFilePicker extends Window {
+  showSaveFilePicker(options?: SaveFilePickerOptions): Promise<{
+    createWritable(): Promise<FileSystemWritableFileStream>
+  }>
+}
+
 export async function saveQuizToFile(json: string, defaultFilename: string): Promise<boolean> {
   if (isTauri) {
     const { save } = await import('@tauri-apps/plugin-dialog')
@@ -19,7 +35,7 @@ export async function saveQuizToFile(json: string, defaultFilename: string): Pro
     return true
   } else if ('showSaveFilePicker' in window) {
     try {
-      const handle = await (window as any).showSaveFilePicker({
+      const handle = await (window as WindowWithFilePicker).showSaveFilePicker({
         suggestedName: defaultFilename,
         types: [{ description: 'Quiz JSON', accept: { 'application/json': ['.json'] } }],
       })
@@ -104,7 +120,7 @@ export async function exportOdsFile(
     return true
   } else if ('showSaveFilePicker' in window) {
     try {
-      const handle = await (window as any).showSaveFilePicker({
+      const handle = await (window as WindowWithFilePicker).showSaveFilePicker({
         suggestedName: defaultFilename,
         types: [
           {
