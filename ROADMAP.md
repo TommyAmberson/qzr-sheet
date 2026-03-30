@@ -20,6 +20,9 @@ pipeline (deploy on tag), packaged releases for Windows/macOS/Linux via GitHub R
 Optional items that can happen any time, independent of Phase 4.
 
 * **Tablet-optimized touch targets** — larger hit areas and touch-friendly spacing for live quizzes
+* **Android APK** — `pnpm tauri android build --apk --target aarch64`; needs Android SDK + NDK
+  setup, plugin compatibility check (`tauri-plugin-fs`, `tauri-plugin-dialog`), tablet layout
+  testing, and a manual or custom CI release step (`tauri-action` doesn't support mobile builds yet)
 * **Custom question type dropdown** — replace native `<select>` for consistent cross-browser styling
 * **Print-friendly layout** — CSS print styles, hide UI chrome, format for A4/letter
 * **Code signing** — macOS notarization and Windows signing for warning-free installers
