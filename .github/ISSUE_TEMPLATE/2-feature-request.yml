@@ -1,0 +1,28 @@
+name: Feature Request
+description: Suggest something new or an improvement to how the app works.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea to make the app better? We'd love to hear it!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation or problem this would solve. What were you doing when you wished the app worked differently?
+      placeholder: "Example: When setting up a quiz, I want to reorder the quizzers on a team by dragging them so the scoresheet matches our seating order."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to see?
+      description: Describe your idea. Don't worry about the technical details — just explain what it would do.
+      placeholder: "Example: Let me drag quizzers up or down within a team to rearrange them before the quiz starts."
+    validations:
+      required: false
+

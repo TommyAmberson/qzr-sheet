@@ -1,0 +1,73 @@
+name: Bug Report
+description: Something isn't working right — wrong scores, unexpected behaviour, crashes, etc.
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this! The more detail you can give, the easier it is to fix.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What went wrong?
+      placeholder: "Example: After entering scores for a few questions, the app went blank and I couldn't get back to my quiz."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: "Example: The quiz should have stayed open with all the scores I already entered."
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How do we reproduce it?
+      description: Step-by-step instructions to see the problem. The more specific the better.
+      placeholder: |
+        1. Start a new quiz with 3 teams
+        2. Enter scores for the first 5 questions
+        3. Notice the total score shows...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: How are you using the app?
+      options:
+        - Browser (web)
+        - Desktop app (installed)
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: If using a browser, which one?
+      placeholder: "e.g. Chrome, Firefox, Safari"
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: If using the desktop app, which operating system?
+      placeholder: "e.g. Windows 11, macOS Sequoia, Ubuntu 24.04"
+    validations:
+      required: false
+
+  - type: upload
+    id: attachments
+    attributes:
+      label: Screenshot or saved quiz file
+      description: |
+        A screenshot of the problem is very helpful. You can also attach the saved quiz file
+        (click the **Save** button in the app — it saves a `.json` file) — this lets us reproduce the exact quiz state.
+    validations:
+      required: false
