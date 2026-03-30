@@ -14,7 +14,7 @@ Project scaffolding with Tauri 2 backend and Vue 3 + Vite frontend.
 
 ESLint (typescript-eslint + eslint-plugin-vue), Prettier, pre-commit hooks, and GitHub Actions CI.
 
-### Phase 1: Core UI
+### Phase 1: Core UI (Complete)
 
 #### 1.1 Table layout ✅
 
@@ -119,7 +119,7 @@ the selector popup is open.
 History stack for cell and no-jump changes (Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y). Undo/redo buttons in
 the meta bar. Capped at 100 entries.
 
-### Phase 2: Data Management
+### Phase 2: Data Management (Complete)
 
 #### 2.1 Save/load as JSON ✅
 
@@ -154,11 +154,6 @@ CSS print styles that hide UI chrome and format for A4/letter paper.
 
 ### Phase 3: Distribution
 
-#### 3.1 Website / landing page
-
-Static site with app description, screenshots, download links, and a link to the web app. Single
-page is fine to start.
-
 #### 3.2 PWA / web deployment ✅
 
 Deploy the scoresheet as a static site so it can run in any browser. Covers ChromeOS, tablets, and
@@ -174,7 +169,7 @@ offline caching via Workbox, and a web manifest so the app is installable from a
 generated from the Tauri source icon via `pnpm pwa-icons` (`@vite-pwa/assets-generator`). The PWA
 plugin is conditionaly skipped for Tauri builds (`TAURI_ENV_PLATFORM` guard).
 
-#### 3.3 CI/CD release pipeline
+#### 3.3 CI/CD release pipeline ✅
 
 GitHub Actions workflow to build and deploy on push to `main`. Two jobs:
 
@@ -182,15 +177,15 @@ GitHub Actions workflow to build and deploy on push to `main`. Two jobs:
 * **Native**: build platform-specific artifacts on tag push — separate jobs for Windows, macOS
   (universal binary), and Linux
 
-#### 3.4 Packaged releases
+#### 3.4 Packaged releases ✅
 
 Platform-specific installers (.exe/.msi, .dmg, .deb, .AppImage) published to GitHub Releases.
 
-#### 3.5 Code signing
+#### 3.5 Code signing (future)
 
 macOS notarization and Windows code signing so installers run without security warnings.
 
-#### 3.6 Auto-updater
+#### 3.6 Auto-updater (future)
 
 Tauri's built-in update mechanism for seamless version updates.
 
@@ -198,31 +193,36 @@ Tauri's built-in update mechanism for seamless version updates.
 
 See `docs/auth-proposal.md` for the full design.
 
-#### 4.1 Authentication
+#### 4.1 Website / landing page
+
+Static site with app description, screenshots, download links, and a link to the web app. Single
+page is fine to start. Lives at `www.versevault.ca/` as part of the portal app.
+
+#### 4.2 Authentication
 
 OAuth sign-in (Google, GitHub, etc.). First login creates a `normal` account with no meet access.
 
-#### 4.2 Meet join codes
+#### 4.3 Meet join codes
 
 Enter a code (or follow a join link) to gain a meet-scoped role: `head_coach`, `official`, or
 `viewer`. Officials and viewers can use guest JWTs without creating an account.
 
-#### 4.3 Official flow
+#### 4.4 Official flow
 
 Load assigned quiz details (teams, quizzers, room) from the API and pre-populate the scoresheet.
 Submit completed `QuizFile` results back to the server.
 
-#### 4.4 Coach flow
+#### 4.5 Coach flow
 
 Create and manage churches, teams, and quizzer rosters for a meet. Link quizzers to historical
 identities for cross-meet career stats.
 
-#### 4.5 Viewer access
+#### 4.6 Viewer access
 
 Read-only view of meet standings, stats, and schedules. No account required — guest JWT issued via
 viewer code or join link.
 
-#### 4.6 Admin dashboard
+#### 4.7 Admin dashboard
 
 Create and manage quiz meets. Generate and rotate coach, official, and viewer codes. Review
 submitted results and manage accounts.
