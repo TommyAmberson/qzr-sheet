@@ -40,6 +40,7 @@ pnpm i
 ```sh
 pnpm dev               # Vite dev server (web only)
 pnpm tauri dev         # Tauri native window (hot-reload)
+pnpm tauri:linux-x11 dev   # Same, with Linux/X11 GPU workarounds
 pnpm test:unit         # Vitest unit tests
 pnpm type-check        # vue-tsc
 pnpm lint              # ESLint

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "tauri": "WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 tauri",
+    "tauri": "tauri",
+    "tauri:linux-x11": "WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 tauri",
     "build": "run-p type-check \"build-only {@}\" --",
     "pwa-icons": "cp src-tauri/icons/icon.png public/icon.png && pwa-assets-generator --config pwa-assets.config.ts && rm public/icon.png",
     "build:web": "pnpm pwa-icons && run-p type-check \"build-only {@}\" -- && cp _redirects dist/_redirects",
