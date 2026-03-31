@@ -30,7 +30,7 @@ export class ApiError extends Error {
 
 // ---- Types ----
 
-export interface Meet {
+export interface QuizMeet {
   id: number
   name: string
   dateFrom: string
@@ -46,7 +46,7 @@ export interface OfficialCode {
 }
 
 export interface MeetDetail {
-  meet: Meet
+  meet: QuizMeet
   officialCodes: OfficialCode[]
 }
 
@@ -59,7 +59,7 @@ export interface MeetMembership {
 
 // ---- Meet CRUD (admin) ----
 
-export function listMeets(): Promise<{ meets: Meet[] }> {
+export function listMeets(): Promise<{ meets: QuizMeet[] }> {
   return request('/api/meets')
 }
 
@@ -73,7 +73,7 @@ export function createMeet(data: {
   dateTo?: string
   viewerCode: string
   divisions: string[]
-}): Promise<{ meet: Meet; coachCode: string }> {
+}): Promise<{ meet: QuizMeet; coachCode: string }> {
   return request('/api/meets', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -89,7 +89,7 @@ export function updateMeet(
     viewerCode?: string
     divisions?: string[]
   },
-): Promise<{ meet: Meet }> {
+): Promise<{ meet: QuizMeet }> {
   return request(`/api/meets/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),

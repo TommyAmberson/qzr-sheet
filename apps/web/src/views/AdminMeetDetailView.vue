@@ -8,14 +8,14 @@ import {
   createOfficialCode,
   deleteOfficialCode,
   rotateOfficialCode,
-  type Meet,
+  type QuizMeet,
   type OfficialCode,
 } from '../api'
 
 const props = defineProps<{ id: number }>()
 const router = useRouter()
 
-const meet = ref<Meet | null>(null)
+const meet = ref<QuizMeet | null>(null)
 const officialCodes = ref<OfficialCode[]>([])
 const loading = ref(true)
 const error = ref('')

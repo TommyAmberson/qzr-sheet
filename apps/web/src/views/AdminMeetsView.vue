@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { listMeets, createMeet, deleteMeet, type Meet } from '../api'
+import { listMeets, createMeet, deleteMeet, type QuizMeet } from '../api'
 
 const router = useRouter()
 
-const meets = ref<Meet[]>([])
+const meets = ref<QuizMeet[]>([])
 const loading = ref(true)
 const error = ref('')
 
@@ -52,7 +52,7 @@ function dismissCreate() {
   createError.value = ''
 }
 
-async function handleDelete(meet: Meet) {
+async function handleDelete(meet: QuizMeet) {
   if (!confirm(`Delete "${meet.name}"? This cannot be undone.`)) return
   try {
     await deleteMeet(meet.id)

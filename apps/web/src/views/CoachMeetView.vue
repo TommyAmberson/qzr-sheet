@@ -11,7 +11,7 @@ import {
   addQuizzer,
   updateQuizzer,
   removeQuizzer,
-  type Meet,
+  type QuizMeet,
   type Church,
   type Team,
   type Quizzer,
@@ -22,7 +22,7 @@ const router = useRouter()
 
 // ---- State ----
 
-const meet = ref<Meet | null>(null)
+const meet = ref<QuizMeet | null>(null)
 const churches = ref<Church[]>([])
 const selectedChurchId = ref<number | null>(null)
 
