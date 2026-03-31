@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
 import { useAuth } from '../composables/useAuth'
 
 const scoresheetUrl = __SCORESHEET_URL__
-const { isSignedIn, user, fetchUser, signIn, signOut } = useAuth()
-
-onMounted(fetchUser)
+const { session, signIn, signOut } = useAuth()
 </script>
 
 <template>
@@ -23,8 +20,8 @@ onMounted(fetchUser)
           class="nav-link"
           >GitHub</a
         >
-        <template v-if="isSignedIn">
-          <span class="nav-user">{{ user?.email ?? 'signed in' }}</span>
+        <template v-if="session.data">
+          <span class="nav-user">{{ session.data.user.email ?? 'signed in' }}</span>
           <button class="nav-link nav-btn" @click="signOut">Sign out</button>
         </template>
         <button v-else class="nav-link nav-btn" @click="signIn">Sign in</button>
