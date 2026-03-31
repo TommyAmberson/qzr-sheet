@@ -166,7 +166,7 @@ const teamWarnings = computed<string[]>(() => {
   return teams.value.map((team, i) => {
     const msgs: string[] = []
     const count = quizzersForTeam(team.id).length
-    if (count > 0 && count < 2) msgs.push('Fewer than 2 quizzers')
+    if (count < 2) msgs.push(count === 0 ? 'No quizzers' : 'Fewer than 2 quizzers')
     if (count > 5) msgs.push('More than 5 quizzers')
     // Division order: this team's div index should be >= the previous team's
     const divIdx = divs.indexOf(team.division)
@@ -744,7 +744,13 @@ function onTeamDrop(toTeamId: number) {
                   </button>
                 </div>
               </form>
-              <button v-else class="dashed-add" @click="startAddToPool()">+ Quizzer</button>
+              <button
+                v-else-if="addingQuizzerTeamId === null"
+                class="dashed-add"
+                @click="startAddToPool()"
+              >
+                + Quizzer
+              </button>
             </template>
           </div>
 
@@ -889,7 +895,11 @@ function onTeamDrop(toTeamId: number) {
                     </div>
                     <p v-if="addQuizzerError" class="field-error">{{ addQuizzerError }}</p>
                   </form>
-                  <button v-else class="dashed-add" @click="startAddToTeam(team.id)">
+                  <button
+                    v-else-if="addingQuizzerTeamId === null"
+                    class="dashed-add"
+                    @click="startAddToTeam(team.id)"
+                  >
                     + Quizzer
                   </button>
                 </template>
