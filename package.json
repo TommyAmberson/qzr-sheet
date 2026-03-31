@@ -1,6 +1,6 @@
 {
   "name": "qzr",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -31,8 +31,14 @@
     "apps/web/src/**/*.{ts,vue}": "eslint --fix",
     "apps/scoresheet/src/**/*.{ts,vue,css}": "prettier --write --experimental-cli",
     "apps/web/src/**/*.{ts,vue,css}": "prettier --write --experimental-cli",
-    "packages/shared/src/**/*.ts": ["eslint --fix", "prettier --write --experimental-cli"],
-    "packages/api/src/**/*.ts": ["eslint --fix", "prettier --write --experimental-cli"],
+    "packages/shared/src/**/*.ts": [
+      "eslint --fix",
+      "prettier --write --experimental-cli"
+    ],
+    "packages/api/src/**/*.ts": [
+      "eslint --fix",
+      "prettier --write --experimental-cli"
+    ],
     "**/*.{md,dockerfile}": "pnpm exec dprint fmt"
   },
   "devDependencies": {
