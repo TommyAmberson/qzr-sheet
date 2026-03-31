@@ -36,6 +36,7 @@ export interface Meet {
   dateFrom: string
   dateTo: string | null
   viewerCode: string
+  divisions: string[]
   createdAt: string
 }
 
@@ -71,6 +72,7 @@ export function createMeet(data: {
   dateFrom: string
   dateTo?: string
   viewerCode: string
+  divisions: string[]
 }): Promise<{ meet: Meet; coachCode: string }> {
   return request('/api/meets', {
     method: 'POST',
@@ -80,7 +82,13 @@ export function createMeet(data: {
 
 export function updateMeet(
   id: number,
-  data: { name?: string; dateFrom?: string; dateTo?: string | null; viewerCode?: string },
+  data: {
+    name?: string
+    dateFrom?: string
+    dateTo?: string | null
+    viewerCode?: string
+    divisions?: string[]
+  },
 ): Promise<{ meet: Meet }> {
   return request(`/api/meets/${id}`, {
     method: 'PATCH',
