@@ -90,23 +90,72 @@ viewers can use guest JWTs without creating an account.
 * DB injection via Hono context variables; test suite uses `better-sqlite3` in-memory DB with full
   schema for integration tests
 
-### 4.5 Official flow
+### 4.5 Admin dashboard ✓ (partial)
 
-Load assigned quiz details (teams, quizzers, room) from the API and pre-populate the scoresheet. Two
-entry points: portal schedule click (`/scoresheet/?quiz=id`) or scoresheet sign-in + quiz picker
-modal. Submit completed `QuizFile` results back to the server.
+Create and manage quiz meets from the portal. Admin nav link visible only to `role === 'admin'`
+users. Router guard redirects non-admins to home.
+
+* `GET/POST /api/meets` — list and create meets
+* `GET/PATCH/DELETE /api/meets/:id` — meet detail, edit name/dates/viewer code
+* `POST /api/meets/:id/rotate-coach-code` — rotate coach code (revealed once on creation/rotation)
+* `POST/DELETE /api/meets/:id/official-codes` + rotate — per-room official code management
+* `apps/web/src/api.ts` — typed fetch wrapper with cookie credentials for all admin endpoints
+* `AdminMeetsView` — meet list with create modal (coach code shown once); `AdminMeetDetailView` —
+  edit meet, manage codes
+* `quiz_meets` schema: `date_from` (not null) + `date_to` (nullable) for multi-day meets
+
+Remaining admin work is tracked in **4.8** and **4.9** below.
 
 ### 4.6 Coach flow
 
-Create and manage churches, teams, and quizzer rosters for a meet. Link quizzers to historical
-identities for cross-meet career stats.
+Coaches join a meet with their coach code, then register their church(es), build team rosters, and
+link quizzers to historical identities for cross-meet career stats.
 
-### 4.7 Viewer access
+* `POST /api/meets/:id/churches` — create a church for this meet
+* `POST /api/churches/:id/teams` — create a team under a church
+* `POST /api/teams/:id/quizzers` — add a quizzer to a team roster; server suggests historical
+  identity matches ranked by recency and church affiliation
+* `PATCH /api/teams/:id/quizzers/:quizzerId` — update name or link to a different identity
+* Portal views: church/team/quizzer management forms; identity linking UI with warnings (church
+  change, already rostered, low-confidence name match)
 
-Read-only view of meet standings, stats, and schedules. No account required — guest JWT issued via
-viewer code or join link.
+### 4.7 Admin: schedule and draw
 
-### 4.8 Admin dashboard
+Once teams are registered, the admin generates the round-robin draw and publishes the schedule.
 
-Create and manage quiz meets. Generate and rotate coach, official, and viewer codes. Review
-submitted results and manage accounts.
+* Draw algorithm — assign teams to rooms and rounds; configurable round count and room count
+* `POST /api/meets/:id/draw` — generate and persist the draw; idempotent (re-running replaces
+  existing schedule)
+* `GET /api/meets/:id/schedule` — full schedule: rounds, rooms, team assignments
+* Admin portal views: registered teams list per division, draw configuration (rounds, rooms),
+  generated schedule table, ability to manually swap assignments before publishing
+* `quiz_meets.schedule_published` flag — controls whether viewers and coaches can see the schedule
+
+### 4.8 Admin: results and accounts
+
+* Review submitted quiz results — list of completed `QuizFile` submissions per meet, flag disputed
+  results, override scores
+* Account management — list users, promote/demote admin role, revoke meet memberships
+* Merge quizzer identities — resolve cases where a quizzer has two `QuizzerIdentity` records
+
+### 4.9 Official flow
+
+Load assigned quiz details from the API and pre-populate the scoresheet. Submit completed results
+back to the server. Depends on 4.7 (schedule must exist).
+
+* `GET /api/quizzes/:id` — quiz detail: teams, quizzers, room, round
+* `POST /api/quizzes/:id/result` — submit a completed `QuizFile`
+* Two entry points:
+  * Portal schedule view → click assigned quiz → opens `/scoresheet/?quiz=id`
+  * Scoresheet sign-in + quiz picker modal (for officials using the native app)
+* Scoresheet additions: sign-in button, Load Quiz modal, Submit button, connected status in meta bar
+
+### 4.10 Viewer access
+
+Read-only portal views for standings, stats, and schedules. No account required — guest JWT issued
+via viewer code.
+
+* `GET /api/meets/:id/standings` — team standings derived from submitted results
+* `GET /api/meets/:id/schedule` — published schedule (respects `schedule_published` flag)
+* Portal viewer pages: standings table, schedule, individual quizzer stats
+* Guest JWT auth flow: enter viewer code → JWT issued → stored for session duration
