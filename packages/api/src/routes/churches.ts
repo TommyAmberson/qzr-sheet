@@ -4,6 +4,7 @@ import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
+import { generateCode, hashCode } from '../lib/codes'
 import * as schema from '../db/schema'
 import { AccountRole } from '@qzr/shared'
 
@@ -28,10 +29,39 @@ function getDb(c: { get(key: 'db'): Db }): Db {
   return c.get('db')
 }
 
-/** Resolve meetId param or 400. */
-function parseMeetId(raw: string): number | null {
-  const n = Number(raw)
-  return Number.isNaN(n) ? null : n
+/** Returns true if the user is a superuser or has an admin membership for the given meet. */
+async function isAdminOrSuperuser(db: Db, userId: string, role: AccountRole, meetId: number) {
+  if (role === AccountRole.Superuser) return true
+  const [row] = await db
+    .select()
+    .from(schema.adminMemberships)
+    .where(
+      and(
+        eq(schema.adminMemberships.accountId, userId),
+        eq(schema.adminMemberships.meetId, meetId),
+      ),
+    )
+  return !!row
+}
+
+/** Returns true if the user can edit the given church (coach membership, admin, or superuser). */
+async function canEditChurch(
+  db: Db,
+  userId: string,
+  role: AccountRole,
+  church: schema.Church,
+): Promise<boolean> {
+  if (await isAdminOrSuperuser(db, userId, role, church.meetId)) return true
+  const [row] = await db
+    .select()
+    .from(schema.coachMemberships)
+    .where(
+      and(
+        eq(schema.coachMemberships.accountId, userId),
+        eq(schema.coachMemberships.churchId, church.id),
+      ),
+    )
+  return !!row
 }
 
 // ---- Churches ----
@@ -39,12 +69,11 @@ function parseMeetId(raw: string): number | null {
 /**
  * GET /api/meets/:meetId/churches
  *
- * Returns all churches for the meet. Any coach member can read.
- * createdBy is included so the client can determine edit ownership.
+ * Returns all churches for the meet. Any authenticated member can read.
  */
 churches.get('/meets/:meetId/churches', async (c) => {
-  const meetId = parseMeetId(c.req.param('meetId'))
-  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const meetId = Number(c.req.param('meetId'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const db = getDb(c)
   const rows = await db.select().from(schema.churches).where(eq(schema.churches.meetId, meetId))
@@ -54,27 +83,18 @@ churches.get('/meets/:meetId/churches', async (c) => {
 /**
  * POST /api/meets/:meetId/churches
  *
- * Creates a church for the meet. Requires an active coach membership.
+ * Creates a church for the meet. Requires superuser or admin membership.
+ * Generates a coach code for the church on creation.
  */
 churches.post('/meets/:meetId/churches', async (c) => {
-  const meetId = parseMeetId(c.req.param('meetId'))
-  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const meetId = Number(c.req.param('meetId'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const user = getUser(c)
   const db = getDb(c)
 
-  // Verify the user is a coach for this meet (or superuser)
-  if (user.role !== AccountRole.Superuser) {
-    const [membership] = await db
-      .select()
-      .from(schema.coachMemberships)
-      .where(
-        and(
-          eq(schema.coachMemberships.accountId, user.id),
-          eq(schema.coachMemberships.meetId, meetId),
-        ),
-      )
-    if (!membership) return c.json({ error: 'Coach membership required' }, 403)
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
   }
 
   const body = await c.req.json<{ name?: string; shortName?: string }>()
@@ -82,17 +102,56 @@ churches.post('/meets/:meetId/churches', async (c) => {
     return c.json({ error: 'name and shortName are required' }, 400)
   }
 
+  const coachCode = generateCode()
+  const coachCodeHash = await hashCode(coachCode)
+
   const [church] = await db
     .insert(schema.churches)
     .values({
       meetId,
-      createdBy: user.id,
       name: body.name.trim(),
       shortName: body.shortName.trim(),
+      coachCodeHash,
     })
     .returning()
 
-  return c.json({ church }, 201)
+  return c.json({ church, coachCode }, 201)
+})
+
+/**
+ * POST /api/churches/:churchId/rotate-coach-code
+ *
+ * Rotates the coach code for a church. Accepts { clearMembers: boolean }.
+ * Requires admin or superuser.
+ */
+churches.post('/churches/:churchId/rotate-coach-code', async (c) => {
+  const churchId = Number(c.req.param('churchId'))
+  if (Number.isNaN(churchId)) return c.json({ error: 'Invalid church ID' }, 400)
+
+  const user = getUser(c)
+  const db = getDb(c)
+
+  const [church] = await db.select().from(schema.churches).where(eq(schema.churches.id, churchId))
+  if (!church) return c.json({ error: 'Church not found' }, 404)
+
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, church.meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+
+  const body = await c.req
+    .json<{ clearMembers?: boolean }>()
+    .catch((): { clearMembers?: boolean } => ({}))
+
+  const coachCode = generateCode()
+  const coachCodeHash = await hashCode(coachCode)
+
+  await db.update(schema.churches).set({ coachCodeHash }).where(eq(schema.churches.id, churchId))
+
+  if (body.clearMembers) {
+    await db.delete(schema.coachMemberships).where(eq(schema.coachMemberships.churchId, churchId))
+  }
+
+  return c.json({ coachCode })
 })
 
 // ---- Teams ----
@@ -117,8 +176,7 @@ churches.get('/churches/:churchId/teams', async (c) => {
 /**
  * POST /api/churches/:churchId/teams
  *
- * Creates a team under a church. Coach must own the church (or be superuser).
- * `number` auto-increments per church per division if omitted.
+ * Creates a team under a church. Requires coach, admin, or superuser access.
  */
 churches.post('/churches/:churchId/teams', async (c) => {
   const churchId = Number(c.req.param('churchId'))
@@ -128,9 +186,9 @@ churches.post('/churches/:churchId/teams', async (c) => {
   const db = getDb(c)
 
   const [church] = await db.select().from(schema.churches).where(eq(schema.churches.id, churchId))
-
   if (!church) return c.json({ error: 'Church not found' }, 404)
-  if (user.role !== AccountRole.Superuser && church.createdBy !== user.id) {
+
+  if (!(await canEditChurch(db, user.id, user.role, church))) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
@@ -140,7 +198,6 @@ churches.post('/churches/:churchId/teams', async (c) => {
   }
   const division = body.division.trim()
 
-  // Derive next team number for this church (global across divisions)
   const existing = await db
     .select({ number: schema.teams.number })
     .from(schema.teams)
@@ -150,12 +207,7 @@ churches.post('/churches/:churchId/teams', async (c) => {
 
   const [team] = await db
     .insert(schema.teams)
-    .values({
-      meetId: church.meetId,
-      churchId,
-      division,
-      number: nextNumber,
-    })
+    .values({ meetId: church.meetId, churchId, division, number: nextNumber })
     .returning()
 
   return c.json({ team }, 201)
@@ -164,7 +216,7 @@ churches.post('/churches/:churchId/teams', async (c) => {
 /**
  * PATCH /api/teams/:teamId
  *
- * Updates a team's division. Coach must own the church (or be superuser).
+ * Updates a team's division. Requires coach, admin, or superuser access.
  */
 churches.patch('/teams/:teamId', async (c) => {
   const teamId = Number(c.req.param('teamId'))
@@ -175,7 +227,8 @@ churches.patch('/teams/:teamId', async (c) => {
 
   const team = await getTeamWithChurch(db, teamId)
   if (!team) return c.json({ error: 'Team not found' }, 404)
-  if (user.role !== AccountRole.Superuser && team.church.createdBy !== user.id) {
+
+  if (!(await canEditChurch(db, user.id, user.role, team.church))) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
@@ -194,7 +247,7 @@ churches.patch('/teams/:teamId', async (c) => {
 /**
  * DELETE /api/teams/:teamId
  *
- * Deletes a team and its entire roster. Coach must own the church (or be superuser).
+ * Deletes a team and its entire roster. Requires coach, admin, or superuser access.
  */
 churches.delete('/teams/:teamId', async (c) => {
   const teamId = Number(c.req.param('teamId'))
@@ -205,7 +258,8 @@ churches.delete('/teams/:teamId', async (c) => {
 
   const team = await getTeamWithChurch(db, teamId)
   if (!team) return c.json({ error: 'Team not found' }, 404)
-  if (user.role !== AccountRole.Superuser && team.church.createdBy !== user.id) {
+
+  if (!(await canEditChurch(db, user.id, user.role, team.church))) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
@@ -218,8 +272,6 @@ churches.delete('/teams/:teamId', async (c) => {
 
 /**
  * GET /api/teams/:teamId/quizzers
- *
- * Returns all roster entries for a team.
  */
 churches.get('/teams/:teamId/quizzers', async (c) => {
   const teamId = Number(c.req.param('teamId'))
@@ -230,15 +282,13 @@ churches.get('/teams/:teamId/quizzers', async (c) => {
 
   const team = await getTeamWithChurch(db, teamId)
   if (!team) return c.json({ error: 'Team not found' }, 404)
-  if (user.role !== AccountRole.Superuser && team.church.createdBy !== user.id) {
+
+  if (!(await canEditChurch(db, user.id, user.role, team.church))) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
   const rows = await db
-    .select({
-      quizzerId: schema.teamRosters.quizzerId,
-      name: schema.teamRosters.name,
-    })
+    .select({ quizzerId: schema.teamRosters.quizzerId, name: schema.teamRosters.name })
     .from(schema.teamRosters)
     .where(eq(schema.teamRosters.teamId, teamId))
 
@@ -247,8 +297,6 @@ churches.get('/teams/:teamId/quizzers', async (c) => {
 
 /**
  * POST /api/teams/:teamId/quizzers
- *
- * Adds a quizzer to a team. Creates a new QuizzerIdentity automatically.
  */
 churches.post('/teams/:teamId/quizzers', async (c) => {
   const teamId = Number(c.req.param('teamId'))
@@ -259,16 +307,14 @@ churches.post('/teams/:teamId/quizzers', async (c) => {
 
   const team = await getTeamWithChurch(db, teamId)
   if (!team) return c.json({ error: 'Team not found' }, 404)
-  if (user.role !== AccountRole.Superuser && team.church.createdBy !== user.id) {
+
+  if (!(await canEditChurch(db, user.id, user.role, team.church))) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
   const body = await c.req.json<{ name?: string }>()
-  if (!body.name?.trim()) {
-    return c.json({ error: 'name is required' }, 400)
-  }
+  if (!body.name?.trim()) return c.json({ error: 'name is required' }, 400)
 
-  // Each quizzer in a roster gets a fresh identity for now
   const [identity] = await db.insert(schema.quizzerIdentities).values({}).returning()
   const [entry] = await db
     .insert(schema.teamRosters)
@@ -280,29 +326,24 @@ churches.post('/teams/:teamId/quizzers', async (c) => {
 
 /**
  * PATCH /api/teams/:teamId/quizzers/:quizzerId
- *
- * Update the display name for a quizzer on this team.
  */
 churches.patch('/teams/:teamId/quizzers/:quizzerId', async (c) => {
   const teamId = Number(c.req.param('teamId'))
   const quizzerId = Number(c.req.param('quizzerId'))
-  if (Number.isNaN(teamId) || Number.isNaN(quizzerId)) {
-    return c.json({ error: 'Invalid ID' }, 400)
-  }
+  if (Number.isNaN(teamId) || Number.isNaN(quizzerId)) return c.json({ error: 'Invalid ID' }, 400)
 
   const user = getUser(c)
   const db = getDb(c)
 
   const team = await getTeamWithChurch(db, teamId)
   if (!team) return c.json({ error: 'Team not found' }, 404)
-  if (user.role !== AccountRole.Superuser && team.church.createdBy !== user.id) {
+
+  if (!(await canEditChurch(db, user.id, user.role, team.church))) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
   const body = await c.req.json<{ name?: string }>()
-  if (!body.name?.trim()) {
-    return c.json({ error: 'name is required' }, 400)
-  }
+  if (!body.name?.trim()) return c.json({ error: 'name is required' }, 400)
 
   const [entry] = await db
     .update(schema.teamRosters)
@@ -311,28 +352,24 @@ churches.patch('/teams/:teamId/quizzers/:quizzerId', async (c) => {
     .returning()
 
   if (!entry) return c.json({ error: 'Quizzer not found on this team' }, 404)
-
   return c.json({ quizzer: entry })
 })
 
 /**
  * DELETE /api/teams/:teamId/quizzers/:quizzerId
- *
- * Removes a quizzer from a team roster.
  */
 churches.delete('/teams/:teamId/quizzers/:quizzerId', async (c) => {
   const teamId = Number(c.req.param('teamId'))
   const quizzerId = Number(c.req.param('quizzerId'))
-  if (Number.isNaN(teamId) || Number.isNaN(quizzerId)) {
-    return c.json({ error: 'Invalid ID' }, 400)
-  }
+  if (Number.isNaN(teamId) || Number.isNaN(quizzerId)) return c.json({ error: 'Invalid ID' }, 400)
 
   const user = getUser(c)
   const db = getDb(c)
 
   const team = await getTeamWithChurch(db, teamId)
   if (!team) return c.json({ error: 'Team not found' }, 404)
-  if (user.role !== AccountRole.Superuser && team.church.createdBy !== user.id) {
+
+  if (!(await canEditChurch(db, user.id, user.role, team.church))) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
@@ -342,7 +379,6 @@ churches.delete('/teams/:teamId/quizzers/:quizzerId', async (c) => {
     .returning()
 
   if (!deleted) return c.json({ error: 'Quizzer not found on this team' }, 404)
-
   return c.json({ deleted: true as const })
 })
 
@@ -361,5 +397,4 @@ async function getTeamWithChurch(
   return row ?? null
 }
 
-// requireSuperuser re-export for convenience in tests (guards superuser-only routes)
 export { requireSuperuser }

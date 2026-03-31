@@ -42,12 +42,12 @@ type MeetBody = {
     viewerCode: string
     divisions: string[]
   }
-  coachCode?: string
+  adminCode?: string
 }
 type MeetsBody = { meets: MeetBody['meet'][] }
 type MeetDetailBody = { meet: MeetBody['meet']; officialCodes: { id: number; label: string }[] }
 type OfficialCodeBody = { officialCode: { id: number; label: string }; code: string }
-type CoachCodeBody = { coachCode: string }
+type AdminCodeBody = { adminCode: string }
 
 describe('meet CRUD', () => {
   let db: Db
@@ -59,7 +59,7 @@ describe('meet CRUD', () => {
   })
 
   describe('POST /api/meets', () => {
-    it('creates a meet and returns the coach code', async () => {
+    it('creates a meet and returns the admin code', async () => {
       const res = await app.request(
         '/api/meets',
         json({
@@ -78,8 +78,8 @@ describe('meet CRUD', () => {
       expect(body.meet.dateTo).toBe('2025-10-15')
       expect(body.meet.viewerCode).toBe('fall-2025')
       expect(body.meet.id).toBeTypeOf('number')
-      expect(body.coachCode).toBeTypeOf('string')
-      expect(body.coachCode!.length).toBeGreaterThanOrEqual(16)
+      expect(body.adminCode).toBeTypeOf('string')
+      expect(body.adminCode!.length).toBeGreaterThanOrEqual(16)
     })
 
     it('rejects missing fields with 400', async () => {
@@ -238,7 +238,7 @@ describe('meet CRUD', () => {
   })
 })
 
-describe('coach code rotation', () => {
+describe('admin code rotation', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
 
@@ -247,7 +247,7 @@ describe('coach code rotation', () => {
     app = createApp(testSuperuser, db)
   })
 
-  it('returns a new coach code', async () => {
+  it('returns a new admin code', async () => {
     const createRes = await app.request(
       '/api/meets',
       json({
@@ -259,21 +259,25 @@ describe('coach code rotation', () => {
       }),
       env,
     )
-    const { meet, coachCode: oldCode } = (await createRes.json()) as MeetBody
+    const { meet, adminCode: oldCode } = (await createRes.json()) as MeetBody
 
     const res = await app.request(
-      `/api/meets/${meet.id}/rotate-coach-code`,
-      { method: 'POST' },
+      `/api/meets/${meet.id}/rotate-admin-code`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
       env,
     )
     expect(res.status).toBe(200)
-    const body = await jsonOf<CoachCodeBody>(res)
-    expect(body.coachCode).toBeTypeOf('string')
-    expect(body.coachCode).not.toBe(oldCode)
+    const body = await jsonOf<AdminCodeBody>(res)
+    expect(body.adminCode).toBeTypeOf('string')
+    expect(body.adminCode).not.toBe(oldCode)
   })
 
   it('returns 404 for non-existent meet', async () => {
-    const res = await app.request('/api/meets/9999/rotate-coach-code', { method: 'POST' }, env)
+    const res = await app.request(
+      '/api/meets/9999/rotate-admin-code',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+      env,
+    )
     expect(res.status).toBe(404)
   })
 })

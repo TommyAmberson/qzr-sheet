@@ -53,8 +53,9 @@ export interface MeetDetail {
 export interface MeetMembership {
   meetId: number
   meetName: string
-  role: 'head_coach' | 'official' | 'viewer' | 'superuser'
+  role: 'admin' | 'head_coach' | 'official' | 'viewer' | 'superuser'
   label?: string
+  churchId?: number
 }
 
 // ---- Meet CRUD (superuser) ----
@@ -73,7 +74,7 @@ export function createMeet(data: {
   dateTo?: string
   viewerCode: string
   divisions: string[]
-}): Promise<{ meet: QuizMeet; coachCode: string }> {
+}): Promise<{ meet: QuizMeet; adminCode: string }> {
   return request('/api/meets', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -100,10 +101,16 @@ export function deleteMeet(id: number): Promise<{ deleted: true }> {
   return request(`/api/meets/${id}`, { method: 'DELETE' })
 }
 
-// ---- Coach code ----
+// ---- Admin code ----
 
-export function rotateCoachCode(meetId: number): Promise<{ coachCode: string }> {
-  return request(`/api/meets/${meetId}/rotate-coach-code`, { method: 'POST' })
+export function rotateAdminCode(
+  meetId: number,
+  clearMembers = false,
+): Promise<{ adminCode: string }> {
+  return request(`/api/meets/${meetId}/rotate-admin-code`, {
+    method: 'POST',
+    body: JSON.stringify({ clearMembers }),
+  })
 }
 
 // ---- Official codes ----
@@ -158,7 +165,6 @@ export function getMyMeets(): Promise<{ memberships: MeetMembership[] }> {
 export interface Church {
   id: number
   meetId: number
-  createdBy: string
   name: string
   shortName: string
 }
@@ -183,10 +189,20 @@ export function listChurches(meetId: number): Promise<{ churches: Church[] }> {
 export function createChurch(
   meetId: number,
   data: { name: string; shortName: string },
-): Promise<{ church: Church }> {
+): Promise<{ church: Church; coachCode: string }> {
   return request(`/api/meets/${meetId}/churches`, {
     method: 'POST',
     body: JSON.stringify(data),
+  })
+}
+
+export function rotateChurchCoachCode(
+  churchId: number,
+  clearMembers = false,
+): Promise<{ coachCode: string }> {
+  return request(`/api/churches/${churchId}/rotate-coach-code`, {
+    method: 'POST',
+    body: JSON.stringify({ clearMembers }),
   })
 }
 

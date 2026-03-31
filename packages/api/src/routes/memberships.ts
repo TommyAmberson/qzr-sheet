@@ -34,6 +34,7 @@ interface MeetMembership {
   meetName: string
   role: MeetRole
   label?: string
+  churchId?: number
 }
 
 /**
@@ -59,18 +60,38 @@ memberships.get('/', async (c) => {
 
   const result: MeetMembership[] = []
 
-  // Coach memberships
+  // Admin memberships
+  const adminRows = await db
+    .select({ meetId: schema.adminMemberships.meetId, meetName: schema.quizMeets.name })
+    .from(schema.adminMemberships)
+    .innerJoin(schema.quizMeets, eq(schema.adminMemberships.meetId, schema.quizMeets.id))
+    .where(eq(schema.adminMemberships.accountId, user.id))
+
+  for (const row of adminRows) {
+    result.push({ meetId: row.meetId, meetName: row.meetName, role: MeetRole.Admin })
+  }
+
+  // Coach memberships (meetId is denormalised on the row)
   const coachRows = await db
     .select({
       meetId: schema.coachMemberships.meetId,
       meetName: schema.quizMeets.name,
+      churchId: schema.coachMemberships.churchId,
+      churchName: schema.churches.name,
     })
     .from(schema.coachMemberships)
     .innerJoin(schema.quizMeets, eq(schema.coachMemberships.meetId, schema.quizMeets.id))
+    .innerJoin(schema.churches, eq(schema.coachMemberships.churchId, schema.churches.id))
     .where(eq(schema.coachMemberships.accountId, user.id))
 
   for (const row of coachRows) {
-    result.push({ meetId: row.meetId, meetName: row.meetName, role: MeetRole.HeadCoach })
+    result.push({
+      meetId: row.meetId,
+      meetName: row.meetName,
+      role: MeetRole.HeadCoach,
+      label: row.churchName,
+      churchId: row.churchId,
+    })
   }
 
   // Official memberships

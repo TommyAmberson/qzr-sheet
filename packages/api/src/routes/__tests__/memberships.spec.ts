@@ -21,7 +21,7 @@ function createApp(user: typeof testUser | typeof testSuperuser | null, db: Db) 
 }
 
 async function seedMeet(db: Db, name: string) {
-  const coachCode = generateCode()
+  const adminCode = generateCode()
   const [meet] = await db
     .insert(schema.quizMeets)
     .values({
@@ -29,12 +29,25 @@ async function seedMeet(db: Db, name: string) {
       dateFrom: '2025-06-01',
       dateTo: '2025-06-02',
       viewerCode: `viewer-${name}`,
-      coachCodeHash: await hashCode(coachCode),
+      adminCodeHash: await hashCode(adminCode),
       divisions: '[]',
       createdAt: new Date(),
     })
     .returning()
   return meet!
+}
+
+async function seedChurch(db: Db, meetId: number) {
+  const [church] = await db
+    .insert(schema.churches)
+    .values({
+      meetId,
+      name: 'Test Church',
+      shortName: 'TC',
+      coachCodeHash: await hashCode(generateCode()),
+    })
+    .returning()
+  return church!
 }
 
 type MembershipBody = {
@@ -65,7 +78,12 @@ describe('GET /api/my-meets', () => {
 
   it('returns coach memberships', async () => {
     const meet = await seedMeet(db, 'Coach Meet')
-    await db.insert(schema.coachMemberships).values({ accountId: testUser.id, meetId: meet.id })
+    const church = await seedChurch(db, meet.id)
+    await db.insert(schema.coachMemberships).values({
+      accountId: testUser.id,
+      churchId: church.id,
+      meetId: meet.id,
+    })
 
     const res = await app.request('/api/my-meets', {}, env)
     const body = await jsonOf<MembershipBody>(res)
@@ -108,8 +126,13 @@ describe('GET /api/my-meets', () => {
   it('returns all roles across multiple meets', async () => {
     const meet1 = await seedMeet(db, 'Meet A')
     const meet2 = await seedMeet(db, 'Meet B')
+    const church = await seedChurch(db, meet1.id)
 
-    await db.insert(schema.coachMemberships).values({ accountId: testUser.id, meetId: meet1.id })
+    await db.insert(schema.coachMemberships).values({
+      accountId: testUser.id,
+      churchId: church.id,
+      meetId: meet1.id,
+    })
     await db.insert(schema.viewerMemberships).values({ accountId: testUser.id, meetId: meet2.id })
 
     const res = await app.request('/api/my-meets', {}, env)

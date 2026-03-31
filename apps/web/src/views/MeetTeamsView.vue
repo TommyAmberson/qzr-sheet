@@ -8,7 +8,6 @@ import {
   getMeet,
   getMyMeets,
   listChurches,
-  createChurch,
   listTeams,
   createTeam,
   updateTeam,
@@ -32,8 +31,6 @@ const { session } = useAuth()
 const meet = ref<QuizMeet | null>(null)
 const churches = ref<Church[]>([])
 const selectedChurchId = ref<number | null>(null)
-const myUserId = ref<string | null>(null)
-const isSuperuser = ref(false)
 
 const teams = ref<Team[]>([])
 const allQuizzers = ref<Quizzer[]>([])
@@ -43,13 +40,8 @@ const assignments = ref<Record<number, number | null>>({})
 const loading = ref(true)
 const error = ref('')
 
-// Church create
-const showCreateChurch = ref(false)
-const churchForm = ref({ name: '', shortName: '' })
-const creatingChurch = ref(false)
-const createChurchError = ref('')
-
-// Team create
+const myCoachChurchIds = ref<Set<number>>(new Set())
+const isSuperuserOrAdmin = ref(false)
 
 // Quizzer add
 const addingQuizzerTeamId = ref<number | null>(null) // -1 = unassigned pool
@@ -140,8 +132,8 @@ const selectedChurch = computed(
 
 function canEdit(church: Church | null): boolean {
   if (!church) return false
-  if (isSuperuser.value) return true
-  return church.createdBy === myUserId.value
+  if (isSuperuserOrAdmin.value) return true
+  return myCoachChurchIds.value.has(church.id)
 }
 
 const canEditSelected = computed(() => canEdit(selectedChurch.value))
@@ -189,10 +181,6 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const sessionUser = session.value?.data?.user
-    myUserId.value = sessionUser?.id ?? null
-    isSuperuser.value = (sessionUser as Record<string, unknown> | undefined)?.role === 'superuser'
-
     const [meetRes, churchRes, myMeetsRes] = await Promise.all([
       getMeet(props.id),
       listChurches(props.id),
@@ -207,9 +195,23 @@ async function load() {
       return
     }
 
+    const sessionUser = session.value?.data?.user
+    const accountRole = (sessionUser as Record<string, unknown> | undefined)?.role
+    isSuperuserOrAdmin.value =
+      accountRole === 'superuser' ||
+      myMeetsRes.memberships.some((m) => m.meetId === props.id && m.role === 'admin')
+
+    // Build the set of church ids this user coaches
+    myCoachChurchIds.value = new Set(
+      myMeetsRes.memberships
+        .filter((m) => m.meetId === props.id && m.role === 'head_coach' && m.churchId != null)
+        .map((m) => m.churchId!),
+    )
+
     if (churches.value.length > 0) {
+      // Prefer a church the user coaches; fall back to first
       const myChurch =
-        churches.value.find((c) => c.createdBy === myUserId.value) ?? churches.value[0]!
+        churches.value.find((c) => myCoachChurchIds.value.has(c.id)) ?? churches.value[0]!
       await selectChurch(myChurch.id)
     }
   } catch (e) {
@@ -261,24 +263,6 @@ function startAddToTeam(teamId: number) {
 }
 
 onMounted(load)
-
-// ---- Church actions ----
-
-async function submitCreateChurch() {
-  createChurchError.value = ''
-  creatingChurch.value = true
-  try {
-    const res = await createChurch(props.id, churchForm.value)
-    churches.value.push(res.church)
-    showCreateChurch.value = false
-    churchForm.value = { name: '', shortName: '' }
-    await selectChurch(res.church.id)
-  } catch (e) {
-    createChurchError.value = (e as Error).message
-  } finally {
-    creatingChurch.value = false
-  }
-}
 
 // ---- Team actions ----
 
@@ -617,9 +601,6 @@ function onTeamDrop(toTeamId: number) {
           >
             {{ c.shortName }}<span class="church-tab-full">{{ c.name }}</span>
           </button>
-          <button class="church-tab church-tab--add" @click="showCreateChurch = true">
-            + Church
-          </button>
         </div>
       </div>
 
@@ -916,38 +897,6 @@ function onTeamDrop(toTeamId: number) {
         </div>
       </template>
     </template>
-
-    <!-- Create church modal -->
-    <div v-if="showCreateChurch" class="modal-backdrop" @click.self="showCreateChurch = false">
-      <div class="modal">
-        <h3 class="modal-title">Add church</h3>
-        <form @submit.prevent="submitCreateChurch">
-          <div class="field">
-            <label class="field-label" for="church-name">Full name</label>
-            <input id="church-name" v-model="churchForm.name" class="field-input" required />
-          </div>
-          <div class="field">
-            <label class="field-label" for="church-short">Short name</label>
-            <input
-              id="church-short"
-              v-model="churchForm.shortName"
-              class="field-input"
-              placeholder="e.g. GCC"
-              required
-            />
-          </div>
-          <p v-if="createChurchError" class="field-error">{{ createChurchError }}</p>
-          <div class="modal-actions">
-            <button type="button" class="btn btn--secondary" @click="showCreateChurch = false">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn--primary" :disabled="creatingChurch">
-              {{ creatingChurch ? 'Adding…' : 'Add' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -1051,15 +1000,6 @@ function onTeamDrop(toTeamId: number) {
 .church-tab--active {
   border-color: var(--color-accent);
   color: var(--color-accent);
-}
-.church-tab--add {
-  border-style: dashed;
-  font-weight: 400;
-  color: var(--color-text-faint);
-}
-.church-tab--add:hover {
-  color: var(--color-accent);
-  border-color: var(--color-accent);
 }
 
 .roster-layout {
@@ -1450,68 +1390,6 @@ function onTeamDrop(toTeamId: number) {
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.modal {
-  background: var(--color-bg);
-  border: 1px solid var(--color-border-alt);
-  border-radius: 10px;
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 22rem;
-}
-
-.modal-title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  margin-bottom: 1rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.field {
-  margin-bottom: 0.875rem;
-}
-
-.field-label {
-  display: block;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  margin-bottom: 0.3rem;
-}
-
-.field-input {
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  padding: 0.4rem 0.65rem;
-  font-size: 0.875rem;
-  color: var(--color-text);
-  font-family: inherit;
-  outline: none;
-  width: 100%;
-  min-width: 0;
-}
-
-.field-input:focus {
-  border-color: var(--color-accent);
 }
 
 .draft-bar {

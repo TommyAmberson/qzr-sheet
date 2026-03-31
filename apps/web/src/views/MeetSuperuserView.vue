@@ -3,10 +3,14 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   getMeet,
-  rotateCoachCode,
+  rotateAdminCode,
+  listChurches,
+  createChurch,
+  rotateChurchCoachCode,
   createOfficialCode,
   deleteOfficialCode,
   rotateOfficialCode,
+  type Church,
   type OfficialCode,
 } from '../api'
 
@@ -14,23 +18,30 @@ const props = defineProps<{ id: number }>()
 const router = useRouter()
 
 const meetName = ref('')
+const churches = ref<Church[]>([])
 const officialCodes = ref<OfficialCode[]>([])
 const loading = ref(true)
 const error = ref('')
 
 const revealedCodes = ref<Record<string, string>>({})
-const coachCodeBusy = ref(false)
+const adminCodeBusy = ref(false)
+const churchCodeBusy = ref<Record<number, boolean>>({})
 const officialCodeBusy = ref<Record<number, boolean>>({})
 
 const newOfficialLabel = ref('')
 const addingOfficial = ref(false)
 const addOfficialError = ref('')
 
+const newChurchForm = ref({ name: '', shortName: '' })
+const addingChurch = ref(false)
+const addChurchError = ref('')
+
 async function load() {
   try {
-    const res = await getMeet(props.id)
-    meetName.value = res.meet.name
-    officialCodes.value = res.officialCodes
+    const [meetRes, churchRes] = await Promise.all([getMeet(props.id), listChurches(props.id)])
+    meetName.value = meetRes.meet.name
+    officialCodes.value = meetRes.officialCodes
+    churches.value = churchRes.churches
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -38,16 +49,50 @@ async function load() {
   }
 }
 
-async function handleRotateCoachCode() {
-  if (!confirm('Rotate the coach code? The old code will stop working immediately.')) return
-  coachCodeBusy.value = true
+async function handleRotateAdminCode(clearMembers: boolean) {
+  const msg = clearMembers
+    ? 'Rotate the admin code and remove all current admins?'
+    : 'Rotate the admin code? The old code will stop working immediately.'
+  if (!confirm(msg)) return
+  adminCodeBusy.value = true
   try {
-    const res = await rotateCoachCode(props.id)
-    revealedCodes.value['coach'] = res.coachCode
+    const res = await rotateAdminCode(props.id, clearMembers)
+    revealedCodes.value['admin'] = res.adminCode
   } catch (e) {
     alert((e as Error).message)
   } finally {
-    coachCodeBusy.value = false
+    adminCodeBusy.value = false
+  }
+}
+
+async function handleAddChurch() {
+  addChurchError.value = ''
+  addingChurch.value = true
+  try {
+    const res = await createChurch(props.id, newChurchForm.value)
+    churches.value.push(res.church)
+    revealedCodes.value[`church-${res.church.id}`] = res.coachCode
+    newChurchForm.value = { name: '', shortName: '' }
+  } catch (e) {
+    addChurchError.value = (e as Error).message
+  } finally {
+    addingChurch.value = false
+  }
+}
+
+async function handleRotateChurchCode(churchId: number, clearMembers: boolean) {
+  const msg = clearMembers
+    ? 'Rotate the coach code and remove all coaches for this church?'
+    : 'Rotate this coach code? The old code will stop working immediately.'
+  if (!confirm(msg)) return
+  churchCodeBusy.value[churchId] = true
+  try {
+    const res = await rotateChurchCoachCode(churchId, clearMembers)
+    revealedCodes.value[`church-${churchId}`] = res.coachCode
+  } catch (e) {
+    alert((e as Error).message)
+  } finally {
+    delete churchCodeBusy.value[churchId]
   }
 }
 
@@ -105,18 +150,81 @@ onMounted(load)
     <template v-else>
       <h2 class="page-title">Codes</h2>
 
-      <!-- Coach code -->
+      <!-- Admin code -->
       <div class="section">
-        <h3 class="section-title">Coach</h3>
+        <h3 class="section-title">Admin</h3>
         <div class="code-row">
-          <template v-if="revealedCodes['coach']">
-            <code class="code-value code-value--revealed">{{ revealedCodes['coach'] }}</code>
+          <template v-if="revealedCodes['admin']">
+            <code class="code-value code-value--revealed">{{ revealedCodes['admin'] }}</code>
           </template>
           <span v-else class="code-value code-value--hidden">••••••••</span>
-          <button class="action-btn" :disabled="coachCodeBusy" @click="handleRotateCoachCode">
-            {{ coachCodeBusy ? '…' : 'Rotate' }}
+          <button
+            class="action-btn"
+            :disabled="adminCodeBusy"
+            @click="handleRotateAdminCode(false)"
+          >
+            {{ adminCodeBusy ? '…' : 'Rotate' }}
+          </button>
+          <button
+            class="action-btn action-btn--danger"
+            :disabled="adminCodeBusy"
+            @click="handleRotateAdminCode(true)"
+          >
+            Rotate + clear
           </button>
         </div>
+      </div>
+
+      <!-- Church coach codes -->
+      <div class="section">
+        <h3 class="section-title">Churches</h3>
+
+        <p v-if="churches.length === 0" class="state-msg">No churches yet.</p>
+        <ul v-else class="code-list">
+          <li v-for="ch in churches" :key="ch.id" class="code-row">
+            <span class="code-label">{{ ch.shortName }}</span>
+            <span class="code-sublabel">{{ ch.name }}</span>
+            <template v-if="revealedCodes[`church-${ch.id}`]">
+              <code class="code-value code-value--revealed">{{
+                revealedCodes[`church-${ch.id}`]
+              }}</code>
+            </template>
+            <span v-else class="code-value code-value--hidden">••••••••</span>
+            <button
+              class="action-btn"
+              :disabled="churchCodeBusy[ch.id]"
+              @click="handleRotateChurchCode(ch.id, false)"
+            >
+              {{ churchCodeBusy[ch.id] ? '…' : 'Rotate' }}
+            </button>
+            <button
+              class="action-btn action-btn--danger"
+              :disabled="churchCodeBusy[ch.id]"
+              @click="handleRotateChurchCode(ch.id, true)"
+            >
+              Rotate + clear
+            </button>
+          </li>
+        </ul>
+
+        <form class="add-form" @submit.prevent="handleAddChurch">
+          <input
+            v-model="newChurchForm.name"
+            class="field-input"
+            placeholder="Full name (e.g. Grace Community Church)"
+            required
+          />
+          <input
+            v-model="newChurchForm.shortName"
+            class="field-input field-input--short"
+            placeholder="Short (e.g. GCC)"
+            required
+          />
+          <button type="submit" class="btn btn--secondary" :disabled="addingChurch">
+            {{ addingChurch ? 'Adding…' : 'Add church' }}
+          </button>
+          <p v-if="addChurchError" class="field-error">{{ addChurchError }}</p>
+        </form>
       </div>
 
       <!-- Official codes -->
@@ -235,7 +343,14 @@ onMounted(load)
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-text-muted);
-  min-width: 6rem;
+  min-width: 4rem;
+  flex-shrink: 0;
+}
+
+.code-sublabel {
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+  flex: 1;
 }
 
 .code-value {
@@ -309,6 +424,10 @@ onMounted(load)
 
 .field-input:focus {
   border-color: var(--color-accent);
+}
+
+.field-input--short {
+  max-width: 7rem;
 }
 
 .field-error {

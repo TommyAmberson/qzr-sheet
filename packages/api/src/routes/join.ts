@@ -34,8 +34,10 @@ function getDb(c: { get(key: 'db'): Db }): Db {
  *
  * Accepts { code } and determines which meet and role it corresponds to:
  * 1. Check viewer codes (plaintext slug match)
- * 2. Check coach code hashes (SHA-256 match)
- * 3. Check official code hashes (SHA-256 match)
+ * 2. Hash the code, then check:
+ *    a. quizMeets.adminCodeHash  → AdminMembership
+ *    b. churches.coachCodeHash   → CoachMembership
+ *    c. officialCodes.codeHash   → OfficialMembership
  *
  * Creates the appropriate membership row and returns the meet + role.
  */
@@ -56,7 +58,6 @@ join.post('/', requireAuth(), async (c) => {
     .where(eq(schema.quizMeets.viewerCode, code))
 
   if (viewerMatch) {
-    // Check for existing membership (idempotent)
     const [existing] = await db
       .select()
       .from(schema.viewerMemberships)
@@ -66,26 +67,44 @@ join.post('/', requireAuth(), async (c) => {
           eq(schema.viewerMemberships.meetId, viewerMatch.id),
         ),
       )
-
     if (!existing) {
       await db
         .insert(schema.viewerMemberships)
         .values({ accountId: user.id, meetId: viewerMatch.id })
     }
-
-    return c.json({
-      meet: { id: viewerMatch.id, name: viewerMatch.name },
-      role: MeetRole.Viewer,
-    })
+    return c.json({ meet: { id: viewerMatch.id, name: viewerMatch.name }, role: MeetRole.Viewer })
   }
 
-  // 2. Try coach code (SHA-256 hash match)
   const codeHash = await hashCode(code)
 
-  const [coachMatch] = await db
+  // 2a. Try admin code
+  const [adminMatch] = await db
     .select()
     .from(schema.quizMeets)
-    .where(eq(schema.quizMeets.coachCodeHash, codeHash))
+    .where(eq(schema.quizMeets.adminCodeHash, codeHash))
+
+  if (adminMatch) {
+    const [existing] = await db
+      .select()
+      .from(schema.adminMemberships)
+      .where(
+        and(
+          eq(schema.adminMemberships.accountId, user.id),
+          eq(schema.adminMemberships.meetId, adminMatch.id),
+        ),
+      )
+    if (!existing) {
+      await db.insert(schema.adminMemberships).values({ accountId: user.id, meetId: adminMatch.id })
+    }
+    return c.json({ meet: { id: adminMatch.id, name: adminMatch.name }, role: MeetRole.Admin })
+  }
+
+  // 2b. Try church coach code
+  const [coachMatch] = await db
+    .select({ church: schema.churches, meet: schema.quizMeets })
+    .from(schema.churches)
+    .innerJoin(schema.quizMeets, eq(schema.churches.meetId, schema.quizMeets.id))
+    .where(eq(schema.churches.coachCodeHash, codeHash))
 
   if (coachMatch) {
     const [existing] = await db
@@ -94,21 +113,24 @@ join.post('/', requireAuth(), async (c) => {
       .where(
         and(
           eq(schema.coachMemberships.accountId, user.id),
-          eq(schema.coachMemberships.meetId, coachMatch.id),
+          eq(schema.coachMemberships.churchId, coachMatch.church.id),
         ),
       )
-
     if (!existing) {
-      await db.insert(schema.coachMemberships).values({ accountId: user.id, meetId: coachMatch.id })
+      await db.insert(schema.coachMemberships).values({
+        accountId: user.id,
+        churchId: coachMatch.church.id,
+        meetId: coachMatch.church.meetId,
+      })
     }
-
     return c.json({
-      meet: { id: coachMatch.id, name: coachMatch.name },
+      meet: { id: coachMatch.meet.id, name: coachMatch.meet.name },
+      church: { id: coachMatch.church.id, name: coachMatch.church.name },
       role: MeetRole.HeadCoach,
     })
   }
 
-  // 3. Try official codes (SHA-256 hash match across all rooms)
+  // 2c. Try official codes
   const [officialMatch] = await db
     .select({
       codeId: schema.officialCodes.id,
@@ -135,7 +157,6 @@ join.post('/', requireAuth(), async (c) => {
             eq(schema.officialMemberships.officialCodeId, officialMatch.codeId),
           ),
         )
-
       if (!existing) {
         await db.insert(schema.officialMemberships).values({
           accountId: user.id,
@@ -143,7 +164,6 @@ join.post('/', requireAuth(), async (c) => {
           officialCodeId: officialMatch.codeId,
         })
       }
-
       return c.json({
         meet: { id: meet.id, name: meet.name },
         role: MeetRole.Official,

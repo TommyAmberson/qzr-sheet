@@ -4,6 +4,7 @@ export enum AccountRole {
 }
 
 export enum MeetRole {
+  Admin = 'admin',
   HeadCoach = 'head_coach',
   Official = 'official',
   Viewer = 'viewer',

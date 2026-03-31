@@ -67,7 +67,7 @@ export async function createTestDb(): Promise<Db> {
       name TEXT NOT NULL,
       date_from TEXT NOT NULL,
       date_to TEXT,
-      coach_code_hash TEXT NOT NULL,
+      admin_code_hash TEXT NOT NULL,
       viewer_code TEXT NOT NULL,
       divisions TEXT NOT NULL DEFAULT '[]',
       created_at INTEGER NOT NULL
@@ -80,10 +80,17 @@ export async function createTestDb(): Promise<Db> {
       code_hash TEXT NOT NULL
     );
 
-    CREATE TABLE coach_memberships (
+    CREATE TABLE admin_memberships (
       account_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
       meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,
       UNIQUE(account_id, meet_id)
+    );
+
+    CREATE TABLE coach_memberships (
+      account_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+      church_id INTEGER NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
+      meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,
+      UNIQUE(account_id, church_id)
     );
 
     CREATE TABLE official_memberships (
@@ -102,9 +109,9 @@ export async function createTestDb(): Promise<Db> {
     CREATE TABLE churches (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,
-      created_by TEXT NOT NULL REFERENCES user(id),
       name TEXT NOT NULL,
-      short_name TEXT NOT NULL
+      short_name TEXT NOT NULL,
+      coach_code_hash TEXT NOT NULL
     );
 
     CREATE TABLE teams (

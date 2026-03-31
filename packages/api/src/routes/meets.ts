@@ -48,8 +48,8 @@ meets.post('/', requireSuperuser(), async (c) => {
     return c.json({ error: 'divisions must be a non-empty array' }, 400)
   }
 
-  const coachCode = generateCode()
-  const coachHash = await hashCode(coachCode)
+  const adminCode = generateCode()
+  const adminHash = await hashCode(adminCode)
 
   const [meet] = await getDb(c)
     .insert(schema.quizMeets)
@@ -59,12 +59,12 @@ meets.post('/', requireSuperuser(), async (c) => {
       dateTo: body.dateTo?.trim() ?? null,
       viewerCode: body.viewerCode.trim(),
       divisions: JSON.stringify(body.divisions.map((d) => d.trim()).filter(Boolean)),
-      coachCodeHash: coachHash,
+      adminCodeHash: adminHash,
       createdAt: new Date(),
     })
     .returning()
 
-  return c.json({ meet: formatMeet(meet!), coachCode }, 201)
+  return c.json({ meet: formatMeet(meet!), adminCode }, 201)
 })
 
 meets.get('/', requireSuperuser(), async (c) => {
@@ -81,7 +81,16 @@ meets.get('/:id', async (c) => {
 
   // Superusers have access to all meets; others must have a membership
   if (user.role !== AccountRole.Superuser) {
-    const [[coach], [official], [viewer]] = await Promise.all([
+    const [[admin], [coach], [official], [viewer]] = await Promise.all([
+      db
+        .select({ meetId: schema.adminMemberships.meetId })
+        .from(schema.adminMemberships)
+        .where(
+          and(
+            eq(schema.adminMemberships.accountId, user.id),
+            eq(schema.adminMemberships.meetId, id),
+          ),
+        ),
       db
         .select({ meetId: schema.coachMemberships.meetId })
         .from(schema.coachMemberships)
@@ -110,7 +119,7 @@ meets.get('/:id', async (c) => {
           ),
         ),
     ])
-    if (!coach && !official && !viewer) return c.json({ error: 'Forbidden' }, 403)
+    if (!admin && !coach && !official && !viewer) return c.json({ error: 'Forbidden' }, 403)
   }
 
   const [meet] = await db.select().from(schema.quizMeets).where(eq(schema.quizMeets.id, id))
@@ -171,23 +180,33 @@ meets.delete('/:id', requireSuperuser(), async (c) => {
   return c.json({ deleted: true })
 })
 
-// ---- Coach code rotation ----
+// ---- Admin code rotation ----
 
-meets.post('/:id/rotate-coach-code', requireSuperuser(), async (c) => {
+meets.post('/:id/rotate-admin-code', requireSuperuser(), async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
-  const coachCode = generateCode()
-  const coachHash = await hashCode(coachCode)
+  const body = await c.req
+    .json<{ clearMembers?: boolean }>()
+    .catch((): { clearMembers?: boolean } => ({}))
+  const db = getDb(c)
 
-  const [updated] = await getDb(c)
+  const adminCode = generateCode()
+  const adminHash = await hashCode(adminCode)
+
+  const [updated] = await db
     .update(schema.quizMeets)
-    .set({ coachCodeHash: coachHash })
+    .set({ adminCodeHash: adminHash })
     .where(eq(schema.quizMeets.id, id))
     .returning({ id: schema.quizMeets.id })
 
   if (!updated) return c.json({ error: 'Meet not found' }, 404)
-  return c.json({ coachCode })
+
+  if (body.clearMembers) {
+    await db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.meetId, id))
+  }
+
+  return c.json({ adminCode })
 })
 
 // ---- Official codes ----
