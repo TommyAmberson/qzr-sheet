@@ -65,6 +65,7 @@ export const quizMeets = sqliteTable('quiz_meets', {
   dateTo: text('date_to'), // ISO 8601 date string; null = single-day meet
   coachCodeHash: text('coach_code_hash').notNull(),
   viewerCode: text('viewer_code').notNull(), // admin-set human-readable slug
+  divisions: text('divisions').notNull().default('[]'), // JSON string[]
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })
 
@@ -144,7 +145,7 @@ export const teams = sqliteTable('teams', {
     .notNull()
     .references(() => churches.id, { onDelete: 'cascade' }),
   division: text('division').notNull(),
-  number: integer('number').notNull(), // per-church per-division
+  number: integer('number').notNull(), // per-church (global across divisions)
 })
 
 export const quizzerIdentities = sqliteTable('quizzer_identities', {
