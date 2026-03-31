@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.3.2
+
+### Fixed
+
+* Auth client used an invalid relative URL in production — now falls back to
+  `window.location.origin` so Better Auth always receives a valid absolute base URL
+* OAuth social sign-in redirected to the API server after callback instead of the web app —
+  `callbackURL` now uses `window.location.origin`
+
+## 0.3.1
+
+### Fixed
+
+* API now served at `www.versevault.ca/api/*` (same origin as the web app) via a Cloudflare Worker
+  route, eliminating all cross-origin CORS issues in production
+* CORS middleware restricted to localhost only — no longer needed in production
+* `bump-version.mjs` used `bumpToml` on `tauri.conf.json` (which is JSON) — switched to `bumpJson`
+* Removed pre-push type-check hook
+
+## 0.3.0
+
+### Added
+
+* **Authentication** — sign in with GitHub, Google, or email/password via
+  [Better Auth](https://better-auth.com)
+* **SignInMenu** — popover in the portal header with provider picker and inline email/password form
+  (sign-in / create-account toggle)
+* Cookie-based sessions — no localStorage JWTs, no redirect dance
+* Account linking for GitHub and Google (both verify email addresses)
+* `role` additionalField on user (`normal` by default, not user-settable; `admin` provisioned
+  out-of-band)
+* Drizzle schema migrated to Better Auth tables (`user`, `session`, `account`, `verification`); FK
+  columns updated from integer to text UUID
+
+### Infrastructure
+
+* `better-auth` replaces `arctic` — OAuth, email/password, sessions, and account linking in one
+  library
+* Hand-rolled `routes/auth.ts`, `routes/me.ts`, `lib/jwt.ts`, `lib/upsertAccount.ts` removed
+* `JWT_SECRET` replaced by `BETTER_AUTH_SECRET` (≥ 32 chars)
+* CI deploy workflow applies D1 migrations before deploying the Worker
+
+## 0.2.0
+
+### Added
+
+* Monorepo conversion — pnpm workspaces with `apps/scoresheet`, `apps/web`, `packages/shared`,
+  `packages/api`
+* Portal app (`apps/web`) — Vue 3 + vue-router landing page at `www.versevault.ca`
+* API (`packages/api`) — Hono + Cloudflare Workers + D1 + Drizzle; `GET /health`; full schema
+* Shared package (`packages/shared`) — QuizFile TypeBox schema and role enums extracted
+* Combined build and deploy (`pnpm build:all`, `pnpm deploy`) — scoresheet nested under portal
+
 ## 0.1.1
 
 ### Fixed
