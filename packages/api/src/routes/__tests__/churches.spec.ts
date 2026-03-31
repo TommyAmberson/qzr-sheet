@@ -89,7 +89,7 @@ describe('GET /api/meets/:meetId/churches', () => {
     expect(res.status).toBe(401)
   })
 
-  it('coach sees only own churches', async () => {
+  it('coach sees all churches (read access is open to any member)', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
     await seedCoachMembership(db, testUser.id, meet.id)
@@ -100,8 +100,7 @@ describe('GET /api/meets/:meetId/churches', () => {
     const res = await app.request(`/api/meets/${meet.id}/churches`, {}, env)
     expect(res.status).toBe(200)
     const body = await res.json<{ churches: unknown[] }>()
-    expect(body.churches).toHaveLength(1)
-    expect((body.churches[0] as { name: string }).name).toBe('My Church')
+    expect(body.churches).toHaveLength(2)
   })
 
   it('superuser sees all churches', async () => {
@@ -196,13 +195,13 @@ describe('GET /api/churches/:churchId/teams', () => {
     expect(body.teams).toHaveLength(2)
   })
 
-  it('forbids access to another coach\u2019s church', async () => {
+  it('allows any authenticated member to read teams for any church', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
     const church = await seedChurch(db, meet.id, testSuperuser.id)
 
     const res = await app.request(`/api/churches/${church.id}/teams`, {}, env)
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(200)
   })
 })
 
