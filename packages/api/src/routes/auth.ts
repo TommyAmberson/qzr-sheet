@@ -15,14 +15,14 @@ const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 // ---- Helpers ----
 
 function callbackBase(env: Bindings) {
-  return `${env.API_BASE_URL}/auth/callback`
+  return `${env.API_BASE_URL}/auth`
 }
 
 function githubClient(env: Bindings) {
   return new arctic.GitHub(
     env.GITHUB_CLIENT_ID,
     env.GITHUB_CLIENT_SECRET,
-    `${callbackBase(env)}/github`,
+    `${callbackBase(env)}/github/callback`,
   )
 }
 
@@ -30,7 +30,7 @@ function googleClient(env: Bindings) {
   return new arctic.Google(
     env.GOOGLE_CLIENT_ID,
     env.GOOGLE_CLIENT_SECRET,
-    `${callbackBase(env)}/google`,
+    `${callbackBase(env)}/google/callback`,
   )
 }
 
