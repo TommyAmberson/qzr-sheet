@@ -90,28 +90,24 @@ viewers can use guest JWTs without creating an account.
 * DB injection via Hono context variables; test suite uses `better-sqlite3` in-memory DB with full
   schema for integration tests
 
-### 4.5 Superuser dashboard ✓ (partial)
+### 4.5 Superuser dashboard ✓
 
-Create and manage quiz meets from the portal. Superuser nav link visible only to
-`role === 'superuser'` accounts. Router guard redirects others to home.
+Create and manage quiz meets from the portal.
 
-* `GET/POST /api/meets` — list and create meets
-* `GET/PATCH/DELETE /api/meets/:id` — meet detail, edit name/dates/viewer code
-* `POST /api/meets/:id/rotate-coach-code` — rotate the per-meet coach code (revealed once on
-  creation/rotation); this will be superseded by per-church codes in **4.6a**
+* `GET/POST /api/meets` — list and create meets (superuser only)
+* `GET/PATCH/DELETE /api/meets/:id` — meet detail, edit name/dates/viewer code/divisions
 * `POST/DELETE /api/meets/:id/official-codes` + rotate — per-room official code management
 * `apps/web/src/api.ts` — typed fetch wrapper with cookie credentials for all endpoints
-* `MeetSuperuserView` — manage the meet's coach code and official codes
 * `quiz_meets` schema: `date_from` (not null) + `date_to` (nullable) for multi-day meets
 
-### 4.6 Coach roster flow ✓ (in progress)
+### 4.6 Coach roster flow ✓
 
 Coaches join a meet, then build team rosters for their church. Roster editing uses a draft model —
 all changes are local until the coach clicks Save, which flushes a minimal diff to the API.
 
 * `GET /api/meets/:id/churches` — list churches for the meet (any authenticated member can read)
-* `POST /api/meets/:id/churches` — create a church (coach-authed; will move to superuser/admin in
-  **4.6a**)
+* `POST /api/meets/:id/churches` — create a church (admin/superuser)
+* `DELETE /api/churches/:id` — delete a church and cascade teams/rosters (admin/superuser)
 * `GET /api/churches/:id/teams` — list teams under a church
 * `POST /api/churches/:id/teams` — create a team; number auto-increments per church
 * `PATCH /api/teams/:id` — update a team's division
@@ -119,46 +115,46 @@ all changes are local until the coach clicks Save, which flushes a minimal diff 
 * `GET/POST /api/teams/:id/quizzers` — list and add roster entries
 * `PATCH /api/teams/:id/quizzers/:quizzerId` — rename a quizzer
 * `DELETE /api/teams/:id/quizzers/:quizzerId` — remove from roster
-* `MeetTeamsView` — church tabs, unassigned pool, team cards with drag reorder, draft save/discard
-  bar, per-team size and division-order warnings
-* Edit gating: coaches can only edit churches they created (`church.createdBy`); will move to
-  `CoachMembership` lookup in **4.6a**
+* `MeetTeamsView` — single-church view (`/meets/:id/churches/:churchId/teams`), unassigned pool,
+  team cards with drag reorder, draft save/discard bar, per-team size and division-order warnings
+* Edit gating: `CoachMembership` lookup — coaches can only edit their own church; admins and
+  superusers can edit any church
 
 Identity linking (name-match suggestions, church-change warnings) deferred to a later step.
 
-### 4.6a Role model transition (next)
+### 4.6a Role model and dashboard ✓
 
-Transition from the current per-meet coach code to per-church coach codes, and introduce the
-meet-scoped admin role. See `docs/roles-and-access.md` and `docs/data-model.md` for the target
-design.
+Per-church coach codes, meet-scoped admin role, consolidated dashboard with role-based visibility.
 
-**Schema changes** (two migrations — nullable first, then non-null):
+**Schema:**
 
-* `quiz_meets`: rename `coach_code_hash` → `admin_code_hash`
-* New table `admin_memberships(accountId, meetId)` — replaces `coach_memberships` for meet-level
-  access
-* `churches`: add `coach_code_hash`, drop `created_by`
-* `coach_memberships`: replace `meetId`-only unique with `(accountId, churchId)`; keep `meetId` as a
-  denormalised convenience column for `getMyMeets()`
+* `quiz_meets.admin_code_hash` — meet-level admin code
+* `admin_memberships(accountId, meetId)` — meet-scoped admin role
+* `churches.coach_code_hash` — per-church coach code
+* `coach_memberships(accountId, churchId, meetId)` — church-scoped coach role
 
-**API changes**:
+**API:**
 
-* `POST /api/join` — add admin code lookup and per-church coach code lookup
-* `POST /api/meets/:id/rotate-admin-code` — replaces `rotate-coach-code`; accepts
-  `{ clearMembers: boolean }`
-* `POST /api/churches/:id/rotate-coach-code` — new; accepts `{ clearMembers: boolean }`
-* `POST /api/meets/:id/churches` — restrict to superuser or admin (remove coach self-serve)
-* All church/team edit routes — replace `church.createdBy === user.id` gating with `CoachMembership`
-  lookup
-* `GET /api/my-meets` — update to join through `admin_memberships` and `coach_memberships.meetId`
+* `POST /api/join` — 3-way code matching: admin → church coach → official
+* `POST /api/meets/:id/rotate-admin-code` — rotate admin code; `clearMembers` restricted to
+  superuser only
+* `POST /api/churches/:id/rotate-coach-code` — rotate per-church coach code with optional
+  `clearMembers`
+* `GET /api/meets/:id/members` — list all members across all role tables (admin/superuser)
+* `DELETE /api/meets/:id/members/:userId` — revoke a specific membership by role + scope; admin
+  revocation restricted to superusers
+* All church/team edit routes gated by `canEditChurch()` (coach membership, admin, or superuser)
 
-**Portal changes**:
+**Portal:**
 
-* `MeetSuperuserView` — add per-church coach code rows (create church → code revealed; rotate with
-  or without clearing members)
-* `MeetTeamsView` — remove self-serve church creation; `canEdit` based on `CoachMembership` row
-  instead of `createdBy`; coaches see only their church tab as editable
-* `MeetRole` enum — add `Admin`; update `getMyMeets` response shape
+* `QuizMeetView` (dashboard) — single page for the entire meet, role-gated:
+  * Meet info with inline editing (admin), viewer code, divisions
+  * Admin section with access dialog (admin only)
+  * Churches list with team count summary, "Roster" link, 🔑 access dialog, delete (admin)
+  * Rooms list with 🔑 access dialog, delete, inline add form (admin)
+* Access dialog (`<dialog>`) — code generation + member list with individual revoke
+* `MeetAdminView` removed — all admin functionality on the dashboard
+* `MeetTeamsView` — single-church view via `churchId` prop, no church tab bar
 
 ### 4.7 Admin: schedule and draw
 
@@ -176,7 +172,7 @@ Once teams are registered, an admin generates the round-robin draw and publishes
 
 * Review submitted quiz results — list of completed `QuizFile` submissions per meet, flag disputed
   results, override scores
-* Account management — list users, promote/demote superuser role, revoke meet memberships
+* Account management — list users, promote/demote superuser role
 * Merge quizzer identities — resolve cases where a quizzer has two `QuizzerIdentity` records
 
 ### 4.9 Official flow
