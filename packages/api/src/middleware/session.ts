@@ -69,6 +69,6 @@ export function requireAdmin(): MiddlewareHandler<{
 }
 
 /** Helper to extract the authenticated user (non-null). Use after requireAuth. */
-export function getUser(c: Context<{ Variables: SessionVariables }>): SessionUser {
+export function getUser<E extends { Variables: SessionVariables }>(c: Context<E>): SessionUser {
   return c.get('user')!
 }
