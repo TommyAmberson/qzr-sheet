@@ -266,6 +266,11 @@ function startAddToTeam(teamId: number) {
   addQuizzerError.value = ''
 }
 
+function startRename(quizzerId: number, name: string) {
+  renamingQuizzerId.value = quizzerId
+  renameValue.value = name
+}
+
 function teamLabel(team: Team) {
   return `${selectedChurch.value?.shortName ?? '?'} ${team.number}`
 }
@@ -346,13 +351,7 @@ function teamLabel(team: Team) {
                   />
                 </template>
                 <template v-else>
-                  <span
-                    class="quizzer-name"
-                    @dblclick="
-                      renamingQuizzerId = q.quizzerId
-                      renameValue = q.name
-                    "
-                  >
+                  <span class="quizzer-name" @dblclick="startRename(q.quizzerId, q.name)">
                     {{ q.name }}
                   </span>
                 </template>
