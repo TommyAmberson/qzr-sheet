@@ -22,6 +22,13 @@
       "when": 1774924596901,
       "tag": "0002_worried_havok",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1774934476599,
+      "tag": "0003_overjoyed_sphinx",
+      "breakpoints": true
     }
   ]
 }

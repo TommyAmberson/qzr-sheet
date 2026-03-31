@@ -33,9 +33,14 @@ function getDb(c: { get(key: 'db'): Db }): Db {
 // ---- Meet CRUD ----
 
 meets.post('/', async (c) => {
-  const body = await c.req.json<{ name: string; date: string; viewerCode: string }>()
-  if (!body.name?.trim() || !body.date?.trim() || !body.viewerCode?.trim()) {
-    return c.json({ error: 'name, date, and viewerCode are required' }, 400)
+  const body = await c.req.json<{
+    name: string
+    dateFrom: string
+    dateTo?: string
+    viewerCode: string
+  }>()
+  if (!body.name?.trim() || !body.dateFrom?.trim() || !body.viewerCode?.trim()) {
+    return c.json({ error: 'name, dateFrom, and viewerCode are required' }, 400)
   }
 
   const coachCode = generateCode()
@@ -45,7 +50,8 @@ meets.post('/', async (c) => {
     .insert(schema.quizMeets)
     .values({
       name: body.name.trim(),
-      date: body.date.trim(),
+      dateFrom: body.dateFrom.trim(),
+      dateTo: body.dateTo?.trim() ?? null,
       viewerCode: body.viewerCode.trim(),
       coachCodeHash: coachHash,
       createdAt: new Date(),
@@ -79,10 +85,16 @@ meets.patch('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
-  const body = await c.req.json<{ name?: string; date?: string; viewerCode?: string }>()
-  const updates: Record<string, string> = {}
+  const body = await c.req.json<{
+    name?: string
+    dateFrom?: string
+    dateTo?: string
+    viewerCode?: string
+  }>()
+  const updates: Record<string, string | null> = {}
   if (body.name?.trim()) updates.name = body.name.trim()
-  if (body.date?.trim()) updates.date = body.date.trim()
+  if (body.dateFrom?.trim()) updates.dateFrom = body.dateFrom.trim()
+  if ('dateTo' in body) updates.dateTo = body.dateTo?.trim() ?? null
   if (body.viewerCode?.trim()) updates.viewerCode = body.viewerCode.trim()
 
   if (Object.keys(updates).length === 0) {
@@ -197,7 +209,8 @@ function formatMeet(meet: schema.QuizMeet) {
   return {
     id: meet.id,
     name: meet.name,
-    date: meet.date,
+    dateFrom: meet.dateFrom,
+    dateTo: meet.dateTo,
     viewerCode: meet.viewerCode,
     createdAt: meet.createdAt,
   }

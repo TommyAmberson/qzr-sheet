@@ -82,6 +82,10 @@ docs/
 * Drag reorder uses pointer events only (no HTML5 drag API — crashes on Linux/X11).
 * Auth uses Better Auth cookie sessions — no JWTs for user auth. `BETTER_AUTH_SECRET` must be ≥32
   chars. OAuth callbacks: `/api/auth/callback/github`, `/api/auth/callback/google`.
+* **Never hand-write or edit migration files.** Always run `pnpm --filter @qzr/api db:generate` to
+  generate migrations from the schema diff. If the generated SQL won't work (e.g. `ADD NOT NULL` on
+  existing rows), fix the schema design instead — make the column nullable, provide a default, or
+  split into two migrations. The `migrations/meta/_journal.json` must stay in sync.
 
 ## Reference Docs
 
