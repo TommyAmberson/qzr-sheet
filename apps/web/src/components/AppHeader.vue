@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { useAuth } from '../composables/useAuth'
+import SignInMenu from './SignInMenu.vue'
 
 const scoresheetUrl = __SCORESHEET_URL__
-const { session, signIn, signOut } = useAuth()
+const { session, signOut } = useAuth()
 </script>
 
 <template>
@@ -24,7 +25,7 @@ const { session, signIn, signOut } = useAuth()
           <span class="nav-user">{{ session.data.user.email ?? 'signed in' }}</span>
           <button class="nav-link nav-btn" @click="signOut">Sign out</button>
         </template>
-        <button v-else class="nav-link nav-btn" @click="signIn">Sign in</button>
+        <SignInMenu v-else />
       </nav>
     </div>
   </header>
