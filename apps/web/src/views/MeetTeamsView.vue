@@ -157,6 +157,17 @@ async function selectChurch(churchId: number) {
   }
 }
 
+function startAddToPool() {
+  addingQuizzerTeamId.value = -1
+  newQuizzerName.value = ''
+}
+
+function startAddToTeam(teamId: number) {
+  addingQuizzerTeamId.value = teamId
+  newQuizzerName.value = ''
+  addQuizzerError.value = ''
+}
+
 onMounted(load)
 
 // ---- Church actions ----
@@ -451,16 +462,7 @@ async function onDrop(toTeamId: number | null) {
                   </button>
                 </div>
               </form>
-              <button
-                v-else
-                class="dashed-add"
-                @click="
-                  addingQuizzerTeamId = -1
-                  newQuizzerName = ''
-                "
-              >
-                + Quizzer
-              </button>
+              <button v-else class="dashed-add" @click="startAddToPool()">+ Quizzer</button>
             </template>
           </div>
 
@@ -566,14 +568,7 @@ async function onDrop(toTeamId: number | null) {
                     </div>
                     <p v-if="addQuizzerError" class="field-error">{{ addQuizzerError }}</p>
                   </form>
-                  <button
-                    v-else
-                    class="dashed-add"
-                    @click="
-                      addingQuizzerTeamId = team.id
-                      newQuizzerName = ''
-                    "
-                  >
+                  <button v-else class="dashed-add" @click="startAddToTeam(team.id)">
                     + Quizzer
                   </button>
                 </template>
