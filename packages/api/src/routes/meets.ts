@@ -229,6 +229,9 @@ meets.post('/:id/rotate-admin-code', async (c) => {
   if (!updated) return c.json({ error: 'Meet not found' }, 404)
 
   if (body.clearMembers) {
+    if (user.role !== AccountRole.Superuser) {
+      return c.json({ error: 'Only superusers can clear admin memberships' }, 403)
+    }
     await db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.meetId, id))
   }
 

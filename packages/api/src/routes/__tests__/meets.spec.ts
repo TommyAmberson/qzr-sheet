@@ -280,6 +280,45 @@ describe('admin code rotation', () => {
     )
     expect(res.status).toBe(404)
   })
+
+  it('admin can rotate but cannot clear members', async () => {
+    const adminApp = createApp(testUser, db)
+    const createRes = await app.request(
+      '/api/meets',
+      json({
+        name: 'Admin Clear Test',
+        dateFrom: '2025-01-01',
+        viewerCode: 'act',
+        divisions: ['Div 1'],
+      }),
+      env,
+    )
+    const { meet } = (await createRes.json()) as MeetBody
+
+    // Give testUser admin membership
+    const { adminMemberships } = await import('../../db/schema')
+    await db.insert(adminMemberships).values({ accountId: testUser.id, meetId: meet.id })
+
+    // Rotate without clear — should succeed
+    const rotateRes = await adminApp.request(
+      `/api/meets/${meet.id}/rotate-admin-code`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+      env,
+    )
+    expect(rotateRes.status).toBe(200)
+
+    // Rotate with clearMembers — should be rejected
+    const clearRes = await adminApp.request(
+      `/api/meets/${meet.id}/rotate-admin-code`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clearMembers: true }),
+      },
+      env,
+    )
+    expect(clearRes.status).toBe(403)
+  })
 })
 
 describe('official codes', () => {

@@ -31,6 +31,7 @@ const loading = ref(true)
 const error = ref('')
 
 const role = computed(() => membership.value?.role ?? null)
+const isSuperuser = computed(() => role.value === 'superuser')
 const isAdmin = computed(() => role.value === 'admin' || role.value === 'superuser')
 const canManageTeams = computed(
   () => role.value === 'head_coach' || role.value === 'admin' || role.value === 'superuser',
@@ -250,7 +251,7 @@ function openAdminCodeDialog() {
     title: 'Admin Code',
     description:
       'Share this code with other admins. Anyone who joins with it gets full management access to this meet.',
-    hasClearOption: true,
+    hasClearOption: isSuperuser.value,
     revealedCode: null,
     busy: false,
   })
