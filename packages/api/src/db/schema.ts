@@ -1,4 +1,5 @@
 import { integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { relations } from 'drizzle-orm'
 import { AccountRole } from '@qzr/shared'
 
 // ---- Accounts ----
@@ -136,6 +137,12 @@ export const teamRosters = sqliteTable(
   },
   (t) => [unique().on(t.teamId, t.quizzerId)],
 )
+
+// ---- Inferred types ----
+
+export const oauthAccountRelations = relations(oauthAccounts, ({ one }) => ({
+  account: one(accounts, { fields: [oauthAccounts.accountId], references: [accounts.id] }),
+}))
 
 // ---- Inferred types ----
 
