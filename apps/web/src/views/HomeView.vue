@@ -1,5 +1,49 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
+import { getMyMeets, joinMeet, type MeetMembership } from '../api'
+
 const scoresheetUrl = __SCORESHEET_URL__
+const router = useRouter()
+const { session } = useAuth()
+
+const memberships = ref<MeetMembership[]>([])
+const loadingMeets = ref(false)
+const meetsError = ref('')
+
+const joinCode = ref('')
+const joining = ref(false)
+const joinError = ref('')
+
+async function loadMeets() {
+  if (!session.data?.user) return
+  loadingMeets.value = true
+  try {
+    const res = await getMyMeets()
+    memberships.value = res.memberships
+  } catch (e) {
+    meetsError.value = (e as Error).message
+  } finally {
+    loadingMeets.value = false
+  }
+}
+
+async function handleJoin() {
+  joinError.value = ''
+  joining.value = true
+  try {
+    const res = await joinMeet(joinCode.value.trim())
+    joinCode.value = ''
+    router.push({ name: 'meet', params: { id: res.meet.id } })
+  } catch (e) {
+    joinError.value = (e as Error).message
+  } finally {
+    joining.value = false
+  }
+}
+
+onMounted(loadMeets)
 </script>
 
 <template>
@@ -23,6 +67,45 @@ const scoresheetUrl = __SCORESHEET_URL__
           >
             Desktop app
           </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- QuizMeets (signed-in users) -->
+    <section v-if="session.data?.user" class="section section--quizmeeets">
+      <div class="container">
+        <h2 class="section-heading">Your QuizMeets</h2>
+
+        <p v-if="loadingMeets" class="state-msg">Loading…</p>
+        <p v-else-if="meetsError" class="state-msg state-msg--error">{{ meetsError }}</p>
+        <p v-else-if="memberships.length === 0" class="state-msg">No QuizMeets yet.</p>
+        <ul v-else class="qm-list">
+          <li v-for="m in memberships" :key="m.meetId" class="qm-row">
+            <button
+              class="qm-name"
+              @click="router.push({ name: 'meet', params: { id: m.meetId } })"
+            >
+              {{ m.meetName }}
+            </button>
+            <span class="qm-role">{{ m.role.replace('_', ' ') }}</span>
+          </li>
+        </ul>
+
+        <div class="join-form-wrap">
+          <h3 class="join-title">Join a QuizMeet</h3>
+          <form class="join-form" @submit.prevent="handleJoin">
+            <input
+              v-model="joinCode"
+              class="join-input"
+              placeholder="Enter code"
+              :disabled="joining"
+              required
+            />
+            <button type="submit" class="btn btn--primary" :disabled="joining || !joinCode.trim()">
+              {{ joining ? 'Joining…' : 'Join' }}
+            </button>
+          </form>
+          <p v-if="joinError" class="join-error">{{ joinError }}</p>
         </div>
       </div>
     </section>
@@ -108,8 +191,102 @@ const scoresheetUrl = __SCORESHEET_URL__
   padding: 0 1.5rem;
 }
 
-/* Hero */
-.hero {
+.section--quizmeeets {
+  background: var(--color-bg-raised);
+  border-bottom: 1px solid var(--color-border-alt);
+}
+
+.qm-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+}
+
+.qm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.875rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+}
+
+.qm-name {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.qm-name:hover {
+  color: var(--color-accent-hover);
+}
+
+.qm-role {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  text-transform: capitalize;
+}
+
+.join-form-wrap {
+  margin-top: 1rem;
+}
+
+.join-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  margin-bottom: 0.625rem;
+}
+
+.join-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.join-input {
+  flex: 1;
+  max-width: 18rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  font-family: inherit;
+  outline: none;
+}
+
+.join-input:focus {
+  border-color: var(--color-accent);
+}
+
+.join-error {
+  font-size: 0.8rem;
+  color: var(--palette-error);
+  margin-top: 0.4rem;
+}
+
+.state-msg {
+  font-size: 0.875rem;
+  color: var(--color-text-faint);
+  margin-bottom: 1rem;
+}
+
+.state-msg--error {
+  color: var(--palette-error);
+}
+
+
   padding: 4rem 0 3.5rem;
   background: var(--color-bg-warm);
 }
