@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono'
-import type { Bindings } from '../bindings'
-import type { SessionUser, SessionVariables } from '../middleware/session'
+import type { Bindings } from './bindings'
+import type { SessionUser, SessionVariables } from './middleware/session'
+import type { Db } from './lib/db'
 import { AccountRole } from '@qzr/shared'
 
 /**
@@ -12,6 +13,18 @@ export function mockSession(
 ): MiddlewareHandler<{ Bindings: Bindings; Variables: SessionVariables }> {
   return async (c, next) => {
     c.set('user', user)
+    await next()
+  }
+}
+
+/**
+ * Test-only middleware that injects a drizzle DB instance into context.
+ */
+export function mockDb(
+  db: Db,
+): MiddlewareHandler<{ Bindings: Bindings; Variables: SessionVariables & { db: Db } }> {
+  return async (c, next) => {
+    c.set('db', db)
     await next()
   }
 }
