@@ -6,6 +6,7 @@ import type { SessionVariables } from './middleware/session'
 import { sessionMiddleware } from './middleware/session'
 import { health } from './routes/health'
 import { meets } from './routes/meets'
+import { join } from './routes/join'
 import { createAuth } from './lib/auth'
 
 const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
@@ -29,5 +30,6 @@ app.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) => createAuth(c.env).handl
 // Session middleware for all /api/* routes (except auth, handled above)
 app.use('/api/*', sessionMiddleware())
 app.route('/api/meets', meets)
+app.route('/api/join', join)
 
 export default app
