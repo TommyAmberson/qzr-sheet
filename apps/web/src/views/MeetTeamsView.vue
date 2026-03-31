@@ -71,6 +71,15 @@ const dragOverContainer = ref<number | null | undefined>(undefined)
 // Ordered quizzer lists — keys are teamId or 'pool'
 const quizzerOrder = ref<Record<string, number[]>>({})
 
+// Draft: committed snapshot for diff-based save
+interface Snapshot {
+  quizzers: Quizzer[]
+  assignments: Record<number, number | null>
+}
+const committed = ref<Snapshot>({ quizzers: [], assignments: {} })
+const saving = ref(false)
+const saveError = ref('')
+
 function orderedQuizzersForTeam(teamId: number): Quizzer[] {
   const order = quizzerOrder.value[String(teamId)] ?? []
   return order
@@ -84,6 +93,30 @@ function orderedUnassigned(): Quizzer[] {
     .map((id) => allQuizzers.value.find((q) => q.quizzerId === id))
     .filter((q): q is Quizzer => q !== undefined)
 }
+
+function takeSnapshot() {
+  committed.value = {
+    quizzers: allQuizzers.value.filter((q) => q.quizzerId > 0).map((q) => ({ ...q })),
+    assignments: { ...assignments.value },
+  }
+}
+
+const isDirty = computed(() => {
+  const snap = committed.value
+  // New quizzers (temp ids)
+  if (allQuizzers.value.some((q) => q.quizzerId < 0)) return true
+  // Removed quizzers
+  if (snap.quizzers.some((sq) => !allQuizzers.value.find((q) => q.quizzerId === sq.quizzerId)))
+    return true
+  // Assignment or name changes
+  for (const q of allQuizzers.value) {
+    if (q.quizzerId < 0) continue
+    if (assignments.value[q.quizzerId] !== snap.assignments[q.quizzerId]) return true
+    const orig = snap.quizzers.find((sq) => sq.quizzerId === q.quizzerId)
+    if (orig && orig.name !== q.name) return true
+  }
+  return false
+})
 
 // ---- Derived ----
 
@@ -154,11 +187,13 @@ async function load() {
 }
 
 async function selectChurch(churchId: number) {
+  if (isDirty.value && !confirm('You have unsaved changes. Discard them?')) return
   selectedChurchId.value = churchId
   teams.value = []
   allQuizzers.value = []
   assignments.value = {}
   quizzerOrder.value = { pool: [] }
+  saveError.value = ''
 
   const teamRes = await listTeams(churchId)
   teams.value = teamRes.teams
@@ -173,6 +208,7 @@ async function selectChurch(churchId: number) {
       quizzerOrder.value[String(teamId)]!.push(q.quizzerId)
     }
   }
+  takeSnapshot()
 }
 
 function startRename(quizzerId: number, name: string) {
@@ -252,25 +288,21 @@ async function submitEditTeam(teamId: number) {
   }
 }
 
-// ---- Quizzer actions ----
-
-async function submitAddQuizzer(teamId: number) {
-  if (!newQuizzerName.value.trim()) return
-  addQuizzerError.value = ''
-  try {
-    const res = await addQuizzer(teamId, newQuizzerName.value.trim())
-    allQuizzers.value.push(res.quizzer)
-    assignments.value[res.quizzer.quizzerId] = teamId
-    quizzerOrder.value[String(teamId)] ??= []
-    quizzerOrder.value[String(teamId)]!.push(res.quizzer.quizzerId)
-    newQuizzerName.value = ''
-    addingQuizzerTeamId.value = null
-  } catch (e) {
-    addQuizzerError.value = (e as Error).message
-  }
-}
+// ---- Quizzer actions (all local — saved as a batch via saveDraft) ----
 
 let tempId = -1
+
+function submitAddQuizzer(teamId: number) {
+  if (!newQuizzerName.value.trim()) return
+  const q: Quizzer = { quizzerId: tempId--, name: newQuizzerName.value.trim() }
+  allQuizzers.value.push(q)
+  assignments.value[q.quizzerId] = teamId
+  quizzerOrder.value[String(teamId)] ??= []
+  quizzerOrder.value[String(teamId)]!.push(q.quizzerId)
+  newQuizzerName.value = ''
+  addingQuizzerTeamId.value = null
+}
+
 function submitAddUnassigned() {
   if (!newQuizzerName.value.trim()) return
   const q: Quizzer = { quizzerId: tempId--, name: newQuizzerName.value.trim() }
@@ -282,43 +314,114 @@ function submitAddUnassigned() {
   addingQuizzerTeamId.value = null
 }
 
-async function submitRename(teamId: number | null, quizzerId: number) {
+function submitRename(_teamId: number | null, quizzerId: number) {
   if (!renameValue.value.trim()) {
     renamingQuizzerId.value = null
     return
   }
-  if (teamId === null) {
-    const q = allQuizzers.value.find((q) => q.quizzerId === quizzerId)
-    if (q) q.name = renameValue.value.trim()
-    renamingQuizzerId.value = null
-    return
-  }
+  const q = allQuizzers.value.find((q) => q.quizzerId === quizzerId)
+  if (q) q.name = renameValue.value.trim()
+  renamingQuizzerId.value = null
+}
+
+function handleRemoveQuizzer(teamId: number | null, quizzerId: number) {
+  const key = teamId === null ? 'pool' : String(teamId)
+  allQuizzers.value = allQuizzers.value.filter((q) => q.quizzerId !== quizzerId)
+  delete assignments.value[quizzerId]
+  quizzerOrder.value[key] = (quizzerOrder.value[key] ?? []).filter((id) => id !== quizzerId)
+}
+
+// ---- Save draft ----
+
+async function saveDraft() {
+  saving.value = true
+  saveError.value = ''
   try {
-    const res = await updateQuizzer(teamId, quizzerId, renameValue.value.trim())
-    const q = allQuizzers.value.find((q) => q.quizzerId === quizzerId)
-    if (q) q.name = res.quizzer.name
-    renamingQuizzerId.value = null
-  } catch (_e) {
-    // keep open on error
+    const snap = committed.value
+
+    // Removed quizzers (existed before, gone now)
+    const removed = snap.quizzers.filter(
+      (sq) => !allQuizzers.value.find((q) => q.quizzerId === sq.quizzerId),
+    )
+    for (const sq of removed) {
+      const prevTeamId = snap.assignments[sq.quizzerId] ?? null
+      if (prevTeamId !== null) await removeQuizzer(prevTeamId, sq.quizzerId)
+    }
+
+    // Existing quizzers — detect renames and assignment changes
+    for (const q of allQuizzers.value) {
+      if (q.quizzerId < 0) continue // new, handled below
+      const origAssignment = snap.assignments[q.quizzerId] ?? null
+      const newAssignment = assignments.value[q.quizzerId] ?? null
+      const orig = snap.quizzers.find((sq) => sq.quizzerId === q.quizzerId)
+      const nameChanged = orig && orig.name !== q.name
+
+      if (origAssignment !== newAssignment) {
+        // Move between team/pool — remove from old team, add to new
+        if (origAssignment !== null) await removeQuizzer(origAssignment, q.quizzerId)
+        if (newAssignment !== null) {
+          const res = await addQuizzer(newAssignment, q.name)
+          // Patch in the server-assigned id
+          const idx = allQuizzers.value.findIndex((x) => x.quizzerId === q.quizzerId)
+          if (idx !== -1) allQuizzers.value[idx] = res.quizzer
+          const toKey = String(newAssignment)
+          quizzerOrder.value[toKey] = (quizzerOrder.value[toKey] ?? []).map((id) =>
+            id === q.quizzerId ? res.quizzer.quizzerId : id,
+          )
+          assignments.value[res.quizzer.quizzerId] = newAssignment
+          delete assignments.value[q.quizzerId]
+        }
+      } else if (nameChanged && newAssignment !== null) {
+        await updateQuizzer(newAssignment, q.quizzerId, q.name)
+      }
+    }
+
+    // New quizzers (temp ids < 0)
+    const newOnes = allQuizzers.value.filter((q) => q.quizzerId < 0)
+    for (const q of newOnes) {
+      const teamId = assignments.value[q.quizzerId] ?? null
+      if (teamId !== null) {
+        const res = await addQuizzer(teamId, q.name)
+        const idx = allQuizzers.value.findIndex((x) => x.quizzerId === q.quizzerId)
+        if (idx !== -1) allQuizzers.value[idx] = res.quizzer
+        const toKey = String(teamId)
+        quizzerOrder.value[toKey] = (quizzerOrder.value[toKey] ?? []).map((id) =>
+          id === q.quizzerId ? res.quizzer.quizzerId : id,
+        )
+        assignments.value[res.quizzer.quizzerId] = teamId
+        delete assignments.value[q.quizzerId]
+      }
+      // new unassigned quizzers: no API backing yet; just drop them silently
+      // (the pool has no team to persist to)
+    }
+    // Drop any lingering temp-id unassigned entries
+    allQuizzers.value = allQuizzers.value.filter((q) => q.quizzerId > 0)
+    quizzerOrder.value['pool'] = (quizzerOrder.value['pool'] ?? []).filter((id) => id > 0)
+
+    takeSnapshot()
+  } catch (e) {
+    saveError.value = (e as Error).message
+  } finally {
+    saving.value = false
   }
 }
 
-async function handleRemoveQuizzer(teamId: number | null, quizzerId: number) {
-  const key = teamId === null ? 'pool' : String(teamId)
-  if (teamId === null) {
-    allQuizzers.value = allQuizzers.value.filter((q) => q.quizzerId !== quizzerId)
-    delete assignments.value[quizzerId]
-    quizzerOrder.value[key] = (quizzerOrder.value[key] ?? []).filter((id) => id !== quizzerId)
-    return
+function discardDraft() {
+  if (!confirm('Discard all unsaved changes?')) return
+  const snap = committed.value
+  allQuizzers.value = snap.quizzers.map((q) => ({ ...q }))
+  assignments.value = { ...snap.assignments }
+  // Rebuild quizzerOrder from snapshot
+  const newOrder: Record<string, number[]> = { pool: [] }
+  for (const t of teams.value) newOrder[String(t.id)] = []
+  for (const q of allQuizzers.value) {
+    const teamId = assignments.value[q.quizzerId] ?? null
+    const key = teamId === null ? 'pool' : String(teamId)
+    newOrder[key] ??= []
+    newOrder[key]!.push(q.quizzerId)
   }
-  try {
-    await removeQuizzer(teamId, quizzerId)
-    allQuizzers.value = allQuizzers.value.filter((q) => q.quizzerId !== quizzerId)
-    delete assignments.value[quizzerId]
-    quizzerOrder.value[key] = (quizzerOrder.value[key] ?? []).filter((id) => id !== quizzerId)
-  } catch (e) {
-    alert((e as Error).message)
-  }
+  quizzerOrder.value = newOrder
+  saveError.value = ''
 }
 
 // ---- Drag & drop ----
@@ -370,7 +473,7 @@ function reorderLocally(
   quizzerOrder.value[toKey] = to
 }
 
-async function onDrop(toTeamId: number | null) {
+function onDrop(toTeamId: number | null) {
   if (!dragging.value) return
   const { quizzerId, fromTeamId } = dragging.value
   const insertBefore = dragOverQuizzerId.value
@@ -389,46 +492,9 @@ async function onDrop(toTeamId: number | null) {
     return
   }
 
-  // Moving between containers — optimistic update
+  // Moving between containers — local only, saved on Save
   assignments.value[quizzerId] = toTeamId
   reorderLocally(quizzerId, fromKey, toKey, insertBefore)
-
-  try {
-    if (fromTeamId !== null && toTeamId !== null) {
-      await removeQuizzer(fromTeamId, quizzerId)
-      const q = allQuizzers.value.find((q) => q.quizzerId === quizzerId)!
-      const res = await addQuizzer(toTeamId, q.name)
-      const idx = allQuizzers.value.findIndex((q) => q.quizzerId === quizzerId)
-      if (idx !== -1) allQuizzers.value[idx] = res.quizzer
-      // id may change after re-add; patch order and assignment
-      if (res.quizzer.quizzerId !== quizzerId) {
-        quizzerOrder.value[toKey] = (quizzerOrder.value[toKey] ?? []).map((id) =>
-          id === quizzerId ? res.quizzer.quizzerId : id,
-        )
-        assignments.value[res.quizzer.quizzerId] = toTeamId
-        delete assignments.value[quizzerId]
-      }
-    } else if (fromTeamId !== null && toTeamId === null) {
-      await removeQuizzer(fromTeamId, quizzerId)
-    } else if (fromTeamId === null && toTeamId !== null) {
-      const q = allQuizzers.value.find((q) => q.quizzerId === quizzerId)!
-      const res = await addQuizzer(toTeamId, q.name)
-      const idx = allQuizzers.value.findIndex((q) => q.quizzerId === quizzerId)
-      if (idx !== -1) allQuizzers.value[idx] = res.quizzer
-      if (res.quizzer.quizzerId !== quizzerId) {
-        quizzerOrder.value[toKey] = (quizzerOrder.value[toKey] ?? []).map((id) =>
-          id === quizzerId ? res.quizzer.quizzerId : id,
-        )
-        assignments.value[res.quizzer.quizzerId] = toTeamId
-        delete assignments.value[quizzerId]
-      }
-    }
-  } catch (e) {
-    // Roll back
-    assignments.value[quizzerId] = fromTeamId
-    reorderLocally(quizzerId, toKey, fromKey, null)
-    alert((e as Error).message)
-  }
 }
 </script>
 
@@ -471,6 +537,20 @@ async function onDrop(toTeamId: number | null) {
         <p v-if="!canEditSelected" class="notice">
           You can view {{ selectedChurch.name }}’s roster but only their coach can make changes.
         </p>
+
+        <!-- Draft save bar -->
+        <div v-if="canEditSelected && isDirty" class="draft-bar">
+          <span class="draft-bar-label">Unsaved changes</span>
+          <p v-if="saveError" class="draft-bar-error">{{ saveError }}</p>
+          <div class="draft-bar-actions">
+            <button class="btn btn--ghost btn--sm" :disabled="saving" @click="discardDraft">
+              Discard
+            </button>
+            <button class="btn btn--primary btn--sm" :disabled="saving" @click="saveDraft">
+              {{ saving ? 'Saving…' : 'Save' }}
+            </button>
+          </div>
+        </div>
 
         <div class="roster-layout">
           <!-- Unassigned pool -->
@@ -1288,5 +1368,33 @@ async function onDrop(toTeamId: number | null) {
 
 .field-input:focus {
   border-color: var(--color-accent);
+}
+
+.draft-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.draft-bar-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  flex: 1;
+}
+
+.draft-bar-error {
+  font-size: 0.75rem;
+  color: var(--palette-error);
+}
+
+.draft-bar-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
 }
 </style>
