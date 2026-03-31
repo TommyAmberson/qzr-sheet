@@ -33,38 +33,9 @@ Optional items that can happen any time, independent of Phase 4.
 See `docs/auth-proposal.md` for the full design — architecture, API stack, security, data model, and
 OAuth flows.
 
-### 4.0 Monorepo conversion
+### 4.0 Monorepo conversion ✓
 
-Restructure the repo into a pnpm workspace monorepo before adding new packages.
-
-#### Move under `apps/scoresheet/`
-
-* `src/`, `public/`, `index.html`
-* `vite.config.ts`, `vitest.config.ts`, `pwa-assets.config.ts`
-* `tsconfig.app.json`, `tsconfig.vitest.json`
-* `src-tauri/` (relative paths in `tauri.conf.json` updated accordingly)
-* Own `package.json` with the app's dependencies
-
-#### Stay at root
-
-* `package.json` (workspace root — scripts, shared devDependencies)
-* `pnpm-workspace.yaml` (new)
-* `eslint.config.ts`, `.prettierrc.json`, `commitlint.config.js` (shared tooling)
-* `tsconfig.json`, `tsconfig.node.json` (base configs that packages extend)
-* `.github/` (workflows updated for new paths)
-* `docs/`, `ROADMAP.md`, `README.md`
-
-#### Scaffold new packages
-
-* `packages/shared/` — `package.json`, `tsconfig.json`, extract `QuizFile` schema and shared types
-* `packages/api/` — `package.json`, `tsconfig.json`, `wrangler.toml`, minimal Hono app
-* `apps/web/` — placeholder for the portal
-
-#### Config updates
-
-* `tauri.conf.json` — `$schema` path, `beforeDevCommand`, `beforeBuildCommand`, `frontendDist`
-* CI workflows — `working-directory` for build steps, updated deploy paths
-* Root `package.json` — workspace scripts (e.g. `pnpm --filter scoresheet dev`)
+Restructured the repo into a pnpm workspace monorepo.
 
 ### 4.1 Website / landing page ✓
 
@@ -80,7 +51,7 @@ Hono on Cloudflare Workers with D1 and Drizzle. `packages/shared` extracts the Q
 schema and role enums so the API can consume them without depending on the scoresheet.
 `packages/api` has a typed Bindings interface, CORS + logger middleware, `GET /health`, and the full
 Drizzle schema covering all tables from the data model. First D1 migration generated and committed.
-Deploy target: `www.versevault.ca/api/`.
+Worker is routed at `www.versevault.ca/api/*` (same origin as the web app — no CORS in production).
 
 ### 4.3 Authentication ✓
 
