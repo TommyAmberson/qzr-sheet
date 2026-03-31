@@ -52,10 +52,6 @@ const newTeamDivision = ref('')
 const createTeamError = ref('')
 const duplicateTeamWarning = ref('')
 
-// Team division edit
-const editingTeamId = ref<number | null>(null)
-const editTeamDivision = ref('')
-
 // Quizzer add
 const addingQuizzerTeamId = ref<number | null>(null) // -1 = unassigned pool
 const newQuizzerName = ref('')
@@ -224,21 +220,11 @@ async function submitCreateTeam() {
   }
 }
 
-function startEditTeam(team: Team) {
-  editingTeamId.value = team.id
-  editTeamDivision.value = team.division
-}
-
 async function submitEditTeam(teamId: number) {
-  if (!editTeamDivision.value.trim()) {
-    editingTeamId.value = null
-    return
-  }
+  const t = teams.value.find((t) => t.id === teamId)
+  if (!t) return
   try {
-    const res = await updateTeam(teamId, { division: editTeamDivision.value.trim() })
-    const t = teams.value.find((t) => t.id === teamId)
-    if (t && res.team) t.division = res.team.division
-    editingTeamId.value = null
+    await updateTeam(teamId, { division: t.division })
   } catch (e) {
     alert((e as Error).message)
   }
@@ -507,25 +493,15 @@ async function onDrop(toTeamId: number | null) {
               >
                 <div class="team-card-header">
                   <span class="team-label">{{ teamLabel(team) }}</span>
+                  <span class="div-label">Div</span>
                   <select
-                    v-if="editingTeamId === team.id"
-                    v-model="editTeamDivision"
+                    v-model="team.division"
                     class="division-select"
-                    autofocus
+                    :disabled="!canEditSelected"
                     @change="submitEditTeam(team.id)"
-                    @blur="submitEditTeam(team.id)"
-                    @keyup.escape="editingTeamId = null"
                   >
                     <option v-for="div in meet.divisions" :key="div" :value="div">{{ div }}</option>
                   </select>
-                  <span
-                    v-else
-                    class="division-pill"
-                    :class="{ 'division-pill--editable': canEditSelected }"
-                    :title="canEditSelected ? 'Click to change division' : undefined"
-                    @click="canEditSelected && startEditTeam(team)"
-                    >Div {{ team.division }}</span
-                  >
                   <span class="team-count">{{ quizzersForTeam(team.id).length }}</span>
                 </div>
 
@@ -888,46 +864,6 @@ async function onDrop(toTeamId: number | null) {
   margin-bottom: 0.4rem;
 }
 
-.team-label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  flex-shrink: 0;
-}
-
-.division-pill {
-  font-size: 0.7rem;
-  padding: 0.15rem 0.45rem;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border-alt);
-  border-radius: 99px;
-  color: var(--color-text-muted);
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.division-pill--editable {
-  cursor: pointer;
-}
-.division-pill--editable:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
-.division-select {
-  flex: 1;
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-accent);
-  border-radius: 4px;
-  padding: 0.15rem 0.3rem;
-  font-size: 0.75rem;
-  font-family: inherit;
-  color: var(--color-text);
-  outline: none;
-}
-
 .team-count {
   font-size: 0.7rem;
   color: var(--color-text-faint);
@@ -935,6 +871,41 @@ async function onDrop(toTeamId: number | null) {
   border-radius: 999px;
   padding: 0 0.4rem;
   flex-shrink: 0;
+  margin-left: auto;
+}
+
+.team-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  flex-shrink: 0;
+}
+
+.div-label {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  flex-shrink: 0;
+}
+
+.division-select {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  padding: 0 0.1rem;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: var(--color-text-muted);
+  outline: none;
+  cursor: pointer;
+  max-width: 5rem;
+}
+
+.division-select:disabled {
+  cursor: default;
+  opacity: 1;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .quizzer-list {
