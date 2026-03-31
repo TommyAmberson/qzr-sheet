@@ -240,7 +240,7 @@ describe('POST /api/join/guest', () => {
       expect(body.role).toBe(MeetRole.Viewer)
 
       // Verify the JWT
-      const payload = await verifyGuestJwt(body.token, 'test-secret-at-least-32-characters-long')
+      const payload = await verifyGuestJwt(body.token!, 'test-secret-at-least-32-characters-long')
       expect(payload).not.toBeNull()
       expect(payload!.meetId).toBe(meet.id)
       expect(payload!.role).toBe(MeetRole.Viewer)
@@ -261,7 +261,7 @@ describe('POST /api/join/guest', () => {
       expect(body.role).toBe(MeetRole.Official)
       expect(body.label).toBe('Room B')
 
-      const payload = await verifyGuestJwt(body.token, 'test-secret-at-least-32-characters-long')
+      const payload = await verifyGuestJwt(body.token!, 'test-secret-at-least-32-characters-long')
       expect(payload).not.toBeNull()
       expect(payload!.meetId).toBe(meet.id)
       expect(payload!.role).toBe(MeetRole.Official)
