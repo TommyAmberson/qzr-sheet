@@ -11,7 +11,7 @@
     "pwa-icons": "cp src-tauri/icons/icon.png public/icon.png && pwa-assets-generator --config pwa-assets.config.ts && rm public/icon.png",
     "build:web": "pnpm pwa-icons && run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
-    "test:unit": "vitest",
+    "test:unit": "vitest run",
     "build-only": "vite build",
     "type-check": "vue-tsc --build"
   },
