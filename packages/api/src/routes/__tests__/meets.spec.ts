@@ -37,8 +37,8 @@ describe('meet CRUD', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
 
-  beforeEach(() => {
-    db = createTestDb()
+  beforeEach(async () => {
+    db = await createTestDb()
     app = createApp(testAdmin, db)
   })
 
@@ -182,8 +182,8 @@ describe('coach code rotation', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
 
-  beforeEach(() => {
-    db = createTestDb()
+  beforeEach(async () => {
+    db = await createTestDb()
     app = createApp(testAdmin, db)
   })
 
@@ -218,7 +218,7 @@ describe('official codes', () => {
   let meetId: number
 
   beforeEach(async () => {
-    db = createTestDb()
+    db = await createTestDb()
     app = createApp(testAdmin, db)
 
     const createRes = await app.request(
@@ -318,14 +318,14 @@ describe('official codes', () => {
 
 describe('auth guards', () => {
   it('rejects unauthenticated requests with 401', async () => {
-    const db = createTestDb()
+    const db = await createTestDb()
     const app = createApp(null, db)
     const res = await app.request('/api/meets', {}, env)
     expect(res.status).toBe(401)
   })
 
   it('rejects non-admin users with 403', async () => {
-    const db = createTestDb()
+    const db = await createTestDb()
     const app = createApp(testUser, db)
     const res = await app.request('/api/meets', {}, env)
     expect(res.status).toBe(403)

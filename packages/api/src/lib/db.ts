@@ -7,5 +7,5 @@ export function createDb(d1: D1Database) {
   return drizzle(d1, { schema })
 }
 
-/** DB type compatible with both D1 and better-sqlite3 drizzle instances */
-export type Db = BaseSQLiteDatabase<'async', unknown, typeof schema>
+/** DB type compatible with both D1 (async) and sql.js (sync) drizzle instances */
+export type Db = BaseSQLiteDatabase<'async' | 'sync', unknown, typeof schema>

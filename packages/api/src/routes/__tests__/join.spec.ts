@@ -69,8 +69,8 @@ describe('POST /api/join', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
 
-  beforeEach(() => {
-    db = createTestDb()
+  beforeEach(async () => {
+    db = await createTestDb()
     app = createApp(testUser, db)
   })
 
@@ -201,8 +201,8 @@ describe('POST /api/join/guest', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
 
-  beforeEach(() => {
-    db = createTestDb()
+  beforeEach(async () => {
+    db = await createTestDb()
     // Guest endpoint doesn't require auth — pass null
     app = createApp(null, db)
   })

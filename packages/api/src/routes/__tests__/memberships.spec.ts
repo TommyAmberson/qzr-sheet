@@ -39,8 +39,8 @@ describe('GET /api/my-meets', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
 
-  beforeEach(() => {
-    db = createTestDb()
+  beforeEach(async () => {
+    db = await createTestDb()
     app = createApp(testUser, db)
   })
 

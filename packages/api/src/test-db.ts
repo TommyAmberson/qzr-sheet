@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
+import initSqlJs from 'sql.js'
+import { drizzle } from 'drizzle-orm/sql-js'
 import type { Db } from './lib/db'
 import * as schema from './db/schema'
 
@@ -7,13 +7,14 @@ import * as schema from './db/schema'
  * Create a fresh in-memory SQLite database with all tables.
  * Returns a drizzle instance compatible with the Db type.
  */
-export function createTestDb(): Db {
-  const sqlite = new Database(':memory:')
-  sqlite.pragma('journal_mode = WAL')
-  sqlite.pragma('foreign_keys = ON')
+export async function createTestDb(): Promise<Db> {
+  const SQL = await initSqlJs()
+  const sqlite = new SQL.Database()
+
+  sqlite.run('PRAGMA foreign_keys = ON')
 
   // Create all tables from the final schema state
-  sqlite.exec(`
+  sqlite.run(`
     CREATE TABLE user (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
