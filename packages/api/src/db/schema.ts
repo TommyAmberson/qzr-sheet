@@ -1,5 +1,5 @@
 import { integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
-import { AccountRole, MeetRole } from '@qzr/shared'
+import { AccountRole } from '@qzr/shared'
 
 // ---- Accounts ----
 
