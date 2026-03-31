@@ -42,8 +42,10 @@ const error = ref('')
 const myCoachChurchIds = ref<Set<number>>(new Set())
 const isSuperuserOrAdmin = ref(false)
 
+const POOL_SENTINEL = Infinity
+
 // Quizzer add
-const addingQuizzerTeamId = ref<number | null>(null) // -1 = unassigned pool
+const addingQuizzerTeamId = ref<number | null>(null) // POOL_SENTINEL = unassigned pool
 const newQuizzerName = ref('')
 const addQuizzerError = ref('')
 
@@ -244,7 +246,7 @@ function startRename(quizzerId: number, name: string) {
 }
 
 function startAddToPool() {
-  addingQuizzerTeamId.value = -1
+  addingQuizzerTeamId.value = POOL_SENTINEL
   newQuizzerName.value = ''
 }
 
@@ -676,7 +678,7 @@ function onTeamDrop(toTeamId: number) {
 
           <template v-if="canEditChurch">
             <form
-              v-if="addingQuizzerTeamId === -1"
+              v-if="addingQuizzerTeamId === POOL_SENTINEL"
               class="inline-add"
               @submit.prevent="submitAddUnassigned"
             >
