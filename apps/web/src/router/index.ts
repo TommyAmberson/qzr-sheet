@@ -7,36 +7,27 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: HomeView },
     {
-      path: '/coach',
+      path: '/meets/:id',
       meta: { requiresAuth: true },
       children: [
         {
-          path: 'meets',
-          name: 'coach-meets',
-          component: () => import('../views/CoachMeetsView.vue'),
-        },
-        {
-          path: 'meets/:id',
-          name: 'coach-meet',
-          component: () => import('../views/CoachMeetView.vue'),
+          path: '',
+          name: 'meet',
+          component: () => import('../views/QuizMeetView.vue'),
           props: (route) => ({ id: Number(route.params.id) }),
         },
-      ],
-    },
-    {
-      path: '/admin',
-      redirect: '/admin/meets',
-      meta: { requiresAdmin: true },
-      children: [
         {
-          path: 'meets',
-          name: 'admin-meets',
-          component: () => import('../views/AdminMeetsView.vue'),
+          path: 'admin',
+          name: 'meet-admin',
+          meta: { requiresAdmin: true },
+          component: () => import('../views/MeetAdminView.vue'),
+          props: (route) => ({ id: Number(route.params.id) }),
         },
         {
-          path: 'meets/:id',
-          name: 'admin-meet-detail',
-          component: () => import('../views/AdminMeetDetailView.vue'),
+          path: 'teams',
+          name: 'meet-teams',
+          meta: { requiresCoach: true },
+          component: () => import('../views/MeetTeamsView.vue'),
           props: (route) => ({ id: Number(route.params.id) }),
         },
       ],
@@ -45,14 +36,24 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  if (!to.matched.some((r) => r.meta.requiresAuth || r.meta.requiresAdmin)) return true
+  const needsAuth = to.matched.some(
+    (r) => r.meta.requiresAuth || r.meta.requiresAdmin || r.meta.requiresCoach,
+  )
+  if (!needsAuth) return true
 
   const { data } = await authClient.getSession()
   if (!data?.user) return { name: 'home' }
 
+  const accountRole = (data.user as Record<string, unknown>).role
+
   if (to.matched.some((r) => r.meta.requiresAdmin)) {
-    const role = (data.user as Record<string, unknown>).role
-    if (role !== 'admin') return { name: 'home' }
+    if (accountRole !== 'admin') return { name: 'meet', params: to.params }
+  }
+
+  if (to.matched.some((r) => r.meta.requiresCoach)) {
+    // coaches and admins can access team management
+    if (accountRole !== 'admin' && accountRole !== 'normal')
+      return { name: 'meet', params: to.params }
   }
 
   return true
