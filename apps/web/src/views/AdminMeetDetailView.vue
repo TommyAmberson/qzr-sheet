@@ -22,7 +22,7 @@ const error = ref('')
 
 // Editing meet fields
 const editing = ref(false)
-const editForm = ref({ name: '', dateFrom: '', dateTo: '', viewerCode: '' })
+const editForm = ref({ name: '', dateFrom: '', dateTo: '', viewerCode: '', divisionsRaw: '' })
 const saving = ref(false)
 const saveError = ref('')
 
@@ -55,6 +55,7 @@ function startEdit() {
     dateFrom: meet.value.dateFrom,
     dateTo: meet.value.dateTo ?? '',
     viewerCode: meet.value.viewerCode,
+    divisionsRaw: meet.value.divisions.join(', '),
   }
   editing.value = true
 }
@@ -64,7 +65,11 @@ async function saveEdit() {
   saveError.value = ''
   saving.value = true
   try {
-    const res = await updateMeet(meet.value.id, editForm.value)
+    const divisions = editForm.value.divisionsRaw
+      .split(',')
+      .map((d) => d.trim())
+      .filter(Boolean)
+    const res = await updateMeet(meet.value.id, { ...editForm.value, divisions })
     meet.value = res.meet
     editing.value = false
   } catch (e) {
@@ -145,10 +150,11 @@ onMounted(load)
       <div class="page-header">
         <div v-if="!editing" class="meet-info">
           <h2 class="page-title">{{ meet.name }}</h2>
-          <span class="meet-date"
-            >{{ meet.dateFrom
-            }}{{ meet.dateTo && meet.dateTo !== meet.dateFrom ? ` – ${meet.dateTo}` : '' }}</span
-          >
+          <span class="meet-date">
+            {{ meet.dateFrom
+            }}{{ meet.dateTo && meet.dateTo !== meet.dateFrom ? ` – ${meet.dateTo}` : '' }}
+          </span>
+          <span class="meet-divisions">{{ meet.divisions.join(', ') }}</span>
         </div>
         <form v-else class="edit-form" @submit.prevent="saveEdit">
           <input v-model="editForm.name" class="field-input" placeholder="Name" required />
@@ -163,6 +169,12 @@ onMounted(load)
             v-model="editForm.viewerCode"
             class="field-input"
             placeholder="Viewer code"
+            required
+          />
+          <input
+            v-model="editForm.divisionsRaw"
+            class="field-input"
+            placeholder="Divisions (e.g. Div 1, Div 2, Div 3)"
             required
           />
           <p v-if="saveError" class="field-error">{{ saveError }}</p>
@@ -306,6 +318,11 @@ onMounted(load)
 }
 
 .meet-date {
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+}
+
+.meet-divisions {
   font-size: 0.8rem;
   color: var(--color-text-faint);
 }

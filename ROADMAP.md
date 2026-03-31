@@ -106,18 +106,23 @@ users. Router guard redirects non-admins to home.
 
 Remaining admin work is tracked in **4.8** and **4.9** below.
 
-### 4.6 Coach flow
+### 4.6 Coach flow ✓ (in progress)
 
 Coaches join a meet with their coach code, then register their church(es), build team rosters, and
 link quizzers to historical identities for cross-meet career stats.
 
-* `POST /api/meets/:id/churches` — create a church for this meet
+* `GET /api/meets/:id/churches` — list churches for the meet (coach sees own; admin sees all)
+* `POST /api/meets/:id/churches` — create a church for this meet (coach-authed)
+* `GET /api/churches/:id/teams` — list teams under a church
 * `POST /api/churches/:id/teams` — create a team under a church
-* `POST /api/teams/:id/quizzers` — add a quizzer to a team roster; server suggests historical
-  identity matches ranked by recency and church affiliation
-* `PATCH /api/teams/:id/quizzers/:quizzerId` — update name or link to a different identity
-* Portal views: church/team/quizzer management forms; identity linking UI with warnings (church
-  change, already rostered, low-confidence name match)
+* `GET /api/teams/:id/quizzers` — list roster entries for a team
+* `POST /api/teams/:id/quizzers` — add a quizzer; server creates or reuses a `QuizzerIdentity`
+* `PATCH /api/teams/:id/quizzers/:quizzerId` — update display name
+* `DELETE /api/teams/:id/quizzers/:quizzerId` — remove from roster
+* Portal views: `CoachMeetView` (my meets list + join form), `CoachChurchView` (church/team/quizzer
+  management), inline create forms for churches, teams, and quizzers
+
+Identity linking (name-match suggestions, church-change warnings) deferred to a follow-up.
 
 ### 4.7 Admin: schedule and draw
 

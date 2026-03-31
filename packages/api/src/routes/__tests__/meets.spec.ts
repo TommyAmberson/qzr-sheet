@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { MeetsVariables } from '../meets'
 import { meets } from '../meets'
-import { mockSession, mockDb, testAdmin, testUser } from '../../test-utils'
+import { mockSession, mockDb, testAdmin, testUser, jsonOf } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 
@@ -33,6 +33,22 @@ function patch(body: Record<string, unknown>) {
   }
 }
 
+type MeetBody = {
+  meet: {
+    id: number
+    name: string
+    dateFrom: string
+    dateTo: string | null
+    viewerCode: string
+    divisions: string[]
+  }
+  coachCode?: string
+}
+type MeetsBody = { meets: MeetBody['meet'][] }
+type MeetDetailBody = { meet: MeetBody['meet']; officialCodes: { id: number; label: string }[] }
+type OfficialCodeBody = { officialCode: { id: number; label: string }; code: string }
+type CoachCodeBody = { coachCode: string }
+
 describe('meet CRUD', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
@@ -51,18 +67,19 @@ describe('meet CRUD', () => {
           dateFrom: '2025-10-14',
           dateTo: '2025-10-15',
           viewerCode: 'fall-2025',
+          divisions: ['Div 1', 'Div 2'],
         }),
         env,
       )
       expect(res.status).toBe(201)
-      const body = await res.json()
+      const body = await jsonOf<MeetBody>(res)
       expect(body.meet.name).toBe('Fall Classic')
       expect(body.meet.dateFrom).toBe('2025-10-14')
       expect(body.meet.dateTo).toBe('2025-10-15')
       expect(body.meet.viewerCode).toBe('fall-2025')
       expect(body.meet.id).toBeTypeOf('number')
       expect(body.coachCode).toBeTypeOf('string')
-      expect(body.coachCode.length).toBeGreaterThanOrEqual(16)
+      expect(body.coachCode!.length).toBeGreaterThanOrEqual(16)
     })
 
     it('rejects missing fields with 400', async () => {
@@ -78,11 +95,12 @@ describe('meet CRUD', () => {
           dateFrom: ' 2025-01-01 ',
           dateTo: ' 2025-01-02 ',
           viewerCode: ' slug ',
+          divisions: ['Div 1'],
         }),
         env,
       )
       expect(res.status).toBe(201)
-      const body = await res.json()
+      const body = await jsonOf<MeetBody>(res)
       expect(body.meet.name).toBe('Trimmed')
       expect(body.meet.dateFrom).toBe('2025-01-01')
       expect(body.meet.dateTo).toBe('2025-01-02')
@@ -94,24 +112,36 @@ describe('meet CRUD', () => {
     it('returns an empty list initially', async () => {
       const res = await app.request('/api/meets', {}, env)
       expect(res.status).toBe(200)
-      const body = await res.json()
+      const body = await jsonOf<MeetsBody>(res)
       expect(body.meets).toEqual([])
     })
 
     it('returns created meets', async () => {
       await app.request(
         '/api/meets',
-        json({ name: 'Meet 1', dateFrom: '2025-01-01', dateTo: '2025-01-02', viewerCode: 'v1' }),
+        json({
+          name: 'Meet 1',
+          dateFrom: '2025-01-01',
+          dateTo: '2025-01-02',
+          viewerCode: 'v1',
+          divisions: ['Div 1'],
+        }),
         env,
       )
       await app.request(
         '/api/meets',
-        json({ name: 'Meet 2', dateFrom: '2025-02-01', dateTo: '2025-02-02', viewerCode: 'v2' }),
+        json({
+          name: 'Meet 2',
+          dateFrom: '2025-02-01',
+          dateTo: '2025-02-02',
+          viewerCode: 'v2',
+          divisions: ['Div 1'],
+        }),
         env,
       )
 
       const res = await app.request('/api/meets', {}, env)
-      const body = await res.json()
+      const body = await jsonOf<MeetsBody>(res)
       expect(body.meets).toHaveLength(2)
       expect(body.meets.map((m: { name: string }) => m.name)).toContain('Meet 1')
       expect(body.meets.map((m: { name: string }) => m.name)).toContain('Meet 2')
@@ -127,14 +157,15 @@ describe('meet CRUD', () => {
           dateFrom: '2025-03-01',
           dateTo: '2025-03-02',
           viewerCode: 'dm',
+          divisions: ['Div 1'],
         }),
         env,
       )
-      const { meet } = await createRes.json()
+      const { meet } = (await createRes.json()) as MeetBody
 
       const res = await app.request(`/api/meets/${meet.id}`, {}, env)
       expect(res.status).toBe(200)
-      const body = await res.json()
+      const body = await jsonOf<MeetDetailBody>(res)
       expect(body.meet.name).toBe('Detail Meet')
       expect(body.officialCodes).toEqual([])
     })
@@ -149,14 +180,20 @@ describe('meet CRUD', () => {
     it('updates meet fields', async () => {
       const createRes = await app.request(
         '/api/meets',
-        json({ name: 'Old', dateFrom: '2025-01-01', dateTo: '2025-01-02', viewerCode: 'old' }),
+        json({
+          name: 'Old',
+          dateFrom: '2025-01-01',
+          dateTo: '2025-01-02',
+          viewerCode: 'old',
+          divisions: ['Div 1'],
+        }),
         env,
       )
-      const { meet } = await createRes.json()
+      const { meet } = (await createRes.json()) as MeetBody
 
       const res = await app.request(`/api/meets/${meet.id}`, patch({ name: 'New Name' }), env)
       expect(res.status).toBe(200)
-      const body = await res.json()
+      const body = await jsonOf<MeetBody>(res)
       expect(body.meet.name).toBe('New Name')
       expect(body.meet.dateFrom).toBe('2025-01-01')
     })
@@ -181,10 +218,11 @@ describe('meet CRUD', () => {
           dateFrom: '2025-01-01',
           dateTo: '2025-01-02',
           viewerCode: 'del',
+          divisions: ['Div 1'],
         }),
         env,
       )
-      const { meet } = await createRes.json()
+      const { meet } = (await createRes.json()) as MeetBody
 
       const res = await app.request(`/api/meets/${meet.id}`, { method: 'DELETE' }, env)
       expect(res.status).toBe(200)
@@ -212,10 +250,16 @@ describe('coach code rotation', () => {
   it('returns a new coach code', async () => {
     const createRes = await app.request(
       '/api/meets',
-      json({ name: 'Rotate Test', dateFrom: '2025-01-01', dateTo: '2025-01-02', viewerCode: 'rt' }),
+      json({
+        name: 'Rotate Test',
+        dateFrom: '2025-01-01',
+        dateTo: '2025-01-02',
+        viewerCode: 'rt',
+        divisions: ['Div 1'],
+      }),
       env,
     )
-    const { meet, coachCode: oldCode } = await createRes.json()
+    const { meet, coachCode: oldCode } = (await createRes.json()) as MeetBody
 
     const res = await app.request(
       `/api/meets/${meet.id}/rotate-coach-code`,
@@ -223,7 +267,7 @@ describe('coach code rotation', () => {
       env,
     )
     expect(res.status).toBe(200)
-    const body = await res.json()
+    const body = await jsonOf<CoachCodeBody>(res)
     expect(body.coachCode).toBeTypeOf('string')
     expect(body.coachCode).not.toBe(oldCode)
   })
@@ -250,10 +294,11 @@ describe('official codes', () => {
         dateFrom: '2025-01-01',
         dateTo: '2025-01-02',
         viewerCode: 'ot',
+        divisions: ['Div 1'],
       }),
       env,
     )
-    const { meet } = await createRes.json()
+    const { meet } = (await createRes.json()) as MeetBody
     meetId = meet.id
   })
 
@@ -265,7 +310,7 @@ describe('official codes', () => {
         env,
       )
       expect(res.status).toBe(201)
-      const body = await res.json()
+      const body = await jsonOf<OfficialCodeBody>(res)
       expect(body.officialCode.label).toBe('Room A')
       expect(body.officialCode.id).toBeTypeOf('number')
       expect(body.code).toBeTypeOf('string')
@@ -290,9 +335,9 @@ describe('official codes', () => {
       await app.request(`/api/meets/${meetId}/official-codes`, json({ label: 'Room B' }), env)
 
       const res = await app.request(`/api/meets/${meetId}`, {}, env)
-      const body = await res.json()
+      const body = await jsonOf<MeetDetailBody>(res)
       expect(body.officialCodes).toHaveLength(2)
-      const labels = body.officialCodes.map((c: { label: string }) => c.label)
+      const labels = body.officialCodes.map((c) => c.label)
       expect(labels).toContain('Room A')
       expect(labels).toContain('Room B')
     })
@@ -305,7 +350,7 @@ describe('official codes', () => {
         json({ label: 'Room A' }),
         env,
       )
-      const { officialCode } = await createRes.json()
+      const { officialCode } = (await createRes.json()) as OfficialCodeBody
 
       const res = await app.request(
         `/api/meets/${meetId}/official-codes/${officialCode.id}`,
@@ -315,7 +360,7 @@ describe('official codes', () => {
       expect(res.status).toBe(200)
 
       const detailRes = await app.request(`/api/meets/${meetId}`, {}, env)
-      const body = await detailRes.json()
+      const body = await jsonOf<MeetDetailBody>(detailRes)
       expect(body.officialCodes).toHaveLength(0)
     })
   })
@@ -327,7 +372,7 @@ describe('official codes', () => {
         json({ label: 'Room A' }),
         env,
       )
-      const { officialCode, code: oldCode } = await createRes.json()
+      const { officialCode, code: oldCode } = (await createRes.json()) as OfficialCodeBody
 
       const res = await app.request(
         `/api/meets/${meetId}/official-codes/${officialCode.id}/rotate`,
@@ -335,7 +380,7 @@ describe('official codes', () => {
         env,
       )
       expect(res.status).toBe(200)
-      const body = await res.json()
+      const body = await jsonOf<OfficialCodeBody>(res)
       expect(body.code).toBeTypeOf('string')
       expect(body.code).not.toBe(oldCode)
       expect(body.officialCode.label).toBe('Room A')

@@ -7,6 +7,23 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: HomeView },
     {
+      path: '/coach',
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: 'meets',
+          name: 'coach-meets',
+          component: () => import('../views/CoachMeetsView.vue'),
+        },
+        {
+          path: 'meets/:id',
+          name: 'coach-meet',
+          component: () => import('../views/CoachMeetView.vue'),
+          props: (route) => ({ id: Number(route.params.id) }),
+        },
+      ],
+    },
+    {
       path: '/admin',
       redirect: '/admin/meets',
       meta: { requiresAdmin: true },
@@ -28,13 +45,15 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  if (!to.matched.some((r) => r.meta.requiresAdmin)) return true
+  if (!to.matched.some((r) => r.meta.requiresAuth || r.meta.requiresAdmin)) return true
 
   const { data } = await authClient.getSession()
   if (!data?.user) return { name: 'home' }
 
-  const role = (data.user as Record<string, unknown>).role
-  if (role !== 'admin') return { name: 'home' }
+  if (to.matched.some((r) => r.meta.requiresAdmin)) {
+    const role = (data.user as Record<string, unknown>).role
+    if (role !== 'admin') return { name: 'home' }
+  }
 
   return true
 })

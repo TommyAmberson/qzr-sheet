@@ -12,7 +12,8 @@ const error = ref('')
 const showCreate = ref(false)
 const creating = ref(false)
 const createError = ref('')
-const form = ref({ name: '', dateFrom: '', dateTo: '', viewerCode: '' })
+const form = ref({ name: '', dateFrom: '', dateTo: '', viewerCode: '', divisionsRaw: '' })
+
 const newCoachCode = ref('')
 
 async function load() {
@@ -30,10 +31,14 @@ async function submitCreate() {
   createError.value = ''
   creating.value = true
   try {
-    const res = await createMeet(form.value)
+    const divisions = form.value.divisionsRaw
+      .split(',')
+      .map((d) => d.trim())
+      .filter(Boolean)
+    const res = await createMeet({ ...form.value, divisions })
     newCoachCode.value = res.coachCode
     meets.value.push(res.meet)
-    form.value = { name: '', dateFrom: '', dateTo: '', viewerCode: '' }
+    form.value = { name: '', dateFrom: '', dateTo: '', viewerCode: '', divisionsRaw: '' }
   } catch (e) {
     createError.value = (e as Error).message
   } finally {
@@ -126,6 +131,17 @@ onMounted(load)
           <div class="field">
             <label class="field-label" for="viewer-code">Viewer code</label>
             <input id="viewer-code" v-model="form.viewerCode" class="field-input" required />
+          </div>
+          <div class="field">
+            <label class="field-label" for="meet-divisions">Divisions</label>
+            <input
+              id="meet-divisions"
+              v-model="form.divisionsRaw"
+              class="field-input"
+              placeholder="e.g. Div 1, Div 2, Div 3"
+              required
+            />
+            <span class="field-hint">Comma-separated</span>
           </div>
           <p v-if="createError" class="field-error">{{ createError }}</p>
           <div class="modal-actions">
@@ -222,8 +238,11 @@ onMounted(load)
   color: var(--palette-error);
 }
 
-.action-btn--danger:hover {
-  background: var(--palette-error-alt);
+.field-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  margin-top: 0.2rem;
+  display: block;
 }
 
 /* Buttons (same as HomeView) */

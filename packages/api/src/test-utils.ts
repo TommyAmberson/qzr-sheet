@@ -42,3 +42,8 @@ export const testUser: SessionUser = {
   name: 'Test User',
   role: AccountRole.Normal,
 }
+
+/** Typed wrapper around Response.json() for use in tests. */
+export async function jsonOf<T>(res: Response): Promise<T> {
+  return res.json() as Promise<T>
+}

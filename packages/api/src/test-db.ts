@@ -69,6 +69,7 @@ export async function createTestDb(): Promise<Db> {
       date_to TEXT,
       coach_code_hash TEXT NOT NULL,
       viewer_code TEXT NOT NULL,
+      divisions TEXT NOT NULL DEFAULT '[]',
       created_at INTEGER NOT NULL
     );
 

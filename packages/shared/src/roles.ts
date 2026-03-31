@@ -7,4 +7,5 @@ export enum MeetRole {
   HeadCoach = 'head_coach',
   Official = 'official',
   Viewer = 'viewer',
+  Admin = 'admin',
 }

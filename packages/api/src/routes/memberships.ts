@@ -5,7 +5,7 @@ import type { SessionVariables } from '../middleware/session'
 import { requireAuth, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import * as schema from '../db/schema'
-import { MeetRole } from '@qzr/shared'
+import { MeetRole, AccountRole } from '@qzr/shared'
 
 export interface MembershipsVariables extends SessionVariables {
   db: Db
@@ -44,6 +44,18 @@ interface MeetMembership {
 memberships.get('/', async (c) => {
   const user = getUser(c)
   const db = getDb(c)
+
+  // Admins have implicit access to all meets
+  if (user.role === AccountRole.Admin) {
+    const rows = await db.select().from(schema.quizMeets)
+    return c.json({
+      memberships: rows.map((m) => ({
+        meetId: m.id,
+        meetName: m.name,
+        role: MeetRole.Admin,
+      })),
+    })
+  }
 
   const result: MeetMembership[] = []
 

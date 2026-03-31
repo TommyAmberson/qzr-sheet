@@ -9,6 +9,7 @@ const { session, signOut } = useAuth()
 const isAdmin = computed(
   () => (session.value?.data?.user as Record<string, unknown> | undefined)?.role === 'admin',
 )
+const isSignedIn = computed(() => !!session.value?.data?.user)
 </script>
 
 <template>
@@ -19,6 +20,9 @@ const isAdmin = computed(
       </RouterLink>
       <nav class="nav">
         <RouterLink v-if="isAdmin" :to="{ name: 'admin-meets' }" class="nav-link">Admin</RouterLink>
+        <RouterLink v-if="isSignedIn" :to="{ name: 'coach-meets' }" class="nav-link"
+          >My meets</RouterLink
+        >
         <a :href="scoresheetUrl" class="nav-link">Scoresheet</a>
         <a
           href="https://github.com/TommyAmberson/qzr-sheet"

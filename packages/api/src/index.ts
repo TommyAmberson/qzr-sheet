@@ -8,6 +8,7 @@ import { health } from './routes/health'
 import { meets } from './routes/meets'
 import { join } from './routes/join'
 import { memberships } from './routes/memberships'
+import { churches } from './routes/churches'
 import { createAuth } from './lib/auth'
 
 const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
@@ -33,5 +34,6 @@ app.use('/api/*', sessionMiddleware())
 app.route('/api/meets', meets)
 app.route('/api/join', join)
 app.route('/api/my-meets', memberships)
+app.route('/api', churches)
 
 export default app

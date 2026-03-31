@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { SessionVariables } from '../session'
 import { requireAuth, requireAdmin } from '../session'
-import { mockSession, testAdmin, testUser } from '../../test-utils'
+import { mockSession, testAdmin, testUser, jsonOf } from '../../test-utils'
 
 // Minimal env stub
 const env = { ENVIRONMENT: 'test' } as unknown as Bindings
@@ -24,7 +24,7 @@ describe('requireAuth', () => {
     const app = createApp(testUser)
     const res = await app.request('/auth/profile', {}, env)
     expect(res.status).toBe(200)
-    const body = await res.json()
+    const body = await jsonOf<{ user: { id: string } }>(res)
     expect(body.user.id).toBe('user-001')
   })
 
@@ -46,7 +46,7 @@ describe('requireAdmin', () => {
     const app = createApp(testAdmin)
     const res = await app.request('/admin/dashboard', {}, env)
     expect(res.status).toBe(200)
-    const body = await res.json()
+    const body = await jsonOf<{ admin: boolean }>(res)
     expect(body.admin).toBe(true)
   })
 
