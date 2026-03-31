@@ -14,20 +14,29 @@ by permanent role assignment.
 
 Admins are provisioned out-of-band (e.g. seeded in the DB).
 
-## OAuth Signup
+## Auth Implementation
 
-Users sign in via a third-party OAuth provider (Google, GitHub, etc.). The sign-in flow:
+Auth is handled by [Better Auth](https://better-auth.com) mounted at `/api/auth/*` in Hono.
 
-1. Look up `OAuthAccount` by `(provider, provider_subject)`
-2. **Found** — return the linked account (existing login)
-3. **Not found, email matches an existing account** — auto-link: insert a new `OAuthAccount` row
-   pointing to the existing account. Google and GitHub both verify email addresses, making this safe
-   for these two providers.
-4. **Not found, no email match** — create a new `Account` (`normal` role) and a new `OAuthAccount`
-   row in the same transaction.
+### Sign-in methods
 
-On first login a `normal` account is created. No meet access is granted until the user joins a meet
-with a code.
+* **GitHub OAuth** — `signIn.social({ provider: 'github' })`
+* **Google OAuth** — `signIn.social({ provider: 'google' })`
+* **Email + password** — `signIn.email()` / `signUp.email()`
+
+All flows use cookie-based sessions managed by Better Auth. No JWTs are issued or stored on the
+client for user auth.
+
+### Account creation
+
+First login (any method) creates a `user` row with `role: 'normal'`. The `role` field is an
+`additionalField` on the Better Auth `user` table — server-managed, not user-settable.
+
+### Account linking
+
+Account linking is enabled for GitHub and Google. If an OAuth sign-in arrives with an email that
+matches an existing `user`, Better Auth automatically links the provider to the existing account.
+Both providers verify email addresses, making this safe.
 
 ## Quiz Meets
 
@@ -211,14 +220,14 @@ Two entry points to the same result:
 Hono on Cloudflare Workers with D1 and Drizzle. Serves both the scoresheet and the portal from the
 same endpoints.
 
-| Concern   | Tech               | Rationale                                               |
-| --------- | ------------------ | ------------------------------------------------------- |
-| Runtime   | Cloudflare Workers | Already deploying to CF, free tier, zero cold start     |
-| Framework | Hono               | Lightweight, TS-native, CF Workers first-class          |
-| Database  | Cloudflare D1      | Managed SQLite at the edge, binding-only access         |
-| ORM       | Drizzle            | Type-safe, SQLite/D1 support, auto-generated migrations |
-| Auth      | `arctic`           | Proven OAuth library, handles the provider dance        |
-| JWTs      | `hono/jwt`         | Stateless guest sessions for officials and viewers      |
+| Concern   | Tech               | Rationale                                                               |
+| --------- | ------------------ | ----------------------------------------------------------------------- |
+| Runtime   | Cloudflare Workers | Already deploying to CF, free tier, zero cold start                     |
+| Framework | Hono               | Lightweight, TS-native, CF Workers first-class                          |
+| Database  | Cloudflare D1      | Managed SQLite at the edge, binding-only access                         |
+| ORM       | Drizzle            | Type-safe, SQLite/D1 support, auto-generated migrations                 |
+| Auth      | `better-auth`      | OAuth + email/password + sessions + account linking out of the box      |
+| Sessions  | Cookie-based       | Better Auth manages session cookies — no hand-rolled JWTs for user auth |
 
 #### Hono
 
@@ -386,24 +395,18 @@ The API's OAuth configuration must allow two redirect URIs: the production callb
 (`www.versevault.ca/auth/callback`) and `http://localhost` for Tauri desktop. Google and GitHub both
 support localhost redirects for native apps.
 
-### JWT tokens
+### Sessions and tokens
 
-* **Account JWTs** should be short-lived (e.g. 1 hour) with a refresh token flow for longer
-  sessions.
-* **Guest JWTs** (officials and viewers) are scoped to a single meet and expire after 24 hours or
-  when the meet ends, whichever is sooner. No refresh — re-enter the code to get a new token.
-* All JWTs are signed with a Worker secret. The server validates signature and expiry on every
-  request — no database lookup needed for guest sessions.
+* **User sessions** are cookie-based, managed by Better Auth. No JWTs are issued for user auth.
+  Better Auth handles session creation, expiry, and rotation automatically.
+* **Guest JWTs** (officials and viewers without accounts) remain custom — short-lived, scoped to a
+  single meet, expire after 24 hours or when the meet ends. No refresh — re-enter the code to get a
+  new token.
 
 ### Token storage
 
-`localStorage` is the standard approach for SPAs calling APIs on a different subdomain (`www.` →
-`api.`). The XSS risk is minimal: the app is a first-party SPA with no user-generated HTML content,
-and the Tauri webview is even more locked down.
-
-For Tauri, `tauri-plugin-store` or the OS keychain can provide encrypted token storage as a future
-hardening step. For web, `HttpOnly` cookies with `SameSite` and same-origin API proxying is an
-option if the threat model changes.
+User sessions are stored as `HttpOnly` cookies set by Better Auth — no `localStorage` involvement
+for user auth. Guest JWTs (officials/viewers) will use `localStorage` when implemented.
 
 ### Join codes
 
@@ -454,18 +457,31 @@ without Durable Objects. None of that is needed for this API.
 
 ## Data Model Sketch
 
-```
-Account
-  id
-  email          # sourced from first linked provider; nullable
-  role: 'admin' | 'normal'
+The auth tables (`user`, `session`, `account`, `verification`) are owned by Better Auth and should
+not be hand-edited. App tables reference `user.id` (text UUID).
 
-OAuthAccount   # one row per linked provider per account
-  provider       # e.g. 'github', 'google'
-  provider_subject  # provider's stable user id
-  account_id     # FK → Account
-  email          # email as reported by this provider
-  # unique(provider, provider_subject)
+```
+# Better Auth tables (managed — do not edit directly)
+user
+  id             # text UUID
+  email
+  emailVerified
+  name
+  image
+  role: 'admin' | 'normal'   # additionalField, default: normal
+  createdAt / updatedAt
+
+session          # one row per active session
+  id, userId, token, expiresAt, ...
+
+account          # one row per linked provider per user
+  providerId     # e.g. 'github', 'google', 'credential'
+  accountId      # provider's stable user id
+  userId         # FK → user
+  ...
+
+verification     # email verification / password reset tokens
+  id, identifier, value, expiresAt
 
 QuizMeet
   id
