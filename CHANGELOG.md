@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3
+
+### Fixed
+
+* Cloudflare Pages was intercepting `/api/*` with a 503 before the Worker route could handle it —
+  added `_routes.json` to exclude `/api/*` from Pages
+
 ## 0.3.2
 
 ### Fixed
