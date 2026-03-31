@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "qzr-db"
-database_id = "placeholder-replace-after-wrangler-d1-create"
+database_id = "d10523ed-a7bf-43d7-989f-2ab0c1f2ca1f"
 
 [vars]
 ENVIRONMENT = "development"
