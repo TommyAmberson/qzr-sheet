@@ -8,6 +8,7 @@ const router = createRouter({
     { path: '/', name: 'home', component: HomeView },
     {
       path: '/admin',
+      redirect: '/admin/meets',
       meta: { requiresAdmin: true },
       children: [
         {
