@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
 import type { Bindings } from '../../bindings'
 import type { ChurchesVariables } from '../churches'
 import { churches } from '../churches'
@@ -177,6 +178,79 @@ describe('POST /api/meets/:meetId/churches', () => {
 
     const res = await app.request(`/api/meets/${meet.id}/churches`, post({ name: 'No short' }), env)
     expect(res.status).toBe(400)
+  })
+})
+
+describe('DELETE /api/churches/:churchId', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('admin can delete a church', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{ deleted: boolean }>()
+    expect(body.deleted).toBe(true)
+
+    const rows = await db.select().from(schema.churches).where(eq(schema.churches.id, church.id))
+    expect(rows).toHaveLength(0)
+  })
+
+  it('superuser can delete a church', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(200)
+  })
+
+  it('cascade-deletes teams and rosters', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id)
+
+    const [identity] = await db.insert(schema.quizzerIdentities).values({}).returning()
+    await db
+      .insert(schema.teamRosters)
+      .values({ teamId: team.id, quizzerId: identity!.id, name: 'Alice' })
+
+    const res = await app.request(`/api/churches/${church.id}`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(200)
+
+    const teams = await db.select().from(schema.teams).where(eq(schema.teams.churchId, church.id))
+    expect(teams).toHaveLength(0)
+
+    const rosters = await db
+      .select()
+      .from(schema.teamRosters)
+      .where(eq(schema.teamRosters.teamId, team.id))
+    expect(rosters).toHaveLength(0)
+  })
+
+  it('rejects coach (non-admin) with 403', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 404 for unknown church', async () => {
+    const app = createApp(testSuperuser, db)
+
+    const res = await app.request('/api/churches/9999', { method: 'DELETE' }, env)
+    expect(res.status).toBe(404)
   })
 })
 

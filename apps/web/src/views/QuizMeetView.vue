@@ -9,6 +9,7 @@ import {
   listTeams,
   rotateAdminCode,
   createChurch,
+  deleteChurch,
   rotateChurchCoachCode,
   createOfficialCode,
   deleteOfficialCode,
@@ -178,6 +179,20 @@ async function handleAddChurch() {
     addChurchError.value = (e as Error).message
   } finally {
     addingChurch.value = false
+  }
+}
+
+async function handleDeleteChurch(churchId: number) {
+  const ch = churches.value.find((c) => c.id === churchId)
+  if (!ch) return
+  if (!confirm(`Delete ${ch.name}? This will remove all its teams, rosters, and coach access.`))
+    return
+  try {
+    await deleteChurch(churchId)
+    churches.value = churches.value.filter((c) => c.id !== churchId)
+    delete teamCounts.value[churchId]
+  } catch (e) {
+    alert((e as Error).message)
   }
 }
 
@@ -441,6 +456,13 @@ onMounted(load)
               @click.stop="openChurchCodeDialog(c)"
             >
               🔑
+            </button>
+            <button
+              v-if="isAdmin"
+              class="row-btn row-btn--danger"
+              @click.stop="handleDeleteChurch(c.id)"
+            >
+              Delete
             </button>
           </li>
         </ul>

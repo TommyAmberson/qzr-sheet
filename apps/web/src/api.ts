@@ -206,6 +206,10 @@ export function rotateChurchCoachCode(
   })
 }
 
+export function deleteChurch(churchId: number): Promise<{ deleted: true }> {
+  return request(`/api/churches/${churchId}`, { method: 'DELETE' })
+}
+
 export function listTeams(churchId: number): Promise<{ teams: Team[] }> {
   return request(`/api/churches/${churchId}/teams`)
 }
