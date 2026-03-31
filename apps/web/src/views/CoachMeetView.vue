@@ -255,6 +255,17 @@ async function onDrop(toTeamId: number | null) {
   }
 }
 
+function startAddToPool() {
+  addingQuizzerTeamId.value = -1
+  newQuizzerName.value = ''
+}
+
+function startAddToTeam(teamId: number) {
+  addingQuizzerTeamId.value = teamId
+  newQuizzerName.value = ''
+  addQuizzerError.value = ''
+}
+
 function teamLabel(team: Team) {
   return `${selectedChurch.value?.shortName ?? '?'} ${team.number}`
 }
@@ -310,15 +321,8 @@ function teamLabel(team: Team) {
           >
             <div class="panel-header">
               <h3 class="panel-title">Unassigned</h3>
-              <button
-                class="add-btn"
-                title="Add quizzer to pool"
-                @click="
-                  addingQuizzerTeamId = -1
-                  newQuizzerName = ''
-                "
-              >
-                +
+              <button class="add-btn" title="Add quizzer to pool" @click="startAddToPool()">
+                > +
               </button>
             </div>
 
@@ -464,16 +468,8 @@ function teamLabel(team: Team) {
                   </button>
                   <p v-if="addQuizzerError" class="field-error">{{ addQuizzerError }}</p>
                 </form>
-                <button
-                  v-else
-                  class="add-to-team-btn"
-                  @click="
-                    addingQuizzerTeamId = team.id
-                    newQuizzerName = ''
-                    addQuizzerError = ''
-                  "
-                >
-                  + Quizzer
+                <button v-else class="add-to-team-btn" @click="startAddToTeam(team.id)">
+                  > + Quizzer
                 </button>
               </div>
             </div>
