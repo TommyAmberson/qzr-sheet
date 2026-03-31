@@ -64,7 +64,7 @@ export const quizMeets = sqliteTable('quiz_meets', {
   dateFrom: text('date_from').notNull(), // ISO 8601 date string
   dateTo: text('date_to'), // ISO 8601 date string; null = single-day meet
   coachCodeHash: text('coach_code_hash').notNull(),
-  viewerCode: text('viewer_code').notNull(), // admin-set human-readable slug
+  viewerCode: text('viewer_code').notNull(), // superuser-set human-readable slug
   divisions: text('divisions').notNull().default('[]'), // JSON string[]
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })

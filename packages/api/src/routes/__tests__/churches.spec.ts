@@ -104,7 +104,7 @@ describe('GET /api/meets/:meetId/churches', () => {
     expect((body.churches[0] as { name: string }).name).toBe('My Church')
   })
 
-  it('admin sees all churches', async () => {
+  it('superuser sees all churches', async () => {
     const app = createApp(testAdmin, db)
     const meet = await seedMeet(db)
     await seedChurch(db, meet.id, testUser.id, 'Church A')
@@ -152,7 +152,7 @@ describe('POST /api/meets/:meetId/churches', () => {
     expect(res.status).toBe(403)
   })
 
-  it('admin can create without membership', async () => {
+  it('superuser can create without membership', async () => {
     const app = createApp(testAdmin, db)
     const meet = await seedMeet(db)
 

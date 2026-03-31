@@ -396,7 +396,7 @@ describe('auth guards', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects non-admin users with 403', async () => {
+  it('rejects non-superuser users with 403', async () => {
     const db = await createTestDb()
     const app = createApp(testUser, db)
     const res = await app.request('/api/meets', {}, env)

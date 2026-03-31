@@ -57,7 +57,7 @@ export interface MeetMembership {
   label?: string
 }
 
-// ---- Meet CRUD (admin) ----
+// ---- Meet CRUD (superuser) ----
 
 export function listMeets(): Promise<{ meets: QuizMeet[] }> {
   return request('/api/meets')

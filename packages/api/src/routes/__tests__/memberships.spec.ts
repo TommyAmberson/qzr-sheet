@@ -122,14 +122,14 @@ describe('GET /api/my-meets', () => {
   })
 })
 
-describe('GET /api/my-meets (admin)', () => {
+describe('GET /api/my-meets (superuser)', () => {
   let db: Db
 
   beforeEach(async () => {
     db = await createTestDb()
   })
 
-  it('returns all meets with role=admin', async () => {
+  it('returns all meets with role=superuser', async () => {
     const app = createApp(testAdmin, db)
     await seedMeet(db, 'Meet A')
     await seedMeet(db, 'Meet B')

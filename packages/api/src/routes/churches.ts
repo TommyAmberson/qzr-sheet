@@ -338,5 +338,5 @@ async function getTeamWithChurch(
   return row ?? null
 }
 
-// requireAdmin re-export for convenience in tests
+// requireAdmin re-export for convenience in tests (guards superuser-only routes)
 export { requireAdmin }
