@@ -90,6 +90,24 @@ login creates a `normal` account. Auto-link on matching verified email supports 
 per account via a separate `oauth_accounts` table. JWT issued on sign-in (HS256, 1h TTL). Signed-in
 state shown in the portal header; `GET /me` returns the current account.
 
+### 4.3.1 Auth migration to Better Auth
+
+Replace the hand-rolled Arctic + JWT auth with [Better Auth](https://better-auth.com). Motivation:
+email/password support with password reset flow, which Arctic doesn't provide.
+
+What changes:
+
+* `better-auth` replaces `arctic`, all of `src/routes/auth.ts`, `src/routes/me.ts`,
+  `src/lib/upsertAccount.ts`, and `src/lib/jwt.ts`
+* Better Auth mounted at `/api/auth/*` in Hono; handles OAuth (GitHub, Google), email/password,
+  sessions, account linking, and password reset out of the box
+* DB schema: `accounts` + `oauth_accounts` tables replaced by Better Auth's `user`, `session`,
+  `account`, `verification` tables; app FK references updated to `user.id`; `role` added as an
+  `additionalField` on `user`
+* Frontend `useAuth` composable rewritten to use `better-auth/vue` client (cookie sessions replace
+  localStorage JWTs); `AuthDoneView` and the redirect dance removed
+* Guest JWTs for officials and viewers remain custom — Better Auth handles user auth only
+
 ### 4.4 Meet join codes
 
 Enter a code (or follow a join link) to gain a meet-scoped role: `head_coach`, `official`, or
