@@ -1,1 +1,0 @@
-ALTER TABLE `quiz_meets` ADD `divisions` text DEFAULT '[]' NOT NULL;
