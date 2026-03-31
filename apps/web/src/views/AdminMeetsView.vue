@@ -12,7 +12,7 @@ const error = ref('')
 const showCreate = ref(false)
 const creating = ref(false)
 const createError = ref('')
-const form = ref({ name: '', date: '', viewerCode: '' })
+const form = ref({ name: '', dateFrom: '', dateTo: '', viewerCode: '' })
 const newCoachCode = ref('')
 
 async function load() {
@@ -33,7 +33,7 @@ async function submitCreate() {
     const res = await createMeet(form.value)
     newCoachCode.value = res.coachCode
     meets.value.push(res.meet)
-    form.value = { name: '', date: '', viewerCode: '' }
+    form.value = { name: '', dateFrom: '', dateTo: '', viewerCode: '' }
   } catch (e) {
     createError.value = (e as Error).message
   } finally {
@@ -79,7 +79,10 @@ onMounted(load)
         >
           {{ meet.name }}
         </button>
-        <span class="meet-date">{{ meet.date }}</span>
+        <span class="meet-date"
+          >{{ meet.dateFrom
+          }}{{ meet.dateTo && meet.dateTo !== meet.dateFrom ? ` – ${meet.dateTo}` : '' }}</span
+        >
         <button class="action-btn action-btn--danger" @click="handleDelete(meet)">Delete</button>
       </li>
     </ul>
@@ -105,8 +108,20 @@ onMounted(load)
             <input id="meet-name" v-model="form.name" class="field-input" required />
           </div>
           <div class="field">
-            <label class="field-label" for="meet-date">Date</label>
-            <input id="meet-date" v-model="form.date" class="field-input" type="date" required />
+            <label class="field-label" for="meet-date-from">Start date</label>
+            <input
+              id="meet-date-from"
+              v-model="form.dateFrom"
+              class="field-input"
+              type="date"
+              required
+            />
+          </div>
+          <div class="field">
+            <label class="field-label" for="meet-date-to"
+              >End date <span class="field-optional">(optional)</span></label
+            >
+            <input id="meet-date-to" v-model="form.dateTo" class="field-input" type="date" />
           </div>
           <div class="field">
             <label class="field-label" for="viewer-code">Viewer code</label>
@@ -308,6 +323,11 @@ onMounted(load)
 
 .field-input:focus {
   border-color: var(--color-accent);
+}
+
+.field-optional {
+  font-weight: 400;
+  color: var(--color-text-faint);
 }
 
 .field-error {

@@ -43,7 +43,8 @@ async function seedMeet(
     .insert(schema.quizMeets)
     .values({
       name: opts.name ?? 'Test Meet',
-      date: '2025-06-01',
+      dateFrom: '2025-06-01',
+      dateTo: '2025-06-02',
       viewerCode: opts.viewerCode ?? 'test-viewer',
       coachCodeHash: coachHash,
       createdAt: new Date(),

@@ -61,7 +61,8 @@ export const verification = sqliteTable('verification', {
 export const quizMeets = sqliteTable('quiz_meets', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
-  date: text('date').notNull(), // ISO 8601 date string
+  dateFrom: text('date_from').notNull(), // ISO 8601 date string
+  dateTo: text('date_to'), // ISO 8601 date string; null = single-day meet
   coachCodeHash: text('coach_code_hash').notNull(),
   viewerCode: text('viewer_code').notNull(), // admin-set human-readable slug
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),

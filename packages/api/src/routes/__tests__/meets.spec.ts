@@ -46,13 +46,19 @@ describe('meet CRUD', () => {
     it('creates a meet and returns the coach code', async () => {
       const res = await app.request(
         '/api/meets',
-        json({ name: 'Fall Classic', date: '2025-10-15', viewerCode: 'fall-2025' }),
+        json({
+          name: 'Fall Classic',
+          dateFrom: '2025-10-14',
+          dateTo: '2025-10-15',
+          viewerCode: 'fall-2025',
+        }),
         env,
       )
       expect(res.status).toBe(201)
       const body = await res.json()
       expect(body.meet.name).toBe('Fall Classic')
-      expect(body.meet.date).toBe('2025-10-15')
+      expect(body.meet.dateFrom).toBe('2025-10-14')
+      expect(body.meet.dateTo).toBe('2025-10-15')
       expect(body.meet.viewerCode).toBe('fall-2025')
       expect(body.meet.id).toBeTypeOf('number')
       expect(body.coachCode).toBeTypeOf('string')
@@ -67,13 +73,19 @@ describe('meet CRUD', () => {
     it('trims whitespace from fields', async () => {
       const res = await app.request(
         '/api/meets',
-        json({ name: '  Trimmed  ', date: ' 2025-01-01 ', viewerCode: ' slug ' }),
+        json({
+          name: '  Trimmed  ',
+          dateFrom: ' 2025-01-01 ',
+          dateTo: ' 2025-01-02 ',
+          viewerCode: ' slug ',
+        }),
         env,
       )
       expect(res.status).toBe(201)
       const body = await res.json()
       expect(body.meet.name).toBe('Trimmed')
-      expect(body.meet.date).toBe('2025-01-01')
+      expect(body.meet.dateFrom).toBe('2025-01-01')
+      expect(body.meet.dateTo).toBe('2025-01-02')
       expect(body.meet.viewerCode).toBe('slug')
     })
   })
@@ -89,12 +101,12 @@ describe('meet CRUD', () => {
     it('returns created meets', async () => {
       await app.request(
         '/api/meets',
-        json({ name: 'Meet 1', date: '2025-01-01', viewerCode: 'v1' }),
+        json({ name: 'Meet 1', dateFrom: '2025-01-01', dateTo: '2025-01-02', viewerCode: 'v1' }),
         env,
       )
       await app.request(
         '/api/meets',
-        json({ name: 'Meet 2', date: '2025-02-01', viewerCode: 'v2' }),
+        json({ name: 'Meet 2', dateFrom: '2025-02-01', dateTo: '2025-02-02', viewerCode: 'v2' }),
         env,
       )
 
@@ -110,7 +122,12 @@ describe('meet CRUD', () => {
     it('returns a meet with its official codes', async () => {
       const createRes = await app.request(
         '/api/meets',
-        json({ name: 'Detail Meet', date: '2025-03-01', viewerCode: 'dm' }),
+        json({
+          name: 'Detail Meet',
+          dateFrom: '2025-03-01',
+          dateTo: '2025-03-02',
+          viewerCode: 'dm',
+        }),
         env,
       )
       const { meet } = await createRes.json()
@@ -132,7 +149,7 @@ describe('meet CRUD', () => {
     it('updates meet fields', async () => {
       const createRes = await app.request(
         '/api/meets',
-        json({ name: 'Old', date: '2025-01-01', viewerCode: 'old' }),
+        json({ name: 'Old', dateFrom: '2025-01-01', dateTo: '2025-01-02', viewerCode: 'old' }),
         env,
       )
       const { meet } = await createRes.json()
@@ -141,7 +158,7 @@ describe('meet CRUD', () => {
       expect(res.status).toBe(200)
       const body = await res.json()
       expect(body.meet.name).toBe('New Name')
-      expect(body.meet.date).toBe('2025-01-01')
+      expect(body.meet.dateFrom).toBe('2025-01-01')
     })
 
     it('returns 404 for non-existent meet', async () => {
@@ -159,7 +176,12 @@ describe('meet CRUD', () => {
     it('deletes an existing meet', async () => {
       const createRes = await app.request(
         '/api/meets',
-        json({ name: 'To Delete', date: '2025-01-01', viewerCode: 'del' }),
+        json({
+          name: 'To Delete',
+          dateFrom: '2025-01-01',
+          dateTo: '2025-01-02',
+          viewerCode: 'del',
+        }),
         env,
       )
       const { meet } = await createRes.json()
@@ -190,7 +212,7 @@ describe('coach code rotation', () => {
   it('returns a new coach code', async () => {
     const createRes = await app.request(
       '/api/meets',
-      json({ name: 'Rotate Test', date: '2025-01-01', viewerCode: 'rt' }),
+      json({ name: 'Rotate Test', dateFrom: '2025-01-01', dateTo: '2025-01-02', viewerCode: 'rt' }),
       env,
     )
     const { meet, coachCode: oldCode } = await createRes.json()
@@ -223,7 +245,12 @@ describe('official codes', () => {
 
     const createRes = await app.request(
       '/api/meets',
-      json({ name: 'Official Test', date: '2025-01-01', viewerCode: 'ot' }),
+      json({
+        name: 'Official Test',
+        dateFrom: '2025-01-01',
+        dateTo: '2025-01-02',
+        viewerCode: 'ot',
+      }),
       env,
     )
     const { meet } = await createRes.json()

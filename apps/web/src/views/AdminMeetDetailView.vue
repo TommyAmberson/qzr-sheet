@@ -22,7 +22,7 @@ const error = ref('')
 
 // Editing meet fields
 const editing = ref(false)
-const editForm = ref({ name: '', date: '', viewerCode: '' })
+const editForm = ref({ name: '', dateFrom: '', dateTo: '', viewerCode: '' })
 const saving = ref(false)
 const saveError = ref('')
 
@@ -52,7 +52,8 @@ function startEdit() {
   if (!meet.value) return
   editForm.value = {
     name: meet.value.name,
-    date: meet.value.date,
+    dateFrom: meet.value.dateFrom,
+    dateTo: meet.value.dateTo ?? '',
     viewerCode: meet.value.viewerCode,
   }
   editing.value = true
@@ -144,11 +145,20 @@ onMounted(load)
       <div class="page-header">
         <div v-if="!editing" class="meet-info">
           <h2 class="page-title">{{ meet.name }}</h2>
-          <span class="meet-date">{{ meet.date }}</span>
+          <span class="meet-date"
+            >{{ meet.dateFrom
+            }}{{ meet.dateTo && meet.dateTo !== meet.dateFrom ? ` – ${meet.dateTo}` : '' }}</span
+          >
         </div>
         <form v-else class="edit-form" @submit.prevent="saveEdit">
           <input v-model="editForm.name" class="field-input" placeholder="Name" required />
-          <input v-model="editForm.date" class="field-input" type="date" required />
+          <input v-model="editForm.dateFrom" class="field-input" type="date" required />
+          <input
+            v-model="editForm.dateTo"
+            class="field-input"
+            type="date"
+            placeholder="End date (optional)"
+          />
           <input
             v-model="editForm.viewerCode"
             class="field-input"

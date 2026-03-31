@@ -33,7 +33,8 @@ export class ApiError extends Error {
 export interface Meet {
   id: number
   name: string
-  date: string
+  dateFrom: string
+  dateTo: string | null
   viewerCode: string
   createdAt: string
 }
@@ -67,7 +68,8 @@ export function getMeet(id: number): Promise<MeetDetail> {
 
 export function createMeet(data: {
   name: string
-  date: string
+  dateFrom: string
+  dateTo?: string
   viewerCode: string
 }): Promise<{ meet: Meet; coachCode: string }> {
   return request('/api/meets', {
@@ -78,7 +80,7 @@ export function createMeet(data: {
 
 export function updateMeet(
   id: number,
-  data: { name?: string; date?: string; viewerCode?: string },
+  data: { name?: string; dateFrom?: string; dateTo?: string | null; viewerCode?: string },
 ): Promise<{ meet: Meet }> {
   return request(`/api/meets/${id}`, {
     method: 'PATCH',

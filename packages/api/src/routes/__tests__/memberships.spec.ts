@@ -26,7 +26,8 @@ async function seedMeet(db: Db, name: string) {
     .insert(schema.quizMeets)
     .values({
       name,
-      date: '2025-06-01',
+      dateFrom: '2025-06-01',
+      dateTo: '2025-06-02',
       viewerCode: `viewer-${name}`,
       coachCodeHash: await hashCode(coachCode),
       createdAt: new Date(),
