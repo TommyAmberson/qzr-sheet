@@ -95,6 +95,7 @@ meets.patch('/:id', async (c) => {
     dateFrom?: string
     dateTo?: string
     viewerCode?: string
+    divisions?: string[]
   }>()
   const updates: Record<string, string | null> = {}
   if (body.name?.trim()) updates.name = body.name.trim()
