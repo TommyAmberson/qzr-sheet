@@ -425,14 +425,9 @@ function teamLabel(team: Team) {
                       />
                     </template>
                     <template v-else>
-                      <span
-                        class="quizzer-name"
-                        @dblclick="
-                          renamingQuizzerId = q.quizzerId
-                          renameValue = q.name
-                        "
-                        >{{ q.name }}</span
-                      >
+                      <span class="quizzer-name" @dblclick="startRename(q.quizzerId, q.name)">{{
+                        q.name
+                      }}</span>
                       <button
                         class="quizzer-remove"
                         title="Remove"
