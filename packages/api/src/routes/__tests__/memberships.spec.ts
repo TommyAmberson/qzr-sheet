@@ -139,7 +139,7 @@ describe('GET /api/my-meets (admin)', () => {
     const body = await jsonOf<MembershipBody>(res)
     expect(body.memberships).toHaveLength(2)
     for (const m of body.memberships) {
-      expect(m.role).toBe(MeetRole.Admin)
+      expect(m.role).toBe(MeetRole.Superuser)
     }
   })
 
@@ -159,6 +159,6 @@ describe('GET /api/my-meets (admin)', () => {
     const body = await jsonOf<MembershipBody>(res)
     expect(body.memberships).toHaveLength(1)
     expect(body.memberships[0].meetId).toBe(meet.id)
-    expect(body.memberships[0].role).toBe(MeetRole.Admin)
+    expect(body.memberships[0].role).toBe(MeetRole.Superuser)
   })
 })
