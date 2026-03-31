@@ -3,7 +3,7 @@ import { createAuthClient } from 'better-auth/vue'
 declare const __API_URL__: string
 
 export const authClient = createAuthClient({
-  baseURL: `${__API_URL__}/api/auth`,
+  baseURL: __API_URL__ || window.location.origin,
 })
 
 export function useAuth() {
