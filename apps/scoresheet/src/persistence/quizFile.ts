@@ -6,6 +6,7 @@ import {
   QuestionCategory,
   CellValue,
 } from '@qzr/shared'
+import type { QuizFile } from '@qzr/shared'
 import { buildKeyToIdx, buildColumns } from '../types/scoresheet'
 import type { Quiz, Team, Quizzer, Answer } from '../types/scoresheet'
 import type { QuizStore } from '../stores/quizStore'
