@@ -82,10 +82,13 @@ schema and role enums so the API can consume them without depending on the score
 Drizzle schema covering all tables from the data model. First D1 migration generated and committed.
 Deploy target: `api.versevault.ca/`.
 
-### 4.3 Authentication
+### 4.3 Authentication ✓
 
-OAuth sign-in (Google, GitHub, etc.). Platform-aware auth client — popup on web,
-`tauri-plugin-oauth` on desktop. First login creates a `normal` account with no meet access.
+OAuth sign-in with GitHub and Google. Platform-aware auth client — popup on web,
+`tauri-plugin-oauth` on desktop (planned). `arctic` v3 handles the provider dance on the API. First
+login creates a `normal` account. Auto-link on matching verified email supports multiple providers
+per account via a separate `oauth_accounts` table. JWT issued on sign-in (HS256, 1h TTL). Signed-in
+state shown in the portal header; `GET /me` returns the current account.
 
 ### 4.4 Meet join codes
 
