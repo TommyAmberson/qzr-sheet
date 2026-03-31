@@ -98,9 +98,12 @@ churches.post('/meets/:meetId/churches', async (c) => {
   }
 
   const body = await c.req.json<{ name?: string; shortName?: string }>()
-  if (!body.name?.trim() || !body.shortName?.trim()) {
-    return c.json({ error: 'name and shortName are required' }, 400)
+  if (!body.name?.trim()) {
+    return c.json({ error: 'name is required' }, 400)
   }
+
+  const name = body.name.trim()
+  const shortName = body.shortName?.trim() || name
 
   const coachCode = generateCode()
   const coachCodeHash = await hashCode(coachCode)
@@ -109,8 +112,8 @@ churches.post('/meets/:meetId/churches', async (c) => {
     .insert(schema.churches)
     .values({
       meetId,
-      name: body.name.trim(),
-      shortName: body.shortName.trim(),
+      name,
+      shortName,
       coachCodeHash,
     })
     .returning()

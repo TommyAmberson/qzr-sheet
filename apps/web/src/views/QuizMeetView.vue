@@ -428,7 +428,7 @@ async function applyRosterImport(entries: RosterEntry[]) {
   for (const [churchName, teamList] of churchMap) {
     let church = existingByShort.get(churchName.toLowerCase())
     if (!church) {
-      const res = await createChurch(props.id, { name: churchName, shortName: churchName })
+      const res = await createChurch(props.id, { name: churchName })
       church = res.church
     }
 
@@ -661,7 +661,6 @@ onMounted(load)
               v-model="newChurchForm.shortName"
               class="field-input field-input--short"
               placeholder="Short (e.g. GCC)"
-              required
             />
             <div class="add-form-actions">
               <button type="submit" class="btn btn--primary btn--sm" :disabled="addingChurch">

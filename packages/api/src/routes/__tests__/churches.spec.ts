@@ -176,8 +176,37 @@ describe('POST /api/meets/:meetId/churches', () => {
     const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
 
-    const res = await app.request(`/api/meets/${meet.id}/churches`, post({ name: 'No short' }), env)
+    const res = await app.request(`/api/meets/${meet.id}/churches`, post({}), env)
     expect(res.status).toBe(400)
+  })
+
+  it('defaults shortName to name when not provided', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/churches`,
+      post({ name: 'Grace Community Church' }),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json<{ church: { name: string; shortName: string } }>()
+    expect(body.church.name).toBe('Grace Community Church')
+    expect(body.church.shortName).toBe('Grace Community Church')
+  })
+
+  it('defaults shortName to name when empty string', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/churches`,
+      post({ name: 'Grace Community Church', shortName: '' }),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json<{ church: { name: string; shortName: string } }>()
+    expect(body.church.shortName).toBe('Grace Community Church')
   })
 })
 
