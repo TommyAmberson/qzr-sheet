@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { getMyMeets, joinMeet, joinMeetGuest, type MeetMembership } from '../api'
@@ -54,7 +54,14 @@ async function handleCode() {
   }
 }
 
-onMounted(loadMeets)
+// Load meets once session resolves to a signed-in user
+watch(
+  () => session.value?.data?.user,
+  (user) => {
+    if (user) loadMeets()
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
