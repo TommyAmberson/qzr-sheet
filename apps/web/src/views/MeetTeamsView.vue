@@ -524,7 +524,7 @@ async function onDrop(toTeamId: number | null) {
                     :class="{ 'division-pill--editable': canEditSelected }"
                     :title="canEditSelected ? 'Click to change division' : undefined"
                     @click="canEditSelected && startEditTeam(team)"
-                    >{{ team.division }}</span
+                    >Div {{ team.division }}</span
                   >
                   <span class="team-count">{{ quizzersForTeam(team.id).length }}</span>
                 </div>
@@ -885,7 +885,7 @@ async function onDrop(toTeamId: number | null) {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.4rem;
 }
 
 .team-label {
