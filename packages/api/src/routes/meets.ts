@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
-import { requireAuth, requireAdmin, getUser } from '../middleware/session'
+import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { generateCode, hashCode } from '../lib/codes'
 import * as schema from '../db/schema'
@@ -33,7 +33,7 @@ function getDb(c: { get(key: 'db'): Db }): Db {
 
 // ---- Meet CRUD ----
 
-meets.post('/', requireAdmin(), async (c) => {
+meets.post('/', requireSuperuser(), async (c) => {
   const body = await c.req.json<{
     name: string
     dateFrom: string
@@ -67,7 +67,7 @@ meets.post('/', requireAdmin(), async (c) => {
   return c.json({ meet: formatMeet(meet!), coachCode }, 201)
 })
 
-meets.get('/', requireAdmin(), async (c) => {
+meets.get('/', requireSuperuser(), async (c) => {
   const rows = await getDb(c).select().from(schema.quizMeets)
   return c.json({ meets: rows.map(formatMeet) })
 })
@@ -124,7 +124,7 @@ meets.get('/:id', async (c) => {
   return c.json({ meet: formatMeet(meet), officialCodes: codes })
 })
 
-meets.patch('/:id', requireAdmin(), async (c) => {
+meets.patch('/:id', requireSuperuser(), async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -158,7 +158,7 @@ meets.patch('/:id', requireAdmin(), async (c) => {
   return c.json({ meet: formatMeet(updated) })
 })
 
-meets.delete('/:id', requireAdmin(), async (c) => {
+meets.delete('/:id', requireSuperuser(), async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -173,7 +173,7 @@ meets.delete('/:id', requireAdmin(), async (c) => {
 
 // ---- Coach code rotation ----
 
-meets.post('/:id/rotate-coach-code', requireAdmin(), async (c) => {
+meets.post('/:id/rotate-coach-code', requireSuperuser(), async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -192,7 +192,7 @@ meets.post('/:id/rotate-coach-code', requireAdmin(), async (c) => {
 
 // ---- Official codes ----
 
-meets.post('/:id/official-codes', requireAdmin(), async (c) => {
+meets.post('/:id/official-codes', requireSuperuser(), async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -217,7 +217,7 @@ meets.post('/:id/official-codes', requireAdmin(), async (c) => {
   return c.json({ officialCode: { id: created!.id, label: created!.label }, code }, 201)
 })
 
-meets.delete('/:id/official-codes/:codeId', requireAdmin(), async (c) => {
+meets.delete('/:id/official-codes/:codeId', requireSuperuser(), async (c) => {
   const meetId = Number(c.req.param('id'))
   const codeId = Number(c.req.param('codeId'))
   if (Number.isNaN(meetId) || Number.isNaN(codeId)) {
@@ -233,7 +233,7 @@ meets.delete('/:id/official-codes/:codeId', requireAdmin(), async (c) => {
   return c.json({ deleted: true })
 })
 
-meets.post('/:id/official-codes/:codeId/rotate', requireAdmin(), async (c) => {
+meets.post('/:id/official-codes/:codeId/rotate', requireSuperuser(), async (c) => {
   const codeId = Number(c.req.param('codeId'))
   if (Number.isNaN(codeId)) return c.json({ error: 'Invalid code ID' }, 400)
 

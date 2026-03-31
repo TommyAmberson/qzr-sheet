@@ -322,7 +322,7 @@ onMounted(load)
   align-items: center;
   padding: 0.4rem 0.85rem;
   border-radius: 6px;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;

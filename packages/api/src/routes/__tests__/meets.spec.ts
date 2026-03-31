@@ -3,13 +3,13 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { MeetsVariables } from '../meets'
 import { meets } from '../meets'
-import { mockSession, mockDb, testAdmin, testUser, jsonOf } from '../../test-utils'
+import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 
 const env = { ENVIRONMENT: 'test' } as unknown as Bindings
 
-function createApp(user: typeof testAdmin | typeof testUser | null, db: Db) {
+function createApp(user: typeof testSuperuser | typeof testUser | null, db: Db) {
   const app = new Hono<{ Bindings: Bindings; Variables: MeetsVariables }>()
   app.use('*', mockSession(user))
   app.use('*', mockDb(db))
@@ -55,7 +55,7 @@ describe('meet CRUD', () => {
 
   beforeEach(async () => {
     db = await createTestDb()
-    app = createApp(testAdmin, db)
+    app = createApp(testSuperuser, db)
   })
 
   describe('POST /api/meets', () => {
@@ -244,7 +244,7 @@ describe('coach code rotation', () => {
 
   beforeEach(async () => {
     db = await createTestDb()
-    app = createApp(testAdmin, db)
+    app = createApp(testSuperuser, db)
   })
 
   it('returns a new coach code', async () => {
@@ -285,7 +285,7 @@ describe('official codes', () => {
 
   beforeEach(async () => {
     db = await createTestDb()
-    app = createApp(testAdmin, db)
+    app = createApp(testSuperuser, db)
 
     const createRes = await app.request(
       '/api/meets',

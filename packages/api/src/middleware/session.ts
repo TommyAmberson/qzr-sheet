@@ -55,7 +55,7 @@ export function requireAuth(): MiddlewareHandler<{
 }
 
 /** 403 if authenticated user is not a superuser. Must be used after requireAuth. */
-export function requireAdmin(): MiddlewareHandler<{
+export function requireSuperuser(): MiddlewareHandler<{
   Bindings: Bindings
   Variables: SessionVariables
 }> {

@@ -29,7 +29,7 @@ export function mockDb(
   }
 }
 
-export const testAdmin: SessionUser = {
+export const testSuperuser: SessionUser = {
   id: 'admin-001',
   email: 'admin@test.com',
   name: 'Test Admin',

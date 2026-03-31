@@ -186,7 +186,7 @@ onMounted(load)
           <button
             v-if="isSuperuser"
             class="manage-link"
-            @click="router.push({ name: 'meet-admin', params: { id } })"
+            @click="router.push({ name: 'meet-superuser', params: { id } })"
           >
             Manage codes
           </button>

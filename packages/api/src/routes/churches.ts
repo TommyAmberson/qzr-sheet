@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
-import { requireAuth, requireAdmin, getUser } from '../middleware/session'
+import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import * as schema from '../db/schema'
 import { AccountRole } from '@qzr/shared'
@@ -338,5 +338,5 @@ async function getTeamWithChurch(
   return row ?? null
 }
 
-// requireAdmin re-export for convenience in tests (guards superuser-only routes)
-export { requireAdmin }
+// requireSuperuser re-export for convenience in tests (guards superuser-only routes)
+export { requireSuperuser }

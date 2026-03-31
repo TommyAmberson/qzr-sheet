@@ -17,10 +17,10 @@ const router = createRouter({
           props: (route) => ({ id: Number(route.params.id) }),
         },
         {
-          path: 'admin',
-          name: 'meet-admin',
+          path: 'superuser',
+          name: 'meet-superuser',
           meta: { requiresSuperuser: true },
-          component: () => import('../views/MeetAdminView.vue'),
+          component: () => import('../views/MeetSuperuserView.vue'),
           props: (route) => ({ id: Number(route.params.id) }),
         },
         {

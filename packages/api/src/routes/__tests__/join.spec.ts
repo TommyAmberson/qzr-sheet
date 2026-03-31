@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { JoinVariables } from '../join'
 import { join } from '../join'
-import { mockSession, mockDb, testAdmin, testUser, jsonOf } from '../../test-utils'
+import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
 
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
@@ -17,7 +17,7 @@ const env = {
   BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
 } as unknown as Bindings
 
-function createApp(user: typeof testAdmin | typeof testUser | null, db: Db) {
+function createApp(user: typeof testSuperuser | typeof testUser | null, db: Db) {
   const app = new Hono<{ Bindings: Bindings; Variables: JoinVariables }>()
   app.use('*', mockSession(user))
   app.use('*', mockDb(db))

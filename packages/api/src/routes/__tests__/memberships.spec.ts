@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { MembershipsVariables } from '../memberships'
 import { memberships } from '../memberships'
-import { mockSession, mockDb, testUser, testAdmin, jsonOf } from '../../test-utils'
+import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import { generateCode, hashCode } from '../../lib/codes'
@@ -12,7 +12,7 @@ import { MeetRole } from '@qzr/shared'
 
 const env = { ENVIRONMENT: 'test' } as unknown as Bindings
 
-function createApp(user: typeof testUser | typeof testAdmin | null, db: Db) {
+function createApp(user: typeof testUser | typeof testSuperuser | null, db: Db) {
   const app = new Hono<{ Bindings: Bindings; Variables: MembershipsVariables }>()
   app.use('*', mockSession(user))
   app.use('*', mockDb(db))
@@ -130,7 +130,7 @@ describe('GET /api/my-meets (superuser)', () => {
   })
 
   it('returns all meets with role=superuser', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     await seedMeet(db, 'Meet A')
     await seedMeet(db, 'Meet B')
 
@@ -144,7 +144,7 @@ describe('GET /api/my-meets (superuser)', () => {
   })
 
   it('returns empty list when no meets exist', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     const res = await app.request('/api/my-meets', {}, env)
     expect(res.status).toBe(200)
     const body = await jsonOf<MembershipBody>(res)
@@ -152,7 +152,7 @@ describe('GET /api/my-meets (superuser)', () => {
   })
 
   it('returns all meets regardless of explicit memberships', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db, 'No Membership Meet')
     // admin has no explicit membership row
     const res = await app.request('/api/my-meets', {}, env)

@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { ChurchesVariables } from '../churches'
 import { churches } from '../churches'
-import { mockSession, mockDb, testAdmin, testUser, jsonOf } from '../../test-utils'
+import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import * as schema from '../../db/schema'
@@ -11,7 +11,7 @@ import { generateCode, hashCode } from '../../lib/codes'
 
 const env = { ENVIRONMENT: 'test' } as unknown as Bindings
 
-function createApp(user: typeof testAdmin | typeof testUser | null, db: Db) {
+function createApp(user: typeof testSuperuser | typeof testUser | null, db: Db) {
   const app = new Hono<{ Bindings: Bindings; Variables: ChurchesVariables }>()
   app.use('*', mockSession(user))
   app.use('*', mockDb(db))
@@ -95,7 +95,7 @@ describe('GET /api/meets/:meetId/churches', () => {
     await seedCoachMembership(db, testUser.id, meet.id)
 
     await seedChurch(db, meet.id, testUser.id, 'My Church')
-    await seedChurch(db, meet.id, testAdmin.id, 'Other Church')
+    await seedChurch(db, meet.id, testSuperuser.id, 'Other Church')
 
     const res = await app.request(`/api/meets/${meet.id}/churches`, {}, env)
     expect(res.status).toBe(200)
@@ -105,10 +105,10 @@ describe('GET /api/meets/:meetId/churches', () => {
   })
 
   it('superuser sees all churches', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
     await seedChurch(db, meet.id, testUser.id, 'Church A')
-    await seedChurch(db, meet.id, testAdmin.id, 'Church B')
+    await seedChurch(db, meet.id, testSuperuser.id, 'Church B')
 
     const res = await app.request(`/api/meets/${meet.id}/churches`, {}, env)
     expect(res.status).toBe(200)
@@ -153,7 +153,7 @@ describe('POST /api/meets/:meetId/churches', () => {
   })
 
   it('superuser can create without membership', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
 
     const res = await app.request(
@@ -165,7 +165,7 @@ describe('POST /api/meets/:meetId/churches', () => {
   })
 
   it('rejects missing fields with 400', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
 
     const res = await app.request(`/api/meets/${meet.id}/churches`, post({ name: 'No short' }), env)
@@ -199,7 +199,7 @@ describe('GET /api/churches/:churchId/teams', () => {
   it('forbids access to another coach\u2019s church', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testAdmin.id)
+    const church = await seedChurch(db, meet.id, testSuperuser.id)
 
     const res = await app.request(`/api/churches/${church.id}/teams`, {}, env)
     expect(res.status).toBe(403)
@@ -245,9 +245,9 @@ describe('POST /api/churches/:churchId/teams', () => {
   })
 
   it('rejects missing division with 400', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testAdmin.id)
+    const church = await seedChurch(db, meet.id, testSuperuser.id)
 
     const res = await app.request(`/api/churches/${church.id}/teams`, post({}), env)
     expect(res.status).toBe(400)
