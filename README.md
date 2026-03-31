@@ -103,9 +103,21 @@ The `deploy` CI workflow triggers on `v*` tags and:
 * Builds and deploys the web + scoresheet apps to `www.versevault.ca`
 
 The Worker secrets (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`,
-`GOOGLE_CLIENT_SECRET`, `JWT_SECRET`, `WEB_BASE_URL`) must be set via `wrangler secret put` before
-the first deploy. They are not stored in source control — use `packages/api/.dev.vars.example` as a
-reference.
+`GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET`) must be set via `wrangler secret put` before the first
+deploy. They are not stored in source control — use `packages/api/.dev.vars.example` as a reference.
+
+### Local auth setup
+
+1. Copy `.dev.vars.example` to `.dev.vars` in `packages/api/`
+2. Fill in `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — create an OAuth App at
+   https://github.com/settings/developers with callback URL
+   `http://localhost:8787/api/auth/callback/github`
+3. Fill in `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — create credentials at
+   https://console.developers.google.com with callback URL
+   `http://localhost:8787/api/auth/callback/google`
+4. `BETTER_AUTH_SECRET` can be any string ≥ 32 characters for local dev (the example value is fine)
+5. Run `pnpm --filter @qzr/api db:migrate:local` to apply migrations to the local D1 instance
+6. `pnpm dev:all` — API at `:8787`, portal at `:5174`, scoresheet at `:5173`
 
 ## Editor Setup
 

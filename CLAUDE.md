@@ -2,18 +2,35 @@
 
 Bible Quiz scoresheet app. Tauri 2 + Vue 3 + Vite + TypeScript. Monorepo with pnpm workspaces.
 
+See `README.md` for setup, project structure, and deployment. See `ROADMAP.md` for feature status.
+
 ## Commands
 
 ```sh
-pnpm dev          # Vite dev server (web only)
-pnpm tauri dev    # Tauri native window (hot-reload)
-pnpm test:unit    # Vitest unit tests
-pnpm type-check   # vue-tsc
-pnpm format       # Prettier (no semi, single quotes, 100 col)
-pnpm build:web && wrangler pages deploy apps/scoresheet/dist --project-name versevault-www --branch master  # Deploy to www.versevault.ca
+pnpm dev:all            # All three dev servers in parallel (scoresheet :5173, portal :5174, API :8787)
+pnpm dev                # Scoresheet only
+pnpm dev:web            # Portal only
+pnpm dev:api            # API only
+pnpm tauri dev          # Tauri native window (hot-reload)
+pnpm tauri:linux-x11 dev  # Same, with Linux/X11 GPU workarounds
+pnpm test:unit          # Vitest unit tests (all packages, run once)
+pnpm test:watch         # Vitest watch mode (all packages, parallel)
+pnpm type-check         # vue-tsc / tsc (all packages)
+pnpm format             # Prettier (no semi, single quotes, 100 col)
+pnpm deploy             # Build all + deploy to CF Pages + CF Worker
 ```
 
-All root scripts delegate to the scoresheet workspace via `pnpm --filter scoresheet`.
+## Releasing
+
+```sh
+pnpm bump x.y.z   # bumps package.json, apps/scoresheet/package.json, tauri.conf.json
+git add package.json apps/scoresheet/package.json apps/scoresheet/src-tauri/tauri.conf.json
+git commit -m "chore: bump version to x.y.z"
+git tag vx.y.z
+git push origin master --tags
+```
+
+CI deploys on `v*` tags.
 
 ## Project Structure
 
@@ -23,26 +40,24 @@ apps/
     src/
       types/scoresheet.ts        # Core types: CellValue, Column, Quiz, Team, Quizzer
       stores/quizStore.ts        # In-memory store, cell grid derivation
-      scoring/
-        scoreTeam.ts             # Per-team scoring (pure function)
-        greyedOut.ts             # Disabled/tossed-up/foul-cascade cell state
-        columnVisibility.ts      # Which columns render (A/B auto show/hide)
-        validation.ts            # ValidationCode enum + validateCells()
-        overtime.ts              # OT eligibility, round count, checkpoint scores
-        placement.ts             # 1st/2nd/3rd placement derivation
-        helpers.ts               # Pure cell-grid query helpers
-      composables/useScoresheet.ts  # Vue reactivity layer over store + scoring
-      components/Scoresheet.vue     # Single-component UI
-    src-tauri/                   # Tauri 2 Rust backend (minimal, no custom commands yet)
-  web/                           # Portal app (planned)
+      scoring/                   # Pure scoring functions (no Vue)
+      composables/useScoresheet.ts
+      components/Scoresheet.vue
+    src-tauri/
+  web/                           # Portal app
+    src/
+      composables/useAuth.ts     # better-auth/vue client
+      components/SignInMenu.vue  # GitHub / Google / email sign-in popover
 packages/
-  shared/                        # Shared types and schemas (planned)
-  api/                           # Hono + D1 + Drizzle API (planned)
+  shared/                        # QuizFile schema, role enums, shared API types
+  api/                           # Hono + D1 + Drizzle (Cloudflare Workers)
+    src/lib/auth.ts              # createAuth(env) — Better Auth instance factory
+    .dev.vars.example            # Copy to .dev.vars and fill in for local dev
 docs/
-  scoring-rules-explained.md     # Cell types, point values, all scoring rules
-  architecture.md                # Scoresheet data flow and design decisions
-  rules.md                       # Full rules from official pdf
-  auth-proposal.md               # Phase 4 architecture, API stack, security
+  scoring-rules-explained.md
+  architecture.md
+  rules.md
+  auth-proposal.md
 ```
 
 ## Key Conventions
@@ -51,9 +66,7 @@ docs/
 * Column keys: `"1"`–`"15"`, `"16"`/`"16A"`/`"16B"` through `"20B"`, `"21"`+ for overtime.
 * Tests live in `__tests__/` subdirectories next to the code they test.
 * Slight preference for writing tests before features.
-* Redundant comments are not helpful. Prefer to make the code readable and maintainable instead of
-  just adding comments. Only add comments to explain "why" if not immediately obvious, or to explain
-  complex logic.
+* Redundant comments are not helpful. Only comment to explain "why" or complex logic.
 * Commits should be atomic and self-contained, with conventional commit messages. Use branches for
   larger features or refactors.
 
@@ -64,6 +77,8 @@ docs/
 * `isErrorPoints` is true for Q17–20 and all OT columns — **not** Q16.
 * Foul deduction does not stack: 3rd-team-foul + foul-out on the same foul = only −10.
 * Drag reorder uses pointer events only (no HTML5 drag API — crashes on Linux/X11).
+* Auth uses Better Auth cookie sessions — no JWTs for user auth. `BETTER_AUTH_SECRET` must be ≥32
+  chars. OAuth callbacks: `/api/auth/callback/github`, `/api/auth/callback/google`.
 
 ## Reference Docs
 
@@ -72,6 +87,6 @@ When working on scoring logic, rules, or architecture, read the relevant file fi
 * `ROADMAP.md` — feature breakdown and implementation plan
 * `docs/scoring-rules-explained.md` — cell types, point values,
   toss-up/bonus/A-B/foul/overtime/placement
-* `docs/rules.md` -- full rules from official pdf
+* `docs/rules.md` — full rules from official pdf
 * `docs/architecture.md` — data flow, layer responsibilities, key design decisions
 * `docs/auth-proposal.md` — Phase 4 architecture, API stack, security, data model
