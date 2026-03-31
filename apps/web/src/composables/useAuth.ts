@@ -9,13 +9,27 @@ export const authClient = createAuthClient({
 export function useAuth() {
   const session = authClient.useSession()
 
-  function signIn() {
-    authClient.signIn.social({ provider: 'github', callbackURL: '/' })
+  const webOrigin = window.location.origin
+
+  function signInGithub() {
+    authClient.signIn.social({ provider: 'github', callbackURL: webOrigin })
+  }
+
+  function signInGoogle() {
+    authClient.signIn.social({ provider: 'google', callbackURL: webOrigin })
+  }
+
+  async function signInEmail(email: string, password: string) {
+    return authClient.signIn.email({ email, password, callbackURL: webOrigin })
+  }
+
+  async function signUpEmail(email: string, password: string) {
+    return authClient.signUp.email({ email, password, name: email, callbackURL: webOrigin })
   }
 
   function signOut() {
     authClient.signOut()
   }
 
-  return { session, signIn, signOut }
+  return { session, signInGithub, signInGoogle, signInEmail, signUpEmail, signOut }
 }
