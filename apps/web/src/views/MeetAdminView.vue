@@ -140,7 +140,9 @@ onMounted(load)
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'admin-meets' })">← QuizMeets</button>
+    <button class="back-link" @click="router.push({ name: 'meet', params: { id } })">
+      ← QuizMeet
+    </button>
 
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
@@ -317,11 +319,7 @@ onMounted(load)
   color: var(--color-heading);
 }
 
-.meet-date {
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
-}
-
+.meet-date,
 .meet-divisions {
   font-size: 0.8rem;
   color: var(--color-text-faint);
@@ -363,7 +361,6 @@ onMounted(load)
   width: 100%;
 }
 
-/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -408,7 +405,6 @@ onMounted(load)
   cursor: default;
 }
 
-/* Sections */
 .section {
   margin-bottom: 2rem;
 }
@@ -506,7 +502,6 @@ onMounted(load)
   cursor: default;
 }
 
-/* Add official form */
 .add-form {
   display: flex;
   align-items: center;

@@ -166,10 +166,7 @@ async function submitAddQuizzer(teamId: number) {
   }
 }
 
-// Adding to the unassigned pool requires a temporary team or direct-to-team assignment.
-// We add to the first team as a placeholder, then immediately unassign (remove from team roster).
-// Simpler UX: just prompt which team or use a scratch team. For now, pool entries are local-only
-// until dragged onto a team — we give them a temporary negative id.
+// Pool entries are local-only until dragged onto a team — given a temporary negative id.
 let tempId = -1
 function submitAddUnassigned() {
   if (!newQuizzerName.value.trim()) return
@@ -222,25 +219,20 @@ async function onDrop(toTeamId: number | null) {
 
   if (toTeamId === fromTeamId) return
 
-  // Optimistically update assignment
   assignments.value[quizzerId] = toTeamId
 
   try {
     if (fromTeamId !== null && toTeamId !== null) {
-      // Move: remove from old team, add to new team
       await removeQuizzer(fromTeamId, quizzerId)
       const q = allQuizzers.value.find((q) => q.quizzerId === quizzerId)!
       const res = await addQuizzer(toTeamId, q.name)
-      // Replace identity so quizzerId stays consistent with server
       const idx = allQuizzers.value.findIndex((q) => q.quizzerId === quizzerId)
       if (idx !== -1) allQuizzers.value[idx] = res.quizzer
       assignments.value[res.quizzer.quizzerId] = toTeamId
       delete assignments.value[quizzerId]
     } else if (fromTeamId !== null && toTeamId === null) {
-      // Move to unassigned: remove from team but keep in local list
       await removeQuizzer(fromTeamId, quizzerId)
     } else if (fromTeamId === null && toTeamId !== null) {
-      // Move from unassigned onto a team
       const q = allQuizzers.value.find((q) => q.quizzerId === quizzerId)!
       const res = await addQuizzer(toTeamId, q.name)
       const idx = allQuizzers.value.findIndex((q) => q.quizzerId === quizzerId)
@@ -249,7 +241,6 @@ async function onDrop(toTeamId: number | null) {
       delete assignments.value[quizzerId]
     }
   } catch (e) {
-    // Revert optimistic update
     assignments.value[quizzerId] = fromTeamId
     alert((e as Error).message)
   }
@@ -278,18 +269,20 @@ function teamLabel(team: Team) {
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'coach-meets' })">← My QuizMeets</button>
+    <button class="back-link" @click="router.push({ name: 'meet', params: { id } })">
+      ← QuizMeet
+    </button>
 
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
 
     <template v-else-if="meet">
       <div class="page-header">
-        <h2 class="page-title">{{ meet.name }}</h2>
-        <span class="meet-meta"
-          >{{ meet.dateFrom
-          }}{{ meet.dateTo && meet.dateTo !== meet.dateFrom ? ` – ${meet.dateTo}` : '' }}</span
-        >
+        <h2 class="page-title">{{ meet.name }} — Teams &amp; Rosters</h2>
+        <span class="meet-meta">
+          {{ meet.dateFrom
+          }}{{ meet.dateTo && meet.dateTo !== meet.dateFrom ? ` – ${meet.dateTo}` : '' }}
+        </span>
       </div>
 
       <!-- Church selector -->
@@ -310,11 +303,9 @@ function teamLabel(team: Team) {
         </div>
       </div>
 
-      <!-- No church selected -->
       <p v-if="!selectedChurch" class="state-msg">Add a church to get started.</p>
 
       <template v-else>
-        <!-- Two-panel layout -->
         <div class="roster-layout">
           <!-- Left: unassigned pool -->
           <div
@@ -327,7 +318,7 @@ function teamLabel(team: Team) {
             <div class="panel-header">
               <h3 class="panel-title">Unassigned</h3>
               <button class="add-btn" title="Add quizzer to pool" @click="startAddToPool()">
-                > +
+                +
               </button>
             </div>
 
@@ -358,7 +349,6 @@ function teamLabel(team: Team) {
               </li>
             </ul>
 
-            <!-- Add to pool inline form -->
             <form
               v-if="addingQuizzerTeamId === -1"
               class="inline-add"
@@ -439,7 +429,6 @@ function teamLabel(team: Team) {
                   </li>
                 </ul>
 
-                <!-- Add quizzer directly to team -->
                 <form
                   v-if="addingQuizzerTeamId === team.id"
                   class="inline-add"
@@ -463,12 +452,11 @@ function teamLabel(team: Team) {
                   <p v-if="addQuizzerError" class="field-error">{{ addQuizzerError }}</p>
                 </form>
                 <button v-else class="add-to-team-btn" @click="startAddToTeam(team.id)">
-                  > + Quizzer
+                  + Quizzer
                 </button>
               </div>
             </div>
 
-            <!-- Add team form -->
             <form class="add-team-form" @submit.prevent="submitCreateTeam">
               <select v-model="newTeamDivision" class="field-input field-input--select" required>
                 <option value="" disabled>Division…</option>
@@ -549,6 +537,7 @@ function teamLabel(team: Team) {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
+  flex-wrap: wrap;
   margin-bottom: 1.25rem;
 }
 
@@ -572,7 +561,6 @@ function teamLabel(team: Team) {
   color: var(--palette-error);
 }
 
-/* Church tabs */
 .church-bar {
   margin-bottom: 1.5rem;
 }
@@ -619,7 +607,6 @@ function teamLabel(team: Team) {
   border-color: var(--color-accent);
 }
 
-/* Two-panel layout */
 .roster-layout {
   display: grid;
   grid-template-columns: 14rem 1fr;
@@ -670,7 +657,6 @@ function teamLabel(team: Team) {
   color: var(--color-accent);
 }
 
-/* Teams */
 .teams-grid {
   display: flex;
   flex-wrap: wrap;
@@ -722,7 +708,6 @@ function teamLabel(team: Team) {
   padding: 0 0.4rem;
 }
 
-/* Quizzers */
 .quizzer-list {
   list-style: none;
   display: flex;
@@ -780,7 +765,6 @@ function teamLabel(team: Team) {
   width: 100%;
 }
 
-/* Add team form */
 .add-team-form {
   display: flex;
   align-items: center;
@@ -807,7 +791,6 @@ function teamLabel(team: Team) {
   color: var(--color-accent);
 }
 
-/* Inline add form */
 .inline-add {
   display: flex;
   flex-direction: column;
@@ -823,7 +806,6 @@ function teamLabel(team: Team) {
   align-self: flex-start;
 }
 
-/* Inputs / buttons */
 .field {
   margin-bottom: 0.875rem;
 }
@@ -911,7 +893,6 @@ function teamLabel(team: Team) {
   cursor: default;
 }
 
-/* Modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
