@@ -8,6 +8,9 @@
   "scripts": {
     "type-check": "tsc --noEmit"
   },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.0"
+  },
   "devDependencies": {
     "typescript": "~5.9.3"
   }

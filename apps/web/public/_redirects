@@ -1,0 +1,5 @@
+# Portal SPA — fall back to index.html for all non-file requests
+/*  /index.html  200
+
+# The scoresheet is a nested PWA; its own service worker handles navigation
+# fallback within /scoresheet/. No rule needed here for that sub-path.

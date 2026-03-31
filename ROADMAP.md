@@ -20,6 +20,9 @@ pipeline (deploy on tag), packaged releases for Windows/macOS/Linux via GitHub R
 Optional items that can happen any time, independent of Phase 4.
 
 * **Tablet-optimized touch targets** — larger hit areas and touch-friendly spacing for live quizzes
+* **Android APK** — `pnpm tauri android build --apk --target aarch64`; needs Android SDK + NDK
+  setup, plugin compatibility check (`tauri-plugin-fs`, `tauri-plugin-dialog`), tablet layout
+  testing, and a manual or custom CI release step (`tauri-action` doesn't support mobile builds yet)
 * **Custom question type dropdown** — replace native `<select>` for consistent cross-browser styling
 * **Print-friendly layout** — CSS print styles, hide UI chrome, format for A4/letter
 * **Code signing** — macOS notarization and Windows signing for warning-free installers
@@ -71,10 +74,13 @@ admin). Honest WIP framing — no branding name yet. Combined build: `pnpm build
 `apps/web/dist/` with the scoresheet output nested at `scoresheet/`; `pnpm deploy` builds and
 publishes both to the CF Pages project.
 
-### 4.2 API + database
+### 4.2 API + database ✓
 
-Hono on Cloudflare Workers with D1 and Drizzle. Drizzle schema matching the data model in
-`docs/auth-proposal.md`. Deploy to `api.versevault.ca/`.
+Hono on Cloudflare Workers with D1 and Drizzle. `packages/shared` extracts the QuizFile TypeBox
+schema and role enums so the API can consume them without depending on the scoresheet.
+`packages/api` has a typed Bindings interface, CORS + logger middleware, `GET /health`, and the full
+Drizzle schema covering all tables from the data model. First D1 migration generated and committed.
+Deploy target: `api.versevault.ca/`.
 
 ### 4.3 Authentication
 

@@ -9,17 +9,18 @@
     "tauri:linux-x11": "WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 tauri",
     "build": "run-p type-check \"build-only {@}\" --",
     "pwa-icons": "cp src-tauri/icons/icon.png public/icon.png && pwa-assets-generator --config pwa-assets.config.ts && rm public/icon.png",
-    "build:web": "pnpm pwa-icons && run-p type-check \"build-only {@}\" -- && cp _redirects dist/_redirects",
+    "build:web": "pnpm pwa-icons && run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "test:unit": "vitest",
     "build-only": "vite build",
     "type-check": "vue-tsc --build"
   },
   "dependencies": {
+    "@sinclair/typebox": "^0.34.0",
+    "@qzr/shared": "workspace:*",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "fflate": "^0.8.2",
-    "typebox": "^1.1.7",
     "vue": "^3.5.28"
   },
   "devDependencies": {
