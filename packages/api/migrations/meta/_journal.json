@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1774914070682,
-      "tag": "0000_skinny_tarot",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1774919653462,
-      "tag": "0001_motionless_randall_flagg",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1774924596901,
-      "tag": "0002_worried_havok",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1774934476599,
-      "tag": "0003_overjoyed_sphinx",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1774936903588,
-      "tag": "0004_sturdy_human_robot",
+      "when": 1774991031925,
+      "tag": "0000_dry_magus",
       "breakpoints": true
     }
   ]

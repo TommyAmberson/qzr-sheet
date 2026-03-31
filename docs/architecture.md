@@ -1,7 +1,101 @@
 # Architecture Reference
 
-This document covers the scoresheet app (`apps/scoresheet/`). For the overall monorepo architecture,
-API stack, and Phase 4 design, see [auth-proposal.md](./auth-proposal.md).
+This document covers the scoresheet app (`apps/scoresheet/`) and the overall monorepo structure. For
+auth implementation see [auth.md](./auth.md). For roles and codes see
+[roles-and-access.md](./roles-and-access.md). For the database schema see
+[data-model.md](./data-model.md).
+
+## Monorepo Structure
+
+```
+qzr/
+├── apps/
+│   ├── scoresheet/   # Vue 3 + Tauri 2 — offline-first scoring tool
+│   └── web/          # Portal — coach roster mgmt, admin dashboard, viewer standings
+├── packages/
+│   ├── shared/       # QuizFile schema, role enums, shared API types
+│   └── api/          # Hono + D1 + Drizzle (Cloudflare Workers)
+└── src-tauri/        # Tauri 2 Rust backend
+```
+
+## Deployable Units
+
+| URL                             | App            | Infra      |
+| ------------------------------- | -------------- | ---------- |
+| `www.versevault.ca/scoresheet/` | Scoresheet PWA | CF Pages   |
+| `www.versevault.ca/`            | Portal         | CF Pages   |
+| `www.versevault.ca/api/`        | API            | CF Workers |
+
+The Worker is served at the same origin as the frontends — no CORS headers needed in production.
+
+## API Stack
+
+| Concern   | Tech               | Rationale                                                          |
+| --------- | ------------------ | ------------------------------------------------------------------ |
+| Runtime   | Cloudflare Workers | Zero cold start, free tier, CF-native                              |
+| Framework | Hono               | Lightweight, TS-native, CF Workers first-class                     |
+| Database  | Cloudflare D1      | Managed SQLite at the edge, binding-only access (no public port)   |
+| ORM       | Drizzle            | Type-safe, SQLite/D1 support, auto-generated migrations            |
+| Auth      | Better Auth        | OAuth + email/password + sessions + account linking out of the box |
+| Sessions  | Cookie-based       | Better Auth manages session cookies — no hand-rolled JWTs          |
+
+```
+Request
+  → Cloudflare Worker (V8 isolate)
+    → Hono (routing, CORS, auth middleware)
+      → Drizzle (typed query builder)
+        → D1 (SQLite, same-network binding)
+      ← typed result
+    ← c.json(result)
+  ← Response
+```
+
+## Scoresheet App
+
+The scoresheet is a standalone offline-first tool. No router, no pages — a single-page scoring
+interface. Phase 4 adds a thin optional API client (sign-in, load quiz, submit result) but no
+portal-style views. When not signed in, the app works exactly as it does today.
+
+Connected-mode additions:
+
+* **Sign-in button** — OAuth popup (web) or system browser flow (Tauri)
+* **Load Quiz** — modal to pick a meet and select an assigned quiz; pre-populates teams and quizzers
+* **Submit** — POSTs the serialised `QuizFile` to the API
+* **Connected status** in the meta bar — signed-in name, current quiz info, sign-out
+
+Scoresheet API surface:
+
+```
+GET  /quizzes/{id}         → { teams, quizzers, room }
+POST /quizzes/{id}/result  → QuizFile body
+```
+
+## Portal App
+
+A separate web app for everything that isn't live scoring: admin dashboard, coach roster management,
+official schedule, and viewer standings.
+
+The portal links into the scoresheet with context. An official viewing their schedule clicks a quiz
+and is taken to `/scoresheet/?quiz=abc123`. The scoresheet reads the session and quiz ID from the
+URL, then auto-fetches and pre-populates.
+
+| Path                        | Flow                                                       |
+| --------------------------- | ---------------------------------------------------------- |
+| Portal → click quiz         | Opens `/scoresheet/?quiz=abc`, session already established |
+| Scoresheet → sign in → load | OAuth flow, pick from list in a modal, same end state      |
+
+## Shared Package (`packages/shared`)
+
+Types and schemas consumed by both frontend apps and the API:
+
+* `QuizFile` TypeBox schema
+* API request/response types
+* Role and code enums
+* Shared validation logic
+
+---
+
+## Scoresheet Internals
 
 ## Data Flow
 

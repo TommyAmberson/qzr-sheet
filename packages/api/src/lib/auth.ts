@@ -30,7 +30,7 @@ export function createAuth(env: Bindings) {
     user: {
       additionalFields: {
         role: {
-          type: [AccountRole.Admin, AccountRole.Normal] as [string, ...string[]],
+          type: [AccountRole.Superuser, AccountRole.Normal] as [string, ...string[]],
           required: false,
           defaultValue: AccountRole.Normal,
           input: false,

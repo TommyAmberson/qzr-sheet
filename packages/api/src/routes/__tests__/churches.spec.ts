@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
 import type { Bindings } from '../../bindings'
 import type { ChurchesVariables } from '../churches'
 import { churches } from '../churches'
-import { mockSession, mockDb, testAdmin, testUser, jsonOf } from '../../test-utils'
+import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import * as schema from '../../db/schema'
@@ -11,7 +12,7 @@ import { generateCode, hashCode } from '../../lib/codes'
 
 const env = { ENVIRONMENT: 'test' } as unknown as Bindings
 
-function createApp(user: typeof testAdmin | typeof testUser | null, db: Db) {
+function createApp(user: typeof testSuperuser | typeof testUser | null, db: Db) {
   const app = new Hono<{ Bindings: Bindings; Variables: ChurchesVariables }>()
   app.use('*', mockSession(user))
   app.use('*', mockDb(db))
@@ -46,21 +47,26 @@ async function seedMeet(db: Db) {
       dateFrom: '2025-06-01',
       dateTo: null,
       viewerCode: 'test-viewer',
-      coachCodeHash: hash,
+      adminCodeHash: hash,
       createdAt: new Date(),
     })
     .returning()
   return meet!
 }
 
-async function seedCoachMembership(db: Db, userId: string, meetId: number) {
-  await db.insert(schema.coachMemberships).values({ accountId: userId, meetId })
+async function seedAdminMembership(db: Db, userId: string, meetId: number) {
+  await db.insert(schema.adminMemberships).values({ accountId: userId, meetId })
 }
 
-async function seedChurch(db: Db, meetId: number, createdBy: string, name = 'Grace Church') {
+async function seedCoachMembership(db: Db, userId: string, churchId: number, meetId: number) {
+  await db.insert(schema.coachMemberships).values({ accountId: userId, churchId, meetId })
+}
+
+async function seedChurch(db: Db, meetId: number, name = 'Grace Church') {
+  const hash = await hashCode(generateCode())
   const [church] = await db
     .insert(schema.churches)
-    .values({ meetId, createdBy, name, shortName: 'GC' })
+    .values({ meetId, name, shortName: 'GC', coachCodeHash: hash })
     .returning()
   return church!
 }
@@ -89,26 +95,24 @@ describe('GET /api/meets/:meetId/churches', () => {
     expect(res.status).toBe(401)
   })
 
-  it('coach sees only own churches', async () => {
+  it('coach sees all churches (read access is open to any member)', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    await seedCoachMembership(db, testUser.id, meet.id)
-
-    await seedChurch(db, meet.id, testUser.id, 'My Church')
-    await seedChurch(db, meet.id, testAdmin.id, 'Other Church')
+    const church1 = await seedChurch(db, meet.id, 'My Church')
+    await seedCoachMembership(db, testUser.id, church1.id, meet.id)
+    await seedChurch(db, meet.id, 'Other Church')
 
     const res = await app.request(`/api/meets/${meet.id}/churches`, {}, env)
     expect(res.status).toBe(200)
     const body = await res.json<{ churches: unknown[] }>()
-    expect(body.churches).toHaveLength(1)
-    expect((body.churches[0] as { name: string }).name).toBe('My Church')
+    expect(body.churches).toHaveLength(2)
   })
 
-  it('admin sees all churches', async () => {
-    const app = createApp(testAdmin, db)
+  it('superuser sees all churches', async () => {
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
-    await seedChurch(db, meet.id, testUser.id, 'Church A')
-    await seedChurch(db, meet.id, testAdmin.id, 'Church B')
+    await seedChurch(db, meet.id, 'Church A')
+    await seedChurch(db, meet.id, 'Church B')
 
     const res = await app.request(`/api/meets/${meet.id}/churches`, {}, env)
     expect(res.status).toBe(200)
@@ -124,10 +128,10 @@ describe('POST /api/meets/:meetId/churches', () => {
     db = await createTestDb()
   })
 
-  it('coach with membership can create a church', async () => {
+  it('admin with membership can create a church', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    await seedCoachMembership(db, testUser.id, meet.id)
+    await seedAdminMembership(db, testUser.id, meet.id)
 
     const res = await app.request(
       `/api/meets/${meet.id}/churches`,
@@ -135,12 +139,16 @@ describe('POST /api/meets/:meetId/churches', () => {
       env,
     )
     expect(res.status).toBe(201)
-    const body = await res.json<{ church: { name: string; shortName: string } }>()
+    const body = await res.json<{
+      church: { name: string; shortName: string }
+      coachCode: string
+    }>()
     expect(body.church.name).toBe('Grace Church')
     expect(body.church.shortName).toBe('GC')
+    expect(body.coachCode).toBeTypeOf('string')
   })
 
-  it('rejects coach without membership with 403', async () => {
+  it('rejects normal user without admin membership with 403', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
 
@@ -152,8 +160,8 @@ describe('POST /api/meets/:meetId/churches', () => {
     expect(res.status).toBe(403)
   })
 
-  it('admin can create without membership', async () => {
-    const app = createApp(testAdmin, db)
+  it('superuser can create without membership', async () => {
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
 
     const res = await app.request(
@@ -165,11 +173,84 @@ describe('POST /api/meets/:meetId/churches', () => {
   })
 
   it('rejects missing fields with 400', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
 
     const res = await app.request(`/api/meets/${meet.id}/churches`, post({ name: 'No short' }), env)
     expect(res.status).toBe(400)
+  })
+})
+
+describe('DELETE /api/churches/:churchId', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('admin can delete a church', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{ deleted: boolean }>()
+    expect(body.deleted).toBe(true)
+
+    const rows = await db.select().from(schema.churches).where(eq(schema.churches.id, church.id))
+    expect(rows).toHaveLength(0)
+  })
+
+  it('superuser can delete a church', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(200)
+  })
+
+  it('cascade-deletes teams and rosters', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id)
+
+    const [identity] = await db.insert(schema.quizzerIdentities).values({}).returning()
+    await db
+      .insert(schema.teamRosters)
+      .values({ teamId: team.id, quizzerId: identity!.id, name: 'Alice' })
+
+    const res = await app.request(`/api/churches/${church.id}`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(200)
+
+    const teams = await db.select().from(schema.teams).where(eq(schema.teams.churchId, church.id))
+    expect(teams).toHaveLength(0)
+
+    const rosters = await db
+      .select()
+      .from(schema.teamRosters)
+      .where(eq(schema.teamRosters.teamId, team.id))
+    expect(rosters).toHaveLength(0)
+  })
+
+  it('rejects coach (non-admin) with 403', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 404 for unknown church', async () => {
+    const app = createApp(testSuperuser, db)
+
+    const res = await app.request('/api/churches/9999', { method: 'DELETE' }, env)
+    expect(res.status).toBe(404)
   })
 })
 
@@ -185,24 +266,24 @@ describe('GET /api/churches/:churchId/teams', () => {
   it('returns teams for owned church', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testUser.id)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
     await seedTeam(db, meet.id, church.id, 'Open')
     await seedTeam(db, meet.id, church.id, 'Teen')
 
-    // Fix: second team needs number 1 in its own division — already the case since seedTeam always uses 1.
     const res = await app.request(`/api/churches/${church.id}/teams`, {}, env)
     expect(res.status).toBe(200)
     const body = await res.json<{ teams: unknown[] }>()
     expect(body.teams).toHaveLength(2)
   })
 
-  it('forbids access to another coach\u2019s church', async () => {
+  it('allows any authenticated member to read teams for any church', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testAdmin.id)
+    const church = await seedChurch(db, meet.id)
 
     const res = await app.request(`/api/churches/${church.id}/teams`, {}, env)
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(200)
   })
 })
 
@@ -216,7 +297,8 @@ describe('POST /api/churches/:churchId/teams', () => {
   it('creates a team with auto-numbered 1 for first in division', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testUser.id)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
 
     const res = await app.request(
       `/api/churches/${church.id}/teams`,
@@ -232,7 +314,8 @@ describe('POST /api/churches/:churchId/teams', () => {
   it('increments number for second team in same division', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testUser.id)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
 
     await app.request(`/api/churches/${church.id}/teams`, post({ division: 'Open' }), env)
     const res = await app.request(
@@ -245,9 +328,9 @@ describe('POST /api/churches/:churchId/teams', () => {
   })
 
   it('rejects missing division with 400', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testAdmin.id)
+    const church = await seedChurch(db, meet.id)
 
     const res = await app.request(`/api/churches/${church.id}/teams`, post({}), env)
     expect(res.status).toBe(400)
@@ -266,7 +349,8 @@ describe('GET /api/teams/:teamId/quizzers', () => {
   it('returns roster entries', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testUser.id)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
     const team = await seedTeam(db, meet.id, church.id)
 
     const [id1] = await db.insert(schema.quizzerIdentities).values({}).returning()
@@ -293,7 +377,8 @@ describe('POST /api/teams/:teamId/quizzers', () => {
   it('adds a quizzer to the team', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testUser.id)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
     const team = await seedTeam(db, meet.id, church.id)
 
     const res = await app.request(`/api/teams/${team.id}/quizzers`, post({ name: 'Charlie' }), env)
@@ -306,7 +391,8 @@ describe('POST /api/teams/:teamId/quizzers', () => {
   it('rejects missing name with 400', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testUser.id)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
     const team = await seedTeam(db, meet.id, church.id)
 
     const res = await app.request(`/api/teams/${team.id}/quizzers`, post({}), env)
@@ -324,7 +410,8 @@ describe('PATCH /api/teams/:teamId/quizzers/:quizzerId', () => {
   it('updates the quizzer name', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testUser.id)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
     const team = await seedTeam(db, meet.id, church.id)
 
     const [identity] = await db.insert(schema.quizzerIdentities).values({}).returning()
@@ -345,7 +432,8 @@ describe('PATCH /api/teams/:teamId/quizzers/:quizzerId', () => {
   it('returns 404 for unknown quizzer', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testUser.id)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
     const team = await seedTeam(db, meet.id, church.id)
 
     const res = await app.request(
@@ -367,7 +455,8 @@ describe('DELETE /api/teams/:teamId/quizzers/:quizzerId', () => {
   it('removes the quizzer from the roster', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testUser.id)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
     const team = await seedTeam(db, meet.id, church.id)
 
     const [identity] = await db.insert(schema.quizzerIdentities).values({}).returning()
@@ -388,7 +477,8 @@ describe('DELETE /api/teams/:teamId/quizzers/:quizzerId', () => {
   it('returns 404 when quizzer not on team', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
-    const church = await seedChurch(db, meet.id, testUser.id)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
     const team = await seedTeam(db, meet.id, church.id)
 
     const res = await app.request(`/api/teams/${team.id}/quizzers/9999`, { method: 'DELETE' }, env)

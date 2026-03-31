@@ -3,13 +3,13 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { MeetsVariables } from '../meets'
 import { meets } from '../meets'
-import { mockSession, mockDb, testAdmin, testUser, jsonOf } from '../../test-utils'
+import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 
 const env = { ENVIRONMENT: 'test' } as unknown as Bindings
 
-function createApp(user: typeof testAdmin | typeof testUser | null, db: Db) {
+function createApp(user: typeof testSuperuser | typeof testUser | null, db: Db) {
   const app = new Hono<{ Bindings: Bindings; Variables: MeetsVariables }>()
   app.use('*', mockSession(user))
   app.use('*', mockDb(db))
@@ -42,12 +42,12 @@ type MeetBody = {
     viewerCode: string
     divisions: string[]
   }
-  coachCode?: string
+  adminCode?: string
 }
 type MeetsBody = { meets: MeetBody['meet'][] }
 type MeetDetailBody = { meet: MeetBody['meet']; officialCodes: { id: number; label: string }[] }
 type OfficialCodeBody = { officialCode: { id: number; label: string }; code: string }
-type CoachCodeBody = { coachCode: string }
+type AdminCodeBody = { adminCode: string }
 
 describe('meet CRUD', () => {
   let db: Db
@@ -55,11 +55,11 @@ describe('meet CRUD', () => {
 
   beforeEach(async () => {
     db = await createTestDb()
-    app = createApp(testAdmin, db)
+    app = createApp(testSuperuser, db)
   })
 
   describe('POST /api/meets', () => {
-    it('creates a meet and returns the coach code', async () => {
+    it('creates a meet and returns the admin code', async () => {
       const res = await app.request(
         '/api/meets',
         json({
@@ -78,8 +78,8 @@ describe('meet CRUD', () => {
       expect(body.meet.dateTo).toBe('2025-10-15')
       expect(body.meet.viewerCode).toBe('fall-2025')
       expect(body.meet.id).toBeTypeOf('number')
-      expect(body.coachCode).toBeTypeOf('string')
-      expect(body.coachCode!.length).toBeGreaterThanOrEqual(16)
+      expect(body.adminCode).toBeTypeOf('string')
+      expect(body.adminCode!.length).toBeGreaterThanOrEqual(16)
     })
 
     it('rejects missing fields with 400', async () => {
@@ -238,16 +238,16 @@ describe('meet CRUD', () => {
   })
 })
 
-describe('coach code rotation', () => {
+describe('admin code rotation', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
 
   beforeEach(async () => {
     db = await createTestDb()
-    app = createApp(testAdmin, db)
+    app = createApp(testSuperuser, db)
   })
 
-  it('returns a new coach code', async () => {
+  it('returns a new admin code', async () => {
     const createRes = await app.request(
       '/api/meets',
       json({
@@ -259,22 +259,213 @@ describe('coach code rotation', () => {
       }),
       env,
     )
-    const { meet, coachCode: oldCode } = (await createRes.json()) as MeetBody
+    const { meet, adminCode: oldCode } = (await createRes.json()) as MeetBody
 
     const res = await app.request(
-      `/api/meets/${meet.id}/rotate-coach-code`,
-      { method: 'POST' },
+      `/api/meets/${meet.id}/rotate-admin-code`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
       env,
     )
     expect(res.status).toBe(200)
-    const body = await jsonOf<CoachCodeBody>(res)
-    expect(body.coachCode).toBeTypeOf('string')
-    expect(body.coachCode).not.toBe(oldCode)
+    const body = await jsonOf<AdminCodeBody>(res)
+    expect(body.adminCode).toBeTypeOf('string')
+    expect(body.adminCode).not.toBe(oldCode)
   })
 
   it('returns 404 for non-existent meet', async () => {
-    const res = await app.request('/api/meets/9999/rotate-coach-code', { method: 'POST' }, env)
+    const res = await app.request(
+      '/api/meets/9999/rotate-admin-code',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+      env,
+    )
     expect(res.status).toBe(404)
+  })
+
+  it('admin can rotate but cannot clear members', async () => {
+    const adminApp = createApp(testUser, db)
+    const createRes = await app.request(
+      '/api/meets',
+      json({
+        name: 'Admin Clear Test',
+        dateFrom: '2025-01-01',
+        viewerCode: 'act',
+        divisions: ['Div 1'],
+      }),
+      env,
+    )
+    const { meet } = (await createRes.json()) as MeetBody
+
+    // Give testUser admin membership
+    const { adminMemberships } = await import('../../db/schema')
+    await db.insert(adminMemberships).values({ accountId: testUser.id, meetId: meet.id })
+
+    // Rotate without clear — should succeed
+    const rotateRes = await adminApp.request(
+      `/api/meets/${meet.id}/rotate-admin-code`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+      env,
+    )
+    expect(rotateRes.status).toBe(200)
+
+    // Rotate with clearMembers — should be rejected
+    const clearRes = await adminApp.request(
+      `/api/meets/${meet.id}/rotate-admin-code`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clearMembers: true }),
+      },
+      env,
+    )
+    expect(clearRes.status).toBe(403)
+  })
+})
+
+describe('members', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  async function seedMeetWithAdmin(app: ReturnType<typeof createApp>) {
+    const res = await app.request(
+      '/api/meets',
+      json({ name: 'Members Test', dateFrom: '2025-01-01', viewerCode: 'mt', divisions: ['A'] }),
+      env,
+    )
+    return ((await res.json()) as MeetBody).meet
+  }
+
+  describe('GET /api/meets/:id/members', () => {
+    it('returns all members across role types', async () => {
+      const app = createApp(testSuperuser, db)
+      const meet = await seedMeetWithAdmin(app)
+
+      const { adminMemberships, coachMemberships, viewerMemberships, churches, user } =
+        await import('../../db/schema')
+
+      // Seed a second user as admin
+      await db.insert(user).values({
+        id: 'member-1',
+        name: 'Alice',
+        email: 'alice@test.com',
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      await db.insert(adminMemberships).values({ accountId: 'member-1', meetId: meet.id })
+
+      // Seed a coach
+      const { hashCode, generateCode } = await import('../../lib/codes')
+      const [church] = await db
+        .insert(churches)
+        .values({
+          meetId: meet.id,
+          name: 'Test Church',
+          shortName: 'TC',
+          coachCodeHash: await hashCode(generateCode()),
+        })
+        .returning()
+      await db.insert(user).values({
+        id: 'member-2',
+        name: 'Bob',
+        email: 'bob@test.com',
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      await db
+        .insert(coachMemberships)
+        .values({ accountId: 'member-2', churchId: church!.id, meetId: meet.id })
+
+      // Seed a viewer
+      await db.insert(viewerMemberships).values({ accountId: 'member-1', meetId: meet.id })
+
+      const res = await app.request(`/api/meets/${meet.id}/members`, {}, env)
+      expect(res.status).toBe(200)
+      const body = await res.json<{ members: { role: string; userId: string }[] }>()
+      expect(body.members.length).toBeGreaterThanOrEqual(3)
+      expect(body.members.some((m) => m.role === 'admin' && m.userId === 'member-1')).toBe(true)
+      expect(body.members.some((m) => m.role === 'head_coach' && m.userId === 'member-2')).toBe(
+        true,
+      )
+      expect(body.members.some((m) => m.role === 'viewer' && m.userId === 'member-1')).toBe(true)
+    })
+
+    it('rejects non-admin with 403', async () => {
+      const suApp = createApp(testSuperuser, db)
+      const meet = await seedMeetWithAdmin(suApp)
+
+      const app = createApp(testUser, db)
+      const res = await app.request(`/api/meets/${meet.id}/members`, {}, env)
+      expect(res.status).toBe(403)
+    })
+  })
+
+  describe('DELETE /api/meets/:id/members/:userId', () => {
+    it('superuser can revoke an admin membership', async () => {
+      const app = createApp(testSuperuser, db)
+      const meet = await seedMeetWithAdmin(app)
+
+      const { adminMemberships, user } = await import('../../db/schema')
+      await db.insert(user).values({
+        id: 'to-revoke',
+        name: 'Revokee',
+        email: 'revoke@test.com',
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      await db.insert(adminMemberships).values({ accountId: 'to-revoke', meetId: meet.id })
+
+      const res = await app.request(
+        `/api/meets/${meet.id}/members/to-revoke`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'admin' }),
+        },
+        env,
+      )
+      expect(res.status).toBe(200)
+    })
+
+    it('admin cannot revoke another admin', async () => {
+      const suApp = createApp(testSuperuser, db)
+      const meet = await seedMeetWithAdmin(suApp)
+
+      const { adminMemberships } = await import('../../db/schema')
+      await db.insert(adminMemberships).values({ accountId: testUser.id, meetId: meet.id })
+
+      const app = createApp(testUser, db)
+      const res = await app.request(
+        `/api/meets/${meet.id}/members/${testSuperuser.id}`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'admin' }),
+        },
+        env,
+      )
+      expect(res.status).toBe(403)
+    })
+
+    it('returns 404 for non-existent membership', async () => {
+      const app = createApp(testSuperuser, db)
+      const meet = await seedMeetWithAdmin(app)
+
+      const res = await app.request(
+        `/api/meets/${meet.id}/members/nobody`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'admin' }),
+        },
+        env,
+      )
+      expect(res.status).toBe(404)
+    })
   })
 })
 
@@ -285,7 +476,7 @@ describe('official codes', () => {
 
   beforeEach(async () => {
     db = await createTestDb()
-    app = createApp(testAdmin, db)
+    app = createApp(testSuperuser, db)
 
     const createRes = await app.request(
       '/api/meets',
@@ -396,7 +587,7 @@ describe('auth guards', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rejects non-admin users with 403', async () => {
+  it('rejects non-superuser users with 403', async () => {
     const db = await createTestDb()
     const app = createApp(testUser, db)
     const res = await app.request('/api/meets', {}, env)

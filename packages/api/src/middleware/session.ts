@@ -54,15 +54,15 @@ export function requireAuth(): MiddlewareHandler<{
   }
 }
 
-/** 403 if authenticated user is not an admin. Must be used after requireAuth. */
-export function requireAdmin(): MiddlewareHandler<{
+/** 403 if authenticated user is not a superuser. Must be used after requireAuth. */
+export function requireSuperuser(): MiddlewareHandler<{
   Bindings: Bindings
   Variables: SessionVariables
 }> {
   return async (c, next) => {
     const user = c.get('user')
-    if (!user || user.role !== AccountRole.Admin) {
-      return c.json({ error: 'Admin access required' }, 403)
+    if (!user || user.role !== AccountRole.Superuser) {
+      return c.json({ error: 'Superuser access required' }, 403)
     }
     await next()
   }

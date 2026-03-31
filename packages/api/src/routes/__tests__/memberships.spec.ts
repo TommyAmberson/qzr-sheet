@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { MembershipsVariables } from '../memberships'
 import { memberships } from '../memberships'
-import { mockSession, mockDb, testUser, testAdmin, jsonOf } from '../../test-utils'
+import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import { generateCode, hashCode } from '../../lib/codes'
@@ -12,7 +12,7 @@ import { MeetRole } from '@qzr/shared'
 
 const env = { ENVIRONMENT: 'test' } as unknown as Bindings
 
-function createApp(user: typeof testUser | typeof testAdmin | null, db: Db) {
+function createApp(user: typeof testUser | typeof testSuperuser | null, db: Db) {
   const app = new Hono<{ Bindings: Bindings; Variables: MembershipsVariables }>()
   app.use('*', mockSession(user))
   app.use('*', mockDb(db))
@@ -21,7 +21,7 @@ function createApp(user: typeof testUser | typeof testAdmin | null, db: Db) {
 }
 
 async function seedMeet(db: Db, name: string) {
-  const coachCode = generateCode()
+  const adminCode = generateCode()
   const [meet] = await db
     .insert(schema.quizMeets)
     .values({
@@ -29,12 +29,25 @@ async function seedMeet(db: Db, name: string) {
       dateFrom: '2025-06-01',
       dateTo: '2025-06-02',
       viewerCode: `viewer-${name}`,
-      coachCodeHash: await hashCode(coachCode),
+      adminCodeHash: await hashCode(adminCode),
       divisions: '[]',
       createdAt: new Date(),
     })
     .returning()
   return meet!
+}
+
+async function seedChurch(db: Db, meetId: number) {
+  const [church] = await db
+    .insert(schema.churches)
+    .values({
+      meetId,
+      name: 'Test Church',
+      shortName: 'TC',
+      coachCodeHash: await hashCode(generateCode()),
+    })
+    .returning()
+  return church!
 }
 
 type MembershipBody = {
@@ -65,7 +78,12 @@ describe('GET /api/my-meets', () => {
 
   it('returns coach memberships', async () => {
     const meet = await seedMeet(db, 'Coach Meet')
-    await db.insert(schema.coachMemberships).values({ accountId: testUser.id, meetId: meet.id })
+    const church = await seedChurch(db, meet.id)
+    await db.insert(schema.coachMemberships).values({
+      accountId: testUser.id,
+      churchId: church.id,
+      meetId: meet.id,
+    })
 
     const res = await app.request('/api/my-meets', {}, env)
     const body = await jsonOf<MembershipBody>(res)
@@ -108,8 +126,13 @@ describe('GET /api/my-meets', () => {
   it('returns all roles across multiple meets', async () => {
     const meet1 = await seedMeet(db, 'Meet A')
     const meet2 = await seedMeet(db, 'Meet B')
+    const church = await seedChurch(db, meet1.id)
 
-    await db.insert(schema.coachMemberships).values({ accountId: testUser.id, meetId: meet1.id })
+    await db.insert(schema.coachMemberships).values({
+      accountId: testUser.id,
+      churchId: church.id,
+      meetId: meet1.id,
+    })
     await db.insert(schema.viewerMemberships).values({ accountId: testUser.id, meetId: meet2.id })
 
     const res = await app.request('/api/my-meets', {}, env)
@@ -122,15 +145,15 @@ describe('GET /api/my-meets', () => {
   })
 })
 
-describe('GET /api/my-meets (admin)', () => {
+describe('GET /api/my-meets (superuser)', () => {
   let db: Db
 
   beforeEach(async () => {
     db = await createTestDb()
   })
 
-  it('returns all meets with role=admin', async () => {
-    const app = createApp(testAdmin, db)
+  it('returns all meets with role=superuser', async () => {
+    const app = createApp(testSuperuser, db)
     await seedMeet(db, 'Meet A')
     await seedMeet(db, 'Meet B')
 
@@ -139,12 +162,12 @@ describe('GET /api/my-meets (admin)', () => {
     const body = await jsonOf<MembershipBody>(res)
     expect(body.memberships).toHaveLength(2)
     for (const m of body.memberships) {
-      expect(m.role).toBe(MeetRole.Admin)
+      expect(m.role).toBe(MeetRole.Superuser)
     }
   })
 
   it('returns empty list when no meets exist', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     const res = await app.request('/api/my-meets', {}, env)
     expect(res.status).toBe(200)
     const body = await jsonOf<MembershipBody>(res)
@@ -152,13 +175,13 @@ describe('GET /api/my-meets (admin)', () => {
   })
 
   it('returns all meets regardless of explicit memberships', async () => {
-    const app = createApp(testAdmin, db)
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db, 'No Membership Meet')
     // admin has no explicit membership row
     const res = await app.request('/api/my-meets', {}, env)
     const body = await jsonOf<MembershipBody>(res)
     expect(body.memberships).toHaveLength(1)
     expect(body.memberships[0].meetId).toBe(meet.id)
-    expect(body.memberships[0].role).toBe(MeetRole.Admin)
+    expect(body.memberships[0].role).toBe(MeetRole.Superuser)
   })
 })

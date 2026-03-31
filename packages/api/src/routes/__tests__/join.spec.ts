@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { JoinVariables } from '../join'
 import { join } from '../join'
-import { mockSession, mockDb, testAdmin, testUser, jsonOf } from '../../test-utils'
+import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
 
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
@@ -17,7 +17,7 @@ const env = {
   BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
 } as unknown as Bindings
 
-function createApp(user: typeof testAdmin | typeof testUser | null, db: Db) {
+function createApp(user: typeof testSuperuser | typeof testUser | null, db: Db) {
   const app = new Hono<{ Bindings: Bindings; Variables: JoinVariables }>()
   app.use('*', mockSession(user))
   app.use('*', mockDb(db))
@@ -35,10 +35,10 @@ function post(body: Record<string, unknown>) {
 
 async function seedMeet(
   db: Db,
-  opts: { name?: string; viewerCode?: string; coachCode?: string } = {},
+  opts: { name?: string; viewerCode?: string; adminCode?: string } = {},
 ) {
-  const coachCode = opts.coachCode ?? generateCode()
-  const coachHash = await hashCode(coachCode)
+  const adminCode = opts.adminCode ?? generateCode()
+  const adminHash = await hashCode(adminCode)
 
   const [meet] = await db
     .insert(schema.quizMeets)
@@ -47,12 +47,22 @@ async function seedMeet(
       dateFrom: '2025-06-01',
       dateTo: '2025-06-02',
       viewerCode: opts.viewerCode ?? 'test-viewer',
-      coachCodeHash: coachHash,
+      adminCodeHash: adminHash,
       createdAt: new Date(),
     })
     .returning()
 
-  return { meet: meet!, coachCode }
+  return { meet: meet!, adminCode }
+}
+
+async function seedChurch(db: Db, meetId: number, coachCode?: string) {
+  const code = coachCode ?? generateCode()
+  const hash = await hashCode(code)
+  const [church] = await db
+    .insert(schema.churches)
+    .values({ meetId, name: 'Test Church', shortName: 'TC', coachCodeHash: hash })
+    .returning()
+  return { church: church!, coachCode: code }
 }
 
 async function seedOfficialCode(db: Db, meetId: number, label: string) {
@@ -124,9 +134,33 @@ describe('POST /api/join', () => {
     })
   })
 
+  describe('admin codes', () => {
+    it('joins as admin with the admin code', async () => {
+      const { meet, adminCode } = await seedMeet(db)
+
+      const res = await app.request('/api/join', post({ code: adminCode }), env)
+      expect(res.status).toBe(200)
+
+      const body = await jsonOf<JoinBody>(res)
+      expect(body.meet.id).toBe(meet.id)
+      expect(body.role).toBe(MeetRole.Admin)
+    })
+
+    it('is idempotent', async () => {
+      const { adminCode } = await seedMeet(db)
+
+      await app.request('/api/join', post({ code: adminCode }), env)
+      await app.request('/api/join', post({ code: adminCode }), env)
+
+      const rows = await db.select().from(schema.adminMemberships)
+      expect(rows).toHaveLength(1)
+    })
+  })
+
   describe('coach codes', () => {
-    it('joins as head_coach with the coach code', async () => {
-      const { meet, coachCode } = await seedMeet(db)
+    it('joins as head_coach with a church coach code', async () => {
+      const { meet } = await seedMeet(db)
+      const { coachCode } = await seedChurch(db, meet.id)
 
       const res = await app.request('/api/join', post({ code: coachCode }), env)
       expect(res.status).toBe(200)
@@ -137,7 +171,8 @@ describe('POST /api/join', () => {
     })
 
     it('is idempotent', async () => {
-      const { coachCode } = await seedMeet(db)
+      const { meet } = await seedMeet(db)
+      const { coachCode } = await seedChurch(db, meet.id)
 
       await app.request('/api/join', post({ code: coachCode }), env)
       await app.request('/api/join', post({ code: coachCode }), env)
@@ -221,8 +256,15 @@ describe('POST /api/join/guest', () => {
     expect(res.status).toBe(404)
   })
 
+  it('does not accept admin codes', async () => {
+    const { adminCode } = await seedMeet(db)
+    const res = await app.request('/api/join/guest', post({ code: adminCode }), env)
+    expect(res.status).toBe(404)
+  })
+
   it('does not accept coach codes', async () => {
-    const { coachCode } = await seedMeet(db)
+    const { meet } = await seedMeet(db)
+    const { coachCode } = await seedChurch(db, meet.id)
     const res = await app.request('/api/join/guest', post({ code: coachCode }), env)
     expect(res.status).toBe(404)
   })

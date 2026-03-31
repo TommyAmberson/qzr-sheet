@@ -11,7 +11,7 @@ export const user = sqliteTable('user', {
   image: text('image'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-  role: text('role', { enum: [AccountRole.Admin, AccountRole.Normal] })
+  role: text('role', { enum: [AccountRole.Superuser, AccountRole.Normal] })
     .notNull()
     .default(AccountRole.Normal),
 })
@@ -63,7 +63,7 @@ export const quizMeets = sqliteTable('quiz_meets', {
   name: text('name').notNull(),
   dateFrom: text('date_from').notNull(), // ISO 8601 date string
   dateTo: text('date_to'), // ISO 8601 date string; null = single-day meet
-  coachCodeHash: text('coach_code_hash').notNull(),
+  adminCodeHash: text('admin_code_hash').notNull(),
   viewerCode: text('viewer_code').notNull(), // admin-set human-readable slug
   divisions: text('divisions').notNull().default('[]'), // JSON string[]
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
@@ -80,8 +80,8 @@ export const officialCodes = sqliteTable('official_codes', {
 
 // ---- Meet memberships ----
 
-export const coachMemberships = sqliteTable(
-  'coach_memberships',
+export const adminMemberships = sqliteTable(
+  'admin_memberships',
   {
     accountId: text('account_id')
       .notNull()
@@ -91,6 +91,23 @@ export const coachMemberships = sqliteTable(
       .references(() => quizMeets.id, { onDelete: 'cascade' }),
   },
   (t) => [unique().on(t.accountId, t.meetId)],
+)
+
+export const coachMemberships = sqliteTable(
+  'coach_memberships',
+  {
+    accountId: text('account_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    // churchId is the primary scope; meetId is denormalised for getMyMeets() queries
+    churchId: integer('church_id')
+      .notNull()
+      .references(() => churches.id, { onDelete: 'cascade' }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+  },
+  (t) => [unique().on(t.accountId, t.churchId)],
 )
 
 export const officialMemberships = sqliteTable(
@@ -129,11 +146,9 @@ export const churches = sqliteTable('churches', {
   meetId: integer('meet_id')
     .notNull()
     .references(() => quizMeets.id, { onDelete: 'cascade' }),
-  createdBy: text('created_by')
-    .notNull()
-    .references(() => user.id),
   name: text('name').notNull(),
   shortName: text('short_name').notNull(),
+  coachCodeHash: text('coach_code_hash').notNull(),
 })
 
 export const teams = sqliteTable('teams', {
@@ -145,7 +160,7 @@ export const teams = sqliteTable('teams', {
     .notNull()
     .references(() => churches.id, { onDelete: 'cascade' }),
   division: text('division').notNull(),
-  number: integer('number').notNull(), // per-church (global across divisions)
+  number: integer('number').notNull(), // per-church sequential (display derived: "{shortName} {number}")
 })
 
 export const quizzerIdentities = sqliteTable('quizzer_identities', {
@@ -174,6 +189,8 @@ export type Account = typeof account.$inferSelect
 export type Verification = typeof verification.$inferSelect
 export type QuizMeet = typeof quizMeets.$inferSelect
 export type OfficialCode = typeof officialCodes.$inferSelect
+export type AdminMembership = typeof adminMemberships.$inferSelect
+export type CoachMembership = typeof coachMemberships.$inferSelect
 export type Church = typeof churches.$inferSelect
 export type Team = typeof teams.$inferSelect
 export type QuizzerIdentity = typeof quizzerIdentities.$inferSelect

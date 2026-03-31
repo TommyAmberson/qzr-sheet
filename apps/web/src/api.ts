@@ -30,7 +30,7 @@ export class ApiError extends Error {
 
 // ---- Types ----
 
-export interface Meet {
+export interface QuizMeet {
   id: number
   name: string
   dateFrom: string
@@ -46,20 +46,21 @@ export interface OfficialCode {
 }
 
 export interface MeetDetail {
-  meet: Meet
+  meet: QuizMeet
   officialCodes: OfficialCode[]
 }
 
 export interface MeetMembership {
   meetId: number
   meetName: string
-  role: 'head_coach' | 'official' | 'viewer' | 'admin'
+  role: 'admin' | 'head_coach' | 'official' | 'viewer' | 'superuser'
   label?: string
+  churchId?: number
 }
 
-// ---- Meet CRUD (admin) ----
+// ---- Meet CRUD (superuser) ----
 
-export function listMeets(): Promise<{ meets: Meet[] }> {
+export function listMeets(): Promise<{ meets: QuizMeet[] }> {
   return request('/api/meets')
 }
 
@@ -73,7 +74,7 @@ export function createMeet(data: {
   dateTo?: string
   viewerCode: string
   divisions: string[]
-}): Promise<{ meet: Meet; coachCode: string }> {
+}): Promise<{ meet: QuizMeet; adminCode: string }> {
   return request('/api/meets', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -89,7 +90,7 @@ export function updateMeet(
     viewerCode?: string
     divisions?: string[]
   },
-): Promise<{ meet: Meet }> {
+): Promise<{ meet: QuizMeet }> {
   return request(`/api/meets/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -100,10 +101,16 @@ export function deleteMeet(id: number): Promise<{ deleted: true }> {
   return request(`/api/meets/${id}`, { method: 'DELETE' })
 }
 
-// ---- Coach code ----
+// ---- Admin code ----
 
-export function rotateCoachCode(meetId: number): Promise<{ coachCode: string }> {
-  return request(`/api/meets/${meetId}/rotate-coach-code`, { method: 'POST' })
+export function rotateAdminCode(
+  meetId: number,
+  clearMembers = false,
+): Promise<{ adminCode: string }> {
+  return request(`/api/meets/${meetId}/rotate-admin-code`, {
+    method: 'POST',
+    body: JSON.stringify({ clearMembers }),
+  })
 }
 
 // ---- Official codes ----
@@ -140,8 +147,43 @@ export function joinMeet(
   })
 }
 
+export function joinMeetGuest(
+  code: string,
+): Promise<{ token: string; meet: { id: number; name: string }; role: string; label?: string }> {
+  return request('/api/join/guest', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  })
+}
+
 export function getMyMeets(): Promise<{ memberships: MeetMembership[] }> {
   return request('/api/my-meets')
+}
+
+// ---- Members ----
+
+export interface MeetMember {
+  userId: string
+  name: string
+  email: string
+  role: 'admin' | 'head_coach' | 'official' | 'viewer'
+  churchId?: number
+  officialCodeId?: number
+}
+
+export function listMembers(meetId: number): Promise<{ members: MeetMember[] }> {
+  return request(`/api/meets/${meetId}/members`)
+}
+
+export function revokeMember(
+  meetId: number,
+  userId: string,
+  scope: { role: string; churchId?: number; officialCodeId?: number },
+): Promise<{ deleted: true }> {
+  return request(`/api/meets/${meetId}/members/${userId}`, {
+    method: 'DELETE',
+    body: JSON.stringify(scope),
+  })
 }
 
 // ---- Churches ----
@@ -149,7 +191,6 @@ export function getMyMeets(): Promise<{ memberships: MeetMembership[] }> {
 export interface Church {
   id: number
   meetId: number
-  createdBy: string
   name: string
   shortName: string
 }
@@ -174,11 +215,25 @@ export function listChurches(meetId: number): Promise<{ churches: Church[] }> {
 export function createChurch(
   meetId: number,
   data: { name: string; shortName: string },
-): Promise<{ church: Church }> {
+): Promise<{ church: Church; coachCode: string }> {
   return request(`/api/meets/${meetId}/churches`, {
     method: 'POST',
     body: JSON.stringify(data),
   })
+}
+
+export function rotateChurchCoachCode(
+  churchId: number,
+  clearMembers = false,
+): Promise<{ coachCode: string }> {
+  return request(`/api/churches/${churchId}/rotate-coach-code`, {
+    method: 'POST',
+    body: JSON.stringify({ clearMembers }),
+  })
+}
+
+export function deleteChurch(churchId: number): Promise<{ deleted: true }> {
+  return request(`/api/churches/${churchId}`, { method: 'DELETE' })
 }
 
 export function listTeams(churchId: number): Promise<{ teams: Team[] }> {
@@ -190,6 +245,17 @@ export function createTeam(churchId: number, data: { division: string }): Promis
     method: 'POST',
     body: JSON.stringify(data),
   })
+}
+
+export function updateTeam(teamId: number, data: { division: string }): Promise<{ team: Team }> {
+  return request(`/api/teams/${teamId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteTeam(teamId: number): Promise<{ deleted: true }> {
+  return request(`/api/teams/${teamId}`, { method: 'DELETE' })
 }
 
 export function listQuizzers(teamId: number): Promise<{ quizzers: Quizzer[] }> {
