@@ -12,8 +12,10 @@ const loading = ref(true)
 const error = ref('')
 
 const role = computed(() => membership.value?.role ?? null)
-const isSuperuser = computed(() => role.value === 'superuser')
-const isCoach = computed(() => role.value === 'head_coach' || role.value === 'superuser')
+const isAdmin = computed(() => role.value === 'admin' || role.value === 'superuser')
+const canManageTeams = computed(
+  () => role.value === 'head_coach' || role.value === 'admin' || role.value === 'superuser',
+)
 
 // Inline editing
 const editing = ref(false)
@@ -115,7 +117,7 @@ onMounted(load)
               <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{ d }}</span>
             </div>
           </div>
-          <button v-if="isSuperuser" class="icon-btn" title="Edit meet" @click="startEdit">
+          <button v-if="isAdmin" class="icon-btn" title="Edit meet" @click="startEdit">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="16"
@@ -184,9 +186,9 @@ onMounted(load)
         <div class="section-header">
           <h3 class="section-title">Codes</h3>
           <button
-            v-if="isSuperuser"
+            v-if="isAdmin"
             class="manage-link"
-            @click="router.push({ name: 'meet-superuser', params: { id } })"
+            @click="router.push({ name: 'meet-admin', params: { id } })"
           >
             Manage codes
           </button>
@@ -200,7 +202,7 @@ onMounted(load)
       <!-- Actions -->
       <div class="card-grid">
         <button
-          v-if="isCoach"
+          v-if="canManageTeams"
           class="card"
           @click="router.push({ name: 'meet-teams', params: { id } })"
         >

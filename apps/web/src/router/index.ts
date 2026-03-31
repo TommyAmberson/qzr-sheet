@@ -17,16 +17,14 @@ const router = createRouter({
           props: (route) => ({ id: Number(route.params.id) }),
         },
         {
-          path: 'superuser',
-          name: 'meet-superuser',
-          meta: { requiresSuperuser: true },
-          component: () => import('../views/MeetSuperuserView.vue'),
+          path: 'admin',
+          name: 'meet-admin',
+          component: () => import('../views/MeetAdminView.vue'),
           props: (route) => ({ id: Number(route.params.id) }),
         },
         {
           path: 'teams',
           name: 'meet-teams',
-          meta: { requiresCoach: true },
           component: () => import('../views/MeetTeamsView.vue'),
           props: (route) => ({ id: Number(route.params.id) }),
         },
@@ -36,25 +34,10 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  const needsAuth = to.matched.some(
-    (r) => r.meta.requiresAuth || r.meta.requiresSuperuser || r.meta.requiresCoach,
-  )
-  if (!needsAuth) return true
+  if (!to.matched.some((r) => r.meta.requiresAuth)) return true
 
   const { data } = await authClient.getSession()
   if (!data?.user) return { name: 'home' }
-
-  const accountRole = (data.user as Record<string, unknown>).role
-
-  if (to.matched.some((r) => r.meta.requiresSuperuser)) {
-    if (accountRole !== 'superuser') return { name: 'meet', params: to.params }
-  }
-
-  if (to.matched.some((r) => r.meta.requiresCoach)) {
-    // coaches and superusers can access team management
-    if (accountRole !== 'superuser' && accountRole !== 'normal')
-      return { name: 'meet', params: to.params }
-  }
 
   return true
 })
