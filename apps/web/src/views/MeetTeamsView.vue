@@ -47,10 +47,7 @@ const churchForm = ref({ name: '', shortName: '' })
 const creatingChurch = ref(false)
 const createChurchError = ref('')
 
-// Team create — dashed card mode
-const addingTeam = ref(false)
-const newTeamDivision = ref('')
-const createTeamError = ref('')
+// Team create
 
 // Quizzer add
 const addingQuizzerTeamId = ref<number | null>(null) // -1 = unassigned pool
@@ -150,7 +147,8 @@ function quizzersForTeam(teamId: number) {
 }
 
 function teamLabel(team: Team) {
-  return `${selectedChurch.value?.shortName ?? '?'} ${team.number}`
+  const idx = teams.value.indexOf(team)
+  return `${selectedChurch.value?.shortName ?? '?'} ${idx + 1}`
 }
 
 // ---- Load ----
@@ -199,7 +197,7 @@ async function selectChurch(churchId: number) {
   saveError.value = ''
 
   const teamRes = await listTeams(churchId)
-  teams.value = teamRes.teams
+  teams.value = teamRes.teams.slice().sort((a, b) => a.number - b.number)
   for (const t of teams.value) quizzerOrder.value[String(t.id)] = []
 
   const rosterResults = await Promise.all(teams.value.map((t) => listQuizzers(t.id)))
@@ -255,24 +253,16 @@ async function submitCreateChurch() {
 let tempTeamId = -1
 
 function startAddTeam() {
-  addingTeam.value = true
-  newTeamDivision.value = ''
-  createTeamError.value = ''
-}
-
-function submitCreateTeam() {
-  if (!selectedChurchId.value || !newTeamDivision.value.trim()) return
+  if (!selectedChurchId.value) return
   const team: Team = {
     id: tempTeamId--,
     meetId: meet.value!.id,
     churchId: selectedChurchId.value,
-    division: newTeamDivision.value.trim(),
+    division: meet.value!.divisions[0] ?? '',
     number: 0, // placeholder; server assigns on save
   }
   teams.value.push(team)
   quizzerOrder.value[String(team.id)] = []
-  addingTeam.value = false
-  newTeamDivision.value = ''
 }
 
 // Division change is purely local — saved on Save
@@ -828,26 +818,7 @@ function onDrop(toTeamId: number | null) {
 
               <!-- + Team card -->
               <div v-if="canEditSelected" class="team-card team-card--add">
-                <form v-if="addingTeam" class="add-team-form" @submit.prevent="submitCreateTeam">
-                  <select v-model="newTeamDivision" class="division-select" autofocus required>
-                    <option value="" disabled>Division…</option>
-                    <option v-for="div in meet.divisions" :key="div" :value="div">{{ div }}</option>
-                  </select>
-                  <p v-if="createTeamError" class="field-error">{{ createTeamError }}</p>
-                  <div class="inline-add-actions">
-                    <button type="submit" class="btn btn--primary btn--sm">Add</button>
-                    <button
-                      type="button"
-                      class="btn btn--ghost btn--sm"
-                      @click="addingTeam = false"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-                <button v-else class="dashed-add dashed-add--fill" @click="startAddTeam">
-                  + Team
-                </button>
+                <button class="dashed-add dashed-add--fill" @click="startAddTeam">+ Team</button>
               </div>
             </div>
           </div>
@@ -1286,14 +1257,6 @@ function onDrop(toTeamId: number | null) {
 .inline-add-actions {
   display: flex;
   gap: 0.35rem;
-}
-
-.add-team-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.25rem;
-  height: 100%;
 }
 
 .warn-msg {
