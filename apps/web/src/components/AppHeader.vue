@@ -1,15 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import SignInMenu from './SignInMenu.vue'
 
 const scoresheetUrl = __SCORESHEET_URL__
 const { session, signOut } = useAuth()
-
-const isAdmin = computed(
-  () => (session.value?.data?.user as Record<string, unknown> | undefined)?.role === 'admin',
-)
-const isSignedIn = computed(() => !!session.value?.data?.user)
 </script>
 
 <template>
@@ -19,10 +13,6 @@ const isSignedIn = computed(() => !!session.value?.data?.user)
         <span class="logo-mark">qzr-sheet</span>
       </RouterLink>
       <nav class="nav">
-        <RouterLink v-if="isAdmin" :to="{ name: 'admin-meets' }" class="nav-link">Admin</RouterLink>
-        <RouterLink v-if="isSignedIn" :to="{ name: 'coach-meets' }" class="nav-link"
-          >My QuizMeets</RouterLink
-        >
         <a :href="scoresheetUrl" class="nav-link">Scoresheet</a>
         <a
           href="https://github.com/TommyAmberson/qzr-sheet"
