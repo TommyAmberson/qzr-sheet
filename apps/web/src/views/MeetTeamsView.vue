@@ -63,7 +63,27 @@ const renameValue = ref('')
 
 // Drag
 const dragging = ref<{ quizzerId: number; fromTeamId: number | null } | null>(null)
-const dragOverTeamId = ref<number | null | undefined>(undefined)
+// quizzerId to insert before (null = append to end of target)
+const dragOverQuizzerId = ref<number | null>(null)
+// teamId (or null for pool) being hovered — for card-level highlight
+const dragOverContainer = ref<number | null | undefined>(undefined)
+
+// Ordered quizzer lists — keys are teamId or 'pool'
+const quizzerOrder = ref<Record<string, number[]>>({})
+
+function orderedQuizzersForTeam(teamId: number): Quizzer[] {
+  const order = quizzerOrder.value[String(teamId)] ?? []
+  return order
+    .map((id) => allQuizzers.value.find((q) => q.quizzerId === id))
+    .filter((q): q is Quizzer => q !== undefined)
+}
+
+function orderedUnassigned(): Quizzer[] {
+  const order = quizzerOrder.value['pool'] ?? []
+  return order
+    .map((id) => allQuizzers.value.find((q) => q.quizzerId === id))
+    .filter((q): q is Quizzer => q !== undefined)
+}
 
 // ---- Derived ----
 
@@ -79,12 +99,10 @@ function canEdit(church: Church | null): boolean {
 
 const canEditSelected = computed(() => canEdit(selectedChurch.value))
 
-const unassigned = computed(() =>
-  allQuizzers.value.filter((q) => assignments.value[q.quizzerId] === null),
-)
+const unassigned = computed(() => orderedUnassigned())
 
 function quizzersForTeam(teamId: number) {
-  return allQuizzers.value.filter((q) => assignments.value[q.quizzerId] === teamId)
+  return orderedQuizzersForTeam(teamId)
 }
 
 function teamLabel(team: Team) {
@@ -140,15 +158,19 @@ async function selectChurch(churchId: number) {
   teams.value = []
   allQuizzers.value = []
   assignments.value = {}
+  quizzerOrder.value = { pool: [] }
 
   const teamRes = await listTeams(churchId)
   teams.value = teamRes.teams
+  for (const t of teams.value) quizzerOrder.value[String(t.id)] = []
 
   const rosterResults = await Promise.all(teams.value.map((t) => listQuizzers(t.id)))
   for (let i = 0; i < teams.value.length; i++) {
+    const teamId = teams.value[i]!.id
     for (const q of rosterResults[i]!.quizzers) {
       allQuizzers.value.push(q)
-      assignments.value[q.quizzerId] = teams.value[i]!.id
+      assignments.value[q.quizzerId] = teamId
+      quizzerOrder.value[String(teamId)]!.push(q.quizzerId)
     }
   }
 }
@@ -239,6 +261,8 @@ async function submitAddQuizzer(teamId: number) {
     const res = await addQuizzer(teamId, newQuizzerName.value.trim())
     allQuizzers.value.push(res.quizzer)
     assignments.value[res.quizzer.quizzerId] = teamId
+    quizzerOrder.value[String(teamId)] ??= []
+    quizzerOrder.value[String(teamId)]!.push(res.quizzer.quizzerId)
     newQuizzerName.value = ''
     addingQuizzerTeamId.value = null
   } catch (e) {
@@ -252,6 +276,8 @@ function submitAddUnassigned() {
   const q: Quizzer = { quizzerId: tempId--, name: newQuizzerName.value.trim() }
   allQuizzers.value.push(q)
   assignments.value[q.quizzerId] = null
+  quizzerOrder.value['pool'] ??= []
+  quizzerOrder.value['pool']!.push(q.quizzerId)
   newQuizzerName.value = ''
   addingQuizzerTeamId.value = null
 }
@@ -278,15 +304,18 @@ async function submitRename(teamId: number | null, quizzerId: number) {
 }
 
 async function handleRemoveQuizzer(teamId: number | null, quizzerId: number) {
+  const key = teamId === null ? 'pool' : String(teamId)
   if (teamId === null) {
     allQuizzers.value = allQuizzers.value.filter((q) => q.quizzerId !== quizzerId)
     delete assignments.value[quizzerId]
+    quizzerOrder.value[key] = (quizzerOrder.value[key] ?? []).filter((id) => id !== quizzerId)
     return
   }
   try {
     await removeQuizzer(teamId, quizzerId)
     allQuizzers.value = allQuizzers.value.filter((q) => q.quizzerId !== quizzerId)
     delete assignments.value[quizzerId]
+    quizzerOrder.value[key] = (quizzerOrder.value[key] ?? []).filter((id) => id !== quizzerId)
   } catch (e) {
     alert((e as Error).message)
   }
@@ -300,16 +329,70 @@ function onDragStart(quizzerId: number, fromTeamId: number | null) {
 
 function onDragEnd() {
   dragging.value = null
-  dragOverTeamId.value = undefined
+  dragOverQuizzerId.value = null
+  dragOverContainer.value = undefined
+}
+
+function onDragOverContainer(containerId: number | null) {
+  dragOverContainer.value = containerId
+}
+
+function onDragLeaveContainer() {
+  // only clear if not hovering a child quizzer slot
+  dragOverContainer.value = undefined
+}
+
+function onDragOverQuizzer(quizzerId: number, containerId: number | null) {
+  dragOverContainer.value = containerId
+  dragOverQuizzerId.value = quizzerId
+}
+
+function onDragLeaveQuizzer() {
+  dragOverQuizzerId.value = null
+}
+
+// Move quizzerId within/between order lists, inserting before beforeId (null = append)
+function reorderLocally(
+  quizzerId: number,
+  fromKey: string,
+  toKey: string,
+  beforeId: number | null,
+) {
+  const from = quizzerOrder.value[fromKey] ?? []
+  quizzerOrder.value[fromKey] = from.filter((id) => id !== quizzerId)
+  const to = (quizzerOrder.value[toKey] ?? []).filter((id) => id !== quizzerId)
+  if (beforeId === null) {
+    to.push(quizzerId)
+  } else {
+    const pos = to.indexOf(beforeId)
+    to.splice(pos === -1 ? to.length : pos, 0, quizzerId)
+  }
+  quizzerOrder.value[toKey] = to
 }
 
 async function onDrop(toTeamId: number | null) {
   if (!dragging.value) return
   const { quizzerId, fromTeamId } = dragging.value
+  const insertBefore = dragOverQuizzerId.value
   dragging.value = null
-  dragOverTeamId.value = undefined
-  if (toTeamId === fromTeamId) return
+  dragOverQuizzerId.value = null
+  dragOverContainer.value = undefined
+
+  const fromKey = fromTeamId === null ? 'pool' : String(fromTeamId)
+  const toKey = toTeamId === null ? 'pool' : String(toTeamId)
+
+  // Same container — pure reorder, no API call needed
+  if (toTeamId === fromTeamId) {
+    if (insertBefore !== quizzerId) {
+      reorderLocally(quizzerId, fromKey, toKey, insertBefore)
+    }
+    return
+  }
+
+  // Moving between containers — optimistic update
   assignments.value[quizzerId] = toTeamId
+  reorderLocally(quizzerId, fromKey, toKey, insertBefore)
+
   try {
     if (fromTeamId !== null && toTeamId !== null) {
       await removeQuizzer(fromTeamId, quizzerId)
@@ -317,8 +400,14 @@ async function onDrop(toTeamId: number | null) {
       const res = await addQuizzer(toTeamId, q.name)
       const idx = allQuizzers.value.findIndex((q) => q.quizzerId === quizzerId)
       if (idx !== -1) allQuizzers.value[idx] = res.quizzer
-      assignments.value[res.quizzer.quizzerId] = toTeamId
-      delete assignments.value[quizzerId]
+      // id may change after re-add; patch order and assignment
+      if (res.quizzer.quizzerId !== quizzerId) {
+        quizzerOrder.value[toKey] = quizzerOrder.value[toKey].map((id) =>
+          id === quizzerId ? res.quizzer.quizzerId : id,
+        )
+        assignments.value[res.quizzer.quizzerId] = toTeamId
+        delete assignments.value[quizzerId]
+      }
     } else if (fromTeamId !== null && toTeamId === null) {
       await removeQuizzer(fromTeamId, quizzerId)
     } else if (fromTeamId === null && toTeamId !== null) {
@@ -326,11 +415,18 @@ async function onDrop(toTeamId: number | null) {
       const res = await addQuizzer(toTeamId, q.name)
       const idx = allQuizzers.value.findIndex((q) => q.quizzerId === quizzerId)
       if (idx !== -1) allQuizzers.value[idx] = res.quizzer
-      assignments.value[res.quizzer.quizzerId] = toTeamId
-      delete assignments.value[quizzerId]
+      if (res.quizzer.quizzerId !== quizzerId) {
+        quizzerOrder.value[toKey] = quizzerOrder.value[toKey].map((id) =>
+          id === quizzerId ? res.quizzer.quizzerId : id,
+        )
+        assignments.value[res.quizzer.quizzerId] = toTeamId
+        delete assignments.value[quizzerId]
+      }
     }
   } catch (e) {
+    // Roll back
     assignments.value[quizzerId] = fromTeamId
+    reorderLocally(quizzerId, toKey, fromKey, null)
     alert((e as Error).message)
   }
 }
@@ -380,9 +476,9 @@ async function onDrop(toTeamId: number | null) {
           <!-- Unassigned pool -->
           <div
             class="panel panel--pool"
-            :class="{ 'panel--dragover': dragOverTeamId === null && dragging !== null }"
-            @dragover.prevent="dragOverTeamId = null"
-            @dragleave="dragOverTeamId = undefined"
+            :class="{ 'panel--dragover': dragOverContainer === null && dragging !== null }"
+            @dragover.prevent="onDragOverContainer(null)"
+            @dragleave="onDragLeaveContainer"
             @drop.prevent="onDrop(null)"
           >
             <div class="panel-header">
@@ -394,12 +490,15 @@ async function onDrop(toTeamId: number | null) {
                 v-for="q in unassigned"
                 :key="q.quizzerId"
                 class="quizzer-chip"
+                :class="{ 'quizzer-chip--insert-before': dragOverQuizzerId === q.quizzerId }"
                 :draggable="canEditSelected && renamingQuizzerId !== q.quizzerId"
                 @dragstart="
                   canEditSelected &&
                   renamingQuizzerId !== q.quizzerId &&
                   onDragStart(q.quizzerId, null)
                 "
+                @dragover.prevent="onDragOverQuizzer(q.quizzerId, null)"
+                @dragleave.stop="onDragLeaveQuizzer"
                 @dragend="onDragEnd"
               >
                 <template v-if="renamingQuizzerId === q.quizzerId">
@@ -486,9 +585,9 @@ async function onDrop(toTeamId: number | null) {
                 v-for="team in teams"
                 :key="team.id"
                 class="team-card"
-                :class="{ 'team-card--dragover': dragOverTeamId === team.id }"
-                @dragover.prevent="dragOverTeamId = team.id"
-                @dragleave="dragOverTeamId = undefined"
+                :class="{ 'team-card--dragover': dragOverContainer === team.id }"
+                @dragover.prevent="onDragOverContainer(team.id)"
+                @dragleave="onDragLeaveContainer"
                 @drop.prevent="onDrop(team.id)"
               >
                 <div class="team-card-header">
@@ -510,12 +609,15 @@ async function onDrop(toTeamId: number | null) {
                     v-for="q in quizzersForTeam(team.id)"
                     :key="q.quizzerId"
                     class="quizzer-chip"
+                    :class="{ 'quizzer-chip--insert-before': dragOverQuizzerId === q.quizzerId }"
                     :draggable="canEditSelected && renamingQuizzerId !== q.quizzerId"
                     @dragstart="
                       canEditSelected &&
                       renamingQuizzerId !== q.quizzerId &&
                       onDragStart(q.quizzerId, team.id)
                     "
+                    @dragover.prevent="onDragOverQuizzer(q.quizzerId, team.id)"
+                    @dragleave.stop="onDragLeaveQuizzer"
                     @dragend="onDragEnd"
                   >
                     <template v-if="renamingQuizzerId === q.quizzerId">
@@ -931,6 +1033,10 @@ async function onDrop(toTeamId: number | null) {
 
 .quizzer-chip:active {
   cursor: grabbing;
+}
+
+.quizzer-chip--insert-before {
+  border-top: 2px solid var(--color-accent);
 }
 
 .quizzer-name {
