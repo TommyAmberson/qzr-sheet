@@ -30,8 +30,8 @@ Optional items that can happen any time, independent of Phase 4.
 
 ## Phase 4: Quizmeet Integration
 
-See `docs/auth-proposal.md` for the full design — architecture, API stack, security, data model, and
-OAuth flows.
+See `docs/architecture.md`, `docs/auth.md`, `docs/roles-and-access.md`, and `docs/data-model.md` for
+the full design.
 
 ### 4.0 Monorepo conversion ✓
 
@@ -75,12 +75,12 @@ OAuth dance, sessions, account linking, and email/password sign-up/sign-in.
 Enter a code to gain a meet-scoped role: `head_coach`, `official`, or `viewer`. Officials and
 viewers can use guest JWTs without creating an account.
 
-* Session middleware reads Better Auth cookies, with `requireAuth` (401) and `requireAdmin` (403)
-  guards
-* Admin-only meet CRUD: `POST/GET/PATCH/DELETE /api/meets`, with official code management
+* Session middleware reads Better Auth cookies, with `requireAuth` (401) and `requireSuperuser`
+  (403) guards
+* Superuser-only meet CRUD: `POST/GET/PATCH/DELETE /api/meets`, with official code management
   (`POST/DELETE /api/meets/:id/official-codes`, rotate endpoints)
-* Coach codes are server-generated and stored as SHA-256 hashes; viewer codes are admin-set
-  plaintext slugs; official codes are per-room with independent rotation
+* Coach codes are per-meet, server-generated, stored as SHA-256 hashes; viewer codes are
+  superuser-set plaintext slugs; official codes are per-room with independent rotation
 * `POST /api/join` (authenticated) — accepts `{ code }`, resolves meet + role via viewer slug match
   → coach hash match → official hash match, creates idempotent membership row
 * `POST /api/join/guest` (unauthenticated) — accepts official or viewer codes, returns a short-lived
@@ -90,43 +90,79 @@ viewers can use guest JWTs without creating an account.
 * DB injection via Hono context variables; test suite uses `better-sqlite3` in-memory DB with full
   schema for integration tests
 
-### 4.5 Admin dashboard ✓ (partial)
+### 4.5 Superuser dashboard ✓ (partial)
 
-Create and manage quiz meets from the portal. Admin nav link visible only to `role === 'admin'`
-users. Router guard redirects non-admins to home.
+Create and manage quiz meets from the portal. Superuser nav link visible only to
+`role === 'superuser'` accounts. Router guard redirects others to home.
 
 * `GET/POST /api/meets` — list and create meets
 * `GET/PATCH/DELETE /api/meets/:id` — meet detail, edit name/dates/viewer code
-* `POST /api/meets/:id/rotate-coach-code` — rotate coach code (revealed once on creation/rotation)
+* `POST /api/meets/:id/rotate-coach-code` — rotate the per-meet coach code (revealed once on
+  creation/rotation); this will be superseded by per-church codes in **4.6a**
 * `POST/DELETE /api/meets/:id/official-codes` + rotate — per-room official code management
-* `apps/web/src/api.ts` — typed fetch wrapper with cookie credentials for all admin endpoints
-* `AdminMeetsView` — meet list with create modal (coach code shown once); `AdminMeetDetailView` —
-  edit meet, manage codes
+* `apps/web/src/api.ts` — typed fetch wrapper with cookie credentials for all endpoints
+* `MeetSuperuserView` — manage the meet's coach code and official codes
 * `quiz_meets` schema: `date_from` (not null) + `date_to` (nullable) for multi-day meets
 
-Remaining admin work is tracked in **4.8** and **4.9** below.
+### 4.6 Coach roster flow ✓ (in progress)
 
-### 4.6 Coach flow ✓ (in progress)
+Coaches join a meet, then build team rosters for their church. Roster editing uses a draft model —
+all changes are local until the coach clicks Save, which flushes a minimal diff to the API.
 
-Coaches join a meet with their coach code, then register their church(es), build team rosters, and
-link quizzers to historical identities for cross-meet career stats.
-
-* `GET /api/meets/:id/churches` — list churches for the meet (coach sees own; admin sees all)
-* `POST /api/meets/:id/churches` — create a church for this meet (coach-authed)
+* `GET /api/meets/:id/churches` — list churches for the meet (any authenticated member can read)
+* `POST /api/meets/:id/churches` — create a church (coach-authed; will move to superuser/admin in
+  **4.6a**)
 * `GET /api/churches/:id/teams` — list teams under a church
-* `POST /api/churches/:id/teams` — create a team under a church
-* `GET /api/teams/:id/quizzers` — list roster entries for a team
-* `POST /api/teams/:id/quizzers` — add a quizzer; server creates or reuses a `QuizzerIdentity`
-* `PATCH /api/teams/:id/quizzers/:quizzerId` — update display name
+* `POST /api/churches/:id/teams` — create a team; number auto-increments per church
+* `PATCH /api/teams/:id` — update a team's division
+* `DELETE /api/teams/:id` — delete a team and its roster (cascade)
+* `GET/POST /api/teams/:id/quizzers` — list and add roster entries
+* `PATCH /api/teams/:id/quizzers/:quizzerId` — rename a quizzer
 * `DELETE /api/teams/:id/quizzers/:quizzerId` — remove from roster
-* Portal views: `CoachMeetView` (my meets list + join form), `CoachChurchView` (church/team/quizzer
-  management), inline create forms for churches, teams, and quizzers
+* `MeetTeamsView` — church tabs, unassigned pool, team cards with drag reorder, draft save/discard
+  bar, per-team size and division-order warnings
+* Edit gating: coaches can only edit churches they created (`church.createdBy`); will move to
+  `CoachMembership` lookup in **4.6a**
 
-Identity linking (name-match suggestions, church-change warnings) deferred to a follow-up.
+Identity linking (name-match suggestions, church-change warnings) deferred to a later step.
+
+### 4.6a Role model transition (next)
+
+Transition from the current per-meet coach code to per-church coach codes, and introduce the
+meet-scoped admin role. See `docs/roles-and-access.md` and `docs/data-model.md` for the target
+design.
+
+**Schema changes** (two migrations — nullable first, then non-null):
+
+* `quiz_meets`: rename `coach_code_hash` → `admin_code_hash`
+* New table `admin_memberships(accountId, meetId)` — replaces `coach_memberships` for meet-level
+  access
+* `churches`: add `coach_code_hash`, drop `created_by`
+* `coach_memberships`: replace `meetId`-only unique with `(accountId, churchId)`; keep `meetId` as a
+  denormalised convenience column for `getMyMeets()`
+
+**API changes**:
+
+* `POST /api/join` — add admin code lookup and per-church coach code lookup
+* `POST /api/meets/:id/rotate-admin-code` — replaces `rotate-coach-code`; accepts
+  `{ clearMembers: boolean }`
+* `POST /api/churches/:id/rotate-coach-code` — new; accepts `{ clearMembers: boolean }`
+* `POST /api/meets/:id/churches` — restrict to superuser or admin (remove coach self-serve)
+* All church/team edit routes — replace `church.createdBy === user.id` gating with `CoachMembership`
+  lookup
+* `GET /api/my-meets` — update to join through `admin_memberships` and `coach_memberships.meetId`
+
+**Portal changes**:
+
+* `MeetSuperuserView` — add per-church coach code rows (create church → code revealed; rotate with
+  or without clearing members)
+* `MeetTeamsView` — remove self-serve church creation; `canEdit` based on `CoachMembership` row
+  instead of `createdBy`; coaches see only their church tab as editable
+* `MeetRole` enum — add `Admin`; update `getMyMeets` response shape
 
 ### 4.7 Admin: schedule and draw
 
-Once teams are registered, the admin generates the round-robin draw and publishes the schedule.
+Once teams are registered, an admin generates the round-robin draw and publishes the schedule.
 
 * Draw algorithm — assign teams to rooms and rounds; configurable round count and room count
 * `POST /api/meets/:id/draw` — generate and persist the draw; idempotent (re-running replaces
@@ -140,7 +176,7 @@ Once teams are registered, the admin generates the round-robin draw and publishe
 
 * Review submitted quiz results — list of completed `QuizFile` submissions per meet, flag disputed
   results, override scores
-* Account management — list users, promote/demote admin role, revoke meet memberships
+* Account management — list users, promote/demote superuser role, revoke meet memberships
 * Merge quizzer identities — resolve cases where a quizzer has two `QuizzerIdentity` records
 
 ### 4.9 Official flow
