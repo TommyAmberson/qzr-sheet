@@ -15,8 +15,8 @@ type Env = { Bindings: Bindings; Variables: MeetsVariables }
 
 const meets = new Hono<Env>()
 
-// All meet management routes require superuser
-meets.use('*', requireAuth(), requireAdmin())
+// All meet management routes require auth; mutations require superuser
+meets.use('*', requireAuth())
 
 // Inject DB from env binding (overridable in tests via the db variable)
 meets.use('*', async (c, next) => {
@@ -32,7 +32,7 @@ function getDb(c: { get(key: 'db'): Db }): Db {
 
 // ---- Meet CRUD ----
 
-meets.post('/', async (c) => {
+meets.post('/', requireAdmin(), async (c) => {
   const body = await c.req.json<{
     name: string
     dateFrom: string
@@ -66,7 +66,7 @@ meets.post('/', async (c) => {
   return c.json({ meet: formatMeet(meet!), coachCode }, 201)
 })
 
-meets.get('/', async (c) => {
+meets.get('/', requireAdmin(), async (c) => {
   const rows = await getDb(c).select().from(schema.quizMeets)
   return c.json({ meets: rows.map(formatMeet) })
 })
@@ -86,7 +86,7 @@ meets.get('/:id', async (c) => {
   return c.json({ meet: formatMeet(meet), officialCodes: codes })
 })
 
-meets.patch('/:id', async (c) => {
+meets.patch('/:id', requireAdmin(), async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -120,7 +120,7 @@ meets.patch('/:id', async (c) => {
   return c.json({ meet: formatMeet(updated) })
 })
 
-meets.delete('/:id', async (c) => {
+meets.delete('/:id', requireAdmin(), async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -135,7 +135,7 @@ meets.delete('/:id', async (c) => {
 
 // ---- Coach code rotation ----
 
-meets.post('/:id/rotate-coach-code', async (c) => {
+meets.post('/:id/rotate-coach-code', requireAdmin(), async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -154,7 +154,7 @@ meets.post('/:id/rotate-coach-code', async (c) => {
 
 // ---- Official codes ----
 
-meets.post('/:id/official-codes', async (c) => {
+meets.post('/:id/official-codes', requireAdmin(), async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -179,7 +179,7 @@ meets.post('/:id/official-codes', async (c) => {
   return c.json({ officialCode: { id: created!.id, label: created!.label }, code }, 201)
 })
 
-meets.delete('/:id/official-codes/:codeId', async (c) => {
+meets.delete('/:id/official-codes/:codeId', requireAdmin(), async (c) => {
   const meetId = Number(c.req.param('id'))
   const codeId = Number(c.req.param('codeId'))
   if (Number.isNaN(meetId) || Number.isNaN(codeId)) {
@@ -195,7 +195,7 @@ meets.delete('/:id/official-codes/:codeId', async (c) => {
   return c.json({ deleted: true })
 })
 
-meets.post('/:id/official-codes/:codeId/rotate', async (c) => {
+meets.post('/:id/official-codes/:codeId/rotate', requireAdmin(), async (c) => {
   const codeId = Number(c.req.param('codeId'))
   if (Number.isNaN(codeId)) return c.json({ error: 'Invalid code ID' }, 400)
 
