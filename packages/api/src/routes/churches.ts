@@ -156,11 +156,11 @@ churches.post('/churches/:churchId/teams', async (c) => {
   }
   const division = body.division.trim()
 
-  // Derive next team number for this church+division
+  // Derive next team number for this church (global across divisions)
   const existing = await db
     .select({ number: schema.teams.number })
     .from(schema.teams)
-    .where(and(eq(schema.teams.churchId, churchId), eq(schema.teams.division, division)))
+    .where(eq(schema.teams.churchId, churchId))
 
   const nextNumber = existing.length === 0 ? 1 : Math.max(...existing.map((r) => r.number)) + 1
 
