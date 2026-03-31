@@ -50,7 +50,6 @@ const createChurchError = ref('')
 const addingTeam = ref(false)
 const newTeamDivision = ref('')
 const createTeamError = ref('')
-const duplicateTeamWarning = ref('')
 
 // Quizzer add
 const addingQuizzerTeamId = ref<number | null>(null) // -1 = unassigned pool
@@ -140,14 +139,6 @@ function quizzersForTeam(teamId: number) {
 
 function teamLabel(team: Team) {
   return `${selectedChurch.value?.shortName ?? '?'} ${team.number}`
-}
-
-function duplicateDivisionWarning(division: string): string | null {
-  if (!division.trim()) return null
-  const exists = teams.value.some((t) => t.division.toLowerCase() === division.trim().toLowerCase())
-  return exists
-    ? `A team in ${division} already exists for this church. Contact the coach to join that team.`
-    : null
 }
 
 // ---- Load ----
@@ -253,20 +244,10 @@ function startAddTeam() {
   addingTeam.value = true
   newTeamDivision.value = ''
   createTeamError.value = ''
-  duplicateTeamWarning.value = ''
-}
-
-function onNewTeamDivisionChange() {
-  duplicateTeamWarning.value = duplicateDivisionWarning(newTeamDivision.value) ?? ''
 }
 
 async function submitCreateTeam() {
   if (!selectedChurchId.value || !newTeamDivision.value.trim()) return
-  const warning = duplicateDivisionWarning(newTeamDivision.value)
-  if (warning) {
-    duplicateTeamWarning.value = warning
-    return
-  }
   createTeamError.value = ''
   try {
     const res = await createTeam(selectedChurchId.value, { division: newTeamDivision.value.trim() })
@@ -783,26 +764,13 @@ function onDrop(toTeamId: number | null) {
               <!-- + Team card -->
               <div v-if="canEditSelected" class="team-card team-card--add">
                 <form v-if="addingTeam" class="add-team-form" @submit.prevent="submitCreateTeam">
-                  <select
-                    v-model="newTeamDivision"
-                    class="division-select"
-                    autofocus
-                    required
-                    @change="onNewTeamDivisionChange"
-                  >
+                  <select v-model="newTeamDivision" class="division-select" autofocus required>
                     <option value="" disabled>Division…</option>
                     <option v-for="div in meet.divisions" :key="div" :value="div">{{ div }}</option>
                   </select>
-                  <p v-if="duplicateTeamWarning" class="warn-msg">{{ duplicateTeamWarning }}</p>
                   <p v-if="createTeamError" class="field-error">{{ createTeamError }}</p>
                   <div class="inline-add-actions">
-                    <button
-                      type="submit"
-                      class="btn btn--primary btn--sm"
-                      :disabled="!!duplicateTeamWarning"
-                    >
-                      Add
-                    </button>
+                    <button type="submit" class="btn btn--primary btn--sm">Add</button>
                     <button
                       type="button"
                       class="btn btn--ghost btn--sm"
