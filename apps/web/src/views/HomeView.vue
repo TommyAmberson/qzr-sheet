@@ -286,7 +286,7 @@ onMounted(loadMeets)
   color: var(--palette-error);
 }
 
-
+.section--hero {
   padding: 4rem 0 3.5rem;
   background: var(--color-bg-warm);
 }
