@@ -17,16 +17,13 @@ const router = createRouter({
           props: (route) => ({ id: Number(route.params.id) }),
         },
         {
-          path: 'admin',
-          name: 'meet-admin',
-          component: () => import('../views/MeetAdminView.vue'),
-          props: (route) => ({ id: Number(route.params.id) }),
-        },
-        {
-          path: 'teams',
-          name: 'meet-teams',
+          path: 'churches/:churchId/teams',
+          name: 'meet-church-teams',
           component: () => import('../views/MeetTeamsView.vue'),
-          props: (route) => ({ id: Number(route.params.id) }),
+          props: (route) => ({
+            id: Number(route.params.id),
+            churchId: Number(route.params.churchId),
+          }),
         },
       ],
     },

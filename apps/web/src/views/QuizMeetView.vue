@@ -1,13 +1,31 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { getMeet, getMyMeets, updateMeet, type MeetDetail, type MeetMembership } from '../api'
+import {
+  getMeet,
+  getMyMeets,
+  updateMeet,
+  listChurches,
+  listTeams,
+  rotateAdminCode,
+  createChurch,
+  rotateChurchCoachCode,
+  createOfficialCode,
+  deleteOfficialCode,
+  rotateOfficialCode,
+  type MeetDetail,
+  type MeetMembership,
+  type Church,
+  type OfficialCode,
+} from '../api'
 
 const props = defineProps<{ id: number }>()
 const router = useRouter()
 
 const detail = ref<MeetDetail | null>(null)
 const membership = ref<MeetMembership | null>(null)
+const churches = ref<Church[]>([])
+const teamCounts = ref<Record<number, number>>({})
 const loading = ref(true)
 const error = ref('')
 
@@ -30,21 +48,70 @@ const newDivision = ref('')
 const saving = ref(false)
 const saveError = ref('')
 
+// Add church
+const showAddChurch = ref(false)
+const newChurchForm = ref({ name: '', shortName: '' })
+const addingChurch = ref(false)
+const addChurchError = ref('')
+
+// Add room
+const showAddRoom = ref(false)
+const newRoomLabel = ref('')
+const addingRoom = ref(false)
+const addRoomError = ref('')
+
+// Code dialog
+interface CodeDialog {
+  kind: 'admin' | 'church' | 'official'
+  id?: number
+  title: string
+  description: string
+  hasClearOption: boolean
+  revealedCode: string | null
+  busy: boolean
+}
+const codeDialog = ref<CodeDialog | null>(null)
+const dialogRef = ref<HTMLDialogElement | null>(null)
+
 async function load() {
   try {
-    const [detailRes, myMeetsRes] = await Promise.all([getMeet(props.id), getMyMeets()])
+    const [detailRes, myMeetsRes, churchRes] = await Promise.all([
+      getMeet(props.id),
+      getMyMeets(),
+      listChurches(props.id),
+    ])
     detail.value = detailRes
+    churches.value = churchRes.churches
     membership.value = myMeetsRes.memberships.find((m) => m.meetId === props.id) ?? null
     if (!membership.value) {
       router.replace({ name: 'home' })
       return
     }
+    loadTeamCounts()
   } catch (e) {
     error.value = (e as Error).message
   } finally {
     loading.value = false
   }
 }
+
+async function loadTeamCounts() {
+  const results = await Promise.all(churches.value.map((c) => listTeams(c.id)))
+  const counts: Record<number, number> = {}
+  for (let i = 0; i < churches.value.length; i++) {
+    counts[churches.value[i]!.id] = results[i]!.teams.length
+  }
+  teamCounts.value = counts
+}
+
+function churchSummary(churchId: number): string {
+  const count = teamCounts.value[churchId]
+  if (count === undefined) return ''
+  if (count === 0) return 'No teams'
+  return count === 1 ? '1 team' : `${count} teams`
+}
+
+// ---- Meet editing ----
 
 function startEdit() {
   const m = detail.value?.meet
@@ -86,6 +153,147 @@ async function saveEdit() {
   }
 }
 
+// ---- Add church ----
+
+async function handleAddChurch() {
+  addChurchError.value = ''
+  addingChurch.value = true
+  try {
+    const res = await createChurch(props.id, newChurchForm.value)
+    churches.value.push(res.church)
+    teamCounts.value[res.church.id] = 0
+    newChurchForm.value = { name: '', shortName: '' }
+    showAddChurch.value = false
+    openCodeDialog({
+      kind: 'church',
+      id: res.church.id,
+      title: `Coach Code — ${res.church.shortName}`,
+      description:
+        'Share this code with the head coach. They can join the meet and manage their roster.',
+      hasClearOption: true,
+      revealedCode: res.coachCode,
+      busy: false,
+    })
+  } catch (e) {
+    addChurchError.value = (e as Error).message
+  } finally {
+    addingChurch.value = false
+  }
+}
+
+// ---- Add room ----
+
+async function handleAddRoom() {
+  addRoomError.value = ''
+  addingRoom.value = true
+  try {
+    const res = await createOfficialCode(props.id, newRoomLabel.value.trim())
+    detail.value!.officialCodes.push(res.officialCode)
+    newRoomLabel.value = ''
+    showAddRoom.value = false
+    openCodeDialog({
+      kind: 'official',
+      id: res.officialCode.id,
+      title: `Room Code — ${res.officialCode.label}`,
+      description: 'Share this code with the quizmaster or official for this room.',
+      hasClearOption: false,
+      revealedCode: res.code,
+      busy: false,
+    })
+  } catch (e) {
+    addRoomError.value = (e as Error).message
+  } finally {
+    addingRoom.value = false
+  }
+}
+
+async function handleDeleteRoom(codeId: number) {
+  if (!confirm('Delete this room and its code?')) return
+  try {
+    await deleteOfficialCode(props.id, codeId)
+    detail.value!.officialCodes = detail.value!.officialCodes.filter((c) => c.id !== codeId)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
+// ---- Code dialog ----
+
+function openCodeDialog(d: CodeDialog) {
+  codeDialog.value = d
+  nextTick(() => dialogRef.value?.showModal())
+}
+
+function closeCodeDialog() {
+  dialogRef.value?.close()
+  codeDialog.value = null
+}
+
+function openAdminCodeDialog() {
+  openCodeDialog({
+    kind: 'admin',
+    title: 'Admin Code',
+    description:
+      'Share this code with other admins. Anyone who joins with it gets full management access to this meet.',
+    hasClearOption: true,
+    revealedCode: null,
+    busy: false,
+  })
+}
+
+function openChurchCodeDialog(ch: Church) {
+  openCodeDialog({
+    kind: 'church',
+    id: ch.id,
+    title: `Coach Code — ${ch.shortName}`,
+    description:
+      'Share this code with the head coach. They can join the meet and manage their roster.',
+    hasClearOption: true,
+    revealedCode: null,
+    busy: false,
+  })
+}
+
+function openRoomCodeDialog(oc: OfficialCode) {
+  openCodeDialog({
+    kind: 'official',
+    id: oc.id,
+    title: `Room Code — ${oc.label}`,
+    description: 'Share this code with the quizmaster or official for this room.',
+    hasClearOption: false,
+    revealedCode: null,
+    busy: false,
+  })
+}
+
+async function handleGenerateCode(clearMembers: boolean) {
+  const d = codeDialog.value
+  if (!d) return
+  d.busy = true
+  d.revealedCode = null
+  try {
+    if (d.kind === 'admin') {
+      const res = await rotateAdminCode(props.id, clearMembers)
+      d.revealedCode = res.adminCode
+    } else if (d.kind === 'church' && d.id) {
+      const res = await rotateChurchCoachCode(d.id, clearMembers)
+      d.revealedCode = res.coachCode
+    } else if (d.kind === 'official' && d.id) {
+      const res = await rotateOfficialCode(props.id, d.id)
+      d.revealedCode = res.code
+    }
+  } catch (e) {
+    alert((e as Error).message)
+  } finally {
+    d.busy = false
+  }
+}
+
+async function copyCode() {
+  const code = codeDialog.value?.revealedCode
+  if (code) await navigator.clipboard.writeText(code)
+}
+
 onMounted(load)
 </script>
 
@@ -112,9 +320,16 @@ onMounted(load)
                 }}</span
               >
             </div>
-            <div v-if="detail.meet.divisions.length" class="division-tags">
-              <span class="division-tags-label">Divisions</span>
-              <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{ d }}</span>
+            <div class="meet-sub-row">
+              <div v-if="detail.meet.divisions.length" class="division-tags">
+                <span class="division-tags-label">Divisions</span>
+                <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{
+                  d
+                }}</span>
+              </div>
+              <span class="viewer-code"
+                >Viewer code: <code>{{ detail.meet.viewerCode }}</code></span
+              >
             </div>
           </div>
           <button v-if="isAdmin" class="icon-btn" title="Edit meet" @click="startEdit">
@@ -181,35 +396,168 @@ onMounted(load)
         </form>
       </div>
 
-      <!-- Codes -->
-      <div class="section">
+      <!-- Admin code -->
+      <div v-if="isAdmin" class="section">
         <div class="section-header">
-          <h3 class="section-title">Codes</h3>
-          <button
-            v-if="isAdmin"
-            class="manage-link"
-            @click="router.push({ name: 'meet-admin', params: { id } })"
-          >
-            Manage codes
-          </button>
+          <h3 class="section-title">Admin</h3>
         </div>
-        <div class="code-row">
-          <span class="code-label">Viewer</span>
-          <code class="code-value">{{ detail.meet.viewerCode }}</code>
+        <div class="item-list">
+          <div class="item-row">
+            <span class="item-name item-name--static">Admin code</span>
+            <button class="code-btn" title="Manage admin code" @click="openAdminCodeDialog">
+              🔑
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- Actions -->
-      <div class="card-grid">
-        <button
-          v-if="canManageTeams"
-          class="card"
-          @click="router.push({ name: 'meet-teams', params: { id } })"
-        >
-          <span class="card-title">Teams &amp; Rosters</span>
-          <span class="card-desc">Manage churches, teams, and quizzers</span>
-        </button>
+      <!-- Churches -->
+      <div class="section">
+        <div class="section-header">
+          <h3 class="section-title">Churches</h3>
+        </div>
+        <p v-if="churches.length === 0 && !isAdmin" class="state-msg">No churches yet.</p>
+        <ul v-if="churches.length" class="item-list">
+          <li v-for="c in churches" :key="c.id" class="item-row">
+            <span class="item-label">{{ c.shortName }}</span>
+            <span class="item-sublabel">{{ c.name }}</span>
+            <span class="item-meta">{{ churchSummary(c.id) }}</span>
+            <button
+              v-if="canManageTeams"
+              class="row-btn"
+              @click="
+                router.push({
+                  name: 'meet-church-teams',
+                  params: { id, churchId: c.id },
+                })
+              "
+            >
+              Roster
+            </button>
+            <button
+              v-if="isAdmin"
+              class="code-btn"
+              title="Manage coach code"
+              @click.stop="openChurchCodeDialog(c)"
+            >
+              🔑
+            </button>
+          </li>
+        </ul>
+        <template v-if="isAdmin">
+          <form v-if="showAddChurch" class="add-form" @submit.prevent="handleAddChurch">
+            <input
+              v-model="newChurchForm.name"
+              class="field-input"
+              placeholder="Full name (e.g. Grace Community Church)"
+              required
+            />
+            <input
+              v-model="newChurchForm.shortName"
+              class="field-input field-input--short"
+              placeholder="Short (e.g. GCC)"
+              required
+            />
+            <div class="add-form-actions">
+              <button type="submit" class="btn btn--primary btn--sm" :disabled="addingChurch">
+                {{ addingChurch ? 'Adding…' : 'Add' }}
+              </button>
+              <button type="button" class="btn btn--ghost btn--sm" @click="showAddChurch = false">
+                Cancel
+              </button>
+            </div>
+            <p v-if="addChurchError" class="field-error">{{ addChurchError }}</p>
+          </form>
+          <button v-else class="dashed-add" @click="showAddChurch = true">+ Church</button>
+        </template>
       </div>
+
+      <!-- Rooms -->
+      <div class="section">
+        <div class="section-header">
+          <h3 class="section-title">Rooms</h3>
+        </div>
+        <p v-if="!detail.officialCodes.length && !isAdmin" class="state-msg">No rooms yet.</p>
+        <ul v-if="detail.officialCodes.length" class="item-list">
+          <li v-for="oc in detail.officialCodes" :key="oc.id" class="item-row">
+            <span class="item-label">{{ oc.label }}</span>
+            <span class="item-spacer"></span>
+            <button
+              v-if="isAdmin"
+              class="code-btn"
+              title="Manage room code"
+              @click.stop="openRoomCodeDialog(oc)"
+            >
+              🔑
+            </button>
+            <button
+              v-if="isAdmin"
+              class="row-btn row-btn--danger"
+              @click.stop="handleDeleteRoom(oc.id)"
+            >
+              Delete
+            </button>
+          </li>
+        </ul>
+        <template v-if="isAdmin">
+          <form v-if="showAddRoom" class="add-form" @submit.prevent="handleAddRoom">
+            <input
+              v-model="newRoomLabel"
+              class="field-input"
+              placeholder="Label (e.g. Room 1)"
+              required
+            />
+            <div class="add-form-actions">
+              <button type="submit" class="btn btn--primary btn--sm" :disabled="addingRoom">
+                {{ addingRoom ? 'Adding…' : 'Add' }}
+              </button>
+              <button type="button" class="btn btn--ghost btn--sm" @click="showAddRoom = false">
+                Cancel
+              </button>
+            </div>
+            <p v-if="addRoomError" class="field-error">{{ addRoomError }}</p>
+          </form>
+          <button v-else class="dashed-add" @click="showAddRoom = true">+ Room</button>
+        </template>
+      </div>
+
+      <!-- Code management dialog -->
+      <dialog ref="dialogRef" class="code-dialog" @close="codeDialog = null">
+        <template v-if="codeDialog">
+          <div class="dialog-header">
+            <h3 class="dialog-title">{{ codeDialog.title }}</h3>
+            <button class="dialog-close" @click="closeCodeDialog">&times;</button>
+          </div>
+          <p class="dialog-desc">{{ codeDialog.description }}</p>
+
+          <div v-if="codeDialog.revealedCode" class="dialog-revealed">
+            <code class="dialog-code">{{ codeDialog.revealedCode }}</code>
+            <button class="btn btn--secondary btn--sm" @click="copyCode">Copy</button>
+          </div>
+          <p v-if="codeDialog.revealedCode" class="dialog-hint">
+            This code is only shown now. Copy it before closing.
+          </p>
+
+          <div class="dialog-actions">
+            <button
+              class="btn btn--secondary"
+              :disabled="codeDialog.busy"
+              @click="handleGenerateCode(false)"
+            >
+              {{ codeDialog.busy ? '…' : 'Generate new code' }}
+            </button>
+            <button
+              v-if="codeDialog.hasClearOption"
+              class="btn btn--danger"
+              :disabled="codeDialog.busy"
+              @click="handleGenerateCode(true)"
+            >
+              Generate + remove members
+            </button>
+          </div>
+          <p class="dialog-footnote">Generating a new code invalidates the old one immediately.</p>
+        </template>
+      </dialog>
     </template>
   </div>
 </template>
@@ -272,6 +620,30 @@ onMounted(load)
   color: var(--color-text-faint);
 }
 
+.meet-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.meet-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.viewer-code {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+}
+
+.viewer-code code {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
 .icon-btn {
   background: none;
   border: none;
@@ -315,9 +687,8 @@ onMounted(load)
   min-width: 0;
 }
 
-.field-input--wide {
-  flex: 1;
-  min-width: 14rem;
+.field-input--short {
+  max-width: 7rem;
 }
 
 .field-input:focus {
@@ -327,6 +698,7 @@ onMounted(load)
 .field-error {
   font-size: 0.8rem;
   color: var(--palette-error);
+  width: 100%;
 }
 
 .edit-actions {
@@ -351,6 +723,11 @@ onMounted(load)
     border-color 0.15s;
 }
 
+.btn--sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
 .btn--primary {
   background: var(--color-accent);
   color: var(--color-bg);
@@ -373,12 +750,32 @@ onMounted(load)
   color: var(--color-text);
 }
 
+.btn--ghost {
+  background: transparent;
+  color: var(--color-text-faint);
+  border-color: transparent;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  color: var(--color-text-muted);
+}
+
+.btn--danger {
+  background: transparent;
+  color: var(--palette-error);
+  border-color: var(--palette-error);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--palette-error-alt, rgba(220, 38, 38, 0.08));
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-/* Codes section */
+/* Sections */
 .section {
   margin-bottom: 2rem;
 }
@@ -398,84 +795,146 @@ onMounted(load)
   color: var(--color-text-faint);
 }
 
-.manage-link {
-  background: none;
-  border: none;
-  font-size: 0.8rem;
-  color: var(--color-accent);
-  cursor: pointer;
-  font-family: inherit;
-  padding: 0;
-}
-
-.manage-link:hover {
-  text-decoration: underline;
-}
-
-.code-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
-}
-
-.code-label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  min-width: 5rem;
-}
-
-.code-value {
-  font-family: monospace;
-  font-size: 0.875rem;
-  color: var(--color-text);
-}
-
-/* Cards */
-.card-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.card {
+/* Item lists */
+.item-list {
+  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.35rem;
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.875rem;
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border-alt);
-  border-radius: 8px;
-  padding: 1.25rem 1.5rem;
-  min-width: 14rem;
+  border-radius: 6px;
+}
+
+.item-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.item-name {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: default;
+  text-align: left;
+  font-family: inherit;
+}
+
+.item-name--static {
+  cursor: default;
+}
+
+.item-sublabel {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--color-text-faint);
+  flex: 1;
+  min-width: 0;
+}
+
+.item-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  flex-shrink: 0;
+}
+
+.item-spacer {
+  flex: 1;
+}
+
+.row-btn {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  text-align: left;
-  transition: border-color 0.15s;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  color: var(--color-accent);
+  flex-shrink: 0;
 }
 
-.card:hover {
-  border-color: var(--color-accent);
+.row-btn:hover {
+  background: var(--color-bg);
 }
 
-.card-title {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--color-heading);
+.row-btn--danger {
+  color: var(--palette-error);
 }
 
-.card-desc {
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
+.row-btn--danger:hover {
+  background: var(--palette-error-alt, rgba(220, 38, 38, 0.08));
 }
 
-.meet-title-row {
+.code-btn {
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.1s;
+}
+
+.code-btn:hover {
+  opacity: 1;
+  background: var(--color-bg);
+}
+
+/* Add forms */
+.add-form {
   display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
   flex-wrap: wrap;
+  margin-top: 0.5rem;
 }
 
+.add-form-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.dashed-add {
+  width: 100%;
+  background: none;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  padding: 0.45rem;
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  margin-top: 0.5rem;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.dashed-add:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Division tags */
 .division-tags {
   display: flex;
   flex-wrap: wrap;
@@ -534,5 +993,100 @@ onMounted(load)
 
 .division-add .field-input {
   max-width: 14rem;
+}
+
+/* Code dialog */
+.code-dialog {
+  border: 1px solid var(--color-border-alt);
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 1.5rem;
+  max-width: 26rem;
+  width: calc(100vw - 3rem);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.code-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.dialog-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-heading);
+}
+
+.dialog-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  line-height: 1;
+  font-family: inherit;
+}
+
+.dialog-close:hover {
+  color: var(--color-text-muted);
+  background: var(--color-bg-raised);
+}
+
+.dialog-desc {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.dialog-revealed {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.dialog-code {
+  flex: 1;
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  word-break: break-all;
+}
+
+.dialog-hint {
+  font-size: 0.72rem;
+  color: var(--palette-warning, #b45309);
+  margin-bottom: 1rem;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.dialog-actions .btn {
+  justify-content: center;
+}
+
+.dialog-footnote {
+  font-size: 0.72rem;
+  color: var(--color-text-faint);
+  line-height: 1.4;
 }
 </style>
