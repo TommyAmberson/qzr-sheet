@@ -7,6 +7,7 @@ import { sessionMiddleware } from './middleware/session'
 import { health } from './routes/health'
 import { meets } from './routes/meets'
 import { join } from './routes/join'
+import { memberships } from './routes/memberships'
 import { createAuth } from './lib/auth'
 
 const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
@@ -31,5 +32,6 @@ app.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) => createAuth(c.env).handl
 app.use('/api/*', sessionMiddleware())
 app.route('/api/meets', meets)
 app.route('/api/join', join)
+app.route('/api/my-meets', memberships)
 
 export default app
