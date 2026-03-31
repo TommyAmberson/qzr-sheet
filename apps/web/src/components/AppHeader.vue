@@ -21,7 +21,7 @@ const isSignedIn = computed(() => !!session.value?.data?.user)
       <nav class="nav">
         <RouterLink v-if="isAdmin" :to="{ name: 'admin-meets' }" class="nav-link">Admin</RouterLink>
         <RouterLink v-if="isSignedIn" :to="{ name: 'coach-meets' }" class="nav-link"
-          >My meets</RouterLink
+          >My QuizMeets</RouterLink
         >
         <a :href="scoresheetUrl" class="nav-link">Scoresheet</a>
         <a

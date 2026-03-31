@@ -278,7 +278,7 @@ function teamLabel(team: Team) {
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'coach-meets' })">← My meets</button>
+    <button class="back-link" @click="router.push({ name: 'coach-meets' })">← My QuizMeets</button>
 
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>

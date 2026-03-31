@@ -47,14 +47,14 @@ onMounted(load)
 <template>
   <div class="container">
     <div class="page-header">
-      <h2 class="page-title">My meets</h2>
+      <h2 class="page-title">My QuizMeets</h2>
     </div>
 
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
 
     <template v-else>
-      <p v-if="coachMeets.length === 0" class="state-msg">No meets yet — join one below.</p>
+      <p v-if="coachMeets.length === 0" class="state-msg">No QuizMeets yet — join one below.</p>
       <ul v-else class="meet-list">
         <li v-for="m in coachMeets" :key="m.meetId" class="meet-row">
           <button
@@ -67,7 +67,7 @@ onMounted(load)
       </ul>
 
       <div class="join-section">
-        <h3 class="section-title">Join a meet</h3>
+        <h3 class="section-title">Join a QuizMeet</h3>
         <form class="join-form" @submit.prevent="handleJoin">
           <input
             v-model="joinCode"

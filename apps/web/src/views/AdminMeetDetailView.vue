@@ -140,7 +140,7 @@ onMounted(load)
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'admin-meets' })">← Meets</button>
+    <button class="back-link" @click="router.push({ name: 'admin-meets' })">← QuizMeets</button>
 
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>

@@ -68,13 +68,13 @@ onMounted(load)
 <template>
   <div class="container">
     <div class="page-header">
-      <h2 class="page-title">Meets</h2>
-      <button class="btn btn--primary" @click="showCreate = true">New meet</button>
+      <h2 class="page-title">QuizMeets</h2>
+      <button class="btn btn--primary" @click="showCreate = true">New QuizMeet</button>
     </div>
 
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
-    <p v-else-if="meets.length === 0" class="state-msg">No meets yet.</p>
+    <p v-else-if="meets.length === 0" class="state-msg">No QuizMeets yet.</p>
 
     <ul v-else class="meet-list">
       <li v-for="meet in meets" :key="meet.id" class="meet-row">
@@ -95,11 +95,11 @@ onMounted(load)
     <!-- Create modal -->
     <div v-if="showCreate" class="modal-backdrop" @click.self="dismissCreate">
       <div class="modal">
-        <h3 class="modal-title">New meet</h3>
+        <h3 class="modal-title">New QuizMeet</h3>
 
         <template v-if="newCoachCode">
           <p class="coach-code-label">
-            Meet created. Save the coach code — it won't be shown again.
+            QuizMeet created. Save the coach code — it won't be shown again.
           </p>
           <div class="code-box">{{ newCoachCode }}</div>
           <div class="modal-actions">
