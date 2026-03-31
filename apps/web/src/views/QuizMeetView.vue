@@ -640,11 +640,10 @@ onMounted(load)
                 <span class="member-email">{{ m.email }}</span>
                 <button
                   v-if="accessDialog.kind !== 'admin' || isSuperuser"
-                  class="member-remove"
-                  title="Remove"
+                  class="row-btn row-btn--danger"
                   @click="handleRevokeMember(m)"
                 >
-                  &times;
+                  Revoke
                 </button>
               </li>
             </ul>
@@ -1230,27 +1229,5 @@ onMounted(load)
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.member-remove {
-  background: none;
-  border: none;
-  font-size: 1rem;
-  line-height: 1;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  padding: 0 0.2rem;
-  font-family: inherit;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-.member-row:hover .member-remove {
-  opacity: 1;
-}
-
-.member-remove:hover {
-  color: var(--palette-error);
 }
 </style>
