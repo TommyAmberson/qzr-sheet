@@ -151,7 +151,33 @@ function teamLabel(team: Team) {
   return `${selectedChurch.value?.shortName ?? '?'} ${idx + 1}`
 }
 
-// ---- Load ----
+// ---- Roster warnings ----
+
+// Returns a warning string per team index (empty string = no warning).
+// Rules checked:
+//   1. Quizzer count outside 2–5
+//   2. Division order — earlier teams should be in earlier-or-equal divisions
+const teamWarnings = computed<string[]>(() => {
+  const divs = meet.value?.divisions ?? []
+  return teams.value.map((team, i) => {
+    const msgs: string[] = []
+    const count = quizzersForTeam(team.id).length
+    if (count > 0 && count < 2) msgs.push('Fewer than 2 quizzers')
+    if (count > 5) msgs.push('More than 5 quizzers')
+    // Division order: this team's div index should be >= the previous team's
+    const divIdx = divs.indexOf(team.division)
+    if (i > 0) {
+      const prevDivIdx = divs.indexOf(teams.value[i - 1]!.division)
+      if (divIdx < prevDivIdx) msgs.push('Division is earlier than the team above')
+    }
+    // And <= the next team's
+    if (i < teams.value.length - 1) {
+      const nextDivIdx = divs.indexOf(teams.value[i + 1]!.division)
+      if (divIdx > nextDivIdx) msgs.push('Division is later than the team below')
+    }
+    return msgs.join(' · ')
+  })
+})
 
 async function load() {
   loading.value = true
@@ -690,10 +716,13 @@ function onDrop(toTeamId: number | null) {
           <div class="teams-area">
             <div class="teams-grid">
               <div
-                v-for="team in teams"
+                v-for="(team, teamIdx) in teams"
                 :key="team.id"
                 class="team-card"
-                :class="{ 'team-card--dragover': dragOverContainer === team.id }"
+                :class="{
+                  'team-card--dragover': dragOverContainer === team.id,
+                  'team-card--warn': !!teamWarnings[teamIdx],
+                }"
                 @dragover.prevent="onDragOverContainer(team.id)"
                 @dragleave="onDragLeaveContainer"
                 @drop.prevent="onDrop(team.id)"
@@ -719,6 +748,8 @@ function onDrop(toTeamId: number | null) {
                     ×
                   </button>
                 </div>
+
+                <p v-if="teamWarnings[teamIdx]" class="team-warn">⚠ {{ teamWarnings[teamIdx] }}</p>
 
                 <ul class="quizzer-list">
                   <li
@@ -1034,6 +1065,17 @@ function onDrop(toTeamId: number | null) {
 .team-card--dragover {
   border-color: var(--color-accent);
   background: var(--color-bg);
+}
+
+.team-card--warn {
+  border-color: var(--palette-warning, #b45309);
+}
+
+.team-warn {
+  font-size: 0.7rem;
+  color: var(--palette-warning, #b45309);
+  margin-bottom: 0.25rem;
+  line-height: 1.4;
 }
 
 .team-card--add {
