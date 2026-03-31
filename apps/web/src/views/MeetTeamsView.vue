@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
 import {
   getMeet,
+  getMyMeets,
   listChurches,
   createChurch,
   listTeams,
   createTeam,
+  updateTeam,
   listQuizzers,
   addQuizzer,
   updateQuizzer,
@@ -19,51 +22,66 @@ import {
 
 const props = defineProps<{ id: number }>()
 const router = useRouter()
+const { session } = useAuth()
 
 // ---- State ----
 
 const meet = ref<QuizMeet | null>(null)
 const churches = ref<Church[]>([])
 const selectedChurchId = ref<number | null>(null)
+const myUserId = ref<string | null>(null)
+const isSuperuser = ref(false)
 
 const teams = ref<Team[]>([])
-const allQuizzers = ref<Quizzer[]>([]) // flat roster for selected church (across all teams)
-
+const allQuizzers = ref<Quizzer[]>([])
 // quizzerId → teamId (null = unassigned)
 const assignments = ref<Record<number, number | null>>({})
 
 const loading = ref(true)
 const error = ref('')
 
-// Church create form
+// Church create
 const showCreateChurch = ref(false)
 const churchForm = ref({ name: '', shortName: '' })
 const creatingChurch = ref(false)
 const createChurchError = ref('')
 
-// Team create
-const creatingTeam = ref(false)
+// Team create — dashed card mode
+const addingTeam = ref(false)
 const newTeamDivision = ref('')
 const createTeamError = ref('')
+const duplicateTeamWarning = ref('')
+
+// Team division edit
+const editingTeamId = ref<number | null>(null)
+const editTeamDivision = ref('')
 
 // Quizzer add
-const addingQuizzerTeamId = ref<number | null>(null)
+const addingQuizzerTeamId = ref<number | null>(null) // -1 = unassigned pool
 const newQuizzerName = ref('')
 const addQuizzerError = ref('')
 
-// Inline rename
+// Quizzer rename
 const renamingQuizzerId = ref<number | null>(null)
 const renameValue = ref('')
 
-// Drag state
+// Drag
 const dragging = ref<{ quizzerId: number; fromTeamId: number | null } | null>(null)
-const dragOverTeamId = ref<number | null>(null) // null = unassigned zone
+const dragOverTeamId = ref<number | null | undefined>(undefined)
 
 // ---- Derived ----
 
 const selectedChurch = computed(
   () => churches.value.find((c) => c.id === selectedChurchId.value) ?? null,
 )
+
+function canEdit(church: Church | null): boolean {
+  if (!church) return false
+  if (isSuperuser.value) return true
+  return church.createdBy === myUserId.value
+}
+
+const canEditSelected = computed(() => canEdit(selectedChurch.value))
 
 const unassigned = computed(() =>
   allQuizzers.value.filter((q) => assignments.value[q.quizzerId] === null),
@@ -73,18 +91,46 @@ function quizzersForTeam(teamId: number) {
   return allQuizzers.value.filter((q) => assignments.value[q.quizzerId] === teamId)
 }
 
+function teamLabel(team: Team) {
+  return `${selectedChurch.value?.shortName ?? '?'} ${team.number}`
+}
+
+function duplicateDivisionWarning(division: string): string | null {
+  if (!division.trim()) return null
+  const exists = teams.value.some((t) => t.division.toLowerCase() === division.trim().toLowerCase())
+  return exists
+    ? `A team in ${division} already exists for this church. Contact the coach to join that team.`
+    : null
+}
+
 // ---- Load ----
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [meetRes, churchRes] = await Promise.all([getMeet(props.id), listChurches(props.id)])
+    const sessionUser = session.value?.data?.user
+    myUserId.value = sessionUser?.id ?? null
+    isSuperuser.value = (sessionUser as Record<string, unknown> | undefined)?.role === 'superuser'
+
+    const [meetRes, churchRes, myMeetsRes] = await Promise.all([
+      getMeet(props.id),
+      listChurches(props.id),
+      getMyMeets(),
+    ])
     meet.value = meetRes.meet
     churches.value = churchRes.churches
 
+    const membership = myMeetsRes.memberships.find((m) => m.meetId === props.id)
+    if (!membership) {
+      router.replace({ name: 'home' })
+      return
+    }
+
     if (churches.value.length > 0) {
-      await selectChurch(churches.value[0]!.id)
+      const myChurch =
+        churches.value.find((c) => c.createdBy === myUserId.value) ?? churches.value[0]!
+      await selectChurch(myChurch.id)
     }
   } catch (e) {
     error.value = (e as Error).message
@@ -99,16 +145,14 @@ async function selectChurch(churchId: number) {
   allQuizzers.value = []
   assignments.value = {}
 
-  const [teamRes] = await Promise.all([listTeams(churchId)])
+  const teamRes = await listTeams(churchId)
   teams.value = teamRes.teams
 
-  // Load quizzers for every team in parallel
   const rosterResults = await Promise.all(teams.value.map((t) => listQuizzers(t.id)))
   for (let i = 0; i < teams.value.length; i++) {
-    const team = teams.value[i]!
     for (const q of rosterResults[i]!.quizzers) {
       allQuizzers.value.push(q)
-      assignments.value[q.quizzerId] = team.id
+      assignments.value[q.quizzerId] = teams.value[i]!.id
     }
   }
 }
@@ -135,18 +179,52 @@ async function submitCreateChurch() {
 
 // ---- Team actions ----
 
-async function submitCreateTeam() {
-  if (!selectedChurchId.value || !newTeamDivision.value) return
+function startAddTeam() {
+  addingTeam.value = true
+  newTeamDivision.value = ''
   createTeamError.value = ''
-  creatingTeam.value = true
+  duplicateTeamWarning.value = ''
+}
+
+function onNewTeamDivisionChange() {
+  duplicateTeamWarning.value = duplicateDivisionWarning(newTeamDivision.value) ?? ''
+}
+
+async function submitCreateTeam() {
+  if (!selectedChurchId.value || !newTeamDivision.value.trim()) return
+  const warning = duplicateDivisionWarning(newTeamDivision.value)
+  if (warning) {
+    duplicateTeamWarning.value = warning
+    return
+  }
+  createTeamError.value = ''
   try {
-    const res = await createTeam(selectedChurchId.value, { division: newTeamDivision.value })
+    const res = await createTeam(selectedChurchId.value, { division: newTeamDivision.value.trim() })
     teams.value.push(res.team)
+    addingTeam.value = false
     newTeamDivision.value = ''
   } catch (e) {
     createTeamError.value = (e as Error).message
-  } finally {
-    creatingTeam.value = false
+  }
+}
+
+function startEditTeam(team: Team) {
+  editingTeamId.value = team.id
+  editTeamDivision.value = team.division
+}
+
+async function submitEditTeam(teamId: number) {
+  if (!editTeamDivision.value.trim()) {
+    editingTeamId.value = null
+    return
+  }
+  try {
+    const res = await updateTeam(teamId, { division: editTeamDivision.value.trim() })
+    const t = teams.value.find((t) => t.id === teamId)
+    if (t && res.team) t.division = res.team.division
+    editingTeamId.value = null
+  } catch (e) {
+    alert((e as Error).message)
   }
 }
 
@@ -166,7 +244,6 @@ async function submitAddQuizzer(teamId: number) {
   }
 }
 
-// Pool entries are local-only until dragged onto a team — given a temporary negative id.
 let tempId = -1
 function submitAddUnassigned() {
   if (!newQuizzerName.value.trim()) return
@@ -177,20 +254,33 @@ function submitAddUnassigned() {
   addingQuizzerTeamId.value = null
 }
 
-async function submitRename(teamId: number, quizzerId: number) {
-  if (!renameValue.value.trim()) return
+async function submitRename(teamId: number | null, quizzerId: number) {
+  if (!renameValue.value.trim()) {
+    renamingQuizzerId.value = null
+    return
+  }
+  if (teamId === null) {
+    const q = allQuizzers.value.find((q) => q.quizzerId === quizzerId)
+    if (q) q.name = renameValue.value.trim()
+    renamingQuizzerId.value = null
+    return
+  }
   try {
     const res = await updateQuizzer(teamId, quizzerId, renameValue.value.trim())
     const q = allQuizzers.value.find((q) => q.quizzerId === quizzerId)
     if (q) q.name = res.quizzer.name
     renamingQuizzerId.value = null
   } catch (_e) {
-    // keep editing open on error
+    // keep open on error
   }
 }
 
 async function handleRemoveQuizzer(teamId: number | null, quizzerId: number) {
-  if (teamId === null) return // unassigned quizzers aren't persisted yet
+  if (teamId === null) {
+    allQuizzers.value = allQuizzers.value.filter((q) => q.quizzerId !== quizzerId)
+    delete assignments.value[quizzerId]
+    return
+  }
   try {
     await removeQuizzer(teamId, quizzerId)
     allQuizzers.value = allQuizzers.value.filter((q) => q.quizzerId !== quizzerId)
@@ -208,19 +298,16 @@ function onDragStart(quizzerId: number, fromTeamId: number | null) {
 
 function onDragEnd() {
   dragging.value = null
-  dragOverTeamId.value = null
+  dragOverTeamId.value = undefined
 }
 
 async function onDrop(toTeamId: number | null) {
   if (!dragging.value) return
   const { quizzerId, fromTeamId } = dragging.value
   dragging.value = null
-  dragOverTeamId.value = null
-
+  dragOverTeamId.value = undefined
   if (toTeamId === fromTeamId) return
-
   assignments.value[quizzerId] = toTeamId
-
   try {
     if (fromTeamId !== null && toTeamId !== null) {
       await removeQuizzer(fromTeamId, quizzerId)
@@ -245,26 +332,6 @@ async function onDrop(toTeamId: number | null) {
     alert((e as Error).message)
   }
 }
-
-function startAddToPool() {
-  addingQuizzerTeamId.value = -1
-  newQuizzerName.value = ''
-}
-
-function startAddToTeam(teamId: number) {
-  addingQuizzerTeamId.value = teamId
-  newQuizzerName.value = ''
-  addQuizzerError.value = ''
-}
-
-function startRename(quizzerId: number, name: string) {
-  renamingQuizzerId.value = quizzerId
-  renameValue.value = name
-}
-
-function teamLabel(team: Team) {
-  return `${selectedChurch.value?.shortName ?? '?'} ${team.number}`
-}
 </script>
 
 <template>
@@ -278,14 +345,11 @@ function teamLabel(team: Team) {
 
     <template v-else-if="meet">
       <div class="page-header">
-        <h2 class="page-title">{{ meet.name }} — Teams &amp; Rosters</h2>
-        <span class="meet-meta">
-          {{ meet.dateFrom
-          }}{{ meet.dateTo && meet.dateTo !== meet.dateFrom ? ` – ${meet.dateTo}` : '' }}
-        </span>
+        <h2 class="page-title">Teams &amp; Rosters</h2>
+        <span class="meet-name">{{ meet.name }}</span>
       </div>
 
-      <!-- Church selector -->
+      <!-- Church tabs -->
       <div class="church-bar">
         <div class="church-tabs">
           <button
@@ -295,7 +359,7 @@ function teamLabel(team: Team) {
             :class="{ 'church-tab--active': c.id === selectedChurchId }"
             @click="selectChurch(c.id)"
           >
-            {{ c.name }}
+            {{ c.shortName }}<span class="church-tab-full"> {{ c.name }}</span>
           </button>
           <button class="church-tab church-tab--add" @click="showCreateChurch = true">
             + Church
@@ -306,20 +370,21 @@ function teamLabel(team: Team) {
       <p v-if="!selectedChurch" class="state-msg">Add a church to get started.</p>
 
       <template v-else>
+        <p v-if="!canEditSelected" class="notice">
+          You can view {{ selectedChurch.name }}’s roster but only their coach can make changes.
+        </p>
+
         <div class="roster-layout">
-          <!-- Left: unassigned pool -->
+          <!-- Unassigned pool -->
           <div
             class="panel panel--pool"
             :class="{ 'panel--dragover': dragOverTeamId === null && dragging !== null }"
             @dragover.prevent="dragOverTeamId = null"
-            @dragleave="dragOverTeamId = undefined as unknown as null"
+            @dragleave="dragOverTeamId = undefined"
             @drop.prevent="onDrop(null)"
           >
             <div class="panel-header">
               <h3 class="panel-title">Unassigned</h3>
-              <button class="add-btn" title="Add quizzer to pool" @click="startAddToPool()">
-                +
-              </button>
             </div>
 
             <ul class="quizzer-list">
@@ -327,8 +392,8 @@ function teamLabel(team: Team) {
                 v-for="q in unassigned"
                 :key="q.quizzerId"
                 class="quizzer-chip"
-                draggable="true"
-                @dragstart="onDragStart(q.quizzerId, null)"
+                :draggable="canEditSelected"
+                @dragstart="canEditSelected && onDragStart(q.quizzerId, null)"
                 @dragend="onDragEnd"
               >
                 <template v-if="renamingQuizzerId === q.quizzerId">
@@ -336,49 +401,71 @@ function teamLabel(team: Team) {
                     v-model="renameValue"
                     class="rename-input"
                     autofocus
-                    @keyup.enter="submitRename(assignments[q.quizzerId]!, q.quizzerId)"
+                    @keyup.enter="submitRename(null, q.quizzerId)"
                     @keyup.escape="renamingQuizzerId = null"
-                    @blur="renamingQuizzerId = null"
+                    @blur="submitRename(null, q.quizzerId)"
                   />
                 </template>
                 <template v-else>
-                  <span class="quizzer-name" @dblclick="startRename(q.quizzerId, q.name)">
-                    {{ q.name }}
-                  </span>
+                  <span
+                    class="quizzer-name"
+                    :class="{ 'quizzer-name--editable': canEditSelected }"
+                    @dblclick="
+                      canEditSelected && ((renamingQuizzerId = q.quizzerId), (renameValue = q.name))
+                    "
+                    >{{ q.name }}</span
+                  >
+                  <button
+                    v-if="canEditSelected"
+                    class="quizzer-remove"
+                    title="Remove"
+                    @click.stop="handleRemoveQuizzer(null, q.quizzerId)"
+                  >
+                    ×
+                  </button>
                 </template>
               </li>
             </ul>
 
-            <form
-              v-if="addingQuizzerTeamId === -1"
-              class="inline-add"
-              @submit.prevent="submitAddUnassigned"
-            >
-              <input
-                v-model="newQuizzerName"
-                class="field-input"
-                placeholder="Name"
-                autofocus
-                @keyup.escape="addingQuizzerTeamId = null"
-              />
-              <button type="submit" class="btn btn--primary btn--sm">Add</button>
-              <button
-                type="button"
-                class="btn btn--secondary btn--sm"
-                @click="addingQuizzerTeamId = null"
+            <template v-if="canEditSelected">
+              <form
+                v-if="addingQuizzerTeamId === -1"
+                class="inline-add"
+                @submit.prevent="submitAddUnassigned"
               >
-                Cancel
+                <input
+                  v-model="newQuizzerName"
+                  class="inline-add-input"
+                  placeholder="Name"
+                  autofocus
+                  @keyup.escape="addingQuizzerTeamId = null"
+                />
+                <div class="inline-add-actions">
+                  <button type="submit" class="btn btn--primary btn--sm">Add</button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--sm"
+                    @click="addingQuizzerTeamId = null"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+              <button
+                v-else
+                class="dashed-add"
+                @click="
+                  addingQuizzerTeamId = -1
+                  newQuizzerName = ''
+                "
+              >
+                + Quizzer
               </button>
-              <p v-if="addQuizzerError" class="field-error">{{ addQuizzerError }}</p>
-            </form>
+            </template>
           </div>
 
-          <!-- Right: teams -->
-          <div class="panel panel--teams">
-            <div class="panel-header">
-              <h3 class="panel-title">Teams</h3>
-            </div>
-
+          <!-- Teams -->
+          <div class="teams-area">
             <div class="teams-grid">
               <div
                 v-for="team in teams"
@@ -386,12 +473,30 @@ function teamLabel(team: Team) {
                 class="team-card"
                 :class="{ 'team-card--dragover': dragOverTeamId === team.id }"
                 @dragover.prevent="dragOverTeamId = team.id"
-                @dragleave="dragOverTeamId = null"
+                @dragleave="dragOverTeamId = undefined"
                 @drop.prevent="onDrop(team.id)"
               >
                 <div class="team-card-header">
-                  <span class="team-name">{{ teamLabel(team) }}</span>
-                  <span class="team-division">{{ team.division }}</span>
+                  <span class="team-label">{{ teamLabel(team) }}</span>
+                  <select
+                    v-if="editingTeamId === team.id"
+                    v-model="editTeamDivision"
+                    class="division-select"
+                    autofocus
+                    @change="submitEditTeam(team.id)"
+                    @blur="submitEditTeam(team.id)"
+                    @keyup.escape="editingTeamId = null"
+                  >
+                    <option v-for="div in meet.divisions" :key="div" :value="div">{{ div }}</option>
+                  </select>
+                  <span
+                    v-else
+                    class="division-pill"
+                    :class="{ 'division-pill--editable': canEditSelected }"
+                    :title="canEditSelected ? 'Click to change division' : undefined"
+                    @click="canEditSelected && startEditTeam(team)"
+                    >{{ team.division }}</span
+                  >
                   <span class="team-count">{{ quizzersForTeam(team.id).length }}</span>
                 </div>
 
@@ -400,8 +505,8 @@ function teamLabel(team: Team) {
                     v-for="q in quizzersForTeam(team.id)"
                     :key="q.quizzerId"
                     class="quizzer-chip"
-                    draggable="true"
-                    @dragstart="onDragStart(q.quizzerId, team.id)"
+                    :draggable="canEditSelected"
+                    @dragstart="canEditSelected && onDragStart(q.quizzerId, team.id)"
                     @dragend="onDragEnd"
                   >
                     <template v-if="renamingQuizzerId === q.quizzerId">
@@ -411,14 +516,21 @@ function teamLabel(team: Team) {
                         autofocus
                         @keyup.enter="submitRename(team.id, q.quizzerId)"
                         @keyup.escape="renamingQuizzerId = null"
-                        @blur="renamingQuizzerId = null"
+                        @blur="submitRename(team.id, q.quizzerId)"
                       />
                     </template>
                     <template v-else>
-                      <span class="quizzer-name" @dblclick="startRename(q.quizzerId, q.name)">{{
-                        q.name
-                      }}</span>
+                      <span
+                        class="quizzer-name"
+                        :class="{ 'quizzer-name--editable': canEditSelected }"
+                        @dblclick="
+                          canEditSelected &&
+                          ((renamingQuizzerId = q.quizzerId), (renameValue = q.name))
+                        "
+                        >{{ q.name }}</span
+                      >
                       <button
+                        v-if="canEditSelected"
                         class="quizzer-remove"
                         title="Remove"
                         @click.stop="handleRemoveQuizzer(team.id, q.quizzerId)"
@@ -429,48 +541,81 @@ function teamLabel(team: Team) {
                   </li>
                 </ul>
 
-                <form
-                  v-if="addingQuizzerTeamId === team.id"
-                  class="inline-add"
-                  @submit.prevent="submitAddQuizzer(team.id)"
-                >
-                  <input
-                    v-model="newQuizzerName"
-                    class="field-input"
-                    placeholder="Name"
-                    autofocus
-                    @keyup.escape="addingQuizzerTeamId = null"
-                  />
-                  <button type="submit" class="btn btn--primary btn--sm">Add</button>
-                  <button
-                    type="button"
-                    class="btn btn--secondary btn--sm"
-                    @click="addingQuizzerTeamId = null"
+                <template v-if="canEditSelected">
+                  <form
+                    v-if="addingQuizzerTeamId === team.id"
+                    class="inline-add"
+                    @submit.prevent="submitAddQuizzer(team.id)"
                   >
-                    Cancel
+                    <input
+                      v-model="newQuizzerName"
+                      class="inline-add-input"
+                      placeholder="Name"
+                      autofocus
+                      @keyup.escape="addingQuizzerTeamId = null"
+                    />
+                    <div class="inline-add-actions">
+                      <button type="submit" class="btn btn--primary btn--sm">Add</button>
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--sm"
+                        @click="addingQuizzerTeamId = null"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p v-if="addQuizzerError" class="field-error">{{ addQuizzerError }}</p>
+                  </form>
+                  <button
+                    v-else
+                    class="dashed-add"
+                    @click="
+                      addingQuizzerTeamId = team.id
+                      newQuizzerName = ''
+                    "
+                  >
+                    + Quizzer
                   </button>
-                  <p v-if="addQuizzerError" class="field-error">{{ addQuizzerError }}</p>
+                </template>
+              </div>
+
+              <!-- + Team card -->
+              <div v-if="canEditSelected" class="team-card team-card--add">
+                <form v-if="addingTeam" class="add-team-form" @submit.prevent="submitCreateTeam">
+                  <select
+                    v-model="newTeamDivision"
+                    class="division-select"
+                    autofocus
+                    required
+                    @change="onNewTeamDivisionChange"
+                  >
+                    <option value="" disabled>Division…</option>
+                    <option v-for="div in meet.divisions" :key="div" :value="div">{{ div }}</option>
+                  </select>
+                  <p v-if="duplicateTeamWarning" class="warn-msg">{{ duplicateTeamWarning }}</p>
+                  <p v-if="createTeamError" class="field-error">{{ createTeamError }}</p>
+                  <div class="inline-add-actions">
+                    <button
+                      type="submit"
+                      class="btn btn--primary btn--sm"
+                      :disabled="!!duplicateTeamWarning"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--sm"
+                      @click="addingTeam = false"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </form>
-                <button v-else class="add-to-team-btn" @click="startAddToTeam(team.id)">
-                  + Quizzer
+                <button v-else class="dashed-add dashed-add--fill" @click="startAddTeam">
+                  + Team
                 </button>
               </div>
             </div>
-
-            <form class="add-team-form" @submit.prevent="submitCreateTeam">
-              <select v-model="newTeamDivision" class="field-input field-input--select" required>
-                <option value="" disabled>Division…</option>
-                <option v-for="div in meet.divisions" :key="div" :value="div">{{ div }}</option>
-              </select>
-              <button
-                type="submit"
-                class="btn btn--secondary"
-                :disabled="creatingTeam || !newTeamDivision"
-              >
-                {{ creatingTeam ? 'Adding…' : '+ Team' }}
-              </button>
-              <p v-if="createTeamError" class="field-error">{{ createTeamError }}</p>
-            </form>
           </div>
         </div>
       </template>
@@ -537,7 +682,6 @@ function teamLabel(team: Team) {
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
-  flex-wrap: wrap;
   margin-bottom: 1.25rem;
 }
 
@@ -547,7 +691,7 @@ function teamLabel(team: Team) {
   color: var(--color-heading);
 }
 
-.meet-meta {
+.meet-name {
   font-size: 0.8rem;
   color: var(--color-text-faint);
 }
@@ -556,13 +700,22 @@ function teamLabel(team: Team) {
   font-size: 0.875rem;
   color: var(--color-text-faint);
 }
-
 .state-msg--error {
   color: var(--palette-error);
 }
 
+.notice {
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  padding: 0.5rem 0.875rem;
+  margin-bottom: 1rem;
+}
+
 .church-bar {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .church-tabs {
@@ -577,7 +730,7 @@ function teamLabel(team: Team) {
   border-radius: 6px;
   padding: 0.3rem 0.75rem;
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   font-family: inherit;
   color: var(--color-text-muted);
@@ -586,22 +739,25 @@ function teamLabel(team: Team) {
     color 0.15s;
 }
 
+.church-tab-full {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+}
+
 .church-tab:hover {
   border-color: var(--color-accent);
   color: var(--color-text);
 }
-
 .church-tab--active {
   border-color: var(--color-accent);
   color: var(--color-accent);
-  font-weight: 600;
 }
-
 .church-tab--add {
   border-style: dashed;
+  font-weight: 400;
   color: var(--color-text-faint);
 }
-
 .church-tab--add:hover {
   color: var(--color-accent);
   border-color: var(--color-accent);
@@ -609,7 +765,7 @@ function teamLabel(team: Team) {
 
 .roster-layout {
   display: grid;
-  grid-template-columns: 14rem 1fr;
+  grid-template-columns: 13rem 1fr;
   gap: 1.25rem;
   align-items: start;
 }
@@ -619,7 +775,7 @@ function teamLabel(team: Team) {
   border: 1px solid var(--color-border-alt);
   border-radius: 8px;
   padding: 0.875rem;
-  min-height: 12rem;
+  min-height: 10rem;
   transition: border-color 0.1s;
 }
 
@@ -635,106 +791,138 @@ function teamLabel(team: Team) {
 }
 
 .panel-title {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  color: var(--color-heading);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.add-btn {
-  background: none;
-  border: none;
-  font-size: 1rem;
-  line-height: 1;
+  letter-spacing: 0.05em;
   color: var(--color-text-faint);
-  cursor: pointer;
-  font-family: inherit;
-  padding: 0 0.25rem;
 }
 
-.add-btn:hover {
-  color: var(--color-accent);
+.teams-area {
+  min-width: 0;
 }
 
 .teams-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 0.875rem;
-  margin-bottom: 1rem;
+  align-items: start;
 }
 
 .team-card {
-  background: var(--color-bg);
+  background: var(--color-bg-raised);
   border: 1px solid var(--color-border-alt);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 0.75rem;
-  min-width: 10rem;
-  min-height: 6rem;
-  flex: 1 1 10rem;
+  flex: 1 1 11rem;
   max-width: 14rem;
+  min-height: 7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
   transition: border-color 0.1s;
 }
 
 .team-card--dragover {
   border-color: var(--color-accent);
-  background: var(--color-bg-raised);
+  background: var(--color-bg);
+}
+
+.team-card--add {
+  background: transparent;
+  border-style: dashed;
+  align-items: stretch;
+  justify-content: stretch;
 }
 
 .team-card-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.4rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
-.team-name {
+.team-label {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--color-heading);
+  flex-shrink: 0;
 }
 
-.team-division {
-  font-size: 0.75rem;
-  color: var(--color-text-faint);
+.division-pill {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 99px;
+  color: var(--color-text-muted);
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.division-pill--editable {
+  cursor: pointer;
+}
+.division-pill--editable:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.division-select {
+  flex: 1;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: var(--color-text);
+  outline: none;
 }
 
 .team-count {
   font-size: 0.7rem;
   color: var(--color-text-faint);
-  background: var(--color-bg-raised);
+  background: var(--color-bg);
   border-radius: 999px;
   padding: 0 0.4rem;
+  flex-shrink: 0;
 }
 
 .quizzer-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  margin-bottom: 0.5rem;
+  gap: 0.25rem;
+  flex: 1;
 }
 
 .quizzer-chip {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  background: var(--color-bg-raised);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 4px;
   padding: 0.25rem 0.5rem;
   font-size: 0.8rem;
-  cursor: grab;
   user-select: none;
 }
 
-.quizzer-chip:active {
+.quizzer-chip[draggable='true'] {
+  cursor: grab;
+}
+.quizzer-chip[draggable='true']:active {
   cursor: grabbing;
 }
 
 .quizzer-name {
   flex: 1;
+}
+.quizzer-name--editable {
+  cursor: text;
 }
 
 .quizzer-remove {
@@ -765,82 +953,78 @@ function teamLabel(team: Team) {
   width: 100%;
 }
 
-.add-team-form {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-top: 0.25rem;
-}
-
-.add-to-team-btn {
+.dashed-add {
   width: 100%;
   background: none;
   border: 1px dashed var(--color-border);
   border-radius: 4px;
-  padding: 0.25rem;
+  padding: 0.3rem;
   font-size: 0.75rem;
   color: var(--color-text-faint);
   cursor: pointer;
   font-family: inherit;
   text-align: center;
+  margin-top: 0.25rem;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
-.add-to-team-btn:hover {
+.dashed-add:hover {
   border-color: var(--color-accent);
   color: var(--color-accent);
+}
+
+.dashed-add--fill {
+  flex: 1;
+  height: 100%;
+  margin-top: 0;
+  min-height: 5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .inline-add {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  margin-top: 0.4rem;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
 }
 
-.inline-add .field-input {
+.inline-add-input {
+  background: var(--color-bg);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
   font-size: 0.8rem;
-}
-
-.inline-add .btn {
-  align-self: flex-start;
-}
-
-.field {
-  margin-bottom: 0.875rem;
-}
-
-.field-label {
-  display: block;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  margin-bottom: 0.3rem;
-}
-
-.field-input {
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  padding: 0.4rem 0.65rem;
-  font-size: 0.875rem;
-  color: var(--color-text);
   font-family: inherit;
+  color: var(--color-text);
   outline: none;
   width: 100%;
-  min-width: 0;
 }
 
-.field-input:focus {
-  border-color: var(--color-accent);
+.inline-add-actions {
+  display: flex;
+  gap: 0.35rem;
 }
 
-.field-input--select {
-  width: auto;
+.add-team-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.25rem;
+  height: 100%;
+}
+
+.warn-msg {
+  font-size: 0.75rem;
+  color: var(--palette-warning, #b45309);
+  line-height: 1.4;
 }
 
 .field-error {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--palette-error);
 }
 
@@ -862,7 +1046,7 @@ function teamLabel(team: Team) {
 }
 
 .btn--sm {
-  padding: 0.25rem 0.6rem;
+  padding: 0.2rem 0.55rem;
   font-size: 0.75rem;
 }
 
@@ -871,7 +1055,6 @@ function teamLabel(team: Team) {
   color: var(--color-bg);
   border-color: var(--color-accent);
 }
-
 .btn--primary:hover:not(:disabled) {
   background: var(--color-accent-hover);
   border-color: var(--color-accent-hover);
@@ -882,10 +1065,18 @@ function teamLabel(team: Team) {
   color: var(--color-text-muted);
   border-color: var(--color-border);
 }
-
 .btn--secondary:hover:not(:disabled) {
   border-color: var(--color-text-muted);
   color: var(--color-text);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-text-faint);
+  border-color: transparent;
+}
+.btn--ghost:hover:not(:disabled) {
+  color: var(--color-text-muted);
 }
 
 .btn:disabled {
@@ -924,5 +1115,34 @@ function teamLabel(team: Team) {
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+.field {
+  margin-bottom: 0.875rem;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 0.3rem;
+}
+
+.field-input {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+  min-width: 0;
+}
+
+.field-input:focus {
+  border-color: var(--color-accent);
 }
 </style>

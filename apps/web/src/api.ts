@@ -201,6 +201,13 @@ export function createTeam(churchId: number, data: { division: string }): Promis
   })
 }
 
+export function updateTeam(teamId: number, data: { division: string }): Promise<{ team: Team }> {
+  return request(`/api/teams/${teamId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
 export function listQuizzers(teamId: number): Promise<{ quizzers: Quizzer[] }> {
   return request(`/api/teams/${teamId}/quizzers`)
 }
