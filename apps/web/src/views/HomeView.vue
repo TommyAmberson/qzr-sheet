@@ -17,7 +17,7 @@ const joining = ref(false)
 const joinError = ref('')
 
 async function loadMeets() {
-  if (!session.data?.user) return
+  if (!session.value?.data?.user) return
   loadingMeets.value = true
   try {
     const res = await getMyMeets()
