@@ -60,3 +60,6 @@ src-tauri/icons/favicon.ico
 
 
 
+
+# Wrangler local cache
+.wrangler
