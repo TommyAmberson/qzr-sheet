@@ -19,7 +19,7 @@ async function load() {
   try {
     const res = await getMyMeets()
     memberships.value = res.memberships
-    coachMeets.value = res.memberships.filter((m) => m.role === 'head_coach')
+    coachMeets.value = res.memberships.filter((m) => m.role === 'head_coach' || m.role === 'admin')
   } catch (e) {
     error.value = (e as Error).message
   } finally {
