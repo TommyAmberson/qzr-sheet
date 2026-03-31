@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+
+const vFocus = { mounted: (el: HTMLElement) => el.focus() }
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import {
@@ -674,8 +676,8 @@ function onTeamDrop(toTeamId: number) {
                 <template v-if="renamingQuizzerId === q.quizzerId">
                   <input
                     v-model="renameValue"
+                    v-focus
                     class="rename-input"
-                    autofocus
                     @keyup.enter="submitRename(null, q.quizzerId)"
                     @keyup.escape="renamingQuizzerId = null"
                     @blur="submitRename(null, q.quizzerId)"
@@ -728,9 +730,9 @@ function onTeamDrop(toTeamId: number) {
               >
                 <input
                   v-model="newQuizzerName"
+                  v-focus
                   class="inline-add-input"
                   placeholder="Name"
-                  autofocus
                   @keyup.escape="addingQuizzerTeamId = null"
                 />
                 <div class="inline-add-actions">
@@ -824,8 +826,8 @@ function onTeamDrop(toTeamId: number) {
                     <template v-if="renamingQuizzerId === q.quizzerId">
                       <input
                         v-model="renameValue"
+                        v-focus
                         class="rename-input"
-                        autofocus
                         @keyup.enter="submitRename(team.id, q.quizzerId)"
                         @keyup.escape="renamingQuizzerId = null"
                         @blur="submitRename(team.id, q.quizzerId)"
@@ -878,9 +880,9 @@ function onTeamDrop(toTeamId: number) {
                   >
                     <input
                       v-model="newQuizzerName"
+                      v-focus
                       class="inline-add-input"
                       placeholder="Name"
-                      autofocus
                       @keyup.escape="addingQuizzerTeamId = null"
                     />
                     <div class="inline-add-actions">
