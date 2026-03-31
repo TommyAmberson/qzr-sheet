@@ -20,9 +20,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm build:web
+      - run: pnpm build:all
 
-      - run: pnpm dlx wrangler pages deploy apps/scoresheet/dist --project-name versevault-www --branch master
+      - run: pnpm dlx wrangler pages deploy apps/web/dist --project-name versevault-www --branch master
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
