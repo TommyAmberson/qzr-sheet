@@ -16,7 +16,8 @@
     "@qzr/shared": "workspace:*",
     "better-auth": "^1.2.7",
     "drizzle-orm": "^0.44.0",
-    "hono": "^4.7.0"
+    "hono": "^4.7.0",
+    "jose": "^6.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.0.0",

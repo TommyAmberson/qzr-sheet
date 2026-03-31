@@ -7,10 +7,14 @@ import { mockSession, mockDb, testAdmin, testUser } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import { generateCode, hashCode } from '../../lib/codes'
+import { verifyGuestJwt } from '../../lib/jwt'
 import * as schema from '../../db/schema'
 import { MeetRole } from '@qzr/shared'
 
-const env = { ENVIRONMENT: 'test' } as unknown as Bindings
+const env = {
+  ENVIRONMENT: 'test',
+  BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
+} as unknown as Bindings
 
 function createApp(user: typeof testAdmin | typeof testUser | null, db: Db) {
   const app = new Hono<{ Bindings: Bindings; Variables: JoinVariables }>()
@@ -189,6 +193,75 @@ describe('POST /api/join', () => {
 
       const body = await res.json()
       expect(body.role).toBe(MeetRole.Viewer)
+    })
+  })
+})
+
+describe('POST /api/join/guest', () => {
+  let db: Db
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(() => {
+    db = createTestDb()
+    // Guest endpoint doesn't require auth — pass null
+    app = createApp(null, db)
+  })
+
+  it('rejects missing code with 400', async () => {
+    const res = await app.request('/api/join/guest', post({}), env)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 404 for invalid code', async () => {
+    const res = await app.request('/api/join/guest', post({ code: 'nope' }), env)
+    expect(res.status).toBe(404)
+  })
+
+  it('does not accept coach codes', async () => {
+    const { coachCode } = await seedMeet(db)
+    const res = await app.request('/api/join/guest', post({ code: coachCode }), env)
+    expect(res.status).toBe(404)
+  })
+
+  describe('viewer guest session', () => {
+    it('returns a guest JWT for a viewer code', async () => {
+      const { meet } = await seedMeet(db, { viewerCode: 'public-slug' })
+
+      const res = await app.request('/api/join/guest', post({ code: 'public-slug' }), env)
+      expect(res.status).toBe(200)
+
+      const body = await res.json()
+      expect(body.token).toBeTypeOf('string')
+      expect(body.meet.id).toBe(meet.id)
+      expect(body.role).toBe(MeetRole.Viewer)
+
+      // Verify the JWT
+      const payload = await verifyGuestJwt(body.token, 'test-secret-at-least-32-characters-long')
+      expect(payload).not.toBeNull()
+      expect(payload!.meetId).toBe(meet.id)
+      expect(payload!.role).toBe(MeetRole.Viewer)
+    })
+  })
+
+  describe('official guest session', () => {
+    it('returns a guest JWT for an official code', async () => {
+      const { meet } = await seedMeet(db)
+      const { code } = await seedOfficialCode(db, meet.id, 'Room B')
+
+      const res = await app.request('/api/join/guest', post({ code }), env)
+      expect(res.status).toBe(200)
+
+      const body = await res.json()
+      expect(body.token).toBeTypeOf('string')
+      expect(body.meet.id).toBe(meet.id)
+      expect(body.role).toBe(MeetRole.Official)
+      expect(body.label).toBe('Room B')
+
+      const payload = await verifyGuestJwt(body.token, 'test-secret-at-least-32-characters-long')
+      expect(payload).not.toBeNull()
+      expect(payload!.meetId).toBe(meet.id)
+      expect(payload!.role).toBe(MeetRole.Official)
+      expect(payload!.label).toBe('Room B')
     })
   })
 })

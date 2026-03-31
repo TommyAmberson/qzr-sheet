@@ -5,6 +5,7 @@ import type { SessionVariables } from '../middleware/session'
 import { requireAuth, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { hashCode } from '../lib/codes'
+import { signGuestJwt } from '../lib/jwt'
 import * as schema from '../db/schema'
 import { MeetRole } from '@qzr/shared'
 
@@ -144,6 +145,74 @@ join.post('/', requireAuth(), async (c) => {
       }
 
       return c.json({
+        meet: { id: meet.id, name: meet.name },
+        role: MeetRole.Official,
+        label: officialMatch.label,
+      })
+    }
+  }
+
+  return c.json({ error: 'Invalid code' }, 404)
+})
+
+/**
+ * POST /api/join/guest
+ *
+ * Unauthenticated endpoint. Accepts { code } for official or viewer codes,
+ * and returns a short-lived guest JWT (no account required).
+ *
+ * Coach codes are not accepted — coaches must have an account.
+ */
+join.post('/guest', async (c) => {
+  const body = await c.req.json<{ code: string }>()
+  if (!body.code?.trim()) {
+    return c.json({ error: 'code is required' }, 400)
+  }
+
+  const code = body.code.trim()
+  const db = getDb(c)
+  const secret = c.env.BETTER_AUTH_SECRET
+
+  // 1. Try viewer code (plaintext slug match)
+  const [viewerMatch] = await db
+    .select({ id: schema.quizMeets.id, name: schema.quizMeets.name })
+    .from(schema.quizMeets)
+    .where(eq(schema.quizMeets.viewerCode, code))
+
+  if (viewerMatch) {
+    const token = await signGuestJwt({ meetId: viewerMatch.id, role: MeetRole.Viewer }, secret)
+    return c.json({
+      token,
+      meet: { id: viewerMatch.id, name: viewerMatch.name },
+      role: MeetRole.Viewer,
+    })
+  }
+
+  // 2. Try official codes (SHA-256 hash match)
+  const codeHash = await hashCode(code)
+
+  const [officialMatch] = await db
+    .select({
+      codeId: schema.officialCodes.id,
+      meetId: schema.officialCodes.meetId,
+      label: schema.officialCodes.label,
+    })
+    .from(schema.officialCodes)
+    .where(eq(schema.officialCodes.codeHash, codeHash))
+
+  if (officialMatch) {
+    const [meet] = await db
+      .select({ id: schema.quizMeets.id, name: schema.quizMeets.name })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, officialMatch.meetId))
+
+    if (meet) {
+      const token = await signGuestJwt(
+        { meetId: meet.id, role: MeetRole.Official, label: officialMatch.label },
+        secret,
+      )
+      return c.json({
+        token,
         meet: { id: meet.id, name: meet.name },
         role: MeetRole.Official,
         label: officialMatch.label,
