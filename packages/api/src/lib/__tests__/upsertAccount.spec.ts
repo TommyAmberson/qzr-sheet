@@ -102,7 +102,7 @@ describe('upsertAccount', () => {
       const insertMock = vi.fn(() => ({
         values: vi.fn(() => ({ returning: vi.fn(() => Promise.resolve([])) })),
       }))
-      db.insert = insertMock
+      db.insert = insertMock as unknown as Db['insert']
 
       const result = await upsertAccount(db, 'google', '99', 'user@example.com')
 
@@ -128,7 +128,7 @@ describe('upsertAccount', () => {
           }),
         })),
       }))
-      db.insert = insertMock
+      db.insert = insertMock as unknown as Db['insert']
 
       const result = await upsertAccount(db, 'github', '123', 'new@example.com')
 

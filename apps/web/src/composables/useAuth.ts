@@ -36,5 +36,10 @@ export function useAuth() {
     localStorage.removeItem('auth_token')
   }
 
-  return { isSignedIn, user, token, fetchUser, signIn, signOut }
+  async function setToken(newToken: string) {
+    token.value = newToken
+    await fetchUser()
+  }
+
+  return { isSignedIn, user, token, fetchUser, setToken, signIn, signOut }
 }
