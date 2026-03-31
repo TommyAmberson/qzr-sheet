@@ -14,6 +14,9 @@ import {
   createOfficialCode,
   deleteOfficialCode,
   rotateOfficialCode,
+  createTeam,
+  addQuizzer,
+  listQuizzers,
   type MeetDetail,
   type MeetMembership,
   type Church,
@@ -22,6 +25,7 @@ import {
   listMembers,
   revokeMember,
 } from '../api'
+import { parseRosterCsv, serializeRosterCsv, type RosterEntry } from '../rosterCsv'
 
 const props = defineProps<{ id: number }>()
 const router = useRouter()
@@ -360,6 +364,110 @@ async function copyCode() {
   if (code) await navigator.clipboard.writeText(code)
 }
 
+// ---- Roster import / export ----
+
+const importingRoster = ref(false)
+const importRosterError = ref('')
+const rosterFileInput = ref<HTMLInputElement | null>(null)
+
+function triggerRosterImport() {
+  rosterFileInput.value?.click()
+}
+
+async function handleRosterFile(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  importingRoster.value = true
+  importRosterError.value = ''
+  try {
+    const text = await file.text()
+    const entries = parseRosterCsv(text)
+    if (entries.length === 0) {
+      importRosterError.value = 'No roster entries found in file.'
+      return
+    }
+    await applyRosterImport(entries)
+    await load()
+  } catch (e) {
+    importRosterError.value = (e as Error).message
+  } finally {
+    importingRoster.value = false
+    if (rosterFileInput.value) rosterFileInput.value.value = ''
+  }
+}
+
+async function applyRosterImport(entries: RosterEntry[]) {
+  // Build a lookup of existing churches by shortName (case-insensitive)
+  const existingByShort = new Map<string, Church>()
+  for (const c of churches.value) {
+    existingByShort.set(c.shortName.toLowerCase(), c)
+  }
+
+  // Group entries by church → team → quizzers
+  const churchMap = new Map<string, { division: string; quizzers: string[] }[]>()
+  const churchDivisionTeams = new Map<string, Map<string, string[]>>()
+
+  for (const e of entries) {
+    if (!churchDivisionTeams.has(e.church)) churchDivisionTeams.set(e.church, new Map())
+    const teamMap = churchDivisionTeams.get(e.church)!
+    const teamKey = `${e.division}\0${e.teamName}`
+    if (!teamMap.has(teamKey)) teamMap.set(teamKey, [])
+    teamMap.get(teamKey)!.push(e.quizzerName)
+  }
+
+  for (const [churchName, teamMap] of churchDivisionTeams) {
+    const teamList: { division: string; quizzers: string[] }[] = []
+    for (const [teamKey, quizzers] of teamMap) {
+      const division = teamKey.split('\0')[0]!
+      teamList.push({ division, quizzers })
+    }
+    churchMap.set(churchName, teamList)
+  }
+
+  // Create churches, teams, quizzers
+  for (const [churchName, teamList] of churchMap) {
+    let church = existingByShort.get(churchName.toLowerCase())
+    if (!church) {
+      const res = await createChurch(props.id, { name: churchName, shortName: churchName })
+      church = res.church
+    }
+
+    for (const team of teamList) {
+      const res = await createTeam(church.id, { division: team.division })
+      for (const name of team.quizzers) {
+        await addQuizzer(res.team.id, name)
+      }
+    }
+  }
+}
+
+async function handleExportRoster() {
+  const entries: RosterEntry[] = []
+  for (const c of churches.value) {
+    const teamRes = await listTeams(c.id)
+    const sorted = teamRes.teams.slice().sort((a, b) => a.number - b.number)
+    for (const t of sorted) {
+      const qRes = await listQuizzers(t.id)
+      for (const q of qRes.quizzers) {
+        entries.push({
+          division: t.division,
+          teamName: `${c.shortName} ${t.number}`,
+          quizzerName: q.name,
+          church: c.shortName,
+        })
+      }
+    }
+  }
+  const csv = serializeRosterCsv(entries)
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${detail.value?.meet.name ?? 'roster'}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 onMounted(load)
 </script>
 
@@ -481,7 +589,31 @@ onMounted(load)
       <div class="section">
         <div class="section-header">
           <h3 class="section-title">Churches</h3>
+          <div v-if="isAdmin" class="section-actions">
+            <button
+              class="btn btn--secondary btn--sm"
+              :disabled="importingRoster"
+              @click="triggerRosterImport"
+            >
+              {{ importingRoster ? 'Importing…' : '⤒ Import Roster' }}
+            </button>
+            <button
+              v-if="churches.length"
+              class="btn btn--secondary btn--sm"
+              @click="handleExportRoster"
+            >
+              ⤓ Export Roster
+            </button>
+            <input
+              ref="rosterFileInput"
+              type="file"
+              accept=".csv,.tsv,.txt"
+              style="display: none"
+              @change="handleRosterFile"
+            />
+          </div>
         </div>
+        <p v-if="importRosterError" class="field-error">{{ importRosterError }}</p>
         <p v-if="churches.length === 0 && !isAdmin" class="state-msg">No churches yet.</p>
         <ul v-if="churches.length" class="item-list">
           <li v-for="c in churches" :key="c.id" class="item-row">
@@ -885,6 +1017,12 @@ onMounted(load)
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-text-faint);
+}
+
+.section-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
 }
 
 /* Item lists */
