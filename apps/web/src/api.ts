@@ -135,3 +135,77 @@ export function joinMeet(
 export function getMyMeets(): Promise<{ memberships: MeetMembership[] }> {
   return request('/api/my-meets')
 }
+
+// ---- Churches ----
+
+export interface Church {
+  id: number
+  meetId: number
+  createdBy: string
+  name: string
+  shortName: string
+}
+
+export interface Team {
+  id: number
+  meetId: number
+  churchId: number
+  division: string
+  number: number
+}
+
+export interface Quizzer {
+  quizzerId: number
+  name: string
+}
+
+export function listChurches(meetId: number): Promise<{ churches: Church[] }> {
+  return request(`/api/meets/${meetId}/churches`)
+}
+
+export function createChurch(
+  meetId: number,
+  data: { name: string; shortName: string },
+): Promise<{ church: Church }> {
+  return request(`/api/meets/${meetId}/churches`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export function listTeams(churchId: number): Promise<{ teams: Team[] }> {
+  return request(`/api/churches/${churchId}/teams`)
+}
+
+export function createTeam(churchId: number, data: { division: string }): Promise<{ team: Team }> {
+  return request(`/api/churches/${churchId}/teams`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export function listQuizzers(teamId: number): Promise<{ quizzers: Quizzer[] }> {
+  return request(`/api/teams/${teamId}/quizzers`)
+}
+
+export function addQuizzer(teamId: number, name: string): Promise<{ quizzer: Quizzer }> {
+  return request(`/api/teams/${teamId}/quizzers`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
+}
+
+export function updateQuizzer(
+  teamId: number,
+  quizzerId: number,
+  name: string,
+): Promise<{ quizzer: Quizzer }> {
+  return request(`/api/teams/${teamId}/quizzers/${quizzerId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  })
+}
+
+export function removeQuizzer(teamId: number, quizzerId: number): Promise<{ deleted: true }> {
+  return request(`/api/teams/${teamId}/quizzers/${quizzerId}`, { method: 'DELETE' })
+}
