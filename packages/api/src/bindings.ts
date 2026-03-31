@@ -9,5 +9,5 @@ export interface Bindings {
   GITHUB_CLIENT_SECRET: string
   GOOGLE_CLIENT_ID: string
   GOOGLE_CLIENT_SECRET: string
-  JWT_SECRET: string
+  BETTER_AUTH_SECRET: string
 }

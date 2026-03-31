@@ -1,34 +1,60 @@
 import { integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
-import { relations } from 'drizzle-orm'
 import { AccountRole } from '@qzr/shared'
 
-// ---- Accounts ----
+// ---- Better Auth core tables ----
 
-export const accounts = sqliteTable('accounts', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  // Primary email for display — sourced from the first linked OAuth provider.
-  // Nullable because the account row is inserted before any provider is linked
-  // in the same transaction, and to avoid a chicken-and-egg FK cycle.
-  email: text('email').unique(),
+export const user = sqliteTable('user', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
+  image: text('image'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
   role: text('role', { enum: [AccountRole.Admin, AccountRole.Normal] })
     .notNull()
     .default(AccountRole.Normal),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })
 
-// One row per linked OAuth provider. An account can have many.
-export const oauthAccounts = sqliteTable(
-  'oauth_accounts',
-  {
-    provider: text('provider').notNull(), // e.g. 'github', 'google'
-    providerSubject: text('provider_subject').notNull(), // provider's stable user id
-    accountId: integer('account_id')
-      .notNull()
-      .references(() => accounts.id, { onDelete: 'cascade' }),
-    email: text('email').notNull(), // email as reported by this provider
-  },
-  (t) => [unique().on(t.provider, t.providerSubject)],
-)
+export const session = sqliteTable('session', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const account = sqliteTable('account', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  accountId: text('account_id').notNull(),
+  providerId: text('provider_id').notNull(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  accessTokenExpiresAt: integer('access_token_expires_at', { mode: 'timestamp' }),
+  refreshTokenExpiresAt: integer('refresh_token_expires_at', { mode: 'timestamp' }),
+  scope: text('scope'),
+  idToken: text('id_token'),
+  password: text('password'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const verification = sqliteTable('verification', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }),
+})
 
 // ---- Quiz meets ----
 
@@ -55,9 +81,9 @@ export const officialCodes = sqliteTable('official_codes', {
 export const coachMemberships = sqliteTable(
   'coach_memberships',
   {
-    accountId: integer('account_id')
+    accountId: text('account_id')
       .notNull()
-      .references(() => accounts.id, { onDelete: 'cascade' }),
+      .references(() => user.id, { onDelete: 'cascade' }),
     meetId: integer('meet_id')
       .notNull()
       .references(() => quizMeets.id, { onDelete: 'cascade' }),
@@ -68,9 +94,9 @@ export const coachMemberships = sqliteTable(
 export const officialMemberships = sqliteTable(
   'official_memberships',
   {
-    accountId: integer('account_id')
+    accountId: text('account_id')
       .notNull()
-      .references(() => accounts.id, { onDelete: 'cascade' }),
+      .references(() => user.id, { onDelete: 'cascade' }),
     meetId: integer('meet_id')
       .notNull()
       .references(() => quizMeets.id, { onDelete: 'cascade' }),
@@ -84,9 +110,9 @@ export const officialMemberships = sqliteTable(
 export const viewerMemberships = sqliteTable(
   'viewer_memberships',
   {
-    accountId: integer('account_id')
+    accountId: text('account_id')
       .notNull()
-      .references(() => accounts.id, { onDelete: 'cascade' }),
+      .references(() => user.id, { onDelete: 'cascade' }),
     meetId: integer('meet_id')
       .notNull()
       .references(() => quizMeets.id, { onDelete: 'cascade' }),
@@ -101,9 +127,9 @@ export const churches = sqliteTable('churches', {
   meetId: integer('meet_id')
     .notNull()
     .references(() => quizMeets.id, { onDelete: 'cascade' }),
-  createdBy: integer('created_by')
+  createdBy: text('created_by')
     .notNull()
-    .references(() => accounts.id),
+    .references(() => user.id),
   name: text('name').notNull(),
   shortName: text('short_name').notNull(),
 })
@@ -140,14 +166,10 @@ export const teamRosters = sqliteTable(
 
 // ---- Inferred types ----
 
-export const oauthAccountRelations = relations(oauthAccounts, ({ one }) => ({
-  account: one(accounts, { fields: [oauthAccounts.accountId], references: [accounts.id] }),
-}))
-
-// ---- Inferred types ----
-
-export type Account = typeof accounts.$inferSelect
-export type OAuthAccount = typeof oauthAccounts.$inferSelect
+export type User = typeof user.$inferSelect
+export type Session = typeof session.$inferSelect
+export type Account = typeof account.$inferSelect
+export type Verification = typeof verification.$inferSelect
 export type QuizMeet = typeof quizMeets.$inferSelect
 export type OfficialCode = typeof officialCodes.$inferSelect
 export type Church = typeof churches.$inferSelect

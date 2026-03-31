@@ -1,45 +1,35 @@
-import { ref, computed } from 'vue'
+import { createAuthClient } from 'better-auth/vue'
 
 declare const __API_URL__: string
 
-interface AuthUser {
-  id: number
-  email: string | null
-  role: string
-}
-
-const token = ref<string | null>(localStorage.getItem('auth_token'))
-const user = ref<AuthUser | null>(null)
+export const authClient = createAuthClient({
+  baseURL: `${__API_URL__}/api/auth`,
+})
 
 export function useAuth() {
-  const isSignedIn = computed(() => token.value !== null)
+  const session = authClient.useSession()
 
-  async function fetchUser() {
-    if (!token.value) return
-    const res = await fetch(`${__API_URL__}/me`, {
-      headers: { Authorization: `Bearer ${token.value}` },
-    })
-    if (res.ok) {
-      user.value = await res.json()
-    } else {
-      signOut()
-    }
+  const webOrigin = window.location.origin
+
+  function signInGithub() {
+    authClient.signIn.social({ provider: 'github', callbackURL: webOrigin })
   }
 
-  function signIn() {
-    window.location.href = `${__API_URL__}/auth/github`
+  function signInGoogle() {
+    authClient.signIn.social({ provider: 'google', callbackURL: webOrigin })
+  }
+
+  async function signInEmail(email: string, password: string) {
+    return authClient.signIn.email({ email, password, callbackURL: webOrigin })
+  }
+
+  async function signUpEmail(email: string, password: string) {
+    return authClient.signUp.email({ email, password, name: email, callbackURL: webOrigin })
   }
 
   function signOut() {
-    token.value = null
-    user.value = null
-    localStorage.removeItem('auth_token')
+    authClient.signOut()
   }
 
-  async function setToken(newToken: string) {
-    token.value = newToken
-    await fetchUser()
-  }
-
-  return { isSignedIn, user, token, fetchUser, setToken, signIn, signOut }
+  return { session, signInGithub, signInGoogle, signInEmail, signUpEmail, signOut }
 }

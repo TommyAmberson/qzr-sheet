@@ -6,4 +6,5 @@ GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-JWT_SECRET=dev_secret_change_me
+BETTER_AUTH_SECRET=dev_secret_change_me_must_be_32_chars
+

@@ -3,8 +3,7 @@ import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import type { Bindings } from './bindings'
 import { health } from './routes/health'
-import { auth } from './routes/auth'
-import { me } from './routes/me'
+import { createAuth } from './lib/auth'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -20,7 +19,6 @@ app.use(
 app.use('*', logger())
 
 app.route('/health', health)
-app.route('/auth', auth)
-app.route('/me', me)
+app.on(['GET', 'POST'], '/api/auth/*', (c) => createAuth(c.env).handler(c.req.raw))
 
 export default app
