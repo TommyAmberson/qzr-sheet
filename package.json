@@ -20,6 +20,7 @@
     "lint": "eslint",
     "tauri": "pnpm --filter scoresheet tauri",
     "tauri:linux-x11": "pnpm --filter scoresheet tauri:linux-x11",
+    "bump": "node scripts/bump-version.mjs",
     "postinstall": "simple-git-hooks"
   },
   "simple-git-hooks": {

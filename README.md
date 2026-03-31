@@ -87,6 +87,26 @@ docs/
   auth-proposal.md               # Phase 4 architecture, API stack, security
 ```
 
+## Releasing
+
+1. Merge the feature branch to `master`
+2. `pnpm bump x.y.z` — bumps version in `package.json`, `apps/scoresheet/package.json`, and
+   `tauri.conf.json`
+3. Stage and commit the changed files: `git commit -m "chore: bump version to x.y.z"`
+4. Tag: `git tag vx.y.z`
+5. Push: `git push origin master --tags`
+
+The `deploy` CI workflow triggers on `v*` tags and:
+
+* Runs `db:migrate:remote` against the live D1 database
+* Deploys the Cloudflare Worker (`api.versevault.ca`)
+* Builds and deploys the web + scoresheet apps to `www.versevault.ca`
+
+The Worker secrets (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`, `JWT_SECRET`, `WEB_BASE_URL`) must be set via `wrangler secret put` before
+the first deploy. They are not stored in source control — use `packages/api/.dev.vars.example` as a
+reference.
+
 ## Editor Setup
 
 [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) is required for TypeScript
