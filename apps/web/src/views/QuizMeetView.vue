@@ -111,6 +111,7 @@ onMounted(load)
               >
             </div>
             <div v-if="detail.meet.divisions.length" class="division-tags">
+              <span class="division-tags-label">Divisions</span>
               <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{ d }}</span>
             </div>
           </div>
@@ -476,7 +477,14 @@ onMounted(load)
 .division-tags {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.35rem;
+}
+
+.division-tags-label {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  margin-right: 0.15rem;
 }
 
 .division-tag {
