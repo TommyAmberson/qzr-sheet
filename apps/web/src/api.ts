@@ -208,6 +208,10 @@ export function updateTeam(teamId: number, data: { division: string }): Promise<
   })
 }
 
+export function deleteTeam(teamId: number): Promise<{ deleted: true }> {
+  return request(`/api/teams/${teamId}`, { method: 'DELETE' })
+}
+
 export function listQuizzers(teamId: number): Promise<{ quizzers: Quizzer[] }> {
   return request(`/api/teams/${teamId}/quizzers`)
 }

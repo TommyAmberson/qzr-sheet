@@ -10,6 +10,7 @@ import {
   listTeams,
   createTeam,
   updateTeam,
+  deleteTeam,
   listQuizzers,
   addQuizzer,
   updateQuizzer,
@@ -72,10 +73,11 @@ const quizzerOrder = ref<Record<string, number[]>>({})
 
 // Draft: committed snapshot for diff-based save
 interface Snapshot {
+  teams: Team[]
   quizzers: Quizzer[]
   assignments: Record<number, number | null>
 }
-const committed = ref<Snapshot>({ quizzers: [], assignments: {} })
+const committed = ref<Snapshot>({ teams: [], quizzers: [], assignments: {} })
 const saving = ref(false)
 const saveError = ref('')
 
@@ -95,6 +97,7 @@ function orderedUnassigned(): Quizzer[] {
 
 function takeSnapshot() {
   committed.value = {
+    teams: teams.value.map((t) => ({ ...t })),
     quizzers: allQuizzers.value.filter((q) => q.quizzerId > 0).map((q) => ({ ...q })),
     assignments: { ...assignments.value },
   }
@@ -102,6 +105,15 @@ function takeSnapshot() {
 
 const isDirty = computed(() => {
   const snap = committed.value
+  // Added or removed teams
+  if (teams.value.some((t) => t.id < 0)) return true
+  if (snap.teams.some((st) => !teams.value.find((t) => t.id === st.id))) return true
+  // Division changes on existing teams
+  for (const t of teams.value) {
+    if (t.id < 0) continue
+    const orig = snap.teams.find((st) => st.id === t.id)
+    if (orig && orig.division !== t.division) return true
+  }
   // New quizzers (temp ids)
   if (allQuizzers.value.some((q) => q.quizzerId < 0)) return true
   // Removed quizzers
@@ -240,33 +252,42 @@ async function submitCreateChurch() {
 
 // ---- Team actions ----
 
+let tempTeamId = -1
+
 function startAddTeam() {
   addingTeam.value = true
   newTeamDivision.value = ''
   createTeamError.value = ''
 }
 
-async function submitCreateTeam() {
+function submitCreateTeam() {
   if (!selectedChurchId.value || !newTeamDivision.value.trim()) return
-  createTeamError.value = ''
-  try {
-    const res = await createTeam(selectedChurchId.value, { division: newTeamDivision.value.trim() })
-    teams.value.push(res.team)
-    addingTeam.value = false
-    newTeamDivision.value = ''
-  } catch (e) {
-    createTeamError.value = (e as Error).message
+  const team: Team = {
+    id: tempTeamId--,
+    meetId: meet.value!.id,
+    churchId: selectedChurchId.value,
+    division: newTeamDivision.value.trim(),
+    number: 0, // placeholder; server assigns on save
   }
+  teams.value.push(team)
+  quizzerOrder.value[String(team.id)] = []
+  addingTeam.value = false
+  newTeamDivision.value = ''
 }
 
-async function submitEditTeam(teamId: number) {
-  const t = teams.value.find((t) => t.id === teamId)
-  if (!t) return
-  try {
-    await updateTeam(teamId, { division: t.division })
-  } catch (e) {
-    alert((e as Error).message)
+// Division change is purely local — saved on Save
+function submitEditTeam(_teamId: number) {}
+
+function handleRemoveTeam(teamId: number) {
+  // Move any quizzers on this team back to the pool
+  const order = quizzerOrder.value[String(teamId)] ?? []
+  for (const qId of order) {
+    assignments.value[qId] = null
+    quizzerOrder.value['pool'] ??= []
+    quizzerOrder.value['pool']!.push(qId)
   }
+  delete quizzerOrder.value[String(teamId)]
+  teams.value = teams.value.filter((t) => t.id !== teamId)
 }
 
 // ---- Quizzer actions (all local — saved as a batch via saveDraft) ----
@@ -320,13 +341,47 @@ async function saveDraft() {
   try {
     const snap = committed.value
 
-    // Removed quizzers (existed before, gone now)
-    const removed = snap.quizzers.filter(
+    // Deleted teams (existed before, gone now) — cascade removes their quizzers
+    const removedTeams = snap.teams.filter((st) => !teams.value.find((t) => t.id === st.id))
+    for (const st of removedTeams) {
+      await deleteTeam(st.id)
+    }
+
+    // New teams (temp ids < 0)
+    const newTeams = teams.value.filter((t) => t.id < 0)
+    for (const t of newTeams) {
+      const res = await createTeam(t.churchId, { division: t.division })
+      const idx = teams.value.findIndex((x) => x.id === t.id)
+      if (idx !== -1) teams.value[idx] = res.team
+      // Patch quizzerOrder and assignments to use the real team id
+      const oldKey = String(t.id)
+      const newKey = String(res.team.id)
+      quizzerOrder.value[newKey] = quizzerOrder.value[oldKey] ?? []
+      delete quizzerOrder.value[oldKey]
+      for (const [qId, tId] of Object.entries(assignments.value)) {
+        if (tId === t.id) assignments.value[Number(qId)] = res.team.id
+      }
+    }
+
+    // Division changes on existing teams
+    for (const t of teams.value) {
+      if (t.id < 0) continue
+      const orig = snap.teams.find((st) => st.id === t.id)
+      if (orig && orig.division !== t.division) {
+        await updateTeam(t.id, { division: t.division })
+      }
+    }
+
+    // Removed quizzers (existed before, gone now — skip if their team was also deleted)
+    const removedTeamIds = new Set(removedTeams.map((st) => st.id))
+    const removedQuizzers = snap.quizzers.filter(
       (sq) => !allQuizzers.value.find((q) => q.quizzerId === sq.quizzerId),
     )
-    for (const sq of removed) {
+    for (const sq of removedQuizzers) {
       const prevTeamId = snap.assignments[sq.quizzerId] ?? null
-      if (prevTeamId !== null) await removeQuizzer(prevTeamId, sq.quizzerId)
+      if (prevTeamId !== null && !removedTeamIds.has(prevTeamId)) {
+        await removeQuizzer(prevTeamId, sq.quizzerId)
+      }
     }
 
     // Existing quizzers — detect renames and assignment changes
@@ -339,10 +394,11 @@ async function saveDraft() {
 
       if (origAssignment !== newAssignment) {
         // Move between team/pool — remove from old team, add to new
-        if (origAssignment !== null) await removeQuizzer(origAssignment, q.quizzerId)
+        if (origAssignment !== null && !removedTeamIds.has(origAssignment)) {
+          await removeQuizzer(origAssignment, q.quizzerId)
+        }
         if (newAssignment !== null) {
           const res = await addQuizzer(newAssignment, q.name)
-          // Patch in the server-assigned id
           const idx = allQuizzers.value.findIndex((x) => x.quizzerId === q.quizzerId)
           if (idx !== -1) allQuizzers.value[idx] = res.quizzer
           const toKey = String(newAssignment)
@@ -390,11 +446,12 @@ async function saveDraft() {
 function discardDraft() {
   if (!confirm('Discard all unsaved changes?')) return
   const snap = committed.value
+  teams.value = snap.teams.map((t) => ({ ...t }))
   allQuizzers.value = snap.quizzers.map((q) => ({ ...q }))
   assignments.value = { ...snap.assignments }
   // Rebuild quizzerOrder from snapshot
   const newOrder: Record<string, number[]> = { pool: [] }
-  for (const t of teams.value) newOrder[String(t.id)] = []
+  for (const t of snap.teams) newOrder[String(t.id)] = []
   for (const q of allQuizzers.value) {
     const teamId = assignments.value[q.quizzerId] ?? null
     const key = teamId === null ? 'pool' : String(teamId)
@@ -663,6 +720,14 @@ function onDrop(toTeamId: number | null) {
                     <option v-for="div in meet.divisions" :key="div" :value="div">{{ div }}</option>
                   </select>
                   <span class="team-count">{{ quizzersForTeam(team.id).length }}</span>
+                  <button
+                    v-if="canEditSelected"
+                    class="team-remove"
+                    title="Remove team"
+                    @click="handleRemoveTeam(team.id)"
+                  >
+                    ×
+                  </button>
                 </div>
 
                 <ul class="quizzer-list">
@@ -1022,6 +1087,28 @@ function onDrop(toTeamId: number | null) {
   padding: 0 0.4rem;
   flex-shrink: 0;
   margin-left: auto;
+}
+
+.team-remove {
+  background: none;
+  border: none;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 0 0.1rem;
+  font-family: inherit;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.team-card:hover .team-remove {
+  opacity: 1;
+}
+
+.team-remove:hover {
+  color: var(--palette-error);
 }
 
 .team-label {

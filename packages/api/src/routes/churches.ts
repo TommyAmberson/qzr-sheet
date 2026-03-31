@@ -191,6 +191,29 @@ churches.patch('/teams/:teamId', async (c) => {
   return c.json({ team: updated })
 })
 
+/**
+ * DELETE /api/teams/:teamId
+ *
+ * Deletes a team and its entire roster. Coach must own the church (or be superuser).
+ */
+churches.delete('/teams/:teamId', async (c) => {
+  const teamId = Number(c.req.param('teamId'))
+  if (Number.isNaN(teamId)) return c.json({ error: 'Invalid team ID' }, 400)
+
+  const user = getUser(c)
+  const db = getDb(c)
+
+  const team = await getTeamWithChurch(db, teamId)
+  if (!team) return c.json({ error: 'Team not found' }, 404)
+  if (user.role !== AccountRole.Superuser && team.church.createdBy !== user.id) {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+
+  await db.delete(schema.teams).where(eq(schema.teams.id, teamId))
+
+  return c.json({ deleted: true as const })
+})
+
 // ---- Quizzers ----
 
 /**
