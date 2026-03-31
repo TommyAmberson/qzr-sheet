@@ -3,7 +3,8 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { JoinVariables } from '../join'
 import { join } from '../join'
-import { mockSession, mockDb, testAdmin, testUser } from '../../test-utils'
+import { mockSession, mockDb, testAdmin, testUser, jsonOf } from '../../test-utils'
+
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import { generateCode, hashCode } from '../../lib/codes'
@@ -66,6 +67,8 @@ async function seedOfficialCode(db: Db, meetId: number, label: string) {
   return { officialCode: row!, code }
 }
 
+type JoinBody = { meet: { id: number; name: string }; role: string; label?: string; token?: string }
+
 describe('POST /api/join', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
@@ -103,7 +106,7 @@ describe('POST /api/join', () => {
       const res = await app.request('/api/join', post({ code: 'fall-2025' }), env)
       expect(res.status).toBe(200)
 
-      const body = await res.json()
+      const body = await jsonOf<JoinBody>(res)
       expect(body.meet.id).toBe(meet.id)
       expect(body.meet.name).toBe('Test Meet')
       expect(body.role).toBe(MeetRole.Viewer)
@@ -128,7 +131,7 @@ describe('POST /api/join', () => {
       const res = await app.request('/api/join', post({ code: coachCode }), env)
       expect(res.status).toBe(200)
 
-      const body = await res.json()
+      const body = await jsonOf<JoinBody>(res)
       expect(body.meet.id).toBe(meet.id)
       expect(body.role).toBe(MeetRole.HeadCoach)
     })
@@ -152,7 +155,7 @@ describe('POST /api/join', () => {
       const res = await app.request('/api/join', post({ code }), env)
       expect(res.status).toBe(200)
 
-      const body = await res.json()
+      const body = await jsonOf<JoinBody>(res)
       expect(body.meet.id).toBe(meet.id)
       expect(body.role).toBe(MeetRole.Official)
       expect(body.label).toBe('Room A')
@@ -192,7 +195,7 @@ describe('POST /api/join', () => {
       const res = await app.request('/api/join', post({ code: viewerSlug }), env)
       expect(res.status).toBe(200)
 
-      const body = await res.json()
+      const body = await jsonOf<JoinBody>(res)
       expect(body.role).toBe(MeetRole.Viewer)
     })
   })
@@ -231,7 +234,7 @@ describe('POST /api/join/guest', () => {
       const res = await app.request('/api/join/guest', post({ code: 'public-slug' }), env)
       expect(res.status).toBe(200)
 
-      const body = await res.json()
+      const body = await jsonOf<JoinBody>(res)
       expect(body.token).toBeTypeOf('string')
       expect(body.meet.id).toBe(meet.id)
       expect(body.role).toBe(MeetRole.Viewer)
@@ -252,7 +255,7 @@ describe('POST /api/join/guest', () => {
       const res = await app.request('/api/join/guest', post({ code }), env)
       expect(res.status).toBe(200)
 
-      const body = await res.json()
+      const body = await jsonOf<JoinBody>(res)
       expect(body.token).toBeTypeOf('string')
       expect(body.meet.id).toBe(meet.id)
       expect(body.role).toBe(MeetRole.Official)
