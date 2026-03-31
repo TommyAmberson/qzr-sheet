@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
-import { requireAuth, requireAdmin } from '../middleware/session'
+import { requireAuth, requireAdmin, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { generateCode, hashCode } from '../lib/codes'
 import * as schema from '../db/schema'
+import { AccountRole } from '@qzr/shared'
 
 export interface MeetsVariables extends SessionVariables {
   db: Db
@@ -75,10 +76,47 @@ meets.get('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
-  const [meet] = await getDb(c).select().from(schema.quizMeets).where(eq(schema.quizMeets.id, id))
+  const user = getUser(c)
+  const db = getDb(c)
+
+  // Superusers have access to all meets; others must have a membership
+  if (user.role !== AccountRole.Superuser) {
+    const [[coach], [official], [viewer]] = await Promise.all([
+      db
+        .select({ meetId: schema.coachMemberships.meetId })
+        .from(schema.coachMemberships)
+        .where(
+          and(
+            eq(schema.coachMemberships.accountId, user.id),
+            eq(schema.coachMemberships.meetId, id),
+          ),
+        ),
+      db
+        .select({ meetId: schema.officialMemberships.meetId })
+        .from(schema.officialMemberships)
+        .where(
+          and(
+            eq(schema.officialMemberships.accountId, user.id),
+            eq(schema.officialMemberships.meetId, id),
+          ),
+        ),
+      db
+        .select({ meetId: schema.viewerMemberships.meetId })
+        .from(schema.viewerMemberships)
+        .where(
+          and(
+            eq(schema.viewerMemberships.accountId, user.id),
+            eq(schema.viewerMemberships.meetId, id),
+          ),
+        ),
+    ])
+    if (!coach && !official && !viewer) return c.json({ error: 'Forbidden' }, 403)
+  }
+
+  const [meet] = await db.select().from(schema.quizMeets).where(eq(schema.quizMeets.id, id))
   if (!meet) return c.json({ error: 'Meet not found' }, 404)
 
-  const codes = await getDb(c)
+  const codes = await db
     .select({ id: schema.officialCodes.id, label: schema.officialCodes.label })
     .from(schema.officialCodes)
     .where(eq(schema.officialCodes.meetId, id))
