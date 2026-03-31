@@ -1,5 +1,11 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { useAuth } from '../composables/useAuth'
+
 const scoresheetUrl = __SCORESHEET_URL__
+const { isSignedIn, user, fetchUser, signIn, signOut } = useAuth()
+
+onMounted(fetchUser)
 </script>
 
 <template>
@@ -17,6 +23,11 @@ const scoresheetUrl = __SCORESHEET_URL__
           class="nav-link"
           >GitHub</a
         >
+        <template v-if="isSignedIn">
+          <span class="nav-user">{{ user?.email ?? 'signed in' }}</span>
+          <button class="nav-link nav-btn" @click="signOut">Sign out</button>
+        </template>
+        <button v-else class="nav-link nav-btn" @click="signIn">Sign in</button>
       </nav>
     </div>
   </header>
@@ -79,5 +90,18 @@ const scoresheetUrl = __SCORESHEET_URL__
 .nav-link:hover {
   color: var(--color-text-muted);
   text-decoration: none;
+}
+
+.nav-user {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
 }
 </style>
