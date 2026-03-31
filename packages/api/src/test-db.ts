@@ -65,7 +65,8 @@ export async function createTestDb(): Promise<Db> {
     CREATE TABLE quiz_meets (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       name TEXT NOT NULL,
-      date TEXT NOT NULL,
+      date_from TEXT NOT NULL,
+      date_to TEXT,
       coach_code_hash TEXT NOT NULL,
       viewer_code TEXT NOT NULL,
       created_at INTEGER NOT NULL
