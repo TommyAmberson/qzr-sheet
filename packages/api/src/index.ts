@@ -4,6 +4,7 @@ import { logger } from 'hono/logger'
 import type { Bindings } from './bindings'
 import { health } from './routes/health'
 import { auth } from './routes/auth'
+import { me } from './routes/me'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -20,5 +21,6 @@ app.use('*', logger())
 
 app.route('/health', health)
 app.route('/auth', auth)
+app.route('/me', me)
 
 export default app
