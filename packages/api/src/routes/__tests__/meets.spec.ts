@@ -321,6 +321,154 @@ describe('admin code rotation', () => {
   })
 })
 
+describe('members', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  async function seedMeetWithAdmin(app: ReturnType<typeof createApp>) {
+    const res = await app.request(
+      '/api/meets',
+      json({ name: 'Members Test', dateFrom: '2025-01-01', viewerCode: 'mt', divisions: ['A'] }),
+      env,
+    )
+    return ((await res.json()) as MeetBody).meet
+  }
+
+  describe('GET /api/meets/:id/members', () => {
+    it('returns all members across role types', async () => {
+      const app = createApp(testSuperuser, db)
+      const meet = await seedMeetWithAdmin(app)
+
+      const { adminMemberships, coachMemberships, viewerMemberships, churches, user } =
+        await import('../../db/schema')
+
+      // Seed a second user as admin
+      await db.insert(user).values({
+        id: 'member-1',
+        name: 'Alice',
+        email: 'alice@test.com',
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      await db.insert(adminMemberships).values({ accountId: 'member-1', meetId: meet.id })
+
+      // Seed a coach
+      const { hashCode, generateCode } = await import('../../lib/codes')
+      const [church] = await db
+        .insert(churches)
+        .values({
+          meetId: meet.id,
+          name: 'Test Church',
+          shortName: 'TC',
+          coachCodeHash: await hashCode(generateCode()),
+        })
+        .returning()
+      await db.insert(user).values({
+        id: 'member-2',
+        name: 'Bob',
+        email: 'bob@test.com',
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      await db
+        .insert(coachMemberships)
+        .values({ accountId: 'member-2', churchId: church!.id, meetId: meet.id })
+
+      // Seed a viewer
+      await db.insert(viewerMemberships).values({ accountId: 'member-1', meetId: meet.id })
+
+      const res = await app.request(`/api/meets/${meet.id}/members`, {}, env)
+      expect(res.status).toBe(200)
+      const body = await res.json<{ members: { role: string; userId: string }[] }>()
+      expect(body.members.length).toBeGreaterThanOrEqual(3)
+      expect(body.members.some((m) => m.role === 'admin' && m.userId === 'member-1')).toBe(true)
+      expect(body.members.some((m) => m.role === 'head_coach' && m.userId === 'member-2')).toBe(
+        true,
+      )
+      expect(body.members.some((m) => m.role === 'viewer' && m.userId === 'member-1')).toBe(true)
+    })
+
+    it('rejects non-admin with 403', async () => {
+      const suApp = createApp(testSuperuser, db)
+      const meet = await seedMeetWithAdmin(suApp)
+
+      const app = createApp(testUser, db)
+      const res = await app.request(`/api/meets/${meet.id}/members`, {}, env)
+      expect(res.status).toBe(403)
+    })
+  })
+
+  describe('DELETE /api/meets/:id/members/:userId', () => {
+    it('superuser can revoke an admin membership', async () => {
+      const app = createApp(testSuperuser, db)
+      const meet = await seedMeetWithAdmin(app)
+
+      const { adminMemberships, user } = await import('../../db/schema')
+      await db.insert(user).values({
+        id: 'to-revoke',
+        name: 'Revokee',
+        email: 'revoke@test.com',
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      await db.insert(adminMemberships).values({ accountId: 'to-revoke', meetId: meet.id })
+
+      const res = await app.request(
+        `/api/meets/${meet.id}/members/to-revoke`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'admin' }),
+        },
+        env,
+      )
+      expect(res.status).toBe(200)
+    })
+
+    it('admin cannot revoke another admin', async () => {
+      const suApp = createApp(testSuperuser, db)
+      const meet = await seedMeetWithAdmin(suApp)
+
+      const { adminMemberships } = await import('../../db/schema')
+      await db.insert(adminMemberships).values({ accountId: testUser.id, meetId: meet.id })
+
+      const app = createApp(testUser, db)
+      const res = await app.request(
+        `/api/meets/${meet.id}/members/${testSuperuser.id}`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'admin' }),
+        },
+        env,
+      )
+      expect(res.status).toBe(403)
+    })
+
+    it('returns 404 for non-existent membership', async () => {
+      const app = createApp(testSuperuser, db)
+      const meet = await seedMeetWithAdmin(app)
+
+      const res = await app.request(
+        `/api/meets/${meet.id}/members/nobody`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'admin' }),
+        },
+        env,
+      )
+      expect(res.status).toBe(404)
+    })
+  })
+})
+
 describe('official codes', () => {
   let db: Db
   let app: ReturnType<typeof createApp>

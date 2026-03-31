@@ -160,6 +160,32 @@ export function getMyMeets(): Promise<{ memberships: MeetMembership[] }> {
   return request('/api/my-meets')
 }
 
+// ---- Members ----
+
+export interface MeetMember {
+  userId: string
+  name: string
+  email: string
+  role: 'admin' | 'head_coach' | 'official' | 'viewer'
+  churchId?: number
+  officialCodeId?: number
+}
+
+export function listMembers(meetId: number): Promise<{ members: MeetMember[] }> {
+  return request(`/api/meets/${meetId}/members`)
+}
+
+export function revokeMember(
+  meetId: number,
+  userId: string,
+  scope: { role: string; churchId?: number; officialCodeId?: number },
+): Promise<{ deleted: true }> {
+  return request(`/api/meets/${meetId}/members/${userId}`, {
+    method: 'DELETE',
+    body: JSON.stringify(scope),
+  })
+}
+
 // ---- Churches ----
 
 export interface Church {

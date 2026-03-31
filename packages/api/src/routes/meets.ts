@@ -318,6 +318,165 @@ meets.post('/:id/official-codes/:codeId/rotate', async (c) => {
   return c.json({ officialCode: updated, code })
 })
 
+// ---- Members ----
+
+interface MeetMember {
+  userId: string
+  name: string
+  email: string
+  role: 'admin' | 'head_coach' | 'official' | 'viewer'
+  churchId?: number
+  officialCodeId?: number
+}
+
+meets.get('/:id/members', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const user = getUser(c)
+  const db = getDb(c)
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+
+  const members: MeetMember[] = []
+
+  const admins = await db
+    .select({
+      userId: schema.adminMemberships.accountId,
+      name: schema.user.name,
+      email: schema.user.email,
+    })
+    .from(schema.adminMemberships)
+    .innerJoin(schema.user, eq(schema.adminMemberships.accountId, schema.user.id))
+    .where(eq(schema.adminMemberships.meetId, meetId))
+
+  for (const r of admins) {
+    members.push({ ...r, role: 'admin' })
+  }
+
+  const coaches = await db
+    .select({
+      userId: schema.coachMemberships.accountId,
+      name: schema.user.name,
+      email: schema.user.email,
+      churchId: schema.coachMemberships.churchId,
+    })
+    .from(schema.coachMemberships)
+    .innerJoin(schema.user, eq(schema.coachMemberships.accountId, schema.user.id))
+    .where(eq(schema.coachMemberships.meetId, meetId))
+
+  for (const r of coaches) {
+    members.push({ ...r, role: 'head_coach' })
+  }
+
+  const officials = await db
+    .select({
+      userId: schema.officialMemberships.accountId,
+      name: schema.user.name,
+      email: schema.user.email,
+      officialCodeId: schema.officialMemberships.officialCodeId,
+    })
+    .from(schema.officialMemberships)
+    .innerJoin(schema.user, eq(schema.officialMemberships.accountId, schema.user.id))
+    .where(eq(schema.officialMemberships.meetId, meetId))
+
+  for (const r of officials) {
+    members.push({ ...r, role: 'official' })
+  }
+
+  const viewers = await db
+    .select({
+      userId: schema.viewerMemberships.accountId,
+      name: schema.user.name,
+      email: schema.user.email,
+    })
+    .from(schema.viewerMemberships)
+    .innerJoin(schema.user, eq(schema.viewerMemberships.accountId, schema.user.id))
+    .where(eq(schema.viewerMemberships.meetId, meetId))
+
+  for (const r of viewers) {
+    members.push({ ...r, role: 'viewer' })
+  }
+
+  return c.json({ members })
+})
+
+meets.delete('/:id/members/:userId', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+  const targetUserId = c.req.param('userId')
+
+  const user = getUser(c)
+  const db = getDb(c)
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+
+  const body = await c.req.json<{
+    role: string
+    churchId?: number
+    officialCodeId?: number
+  }>()
+
+  let deleted = 0
+
+  if (body.role === 'admin') {
+    if (user.role !== AccountRole.Superuser) {
+      return c.json({ error: 'Only superusers can revoke admin memberships' }, 403)
+    }
+    const rows = await db
+      .delete(schema.adminMemberships)
+      .where(
+        and(
+          eq(schema.adminMemberships.accountId, targetUserId),
+          eq(schema.adminMemberships.meetId, meetId),
+        ),
+      )
+      .returning()
+    deleted = rows.length
+  } else if (body.role === 'head_coach' && body.churchId) {
+    const rows = await db
+      .delete(schema.coachMemberships)
+      .where(
+        and(
+          eq(schema.coachMemberships.accountId, targetUserId),
+          eq(schema.coachMemberships.churchId, body.churchId),
+        ),
+      )
+      .returning()
+    deleted = rows.length
+  } else if (body.role === 'official' && body.officialCodeId) {
+    const rows = await db
+      .delete(schema.officialMemberships)
+      .where(
+        and(
+          eq(schema.officialMemberships.accountId, targetUserId),
+          eq(schema.officialMemberships.meetId, meetId),
+          eq(schema.officialMemberships.officialCodeId, body.officialCodeId),
+        ),
+      )
+      .returning()
+    deleted = rows.length
+  } else if (body.role === 'viewer') {
+    const rows = await db
+      .delete(schema.viewerMemberships)
+      .where(
+        and(
+          eq(schema.viewerMemberships.accountId, targetUserId),
+          eq(schema.viewerMemberships.meetId, meetId),
+        ),
+      )
+      .returning()
+    deleted = rows.length
+  } else {
+    return c.json({ error: 'Invalid role or missing scope' }, 400)
+  }
+
+  if (deleted === 0) return c.json({ error: 'Membership not found' }, 404)
+  return c.json({ deleted: true })
+})
+
 // ---- Helpers ----
 
 function formatMeet(meet: schema.QuizMeet) {

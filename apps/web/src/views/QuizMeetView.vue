@@ -18,6 +18,9 @@ import {
   type MeetMembership,
   type Church,
   type OfficialCode,
+  type MeetMember,
+  listMembers,
+  revokeMember,
 } from '../api'
 
 const props = defineProps<{ id: number }>()
@@ -62,8 +65,8 @@ const newRoomLabel = ref('')
 const addingRoom = ref(false)
 const addRoomError = ref('')
 
-// Code dialog
-interface CodeDialog {
+// Access dialog
+interface AccessDialog {
   kind: 'admin' | 'church' | 'official'
   id?: number
   title: string
@@ -71,8 +74,10 @@ interface CodeDialog {
   hasClearOption: boolean
   revealedCode: string | null
   busy: boolean
+  members: MeetMember[]
+  membersLoading: boolean
 }
-const codeDialog = ref<CodeDialog | null>(null)
+const accessDialog = ref<AccessDialog | null>(null)
 const dialogRef = ref<HTMLDialogElement | null>(null)
 
 async function load() {
@@ -166,15 +171,17 @@ async function handleAddChurch() {
     teamCounts.value[res.church.id] = 0
     newChurchForm.value = { name: '', shortName: '' }
     showAddChurch.value = false
-    openCodeDialog({
+    openAccessDialog({
       kind: 'church',
       id: res.church.id,
-      title: `Coach Code — ${res.church.shortName}`,
+      title: `Coach Access — ${res.church.shortName}`,
       description:
         'Share this code with the head coach. They can join the meet and manage their roster.',
       hasClearOption: true,
       revealedCode: res.coachCode,
       busy: false,
+      members: [],
+      membersLoading: false,
     })
   } catch (e) {
     addChurchError.value = (e as Error).message
@@ -207,14 +214,16 @@ async function handleAddRoom() {
     detail.value!.officialCodes.push(res.officialCode)
     newRoomLabel.value = ''
     showAddRoom.value = false
-    openCodeDialog({
+    openAccessDialog({
       kind: 'official',
       id: res.officialCode.id,
-      title: `Room Code — ${res.officialCode.label}`,
+      title: `Room Access — ${res.officialCode.label}`,
       description: 'Share this code with the quizmaster or official for this room.',
       hasClearOption: false,
       revealedCode: res.code,
       busy: false,
+      members: [],
+      membersLoading: false,
     })
   } catch (e) {
     addRoomError.value = (e as Error).message
@@ -233,57 +242,80 @@ async function handleDeleteRoom(codeId: number) {
   }
 }
 
-// ---- Code dialog ----
+// ---- Access dialog ----
 
-function openCodeDialog(d: CodeDialog) {
-  codeDialog.value = d
+function openAccessDialog(d: AccessDialog) {
+  accessDialog.value = d
   nextTick(() => dialogRef.value?.showModal())
+  if (!d.revealedCode) loadDialogMembers()
 }
 
-function closeCodeDialog() {
+function closeAccessDialog() {
   dialogRef.value?.close()
-  codeDialog.value = null
+  accessDialog.value = null
+}
+
+async function loadDialogMembers() {
+  const d = accessDialog.value
+  if (!d) return
+  d.membersLoading = true
+  const res = await listMembers(props.id).catch(() => null)
+  if (res) {
+    d.members = res.members.filter((m) => {
+      if (d.kind === 'admin') return m.role === 'admin'
+      if (d.kind === 'church') return m.role === 'head_coach' && m.churchId === d.id
+      if (d.kind === 'official') return m.role === 'official' && m.officialCodeId === d.id
+      return false
+    })
+  }
+  d.membersLoading = false
 }
 
 function openAdminCodeDialog() {
-  openCodeDialog({
+  openAccessDialog({
     kind: 'admin',
-    title: 'Admin Code',
+    title: 'Admin Access',
     description:
       'Share this code with other admins. Anyone who joins with it gets full management access to this meet.',
     hasClearOption: isSuperuser.value,
     revealedCode: null,
     busy: false,
+    members: [],
+    membersLoading: false,
   })
 }
 
 function openChurchCodeDialog(ch: Church) {
-  openCodeDialog({
+  openAccessDialog({
     kind: 'church',
     id: ch.id,
-    title: `Coach Code — ${ch.shortName}`,
+    title: `Coach Access — ${ch.shortName}`,
     description:
       'Share this code with the head coach. They can join the meet and manage their roster.',
     hasClearOption: true,
     revealedCode: null,
     busy: false,
+    members: [],
+    membersLoading: false,
   })
 }
 
 function openRoomCodeDialog(oc: OfficialCode) {
-  openCodeDialog({
+  openAccessDialog({
     kind: 'official',
     id: oc.id,
-    title: `Room Code — ${oc.label}`,
+    title: `Room Access — ${oc.label}`,
     description: 'Share this code with the quizmaster or official for this room.',
     hasClearOption: false,
     revealedCode: null,
     busy: false,
+    members: [],
+    membersLoading: false,
   })
 }
 
 async function handleGenerateCode(clearMembers: boolean) {
-  const d = codeDialog.value
+  const d = accessDialog.value
   if (!d) return
   d.busy = true
   d.revealedCode = null
@@ -298,6 +330,8 @@ async function handleGenerateCode(clearMembers: boolean) {
       const res = await rotateOfficialCode(props.id, d.id)
       d.revealedCode = res.code
     }
+    if (clearMembers) d.members = []
+    else await loadDialogMembers()
   } catch (e) {
     alert((e as Error).message)
   } finally {
@@ -305,8 +339,24 @@ async function handleGenerateCode(clearMembers: boolean) {
   }
 }
 
+async function handleRevokeMember(member: MeetMember) {
+  const d = accessDialog.value
+  if (!d) return
+  if (!confirm(`Remove ${member.name} (${member.email})?`)) return
+  try {
+    await revokeMember(props.id, member.userId, {
+      role: member.role,
+      churchId: member.churchId,
+      officialCodeId: member.officialCodeId,
+    })
+    d.members = d.members.filter((m) => m.userId !== member.userId)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
 async function copyCode() {
-  const code = codeDialog.value?.revealedCode
+  const code = accessDialog.value?.revealedCode
   if (code) await navigator.clipboard.writeText(code)
 }
 
@@ -544,41 +594,61 @@ onMounted(load)
         </template>
       </div>
 
-      <!-- Code management dialog -->
-      <dialog ref="dialogRef" class="code-dialog" @close="codeDialog = null">
-        <template v-if="codeDialog">
+      <!-- Access management dialog -->
+      <dialog ref="dialogRef" class="code-dialog" @close="accessDialog = null">
+        <template v-if="accessDialog">
           <div class="dialog-header">
-            <h3 class="dialog-title">{{ codeDialog.title }}</h3>
-            <button class="dialog-close" @click="closeCodeDialog">&times;</button>
+            <h3 class="dialog-title">{{ accessDialog.title }}</h3>
+            <button class="dialog-close" @click="closeAccessDialog">&times;</button>
           </div>
-          <p class="dialog-desc">{{ codeDialog.description }}</p>
+          <p class="dialog-desc">{{ accessDialog.description }}</p>
 
-          <div v-if="codeDialog.revealedCode" class="dialog-revealed">
-            <code class="dialog-code">{{ codeDialog.revealedCode }}</code>
+          <div v-if="accessDialog.revealedCode" class="dialog-revealed">
+            <code class="dialog-code">{{ accessDialog.revealedCode }}</code>
             <button class="btn btn--secondary btn--sm" @click="copyCode">Copy</button>
           </div>
-          <p v-if="codeDialog.revealedCode" class="dialog-hint">
+          <p v-if="accessDialog.revealedCode" class="dialog-hint">
             This code is only shown now. Copy it before closing.
           </p>
 
           <div class="dialog-actions">
             <button
               class="btn btn--secondary"
-              :disabled="codeDialog.busy"
+              :disabled="accessDialog.busy"
               @click="handleGenerateCode(false)"
             >
-              {{ codeDialog.busy ? '…' : 'Generate new code' }}
+              {{ accessDialog.busy ? '…' : 'Generate new code' }}
             </button>
             <button
-              v-if="codeDialog.hasClearOption"
+              v-if="accessDialog.hasClearOption"
               class="btn btn--danger"
-              :disabled="codeDialog.busy"
+              :disabled="accessDialog.busy"
               @click="handleGenerateCode(true)"
             >
-              Generate + remove members
+              Generate + remove all members
             </button>
           </div>
           <p class="dialog-footnote">Generating a new code invalidates the old one immediately.</p>
+
+          <div class="dialog-members">
+            <h4 class="dialog-members-title">Members</h4>
+            <p v-if="accessDialog.membersLoading" class="state-msg">Loading…</p>
+            <p v-else-if="accessDialog.members.length === 0" class="state-msg">No members yet.</p>
+            <ul v-else class="member-list">
+              <li v-for="m in accessDialog.members" :key="m.userId" class="member-row">
+                <span class="member-name">{{ m.name }}</span>
+                <span class="member-email">{{ m.email }}</span>
+                <button
+                  v-if="accessDialog.kind !== 'admin' || isSuperuser"
+                  class="member-remove"
+                  title="Remove"
+                  @click="handleRevokeMember(m)"
+                >
+                  &times;
+                </button>
+              </li>
+            </ul>
+          </div>
         </template>
       </dialog>
     </template>
@@ -1111,5 +1181,76 @@ onMounted(load)
   font-size: 0.72rem;
   color: var(--color-text-faint);
   line-height: 1.4;
+}
+
+.dialog-members {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--color-border-alt);
+  padding-top: 0.875rem;
+}
+
+.dialog-members-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-faint);
+  margin-bottom: 0.5rem;
+}
+
+.member-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--color-border-alt);
+}
+
+.member-row:last-child {
+  border-bottom: none;
+}
+
+.member-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.member-email {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.member-remove {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 0 0.2rem;
+  font-family: inherit;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.member-row:hover .member-remove {
+  opacity: 1;
+}
+
+.member-remove:hover {
+  color: var(--palette-error);
 }
 </style>
