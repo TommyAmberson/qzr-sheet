@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
-import { getMyMeets, joinMeet, type MeetMembership } from '../api'
+import { getMyMeets, joinMeet, joinMeetGuest, type MeetMembership } from '../api'
 
 const scoresheetUrl = __SCORESHEET_URL__
 const router = useRouter()
@@ -12,9 +12,9 @@ const memberships = ref<MeetMembership[]>([])
 const loadingMeets = ref(false)
 const meetsError = ref('')
 
-const joinCode = ref('')
-const joining = ref(false)
-const joinError = ref('')
+const code = ref('')
+const submitting = ref(false)
+const codeError = ref('')
 
 async function loadMeets() {
   if (!session.value?.data?.user) return
@@ -29,17 +29,28 @@ async function loadMeets() {
   }
 }
 
-async function handleJoin() {
-  joinError.value = ''
-  joining.value = true
+async function handleCode() {
+  codeError.value = ''
+  submitting.value = true
   try {
-    const res = await joinMeet(joinCode.value.trim())
-    joinCode.value = ''
-    router.push({ name: 'meet', params: { id: res.meet.id } })
+    const c = code.value.trim()
+    // Signed-in: save to account. Guest: get a JWT and navigate.
+    if (session.value?.data?.user) {
+      const res = await joinMeet(c)
+      code.value = ''
+      // Refresh list so the new meet appears
+      await loadMeets()
+      router.push({ name: 'meet', params: { id: res.meet.id } })
+    } else {
+      const res = await joinMeetGuest(c)
+      code.value = ''
+      // TODO: store the guest JWT (res.token) for API calls on the meet page
+      router.push({ name: 'meet', params: { id: res.meet.id } })
+    }
   } catch (e) {
-    joinError.value = (e as Error).message
+    codeError.value = (e as Error).message
   } finally {
-    joining.value = false
+    submitting.value = false
   }
 }
 
@@ -49,67 +60,73 @@ onMounted(loadMeets)
 <template>
   <div class="page">
     <div class="container">
-      <!-- QuizMeets — signed in -->
-      <template v-if="session.data?.user">
-        <div class="section-header">
-          <h2 class="section-title">QuizMeets</h2>
-        </div>
+      <!-- QuizMeets -->
+      <section class="section">
+        <h2 class="section-title">QuizMeets</h2>
 
-        <p v-if="loadingMeets" class="state-msg">Loading…</p>
-        <p v-else-if="meetsError" class="state-msg state-msg--error">{{ meetsError }}</p>
-        <p v-else-if="memberships.length === 0" class="state-msg">No QuizMeets yet.</p>
-        <ul v-else class="qm-list">
-          <li v-for="m in memberships" :key="m.meetId" class="qm-row">
-            <button
-              class="qm-name"
-              @click="router.push({ name: 'meet', params: { id: m.meetId } })"
-            >
-              {{ m.meetName }}
-            </button>
-            <span class="qm-role">{{ m.role.replace('_', ' ') }}</span>
-          </li>
-        </ul>
+        <!-- Saved meets (signed in) -->
+        <template v-if="session.data?.user">
+          <p v-if="loadingMeets" class="state-msg">Loading…</p>
+          <p v-else-if="meetsError" class="state-msg state-msg--error">{{ meetsError }}</p>
+          <ul v-else-if="memberships.length" class="qm-list">
+            <li v-for="m in memberships" :key="m.meetId" class="qm-row">
+              <button
+                class="qm-name"
+                @click="router.push({ name: 'meet', params: { id: m.meetId } })"
+              >
+                {{ m.meetName }}
+              </button>
+              <span class="qm-role">{{ m.role.replace('_', ' ') }}</span>
+            </li>
+          </ul>
+        </template>
 
-        <form class="join-form" @submit.prevent="handleJoin">
+        <!-- Code entry (everyone) -->
+        <form class="code-form" @submit.prevent="handleCode">
           <input
-            v-model="joinCode"
-            class="join-input"
-            placeholder="Join with a code…"
-            :disabled="joining"
+            v-model="code"
+            class="code-input"
+            placeholder="Enter a code to join or view a meet"
+            :disabled="submitting"
             required
           />
-          <button type="submit" class="btn btn--secondary" :disabled="joining || !joinCode.trim()">
-            {{ joining ? 'Joining…' : 'Join' }}
+          <button type="submit" class="btn btn--primary" :disabled="submitting || !code.trim()">
+            {{ submitting ? '…' : 'Go' }}
           </button>
         </form>
-        <p v-if="joinError" class="join-error">{{ joinError }}</p>
-      </template>
+        <p v-if="codeError" class="field-error">{{ codeError }}</p>
 
-      <!-- Signed out -->
-      <template v-else>
-        <div class="intro">
-          <h1 class="intro-heading">qzr</h1>
-          <p class="intro-sub">Bible Quiz scoresheet and meet management.</p>
-          <div class="intro-actions">
-            <a :href="scoresheetUrl" class="btn btn--primary">Open Scoresheet</a>
-            <a
-              href="https://github.com/TommyAmberson/qzr-sheet/releases/latest"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="btn btn--secondary"
-            >
-              Desktop app
-            </a>
-          </div>
+        <p v-if="!session.data?.user" class="sign-in-hint">
+          Sign in to save QuizMeets to your account.
+        </p>
+      </section>
+
+      <!-- Scoresheet -->
+      <section class="section">
+        <h2 class="section-title">Scoresheet</h2>
+        <p class="section-desc">
+          Score quizzes in the browser or as a desktop app. Full rule support — toss-ups, A/B
+          columns, fouls, bonuses, and overtime. No account needed.
+        </p>
+        <div class="scoresheet-actions">
+          <a :href="scoresheetUrl" class="btn btn--primary">Open in browser</a>
+          <a
+            href="https://github.com/TommyAmberson/qzr-sheet/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn--secondary"
+          >
+            Download desktop app
+          </a>
         </div>
-      </template>
+      </section>
     </div>
   </div>
 </template>
 
 <style scoped>
 .page {
-  padding: 3rem 0;
+  padding: 2.5rem 0;
 }
 
 .container {
@@ -118,43 +135,41 @@ onMounted(loadMeets)
   padding: 0 1.5rem;
 }
 
-/* Signed-in: QuizMeets list */
-.section-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 1rem;
+.section {
+  margin-bottom: 2.5rem;
 }
 
 .section-title {
-  font-size: 1rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  color: var(--color-heading);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  margin-bottom: 1rem;
 }
 
-.state-msg {
-  font-size: 0.875rem;
-  color: var(--color-text-faint);
+.section-desc {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.65;
+  max-width: 36rem;
   margin-bottom: 1.25rem;
 }
 
-.state-msg--error {
-  color: var(--palette-error);
-}
-
+/* Meet list */
 .qm-list {
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.875rem;
 }
 
 .qm-row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.7rem 1rem;
+  padding: 0.65rem 0.875rem;
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border-alt);
   border-radius: 6px;
@@ -184,14 +199,15 @@ onMounted(loadMeets)
   text-transform: capitalize;
 }
 
-.join-form {
+/* Code entry */
+.code-form {
   display: flex;
   gap: 0.5rem;
+  max-width: 28rem;
 }
 
-.join-input {
+.code-input {
   flex: 1;
-  max-width: 20rem;
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border);
   border-radius: 5px;
@@ -202,36 +218,33 @@ onMounted(loadMeets)
   outline: none;
 }
 
-.join-input:focus {
+.code-input:focus {
   border-color: var(--color-accent);
 }
 
-.join-error {
+.field-error {
   font-size: 0.8rem;
   color: var(--palette-error);
   margin-top: 0.4rem;
 }
 
-/* Signed-out intro */
-.intro {
-  padding: 2rem 0;
+.sign-in-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+  margin-top: 0.75rem;
 }
 
-.intro-heading {
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--color-heading);
-  margin-bottom: 0.5rem;
+.link {
+  color: var(--color-accent);
+  text-decoration: none;
 }
 
-.intro-sub {
-  font-size: 0.95rem;
-  color: var(--color-text-muted);
-  margin-bottom: 1.75rem;
+.link:hover {
+  text-decoration: underline;
 }
 
-.intro-actions {
+/* Scoresheet */
+.scoresheet-actions {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
@@ -262,7 +275,7 @@ onMounted(loadMeets)
   border-color: var(--color-accent);
 }
 
-.btn--primary:hover {
+.btn--primary:hover:not(:disabled) {
   background: var(--color-accent-hover);
   border-color: var(--color-accent-hover);
   text-decoration: none;
@@ -284,5 +297,15 @@ onMounted(loadMeets)
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.state-msg {
+  font-size: 0.875rem;
+  color: var(--color-text-faint);
+  margin-bottom: 0.875rem;
+}
+
+.state-msg--error {
+  color: var(--palette-error);
 }
 </style>

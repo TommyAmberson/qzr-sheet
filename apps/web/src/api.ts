@@ -140,6 +140,15 @@ export function joinMeet(
   })
 }
 
+export function joinMeetGuest(
+  code: string,
+): Promise<{ token: string; meet: { id: number; name: string }; role: string; label?: string }> {
+  return request('/api/join/guest', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  })
+}
+
 export function getMyMeets(): Promise<{ memberships: MeetMembership[] }> {
   return request('/api/my-meets')
 }
