@@ -157,6 +157,11 @@ async function selectChurch(churchId: number) {
   }
 }
 
+function startRename(quizzerId: number, name: string) {
+  renamingQuizzerId.value = quizzerId
+  renameValue.value = name
+}
+
 function startAddToPool() {
   addingQuizzerTeamId.value = -1
   newQuizzerName.value = ''
@@ -370,7 +375,7 @@ async function onDrop(toTeamId: number | null) {
             :class="{ 'church-tab--active': c.id === selectedChurchId }"
             @click="selectChurch(c.id)"
           >
-            {{ c.shortName }}<span class="church-tab-full"> {{ c.name }}</span>
+            {{ c.shortName }}<span class="church-tab-full">{{ c.name }}</span>
           </button>
           <button class="church-tab church-tab--add" @click="showCreateChurch = true">
             + Church
@@ -403,8 +408,12 @@ async function onDrop(toTeamId: number | null) {
                 v-for="q in unassigned"
                 :key="q.quizzerId"
                 class="quizzer-chip"
-                :draggable="canEditSelected"
-                @dragstart="canEditSelected && onDragStart(q.quizzerId, null)"
+                :draggable="canEditSelected && renamingQuizzerId !== q.quizzerId"
+                @dragstart="
+                  canEditSelected &&
+                  renamingQuizzerId !== q.quizzerId &&
+                  onDragStart(q.quizzerId, null)
+                "
                 @dragend="onDragEnd"
               >
                 <template v-if="renamingQuizzerId === q.quizzerId">
@@ -420,12 +429,30 @@ async function onDrop(toTeamId: number | null) {
                 <template v-else>
                   <span
                     class="quizzer-name"
-                    :class="{ 'quizzer-name--editable': canEditSelected }"
-                    @dblclick="
-                      canEditSelected && ((renamingQuizzerId = q.quizzerId), (renameValue = q.name))
-                    "
+                    @dblclick="canEditSelected && startRename(q.quizzerId, q.name)"
                     >{{ q.name }}</span
                   >
+                  <button
+                    v-if="canEditSelected"
+                    class="quizzer-pencil"
+                    title="Rename"
+                    @click.stop="startRename(q.quizzerId, q.name)"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </button>
                   <button
                     v-if="canEditSelected"
                     class="quizzer-remove"
@@ -507,8 +534,12 @@ async function onDrop(toTeamId: number | null) {
                     v-for="q in quizzersForTeam(team.id)"
                     :key="q.quizzerId"
                     class="quizzer-chip"
-                    :draggable="canEditSelected"
-                    @dragstart="canEditSelected && onDragStart(q.quizzerId, team.id)"
+                    :draggable="canEditSelected && renamingQuizzerId !== q.quizzerId"
+                    @dragstart="
+                      canEditSelected &&
+                      renamingQuizzerId !== q.quizzerId &&
+                      onDragStart(q.quizzerId, team.id)
+                    "
                     @dragend="onDragEnd"
                   >
                     <template v-if="renamingQuizzerId === q.quizzerId">
@@ -524,13 +555,30 @@ async function onDrop(toTeamId: number | null) {
                     <template v-else>
                       <span
                         class="quizzer-name"
-                        :class="{ 'quizzer-name--editable': canEditSelected }"
-                        @dblclick="
-                          canEditSelected &&
-                          ((renamingQuizzerId = q.quizzerId), (renameValue = q.name))
-                        "
+                        @dblclick="canEditSelected && startRename(q.quizzerId, q.name)"
                         >{{ q.name }}</span
                       >
+                      <button
+                        v-if="canEditSelected"
+                        class="quizzer-pencil"
+                        title="Rename"
+                        @click.stop="startRename(q.quizzerId, q.name)"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="10"
+                          height="10"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                      </button>
                       <button
                         v-if="canEditSelected"
                         class="quizzer-remove"
@@ -723,12 +771,15 @@ async function onDrop(toTeamId: number | null) {
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border-alt);
   border-radius: 6px;
-  padding: 0.3rem 0.75rem;
+  padding: 0.3rem 0.875rem;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
   color: var(--color-text-muted);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
   transition:
     border-color 0.15s,
     color 0.15s;
@@ -904,20 +955,35 @@ async function onDrop(toTeamId: number | null) {
   padding: 0.25rem 0.5rem;
   font-size: 0.8rem;
   user-select: none;
-}
-
-.quizzer-chip[draggable='true'] {
   cursor: grab;
 }
-.quizzer-chip[draggable='true']:active {
+
+.quizzer-chip:active {
   cursor: grabbing;
 }
 
 .quizzer-name {
   flex: 1;
 }
-.quizzer-name--editable {
-  cursor: text;
+
+.quizzer-pencil {
+  background: none;
+  border: none;
+  padding: 0 0.1rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.quizzer-chip:hover .quizzer-pencil {
+  opacity: 1;
+}
+
+.quizzer-pencil:hover {
+  color: var(--color-accent);
 }
 
 .quizzer-remove {
@@ -929,6 +995,12 @@ async function onDrop(toTeamId: number | null) {
   cursor: pointer;
   padding: 0 0.1rem;
   font-family: inherit;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.quizzer-chip:hover .quizzer-remove {
+  opacity: 1;
 }
 
 .quizzer-remove:hover {
