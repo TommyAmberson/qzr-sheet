@@ -74,10 +74,13 @@ admin). Honest WIP framing — no branding name yet. Combined build: `pnpm build
 `apps/web/dist/` with the scoresheet output nested at `scoresheet/`; `pnpm deploy` builds and
 publishes both to the CF Pages project.
 
-### 4.2 API + database
+### 4.2 API + database ✓
 
-Hono on Cloudflare Workers with D1 and Drizzle. Drizzle schema matching the data model in
-`docs/auth-proposal.md`. Deploy to `api.versevault.ca/`.
+Hono on Cloudflare Workers with D1 and Drizzle. `packages/shared` extracts the QuizFile TypeBox
+schema and role enums so the API can consume them without depending on the scoresheet.
+`packages/api` has a typed Bindings interface, CORS + logger middleware, `GET /health`, and the full
+Drizzle schema covering all tables from the data model. First D1 migration generated and committed.
+Deploy target: `api.versevault.ca/`.
 
 ### 4.3 Authentication
 

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter scoresheet dev",
     "dev:web": "pnpm --filter @qzr/web dev",
-    "dev:all": "pnpm --parallel --filter scoresheet --filter @qzr/web dev",
+    "dev:all": "pnpm --parallel --filter scoresheet --filter @qzr/web --filter @qzr/api dev",
     "build": "pnpm --filter scoresheet build",
     "build:web": "pnpm --filter scoresheet build:web",
     "build:portal": "pnpm --filter @qzr/web build",

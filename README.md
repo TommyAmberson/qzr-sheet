@@ -39,12 +39,15 @@ pnpm i
 ## Commands
 
 ```sh
-pnpm dev               # Vite dev server — scoresheet (web only)
-pnpm dev:web           # Vite dev server — portal / landing page
-pnpm tauri dev         # Tauri native window (hot-reload)
+pnpm dev:all               # All three dev servers in parallel (scoresheet + portal + API)
+pnpm dev                   # Scoresheet only
+pnpm dev:web               # Portal only
+pnpm dev:api               # API only (requires wrangler login)
+pnpm tauri dev             # Tauri native window (hot-reload)
 pnpm tauri:linux-x11 dev   # Same, with Linux/X11 GPU workarounds
-pnpm test:unit         # Vitest unit tests
-pnpm type-check        # vue-tsc (scoresheet + web)
+
+pnpm test:unit         # Vitest unit tests (scoresheet + api)
+pnpm type-check        # vue-tsc / tsc (all four packages)
 pnpm lint              # ESLint
 pnpm format            # Prettier (no semi, single quotes, 100 col)
 
@@ -54,7 +57,7 @@ pnpm deploy
 pnpm build:all && wrangler pages deploy apps/web/dist --project-name versevault-www --branch master
 ```
 
-All root scripts delegate to the scoresheet workspace via `pnpm --filter scoresheet`.
+All root scripts delegate to the relevant workspace packages via `pnpm --filter`.
 
 ## Project Structure
 
@@ -73,10 +76,10 @@ apps/
       persistence/               # JSON schema, file I/O, localStorage auto-save
       components/                # Scoresheet.vue (single-component UI)
     src-tauri/                   # Tauri 2 Rust backend
-  web/                           # Portal app (planned — coach, admin, viewer, schedule)
+  web/                           # Portal app (landing page; coach, admin, viewer views planned)
 packages/
-  shared/                        # Shared types and schemas (planned)
-  api/                           # Hono + D1 + Drizzle API (planned)
+  shared/                        # QuizFile schema, role enums, shared API types
+  api/                           # Hono + D1 + Drizzle API (Cloudflare Workers)
 docs/
   scoring-rules-explained.md     # Cell types, point values, all scoring rules
   architecture.md                # Data flow and design decisions
