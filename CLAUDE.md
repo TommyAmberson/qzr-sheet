@@ -22,6 +22,9 @@ pnpm deploy             # Build all + deploy to CF Pages + CF Worker
 
 ## Releasing
 
+1. Update `CHANGELOG.md` with a new version section
+2. Run:
+
 ```sh
 pnpm bump x.y.z   # bumps package.json, apps/scoresheet/package.json, tauri.conf.json
 git add package.json apps/scoresheet/package.json apps/scoresheet/src-tauri/tauri.conf.json
