@@ -125,5 +125,13 @@ export async function createTestDb(): Promise<Db> {
     );
   `)
 
+  // Seed test users so FK constraints on membership tables are satisfied
+  const now = Date.now()
+  sqlite.run(
+    `INSERT INTO user (id, name, email, email_verified, created_at, updated_at, role)
+     VALUES ('admin-001', 'Test Admin', 'admin@test.com', 1, ${now}, ${now}, 'admin'),
+            ('user-001', 'Test User', 'user@test.com', 1, ${now}, ${now}, 'normal')`,
+  )
+
   return drizzle(sqlite, { schema }) as unknown as Db
 }
