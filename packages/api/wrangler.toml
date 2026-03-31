@@ -11,3 +11,4 @@ database_id = "d10523ed-a7bf-43d7-989f-2ab0c1f2ca1f"
 [vars]
 ENVIRONMENT = "production"
 API_BASE_URL = "https://api.versevault.ca"
+WEB_BASE_URL = "https://www.versevault.ca"

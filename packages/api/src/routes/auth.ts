@@ -34,11 +34,9 @@ function googleClient(env: Bindings) {
 }
 
 function redirectWithToken(token: string, env: Bindings) {
-  const base =
-    env.ENVIRONMENT === 'development' ? 'http://localhost:5173' : 'https://www.versevault.ca'
   return new Response(null, {
     status: 302,
-    headers: { Location: `${base}/auth/done?token=${token}` },
+    headers: { Location: `${env.WEB_BASE_URL}/auth/done?token=${token}` },
   })
 }
 
