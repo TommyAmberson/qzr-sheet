@@ -38,9 +38,13 @@ meets.post('/', async (c) => {
     dateFrom: string
     dateTo?: string
     viewerCode: string
+    divisions: string[]
   }>()
   if (!body.name?.trim() || !body.dateFrom?.trim() || !body.viewerCode?.trim()) {
     return c.json({ error: 'name, dateFrom, and viewerCode are required' }, 400)
+  }
+  if (!Array.isArray(body.divisions) || body.divisions.length === 0) {
+    return c.json({ error: 'divisions must be a non-empty array' }, 400)
   }
 
   const coachCode = generateCode()
@@ -53,6 +57,7 @@ meets.post('/', async (c) => {
       dateFrom: body.dateFrom.trim(),
       dateTo: body.dateTo?.trim() ?? null,
       viewerCode: body.viewerCode.trim(),
+      divisions: JSON.stringify(body.divisions.map((d) => d.trim()).filter(Boolean)),
       coachCodeHash: coachHash,
       createdAt: new Date(),
     })
@@ -96,6 +101,9 @@ meets.patch('/:id', async (c) => {
   if (body.dateFrom?.trim()) updates.dateFrom = body.dateFrom.trim()
   if ('dateTo' in body) updates.dateTo = body.dateTo?.trim() ?? null
   if (body.viewerCode?.trim()) updates.viewerCode = body.viewerCode.trim()
+  if (Array.isArray(body.divisions) && body.divisions.length > 0) {
+    updates.divisions = JSON.stringify(body.divisions.map((d: string) => d.trim()).filter(Boolean))
+  }
 
   if (Object.keys(updates).length === 0) {
     return c.json({ error: 'No valid fields to update' }, 400)
@@ -212,6 +220,7 @@ function formatMeet(meet: schema.QuizMeet) {
     dateFrom: meet.dateFrom,
     dateTo: meet.dateTo,
     viewerCode: meet.viewerCode,
+    divisions: JSON.parse(meet.divisions) as string[],
     createdAt: meet.createdAt,
   }
 }
