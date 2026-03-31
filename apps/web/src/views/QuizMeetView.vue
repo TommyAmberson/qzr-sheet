@@ -17,7 +17,14 @@ const isCoach = computed(() => role.value === 'head_coach' || role.value === 'ad
 
 // Inline editing
 const editing = ref(false)
-const editForm = ref({ name: '', dateFrom: '', dateTo: '', viewerCode: '', divisionsRaw: '' })
+const editForm = ref({
+  name: '',
+  dateFrom: '',
+  dateTo: '',
+  viewerCode: '',
+  divisions: [] as string[],
+})
+const newDivision = ref('')
 const saving = ref(false)
 const saveError = ref('')
 
@@ -45,9 +52,21 @@ function startEdit() {
     dateFrom: m.dateFrom,
     dateTo: m.dateTo ?? '',
     viewerCode: m.viewerCode,
-    divisionsRaw: m.divisions.join(', '),
+    divisions: [...m.divisions],
   }
+  newDivision.value = ''
   editing.value = true
+}
+
+function addDivision() {
+  const d = newDivision.value.trim()
+  if (!d || editForm.value.divisions.includes(d)) return
+  editForm.value.divisions.push(d)
+  newDivision.value = ''
+}
+
+function removeDivision(i: number) {
+  editForm.value.divisions.splice(i, 1)
 }
 
 async function saveEdit() {
@@ -55,11 +74,7 @@ async function saveEdit() {
   saveError.value = ''
   saving.value = true
   try {
-    const divisions = editForm.value.divisionsRaw
-      .split(',')
-      .map((d) => d.trim())
-      .filter(Boolean)
-    const res = await updateMeet(detail.value.meet.id, { ...editForm.value, divisions })
+    const res = await updateMeet(detail.value.meet.id, { ...editForm.value })
     detail.value = { ...detail.value, meet: res.meet }
     editing.value = false
   } catch (e) {
@@ -84,18 +99,20 @@ onMounted(load)
       <div class="page-header">
         <template v-if="!editing">
           <div class="meet-info">
-            <h2 class="page-title">{{ detail.meet.name }}</h2>
-            <span class="meet-meta"
-              >{{ detail.meet.dateFrom
-              }}{{
-                detail.meet.dateTo && detail.meet.dateTo !== detail.meet.dateFrom
-                  ? ` – ${detail.meet.dateTo}`
-                  : ''
-              }}</span
-            >
-            <span v-if="detail.meet.divisions.length" class="meet-meta">{{
-              detail.meet.divisions.join(', ')
-            }}</span>
+            <div class="meet-title-row">
+              <h2 class="page-title">{{ detail.meet.name }}</h2>
+              <span class="meet-meta"
+                >{{ detail.meet.dateFrom
+                }}{{
+                  detail.meet.dateTo && detail.meet.dateTo !== detail.meet.dateFrom
+                    ? ` – ${detail.meet.dateTo}`
+                    : ''
+                }}</span
+              >
+            </div>
+            <div v-if="detail.meet.divisions.length" class="division-tags">
+              <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{ d }}</span>
+            </div>
           </div>
           <button v-if="isAdmin" class="icon-btn" title="Edit meet" @click="startEdit">
             <svg
@@ -125,11 +142,29 @@ onMounted(load)
               placeholder="Viewer code"
               required
             />
-            <input
-              v-model="editForm.divisionsRaw"
-              class="field-input field-input--wide"
-              placeholder="Divisions (e.g. Div 1, Div 2)"
-            />
+          </div>
+          <div class="divisions-edit">
+            <div class="division-tags">
+              <span
+                v-for="(d, i) in editForm.divisions"
+                :key="d"
+                class="division-tag division-tag--removable"
+              >
+                {{ d }}
+                <button type="button" class="division-remove" @click="removeDivision(i)">
+                  &times;
+                </button>
+              </span>
+            </div>
+            <div class="division-add">
+              <input
+                v-model="newDivision"
+                class="field-input"
+                placeholder="Add division"
+                @keydown.enter.prevent="addDivision"
+              />
+              <button type="button" class="btn btn--secondary" @click="addDivision">Add</button>
+            </div>
           </div>
           <p v-if="saveError" class="field-error">{{ saveError }}</p>
           <div class="edit-actions">
@@ -218,9 +253,8 @@ onMounted(load)
 
 .meet-info {
   display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.4rem;
   flex: 1;
 }
 
@@ -430,5 +464,65 @@ onMounted(load)
 .card-desc {
   font-size: 0.8rem;
   color: var(--color-text-faint);
+}
+
+.meet-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.division-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.division-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 99px;
+  color: var(--color-text-muted);
+}
+
+.division-tag--removable {
+  padding-right: 0.35rem;
+}
+
+.division-remove {
+  background: none;
+  border: none;
+  padding: 0 0.1rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-faint);
+  font-family: inherit;
+}
+
+.division-remove:hover {
+  color: var(--palette-error);
+}
+
+.divisions-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.division-add {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.division-add .field-input {
+  max-width: 14rem;
 }
 </style>
