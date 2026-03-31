@@ -12,15 +12,17 @@ type Variables = Record<string, never>
 const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 // Redirect URL base — resolved from the request origin in handlers
-const CALLBACK_BASE = 'https://www.versevault.ca/auth/callback'
-
 // ---- Helpers ----
+
+function callbackBase(env: Bindings) {
+  return `${env.API_BASE_URL}/auth/callback`
+}
 
 function githubClient(env: Bindings) {
   return new arctic.GitHub(
     env.GITHUB_CLIENT_ID,
     env.GITHUB_CLIENT_SECRET,
-    `${CALLBACK_BASE}/github`,
+    `${callbackBase(env)}/github`,
   )
 }
 
@@ -28,7 +30,7 @@ function googleClient(env: Bindings) {
   return new arctic.Google(
     env.GOOGLE_CLIENT_ID,
     env.GOOGLE_CLIENT_SECRET,
-    `${CALLBACK_BASE}/google`,
+    `${callbackBase(env)}/google`,
   )
 }
 

@@ -9,4 +9,5 @@ database_name = "qzr-db"
 database_id = "d10523ed-a7bf-43d7-989f-2ab0c1f2ca1f"
 
 [vars]
-ENVIRONMENT = "development"
+ENVIRONMENT = "production"
+API_BASE_URL = "https://api.versevault.ca"
