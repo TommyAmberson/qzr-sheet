@@ -65,6 +65,10 @@ const dragOverQuizzerId = ref<number | null>(null)
 // teamId (or null for pool) being hovered — for card-level highlight
 const dragOverContainer = ref<number | null | undefined>(undefined)
 
+// Team reorder drag
+const draggingTeamId = ref<number | null>(null)
+const dragOverTeamId = ref<number | null>(null)
+
 // Ordered quizzer lists — keys are teamId or 'pool'
 const quizzerOrder = ref<Record<string, number[]>>({})
 
@@ -550,6 +554,38 @@ function onDrop(toTeamId: number | null) {
   assignments.value[quizzerId] = toTeamId
   reorderLocally(quizzerId, fromKey, toKey, insertBefore)
 }
+
+// ---- Team reorder drag ----
+
+function onTeamDragStart(teamId: number) {
+  draggingTeamId.value = teamId
+}
+
+function onTeamDragEnd() {
+  draggingTeamId.value = null
+  dragOverTeamId.value = null
+}
+
+function onTeamDragOver(teamId: number) {
+  if (draggingTeamId.value === null || draggingTeamId.value === teamId) return
+  dragOverTeamId.value = teamId
+}
+
+function onTeamDragLeave() {
+  dragOverTeamId.value = null
+}
+
+function onTeamDrop(toTeamId: number) {
+  const fromId = draggingTeamId.value
+  draggingTeamId.value = null
+  dragOverTeamId.value = null
+  if (fromId === null || fromId === toTeamId) return
+  const fromIdx = teams.value.findIndex((t) => t.id === fromId)
+  const toIdx = teams.value.findIndex((t) => t.id === toTeamId)
+  if (fromIdx === -1 || toIdx === -1) return
+  const moved = teams.value.splice(fromIdx, 1)[0]!
+  teams.value.splice(toIdx, 0, moved)
+}
 </script>
 
 <template>
@@ -720,14 +756,26 @@ function onDrop(toTeamId: number | null) {
                 :key="team.id"
                 class="team-card"
                 :class="{
-                  'team-card--dragover': dragOverContainer === team.id,
+                  'team-card--dragover': dragOverContainer === team.id && draggingTeamId === null,
                   'team-card--warn': !!teamWarnings[teamIdx],
+                  'team-card--team-insert-before': dragOverTeamId === team.id,
                 }"
-                @dragover.prevent="onDragOverContainer(team.id)"
-                @dragleave="onDragLeaveContainer"
-                @drop.prevent="onDrop(team.id)"
+                @dragover.prevent="
+                  draggingTeamId !== null ? onTeamDragOver(team.id) : onDragOverContainer(team.id)
+                "
+                @dragleave="draggingTeamId !== null ? onTeamDragLeave() : onDragLeaveContainer()"
+                @drop.prevent="draggingTeamId !== null ? onTeamDrop(team.id) : onDrop(team.id)"
               >
                 <div class="team-card-header">
+                  <span
+                    v-if="canEditSelected"
+                    class="team-drag-handle"
+                    draggable="true"
+                    title="Drag to reorder"
+                    @dragstart.stop="onTeamDragStart(team.id)"
+                    @dragend.stop="onTeamDragEnd"
+                    >⠿</span
+                  >
                   <span class="team-label">{{ teamLabel(team) }}</span>
                   <span class="div-label">Div</span>
                   <select
@@ -1060,6 +1108,30 @@ function onDrop(toTeamId: number | null) {
   flex-direction: column;
   gap: 0.4rem;
   transition: border-color 0.1s;
+}
+
+.team-card--team-insert-before {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.team-drag-handle {
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+  cursor: grab;
+  padding: 0 0.15rem;
+  flex-shrink: 0;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.team-card:hover .team-drag-handle {
+  opacity: 1;
+}
+
+.team-drag-handle:active {
+  cursor: grabbing;
 }
 
 .team-card--dragover {
