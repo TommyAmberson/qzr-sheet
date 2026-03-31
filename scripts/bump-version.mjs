@@ -33,7 +33,7 @@ function bumpToml(path, key) {
 
 bumpJson('package.json', (pkg) => (pkg.version = version))
 bumpJson('apps/scoresheet/package.json', (pkg) => (pkg.version = version))
-bumpToml('apps/scoresheet/src-tauri/tauri.conf.json', 'version')
+bumpJson('apps/scoresheet/src-tauri/tauri.conf.json', (cfg) => (cfg.version = version))
 
 console.log(`\nVersion bumped to ${version}. Commit and tag:\n`)
 console.log(`  git add package.json apps/scoresheet/package.json apps/scoresheet/src-tauri/tauri.conf.json`)
