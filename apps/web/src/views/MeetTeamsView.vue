@@ -402,7 +402,7 @@ async function onDrop(toTeamId: number | null) {
       if (idx !== -1) allQuizzers.value[idx] = res.quizzer
       // id may change after re-add; patch order and assignment
       if (res.quizzer.quizzerId !== quizzerId) {
-        quizzerOrder.value[toKey] = quizzerOrder.value[toKey].map((id) =>
+        quizzerOrder.value[toKey] = (quizzerOrder.value[toKey] ?? []).map((id) =>
           id === quizzerId ? res.quizzer.quizzerId : id,
         )
         assignments.value[res.quizzer.quizzerId] = toTeamId
@@ -416,7 +416,7 @@ async function onDrop(toTeamId: number | null) {
       const idx = allQuizzers.value.findIndex((q) => q.quizzerId === quizzerId)
       if (idx !== -1) allQuizzers.value[idx] = res.quizzer
       if (res.quizzer.quizzerId !== quizzerId) {
-        quizzerOrder.value[toKey] = quizzerOrder.value[toKey].map((id) =>
+        quizzerOrder.value[toKey] = (quizzerOrder.value[toKey] ?? []).map((id) =>
           id === quizzerId ? res.quizzer.quizzerId : id,
         )
         assignments.value[res.quizzer.quizzerId] = toTeamId
