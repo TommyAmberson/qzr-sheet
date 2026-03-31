@@ -61,8 +61,8 @@ All root scripts delegate to the relevant workspace packages via `pnpm --filter`
 
 ## Project Structure
 
-See [docs/architecture.md](./docs/architecture.md) for the full data flow and design decisions. See
-[docs/auth-proposal.md](./docs/auth-proposal.md) for the Phase 4 architecture and API design.
+See [docs/architecture.md](./docs/architecture.md) for the full data flow and design decisions. For
+auth, roles, and the data model see the docs below.
 
 ```
 apps/
@@ -82,9 +82,11 @@ packages/
   api/                           # Hono + D1 + Drizzle API (Cloudflare Workers)
 docs/
   scoring-rules-explained.md     # Cell types, point values, all scoring rules
-  architecture.md                # Data flow and design decisions
+  architecture.md                # Monorepo structure, API stack, scoresheet internals
   rules.md                       # Full rules from the official rulebook PDF
-  auth-proposal.md               # Phase 4 architecture, API stack, security
+  auth.md                        # Auth implementation, OAuth, Tauri, security
+  roles-and-access.md            # Meet roles, codes, join flow, rotation policy
+  data-model.md                  # Full schema, memberships, quizzer identity
 ```
 
 ## Releasing
