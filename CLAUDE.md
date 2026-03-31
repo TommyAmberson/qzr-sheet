@@ -80,6 +80,9 @@ docs/
 * `isErrorPoints` is true for Q17–20 and all OT columns — **not** Q16.
 * Foul deduction does not stack: 3rd-team-foul + foul-out on the same foul = only −10.
 * Drag reorder uses pointer events only (no HTML5 drag API — crashes on Linux/X11).
+* **Vue 3 template compiler bug:** multi-statement `@click` handlers without semicolons are rejected
+  (vuejs/core#8854). Prettier removes semicolons on format, re-triggering the error. Always extract
+  multi-statement handlers to named functions in `<script setup>` instead of inline expressions.
 * Auth uses Better Auth cookie sessions — no JWTs for user auth. `BETTER_AUTH_SECRET` must be ≥32
   chars. OAuth callbacks: `/api/auth/callback/github`, `/api/auth/callback/google`.
 * **Never hand-write or edit migration files.** Always run `pnpm --filter @qzr/api db:generate` to
