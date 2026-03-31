@@ -1096,6 +1096,7 @@ onMounted(load)
   padding: 1.5rem;
   max-width: 26rem;
   width: calc(100vw - 3rem);
+  margin: auto;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
 }
 
