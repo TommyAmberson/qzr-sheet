@@ -39,7 +39,7 @@ function parseMeetId(raw: string): number | null {
 /**
  * GET /api/meets/:meetId/churches
  *
- * Admins see all churches for the meet.
+ * Superusers see all churches for the meet.
  * Coaches see only the churches they created.
  */
 churches.get('/meets/:meetId/churches', async (c) => {
@@ -50,7 +50,7 @@ churches.get('/meets/:meetId/churches', async (c) => {
   const db = getDb(c)
 
   const rows =
-    user.role === AccountRole.Admin
+    user.role === AccountRole.Superuser
       ? await db.select().from(schema.churches).where(eq(schema.churches.meetId, meetId))
       : await db
           .select()
@@ -72,8 +72,8 @@ churches.post('/meets/:meetId/churches', async (c) => {
   const user = getUser(c)
   const db = getDb(c)
 
-  // Verify the user is a coach for this meet (or admin)
-  if (user.role !== AccountRole.Admin) {
+  // Verify the user is a coach for this meet (or superuser)
+  if (user.role !== AccountRole.Superuser) {
     const [membership] = await db
       .select()
       .from(schema.coachMemberships)
@@ -109,7 +109,7 @@ churches.post('/meets/:meetId/churches', async (c) => {
 /**
  * GET /api/churches/:churchId/teams
  *
- * Returns all teams under a church. Coach must own the church (or be admin).
+ * Returns all teams under a church. Coach must own the church (or be superuser).
  */
 churches.get('/churches/:churchId/teams', async (c) => {
   const churchId = Number(c.req.param('churchId'))
@@ -121,7 +121,7 @@ churches.get('/churches/:churchId/teams', async (c) => {
   const [church] = await db.select().from(schema.churches).where(eq(schema.churches.id, churchId))
 
   if (!church) return c.json({ error: 'Church not found' }, 404)
-  if (user.role !== AccountRole.Admin && church.createdBy !== user.id) {
+  if (user.role !== AccountRole.Superuser && church.createdBy !== user.id) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
@@ -133,7 +133,7 @@ churches.get('/churches/:churchId/teams', async (c) => {
 /**
  * POST /api/churches/:churchId/teams
  *
- * Creates a team under a church. Coach must own the church (or be admin).
+ * Creates a team under a church. Coach must own the church (or be superuser).
  * `number` auto-increments per church per division if omitted.
  */
 churches.post('/churches/:churchId/teams', async (c) => {
@@ -146,7 +146,7 @@ churches.post('/churches/:churchId/teams', async (c) => {
   const [church] = await db.select().from(schema.churches).where(eq(schema.churches.id, churchId))
 
   if (!church) return c.json({ error: 'Church not found' }, 404)
-  if (user.role !== AccountRole.Admin && church.createdBy !== user.id) {
+  if (user.role !== AccountRole.Superuser && church.createdBy !== user.id) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 

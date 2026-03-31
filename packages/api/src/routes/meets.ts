@@ -15,7 +15,7 @@ type Env = { Bindings: Bindings; Variables: MeetsVariables }
 
 const meets = new Hono<Env>()
 
-// All meet management routes require admin
+// All meet management routes require superuser
 meets.use('*', requireAuth(), requireAdmin())
 
 // Inject DB from env binding (overridable in tests via the db variable)

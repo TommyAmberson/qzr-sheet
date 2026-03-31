@@ -1,5 +1,5 @@
 export enum AccountRole {
-  Admin = 'admin',
+  Superuser = 'superuser',
   Normal = 'normal',
 }
 
@@ -7,5 +7,5 @@ export enum MeetRole {
   HeadCoach = 'head_coach',
   Official = 'official',
   Viewer = 'viewer',
-  Admin = 'admin',
+  Superuser = 'superuser',
 }

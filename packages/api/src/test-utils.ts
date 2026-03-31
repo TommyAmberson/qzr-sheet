@@ -33,7 +33,7 @@ export const testAdmin: SessionUser = {
   id: 'admin-001',
   email: 'admin@test.com',
   name: 'Test Admin',
-  role: AccountRole.Admin,
+  role: AccountRole.Superuser,
 }
 
 export const testUser: SessionUser = {

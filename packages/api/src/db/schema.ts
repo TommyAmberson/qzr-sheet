@@ -11,7 +11,7 @@ export const user = sqliteTable('user', {
   image: text('image'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-  role: text('role', { enum: [AccountRole.Admin, AccountRole.Normal] })
+  role: text('role', { enum: [AccountRole.Superuser, AccountRole.Normal] })
     .notNull()
     .default(AccountRole.Normal),
 })

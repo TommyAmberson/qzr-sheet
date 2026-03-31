@@ -42,7 +42,7 @@ describe('requireAuth', () => {
 })
 
 describe('requireAdmin', () => {
-  it('allows admin users', async () => {
+  it('allows superuser users', async () => {
     const app = createApp(testAdmin)
     const res = await app.request('/admin/dashboard', {}, env)
     expect(res.status).toBe(200)
@@ -50,7 +50,7 @@ describe('requireAdmin', () => {
     expect(body.admin).toBe(true)
   })
 
-  it('rejects non-admin users with 403', async () => {
+  it('rejects non-superuser users with 403', async () => {
     const app = createApp(testUser)
     const res = await app.request('/admin/dashboard', {}, env)
     expect(res.status).toBe(403)

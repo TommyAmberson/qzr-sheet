@@ -131,7 +131,7 @@ export async function createTestDb(): Promise<Db> {
   const now = Date.now()
   sqlite.run(
     `INSERT INTO user (id, name, email, email_verified, created_at, updated_at, role)
-     VALUES ('admin-001', 'Test Admin', 'admin@test.com', 1, ${now}, ${now}, 'admin'),
+     VALUES ('admin-001', 'Test Admin', 'admin@test.com', 1, ${now}, ${now}, 'superuser'),
             ('user-001', 'Test User', 'user@test.com', 1, ${now}, ${now}, 'normal')`,
   )
 

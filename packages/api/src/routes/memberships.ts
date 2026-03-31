@@ -45,14 +45,14 @@ memberships.get('/', async (c) => {
   const user = getUser(c)
   const db = getDb(c)
 
-  // Admins have implicit access to all meets
-  if (user.role === AccountRole.Admin) {
+  // Superusers have implicit access to all meets
+  if (user.role === AccountRole.Superuser) {
     const rows = await db.select().from(schema.quizMeets)
     return c.json({
       memberships: rows.map((m) => ({
         meetId: m.id,
         meetName: m.name,
-        role: MeetRole.Admin,
+        role: MeetRole.Superuser,
       })),
     })
   }

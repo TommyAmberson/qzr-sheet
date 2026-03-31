@@ -53,7 +53,7 @@ export interface MeetDetail {
 export interface MeetMembership {
   meetId: number
   meetName: string
-  role: 'head_coach' | 'official' | 'viewer' | 'admin'
+  role: 'head_coach' | 'official' | 'viewer' | 'superuser'
   label?: string
 }
 
