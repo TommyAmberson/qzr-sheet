@@ -70,10 +70,25 @@ OAuth dance, sessions, account linking, and email/password sign-up/sign-in.
 * `callbackURL` uses `window.location.origin` so OAuth redirects return to the web app, not the API
 * Guest JWTs for officials and viewers remain custom — Better Auth handles user auth only
 
-### 4.4 Meet join codes
+### 4.4 Meet join codes ✓
 
-Enter a code (or follow a join link) to gain a meet-scoped role: `head_coach`, `official`, or
-`viewer`. Officials and viewers can use guest JWTs without creating an account.
+Enter a code to gain a meet-scoped role: `head_coach`, `official`, or `viewer`. Officials and
+viewers can use guest JWTs without creating an account.
+
+* Session middleware reads Better Auth cookies, with `requireAuth` (401) and `requireAdmin` (403)
+  guards
+* Admin-only meet CRUD: `POST/GET/PATCH/DELETE /api/meets`, with official code management
+  (`POST/DELETE /api/meets/:id/official-codes`, rotate endpoints)
+* Coach codes are server-generated and stored as SHA-256 hashes; viewer codes are admin-set
+  plaintext slugs; official codes are per-room with independent rotation
+* `POST /api/join` (authenticated) — accepts `{ code }`, resolves meet + role via viewer slug match
+  → coach hash match → official hash match, creates idempotent membership row
+* `POST /api/join/guest` (unauthenticated) — accepts official or viewer codes, returns a short-lived
+  guest JWT (24h, signed with `jose` via Web Crypto). Coach codes rejected — coaches must have an
+  account
+* `GET /api/my-meets` — returns all meets the user has joined, with their role(s)
+* DB injection via Hono context variables; test suite uses `better-sqlite3` in-memory DB with full
+  schema for integration tests
 
 ### 4.5 Official flow
 
