@@ -99,7 +99,7 @@ docs/
 The `deploy` CI workflow triggers on `v*` tags and:
 
 * Runs `db:migrate:remote` against the live D1 database
-* Deploys the Cloudflare Worker (`api.versevault.ca`)
+* Deploys the Cloudflare Worker (routed at `www.versevault.ca/api/*`)
 * Builds and deploys the web + scoresheet apps to `www.versevault.ca`
 
 The Worker secrets (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`,

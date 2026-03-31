@@ -80,7 +80,7 @@ Hono on Cloudflare Workers with D1 and Drizzle. `packages/shared` extracts the Q
 schema and role enums so the API can consume them without depending on the scoresheet.
 `packages/api` has a typed Bindings interface, CORS + logger middleware, `GET /health`, and the full
 Drizzle schema covering all tables from the data model. First D1 migration generated and committed.
-Deploy target: `api.versevault.ca/`.
+Deploy target: `www.versevault.ca/api/`.
 
 ### 4.3 Authentication ✓
 

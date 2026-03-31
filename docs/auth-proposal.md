@@ -302,11 +302,10 @@ Types and schemas consumed by both frontend apps and the API:
 | ------------------------------- | ---------------- | ---------- |
 | `www.versevault.ca/scoresheet/` | Scoresheet PWA   | CF Pages   |
 | `www.versevault.ca/`            | Portal + landing | CF Pages   |
-| `api.versevault.ca/`            | API              | CF Workers |
+| `www.versevault.ca/api/`        | API              | CF Workers |
 
-Both frontend apps deploy to the same Cloudflare Pages project (same origin) so they share
-`localStorage` for auth tokens with zero CORS complexity. The API is a separate Workers project on
-the `api` subdomain.
+The Worker is served at `www.versevault.ca/api/*` — same origin as the frontend, so no CORS headers
+are needed in production.
 
 ### Tauri desktop
 
@@ -421,8 +420,9 @@ for user auth. Guest JWTs (officials/viewers) will use `localStorage` when imple
 
 ### CORS
 
-The API at `api.versevault.ca` must return CORS headers allowing `www.versevault.ca` as the origin.
-Hono's built-in CORS middleware handles this. The allowed origin should be explicit — never `*`.
+No CORS configuration is needed in production — the Worker is served at `www.versevault.ca/api/*`,
+the same origin as the frontend. The API only sets CORS headers for local development (`:8787` ←
+`:5174`).
 
 ### Tauri localhost OAuth
 
