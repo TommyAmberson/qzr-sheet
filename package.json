@@ -14,11 +14,13 @@
     "deploy": "pnpm build:all && wrangler pages deploy apps/web/dist --project-name versevault-www --branch master",
     "dev:api": "pnpm --filter @qzr/api dev",
     "test:unit": "pnpm --filter scoresheet test:unit && pnpm --filter @qzr/api test:unit",
+    "test:watch": "pnpm --parallel --filter scoresheet --filter @qzr/api exec vitest",
     "type-check": "pnpm --filter @qzr/shared type-check && pnpm --filter scoresheet type-check && pnpm --filter @qzr/web type-check && pnpm --filter @qzr/api type-check",
     "format": "prettier --write --experimental-cli apps/scoresheet/src/ apps/web/src/ packages/shared/src/ packages/api/src/",
     "lint": "eslint",
     "tauri": "pnpm --filter scoresheet tauri",
     "tauri:linux-x11": "pnpm --filter scoresheet tauri:linux-x11",
+    "bump": "node scripts/bump-version.mjs",
     "postinstall": "simple-git-hooks"
   },
   "simple-git-hooks": {

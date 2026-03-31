@@ -60,3 +60,10 @@ src-tauri/icons/favicon.ico
 
 
 
+
+# Wrangler local cache
+.wrangler
+
+# Local dev secrets (never commit)
+.dev.vars
+

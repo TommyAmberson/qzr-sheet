@@ -16,8 +16,18 @@ Admins are provisioned out-of-band (e.g. seeded in the DB).
 
 ## OAuth Signup
 
-Users sign in via a third-party OAuth provider (Google, GitHub, etc.). On first login a `normal`
-account is created. No meet access is granted until the user joins a meet with a code.
+Users sign in via a third-party OAuth provider (Google, GitHub, etc.). The sign-in flow:
+
+1. Look up `OAuthAccount` by `(provider, provider_subject)`
+2. **Found** — return the linked account (existing login)
+3. **Not found, email matches an existing account** — auto-link: insert a new `OAuthAccount` row
+   pointing to the existing account. Google and GitHub both verify email addresses, making this safe
+   for these two providers.
+4. **Not found, no email match** — create a new `Account` (`normal` role) and a new `OAuthAccount`
+   row in the same transaction.
+
+On first login a `normal` account is created. No meet access is granted until the user joins a meet
+with a code.
 
 ## Quiz Meets
 
@@ -447,10 +457,15 @@ without Durable Objects. None of that is needed for this API.
 ```
 Account
   id
-  oauth_provider
-  oauth_subject
-  email
+  email          # sourced from first linked provider; nullable
   role: 'admin' | 'normal'
+
+OAuthAccount   # one row per linked provider per account
+  provider       # e.g. 'github', 'google'
+  provider_subject  # provider's stable user id
+  account_id     # FK → Account
+  email          # email as reported by this provider
+  # unique(provider, provider_subject)
 
 QuizMeet
   id

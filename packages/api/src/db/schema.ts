@@ -1,18 +1,34 @@
 import { integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { relations } from 'drizzle-orm'
 import { AccountRole } from '@qzr/shared'
 
 // ---- Accounts ----
 
 export const accounts = sqliteTable('accounts', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  oauthProvider: text('oauth_provider').notNull(),
-  oauthSubject: text('oauth_subject').notNull(),
-  email: text('email').notNull(),
+  // Primary email for display — sourced from the first linked OAuth provider.
+  // Nullable because the account row is inserted before any provider is linked
+  // in the same transaction, and to avoid a chicken-and-egg FK cycle.
+  email: text('email').unique(),
   role: text('role', { enum: [AccountRole.Admin, AccountRole.Normal] })
     .notNull()
     .default(AccountRole.Normal),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 })
+
+// One row per linked OAuth provider. An account can have many.
+export const oauthAccounts = sqliteTable(
+  'oauth_accounts',
+  {
+    provider: text('provider').notNull(), // e.g. 'github', 'google'
+    providerSubject: text('provider_subject').notNull(), // provider's stable user id
+    accountId: integer('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(), // email as reported by this provider
+  },
+  (t) => [unique().on(t.provider, t.providerSubject)],
+)
 
 // ---- Quiz meets ----
 
@@ -124,7 +140,14 @@ export const teamRosters = sqliteTable(
 
 // ---- Inferred types ----
 
+export const oauthAccountRelations = relations(oauthAccounts, ({ one }) => ({
+  account: one(accounts, { fields: [oauthAccounts.accountId], references: [accounts.id] }),
+}))
+
+// ---- Inferred types ----
+
 export type Account = typeof accounts.$inferSelect
+export type OAuthAccount = typeof oauthAccounts.$inferSelect
 export type QuizMeet = typeof quizMeets.$inferSelect
 export type OfficialCode = typeof officialCodes.$inferSelect
 export type Church = typeof churches.$inferSelect
