@@ -1036,7 +1036,7 @@ function onTeamDrop(toTeamId: number) {
               <p v-if="addQuizzerError" class="field-error">{{ addQuizzerError }}</p>
             </form>
             <button
-              v-else-if="addingQuizzerTeamId === null && quizzersForTeam(team.id).length < 5"
+              v-else-if="addingQuizzerTeamId === null"
               class="dashed-add"
               @click="startAddToTeam(team.id)"
             >
