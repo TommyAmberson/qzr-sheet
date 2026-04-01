@@ -587,48 +587,66 @@ onMounted(load)
             </svg>
           </button>
         </template>
-        <form v-else class="edit-form" @submit.prevent="saveEdit">
-          <div class="edit-fields">
-            <input v-model="editForm.name" class="field-input" placeholder="Name" required />
-            <input v-model="editForm.dateFrom" class="field-input" type="date" required />
-            <input v-model="editForm.dateTo" class="field-input" type="date" />
-            <input
-              v-model="editForm.viewerCode"
-              class="field-input"
-              placeholder="Viewer code"
-              required
-            />
+        <form v-else class="edit-card" @submit.prevent="saveEdit">
+          <h3 class="edit-card-title">Edit Meet</h3>
+
+          <label class="field-label">
+            Name
+            <input v-model="editForm.name" class="field-input" required />
+          </label>
+
+          <div class="edit-date-row">
+            <label class="field-label">
+              Start date
+              <input v-model="editForm.dateFrom" class="field-input" type="date" required />
+            </label>
+            <label class="field-label">
+              End date
+              <input v-model="editForm.dateTo" class="field-input" type="date" />
+            </label>
           </div>
-          <div class="divisions-edit">
-            <div class="division-tags">
-              <span
-                v-for="(d, i) in editForm.divisions"
-                :key="d"
-                class="division-tag division-tag--removable"
-              >
-                {{ d }}
-                <button type="button" class="division-remove" @click="removeDivision(i)">
-                  &times;
+
+          <label class="field-label">
+            Viewer code
+            <input v-model="editForm.viewerCode" class="field-input" required />
+            <span class="field-hint">Changing this updates the meet URL.</span>
+          </label>
+
+          <div class="field-label">
+            Divisions
+            <div class="divisions-edit">
+              <div v-if="editForm.divisions.length" class="division-tags">
+                <span
+                  v-for="(d, i) in editForm.divisions"
+                  :key="d"
+                  class="division-tag division-tag--removable"
+                >
+                  {{ d }}
+                  <button type="button" class="division-remove" @click="removeDivision(i)">
+                    &times;
+                  </button>
+                </span>
+              </div>
+              <div class="division-add">
+                <input
+                  v-model="newDivision"
+                  class="field-input"
+                  placeholder="Add division…"
+                  @keydown.enter.prevent="addDivision"
+                />
+                <button type="button" class="btn btn--secondary btn--sm" @click="addDivision">
+                  Add
                 </button>
-              </span>
-            </div>
-            <div class="division-add">
-              <input
-                v-model="newDivision"
-                class="field-input"
-                placeholder="Add division"
-                @keydown.enter.prevent="addDivision"
-              />
-              <button type="button" class="btn btn--secondary" @click="addDivision">Add</button>
+              </div>
             </div>
           </div>
+
           <p v-if="saveError" class="field-error">{{ saveError }}</p>
-          <div class="edit-actions">
-            <button type="button" class="btn btn--secondary" @click="editing = false">
-              Cancel
-            </button>
+
+          <div class="edit-card-actions">
+            <button type="button" class="btn btn--ghost" @click="editing = false">Cancel</button>
             <button type="submit" class="btn btn--primary" :disabled="saving">
-              {{ saving ? 'Saving…' : 'Save' }}
+              {{ saving ? 'Saving…' : 'Save Changes' }}
             </button>
           </div>
         </form>
@@ -996,22 +1014,57 @@ onMounted(load)
   background: var(--color-bg-raised);
 }
 
-/* Edit form */
-.edit-form {
+/* Edit card */
+.edit-card {
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 0.875rem;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.edit-card-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  margin: 0;
+}
+
+.edit-date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
 }
 
-.edit-fields {
+.field-label {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-faint);
+}
+
+.field-hint {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-text-faint);
+  opacity: 0.75;
+}
+
+.edit-card-actions {
+  display: flex;
+  justify-content: flex-end;
   gap: 0.5rem;
+  padding-top: 0.25rem;
 }
 
 .field-input {
-  background: var(--color-bg-raised);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 5px;
   padding: 0.4rem 0.65rem;
@@ -1020,6 +1073,7 @@ onMounted(load)
   font-family: inherit;
   outline: none;
   min-width: 0;
+  width: 100%;
 }
 
 .field-input--short {
@@ -1034,11 +1088,6 @@ onMounted(load)
   font-size: 0.8rem;
   color: var(--palette-error);
   width: 100%;
-}
-
-.edit-actions {
-  display: flex;
-  gap: 0.5rem;
 }
 
 .btn {
@@ -1288,6 +1337,14 @@ onMounted(load)
 }
 
 /* Add forms */
+.add-form .field-input {
+  width: auto;
+}
+
+.church-edit-row .field-input {
+  width: auto;
+}
+
 .add-form {
   display: flex;
   align-items: center;
@@ -1390,6 +1447,7 @@ onMounted(load)
 
 .division-add .field-input {
   max-width: 14rem;
+  width: auto;
 }
 
 /* Code dialog */
