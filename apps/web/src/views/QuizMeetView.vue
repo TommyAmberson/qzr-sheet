@@ -655,15 +655,15 @@ onMounted(load)
             <template v-if="editingChurchId === c.id">
               <form class="church-edit-row" @submit.prevent="saveEditChurch(c.id)">
                 <input
+                  v-model="editChurchForm.shortName"
+                  class="field-input field-input--short"
+                  placeholder="Short (optional)"
+                />
+                <input
                   v-model="editChurchForm.name"
                   class="field-input"
                   placeholder="Full name"
                   required
-                />
-                <input
-                  v-model="editChurchForm.shortName"
-                  class="field-input field-input--short"
-                  placeholder="Short (optional)"
                 />
                 <button type="submit" class="btn btn--primary btn--sm" :disabled="savingChurch">
                   {{ savingChurch ? '…' : 'Save' }}
@@ -676,6 +676,7 @@ onMounted(load)
             <template v-else>
               <span class="item-label">{{ c.shortName }}</span>
               <span v-if="c.shortName !== c.name" class="item-sublabel">{{ c.name }}</span>
+              <span class="item-spacer"></span>
               <span class="item-meta">{{ churchSummary(c.id) }}</span>
               <button
                 v-if="isAdmin"

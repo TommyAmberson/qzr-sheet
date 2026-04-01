@@ -214,7 +214,7 @@ export function listChurches(meetId: number): Promise<{ churches: Church[] }> {
 
 export function createChurch(
   meetId: number,
-  data: { name: string; shortName: string },
+  data: { name: string; shortName?: string },
 ): Promise<{ church: Church; coachCode: string }> {
   return request(`/api/meets/${meetId}/churches`, {
     method: 'POST',
