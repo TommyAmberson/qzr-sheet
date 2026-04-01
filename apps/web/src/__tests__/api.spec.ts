@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// Stub __API_URL__ before importing the module (evaluated at import time)
-vi.stubGlobal('__API_URL__', '')
-
 import { ApiError, listMeets, createMeet, deleteMeet, joinMeet } from '../api'
 
 const mockFetch = vi.fn()
@@ -42,7 +39,8 @@ describe('request()', () => {
 
     expect(mockFetch).toHaveBeenCalledOnce()
     const [url, init] = mockFetch.mock.calls[0]!
-    expect(url).toBe('/api/meets')
+    // Vite define bakes in the dev base URL at compile time, so only check the path
+    expect(url).toMatch(/\/api\/meets$/)
     expect(init.credentials).toBe('include')
     expect(init.headers['Content-Type']).toBe('application/json')
   })
@@ -118,7 +116,7 @@ describe('request()', () => {
     await createMeet(meetData)
 
     const [url, init] = mockFetch.mock.calls[0]!
-    expect(url).toBe('/api/meets')
+    expect(url).toMatch(/\/api\/meets$/)
     expect(init.method).toBe('POST')
     expect(JSON.parse(init.body)).toEqual(meetData)
   })
@@ -132,7 +130,7 @@ describe('request()', () => {
     await deleteMeet(42)
 
     const [url, init] = mockFetch.mock.calls[0]!
-    expect(url).toBe('/api/meets/42')
+    expect(url).toMatch(/\/api\/meets\/42$/)
     expect(init.method).toBe('DELETE')
   })
 
@@ -145,7 +143,7 @@ describe('request()', () => {
     await joinMeet('some-code')
 
     const [url, init] = mockFetch.mock.calls[0]!
-    expect(url).toBe('/api/join')
+    expect(url).toMatch(/\/api\/join$/)
     expect(init.method).toBe('POST')
     expect(JSON.parse(init.body)).toEqual({ code: 'some-code' })
   })
