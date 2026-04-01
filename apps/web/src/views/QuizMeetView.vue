@@ -168,6 +168,9 @@ async function saveEdit() {
     const res = await updateMeet(detail.value.meet.id, { ...editForm.value })
     detail.value = { ...detail.value, meet: res.meet }
     editing.value = false
+    if (res.meet.viewerCode !== props.slug) {
+      router.replace({ name: 'meet', params: { slug: res.meet.viewerCode } })
+    }
   } catch (e) {
     saveError.value = (e as Error).message
   } finally {
