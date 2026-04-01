@@ -442,6 +442,77 @@ describe('POST /api/churches/:churchId/teams', () => {
   })
 })
 
+describe('PATCH /api/teams/:teamId', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('updates division only', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+
+    const res = await app.request(`/api/teams/${team.id}`, patch({ division: 'Teen' }), env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{ team: { division: string; number: number } }>()
+    expect(body.team.division).toBe('Teen')
+    expect(body.team.number).toBe(1)
+  })
+
+  it('updates number only', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+
+    const res = await app.request(`/api/teams/${team.id}`, patch({ number: 3 }), env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{ team: { number: number; division: string } }>()
+    expect(body.team.number).toBe(3)
+    expect(body.team.division).toBe('Open')
+  })
+
+  it('updates both division and number', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+
+    const res = await app.request(
+      `/api/teams/${team.id}`,
+      patch({ division: 'Teen', number: 2 }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json<{ team: { division: string; number: number } }>()
+    expect(body.team.division).toBe('Teen')
+    expect(body.team.number).toBe(2)
+  })
+
+  it('rejects empty body with 400', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id)
+
+    const res = await app.request(`/api/teams/${team.id}`, patch({}), env)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 404 for unknown team', async () => {
+    const app = createApp(testSuperuser, db)
+
+    const res = await app.request('/api/teams/9999', patch({ division: 'Open' }), env)
+    expect(res.status).toBe(404)
+  })
+})
+
 // ---- Quizzers ----
 
 describe('GET /api/teams/:teamId/quizzers', () => {

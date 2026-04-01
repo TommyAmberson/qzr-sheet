@@ -257,7 +257,10 @@ export function createTeam(churchId: number, data: { division: string }): Promis
   })
 }
 
-export function updateTeam(teamId: number, data: { division: string }): Promise<{ team: Team }> {
+export function updateTeam(
+  teamId: number,
+  data: { division?: string; number?: number },
+): Promise<{ team: Team }> {
   return request(`/api/teams/${teamId}`, {
     method: 'PATCH',
     body: JSON.stringify(data),

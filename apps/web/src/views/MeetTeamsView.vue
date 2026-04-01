@@ -186,6 +186,12 @@ const isDirty = computed(() => {
   // Added or removed teams
   if (teams.value.some((t) => t.id < 0)) return true
   if (snap.teams.some((st) => !teams.value.find((t) => t.id === st.id))) return true
+  // Team order changes
+  if (teams.value.length === snap.teams.length) {
+    for (let i = 0; i < teams.value.length; i++) {
+      if (teams.value[i]!.id !== snap.teams[i]!.id) return true
+    }
+  }
   // Division changes on existing teams
   for (const t of teams.value) {
     if (t.id < 0) continue
@@ -444,12 +450,18 @@ async function saveDraft() {
       }
     }
 
-    // Division changes on existing teams
-    for (const t of teams.value) {
+    // Division or order changes on existing teams
+    for (let i = 0; i < teams.value.length; i++) {
+      const t = teams.value[i]!
       if (t.id < 0) continue
       const orig = snap.teams.find((st) => st.id === t.id)
-      if (orig && orig.division !== t.division) {
-        await updateTeam(t.id, { division: t.division })
+      const wantNumber = i + 1
+      const patch: { division?: string; number?: number } = {}
+      if (orig && orig.division !== t.division) patch.division = t.division
+      if (t.number !== wantNumber) patch.number = wantNumber
+      if (patch.division || patch.number) {
+        const res = await updateTeam(t.id, patch)
+        teams.value[i] = res.team
       }
     }
 
@@ -556,6 +568,7 @@ function onDragEnd() {
 }
 
 function onDragOverContainer(containerId: number | null) {
+  if (draggingTeamId.value !== null) return
   dragOverContainer.value = containerId
 }
 
@@ -565,6 +578,7 @@ function onDragLeaveContainer() {
 }
 
 function onDragOverQuizzer(quizzerId: number, containerId: number | null) {
+  if (draggingTeamId.value !== null) return
   dragOverContainer.value = containerId
   dragOverQuizzerId.value = quizzerId
 }
@@ -746,7 +760,10 @@ function onTeamDrop(toTeamId: number) {
               v-for="q in unassigned"
               :key="q.quizzerId"
               class="quizzer-chip"
-              :class="{ 'quizzer-chip--insert-before': dragOverQuizzerId === q.quizzerId }"
+              :class="{
+                'quizzer-chip--insert-before':
+                  draggingTeamId === null && dragOverQuizzerId === q.quizzerId,
+              }"
               :draggable="canEditChurch && renamingQuizzerId !== q.quizzerId"
               @dragstart="
                 canEditChurch && renamingQuizzerId !== q.quizzerId && onDragStart(q.quizzerId, null)
@@ -803,6 +820,15 @@ function onTeamDrop(toTeamId: number) {
               </template>
             </li>
           </ul>
+          <div
+            v-if="dragging"
+            class="drop-tail"
+            :class="{
+              'drop-tail--active': dragOverContainer === null && dragOverQuizzerId === null,
+            }"
+            @dragover.prevent="onDragOverContainer(null)"
+            @dragleave="onDragLeaveContainer"
+          ></div>
 
           <template v-if="canEditChurch">
             <form
@@ -848,7 +874,8 @@ function onTeamDrop(toTeamId: number) {
               :class="{
                 'team-card--dragover': dragOverContainer === team.id && draggingTeamId === null,
                 'team-card--warn': !!teamWarnings[teamIdx],
-                'team-card--team-insert-before': dragOverTeamId === team.id,
+                'team-card--team-insert-before':
+                  draggingTeamId !== null && dragOverTeamId === team.id,
               }"
               @dragover.prevent="
                 draggingTeamId !== null ? onTeamDragOver(team.id) : onDragOverContainer(team.id)
@@ -900,7 +927,10 @@ function onTeamDrop(toTeamId: number) {
                   v-for="q in quizzersForTeam(team.id)"
                   :key="q.quizzerId"
                   class="quizzer-chip"
-                  :class="{ 'quizzer-chip--insert-before': dragOverQuizzerId === q.quizzerId }"
+                  :class="{
+                    'quizzer-chip--insert-before':
+                      draggingTeamId === null && dragOverQuizzerId === q.quizzerId,
+                  }"
                   :draggable="canEditChurch && renamingQuizzerId !== q.quizzerId"
                   @dragstart="
                     canEditChurch &&
@@ -959,6 +989,15 @@ function onTeamDrop(toTeamId: number) {
                   </template>
                 </li>
               </ul>
+              <div
+                v-if="dragging"
+                class="drop-tail"
+                :class="{
+                  'drop-tail--active': dragOverContainer === team.id && dragOverQuizzerId === null,
+                }"
+                @dragover.prevent="onDragOverContainer(team.id)"
+                @dragleave="onDragLeaveContainer"
+              ></div>
 
               <template v-if="canEditChurch">
                 <form
@@ -1163,6 +1202,7 @@ function onTeamDrop(toTeamId: number) {
 }
 
 .team-card {
+  position: relative;
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border-alt);
   border-radius: 8px;
@@ -1176,9 +1216,16 @@ function onTeamDrop(toTeamId: number) {
   transition: border-color 0.1s;
 }
 
-.team-card--team-insert-before {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
+.team-card--team-insert-before::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-0.4375rem - 1.5px); /* half the grid gap + half the line */
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 1.5px;
+  pointer-events: none;
 }
 
 .team-drag-handle {
@@ -1320,6 +1367,7 @@ function onTeamDrop(toTeamId: number) {
 }
 
 .quizzer-chip {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -1336,8 +1384,38 @@ function onTeamDrop(toTeamId: number) {
   cursor: grabbing;
 }
 
-.quizzer-chip--insert-before {
-  border-top: 2px solid var(--color-accent);
+.quizzer-chip--insert-before::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(-0.125rem - 1.5px); /* half the list gap + half the line */
+  height: 2px;
+  background: var(--color-accent);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.drop-tail {
+  height: 0;
+  position: relative;
+  transition: height 0.1s;
+}
+
+.drop-tail--active {
+  height: 0.5rem;
+}
+
+.drop-tail--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 1px);
+  height: 2px;
+  background: var(--color-accent);
+  border-radius: 1px;
+  pointer-events: none;
 }
 
 .quizzer-name {

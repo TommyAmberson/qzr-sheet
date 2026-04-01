@@ -298,12 +298,18 @@ churches.patch('/teams/:teamId', async (c) => {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
-  const body = await c.req.json<{ division?: string }>()
-  if (!body.division?.trim()) return c.json({ error: 'division is required' }, 400)
+  const body = await c.req.json<{ division?: string; number?: number }>()
+  if (!body.division?.trim() && (body.number == null || typeof body.number !== 'number')) {
+    return c.json({ error: 'division or number is required' }, 400)
+  }
+
+  const patch: { division?: string; number?: number } = {}
+  if (body.division?.trim()) patch.division = body.division.trim()
+  if (typeof body.number === 'number') patch.number = body.number
 
   const [updated] = await db
     .update(schema.teams)
-    .set({ division: body.division.trim() })
+    .set(patch)
     .where(eq(schema.teams.id, teamId))
     .returning()
 
