@@ -602,12 +602,6 @@ onMounted(load)
             </label>
           </div>
 
-          <label class="field-label">
-            Viewer code
-            <input v-model="editForm.viewerCode" class="field-input" required />
-            <span class="field-hint">Changing this updates the meet URL.</span>
-          </label>
-
           <div class="field-label">
             Divisions
             <div class="divisions-edit">
@@ -636,6 +630,12 @@ onMounted(load)
               </div>
             </div>
           </div>
+
+          <label class="field-label">
+            Viewer code
+            <input v-model="editForm.viewerCode" class="field-input" required />
+            <span class="field-hint">Changing this updates the meet URL.</span>
+          </label>
 
           <p v-if="saveError" class="field-error">{{ saveError }}</p>
 
@@ -1382,21 +1382,21 @@ onMounted(load)
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
 .division-tags-label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--color-text-faint);
-  margin-right: 0.15rem;
+  margin-right: 0.1rem;
 }
 
 .division-tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: 0.75rem;
-  padding: 0.2rem 0.55rem;
+  gap: 0.2rem;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.45rem;
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border-alt);
   border-radius: 99px;
@@ -1404,14 +1404,14 @@ onMounted(load)
 }
 
 .division-tag--removable {
-  padding-right: 0.35rem;
+  padding-right: 0.25rem;
 }
 
 .division-remove {
   background: none;
   border: none;
   padding: 0 0.1rem;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   line-height: 1;
   cursor: pointer;
   color: var(--color-text-faint);
