@@ -158,6 +158,26 @@ Per-church coach codes, meet-scoped admin role, consolidated dashboard with role
 * `MeetAdminView` removed — all admin functionality on the dashboard
 * `MeetTeamsView` — single-church view via `churchId` prop, no church tab bar
 
+### 4.6b Batch roster sync
+
+Replace sequential per-resource API calls with transactional bulk endpoints.
+
+**Roster sync** — `POST /api/churches/:id/roster/sync`
+
+* Client sends desired state: teams (with division, order, and quizzer names) plus unassigned pool
+* Server diffs against current DB state and applies all creates/updates/deletes/moves in a single D1
+  transaction
+* `MeetTeamsView.saveDraft` calls one endpoint instead of ~10 sequential requests
+* Temp IDs (negative) in the payload signal new teams/quizzers; server returns the full resolved
+  state with real IDs
+
+**Roster import** — `POST /api/meets/:id/roster/import`
+
+* Client sends parsed CSV entries `{ church, division, teamName, quizzerName }[]`
+* Server matches existing churches by name/shortName, creates missing ones, deduplicates teams, adds
+  quizzers — all in one transaction
+* Replaces the client-side `applyRosterImport` loop that made N sequential create calls
+
 ### 4.7 Admin: schedule and draw
 
 Once teams are registered, an admin generates the round-robin draw and publishes the schedule.
