@@ -1177,7 +1177,7 @@ function onTeamDrop(toTeamId: number) {
   border: 1px solid var(--color-border-alt);
   border-radius: 8px;
   padding: 0.75rem;
-  min-height: 13rem; /* ~5 quizzer chips + header + button */
+  min-height: 15rem; /* ~5 quizzer chips + header + button */
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
