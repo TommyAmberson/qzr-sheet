@@ -5,7 +5,7 @@ import { coachChurchIds, isAdminOrSuperuser, canAccessChurchRoster } from '../me
 function m(
   overrides: Partial<MeetMembership> & { meetId: number; role: MeetMembership['role'] },
 ): MeetMembership {
-  return { meetName: 'Test', ...overrides }
+  return { meetName: 'Test', viewerCode: 'test', ...overrides }
 }
 
 describe('coachChurchIds', () => {
