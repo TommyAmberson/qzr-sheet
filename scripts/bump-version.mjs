@@ -33,10 +33,22 @@ function bumpToml(path, key) {
 
 bumpJson('package.json', (pkg) => (pkg.version = version))
 bumpJson('apps/scoresheet/package.json', (pkg) => (pkg.version = version))
+bumpJson('apps/web/package.json', (pkg) => (pkg.version = version))
+bumpJson('packages/api/package.json', (pkg) => (pkg.version = version))
+bumpJson('packages/shared/package.json', (pkg) => (pkg.version = version))
 bumpJson('apps/scoresheet/src-tauri/tauri.conf.json', (cfg) => (cfg.version = version))
 
+const files = [
+  'package.json',
+  'apps/scoresheet/package.json',
+  'apps/web/package.json',
+  'packages/api/package.json',
+  'packages/shared/package.json',
+  'apps/scoresheet/src-tauri/tauri.conf.json',
+].join(' ')
+
 console.log(`\nVersion bumped to ${version}. Commit and tag:\n`)
-console.log(`  git add package.json apps/scoresheet/package.json apps/scoresheet/src-tauri/tauri.conf.json`)
+console.log(`  git add ${files}`)
 console.log(`  git commit -m "chore: bump version to ${version}"`)
 console.log(`  git tag v${version}`)
 console.log(`  git push && git push --tags`)

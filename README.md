@@ -92,8 +92,7 @@ docs/
 ## Releasing
 
 1. Merge the feature branch to `master`
-2. `pnpm bump x.y.z` — bumps version in `package.json`, `apps/scoresheet/package.json`, and
-   `tauri.conf.json`
+2. `pnpm bump x.y.z` — bumps version in all `package.json` files, and `tauri.conf.json`
 3. Stage and commit the changed files: `git commit -m "chore: bump version to x.y.z"`
 4. Tag: `git tag vx.y.z`
 5. Push: `git push origin master --tags`
