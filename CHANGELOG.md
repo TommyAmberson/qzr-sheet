@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+* **Batch roster sync (4.6b)** — `POST /api/churches/:id/roster/sync` replaces `saveDraft`'s ~10
+  sequential API calls with a single request; client sends full desired state (ordered teams +
+  quizzer names + unassigned pool), server diffs and applies all creates/updates/deletes/moves,
+  returns resolved state with real IDs in payload order
+* **Roster import endpoint** — `POST /api/meets/:id/roster/import` replaces the client-side
+  `applyRosterImport` loop; matches churches by name or shortName (case-insensitive), creates
+  missing ones, deduplicates teams by `(division, quizzer-set)` exact match so re-importing an
+  unchanged CSV is a no-op
+* **Roster export endpoint** — `GET /api/meets/:id/roster/export` returns all churches → teams →
+  quizzers in a single join query; replaces the export loop that made 1 + N_churches + N_teams
+  sequential requests
+* **Team counts on churches list** — `GET /api/meets/:id/churches` now includes `teamCount` per
+  church via left-join + group-by; eliminates the N per-church team requests that fired on every
+  `QuizMeetView` load
+
 ## 0.4.0
 
 ### Added
