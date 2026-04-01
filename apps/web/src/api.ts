@@ -356,3 +356,17 @@ export function importRoster(
     body: JSON.stringify(entries),
   })
 }
+
+export interface RosterExportEntry {
+  churchId: number
+  churchName: string
+  churchShortName: string
+  teamId: number
+  teamNumber: number
+  division: string
+  quizzerName: string
+}
+
+export function exportRoster(meetId: number): Promise<{ entries: RosterExportEntry[] }> {
+  return request(`/api/meets/${meetId}/roster/export`)
+}

@@ -16,7 +16,7 @@ import {
   deleteOfficialCode,
   rotateOfficialCode,
   importRoster,
-  listQuizzers,
+  exportRoster,
   type MeetDetail,
   type MeetMembership,
   type Church,
@@ -467,22 +467,13 @@ async function applyRosterImport(entries: RosterEntry[]) {
 }
 
 async function handleExportRoster() {
-  const entries: RosterEntry[] = []
-  for (const c of churches.value) {
-    const teamRes = await listTeams(c.id)
-    const sorted = teamRes.teams.slice().sort((a, b) => a.number - b.number)
-    for (const t of sorted) {
-      const qRes = await listQuizzers(t.id)
-      for (const q of qRes.quizzers) {
-        entries.push({
-          division: t.division,
-          teamName: `${c.shortName} ${t.number}`,
-          quizzerName: q.name,
-          church: c.shortName,
-        })
-      }
-    }
-  }
+  const res = await exportRoster(meetId.value!)
+  const entries: RosterEntry[] = res.entries.map((e) => ({
+    division: e.division,
+    teamName: `${e.churchShortName} ${e.teamNumber}`,
+    quizzerName: e.quizzerName,
+    church: e.churchShortName,
+  }))
   const csv = serializeRosterCsv(entries)
   const blob = new Blob([csv], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)

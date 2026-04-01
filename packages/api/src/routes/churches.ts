@@ -673,6 +673,37 @@ churches.post('/churches/:churchId/roster/sync', async (c) => {
   return c.json({ teams: responseTeams, unassigned: responseUnassigned })
 })
 
+/**
+ * GET /api/meets/:meetId/roster/export
+ *
+ * Returns all churches → teams → quizzers for the meet in one query.
+ * Any authenticated member can read (same access rule as GET churches).
+ */
+churches.get('/meets/:meetId/roster/export', async (c) => {
+  const meetId = Number(c.req.param('meetId'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const db = getDb(c)
+
+  const rows = await db
+    .select({
+      churchId: schema.churches.id,
+      churchName: schema.churches.name,
+      churchShortName: schema.churches.shortName,
+      teamId: schema.teams.id,
+      teamNumber: schema.teams.number,
+      division: schema.teams.division,
+      quizzerName: schema.teamRosters.name,
+    })
+    .from(schema.churches)
+    .innerJoin(schema.teams, eq(schema.teams.churchId, schema.churches.id))
+    .innerJoin(schema.teamRosters, eq(schema.teamRosters.teamId, schema.teams.id))
+    .where(eq(schema.churches.meetId, meetId))
+    .orderBy(schema.churches.id, schema.teams.number, schema.teamRosters.name)
+
+  return c.json({ entries: rows })
+})
+
 // ---- Roster import ----
 
 /**

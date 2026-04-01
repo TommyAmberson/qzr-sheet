@@ -1315,3 +1315,79 @@ describe('POST /api/meets/:meetId/roster/import', () => {
     expect(teams.map((t) => t.number).sort()).toEqual([1, 2])
   })
 })
+
+// ---- Roster export ----
+
+describe('GET /api/meets/:meetId/roster/export', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('requires auth', async () => {
+    const app = createApp(null, db)
+    const meet = await seedMeet(db)
+    const res = await app.request(`/api/meets/${meet.id}/roster/export`, {}, env)
+    expect(res.status).toBe(401)
+  })
+
+  it('returns empty entries when meet has no teams', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    await seedChurch(db, meet.id)
+
+    const res = await app.request(`/api/meets/${meet.id}/roster/export`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{ entries: unknown[] }>()
+    expect(body.entries).toHaveLength(0)
+  })
+
+  it('returns one row per quizzer with church, team, and division fields', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id, 'Grace Church')
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+    await seedQuizzer(db, team.id, 'Alice')
+    await seedQuizzer(db, team.id, 'Bob')
+
+    const res = await app.request(`/api/meets/${meet.id}/roster/export`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{
+      entries: Array<{
+        churchId: number
+        churchName: string
+        churchShortName: string
+        teamId: number
+        teamNumber: number
+        division: string
+        quizzerName: string
+      }>
+    }>()
+    expect(body.entries).toHaveLength(2)
+    expect(body.entries.every((e) => e.churchName === 'Grace Church')).toBe(true)
+    expect(body.entries.every((e) => e.division === 'Open')).toBe(true)
+    expect(body.entries.every((e) => e.teamNumber === 1)).toBe(true)
+    expect(body.entries.map((e) => e.quizzerName).sort()).toEqual(['Alice', 'Bob'])
+  })
+
+  it('covers multiple churches and teams', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const grace = await seedChurch(db, meet.id, 'Grace')
+    const fbc = await seedChurch(db, meet.id, 'First Baptist')
+    const t1 = await seedTeam(db, meet.id, grace.id, 'Open')
+    const t2 = await seedTeam(db, meet.id, fbc.id, 'Teen')
+    await seedQuizzer(db, t1.id, 'Alice')
+    await seedQuizzer(db, t2.id, 'Bob')
+
+    const res = await app.request(`/api/meets/${meet.id}/roster/export`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{ entries: Array<{ churchName: string; quizzerName: string }> }>()
+    expect(body.entries).toHaveLength(2)
+    const names = body.entries.map((e) => e.quizzerName).sort()
+    expect(names).toEqual(['Alice', 'Bob'])
+    const churches = [...new Set(body.entries.map((e) => e.churchName))].sort()
+    expect(churches).toEqual(['First Baptist', 'Grace'])
+  })
+})
