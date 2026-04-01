@@ -700,29 +700,29 @@ onMounted(load)
                 <span v-if="c.shortName !== c.name" class="church-name-short">
                   ({{ c.shortName }})
                 </span>
+                <button
+                  v-if="isAdmin"
+                  class="church-pencil"
+                  title="Edit church name"
+                  @click.stop="startEditChurch(c)"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
               </span>
               <span class="item-meta">{{ churchSummary(c.id) }}</span>
-              <button
-                v-if="isAdmin"
-                class="church-pencil"
-                title="Edit church name"
-                @click.stop="startEditChurch(c)"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-              </button>
               <button
                 v-if="canManageTeams"
                 class="row-btn"
@@ -1187,12 +1187,19 @@ onMounted(load)
 .church-name {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-text);
+}
+
+.church-name-full {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .church-name-short {
@@ -1216,7 +1223,7 @@ onMounted(load)
   transition: opacity 0.1s;
 }
 
-.item-row:hover .church-pencil {
+.church-name:hover .church-pencil {
   opacity: 1;
 }
 
