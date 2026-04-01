@@ -704,11 +704,24 @@ onMounted(load)
               <span class="item-meta">{{ churchSummary(c.id) }}</span>
               <button
                 v-if="isAdmin"
-                class="row-btn"
+                class="church-pencil"
                 title="Edit church name"
                 @click.stop="startEditChurch(c)"
               >
-                Edit
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
               </button>
               <button
                 v-if="canManageTeams"
@@ -1187,6 +1200,29 @@ onMounted(load)
   font-size: 0.8rem;
   color: var(--color-text-faint);
   margin-left: 0.3rem;
+}
+
+.church-pencil {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.25rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.item-row:hover .church-pencil {
+  opacity: 1;
+}
+
+.church-pencil:hover {
+  color: var(--color-accent);
+  background: var(--color-bg);
 }
 
 .item-spacer {

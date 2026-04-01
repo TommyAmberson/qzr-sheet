@@ -56,6 +56,7 @@ import {
   addQuizzer,
   updateQuizzer,
   removeQuizzer,
+  updateChurch,
   type QuizMeet,
   type Church,
   type Team,
@@ -116,6 +117,43 @@ interface Snapshot {
 const committed = ref<Snapshot>({ teams: [], quizzers: [], assignments: {} })
 const saving = ref(false)
 const saveError = ref('')
+
+// Church name editing
+const editingChurchName = ref(false)
+const churchNameForm = ref({ name: '', shortName: '' })
+const savingChurchName = ref(false)
+
+function startEditChurchName() {
+  if (!church.value) return
+  churchNameForm.value = {
+    name: church.value.name,
+    shortName: church.value.shortName === church.value.name ? '' : church.value.shortName,
+  }
+  editingChurchName.value = true
+}
+
+function cancelEditChurchName() {
+  editingChurchName.value = false
+}
+
+async function saveChurchName() {
+  if (!church.value) return
+  const name = churchNameForm.value.name.trim()
+  if (!name) return
+  savingChurchName.value = true
+  try {
+    const data: { name: string; shortName?: string } = { name }
+    const short = churchNameForm.value.shortName.trim()
+    data.shortName = short || name
+    const res = await updateChurch(church.value.id, data)
+    church.value = res.church
+    editingChurchName.value = false
+  } catch (e) {
+    alert((e as Error).message)
+  } finally {
+    savingChurchName.value = false
+  }
+}
 
 function orderedQuizzersForTeam(teamId: number): Quizzer[] {
   const order = quizzerOrder.value[String(teamId)] ?? []
@@ -613,8 +651,58 @@ function onTeamDrop(toTeamId: number) {
 
     <template v-else-if="meet">
       <div class="page-header">
-        <h2 class="page-title">{{ church?.name }}</h2>
-        <span class="meet-name">Teams &amp; Rosters</span>
+        <template v-if="editingChurchName">
+          <form class="church-name-edit" @submit.prevent="saveChurchName">
+            <input
+              v-model="churchNameForm.name"
+              v-focus
+              class="church-name-input"
+              placeholder="Full name"
+              required
+            />
+            <input
+              v-model="churchNameForm.shortName"
+              class="church-name-input church-name-input--short"
+              placeholder="Short (optional)"
+            />
+            <button type="submit" class="btn btn--primary btn--sm" :disabled="savingChurchName">
+              {{ savingChurchName ? '…' : 'Save' }}
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="cancelEditChurchName">
+              Cancel
+            </button>
+          </form>
+        </template>
+        <template v-else>
+          <h2 class="page-title">
+            {{ church?.name }}
+            <span v-if="church && church.shortName !== church.name" class="page-title-short">
+              ({{ church.shortName }})
+            </span>
+            <button
+              v-if="canEditChurch"
+              class="church-name-pencil"
+              title="Edit church name"
+              @click="startEditChurchName"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+          </h2>
+          <span class="meet-name">Teams &amp; Rosters</span>
+        </template>
       </div>
 
       <p v-if="!canEditChurch" class="notice">
@@ -947,6 +1035,67 @@ function onTeamDrop(toTeamId: number) {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--color-heading);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.page-title-short {
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--color-text-faint);
+}
+
+.church-name-pencil {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.25rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.page-title:hover .church-name-pencil {
+  opacity: 1;
+}
+
+.church-name-pencil:hover {
+  color: var(--color-accent);
+  background: var(--color-bg-raised);
+}
+
+.church-name-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.church-name-input {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+}
+
+.church-name-input:focus {
+  border-color: var(--color-accent);
+}
+
+.church-name-input--short {
+  max-width: 7rem;
+  font-size: 0.85rem;
+  font-weight: 400;
 }
 
 .meet-name {
