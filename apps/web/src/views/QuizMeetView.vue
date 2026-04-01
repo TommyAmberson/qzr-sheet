@@ -470,9 +470,27 @@ async function applyRosterImport(entries: RosterEntry[]) {
       church = res.church
     }
 
-    for (const team of teamList) {
-      const res = await createTeam(church.id, { division: team.division })
-      for (const name of team.quizzers) {
+    for (const importTeam of teamList) {
+      // Check if an identical team already exists (same division, same quizzer names)
+      const existingTeams = (await listTeams(church.id)).teams.filter(
+        (t) => t.division === importTeam.division,
+      )
+      let alreadyExists = false
+      for (const et of existingTeams) {
+        const existingQuizzers = (await listQuizzers(et.id)).quizzers.map((q) => q.name).sort()
+        const importQuizzers = [...importTeam.quizzers].sort()
+        if (
+          existingQuizzers.length === importQuizzers.length &&
+          existingQuizzers.every((n, i) => n === importQuizzers[i])
+        ) {
+          alreadyExists = true
+          break
+        }
+      }
+      if (alreadyExists) continue
+
+      const res = await createTeam(church.id, { division: importTeam.division })
+      for (const name of importTeam.quizzers) {
         await addQuizzer(res.team.id, name)
       }
     }
