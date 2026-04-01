@@ -15,8 +15,7 @@ import {
   createOfficialCode,
   deleteOfficialCode,
   rotateOfficialCode,
-  createTeam,
-  addQuizzer,
+  importRoster,
   listQuizzers,
   type MeetDetail,
   type MeetMembership,
@@ -456,69 +455,15 @@ async function handleRosterFile(event: Event) {
 }
 
 async function applyRosterImport(entries: RosterEntry[]) {
-  // Build lookups of existing churches by shortName and name (case-insensitive)
-  const existingByShort = new Map<string, Church>()
-  const existingByName = new Map<string, Church>()
-  for (const c of churches.value) {
-    existingByShort.set(c.shortName.toLowerCase(), c)
-    existingByName.set(c.name.toLowerCase(), c)
-  }
-
-  // Group entries by church → team → quizzers
-  const churchMap = new Map<string, { division: string; quizzers: string[] }[]>()
-  const churchDivisionTeams = new Map<string, Map<string, string[]>>()
-
-  for (const e of entries) {
-    if (!churchDivisionTeams.has(e.church)) churchDivisionTeams.set(e.church, new Map())
-    const teamMap = churchDivisionTeams.get(e.church)!
-    const teamKey = `${e.division}\0${e.teamName}`
-    if (!teamMap.has(teamKey)) teamMap.set(teamKey, [])
-    teamMap.get(teamKey)!.push(e.quizzerName)
-  }
-
-  for (const [churchName, teamMap] of churchDivisionTeams) {
-    const teamList: { division: string; quizzers: string[] }[] = []
-    for (const [teamKey, quizzers] of teamMap) {
-      const division = teamKey.split('\0')[0]!
-      teamList.push({ division, quizzers })
-    }
-    churchMap.set(churchName, teamList)
-  }
-
-  // Create churches, teams, quizzers
-  for (const [churchName, teamList] of churchMap) {
-    let church =
-      existingByShort.get(churchName.toLowerCase()) ?? existingByName.get(churchName.toLowerCase())
-    if (!church) {
-      const res = await createChurch(meetId.value!, { name: churchName })
-      church = res.church
-    }
-
-    for (const importTeam of teamList) {
-      // Check if an identical team already exists (same division, same quizzer names)
-      const existingTeams = (await listTeams(church.id)).teams.filter(
-        (t) => t.division === importTeam.division,
-      )
-      let alreadyExists = false
-      for (const et of existingTeams) {
-        const existingQuizzers = (await listQuizzers(et.id)).quizzers.map((q) => q.name).sort()
-        const importQuizzers = [...importTeam.quizzers].sort()
-        if (
-          existingQuizzers.length === importQuizzers.length &&
-          existingQuizzers.every((n, i) => n === importQuizzers[i])
-        ) {
-          alreadyExists = true
-          break
-        }
-      }
-      if (alreadyExists) continue
-
-      const res = await createTeam(church.id, { division: importTeam.division })
-      for (const name of importTeam.quizzers) {
-        await addQuizzer(res.team.id, name)
-      }
-    }
-  }
+  await importRoster(
+    meetId.value!,
+    entries.map((e) => ({
+      church: e.church,
+      division: e.division,
+      teamName: e.teamName,
+      quizzerName: e.quizzerName,
+    })),
+  )
 }
 
 async function handleExportRoster() {
