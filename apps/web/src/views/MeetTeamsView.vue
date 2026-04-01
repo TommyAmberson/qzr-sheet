@@ -276,6 +276,11 @@ async function load() {
         .map((m) => m.churchId!),
     )
 
+    if (!isSuperuserOrAdmin.value && !myCoachChurchIds.value.has(props.churchId)) {
+      router.replace({ name: 'meet', params: { id: props.id } })
+      return
+    }
+
     const found = churchRes.churches.find((c) => c.id === props.churchId)
     if (!found) {
       error.value = 'Church not found'
@@ -705,10 +710,6 @@ function onTeamDrop(toTeamId: number) {
         </template>
       </div>
 
-      <p v-if="!canEditChurch" class="notice">
-        You can view {{ church?.name }}'s roster but only their coach can make changes.
-      </p>
-
       <!-- Draft save bar -->
       <div v-if="canEditChurch && isDirty" class="draft-bar">
         <span class="draft-bar-label">Unsaved changes</span>
@@ -1109,16 +1110,6 @@ function onTeamDrop(toTeamId: number) {
 }
 .state-msg--error {
   color: var(--palette-error);
-}
-
-.notice {
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-border-alt);
-  border-radius: 6px;
-  padding: 0.5rem 0.875rem;
-  margin-bottom: 1rem;
 }
 
 .roster-layout {

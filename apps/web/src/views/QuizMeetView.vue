@@ -733,6 +733,7 @@ onMounted(load)
               </span>
               <span class="item-meta">{{ churchSummary(c.id) }}</span>
               <button
+                v-if="isAdmin || myCoachChurchIds.has(c.id)"
                 class="row-btn"
                 @click="
                   router.push({
