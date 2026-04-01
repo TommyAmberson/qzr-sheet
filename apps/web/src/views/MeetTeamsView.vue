@@ -2,6 +2,46 @@
 import { ref, computed, onMounted } from 'vue'
 
 const vFocus = { mounted: (el: HTMLElement) => el.focus() }
+
+/**
+ * v-fit-name="{ full, short }" — show full name if it fits, otherwise short name.
+ * CSS text-overflow: ellipsis handles the final fallback.
+ */
+interface FitNameBinding {
+  full: string
+  short: string
+}
+function applyFitName(el: HTMLElement, { full, short }: FitNameBinding) {
+  el.textContent = full
+  requestAnimationFrame(() => {
+    if (el.scrollWidth > el.clientWidth && short && short !== full) {
+      el.textContent = short
+    }
+  })
+}
+const fitNameObservers = new WeakMap<HTMLElement, ResizeObserver>()
+const fitNameValues = new WeakMap<HTMLElement, FitNameBinding>()
+const vFitName = {
+  mounted(el: HTMLElement, binding: { value: FitNameBinding }) {
+    fitNameValues.set(el, binding.value)
+    applyFitName(el, binding.value)
+    const ro = new ResizeObserver(() => {
+      const v = fitNameValues.get(el)
+      if (v) applyFitName(el, v)
+    })
+    ro.observe(el)
+    fitNameObservers.set(el, ro)
+  },
+  updated(el: HTMLElement, binding: { value: FitNameBinding }) {
+    fitNameValues.set(el, binding.value)
+    applyFitName(el, binding.value)
+  },
+  unmounted(el: HTMLElement) {
+    fitNameObservers.get(el)?.disconnect()
+    fitNameObservers.delete(el)
+    fitNameValues.delete(el)
+  },
+}
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import {
@@ -734,7 +774,10 @@ function onTeamDrop(toTeamId: number) {
                   >⠿</span
                 >
                 <span class="team-label">
-                  <span class="team-label-name">{{ church?.shortName ?? '?' }}</span>
+                  <span
+                    v-fit-name="{ full: church?.name ?? '?', short: church?.shortName ?? '?' }"
+                    class="team-label-name"
+                  ></span>
                   <span class="team-label-number">{{ teams.indexOf(team) + 1 }}</span>
                 </span>
                 <span class="div-label">Div</span>
