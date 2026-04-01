@@ -1043,6 +1043,7 @@ function onTeamDrop(toTeamId: number) {
   align-items: center;
   gap: 0.4rem;
   margin-bottom: 0.4rem;
+  min-width: 0;
 }
 
 .team-count {
@@ -1081,7 +1082,10 @@ function onTeamDrop(toTeamId: number) {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--color-heading);
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .div-label {
