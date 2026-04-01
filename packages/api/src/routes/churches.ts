@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and, inArray, sql } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
@@ -76,7 +76,22 @@ churches.get('/meets/:meetId/churches', async (c) => {
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const db = getDb(c)
-  const rows = await db.select().from(schema.churches).where(eq(schema.churches.meetId, meetId))
+
+  // Left join teams so churches with no teams still appear; count per church in one query.
+  const rows = await db
+    .select({
+      id: schema.churches.id,
+      meetId: schema.churches.meetId,
+      name: schema.churches.name,
+      shortName: schema.churches.shortName,
+      coachCodeHash: schema.churches.coachCodeHash,
+      teamCount: sql<number>`count(${schema.teams.id})`.mapWith(Number),
+    })
+    .from(schema.churches)
+    .leftJoin(schema.teams, eq(schema.teams.churchId, schema.churches.id))
+    .where(eq(schema.churches.meetId, meetId))
+    .groupBy(schema.churches.id)
+
   return c.json({ churches: rows })
 })
 

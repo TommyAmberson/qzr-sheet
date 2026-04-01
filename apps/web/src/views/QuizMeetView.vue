@@ -6,7 +6,6 @@ import {
   getMyMeets,
   updateMeet,
   listChurches,
-  listTeams,
   rotateAdminCode,
   createChurch,
   deleteChurch,
@@ -35,7 +34,6 @@ const detail = ref<MeetDetail | null>(null)
 const meetId = computed(() => detail.value?.meet.id ?? null)
 const membership = ref<MeetMembership | null>(null)
 const churches = ref<Church[]>([])
-const teamCounts = ref<Record<number, number>>({})
 const loading = ref(true)
 const error = ref('')
 
@@ -108,7 +106,6 @@ async function load() {
     myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, id)
     const churchRes = await listChurches(id)
     churches.value = churchRes.churches
-    loadTeamCounts()
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -116,18 +113,8 @@ async function load() {
   }
 }
 
-async function loadTeamCounts() {
-  const results = await Promise.all(churches.value.map((c) => listTeams(c.id)))
-  const counts: Record<number, number> = {}
-  for (let i = 0; i < churches.value.length; i++) {
-    counts[churches.value[i]!.id] = results[i]!.teams.length
-  }
-  teamCounts.value = counts
-}
-
-function churchSummary(churchId: number): string {
-  const count = teamCounts.value[churchId]
-  if (count === undefined) return ''
+function churchSummary(church: Church): string {
+  const count = church.teamCount
   if (count === 0) return 'No teams'
   return count === 1 ? '1 team' : `${count} teams`
 }
@@ -184,8 +171,7 @@ async function handleAddChurch() {
   addingChurch.value = true
   try {
     const res = await createChurch(meetId.value!, newChurchForm.value)
-    churches.value.push(res.church)
-    teamCounts.value[res.church.id] = 0
+    churches.value.push({ ...res.church, teamCount: 0 })
     newChurchForm.value = { name: '', shortName: '' }
     showAddChurch.value = false
     openAccessDialog({
@@ -215,7 +201,6 @@ async function handleDeleteChurch(churchId: number) {
   try {
     await deleteChurch(churchId)
     churches.value = churches.value.filter((c) => c.id !== churchId)
-    delete teamCounts.value[churchId]
   } catch (e) {
     alert((e as Error).message)
   }
@@ -731,7 +716,7 @@ onMounted(load)
                   </svg>
                 </button>
               </span>
-              <span class="item-meta">{{ churchSummary(c.id) }}</span>
+              <span class="item-meta">{{ churchSummary(c) }}</span>
               <button
                 v-if="isAdmin || myCoachChurchIds.has(c.id)"
                 class="row-btn"

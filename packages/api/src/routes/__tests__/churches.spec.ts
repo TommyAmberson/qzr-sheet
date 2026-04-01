@@ -119,6 +119,29 @@ describe('GET /api/meets/:meetId/churches', () => {
     const body = await res.json<{ churches: unknown[] }>()
     expect(body.churches).toHaveLength(2)
   })
+
+  it('includes teamCount of 0 for churches with no teams', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    await seedChurch(db, meet.id, 'Empty Church')
+
+    const res = await app.request(`/api/meets/${meet.id}/churches`, {}, env)
+    const body = await res.json<{ churches: Array<{ teamCount: number }> }>()
+    expect(body.churches[0]!.teamCount).toBe(0)
+  })
+
+  it('includes correct teamCount for churches with teams', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id, 'Grace')
+    await seedTeam(db, meet.id, church.id, 'Open')
+    await seedTeam(db, meet.id, church.id, 'Teen')
+
+    const res = await app.request(`/api/meets/${meet.id}/churches`, {}, env)
+    const body = await res.json<{ churches: Array<{ id: number; teamCount: number }> }>()
+    const row = body.churches.find((c) => c.id === church.id)!
+    expect(row.teamCount).toBe(2)
+  })
 })
 
 describe('POST /api/meets/:meetId/churches', () => {

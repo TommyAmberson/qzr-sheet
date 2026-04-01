@@ -194,6 +194,7 @@ export interface Church {
   meetId: number
   name: string
   shortName: string
+  teamCount: number
 }
 
 export interface Team {
