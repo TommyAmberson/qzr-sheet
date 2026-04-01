@@ -558,17 +558,13 @@ onMounted(load)
                 }}</span
               >
             </div>
-            <div class="meet-sub-row">
-              <div v-if="detail.meet.divisions.length" class="division-tags">
-                <span class="division-tags-label">Divisions</span>
-                <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{
-                  d
-                }}</span>
-              </div>
-              <span class="viewer-code"
-                >Viewer code: <code>{{ detail.meet.viewerCode }}</code></span
-              >
+            <div v-if="detail.meet.divisions.length" class="division-tags">
+              <span class="division-tags-label">Divisions</span>
+              <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{ d }}</span>
             </div>
+            <span class="viewer-code"
+              >Viewer code: <code>{{ detail.meet.viewerCode }}</code></span
+            >
           </div>
           <button v-if="isAdmin" class="icon-btn" title="Edit meet" @click="startEdit">
             <svg
@@ -977,13 +973,6 @@ onMounted(load)
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.meet-sub-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
   flex-wrap: wrap;
 }
 
