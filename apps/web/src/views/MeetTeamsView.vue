@@ -864,7 +864,7 @@ function onTeamDrop(toTeamId: number) {
               </div>
             </form>
             <button
-              v-else-if="addingQuizzerTeamId === null"
+              v-else-if="addingQuizzerTeamId === null && quizzersForTeam(team.id).length < 5"
               class="dashed-add"
               @click="startAddToPool()"
             >
