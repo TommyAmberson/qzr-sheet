@@ -148,7 +148,9 @@ Per-church coach codes, meet-scoped admin role, consolidated dashboard with role
 **Portal:**
 
 * `QuizMeetView` (dashboard) — single page for the entire meet, role-gated:
-  * Meet info with inline editing (admin), viewer code, divisions
+  * Meet info header: title + date row, division pills, viewer code with copy/share buttons
+  * Inline edit card (admin): labeled fields, side-by-side dates, divisions tag editor, viewer code
+    with URL-change hint, field order matches display
   * Admin section with access dialog (admin only)
   * Churches list with team count summary, "Roster" link, 🔑 access dialog, delete (admin)
   * Rooms list with 🔑 access dialog, delete, inline add form (admin)
