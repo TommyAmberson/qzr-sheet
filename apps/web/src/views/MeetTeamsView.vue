@@ -1180,7 +1180,7 @@ function onTeamDrop(toTeamId: number) {
 
 .roster-layout {
   display: grid;
-  grid-template-columns: 13rem 1fr;
+  grid-template-columns: 11rem 1fr;
   gap: 1.25rem;
   align-items: start;
 }
@@ -1230,8 +1230,8 @@ function onTeamDrop(toTeamId: number) {
   border: 1px solid var(--color-border-alt);
   border-radius: 8px;
   padding: 0.75rem;
-  flex: 1 1 11rem;
-  max-width: 14rem;
+  flex: 1 1 12rem;
+  min-width: 10rem;
   min-height: 7rem;
   display: flex;
   flex-direction: column;
