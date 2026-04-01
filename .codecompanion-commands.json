@@ -1,0 +1,33 @@
+{
+  "outputdir": "/tmp/mcp-command-logs",
+  "commands": {
+    "test": {
+      "workdir": ".",
+      "command": "pnpm test:unit"
+    },
+    "install": {
+      "workdir": ".",
+      "command": "pnpm i"
+    },
+    "format": {
+      "workdir": ".",
+      "command": "pnpm format"
+    },
+    "lint": {
+      "workdir": ".",
+      "command": "pnpm lint"
+    },
+    "type-check": {
+      "workdir": ".",
+      "command": "pnpm type-check"
+    },
+    "generate": {
+      "workdir": ".",
+      "command": "pnpm --filter @qzr/api db:generate"
+    },
+    "migrate-local": {
+      "workdir": ".",
+      "command": "pnpm --filter @qzr/api db:migrate:local"
+    }
+  }
+}

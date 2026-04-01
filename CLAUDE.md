@@ -20,6 +20,20 @@ pnpm format             # Prettier (no semi, single quotes, 100 col)
 pnpm deploy             # Build all + deploy to CF Pages + CF Worker
 ```
 
+### Available as MCP tools
+
+These commands are wired up as project commands and should be used proactively after making changes:
+
+* `run_test` — run unit tests to verify changes
+* `run_format` — run Prettier after editing files
+* `run_lint` — check for lint errors
+* `run_type-check` — run `vue-tsc` / `tsc`
+* `run_install` — install dependencies after touching `package.json`
+* `run_generate` — generate Drizzle migrations after schema changes
+* `run_migrate-local` — apply migrations to local D1
+
+Dev servers (`pnpm dev`, `pnpm dev:all`, etc.) are long-running and should not be started from here.
+
 ## Releasing
 
 1. Update `CHANGELOG.md` with a new version section

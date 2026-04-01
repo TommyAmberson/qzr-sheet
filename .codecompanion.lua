@@ -25,7 +25,7 @@ return {
       },
     },
     opts = {
-      default_servers = { "sequentialthinking", "memory2", "cloudflare-api", "git" },
+      default_servers = { "sequentialthinking", "memory2", "cloudflare-api", "git", "project_commands" },
     },
   },
   interactions = {
