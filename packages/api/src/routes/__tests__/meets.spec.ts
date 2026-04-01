@@ -174,6 +174,31 @@ describe('meet CRUD', () => {
       const res = await app.request('/api/meets/9999', {}, env)
       expect(res.status).toBe(404)
     })
+
+    it('looks up a meet by viewerCode slug', async () => {
+      const createRes = await app.request(
+        '/api/meets',
+        json({
+          name: 'Slug Meet',
+          dateFrom: '2025-04-01',
+          viewerCode: 'spring-25',
+          divisions: ['A'],
+        }),
+        env,
+      )
+      const { meet } = (await createRes.json()) as MeetBody
+
+      const res = await app.request('/api/meets/spring-25', {}, env)
+      expect(res.status).toBe(200)
+      const body = await jsonOf<MeetDetailBody>(res)
+      expect(body.meet.id).toBe(meet.id)
+      expect(body.meet.viewerCode).toBe('spring-25')
+    })
+
+    it('returns 404 for non-existent slug', async () => {
+      const res = await app.request('/api/meets/no-such-slug', {}, env)
+      expect(res.status).toBe(404)
+    })
   })
 
   describe('PATCH /api/meets/:id', () => {

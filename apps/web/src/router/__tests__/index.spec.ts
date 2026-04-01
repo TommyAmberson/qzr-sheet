@@ -43,41 +43,41 @@ describe('router guard', () => {
 
   it('allows navigation to a protected route with a valid session', async () => {
     mockGetSession.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@b.com' } } })
-    await router.push('/meets/1')
+    await router.push('/meets/fall-2025')
     expect(router.currentRoute.value.name).toBe('meet')
   })
 
   it('allows nested protected routes with a valid session', async () => {
     mockGetSession.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@b.com' } } })
-    await router.push('/meets/5/churches/3/teams')
+    await router.push('/meets/fall-2025/churches/3/teams')
     expect(router.currentRoute.value.name).toBe('meet-church-teams')
   })
 
   it('redirects nested protected routes to home without a session', async () => {
     mockGetSession.mockResolvedValue({ data: null })
-    await router.push('/meets/5/churches/3/teams')
+    await router.push('/meets/fall-2025/churches/3/teams')
     expect(router.currentRoute.value.name).toBe('home')
   })
 })
 
 describe('route props', () => {
-  it('meet route extracts numeric id from params', async () => {
+  it('meet route extracts slug from params', async () => {
     mockGetSession.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    await router.push('/meets/42')
+    await router.push('/meets/fall-2025')
 
     const route = router.currentRoute.value
     const matched = route.matched.find((r) => r.name === 'meet')!
     const propsFn = matched.props.default as (r: typeof route) => Record<string, unknown>
-    expect(propsFn(route)).toEqual({ id: 42 })
+    expect(propsFn(route)).toEqual({ slug: 'fall-2025' })
   })
 
-  it('meet-church-teams route extracts numeric id and churchId', async () => {
+  it('meet-church-teams route extracts slug and numeric churchId', async () => {
     mockGetSession.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    await router.push('/meets/10/churches/7/teams')
+    await router.push('/meets/fall-2025/churches/7/teams')
 
     const route = router.currentRoute.value
     const matched = route.matched.find((r) => r.name === 'meet-church-teams')!
     const propsFn = matched.props.default as (r: typeof route) => Record<string, unknown>
-    expect(propsFn(route)).toEqual({ id: 10, churchId: 7 })
+    expect(propsFn(route)).toEqual({ slug: 'fall-2025', churchId: 7 })
   })
 })

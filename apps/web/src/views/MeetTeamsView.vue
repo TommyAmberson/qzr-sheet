@@ -67,7 +67,7 @@ import {
   isAdminOrSuperuser as deriveIsAdminOrSuperuser,
 } from '../meetAccess'
 
-const props = defineProps<{ id: number; churchId: number }>()
+const props = defineProps<{ slug: string; churchId: number }>()
 const router = useRouter()
 const { session } = useAuth()
 
@@ -275,14 +275,11 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [meetRes, churchRes, myMeetsRes] = await Promise.all([
-      getMeet(props.id),
-      listChurches(props.id),
-      getMyMeets(),
-    ])
+    const [meetRes, myMeetsRes] = await Promise.all([getMeet(props.slug), getMyMeets()])
     meet.value = meetRes.meet
+    const id = meetRes.meet.id
 
-    const membership = myMeetsRes.memberships.find((m) => m.meetId === props.id)
+    const membership = myMeetsRes.memberships.find((m) => m.meetId === id)
     if (!membership) {
       router.replace({ name: 'home' })
       return
@@ -292,19 +289,16 @@ async function load() {
     const accountRole = (sessionUser as Record<string, unknown> | undefined)?.role as
       | string
       | undefined
-    isSuperuserOrAdmin.value = deriveIsAdminOrSuperuser(
-      myMeetsRes.memberships,
-      props.id,
-      accountRole,
-    )
+    isSuperuserOrAdmin.value = deriveIsAdminOrSuperuser(myMeetsRes.memberships, id, accountRole)
 
-    myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, props.id)
+    myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, id)
 
     if (!isSuperuserOrAdmin.value && !myCoachChurchIds.value.has(props.churchId)) {
-      router.replace({ name: 'meet', params: { id: props.id } })
+      router.replace({ name: 'meet', params: { slug: props.slug } })
       return
     }
 
+    const churchRes = await listChurches(id)
     const found = churchRes.churches.find((c) => c.id === props.churchId)
     if (!found) {
       error.value = 'Church not found'
@@ -680,7 +674,7 @@ function onTeamDrop(toTeamId: number) {
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'meet', params: { id } })">
+    <button class="back-link" @click="router.push({ name: 'meet', params: { slug } })">
       ← {{ meet?.name || 'QuizMeet' }}
     </button>
 

@@ -29,10 +29,11 @@ import {
 import { parseRosterCsv, serializeRosterCsv, type RosterEntry } from '../rosterCsv'
 import { coachChurchIds as deriveCoachChurchIds } from '../meetAccess'
 
-const props = defineProps<{ id: number }>()
+const props = defineProps<{ slug: string }>()
 const router = useRouter()
 
 const detail = ref<MeetDetail | null>(null)
+const meetId = computed(() => detail.value?.meet.id ?? null)
 const membership = ref<MeetMembership | null>(null)
 const churches = ref<Church[]>([])
 const teamCounts = ref<Record<number, number>>({})
@@ -97,19 +98,17 @@ const dialogRef = ref<HTMLDialogElement | null>(null)
 
 async function load() {
   try {
-    const [detailRes, myMeetsRes, churchRes] = await Promise.all([
-      getMeet(props.id),
-      getMyMeets(),
-      listChurches(props.id),
-    ])
+    const [detailRes, myMeetsRes] = await Promise.all([getMeet(props.slug), getMyMeets()])
     detail.value = detailRes
-    churches.value = churchRes.churches
-    membership.value = myMeetsRes.memberships.find((m) => m.meetId === props.id) ?? null
+    const id = detailRes.meet.id
+    membership.value = myMeetsRes.memberships.find((m) => m.meetId === id) ?? null
     if (!membership.value) {
       router.replace({ name: 'home' })
       return
     }
-    myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, props.id)
+    myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, id)
+    const churchRes = await listChurches(id)
+    churches.value = churchRes.churches
     loadTeamCounts()
   } catch (e) {
     error.value = (e as Error).message
@@ -182,7 +181,7 @@ async function handleAddChurch() {
   addChurchError.value = ''
   addingChurch.value = true
   try {
-    const res = await createChurch(props.id, newChurchForm.value)
+    const res = await createChurch(meetId.value!, newChurchForm.value)
     churches.value.push(res.church)
     teamCounts.value[res.church.id] = 0
     newChurchForm.value = { name: '', shortName: '' }
@@ -255,7 +254,7 @@ async function handleAddRoom() {
   addRoomError.value = ''
   addingRoom.value = true
   try {
-    const res = await createOfficialCode(props.id, newRoomLabel.value.trim())
+    const res = await createOfficialCode(meetId.value!, newRoomLabel.value.trim())
     detail.value!.officialCodes.push(res.officialCode)
     newRoomLabel.value = ''
     showAddRoom.value = false
@@ -280,7 +279,7 @@ async function handleAddRoom() {
 async function handleDeleteRoom(codeId: number) {
   if (!confirm('Delete this room and its code?')) return
   try {
-    await deleteOfficialCode(props.id, codeId)
+    await deleteOfficialCode(meetId.value!, codeId)
     detail.value!.officialCodes = detail.value!.officialCodes.filter((c) => c.id !== codeId)
   } catch (e) {
     alert((e as Error).message)
@@ -304,7 +303,7 @@ async function loadDialogMembers() {
   const d = accessDialog.value
   if (!d) return
   d.membersLoading = true
-  const res = await listMembers(props.id).catch(() => null)
+  const res = await listMembers(meetId.value!).catch(() => null)
   if (res) {
     d.members = res.members.filter((m) => {
       if (d.kind === 'admin') return m.role === 'admin'
@@ -366,13 +365,13 @@ async function handleGenerateCode(clearMembers: boolean) {
   d.revealedCode = null
   try {
     if (d.kind === 'admin') {
-      const res = await rotateAdminCode(props.id, clearMembers)
+      const res = await rotateAdminCode(meetId.value!, clearMembers)
       d.revealedCode = res.adminCode
     } else if (d.kind === 'church' && d.id) {
       const res = await rotateChurchCoachCode(d.id, clearMembers)
       d.revealedCode = res.coachCode
     } else if (d.kind === 'official' && d.id) {
-      const res = await rotateOfficialCode(props.id, d.id)
+      const res = await rotateOfficialCode(meetId.value!, d.id)
       d.revealedCode = res.code
     }
     if (clearMembers) d.members = []
@@ -389,7 +388,7 @@ async function handleRevokeMember(member: MeetMember) {
   if (!d) return
   if (!confirm(`Remove ${member.name} (${member.email})?`)) return
   try {
-    await revokeMember(props.id, member.userId, {
+    await revokeMember(meetId.value!, member.userId, {
       role: member.role,
       churchId: member.churchId,
       officialCodeId: member.officialCodeId,
@@ -472,7 +471,7 @@ async function applyRosterImport(entries: RosterEntry[]) {
     let church =
       existingByShort.get(churchName.toLowerCase()) ?? existingByName.get(churchName.toLowerCase())
     if (!church) {
-      const res = await createChurch(props.id, { name: churchName })
+      const res = await createChurch(meetId.value!, { name: churchName })
       church = res.church
     }
 
@@ -735,7 +734,7 @@ onMounted(load)
                 @click="
                   router.push({
                     name: 'meet-church-teams',
-                    params: { id, churchId: c.id },
+                    params: { slug, churchId: c.id },
                   })
                 "
               >

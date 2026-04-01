@@ -7,21 +7,21 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: HomeView },
     {
-      path: '/meets/:id',
+      path: '/meets/:slug',
       meta: { requiresAuth: true },
       children: [
         {
           path: '',
           name: 'meet',
           component: () => import('../views/QuizMeetView.vue'),
-          props: (route) => ({ id: Number(route.params.id) }),
+          props: (route) => ({ slug: route.params.slug as string }),
         },
         {
           path: 'churches/:churchId/teams',
           name: 'meet-church-teams',
           component: () => import('../views/MeetTeamsView.vue'),
           props: (route) => ({
-            id: Number(route.params.id),
+            slug: route.params.slug as string,
             churchId: Number(route.params.churchId),
           }),
         },

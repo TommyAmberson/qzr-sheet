@@ -53,6 +53,7 @@ export interface MeetDetail {
 export interface MeetMembership {
   meetId: number
   meetName: string
+  viewerCode: string
   role: 'admin' | 'head_coach' | 'official' | 'viewer' | 'superuser'
   label?: string
   churchId?: number
@@ -64,8 +65,8 @@ export function listMeets(): Promise<{ meets: QuizMeet[] }> {
   return request('/api/meets')
 }
 
-export function getMeet(id: number): Promise<MeetDetail> {
-  return request(`/api/meets/${id}`)
+export function getMeet(idOrSlug: number | string): Promise<MeetDetail> {
+  return request(`/api/meets/${encodeURIComponent(idOrSlug)}`)
 }
 
 export function createMeet(data: {
