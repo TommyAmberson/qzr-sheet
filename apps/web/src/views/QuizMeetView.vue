@@ -41,9 +41,13 @@ const error = ref('')
 const role = computed(() => membership.value?.role ?? null)
 const isSuperuser = computed(() => role.value === 'superuser')
 const isAdmin = computed(() => role.value === 'admin' || role.value === 'superuser')
-const canManageTeams = computed(
-  () => role.value === 'head_coach' || role.value === 'admin' || role.value === 'superuser',
-)
+
+const myCoachChurchIds = ref<Set<number>>(new Set())
+
+function canEditChurchName(churchId: number): boolean {
+  if (isAdmin.value) return true
+  return myCoachChurchIds.value.has(churchId)
+}
 
 // Inline editing
 const editing = ref(false)
@@ -104,6 +108,11 @@ async function load() {
       router.replace({ name: 'home' })
       return
     }
+    myCoachChurchIds.value = new Set(
+      myMeetsRes.memberships
+        .filter((m) => m.meetId === props.id && m.role === 'head_coach' && m.churchId != null)
+        .map((m) => m.churchId!),
+    )
     loadTeamCounts()
   } catch (e) {
     error.value = (e as Error).message
@@ -701,7 +710,7 @@ onMounted(load)
                   ({{ c.shortName }})
                 </span>
                 <button
-                  v-if="isAdmin"
+                  v-if="canEditChurchName(c.id)"
                   class="church-pencil"
                   title="Edit church name"
                   @click.stop="startEditChurch(c)"
@@ -724,7 +733,6 @@ onMounted(load)
               </span>
               <span class="item-meta">{{ churchSummary(c.id) }}</span>
               <button
-                v-if="canManageTeams"
                 class="row-btn"
                 @click="
                   router.push({
