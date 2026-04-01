@@ -1,5 +1,80 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+* **Meet join codes (4.4)** — `POST /api/join` resolves admin, coach, and official codes via SHA-256
+  hash matching; `POST /api/join/guest` issues short-lived guest JWTs for officials and viewers;
+  `GET /api/my-meets` returns all meets the user has joined with their role(s)
+* **Superuser dashboard (4.5)** — meet CRUD (`POST/GET/PATCH/DELETE /api/meets`), official code
+  management (create/delete/rotate), typed API client with cookie credentials, admin router with
+  auth guard and lazy-loaded views, create-meet form on home page
+* **Coach roster flow (4.6)** — churches/teams/quizzers API routes with integration tests, coach
+  meets list with join form, single-church roster view with team cards, draft-mode editing
+  (Save/Discard bar flushes minimal diff to API), drag-to-reorder quizzers and teams, per-team size
+  and division-order warnings, inline division select, quizzer rename via pencil icon
+* **Role model and dashboard (4.6a)** — per-church coach codes, meet-scoped admin role
+  (`admin_memberships`/`coach_memberships` tables), consolidated `QuizMeetView` dashboard replacing
+  separate admin page, access dialog with member list and individual revocation, church name editing
+  (`PATCH /api/churches/:churchId`), `DELETE /api/churches/:churchId` with cascade
+* **Divisions** — `divisions` JSON column on `quiz_meets`, exposed on create/patch/format; pill tags
+  on dashboard with inline add/remove editing
+* **Viewer-code slug URLs** — meet routes use the admin-set `viewerCode` as a human-readable slug
+  (`/fall-2025` instead of `/meets/1`); `GET /api/meets/:id` accepts slug or numeric ID
+* **Roster CSV import/export** — admin can import a tournament roster from CSV (4-column or legacy
+  8-column format) and export the current roster back to CSV; duplicate detection on re-import
+* **Copy and share buttons** — viewer code row shows hover-revealed copy (clipboard) and share (Web
+  Share API with URL fallback) icons
+* **Multi-day meets** — `date_from` + `date_to` on `quiz_meets` (replaces single `date`)
+* **Portal unit tests** — vitest + jsdom setup for `@qzr/web`; tests for `rosterCsv`, `api` client,
+  router guards, and `meetAccess` helpers
+* **Meet access helpers** — `coachChurchIds`, `isAdminOrSuperuser`, `canAccessChurchRoster`
+  extracted to `meetAccess.ts` with full test coverage
+
+### Changed
+
+* **Renamed admin → superuser** throughout codebase (API, shared enums, portal, tests) to
+  distinguish account-level superusers from meet-scoped admins
+* **Redesigned meet edit form** — flat unlabeled inputs replaced with a structured card: labeled
+  fields, side-by-side date pickers, viewer-code URL-change hint, divisions tag editor, field order
+  matching the display layout
+* **Team card grid** — unified pool and team cards into a single 4-column CSS grid; cards stretch to
+  fill available width with consistent min-height (~5 quizzers)
+* **Church name display** — responsive CSS truncation with full name + short name in parentheses;
+  pencil icon appears on hover for inline editing
+* **Division pills** — smaller font and tighter padding for subtler metadata appearance
+* **Viewer code on its own line** — separated from divisions in the meet header
+* **Church shortName optional** — defaults to full name when omitted on create
+* **Home page** — redesigned with QuizMeets list and join form as primary content; scoresheet
+  section secondary
+* **Roster access gating** — Roster button only visible to admins and the church's own coach;
+  unauthorized users redirected from teams view
+* **Sign-in preserves page** — OAuth callback returns to the page the user was on, not `/`
+* **Unified monorepo versioning** — bump script now updates all package.json files and
+  tauri.conf.json in one step
+
+### Infrastructure
+
+* Session middleware reads Better Auth cookies; `requireAuth` (401) and `requireSuperuser` (403)
+  guards
+* Code hashing and generation utilities (`lib/codes.ts`)
+* Guest JWT signing via `jose` + Web Crypto
+* `sql.js` replaces `better-sqlite3` for in-memory test DB
+* Drizzle migrations regenerated from clean schema
+* `@qzr/web`, `@qzr/api`, `@qzr/shared` versions synced to monorepo version
+
+### Fixed
+
+* Sign-in redirected to API server after OAuth callback instead of web app
+* `GET /api/meets/:id` was unrestricted — now requires meet membership
+* Admin code `clearMembers` restricted to superuser only
+* Team number auto-increments per-church (was per-church-per-division)
+* Add-quizzer form sentinel collision between pool and first temp team
+* Quizzer reorder now marks draft dirty and is restored on discard
+* Team drag shows correct before/after insert indicator based on cursor position
+* Long team names truncate with ellipsis; team number always visible
+
 ## 0.3.3
 
 ### Fixed
