@@ -559,7 +559,7 @@ onMounted(load)
               >
             </div>
             <div v-if="detail.meet.divisions.length" class="division-tags">
-              <span class="division-tags-label">Divisions</span>
+              <span class="division-tags-label">Divisions:</span>
               <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{ d }}</span>
             </div>
             <span class="viewer-code"
