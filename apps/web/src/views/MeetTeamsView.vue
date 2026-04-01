@@ -141,11 +141,6 @@ function quizzersForTeam(teamId: number) {
   return orderedQuizzersForTeam(teamId)
 }
 
-function teamLabel(team: Team) {
-  const idx = teams.value.indexOf(team)
-  return `${church.value?.shortName ?? '?'} ${idx + 1}`
-}
-
 // ---- Roster warnings ----
 
 // Returns a warning string per team index (empty string = no warning).
@@ -738,7 +733,10 @@ function onTeamDrop(toTeamId: number) {
                   @dragend.stop="onTeamDragEnd"
                   >⠿</span
                 >
-                <span class="team-label">{{ teamLabel(team) }}</span>
+                <span class="team-label">
+                  <span class="team-label-name">{{ church?.shortName ?? '?' }}</span>
+                  <span class="team-label-number">{{ teams.indexOf(team) + 1 }}</span>
+                </span>
                 <span class="div-label">Div</span>
                 <select
                   v-model="team.division"
@@ -1079,13 +1077,24 @@ function onTeamDrop(toTeamId: number) {
 }
 
 .team-label {
+  display: flex;
+  gap: 0.25rem;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--color-heading);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.team-label-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.team-label-number {
+  flex-shrink: 0;
 }
 
 .div-label {
