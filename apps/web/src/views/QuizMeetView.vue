@@ -6,7 +6,6 @@ import {
   getMyMeets,
   updateMeet,
   listChurches,
-  listTeams,
   rotateAdminCode,
   createChurch,
   deleteChurch,
@@ -15,9 +14,8 @@ import {
   createOfficialCode,
   deleteOfficialCode,
   rotateOfficialCode,
-  createTeam,
-  addQuizzer,
-  listQuizzers,
+  importRoster,
+  exportRoster,
   type MeetDetail,
   type MeetMembership,
   type Church,
@@ -36,7 +34,6 @@ const detail = ref<MeetDetail | null>(null)
 const meetId = computed(() => detail.value?.meet.id ?? null)
 const membership = ref<MeetMembership | null>(null)
 const churches = ref<Church[]>([])
-const teamCounts = ref<Record<number, number>>({})
 const loading = ref(true)
 const error = ref('')
 
@@ -109,7 +106,6 @@ async function load() {
     myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, id)
     const churchRes = await listChurches(id)
     churches.value = churchRes.churches
-    loadTeamCounts()
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -117,18 +113,8 @@ async function load() {
   }
 }
 
-async function loadTeamCounts() {
-  const results = await Promise.all(churches.value.map((c) => listTeams(c.id)))
-  const counts: Record<number, number> = {}
-  for (let i = 0; i < churches.value.length; i++) {
-    counts[churches.value[i]!.id] = results[i]!.teams.length
-  }
-  teamCounts.value = counts
-}
-
-function churchSummary(churchId: number): string {
-  const count = teamCounts.value[churchId]
-  if (count === undefined) return ''
+function churchSummary(church: Church): string {
+  const count = church.teamCount
   if (count === 0) return 'No teams'
   return count === 1 ? '1 team' : `${count} teams`
 }
@@ -185,8 +171,7 @@ async function handleAddChurch() {
   addingChurch.value = true
   try {
     const res = await createChurch(meetId.value!, newChurchForm.value)
-    churches.value.push(res.church)
-    teamCounts.value[res.church.id] = 0
+    churches.value.push({ ...res.church, teamCount: 0 })
     newChurchForm.value = { name: '', shortName: '' }
     showAddChurch.value = false
     openAccessDialog({
@@ -216,7 +201,6 @@ async function handleDeleteChurch(churchId: number) {
   try {
     await deleteChurch(churchId)
     churches.value = churches.value.filter((c) => c.id !== churchId)
-    delete teamCounts.value[churchId]
   } catch (e) {
     alert((e as Error).message)
   }
@@ -456,88 +440,25 @@ async function handleRosterFile(event: Event) {
 }
 
 async function applyRosterImport(entries: RosterEntry[]) {
-  // Build lookups of existing churches by shortName and name (case-insensitive)
-  const existingByShort = new Map<string, Church>()
-  const existingByName = new Map<string, Church>()
-  for (const c of churches.value) {
-    existingByShort.set(c.shortName.toLowerCase(), c)
-    existingByName.set(c.name.toLowerCase(), c)
-  }
-
-  // Group entries by church → team → quizzers
-  const churchMap = new Map<string, { division: string; quizzers: string[] }[]>()
-  const churchDivisionTeams = new Map<string, Map<string, string[]>>()
-
-  for (const e of entries) {
-    if (!churchDivisionTeams.has(e.church)) churchDivisionTeams.set(e.church, new Map())
-    const teamMap = churchDivisionTeams.get(e.church)!
-    const teamKey = `${e.division}\0${e.teamName}`
-    if (!teamMap.has(teamKey)) teamMap.set(teamKey, [])
-    teamMap.get(teamKey)!.push(e.quizzerName)
-  }
-
-  for (const [churchName, teamMap] of churchDivisionTeams) {
-    const teamList: { division: string; quizzers: string[] }[] = []
-    for (const [teamKey, quizzers] of teamMap) {
-      const division = teamKey.split('\0')[0]!
-      teamList.push({ division, quizzers })
-    }
-    churchMap.set(churchName, teamList)
-  }
-
-  // Create churches, teams, quizzers
-  for (const [churchName, teamList] of churchMap) {
-    let church =
-      existingByShort.get(churchName.toLowerCase()) ?? existingByName.get(churchName.toLowerCase())
-    if (!church) {
-      const res = await createChurch(meetId.value!, { name: churchName })
-      church = res.church
-    }
-
-    for (const importTeam of teamList) {
-      // Check if an identical team already exists (same division, same quizzer names)
-      const existingTeams = (await listTeams(church.id)).teams.filter(
-        (t) => t.division === importTeam.division,
-      )
-      let alreadyExists = false
-      for (const et of existingTeams) {
-        const existingQuizzers = (await listQuizzers(et.id)).quizzers.map((q) => q.name).sort()
-        const importQuizzers = [...importTeam.quizzers].sort()
-        if (
-          existingQuizzers.length === importQuizzers.length &&
-          existingQuizzers.every((n, i) => n === importQuizzers[i])
-        ) {
-          alreadyExists = true
-          break
-        }
-      }
-      if (alreadyExists) continue
-
-      const res = await createTeam(church.id, { division: importTeam.division })
-      for (const name of importTeam.quizzers) {
-        await addQuizzer(res.team.id, name)
-      }
-    }
-  }
+  await importRoster(
+    meetId.value!,
+    entries.map((e) => ({
+      church: e.church,
+      division: e.division,
+      teamName: e.teamName,
+      quizzerName: e.quizzerName,
+    })),
+  )
 }
 
 async function handleExportRoster() {
-  const entries: RosterEntry[] = []
-  for (const c of churches.value) {
-    const teamRes = await listTeams(c.id)
-    const sorted = teamRes.teams.slice().sort((a, b) => a.number - b.number)
-    for (const t of sorted) {
-      const qRes = await listQuizzers(t.id)
-      for (const q of qRes.quizzers) {
-        entries.push({
-          division: t.division,
-          teamName: `${c.shortName} ${t.number}`,
-          quizzerName: q.name,
-          church: c.shortName,
-        })
-      }
-    }
-  }
+  const res = await exportRoster(meetId.value!)
+  const entries: RosterEntry[] = res.entries.map((e) => ({
+    division: e.division,
+    teamName: `${e.churchShortName} ${e.teamNumber}`,
+    quizzerName: e.quizzerName,
+    church: e.churchShortName,
+  }))
   const csv = serializeRosterCsv(entries)
   const blob = new Blob([csv], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
@@ -795,7 +716,7 @@ onMounted(load)
                   </svg>
                 </button>
               </span>
-              <span class="item-meta">{{ churchSummary(c.id) }}</span>
+              <span class="item-meta">{{ churchSummary(c) }}</span>
               <button
                 v-if="isAdmin || myCoachChurchIds.has(c.id)"
                 class="row-btn"

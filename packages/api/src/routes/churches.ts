@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray, sql } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
@@ -76,7 +76,22 @@ churches.get('/meets/:meetId/churches', async (c) => {
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const db = getDb(c)
-  const rows = await db.select().from(schema.churches).where(eq(schema.churches.meetId, meetId))
+
+  // Left join teams so churches with no teams still appear; count per church in one query.
+  const rows = await db
+    .select({
+      id: schema.churches.id,
+      meetId: schema.churches.meetId,
+      name: schema.churches.name,
+      shortName: schema.churches.shortName,
+      coachCodeHash: schema.churches.coachCodeHash,
+      teamCount: sql<number>`count(${schema.teams.id})`.mapWith(Number),
+    })
+    .from(schema.churches)
+    .leftJoin(schema.teams, eq(schema.teams.churchId, schema.churches.id))
+    .where(eq(schema.churches.meetId, meetId))
+    .groupBy(schema.churches.id)
+
   return c.json({ churches: rows })
 })
 
@@ -452,6 +467,422 @@ churches.delete('/teams/:teamId/quizzers/:quizzerId', async (c) => {
 
   if (!deleted) return c.json({ error: 'Quizzer not found on this team' }, 404)
   return c.json({ deleted: true as const })
+})
+
+// ---- Roster sync ----
+
+interface SyncQuizzerPayload {
+  id: number
+  name: string
+}
+interface SyncTeamPayload {
+  id: number
+  division: string
+  quizzers: SyncQuizzerPayload[]
+}
+interface RosterSyncPayload {
+  teams: SyncTeamPayload[]
+  unassigned: SyncQuizzerPayload[]
+}
+
+/**
+ * POST /api/churches/:churchId/roster/sync
+ *
+ * Replaces the church's entire roster in one request.
+ * Client sends desired state: ordered teams (with division + quizzer names) and unassigned pool.
+ * Temp IDs (negative) signal new teams/quizzers; server returns the resolved state.
+ */
+churches.post('/churches/:churchId/roster/sync', async (c) => {
+  const churchId = Number(c.req.param('churchId'))
+  if (Number.isNaN(churchId)) return c.json({ error: 'Invalid church ID' }, 400)
+
+  const user = getUser(c)
+  const db = getDb(c)
+
+  const [church] = await db.select().from(schema.churches).where(eq(schema.churches.id, churchId))
+  if (!church) return c.json({ error: 'Church not found' }, 404)
+
+  if (!(await canEditChurch(db, user.id, user.role, church))) {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+
+  const body = await c.req.json<RosterSyncPayload>()
+  if (!Array.isArray(body.teams) || !Array.isArray(body.unassigned)) {
+    return c.json({ error: 'teams and unassigned are required arrays' }, 400)
+  }
+
+  // ---- Load current state ----
+
+  const currentTeams = await db
+    .select()
+    .from(schema.teams)
+    .where(eq(schema.teams.churchId, churchId))
+
+  const currentRosters =
+    currentTeams.length > 0
+      ? await db
+          .select()
+          .from(schema.teamRosters)
+          .where(
+            inArray(
+              schema.teamRosters.teamId,
+              currentTeams.map((t) => t.id),
+            ),
+          )
+      : []
+
+  const currentTeamMap = new Map(currentTeams.map((t) => [t.id, t]))
+  // quizzerId → { teamId, name }
+  const currentRosterMap = new Map(
+    currentRosters.map((r) => [r.quizzerId, { teamId: r.teamId, name: r.name }]),
+  )
+
+  // ---- Compute desired state ----
+
+  const payloadTeamIds = new Set(body.teams.filter((t) => t.id > 0).map((t) => t.id))
+  const payloadQuizzerIds = new Set(
+    body.teams.flatMap((t) => t.quizzers.filter((q) => q.id > 0).map((q) => q.id)),
+  )
+  const unassignedIds = new Set(body.unassigned.filter((q) => q.id > 0).map((q) => q.id))
+
+  const teamsToDelete = currentTeams.filter((t) => !payloadTeamIds.has(t.id)).map((t) => t.id)
+
+  // Quizzers not in any team or unassigned list: fully remove (roster + identity)
+  const quizzersToFullyDelete = [...currentRosterMap.keys()].filter(
+    (id) => !payloadQuizzerIds.has(id) && !unassignedIds.has(id),
+  )
+
+  // Existing unassigned quizzers that currently have a team_roster entry: remove from roster only
+  const quizzersToUnassign = [...unassignedIds].filter((id) => currentRosterMap.has(id))
+
+  // ---- Execute deletions ----
+
+  // Delete team_roster entries for fully-deleted quizzers whose teams are NOT being deleted
+  // (team cascade will handle entries on deleted teams)
+  const deletedTeamIdSet = new Set(teamsToDelete)
+  const rosterEntriesToDelete = quizzersToFullyDelete.filter((id) => {
+    const r = currentRosterMap.get(id)
+    return r && !deletedTeamIdSet.has(r.teamId)
+  })
+  if (rosterEntriesToDelete.length > 0) {
+    await db
+      .delete(schema.teamRosters)
+      .where(inArray(schema.teamRosters.quizzerId, rosterEntriesToDelete))
+  }
+
+  if (teamsToDelete.length > 0) {
+    await db.delete(schema.teams).where(inArray(schema.teams.id, teamsToDelete))
+    // cascade deletes team_rosters for deleted teams
+  }
+
+  if (quizzersToFullyDelete.length > 0) {
+    await db
+      .delete(schema.quizzerIdentities)
+      .where(inArray(schema.quizzerIdentities.id, quizzersToFullyDelete))
+  }
+
+  if (quizzersToUnassign.length > 0) {
+    await db
+      .delete(schema.teamRosters)
+      .where(inArray(schema.teamRosters.quizzerId, quizzersToUnassign))
+  }
+
+  // ---- Create new teams and build tempId→realId map ----
+
+  const teamIdMap = new Map<number, number>() // tempId → realId
+
+  for (let i = 0; i < body.teams.length; i++) {
+    const t = body.teams[i]!
+    const number = i + 1
+    if (t.id < 0) {
+      const [created] = await db
+        .insert(schema.teams)
+        .values({ meetId: church.meetId, churchId, division: t.division, number })
+        .returning()
+      teamIdMap.set(t.id, created!.id)
+    } else {
+      // Update division and/or number on existing team if changed
+      const current = currentTeamMap.get(t.id)
+      if (current && (current.division !== t.division || current.number !== number)) {
+        await db
+          .update(schema.teams)
+          .set({ division: t.division, number })
+          .where(eq(schema.teams.id, t.id))
+      }
+    }
+  }
+
+  // ---- Sync quizzers ----
+
+  const quizzerIdMap = new Map<number, number>() // tempId → realId
+
+  for (const t of body.teams) {
+    const realTeamId = t.id > 0 ? t.id : teamIdMap.get(t.id)!
+
+    for (const q of t.quizzers) {
+      if (q.id < 0) {
+        // New quizzer: create identity + roster entry
+        const [identity] = await db.insert(schema.quizzerIdentities).values({}).returning()
+        await db
+          .insert(schema.teamRosters)
+          .values({ teamId: realTeamId, quizzerId: identity!.id, name: q.name.trim() })
+        quizzerIdMap.set(q.id, identity!.id)
+      } else {
+        // Existing quizzer: check for move or rename
+        const current = currentRosterMap.get(q.id)
+        if (current) {
+          const nameChanged = current.name !== q.name.trim()
+          const movedTeam = current.teamId !== realTeamId
+
+          if (movedTeam) {
+            await db
+              .update(schema.teamRosters)
+              .set({ teamId: realTeamId, name: q.name.trim() })
+              .where(
+                and(
+                  eq(schema.teamRosters.quizzerId, q.id),
+                  eq(schema.teamRosters.teamId, current.teamId),
+                ),
+              )
+          } else if (nameChanged) {
+            await db
+              .update(schema.teamRosters)
+              .set({ name: q.name.trim() })
+              .where(
+                and(
+                  eq(schema.teamRosters.quizzerId, q.id),
+                  eq(schema.teamRosters.teamId, realTeamId),
+                ),
+              )
+          }
+        }
+      }
+    }
+  }
+
+  // ---- Build response from payload order (with real IDs) ----
+
+  const responseTeams = []
+  for (let i = 0; i < body.teams.length; i++) {
+    const t = body.teams[i]!
+    const realTeamId = t.id > 0 ? t.id : teamIdMap.get(t.id)!
+    responseTeams.push({
+      id: realTeamId,
+      meetId: church.meetId,
+      churchId,
+      division: t.division,
+      number: i + 1,
+      quizzers: t.quizzers
+        .filter((q) => q.id > 0 || quizzerIdMap.has(q.id))
+        .map((q) => ({
+          quizzerId: q.id > 0 ? q.id : quizzerIdMap.get(q.id)!,
+          name: q.name.trim(),
+        })),
+    })
+  }
+
+  const responseUnassigned = body.unassigned
+    .filter((q) => q.id > 0)
+    .map((q) => ({ quizzerId: q.id, name: q.name.trim() }))
+
+  return c.json({ teams: responseTeams, unassigned: responseUnassigned })
+})
+
+/**
+ * GET /api/meets/:meetId/roster/export
+ *
+ * Returns all churches → teams → quizzers for the meet in one query.
+ * Any authenticated member can read (same access rule as GET churches).
+ */
+churches.get('/meets/:meetId/roster/export', async (c) => {
+  const meetId = Number(c.req.param('meetId'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const db = getDb(c)
+
+  const rows = await db
+    .select({
+      churchId: schema.churches.id,
+      churchName: schema.churches.name,
+      churchShortName: schema.churches.shortName,
+      teamId: schema.teams.id,
+      teamNumber: schema.teams.number,
+      division: schema.teams.division,
+      quizzerName: schema.teamRosters.name,
+    })
+    .from(schema.churches)
+    .innerJoin(schema.teams, eq(schema.teams.churchId, schema.churches.id))
+    .innerJoin(schema.teamRosters, eq(schema.teamRosters.teamId, schema.teams.id))
+    .where(eq(schema.churches.meetId, meetId))
+    .orderBy(schema.churches.id, schema.teams.number, schema.teamRosters.name)
+
+  return c.json({ entries: rows })
+})
+
+// ---- Roster import ----
+
+/**
+ * POST /api/meets/:meetId/roster/import
+ *
+ * Bulk-import roster entries parsed from CSV.
+ * Matches churches by name/shortName, creates missing ones.
+ * Deduplicates teams per church+division+teamName within the payload.
+ * Skips quizzers already on a team by name.
+ * Requires admin or superuser.
+ */
+churches.post('/meets/:meetId/roster/import', async (c) => {
+  const meetId = Number(c.req.param('meetId'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const user = getUser(c)
+  const db = getDb(c)
+
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+
+  const body =
+    await c.req.json<
+      Array<{ church: string; division: string; teamName: string; quizzerName: string }>
+    >()
+  if (!Array.isArray(body) || body.length === 0) {
+    return c.json({ error: 'Payload must be a non-empty array of roster entries' }, 400)
+  }
+
+  const existingChurches = await db
+    .select()
+    .from(schema.churches)
+    .where(eq(schema.churches.meetId, meetId))
+
+  // churchName (lowered) → Church row
+  const churchByName = new Map<string, schema.Church>()
+  const churchByShortName = new Map<string, schema.Church>()
+  for (const ch of existingChurches) {
+    churchByName.set(ch.name.toLowerCase(), ch)
+    churchByShortName.set(ch.shortName.toLowerCase(), ch)
+  }
+
+  // Collect unique church names from payload and resolve/create
+  const churchNameToId = new Map<string, number>() // raw name → churchId
+  const uniqueChurchNames = [...new Set(body.map((e) => e.church.trim()).filter(Boolean))]
+
+  let churchesCreated = 0
+  for (const rawName of uniqueChurchNames) {
+    const lower = rawName.toLowerCase()
+    const existing = churchByName.get(lower) ?? churchByShortName.get(lower) ?? null
+    if (existing) {
+      churchNameToId.set(rawName, existing.id)
+    } else {
+      const coachCode = generateCode()
+      const coachCodeHash = await hashCode(coachCode)
+      const [created] = await db
+        .insert(schema.churches)
+        .values({ meetId, name: rawName, shortName: rawName, coachCodeHash })
+        .returning()
+      churchNameToId.set(rawName, created!.id)
+      churchByName.set(lower, created!)
+      churchesCreated++
+    }
+  }
+
+  // Group entries by (churchId, division, teamName) — each unique combination is one team
+  interface GroupKey {
+    churchId: number
+    division: string
+    teamName: string
+  }
+  const teamGroupMap = new Map<string, { key: GroupKey; quizzerNames: string[] }>()
+  for (const entry of body) {
+    const churchName = entry.church.trim()
+    const churchId = churchNameToId.get(churchName)
+    if (!churchId) continue
+    const division = entry.division.trim()
+    const teamName = entry.teamName.trim()
+    const quizzerName = entry.quizzerName.trim()
+    if (!teamName || !quizzerName) continue
+    const key = `${churchId}|${division}|${teamName}`
+    if (!teamGroupMap.has(key)) {
+      teamGroupMap.set(key, { key: { churchId, division, teamName }, quizzerNames: [] })
+    }
+    const group = teamGroupMap.get(key)!
+    if (!group.quizzerNames.includes(quizzerName)) {
+      group.quizzerNames.push(quizzerName)
+    }
+  }
+
+  // Load existing teams + rosters for all involved churches, for deduplication
+  // existingTeamRosters: churchId → Array<{ teamId, division, quizzerNames: Set<string> }>
+  const allChurchIds = [...new Set([...teamGroupMap.values()].map((g) => g.key.churchId))]
+  const nextNumberByChurch = new Map<number, number>()
+  const existingTeamRosters = new Map<
+    number,
+    Array<{ teamId: number; division: string; quizzerNames: Set<string> }>
+  >()
+  for (const cid of allChurchIds) {
+    const existingTeams = await db.select().from(schema.teams).where(eq(schema.teams.churchId, cid))
+    const max = existingTeams.length === 0 ? 0 : Math.max(...existingTeams.map((r) => r.number))
+    nextNumberByChurch.set(cid, max + 1)
+
+    const teamRosterRows =
+      existingTeams.length > 0
+        ? await db
+            .select()
+            .from(schema.teamRosters)
+            .where(
+              inArray(
+                schema.teamRosters.teamId,
+                existingTeams.map((t) => t.id),
+              ),
+            )
+        : []
+    const rosterByTeam = new Map<number, string[]>()
+    for (const row of teamRosterRows) {
+      if (!rosterByTeam.has(row.teamId)) rosterByTeam.set(row.teamId, [])
+      rosterByTeam.get(row.teamId)!.push(row.name)
+    }
+    existingTeamRosters.set(
+      cid,
+      existingTeams.map((t) => ({
+        teamId: t.id,
+        division: t.division,
+        quizzerNames: new Set(rosterByTeam.get(t.id) ?? []),
+      })),
+    )
+  }
+
+  let teamsCreated = 0
+  let quizzersAdded = 0
+
+  for (const { key, quizzerNames } of teamGroupMap.values()) {
+    // Skip if an existing team in this church+division already has exactly this quizzer set
+    const existing = existingTeamRosters.get(key.churchId) ?? []
+    const isDuplicate = existing.some(
+      (t) =>
+        t.division === key.division &&
+        t.quizzerNames.size === quizzerNames.length &&
+        quizzerNames.every((n) => t.quizzerNames.has(n)),
+    )
+    if (isDuplicate) continue
+
+    const number = nextNumberByChurch.get(key.churchId)!
+    nextNumberByChurch.set(key.churchId, number + 1)
+
+    const [team] = await db
+      .insert(schema.teams)
+      .values({ meetId, churchId: key.churchId, division: key.division, number })
+      .returning()
+    teamsCreated++
+
+    for (const name of quizzerNames) {
+      const [identity] = await db.insert(schema.quizzerIdentities).values({}).returning()
+      await db
+        .insert(schema.teamRosters)
+        .values({ teamId: team!.id, quizzerId: identity!.id, name })
+      quizzersAdded++
+    }
+  }
+
+  return c.json({ churchesCreated, teamsCreated, quizzersAdded }, 201)
 })
 
 // ---- Helpers ----

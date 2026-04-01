@@ -194,6 +194,7 @@ export interface Church {
   meetId: number
   name: string
   shortName: string
+  teamCount: number
 }
 
 export interface Team {
@@ -296,4 +297,77 @@ export function updateQuizzer(
 
 export function removeQuizzer(teamId: number, quizzerId: number): Promise<{ deleted: true }> {
   return request(`/api/teams/${teamId}/quizzers/${quizzerId}`, { method: 'DELETE' })
+}
+
+// ---- Roster sync / import ----
+
+export interface SyncQuizzer {
+  id: number
+  name: string
+}
+
+export interface SyncTeam {
+  id: number
+  division: string
+  quizzers: SyncQuizzer[]
+}
+
+export interface SyncRosterPayload {
+  teams: SyncTeam[]
+  unassigned: SyncQuizzer[]
+}
+
+export interface SyncRosterTeamResult {
+  id: number
+  meetId: number
+  churchId: number
+  division: string
+  number: number
+  quizzers: Array<{ quizzerId: number; name: string }>
+}
+
+export interface SyncRosterResult {
+  teams: SyncRosterTeamResult[]
+  unassigned: Array<{ quizzerId: number; name: string }>
+}
+
+export function syncRoster(
+  churchId: number,
+  payload: SyncRosterPayload,
+): Promise<SyncRosterResult> {
+  return request(`/api/churches/${churchId}/roster/sync`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export interface RosterImportEntry {
+  church: string
+  division: string
+  teamName: string
+  quizzerName: string
+}
+
+export function importRoster(
+  meetId: number,
+  entries: RosterImportEntry[],
+): Promise<{ churchesCreated: number; teamsCreated: number; quizzersAdded: number }> {
+  return request(`/api/meets/${meetId}/roster/import`, {
+    method: 'POST',
+    body: JSON.stringify(entries),
+  })
+}
+
+export interface RosterExportEntry {
+  churchId: number
+  churchName: string
+  churchShortName: string
+  teamId: number
+  teamNumber: number
+  division: string
+  quizzerName: string
+}
+
+export function exportRoster(meetId: number): Promise<{ entries: RosterExportEntry[] }> {
+  return request(`/api/meets/${meetId}/roster/export`)
 }

@@ -158,6 +158,36 @@ Per-church coach codes, meet-scoped admin role, consolidated dashboard with role
 * `MeetAdminView` removed — all admin functionality on the dashboard
 * `MeetTeamsView` — single-church view via `churchId` prop, no church tab bar
 
+### 4.6b Batch roster sync ✓
+
+Replace sequential per-resource API calls with bulk endpoints.
+
+**Roster sync** — `POST /api/churches/:id/roster/sync`
+
+* Client sends desired state: ordered teams (with division + quizzer names) and unassigned pool
+* Server diffs against current DB state, applies all creates/updates/deletes/moves sequentially
+* Temp IDs (negative) in the payload signal new teams/quizzers; server returns the full resolved
+  state with real IDs, preserving payload order
+* `MeetTeamsView.saveDraft` calls one endpoint instead of ~10 sequential requests
+
+**Roster import** — `POST /api/meets/:id/roster/import`
+
+* Client sends parsed CSV entries `{ church, division, teamName, quizzerName }[]`
+* Server matches existing churches by name or shortName (case-insensitive), creates missing ones
+* Deduplicates teams: skips any CSV group whose `(division, quizzer-set)` exactly matches an
+  existing team for that church — re-importing an unchanged CSV is a no-op
+* Replaces the client-side `applyRosterImport` loop that made N sequential create calls
+
+**Roster export** — `GET /api/meets/:id/roster/export`
+
+* Single join query returns all churches → teams → quizzers as flat rows
+* Replaces `handleExportRoster` loop that made 1 + N_churches + N_teams sequential requests
+
+**Team count on churches list** — `GET /api/meets/:id/churches`
+
+* Returns `teamCount` per church via left-join + group-by
+* Eliminates the N per-church `GET /api/churches/:id/teams` calls on `QuizMeetView` load
+
 ### 4.7 Admin: schedule and draw
 
 Once teams are registered, an admin generates the round-robin draw and publishes the schedule.
