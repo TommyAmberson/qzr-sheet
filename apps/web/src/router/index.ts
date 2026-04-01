@@ -7,7 +7,7 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: HomeView },
     {
-      path: '/meets/:slug',
+      path: '/:slug',
       meta: { requiresAuth: true },
       children: [
         {

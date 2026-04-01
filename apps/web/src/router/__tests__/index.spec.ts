@@ -31,31 +31,31 @@ describe('router guard', () => {
 
   it('redirects to home when navigating to a protected route without a session', async () => {
     mockGetSession.mockResolvedValue({ data: null })
-    await router.push('/meets/1')
+    await router.push('/fall-2025')
     expect(router.currentRoute.value.name).toBe('home')
   })
 
   it('redirects to home when session exists but user is null', async () => {
     mockGetSession.mockResolvedValue({ data: { user: null } })
-    await router.push('/meets/1')
+    await router.push('/fall-2025')
     expect(router.currentRoute.value.name).toBe('home')
   })
 
   it('allows navigation to a protected route with a valid session', async () => {
     mockGetSession.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@b.com' } } })
-    await router.push('/meets/fall-2025')
+    await router.push('/fall-2025')
     expect(router.currentRoute.value.name).toBe('meet')
   })
 
   it('allows nested protected routes with a valid session', async () => {
     mockGetSession.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@b.com' } } })
-    await router.push('/meets/fall-2025/churches/3/teams')
+    await router.push('/fall-2025/churches/3/teams')
     expect(router.currentRoute.value.name).toBe('meet-church-teams')
   })
 
   it('redirects nested protected routes to home without a session', async () => {
     mockGetSession.mockResolvedValue({ data: null })
-    await router.push('/meets/fall-2025/churches/3/teams')
+    await router.push('/fall-2025/churches/3/teams')
     expect(router.currentRoute.value.name).toBe('home')
   })
 })
@@ -63,7 +63,7 @@ describe('router guard', () => {
 describe('route props', () => {
   it('meet route extracts slug from params', async () => {
     mockGetSession.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    await router.push('/meets/fall-2025')
+    await router.push('/fall-2025')
 
     const route = router.currentRoute.value
     const matched = route.matched.find((r) => r.name === 'meet')!
@@ -73,7 +73,7 @@ describe('route props', () => {
 
   it('meet-church-teams route extracts slug and numeric churchId', async () => {
     mockGetSession.mockResolvedValue({ data: { user: { id: 'u1' } } })
-    await router.push('/meets/fall-2025/churches/7/teams')
+    await router.push('/fall-2025/churches/7/teams')
 
     const route = router.currentRoute.value
     const matched = route.matched.find((r) => r.name === 'meet-church-teams')!
