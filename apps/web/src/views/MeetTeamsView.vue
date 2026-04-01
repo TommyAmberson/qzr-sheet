@@ -1346,9 +1346,7 @@ function onTeamDrop(toTeamId: number) {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  flex: none;
-  height: 9.25rem; /* ~5 quizzer chips */
-  overflow-y: auto;
+  min-height: 9.25rem; /* ~5 quizzer chips */
 }
 
 .quizzer-chip {
