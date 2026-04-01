@@ -407,6 +407,22 @@ async function copyCode() {
   if (code) await navigator.clipboard.writeText(code)
 }
 
+async function copyViewerCode() {
+  const code = detail.value?.meet.viewerCode
+  if (code) await navigator.clipboard.writeText(code)
+}
+
+async function shareMeet() {
+  const m = detail.value?.meet
+  if (!m) return
+  const url = window.location.href
+  if (navigator.share) {
+    await navigator.share({ title: m.name, url }).catch(() => {})
+  } else {
+    await navigator.clipboard.writeText(url)
+  }
+}
+
 // ---- Roster import / export ----
 
 const importingRoster = ref(false)
@@ -562,9 +578,44 @@ onMounted(load)
               <span class="division-tags-label">Divisions:</span>
               <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{ d }}</span>
             </div>
-            <span class="viewer-code"
-              >Viewer code: <code>{{ detail.meet.viewerCode }}</code></span
-            >
+            <div class="viewer-code-row">
+              <span class="viewer-code"
+                >Viewer code: <code>{{ detail.meet.viewerCode }}</code></span
+              >
+              <button class="inline-icon-btn" title="Copy viewer code" @click="copyViewerCode">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              </button>
+              <button class="inline-icon-btn" title="Share meet link" @click="shareMeet">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+              </button>
+            </div>
           </div>
           <button v-if="isAdmin" class="icon-btn" title="Edit meet" @click="startEdit">
             <svg
@@ -976,6 +1027,12 @@ onMounted(load)
   flex-wrap: wrap;
 }
 
+.viewer-code-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .viewer-code {
   font-size: 0.75rem;
   color: var(--color-text-faint);
@@ -984,6 +1041,30 @@ onMounted(load)
 .viewer-code code {
   font-size: 0.8rem;
   color: var(--color-text-muted);
+}
+
+.inline-icon-btn {
+  background: none;
+  border: none;
+  padding: 0.15rem;
+  cursor: pointer;
+  color: var(--color-text-faint);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition:
+    opacity 0.1s,
+    color 0.1s;
+}
+
+.viewer-code-row:hover .inline-icon-btn {
+  opacity: 1;
+}
+
+.inline-icon-btn:hover {
+  color: var(--color-accent);
+  background: var(--color-bg-raised);
 }
 
 .icon-btn {
