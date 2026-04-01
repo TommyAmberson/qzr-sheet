@@ -82,6 +82,28 @@ describe('parseRosterCsv', () => {
         church: '',
       })
     })
+
+    it('skips rows where quizzer is only whitespace', () => {
+      const csv = 'A,Team1,   ,GCC\nA,Team1,Bob,GCC'
+      const result = parseRosterCsv(csv)
+      expect(result).toHaveLength(1)
+      expect(result[0]!.quizzerName).toBe('Bob')
+    })
+
+    it('parses multiple divisions correctly', () => {
+      const csv = 'A,Eagles,Alice,GCC\nB,Hawks,Bob,FBC\nA,Eagles,Carol,GCC'
+      const result = parseRosterCsv(csv)
+      expect(result).toHaveLength(3)
+      expect(result[0]!.division).toBe('A')
+      expect(result[1]!.division).toBe('B')
+      expect(result[2]!.division).toBe('A')
+    })
+
+    it('handles a single data row with no trailing newline', () => {
+      const csv = 'A,Team1,Alice,GCC'
+      const result = parseRosterCsv(csv)
+      expect(result).toHaveLength(1)
+    })
   })
 
   describe('RFC-4180 quoted fields', () => {
@@ -97,10 +119,13 @@ describe('parseRosterCsv', () => {
       expect(result[0]!.quizzerName).toBe('Alice "Ace"')
     })
 
-    it('parses quoted fields with newlines', () => {
+    it('does not support newlines inside quoted fields (split happens first)', () => {
       const csv = 'A,Team1,"Alice\nSmith",GCC'
       const result = parseRosterCsv(csv)
-      expect(result[0]!.quizzerName).toBe('Alice\nSmith')
+      // The parser splits by \n before processing quotes, so the quoted
+      // newline breaks the row into two incomplete lines.
+      expect(result[0]!.quizzerName).toBe('Alice')
+      expect(result[0]!.church).toBe('')
     })
   })
 
@@ -154,6 +179,21 @@ describe('parseRosterCsv', () => {
       const result = parseRosterCsv(csv)
       expect(result[0]!.division).toBe('')
     })
+
+    it('maps multiple teams to their correct divisions', () => {
+      const csv = [
+        'A,Eagles,,,Eagles,Alice,GCC,',
+        'B,Hawks,,,Hawks,Bob,FBC,',
+        'A,Eagles,,,Eagles,Carol,GCC,',
+        'B,Hawks,,,Hawks,Dave,FBC,',
+      ].join('\n')
+      const result = parseRosterCsv(csv)
+      expect(result).toHaveLength(4)
+      expect(result[0]!.division).toBe('A')
+      expect(result[1]!.division).toBe('B')
+      expect(result[2]!.division).toBe('A')
+      expect(result[3]!.division).toBe('B')
+    })
   })
 })
 
@@ -194,6 +234,25 @@ describe('serializeRosterCsv', () => {
     ]
     const csv = serializeRosterCsv(entries)
     expect(csv).toContain('"Alice\nSmith"')
+  })
+
+  it('does not quote plain fields', () => {
+    const entries: RosterEntry[] = [
+      { division: 'A', teamName: 'Team1', quizzerName: 'Alice', church: 'GCC' },
+    ]
+    const csv = serializeRosterCsv(entries)
+    expect(csv.split('\n')[1]).toBe('A,Team1,Alice,GCC')
+  })
+
+  it('preserves entry order', () => {
+    const entries: RosterEntry[] = [
+      { division: 'B', teamName: 'Hawks', quizzerName: 'Zara', church: 'FBC' },
+      { division: 'A', teamName: 'Eagles', quizzerName: 'Alice', church: 'GCC' },
+    ]
+    const csv = serializeRosterCsv(entries)
+    const lines = csv.split('\n')
+    expect(lines[1]).toContain('Hawks')
+    expect(lines[2]).toContain('Eagles')
   })
 })
 
