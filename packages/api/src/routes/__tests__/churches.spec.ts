@@ -661,3 +661,589 @@ describe('DELETE /api/teams/:teamId/quizzers/:quizzerId', () => {
     expect(res.status).toBe(404)
   })
 })
+
+// ---- Roster sync ----
+
+/** Seed a quizzer with a roster entry on a team. */
+async function seedQuizzer(db: Db, teamId: number, name: string) {
+  const [identity] = await db.insert(schema.quizzerIdentities).values({}).returning()
+  await db.insert(schema.teamRosters).values({ teamId, quizzerId: identity!.id, name })
+  return identity!.id
+}
+
+type SyncBody = {
+  teams: Array<{ id: number; division: string; quizzers: Array<{ id: number; name: string }> }>
+  unassigned: Array<{ id: number; name: string }>
+}
+
+function syncBody(body: SyncBody) {
+  return {
+    method: 'POST' as const,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }
+}
+
+describe('POST /api/churches/:churchId/roster/sync', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('requires auth', async () => {
+    const app = createApp(null, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({ teams: [], unassigned: [] }),
+      env,
+    )
+    expect(res.status).toBe(401)
+  })
+
+  it('coach can sync their own church', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
+
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({ teams: [], unassigned: [] }),
+      env,
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('rejects non-coach normal user with 403', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({ teams: [], unassigned: [] }),
+      env,
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it('creates new teams with real IDs (negative tempId)', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({
+        teams: [
+          { id: -1, division: 'Open', quizzers: [] },
+          { id: -2, division: 'Teen', quizzers: [] },
+        ],
+        unassigned: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json<{
+      teams: Array<{ id: number; division: string; number: number }>
+    }>()
+    expect(body.teams).toHaveLength(2)
+    expect(body.teams[0]!.id).toBeGreaterThan(0)
+    expect(body.teams[0]!.division).toBe('Open')
+    expect(body.teams[0]!.number).toBe(1)
+    expect(body.teams[1]!.id).toBeGreaterThan(0)
+    expect(body.teams[1]!.division).toBe('Teen')
+    expect(body.teams[1]!.number).toBe(2)
+  })
+
+  it('deletes teams not in the payload', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const teamA = await seedTeam(db, meet.id, church.id, 'Open')
+    const teamB = await seedTeam(db, meet.id, church.id, 'Teen')
+
+    // Send only teamA
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({
+        teams: [{ id: teamA.id, division: 'Open', quizzers: [] }],
+        unassigned: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+
+    const remaining = await db
+      .select()
+      .from(schema.teams)
+      .where(eq(schema.teams.churchId, church.id))
+    expect(remaining.map((t) => t.id)).toEqual([teamA.id])
+    void teamB
+  })
+
+  it('updates division and number on existing teams', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const teamA = await seedTeam(db, meet.id, church.id, 'Open')
+    const teamB = await seedTeam(db, meet.id, church.id, 'Teen')
+
+    // Swap order and change teamA's division
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({
+        teams: [
+          { id: teamB.id, division: 'Teen', quizzers: [] },
+          { id: teamA.id, division: 'Junior', quizzers: [] },
+        ],
+        unassigned: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json<{
+      teams: Array<{ id: number; division: string; number: number }>
+    }>()
+    expect(body.teams[0]!.id).toBe(teamB.id)
+    expect(body.teams[0]!.number).toBe(1)
+    expect(body.teams[1]!.id).toBe(teamA.id)
+    expect(body.teams[1]!.division).toBe('Junior')
+    expect(body.teams[1]!.number).toBe(2)
+  })
+
+  it('creates new quizzers with real IDs (negative tempId)', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({
+        teams: [
+          {
+            id: team.id,
+            division: 'Open',
+            quizzers: [
+              { id: -1, name: 'Alice' },
+              { id: -2, name: 'Bob' },
+            ],
+          },
+        ],
+        unassigned: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json<{
+      teams: Array<{ id: number; quizzers: Array<{ quizzerId: number; name: string }> }>
+    }>()
+    const quizzers = body.teams[0]!.quizzers
+    expect(quizzers).toHaveLength(2)
+    expect(quizzers[0]!.quizzerId).toBeGreaterThan(0)
+    expect(quizzers[0]!.name).toBe('Alice')
+    expect(quizzers[1]!.quizzerId).toBeGreaterThan(0)
+    expect(quizzers[1]!.name).toBe('Bob')
+  })
+
+  it('deletes quizzers not in the payload', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+    const aliceId = await seedQuizzer(db, team.id, 'Alice')
+    await seedQuizzer(db, team.id, 'Bob')
+
+    // Send only Alice
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({
+        teams: [{ id: team.id, division: 'Open', quizzers: [{ id: aliceId, name: 'Alice' }] }],
+        unassigned: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+
+    const rosters = await db
+      .select()
+      .from(schema.teamRosters)
+      .where(eq(schema.teamRosters.teamId, team.id))
+    expect(rosters).toHaveLength(1)
+    expect(rosters[0]!.quizzerId).toBe(aliceId)
+  })
+
+  it('renames an existing quizzer', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+    const aliceId = await seedQuizzer(db, team.id, 'Alice')
+
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({
+        teams: [{ id: team.id, division: 'Open', quizzers: [{ id: aliceId, name: 'Alicia' }] }],
+        unassigned: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json<{
+      teams: Array<{ quizzers: Array<{ name: string }> }>
+    }>()
+    expect(body.teams[0]!.quizzers[0]!.name).toBe('Alicia')
+  })
+
+  it('moves a quizzer between teams', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const teamA = await seedTeam(db, meet.id, church.id, 'Open')
+    const teamB = await seedTeam(db, meet.id, church.id, 'Teen')
+    const aliceId = await seedQuizzer(db, teamA.id, 'Alice')
+
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({
+        teams: [
+          { id: teamA.id, division: 'Open', quizzers: [] },
+          { id: teamB.id, division: 'Teen', quizzers: [{ id: aliceId, name: 'Alice' }] },
+        ],
+        unassigned: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+
+    const rosterA = await db
+      .select()
+      .from(schema.teamRosters)
+      .where(eq(schema.teamRosters.teamId, teamA.id))
+    expect(rosterA).toHaveLength(0)
+
+    const rosterB = await db
+      .select()
+      .from(schema.teamRosters)
+      .where(eq(schema.teamRosters.teamId, teamB.id))
+    expect(rosterB).toHaveLength(1)
+    expect(rosterB[0]!.quizzerId).toBe(aliceId)
+  })
+
+  it('moves quizzer to unassigned (removes from team_rosters, keeps identity)', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+    const aliceId = await seedQuizzer(db, team.id, 'Alice')
+
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({
+        teams: [{ id: team.id, division: 'Open', quizzers: [] }],
+        unassigned: [{ id: aliceId, name: 'Alice' }],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+
+    const roster = await db
+      .select()
+      .from(schema.teamRosters)
+      .where(eq(schema.teamRosters.teamId, team.id))
+    expect(roster).toHaveLength(0)
+
+    // quizzer_identity still exists
+    const identity = await db
+      .select()
+      .from(schema.quizzerIdentities)
+      .where(eq(schema.quizzerIdentities.id, aliceId))
+    expect(identity).toHaveLength(1)
+
+    const body = await res.json<{ unassigned: Array<{ quizzerId: number; name: string }> }>()
+    expect(body.unassigned).toHaveLength(1)
+    expect(body.unassigned[0]!.quizzerId).toBe(aliceId)
+  })
+
+  it('drops new unassigned quizzers with negative tempId silently', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({
+        teams: [],
+        unassigned: [{ id: -1, name: 'Ghost' }],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json<{ unassigned: unknown[] }>()
+    expect(body.unassigned).toHaveLength(0)
+  })
+
+  it('preserves quizzer order from payload in response', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+    const aliceId = await seedQuizzer(db, team.id, 'Alice')
+    const bobId = await seedQuizzer(db, team.id, 'Bob')
+
+    // Send Bob before Alice
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({
+        teams: [
+          {
+            id: team.id,
+            division: 'Open',
+            quizzers: [
+              { id: bobId, name: 'Bob' },
+              { id: aliceId, name: 'Alice' },
+            ],
+          },
+        ],
+        unassigned: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json<{
+      teams: Array<{ quizzers: Array<{ quizzerId: number }> }>
+    }>()
+    expect(body.teams[0]!.quizzers[0]!.quizzerId).toBe(bobId)
+    expect(body.teams[0]!.quizzers[1]!.quizzerId).toBe(aliceId)
+  })
+
+  it('cascade-deletes quizzers when their team is deleted', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+    const aliceId = await seedQuizzer(db, team.id, 'Alice')
+
+    // Send empty teams (deletes the team)
+    const res = await app.request(
+      `/api/churches/${church.id}/roster/sync`,
+      syncBody({ teams: [], unassigned: [] }),
+      env,
+    )
+    expect(res.status).toBe(200)
+
+    // Both roster entry and identity should be gone
+    const rosters = await db.select().from(schema.teamRosters)
+    expect(rosters).toHaveLength(0)
+    const identities = await db
+      .select()
+      .from(schema.quizzerIdentities)
+      .where(eq(schema.quizzerIdentities.id, aliceId))
+    expect(identities).toHaveLength(0)
+  })
+
+  it('returns 404 for unknown church', async () => {
+    const app = createApp(testSuperuser, db)
+
+    const res = await app.request(
+      '/api/churches/9999/roster/sync',
+      syncBody({ teams: [], unassigned: [] }),
+      env,
+    )
+    expect(res.status).toBe(404)
+  })
+})
+
+// ---- Roster import ----
+
+type ImportEntry = { church: string; division: string; teamName: string; quizzerName: string }
+
+function importBody(entries: ImportEntry[]) {
+  return {
+    method: 'POST' as const,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(entries),
+  }
+}
+
+describe('POST /api/meets/:meetId/roster/import', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('requires admin or superuser', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([{ church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' }]),
+      env,
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it('creates churches, teams, and quizzers from scratch', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' },
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Bob' },
+        { church: 'First Baptist', division: 'Teen', teamName: 'Hawks', quizzerName: 'Carol' },
+      ]),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json<{
+      churchesCreated: number
+      teamsCreated: number
+      quizzersAdded: number
+    }>()
+    expect(body.churchesCreated).toBe(2)
+    expect(body.teamsCreated).toBe(2)
+    expect(body.quizzersAdded).toBe(3)
+
+    const churches = await db
+      .select()
+      .from(schema.churches)
+      .where(eq(schema.churches.meetId, meet.id))
+    expect(churches).toHaveLength(2)
+
+    const teams = await db.select().from(schema.teams).where(eq(schema.teams.meetId, meet.id))
+    expect(teams).toHaveLength(2)
+
+    const rosters = await db.select().from(schema.teamRosters)
+    expect(rosters).toHaveLength(3)
+  })
+
+  it('reuses existing church matched by name (case-insensitive)', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    await seedChurch(db, meet.id, 'Grace Church')
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([
+        { church: 'grace church', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' },
+      ]),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json<{ churchesCreated: number }>()
+    expect(body.churchesCreated).toBe(0)
+
+    const churches = await db
+      .select()
+      .from(schema.churches)
+      .where(eq(schema.churches.meetId, meet.id))
+    expect(churches).toHaveLength(1)
+  })
+
+  it('reuses existing church matched by shortName', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const hash = await hashCode(generateCode())
+    await db
+      .insert(schema.churches)
+      .values({
+        meetId: meet.id,
+        name: 'Grace Community Church',
+        shortName: 'GCC',
+        coachCodeHash: hash,
+      })
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([{ church: 'GCC', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' }]),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json<{ churchesCreated: number }>()
+    expect(body.churchesCreated).toBe(0)
+  })
+
+  it('deduplicates quizzer names within a team group', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' },
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' },
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Bob' },
+      ]),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json<{ quizzersAdded: number }>()
+    expect(body.quizzersAdded).toBe(2)
+  })
+
+  it('groups same church+division+teamName into one team', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' },
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Bob' },
+      ]),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json<{ teamsCreated: number; quizzersAdded: number }>()
+    expect(body.teamsCreated).toBe(1)
+    expect(body.quizzersAdded).toBe(2)
+  })
+
+  it('admin with membership can import', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([{ church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' }]),
+      env,
+    )
+    expect(res.status).toBe(201)
+  })
+
+  it('rejects empty array with 400', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+
+    const res = await app.request(`/api/meets/${meet.id}/roster/import`, importBody([]), env)
+    expect(res.status).toBe(400)
+  })
+
+  it('auto-increments team numbers per church', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id, 'Grace')
+    await seedTeam(db, meet.id, church.id, 'Open') // existing team number 1
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([{ church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' }]),
+      env,
+    )
+    expect(res.status).toBe(201)
+
+    const teams = await db.select().from(schema.teams).where(eq(schema.teams.churchId, church.id))
+    expect(teams).toHaveLength(2)
+    expect(teams.map((t) => t.number).sort()).toEqual([1, 2])
+  })
+})

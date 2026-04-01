@@ -49,14 +49,9 @@ import {
   getMyMeets,
   listChurches,
   listTeams,
-  createTeam,
-  updateTeam,
-  deleteTeam,
   listQuizzers,
-  addQuizzer,
-  updateQuizzer,
-  removeQuizzer,
   updateChurch,
+  syncRoster,
   type QuizMeet,
   type Church,
   type Team,
@@ -434,107 +429,37 @@ async function saveDraft() {
   saving.value = true
   saveError.value = ''
   try {
-    const snap = committed.value
-
-    // Deleted teams (existed before, gone now) — cascade removes their quizzers
-    const removedTeams = snap.teams.filter((st) => !teams.value.find((t) => t.id === st.id))
-    for (const st of removedTeams) {
-      await deleteTeam(st.id)
+    const payload = {
+      teams: teams.value.map((team) => ({
+        id: team.id,
+        division: team.division,
+        quizzers: orderedQuizzersForTeam(team.id).map((q) => ({ id: q.quizzerId, name: q.name })),
+      })),
+      unassigned: orderedUnassigned().map((q) => ({ id: q.quizzerId, name: q.name })),
     }
 
-    // New teams (temp ids < 0)
-    const newTeams = teams.value.filter((t) => t.id < 0)
-    for (const t of newTeams) {
-      const res = await createTeam(t.churchId, { division: t.division })
-      const idx = teams.value.findIndex((x) => x.id === t.id)
-      if (idx !== -1) teams.value[idx] = res.team
-      // Patch quizzerOrder and assignments to use the real team id
-      const oldKey = String(t.id)
-      const newKey = String(res.team.id)
-      quizzerOrder.value[newKey] = quizzerOrder.value[oldKey] ?? []
-      delete quizzerOrder.value[oldKey]
-      for (const [qId, tId] of Object.entries(assignments.value)) {
-        if (tId === t.id) assignments.value[Number(qId)] = res.team.id
+    const result = await syncRoster(props.churchId, payload)
+
+    // Rebuild local state from server response
+    teams.value = result.teams.map(({ quizzers: _, ...t }) => t)
+
+    allQuizzers.value = []
+    assignments.value = {}
+    quizzerOrder.value = { pool: [] }
+    for (const t of result.teams) quizzerOrder.value[String(t.id)] = []
+
+    for (const t of result.teams) {
+      for (const q of t.quizzers) {
+        allQuizzers.value.push({ quizzerId: q.quizzerId, name: q.name })
+        assignments.value[q.quizzerId] = t.id
+        quizzerOrder.value[String(t.id)]!.push(q.quizzerId)
       }
     }
-
-    // Division or order changes on existing teams
-    for (let i = 0; i < teams.value.length; i++) {
-      const t = teams.value[i]!
-      if (t.id < 0) continue
-      const orig = snap.teams.find((st) => st.id === t.id)
-      const wantNumber = i + 1
-      const patch: { division?: string; number?: number } = {}
-      if (orig && orig.division !== t.division) patch.division = t.division
-      if (t.number !== wantNumber) patch.number = wantNumber
-      if (patch.division || patch.number) {
-        const res = await updateTeam(t.id, patch)
-        teams.value[i] = res.team
-      }
+    for (const q of result.unassigned) {
+      allQuizzers.value.push({ quizzerId: q.quizzerId, name: q.name })
+      assignments.value[q.quizzerId] = null
+      quizzerOrder.value['pool']!.push(q.quizzerId)
     }
-
-    // Removed quizzers (existed before, gone now — skip if their team was also deleted)
-    const removedTeamIds = new Set(removedTeams.map((st) => st.id))
-    const removedQuizzers = snap.quizzers.filter(
-      (sq) => !allQuizzers.value.find((q) => q.quizzerId === sq.quizzerId),
-    )
-    for (const sq of removedQuizzers) {
-      const prevTeamId = snap.assignments[sq.quizzerId] ?? null
-      if (prevTeamId !== null && !removedTeamIds.has(prevTeamId)) {
-        await removeQuizzer(prevTeamId, sq.quizzerId)
-      }
-    }
-
-    // Existing quizzers — detect renames and assignment changes
-    for (const q of allQuizzers.value) {
-      if (q.quizzerId < 0) continue // new, handled below
-      const origAssignment = snap.assignments[q.quizzerId] ?? null
-      const newAssignment = assignments.value[q.quizzerId] ?? null
-      const orig = snap.quizzers.find((sq) => sq.quizzerId === q.quizzerId)
-      const nameChanged = orig && orig.name !== q.name
-
-      if (origAssignment !== newAssignment) {
-        // Move between team/pool — remove from old team, add to new
-        if (origAssignment !== null && !removedTeamIds.has(origAssignment)) {
-          await removeQuizzer(origAssignment, q.quizzerId)
-        }
-        if (newAssignment !== null) {
-          const res = await addQuizzer(newAssignment, q.name)
-          const idx = allQuizzers.value.findIndex((x) => x.quizzerId === q.quizzerId)
-          if (idx !== -1) allQuizzers.value[idx] = res.quizzer
-          const toKey = String(newAssignment)
-          quizzerOrder.value[toKey] = (quizzerOrder.value[toKey] ?? []).map((id) =>
-            id === q.quizzerId ? res.quizzer.quizzerId : id,
-          )
-          assignments.value[res.quizzer.quizzerId] = newAssignment
-          delete assignments.value[q.quizzerId]
-        }
-      } else if (nameChanged && newAssignment !== null) {
-        await updateQuizzer(newAssignment, q.quizzerId, q.name)
-      }
-    }
-
-    // New quizzers (temp ids < 0)
-    const newOnes = allQuizzers.value.filter((q) => q.quizzerId < 0)
-    for (const q of newOnes) {
-      const teamId = assignments.value[q.quizzerId] ?? null
-      if (teamId !== null) {
-        const res = await addQuizzer(teamId, q.name)
-        const idx = allQuizzers.value.findIndex((x) => x.quizzerId === q.quizzerId)
-        if (idx !== -1) allQuizzers.value[idx] = res.quizzer
-        const toKey = String(teamId)
-        quizzerOrder.value[toKey] = (quizzerOrder.value[toKey] ?? []).map((id) =>
-          id === q.quizzerId ? res.quizzer.quizzerId : id,
-        )
-        assignments.value[res.quizzer.quizzerId] = teamId
-        delete assignments.value[q.quizzerId]
-      }
-      // new unassigned quizzers: no API backing yet; just drop them silently
-      // (the pool has no team to persist to)
-    }
-    // Drop any lingering temp-id unassigned entries
-    allQuizzers.value = allQuizzers.value.filter((q) => q.quizzerId > 0)
-    quizzerOrder.value['pool'] = (quizzerOrder.value['pool'] ?? []).filter((id) => id > 0)
 
     takeSnapshot()
   } catch (e) {
