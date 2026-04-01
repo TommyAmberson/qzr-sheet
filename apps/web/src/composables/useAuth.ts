@@ -9,22 +9,25 @@ export const authClient = createAuthClient({
 export function useAuth() {
   const session = authClient.useSession()
 
-  const webOrigin = window.location.origin
-
   function signInGithub() {
-    authClient.signIn.social({ provider: 'github', callbackURL: webOrigin })
+    authClient.signIn.social({ provider: 'github', callbackURL: window.location.href })
   }
 
   function signInGoogle() {
-    authClient.signIn.social({ provider: 'google', callbackURL: webOrigin })
+    authClient.signIn.social({ provider: 'google', callbackURL: window.location.href })
   }
 
   async function signInEmail(email: string, password: string) {
-    return authClient.signIn.email({ email, password, callbackURL: webOrigin })
+    return authClient.signIn.email({ email, password, callbackURL: window.location.href })
   }
 
   async function signUpEmail(email: string, password: string) {
-    return authClient.signUp.email({ email, password, name: email, callbackURL: webOrigin })
+    return authClient.signUp.email({
+      email,
+      password,
+      name: email,
+      callbackURL: window.location.href,
+    })
   }
 
   function signOut() {
