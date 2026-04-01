@@ -122,6 +122,44 @@ churches.post('/meets/:meetId/churches', async (c) => {
 })
 
 /**
+ * PATCH /api/churches/:churchId
+ *
+ * Updates a church's name and/or shortName. Requires admin or superuser.
+ */
+churches.patch('/churches/:churchId', async (c) => {
+  const churchId = Number(c.req.param('churchId'))
+  if (Number.isNaN(churchId)) return c.json({ error: 'Invalid church ID' }, 400)
+
+  const user = getUser(c)
+  const db = getDb(c)
+
+  const [church] = await db.select().from(schema.churches).where(eq(schema.churches.id, churchId))
+  if (!church) return c.json({ error: 'Church not found' }, 404)
+
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, church.meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+
+  const body = await c.req.json<{ name?: string; shortName?: string }>()
+  const updates: Partial<{ name: string; shortName: string }> = {}
+
+  if (body.name?.trim()) updates.name = body.name.trim()
+  if (body.shortName?.trim()) updates.shortName = body.shortName.trim()
+
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: 'No fields to update' }, 400)
+  }
+
+  const [updated] = await db
+    .update(schema.churches)
+    .set(updates)
+    .where(eq(schema.churches.id, churchId))
+    .returning()
+
+  return c.json({ church: updated })
+})
+
+/**
  * DELETE /api/churches/:churchId
  *
  * Deletes a church, its teams, rosters, and coach memberships (via CASCADE).

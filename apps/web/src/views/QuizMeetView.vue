@@ -10,6 +10,7 @@ import {
   rotateAdminCode,
   createChurch,
   deleteChurch,
+  updateChurch,
   rotateChurchCoachCode,
   createOfficialCode,
   deleteOfficialCode,
@@ -62,6 +63,11 @@ const showAddChurch = ref(false)
 const newChurchForm = ref({ name: '', shortName: '' })
 const addingChurch = ref(false)
 const addChurchError = ref('')
+
+// Edit church
+const editingChurchId = ref<number | null>(null)
+const editChurchForm = ref({ name: '', shortName: '' })
+const savingChurch = ref(false)
 
 // Add room
 const showAddRoom = ref(false)
@@ -205,6 +211,35 @@ async function handleDeleteChurch(churchId: number) {
     delete teamCounts.value[churchId]
   } catch (e) {
     alert((e as Error).message)
+  }
+}
+
+function startEditChurch(c: Church) {
+  editingChurchId.value = c.id
+  editChurchForm.value = { name: c.name, shortName: c.shortName === c.name ? '' : c.shortName }
+}
+
+function cancelEditChurch() {
+  editingChurchId.value = null
+}
+
+async function saveEditChurch(churchId: number) {
+  const name = editChurchForm.value.name.trim()
+  if (!name) return
+  savingChurch.value = true
+  try {
+    const data: { name: string; shortName?: string } = { name }
+    const short = editChurchForm.value.shortName.trim()
+    if (short) data.shortName = short
+    else data.shortName = name
+    const res = await updateChurch(churchId, data)
+    const idx = churches.value.findIndex((c) => c.id === churchId)
+    if (idx !== -1) churches.value[idx] = res.church
+    editingChurchId.value = null
+  } catch (e) {
+    alert((e as Error).message)
+  } finally {
+    savingChurch.value = false
   }
 }
 
@@ -617,36 +652,67 @@ onMounted(load)
         <p v-if="churches.length === 0 && !isAdmin" class="state-msg">No churches yet.</p>
         <ul v-if="churches.length" class="item-list">
           <li v-for="c in churches" :key="c.id" class="item-row">
-            <span class="item-label">{{ c.shortName }}</span>
-            <span class="item-sublabel">{{ c.name }}</span>
-            <span class="item-meta">{{ churchSummary(c.id) }}</span>
-            <button
-              v-if="canManageTeams"
-              class="row-btn"
-              @click="
-                router.push({
-                  name: 'meet-church-teams',
-                  params: { id, churchId: c.id },
-                })
-              "
-            >
-              Roster
-            </button>
-            <button
-              v-if="isAdmin"
-              class="code-btn"
-              title="Manage coach code"
-              @click.stop="openChurchCodeDialog(c)"
-            >
-              🔑
-            </button>
-            <button
-              v-if="isAdmin"
-              class="row-btn row-btn--danger"
-              @click.stop="handleDeleteChurch(c.id)"
-            >
-              Delete
-            </button>
+            <template v-if="editingChurchId === c.id">
+              <form class="church-edit-row" @submit.prevent="saveEditChurch(c.id)">
+                <input
+                  v-model="editChurchForm.name"
+                  class="field-input"
+                  placeholder="Full name"
+                  required
+                />
+                <input
+                  v-model="editChurchForm.shortName"
+                  class="field-input field-input--short"
+                  placeholder="Short (optional)"
+                />
+                <button type="submit" class="btn btn--primary btn--sm" :disabled="savingChurch">
+                  {{ savingChurch ? '…' : 'Save' }}
+                </button>
+                <button type="button" class="btn btn--ghost btn--sm" @click="cancelEditChurch">
+                  Cancel
+                </button>
+              </form>
+            </template>
+            <template v-else>
+              <span class="item-label">{{ c.shortName }}</span>
+              <span v-if="c.shortName !== c.name" class="item-sublabel">{{ c.name }}</span>
+              <span class="item-meta">{{ churchSummary(c.id) }}</span>
+              <button
+                v-if="isAdmin"
+                class="row-btn"
+                title="Edit church name"
+                @click.stop="startEditChurch(c)"
+              >
+                Edit
+              </button>
+              <button
+                v-if="canManageTeams"
+                class="row-btn"
+                @click="
+                  router.push({
+                    name: 'meet-church-teams',
+                    params: { id, churchId: c.id },
+                  })
+                "
+              >
+                Roster
+              </button>
+              <button
+                v-if="isAdmin"
+                class="code-btn"
+                title="Manage coach code"
+                @click.stop="openChurchCodeDialog(c)"
+              >
+                🔑
+              </button>
+              <button
+                v-if="isAdmin"
+                class="row-btn row-btn--danger"
+                @click.stop="handleDeleteChurch(c.id)"
+              >
+                Delete
+              </button>
+            </template>
           </li>
         </ul>
         <template v-if="isAdmin">
@@ -1134,6 +1200,14 @@ onMounted(load)
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-top: 0.5rem;
+}
+
+.church-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .add-form-actions {

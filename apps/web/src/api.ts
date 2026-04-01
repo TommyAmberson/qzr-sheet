@@ -236,6 +236,16 @@ export function deleteChurch(churchId: number): Promise<{ deleted: true }> {
   return request(`/api/churches/${churchId}`, { method: 'DELETE' })
 }
 
+export function updateChurch(
+  churchId: number,
+  data: { name?: string; shortName?: string },
+): Promise<{ church: Church }> {
+  return request(`/api/churches/${churchId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
 export function listTeams(churchId: number): Promise<{ teams: Team[] }> {
   return request(`/api/churches/${churchId}/teams`)
 }

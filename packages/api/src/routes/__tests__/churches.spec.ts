@@ -283,6 +283,82 @@ describe('DELETE /api/churches/:churchId', () => {
   })
 })
 
+describe('PATCH /api/churches/:churchId', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('admin can update name', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}`, patch({ name: 'New Name' }), env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{ church: { name: string; shortName: string } }>()
+    expect(body.church.name).toBe('New Name')
+    expect(body.church.shortName).toBe('GC')
+  })
+
+  it('admin can update shortName', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}`, patch({ shortName: 'NEW' }), env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{ church: { shortName: string } }>()
+    expect(body.church.shortName).toBe('NEW')
+  })
+
+  it('admin can update both', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(
+      `/api/churches/${church.id}`,
+      patch({ name: 'Updated Church', shortName: 'UC' }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json<{ church: { name: string; shortName: string } }>()
+    expect(body.church.name).toBe('Updated Church')
+    expect(body.church.shortName).toBe('UC')
+  })
+
+  it('rejects empty body with 400', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}`, patch({}), env)
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects coach with 403', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}`, patch({ name: 'Nope' }), env)
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 404 for unknown church', async () => {
+    const app = createApp(testSuperuser, db)
+
+    const res = await app.request('/api/churches/9999', patch({ name: 'Ghost' }), env)
+    expect(res.status).toBe(404)
+  })
+})
+
 // ---- Teams ----
 
 describe('GET /api/churches/:churchId/teams', () => {
