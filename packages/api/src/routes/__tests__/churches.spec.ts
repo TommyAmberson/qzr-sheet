@@ -1153,14 +1153,12 @@ describe('POST /api/meets/:meetId/roster/import', () => {
     const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
     const hash = await hashCode(generateCode())
-    await db
-      .insert(schema.churches)
-      .values({
-        meetId: meet.id,
-        name: 'Grace Community Church',
-        shortName: 'GCC',
-        coachCodeHash: hash,
-      })
+    await db.insert(schema.churches).values({
+      meetId: meet.id,
+      name: 'Grace Community Church',
+      shortName: 'GCC',
+      coachCodeHash: hash,
+    })
 
     const res = await app.request(
       `/api/meets/${meet.id}/roster/import`,
@@ -1227,6 +1225,76 @@ describe('POST /api/meets/:meetId/roster/import', () => {
 
     const res = await app.request(`/api/meets/${meet.id}/roster/import`, importBody([]), env)
     expect(res.status).toBe(400)
+  })
+
+  it('skips a team whose (division, quizzer-set) exactly matches an existing team', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id, 'Grace')
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+    await seedQuizzer(db, team.id, 'Alice')
+    await seedQuizzer(db, team.id, 'Bob')
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' },
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Bob' },
+      ]),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json<{ teamsCreated: number; quizzersAdded: number }>()
+    expect(body.teamsCreated).toBe(0)
+    expect(body.quizzersAdded).toBe(0)
+
+    const teams = await db.select().from(schema.teams).where(eq(schema.teams.churchId, church.id))
+    expect(teams).toHaveLength(1)
+  })
+
+  it('does not skip a team whose quizzer set differs (subset)', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id, 'Grace')
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+    await seedQuizzer(db, team.id, 'Alice')
+    await seedQuizzer(db, team.id, 'Bob')
+
+    // Import has same two plus Carol — not identical, so creates a new team
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' },
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Bob' },
+        { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Carol' },
+      ]),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json<{ teamsCreated: number }>()
+    expect(body.teamsCreated).toBe(1)
+  })
+
+  it('does not skip when division differs', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id, 'Grace')
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+    await seedQuizzer(db, team.id, 'Alice')
+    await seedQuizzer(db, team.id, 'Bob')
+
+    // Same quizzers, different division
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([
+        { church: 'Grace', division: 'Teen', teamName: 'Eagles', quizzerName: 'Alice' },
+        { church: 'Grace', division: 'Teen', teamName: 'Eagles', quizzerName: 'Bob' },
+      ]),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json<{ teamsCreated: number }>()
+    expect(body.teamsCreated).toBe(1)
   })
 
   it('auto-increments team numbers per church', async () => {

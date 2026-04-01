@@ -764,22 +764,60 @@ churches.post('/meets/:meetId/roster/import', async (c) => {
     }
   }
 
-  // Determine next team number per church
+  // Load existing teams + rosters for all involved churches, for deduplication
+  // existingTeamRosters: churchId → Array<{ teamId, division, quizzerNames: Set<string> }>
   const allChurchIds = [...new Set([...teamGroupMap.values()].map((g) => g.key.churchId))]
   const nextNumberByChurch = new Map<number, number>()
+  const existingTeamRosters = new Map<
+    number,
+    Array<{ teamId: number; division: string; quizzerNames: Set<string> }>
+  >()
   for (const cid of allChurchIds) {
-    const existing = await db
-      .select({ number: schema.teams.number })
-      .from(schema.teams)
-      .where(eq(schema.teams.churchId, cid))
-    const max = existing.length === 0 ? 0 : Math.max(...existing.map((r) => r.number))
+    const existingTeams = await db.select().from(schema.teams).where(eq(schema.teams.churchId, cid))
+    const max = existingTeams.length === 0 ? 0 : Math.max(...existingTeams.map((r) => r.number))
     nextNumberByChurch.set(cid, max + 1)
+
+    const teamRosterRows =
+      existingTeams.length > 0
+        ? await db
+            .select()
+            .from(schema.teamRosters)
+            .where(
+              inArray(
+                schema.teamRosters.teamId,
+                existingTeams.map((t) => t.id),
+              ),
+            )
+        : []
+    const rosterByTeam = new Map<number, string[]>()
+    for (const row of teamRosterRows) {
+      if (!rosterByTeam.has(row.teamId)) rosterByTeam.set(row.teamId, [])
+      rosterByTeam.get(row.teamId)!.push(row.name)
+    }
+    existingTeamRosters.set(
+      cid,
+      existingTeams.map((t) => ({
+        teamId: t.id,
+        division: t.division,
+        quizzerNames: new Set(rosterByTeam.get(t.id) ?? []),
+      })),
+    )
   }
 
   let teamsCreated = 0
   let quizzersAdded = 0
 
   for (const { key, quizzerNames } of teamGroupMap.values()) {
+    // Skip if an existing team in this church+division already has exactly this quizzer set
+    const existing = existingTeamRosters.get(key.churchId) ?? []
+    const isDuplicate = existing.some(
+      (t) =>
+        t.division === key.division &&
+        t.quizzerNames.size === quizzerNames.length &&
+        quizzerNames.every((n) => t.quizzerNames.has(n)),
+    )
+    if (isDuplicate) continue
+
     const number = nextNumberByChurch.get(key.churchId)!
     nextNumberByChurch.set(key.churchId, number + 1)
 
