@@ -432,10 +432,12 @@ async function handleRosterFile(event: Event) {
 }
 
 async function applyRosterImport(entries: RosterEntry[]) {
-  // Build a lookup of existing churches by shortName (case-insensitive)
+  // Build lookups of existing churches by shortName and name (case-insensitive)
   const existingByShort = new Map<string, Church>()
+  const existingByName = new Map<string, Church>()
   for (const c of churches.value) {
     existingByShort.set(c.shortName.toLowerCase(), c)
+    existingByName.set(c.name.toLowerCase(), c)
   }
 
   // Group entries by church → team → quizzers
@@ -461,7 +463,8 @@ async function applyRosterImport(entries: RosterEntry[]) {
 
   // Create churches, teams, quizzers
   for (const [churchName, teamList] of churchMap) {
-    let church = existingByShort.get(churchName.toLowerCase())
+    let church =
+      existingByShort.get(churchName.toLowerCase()) ?? existingByName.get(churchName.toLowerCase())
     if (!church) {
       const res = await createChurch(props.id, { name: churchName })
       church = res.church
