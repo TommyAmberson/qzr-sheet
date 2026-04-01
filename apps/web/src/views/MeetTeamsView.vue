@@ -108,6 +108,7 @@ const dragOverContainer = ref<number | null | undefined>(undefined)
 // Team reorder drag
 const draggingTeamId = ref<number | null>(null)
 const dragOverTeamId = ref<number | null>(null)
+const dragOverTeamSide = ref<'before' | 'after' | null>(null)
 
 // Ordered quizzer lists — keys are teamId or 'pool'
 const quizzerOrder = ref<Record<string, number[]>>({})
@@ -117,8 +118,9 @@ interface Snapshot {
   teams: Team[]
   quizzers: Quizzer[]
   assignments: Record<number, number | null>
+  quizzerOrder: Record<string, number[]>
 }
-const committed = ref<Snapshot>({ teams: [], quizzers: [], assignments: {} })
+const committed = ref<Snapshot>({ teams: [], quizzers: [], assignments: {}, quizzerOrder: {} })
 const saving = ref(false)
 const saveError = ref('')
 
@@ -178,6 +180,9 @@ function takeSnapshot() {
     teams: teams.value.map((t) => ({ ...t })),
     quizzers: allQuizzers.value.filter((q) => q.quizzerId > 0).map((q) => ({ ...q })),
     assignments: { ...assignments.value },
+    quizzerOrder: Object.fromEntries(
+      Object.entries(quizzerOrder.value).map(([k, v]) => [k, [...v]]),
+    ),
   }
 }
 
@@ -209,6 +214,15 @@ const isDirty = computed(() => {
     if (assignments.value[q.quizzerId] !== snap.assignments[q.quizzerId]) return true
     const orig = snap.quizzers.find((sq) => sq.quizzerId === q.quizzerId)
     if (orig && orig.name !== q.name) return true
+  }
+  // Quizzer order within teams
+  for (const [key, order] of Object.entries(quizzerOrder.value)) {
+    const snapOrder = snap.quizzerOrder[key]
+    if (!snapOrder) continue
+    if (order.length !== snapOrder.length) continue
+    for (let i = 0; i < order.length; i++) {
+      if (order[i] !== snapOrder[i]) return true
+    }
   }
   return false
 })
@@ -542,16 +556,9 @@ function discardDraft() {
   teams.value = snap.teams.map((t) => ({ ...t }))
   allQuizzers.value = snap.quizzers.map((q) => ({ ...q }))
   assignments.value = { ...snap.assignments }
-  // Rebuild quizzerOrder from snapshot
-  const newOrder: Record<string, number[]> = { pool: [] }
-  for (const t of snap.teams) newOrder[String(t.id)] = []
-  for (const q of allQuizzers.value) {
-    const teamId = assignments.value[q.quizzerId] ?? null
-    const key = teamId === null ? 'pool' : String(teamId)
-    newOrder[key] ??= []
-    newOrder[key]!.push(q.quizzerId)
-  }
-  quizzerOrder.value = newOrder
+  quizzerOrder.value = Object.fromEntries(
+    Object.entries(snap.quizzerOrder).map(([k, v]) => [k, [...v]]),
+  )
   saveError.value = ''
 }
 
@@ -639,27 +646,35 @@ function onTeamDragStart(teamId: number) {
 function onTeamDragEnd() {
   draggingTeamId.value = null
   dragOverTeamId.value = null
+  dragOverTeamSide.value = null
 }
 
-function onTeamDragOver(teamId: number) {
+function onTeamDragOver(teamId: number, event: DragEvent) {
   if (draggingTeamId.value === null || draggingTeamId.value === teamId) return
   dragOverTeamId.value = teamId
+  const el = event.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  dragOverTeamSide.value = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
 }
 
 function onTeamDragLeave() {
   dragOverTeamId.value = null
+  dragOverTeamSide.value = null
 }
 
 function onTeamDrop(toTeamId: number) {
   const fromId = draggingTeamId.value
+  const side = dragOverTeamSide.value
   draggingTeamId.value = null
   dragOverTeamId.value = null
+  dragOverTeamSide.value = null
   if (fromId === null || fromId === toTeamId) return
   const fromIdx = teams.value.findIndex((t) => t.id === fromId)
-  const toIdx = teams.value.findIndex((t) => t.id === toTeamId)
-  if (fromIdx === -1 || toIdx === -1) return
+  if (fromIdx === -1) return
   const moved = teams.value.splice(fromIdx, 1)[0]!
-  teams.value.splice(toIdx, 0, moved)
+  const targetIdx = teams.value.findIndex((t) => t.id === toTeamId)
+  if (targetIdx === -1) return
+  teams.value.splice(side === 'after' ? targetIdx + 1 : targetIdx, 0, moved)
 }
 </script>
 
@@ -875,10 +890,18 @@ function onTeamDrop(toTeamId: number) {
                 'team-card--dragover': dragOverContainer === team.id && draggingTeamId === null,
                 'team-card--warn': !!teamWarnings[teamIdx],
                 'team-card--team-insert-before':
-                  draggingTeamId !== null && dragOverTeamId === team.id,
+                  draggingTeamId !== null &&
+                  dragOverTeamId === team.id &&
+                  dragOverTeamSide === 'before',
+                'team-card--team-insert-after':
+                  draggingTeamId !== null &&
+                  dragOverTeamId === team.id &&
+                  dragOverTeamSide === 'after',
               }"
               @dragover.prevent="
-                draggingTeamId !== null ? onTeamDragOver(team.id) : onDragOverContainer(team.id)
+                draggingTeamId !== null
+                  ? onTeamDragOver(team.id, $event)
+                  : onDragOverContainer(team.id)
               "
               @dragleave="draggingTeamId !== null ? onTeamDragLeave() : onDragLeaveContainer()"
               @drop.prevent="draggingTeamId !== null ? onTeamDrop(team.id) : onDrop(team.id)"
@@ -1222,6 +1245,18 @@ function onTeamDrop(toTeamId: number) {
   top: 0;
   bottom: 0;
   left: calc(-0.4375rem - 1.5px); /* half the grid gap + half the line */
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 1.5px;
+  pointer-events: none;
+}
+
+.team-card--team-insert-after::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(-0.4375rem - 1.5px);
   width: 3px;
   background: var(--color-accent);
   border-radius: 1.5px;
