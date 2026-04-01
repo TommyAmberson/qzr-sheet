@@ -98,9 +98,12 @@ churches.post('/meets/:meetId/churches', async (c) => {
   }
 
   const body = await c.req.json<{ name?: string; shortName?: string }>()
-  if (!body.name?.trim() || !body.shortName?.trim()) {
-    return c.json({ error: 'name and shortName are required' }, 400)
+  if (!body.name?.trim()) {
+    return c.json({ error: 'name is required' }, 400)
   }
+
+  const name = body.name.trim()
+  const shortName = body.shortName?.trim() || name
 
   const coachCode = generateCode()
   const coachCodeHash = await hashCode(coachCode)
@@ -109,13 +112,51 @@ churches.post('/meets/:meetId/churches', async (c) => {
     .insert(schema.churches)
     .values({
       meetId,
-      name: body.name.trim(),
-      shortName: body.shortName.trim(),
+      name,
+      shortName,
       coachCodeHash,
     })
     .returning()
 
   return c.json({ church, coachCode }, 201)
+})
+
+/**
+ * PATCH /api/churches/:churchId
+ *
+ * Updates a church's name and/or shortName. Requires admin or superuser.
+ */
+churches.patch('/churches/:churchId', async (c) => {
+  const churchId = Number(c.req.param('churchId'))
+  if (Number.isNaN(churchId)) return c.json({ error: 'Invalid church ID' }, 400)
+
+  const user = getUser(c)
+  const db = getDb(c)
+
+  const [church] = await db.select().from(schema.churches).where(eq(schema.churches.id, churchId))
+  if (!church) return c.json({ error: 'Church not found' }, 404)
+
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, church.meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+
+  const body = await c.req.json<{ name?: string; shortName?: string }>()
+  const updates: Partial<{ name: string; shortName: string }> = {}
+
+  if (body.name?.trim()) updates.name = body.name.trim()
+  if (body.shortName?.trim()) updates.shortName = body.shortName.trim()
+
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: 'No fields to update' }, 400)
+  }
+
+  const [updated] = await db
+    .update(schema.churches)
+    .set(updates)
+    .where(eq(schema.churches.id, churchId))
+    .returning()
+
+  return c.json({ church: updated })
 })
 
 /**
@@ -257,12 +298,18 @@ churches.patch('/teams/:teamId', async (c) => {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
-  const body = await c.req.json<{ division?: string }>()
-  if (!body.division?.trim()) return c.json({ error: 'division is required' }, 400)
+  const body = await c.req.json<{ division?: string; number?: number }>()
+  if (!body.division?.trim() && (body.number == null || typeof body.number !== 'number')) {
+    return c.json({ error: 'division or number is required' }, 400)
+  }
+
+  const patch: { division?: string; number?: number } = {}
+  if (body.division?.trim()) patch.division = body.division.trim()
+  if (typeof body.number === 'number') patch.number = body.number
 
   const [updated] = await db
     .update(schema.teams)
-    .set({ division: body.division.trim() })
+    .set(patch)
     .where(eq(schema.teams.id, teamId))
     .returning()
 

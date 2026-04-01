@@ -53,6 +53,7 @@ export interface MeetDetail {
 export interface MeetMembership {
   meetId: number
   meetName: string
+  viewerCode: string
   role: 'admin' | 'head_coach' | 'official' | 'viewer' | 'superuser'
   label?: string
   churchId?: number
@@ -64,8 +65,8 @@ export function listMeets(): Promise<{ meets: QuizMeet[] }> {
   return request('/api/meets')
 }
 
-export function getMeet(id: number): Promise<MeetDetail> {
-  return request(`/api/meets/${id}`)
+export function getMeet(idOrSlug: number | string): Promise<MeetDetail> {
+  return request(`/api/meets/${encodeURIComponent(idOrSlug)}`)
 }
 
 export function createMeet(data: {
@@ -214,7 +215,7 @@ export function listChurches(meetId: number): Promise<{ churches: Church[] }> {
 
 export function createChurch(
   meetId: number,
-  data: { name: string; shortName: string },
+  data: { name: string; shortName?: string },
 ): Promise<{ church: Church; coachCode: string }> {
   return request(`/api/meets/${meetId}/churches`, {
     method: 'POST',
@@ -236,6 +237,16 @@ export function deleteChurch(churchId: number): Promise<{ deleted: true }> {
   return request(`/api/churches/${churchId}`, { method: 'DELETE' })
 }
 
+export function updateChurch(
+  churchId: number,
+  data: { name?: string; shortName?: string },
+): Promise<{ church: Church }> {
+  return request(`/api/churches/${churchId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
 export function listTeams(churchId: number): Promise<{ teams: Team[] }> {
   return request(`/api/churches/${churchId}/teams`)
 }
@@ -247,7 +258,10 @@ export function createTeam(churchId: number, data: { division: string }): Promis
   })
 }
 
-export function updateTeam(teamId: number, data: { division: string }): Promise<{ team: Team }> {
+export function updateTeam(
+  teamId: number,
+  data: { division?: string; number?: number },
+): Promise<{ team: Team }> {
   return request(`/api/teams/${teamId}`, {
     method: 'PATCH',
     body: JSON.stringify(data),

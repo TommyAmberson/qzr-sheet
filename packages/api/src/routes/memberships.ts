@@ -32,6 +32,7 @@ function getDb(c: { get(key: 'db'): Db }): Db {
 interface MeetMembership {
   meetId: number
   meetName: string
+  viewerCode: string
   role: MeetRole
   label?: string
   churchId?: number
@@ -53,6 +54,7 @@ memberships.get('/', async (c) => {
       memberships: rows.map((m) => ({
         meetId: m.id,
         meetName: m.name,
+        viewerCode: m.viewerCode,
         role: MeetRole.Superuser,
       })),
     })
@@ -62,13 +64,22 @@ memberships.get('/', async (c) => {
 
   // Admin memberships
   const adminRows = await db
-    .select({ meetId: schema.adminMemberships.meetId, meetName: schema.quizMeets.name })
+    .select({
+      meetId: schema.adminMemberships.meetId,
+      meetName: schema.quizMeets.name,
+      viewerCode: schema.quizMeets.viewerCode,
+    })
     .from(schema.adminMemberships)
     .innerJoin(schema.quizMeets, eq(schema.adminMemberships.meetId, schema.quizMeets.id))
     .where(eq(schema.adminMemberships.accountId, user.id))
 
   for (const row of adminRows) {
-    result.push({ meetId: row.meetId, meetName: row.meetName, role: MeetRole.Admin })
+    result.push({
+      meetId: row.meetId,
+      meetName: row.meetName,
+      viewerCode: row.viewerCode,
+      role: MeetRole.Admin,
+    })
   }
 
   // Coach memberships (meetId is denormalised on the row)
@@ -76,6 +87,7 @@ memberships.get('/', async (c) => {
     .select({
       meetId: schema.coachMemberships.meetId,
       meetName: schema.quizMeets.name,
+      viewerCode: schema.quizMeets.viewerCode,
       churchId: schema.coachMemberships.churchId,
       churchName: schema.churches.name,
     })
@@ -88,6 +100,7 @@ memberships.get('/', async (c) => {
     result.push({
       meetId: row.meetId,
       meetName: row.meetName,
+      viewerCode: row.viewerCode,
       role: MeetRole.HeadCoach,
       label: row.churchName,
       churchId: row.churchId,
@@ -99,6 +112,7 @@ memberships.get('/', async (c) => {
     .select({
       meetId: schema.officialMemberships.meetId,
       meetName: schema.quizMeets.name,
+      viewerCode: schema.quizMeets.viewerCode,
       label: schema.officialCodes.label,
     })
     .from(schema.officialMemberships)
@@ -113,6 +127,7 @@ memberships.get('/', async (c) => {
     result.push({
       meetId: row.meetId,
       meetName: row.meetName,
+      viewerCode: row.viewerCode,
       role: MeetRole.Official,
       label: row.label,
     })
@@ -123,13 +138,19 @@ memberships.get('/', async (c) => {
     .select({
       meetId: schema.viewerMemberships.meetId,
       meetName: schema.quizMeets.name,
+      viewerCode: schema.quizMeets.viewerCode,
     })
     .from(schema.viewerMemberships)
     .innerJoin(schema.quizMeets, eq(schema.viewerMemberships.meetId, schema.quizMeets.id))
     .where(eq(schema.viewerMemberships.accountId, user.id))
 
   for (const row of viewerRows) {
-    result.push({ meetId: row.meetId, meetName: row.meetName, role: MeetRole.Viewer })
+    result.push({
+      meetId: row.meetId,
+      meetName: row.meetName,
+      viewerCode: row.viewerCode,
+      role: MeetRole.Viewer,
+    })
   }
 
   return c.json({ memberships: result })

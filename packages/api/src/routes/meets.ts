@@ -88,11 +88,19 @@ meets.get('/', requireSuperuser(), async (c) => {
 })
 
 meets.get('/:id', async (c) => {
-  const id = Number(c.req.param('id'))
-  if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
+  const param = c.req.param('id')
+  const numericId = Number(param)
 
   const user = getUser(c)
   const db = getDb(c)
+
+  const [meet] = Number.isNaN(numericId)
+    ? await db.select().from(schema.quizMeets).where(eq(schema.quizMeets.viewerCode, param))
+    : await db.select().from(schema.quizMeets).where(eq(schema.quizMeets.id, numericId))
+
+  if (!meet) return c.json({ error: 'Meet not found' }, 404)
+
+  const id = meet.id
 
   // Superusers have access to all meets; others must have a membership
   if (user.role !== AccountRole.Superuser) {
@@ -136,9 +144,6 @@ meets.get('/:id', async (c) => {
     ])
     if (!admin && !coach && !official && !viewer) return c.json({ error: 'Forbidden' }, 403)
   }
-
-  const [meet] = await db.select().from(schema.quizMeets).where(eq(schema.quizMeets.id, id))
-  if (!meet) return c.json({ error: 'Meet not found' }, 404)
 
   const codes = await db
     .select({ id: schema.officialCodes.id, label: schema.officialCodes.label })

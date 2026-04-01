@@ -10,10 +10,14 @@ import {
   rotateAdminCode,
   createChurch,
   deleteChurch,
+  updateChurch,
   rotateChurchCoachCode,
   createOfficialCode,
   deleteOfficialCode,
   rotateOfficialCode,
+  createTeam,
+  addQuizzer,
+  listQuizzers,
   type MeetDetail,
   type MeetMembership,
   type Church,
@@ -22,11 +26,14 @@ import {
   listMembers,
   revokeMember,
 } from '../api'
+import { parseRosterCsv, serializeRosterCsv, type RosterEntry } from '../rosterCsv'
+import { coachChurchIds as deriveCoachChurchIds } from '../meetAccess'
 
-const props = defineProps<{ id: number }>()
+const props = defineProps<{ slug: string }>()
 const router = useRouter()
 
 const detail = ref<MeetDetail | null>(null)
+const meetId = computed(() => detail.value?.meet.id ?? null)
 const membership = ref<MeetMembership | null>(null)
 const churches = ref<Church[]>([])
 const teamCounts = ref<Record<number, number>>({})
@@ -36,9 +43,13 @@ const error = ref('')
 const role = computed(() => membership.value?.role ?? null)
 const isSuperuser = computed(() => role.value === 'superuser')
 const isAdmin = computed(() => role.value === 'admin' || role.value === 'superuser')
-const canManageTeams = computed(
-  () => role.value === 'head_coach' || role.value === 'admin' || role.value === 'superuser',
-)
+
+const myCoachChurchIds = ref<Set<number>>(new Set())
+
+function canEditChurchName(churchId: number): boolean {
+  if (isAdmin.value) return true
+  return myCoachChurchIds.value.has(churchId)
+}
 
 // Inline editing
 const editing = ref(false)
@@ -58,6 +69,11 @@ const showAddChurch = ref(false)
 const newChurchForm = ref({ name: '', shortName: '' })
 const addingChurch = ref(false)
 const addChurchError = ref('')
+
+// Edit church
+const editingChurchId = ref<number | null>(null)
+const editChurchForm = ref({ name: '', shortName: '' })
+const savingChurch = ref(false)
 
 // Add room
 const showAddRoom = ref(false)
@@ -82,18 +98,17 @@ const dialogRef = ref<HTMLDialogElement | null>(null)
 
 async function load() {
   try {
-    const [detailRes, myMeetsRes, churchRes] = await Promise.all([
-      getMeet(props.id),
-      getMyMeets(),
-      listChurches(props.id),
-    ])
+    const [detailRes, myMeetsRes] = await Promise.all([getMeet(props.slug), getMyMeets()])
     detail.value = detailRes
-    churches.value = churchRes.churches
-    membership.value = myMeetsRes.memberships.find((m) => m.meetId === props.id) ?? null
+    const id = detailRes.meet.id
+    membership.value = myMeetsRes.memberships.find((m) => m.meetId === id) ?? null
     if (!membership.value) {
       router.replace({ name: 'home' })
       return
     }
+    myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, id)
+    const churchRes = await listChurches(id)
+    churches.value = churchRes.churches
     loadTeamCounts()
   } catch (e) {
     error.value = (e as Error).message
@@ -153,6 +168,9 @@ async function saveEdit() {
     const res = await updateMeet(detail.value.meet.id, { ...editForm.value })
     detail.value = { ...detail.value, meet: res.meet }
     editing.value = false
+    if (res.meet.viewerCode !== props.slug) {
+      router.replace({ name: 'meet', params: { slug: res.meet.viewerCode } })
+    }
   } catch (e) {
     saveError.value = (e as Error).message
   } finally {
@@ -166,7 +184,7 @@ async function handleAddChurch() {
   addChurchError.value = ''
   addingChurch.value = true
   try {
-    const res = await createChurch(props.id, newChurchForm.value)
+    const res = await createChurch(meetId.value!, newChurchForm.value)
     churches.value.push(res.church)
     teamCounts.value[res.church.id] = 0
     newChurchForm.value = { name: '', shortName: '' }
@@ -204,13 +222,42 @@ async function handleDeleteChurch(churchId: number) {
   }
 }
 
+function startEditChurch(c: Church) {
+  editingChurchId.value = c.id
+  editChurchForm.value = { name: c.name, shortName: c.shortName === c.name ? '' : c.shortName }
+}
+
+function cancelEditChurch() {
+  editingChurchId.value = null
+}
+
+async function saveEditChurch(churchId: number) {
+  const name = editChurchForm.value.name.trim()
+  if (!name) return
+  savingChurch.value = true
+  try {
+    const data: { name: string; shortName?: string } = { name }
+    const short = editChurchForm.value.shortName.trim()
+    if (short) data.shortName = short
+    else data.shortName = name
+    const res = await updateChurch(churchId, data)
+    const idx = churches.value.findIndex((c) => c.id === churchId)
+    if (idx !== -1) churches.value[idx] = res.church
+    editingChurchId.value = null
+  } catch (e) {
+    alert((e as Error).message)
+  } finally {
+    savingChurch.value = false
+  }
+}
+
 // ---- Add room ----
 
 async function handleAddRoom() {
   addRoomError.value = ''
   addingRoom.value = true
   try {
-    const res = await createOfficialCode(props.id, newRoomLabel.value.trim())
+    const res = await createOfficialCode(meetId.value!, newRoomLabel.value.trim())
     detail.value!.officialCodes.push(res.officialCode)
     newRoomLabel.value = ''
     showAddRoom.value = false
@@ -235,7 +282,7 @@ async function handleAddRoom() {
 async function handleDeleteRoom(codeId: number) {
   if (!confirm('Delete this room and its code?')) return
   try {
-    await deleteOfficialCode(props.id, codeId)
+    await deleteOfficialCode(meetId.value!, codeId)
     detail.value!.officialCodes = detail.value!.officialCodes.filter((c) => c.id !== codeId)
   } catch (e) {
     alert((e as Error).message)
@@ -259,7 +306,7 @@ async function loadDialogMembers() {
   const d = accessDialog.value
   if (!d) return
   d.membersLoading = true
-  const res = await listMembers(props.id).catch(() => null)
+  const res = await listMembers(meetId.value!).catch(() => null)
   if (res) {
     d.members = res.members.filter((m) => {
       if (d.kind === 'admin') return m.role === 'admin'
@@ -321,13 +368,13 @@ async function handleGenerateCode(clearMembers: boolean) {
   d.revealedCode = null
   try {
     if (d.kind === 'admin') {
-      const res = await rotateAdminCode(props.id, clearMembers)
+      const res = await rotateAdminCode(meetId.value!, clearMembers)
       d.revealedCode = res.adminCode
     } else if (d.kind === 'church' && d.id) {
       const res = await rotateChurchCoachCode(d.id, clearMembers)
       d.revealedCode = res.coachCode
     } else if (d.kind === 'official' && d.id) {
-      const res = await rotateOfficialCode(props.id, d.id)
+      const res = await rotateOfficialCode(meetId.value!, d.id)
       d.revealedCode = res.code
     }
     if (clearMembers) d.members = []
@@ -344,7 +391,7 @@ async function handleRevokeMember(member: MeetMember) {
   if (!d) return
   if (!confirm(`Remove ${member.name} (${member.email})?`)) return
   try {
-    await revokeMember(props.id, member.userId, {
+    await revokeMember(meetId.value!, member.userId, {
       role: member.role,
       churchId: member.churchId,
       officialCodeId: member.officialCodeId,
@@ -358,6 +405,147 @@ async function handleRevokeMember(member: MeetMember) {
 async function copyCode() {
   const code = accessDialog.value?.revealedCode
   if (code) await navigator.clipboard.writeText(code)
+}
+
+async function copyViewerCode() {
+  const code = detail.value?.meet.viewerCode
+  if (code) await navigator.clipboard.writeText(code)
+}
+
+async function shareMeet() {
+  const m = detail.value?.meet
+  if (!m) return
+  const url = window.location.href
+  if (navigator.share) {
+    await navigator.share({ title: m.name, url }).catch(() => {})
+  } else {
+    await navigator.clipboard.writeText(url)
+  }
+}
+
+// ---- Roster import / export ----
+
+const importingRoster = ref(false)
+const importRosterError = ref('')
+const rosterFileInput = ref<HTMLInputElement | null>(null)
+
+function triggerRosterImport() {
+  rosterFileInput.value?.click()
+}
+
+async function handleRosterFile(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  importingRoster.value = true
+  importRosterError.value = ''
+  try {
+    const text = await file.text()
+    const entries = parseRosterCsv(text)
+    if (entries.length === 0) {
+      importRosterError.value = 'No roster entries found in file.'
+      return
+    }
+    await applyRosterImport(entries)
+    await load()
+  } catch (e) {
+    importRosterError.value = (e as Error).message
+  } finally {
+    importingRoster.value = false
+    if (rosterFileInput.value) rosterFileInput.value.value = ''
+  }
+}
+
+async function applyRosterImport(entries: RosterEntry[]) {
+  // Build lookups of existing churches by shortName and name (case-insensitive)
+  const existingByShort = new Map<string, Church>()
+  const existingByName = new Map<string, Church>()
+  for (const c of churches.value) {
+    existingByShort.set(c.shortName.toLowerCase(), c)
+    existingByName.set(c.name.toLowerCase(), c)
+  }
+
+  // Group entries by church → team → quizzers
+  const churchMap = new Map<string, { division: string; quizzers: string[] }[]>()
+  const churchDivisionTeams = new Map<string, Map<string, string[]>>()
+
+  for (const e of entries) {
+    if (!churchDivisionTeams.has(e.church)) churchDivisionTeams.set(e.church, new Map())
+    const teamMap = churchDivisionTeams.get(e.church)!
+    const teamKey = `${e.division}\0${e.teamName}`
+    if (!teamMap.has(teamKey)) teamMap.set(teamKey, [])
+    teamMap.get(teamKey)!.push(e.quizzerName)
+  }
+
+  for (const [churchName, teamMap] of churchDivisionTeams) {
+    const teamList: { division: string; quizzers: string[] }[] = []
+    for (const [teamKey, quizzers] of teamMap) {
+      const division = teamKey.split('\0')[0]!
+      teamList.push({ division, quizzers })
+    }
+    churchMap.set(churchName, teamList)
+  }
+
+  // Create churches, teams, quizzers
+  for (const [churchName, teamList] of churchMap) {
+    let church =
+      existingByShort.get(churchName.toLowerCase()) ?? existingByName.get(churchName.toLowerCase())
+    if (!church) {
+      const res = await createChurch(meetId.value!, { name: churchName })
+      church = res.church
+    }
+
+    for (const importTeam of teamList) {
+      // Check if an identical team already exists (same division, same quizzer names)
+      const existingTeams = (await listTeams(church.id)).teams.filter(
+        (t) => t.division === importTeam.division,
+      )
+      let alreadyExists = false
+      for (const et of existingTeams) {
+        const existingQuizzers = (await listQuizzers(et.id)).quizzers.map((q) => q.name).sort()
+        const importQuizzers = [...importTeam.quizzers].sort()
+        if (
+          existingQuizzers.length === importQuizzers.length &&
+          existingQuizzers.every((n, i) => n === importQuizzers[i])
+        ) {
+          alreadyExists = true
+          break
+        }
+      }
+      if (alreadyExists) continue
+
+      const res = await createTeam(church.id, { division: importTeam.division })
+      for (const name of importTeam.quizzers) {
+        await addQuizzer(res.team.id, name)
+      }
+    }
+  }
+}
+
+async function handleExportRoster() {
+  const entries: RosterEntry[] = []
+  for (const c of churches.value) {
+    const teamRes = await listTeams(c.id)
+    const sorted = teamRes.teams.slice().sort((a, b) => a.number - b.number)
+    for (const t of sorted) {
+      const qRes = await listQuizzers(t.id)
+      for (const q of qRes.quizzers) {
+        entries.push({
+          division: t.division,
+          teamName: `${c.shortName} ${t.number}`,
+          quizzerName: q.name,
+          church: c.shortName,
+        })
+      }
+    }
+  }
+  const csv = serializeRosterCsv(entries)
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${detail.value?.meet.name ?? 'roster'}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 onMounted(load)
@@ -386,16 +574,47 @@ onMounted(load)
                 }}</span
               >
             </div>
-            <div class="meet-sub-row">
-              <div v-if="detail.meet.divisions.length" class="division-tags">
-                <span class="division-tags-label">Divisions</span>
-                <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{
-                  d
-                }}</span>
-              </div>
+            <div v-if="detail.meet.divisions.length" class="division-tags">
+              <span class="division-tags-label">Divisions:</span>
+              <span v-for="d in detail.meet.divisions" :key="d" class="division-tag">{{ d }}</span>
+            </div>
+            <div class="viewer-code-row">
               <span class="viewer-code"
                 >Viewer code: <code>{{ detail.meet.viewerCode }}</code></span
               >
+              <button class="inline-icon-btn" title="Copy viewer code" @click="copyViewerCode">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              </button>
+              <button class="inline-icon-btn" title="Share meet link" @click="shareMeet">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+              </button>
             </div>
           </div>
           <button v-if="isAdmin" class="icon-btn" title="Edit meet" @click="startEdit">
@@ -415,48 +634,66 @@ onMounted(load)
             </svg>
           </button>
         </template>
-        <form v-else class="edit-form" @submit.prevent="saveEdit">
-          <div class="edit-fields">
-            <input v-model="editForm.name" class="field-input" placeholder="Name" required />
-            <input v-model="editForm.dateFrom" class="field-input" type="date" required />
-            <input v-model="editForm.dateTo" class="field-input" type="date" />
-            <input
-              v-model="editForm.viewerCode"
-              class="field-input"
-              placeholder="Viewer code"
-              required
-            />
+        <form v-else class="edit-card" @submit.prevent="saveEdit">
+          <h3 class="edit-card-title">Edit Meet</h3>
+
+          <label class="field-label">
+            Name
+            <input v-model="editForm.name" class="field-input" required />
+          </label>
+
+          <div class="edit-date-row">
+            <label class="field-label">
+              Start date
+              <input v-model="editForm.dateFrom" class="field-input" type="date" required />
+            </label>
+            <label class="field-label">
+              End date
+              <input v-model="editForm.dateTo" class="field-input" type="date" />
+            </label>
           </div>
-          <div class="divisions-edit">
-            <div class="division-tags">
-              <span
-                v-for="(d, i) in editForm.divisions"
-                :key="d"
-                class="division-tag division-tag--removable"
-              >
-                {{ d }}
-                <button type="button" class="division-remove" @click="removeDivision(i)">
-                  &times;
+
+          <div class="field-label">
+            Divisions
+            <div class="divisions-edit">
+              <div v-if="editForm.divisions.length" class="division-tags">
+                <span
+                  v-for="(d, i) in editForm.divisions"
+                  :key="d"
+                  class="division-tag division-tag--removable"
+                >
+                  {{ d }}
+                  <button type="button" class="division-remove" @click="removeDivision(i)">
+                    &times;
+                  </button>
+                </span>
+              </div>
+              <div class="division-add">
+                <input
+                  v-model="newDivision"
+                  class="field-input"
+                  placeholder="Add division…"
+                  @keydown.enter.prevent="addDivision"
+                />
+                <button type="button" class="btn btn--secondary btn--sm" @click="addDivision">
+                  Add
                 </button>
-              </span>
-            </div>
-            <div class="division-add">
-              <input
-                v-model="newDivision"
-                class="field-input"
-                placeholder="Add division"
-                @keydown.enter.prevent="addDivision"
-              />
-              <button type="button" class="btn btn--secondary" @click="addDivision">Add</button>
+              </div>
             </div>
           </div>
+
+          <label class="field-label">
+            Viewer code
+            <input v-model="editForm.viewerCode" class="field-input" required />
+            <span class="field-hint">Changing this updates the meet URL.</span>
+          </label>
+
           <p v-if="saveError" class="field-error">{{ saveError }}</p>
-          <div class="edit-actions">
-            <button type="button" class="btn btn--secondary" @click="editing = false">
-              Cancel
-            </button>
+
+          <div class="edit-card-actions">
+            <button type="button" class="btn btn--ghost" @click="editing = false">Cancel</button>
             <button type="submit" class="btn btn--primary" :disabled="saving">
-              {{ saving ? 'Saving…' : 'Save' }}
+              {{ saving ? 'Saving…' : 'Save Changes' }}
             </button>
           </div>
         </form>
@@ -481,40 +718,112 @@ onMounted(load)
       <div class="section">
         <div class="section-header">
           <h3 class="section-title">Churches</h3>
+          <div v-if="isAdmin" class="section-actions">
+            <button
+              class="btn btn--secondary btn--sm"
+              :disabled="importingRoster"
+              @click="triggerRosterImport"
+            >
+              {{ importingRoster ? 'Importing…' : '⤒ Import Roster' }}
+            </button>
+            <button
+              v-if="churches.length"
+              class="btn btn--secondary btn--sm"
+              @click="handleExportRoster"
+            >
+              ⤓ Export Roster
+            </button>
+            <input
+              ref="rosterFileInput"
+              type="file"
+              accept=".csv,.tsv,.txt"
+              style="display: none"
+              @change="handleRosterFile"
+            />
+          </div>
         </div>
+        <p v-if="importRosterError" class="field-error">{{ importRosterError }}</p>
         <p v-if="churches.length === 0 && !isAdmin" class="state-msg">No churches yet.</p>
         <ul v-if="churches.length" class="item-list">
           <li v-for="c in churches" :key="c.id" class="item-row">
-            <span class="item-label">{{ c.shortName }}</span>
-            <span class="item-sublabel">{{ c.name }}</span>
-            <span class="item-meta">{{ churchSummary(c.id) }}</span>
-            <button
-              v-if="canManageTeams"
-              class="row-btn"
-              @click="
-                router.push({
-                  name: 'meet-church-teams',
-                  params: { id, churchId: c.id },
-                })
-              "
-            >
-              Roster
-            </button>
-            <button
-              v-if="isAdmin"
-              class="code-btn"
-              title="Manage coach code"
-              @click.stop="openChurchCodeDialog(c)"
-            >
-              🔑
-            </button>
-            <button
-              v-if="isAdmin"
-              class="row-btn row-btn--danger"
-              @click.stop="handleDeleteChurch(c.id)"
-            >
-              Delete
-            </button>
+            <template v-if="editingChurchId === c.id">
+              <form class="church-edit-row" @submit.prevent="saveEditChurch(c.id)">
+                <input
+                  v-model="editChurchForm.name"
+                  class="field-input"
+                  placeholder="Full name"
+                  required
+                />
+                <input
+                  v-model="editChurchForm.shortName"
+                  class="field-input field-input--short"
+                  placeholder="Short (optional)"
+                />
+                <button type="submit" class="btn btn--primary btn--sm" :disabled="savingChurch">
+                  {{ savingChurch ? '…' : 'Save' }}
+                </button>
+                <button type="button" class="btn btn--ghost btn--sm" @click="cancelEditChurch">
+                  Cancel
+                </button>
+              </form>
+            </template>
+            <template v-else>
+              <span class="church-name">
+                <span class="church-name-full">{{ c.name }}</span>
+                <span v-if="c.shortName !== c.name" class="church-name-short">
+                  ({{ c.shortName }})
+                </span>
+                <button
+                  v-if="canEditChurchName(c.id)"
+                  class="church-pencil"
+                  title="Edit church name"
+                  @click.stop="startEditChurch(c)"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+              </span>
+              <span class="item-meta">{{ churchSummary(c.id) }}</span>
+              <button
+                v-if="isAdmin || myCoachChurchIds.has(c.id)"
+                class="row-btn"
+                @click="
+                  router.push({
+                    name: 'meet-church-teams',
+                    params: { slug, churchId: c.id },
+                  })
+                "
+              >
+                Roster
+              </button>
+              <button
+                v-if="isAdmin"
+                class="code-btn"
+                title="Manage coach code"
+                @click.stop="openChurchCodeDialog(c)"
+              >
+                🔑
+              </button>
+              <button
+                v-if="isAdmin"
+                class="row-btn row-btn--danger"
+                @click.stop="handleDeleteChurch(c.id)"
+              >
+                Delete
+              </button>
+            </template>
           </li>
         </ul>
         <template v-if="isAdmin">
@@ -529,7 +838,6 @@ onMounted(load)
               v-model="newChurchForm.shortName"
               class="field-input field-input--short"
               placeholder="Short (e.g. GCC)"
-              required
             />
             <div class="add-form-actions">
               <button type="submit" class="btn btn--primary btn--sm" :disabled="addingChurch">
@@ -719,11 +1027,10 @@ onMounted(load)
   flex-wrap: wrap;
 }
 
-.meet-sub-row {
+.viewer-code-row {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .viewer-code {
@@ -734,6 +1041,30 @@ onMounted(load)
 .viewer-code code {
   font-size: 0.8rem;
   color: var(--color-text-muted);
+}
+
+.inline-icon-btn {
+  background: none;
+  border: none;
+  padding: 0.15rem;
+  cursor: pointer;
+  color: var(--color-text-faint);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition:
+    opacity 0.1s,
+    color 0.1s;
+}
+
+.viewer-code-row:hover .inline-icon-btn {
+  opacity: 1;
+}
+
+.inline-icon-btn:hover {
+  color: var(--color-accent);
+  background: var(--color-bg-raised);
 }
 
 .icon-btn {
@@ -753,22 +1084,57 @@ onMounted(load)
   background: var(--color-bg-raised);
 }
 
-/* Edit form */
-.edit-form {
+/* Edit card */
+.edit-card {
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 0.875rem;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.edit-card-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  margin: 0;
+}
+
+.edit-date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
 }
 
-.edit-fields {
+.field-label {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-faint);
+}
+
+.field-hint {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-text-faint);
+  opacity: 0.75;
+}
+
+.edit-card-actions {
+  display: flex;
+  justify-content: flex-end;
   gap: 0.5rem;
+  padding-top: 0.25rem;
 }
 
 .field-input {
-  background: var(--color-bg-raised);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: 5px;
   padding: 0.4rem 0.65rem;
@@ -777,6 +1143,7 @@ onMounted(load)
   font-family: inherit;
   outline: none;
   min-width: 0;
+  width: 100%;
 }
 
 .field-input--short {
@@ -791,11 +1158,6 @@ onMounted(load)
   font-size: 0.8rem;
   color: var(--palette-error);
   width: 100%;
-}
-
-.edit-actions {
-  display: flex;
-  gap: 0.5rem;
 }
 
 .btn {
@@ -887,6 +1249,12 @@ onMounted(load)
   color: var(--color-text-faint);
 }
 
+.section-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
 /* Item lists */
 .item-list {
   list-style: none;
@@ -943,6 +1311,54 @@ onMounted(load)
   flex-shrink: 0;
 }
 
+.church-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  overflow: hidden;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.church-name-full {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.church-name-short {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+  margin-left: 0.3rem;
+}
+
+.church-pencil {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.25rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.church-name:hover .church-pencil {
+  opacity: 1;
+}
+
+.church-pencil:hover {
+  color: var(--color-accent);
+  background: var(--color-bg);
+}
+
 .item-spacer {
   flex: 1;
 }
@@ -991,12 +1407,28 @@ onMounted(load)
 }
 
 /* Add forms */
+.add-form .field-input {
+  width: auto;
+}
+
+.church-edit-row .field-input {
+  width: auto;
+}
+
 .add-form {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-top: 0.5rem;
+}
+
+.church-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .add-form-actions {
@@ -1031,21 +1463,21 @@ onMounted(load)
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
 .division-tags-label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--color-text-faint);
-  margin-right: 0.15rem;
+  margin-right: 0.1rem;
 }
 
 .division-tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: 0.75rem;
-  padding: 0.2rem 0.55rem;
+  gap: 0.2rem;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.45rem;
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border-alt);
   border-radius: 99px;
@@ -1053,14 +1485,14 @@ onMounted(load)
 }
 
 .division-tag--removable {
-  padding-right: 0.35rem;
+  padding-right: 0.25rem;
 }
 
 .division-remove {
   background: none;
   border: none;
   padding: 0 0.1rem;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   line-height: 1;
   cursor: pointer;
   color: var(--color-text-faint);
@@ -1085,6 +1517,7 @@ onMounted(load)
 
 .division-add .field-input {
   max-width: 14rem;
+  width: auto;
 }
 
 /* Code dialog */

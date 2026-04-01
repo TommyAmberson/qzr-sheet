@@ -49,12 +49,13 @@ async function handleCode() {
       code.value = ''
       // Refresh list so the new meet appears
       await loadMeets()
-      router.push({ name: 'meet', params: { id: res.meet.id } })
+      const joined = memberships.value.find((m) => m.meetId === res.meet.id)
+      router.push({ name: 'meet', params: { slug: joined?.viewerCode ?? res.meet.id } })
     } else {
       const res = await joinMeetGuest(c)
       code.value = ''
       // TODO: store the guest JWT (res.token) for API calls on the meet page
-      router.push({ name: 'meet', params: { id: res.meet.id } })
+      router.push({ name: 'meet', params: { slug: res.meet.id } })
     }
   } catch (e) {
     codeError.value = (e as Error).message
@@ -84,7 +85,7 @@ async function handleCreateMeet() {
     meetForm.value = { name: '', dateFrom: '', dateTo: '', viewerCode: '', divisions: [''] }
     alert(`Admin code: ${res.adminCode}\n\nSave this — it won't be shown again.`)
     await loadMeets()
-    router.push({ name: 'meet', params: { id: res.meet.id } })
+    router.push({ name: 'meet', params: { slug: res.meet.viewerCode } })
   } catch (e) {
     createMeetError.value = (e as Error).message
   } finally {
@@ -125,7 +126,7 @@ watch(
             <li v-for="m in memberships" :key="m.meetId" class="qm-row">
               <button
                 class="qm-name"
-                @click="router.push({ name: 'meet', params: { id: m.meetId } })"
+                @click="router.push({ name: 'meet', params: { slug: m.viewerCode } })"
               >
                 {{ m.meetName }}
               </button>

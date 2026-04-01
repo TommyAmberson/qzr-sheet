@@ -2,6 +2,46 @@
 import { ref, computed, onMounted } from 'vue'
 
 const vFocus = { mounted: (el: HTMLElement) => el.focus() }
+
+/**
+ * v-fit-name="{ full, short }" — show full name if it fits, otherwise short name.
+ * CSS text-overflow: ellipsis handles the final fallback.
+ */
+interface FitNameBinding {
+  full: string
+  short: string
+}
+function applyFitName(el: HTMLElement, { full, short }: FitNameBinding) {
+  el.textContent = full
+  requestAnimationFrame(() => {
+    if (el.scrollWidth > el.clientWidth && short && short !== full) {
+      el.textContent = short
+    }
+  })
+}
+const fitNameObservers = new WeakMap<HTMLElement, ResizeObserver>()
+const fitNameValues = new WeakMap<HTMLElement, FitNameBinding>()
+const vFitName = {
+  mounted(el: HTMLElement, binding: { value: FitNameBinding }) {
+    fitNameValues.set(el, binding.value)
+    applyFitName(el, binding.value)
+    const ro = new ResizeObserver(() => {
+      const v = fitNameValues.get(el)
+      if (v) applyFitName(el, v)
+    })
+    ro.observe(el)
+    fitNameObservers.set(el, ro)
+  },
+  updated(el: HTMLElement, binding: { value: FitNameBinding }) {
+    fitNameValues.set(el, binding.value)
+    applyFitName(el, binding.value)
+  },
+  unmounted(el: HTMLElement) {
+    fitNameObservers.get(el)?.disconnect()
+    fitNameObservers.delete(el)
+    fitNameValues.delete(el)
+  },
+}
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import {
@@ -16,13 +56,18 @@ import {
   addQuizzer,
   updateQuizzer,
   removeQuizzer,
+  updateChurch,
   type QuizMeet,
   type Church,
   type Team,
   type Quizzer,
 } from '../api'
+import {
+  coachChurchIds as deriveCoachChurchIds,
+  isAdminOrSuperuser as deriveIsAdminOrSuperuser,
+} from '../meetAccess'
 
-const props = defineProps<{ id: number; churchId: number }>()
+const props = defineProps<{ slug: string; churchId: number }>()
 const router = useRouter()
 const { session } = useAuth()
 
@@ -63,6 +108,7 @@ const dragOverContainer = ref<number | null | undefined>(undefined)
 // Team reorder drag
 const draggingTeamId = ref<number | null>(null)
 const dragOverTeamId = ref<number | null>(null)
+const dragOverTeamSide = ref<'before' | 'after' | null>(null)
 
 // Ordered quizzer lists — keys are teamId or 'pool'
 const quizzerOrder = ref<Record<string, number[]>>({})
@@ -72,10 +118,48 @@ interface Snapshot {
   teams: Team[]
   quizzers: Quizzer[]
   assignments: Record<number, number | null>
+  quizzerOrder: Record<string, number[]>
 }
-const committed = ref<Snapshot>({ teams: [], quizzers: [], assignments: {} })
+const committed = ref<Snapshot>({ teams: [], quizzers: [], assignments: {}, quizzerOrder: {} })
 const saving = ref(false)
 const saveError = ref('')
+
+// Church name editing
+const editingChurchName = ref(false)
+const churchNameForm = ref({ name: '', shortName: '' })
+const savingChurchName = ref(false)
+
+function startEditChurchName() {
+  if (!church.value) return
+  churchNameForm.value = {
+    name: church.value.name,
+    shortName: church.value.shortName === church.value.name ? '' : church.value.shortName,
+  }
+  editingChurchName.value = true
+}
+
+function cancelEditChurchName() {
+  editingChurchName.value = false
+}
+
+async function saveChurchName() {
+  if (!church.value) return
+  const name = churchNameForm.value.name.trim()
+  if (!name) return
+  savingChurchName.value = true
+  try {
+    const data: { name: string; shortName?: string } = { name }
+    const short = churchNameForm.value.shortName.trim()
+    data.shortName = short || name
+    const res = await updateChurch(church.value.id, data)
+    church.value = res.church
+    editingChurchName.value = false
+  } catch (e) {
+    alert((e as Error).message)
+  } finally {
+    savingChurchName.value = false
+  }
+}
 
 function orderedQuizzersForTeam(teamId: number): Quizzer[] {
   const order = quizzerOrder.value[String(teamId)] ?? []
@@ -96,6 +180,9 @@ function takeSnapshot() {
     teams: teams.value.map((t) => ({ ...t })),
     quizzers: allQuizzers.value.filter((q) => q.quizzerId > 0).map((q) => ({ ...q })),
     assignments: { ...assignments.value },
+    quizzerOrder: Object.fromEntries(
+      Object.entries(quizzerOrder.value).map(([k, v]) => [k, [...v]]),
+    ),
   }
 }
 
@@ -104,6 +191,12 @@ const isDirty = computed(() => {
   // Added or removed teams
   if (teams.value.some((t) => t.id < 0)) return true
   if (snap.teams.some((st) => !teams.value.find((t) => t.id === st.id))) return true
+  // Team order changes
+  if (teams.value.length === snap.teams.length) {
+    for (let i = 0; i < teams.value.length; i++) {
+      if (teams.value[i]!.id !== snap.teams[i]!.id) return true
+    }
+  }
   // Division changes on existing teams
   for (const t of teams.value) {
     if (t.id < 0) continue
@@ -122,6 +215,15 @@ const isDirty = computed(() => {
     const orig = snap.quizzers.find((sq) => sq.quizzerId === q.quizzerId)
     if (orig && orig.name !== q.name) return true
   }
+  // Quizzer order within teams
+  for (const [key, order] of Object.entries(quizzerOrder.value)) {
+    const snapOrder = snap.quizzerOrder[key]
+    if (!snapOrder) continue
+    if (order.length !== snapOrder.length) continue
+    for (let i = 0; i < order.length; i++) {
+      if (order[i] !== snapOrder[i]) return true
+    }
+  }
   return false
 })
 
@@ -139,11 +241,6 @@ const unassigned = computed(() => orderedUnassigned())
 
 function quizzersForTeam(teamId: number) {
   return orderedQuizzersForTeam(teamId)
-}
-
-function teamLabel(team: Team) {
-  const idx = teams.value.indexOf(team)
-  return `${church.value?.shortName ?? '?'} ${idx + 1}`
 }
 
 // ---- Roster warnings ----
@@ -178,31 +275,30 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [meetRes, churchRes, myMeetsRes] = await Promise.all([
-      getMeet(props.id),
-      listChurches(props.id),
-      getMyMeets(),
-    ])
+    const [meetRes, myMeetsRes] = await Promise.all([getMeet(props.slug), getMyMeets()])
     meet.value = meetRes.meet
+    const id = meetRes.meet.id
 
-    const membership = myMeetsRes.memberships.find((m) => m.meetId === props.id)
+    const membership = myMeetsRes.memberships.find((m) => m.meetId === id)
     if (!membership) {
       router.replace({ name: 'home' })
       return
     }
 
     const sessionUser = session.value?.data?.user
-    const accountRole = (sessionUser as Record<string, unknown> | undefined)?.role
-    isSuperuserOrAdmin.value =
-      accountRole === 'superuser' ||
-      myMeetsRes.memberships.some((m) => m.meetId === props.id && m.role === 'admin')
+    const accountRole = (sessionUser as Record<string, unknown> | undefined)?.role as
+      | string
+      | undefined
+    isSuperuserOrAdmin.value = deriveIsAdminOrSuperuser(myMeetsRes.memberships, id, accountRole)
 
-    myCoachChurchIds.value = new Set(
-      myMeetsRes.memberships
-        .filter((m) => m.meetId === props.id && m.role === 'head_coach' && m.churchId != null)
-        .map((m) => m.churchId!),
-    )
+    myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, id)
 
+    if (!isSuperuserOrAdmin.value && !myCoachChurchIds.value.has(props.churchId)) {
+      router.replace({ name: 'meet', params: { slug: props.slug } })
+      return
+    }
+
+    const churchRes = await listChurches(id)
     const found = churchRes.churches.find((c) => c.id === props.churchId)
     if (!found) {
       error.value = 'Church not found'
@@ -362,12 +458,18 @@ async function saveDraft() {
       }
     }
 
-    // Division changes on existing teams
-    for (const t of teams.value) {
+    // Division or order changes on existing teams
+    for (let i = 0; i < teams.value.length; i++) {
+      const t = teams.value[i]!
       if (t.id < 0) continue
       const orig = snap.teams.find((st) => st.id === t.id)
-      if (orig && orig.division !== t.division) {
-        await updateTeam(t.id, { division: t.division })
+      const wantNumber = i + 1
+      const patch: { division?: string; number?: number } = {}
+      if (orig && orig.division !== t.division) patch.division = t.division
+      if (t.number !== wantNumber) patch.number = wantNumber
+      if (patch.division || patch.number) {
+        const res = await updateTeam(t.id, patch)
+        teams.value[i] = res.team
       }
     }
 
@@ -448,16 +550,9 @@ function discardDraft() {
   teams.value = snap.teams.map((t) => ({ ...t }))
   allQuizzers.value = snap.quizzers.map((q) => ({ ...q }))
   assignments.value = { ...snap.assignments }
-  // Rebuild quizzerOrder from snapshot
-  const newOrder: Record<string, number[]> = { pool: [] }
-  for (const t of snap.teams) newOrder[String(t.id)] = []
-  for (const q of allQuizzers.value) {
-    const teamId = assignments.value[q.quizzerId] ?? null
-    const key = teamId === null ? 'pool' : String(teamId)
-    newOrder[key] ??= []
-    newOrder[key]!.push(q.quizzerId)
-  }
-  quizzerOrder.value = newOrder
+  quizzerOrder.value = Object.fromEntries(
+    Object.entries(snap.quizzerOrder).map(([k, v]) => [k, [...v]]),
+  )
   saveError.value = ''
 }
 
@@ -474,6 +569,7 @@ function onDragEnd() {
 }
 
 function onDragOverContainer(containerId: number | null) {
+  if (draggingTeamId.value !== null) return
   dragOverContainer.value = containerId
 }
 
@@ -483,6 +579,7 @@ function onDragLeaveContainer() {
 }
 
 function onDragOverQuizzer(quizzerId: number, containerId: number | null) {
+  if (draggingTeamId.value !== null) return
   dragOverContainer.value = containerId
   dragOverQuizzerId.value = quizzerId
 }
@@ -543,33 +640,41 @@ function onTeamDragStart(teamId: number) {
 function onTeamDragEnd() {
   draggingTeamId.value = null
   dragOverTeamId.value = null
+  dragOverTeamSide.value = null
 }
 
-function onTeamDragOver(teamId: number) {
+function onTeamDragOver(teamId: number, event: DragEvent) {
   if (draggingTeamId.value === null || draggingTeamId.value === teamId) return
   dragOverTeamId.value = teamId
+  const el = event.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  dragOverTeamSide.value = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
 }
 
 function onTeamDragLeave() {
   dragOverTeamId.value = null
+  dragOverTeamSide.value = null
 }
 
 function onTeamDrop(toTeamId: number) {
   const fromId = draggingTeamId.value
+  const side = dragOverTeamSide.value
   draggingTeamId.value = null
   dragOverTeamId.value = null
+  dragOverTeamSide.value = null
   if (fromId === null || fromId === toTeamId) return
   const fromIdx = teams.value.findIndex((t) => t.id === fromId)
-  const toIdx = teams.value.findIndex((t) => t.id === toTeamId)
-  if (fromIdx === -1 || toIdx === -1) return
+  if (fromIdx === -1) return
   const moved = teams.value.splice(fromIdx, 1)[0]!
-  teams.value.splice(toIdx, 0, moved)
+  const targetIdx = teams.value.findIndex((t) => t.id === toTeamId)
+  if (targetIdx === -1) return
+  teams.value.splice(side === 'after' ? targetIdx + 1 : targetIdx, 0, moved)
 }
 </script>
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'meet', params: { id } })">
+    <button class="back-link" @click="router.push({ name: 'meet', params: { slug } })">
       ← {{ meet?.name || 'QuizMeet' }}
     </button>
 
@@ -578,13 +683,59 @@ function onTeamDrop(toTeamId: number) {
 
     <template v-else-if="meet">
       <div class="page-header">
-        <h2 class="page-title">{{ church?.name }}</h2>
-        <span class="meet-name">Teams &amp; Rosters</span>
+        <template v-if="editingChurchName">
+          <form class="church-name-edit" @submit.prevent="saveChurchName">
+            <input
+              v-model="churchNameForm.name"
+              v-focus
+              class="church-name-input"
+              placeholder="Full name"
+              required
+            />
+            <input
+              v-model="churchNameForm.shortName"
+              class="church-name-input church-name-input--short"
+              placeholder="Short (optional)"
+            />
+            <button type="submit" class="btn btn--primary btn--sm" :disabled="savingChurchName">
+              {{ savingChurchName ? '…' : 'Save' }}
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="cancelEditChurchName">
+              Cancel
+            </button>
+          </form>
+        </template>
+        <template v-else>
+          <h2 class="page-title">
+            {{ church?.name }}
+            <span v-if="church && church.shortName !== church.name" class="page-title-short">
+              ({{ church.shortName }})
+            </span>
+            <button
+              v-if="canEditChurch"
+              class="church-name-pencil"
+              title="Edit church name"
+              @click="startEditChurchName"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+          </h2>
+          <span class="meet-name">Teams &amp; Rosters</span>
+        </template>
       </div>
-
-      <p v-if="!canEditChurch" class="notice">
-        You can view {{ church?.name }}'s roster but only their coach can make changes.
-      </p>
 
       <!-- Draft save bar -->
       <div v-if="canEditChurch && isDirty" class="draft-bar">
@@ -600,17 +751,17 @@ function onTeamDrop(toTeamId: number) {
         </div>
       </div>
 
-      <div class="roster-layout">
+      <div class="teams-grid">
         <!-- Unassigned pool -->
         <div
-          class="panel panel--pool"
-          :class="{ 'panel--dragover': dragOverContainer === null && dragging !== null }"
+          class="team-card team-card--pool"
+          :class="{ 'team-card--dragover': dragOverContainer === null && dragging !== null }"
           @dragover.prevent="onDragOverContainer(null)"
           @dragleave="onDragLeaveContainer"
           @drop.prevent="onDrop(null)"
         >
-          <div class="panel-header">
-            <h3 class="panel-title">Unassigned</h3>
+          <div class="team-card-header">
+            <span class="team-label">Unassigned</span>
           </div>
 
           <ul class="quizzer-list">
@@ -618,7 +769,10 @@ function onTeamDrop(toTeamId: number) {
               v-for="q in unassigned"
               :key="q.quizzerId"
               class="quizzer-chip"
-              :class="{ 'quizzer-chip--insert-before': dragOverQuizzerId === q.quizzerId }"
+              :class="{
+                'quizzer-chip--insert-before':
+                  draggingTeamId === null && dragOverQuizzerId === q.quizzerId,
+              }"
               :draggable="canEditChurch && renamingQuizzerId !== q.quizzerId"
               @dragstart="
                 canEditChurch && renamingQuizzerId !== q.quizzerId && onDragStart(q.quizzerId, null)
@@ -675,6 +829,15 @@ function onTeamDrop(toTeamId: number) {
               </template>
             </li>
           </ul>
+          <div
+            v-if="dragging"
+            class="drop-tail"
+            :class="{
+              'drop-tail--active': dragOverContainer === null && dragOverQuizzerId === null,
+            }"
+            @dragover.prevent="onDragOverContainer(null)"
+            @dragleave="onDragLeaveContainer"
+          ></div>
 
           <template v-if="canEditChurch">
             <form
@@ -711,161 +874,180 @@ function onTeamDrop(toTeamId: number) {
         </div>
 
         <!-- Teams -->
-        <div class="teams-area">
-          <div class="teams-grid">
-            <div
-              v-for="(team, teamIdx) in teams"
-              :key="team.id"
-              class="team-card"
-              :class="{
-                'team-card--dragover': dragOverContainer === team.id && draggingTeamId === null,
-                'team-card--warn': !!teamWarnings[teamIdx],
-                'team-card--team-insert-before': dragOverTeamId === team.id,
-              }"
-              @dragover.prevent="
-                draggingTeamId !== null ? onTeamDragOver(team.id) : onDragOverContainer(team.id)
-              "
-              @dragleave="draggingTeamId !== null ? onTeamDragLeave() : onDragLeaveContainer()"
-              @drop.prevent="draggingTeamId !== null ? onTeamDrop(team.id) : onDrop(team.id)"
+        <div
+          v-for="(team, teamIdx) in teams"
+          :key="team.id"
+          class="team-card"
+          :class="{
+            'team-card--dragover': dragOverContainer === team.id && draggingTeamId === null,
+            'team-card--warn': !!teamWarnings[teamIdx],
+            'team-card--team-insert-before':
+              draggingTeamId !== null &&
+              dragOverTeamId === team.id &&
+              dragOverTeamSide === 'before',
+            'team-card--team-insert-after':
+              draggingTeamId !== null && dragOverTeamId === team.id && dragOverTeamSide === 'after',
+          }"
+          @dragover.prevent="
+            draggingTeamId !== null ? onTeamDragOver(team.id, $event) : onDragOverContainer(team.id)
+          "
+          @dragleave="draggingTeamId !== null ? onTeamDragLeave() : onDragLeaveContainer()"
+          @drop.prevent="draggingTeamId !== null ? onTeamDrop(team.id) : onDrop(team.id)"
+        >
+          <div class="team-card-header">
+            <span
+              v-if="canEditChurch"
+              class="team-drag-handle"
+              draggable="true"
+              title="Drag to reorder"
+              @dragstart.stop="onTeamDragStart(team.id)"
+              @dragend.stop="onTeamDragEnd"
+              >⠿</span
             >
-              <div class="team-card-header">
+            <span class="team-label">
+              <span
+                v-fit-name="{ full: church?.name ?? '?', short: church?.shortName ?? '?' }"
+                class="team-label-name"
+              ></span>
+              <span class="team-label-number">{{ teams.indexOf(team) + 1 }}</span>
+            </span>
+            <span class="div-label">Div</span>
+            <select
+              v-model="team.division"
+              class="division-select"
+              :disabled="!canEditChurch"
+              @change="submitEditTeam(team.id)"
+            >
+              <option v-for="div in meet.divisions" :key="div" :value="div">{{ div }}</option>
+            </select>
+            <span class="team-count">{{ quizzersForTeam(team.id).length }}</span>
+            <button
+              v-if="canEditChurch"
+              class="team-remove"
+              title="Remove team"
+              @click="handleRemoveTeam(team.id)"
+            >
+              ×
+            </button>
+          </div>
+
+          <p v-if="teamWarnings[teamIdx]" class="team-warn">⚠ {{ teamWarnings[teamIdx] }}</p>
+
+          <ul class="quizzer-list">
+            <li
+              v-for="q in quizzersForTeam(team.id)"
+              :key="q.quizzerId"
+              class="quizzer-chip"
+              :class="{
+                'quizzer-chip--insert-before':
+                  draggingTeamId === null && dragOverQuizzerId === q.quizzerId,
+              }"
+              :draggable="canEditChurch && renamingQuizzerId !== q.quizzerId"
+              @dragstart="
+                canEditChurch &&
+                renamingQuizzerId !== q.quizzerId &&
+                onDragStart(q.quizzerId, team.id)
+              "
+              @dragover.prevent="onDragOverQuizzer(q.quizzerId, team.id)"
+              @dragleave.stop="onDragLeaveQuizzer"
+              @dragend="onDragEnd"
+            >
+              <template v-if="renamingQuizzerId === q.quizzerId">
+                <input
+                  v-model="renameValue"
+                  v-focus
+                  class="rename-input"
+                  @keyup.enter="submitRename(team.id, q.quizzerId)"
+                  @keyup.escape="renamingQuizzerId = null"
+                  @blur="submitRename(team.id, q.quizzerId)"
+                />
+              </template>
+              <template v-else>
                 <span
-                  v-if="canEditChurch"
-                  class="team-drag-handle"
-                  draggable="true"
-                  title="Drag to reorder"
-                  @dragstart.stop="onTeamDragStart(team.id)"
-                  @dragend.stop="onTeamDragEnd"
-                  >⠿</span
+                  class="quizzer-name"
+                  @dblclick="canEditChurch && startRename(q.quizzerId, q.name)"
+                  >{{ q.name }}</span
                 >
-                <span class="team-label">{{ teamLabel(team) }}</span>
-                <span class="div-label">Div</span>
-                <select
-                  v-model="team.division"
-                  class="division-select"
-                  :disabled="!canEditChurch"
-                  @change="submitEditTeam(team.id)"
-                >
-                  <option v-for="div in meet.divisions" :key="div" :value="div">{{ div }}</option>
-                </select>
-                <span class="team-count">{{ quizzersForTeam(team.id).length }}</span>
                 <button
                   v-if="canEditChurch"
-                  class="team-remove"
-                  title="Remove team"
-                  @click="handleRemoveTeam(team.id)"
+                  class="quizzer-pencil"
+                  title="Rename"
+                  @click.stop="startRename(q.quizzerId, q.name)"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+                <button
+                  v-if="canEditChurch"
+                  class="quizzer-remove"
+                  title="Remove"
+                  @click.stop="handleRemoveQuizzer(team.id, q.quizzerId)"
                 >
                   ×
                 </button>
-              </div>
-
-              <p v-if="teamWarnings[teamIdx]" class="team-warn">⚠ {{ teamWarnings[teamIdx] }}</p>
-
-              <ul class="quizzer-list">
-                <li
-                  v-for="q in quizzersForTeam(team.id)"
-                  :key="q.quizzerId"
-                  class="quizzer-chip"
-                  :class="{ 'quizzer-chip--insert-before': dragOverQuizzerId === q.quizzerId }"
-                  :draggable="canEditChurch && renamingQuizzerId !== q.quizzerId"
-                  @dragstart="
-                    canEditChurch &&
-                    renamingQuizzerId !== q.quizzerId &&
-                    onDragStart(q.quizzerId, team.id)
-                  "
-                  @dragover.prevent="onDragOverQuizzer(q.quizzerId, team.id)"
-                  @dragleave.stop="onDragLeaveQuizzer"
-                  @dragend="onDragEnd"
-                >
-                  <template v-if="renamingQuizzerId === q.quizzerId">
-                    <input
-                      v-model="renameValue"
-                      v-focus
-                      class="rename-input"
-                      @keyup.enter="submitRename(team.id, q.quizzerId)"
-                      @keyup.escape="renamingQuizzerId = null"
-                      @blur="submitRename(team.id, q.quizzerId)"
-                    />
-                  </template>
-                  <template v-else>
-                    <span
-                      class="quizzer-name"
-                      @dblclick="canEditChurch && startRename(q.quizzerId, q.name)"
-                      >{{ q.name }}</span
-                    >
-                    <button
-                      v-if="canEditChurch"
-                      class="quizzer-pencil"
-                      title="Rename"
-                      @click.stop="startRename(q.quizzerId, q.name)"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="10"
-                        height="10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                    <button
-                      v-if="canEditChurch"
-                      class="quizzer-remove"
-                      title="Remove"
-                      @click.stop="handleRemoveQuizzer(team.id, q.quizzerId)"
-                    >
-                      ×
-                    </button>
-                  </template>
-                </li>
-              </ul>
-
-              <template v-if="canEditChurch">
-                <form
-                  v-if="addingQuizzerTeamId === team.id"
-                  class="inline-add"
-                  @submit.prevent="submitAddQuizzer(team.id)"
-                >
-                  <input
-                    v-model="newQuizzerName"
-                    v-focus
-                    class="inline-add-input"
-                    placeholder="Name"
-                    @keyup.escape="addingQuizzerTeamId = null"
-                  />
-                  <div class="inline-add-actions">
-                    <button type="submit" class="btn btn--primary btn--sm">Add</button>
-                    <button
-                      type="button"
-                      class="btn btn--ghost btn--sm"
-                      @click="addingQuizzerTeamId = null"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  <p v-if="addQuizzerError" class="field-error">{{ addQuizzerError }}</p>
-                </form>
-                <button
-                  v-else-if="addingQuizzerTeamId === null"
-                  class="dashed-add"
-                  @click="startAddToTeam(team.id)"
-                >
-                  + Quizzer
-                </button>
               </template>
-            </div>
+            </li>
+          </ul>
+          <div
+            v-if="dragging"
+            class="drop-tail"
+            :class="{
+              'drop-tail--active': dragOverContainer === team.id && dragOverQuizzerId === null,
+            }"
+            @dragover.prevent="onDragOverContainer(team.id)"
+            @dragleave="onDragLeaveContainer"
+          ></div>
 
-            <!-- + Team card -->
-            <div v-if="canEditChurch" class="team-card team-card--add">
-              <button class="dashed-add dashed-add--fill" @click="startAddTeam">+ Team</button>
-            </div>
-          </div>
+          <template v-if="canEditChurch">
+            <form
+              v-if="addingQuizzerTeamId === team.id"
+              class="inline-add"
+              @submit.prevent="submitAddQuizzer(team.id)"
+            >
+              <input
+                v-model="newQuizzerName"
+                v-focus
+                class="inline-add-input"
+                placeholder="Name"
+                @keyup.escape="addingQuizzerTeamId = null"
+              />
+              <div class="inline-add-actions">
+                <button type="submit" class="btn btn--primary btn--sm">Add</button>
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--sm"
+                  @click="addingQuizzerTeamId = null"
+                >
+                  Cancel
+                </button>
+              </div>
+              <p v-if="addQuizzerError" class="field-error">{{ addQuizzerError }}</p>
+            </form>
+            <button
+              v-else-if="addingQuizzerTeamId === null"
+              class="dashed-add"
+              @click="startAddToTeam(team.id)"
+            >
+              + Quizzer
+            </button>
+          </template>
+        </div>
+
+        <!-- + Team card -->
+        <div v-if="canEditChurch" class="team-card team-card--add">
+          <button class="dashed-add dashed-add--fill" @click="startAddTeam">+ Team</button>
         </div>
       </div>
     </template>
@@ -906,6 +1088,67 @@ function onTeamDrop(toTeamId: number) {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--color-heading);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.page-title-short {
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--color-text-faint);
+}
+
+.church-name-pencil {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.25rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.page-title:hover .church-name-pencil {
+  opacity: 1;
+}
+
+.church-name-pencil:hover {
+  color: var(--color-accent);
+  background: var(--color-bg-raised);
+}
+
+.church-name-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.church-name-input {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+}
+
+.church-name-input:focus {
+  border-color: var(--color-accent);
+}
+
+.church-name-input--short {
+  max-width: 7rem;
+  font-size: 0.85rem;
+  font-weight: 400;
 }
 
 .meet-name {
@@ -921,79 +1164,48 @@ function onTeamDrop(toTeamId: number) {
   color: var(--palette-error);
 }
 
-.notice {
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-border-alt);
-  border-radius: 6px;
-  padding: 0.5rem 0.875rem;
-  margin-bottom: 1rem;
-}
-
-.roster-layout {
-  display: grid;
-  grid-template-columns: 13rem 1fr;
-  gap: 1.25rem;
-  align-items: start;
-}
-
-.panel {
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-border-alt);
-  border-radius: 8px;
-  padding: 0.875rem;
-  min-height: 10rem;
-  transition: border-color 0.1s;
-}
-
-.panel--dragover {
-  border-color: var(--color-accent);
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-}
-
-.panel-title {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-faint);
-}
-
-.teams-area {
-  min-width: 0;
-}
-
 .teams-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.875rem;
   align-items: start;
 }
 
 .team-card {
+  position: relative;
   background: var(--color-bg-raised);
   border: 1px solid var(--color-border-alt);
   border-radius: 8px;
   padding: 0.75rem;
-  flex: 1 1 11rem;
-  max-width: 14rem;
-  min-height: 7rem;
+  min-height: 17rem; /* header + 5 quizzer chips + button + padding */
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   transition: border-color 0.1s;
 }
 
-.team-card--team-insert-before {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
+.team-card--team-insert-before::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-0.4375rem - 1.5px); /* half the grid gap + half the line */
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 1.5px;
+  pointer-events: none;
+}
+
+.team-card--team-insert-after::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(-0.4375rem - 1.5px);
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 1.5px;
+  pointer-events: none;
 }
 
 .team-drag-handle {
@@ -1031,6 +1243,10 @@ function onTeamDrop(toTeamId: number) {
   line-height: 1.4;
 }
 
+.team-card--pool {
+  border-style: dashed;
+}
+
 .team-card--add {
   background: transparent;
   border-style: dashed;
@@ -1043,6 +1259,7 @@ function onTeamDrop(toTeamId: number) {
   align-items: center;
   gap: 0.4rem;
   margin-bottom: 0.4rem;
+  min-width: 0;
 }
 
 .team-count {
@@ -1078,9 +1295,23 @@ function onTeamDrop(toTeamId: number) {
 }
 
 .team-label {
+  display: flex;
+  gap: 0.25rem;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--color-heading);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.team-label-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.team-label-number {
   flex-shrink: 0;
 }
 
@@ -1116,10 +1347,10 @@ function onTeamDrop(toTeamId: number) {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  flex: 1;
 }
 
 .quizzer-chip {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -1136,8 +1367,38 @@ function onTeamDrop(toTeamId: number) {
   cursor: grabbing;
 }
 
-.quizzer-chip--insert-before {
-  border-top: 2px solid var(--color-accent);
+.quizzer-chip--insert-before::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(-0.125rem - 1.5px); /* half the list gap + half the line */
+  height: 2px;
+  background: var(--color-accent);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.drop-tail {
+  height: 0;
+  position: relative;
+  transition: height 0.1s;
+}
+
+.drop-tail--active {
+  height: 0.5rem;
+}
+
+.drop-tail--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 1px);
+  height: 2px;
+  background: var(--color-accent);
+  border-radius: 1px;
+  pointer-events: none;
 }
 
 .quizzer-name {
