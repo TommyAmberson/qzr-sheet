@@ -62,6 +62,10 @@ import {
   type Team,
   type Quizzer,
 } from '../api'
+import {
+  coachChurchIds as deriveCoachChurchIds,
+  isAdminOrSuperuser as deriveIsAdminOrSuperuser,
+} from '../meetAccess'
 
 const props = defineProps<{ id: number; churchId: number }>()
 const router = useRouter()
@@ -265,16 +269,16 @@ async function load() {
     }
 
     const sessionUser = session.value?.data?.user
-    const accountRole = (sessionUser as Record<string, unknown> | undefined)?.role
-    isSuperuserOrAdmin.value =
-      accountRole === 'superuser' ||
-      myMeetsRes.memberships.some((m) => m.meetId === props.id && m.role === 'admin')
-
-    myCoachChurchIds.value = new Set(
-      myMeetsRes.memberships
-        .filter((m) => m.meetId === props.id && m.role === 'head_coach' && m.churchId != null)
-        .map((m) => m.churchId!),
+    const accountRole = (sessionUser as Record<string, unknown> | undefined)?.role as
+      | string
+      | undefined
+    isSuperuserOrAdmin.value = deriveIsAdminOrSuperuser(
+      myMeetsRes.memberships,
+      props.id,
+      accountRole,
     )
+
+    myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, props.id)
 
     if (!isSuperuserOrAdmin.value && !myCoachChurchIds.value.has(props.churchId)) {
       router.replace({ name: 'meet', params: { id: props.id } })

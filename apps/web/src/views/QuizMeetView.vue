@@ -27,6 +27,7 @@ import {
   revokeMember,
 } from '../api'
 import { parseRosterCsv, serializeRosterCsv, type RosterEntry } from '../rosterCsv'
+import { coachChurchIds as deriveCoachChurchIds } from '../meetAccess'
 
 const props = defineProps<{ id: number }>()
 const router = useRouter()
@@ -108,11 +109,7 @@ async function load() {
       router.replace({ name: 'home' })
       return
     }
-    myCoachChurchIds.value = new Set(
-      myMeetsRes.memberships
-        .filter((m) => m.meetId === props.id && m.role === 'head_coach' && m.churchId != null)
-        .map((m) => m.churchId!),
-    )
+    myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, props.id)
     loadTeamCounts()
   } catch (e) {
     error.value = (e as Error).message
