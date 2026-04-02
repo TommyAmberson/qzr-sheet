@@ -1,3 +1,4 @@
+local token = os.getenv("CLAUDE_CODE_OAUTH_TOKEN")
 local cwd = vim.uv.fs_realpath(vim.fn.getcwd()) or vim.fn.getcwd()
 local is_git_repo = vim.uv.fs_stat(cwd .. "/.git") ~= nil
 return {
@@ -30,6 +31,20 @@ return {
       default_servers = { "sequentialthinking", "memory2", "cloudflare-api", "git", "project_commands" },
     },
   },
+  adapters = {
+    acp = {
+      claude_code = function()
+        return require("codecompanion.adapters").extend("claude_code", {
+          defaults = {
+            mcpServers = "inherit_from_config",
+          },
+          env = {
+            CLAUDE_CODE_OAUTH_TOKEN = token,
+          },
+        })
+      end,
+    },
+  },
   interactions = {
     chat = {
       tools = {
@@ -39,12 +54,14 @@ return {
       },
       adapter = {
         -- name = "copilot",
-        name = "anthropic",
+        -- name = "anthropic",
         -- model = "gpt-5.1-codex",
         -- model = "claude-opus-4.6",
         -- model = "claude-sonnet-4.6",
         -- model = "claude-haiku-4.5",
-        model = "claude-haiku-4-5", -- "claude-sonnet-4-5", "claude-opus-4-5", "claude-sonnet-4-6", "claude-opus-4-6", "claude-sonnet-4-0", "claude-3-5-haiku-latest", "claude-opus-4-0", "claude-3-7-sonnet-latest", "claude-opus-4-1",
+        -- model = "claude-haiku-4-5", -- "claude-sonnet-4-5", "claude-opus-4-5", "claude-sonnet-4-6", "claude-opus-4-6", "claude-sonnet-4-0", "claude-3-5-haiku-latest", "claude-opus-4-0", "claude-3-7-sonnet-latest", "claude-opus-4-1",
+        name = "claude_code",
+        model = "opus",
       },
       opts = {
         system_prompt = function(ctx)

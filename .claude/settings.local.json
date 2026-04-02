@@ -1,0 +1,8 @@
+{
+  "enabledMcpjsonServers": [
+    "github",
+    "memory2",
+    "sequentialthinking",
+    "cloudflare-api"
+  ]
+}
