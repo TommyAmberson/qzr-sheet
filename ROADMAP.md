@@ -46,7 +46,7 @@ sign-up/sign-in.
 * Guest JWTs for officials and viewers remain custom — Better Auth handles user auth only
 
 **Phase 4.4: Meet join codes** — Enter a code to gain a meet-scoped role: `head_coach`, `official`,
-or `viewer`. Officials and viewers can use guest JWTs without creating an account.
+or `viewer`. Coaches must have an account.
 
 * Session middleware reads Better Auth cookies, with `requireAuth` (401) and `requireSuperuser`
   (403) guards
@@ -55,10 +55,10 @@ or `viewer`. Officials and viewers can use guest JWTs without creating an accoun
 * Coach codes are per-meet, server-generated, stored as SHA-256 hashes; viewer codes are
   superuser-set plaintext slugs; official codes are per-room with independent rotation
 * `POST /api/join` (authenticated) — accepts `{ code }`, resolves meet + role via viewer slug match
-  → coach hash match → official hash match, creates idempotent membership row
-* `POST /api/join/guest` (unauthenticated) — accepts official or viewer codes, returns a short-lived
-  guest JWT (24h, signed with `jose` via Web Crypto). Coach codes rejected — coaches must have an
-  account
+  → admin hash match → coach hash match → official hash match, creates idempotent membership row
+* `POST /api/join/guest` — endpoint exists and issues a guest JWT for official or viewer codes, but
+  the token is not yet consumed anywhere: the session middleware has no Bearer token path and there
+  is no frontend code entry UI. Full guest flow is implemented in 4.11.
 * `GET /api/my-meets` — returns all meets the user has joined, with their role(s)
 * DB injection via Hono context variables; test suite uses `better-sqlite3` in-memory DB with full
   schema for integration tests
@@ -304,13 +304,14 @@ bundled together because the viewer pages depend on guest JWT auth to gate acces
 
 **Guest JWT session expansion:**
 
-Currently `POST /api/join/guest` issues JWTs for officials and viewers only. This phase expands
-code-based access so any role (except admin) can operate without an account.
+`POST /api/join/guest` already exists and signs JWTs, but entering a code currently does nothing —
+the token is dropped. This phase wires up the full end-to-end flow:
 
-* Guest JWT auth flow: enter any join code → JWT issued → stored for session duration
-* `POST /api/join/guest` expanded to accept official, viewer, and coach codes
-* Session middleware updated to accept Bearer token (guest JWT) as an alternative to cookie auth, so
-  all existing credentialed API routes work for guest sessions
+* Session middleware updated to accept `Authorization: Bearer <token>` as an alternative to cookie
+  auth, so all credentialed API routes work for guest sessions
+* Frontend code entry UI — a dialog/page where an unauthenticated user enters a code, gets a JWT
+  back, and the token is stored (e.g. `sessionStorage`) for the duration of the session
+* `POST /api/join/guest` expanded to also accept coach codes (pending design decision below)
 * Meet picker dialog in the scoresheet (4.7b/c) can now accept a code instead of requiring a
   signed-in session
 
