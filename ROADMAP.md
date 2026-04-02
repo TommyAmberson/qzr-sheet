@@ -213,9 +213,9 @@ Adding auth to the Tauri desktop build is significantly more involved than the w
 * Sets `quizId` on the meetSession so the Submit flow (4.8) knows which quiz to post to
 * Portal schedule view → click assigned quiz → opens `/scoresheet/?quiz=id`
 
-**Note on code/guest path:** After 4.12 (guest access expansion), the meet picker will also accept a
-join code so it works without signing in. That is explicitly deferred — 4.7b and 4.7c only use
-existing Better Auth cookie sessions.
+**Note on code/guest path:** After 4.11 (guest access), the meet picker will also accept a join code
+so it works without signing in. That is explicitly deferred — 4.7b and 4.7c only use existing Better
+Auth cookie sessions.
 
 ### Phase 4.8: Results submission
 
@@ -297,33 +297,41 @@ phase and will need careful UX design before implementation. See `docs/architect
 * How does the algorithm handle an odd number of teams or teams that can’t be fairly paired?
 * What does the admin UI look like for previewing and swapping before publishing?
 
-### Phase 4.11: Viewer access
+### Phase 4.11: Guest access + viewer access
 
-Read-only portal views for standings, stats, and schedules. No account required — guest JWT via
-viewer code.
+All code-based access without an account, plus the public-facing read-only portal views. These are
+bundled together because the viewer pages depend on guest JWT auth to gate access.
 
-* `GET /api/meets/:id/standings` — team standings derived from submitted results
-* `GET /api/meets/:id/schedule` — published schedule (respects `schedule_published` flag)
-* Portal viewer pages: standings table, schedule, individual quizzer stats
-* Guest JWT auth flow: enter viewer code → JWT issued → stored for session duration
+**Guest JWT session expansion:**
 
-### Phase 4.12: Guest access expansion
+Currently `POST /api/join/guest` issues JWTs for officials and viewers only. This phase expands
+code-based access so any role (except admin) can operate without an account.
 
-Currently guest JWTs cover officials and viewers only — coaches must have an account. This phase
-expands code-based access so that any role (except possibly admin) can operate without an account.
+* Guest JWT auth flow: enter any join code → JWT issued → stored for session duration
+* `POST /api/join/guest` expanded to accept official, viewer, and coach codes
+* Session middleware updated to accept Bearer token (guest JWT) as an alternative to cookie auth, so
+  all existing credentialed API routes work for guest sessions
+* Meet picker dialog in the scoresheet (4.7b/c) can now accept a code instead of requiring a
+  signed-in session
 
 **Design questions:**
 
 * Should coach guest sessions be allowed? If so, how is church ownership scoped without a stable
-  user identity? (A guest coach could corrupt another guest’s draft.)
-* What’s the lifetime and storage strategy for guest sessions — same 24h JWT, or a longer-lived
+  user identity? (A guest coach could corrupt another guest's draft.)
+* What's the lifetime and storage strategy for guest sessions — same 24h JWT, or a longer-lived
   cookie-backed anonymous session?
 * Admin codes almost certainly require an account (audit trail, revocation). Confirm that hard
   boundary.
 
 **Likely approach:** issue a named guest session (display name entered at join time) backed by a
-short-lived JWT with a `guestRole` claim. Read-write access scoped to the code’s role, but no
-ability to create an account-linked membership or access admin tools.
+short-lived JWT with a `guestRole` claim. Read-write access scoped to the code's role, no ability to
+create an account-linked membership or access admin tools.
+
+**Viewer portal pages** (accessible via guest JWT or signed-in session):
+
+* `GET /api/meets/:id/standings` — team standings derived from submitted results
+* `GET /api/meets/:id/schedule` — published schedule (respects `schedule_published` flag)
+* Portal viewer pages: standings table, schedule, individual quizzer stats
 
 ### Phase 4.13: Quizzer identity linking
 
