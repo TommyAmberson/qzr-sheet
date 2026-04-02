@@ -123,73 +123,88 @@ Optional items that can happen any time, independent of Phase 4.
 UX for switching between offline mode (status quo) and online mode (auth-gated, pull team data from
 the API). These are two distinct sub-features with separate dependencies.
 
-**4.7a: Load teams by roster**
+**4.7a: Toolbar restructure**
 
-_Toolbar restructure:_
+Pure UI refactor — no API calls, no auth. Safe to implement first and independently.
 
 * `[Save ▼]` submenu replaces the flat Save + Export buttons:
   * Save as JSON (current `saveFile()`)
   * Export ODS (current `exportOds()`)
-  * (4.8) Submit — appears only when scoresheet is complete and clean
+  * (placeholder for 4.8 Submit, hidden for now)
 * `[Open]` unchanged — auto-detects JSON vs ODS import
 * `[New ▼]` submenu replaces the single New button:
   * **New quiz** — full reset, dirty check (current behaviour)
   * **Clear answers** — wipe all cells, keep names and meta
   * **Clear names** — wipe team/quizzer names AND disconnect from meet (resets `meetSession`)
-  * **Load teams from meet…** — opens meet picker dialog (requires account or guest session; after
-    4.12, visible even when not signed in — code entry alone is sufficient)
-* Sign-in widget added to the right meta block (next to theme toggle):
-  * Signed out: small “Sign in” button
-  * Signed in: user initials/avatar pill with a dropdown (sign out, account)
+  * **Load teams from meet…** — disabled/hidden until 4.7b
+* `useScoresheet` gains `clearAnswers()` and `clearNames()` alongside the existing `resetStore()`
+* Keyboard shortcut Ctrl+N still triggers full reset (same as “New quiz”)
+
+**4.7b: Quizmeet mode** (requires being already signed in to the portal in the same browser)
+
+Uses the existing Better Auth cookie session — no new sign-in UI yet. On web (PWA), if the user is
+already signed into `www.versevault.ca`, the scoresheet at `/scoresheet/` shares the same cookie and
+can make credentialed API calls immediately. On Tauri/desktop, this phase is a no-op — it simply
+won’t work until 4.7c.
+
+_New API endpoint needed (in `packages/api`):_
+
+* `GET /api/meets/:id/teams` — returns all teams for a meet with church label in one call:
+  `{ teams: [{ id, churchId, churchName, churchShortName, division, number }][] }`
+* Access rule: any authenticated member of the meet can read (same as churches endpoint)
+
+_New composable `useMeetSession`:_
+
+* Holds: `meetId`, `meetName`, full team list, per-slot `{ teamId, dbName }`, per-quizzer
+  `{ quizzerId, dbName }`
+* `loadMeet(meetId)` — fetches team list, activates mode
+* `clearSession()` — resets all session state
+* Persists to localStorage (separate key); on restore, re-fetches the team list
 
 _Meet picker dialog (modal `<dialog>`):_
 
-* Two ways to access a meet:
-  * **Code input** — enter any valid join code (official, viewer, or coach) to access that meet
-    without being signed in; validates against `POST /api/join/guest` or `POST /api/join`
-  * **My meets list** — if the user has an account or active guest sessions, shows meets they
-    already have access to
-* Confirm → fetches all teams for that meet, activates quizmeet mode
-* Team assignment happens inline in the scoresheet after the dialog closes
+* Only shown when a session cookie exists (`GET /api/my-meets` returns results)
+* Single step: pick a meet from the list
+* After confirming, team assignment happens inline in the scoresheet
+* “Load teams from meet…” item in New menu becomes active
 
-_Quizmeet mode:_
+_Quizmeet mode UI:_
 
-Active whenever `meetSession` is set. It is reset by "Clear names" or "New quiz".
+* Active whenever `meetSession` is set; reset by “Clear names” or “New quiz”
+* A small `🔗 MeetName` pill in the left meta bar
+* Team name cell → **`<select>` dropdown** of all teams in the meet (labelled e.g. “First Church —
+  Div A”); selecting a team auto-populates quizzer names
+* Quizzer name cells remain editable; a name that diverges from `dbName` gets an amber underline + a
+  `↺` restore button (tooltip shows DB name)
 
-* `meetSession` holds: `meetId`, `meetName`, the full team list for the meet, and per-slot
-  `{ teamId, dbName }` + per-quizzer `{ quizzerId, dbName }`
-* A small `🔗 MeetName` pill appears in the left meta bar while session is active
+**4.7c: Sign-in widget** (web + Tauri, deferred until after 4.7b is working on web)
 
-_Team name cells (quizmeet mode):_
+Adding auth to the Tauri desktop build is significantly more involved than the web PWA:
 
-* Replace the free-text input with a **`<select>` dropdown** of all teams in the meet (labelled e.g.
-  “First Church — A” or by division)
-* Selecting a team auto-populates that slot’s quizzer names from the roster
-* Changing the selection re-populates quizzers (with a dirty check if any are already filled)
-* An empty/placeholder option (“— select team —”) leaves the slot blank
+* **Web PWA**: straightforward — add `better-auth` dep to `apps/scoresheet`, wire up the same
+  `createAuthClient` + `useSession()` pattern as the portal, add a sign-in button to the meta bar.
+  OAuth redirects work natively in the browser.
 
-_Quizzer name cells (quizmeet mode):_
+* **Tauri desktop**: OAuth flows require opening a browser window and capturing the redirect back
+  into the app. Options:
+  * `tauri-plugin-oauth` — spins up a local HTTP server to catch the OAuth callback, then passes the
+    session token back to the webview via a Tauri command
+  * Deep link via custom URI scheme (`qzrsheet://auth/callback`) — requires registering the scheme
+    in `tauri.conf.json` and `Cargo.toml`, and handling it in `lib.rs`
+  * Email/password only (no OAuth) for desktop — simpler but less convenient
+  * The Tauri webview’s cookie jar is isolated from the system browser, so Better Auth cookies set
+    in the browser won’t carry over — the desktop app needs its own sign-in
 
-* Still fully editable free-text inputs — officials must be able to document what actually happened
-* A name that diverges from `dbName` gets an amber underline and a small restore button (`↺`) with a
-  tooltip showing the original DB name
+* Sign-in widget design (added to right meta block, next to theme toggle):
+  * Signed out: small “Sign in” button
+  * Signed in: user initials/avatar pill with dropdown (sign out)
+  * On Tauri: button opens a sign-in dialog with email/password + optional OAuth via
+    `tauri-plugin-oauth`; on web: opens an inline popover (same pattern as portal’s `SignInMenu`)
 
-_localStorage persistence:_
+* `__API_URL__` define needed in scoresheet’s `vite.config.ts` (already has `isTauri` flag; inject
+  `https://www.versevault.ca` for prod web build, empty string for dev)
 
-* `meetSession` persists in a separate localStorage key from the quiz state so a page refresh
-  doesn’t lose the team assignments
-* On restore, re-fetch the team list to catch roster changes since last load
-
-_New state and composables:_
-
-* `useScoresheet` gains `clearAnswers()` and `clearNames()` alongside the existing `resetStore()`
-* New `useMeetSession` composable — holds session state, calls the API, manages team selection per
-  slot, maps quizzer data to the grid, handles divergence detection
-* New `useAuth` composable in the scoresheet app — same `createAuthClient` + `useSession()` pattern
-  as the portal; fetch calls use `credentials: 'include'`
-* New `MeetPickerDialog.vue` component — meet selection modal
-
-**4.7b: Load teams from schedule** — pre-populate scoresheet from a scheduled quiz (depends on
+**4.7d: Load teams from schedule** — pre-populate scoresheet from a scheduled quiz (depends on
 4.10a):
 
 * “Load teams from meet…” dialog gains a second mode: pick a scheduled quiz instead of manually
@@ -197,6 +212,10 @@ _New state and composables:_
 * Teams and seat order come from `quiz_teams`; quizzers pulled from roster
 * Sets `quizId` on the meetSession so the Submit flow (4.8) knows which quiz to post to
 * Portal schedule view → click assigned quiz → opens `/scoresheet/?quiz=id`
+
+**Note on code/guest path:** After 4.12 (guest access expansion), the meet picker will also accept a
+join code so it works without signing in. That is explicitly deferred — 4.7b and 4.7c only use
+existing Better Auth cookie sessions.
 
 ### Phase 4.8: Results submission
 
