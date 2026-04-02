@@ -495,6 +495,34 @@ export function useScoresheet() {
     clearStorage()
   }
 
+  /** Clear all answers and no-jump flags, keeping names and quiz metadata */
+  function clearAnswers() {
+    store.loadState({
+      quiz: store.quiz,
+      teams: store.teams,
+      quizzers: store.quizzers,
+      answers: [],
+    })
+    noJumpMap.value = new Map()
+    internalOtRounds.value = 1
+    answerVersion.value++
+    history.clear()
+    saveToStorage(store, noJumpMap.value)
+  }
+
+  /** Clear all team and quizzer names, keeping answers and quiz metadata */
+  function clearNames() {
+    for (const team of store.teams) {
+      store.setTeamName(team.id, '')
+    }
+    for (const quizzer of store.quizzers) {
+      store.setQuizzerName(quizzer.id, '')
+    }
+    teamVersion.value++
+    history.clear()
+    saveToStorage(store, noJumpMap.value)
+  }
+
   // --- Auto-persist to localStorage ---
   let persistTimer: ReturnType<typeof setTimeout> | null = null
   function schedulePersist() {
@@ -572,6 +600,8 @@ export function useScoresheet() {
     noJumpMap,
     loadFile,
     resetStore,
+    clearAnswers,
+    clearNames,
 
     // Question types
     setQuestionType,

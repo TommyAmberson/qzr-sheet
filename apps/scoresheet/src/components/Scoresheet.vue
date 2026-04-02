@@ -61,6 +61,8 @@ const {
   noJumpMap,
   loadFile,
   resetStore,
+  clearAnswers,
+  clearNames,
   canUndo,
   canRedo,
   isDirty,
@@ -200,6 +202,24 @@ const hoverCol = ref<number | null>(null)
 
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
+const saveMenuOpen = ref(false)
+const newMenuOpen = ref(false)
+
+function toggleSaveMenu() {
+  saveMenuOpen.value = !saveMenuOpen.value
+  newMenuOpen.value = false
+}
+
+function toggleNewMenu() {
+  newMenuOpen.value = !newMenuOpen.value
+  saveMenuOpen.value = false
+}
+
+function closeMenus() {
+  saveMenuOpen.value = false
+  newMenuOpen.value = false
+}
+
 async function saveFile() {
   const json = serializeStore(store, noJumpMap.value)
   const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.json`
@@ -227,6 +247,37 @@ async function newQuiz() {
   if (isDirty.value && !(await confirmAction('Start a new quiz? Unsaved changes will be lost.')))
     return
   resetStore()
+}
+
+async function doSaveFile() {
+  closeMenus()
+  await saveFile()
+}
+
+async function doExportOds() {
+  closeMenus()
+  await exportOds()
+}
+
+async function doOpenFile() {
+  await openFile()
+}
+
+async function doNewQuiz() {
+  closeMenus()
+  await newQuiz()
+}
+
+async function doClearAnswers() {
+  closeMenus()
+  if (isDirty.value && !(await confirmAction('Clear all answers? This cannot be undone.'))) return
+  clearAnswers()
+}
+
+async function doClearNames() {
+  closeMenus()
+  if (!(await confirmAction('Clear all names? This cannot be undone.'))) return
+  clearNames()
 }
 
 async function exportOds() {
@@ -321,6 +372,7 @@ const appVersion: string = __APP_VERSION__
 <template>
   <div class="scoresheet-outer">
     <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
+      <div v-if="saveMenuOpen || newMenuOpen" class="menu-backdrop" @click="closeMenus" />
       <div class="scoresheet-content">
         <div class="meta-row">
           <div class="col--left-spacer" />
@@ -363,10 +415,22 @@ const appVersion: string = __APP_VERSION__
                 }}</span>
               </span>
               <div class="meta-field meta-field--file">
-                <button title="Save quiz as JSON (Ctrl+S)" @click="saveFile">⤓ Save</button>
-                <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
-                <button title="Export filled ODS spreadsheet" @click="exportOds">⬡ Export</button>
-                <button title="New quiz (Ctrl+N)" @click="newQuiz">✦ New</button>
+                <div class="file-menu">
+                  <button title="Save / Export (Ctrl+S)" @click="toggleSaveMenu">⤓ Save ▾</button>
+                  <div v-if="saveMenuOpen" class="file-menu__dropdown">
+                    <button @click="doSaveFile">⤓ Save as JSON</button>
+                    <button @click="doExportOds">⬡ Export ODS</button>
+                  </div>
+                </div>
+                <button title="Open quiz from file (Ctrl+O)" @click="doOpenFile">⤒ Open</button>
+                <div class="file-menu">
+                  <button title="New quiz (Ctrl+N)" @click="toggleNewMenu">✦ New ▾</button>
+                  <div v-if="newMenuOpen" class="file-menu__dropdown">
+                    <button @click="doNewQuiz">✦ New quiz</button>
+                    <button @click="doClearAnswers">✕ Clear answers</button>
+                    <button @click="doClearNames">✕ Clear names</button>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="quiz-meta quiz-meta--right">
@@ -1089,6 +1153,46 @@ const appVersion: string = __APP_VERSION__
   color: var(--color-text);
   border-color: var(--color-text-faint);
   background: var(--color-border-alt);
+}
+
+.file-menu {
+  position: relative;
+}
+
+.file-menu__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 9rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 3px;
+  gap: 1px;
+}
+
+.file-menu__dropdown button {
+  width: 100%;
+  text-align: left !important;
+  border-radius: 4px !important;
+  border-color: transparent !important;
+  padding: 0.35rem 0.6rem !important;
+  white-space: nowrap;
+}
+
+.file-menu__dropdown button:hover {
+  background: var(--color-border-alt) !important;
+  border-color: transparent !important;
+}
+
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
 }
 
 /* Theme toggle */
