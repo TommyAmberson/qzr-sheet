@@ -135,48 +135,61 @@ _Toolbar restructure:_
 * `[New ▼]` submenu replaces the single New button:
   * **New quiz** — full reset, dirty check (current behaviour)
   * **Clear answers** — wipe all cells, keep names and meta
-  * **Clear names** — wipe team/quizzer names, keep answers and meta
-  * **Load from meet…** — opens meet picker dialog (only shown when signed in)
+  * **Clear names** — wipe team/quizzer names AND disconnect from meet (resets `meetSession`)
+  * **Load teams from meet…** — opens meet picker dialog (only shown when signed in)
 * Sign-in widget added to the right meta block (next to theme toggle):
-  * Signed out: small "Sign in" button
+  * Signed out: small “Sign in” button
   * Signed in: user initials/avatar pill with a dropdown (sign out, account)
 
 _Meet picker dialog (modal `<dialog>`):_
 
-* Step 1 — pick a meet from `GET /api/my-meets` (list with name + date)
-* Step 2 — for each team slot (1–5), a `<select>` of teams in that meet's roster
-  * Optionally include quizzers (checkbox per team slot, or a global toggle)
-* Confirm → populates team and quizzer names, activates quizmeet mode
+* Single step: pick a meet from `GET /api/my-meets` (list with name + date)
+* Confirm → fetches all teams for that meet, activates quizmeet mode
+* Team assignment happens inline in the scoresheet after the dialog closes
 
 _Quizmeet mode:_
 
-When names have been loaded from a meet, the scoresheet enters **quizmeet mode**. The mode is a
-consequence of state, not a separate toggle — it's active whenever a `meetSession` is set.
+Active whenever `meetSession` is set. It is reset by "Clear names" or "New quiz".
 
-* `meetSession` holds: `meetId`, `meetName`, and per-slot `{ teamId, dbName }` + per-quizzer
-  `{ quizzerId, dbName }`
+* `meetSession` holds: `meetId`, `meetName`, the full team list for the meet, and per-slot
+  `{ teamId, dbName }` + per-quizzer `{ quizzerId, dbName }`
 * A small `🔗 MeetName` pill appears in the left meta bar while session is active
-* Names are still fully editable — officials must be able to document what actually happened
+
+_Team name cells (quizmeet mode):_
+
+* Replace the free-text input with a **`<select>` dropdown** of all teams in the meet (labelled e.g.
+  “First Church — A” or by division)
+* Selecting a team auto-populates that slot’s quizzer names from the roster
+* Changing the selection re-populates quizzers (with a dirty check if any are already filled)
+* An empty/placeholder option (“— select team —”) leaves the slot blank
+
+_Quizzer name cells (quizmeet mode):_
+
+* Still fully editable free-text inputs — officials must be able to document what actually happened
 * A name that diverges from `dbName` gets an amber underline and a small restore button (`↺`) with a
   tooltip showing the original DB name
-* `meetSession` persists to localStorage (separate key from the quiz state) so a refresh doesn't
-  lose the connection
+
+_localStorage persistence:_
+
+* `meetSession` persists in a separate localStorage key from the quiz state so a page refresh
+  doesn’t lose the team assignments
+* On restore, re-fetch the team list to catch roster changes since last load
 
 _New state and composables:_
 
 * `useScoresheet` gains `clearAnswers()` and `clearNames()` alongside the existing `resetStore()`
-* New `useMeetSession` composable — holds session state, calls the API, maps team/quizzer data to
-  the `cells` grid, handles divergence detection
+* New `useMeetSession` composable — holds session state, calls the API, manages team selection per
+  slot, maps quizzer data to the grid, handles divergence detection
 * New `useAuth` composable in the scoresheet app — same `createAuthClient` + `useSession()` pattern
   as the portal; fetch calls use `credentials: 'include'`
-* New `MeetPickerDialog.vue` component — the two-step modal
+* New `MeetPickerDialog.vue` component — meet selection modal
 
 **4.7b: Load teams from schedule** — pre-populate scoresheet from a scheduled quiz (depends on
 4.10a):
 
-* "Load from meet" dialog gains a third option: pick from schedule instead of manually assigning
-  teams per slot
-* Teams and seat assignments come from `quiz_teams`; quizzers pulled from roster
+* “Load teams from meet…” dialog gains a second mode: pick a scheduled quiz instead of manually
+  selecting teams per slot
+* Teams and seat order come from `quiz_teams`; quizzers pulled from roster
 * Sets `quizId` on the meetSession so the Submit flow (4.8) knows which quiz to post to
 * Portal schedule view → click assigned quiz → opens `/scoresheet/?quiz=id`
 
