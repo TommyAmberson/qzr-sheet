@@ -136,14 +136,19 @@ _Toolbar restructure:_
   * **New quiz** — full reset, dirty check (current behaviour)
   * **Clear answers** — wipe all cells, keep names and meta
   * **Clear names** — wipe team/quizzer names AND disconnect from meet (resets `meetSession`)
-  * **Load teams from meet…** — opens meet picker dialog (only shown when signed in)
+  * **Load teams from meet…** — opens meet picker dialog (requires account or guest session; after
+    4.12, visible even when not signed in — code entry alone is sufficient)
 * Sign-in widget added to the right meta block (next to theme toggle):
   * Signed out: small “Sign in” button
   * Signed in: user initials/avatar pill with a dropdown (sign out, account)
 
 _Meet picker dialog (modal `<dialog>`):_
 
-* Single step: pick a meet from `GET /api/my-meets` (list with name + date)
+* Two ways to access a meet:
+  * **Code input** — enter any valid join code (official, viewer, or coach) to access that meet
+    without being signed in; validates against `POST /api/join/guest` or `POST /api/join`
+  * **My meets list** — if the user has an account or active guest sessions, shows meets they
+    already have access to
 * Confirm → fetches all teams for that meet, activates quizmeet mode
 * Team assignment happens inline in the scoresheet after the dialog closes
 
