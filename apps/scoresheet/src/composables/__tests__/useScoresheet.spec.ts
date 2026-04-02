@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../useScoresheet'
-import { CellValue } from '../../types/scoresheet'
+import { CellValue, QuestionCategory } from '../../types/scoresheet'
 
 beforeEach(() => localStorage.clear())
 
@@ -271,5 +271,155 @@ describe('useScoresheet — overtime columns', () => {
     s.quiz.value.overtime = true
     await nextTick()
     expect(s.columns.value.length).toBeGreaterThan(30)
+  })
+})
+
+describe('useScoresheet — toggleOnTime', () => {
+  it('removing on-time drops the +20 bonus from team score', () => {
+    const s = useScoresheet()
+    // all teams start at 20 (on-time bonus)
+    expect(s.scoring.value[0]!.total).toBe(20)
+    s.toggleOnTime(0)
+    expect(s.scoring.value[0]!.total).toBe(0)
+  })
+
+  it('restoring on-time adds the bonus back', () => {
+    const s = useScoresheet()
+    s.toggleOnTime(0)
+    s.toggleOnTime(0)
+    expect(s.scoring.value[0]!.total).toBe(20)
+  })
+
+  it('only affects the toggled team', () => {
+    const s = useScoresheet()
+    s.toggleOnTime(0)
+    expect(s.scoring.value[1]!.total).toBe(20)
+    expect(s.scoring.value[2]!.total).toBe(20)
+  })
+})
+
+describe('useScoresheet — isAfterOut', () => {
+  it('returns false before a quizzer is out', () => {
+    const s = useScoresheet()
+    s.setCell(0, 0, 0, CellValue.Correct)
+    expect(s.isAfterOut(0, 0, 1)).toBe(false)
+  })
+
+  it('returns true for empty cells after a quizzer quizzes out (4 correct)', () => {
+    const s = useScoresheet()
+    // Give quizzer 0 of team 0 four correct answers on cols 0–3
+    s.setCell(0, 0, 0, CellValue.Correct)
+    s.setCell(0, 0, 1, CellValue.Correct)
+    s.setCell(0, 0, 2, CellValue.Correct)
+    s.setCell(0, 0, 3, CellValue.Correct)
+    // Col 4 onwards should be "after out" for that quizzer
+    expect(s.isAfterOut(0, 0, 4)).toBe(true)
+  })
+
+  it('returns false for non-empty cells after out (answered cells are not "after out")', () => {
+    const s = useScoresheet()
+    s.setCell(0, 0, 0, CellValue.Correct)
+    s.setCell(0, 0, 1, CellValue.Correct)
+    s.setCell(0, 0, 2, CellValue.Correct)
+    s.setCell(0, 0, 3, CellValue.Correct)
+    // Set something on col 4 — isAfterOut only applies to empty cells
+    s.setCell(0, 0, 4, CellValue.Error)
+    expect(s.isAfterOut(0, 0, 4)).toBe(false)
+  })
+})
+
+describe('useScoresheet — error tracking helpers', () => {
+  it('columnHasErrors returns false when no errors exist', () => {
+    const s = useScoresheet()
+    expect(s.columnHasErrors(0)).toBe(false)
+  })
+
+  it('quizzerHasErrors returns false when no errors exist', () => {
+    const s = useScoresheet()
+    expect(s.quizzerHasErrors(0, 0)).toBe(false)
+  })
+
+  it('teamHasErrors returns false when no errors exist', () => {
+    const s = useScoresheet()
+    expect(s.teamHasErrors(0)).toBe(false)
+  })
+
+  it('quizzerHasErrors returns true when a quizzer has a validation error', () => {
+    const s = useScoresheet()
+    // Two quizzers answer the same column — duplicate answer = validation error
+    s.setCell(0, 0, 0, CellValue.Correct)
+    s.setCell(0, 1, 0, CellValue.Error) // error after correct is valid in isolation
+    // A simpler trigger: same quizzer answers same column twice won't happen via setCell
+    // but two different quizzers getting Correct on the same col is a duplicate
+    s.setCell(0, 1, 0, CellValue.Correct)
+    expect(s.quizzerHasErrors(0, 0)).toBe(true) // duplicate answer flagged
+  })
+})
+
+describe('useScoresheet — setTeamName / setQuizzerName', () => {
+  it('setTeamName updates the team name', () => {
+    const s = useScoresheet()
+    s.setTeamName(0, 'Eagles')
+    expect(s.teams.value[0]!.name).toBe('Eagles')
+  })
+
+  it('setQuizzerName updates the quizzer name', () => {
+    const s = useScoresheet()
+    s.setQuizzerName(0, 0, 'Jordan')
+    expect(s.teamQuizzers.value[0]![0]!.name).toBe('Jordan')
+  })
+
+  it('setTeamName with out-of-bounds index is a no-op', () => {
+    const s = useScoresheet()
+    expect(() => s.setTeamName(99, 'Ghost')).not.toThrow()
+  })
+})
+
+describe('useScoresheet — moveQuizzer', () => {
+  it('moves a quizzer to a different seat', () => {
+    const s = useScoresheet()
+    const originalFirst = s.teamQuizzers.value[0]![0]!.name
+    const originalSecond = s.teamQuizzers.value[0]![1]!.name
+    s.moveQuizzer(0, 0, 1)
+    expect(s.teamQuizzers.value[0]![0]!.name).toBe(originalSecond)
+    expect(s.teamQuizzers.value[0]![1]!.name).toBe(originalFirst)
+  })
+})
+
+describe('useScoresheet — setQuestionType', () => {
+  it('sets a question category on a column', () => {
+    const s = useScoresheet()
+    s.setQuestionType(0, QuestionCategory.INT)
+    expect(s.quiz.value.questionTypes.get(s.columns.value[0]!.key)).toBe(QuestionCategory.INT)
+  })
+
+  it('clears a question category when null is passed', () => {
+    const s = useScoresheet()
+    s.setQuestionType(0, QuestionCategory.INT)
+    s.setQuestionType(0, null)
+    expect(s.quiz.value.questionTypes.get(s.columns.value[0]!.key)).toBeUndefined()
+  })
+})
+
+describe('useScoresheet — resetStore', () => {
+  it('clears all answers', () => {
+    const s = useScoresheet()
+    s.setCell(0, 0, 0, CellValue.Correct)
+    s.resetStore()
+    expect(s.cells.value[0]![0]![0]).toBe(CellValue.Empty)
+  })
+
+  it('resets team names to defaults', () => {
+    const s = useScoresheet()
+    s.setTeamName(0, 'Eagles')
+    s.resetStore()
+    expect(s.teams.value[0]!.name).toBe('Team 1')
+  })
+
+  it('resets undo history', () => {
+    const s = useScoresheet()
+    s.setCell(0, 0, 0, CellValue.Correct)
+    s.resetStore()
+    expect(s.canUndo.value).toBe(false)
   })
 })
