@@ -17,6 +17,7 @@ pnpm test:unit          # Vitest unit tests (all packages, run once)
 pnpm test:watch         # Vitest watch mode (all packages, parallel)
 pnpm type-check         # vue-tsc / tsc (all packages)
 pnpm format             # Prettier (no semi, single quotes, 100 col)
+pnpm lint               # ESLint (all packages)
 pnpm deploy             # Build all + deploy to CF Pages + CF Worker
 ```
 
@@ -51,30 +52,15 @@ CI deploys on `v*` tags.
 
 ## Project Structure
 
+See `docs/architecture.md` for full detail on internals, data flow, and design decisions.
+
 ```
 apps/
-  scoresheet/                    # Vue 3 + Tauri 2 scoresheet app
-    src/
-      types/scoresheet.ts        # Core types: CellValue, Column, Quiz, Team, Quizzer
-      stores/quizStore.ts        # In-memory store, cell grid derivation
-      scoring/                   # Pure scoring functions (no Vue)
-      composables/useScoresheet.ts
-      components/Scoresheet.vue
-    src-tauri/
-  web/                           # Portal app
-    src/
-      composables/useAuth.ts     # better-auth/vue client
-      components/SignInMenu.vue  # GitHub / Google / email sign-in popover
+  scoresheet/   # Vue 3 + Tauri 2 — offline-first scoring tool
+  web/          # Portal — coach roster mgmt, admin dashboard
 packages/
-  shared/                        # QuizFile schema, role enums, shared API types
-  api/                           # Hono + D1 + Drizzle (Cloudflare Workers)
-    src/lib/auth.ts              # createAuth(env) — Better Auth instance factory
-    .dev.vars.example            # Copy to .dev.vars and fill in for local dev
-docs/
-  scoring-rules-explained.md
-  architecture.md
-  rules.md
-  auth-proposal.md
+  shared/       # QuizFile schema, role enums, shared API types
+  api/          # Hono + D1 + Drizzle (Cloudflare Workers)
 ```
 
 ## Key Conventions
@@ -84,8 +70,8 @@ docs/
 * Tests live in `__tests__/` subdirectories next to the code they test.
 * Slight preference for writing tests before features.
 * Redundant comments are not helpful. Only comment to explain "why" or complex logic.
-* Commits should be atomic and self-contained, with conventional commit messages. Use branches for
-  larger features or refactors.
+* Commits should be atomic and self-contained, with conventional commit messages. Commits should not
+  be too large or too small. Use branches for larger features or refactors.
 
 ## Gotchas
 
