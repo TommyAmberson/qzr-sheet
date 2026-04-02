@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { CellValue, QuestionCategory, QuestionType } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
@@ -17,8 +17,50 @@ import {
 import { fillOts } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import { validationMessage } from '../scoring/validation'
+import { useMeetSession } from '../composables/useMeetSession'
+import MeetPickerDialog from './MeetPickerDialog.vue'
 
 const { theme, toggleTheme } = useTheme()
+
+const meetSession = useMeetSession()
+const meetPickerRef = ref<InstanceType<typeof MeetPickerDialog> | null>(null)
+
+onMounted(() => meetSession.refresh())
+
+function onMeetLoaded() {
+  // Session is now active — nothing else to do until the user picks teams from dropdowns
+}
+
+async function openMeetPicker() {
+  closeMenus()
+  meetPickerRef.value?.open()
+}
+
+async function onTeamSelect(slotIdx: number, event: Event) {
+  const teamId = Number((event.target as HTMLSelectElement).value)
+  if (!teamId) {
+    meetSession.clearSlot(slotIdx)
+    setTeamName(slotIdx, `Team ${slotIdx + 1}`)
+    for (let qi = 0; qi < 5; qi++) {
+      setQuizzerName(slotIdx, qi, qi < 4 ? `Quizzer ${qi + 1}` : '')
+    }
+    return
+  }
+  await meetSession.assignTeam(slotIdx, teamId)
+  const slot = meetSession.getSlot(slotIdx)
+  if (!slot) return
+  const team = meetSession.teamList.value.find((t) => t.id === teamId)
+  if (team) setTeamName(slotIdx, meetSession.teamLabel(team))
+  const qzrs = slot.quizzers
+  for (let qi = 0; qi < 5; qi++) {
+    setQuizzerName(slotIdx, qi, qzrs[qi]?.dbName ?? (qi < 4 ? `Quizzer ${qi + 1}` : ''))
+  }
+}
+
+function restoreQuizzerName(slotIdx: number, quizzerIdx: number) {
+  const dbName = meetSession.getDbName(slotIdx, quizzerIdx)
+  if (dbName !== undefined) setQuizzerName(slotIdx, quizzerIdx, dbName)
+}
 
 const {
   columns,
@@ -266,6 +308,7 @@ async function doOpenFile() {
 async function doNewQuiz() {
   closeMenus()
   await newQuiz()
+  meetSession.clearSession()
 }
 
 async function doClearAnswers() {
@@ -278,6 +321,7 @@ async function doClearNames() {
   closeMenus()
   if (!(await confirmAction('Reset names to defaults? This cannot be undone.'))) return
   clearNames()
+  meetSession.clearSession()
 }
 
 async function exportOds() {
@@ -414,6 +458,9 @@ const appVersion: string = __APP_VERSION__
                   hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
                 }}</span>
               </span>
+              <span v-if="meetSession.isActive.value" class="meta-field meta-session-pill">
+                🔗 {{ meetSession.meetName.value }}
+              </span>
               <div class="meta-field meta-field--file">
                 <div class="file-menu">
                   <button title="Save / Export (Ctrl+S)" @click="toggleSaveMenu">⤓ Save ▾</button>
@@ -429,6 +476,8 @@ const appVersion: string = __APP_VERSION__
                     <button @click="doNewQuiz">✦ New quiz</button>
                     <button @click="doClearAnswers">✕ Clear answers</button>
                     <button @click="doClearNames">✕ Clear names</button>
+                    <hr class="file-menu__divider" />
+                    <button @click="openMeetPicker">🔗 Load teams from meet…</button>
                   </div>
                 </div>
               </div>
@@ -510,17 +559,31 @@ const appVersion: string = __APP_VERSION__
                 <td class="col--name sticky-col team-name" colspan="2">
                   <div class="name-cell-inner">
                     <span class="name-main">
-                      <span
-                        class="name-input-sizer name-input-sizer--team"
-                        :data-value="team.name || ' '"
-                      >
-                        <input
-                          class="editable-name editable-name--team"
-                          :value="team.name"
-                          @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
-                          @focus="($event.target as HTMLInputElement).select()"
-                        />
-                      </span>
+                      <template v-if="meetSession.isActive.value">
+                        <select
+                          class="team-select"
+                          :value="meetSession.getSlot(ti)?.teamId ?? ''"
+                          @change="onTeamSelect(ti, $event)"
+                        >
+                          <option value="">— select team —</option>
+                          <option v-for="t in meetSession.teamList.value" :key="t.id" :value="t.id">
+                            {{ meetSession.teamLabel(t) }}
+                          </option>
+                        </select>
+                      </template>
+                      <template v-else>
+                        <span
+                          class="name-input-sizer name-input-sizer--team"
+                          :data-value="team.name || ' '"
+                        >
+                          <input
+                            class="editable-name editable-name--team"
+                            :value="team.name"
+                            @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
+                            @focus="($event.target as HTMLInputElement).select()"
+                          />
+                        </span>
+                      </template>
                     </span>
                     <span class="team-stats">
                       <span
@@ -609,14 +672,32 @@ const appVersion: string = __APP_VERSION__
                         :data-value="quizzer.name || ' '"
                       >
                         <input
-                          class="editable-name editable-name--quizzer"
+                          :class="[
+                            'editable-name',
+                            'editable-name--quizzer',
+                            {
+                              'editable-name--diverged': meetSession.isQuizzerDiverged(
+                                ti,
+                                qi,
+                                quizzer.name,
+                              ),
+                            },
+                          ]"
                           :value="quizzer.name"
                           @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
                           @focus="($event.target as HTMLInputElement).select()"
                         />
                       </span>
                       <button
-                        v-if="quizzer.name"
+                        v-if="meetSession.isQuizzerDiverged(ti, qi, quizzer.name)"
+                        class="name-restore"
+                        :title="`Restore: ${meetSession.getDbName(ti, qi)}`"
+                        @click.stop="restoreQuizzerName(ti, qi)"
+                      >
+                        ↺
+                      </button>
+                      <button
+                        v-else-if="quizzer.name"
                         class="name-clear"
                         title="Clear name (empty seat)"
                         @click.stop="setQuizzerName(ti, qi, '')"
@@ -884,6 +965,7 @@ const appVersion: string = __APP_VERSION__
       </div>
       <!-- Cell selector popup -->
       <Teleport to="body">
+        <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
         <div v-if="selector" class="selector-backdrop" @click="closeSelector">
           <div
             class="selector-popup"
@@ -1184,15 +1266,70 @@ const appVersion: string = __APP_VERSION__
   white-space: nowrap;
 }
 
-.file-menu__dropdown button:hover {
-  background: var(--color-border-alt) !important;
-  border-color: transparent !important;
+.file-menu__divider {
+  border: none;
+  border-top: 1px solid var(--color-border-alt);
+  margin: 2px 0;
 }
 
-.menu-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 49;
+.meta-session-pill {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  white-space: nowrap;
+}
+
+.team-select {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-meta-accent);
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+  max-width: 100%;
+  padding: 0 0.1rem;
+}
+
+.team-select:focus {
+  border-bottom-color: var(--color-accent);
+}
+
+.editable-name--diverged {
+  border-bottom: 1.5px solid var(--palette-warning, #b45309) !important;
+}
+
+.name-restore {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--palette-warning, #b45309);
+  font-size: 0.75rem;
+  line-height: 1;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  margin-left: 0.1rem;
+}
+
+.name-main:hover .name-restore {
+  display: inline-flex;
+}
+
+.name-restore:hover {
+  background: var(--color-border-alt);
 }
 
 /* Theme toggle */
