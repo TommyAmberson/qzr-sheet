@@ -276,7 +276,7 @@ async function doClearAnswers() {
 
 async function doClearNames() {
   closeMenus()
-  if (!(await confirmAction('Clear all names? This cannot be undone.'))) return
+  if (!(await confirmAction('Reset names to defaults? This cannot be undone.'))) return
   clearNames()
 }
 

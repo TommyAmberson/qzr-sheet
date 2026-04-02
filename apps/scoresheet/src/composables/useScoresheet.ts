@@ -497,10 +497,14 @@ export function useScoresheet() {
 
   /** Clear all answers and no-jump flags, keeping names and quiz metadata */
   function clearAnswers() {
+    // Snapshot before calling loadState — loadState mutates the internal arrays in-place,
+    // so passing store.teams/quizzers directly would zero them out mid-iteration.
+    const teams = [...store.teams]
+    const quizzers = [...store.quizzers]
     store.loadState({
       quiz: store.quiz,
-      teams: store.teams,
-      quizzers: store.quizzers,
+      teams,
+      quizzers,
       answers: [],
     })
     noJumpMap.value = new Map()
@@ -510,13 +514,16 @@ export function useScoresheet() {
     saveToStorage(store, noJumpMap.value)
   }
 
-  /** Clear all team and quizzer names, keeping answers and quiz metadata */
+  /** Reset all team and quizzer names to defaults (Team 1/2/3, Quizzer 1/2/3/4) */
   function clearNames() {
-    for (const team of store.teams) {
-      store.setTeamName(team.id, '')
-    }
-    for (const quizzer of store.quizzers) {
-      store.setQuizzerName(quizzer.id, '')
+    const sortedTeams = [...store.teams].sort((a, b) => a.seatOrder - b.seatOrder)
+    for (let i = 0; i < sortedTeams.length; i++) {
+      const team = sortedTeams[i]!
+      store.setTeamName(team.id, `Team ${i + 1}`)
+      const qzrs = store.quizzersByTeam(team.id)
+      for (let j = 0; j < qzrs.length; j++) {
+        store.setQuizzerName(qzrs[j]!.id, j < 4 ? `Quizzer ${j + 1}` : '')
+      }
     }
     teamVersion.value++
     history.clear()
