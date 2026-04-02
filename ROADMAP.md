@@ -123,21 +123,61 @@ Optional items that can happen any time, independent of Phase 4.
 UX for switching between offline mode (status quo) and online mode (auth-gated, pull team data from
 the API). These are two distinct sub-features with separate dependencies.
 
-**4.7a: Load teams by roster** — fill scoresheet from meet roster without a scheduled quiz:
+**4.7a: Load teams by roster**
 
-* Sign in to the portal from the scoresheet header (cookie auth, session indicator)
-* “Load from meet” dialog: pick a meet from `GET /api/my-meets`, then select a team for each
-  scoresheet row (1–5) from that meet’s roster
-* Auto-fills team names and quizzer names in the column headers
-* Graceful fallback: user’s role doesn’t grant access → show warning, allow manual override
-* New composable `useRosterLoad()` — fetch meet/team data, validate counts, map to `cells` grid
+_Toolbar restructure:_
+
+* `[Save ▼]` submenu replaces the flat Save + Export buttons:
+  * Save as JSON (current `saveFile()`)
+  * Export ODS (current `exportOds()`)
+  * (4.8) Submit — appears only when scoresheet is complete and clean
+* `[Open]` unchanged — auto-detects JSON vs ODS import
+* `[New ▼]` submenu replaces the single New button:
+  * **New quiz** — full reset, dirty check (current behaviour)
+  * **Clear answers** — wipe all cells, keep names and meta
+  * **Clear names** — wipe team/quizzer names, keep answers and meta
+  * **Load from meet…** — opens meet picker dialog (only shown when signed in)
+* Sign-in widget added to the right meta block (next to theme toggle):
+  * Signed out: small "Sign in" button
+  * Signed in: user initials/avatar pill with a dropdown (sign out, account)
+
+_Meet picker dialog (modal `<dialog>`):_
+
+* Step 1 — pick a meet from `GET /api/my-meets` (list with name + date)
+* Step 2 — for each team slot (1–5), a `<select>` of teams in that meet's roster
+  * Optionally include quizzers (checkbox per team slot, or a global toggle)
+* Confirm → populates team and quizzer names, activates quizmeet mode
+
+_Quizmeet mode:_
+
+When names have been loaded from a meet, the scoresheet enters **quizmeet mode**. The mode is a
+consequence of state, not a separate toggle — it's active whenever a `meetSession` is set.
+
+* `meetSession` holds: `meetId`, `meetName`, and per-slot `{ teamId, dbName }` + per-quizzer
+  `{ quizzerId, dbName }`
+* A small `🔗 MeetName` pill appears in the left meta bar while session is active
+* Names are still fully editable — officials must be able to document what actually happened
+* A name that diverges from `dbName` gets an amber underline and a small restore button (`↺`) with a
+  tooltip showing the original DB name
+* `meetSession` persists to localStorage (separate key from the quiz state) so a refresh doesn't
+  lose the connection
+
+_New state and composables:_
+
+* `useScoresheet` gains `clearAnswers()` and `clearNames()` alongside the existing `resetStore()`
+* New `useMeetSession` composable — holds session state, calls the API, maps team/quizzer data to
+  the `cells` grid, handles divergence detection
+* New `useAuth` composable in the scoresheet app — same `createAuthClient` + `useSession()` pattern
+  as the portal; fetch calls use `credentials: 'include'`
+* New `MeetPickerDialog.vue` component — the two-step modal
 
 **4.7b: Load teams from schedule** — pre-populate scoresheet from a scheduled quiz (depends on
 4.10a):
 
-* Select a quiz from the meet schedule; teams and seat assignments come from `quiz_teams`
-* Option to include quizzers from the roster or leave quizzer names blank
-* Sets `quizId` on the scoresheet so the Submit button (4.8) knows which quiz to post to
+* "Load from meet" dialog gains a third option: pick from schedule instead of manually assigning
+  teams per slot
+* Teams and seat assignments come from `quiz_teams`; quizzers pulled from roster
+* Sets `quizId` on the meetSession so the Submit flow (4.8) knows which quiz to post to
 * Portal schedule view → click assigned quiz → opens `/scoresheet/?quiz=id`
 
 ### Phase 4.8: Results submission
