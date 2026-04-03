@@ -113,8 +113,9 @@ describe('useMeetSession — assignTeam', () => {
     expect(slot).toBeDefined()
     expect(slot!.teamId).toBe(1)
     expect(slot!.dbLabel).toBe('FC 1')
-    expect(slot!.quizzers).toHaveLength(2)
+    expect(slot!.quizzers).toHaveLength(5)
     expect(slot!.quizzers[0]!.dbName).toBe('Alice')
+    expect(slot!.quizzers[2]!.dbName).toBe('') // seats beyond the DB roster are empty
   })
 
   it('calls getTeamQuizzers with the given teamId', async () => {
@@ -165,6 +166,53 @@ describe('useMeetSession — clearSlot', () => {
   })
 })
 
+describe('useMeetSession — reorderSlotQuizzers', () => {
+  it('updates quizzer order in the slot', async () => {
+    const { loadMeet, assignTeam, getSlot, reorderSlotQuizzers } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1) // Alice at 0, Bob at 1
+    reorderSlotQuizzers(0, 0, 1) // move Alice to seat 1
+    const slot = getSlot(0)
+    expect(slot!.quizzers[0]!.dbName).toBe('Bob')
+    expect(slot!.quizzers[1]!.dbName).toBe('Alice')
+  })
+
+  it('isQuizzerDiverged returns false after reorder with unchanged names', async () => {
+    const { loadMeet, assignTeam, reorderSlotQuizzers, isQuizzerDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1)
+    reorderSlotQuizzers(0, 0, 1) // Bob is now at seat 0, Alice at seat 1
+    expect(isQuizzerDiverged(0, 0, 'Bob')).toBe(false)
+    expect(isQuizzerDiverged(0, 1, 'Alice')).toBe(false)
+  })
+
+  it('isQuizzerDiverged still returns true when name was edited after reorder', async () => {
+    const { loadMeet, assignTeam, reorderSlotQuizzers, isQuizzerDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1)
+    reorderSlotQuizzers(0, 0, 1) // Bob → seat 0, Alice → seat 1
+    expect(isQuizzerDiverged(0, 0, 'Robert')).toBe(true) // Bob renamed to Robert
+  })
+
+  it('does nothing when no session is active', () => {
+    const { reorderSlotQuizzers } = useMeetSession()
+    expect(() => reorderSlotQuizzers(0, 0, 1)).not.toThrow()
+  })
+
+  it('isQuizzerDiverged returns false for empty seat left between quizzers after reorder', async () => {
+    // Alice(0), Bob(1) from DB; seats 2-4 are empty. Drag Alice to seat 3.
+    // After: seat 0 = Bob, seat 1 = '' (empty), seat 2 = '' (empty), seat 3 = Alice, seat 4 = ''
+    const { loadMeet, assignTeam, reorderSlotQuizzers, isQuizzerDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1) // Alice at 0, Bob at 1, nulls at 2-4
+    reorderSlotQuizzers(0, 0, 3) // move Alice to seat 3
+    expect(isQuizzerDiverged(0, 0, 'Bob')).toBe(false)
+    expect(isQuizzerDiverged(0, 1, '')).toBe(false) // empty seat — no DB record here now
+    expect(isQuizzerDiverged(0, 2, '')).toBe(false) // empty seat
+    expect(isQuizzerDiverged(0, 3, 'Alice')).toBe(false)
+  })
+})
+
 describe('useMeetSession — isQuizzerDiverged', () => {
   it('returns false when no session is active', () => {
     const { isQuizzerDiverged } = useMeetSession()
@@ -198,11 +246,25 @@ describe('useMeetSession — isQuizzerDiverged', () => {
     expect(isQuizzerDiverged(0, 0, '  Alice  ')).toBe(false)
   })
 
-  it('returns false when quizzer index has no DB record', async () => {
+  it('returns false when quizzer index is out of range', async () => {
     const { loadMeet, assignTeam, isQuizzerDiverged } = useMeetSession()
     await loadMeet(42, 'Finals')
     await assignTeam(0, 1)
     expect(isQuizzerDiverged(0, 99, 'Anyone')).toBe(false)
+  })
+
+  it('returns false for a null-entry seat when name is empty', async () => {
+    const { loadMeet, assignTeam, isQuizzerDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1) // only 2 DB quizzers; seats 2-4 are null
+    expect(isQuizzerDiverged(0, 2, '')).toBe(false)
+  })
+
+  it('returns true for a null-entry seat when name is non-empty', async () => {
+    const { loadMeet, assignTeam, isQuizzerDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1)
+    expect(isQuizzerDiverged(0, 2, 'Jordan')).toBe(true)
   })
 })
 

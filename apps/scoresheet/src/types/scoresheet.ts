@@ -86,6 +86,8 @@ export interface Column {
   isOvertime: boolean
 }
 
+export const QUIZZERS_PER_TEAM = 5
+
 /** Build the ordered list of question columns */
 export function buildColumns(overtimeRounds = 0): Column[] {
   const cols: Column[] = []

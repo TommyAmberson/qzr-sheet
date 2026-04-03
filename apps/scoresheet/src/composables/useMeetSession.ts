@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { getMeetTeams, getTeamQuizzers, type MeetTeam } from '../api'
+import { QUIZZERS_PER_TEAM } from '../types/scoresheet'
 
 const STORAGE_KEY = 'qzr-meet-session'
 
@@ -7,6 +8,7 @@ export interface SlotSession {
   teamId: number
   /** Team label as it appears in the dropdown: "{shortName} {number}" */
   dbLabel: string
+  /** Fixed-length (QUIZZERS_PER_TEAM). Empty seats have dbName: ''. */
   quizzers: Array<{ quizzerId: number; dbName: string }>
 }
 
@@ -54,7 +56,11 @@ export function useMeetSession() {
     session.value.slots[slotIdx] = {
       teamId,
       dbLabel: teamLabel(team),
-      quizzers: quizzers.map((q) => ({ quizzerId: q.quizzerId, dbName: q.name })),
+      quizzers: Array.from({ length: QUIZZERS_PER_TEAM }, (_, i) =>
+        i < quizzers.length
+          ? { quizzerId: quizzers[i]!.quizzerId, dbName: quizzers[i]!.name }
+          : { quizzerId: 0, dbName: '' },
+      ),
     }
     // Trigger reactivity — slots is a plain array inside a ref
     session.value = { ...session.value, slots: [...session.value.slots] }
@@ -70,15 +76,27 @@ export function useMeetSession() {
     persist()
   }
 
+  /** Mirror a drag-reorder into the slot's quizzer array so divergence detection stays correct */
+  function reorderSlotQuizzers(slotIdx: number, fromSeat: number, toSeat: number): void {
+    if (fromSeat === toSeat) return
+    const slot = session.value?.slots[slotIdx]
+    if (!slot) return
+    const quizzers = [...slot.quizzers]
+    const [moved] = quizzers.splice(fromSeat, 1)
+    quizzers.splice(toSeat, 0, moved!)
+    session.value = {
+      ...session.value!,
+      slots: session.value!.slots.map((s, i) => (i === slotIdx && s ? { ...s, quizzers } : s)),
+    }
+    persist()
+  }
+
   /** Get the slot data for a given team slot index */
   function getSlot(slotIdx: number): SlotSession | undefined {
     return session.value?.slots[slotIdx]
   }
 
-  /**
-   * Whether a name diverges from the DB value.
-   * Returns false if not in quizmeet mode or no quizzer record found.
-   */
+  /** Whether a name diverges from the DB value (empty seats have dbName ''). */
   function isQuizzerDiverged(slotIdx: number, quizzerIdx: number, currentName: string): boolean {
     const slot = session.value?.slots[slotIdx]
     if (!slot) return false
@@ -118,6 +136,7 @@ export function useMeetSession() {
     assignTeam,
     clearSlot,
     getSlot,
+    reorderSlotQuizzers,
     isQuizzerDiverged,
     getDbName,
     clearSession,

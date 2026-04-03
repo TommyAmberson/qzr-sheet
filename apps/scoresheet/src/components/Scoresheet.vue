@@ -57,8 +57,7 @@ async function onTeamSelect(slotIdx: number, event: Event) {
 }
 
 function restoreQuizzerName(slotIdx: number, quizzerIdx: number) {
-  const dbName = meetSession.getDbName(slotIdx, quizzerIdx)
-  if (dbName !== undefined) setQuizzerName(slotIdx, quizzerIdx, dbName)
+  setQuizzerName(slotIdx, quizzerIdx, meetSession.getDbName(slotIdx, quizzerIdx) ?? '')
 }
 
 const {
@@ -221,9 +220,13 @@ const { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardM
     redo,
   })
 
+function moveQuizzerAndSync(ti: number, from: number, to: number) {
+  moveQuizzer(ti, from, to)
+  meetSession.reorderSlotQuizzers(ti, from, to)
+}
 const { dragState, dropTarget, dropIndicatorWidth, registerRowEl, onPointerDown } = useDragReorder(
   teamQuizzers,
-  moveQuizzer,
+  moveQuizzerAndSync,
 )
 
 function onCellClick(ti: number, qi: number, ci: number, event: MouseEvent) {
