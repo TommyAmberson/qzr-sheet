@@ -22,8 +22,44 @@ import MeetPickerDialog from './MeetPickerDialog.vue'
 
 const { theme, toggleTheme } = useTheme()
 
+// v-fit-name: show full name if it fits, otherwise short. CSS ellipsis is final fallback.
+interface FitNameBinding {
+  full: string
+  short: string
+}
+function applyFitName(el: HTMLElement, { full, short }: FitNameBinding) {
+  el.textContent = full
+  requestAnimationFrame(() => {
+    if (el.scrollWidth > el.clientWidth && short && short !== full) el.textContent = short
+  })
+}
+const fitNameObservers = new WeakMap<HTMLElement, ResizeObserver>()
+const fitNameValues = new WeakMap<HTMLElement, FitNameBinding>()
+const vFitName = {
+  mounted(el: HTMLElement, binding: { value: FitNameBinding }) {
+    fitNameValues.set(el, binding.value)
+    applyFitName(el, binding.value)
+    const ro = new ResizeObserver(() => {
+      const v = fitNameValues.get(el)
+      if (v) applyFitName(el, v)
+    })
+    ro.observe(el)
+    fitNameObservers.set(el, ro)
+  },
+  updated(el: HTMLElement, binding: { value: FitNameBinding }) {
+    fitNameValues.set(el, binding.value)
+    applyFitName(el, binding.value)
+  },
+  unmounted(el: HTMLElement) {
+    fitNameObservers.get(el)?.disconnect()
+    fitNameObservers.delete(el)
+    fitNameValues.delete(el)
+  },
+}
+
 const meetSession = useMeetSession()
 const meetPickerRef = ref<InstanceType<typeof MeetPickerDialog> | null>(null)
+const editingTeamSlot = ref([false, false, false])
 
 onMounted(() => meetSession.refresh())
 
@@ -36,8 +72,8 @@ async function openMeetPicker() {
   meetPickerRef.value?.open()
 }
 
-async function onTeamSelect(slotIdx: number, event: Event) {
-  const teamId = Number((event.target as HTMLSelectElement).value)
+async function pickTeam(slotIdx: number, teamId: number) {
+  editingTeamSlot.value[slotIdx] = false
   if (!teamId) {
     meetSession.clearSlot(slotIdx)
     setTeamName(slotIdx, `Team ${slotIdx + 1}`)
@@ -50,7 +86,7 @@ async function onTeamSelect(slotIdx: number, event: Event) {
   const slot = meetSession.getSlot(slotIdx)
   if (!slot) return
   const team = meetSession.teamList.value.find((t) => t.id === teamId)
-  if (team) setTeamName(slotIdx, meetSession.teamLabel(team))
+  if (team) setTeamName(slotIdx, meetSession.teamLabelFull(team))
   for (let qi = 0; qi < slot.quizzers.length; qi++) {
     setQuizzerName(slotIdx, qi, slot.quizzers[qi]!.dbName)
   }
@@ -262,6 +298,7 @@ function toggleNewMenu() {
 function closeMenus() {
   saveMenuOpen.value = false
   newMenuOpen.value = false
+  editingTeamSlot.value = [false, false, false]
 }
 
 async function saveFile() {
@@ -418,7 +455,11 @@ const appVersion: string = __APP_VERSION__
 <template>
   <div class="scoresheet-outer">
     <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
-      <div v-if="saveMenuOpen || newMenuOpen" class="menu-backdrop" @click="closeMenus" />
+      <div
+        v-if="saveMenuOpen || newMenuOpen || editingTeamSlot.some(Boolean)"
+        class="menu-backdrop"
+        @click="closeMenus"
+      />
       <div class="scoresheet-content">
         <div class="meta-row">
           <div class="col--left-spacer" />
@@ -562,16 +603,51 @@ const appVersion: string = __APP_VERSION__
                   <div class="name-cell-inner">
                     <span class="name-main">
                       <template v-if="meetSession.isActive.value">
-                        <select
-                          class="team-select"
-                          :value="meetSession.getSlot(ti)?.teamId ?? ''"
-                          @change="onTeamSelect(ti, $event)"
-                        >
-                          <option value="">— select team —</option>
-                          <option v-for="t in meetSession.teamList.value" :key="t.id" :value="t.id">
-                            {{ meetSession.teamLabel(t) }}
-                          </option>
-                        </select>
+                        <div class="team-picker-wrap">
+                          <button
+                            class="team-picker-trigger"
+                            :class="{ 'is-open': editingTeamSlot[ti] }"
+                            @click.stop="editingTeamSlot[ti] = !editingTeamSlot[ti]"
+                            @keydown.escape.stop="editingTeamSlot[ti] = false"
+                          >
+                            <span
+                              v-if="meetSession.getSlot(ti)"
+                              v-fit-name="{
+                                full: meetSession.getSlot(ti)!.dbLabelFull,
+                                short: meetSession.getSlot(ti)!.dbLabel,
+                              }"
+                              class="team-name-fit"
+                            />
+                            <span v-else class="team-picker-placeholder">— pick team —</span>
+                            <svg
+                              class="team-picker-chevron"
+                              viewBox="0 0 10 6"
+                              width="8"
+                              height="8"
+                              aria-hidden="true"
+                            >
+                              <path d="M0 0l5 6 5-6z" fill="currentColor" />
+                            </svg>
+                          </button>
+                          <div v-if="editingTeamSlot[ti]" class="team-picker-menu">
+                            <button
+                              v-for="t in meetSession.teamList.value"
+                              :key="t.id"
+                              class="team-picker-option"
+                              :class="{ 'is-selected': meetSession.getSlot(ti)?.teamId === t.id }"
+                              @click.stop="pickTeam(ti, t.id)"
+                            >
+                              {{ meetSession.teamLabel(t) }}
+                            </button>
+                            <button
+                              v-if="meetSession.getSlot(ti)"
+                              class="team-picker-option team-picker-option--clear"
+                              @click.stop="pickTeam(ti, 0)"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
                       </template>
                       <template v-else>
                         <span
@@ -1285,23 +1361,105 @@ const appVersion: string = __APP_VERSION__
   white-space: nowrap;
 }
 
-.team-select {
+.team-picker-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.team-picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   background: none;
   border: none;
-  border-bottom: 1px solid var(--color-meta-accent);
-  border-radius: 0;
+  color: inherit;
+  cursor: pointer;
   font-family: inherit;
   font-size: 0.85rem;
   font-weight: 700;
-  color: inherit;
-  cursor: pointer;
-  outline: none;
   max-width: 100%;
-  padding: 0 0.1rem;
+  min-width: 0;
+  padding: 0;
+  opacity: 0.85;
 }
 
-.team-select:focus {
-  border-bottom-color: var(--color-accent);
+.team-picker-trigger:hover,
+.team-picker-trigger.is-open {
+  opacity: 1;
+}
+
+.team-name-fit {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.team-picker-chevron {
+  flex-shrink: 0;
+  opacity: 0.45;
+  transition: transform 0.15s ease;
+}
+
+.team-picker-trigger.is-open .team-picker-chevron {
+  transform: rotate(180deg);
+}
+
+.team-picker-placeholder {
+  font-weight: 400;
+  opacity: 0.6;
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+.team-picker-menu {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  z-index: 200;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 120px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 3px;
+}
+
+.team-picker-option {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.team-picker-option:hover {
+  background: var(--color-hover, rgba(0, 0, 0, 0.07));
+}
+
+.team-picker-option.is-selected {
+  font-weight: 700;
+}
+
+.team-picker-option--clear {
+  border-top: 1px solid var(--color-border, #d1d5db);
+  margin-top: 3px;
+  padding-top: 0.35rem;
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.team-picker-option--clear:hover {
+  opacity: 1;
 }
 
 .editable-name--diverged {

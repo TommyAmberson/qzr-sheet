@@ -6,8 +6,8 @@ const STORAGE_KEY = 'qzr-meet-session'
 
 export interface SlotSession {
   teamId: number
-  /** Team label as it appears in the dropdown: "{shortName} {number}" */
-  dbLabel: string
+  dbLabel: string // short: "FC 1"
+  dbLabelFull: string // full:  "First Church 1"
   /** Fixed-length (QUIZZERS_PER_TEAM). Empty seats have dbName: ''. */
   quizzers: Array<{ quizzerId: number; dbName: string }>
 }
@@ -28,9 +28,14 @@ export function useMeetSession() {
   const meetName = computed(() => session.value?.meetName ?? null)
   const teamList = computed(() => session.value?.teamList ?? [])
 
-  /** Human-readable label for a team: "{shortName} {number}" */
+  /** Short label for dropdowns: "{shortName} {number}" */
   function teamLabel(team: MeetTeam): string {
     return `${team.churchShortName} ${team.number}`
+  }
+
+  /** Full label for display: "{churchName} {number}" */
+  function teamLabelFull(team: MeetTeam): string {
+    return `${team.churchName} ${team.number}`
   }
 
   /** Load all teams for a meet and activate quizmeet mode */
@@ -56,6 +61,7 @@ export function useMeetSession() {
     session.value.slots[slotIdx] = {
       teamId,
       dbLabel: teamLabel(team),
+      dbLabelFull: teamLabelFull(team),
       quizzers: Array.from({ length: QUIZZERS_PER_TEAM }, (_, i) =>
         i < quizzers.length
           ? { quizzerId: quizzers[i]!.quizzerId, dbName: quizzers[i]!.name }
@@ -132,6 +138,7 @@ export function useMeetSession() {
     meetName,
     teamList,
     teamLabel,
+    teamLabelFull,
     loadMeet,
     assignTeam,
     clearSlot,
