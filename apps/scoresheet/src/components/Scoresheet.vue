@@ -51,9 +51,8 @@ async function onTeamSelect(slotIdx: number, event: Event) {
   if (!slot) return
   const team = meetSession.teamList.value.find((t) => t.id === teamId)
   if (team) setTeamName(slotIdx, meetSession.teamLabel(team))
-  const qzrs = slot.quizzers
-  for (let qi = 0; qi < 5; qi++) {
-    setQuizzerName(slotIdx, qi, qzrs[qi]?.dbName ?? (qi < 4 ? `Quizzer ${qi + 1}` : ''))
+  for (let qi = 0; qi < slot.quizzers.length; qi++) {
+    setQuizzerName(slotIdx, qi, slot.quizzers[qi]!.dbName)
   }
 }
 
