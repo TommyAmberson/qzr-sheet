@@ -566,6 +566,99 @@ describe('GET /api/teams/:teamId/quizzers', () => {
   })
 })
 
+describe('GET /api/meets/:meetId/teams', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('returns empty list when meet has no teams', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+
+    const res = await app.request(`/api/meets/${meet.id}/teams`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{ teams: unknown[] }>()
+    expect(body.teams).toHaveLength(0)
+  })
+
+  it('returns teams with all church fields', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id, 'Grace Church')
+    const team = await seedTeam(db, meet.id, church.id, 'Open')
+
+    const res = await app.request(`/api/meets/${meet.id}/teams`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await res.json<{
+      teams: Array<{
+        id: number
+        churchId: number
+        churchName: string
+        churchShortName: string
+        division: string
+        number: number
+      }>
+    }>()
+    expect(body.teams).toHaveLength(1)
+    const t = body.teams[0]!
+    expect(t.id).toBe(team.id)
+    expect(t.churchId).toBe(church.id)
+    expect(t.churchName).toBe('Grace Church')
+    expect(t.churchShortName).toBe('GC')
+    expect(t.division).toBe('Open')
+    expect(t.number).toBe(1)
+  })
+
+  it('returns 400 for non-numeric meetId', async () => {
+    const app = createApp(testUser, db)
+
+    const res = await app.request('/api/meets/abc/teams', {}, env)
+    expect(res.status).toBe(400)
+  })
+
+  it('only returns teams for the requested meet', async () => {
+    const app = createApp(testUser, db)
+    const meetA = await seedMeet(db)
+    const meetB = await seedMeet(db)
+    const churchA = await seedChurch(db, meetA.id, 'Alpha')
+    const churchB = await seedChurch(db, meetB.id, 'Beta')
+    await seedTeam(db, meetA.id, churchA.id)
+    await seedTeam(db, meetB.id, churchB.id)
+
+    const res = await app.request(`/api/meets/${meetA.id}/teams`, {}, env)
+    const body = await res.json<{ teams: Array<{ churchName: string }> }>()
+    expect(body.teams).toHaveLength(1)
+    expect(body.teams[0]!.churchName).toBe('Alpha')
+  })
+
+  it('returns teams ordered by church name then team number', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const zebra = await seedChurch(db, meet.id, 'Zebra Church')
+    const alpha = await seedChurch(db, meet.id, 'Alpha Church')
+    await seedTeam(db, meet.id, zebra.id)
+    const [t2] = await db
+      .insert(schema.teams)
+      .values({ meetId: meet.id, churchId: alpha.id, division: 'Open', number: 2 })
+      .returning()
+    const [t1] = await db
+      .insert(schema.teams)
+      .values({ meetId: meet.id, churchId: alpha.id, division: 'Open', number: 1 })
+      .returning()
+
+    const res = await app.request(`/api/meets/${meet.id}/teams`, {}, env)
+    const body = await res.json<{ teams: Array<{ churchName: string; number: number }> }>()
+    expect(body.teams).toHaveLength(3)
+    expect(body.teams[0]!.churchName).toBe('Alpha Church')
+    expect(body.teams[0]!.number).toBe(t1!.number)
+    expect(body.teams[1]!.churchName).toBe('Alpha Church')
+    expect(body.teams[1]!.number).toBe(t2!.number)
+    expect(body.teams[2]!.churchName).toBe('Zebra Church')
+  })
+})
+
 describe('POST /api/teams/:teamId/quizzers', () => {
   let db: Db
 
