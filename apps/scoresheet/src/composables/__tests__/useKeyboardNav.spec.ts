@@ -3,6 +3,7 @@ import { ref, defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useKeyboardNav } from '../useKeyboardNav'
 import { CellValue, buildColumns } from '../../types/scoresheet'
+import type { SelectorOption } from '../useCellSelector'
 
 // Helper to mount a minimal component that calls useKeyboardNav,
 // giving the composable a proper lifecycle context (onMounted/onUnmounted).
@@ -28,7 +29,7 @@ function mountNav() {
     displayColumns: ref([{ idx: 0 }, { idx: 1 }, { idx: 2 }]),
     selector: ref<{ ti: number; qi: number; ci: number } | null>(null),
     selectorFocusIdx: ref(0),
-    selectorOptions: ref([]),
+    selectorOptions: ref<SelectorOption[]>([]),
     openSelectorOnCell: vi.fn(),
     confirmFocusedOption: vi.fn(),
     closeSelector: vi.fn(),
@@ -354,8 +355,8 @@ describe('useKeyboardNav — selector open navigation', () => {
     nav.focusCell(0, 0, 0)
     deps.selector.value = { ti: 0, qi: 0, ci: 0 }
     deps.selectorOptions.value = [
-      { label: 'A', value: CellValue.Correct },
-      { label: 'B', value: CellValue.Error },
+      { label: 'A', value: CellValue.Correct, cls: '' },
+      { label: 'B', value: CellValue.Error, cls: '' },
     ]
     deps.selectorFocusIdx.value = 0
     key('ArrowRight')
@@ -368,8 +369,8 @@ describe('useKeyboardNav — selector open navigation', () => {
     nav.focusCell(0, 0, 0)
     deps.selector.value = { ti: 0, qi: 0, ci: 0 }
     deps.selectorOptions.value = [
-      { label: 'A', value: CellValue.Correct },
-      { label: 'B', value: CellValue.Error },
+      { label: 'A', value: CellValue.Correct, cls: '' },
+      { label: 'B', value: CellValue.Error, cls: '' },
     ]
     deps.selectorFocusIdx.value = 0
     key('ArrowLeft')
