@@ -161,6 +161,15 @@ function restoreQuizzerName(slotIdx: number, quizzerIdx: number) {
   setQuizzerName(slotIdx, quizzerIdx, meetSession.getDbName(slotIdx, quizzerIdx) ?? '')
 }
 
+function isTeamDivisionDiverged(slotIdx: number): boolean {
+  if (!meetSession.isActive.value || !quiz.value.division) return false
+  const slot = meetSession.getSlot(slotIdx)
+  if (!slot) return false
+  const team = meetSession.teamList.value.find((t) => t.id === slot.teamId)
+  if (!team) return false
+  return team.division !== quiz.value.division || team.consolation !== quiz.value.consolation
+}
+
 const {
   columns,
   quiz,
@@ -724,7 +733,10 @@ const appVersion: string = __APP_VERSION__
                               full: meetSession.getSlot(ti)!.dbLabelFull,
                               short: meetSession.getSlot(ti)!.dbLabel,
                             }"
-                            class="team-name-fit"
+                            :class="[
+                              'team-name-fit',
+                              { 'team-name-fit--diverged': isTeamDivisionDiverged(ti) },
+                            ]"
                           />
                           <span
                             v-else-if="isDefaultTeamName(team.name)"
@@ -1522,6 +1534,11 @@ const appVersion: string = __APP_VERSION__
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.team-name-fit--diverged {
+  border-bottom: 1.5px solid var(--palette-warning, #b45309);
+  color: var(--palette-warning, #b45309);
 }
 
 .team-picker-chevron {
