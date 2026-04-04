@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { CellValue, QuestionCategory, QuestionType } from '../types/scoresheet'
+import { CellValue, QuestionCategory, QuestionType, QUIZZERS_PER_TEAM } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
@@ -78,10 +78,6 @@ function pickFromOpenPicker(teamId: number) {
 
 onMounted(() => meetSession.refresh())
 
-function onMeetLoaded() {
-  // Session is now active — nothing else to do until the user picks teams from dropdowns
-}
-
 async function openMeetPicker() {
   closeMenus()
   meetPickerRef.value?.open()
@@ -92,8 +88,8 @@ async function pickTeam(slotIdx: number, teamId: number) {
   if (!teamId) {
     meetSession.clearSlot(slotIdx)
     setTeamName(slotIdx, `Team ${slotIdx + 1}`)
-    for (let qi = 0; qi < 5; qi++) {
-      setQuizzerName(slotIdx, qi, qi < 4 ? `Quizzer ${qi + 1}` : '')
+    for (let qi = 0; qi < QUIZZERS_PER_TEAM; qi++) {
+      setQuizzerName(slotIdx, qi, qi < QUIZZERS_PER_TEAM - 1 ? `Quizzer ${qi + 1}` : '')
     }
     return
   }
@@ -355,10 +351,6 @@ async function doExportOds() {
   await exportOds()
 }
 
-async function doOpenFile() {
-  await openFile()
-}
-
 async function doNewQuiz() {
   closeMenus()
   await newQuiz()
@@ -552,7 +544,7 @@ const appVersion: string = __APP_VERSION__
                     <button @click="doExportOds">⬡ Export ODS</button>
                   </div>
                 </div>
-                <button title="Open quiz from file (Ctrl+O)" @click="doOpenFile">⤒ Open</button>
+                <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
                 <div class="file-menu">
                   <button title="New quiz (Ctrl+N)" @click="toggleNewMenu">✦ New ▾</button>
                   <div v-if="newMenuOpen" class="file-menu__dropdown">
@@ -1063,7 +1055,7 @@ const appVersion: string = __APP_VERSION__
       </div>
       <!-- Cell selector popup -->
       <Teleport to="body">
-        <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
+        <MeetPickerDialog ref="meetPickerRef" />
         <div v-if="selector" class="selector-backdrop" @click="closeSelector">
           <div
             class="selector-popup"
