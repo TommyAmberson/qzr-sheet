@@ -1335,6 +1335,12 @@ const appVersion: string = __APP_VERSION__
   background: var(--color-border-alt);
 }
 
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10; /* above sticky cols (4) but below file-menu (50) and team picker (9999) */
+}
+
 .file-menu {
   position: relative;
 }
