@@ -657,6 +657,150 @@ describe('GET /api/meets/:meetId/teams', () => {
     expect(body.teams[1]!.number).toBe(t2!.number)
     expect(body.teams[2]!.churchName).toBe('Zebra Church')
   })
+
+  it('returns consolation: false for a normal team', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    await seedTeam(db, meet.id, church.id)
+
+    const res = await app.request(`/api/meets/${meet.id}/teams`, {}, env)
+    const body = await res.json<{ teams: Array<{ consolation: boolean }> }>()
+    expect(body.teams[0]!.consolation).toBe(false)
+  })
+
+  it('returns consolation: true for a consolation team', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id)
+    await db.update(schema.teams).set({ consolation: true }).where(eq(schema.teams.id, team.id))
+
+    const res = await app.request(`/api/meets/${meet.id}/teams`, {}, env)
+    const body = await res.json<{ teams: Array<{ consolation: boolean }> }>()
+    expect(body.teams[0]!.consolation).toBe(true)
+  })
+
+  it('returns meetDivisions from the meet record', async () => {
+    const app = createApp(testUser, db)
+    const hash = await hashCode(generateCode())
+    const [meet] = await db
+      .insert(schema.quizMeets)
+      .values({
+        name: 'Divisions Meet',
+        dateFrom: '2025-06-01',
+        dateTo: null,
+        viewerCode: 'div-viewer',
+        adminCodeHash: hash,
+        divisions: JSON.stringify(['1', '2', '3']),
+        createdAt: new Date(),
+      })
+      .returning()
+
+    const res = await app.request(`/api/meets/${meet!.id}/teams`, {}, env)
+    const body = await res.json<{ teams: unknown[]; meetDivisions: string[] }>()
+    expect(body.meetDivisions).toEqual(['1', '2', '3'])
+  })
+
+  it('returns meetDivisions as empty array when meet has no divisions set', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db) // divisions defaults to '[]'
+
+    const res = await app.request(`/api/meets/${meet.id}/teams`, {}, env)
+    const body = await res.json<{ teams: unknown[]; meetDivisions: string[] }>()
+    expect(body.meetDivisions).toEqual([])
+  })
+})
+
+describe('POST /api/teams/:teamId/consolation', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('marks a team as consolation (admin)', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id)
+
+    const res = await app.request(`/api/teams/${team.id}/consolation`, { method: 'POST' }, env)
+    expect(res.status).toBe(201)
+    const [row] = await db.select().from(schema.teams).where(eq(schema.teams.id, team.id))
+    expect(row!.consolation).toBe(true)
+  })
+
+  it('is idempotent — second POST succeeds', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id)
+
+    await app.request(`/api/teams/${team.id}/consolation`, { method: 'POST' }, env)
+    const res = await app.request(`/api/teams/${team.id}/consolation`, { method: 'POST' }, env)
+    expect(res.status).toBe(201)
+  })
+
+  it('returns 403 for a non-admin coach', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
+    const team = await seedTeam(db, meet.id, church.id)
+
+    const res = await app.request(`/api/teams/${team.id}/consolation`, { method: 'POST' }, env)
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 404 for unknown teamId', async () => {
+    const app = createApp(testSuperuser, db)
+
+    const res = await app.request('/api/teams/99999/consolation', { method: 'POST' }, env)
+    expect(res.status).toBe(404)
+  })
+})
+
+describe('DELETE /api/teams/:teamId/consolation', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('clears consolation flag', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id)
+    await db.update(schema.teams).set({ consolation: true }).where(eq(schema.teams.id, team.id))
+
+    const res = await app.request(`/api/teams/${team.id}/consolation`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(200)
+    const [row] = await db.select().from(schema.teams).where(eq(schema.teams.id, team.id))
+    expect(row!.consolation).toBe(false)
+  })
+
+  it('is a no-op when team was not consolation', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    const team = await seedTeam(db, meet.id, church.id)
+
+    const res = await app.request(`/api/teams/${team.id}/consolation`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 403 for a non-admin coach', async () => {
+    const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+    await seedCoachMembership(db, testUser.id, church.id, meet.id)
+    const team = await seedTeam(db, meet.id, church.id)
+
+    const res = await app.request(`/api/teams/${team.id}/consolation`, { method: 'DELETE' }, env)
+    expect(res.status).toBe(403)
+  })
 })
 
 describe('POST /api/teams/:teamId/quizzers', () => {

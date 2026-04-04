@@ -18,6 +18,7 @@ const mockTeams: MeetTeam[] = [
     churchShortName: 'FC',
     division: '1',
     number: 1,
+    consolation: false,
   },
   {
     id: 2,
@@ -26,6 +27,7 @@ const mockTeams: MeetTeam[] = [
     churchShortName: 'GC',
     division: '1',
     number: 2,
+    consolation: false,
   },
 ]
 
@@ -43,7 +45,7 @@ beforeEach(() => {
   const { clearSession } = useMeetSession()
   clearSession()
   vi.clearAllMocks()
-  vi.mocked(getMeetTeams).mockResolvedValue({ teams: mockTeams })
+  vi.mocked(getMeetTeams).mockResolvedValue({ teams: mockTeams, meetDivisions: ['1', '2'] })
   vi.mocked(getTeamQuizzers).mockResolvedValue({ quizzers: mockQuizzers })
 })
 
@@ -369,8 +371,10 @@ describe('useMeetSession — refresh', () => {
           churchShortName: 'HC',
           division: '1',
           number: 3,
+          consolation: false,
         },
       ],
+      meetDivisions: ['1'],
     })
     await refresh()
     const { teamList } = useMeetSession()
@@ -390,5 +394,88 @@ describe('useMeetSession — refresh', () => {
     vi.mocked(getMeetTeams).mockRejectedValue(new Error('network error'))
     await expect(refresh()).resolves.not.toThrow()
     expect(teamList.value).toHaveLength(2) // original data preserved
+  })
+})
+
+describe('useMeetSession — divisionOptions', () => {
+  it('returns empty array when no session is active', () => {
+    const { divisionOptions } = useMeetSession()
+    expect(divisionOptions.value).toEqual([])
+  })
+
+  it('returns base divisions when no consolation teams', async () => {
+    const { loadMeet, divisionOptions } = useMeetSession()
+    vi.mocked(getMeetTeams).mockResolvedValueOnce({
+      teams: mockTeams, // all consolation: false
+      meetDivisions: ['1', '2', '3'],
+    })
+    await loadMeet(42, 'Finals')
+    expect(divisionOptions.value).toEqual(['1', '2', '3'])
+  })
+
+  it('inserts "{div}c" after a division that has consolation teams', async () => {
+    const { loadMeet, divisionOptions } = useMeetSession()
+    vi.mocked(getMeetTeams).mockResolvedValueOnce({
+      teams: [
+        { ...mockTeams[0]!, division: '2', consolation: false },
+        { ...mockTeams[1]!, division: '2', consolation: true },
+      ],
+      meetDivisions: ['1', '2', '3'],
+    })
+    await loadMeet(42, 'Finals')
+    expect(divisionOptions.value).toEqual(['1', '2', '2c', '3'])
+  })
+
+  it('inserts consolation entries for multiple divisions independently', async () => {
+    const { loadMeet, divisionOptions } = useMeetSession()
+    vi.mocked(getMeetTeams).mockResolvedValueOnce({
+      teams: [
+        { ...mockTeams[0]!, division: '1', consolation: true },
+        { ...mockTeams[1]!, division: '2', consolation: true },
+      ],
+      meetDivisions: ['1', '2', '3'],
+    })
+    await loadMeet(42, 'Finals')
+    expect(divisionOptions.value).toEqual(['1', '1c', '2', '2c', '3'])
+  })
+})
+
+describe('useMeetSession — teamsForDivision', () => {
+  const div2Teams: MeetTeam[] = [
+    { ...mockTeams[0]!, id: 10, division: '2', consolation: false },
+    { ...mockTeams[1]!, id: 11, division: '2', consolation: true },
+  ]
+
+  beforeEach(async () => {
+    vi.mocked(getMeetTeams).mockResolvedValueOnce({
+      teams: div2Teams,
+      meetDivisions: ['2'],
+    })
+    const { loadMeet } = useMeetSession()
+    await loadMeet(42, 'Finals')
+  })
+
+  it('returns all teams when division is empty string', () => {
+    const { teamsForDivision } = useMeetSession()
+    expect(teamsForDivision('')).toHaveLength(2)
+  })
+
+  it('returns only non-consolation teams for a base division', () => {
+    const { teamsForDivision } = useMeetSession()
+    const result = teamsForDivision('2')
+    expect(result).toHaveLength(1)
+    expect(result[0]!.consolation).toBe(false)
+  })
+
+  it('returns only consolation teams when division ends with c', () => {
+    const { teamsForDivision } = useMeetSession()
+    const result = teamsForDivision('2c')
+    expect(result).toHaveLength(1)
+    expect(result[0]!.consolation).toBe(true)
+  })
+
+  it('returns empty list when no teams match the consolation bracket', () => {
+    const { teamsForDivision } = useMeetSession()
+    expect(teamsForDivision('1c')).toHaveLength(0)
   })
 })

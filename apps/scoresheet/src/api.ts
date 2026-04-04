@@ -40,6 +40,7 @@ export interface MeetTeam {
   churchShortName: string
   division: string
   number: number
+  consolation: boolean
 }
 
 export interface MeetTeamQuizzer {
@@ -53,7 +54,9 @@ export function getMyMeets(): Promise<{ memberships: MeetSummary[] }> {
   return request('/api/my-meets')
 }
 
-export function getMeetTeams(meetId: number): Promise<{ teams: MeetTeam[] }> {
+export function getMeetTeams(
+  meetId: number,
+): Promise<{ teams: MeetTeam[]; meetDivisions: string[] }> {
   return request(`/api/meets/${meetId}/teams`)
 }
 

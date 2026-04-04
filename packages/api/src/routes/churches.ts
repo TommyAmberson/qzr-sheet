@@ -250,7 +250,17 @@ churches.get('/churches/:churchId/teams', async (c) => {
   const [church] = await db.select().from(schema.churches).where(eq(schema.churches.id, churchId))
   if (!church) return c.json({ error: 'Church not found' }, 404)
 
-  const rows = await db.select().from(schema.teams).where(eq(schema.teams.churchId, churchId))
+  const rows = await db
+    .select({
+      id: schema.teams.id,
+      meetId: schema.teams.meetId,
+      churchId: schema.teams.churchId,
+      division: schema.teams.division,
+      number: schema.teams.number,
+      consolation: schema.teams.consolation,
+    })
+    .from(schema.teams)
+    .where(eq(schema.teams.churchId, churchId))
   return c.json({ teams: rows })
 })
 
@@ -353,6 +363,63 @@ churches.delete('/teams/:teamId', async (c) => {
   await db.delete(schema.teams).where(eq(schema.teams.id, teamId))
 
   return c.json({ deleted: true as const })
+})
+
+/**
+ * POST /api/teams/:teamId/consolation
+ *
+ * Marks a team as consolation. Requires admin or superuser access.
+ * Called at stats break when teams are split into the consolation bracket.
+ */
+churches.post('/teams/:teamId/consolation', async (c) => {
+  const teamId = Number(c.req.param('teamId'))
+  if (Number.isNaN(teamId)) return c.json({ error: 'Invalid team ID' }, 400)
+
+  const user = getUser(c)
+  const db = getDb(c)
+
+  const team = await getTeamWithChurch(db, teamId)
+  if (!team) return c.json({ error: 'Team not found' }, 404)
+
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, team.church.meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+
+  const [updated] = await db
+    .update(schema.teams)
+    .set({ consolation: true })
+    .where(eq(schema.teams.id, teamId))
+    .returning()
+
+  return c.json({ team: updated }, 201)
+})
+
+/**
+ * DELETE /api/teams/:teamId/consolation
+ *
+ * Removes consolation status from a team. Requires admin or superuser access.
+ */
+churches.delete('/teams/:teamId/consolation', async (c) => {
+  const teamId = Number(c.req.param('teamId'))
+  if (Number.isNaN(teamId)) return c.json({ error: 'Invalid team ID' }, 400)
+
+  const user = getUser(c)
+  const db = getDb(c)
+
+  const team = await getTeamWithChurch(db, teamId)
+  if (!team) return c.json({ error: 'Team not found' }, 404)
+
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, team.church.meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+
+  const [updated] = await db
+    .update(schema.teams)
+    .set({ consolation: false })
+    .where(eq(schema.teams.id, teamId))
+    .returning()
+
+  return c.json({ team: updated })
 })
 
 // ---- Quizzers ----
@@ -683,8 +750,9 @@ churches.post('/churches/:churchId/roster/sync', async (c) => {
 /**
  * GET /api/meets/:meetId/teams
  *
- * Returns all teams for a meet with their church label in one query.
- * Used by the scoresheet to populate team dropdowns in quizmeet mode.
+ * Returns all teams for a meet with their church label in one query, plus the
+ * meet's canonical division list. Used by the scoresheet to populate the
+ * division dropdown and team picker in quizmeet mode.
  * Any authenticated member of the meet can read.
  */
 churches.get('/meets/:meetId/teams', async (c) => {
@@ -693,21 +761,30 @@ churches.get('/meets/:meetId/teams', async (c) => {
 
   const db = getDb(c)
 
-  const rows = await db
-    .select({
-      id: schema.teams.id,
-      churchId: schema.churches.id,
-      churchName: schema.churches.name,
-      churchShortName: schema.churches.shortName,
-      division: schema.teams.division,
-      number: schema.teams.number,
-    })
-    .from(schema.teams)
-    .innerJoin(schema.churches, eq(schema.teams.churchId, schema.churches.id))
-    .where(eq(schema.teams.meetId, meetId))
-    .orderBy(schema.churches.name, schema.teams.number)
+  const [[meetRow], rows] = await Promise.all([
+    db
+      .select({ divisions: schema.quizMeets.divisions })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, meetId)),
+    db
+      .select({
+        id: schema.teams.id,
+        churchId: schema.churches.id,
+        churchName: schema.churches.name,
+        churchShortName: schema.churches.shortName,
+        division: schema.teams.division,
+        number: schema.teams.number,
+        consolation: schema.teams.consolation,
+      })
+      .from(schema.teams)
+      .innerJoin(schema.churches, eq(schema.teams.churchId, schema.churches.id))
+      .where(eq(schema.teams.meetId, meetId))
+      .orderBy(schema.churches.name, schema.teams.number),
+  ])
 
-  return c.json({ teams: rows })
+  const meetDivisions: string[] = meetRow ? (JSON.parse(meetRow.divisions) as string[]) : []
+
+  return c.json({ teams: rows, meetDivisions })
 })
 
 /**
