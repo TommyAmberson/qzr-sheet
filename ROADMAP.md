@@ -181,32 +181,21 @@ _Quizmeet mode UI:_
 * Quizzer name cells remain editable; a name that diverges from `dbName` gets an amber underline + a
   `↺` restore button (tooltip shows DB name)
 
-**4.7c: Sign-in widget** (web + Tauri, deferred until after 4.7b is working on web)
+**4.7c: Sign-in widget** ✅
 
-Adding auth to the Tauri desktop build is significantly more involved than the web PWA:
-
-* **Web PWA**: straightforward — add `better-auth` dep to `apps/scoresheet`, wire up the same
-  `createAuthClient` + `useSession()` pattern as the portal, add a sign-in button to the meta bar.
-  OAuth redirects work natively in the browser.
-
-* **Tauri desktop**: OAuth flows require opening a browser window and capturing the redirect back
-  into the app. Options:
-  * `tauri-plugin-oauth` — spins up a local HTTP server to catch the OAuth callback, then passes the
-    session token back to the webview via a Tauri command
-  * Deep link via custom URI scheme (`qzrsheet://auth/callback`) — requires registering the scheme
-    in `tauri.conf.json` and `Cargo.toml`, and handling it in `lib.rs`
-  * Email/password only (no OAuth) for desktop — simpler but less convenient
-  * The Tauri webview’s cookie jar is isolated from the system browser, so Better Auth cookies set
-    in the browser won’t carry over — the desktop app needs its own sign-in
-
-* Sign-in widget design (added to right meta block, next to theme toggle):
-  * Signed out: small “Sign in” button
-  * Signed in: user initials/avatar pill with dropdown (sign out)
-  * On Tauri: button opens a sign-in dialog with email/password + optional OAuth via
-    `tauri-plugin-oauth`; on web: opens an inline popover (same pattern as portal’s `SignInMenu`)
-
-* `__API_URL__` define needed in scoresheet’s `vite.config.ts` (already has `isTauri` flag; inject
-  `https://www.versevault.ca` for prod web build, empty string for dev)
+* `better-auth` added to scoresheet; `useAuth` composable wraps `createAuthClient` + `useSession()`
+* `SignInWidget` component in the right meta bar: GitHub, Google, and email/password — matches the
+  portal’s `SignInMenu`; signed-in state shows email with sign-out dropdown
+* Signing out also clears the meet session (`clearSession()`)
+* `__API_URL__` in `vite.config.ts`: prod Tauri → `https://www.versevault.ca`, prod web → `’’`
+  (same-origin), dev (any) → `http://localhost:8787`
+* API CORS updated to allow Tauri webview origins in production (`tauri://localhost`,
+  `https://tauri.localhost`); dev still allows `localhost:5173/5174`; environment-gated via
+  `ENVIRONMENT` binding so dev localhost ports are never in the production allowlist
+* `useHttpsScheme: true` in `tauri.conf.json` so Windows webview uses `https://tauri.localhost`
+  (fixes cookie delivery — HTTP origins can’t receive `SameSite=Lax` cookies cross-origin)
+* Better Auth `trustedOrigins` extended with both Tauri production origins
+* `pnpm dev:tauri:linux-x11` added — starts portal, API, and Tauri dev window together
 
 **4.7d: Load teams from schedule** — pre-populate scoresheet from a scheduled quiz (depends on
 4.10a):

@@ -13,12 +13,22 @@ import { createAuth } from './lib/auth'
 
 const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
 
-// CORS only needed for local dev (api :8787 ← web :5174).
-// In production the Worker is served at www.versevault.ca/api/* — same origin.
+// CORS needed for:
+//   dev   — scoresheet :5173 and portal :5174 → api :8787
+//   Tauri — production webview origins: tauri://localhost (macOS/Linux),
+//           https://tauri.localhost (Windows with useHttpsScheme)
+// Production web is same-origin — no CORS needed.
 app.use(
   '*',
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174'],
+    origin: (origin, c) => {
+      const env = (c.env as Bindings).ENVIRONMENT
+      const allowed =
+        env === 'production'
+          ? ['tauri://localhost', 'https://tauri.localhost']
+          : ['http://localhost:5173', 'http://localhost:5174']
+      return allowed.includes(origin) ? origin : null
+    },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
