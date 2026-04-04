@@ -229,6 +229,8 @@ watch(
           </a>
         </div>
       </section>
+
+      <RouterLink to="/roadmap" class="roadmap-link">What's coming →</RouterLink>
     </div>
   </div>
 </template>
@@ -503,5 +505,17 @@ watch(
 
 .field-input:focus {
   border-color: var(--color-accent);
+}
+
+.roadmap-link {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+  text-decoration: none;
+  margin-top: 0.5rem;
+}
+
+.roadmap-link:hover {
+  color: var(--color-accent);
 }
 </style>
