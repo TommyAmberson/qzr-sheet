@@ -61,6 +61,7 @@ export default defineConfig({
   ],
   define: {
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+    __IS_TAURI__: JSON.stringify(isTauri),
     __API_URL__: JSON.stringify(
       isTauri
         ? 'https://www.versevault.ca'

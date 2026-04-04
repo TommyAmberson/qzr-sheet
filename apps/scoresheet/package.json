@@ -18,6 +18,7 @@
   "dependencies": {
     "@sinclair/typebox": "^0.34.0",
     "@qzr/shared": "workspace:*",
+    "better-auth": "^1.2.7",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-fs": "^2",
     "fflate": "^0.8.2",
