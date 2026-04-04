@@ -67,3 +67,6 @@ src-tauri/icons/favicon.ico
 # Local dev secrets (never commit)
 .dev.vars
 
+# Claude Code local settings (personal, not team-shared)
+.claude/settings.local.json
+

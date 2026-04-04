@@ -2,6 +2,7 @@ import {
   CellValue,
   PlacementFormula,
   QuestionCategory,
+  QUIZZERS_PER_TEAM,
   type Column,
   type Quiz,
   type Team,
@@ -39,7 +40,7 @@ function createDefaultTeams(quizId: number): { teams: Team[]; quizzers: Quizzer[
       seatOrder: t,
     })
 
-    for (let q = 0; q < 5; q++) {
+    for (let q = 0; q < QUIZZERS_PER_TEAM; q++) {
       quizzers.push({
         id: genId(),
         teamId,

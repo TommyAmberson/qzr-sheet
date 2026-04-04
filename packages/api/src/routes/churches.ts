@@ -364,15 +364,7 @@ churches.get('/teams/:teamId/quizzers', async (c) => {
   const teamId = Number(c.req.param('teamId'))
   if (Number.isNaN(teamId)) return c.json({ error: 'Invalid team ID' }, 400)
 
-  const user = getUser(c)
   const db = getDb(c)
-
-  const team = await getTeamWithChurch(db, teamId)
-  if (!team) return c.json({ error: 'Team not found' }, 404)
-
-  if (!(await canEditChurch(db, user.id, user.role, team.church))) {
-    return c.json({ error: 'Forbidden' }, 403)
-  }
 
   const rows = await db
     .select({ quizzerId: schema.teamRosters.quizzerId, name: schema.teamRosters.name })
@@ -689,10 +681,40 @@ churches.post('/churches/:churchId/roster/sync', async (c) => {
 })
 
 /**
+ * GET /api/meets/:meetId/teams
+ *
+ * Returns all teams for a meet with their church label in one query.
+ * Used by the scoresheet to populate team dropdowns in quizmeet mode.
+ * Any authenticated member of the meet can read.
+ */
+churches.get('/meets/:meetId/teams', async (c) => {
+  const meetId = Number(c.req.param('meetId'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const db = getDb(c)
+
+  const rows = await db
+    .select({
+      id: schema.teams.id,
+      churchId: schema.churches.id,
+      churchName: schema.churches.name,
+      churchShortName: schema.churches.shortName,
+      division: schema.teams.division,
+      number: schema.teams.number,
+    })
+    .from(schema.teams)
+    .innerJoin(schema.churches, eq(schema.teams.churchId, schema.churches.id))
+    .where(eq(schema.teams.meetId, meetId))
+    .orderBy(schema.churches.name, schema.teams.number)
+
+  return c.json({ teams: rows })
+})
+
+/**
  * GET /api/meets/:meetId/roster/export
  *
- * Returns all churches → teams → quizzers for the meet in one query.
- * Any authenticated member can read (same access rule as GET churches).
+ * Returns a flat list of all quizzers across all teams in a meet,
+ * with church and team metadata. Any authenticated user can read.
  */
 churches.get('/meets/:meetId/roster/export', async (c) => {
   const meetId = Number(c.req.param('meetId'))

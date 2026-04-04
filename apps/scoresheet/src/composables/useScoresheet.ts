@@ -495,6 +495,41 @@ export function useScoresheet() {
     clearStorage()
   }
 
+  /** Clear all answers and no-jump flags, keeping names and quiz metadata */
+  function clearAnswers() {
+    // Snapshot before calling loadState — loadState mutates the internal arrays in-place,
+    // so passing store.teams/quizzers directly would zero them out mid-iteration.
+    const teams = [...store.teams]
+    const quizzers = [...store.quizzers]
+    store.loadState({
+      quiz: store.quiz,
+      teams,
+      quizzers,
+      answers: [],
+    })
+    noJumpMap.value = new Map()
+    internalOtRounds.value = 1
+    answerVersion.value++
+    history.clear()
+    saveToStorage(store, noJumpMap.value)
+  }
+
+  /** Reset all team and quizzer names to defaults (Team 1/2/3, Quizzer 1/2/3/4) */
+  function clearNames() {
+    const sortedTeams = [...store.teams].sort((a, b) => a.seatOrder - b.seatOrder)
+    for (let i = 0; i < sortedTeams.length; i++) {
+      const team = sortedTeams[i]!
+      store.setTeamName(team.id, `Team ${i + 1}`)
+      const qzrs = store.quizzersByTeam(team.id)
+      for (let j = 0; j < qzrs.length; j++) {
+        store.setQuizzerName(qzrs[j]!.id, j < 4 ? `Quizzer ${j + 1}` : '')
+      }
+    }
+    teamVersion.value++
+    history.clear()
+    saveToStorage(store, noJumpMap.value)
+  }
+
   // --- Auto-persist to localStorage ---
   let persistTimer: ReturnType<typeof setTimeout> | null = null
   function schedulePersist() {
@@ -572,6 +607,8 @@ export function useScoresheet() {
     noJumpMap,
     loadFile,
     resetStore,
+    clearAnswers,
+    clearNames,
 
     // Question types
     setQuestionType,

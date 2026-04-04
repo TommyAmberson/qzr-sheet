@@ -61,6 +61,13 @@ export default defineConfig({
   ],
   define: {
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+    __API_URL__: JSON.stringify(
+      isTauri
+        ? 'https://www.versevault.ca'
+        : process.env.NODE_ENV === 'production'
+          ? ''
+          : 'http://localhost:8787',
+    ),
   },
   server: { port: 5173 },
   base: isTauri ? '/' : '/scoresheet/',

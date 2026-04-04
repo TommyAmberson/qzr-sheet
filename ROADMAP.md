@@ -15,6 +15,92 @@ quiz/reset, ODS export (template-based), ODS import.
 **Phase 3: Distribution** — PWA on Cloudflare Pages (`www.versevault.ca/scoresheet/`), CI/CD
 pipeline (deploy on tag), packaged releases for Windows/macOS/Linux via GitHub Releases.
 
+**Phase 4.0: Monorepo conversion** — Restructured the repo into a pnpm workspace monorepo.
+
+**Phase 4.1: Website / landing page** — Scaffolded `apps/web` as a full Vue 3 + vue-router Vite app.
+Landing page covers what the scoresheet does today and sketches the planned meet platform. Combined
+build: `pnpm build:all` produces `apps/web/dist/` with the scoresheet output nested at
+`scoresheet/`; `pnpm deploy` builds and publishes both to the CF Pages project.
+
+**Phase 4.2: API + database** — Hono on Cloudflare Workers with D1 and Drizzle. `packages/shared`
+extracts the QuizFile TypeBox schema and role enums so the API can consume them without depending on
+the scoresheet. `packages/api` has a typed Bindings interface, CORS + logger middleware,
+`GET /health`, and the full Drizzle schema covering all tables from the data model. First D1
+migration generated and committed. Worker is routed at `www.versevault.ca/api/*` (same origin as the
+web app — no CORS in production).
+
+**Phase 4.3: Authentication** — OAuth sign-in with GitHub and Google, plus email/password. Better
+Auth handles the full auth stack: OAuth dance, sessions, account linking, and email/password
+sign-up/sign-in.
+
+* `better-auth` mounted at `/api/auth/*` in Hono
+* DB schema: Better Auth's `user`, `session`, `account`, `verification` tables; `role` as an
+  `additionalField` on `user` (default `normal`, not user-settable); FK references on `churches` and
+  `*_memberships` use `user.id` (text UUID)
+* Cookie-based sessions — no `localStorage` JWT, no redirect dance
+* Account linking enabled for GitHub and Google (both verify email addresses)
+* `useAuth` composable uses `better-auth/vue` `createAuthClient` + `useSession()`
+* `SignInMenu` component in the portal header: GitHub, Google, or email/password form with sign-in /
+  create-account toggle
+* `callbackURL` uses `window.location.origin` so OAuth redirects return to the web app, not the API
+* Guest JWTs for officials and viewers remain custom — Better Auth handles user auth only
+
+**Phase 4.4: Meet join codes** — Enter a code to gain a meet-scoped role: `head_coach`, `official`,
+or `viewer`. Coaches must have an account.
+
+* Session middleware reads Better Auth cookies, with `requireAuth` (401) and `requireSuperuser`
+  (403) guards
+* Superuser-only meet CRUD: `POST/GET/PATCH/DELETE /api/meets`, with official code management
+  (`POST/DELETE /api/meets/:id/official-codes`, rotate endpoints)
+* Coach codes are per-meet, server-generated, stored as SHA-256 hashes; viewer codes are
+  superuser-set plaintext slugs; official codes are per-room with independent rotation
+* `POST /api/join` (authenticated) — accepts `{ code }`, resolves meet + role via viewer slug match
+  → admin hash match → coach hash match → official hash match, creates idempotent membership row
+* `POST /api/join/guest` — endpoint exists and issues a guest JWT for official or viewer codes, but
+  the token is not yet consumed anywhere: the session middleware has no Bearer token path and there
+  is no frontend code entry UI. Full guest flow is implemented in 4.11.
+* `GET /api/my-meets` — returns all meets the user has joined, with their role(s)
+* DB injection via Hono context variables; test suite uses `better-sqlite3` in-memory DB with full
+  schema for integration tests
+
+**Phase 4.5: Superuser dashboard** — Create and manage quiz meets from the portal.
+
+* `GET/POST /api/meets` — list and create meets (superuser only)
+* `GET/PATCH/DELETE /api/meets/:id` — meet detail, edit name/dates/viewer code/divisions
+* `POST/DELETE /api/meets/:id/official-codes` + rotate — per-room official code management
+* `apps/web/src/api.ts` — typed fetch wrapper with cookie credentials for all endpoints
+* `quiz_meets` schema: `date_from` (not null) + `date_to` (nullable) for multi-day meets
+
+**Phase 4.6: Coach roster flow** — Coaches join a meet, then build team rosters for their church.
+Roster editing uses a draft model — all changes are local until the coach clicks Save.
+
+* Full church/team/quizzer CRUD (`GET/POST/PATCH/DELETE` for churches, teams, quizzers)
+* `MeetTeamsView` — single-church view, unassigned pool, team cards with drag reorder, draft
+  save/discard bar, per-team size and division-order warnings
+* Edit gating: coaches can only edit their own church; admins and superusers can edit any church
+
+**Phase 4.6a: Role model and dashboard** — Per-church coach codes, meet-scoped admin role,
+consolidated dashboard with role-based visibility.
+
+* Schema: `quiz_meets.admin_code_hash`, `admin_memberships`, `churches.coach_code_hash`,
+  `coach_memberships(accountId, churchId, meetId)`
+* `POST /api/join` — 3-way code matching: admin → church coach → official
+* Admin code and coach code rotate endpoints with optional `clearMembers`
+* `GET /api/meets/:id/members` — list all members across all role tables (admin/superuser)
+* `DELETE /api/meets/:id/members/:userId` — revoke a specific membership by role + scope
+* `QuizMeetView` (dashboard) — single page for the entire meet, role-gated: meet info header, inline
+  edit card, admin section, churches list, rooms list, access dialogs
+
+**Phase 4.6b: Batch roster sync** — Replace sequential per-resource API calls with bulk endpoints.
+
+* `POST /api/churches/:id/roster/sync` — client sends desired state; server diffs and applies all
+  creates/updates/deletes/moves sequentially; returns full resolved state with real IDs
+* `POST /api/meets/:id/roster/import` — parse CSV entries, match/create churches, deduplicate teams
+* `GET /api/meets/:id/roster/export` — single join query, flat rows
+* `GET /api/meets/:id/churches` returns `teamCount` via left-join + group-by
+
+---
+
 ## Backlog
 
 Optional items that can happen any time, independent of Phase 4.
@@ -28,203 +114,249 @@ Optional items that can happen any time, independent of Phase 4.
 * **Code signing** — macOS notarization and Windows signing for warning-free installers
 * **Auto-updater** — Tauri's built-in update mechanism
 
-## Phase 4: Quizmeet Integration
+---
 
-See `docs/architecture.md`, `docs/auth.md`, `docs/roles-and-access.md`, and `docs/data-model.md` for
-the full design.
+## In Progress / Up Next
 
-### 4.0 Monorepo conversion ✓
+### Phase 4.7: Scoresheet — load teams from meet
 
-Restructured the repo into a pnpm workspace monorepo.
+UX for switching between offline mode (status quo) and online mode (auth-gated, pull team data from
+the API). These are two distinct sub-features with separate dependencies.
 
-### 4.1 Website / landing page ✓
+**4.7a: Toolbar restructure** ✅
 
-Scaffolded `apps/web` as a full Vue 3 + vue-router Vite app. Landing page covers what the scoresheet
-does today and sketches the planned meet platform (standings, schedule, rosters, official flow,
-admin). Honest WIP framing — no branding name yet. Combined build: `pnpm build:all` produces
-`apps/web/dist/` with the scoresheet output nested at `scoresheet/`; `pnpm deploy` builds and
-publishes both to the CF Pages project.
+Pure UI refactor — no API calls, no auth. Safe to implement first and independently.
 
-### 4.2 API + database ✓
+* `[Save ▼]` submenu replaces the flat Save + Export buttons:
+  * Save as JSON (current `saveFile()`)
+  * Export ODS (current `exportOds()`)
+  * (placeholder for 4.8 Submit, hidden for now)
+* `[Open]` unchanged — auto-detects JSON vs ODS import
+* `[New ▼]` submenu replaces the single New button:
+  * **New quiz** — full reset, dirty check (current behaviour)
+  * **Clear answers** — wipe all cells, keep names and meta
+  * **Clear names** — wipe team/quizzer names AND disconnect from meet (resets `meetSession`)
+  * **Load teams from meet…** — active in 4.7b
+* `useScoresheet` gains `clearAnswers()` and `clearNames()` alongside the existing `resetStore()`
+* Keyboard shortcut Ctrl+N still triggers full reset (same as “New quiz”)
 
-Hono on Cloudflare Workers with D1 and Drizzle. `packages/shared` extracts the QuizFile TypeBox
-schema and role enums so the API can consume them without depending on the scoresheet.
-`packages/api` has a typed Bindings interface, CORS + logger middleware, `GET /health`, and the full
-Drizzle schema covering all tables from the data model. First D1 migration generated and committed.
-Worker is routed at `www.versevault.ca/api/*` (same origin as the web app — no CORS in production).
+**4.7b: Quizmeet mode** ✅ (requires being already signed in to the portal in the same browser)
 
-### 4.3 Authentication ✓
+Uses the existing Better Auth cookie session — no new sign-in UI yet. On web (PWA), if the user is
+already signed into `www.versevault.ca`, the scoresheet at `/scoresheet/` shares the same cookie and
+can make credentialed API calls immediately. On Tauri/desktop, this phase is a no-op — it simply
+won’t work until 4.7c.
 
-OAuth sign-in with GitHub and Google, plus email/password. Better Auth handles the full auth stack:
-OAuth dance, sessions, account linking, and email/password sign-up/sign-in.
+_New API endpoint (in `packages/api`):_
 
-* `better-auth` mounted at `/api/auth/*` in Hono — replaces the hand-rolled Arctic + JWT layer
-* DB schema: Better Auth's `user`, `session`, `account`, `verification` tables; `role` as an
-  `additionalField` on `user` (default `normal`, not user-settable); FK references on `churches` and
-  `*_memberships` use `user.id` (text UUID)
-* Cookie-based sessions — no `localStorage` JWT, no redirect dance, no `AuthDoneView`
-* Account linking enabled for GitHub and Google (both verify email addresses)
-* `useAuth` composable uses `better-auth/vue` `createAuthClient` + `useSession()`
-* `SignInMenu` component in the portal header: GitHub, Google, or email/password form with sign-in /
-  create-account toggle
-* `callbackURL` uses `window.location.origin` so OAuth redirects return to the web app, not the API
-* Guest JWTs for officials and viewers remain custom — Better Auth handles user auth only
+* `GET /api/meets/:id/teams` — returns all teams for a meet with church label in one call:
+  `{ teams: [{ id, churchId, churchName, churchShortName, division, number }][] }`
+* Access rule: any authenticated member of the meet can read (same as churches endpoint)
 
-### 4.4 Meet join codes ✓
+_New composable `useMeetSession`:_
 
-Enter a code to gain a meet-scoped role: `head_coach`, `official`, or `viewer`. Officials and
-viewers can use guest JWTs without creating an account.
+* Holds: `meetId`, `meetName`, full team list, per-slot
+  `{ teamId, dbLabel, dbLabelFull, quizzers[] }`; quizzer list always padded to `QUIZZERS_PER_TEAM`
+  (empty seats have `dbName: ‘’`)
+* `loadMeet(meetId)` — fetches team list, activates mode
+* `assignTeam(slotIdx, teamId)` — fetches quizzer roster, populates slot
+* `reorderSlotQuizzers(slotIdx, from, to)` — mirrors drag-reorder so divergence detection stays
+  correct
+* `clearSession()` — resets all session state
+* Persists to localStorage (separate key); on restore, re-fetches the team list
 
-* Session middleware reads Better Auth cookies, with `requireAuth` (401) and `requireSuperuser`
-  (403) guards
-* Superuser-only meet CRUD: `POST/GET/PATCH/DELETE /api/meets`, with official code management
-  (`POST/DELETE /api/meets/:id/official-codes`, rotate endpoints)
-* Coach codes are per-meet, server-generated, stored as SHA-256 hashes; viewer codes are
-  superuser-set plaintext slugs; official codes are per-room with independent rotation
-* `POST /api/join` (authenticated) — accepts `{ code }`, resolves meet + role via viewer slug match
-  → coach hash match → official hash match, creates idempotent membership row
-* `POST /api/join/guest` (unauthenticated) — accepts official or viewer codes, returns a short-lived
-  guest JWT (24h, signed with `jose` via Web Crypto). Coach codes rejected — coaches must have an
-  account
-* `GET /api/my-meets` — returns all meets the user has joined, with their role(s)
-* DB injection via Hono context variables; test suite uses `better-sqlite3` in-memory DB with full
-  schema for integration tests
+_Meet picker dialog:_
 
-### 4.5 Superuser dashboard ✓
+* Only shown when a session cookie exists (`GET /api/my-meets` returns results)
+* Single step: pick a meet from the list
+* After confirming, team assignment happens inline in the scoresheet
 
-Create and manage quiz meets from the portal.
+_Quizmeet mode UI:_
 
-* `GET/POST /api/meets` — list and create meets (superuser only)
-* `GET/PATCH/DELETE /api/meets/:id` — meet detail, edit name/dates/viewer code/divisions
-* `POST/DELETE /api/meets/:id/official-codes` + rotate — per-room official code management
-* `apps/web/src/api.ts` — typed fetch wrapper with cookie credentials for all endpoints
-* `quiz_meets` schema: `date_from` (not null) + `date_to` (nullable) for multi-day meets
+* Active whenever `meetSession` is set; reset by “Clear names” or “New quiz”
+* A small `🔗 MeetName` pill in the left meta bar
+* Team name cell → **custom dropdown** (teleported to body, keyboard + click-outside dismissal);
+  shows full church name when space permits, short name otherwise (`v-fit-name` directive);
+  selecting a team auto-populates quizzer names
+* Quizzer name cells remain editable; a name that diverges from `dbName` gets an amber underline + a
+  `↺` restore button (tooltip shows DB name)
 
-### 4.6 Coach roster flow ✓
+**4.7c: Sign-in widget** (web + Tauri, deferred until after 4.7b is working on web)
 
-Coaches join a meet, then build team rosters for their church. Roster editing uses a draft model —
-all changes are local until the coach clicks Save, which flushes a minimal diff to the API.
+Adding auth to the Tauri desktop build is significantly more involved than the web PWA:
 
-* `GET /api/meets/:id/churches` — list churches for the meet (any authenticated member can read)
-* `POST /api/meets/:id/churches` — create a church (admin/superuser)
-* `DELETE /api/churches/:id` — delete a church and cascade teams/rosters (admin/superuser)
-* `GET /api/churches/:id/teams` — list teams under a church
-* `POST /api/churches/:id/teams` — create a team; number auto-increments per church
-* `PATCH /api/teams/:id` — update a team's division
-* `DELETE /api/teams/:id` — delete a team and its roster (cascade)
-* `GET/POST /api/teams/:id/quizzers` — list and add roster entries
-* `PATCH /api/teams/:id/quizzers/:quizzerId` — rename a quizzer
-* `DELETE /api/teams/:id/quizzers/:quizzerId` — remove from roster
-* `MeetTeamsView` — single-church view (`/meets/:id/churches/:churchId/teams`), unassigned pool,
-  team cards with drag reorder, draft save/discard bar, per-team size and division-order warnings
-* Edit gating: `CoachMembership` lookup — coaches can only edit their own church; admins and
-  superusers can edit any church
+* **Web PWA**: straightforward — add `better-auth` dep to `apps/scoresheet`, wire up the same
+  `createAuthClient` + `useSession()` pattern as the portal, add a sign-in button to the meta bar.
+  OAuth redirects work natively in the browser.
 
-Identity linking (name-match suggestions, church-change warnings) deferred to a later step.
+* **Tauri desktop**: OAuth flows require opening a browser window and capturing the redirect back
+  into the app. Options:
+  * `tauri-plugin-oauth` — spins up a local HTTP server to catch the OAuth callback, then passes the
+    session token back to the webview via a Tauri command
+  * Deep link via custom URI scheme (`qzrsheet://auth/callback`) — requires registering the scheme
+    in `tauri.conf.json` and `Cargo.toml`, and handling it in `lib.rs`
+  * Email/password only (no OAuth) for desktop — simpler but less convenient
+  * The Tauri webview’s cookie jar is isolated from the system browser, so Better Auth cookies set
+    in the browser won’t carry over — the desktop app needs its own sign-in
 
-### 4.6a Role model and dashboard ✓
+* Sign-in widget design (added to right meta block, next to theme toggle):
+  * Signed out: small “Sign in” button
+  * Signed in: user initials/avatar pill with dropdown (sign out)
+  * On Tauri: button opens a sign-in dialog with email/password + optional OAuth via
+    `tauri-plugin-oauth`; on web: opens an inline popover (same pattern as portal’s `SignInMenu`)
 
-Per-church coach codes, meet-scoped admin role, consolidated dashboard with role-based visibility.
+* `__API_URL__` define needed in scoresheet’s `vite.config.ts` (already has `isTauri` flag; inject
+  `https://www.versevault.ca` for prod web build, empty string for dev)
 
-**Schema:**
+**4.7d: Load teams from schedule** — pre-populate scoresheet from a scheduled quiz (depends on
+4.10a):
 
-* `quiz_meets.admin_code_hash` — meet-level admin code
-* `admin_memberships(accountId, meetId)` — meet-scoped admin role
-* `churches.coach_code_hash` — per-church coach code
-* `coach_memberships(accountId, churchId, meetId)` — church-scoped coach role
+* “Load teams from meet…” dialog gains a second mode: pick a scheduled quiz instead of manually
+  selecting teams per slot
+* Teams and seat order come from `quiz_teams`; quizzers pulled from roster
+* Sets `quizId` on the meetSession so the Submit flow (4.8) knows which quiz to post to
+* Portal schedule view → click assigned quiz → opens `/scoresheet/?quiz=id`
+
+**Note on code/guest path:** After 4.11 (guest access), the meet picker will also accept a join code
+so it works without signing in. That is explicitly deferred — 4.7b and 4.7c only use existing Better
+Auth cookie sessions.
+
+### Phase 4.8: Results submission
+
+Officials submit completed scoresheets to the server. Submitted results are immutable. This phase
+does **not** depend on the schedule — a result is a standalone record attached to a meet, not a
+scheduled quiz entry. Schedule integration (matching results to `quiz_teams` rows) is deferred to
+Phase 4.10.
+
+**Database schema:**
+
+* `quiz_results(id, meetId, submittedAt, submittedBy, round, room, quizFile)` — immutable; `meetId`
+  is the only required FK; `quizId` nullable (populated later when schedule exists)
+* `quiz_disputes(id, resultId, createdBy, reason, resolved)` — flag suspicious results for review
+
+**Auth for submission:**
+
+* Only officials (guest JWT + room code match, or signed-in official user) can submit
+* `POST /api/meets/:id/results` — validate auth role, validate `QuizFile` schema, write atomically;
+  409 if a result for the same round + room already exists
+* `GET /api/meets/:id/results` — list all submitted results (admin/superuser)
+* Flag / unflag for dispute (`PATCH`); view full result JSON in modal
+
+**Scoresheet changes:**
+
+* “Submit” button appears when scoresheet is clean and all cells are valid
+* POST to `/api/meets/:id/results` with `QuizFile` body + round + room metadata
+* On success: show confirmation, lock the UI
+* On 409: explain, offer to download local copy
+
+### Phase 4.9: Stats calculator
+
+Aggregate individual and team performance across all submitted results in a meet.
+
+**Pure functions in `packages/shared/scoring`:**
+
+* `aggregateTeamStats(results[])` — sum points, bin by question type, count placements
+* `aggregateQuizzerStats(results[], quizzerId)` — filter entries for that quizzer, compute totals
+* `individualsRank(quizzerStats[])` — sort by points, break ties by correctness ratio
 
 **API:**
 
-* `POST /api/join` — 3-way code matching: admin → church coach → official
-* `POST /api/meets/:id/rotate-admin-code` — rotate admin code; `clearMembers` restricted to
-  superuser only
-* `POST /api/churches/:id/rotate-coach-code` — rotate per-church coach code with optional
-  `clearMembers`
-* `GET /api/meets/:id/members` — list all members across all role tables (admin/superuser)
-* `DELETE /api/meets/:id/members/:userId` — revoke a specific membership by role + scope; admin
-  revocation restricted to superusers
-* All church/team edit routes gated by `canEditChurch()` (coach membership, admin, or superuser)
+* `GET /api/meets/:id/stats/teams` — per-team totals: points, correct/incorrect/blank by question
+  range, placement finishes; optionally filter by division
+* `GET /api/meets/:id/stats/quizzers` — per-quizzer: points, correct/incorrect/blank, matches
+  played, average per-round
+* `GET /api/meets/:id/stats/quizzers/:quizzerId` — detailed breakdown: all quizzes, per-round
+  scores, Q17–20 performance, overtime streaks
 
-**Portal:**
+**Portal views:**
 
-* `QuizMeetView` (dashboard) — single page for the entire meet, role-gated:
-  * Meet info header: title + date row, division pills, viewer code with copy/share buttons
-  * Inline edit card (admin): labeled fields, side-by-side dates, divisions tag editor, viewer code
-    with URL-change hint, field order matches display
-  * Admin section with access dialog (admin only)
-  * Churches list with team count summary, "Roster" link, 🔑 access dialog, delete (admin)
-  * Rooms list with 🔑 access dialog, delete, inline add form (admin)
-* Access dialog (`<dialog>`) — code generation + member list with individual revoke
-* `MeetAdminView` removed — all admin functionality on the dashboard
-* `MeetTeamsView` — single-church view via `churchId` prop, no church tab bar
+* `MeetStatsView` — tabs: Teams, Individuals; sortable tables
+* `QuizzerDetailView` — all-time performance at the meet: points trend, Q distribution, match log
 
-### 4.6b Batch roster sync ✓
+**Note:** Stats are read-only and computed lazily from immutable `quiz_results` rows. No real-time
+computation — compute on-demand or cache rolled-up queries.
 
-Replace sequential per-resource API calls with bulk endpoints.
+### Phase 4.10: Schedule — generation, management, and views
 
-**Roster sync** — `POST /api/churches/:id/roster/sync`
+Admins generate round-robin schedules assigning teams to rooms and rounds. This is the most complex
+phase and will need careful UX design before implementation. See `docs/architecture.md` and
+`docs/data-model.md`.
 
-* Client sends desired state: ordered teams (with division + quizzer names) and unassigned pool
-* Server diffs against current DB state, applies all creates/updates/deletes/moves sequentially
-* Temp IDs (negative) in the payload signal new teams/quizzers; server returns the full resolved
-  state with real IDs, preserving payload order
-* `MeetTeamsView.saveDraft` calls one endpoint instead of ~10 sequential requests
+**Sub-phases:**
 
-**Roster import** — `POST /api/meets/:id/roster/import`
+* **4.10a: Generation + schema** — Pure RR generation in `packages/shared/scheduling` (input: team
+  list per division, # rounds, # rooms → `{ round, room, teams[] }[]`); DB tables
+  `quizzes(id, meetId, round, room, scheduledAt, completedAt, canceledAt)` and
+  `quiz_teams(quizId, teamId, seatNumber)`; `POST /api/meets/:id/generate-schedule`
+* **4.10b: Schedule view + publish** — Portal schedule table (round, room, teams, status); publish
+  flag; coaches/viewers see their quizzes once published
+* **4.10c: Manual editing** — Swap teams between quizzes before publishing; undo/redo
+* **4.10d: Re-generation** — Handle late-added teams: targeted insertion or full re-generate
+* **4.10e: Result linkage** — Match existing `quiz_results` rows to `quizzes` entries by round +
+  room; backfill `quiz_results.quizId`; enable submit-by-quiz-id flow from 4.7b
 
-* Client sends parsed CSV entries `{ church, division, teamName, quizzerName }[]`
-* Server matches existing churches by name or shortName (case-insensitive), creates missing ones
-* Deduplicates teams: skips any CSV group whose `(division, quizzer-set)` exactly matches an
-  existing team for that church — re-importing an unchanged CSV is a no-op
-* Replaces the client-side `applyRosterImport` loop that made N sequential create calls
+**Design questions to resolve before starting:**
 
-**Roster export** — `GET /api/meets/:id/roster/export`
+* How are divisions scheduled — separately, together, or interleaved?
+* How does the algorithm handle an odd number of teams or teams that can’t be fairly paired?
+* What does the admin UI look like for previewing and swapping before publishing?
 
-* Single join query returns all churches → teams → quizzers as flat rows
-* Replaces `handleExportRoster` loop that made 1 + N_churches + N_teams sequential requests
+### Phase 4.11: Guest access + viewer access
 
-**Team count on churches list** — `GET /api/meets/:id/churches`
+All code-based access without an account, plus the public-facing read-only portal views. These are
+bundled together because the viewer pages depend on guest JWT auth to gate access.
 
-* Returns `teamCount` per church via left-join + group-by
-* Eliminates the N per-church `GET /api/churches/:id/teams` calls on `QuizMeetView` load
+**Guest JWT session expansion:**
 
-### 4.7 Admin: schedule and draw
+`POST /api/join/guest` already exists and signs JWTs, but entering a code currently does nothing —
+the token is dropped. This phase wires up the full end-to-end flow:
 
-Once teams are registered, an admin generates the round-robin draw and publishes the schedule.
+* Session middleware updated to accept `Authorization: Bearer <token>` as an alternative to cookie
+  auth, so all credentialed API routes work for guest sessions
+* Frontend code entry UI — a dialog/page where an unauthenticated user enters a code, gets a JWT
+  back, and the token is stored (e.g. `sessionStorage`) for the duration of the session
+* `POST /api/join/guest` expanded to also accept coach codes (pending design decision below)
+* Meet picker dialog in the scoresheet (4.7b/c) can now accept a code instead of requiring a
+  signed-in session
 
-* Draw algorithm — assign teams to rooms and rounds; configurable round count and room count
-* `POST /api/meets/:id/draw` — generate and persist the draw; idempotent (re-running replaces
-  existing schedule)
-* `GET /api/meets/:id/schedule` — full schedule: rounds, rooms, team assignments
-* Admin portal views: registered teams list per division, draw configuration (rounds, rooms),
-  generated schedule table, ability to manually swap assignments before publishing
-* `quiz_meets.schedule_published` flag — controls whether viewers and coaches can see the schedule
+**Design questions:**
 
-### 4.8 Admin: results and accounts
+* Should coach guest sessions be allowed? If so, how is church ownership scoped without a stable
+  user identity? (A guest coach could corrupt another guest's draft.)
+* What's the lifetime and storage strategy for guest sessions — same 24h JWT, or a longer-lived
+  cookie-backed anonymous session?
+* Admin codes almost certainly require an account (audit trail, revocation). Confirm that hard
+  boundary.
 
-* Review submitted quiz results — list of completed `QuizFile` submissions per meet, flag disputed
-  results, override scores
-* Account management — list users, promote/demote superuser role
-* Merge quizzer identities — resolve cases where a quizzer has two `QuizzerIdentity` records
+**Likely approach:** issue a named guest session (display name entered at join time) backed by a
+short-lived JWT with a `guestRole` claim. Read-write access scoped to the code's role, no ability to
+create an account-linked membership or access admin tools.
 
-### 4.9 Official flow
-
-Load assigned quiz details from the API and pre-populate the scoresheet. Submit completed results
-back to the server. Depends on 4.7 (schedule must exist).
-
-* `GET /api/quizzes/:id` — quiz detail: teams, quizzers, room, round
-* `POST /api/quizzes/:id/result` — submit a completed `QuizFile`
-* Two entry points:
-  * Portal schedule view → click assigned quiz → opens `/scoresheet/?quiz=id`
-  * Scoresheet sign-in + quiz picker modal (for officials using the native app)
-* Scoresheet additions: sign-in button, Load Quiz modal, Submit button, connected status in meta bar
-
-### 4.10 Viewer access
-
-Read-only portal views for standings, stats, and schedules. No account required — guest JWT issued
-via viewer code.
+**Viewer portal pages** (accessible via guest JWT or signed-in session):
 
 * `GET /api/meets/:id/standings` — team standings derived from submitted results
 * `GET /api/meets/:id/schedule` — published schedule (respects `schedule_published` flag)
 * Portal viewer pages: standings table, schedule, individual quizzer stats
-* Guest JWT auth flow: enter viewer code → JWT issued → stored for session duration
+
+### Phase 4.13: Quizzer identity linking
+
+Quizzers are currently created per-meet as plain name strings. This phase introduces a persistent
+identity layer so that stats, history, and profiles can span multiple meets.
+
+**Design questions (must resolve before implementation):**
+
+* What is the canonical identity unit — a global `quizzers` table, or per-church quizzer records
+  with cross-meet linking?
+* Who owns a quizzer identity — the church, a superuser, or the quizzer themselves?
+* How are matches suggested — exact name match, fuzzy match, coach confirmation, or manual merge?
+* What happens to historical stats if two identities are merged or a link is reversed?
+* Does a quizzer ever have a login? (e.g., to view their own stats page)
+
+**Likely approach:**
+
+* Introduce a `quizzer_identities(id, displayName, churchId)` table as the stable anchor
+* `quizzers` (per-meet roster entries) gain a nullable FK `identityId`
+* Linking UI: after roster import, coach sees a “match to known quizzer” suggestion list; exact-name
+  matches are pre-confirmed, fuzzy matches require manual confirmation
+* Stats endpoints accept either `quizzerId` (meet-scoped) or `identityId` (cross-meet)
+* Merging and un-linking are admin-only operations with an audit log
