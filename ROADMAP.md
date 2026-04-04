@@ -55,7 +55,9 @@ or `viewer`. Coaches must have an account.
 * Coach codes are per-meet, server-generated, stored as SHA-256 hashes; viewer codes are
   superuser-set plaintext slugs; official codes are per-room with independent rotation
 * `POST /api/join` (authenticated) — accepts `{ code }`, resolves meet + role via viewer slug match
-  → admin hash match → coach hash match → official hash match, creates idempotent membership row
+  → admin hash match → coach hash match → official hash match, creates idempotent membership row;
+  signed-in users with the viewer role can see the meet dashboard (meet info, church list, team
+  counts) with all edit controls hidden
 * `POST /api/join/guest` — endpoint exists and issues a guest JWT for official or viewer codes, but
   the token is not yet consumed anywhere: the session middleware has no Bearer token path and there
   is no frontend code entry UI. Full guest flow is implemented in 4.11.
@@ -270,7 +272,8 @@ Aggregate individual and team performance across all submitted results in a meet
 
 **Portal views:**
 
-* `MeetStatsView` — tabs: Teams, Individuals; sortable tables
+* `MeetStatsView` — tabs: Teams, Individuals; sortable tables (visible to all roles including
+  viewer)
 * `QuizzerDetailView` — all-time performance at the meet: points trend, Q distribution, match log
 
 **Note:** Stats are read-only and computed lazily from immutable `quiz_results` rows. No real-time
@@ -301,12 +304,10 @@ phase and will need careful UX design before implementation. See `docs/architect
 * How does the algorithm handle an odd number of teams or teams that can’t be fairly paired?
 * What does the admin UI look like for previewing and swapping before publishing?
 
-### Phase 4.11: Guest access + viewer access
+### Phase 4.11: Guest access
 
-All code-based access without an account, plus the public-facing read-only portal views. These are
-bundled together because the viewer pages depend on guest JWT auth to gate access.
-
-**Guest JWT session expansion:**
+Unauthenticated access via a code, without creating an account. Signed-in viewer access already
+works (4.4) — this phase adds the no-account path for officials and viewers.
 
 `POST /api/join/guest` already exists and signs JWTs, but entering a code currently does nothing —
 the token is dropped. This phase wires up the full end-to-end flow:
@@ -315,28 +316,19 @@ the token is dropped. This phase wires up the full end-to-end flow:
   auth, so all credentialed API routes work for guest sessions
 * Frontend code entry UI — a dialog/page where an unauthenticated user enters a code, gets a JWT
   back, and the token is stored (e.g. `sessionStorage`) for the duration of the session
-* `POST /api/join/guest` expanded to also accept coach codes (pending design decision below)
 * Meet picker dialog in the scoresheet (4.7b/c) can now accept a code instead of requiring a
   signed-in session
 
 **Design questions:**
 
-* Should coach guest sessions be allowed? If so, how is church ownership scoped without a stable
-  user identity? (A guest coach could corrupt another guest's draft.)
 * What's the lifetime and storage strategy for guest sessions — same 24h JWT, or a longer-lived
   cookie-backed anonymous session?
 * Admin codes almost certainly require an account (audit trail, revocation). Confirm that hard
   boundary.
 
-**Likely approach:** issue a named guest session (display name entered at join time) backed by a
-short-lived JWT with a `guestRole` claim. Read-write access scoped to the code's role, no ability to
-create an account-linked membership or access admin tools.
-
-**Viewer portal pages** (accessible via guest JWT or signed-in session):
-
-* `GET /api/meets/:id/standings` — team standings derived from submitted results
-* `GET /api/meets/:id/schedule` — published schedule (respects `schedule_published` flag)
-* Portal viewer pages: standings table, schedule, individual quizzer stats
+**Note:** Coach guest sessions are not planned — coaches must have an account (stable identity
+needed for roster ownership). Guest viewer access is read-only; guest official access is scoped to
+their assigned room.
 
 ### Phase 4.13: Quizzer identity linking
 
