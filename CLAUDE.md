@@ -97,6 +97,8 @@ packages/
 When working on scoring logic, rules, or architecture, read the relevant file first:
 
 * `ROADMAP.md` — feature breakdown and implementation plan
+* `apps/web/src/views/RoadmapView.vue` — user-facing feature status page; keep in sync with
+  ROADMAP.md when features ship (move items from "Coming soon" to "Available now")
 * `docs/scoring-rules-explained.md` — cell types, point values,
   toss-up/bonus/A-B/foul/overtime/placement
 * `docs/rules.md` — full rules from official pdf

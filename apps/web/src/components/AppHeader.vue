@@ -14,6 +14,7 @@ const { session, signOut } = useAuth()
       </RouterLink>
       <nav class="nav">
         <a :href="scoresheetUrl" class="nav-link">Scoresheet</a>
+        <RouterLink to="/roadmap" class="nav-link">Roadmap</RouterLink>
         <a
           href="https://github.com/TommyAmberson/qzr-sheet"
           target="_blank"

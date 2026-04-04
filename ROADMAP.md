@@ -1,5 +1,8 @@
 # Roadmap
 
+> When a feature ships, update both this file _and_ the user-facing
+> `apps/web/src/views/RoadmapView.vue` — move it from "Coming soon" to "Available now".
+
 ## Completed
 
 **Phase 0: Foundation** — Tauri 2 + Vue 3 + Vite scaffolding, native dev environment, ESLint,

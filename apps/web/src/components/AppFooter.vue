@@ -7,6 +7,7 @@ const scoresheetUrl = __SCORESHEET_URL__
     <div class="footer-inner">
       <span class="footer-copy">qzr-sheet</span>
       <div class="footer-links">
+        <RouterLink to="/roadmap" class="footer-link">Roadmap</RouterLink>
         <a
           href="https://github.com/TommyAmberson/qzr-sheet"
           target="_blank"
