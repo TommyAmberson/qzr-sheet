@@ -42,6 +42,8 @@ export interface Quiz {
   quizNumber: string
   /** Whether overtime is enabled */
   overtime: boolean
+  /** Whether this quiz is in the consolation bracket */
+  consolation: boolean
   placementFormula: PlacementFormula
   /** Question category per column key (e.g. "1" → INT, "16A" → FTV) */
   questionTypes: Map<string, QuestionCategory>

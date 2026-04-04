@@ -144,9 +144,9 @@ function findMatchingTeam(storeName: string) {
   )
 }
 
-// Teams filtered by the currently-selected division string when a meet is active.
-// "2c" → consolation teams in div 2; "2" → non-consolation div 2; "" → all.
-const filteredTeamList = computed(() => meetSession.teamsForDivision(quiz.division ?? ''))
+const filteredTeamList = computed(() =>
+  meetSession.teamsForDivision(quiz.value.division ?? '', quiz.value.consolation ?? false),
+)
 
 async function onMeetLoaded() {
   for (let ti = 0; ti < 3; ti++) {
@@ -159,6 +159,15 @@ async function onMeetLoaded() {
 
 function restoreQuizzerName(slotIdx: number, quizzerIdx: number) {
   setQuizzerName(slotIdx, quizzerIdx, meetSession.getDbName(slotIdx, quizzerIdx) ?? '')
+}
+
+function isTeamDivisionDiverged(slotIdx: number): boolean {
+  if (!meetSession.isActive.value || !quiz.value.division) return false
+  const slot = meetSession.getSlot(slotIdx)
+  if (!slot) return false
+  const team = meetSession.teamList.value.find((t) => t.id === slot.teamId)
+  if (!team) return false
+  return team.division !== quiz.value.division || team.consolation !== quiz.value.consolation
 }
 
 const {
@@ -368,7 +377,7 @@ function closeMenus() {
 
 async function saveFile() {
   const json = serializeStore(store, noJumpMap.value)
-  const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.json`
+  const filename = `D${quiz.value.division}${quiz.value.consolation ? 'c' : ''}Q${quiz.value.quizNumber}.json`
   const saved = await saveQuizToFile(json, filename)
   if (saved) markSaved()
 }
@@ -440,7 +449,7 @@ async function exportOds() {
   })
   try {
     const odsBytes = fillOts(otsBytes, quizFile)
-    const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.ods`
+    const filename = `D${quiz.value.division}${quiz.value.consolation ? 'c' : ''}Q${quiz.value.quizNumber}.ods`
     const saved = await exportOdsFile(odsBytes, filename)
     if (saved)
       alert('ODS exported.\n\nOpen in LibreOffice and press Ctrl+Shift+F9 to recalculate formulas.')
@@ -577,6 +586,14 @@ const appVersion: string = __APP_VERSION__
                 </select>
                 <input v-else v-model="quiz.division" type="text" placeholder="1" />
               </label>
+              <span
+                class="consolation-toggle"
+                :class="{ 'consolation-toggle--active': quiz.consolation }"
+                @click="quiz.consolation = !quiz.consolation"
+              >
+                <span class="on-time-box">✓</span>
+                <span class="on-time-label">consolation</span>
+              </span>
               <span class="meta-sep">·</span>
               <label class="meta-field">
                 <span class="meta-label">Quiz</span>
@@ -720,7 +737,10 @@ const appVersion: string = __APP_VERSION__
                               full: meetSession.getSlot(ti)!.dbLabelFull,
                               short: meetSession.getSlot(ti)!.dbLabel,
                             }"
-                            class="team-name-fit"
+                            :class="[
+                              'team-name-fit',
+                              { 'team-name-fit--diverged': isTeamDivisionDiverged(ti) },
+                            ]"
                           />
                           <span
                             v-else-if="isDefaultTeamName(team.name)"
@@ -1315,13 +1335,37 @@ const appVersion: string = __APP_VERSION__
 }
 .meta-field .division-select {
   width: 3.5rem;
-  padding: 0.2rem 0.3rem;
+  padding: 0.2rem 1.2rem 0.2rem 0.3rem;
   border: 1px solid var(--color-meta-accent);
   border-radius: 4px;
   font-size: 0.8rem;
-  background: var(--color-bg);
+  background: var(--color-bg)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23888' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E")
+    no-repeat right 0.3rem center;
   color: var(--color-text);
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.consolation-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem 0.15rem 0.25rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.consolation-toggle:hover {
+  background: var(--color-border-alt);
+}
+.consolation-toggle--active .on-time-box {
+  background: var(--color-text);
+  border-color: var(--color-text);
+  color: var(--color-bg);
+}
+.consolation-toggle--active .on-time-label {
+  color: var(--color-text-muted);
 }
 .meta-field .division-select:focus {
   outline: 1px solid var(--color-accent);
@@ -1503,6 +1547,11 @@ const appVersion: string = __APP_VERSION__
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.team-name-fit--diverged {
+  border-bottom: 1.5px solid var(--palette-warning, #b45309);
+  color: var(--palette-warning, #b45309);
 }
 
 .team-picker-chevron {

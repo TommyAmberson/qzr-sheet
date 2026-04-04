@@ -544,6 +544,7 @@ export function useScoresheet() {
       () => quiz.value.division,
       () => quiz.value.quizNumber,
       () => quiz.value.overtime,
+      () => quiz.value.consolation,
       () => quiz.value.placementFormula,
     ],
     schedulePersist,

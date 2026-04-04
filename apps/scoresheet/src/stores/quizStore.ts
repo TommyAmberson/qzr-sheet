@@ -21,6 +21,7 @@ function createDefaultQuiz(): Quiz {
     division: '1',
     quizNumber: '1',
     overtime: false,
+    consolation: false,
     placementFormula: PlacementFormula.Rules,
     questionTypes: new Map(),
   }
@@ -191,6 +192,7 @@ export function createQuizStore(): QuizStore {
     quiz.division = state.quiz.division
     quiz.quizNumber = state.quiz.quizNumber
     quiz.overtime = state.quiz.overtime
+    quiz.consolation = state.quiz.consolation
     quiz.placementFormula = state.quiz.placementFormula
     quiz.questionTypes.clear()
     for (const [k, v] of state.quiz.questionTypes) quiz.questionTypes.set(k, v)
