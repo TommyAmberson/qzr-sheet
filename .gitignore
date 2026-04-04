@@ -70,3 +70,6 @@ src-tauri/icons/favicon.ico
 # Claude Code local settings (personal, not team-shared)
 .claude/settings.local.json
 
+# Git worktrees
+.worktrees/
+
