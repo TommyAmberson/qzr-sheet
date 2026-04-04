@@ -144,6 +144,10 @@ function findMatchingTeam(storeName: string) {
   )
 }
 
+// Teams filtered by the currently-selected division string when a meet is active.
+// "2c" → consolation teams in div 2; "2" → non-consolation div 2; "" → all.
+const filteredTeamList = computed(() => meetSession.teamsForDivision(quiz.division ?? ''))
+
 async function onMeetLoaded() {
   for (let ti = 0; ti < 3; ti++) {
     const teamName = store.teams[ti]?.name ?? ''
@@ -529,7 +533,7 @@ const appVersion: string = __APP_VERSION__
           @click.stop
         >
           <button
-            v-for="t in meetSession.teamList.value"
+            v-for="t in filteredTeamList"
             :key="t.id"
             class="team-picker-option"
             :class="{ 'is-selected': meetSession.getSlot(openPickerSlot)?.teamId === t.id }"
@@ -561,7 +565,17 @@ const appVersion: string = __APP_VERSION__
             >
               <label class="meta-field">
                 <span class="meta-label">Division</span>
-                <input v-model="quiz.division" type="text" placeholder="1" />
+                <select
+                  v-if="meetSession.isActive.value && meetSession.divisionOptions.value.length > 0"
+                  v-model="quiz.division"
+                  class="division-select"
+                >
+                  <option value="">—</option>
+                  <option v-for="opt in meetSession.divisionOptions.value" :key="opt" :value="opt">
+                    {{ opt }}
+                  </option>
+                </select>
+                <input v-else v-model="quiz.division" type="text" placeholder="1" />
               </label>
               <span class="meta-sep">·</span>
               <label class="meta-field">
@@ -1295,6 +1309,21 @@ const appVersion: string = __APP_VERSION__
   color: var(--color-text);
 }
 .meta-field input[type='text']:focus {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 0;
+  border-color: var(--color-accent);
+}
+.meta-field .division-select {
+  width: 3.5rem;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.meta-field .division-select:focus {
   outline: 1px solid var(--color-accent);
   outline-offset: 0;
   border-color: var(--color-accent);

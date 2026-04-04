@@ -19,6 +19,8 @@ export interface MeetSessionData {
   slots: (SlotSession | undefined)[]
   /** All teams available in the meet for the dropdowns */
   teamList: MeetTeam[]
+  /** The meet's canonical division list, e.g. ["1", "2", "3"] */
+  meetDivisions: string[]
 }
 
 const session = ref<MeetSessionData | null>(loadFromStorage())
@@ -27,6 +29,39 @@ export function useMeetSession() {
   const isActive = computed(() => session.value !== null)
   const meetName = computed(() => session.value?.meetName ?? null)
   const teamList = computed(() => session.value?.teamList ?? [])
+
+  /**
+   * Division options for the scoresheet dropdown. Base divisions plus a "{div}c"
+   * option inserted after any division that has ≥1 consolation team.
+   */
+  const divisionOptions = computed((): string[] => {
+    const base = session.value?.meetDivisions ?? []
+    const consolDivs = new Set(
+      (session.value?.teamList ?? []).filter((t) => t.consolation).map((t) => t.division),
+    )
+    const result: string[] = []
+    for (const div of base) {
+      result.push(div)
+      if (consolDivs.has(div)) result.push(`${div}c`)
+    }
+    return result
+  })
+
+  /**
+   * Filter the team list by a division string from the scoresheet.
+   * "2c" → consolation teams in base division "2".
+   * "2"  → non-consolation teams in division "2".
+   * ""   → all teams (no filter).
+   */
+  function teamsForDivision(division: string): MeetTeam[] {
+    const all = session.value?.teamList ?? []
+    if (!division) return all
+    if (division.endsWith('c')) {
+      const base = division.slice(0, -1)
+      return all.filter((t) => t.division === base && t.consolation)
+    }
+    return all.filter((t) => t.division === division && !t.consolation)
+  }
 
   /** Short label for dropdowns: "{shortName} {number}" */
   function teamLabel(team: MeetTeam): string {
@@ -40,12 +75,13 @@ export function useMeetSession() {
 
   /** Load all teams for a meet and activate quizmeet mode */
   async function loadMeet(meetId: number, meetName: string): Promise<void> {
-    const { teams } = await getMeetTeams(meetId)
+    const { teams, meetDivisions } = await getMeetTeams(meetId)
     session.value = {
       meetId,
       meetName,
       slots: [undefined, undefined, undefined],
       teamList: teams,
+      meetDivisions,
     }
     persist()
   }
@@ -121,8 +157,8 @@ export function useMeetSession() {
   async function refresh(): Promise<void> {
     if (!session.value) return
     try {
-      const { teams } = await getMeetTeams(session.value.meetId)
-      session.value = { ...session.value, teamList: teams }
+      const { teams, meetDivisions } = await getMeetTeams(session.value.meetId)
+      session.value = { ...session.value, teamList: teams, meetDivisions }
       persist()
     } catch {
       // Silently ignore — offline or session expired; existing data stays usable
@@ -133,6 +169,8 @@ export function useMeetSession() {
     isActive,
     meetName,
     teamList,
+    divisionOptions,
+    teamsForDivision,
     teamLabel,
     teamLabelFull,
     loadMeet,
@@ -246,7 +284,10 @@ function loadFromStorage(): MeetSessionData | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
-    return JSON.parse(raw) as MeetSessionData
+    // meetDivisions may be absent in old sessions — default to empty array
+    const data = JSON.parse(raw) as MeetSessionData
+    if (!data.meetDivisions) data.meetDivisions = []
+    return data
   } catch {
     return null
   }

@@ -203,6 +203,7 @@ export interface Team {
   churchId: number
   division: string
   number: number
+  consolation: boolean
 }
 
 export interface Quizzer {
