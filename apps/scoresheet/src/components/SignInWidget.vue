@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useAuth, IS_TAURI } from '../composables/useAuth'
+import { useAuth } from '../composables/useAuth'
 import { useMeetSession } from '../composables/useMeetSession'
 
 const { session, signInGithub, signInGoogle, signInEmail, signUpEmail, signOut } = useAuth()
@@ -8,8 +8,7 @@ const { clearSession } = useMeetSession()
 
 const open = ref(false)
 const menuPos = ref({ top: 0, right: 0 })
-// On Tauri skip the mode picker and go straight to the email form
-const mode = ref<'pick' | 'signin' | 'signup'>(IS_TAURI ? 'signin' : 'pick')
+const mode = ref<'pick' | 'signin' | 'signup'>('pick')
 const email = ref('')
 const password = ref('')
 const error = ref('')
@@ -32,7 +31,7 @@ function close() {
 }
 
 function reset() {
-  mode.value = IS_TAURI ? 'signin' : 'pick'
+  mode.value = 'pick'
   email.value = ''
   password.value = ''
   error.value = ''
@@ -84,8 +83,8 @@ async function doSignOut() {
 
         <!-- Signed out -->
         <template v-else>
-          <!-- Provider pick (web only) -->
-          <template v-if="!IS_TAURI && mode === 'pick'">
+          <!-- Provider pick -->
+          <template v-if="mode === 'pick'">
             <button class="provider-btn" @click="signInGithub">
               <svg
                 width="15"
@@ -128,7 +127,7 @@ async function doSignOut() {
 
           <!-- Email form -->
           <template v-else>
-            <button v-if="!IS_TAURI" class="back-btn" @click="mode = 'pick'">← Back</button>
+            <button class="back-btn" @click="mode = 'pick'">← Back</button>
             <p class="form-title">{{ mode === 'signup' ? 'Create account' : 'Sign in' }}</p>
             <form @submit.prevent="submitEmail">
               <input
@@ -152,22 +151,6 @@ async function doSignOut() {
                 {{ pending ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in' }}
               </button>
             </form>
-            <button
-              v-if="IS_TAURI && mode === 'signin'"
-              class="email-toggle"
-              style="margin-top: 0.25rem"
-              @click="mode = 'signup'"
-            >
-              Create account
-            </button>
-            <button
-              v-if="IS_TAURI && mode === 'signup'"
-              class="email-toggle"
-              style="margin-top: 0.25rem"
-              @click="mode = 'signin'"
-            >
-              Sign in instead
-            </button>
           </template>
         </template>
       </div>
