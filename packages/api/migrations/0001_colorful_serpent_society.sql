@@ -1,0 +1,1 @@
+ALTER TABLE `teams` ADD `consolation` integer DEFAULT false NOT NULL;

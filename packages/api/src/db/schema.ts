@@ -161,6 +161,7 @@ export const teams = sqliteTable('teams', {
     .references(() => churches.id, { onDelete: 'cascade' }),
   division: text('division').notNull(),
   number: integer('number').notNull(), // per-church sequential (display derived: "{shortName} {number}")
+  consolation: integer('consolation', { mode: 'boolean' }).notNull().default(false),
 })
 
 export const quizzerIdentities = sqliteTable('quizzer_identities', {
