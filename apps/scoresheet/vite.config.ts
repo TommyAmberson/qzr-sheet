@@ -63,11 +63,11 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
     __IS_TAURI__: JSON.stringify(isTauri),
     __API_URL__: JSON.stringify(
-      isTauri
-        ? 'https://www.versevault.ca'
-        : process.env.NODE_ENV === 'production'
-          ? ''
-          : 'http://localhost:8787',
+      process.env.NODE_ENV === 'production'
+        ? isTauri
+          ? 'https://www.versevault.ca'
+          : ''
+        : 'http://localhost:8787',
     ),
   },
   server: { port: 5173 },
