@@ -178,6 +178,31 @@ describe('useMeetSession — assignTeam', () => {
     expect(slot.quizzers[1]!.dbName).toBe('Bob')
     expect(slot.quizzers[2]!.dbName).toBe('')
   })
+
+  it('matches edited names before filling empty seats with DB remainder', async () => {
+    // Regression: fuzzy must run before empty-seat fill so edited quizzers are not
+    // crowded out by blank seats consuming their best DB match.
+    vi.mocked(getTeamQuizzers).mockResolvedValueOnce({
+      quizzers: [
+        { quizzerId: 301, name: 'Alice' },
+        { quizzerId: 302, name: 'Bob' },
+        { quizzerId: 303, name: 'Charlie' },
+        { quizzerId: 304, name: 'Dave' },
+      ],
+    })
+    const { loadMeet, assignTeam, getSlot } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    // Two edited seats (typo "Aliss"), three blank
+    await assignTeam(0, 1, ['Aliss', 'Bob', '', '', ''])
+    const slot = getSlot(0)!
+    // "Aliss" should fuzzy-match "Alice" before empty seats consume it
+    expect(slot.quizzers[0]!.dbName).toBe('Alice')
+    expect(slot.quizzers[1]!.dbName).toBe('Bob')
+    // Remaining DB quizzers fill empty seats
+    expect(slot.quizzers[2]!.dbName).toBe('Charlie')
+    expect(slot.quizzers[3]!.dbName).toBe('Dave')
+    expect(slot.quizzers[4]!.dbName).toBe('')
+  })
 })
 
 describe('useMeetSession — clearSlot', () => {

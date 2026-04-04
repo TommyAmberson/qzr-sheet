@@ -178,16 +178,8 @@ function matchQuizzers(
     }
   }
 
-  // Pass 3: empty seats — fill in DB order
-  for (let i = 0; i < QUIZZERS_PER_TEAM; i++) {
-    if (result[i] !== null) continue
-    if (storeNames[i]?.trim()) continue // non-empty unmatched — defer to fuzzy
-    if (pool.length === 0) break
-    result[i] = { quizzerId: pool[0]!.quizzerId, dbName: pool[0]!.name }
-    pool.shift()
-  }
-
-  // Pass 4: fuzzy match for remaining non-empty unmatched
+  // Pass 3: fuzzy match for non-empty unmatched — before filling empty seats so edited
+  // names aren't crowded out by blank seats consuming the best remaining DB quizzers
   for (let i = 0; i < QUIZZERS_PER_TEAM; i++) {
     if (result[i] !== null) continue
     if (!storeNames[i]?.trim()) continue
@@ -205,7 +197,15 @@ function matchQuizzers(
     pool.splice(best, 1)
   }
 
-  // Pass 5: remainder in order (residual empty or unmatched with exhausted pool)
+  // Pass 4: empty seats — fill with whatever DB quizzers remain
+  for (let i = 0; i < QUIZZERS_PER_TEAM; i++) {
+    if (result[i] !== null) continue
+    if (pool.length === 0) break
+    result[i] = { quizzerId: pool[0]!.quizzerId, dbName: pool[0]!.name }
+    pool.shift()
+  }
+
+  // Pass 5: remainder (pool exhausted — any still-null seats become empty)
   let pi = 0
   for (let i = 0; i < QUIZZERS_PER_TEAM; i++) {
     if (result[i] !== null) continue
