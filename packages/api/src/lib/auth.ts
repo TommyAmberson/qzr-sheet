@@ -12,7 +12,13 @@ export function createAuth(env: Bindings) {
     baseURL: env.API_BASE_URL,
     secret: env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: 'sqlite', schema }),
-    trustedOrigins: [env.WEB_BASE_URL, 'http://localhost:5173', 'http://localhost:5174'],
+    trustedOrigins: [
+      env.WEB_BASE_URL,
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'tauri://localhost',
+      'https://tauri.localhost',
+    ],
     socialProviders: {
       github: {
         clientId: env.GITHUB_CLIENT_ID,
