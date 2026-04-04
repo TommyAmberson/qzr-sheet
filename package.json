@@ -20,6 +20,8 @@
     "lint": "eslint",
     "tauri": "pnpm --filter scoresheet tauri",
     "tauri:linux-x11": "pnpm --filter scoresheet tauri:linux-x11",
+    "tauri:linux-x11:dev": "pnpm tauri:linux-x11 dev",
+    "dev:tauri:linux-x11": "run-p dev:web dev:api tauri:linux-x11:dev",
     "bump": "node scripts/bump-version.mjs",
     "postinstall": "simple-git-hooks"
   },
@@ -51,6 +53,7 @@
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-vue": "^9.0.0",
     "lint-staged": "^15.0.0",
+    "npm-run-all2": "^8.0.4",
     "prettier": "3.8.1",
     "simple-git-hooks": "^2.0.0",
     "typescript": "~5.9.3",
