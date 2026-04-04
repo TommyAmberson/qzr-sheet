@@ -59,7 +59,22 @@ const vFitName = {
 
 const meetSession = useMeetSession()
 const meetPickerRef = ref<InstanceType<typeof MeetPickerDialog> | null>(null)
-const editingTeamSlot = ref([false, false, false])
+const openPickerSlot = ref<number | null>(null)
+const pickerPos = ref({ top: 0, left: 0 })
+
+function toggleTeamPicker(ti: number, event: MouseEvent) {
+  if (openPickerSlot.value === ti) {
+    openPickerSlot.value = null
+    return
+  }
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  pickerPos.value = { top: rect.bottom + 4, left: rect.left }
+  openPickerSlot.value = ti
+}
+
+function pickFromOpenPicker(teamId: number) {
+  if (openPickerSlot.value !== null) pickTeam(openPickerSlot.value, teamId)
+}
 
 onMounted(() => meetSession.refresh())
 
@@ -73,7 +88,7 @@ async function openMeetPicker() {
 }
 
 async function pickTeam(slotIdx: number, teamId: number) {
-  editingTeamSlot.value[slotIdx] = false
+  openPickerSlot.value = null
   if (!teamId) {
     meetSession.clearSlot(slotIdx)
     setTeamName(slotIdx, `Team ${slotIdx + 1}`)
@@ -298,7 +313,7 @@ function toggleNewMenu() {
 function closeMenus() {
   saveMenuOpen.value = false
   newMenuOpen.value = false
-  editingTeamSlot.value = [false, false, false]
+  openPickerSlot.value = null
 }
 
 async function saveFile() {
@@ -456,10 +471,35 @@ const appVersion: string = __APP_VERSION__
   <div class="scoresheet-outer">
     <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
       <div
-        v-if="saveMenuOpen || newMenuOpen || editingTeamSlot.some(Boolean)"
+        v-if="saveMenuOpen || newMenuOpen || openPickerSlot !== null"
         class="menu-backdrop"
         @click="closeMenus"
       />
+      <Teleport to="body">
+        <div
+          v-if="openPickerSlot !== null"
+          class="team-picker-menu"
+          :style="{ top: pickerPos.top + 'px', left: pickerPos.left + 'px' }"
+          @click.stop
+        >
+          <button
+            v-for="t in meetSession.teamList.value"
+            :key="t.id"
+            class="team-picker-option"
+            :class="{ 'is-selected': meetSession.getSlot(openPickerSlot)?.teamId === t.id }"
+            @click="pickFromOpenPicker(t.id)"
+          >
+            {{ meetSession.teamLabel(t) }}
+          </button>
+          <button
+            v-if="meetSession.getSlot(openPickerSlot)"
+            class="team-picker-option team-picker-option--clear"
+            @click="pickFromOpenPicker(0)"
+          >
+            Clear
+          </button>
+        </div>
+      </Teleport>
       <div class="scoresheet-content">
         <div class="meta-row">
           <div class="col--left-spacer" />
@@ -603,51 +643,31 @@ const appVersion: string = __APP_VERSION__
                   <div class="name-cell-inner">
                     <span class="name-main">
                       <template v-if="meetSession.isActive.value">
-                        <div class="team-picker-wrap">
-                          <button
-                            class="team-picker-trigger"
-                            :class="{ 'is-open': editingTeamSlot[ti] }"
-                            @click.stop="editingTeamSlot[ti] = !editingTeamSlot[ti]"
-                            @keydown.escape.stop="editingTeamSlot[ti] = false"
+                        <button
+                          class="team-picker-trigger"
+                          :class="{ 'is-open': openPickerSlot === ti }"
+                          @click.stop="toggleTeamPicker(ti, $event)"
+                          @keydown.escape.stop="openPickerSlot = null"
+                        >
+                          <span
+                            v-if="meetSession.getSlot(ti)"
+                            v-fit-name="{
+                              full: meetSession.getSlot(ti)!.dbLabelFull,
+                              short: meetSession.getSlot(ti)!.dbLabel,
+                            }"
+                            class="team-name-fit"
+                          />
+                          <span v-else class="team-picker-placeholder">— pick team —</span>
+                          <svg
+                            class="team-picker-chevron"
+                            viewBox="0 0 10 6"
+                            width="8"
+                            height="8"
+                            aria-hidden="true"
                           >
-                            <span
-                              v-if="meetSession.getSlot(ti)"
-                              v-fit-name="{
-                                full: meetSession.getSlot(ti)!.dbLabelFull,
-                                short: meetSession.getSlot(ti)!.dbLabel,
-                              }"
-                              class="team-name-fit"
-                            />
-                            <span v-else class="team-picker-placeholder">— pick team —</span>
-                            <svg
-                              class="team-picker-chevron"
-                              viewBox="0 0 10 6"
-                              width="8"
-                              height="8"
-                              aria-hidden="true"
-                            >
-                              <path d="M0 0l5 6 5-6z" fill="currentColor" />
-                            </svg>
-                          </button>
-                          <div v-if="editingTeamSlot[ti]" class="team-picker-menu">
-                            <button
-                              v-for="t in meetSession.teamList.value"
-                              :key="t.id"
-                              class="team-picker-option"
-                              :class="{ 'is-selected': meetSession.getSlot(ti)?.teamId === t.id }"
-                              @click.stop="pickTeam(ti, t.id)"
-                            >
-                              {{ meetSession.teamLabel(t) }}
-                            </button>
-                            <button
-                              v-if="meetSession.getSlot(ti)"
-                              class="team-picker-option team-picker-option--clear"
-                              @click.stop="pickTeam(ti, 0)"
-                            >
-                              Clear
-                            </button>
-                          </div>
-                        </div>
+                            <path d="M0 0l5 6 5-6z" fill="currentColor" />
+                          </svg>
+                        </button>
                       </template>
                       <template v-else>
                         <span
@@ -1361,11 +1381,6 @@ const appVersion: string = __APP_VERSION__
   white-space: nowrap;
 }
 
-.team-picker-wrap {
-  position: relative;
-  min-width: 0;
-}
-
 .team-picker-trigger {
   display: flex;
   align-items: center;
@@ -1413,10 +1428,8 @@ const appVersion: string = __APP_VERSION__
 }
 
 .team-picker-menu {
-  position: absolute;
-  top: calc(100% + 3px);
-  left: 0;
-  z-index: 200;
+  position: fixed;
+  z-index: 9999;
   background: var(--color-surface, #fff);
   border: 1px solid var(--color-border, #d1d5db);
   border-radius: 4px;
