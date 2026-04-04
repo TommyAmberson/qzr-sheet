@@ -1315,13 +1315,17 @@ const appVersion: string = __APP_VERSION__
 }
 .meta-field .division-select {
   width: 3.5rem;
-  padding: 0.2rem 0.3rem;
+  padding: 0.2rem 1.2rem 0.2rem 0.3rem;
   border: 1px solid var(--color-meta-accent);
   border-radius: 4px;
   font-size: 0.8rem;
-  background: var(--color-bg);
+  background: var(--color-bg)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23888' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E")
+    no-repeat right 0.3rem center;
   color: var(--color-text);
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 .meta-field .division-select:focus {
   outline: 1px solid var(--color-accent);
