@@ -19,6 +19,7 @@ import { readOds } from '../export/readOds'
 import { validationMessage } from '../scoring/validation'
 import { useMeetSession } from '../composables/useMeetSession'
 import MeetPickerDialog from './MeetPickerDialog.vue'
+import SignInWidget from './SignInWidget.vue'
 
 const { theme, toggleTheme } = useTheme()
 
@@ -83,23 +84,71 @@ async function openMeetPicker() {
   meetPickerRef.value?.open()
 }
 
+function isDefaultQuizzerName(name: string): boolean {
+  return !name.trim() || /^Quizzer [1-4]$/.test(name)
+}
+
+function isDefaultTeamName(name: string): boolean {
+  return /^Team [1-3]$/.test(name)
+}
+
 async function pickTeam(slotIdx: number, teamId: number) {
   openPickerSlot.value = null
   if (!teamId) {
     meetSession.clearSlot(slotIdx)
-    setTeamName(slotIdx, `Team ${slotIdx + 1}`)
-    for (let qi = 0; qi < QUIZZERS_PER_TEAM; qi++) {
-      setQuizzerName(slotIdx, qi, qi < QUIZZERS_PER_TEAM - 1 ? `Quizzer ${qi + 1}` : '')
-    }
     return
   }
-  await meetSession.assignTeam(slotIdx, teamId)
+
+  // Clear default quizzer names so they become empty seats for the matching algorithm
+  const storeTeamId = store.teams[slotIdx]!.id
+  for (let qi = 0; qi < QUIZZERS_PER_TEAM; qi++) {
+    if (isDefaultQuizzerName(store.quizzersByTeam(storeTeamId)[qi]?.name ?? '')) {
+      setQuizzerName(slotIdx, qi, '')
+    }
+  }
+
+  const storeNames = store.quizzersByTeam(storeTeamId).map((q) => q.name)
+  await meetSession.assignTeam(slotIdx, teamId, storeNames)
+
+  // Fill empty store seats with the DB names that were matched to those positions
   const slot = meetSession.getSlot(slotIdx)
   if (!slot) return
-  const team = meetSession.teamList.value.find((t) => t.id === teamId)
-  if (team) setTeamName(slotIdx, meetSession.teamLabelFull(team))
-  for (let qi = 0; qi < slot.quizzers.length; qi++) {
-    setQuizzerName(slotIdx, qi, slot.quizzers[qi]!.dbName)
+  for (let qi = 0; qi < QUIZZERS_PER_TEAM; qi++) {
+    if (!store.quizzersByTeam(storeTeamId)[qi]?.name.trim()) {
+      setQuizzerName(slotIdx, qi, slot.quizzers[qi]!.dbName)
+    }
+  }
+}
+
+function normalizeForMatch(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function findMatchingTeam(storeName: string) {
+  const lower = storeName.trim().toLowerCase()
+  const norm = normalizeForMatch(storeName)
+  const teams = meetSession.teamList.value
+  return (
+    teams.find((t) => meetSession.teamLabelFull(t).toLowerCase() === lower) ??
+    teams.find((t) => meetSession.teamLabel(t).toLowerCase() === lower) ??
+    teams.find(
+      (t) =>
+        normalizeForMatch(meetSession.teamLabelFull(t)) === norm ||
+        normalizeForMatch(meetSession.teamLabel(t)) === norm,
+    )
+  )
+}
+
+async function onMeetLoaded() {
+  for (let ti = 0; ti < 3; ti++) {
+    const teamName = store.teams[ti]?.name ?? ''
+    if (isDefaultTeamName(teamName)) continue
+    const match = findMatchingTeam(teamName)
+    if (match) await pickTeam(ti, match.id)
   }
 }
 
@@ -367,6 +416,10 @@ async function doClearNames() {
   closeMenus()
   if (!(await confirmAction('Reset names to defaults? This cannot be undone.'))) return
   clearNames()
+}
+
+function doUnlinkMeet() {
+  closeMenus()
   meetSession.clearSession()
 }
 
@@ -550,7 +603,10 @@ const appVersion: string = __APP_VERSION__
                   <div v-if="newMenuOpen" class="file-menu__dropdown">
                     <button @click="doNewQuiz">✦ New quiz</button>
                     <button @click="doClearAnswers">✕ Clear answers</button>
-                    <button @click="doClearNames">✕ Clear names</button>
+                    <button v-if="meetSession.isActive.value" @click="doUnlinkMeet">
+                      ⚡ Unlink meet
+                    </button>
+                    <button v-else @click="doClearNames">✕ Clear names</button>
                     <hr class="file-menu__divider" />
                     <button @click="openMeetPicker">🔗 Load teams from meet…</button>
                   </div>
@@ -571,6 +627,8 @@ const appVersion: string = __APP_VERSION__
               >
                 {{ theme === 'light' ? '🌙' : '☀️' }}
               </button>
+              <span class="meta-sep">·</span>
+              <SignInWidget />
             </div>
           </div>
         </div>
@@ -649,7 +707,16 @@ const appVersion: string = __APP_VERSION__
                             }"
                             class="team-name-fit"
                           />
-                          <span v-else class="team-picker-placeholder">— pick team —</span>
+                          <span
+                            v-else-if="isDefaultTeamName(team.name)"
+                            class="team-picker-placeholder"
+                            >— pick team —</span
+                          >
+                          <span
+                            v-else
+                            class="team-picker-placeholder team-picker-placeholder--diverged"
+                            >{{ team.name }}</span
+                          >
                           <svg
                             class="team-picker-chevron"
                             viewBox="0 0 10 6"
@@ -1055,7 +1122,7 @@ const appVersion: string = __APP_VERSION__
       </div>
       <!-- Cell selector popup -->
       <Teleport to="body">
-        <MeetPickerDialog ref="meetPickerRef" />
+        <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
         <div v-if="selector" class="selector-backdrop" @click="closeSelector">
           <div
             class="selector-popup"
@@ -1423,6 +1490,11 @@ const appVersion: string = __APP_VERSION__
   opacity: 0.6;
   font-style: italic;
   font-size: 0.8rem;
+}
+
+.team-picker-placeholder--diverged {
+  font-style: normal;
+  border-bottom: 1.5px solid var(--palette-warning, #b45309);
 }
 
 @keyframes picker-enter {

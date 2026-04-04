@@ -51,7 +51,7 @@ export function useMeetSession() {
   }
 
   /** Assign a team to a slot and fetch its quizzers */
-  async function assignTeam(slotIdx: number, teamId: number): Promise<void> {
+  async function assignTeam(slotIdx: number, teamId: number, storeNames: string[]): Promise<void> {
     if (!session.value) return
     const team = session.value.teamList.find((t) => t.id === teamId)
     if (!team) return
@@ -62,11 +62,7 @@ export function useMeetSession() {
       teamId,
       dbLabel: teamLabel(team),
       dbLabelFull: teamLabelFull(team),
-      quizzers: Array.from({ length: QUIZZERS_PER_TEAM }, (_, i) =>
-        i < quizzers.length
-          ? { quizzerId: quizzers[i]!.quizzerId, dbName: quizzers[i]!.name }
-          : { quizzerId: 0, dbName: '' },
-      ),
+      quizzers: matchQuizzers(storeNames, quizzers),
     }
     // Trigger reactivity — slots is a plain array inside a ref
     session.value = { ...session.value, slots: [...session.value.slots] }
@@ -149,6 +145,93 @@ export function useMeetSession() {
     clearSession,
     refresh,
   }
+}
+
+function matchQuizzers(
+  storeNames: string[],
+  dbQuizzers: { quizzerId: number; name: string }[],
+): { quizzerId: number; dbName: string }[] {
+  const result: ({ quizzerId: number; dbName: string } | null)[] =
+    Array(QUIZZERS_PER_TEAM).fill(null)
+  const pool = [...dbQuizzers]
+
+  // Pass 1: exact match (case-insensitive, trimmed)
+  for (let i = 0; i < QUIZZERS_PER_TEAM; i++) {
+    const name = storeNames[i]?.trim().toLowerCase()
+    if (!name) continue
+    const j = pool.findIndex((q) => q.name.trim().toLowerCase() === name)
+    if (j !== -1) {
+      result[i] = { quizzerId: pool[j]!.quizzerId, dbName: pool[j]!.name }
+      pool.splice(j, 1)
+    }
+  }
+
+  // Pass 2: first-name match (first space-separated token)
+  for (let i = 0; i < QUIZZERS_PER_TEAM; i++) {
+    if (result[i] !== null) continue
+    const firstName = storeNames[i]?.trim().split(' ')[0]?.toLowerCase()
+    if (!firstName) continue
+    const j = pool.findIndex((q) => q.name.trim().split(' ')[0]?.toLowerCase() === firstName)
+    if (j !== -1) {
+      result[i] = { quizzerId: pool[j]!.quizzerId, dbName: pool[j]!.name }
+      pool.splice(j, 1)
+    }
+  }
+
+  // Pass 3: empty seats — fill in DB order
+  for (let i = 0; i < QUIZZERS_PER_TEAM; i++) {
+    if (result[i] !== null) continue
+    if (storeNames[i]?.trim()) continue // non-empty unmatched — defer to fuzzy
+    if (pool.length === 0) break
+    result[i] = { quizzerId: pool[0]!.quizzerId, dbName: pool[0]!.name }
+    pool.shift()
+  }
+
+  // Pass 4: fuzzy match for remaining non-empty unmatched
+  for (let i = 0; i < QUIZZERS_PER_TEAM; i++) {
+    if (result[i] !== null) continue
+    if (!storeNames[i]?.trim()) continue
+    if (pool.length === 0) break
+    let best = 0
+    let bestDist = levenshtein(storeNames[i]!.toLowerCase(), pool[0]!.name.toLowerCase())
+    for (let k = 1; k < pool.length; k++) {
+      const d = levenshtein(storeNames[i]!.toLowerCase(), pool[k]!.name.toLowerCase())
+      if (d < bestDist) {
+        bestDist = d
+        best = k
+      }
+    }
+    result[i] = { quizzerId: pool[best]!.quizzerId, dbName: pool[best]!.name }
+    pool.splice(best, 1)
+  }
+
+  // Pass 5: remainder in order (residual empty or unmatched with exhausted pool)
+  let pi = 0
+  for (let i = 0; i < QUIZZERS_PER_TEAM; i++) {
+    if (result[i] !== null) continue
+    result[i] =
+      pi < pool.length
+        ? { quizzerId: pool[pi]!.quizzerId, dbName: pool[pi]!.name }
+        : { quizzerId: 0, dbName: '' }
+    pi++
+  }
+
+  return result as { quizzerId: number; dbName: string }[]
+}
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => i || j),
+  )
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i]![j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1]![j - 1]!
+          : 1 + Math.min(dp[i - 1]![j]!, dp[i]![j - 1]!, dp[i - 1]![j - 1]!)
+  return dp[m]![n]!
 }
 
 function persist() {
