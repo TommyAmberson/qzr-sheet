@@ -586,10 +586,14 @@ const appVersion: string = __APP_VERSION__
                 </select>
                 <input v-else v-model="quiz.division" type="text" placeholder="1" />
               </label>
-              <label class="meta-field meta-field--consolation">
-                <input v-model="quiz.consolation" type="checkbox" class="consolation-check" />
-                <span class="meta-label">Consolation</span>
-              </label>
+              <span
+                class="consolation-toggle"
+                :class="{ 'consolation-toggle--active': quiz.consolation }"
+                @click="quiz.consolation = !quiz.consolation"
+              >
+                <span class="on-time-box">✓</span>
+                <span class="on-time-label">consolation</span>
+              </span>
               <span class="meta-sep">·</span>
               <label class="meta-field">
                 <span class="meta-label">Quiz</span>
@@ -1343,16 +1347,25 @@ const appVersion: string = __APP_VERSION__
   appearance: none;
   -webkit-appearance: none;
 }
-.meta-field--consolation {
-  flex-direction: row;
+.consolation-toggle {
+  display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-}
-.consolation-check {
-  width: auto;
-  margin: 0;
   cursor: pointer;
-  accent-color: var(--color-accent);
+  padding: 0.15rem 0.4rem 0.15rem 0.25rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.consolation-toggle:hover {
+  background: var(--color-border-alt);
+}
+.consolation-toggle--active .on-time-box {
+  background: var(--color-text);
+  border-color: var(--color-text);
+  color: var(--color-bg);
+}
+.consolation-toggle--active .on-time-label {
+  color: var(--color-text-muted);
 }
 .meta-field .division-select:focus {
   outline: 1px solid var(--color-accent);
