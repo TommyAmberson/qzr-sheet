@@ -572,28 +572,36 @@ const appVersion: string = __APP_VERSION__
                 },
               ]"
             >
-              <label class="meta-field">
-                <span class="meta-label">Division</span>
-                <select
-                  v-if="meetSession.isActive.value && meetSession.divisionOptions.value.length > 0"
-                  v-model="quiz.division"
-                  class="division-select"
+              <div class="meta-group">
+                <label class="meta-field">
+                  <span class="meta-label">Division</span>
+                  <select
+                    v-if="
+                      meetSession.isActive.value && meetSession.divisionOptions.value.length > 0
+                    "
+                    v-model="quiz.division"
+                    class="division-select"
+                  >
+                    <option value="">—</option>
+                    <option
+                      v-for="opt in meetSession.divisionOptions.value"
+                      :key="opt"
+                      :value="opt"
+                    >
+                      {{ opt }}
+                    </option>
+                  </select>
+                  <input v-else v-model="quiz.division" type="text" placeholder="1" />
+                </label>
+                <span
+                  class="consolation-toggle"
+                  :class="{ 'consolation-toggle--active': quiz.consolation }"
+                  @click="quiz.consolation = !quiz.consolation"
                 >
-                  <option value="">—</option>
-                  <option v-for="opt in meetSession.divisionOptions.value" :key="opt" :value="opt">
-                    {{ opt }}
-                  </option>
-                </select>
-                <input v-else v-model="quiz.division" type="text" placeholder="1" />
-              </label>
-              <span
-                class="consolation-toggle"
-                :class="{ 'consolation-toggle--active': quiz.consolation }"
-                @click="quiz.consolation = !quiz.consolation"
-              >
-                <span class="on-time-box">✓</span>
-                <span class="on-time-label">consolation</span>
-              </span>
+                  <span class="on-time-box">✓</span>
+                  <span class="on-time-label" title="Consolation bracket">c</span>
+                </span>
+              </div>
               <span class="meta-sep">·</span>
               <label class="meta-field">
                 <span class="meta-label">Quiz</span>
@@ -621,6 +629,7 @@ const appVersion: string = __APP_VERSION__
               <span v-if="meetSession.isActive.value" class="meta-field meta-session-pill">
                 🔗 {{ meetSession.meetName.value }}
               </span>
+              <span class="meta-divider" />
               <div class="meta-field meta-field--file">
                 <div class="file-menu">
                   <button title="Save / Export (Ctrl+S)" @click="toggleSaveMenu">⤓ Save ▾</button>
@@ -1302,6 +1311,23 @@ const appVersion: string = __APP_VERSION__
   font-size: 0.9rem;
   user-select: none;
 }
+.meta-divider {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--color-meta-accent);
+  align-self: center;
+  margin: 0 0.1rem;
+  opacity: 0.6;
+}
+.meta-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.35rem;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-meta-accent) 15%, transparent);
+}
 
 .meta-field {
   display: flex;
@@ -1448,7 +1474,7 @@ const appVersion: string = __APP_VERSION__
   gap: 0.35rem;
 }
 .meta-field--file button {
-  background: none;
+  background: color-mix(in srgb, var(--color-meta-accent) 20%, transparent);
   border: 1px solid var(--color-meta-accent);
   cursor: pointer;
   color: var(--color-text-muted);
