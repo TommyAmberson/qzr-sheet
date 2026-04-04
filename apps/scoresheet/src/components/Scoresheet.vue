@@ -144,9 +144,9 @@ function findMatchingTeam(storeName: string) {
   )
 }
 
-// Teams filtered by the currently-selected division string when a meet is active.
-// "2c" → consolation teams in div 2; "2" → non-consolation div 2; "" → all.
-const filteredTeamList = computed(() => meetSession.teamsForDivision(quiz.division ?? ''))
+const filteredTeamList = computed(() =>
+  meetSession.teamsForDivision(quiz.value.division ?? '', quiz.value.consolation ?? false),
+)
 
 async function onMeetLoaded() {
   for (let ti = 0; ti < 3; ti++) {
@@ -368,7 +368,7 @@ function closeMenus() {
 
 async function saveFile() {
   const json = serializeStore(store, noJumpMap.value)
-  const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.json`
+  const filename = `D${quiz.value.division}${quiz.value.consolation ? 'c' : ''}Q${quiz.value.quizNumber}.json`
   const saved = await saveQuizToFile(json, filename)
   if (saved) markSaved()
 }
@@ -440,7 +440,7 @@ async function exportOds() {
   })
   try {
     const odsBytes = fillOts(otsBytes, quizFile)
-    const filename = `D${quiz.value.division}Q${quiz.value.quizNumber}.ods`
+    const filename = `D${quiz.value.division}${quiz.value.consolation ? 'c' : ''}Q${quiz.value.quizNumber}.ods`
     const saved = await exportOdsFile(odsBytes, filename)
     if (saved)
       alert('ODS exported.\n\nOpen in LibreOffice and press Ctrl+Shift+F9 to recalculate formulas.')
@@ -576,6 +576,10 @@ const appVersion: string = __APP_VERSION__
                   </option>
                 </select>
                 <input v-else v-model="quiz.division" type="text" placeholder="1" />
+              </label>
+              <label class="meta-field meta-field--consolation">
+                <input v-model="quiz.consolation" type="checkbox" class="consolation-check" />
+                <span class="meta-label">Consolation</span>
               </label>
               <span class="meta-sep">·</span>
               <label class="meta-field">
@@ -1326,6 +1330,17 @@ const appVersion: string = __APP_VERSION__
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
+}
+.meta-field--consolation {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
+}
+.consolation-check {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-accent);
 }
 .meta-field .division-select:focus {
   outline: 1px solid var(--color-accent);

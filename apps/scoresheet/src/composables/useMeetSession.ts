@@ -30,37 +30,17 @@ export function useMeetSession() {
   const meetName = computed(() => session.value?.meetName ?? null)
   const teamList = computed(() => session.value?.teamList ?? [])
 
-  /**
-   * Division options for the scoresheet dropdown. Base divisions plus a "{div}c"
-   * option inserted after any division that has ≥1 consolation team.
-   */
-  const divisionOptions = computed((): string[] => {
-    const base = session.value?.meetDivisions ?? []
-    const consolDivs = new Set(
-      (session.value?.teamList ?? []).filter((t) => t.consolation).map((t) => t.division),
-    )
-    const result: string[] = []
-    for (const div of base) {
-      result.push(div)
-      if (consolDivs.has(div)) result.push(`${div}c`)
-    }
-    return result
-  })
+  /** Division options for the scoresheet dropdown — the meet's canonical division list. */
+  const divisionOptions = computed((): string[] => session.value?.meetDivisions ?? [])
 
   /**
-   * Filter the team list by a division string from the scoresheet.
-   * "2c" → consolation teams in base division "2".
-   * "2"  → non-consolation teams in division "2".
-   * ""   → all teams (no filter).
+   * Filter the team list by division and consolation status.
+   * "" division → all teams (no filter).
    */
-  function teamsForDivision(division: string): MeetTeam[] {
+  function teamsForDivision(division: string, consolation: boolean): MeetTeam[] {
     const all = session.value?.teamList ?? []
     if (!division) return all
-    if (division.endsWith('c')) {
-      const base = division.slice(0, -1)
-      return all.filter((t) => t.division === base && t.consolation)
-    }
-    return all.filter((t) => t.division === division && !t.consolation)
+    return all.filter((t) => t.division === division && t.consolation === consolation)
   }
 
   /** Short label for dropdowns: "{shortName} {number}" */

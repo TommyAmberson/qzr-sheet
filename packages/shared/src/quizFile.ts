@@ -35,6 +35,7 @@ export const QuizFileSchema = Type.Object({
     division: Type.String(),
     quizNumber: Type.String(),
     overtime: Type.Boolean(),
+    consolation: Type.Optional(Type.Boolean()),
     placementFormula: Type.Enum(PlacementFormula),
     /** Map serialized as an array of [columnKey, category] pairs */
     questionTypes: Type.Array(Type.Tuple([Type.String(), Type.Enum(QuestionCategory)])),
