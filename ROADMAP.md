@@ -123,7 +123,7 @@ Optional items that can happen any time, independent of Phase 4.
 UX for switching between offline mode (status quo) and online mode (auth-gated, pull team data from
 the API). These are two distinct sub-features with separate dependencies.
 
-**4.7a: Toolbar restructure**
+**4.7a: Toolbar restructure** ✅
 
 Pure UI refactor — no API calls, no auth. Safe to implement first and independently.
 
@@ -136,18 +136,18 @@ Pure UI refactor — no API calls, no auth. Safe to implement first and independ
   * **New quiz** — full reset, dirty check (current behaviour)
   * **Clear answers** — wipe all cells, keep names and meta
   * **Clear names** — wipe team/quizzer names AND disconnect from meet (resets `meetSession`)
-  * **Load teams from meet…** — disabled/hidden until 4.7b
+  * **Load teams from meet…** — active in 4.7b
 * `useScoresheet` gains `clearAnswers()` and `clearNames()` alongside the existing `resetStore()`
 * Keyboard shortcut Ctrl+N still triggers full reset (same as “New quiz”)
 
-**4.7b: Quizmeet mode** (requires being already signed in to the portal in the same browser)
+**4.7b: Quizmeet mode** ✅ (requires being already signed in to the portal in the same browser)
 
 Uses the existing Better Auth cookie session — no new sign-in UI yet. On web (PWA), if the user is
 already signed into `www.versevault.ca`, the scoresheet at `/scoresheet/` shares the same cookie and
 can make credentialed API calls immediately. On Tauri/desktop, this phase is a no-op — it simply
 won’t work until 4.7c.
 
-_New API endpoint needed (in `packages/api`):_
+_New API endpoint (in `packages/api`):_
 
 * `GET /api/meets/:id/teams` — returns all teams for a meet with church label in one call:
   `{ teams: [{ id, churchId, churchName, churchShortName, division, number }][] }`
@@ -155,25 +155,29 @@ _New API endpoint needed (in `packages/api`):_
 
 _New composable `useMeetSession`:_
 
-* Holds: `meetId`, `meetName`, full team list, per-slot `{ teamId, dbName }`, per-quizzer
-  `{ quizzerId, dbName }`
+* Holds: `meetId`, `meetName`, full team list, per-slot
+  `{ teamId, dbLabel, dbLabelFull, quizzers[] }`; quizzer list always padded to `QUIZZERS_PER_TEAM`
+  (empty seats have `dbName: ‘’`)
 * `loadMeet(meetId)` — fetches team list, activates mode
+* `assignTeam(slotIdx, teamId)` — fetches quizzer roster, populates slot
+* `reorderSlotQuizzers(slotIdx, from, to)` — mirrors drag-reorder so divergence detection stays
+  correct
 * `clearSession()` — resets all session state
 * Persists to localStorage (separate key); on restore, re-fetches the team list
 
-_Meet picker dialog (modal `<dialog>`):_
+_Meet picker dialog:_
 
 * Only shown when a session cookie exists (`GET /api/my-meets` returns results)
 * Single step: pick a meet from the list
 * After confirming, team assignment happens inline in the scoresheet
-* “Load teams from meet…” item in New menu becomes active
 
 _Quizmeet mode UI:_
 
 * Active whenever `meetSession` is set; reset by “Clear names” or “New quiz”
 * A small `🔗 MeetName` pill in the left meta bar
-* Team name cell → **`<select>` dropdown** of all teams in the meet (labelled e.g. “First Church —
-  Div A”); selecting a team auto-populates quizzer names
+* Team name cell → **custom dropdown** (teleported to body, keyboard + click-outside dismissal);
+  shows full church name when space permits, short name otherwise (`v-fit-name` directive);
+  selecting a team auto-populates quizzer names
 * Quizzer name cells remain editable; a name that diverges from `dbName` gets an amber underline + a
   `↺` restore button (tooltip shows DB name)
 
