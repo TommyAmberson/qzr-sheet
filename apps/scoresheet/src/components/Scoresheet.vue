@@ -1427,17 +1427,32 @@ const appVersion: string = __APP_VERSION__
   font-size: 0.8rem;
 }
 
+@keyframes picker-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .team-picker-menu {
   position: fixed;
   z-index: 9999;
-  background: var(--color-surface, #fff);
-  border: 1px solid var(--color-border, #d1d5db);
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  min-width: 120px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.12),
+    0 8px 24px rgba(0, 0, 0, 0.2);
+  min-width: 130px;
   max-height: 240px;
   overflow-y: auto;
   padding: 3px;
+  transform-origin: top left;
+  animation: picker-enter 0.12s ease-out;
 }
 
 .team-picker-option {
@@ -1445,34 +1460,34 @@ const appVersion: string = __APP_VERSION__
   width: 100%;
   background: none;
   border: none;
-  border-radius: 3px;
-  color: inherit;
+  border-radius: 4px;
+  color: var(--color-text);
   cursor: pointer;
   font-family: inherit;
   font-size: 0.8rem;
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem 0.6rem;
   text-align: left;
   white-space: nowrap;
 }
 
 .team-picker-option:hover {
-  background: var(--color-hover, rgba(0, 0, 0, 0.07));
+  background: var(--color-border-alt);
 }
 
 .team-picker-option.is-selected {
-  font-weight: 700;
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
 .team-picker-option--clear {
-  border-top: 1px solid var(--color-border, #d1d5db);
+  border-top: 1px solid var(--color-border-alt);
+  color: var(--color-text-muted);
   margin-top: 3px;
   padding-top: 0.35rem;
-  opacity: 0.6;
-  font-style: italic;
 }
 
 .team-picker-option--clear:hover {
-  opacity: 1;
+  color: var(--color-text);
 }
 
 .editable-name--diverged {
