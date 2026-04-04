@@ -197,6 +197,17 @@ _Quizmeet mode UI:_
 * Better Auth `trustedOrigins` extended with both Tauri production origins
 * `pnpm dev:tauri:linux-x11` added — starts portal, API, and Tauri dev window together
 
+**4.7e: Division dropdown + consolation support** ✅
+
+* Added `consolation: boolean` column to `teams` table (migration `0001_colorful_serpent_society`)
+* `GET /api/meets/:id/teams` now returns `consolation` per team + `meetDivisions: string[]`
+* New API endpoints `POST/DELETE /api/teams/:id/consolation` (admin/superuser only) — portal UI for
+  toggling consolation deferred to Phase 4.10
+* Scoresheet division field becomes a `<select>` dropdown when meet-linked; options show base
+  divisions plus `"{div}c"` for any division with ≥1 consolation team
+* Team picker filters by selected division — "2" shows non-consolation div-2 teams; "2c" shows
+  consolation div-2 teams; `quiz.division` stores `"2c"` in the saved `.qzr` file
+
 **4.7d: Load teams from schedule** — pre-populate scoresheet from a scheduled quiz (depends on
 4.10a):
 
