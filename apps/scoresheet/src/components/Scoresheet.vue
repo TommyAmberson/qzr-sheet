@@ -1909,6 +1909,7 @@ thead tr th.sticky-col {
   cursor: pointer;
   user-select: none;
   color: var(--color-text-muted);
+  font-size: 0.9rem;
   font-weight: 700;
   border-top: 1px solid var(--color-border);
 }
@@ -1919,7 +1920,6 @@ thead tr th.sticky-col {
 .cell--no-jump-active {
   background: var(--color-no-jump-alt) !important;
   color: var(--color-no-jump) !important;
-  font-size: 0.9rem;
   opacity: 1;
 }
 .cell--no-jump-answered {
