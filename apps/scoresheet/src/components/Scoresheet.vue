@@ -113,6 +113,7 @@ async function pickTeam(slotIdx: number, teamId: number) {
   // Fill empty store seats with the DB names that were matched to those positions
   const slot = meetSession.getSlot(slotIdx)
   if (!slot) return
+  setTeamName(slotIdx, slot.dbLabelFull)
   for (let qi = 0; qi < QUIZZERS_PER_TEAM; qi++) {
     if (!store.quizzersByTeam(storeTeamId)[qi]?.name.trim()) {
       setQuizzerName(slotIdx, qi, slot.quizzers[qi]!.dbName)
