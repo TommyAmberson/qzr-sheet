@@ -324,6 +324,7 @@ export interface SyncRosterTeamResult {
   churchId: number
   division: string
   number: number
+  consolation?: boolean
   quizzers: Array<{ quizzerId: number; name: string }>
 }
 
