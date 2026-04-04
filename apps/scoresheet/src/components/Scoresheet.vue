@@ -1043,7 +1043,7 @@ const appVersion: string = __APP_VERSION__
                 @mouseenter="hoverCol = idx"
                 @mouseleave="hoverCol = null"
               >
-                {{ noJumps[idx] ? '✗' : '' }}
+                <span :style="{ visibility: noJumps[idx] ? 'visible' : 'hidden' }">✗</span>
               </td>
               <td class="col--total no-jump-total" />
             </tr>
@@ -1930,7 +1930,6 @@ thead tr th.sticky-col {
     var(--color-grey-stripe-b) 3px,
     var(--color-grey-stripe-b) 6px
   ) !important;
-  opacity: 0.6;
   cursor: default;
 }
 .cell--no-jump-answered:hover {
