@@ -1096,7 +1096,7 @@ const appVersion: string = __APP_VERSION__
               <!-- Team running total row -->
               <tr class="row--team-total">
                 <td class="col--left-spacer" />
-                <td class="col--name sticky-col running-total-label">
+                <td class="col--name sticky-col running-total-label" colspan="2">
                   <span
                     class="on-time"
                     :class="{ 'on-time--active': team.onTime }"
@@ -1106,13 +1106,11 @@ const appVersion: string = __APP_VERSION__
                     <span class="on-time-label">on time</span>
                   </span>
                   Score
-                </td>
-                <td class="cell--total cell--total-ontime sticky-col baseline-score-cell">
-                  {{
+                  <span class="baseline-score">{{
                     firstVisibleColIdx > (displayColumns[0]?.idx ?? 0)
                       ? baselineScore(ti)
                       : (scoring[ti]?.onTimeBonus ?? 0)
-                  }}
+                  }}</span>
                 </td>
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
@@ -1159,8 +1157,7 @@ const appVersion: string = __APP_VERSION__
               <!-- Spacer between teams -->
               <tr v-if="ti < teams.length - 1" class="spacer-row spacer-row--team">
                 <td class="col--left-spacer" />
-                <td class="sticky-col" />
-                <td class="sticky-col spacer-score-border" />
+                <td class="sticky-col" colspan="2" />
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
@@ -1175,8 +1172,7 @@ const appVersion: string = __APP_VERSION__
           <tfoot>
             <tr class="spacer-row">
               <td class="col--left-spacer" />
-              <td class="sticky-col" />
-              <td class="sticky-col spacer-score-border" />
+              <td class="sticky-col" colspan="2" />
               <td
                 v-for="{ col, idx, entering } in displayColumns"
                 :key="col.key"
@@ -1917,9 +1913,6 @@ thead tr th.sticky-col {
   box-shadow: none;
   background: var(--color-bg-warm) !important;
 }
-.spacer-row .spacer-score-border {
-  box-shadow: 1px 0 0 var(--color-border);
-}
 
 /* Question header row — empty name cell blends with background */
 /* Question number label inside header cell */
@@ -2057,8 +2050,7 @@ thead tr th.sticky-col {
   background: transparent;
   box-shadow: none;
 }
-.row--team-total .running-total-label,
-.row--team-total .baseline-score-cell {
+.row--team-total .running-total-label {
   background: var(--color-bg-warm) !important;
   box-shadow: 1px 0 0 var(--color-border);
 }
@@ -2402,20 +2394,11 @@ thead tr th.sticky-col {
   top: 50%;
   transform: translateY(-50%);
 }
-.baseline-score-cell {
-  left: 10rem;
-  z-index: 3;
-  font-weight: 700 !important;
-  width: 3rem;
-  min-width: 3rem;
-  max-width: 3rem;
-}
-.spacer-score-border {
-  left: 10rem;
-  width: 3rem;
-  min-width: 3rem;
-  max-width: 3rem;
-  box-shadow: 1px 0 0 var(--color-border);
+.baseline-score {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  margin-left: 0.35rem;
 }
 
 .col--ontime-header {
@@ -2423,9 +2406,6 @@ thead tr th.sticky-col {
   border-top: none !important;
   border-bottom: none !important;
   box-shadow: 0 1px 0 var(--color-border);
-  width: 3rem;
-  min-width: 3rem;
-  max-width: 3rem;
 }
 .cell--total-ontime {
   border-left: 1px solid var(--color-border-alt) !important;
