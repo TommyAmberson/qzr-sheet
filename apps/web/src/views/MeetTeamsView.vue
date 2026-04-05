@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useDragReorder } from '../composables/useDragReorder'
 
 const vFocus = { mounted: (el: HTMLElement) => el.focus() }
 
@@ -93,17 +94,50 @@ const addQuizzerError = ref('')
 const renamingQuizzerId = ref<number | null>(null)
 const renameValue = ref('')
 
-// Drag
-const dragging = ref<{ quizzerId: number; fromTeamId: number | null } | null>(null)
-// quizzerId to insert before (null = append to end of target)
-const dragOverQuizzerId = ref<number | null>(null)
-// teamId (or null for pool) being hovered — for card-level highlight
-const dragOverContainer = ref<number | null | undefined>(undefined)
+// Drag — pointer-event based (touch + mouse)
+const teamDragAxis = ref<'vertical' | 'horizontal'>('horizontal')
 
-// Team reorder drag
-const draggingTeamId = ref<number | null>(null)
-const dragOverTeamId = ref<number | null>(null)
-const dragOverTeamSide = ref<'before' | 'after' | null>(null)
+const quizzerDrag = useDragReorder({
+  onDrop(fromContainer, itemId, toContainer, beforeItemId) {
+    const quizzerId = Number(itemId)
+    const fromTeamId = fromContainer === 'pool' ? null : Number(fromContainer)
+    const toTeamId = toContainer === 'pool' ? null : Number(toContainer)
+    const insertBefore = beforeItemId === null ? null : Number(beforeItemId)
+
+    const fromKey = fromTeamId === null ? 'pool' : String(fromTeamId)
+    const toKey = toTeamId === null ? 'pool' : String(toTeamId)
+
+    if (toTeamId === fromTeamId) {
+      if (insertBefore !== quizzerId) {
+        reorderLocally(quizzerId, fromKey, toKey, insertBefore)
+      }
+      return
+    }
+
+    assignments.value[quizzerId] = toTeamId
+    reorderLocally(quizzerId, fromKey, toKey, insertBefore)
+  },
+})
+
+const teamDrag = useDragReorder({
+  onDrop(_fromContainer, itemId, _toContainer, beforeItemId) {
+    const fromId = Number(itemId)
+    const fromIdx = teams.value.findIndex((t) => t.id === fromId)
+    if (fromIdx === -1) return
+    const moved = teams.value.splice(fromIdx, 1)[0]!
+    if (beforeItemId === null) {
+      teams.value.push(moved)
+    } else {
+      const targetIdx = teams.value.findIndex((t) => t.id === Number(beforeItemId))
+      if (targetIdx === -1) {
+        teams.value.push(moved)
+        return
+      }
+      teams.value.splice(targetIdx, 0, moved)
+    }
+  },
+  axis: teamDragAxis,
+})
 
 // Ordered quizzer lists — keys are teamId or 'pool'
 const quizzerOrder = ref<Record<string, number[]>>({})
@@ -347,7 +381,20 @@ function startAddToTeam(teamId: number) {
   addQuizzerError.value = ''
 }
 
-onMounted(load)
+const gridMq = window.matchMedia('(min-width: 480px)')
+function onGridMqChange(e: MediaQueryListEvent) {
+  teamDragAxis.value = e.matches ? 'horizontal' : 'vertical'
+}
+
+onMounted(() => {
+  load()
+  teamDragAxis.value = gridMq.matches ? 'horizontal' : 'vertical'
+  gridMq.addEventListener('change', onGridMqChange)
+})
+
+onUnmounted(() => {
+  gridMq.removeEventListener('change', onGridMqChange)
+})
 
 // ---- Team actions ----
 
@@ -485,38 +532,6 @@ function discardDraft() {
   saveError.value = ''
 }
 
-// ---- Drag & drop ----
-
-function onDragStart(quizzerId: number, fromTeamId: number | null) {
-  dragging.value = { quizzerId, fromTeamId }
-}
-
-function onDragEnd() {
-  dragging.value = null
-  dragOverQuizzerId.value = null
-  dragOverContainer.value = undefined
-}
-
-function onDragOverContainer(containerId: number | null) {
-  if (draggingTeamId.value !== null) return
-  dragOverContainer.value = containerId
-}
-
-function onDragLeaveContainer() {
-  // only clear if not hovering a child quizzer slot
-  dragOverContainer.value = undefined
-}
-
-function onDragOverQuizzer(quizzerId: number, containerId: number | null) {
-  if (draggingTeamId.value !== null) return
-  dragOverContainer.value = containerId
-  dragOverQuizzerId.value = quizzerId
-}
-
-function onDragLeaveQuizzer() {
-  dragOverQuizzerId.value = null
-}
-
 // Move quizzerId within/between order lists, inserting before beforeId (null = append)
 function reorderLocally(
   quizzerId: number,
@@ -536,68 +551,36 @@ function reorderLocally(
   quizzerOrder.value[toKey] = to
 }
 
-function onDrop(toTeamId: number | null) {
-  if (!dragging.value) return
-  const { quizzerId, fromTeamId } = dragging.value
-  const insertBefore = dragOverQuizzerId.value
-  dragging.value = null
-  dragOverQuizzerId.value = null
-  dragOverContainer.value = undefined
+// Helpers for drag CSS classes
+function isQuizzerInsertBefore(quizzerId: number, containerId: string) {
+  const dt = quizzerDrag.dropTarget.value
+  return dt?.containerId === containerId && dt?.beforeItemId === String(quizzerId)
+}
 
-  const fromKey = fromTeamId === null ? 'pool' : String(fromTeamId)
-  const toKey = toTeamId === null ? 'pool' : String(toTeamId)
+function isContainerHighlighted(containerId: string) {
+  return (
+    quizzerDrag.dragState.value !== null &&
+    !teamDrag.dragState.value &&
+    quizzerDrag.dropTarget.value?.containerId === containerId
+  )
+}
 
-  // Same container — pure reorder, no API call needed
-  if (toTeamId === fromTeamId) {
-    if (insertBefore !== quizzerId) {
-      reorderLocally(quizzerId, fromKey, toKey, insertBefore)
-    }
-    return
+function teamInsertClass(teamId: number): string {
+  const ds = teamDrag.dragState.value
+  const dt = teamDrag.dropTarget.value
+  if (!ds || !dt) return ''
+  if (dt.beforeItemId === String(teamId)) return 'team-card--team-insert-before'
+  if (dt.beforeItemId === null) {
+    const nonDragged = teams.value.filter((t) => t.id !== Number(ds.itemId))
+    const lastTeam = nonDragged[nonDragged.length - 1]
+    if (lastTeam && lastTeam.id === teamId) return 'team-card--team-insert-after'
   }
-
-  // Moving between containers — local only, saved on Save
-  assignments.value[quizzerId] = toTeamId
-  reorderLocally(quizzerId, fromKey, toKey, insertBefore)
+  return ''
 }
 
-// ---- Team reorder drag ----
-
-function onTeamDragStart(teamId: number) {
-  draggingTeamId.value = teamId
-}
-
-function onTeamDragEnd() {
-  draggingTeamId.value = null
-  dragOverTeamId.value = null
-  dragOverTeamSide.value = null
-}
-
-function onTeamDragOver(teamId: number, event: DragEvent) {
-  if (draggingTeamId.value === null || draggingTeamId.value === teamId) return
-  dragOverTeamId.value = teamId
-  const el = event.currentTarget as HTMLElement
-  const rect = el.getBoundingClientRect()
-  dragOverTeamSide.value = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
-}
-
-function onTeamDragLeave() {
-  dragOverTeamId.value = null
-  dragOverTeamSide.value = null
-}
-
-function onTeamDrop(toTeamId: number) {
-  const fromId = draggingTeamId.value
-  const side = dragOverTeamSide.value
-  draggingTeamId.value = null
-  dragOverTeamId.value = null
-  dragOverTeamSide.value = null
-  if (fromId === null || fromId === toTeamId) return
-  const fromIdx = teams.value.findIndex((t) => t.id === fromId)
-  if (fromIdx === -1) return
-  const moved = teams.value.splice(fromIdx, 1)[0]!
-  const targetIdx = teams.value.findIndex((t) => t.id === toTeamId)
-  if (targetIdx === -1) return
-  teams.value.splice(side === 'after' ? targetIdx + 1 : targetIdx, 0, moved)
+function isDropTailActive(containerId: string) {
+  const dt = quizzerDrag.dropTarget.value
+  return dt?.containerId === containerId && dt?.beforeItemId === null
 }
 </script>
 
@@ -680,14 +663,15 @@ function onTeamDrop(toTeamId: number) {
         </div>
       </div>
 
-      <div class="teams-grid">
+      <div
+        :ref="(el: any) => teamDrag.registerContainer('grid', el as HTMLElement | null)"
+        class="teams-grid"
+      >
         <!-- Unassigned pool -->
         <div
+          :ref="(el: any) => quizzerDrag.registerContainer('pool', el as HTMLElement | null)"
           class="team-card team-card--pool"
-          :class="{ 'team-card--dragover': dragOverContainer === null && dragging !== null }"
-          @dragover.prevent="onDragOverContainer(null)"
-          @dragleave="onDragLeaveContainer"
-          @drop.prevent="onDrop(null)"
+          :class="{ 'team-card--dragover': isContainerHighlighted('pool') }"
         >
           <div class="team-card-header">
             <span class="team-label">Unassigned</span>
@@ -697,18 +681,12 @@ function onTeamDrop(toTeamId: number) {
             <li
               v-for="q in unassigned"
               :key="q.quizzerId"
-              class="quizzer-chip"
-              :class="{
-                'quizzer-chip--insert-before':
-                  draggingTeamId === null && dragOverQuizzerId === q.quizzerId,
-              }"
-              :draggable="canEditChurch && renamingQuizzerId !== q.quizzerId"
-              @dragstart="
-                canEditChurch && renamingQuizzerId !== q.quizzerId && onDragStart(q.quizzerId, null)
+              :ref="
+                (el: any) =>
+                  quizzerDrag.registerItem(String(q.quizzerId), 'pool', el as HTMLElement | null)
               "
-              @dragover.prevent="onDragOverQuizzer(q.quizzerId, null)"
-              @dragleave.stop="onDragLeaveQuizzer"
-              @dragend="onDragEnd"
+              class="quizzer-chip"
+              :class="{ 'quizzer-chip--insert-before': isQuizzerInsertBefore(q.quizzerId, 'pool') }"
             >
               <template v-if="renamingQuizzerId === q.quizzerId">
                 <input
@@ -721,6 +699,12 @@ function onTeamDrop(toTeamId: number) {
                 />
               </template>
               <template v-else>
+                <span
+                  v-if="canEditChurch"
+                  class="quizzer-drag-handle"
+                  @pointerdown.stop="quizzerDrag.onPointerDown(String(q.quizzerId), 'pool', $event)"
+                  >⠿</span
+                >
                 <span
                   class="quizzer-name"
                   @dblclick="canEditChurch && startRename(q.quizzerId, q.name)"
@@ -759,13 +743,9 @@ function onTeamDrop(toTeamId: number) {
             </li>
           </ul>
           <div
-            v-if="dragging"
+            v-if="quizzerDrag.dragState.value"
             class="drop-tail"
-            :class="{
-              'drop-tail--active': dragOverContainer === null && dragOverQuizzerId === null,
-            }"
-            @dragover.prevent="onDragOverContainer(null)"
-            @dragleave="onDragLeaveContainer"
+            :class="{ 'drop-tail--active': isDropTailActive('pool') }"
           ></div>
 
           <template v-if="canEditChurch">
@@ -806,31 +786,27 @@ function onTeamDrop(toTeamId: number) {
         <div
           v-for="(team, teamIdx) in teams"
           :key="team.id"
-          class="team-card"
-          :class="{
-            'team-card--dragover': dragOverContainer === team.id && draggingTeamId === null,
-            'team-card--warn': !!teamWarnings[teamIdx],
-            'team-card--team-insert-before':
-              draggingTeamId !== null &&
-              dragOverTeamId === team.id &&
-              dragOverTeamSide === 'before',
-            'team-card--team-insert-after':
-              draggingTeamId !== null && dragOverTeamId === team.id && dragOverTeamSide === 'after',
-          }"
-          @dragover.prevent="
-            draggingTeamId !== null ? onTeamDragOver(team.id, $event) : onDragOverContainer(team.id)
+          :ref="
+            (el: any) => {
+              quizzerDrag.registerContainer(String(team.id), el as HTMLElement | null)
+              teamDrag.registerItem(String(team.id), 'grid', el as HTMLElement | null)
+            }
           "
-          @dragleave="draggingTeamId !== null ? onTeamDragLeave() : onDragLeaveContainer()"
-          @drop.prevent="draggingTeamId !== null ? onTeamDrop(team.id) : onDrop(team.id)"
+          class="team-card"
+          :class="[
+            {
+              'team-card--dragover': isContainerHighlighted(String(team.id)),
+              'team-card--warn': !!teamWarnings[teamIdx],
+            },
+            teamInsertClass(team.id),
+          ]"
         >
           <div class="team-card-header">
             <span
               v-if="canEditChurch"
               class="team-drag-handle"
-              draggable="true"
               title="Drag to reorder"
-              @dragstart.stop="onTeamDragStart(team.id)"
-              @dragend.stop="onTeamDragEnd"
+              @pointerdown.stop="teamDrag.onPointerDown(String(team.id), 'grid', $event)"
               >⠿</span
             >
             <span class="team-label">
@@ -866,20 +842,18 @@ function onTeamDrop(toTeamId: number) {
             <li
               v-for="q in quizzersForTeam(team.id)"
               :key="q.quizzerId"
+              :ref="
+                (el: any) =>
+                  quizzerDrag.registerItem(
+                    String(q.quizzerId),
+                    String(team.id),
+                    el as HTMLElement | null,
+                  )
+              "
               class="quizzer-chip"
               :class="{
-                'quizzer-chip--insert-before':
-                  draggingTeamId === null && dragOverQuizzerId === q.quizzerId,
+                'quizzer-chip--insert-before': isQuizzerInsertBefore(q.quizzerId, String(team.id)),
               }"
-              :draggable="canEditChurch && renamingQuizzerId !== q.quizzerId"
-              @dragstart="
-                canEditChurch &&
-                renamingQuizzerId !== q.quizzerId &&
-                onDragStart(q.quizzerId, team.id)
-              "
-              @dragover.prevent="onDragOverQuizzer(q.quizzerId, team.id)"
-              @dragleave.stop="onDragLeaveQuizzer"
-              @dragend="onDragEnd"
             >
               <template v-if="renamingQuizzerId === q.quizzerId">
                 <input
@@ -892,6 +866,14 @@ function onTeamDrop(toTeamId: number) {
                 />
               </template>
               <template v-else>
+                <span
+                  v-if="canEditChurch"
+                  class="quizzer-drag-handle"
+                  @pointerdown.stop="
+                    quizzerDrag.onPointerDown(String(q.quizzerId), String(team.id), $event)
+                  "
+                  >⠿</span
+                >
                 <span
                   class="quizzer-name"
                   @dblclick="canEditChurch && startRename(q.quizzerId, q.name)"
@@ -930,13 +912,9 @@ function onTeamDrop(toTeamId: number) {
             </li>
           </ul>
           <div
-            v-if="dragging"
+            v-if="quizzerDrag.dragState.value"
             class="drop-tail"
-            :class="{
-              'drop-tail--active': dragOverContainer === team.id && dragOverQuizzerId === null,
-            }"
-            @dragover.prevent="onDragOverContainer(team.id)"
-            @dragleave="onDragLeaveContainer"
+            :class="{ 'drop-tail--active': isDropTailActive(String(team.id)) }"
           ></div>
 
           <template v-if="canEditChurch">
@@ -1095,7 +1073,7 @@ function onTeamDrop(toTeamId: number) {
 
 .teams-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
   gap: 0.875rem;
   align-items: start;
 }
@@ -1144,6 +1122,7 @@ function onTeamDrop(toTeamId: number) {
   padding: 0 0.15rem;
   flex-shrink: 0;
   line-height: 1;
+  touch-action: none;
   opacity: 0;
   transition: opacity 0.1s;
 }
@@ -1289,10 +1268,23 @@ function onTeamDrop(toTeamId: number) {
   padding: 0.25rem 0.5rem;
   font-size: 0.8rem;
   user-select: none;
-  cursor: grab;
 }
 
-.quizzer-chip:active {
+.quizzer-drag-handle {
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+  cursor: grab;
+  padding: 0 0.15rem;
+  flex-shrink: 0;
+  line-height: 1;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.quizzer-chip:hover .quizzer-drag-handle {
+  opacity: 1;
+}
+.quizzer-drag-handle:active {
   cursor: grabbing;
 }
 
@@ -1537,5 +1529,73 @@ function onTeamDrop(toTeamId: number) {
   display: flex;
   gap: 0.4rem;
   flex-shrink: 0;
+}
+
+/* ---- Mobile / touch ---- */
+
+@media (max-width: 479px) {
+  .container {
+    padding: 1rem 0.75rem;
+  }
+  .team-card {
+    min-height: auto;
+  }
+  .team-card--team-insert-before::before {
+    top: calc(-0.4375rem - 1.5px);
+    bottom: auto;
+    left: 0;
+    right: 0;
+    width: auto;
+    height: 3px;
+  }
+  .team-card--team-insert-after::after {
+    top: auto;
+    bottom: calc(-0.4375rem - 1.5px);
+    left: 0;
+    right: 0;
+    width: auto;
+    height: 3px;
+  }
+}
+
+@media (hover: none) {
+  .church-name-pencil,
+  .team-drag-handle,
+  .team-remove,
+  .quizzer-drag-handle,
+  .quizzer-pencil,
+  .quizzer-remove {
+    opacity: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  .church-name-pencil {
+    padding: 0.5rem;
+  }
+  .team-drag-handle,
+  .quizzer-drag-handle {
+    padding: 0.5rem 0.3rem;
+  }
+  .team-remove {
+    padding: 0.5rem;
+  }
+  .quizzer-pencil,
+  .quizzer-remove {
+    padding: 0.4rem;
+  }
+  .btn--sm {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  .division-select {
+    max-width: none;
+    padding: 0.3rem 0.1rem;
+    font-size: 0.85rem;
+  }
+  .dashed-add {
+    padding: 0.6rem;
+    font-size: 0.85rem;
+  }
 }
 </style>

@@ -2731,4 +2731,41 @@ thead tr th.sticky-col {
 .opt--clear.selector-opt--focused {
   background: var(--color-border-alt);
 }
+
+/* ---- Touch devices ---- */
+
+@media (hover: none) {
+  .drag-handle {
+    opacity: 1;
+  }
+  .name-main:not(:only-child) .name-restore {
+    display: inline-flex;
+  }
+  .name-clear {
+    display: none !important;
+  }
+}
+
+@media (pointer: coarse) {
+  .meta-field--undo button {
+    padding: 0.4rem 0.6rem;
+  }
+  .consolation-toggle {
+    padding: 0.35rem 0.5rem 0.35rem 0.4rem;
+  }
+  .theme-toggle {
+    padding: 0.35rem 0.65rem;
+  }
+  .drag-handle {
+    padding: 0.4rem;
+  }
+  .meta-field--file button {
+    padding: 0.4rem 0.6rem;
+  }
+  .selector-opt {
+    width: 2.75rem;
+    height: 2.75rem;
+    font-size: 0.85rem;
+  }
+}
 </style>
