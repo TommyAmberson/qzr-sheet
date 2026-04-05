@@ -2406,11 +2406,15 @@ thead tr th.sticky-col {
   left: 10rem;
   z-index: 3;
   font-weight: 700 !important;
+  width: 3rem;
   min-width: 3rem;
+  max-width: 3rem;
 }
 .spacer-score-border {
   left: 10rem;
+  width: 3rem;
   min-width: 3rem;
+  max-width: 3rem;
   box-shadow: 1px 0 0 var(--color-border);
 }
 
@@ -2419,6 +2423,9 @@ thead tr th.sticky-col {
   border-top: none !important;
   border-bottom: none !important;
   box-shadow: 0 1px 0 var(--color-border);
+  width: 3rem;
+  min-width: 3rem;
+  max-width: 3rem;
 }
 .cell--total-ontime {
   border-left: 1px solid var(--color-border-alt) !important;
