@@ -267,6 +267,28 @@ function boundaryTotal(ti: number, colIdx: number): number | null {
   return scoring.value[ti]?.onTimeBonus ?? null
 }
 
+function isColumnAnswered(ci: number): boolean {
+  for (const teamCells of cells.value) {
+    for (const quizzerCells of teamCells) {
+      if (quizzerCells[ci] !== undefined && quizzerCells[ci] !== CellValue.Empty) return true
+    }
+  }
+  return false
+}
+
+const trailingTotalIndices = computed<Set<number>>(() => {
+  const s = new Set<number>()
+  const dc = displayColumns.value
+  for (let i = 0; i < dc.length; i++) {
+    const { idx } = dc[i]!
+    const nextIdx = dc[i + 1]?.idx
+    if (nextIdx === undefined || (isColumnAnswered(idx) && !isColumnAnswered(nextIdx))) {
+      s.add(idx)
+    }
+  }
+  return s
+})
+
 /** Columns actually rendered — entering columns start collapsed, then expand */
 const displayColumns = ref(visibleColumns.value.map((vc) => ({ ...vc, entering: false })))
 
@@ -1120,7 +1142,9 @@ const appVersion: string = __APP_VERSION__
                 >
                   {{
                     scoring[ti]?.runningTotals[idx] ??
-                    (boundaryColIndices.has(idx) ? boundaryTotal(ti, idx) : '')
+                    (boundaryColIndices.has(idx) || trailingTotalIndices.has(idx)
+                      ? boundaryTotal(ti, idx)
+                      : '')
                   }}
                   <span
                     v-if="scoring[ti]?.uniqueQuizzerBonusCols.has(idx)"
