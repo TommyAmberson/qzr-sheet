@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.1
+
+### Added
+
+* **Android APK** — unsigned APK included in releases; new `pnpm android:build` script
+
+### Improved
+
+* **Sticky running total** — team score row stays fixed while scrolling horizontally; shows baseline
+  (pre-scroll) score once the first question column is obscured
+* **Mobile scoresheet** — larger tap targets, visible controls, clamped cell-selector popup on touch
+  devices
+* **Mobile portal** — hamburger sidebar nav, responsive team cards grid, pointer-event drag reorder
+  for rosters (replaces HTML5 drag API, which crashes on Linux/X11 and doesn't work on touch)
+
 ## 0.5.0
 
 ### Added
