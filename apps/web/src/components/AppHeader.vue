@@ -13,13 +13,13 @@ const { session, signOut } = useAuth()
         <span class="logo-mark">qzr-sheet</span>
       </RouterLink>
       <nav class="nav">
-        <a :href="scoresheetUrl" class="nav-link">Scoresheet</a>
-        <RouterLink to="/roadmap" class="nav-link">Roadmap</RouterLink>
+        <a :href="scoresheetUrl" class="nav-link nav-link--secondary">Scoresheet</a>
+        <RouterLink to="/roadmap" class="nav-link nav-link--secondary">Roadmap</RouterLink>
         <a
           href="https://github.com/TommyAmberson/qzr-sheet"
           target="_blank"
           rel="noopener noreferrer"
-          class="nav-link"
+          class="nav-link nav-link--secondary"
           >GitHub</a
         >
         <template v-if="session.data">
@@ -36,6 +36,7 @@ const { session, signOut } = useAuth()
 .header {
   border-bottom: 1px solid var(--color-border-alt);
   background: var(--color-bg);
+  overflow: hidden;
 }
 
 .header-inner {
@@ -65,6 +66,7 @@ const { session, signOut } = useAuth()
   font-weight: 800;
   letter-spacing: -0.04em;
   color: var(--color-accent);
+  white-space: nowrap;
 }
 
 .logo-name {
@@ -111,8 +113,11 @@ const { session, signOut } = useAuth()
   .nav {
     gap: 0.75rem;
   }
+  .nav-link--secondary {
+    display: none;
+  }
   .nav-user {
-    max-width: 6rem;
+    max-width: 8rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
