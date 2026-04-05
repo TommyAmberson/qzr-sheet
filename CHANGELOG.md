@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+
+### Fixed
+
+* **Android APK signing** — release APK is now signed with a keystore so it can be installed
+
 ## 0.5.1
 
 ### Added
