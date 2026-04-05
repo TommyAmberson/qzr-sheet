@@ -16,6 +16,7 @@ import {
 } from '../persistence/fileIO'
 import { fillOts } from '../export/fillOts'
 import { readOds } from '../export/readOds'
+import { anyTeamHasAnswer } from '../scoring/helpers'
 import { validationMessage } from '../scoring/validation'
 import { useMeetSession } from '../composables/useMeetSession'
 import MeetPickerDialog from './MeetPickerDialog.vue'
@@ -267,30 +268,24 @@ function boundaryTotal(ti: number, colIdx: number): number | null {
   return scoring.value[ti]?.onTimeBonus ?? null
 }
 
-function isColumnAnswered(ci: number): boolean {
-  for (const teamCells of cells.value) {
-    for (const quizzerCells of teamCells) {
-      if (quizzerCells[ci] !== undefined && quizzerCells[ci] !== CellValue.Empty) return true
-    }
-  }
-  return false
-}
+/** Columns actually rendered — entering columns start collapsed, then expand */
+const displayColumns = ref(visibleColumns.value.map((vc) => ({ ...vc, entering: false })))
 
 const trailingTotalIndices = computed<Set<number>>(() => {
   const s = new Set<number>()
   const dc = displayColumns.value
+  const c = cells.value
+  const nj = noJumps.value
+  const isComplete = (ci: number) => nj[ci] || anyTeamHasAnswer(c, ci)
   for (let i = 0; i < dc.length; i++) {
     const { idx } = dc[i]!
     const nextIdx = dc[i + 1]?.idx
-    if (nextIdx === undefined || (isColumnAnswered(idx) && !isColumnAnswered(nextIdx))) {
+    if (nextIdx === undefined || (isComplete(idx) && !isComplete(nextIdx))) {
       s.add(idx)
     }
   }
   return s
 })
-
-/** Columns actually rendered — entering columns start collapsed, then expand */
-const displayColumns = ref(visibleColumns.value.map((vc) => ({ ...vc, entering: false })))
 
 let prevVisibleKeys = new Set(visibleColumns.value.map(({ col }) => col.key))
 
