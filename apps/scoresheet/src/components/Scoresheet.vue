@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { CellValue, QuestionCategory, QuestionType, QUIZZERS_PER_TEAM } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
@@ -16,6 +16,7 @@ import {
 } from '../persistence/fileIO'
 import { fillOts } from '../export/fillOts'
 import { readOds } from '../export/readOds'
+import { anyTeamHasAnswer } from '../scoring/helpers'
 import { validationMessage } from '../scoring/validation'
 import { useMeetSession } from '../composables/useMeetSession'
 import MeetPickerDialog from './MeetPickerDialog.vue'
@@ -270,6 +271,26 @@ function boundaryTotal(ti: number, colIdx: number): number | null {
 /** Columns actually rendered — entering columns start collapsed, then expand */
 const displayColumns = ref(visibleColumns.value.map((vc) => ({ ...vc, entering: false })))
 
+const trailingTotalIndices = computed<Set<number>>(() => {
+  const s = new Set<number>()
+  const dc = displayColumns.value
+  const c = cells.value
+  const nj = noJumps.value
+  const lastVisible = lastVisibleColIdx.value
+  const isComplete = (ci: number) => nj[ci] || anyTeamHasAnswer(c, ci)
+  for (let i = 0; i < dc.length; i++) {
+    const { idx } = dc[i]!
+    const nextIdx = dc[i + 1]?.idx
+    if (
+      idx === lastVisible ||
+      (isComplete(idx) && (nextIdx === undefined || !isComplete(nextIdx)))
+    ) {
+      s.add(idx)
+    }
+  }
+  return s
+})
+
 let prevVisibleKeys = new Set(visibleColumns.value.map(({ col }) => col.key))
 
 watch(visibleColumns, (curr) => {
@@ -353,6 +374,61 @@ function onNoJumpClick(ci: number) {
 
 /** Hovered column index for crosshair highlight */
 const hoverCol = ref<number | null>(null)
+
+/** Sticky baseline score — shows the team score entering the first visible question */
+const wrapperRef = ref<HTMLElement | null>(null)
+const nameColRef = ref<HTMLElement | null>(null)
+const stickyAreaRef = ref<HTMLElement | null>(null)
+const colHeaderEls = new Map<number, HTMLElement>()
+function registerColHeader(idx: number, el: HTMLElement | null) {
+  if (el) colHeaderEls.set(idx, el)
+  else colHeaderEls.delete(idx)
+}
+const firstVisibleColIdx = ref(0)
+const lastVisibleColIdx = ref(0)
+let scrollRaf = 0
+
+function updateVisibleCols() {
+  scrollRaf = 0
+  const stickyEl = stickyAreaRef.value ?? nameColRef.value
+  const wrapper = wrapperRef.value
+  if (!stickyEl || !wrapper || colHeaderEls.size === 0) return
+  const stickyRight = stickyEl.getBoundingClientRect().right
+  const wrapperRight = wrapper.getBoundingClientRect().right
+
+  let first: number | null = null
+  let last = 0
+  for (const { idx } of displayColumns.value) {
+    const el = colHeaderEls.get(idx)
+    if (!el) continue
+    const rect = el.getBoundingClientRect()
+    const mid = (rect.left + rect.right) / 2
+    if (first === null && mid >= stickyRight) first = idx
+    if (mid <= wrapperRight) last = idx
+  }
+  const f = first ?? 0
+  if (firstVisibleColIdx.value !== f) firstVisibleColIdx.value = f
+  if (lastVisibleColIdx.value !== last) lastVisibleColIdx.value = last
+}
+
+function onWrapperScroll() {
+  if (!scrollRaf) scrollRaf = requestAnimationFrame(updateVisibleCols)
+}
+
+function baselineScore(ti: number): number {
+  const idx = firstVisibleColIdx.value
+  if (idx === 0) return scoring.value[ti]?.onTimeBonus ?? 0
+  return boundaryTotal(ti, idx - 1) ?? scoring.value[ti]?.onTimeBonus ?? 0
+}
+
+onMounted(() => {
+  wrapperRef.value?.addEventListener('scroll', onWrapperScroll, { passive: true })
+  updateVisibleCols()
+})
+onUnmounted(() => {
+  wrapperRef.value?.removeEventListener('scroll', onWrapperScroll)
+  if (scrollRaf) cancelAnimationFrame(scrollRaf)
+})
 
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
@@ -528,7 +604,12 @@ const appVersion: string = __APP_VERSION__
 
 <template>
   <div class="scoresheet-outer">
-    <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
+    <div
+      ref="wrapperRef"
+      class="scoresheet-wrapper"
+      :class="{ 'is-dragging': dragState }"
+      @dragstart.prevent
+    >
       <div
         v-if="saveMenuOpen || newMenuOpen || openPickerSlot !== null"
         class="menu-backdrop"
@@ -681,11 +762,12 @@ const appVersion: string = __APP_VERSION__
           <thead>
             <tr>
               <th class="col--left-spacer" />
-              <th class="col--name sticky-col" />
+              <th ref="nameColRef" class="col--name sticky-col" />
               <th class="col--ontime-header" />
               <th
                 v-for="{ col, idx, entering } in displayColumns"
                 :key="col.key"
+                :ref="(el: any) => registerColHeader(idx, el as HTMLElement | null)"
                 :class="[
                   'col--question',
                   colGroupClass(idx),
@@ -1042,7 +1124,11 @@ const appVersion: string = __APP_VERSION__
               <!-- Team running total row -->
               <tr class="row--team-total">
                 <td class="col--left-spacer" />
-                <td class="col--name sticky-col running-total-label">
+                <td
+                  :ref="ti === 0 ? (el: any) => (stickyAreaRef = el as HTMLElement) : undefined"
+                  class="col--name sticky-col running-total-label"
+                  colspan="2"
+                >
                   <span
                     class="on-time"
                     :class="{ 'on-time--active': team.onTime }"
@@ -1052,9 +1138,7 @@ const appVersion: string = __APP_VERSION__
                     <span class="on-time-label">on time</span>
                   </span>
                   Score
-                </td>
-                <td class="cell--total cell--total-ontime" style="position: relative">
-                  {{ scoring[ti]?.onTimeBonus ?? 0 }}
+                  <span class="baseline-score">{{ baselineScore(ti) }}</span>
                 </td>
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
@@ -1064,7 +1148,9 @@ const appVersion: string = __APP_VERSION__
                 >
                   {{
                     scoring[ti]?.runningTotals[idx] ??
-                    (boundaryColIndices.has(idx) ? boundaryTotal(ti, idx) : '')
+                    (boundaryColIndices.has(idx) || trailingTotalIndices.has(idx)
+                      ? boundaryTotal(ti, idx)
+                      : '')
                   }}
                   <span
                     v-if="scoring[ti]?.uniqueQuizzerBonusCols.has(idx)"
@@ -1854,8 +1940,8 @@ thead tr th.sticky-col {
   border-right: 1px solid var(--color-border-alt) !important;
 }
 .spacer-row .sticky-col {
-  box-shadow: none;
-  border-right: 1px solid var(--color-border-alt) !important;
+  background: var(--color-bg-warm) !important;
+  box-shadow: 1px 0 0 var(--color-border);
 }
 
 /* Question header row — empty name cell blends with background */
@@ -1993,6 +2079,10 @@ thead tr th.sticky-col {
 .row--team-total .sticky-col {
   background: transparent;
   box-shadow: none;
+}
+.row--team-total .running-total-label {
+  background: var(--color-bg-warm) !important;
+  box-shadow: 1px 0 0 var(--color-border);
 }
 .team-total-value {
   font-size: 2.5rem;
@@ -2327,13 +2417,18 @@ thead tr th.sticky-col {
   font-size: 0.75rem;
   text-align: right !important;
   padding-right: 0.6rem !important;
-  position: relative;
 }
 .running-total-label .on-time {
   position: absolute;
   left: 0.4rem;
   top: 50%;
   transform: translateY(-50%);
+}
+.baseline-score {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  margin-left: 0.35rem;
 }
 
 .col--ontime-header {
