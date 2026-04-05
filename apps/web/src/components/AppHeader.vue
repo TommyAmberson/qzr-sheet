@@ -103,4 +103,19 @@ const { session, signOut } = useAuth()
   cursor: pointer;
   font-family: inherit;
 }
+
+@media (max-width: 479px) {
+  .header-inner {
+    padding: 0 0.75rem;
+  }
+  .nav {
+    gap: 0.75rem;
+  }
+  .nav-user {
+    max-width: 6rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
 </style>
