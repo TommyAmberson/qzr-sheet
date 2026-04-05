@@ -1915,6 +1915,7 @@ thead tr th.sticky-col {
 }
 .spacer-row .sticky-col {
   box-shadow: none;
+  background: var(--color-bg-warm) !important;
 }
 .spacer-row .spacer-score-border {
   box-shadow: 1px 0 0 var(--color-border);
@@ -2405,9 +2406,11 @@ thead tr th.sticky-col {
   left: 10rem;
   z-index: 3;
   font-weight: 700 !important;
+  min-width: 3rem;
 }
 .spacer-score-border {
   left: 10rem;
+  min-width: 3rem;
   box-shadow: 1px 0 0 var(--color-border);
 }
 
