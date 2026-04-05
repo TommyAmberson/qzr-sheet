@@ -276,11 +276,15 @@ const trailingTotalIndices = computed<Set<number>>(() => {
   const dc = displayColumns.value
   const c = cells.value
   const nj = noJumps.value
+  const lastVisible = lastVisibleColIdx.value
   const isComplete = (ci: number) => nj[ci] || anyTeamHasAnswer(c, ci)
   for (let i = 0; i < dc.length; i++) {
     const { idx } = dc[i]!
     const nextIdx = dc[i + 1]?.idx
-    if (nextIdx === undefined || (isComplete(idx) && !isComplete(nextIdx))) {
+    if (
+      idx === lastVisible ||
+      (isComplete(idx) && (nextIdx === undefined || !isComplete(nextIdx)))
+    ) {
       s.add(idx)
     }
   }
@@ -381,27 +385,32 @@ function registerColHeader(idx: number, el: HTMLElement | null) {
   else colHeaderEls.delete(idx)
 }
 const firstVisibleColIdx = ref(0)
+const lastVisibleColIdx = ref(0)
 let scrollRaf = 0
 
-function updateFirstVisibleCol() {
+function updateVisibleCols() {
   scrollRaf = 0
   const stickyEl = stickyAreaRef.value ?? nameColRef.value
-  if (!stickyEl || colHeaderEls.size === 0) return
+  const wrapper = wrapperRef.value
+  if (!stickyEl || !wrapper || colHeaderEls.size === 0) return
   const stickyRight = stickyEl.getBoundingClientRect().right
-  let found = 0
+  const wrapperRight = wrapper.getBoundingClientRect().right
+
+  let first = 0
+  let last = 0
   for (const { idx } of displayColumns.value) {
     const el = colHeaderEls.get(idx)
     if (!el) continue
-    if (el.getBoundingClientRect().left >= stickyRight - 1) {
-      found = idx
-      break
-    }
+    const rect = el.getBoundingClientRect()
+    if (!first && rect.left >= stickyRight - 1) first = idx
+    if (rect.left < wrapperRight) last = idx
   }
-  if (firstVisibleColIdx.value !== found) firstVisibleColIdx.value = found
+  if (firstVisibleColIdx.value !== first) firstVisibleColIdx.value = first
+  if (lastVisibleColIdx.value !== last) lastVisibleColIdx.value = last
 }
 
 function onWrapperScroll() {
-  if (!scrollRaf) scrollRaf = requestAnimationFrame(updateFirstVisibleCol)
+  if (!scrollRaf) scrollRaf = requestAnimationFrame(updateVisibleCols)
 }
 
 function baselineScore(ti: number): number {
@@ -412,7 +421,7 @@ function baselineScore(ti: number): number {
 
 onMounted(() => {
   wrapperRef.value?.addEventListener('scroll', onWrapperScroll, { passive: true })
-  updateFirstVisibleCol()
+  updateVisibleCols()
 })
 onUnmounted(() => {
   wrapperRef.value?.removeEventListener('scroll', onWrapperScroll)
