@@ -1110,11 +1110,7 @@ const appVersion: string = __APP_VERSION__
                     <span class="on-time-label">on time</span>
                   </span>
                   Score
-                  <span class="baseline-score">{{
-                    firstVisibleColIdx > (displayColumns[0]?.idx ?? 0)
-                      ? baselineScore(ti)
-                      : (scoring[ti]?.onTimeBonus ?? 0)
-                  }}</span>
+                  <span class="baseline-score">{{ baselineScore(ti) }}</span>
                 </td>
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
