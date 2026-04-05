@@ -2381,7 +2381,6 @@ thead tr th.sticky-col {
   font-size: 0.75rem;
   text-align: right !important;
   padding-right: 0.6rem !important;
-  position: relative;
 }
 .running-total-label .on-time {
   position: absolute;
