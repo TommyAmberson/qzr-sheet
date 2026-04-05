@@ -1105,7 +1105,11 @@ const appVersion: string = __APP_VERSION__
                     <span class="on-time-label">on time</span>
                   </span>
                   Score
-                  <span class="baseline-score">{{ baselineScore(ti) }}</span>
+                  <span
+                    v-if="baselineScore(ti) !== (scoring[ti]?.onTimeBonus ?? 0)"
+                    class="baseline-score"
+                    >{{ baselineScore(ti) }}</span
+                  >
                 </td>
                 <td class="cell--total cell--total-ontime" style="position: relative">
                   {{ scoring[ti]?.onTimeBonus ?? 0 }}
@@ -2381,6 +2385,7 @@ thead tr th.sticky-col {
   font-size: 0.75rem;
   text-align: right !important;
   padding-right: 0.6rem !important;
+  background: var(--color-bg) !important;
 }
 .running-total-label .on-time {
   position: absolute;
