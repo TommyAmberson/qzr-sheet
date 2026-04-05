@@ -403,7 +403,7 @@ function updateVisibleCols() {
     if (!el) continue
     const rect = el.getBoundingClientRect()
     if (!first && rect.left >= stickyRight - 1) first = idx
-    if (rect.left < wrapperRight) last = idx
+    if (rect.right <= wrapperRight + 1) last = idx
   }
   if (firstVisibleColIdx.value !== first) firstVisibleColIdx.value = first
   if (lastVisibleColIdx.value !== last) lastVisibleColIdx.value = last
