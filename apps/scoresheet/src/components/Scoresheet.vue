@@ -1154,7 +1154,8 @@ const appVersion: string = __APP_VERSION__
               <!-- Spacer between teams -->
               <tr v-if="ti < teams.length - 1" class="spacer-row spacer-row--team">
                 <td class="col--left-spacer" />
-                <td class="sticky-col" colspan="2" />
+                <td class="sticky-col" />
+                <td class="sticky-col spacer-score-border" />
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
@@ -2396,6 +2397,10 @@ thead tr th.sticky-col {
   left: 10rem;
   z-index: 3;
   font-weight: 700 !important;
+}
+.spacer-score-border {
+  left: 10rem;
+  box-shadow: 1px 0 0 var(--color-border);
 }
 
 .col--ontime-header {
