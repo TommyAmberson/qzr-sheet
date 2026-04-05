@@ -1076,7 +1076,7 @@ function isDropTailActive(containerId: string) {
     grid-template-columns: repeat(2, 1fr);
   }
 }
-@media (min-width: 768px) {
+@media (min-width: 900px) {
   .teams-grid {
     grid-template-columns: repeat(3, 1fr);
   }
