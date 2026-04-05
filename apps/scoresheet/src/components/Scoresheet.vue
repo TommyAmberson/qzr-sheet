@@ -357,6 +357,7 @@ const hoverCol = ref<number | null>(null)
 /** Sticky baseline score — shows the team score entering the first visible question */
 const wrapperRef = ref<HTMLElement | null>(null)
 const nameColRef = ref<HTMLElement | null>(null)
+const ontimeColRef = ref<HTMLElement | null>(null)
 const colHeaderEls = new Map<number, HTMLElement>()
 function registerColHeader(idx: number, el: HTMLElement | null) {
   if (el) colHeaderEls.set(idx, el)
@@ -367,14 +368,14 @@ let scrollRaf = 0
 
 function updateFirstVisibleCol() {
   scrollRaf = 0
-  const nameEl = nameColRef.value
-  if (!nameEl || colHeaderEls.size === 0) return
-  const nameRight = nameEl.getBoundingClientRect().right
+  const stickyEdgeEl = ontimeColRef.value ?? nameColRef.value
+  if (!stickyEdgeEl || colHeaderEls.size === 0) return
+  const stickyRight = stickyEdgeEl.getBoundingClientRect().right
   let found = 0
   for (const { idx } of displayColumns.value) {
     const el = colHeaderEls.get(idx)
     if (!el) continue
-    if (el.getBoundingClientRect().left >= nameRight - 1) {
+    if (el.getBoundingClientRect().left >= stickyRight - 1) {
       found = idx
       break
     }
@@ -734,7 +735,7 @@ const appVersion: string = __APP_VERSION__
             <tr>
               <th class="col--left-spacer" />
               <th ref="nameColRef" class="col--name sticky-col" />
-              <th class="col--ontime-header" />
+              <th ref="ontimeColRef" class="col--ontime-header" />
               <th
                 v-for="{ col, idx, entering } in displayColumns"
                 :key="col.key"
