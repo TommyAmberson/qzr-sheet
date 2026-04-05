@@ -1108,7 +1108,11 @@ const appVersion: string = __APP_VERSION__
                   Score
                 </td>
                 <td class="cell--total cell--total-ontime sticky-col baseline-score-cell">
-                  {{ baselineScore(ti) }}
+                  {{
+                    firstVisibleColIdx > (displayColumns[0]?.idx ?? 0)
+                      ? baselineScore(ti)
+                      : (scoring[ti]?.onTimeBonus ?? 0)
+                  }}
                 </td>
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
@@ -1911,7 +1915,6 @@ thead tr th.sticky-col {
 }
 .spacer-row .sticky-col {
   box-shadow: none;
-  background: var(--color-bg-warm) !important;
 }
 .spacer-row .spacer-score-border {
   box-shadow: 1px 0 0 var(--color-border);
