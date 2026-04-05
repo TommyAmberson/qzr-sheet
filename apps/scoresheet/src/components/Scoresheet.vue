@@ -357,6 +357,7 @@ const hoverCol = ref<number | null>(null)
 /** Sticky baseline score — shows the team score entering the first visible question */
 const wrapperRef = ref<HTMLElement | null>(null)
 const nameColRef = ref<HTMLElement | null>(null)
+const stickyAreaRef = ref<HTMLElement | null>(null)
 const colHeaderEls = new Map<number, HTMLElement>()
 function registerColHeader(idx: number, el: HTMLElement | null) {
   if (el) colHeaderEls.set(idx, el)
@@ -367,16 +368,14 @@ let scrollRaf = 0
 
 function updateFirstVisibleCol() {
   scrollRaf = 0
-  const nameEl = nameColRef.value
-  if (!nameEl || colHeaderEls.size === 0) return
-  const nameRight = nameEl.getBoundingClientRect().right
+  const stickyEl = stickyAreaRef.value ?? nameColRef.value
+  if (!stickyEl || colHeaderEls.size === 0) return
+  const stickyRight = stickyEl.getBoundingClientRect().right
   let found = 0
   for (const { idx } of displayColumns.value) {
     const el = colHeaderEls.get(idx)
     if (!el) continue
-    const rect = el.getBoundingClientRect()
-    // Column must be fully past the sticky area (right edge, not left)
-    if (rect.right > nameRight + 1) {
+    if (el.getBoundingClientRect().left >= stickyRight - 1) {
       found = idx
       break
     }
@@ -1097,7 +1096,11 @@ const appVersion: string = __APP_VERSION__
               <!-- Team running total row -->
               <tr class="row--team-total">
                 <td class="col--left-spacer" />
-                <td class="col--name sticky-col running-total-label" colspan="2">
+                <td
+                  :ref="ti === 0 ? (el: any) => (stickyAreaRef = el as HTMLElement) : undefined"
+                  class="col--name sticky-col running-total-label"
+                  colspan="2"
+                >
                   <span
                     class="on-time"
                     :class="{ 'on-time--active': team.onTime }"
@@ -1911,9 +1914,8 @@ thead tr th.sticky-col {
   border-right: 1px solid var(--color-border-alt) !important;
 }
 .spacer-row .sticky-col {
-  box-shadow: none;
   background: var(--color-bg-warm) !important;
-  border-right: 1px solid var(--color-border-alt) !important;
+  box-shadow: 1px 0 0 var(--color-border);
 }
 
 /* Question header row — empty name cell blends with background */
