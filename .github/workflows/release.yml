@@ -40,16 +40,22 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Decode keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/qzr-release.keystore
+
       - name: Build APK
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/29.0.14206865
+          ANDROID_KEYSTORE_PATH: /tmp/qzr-release.keystore
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: pnpm android:build
 
       - name: Upload APK to release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: apps/scoresheet/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
+          files: apps/scoresheet/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release*.apk
 
   release:
     permissions:
