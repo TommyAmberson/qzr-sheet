@@ -63,3 +63,9 @@ export function getMeetTeams(
 export function getTeamQuizzers(teamId: number): Promise<{ quizzers: MeetTeamQuizzer[] }> {
   return request(`/api/teams/${teamId}/quizzers`)
 }
+
+export function joinMeet(
+  code: string,
+): Promise<{ meet: { id: number; name: string }; role: string }> {
+  return request('/api/join', { method: 'POST', body: JSON.stringify({ code }) })
+}
