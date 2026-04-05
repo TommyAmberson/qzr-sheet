@@ -1910,6 +1910,7 @@ thead tr th.sticky-col {
 }
 .spacer-row .sticky-col {
   box-shadow: none;
+  background: var(--color-bg-warm) !important;
 }
 .spacer-row .spacer-score-border {
   box-shadow: 1px 0 0 var(--color-border);
