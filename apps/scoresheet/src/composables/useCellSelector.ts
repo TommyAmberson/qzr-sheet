@@ -49,7 +49,16 @@ export function useCellSelector(
 
   function openAt(ti: number, qi: number, ci: number, x: number, y: number) {
     selectorFocusIdx.value = 0
-    selector.value = { ti, qi, ci, x, y }
+    // Clamp so the popup stays within the viewport (2×2 grid of buttons + padding)
+    const isCoarse =
+      typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+    const btnSize = isCoarse ? 44 : 32
+    const popupW = btnSize * 2 + 8
+    const popupH = btnSize * 2 + 8
+    const pad = 8
+    const cx = Math.max(popupW / 2 + pad, Math.min(x, window.innerWidth - popupW / 2 - pad))
+    const cy = Math.max(popupH / 2 + pad, Math.min(y, window.innerHeight - popupH / 2 - pad))
+    selector.value = { ti, qi, ci, x: cx, y: cy }
   }
 
   function openFromClick(ti: number, qi: number, ci: number, event: MouseEvent) {
