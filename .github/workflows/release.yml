@@ -7,6 +7,50 @@ on:
   workflow_dispatch:
 
 jobs:
+  android:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android targets
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;29.0.14206865"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build APK
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/29.0.14206865
+        run: pnpm android:build
+
+      - name: Upload APK to release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: apps/scoresheet/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
+
   release:
     permissions:
       contents: write

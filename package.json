@@ -19,6 +19,8 @@
     "format": "prettier --write --experimental-cli apps/scoresheet/src/ apps/web/src/ packages/shared/src/ packages/api/src/",
     "lint": "eslint",
     "tauri": "pnpm --filter scoresheet tauri",
+    "android:dev": "pnpm --filter scoresheet tauri android dev",
+    "android:build": "pnpm --filter scoresheet tauri android build --apk",
     "tauri:linux-x11": "pnpm --filter scoresheet tauri:linux-x11",
     "tauri:linux-x11:dev": "pnpm tauri:linux-x11 dev",
     "dev:tauri:linux-x11": "run-p dev:web dev:api tauri:linux-x11:dev",
