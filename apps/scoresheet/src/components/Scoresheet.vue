@@ -1170,7 +1170,8 @@ const appVersion: string = __APP_VERSION__
           <tfoot>
             <tr class="spacer-row">
               <td class="col--left-spacer" />
-              <td class="sticky-col" colspan="2" />
+              <td class="sticky-col" />
+              <td class="sticky-col spacer-score-border" />
               <td
                 v-for="{ col, idx, entering } in displayColumns"
                 :key="col.key"
