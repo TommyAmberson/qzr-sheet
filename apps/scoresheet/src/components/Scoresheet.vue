@@ -1909,7 +1909,9 @@ thead tr th.sticky-col {
 }
 .spacer-row .sticky-col {
   box-shadow: none;
-  border-right: 1px solid var(--color-border-alt) !important;
+}
+.spacer-row .spacer-score-border {
+  box-shadow: 1px 0 0 var(--color-border);
 }
 
 /* Question header row — empty name cell blends with background */
