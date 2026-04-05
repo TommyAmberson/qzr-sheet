@@ -1735,9 +1735,9 @@ const appVersion: string = __APP_VERSION__
   background: color-mix(in srgb, var(--color-meta-accent) 20%, transparent);
   border: 1px solid var(--color-meta-accent);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 1rem;
   line-height: 1;
-  padding: 0.2rem 0.4rem;
+  padding: 0.15rem 0.55rem;
   border-radius: 4px;
   transition:
     background 0.15s,
