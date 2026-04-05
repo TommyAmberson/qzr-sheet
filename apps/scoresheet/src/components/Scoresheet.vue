@@ -1225,6 +1225,7 @@ const appVersion: string = __APP_VERSION__
   gap: 0;
   margin-bottom: 0.75rem;
   padding-top: 1rem;
+  min-width: max-content;
   flex-shrink: 0;
 }
 
@@ -1237,7 +1238,6 @@ const appVersion: string = __APP_VERSION__
 
 .quiz-meta {
   display: flex;
-  flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
   padding: 0.5rem 0.85rem;
