@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+
+* **Quizmeet mode (4.7a–c)** — scoresheet can link to a live meet: sign in with GitHub, Google, or
+  email from within the scoresheet; pick a meet from your joined list; select teams from a
+  searchable dropdown that auto-populates quizzer names; quizzer names that diverge from the roster
+  get an amber underline with a restore button
+* **Sign-in widget (4.7c)** — auth UI built into the scoresheet's meta bar; works in both the PWA
+  and Tauri desktop app; signing out clears the meet session
+* **Tauri auth support (4.7c)** — Tauri webview origins added to CORS and Better Auth trusted
+  origins; `useHttpsScheme` enabled so cookies are delivered correctly on Windows
+* **Save / New submenus (4.7a)** — `[Save ▼]` offers Save as JSON and Export ODS; `[New ▼]` offers
+  New quiz, Clear answers, Clear names, and Load teams from meet
+* **Consolation division support (4.7e)** — `consolation` boolean column on teams; scoresheet
+  division field becomes a dropdown when meet-linked, with `"{div}c"` options for divisions that
+  have consolation teams; team picker filters to the selected division/bracket;
+  `POST/DELETE /api/teams/:id/consolation` endpoints for admin use; `GET /api/meets/:id/teams`
+  returns consolation flag and canonical division list
+* **Roadmap page** — user-facing `/roadmap` route on the portal listing available and upcoming
+  features; linked from the header, footer, and home page
+
+### Improved
+
+* **Scoresheet meta-bar** — Division + consolation + Quiz# grouped into a single bordered pill;
+  undo/redo wrapped in a joined pill; status shown as a colored-accent-border badge; `·` dot
+  separators removed; theme toggle styled to match file-action buttons
+* **Meet picker dialog** — join-code input added so users can join a new meet without leaving the
+  scoresheet; dialog properly centered in Tauri/WebKit
+
+### Fixed
+
+* **Division select dark mode (Tauri)** — native `<select>` ignored CSS variables in the WebKit
+  webview; `appearance: none` with a CSS background-image arrow fixes rendering
+* **Meet picker dialog centering (Tauri)** — `<dialog>` default centering ignored by WebKit;
+  switched to `position: fixed` + `transform: translate(-50%, -50%)`
+
 ## 0.4.1
 
 ### Added
