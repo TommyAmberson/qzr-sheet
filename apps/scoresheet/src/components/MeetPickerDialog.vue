@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { getMyMeets, ApiError, type MeetSummary } from '../api'
+import { getMyMeets, joinMeet, ApiError, type MeetSummary } from '../api'
 import { useMeetSession } from '../composables/useMeetSession'
 
 const emit = defineEmits<{ loaded: [] }>()
@@ -12,6 +12,9 @@ const meets = ref<MeetSummary[]>([])
 const loading = ref(false)
 const error = ref('')
 const submitting = ref(false)
+const joinCode = ref('')
+const joinError = ref('')
+const joining = ref(false)
 
 async function fetchMeets() {
   loading.value = true
@@ -50,6 +53,22 @@ async function selectMeet(meet: MeetSummary) {
   }
 }
 
+async function handleJoinCode() {
+  const code = joinCode.value.trim()
+  if (!code) return
+  joining.value = true
+  joinError.value = ''
+  try {
+    await joinMeet(code)
+    joinCode.value = ''
+    await fetchMeets()
+  } catch (e) {
+    joinError.value = (e as Error).message
+  } finally {
+    joining.value = false
+  }
+}
+
 function close() {
   dialogRef.value?.close()
 }
@@ -82,6 +101,24 @@ defineExpose({ open })
           </button>
         </li>
       </ul>
+
+      <hr class="meet-picker-divider" />
+
+      <form class="join-form" @submit.prevent="handleJoinCode">
+        <p class="join-label">Have a code?</p>
+        <div class="join-row">
+          <input
+            v-model="joinCode"
+            class="join-input"
+            placeholder="Enter a code to join a meet"
+            :disabled="joining"
+          />
+          <button type="submit" class="join-btn" :disabled="joining || !joinCode.trim()">
+            {{ joining ? '…' : 'Join' }}
+          </button>
+        </div>
+        <p v-if="joinError" class="join-error">{{ joinError }}</p>
+      </form>
     </div>
   </dialog>
 </template>
@@ -95,6 +132,12 @@ defineExpose({ open })
   padding: 0;
   width: min(24rem, 90vw);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  /* Ensure centering in Tauri/WebKit */
+  margin: auto;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .meet-picker-dialog::backdrop {
@@ -192,5 +235,71 @@ defineExpose({ open })
   color: var(--color-text-faint);
   text-transform: capitalize;
   flex-shrink: 0;
+}
+
+.meet-picker-divider {
+  border: none;
+  border-top: 1px solid var(--color-border-alt);
+  margin: 0;
+}
+
+.join-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.join-label {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  margin: 0;
+}
+
+.join-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.join-input {
+  flex: 1;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: var(--color-text);
+}
+
+.join-input:focus {
+  outline: 1px solid var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.join-btn {
+  background: var(--color-accent);
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.join-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.join-btn:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+.join-error {
+  font-size: 0.75rem;
+  color: var(--color-invalid);
+  margin: 0;
 }
 </style>
