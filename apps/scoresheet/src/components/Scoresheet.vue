@@ -2049,7 +2049,7 @@ thead tr th.sticky-col {
 }
 .row--team-total .running-total-label,
 .row--team-total .baseline-score-cell {
-  background: var(--color-bg) !important;
+  background: var(--color-bg-warm) !important;
   box-shadow: 1px 0 0 var(--color-border);
 }
 .team-total-value {
@@ -2395,8 +2395,6 @@ thead tr th.sticky-col {
 .baseline-score-cell {
   left: 10rem;
   z-index: 3;
-  background: var(--color-bg) !important;
-  box-shadow: 1px 0 0 var(--color-border);
   font-weight: 700 !important;
 }
 
