@@ -11,6 +11,11 @@ const menuOpen = ref(false)
 function closeMenu() {
   menuOpen.value = false
 }
+
+function handleSignOut() {
+  signOut()
+  closeMenu()
+}
 </script>
 
 <template>
@@ -63,15 +68,7 @@ function closeMenu() {
         <hr class="sidebar-divider" />
         <template v-if="session.data">
           <span class="sidebar-user">{{ session.data.user.email ?? 'signed in' }}</span>
-          <button
-            class="sidebar-link"
-            @click="
-              signOut()
-              closeMenu()
-            "
-          >
-            Sign out
-          </button>
+          <button class="sidebar-link" @click="handleSignOut">Sign out</button>
         </template>
         <template v-else>
           <SignInMenu @click="closeMenu" />
