@@ -1095,9 +1095,24 @@ function onTeamDrop(toTeamId: number) {
 
 .teams-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: 1fr;
   gap: 0.875rem;
   align-items: start;
+}
+@media (min-width: 480px) {
+  .teams-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 768px) {
+  .teams-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (min-width: 1024px) {
+  .teams-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 .team-card {
@@ -1537,5 +1552,71 @@ function onTeamDrop(toTeamId: number) {
   display: flex;
   gap: 0.4rem;
   flex-shrink: 0;
+}
+
+/* ---- Mobile / touch ---- */
+
+@media (max-width: 479px) {
+  .container {
+    padding: 1rem 0.75rem;
+  }
+  .team-card {
+    min-height: auto;
+  }
+  .team-card--team-insert-before::before {
+    top: calc(-0.4375rem - 1.5px);
+    bottom: auto;
+    left: 0;
+    right: 0;
+    width: auto;
+    height: 3px;
+  }
+  .team-card--team-insert-after::after {
+    top: auto;
+    bottom: calc(-0.4375rem - 1.5px);
+    left: 0;
+    right: 0;
+    width: auto;
+    height: 3px;
+  }
+}
+
+@media (hover: none) {
+  .church-name-pencil,
+  .team-drag-handle,
+  .team-remove,
+  .quizzer-pencil,
+  .quizzer-remove {
+    opacity: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  .church-name-pencil {
+    padding: 0.5rem;
+  }
+  .team-drag-handle {
+    padding: 0.5rem 0.3rem;
+  }
+  .team-remove {
+    padding: 0.5rem;
+  }
+  .quizzer-pencil,
+  .quizzer-remove {
+    padding: 0.4rem;
+  }
+  .btn--sm {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  .division-select {
+    max-width: none;
+    padding: 0.3rem 0.1rem;
+    font-size: 0.85rem;
+  }
+  .dashed-add {
+    padding: 0.6rem;
+    font-size: 0.85rem;
+  }
 }
 </style>
