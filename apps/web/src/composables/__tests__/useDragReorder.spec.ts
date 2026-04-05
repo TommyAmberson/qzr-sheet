@@ -40,7 +40,12 @@ function fakeEl(left: number, top: number, width: number, height: number): HTMLE
 }
 
 describe('useDragReorder', () => {
-  let onDrop: ReturnType<typeof vi.fn>
+  let onDrop: (
+    fromContainer: string,
+    itemId: string,
+    toContainer: string,
+    beforeItemId: string | null,
+  ) => void
 
   beforeEach(() => {
     onDrop = vi.fn()
