@@ -601,12 +601,12 @@ const appVersion: string = __APP_VERSION__
                   <span class="on-time-box">✓</span>
                   <span class="on-time-label" title="Consolation bracket">c</span>
                 </span>
+                <span class="meta-group-sep" />
+                <label class="meta-field">
+                  <span class="meta-label">Quiz</span>
+                  <input v-model="quiz.quizNumber" type="text" />
+                </label>
               </div>
-              <span class="meta-sep">·</span>
-              <label class="meta-field">
-                <span class="meta-label">Quiz</span>
-                <input v-model="quiz.quizNumber" type="text" />
-              </label>
               <span class="meta-sep">·</span>
               <div class="meta-field meta-field--undo">
                 <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
@@ -1225,7 +1225,6 @@ const appVersion: string = __APP_VERSION__
   gap: 0;
   margin-bottom: 0.75rem;
   padding-top: 1rem;
-  min-width: max-content;
   flex-shrink: 0;
 }
 
@@ -1238,6 +1237,7 @@ const appVersion: string = __APP_VERSION__
 
 .quiz-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
   padding: 0.5rem 0.85rem;
@@ -1327,6 +1327,14 @@ const appVersion: string = __APP_VERSION__
   border: 1px solid var(--color-meta-accent);
   border-radius: 4px;
   background: color-mix(in srgb, var(--color-meta-accent) 15%, transparent);
+}
+.meta-group-sep {
+  width: 1px;
+  height: 1rem;
+  background: var(--color-meta-accent);
+  align-self: center;
+  opacity: 0.5;
+  margin: 0 0.1rem;
 }
 
 .meta-field {
