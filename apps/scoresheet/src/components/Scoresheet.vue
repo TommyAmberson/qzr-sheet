@@ -396,17 +396,18 @@ function updateVisibleCols() {
   const stickyRight = stickyEl.getBoundingClientRect().right
   const wrapperRight = wrapper.getBoundingClientRect().right
 
-  let first = 0
+  let first: number | null = null
   let last = 0
   for (const { idx } of displayColumns.value) {
     const el = colHeaderEls.get(idx)
     if (!el) continue
     const rect = el.getBoundingClientRect()
     const mid = (rect.left + rect.right) / 2
-    if (!first && mid >= stickyRight) first = idx
+    if (first === null && mid >= stickyRight) first = idx
     if (rect.right <= wrapperRight + 1) last = idx
   }
-  if (firstVisibleColIdx.value !== first) firstVisibleColIdx.value = first
+  const f = first ?? 0
+  if (firstVisibleColIdx.value !== f) firstVisibleColIdx.value = f
   if (lastVisibleColIdx.value !== last) lastVisibleColIdx.value = last
 }
 
