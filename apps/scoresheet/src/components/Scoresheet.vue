@@ -2047,6 +2047,11 @@ thead tr th.sticky-col {
   background: transparent;
   box-shadow: none;
 }
+.row--team-total .running-total-label,
+.row--team-total .baseline-score-cell {
+  background: var(--color-bg) !important;
+  box-shadow: 1px 0 0 var(--color-border);
+}
 .team-total-value {
   font-size: 2.5rem;
   vertical-align: middle;
