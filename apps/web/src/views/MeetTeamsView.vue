@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useDragReorder } from '../composables/useDragReorder'
 
 const vFocus = { mounted: (el: HTMLElement) => el.focus() }
@@ -381,13 +381,19 @@ function startAddToTeam(teamId: number) {
   addQuizzerError.value = ''
 }
 
+const gridMq = window.matchMedia('(min-width: 480px)')
+function onGridMqChange(e: MediaQueryListEvent) {
+  teamDragAxis.value = e.matches ? 'horizontal' : 'vertical'
+}
+
 onMounted(() => {
   load()
-  const mq = window.matchMedia('(min-width: 480px)')
-  teamDragAxis.value = mq.matches ? 'horizontal' : 'vertical'
-  mq.addEventListener('change', (e) => {
-    teamDragAxis.value = e.matches ? 'horizontal' : 'vertical'
-  })
+  teamDragAxis.value = gridMq.matches ? 'horizontal' : 'vertical'
+  gridMq.addEventListener('change', onGridMqChange)
+})
+
+onUnmounted(() => {
+  gridMq.removeEventListener('change', onGridMqChange)
 })
 
 // ---- Team actions ----

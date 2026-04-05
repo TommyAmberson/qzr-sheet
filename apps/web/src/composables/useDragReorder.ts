@@ -27,7 +27,6 @@ export function useDragReorder(options: Options) {
   const dropTarget = ref<DropTarget | null>(null)
 
   const containerEls = new Map<string, HTMLElement>()
-  // Each item maps to { el, containerId } so we know which container it belongs to
   const itemEls = new Map<string, { el: HTMLElement; containerId: string }>()
 
   let startX = 0
@@ -98,12 +97,15 @@ export function useDragReorder(options: Options) {
 
     const containerId = findContainerAt(event.clientX, event.clientY)
     if (containerId === null) {
-      dropTarget.value = null
+      if (dropTarget.value !== null) dropTarget.value = null
       return
     }
 
     const beforeItemId = findInsertPosition(containerId, event.clientX, event.clientY)
-    dropTarget.value = { containerId, beforeItemId }
+    const prev = dropTarget.value
+    if (prev?.containerId !== containerId || prev?.beforeItemId !== beforeItemId) {
+      dropTarget.value = { containerId, beforeItemId }
+    }
   }
 
   function onPointerUp() {

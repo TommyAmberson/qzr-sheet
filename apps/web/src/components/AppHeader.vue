@@ -179,16 +179,19 @@ function handleSignOut() {
   background: var(--color-bg);
   border-left: 1px solid var(--color-border-alt);
   z-index: 1000;
-  display: none;
+  display: flex;
   flex-direction: column;
   padding: 1rem 1.25rem;
   gap: 0.25rem;
   transform: translateX(100%);
-  transition: transform 0.2s ease;
+  visibility: hidden;
+  transition:
+    transform 0.2s ease,
+    visibility 0.2s;
 }
 .sidebar--open {
-  display: flex;
   transform: translateX(0);
+  visibility: visible;
 }
 .sidebar-close {
   align-self: flex-end;
