@@ -398,25 +398,13 @@ function updateVisibleCols() {
 
   let first = 0
   let last = 0
-  // When not scrolled, Q1 abuts the sticky area — skip hit-testing to avoid subpixel false positives
-  if (wrapper.scrollLeft > 2) {
-    for (const { idx } of displayColumns.value) {
-      const el = colHeaderEls.get(idx)
-      if (!el) continue
-      const rect = el.getBoundingClientRect()
-      if (!first && rect.left >= stickyRight - 1) first = idx
-      if (rect.right <= wrapperRight + 1) last = idx
-    }
-  } else {
-    last = displayColumns.value[displayColumns.value.length - 1]?.idx ?? 0
-    for (let i = displayColumns.value.length - 1; i >= 0; i--) {
-      const el = colHeaderEls.get(displayColumns.value[i]!.idx)
-      if (!el) continue
-      if (el.getBoundingClientRect().right <= wrapperRight + 1) {
-        last = displayColumns.value[i]!.idx
-        break
-      }
-    }
+  for (const { idx } of displayColumns.value) {
+    const el = colHeaderEls.get(idx)
+    if (!el) continue
+    const rect = el.getBoundingClientRect()
+    const mid = (rect.left + rect.right) / 2
+    if (!first && mid >= stickyRight) first = idx
+    if (rect.right <= wrapperRight + 1) last = idx
   }
   if (firstVisibleColIdx.value !== first) firstVisibleColIdx.value = first
   if (lastVisibleColIdx.value !== last) lastVisibleColIdx.value = last
