@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { CellValue, QuestionCategory, QuestionType, QUIZZERS_PER_TEAM } from '../types/scoresheet'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
@@ -354,6 +354,53 @@ function onNoJumpClick(ci: number) {
 /** Hovered column index for crosshair highlight */
 const hoverCol = ref<number | null>(null)
 
+/** Sticky baseline score — shows the team score entering the first visible question */
+const wrapperRef = ref<HTMLElement | null>(null)
+const nameColRef = ref<HTMLElement | null>(null)
+const colHeaderEls = new Map<number, HTMLElement>()
+function registerColHeader(idx: number, el: HTMLElement | null) {
+  if (el) colHeaderEls.set(idx, el)
+  else colHeaderEls.delete(idx)
+}
+const firstVisibleColIdx = ref(0)
+let scrollRaf = 0
+
+function updateFirstVisibleCol() {
+  scrollRaf = 0
+  const nameEl = nameColRef.value
+  if (!nameEl || colHeaderEls.size === 0) return
+  const nameRight = nameEl.getBoundingClientRect().right
+  let found = 0
+  for (const { idx } of displayColumns.value) {
+    const el = colHeaderEls.get(idx)
+    if (!el) continue
+    if (el.getBoundingClientRect().left >= nameRight - 1) {
+      found = idx
+      break
+    }
+  }
+  if (firstVisibleColIdx.value !== found) firstVisibleColIdx.value = found
+}
+
+function onWrapperScroll() {
+  if (!scrollRaf) scrollRaf = requestAnimationFrame(updateFirstVisibleCol)
+}
+
+function baselineScore(ti: number): number {
+  const idx = firstVisibleColIdx.value
+  if (idx === 0) return scoring.value[ti]?.onTimeBonus ?? 0
+  return boundaryTotal(ti, idx - 1) ?? scoring.value[ti]?.onTimeBonus ?? 0
+}
+
+onMounted(() => {
+  wrapperRef.value?.addEventListener('scroll', onWrapperScroll, { passive: true })
+  updateFirstVisibleCol()
+})
+onUnmounted(() => {
+  wrapperRef.value?.removeEventListener('scroll', onWrapperScroll)
+  if (scrollRaf) cancelAnimationFrame(scrollRaf)
+})
+
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
 const saveMenuOpen = ref(false)
@@ -528,7 +575,12 @@ const appVersion: string = __APP_VERSION__
 
 <template>
   <div class="scoresheet-outer">
-    <div class="scoresheet-wrapper" :class="{ 'is-dragging': dragState }" @dragstart.prevent>
+    <div
+      ref="wrapperRef"
+      class="scoresheet-wrapper"
+      :class="{ 'is-dragging': dragState }"
+      @dragstart.prevent
+    >
       <div
         v-if="saveMenuOpen || newMenuOpen || openPickerSlot !== null"
         class="menu-backdrop"
@@ -681,11 +733,12 @@ const appVersion: string = __APP_VERSION__
           <thead>
             <tr>
               <th class="col--left-spacer" />
-              <th class="col--name sticky-col" />
+              <th ref="nameColRef" class="col--name sticky-col" />
               <th class="col--ontime-header" />
               <th
                 v-for="{ col, idx, entering } in displayColumns"
                 :key="col.key"
+                :ref="(el: any) => registerColHeader(idx, el as HTMLElement | null)"
                 :class="[
                   'col--question',
                   colGroupClass(idx),
@@ -1052,6 +1105,7 @@ const appVersion: string = __APP_VERSION__
                     <span class="on-time-label">on time</span>
                   </span>
                   Score
+                  <span class="baseline-score">{{ baselineScore(ti) }}</span>
                 </td>
                 <td class="cell--total cell--total-ontime" style="position: relative">
                   {{ scoring[ti]?.onTimeBonus ?? 0 }}
@@ -2334,6 +2388,12 @@ thead tr th.sticky-col {
   left: 0.4rem;
   top: 50%;
   transform: translateY(-50%);
+}
+.baseline-score {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  margin-left: 0.3rem;
 }
 
 .col--ontime-header {
