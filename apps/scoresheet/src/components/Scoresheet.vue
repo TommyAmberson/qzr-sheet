@@ -607,14 +607,18 @@ const appVersion: string = __APP_VERSION__
                   <input v-model="quiz.quizNumber" type="text" />
                 </label>
               </div>
-              <span class="meta-sep">·</span>
               <div class="meta-field meta-field--undo">
                 <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
                 <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
               </div>
-              <span class="meta-sep">·</span>
               <span
-                class="meta-field meta-field--status"
+                :class="[
+                  'meta-field meta-field--status',
+                  {
+                    'meta-field--status--complete': allQuestionsComplete && !hasAnyErrors,
+                    'meta-field--status--error': hasAnyErrors,
+                  },
+                ]"
                 :title="hasAnyErrors ? allValidationMessages.join('\n') : undefined"
               >
                 <span v-if="hasAnyErrors" class="meta-status meta-status--error">⚠</span>
@@ -623,7 +627,7 @@ const appVersion: string = __APP_VERSION__
                 >
                 <span v-else class="meta-status meta-status--pending">○</span>
                 <span class="meta-label">{{
-                  hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : 'In Progress'
+                  hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : '…'
                 }}</span>
               </span>
               <span v-if="meetSession.isActive.value" class="meta-field meta-session-pill">
@@ -660,7 +664,6 @@ const appVersion: string = __APP_VERSION__
                 <span class="toggle-track"><span class="toggle-thumb" /></span>
                 <span class="meta-label">Overtime</span>
               </label>
-              <span class="meta-sep">·</span>
               <button
                 class="theme-toggle"
                 :title="`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`"
@@ -668,7 +671,6 @@ const appVersion: string = __APP_VERSION__
               >
                 {{ theme === 'light' ? '🌙' : '☀️' }}
               </button>
-              <span class="meta-sep">·</span>
               <SignInWidget />
             </div>
           </div>
@@ -1238,7 +1240,7 @@ const appVersion: string = __APP_VERSION__
 
 .quiz-meta {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   align-items: center;
   padding: 0.5rem 0.85rem;
   background: var(--color-meta-bg);
@@ -1295,6 +1297,22 @@ const appVersion: string = __APP_VERSION__
   font-size: 0.8rem;
 }
 
+.meta-field--status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.45rem 0.15rem 0.35rem;
+  border: 1px solid var(--color-meta-accent);
+  border-left: 2px solid var(--color-meta-accent);
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+.meta-field--status--complete {
+  border-left-color: var(--color-accent);
+}
+.meta-field--status--error {
+  border-left-color: var(--color-invalid);
+}
 .meta-field--status .meta-label {
   text-transform: none;
   letter-spacing: normal;
@@ -1452,24 +1470,33 @@ const appVersion: string = __APP_VERSION__
   font-weight: 600;
 }
 
-/* Undo/redo buttons */
+/* Undo/redo buttons — joined pill */
 .meta-field--undo {
   display: inline-flex;
-  gap: 0.15rem;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-meta-accent) 8%, transparent);
+  overflow: hidden;
+  gap: 0;
 }
 .meta-field--undo button {
   background: none;
   border: none;
+  border-right: 1px solid var(--color-meta-accent);
+  border-radius: 0;
   cursor: pointer;
   color: var(--color-text-muted);
   font-size: 1rem;
   line-height: 1;
-  padding: 0.1rem 0.25rem;
-  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
   transition: color 0.15s;
+}
+.meta-field--undo button:last-child {
+  border-right: none;
 }
 .meta-field--undo button:not(:disabled):hover {
   color: var(--color-text);
+  background: color-mix(in srgb, var(--color-meta-accent) 18%, transparent);
 }
 .meta-field--undo button:disabled {
   opacity: 0.3;
@@ -1703,20 +1730,22 @@ const appVersion: string = __APP_VERSION__
   background: var(--color-border-alt);
 }
 
-/* Theme toggle */
+/* Theme toggle — styled like file action buttons */
 .theme-toggle {
-  background: none;
-  border: none;
+  background: color-mix(in srgb, var(--color-meta-accent) 20%, transparent);
+  border: 1px solid var(--color-meta-accent);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.85rem;
   line-height: 1;
-  padding: 0.1rem 0.25rem;
+  padding: 0.2rem 0.4rem;
   border-radius: 4px;
-  transition: opacity 0.15s;
-  opacity: 0.6;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 .theme-toggle:hover {
-  opacity: 1;
+  background: var(--color-border-alt);
+  border-color: var(--color-text-faint);
 }
 
 .scoresheet {
