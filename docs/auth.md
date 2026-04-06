@@ -119,6 +119,32 @@ the finished session cookie — OAuth client secrets never leave the server.
 Short-lived signed JWTs issued server-side. Scoped to a single meet, expire after 24 hours or when
 the meet ends. No refresh — re-enter the code to get a new token. Stored in `localStorage`.
 
+### Password hashing
+
+Better Auth defaults to pure-JS scrypt (`@noble/hashes`), which takes ~5 seconds of CPU on
+Cloudflare Workers — far over the 10ms free-tier limit
+([better-auth#8860](https://github.com/better-auth/better-auth/issues/8860)). We override with
+native `node:crypto` scryptSync (available via the `nodejs_compat` compatibility flag):
+
+* **Algorithm:** scrypt with N=16384, r=16, p=1, keyLength=64
+* **Why scrypt over PBKDF2:** scrypt is memory-hard — GPU/ASIC brute-force attacks require large
+  amounts of RAM per guess, making them ~1000x more expensive than attacking
+  [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) (which only requires CPU time). See
+  [Password Hashing Guide: Argon2 vs Bcrypt vs Scrypt vs PBKDF2](https://guptadeepak.com/the-complete-guide-to-password-hashing-argon2-vs-bcrypt-vs-scrypt-vs-pbkdf2-2026/)
+  for a detailed comparison.
+* **Why native over pure-JS:** `node:crypto` scryptSync is compiled C++ running inside the Workers
+  runtime. The pure-JS fallback from `@noble/hashes` does the same math in JavaScript, hitting the
+  CPU limit. See
+  [Hashing passwords on Cloudflare Workers](https://lord.technology/2024/02/21/hashing-passwords-on-cloudflare-workers.html)
+  for background on password hashing in the Workers runtime.
+* **Parameters:** N=16384 (2^14) is lower than the typical recommendation of 2^15–2^17, tuned to fit
+  within the Workers CPU budget. Still memory-hard and well above the minimum security threshold.
+* **Format:** `salt:hash` where salt is 16 random bytes (hex) and hash is 64 bytes (hex).
+* **Constant-time comparison:** `timingSafeEqual` prevents timing side-channel attacks on
+  verification.
+
+OAuth sign-ins (GitHub, Google) bypass password hashing entirely — no hash is computed or stored.
+
 ### SQL injection
 
 Drizzle uses parameterized queries by default. SQL injection requires deliberately concatenating
