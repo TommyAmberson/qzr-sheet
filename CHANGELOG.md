@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3
+
+### Fixed
+
+* **Email/password auth** — sign-in and sign-up were failing with a 503 (CPU limit exceeded) on
+  Cloudflare Workers. Replaced Better Auth's default pure-JS scrypt with native `node:crypto`
+  scryptSync, which runs as compiled C++ in the Workers runtime
+
 ## 0.5.2
 
 ### Fixed
