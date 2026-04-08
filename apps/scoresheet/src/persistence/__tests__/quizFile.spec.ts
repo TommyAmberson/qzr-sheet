@@ -43,7 +43,7 @@ describe('serialize / deserialize round-trip', () => {
     store.quiz.overtime = true
     store.quiz.placementFormula = PlacementFormula.Legacy
 
-    const file = JSON.parse(serializeStore(store, new Map())) as QuizFile
+    const file = JSON.parse(serializeStore(store, new Map(), new Map())) as QuizFile
 
     const result = deserialize(file)
     expect(result.quiz.division).toBe('2')
@@ -57,7 +57,7 @@ describe('serialize / deserialize round-trip', () => {
     store.setTeamName(store.teams[0]!.id, 'Blazers')
     store.teams[0]!.onTime = false
 
-    const file = JSON.parse(serializeStore(store, new Map())) as QuizFile
+    const file = JSON.parse(serializeStore(store, new Map(), new Map())) as QuizFile
     const result = deserialize(file)
 
     expect(result.teams[0]!.name).toBe('Blazers')
@@ -71,7 +71,7 @@ describe('serialize / deserialize round-trip', () => {
     store.setQuizzerName(quizzers[0]!.id, 'Jordan')
     store.setQuizzerName(quizzers[1]!.id, 'Sam')
 
-    const file = JSON.parse(serializeStore(store, new Map())) as QuizFile
+    const file = JSON.parse(serializeStore(store, new Map(), new Map())) as QuizFile
     const result = deserialize(file)
 
     const q = result.quizzers
@@ -88,7 +88,7 @@ describe('serialize / deserialize round-trip', () => {
     store.setAnswer(quizzer.id, '1', CellValue.Correct)
     store.setAnswer(quizzer.id, '2', CellValue.Empty) // should not appear
 
-    const file = JSON.parse(serializeStore(store, new Map())) as QuizFile
+    const file = JSON.parse(serializeStore(store, new Map(), new Map())) as QuizFile
     expect(file.answers).toHaveLength(1)
     expect(file.answers[0]).toMatchObject({ columnKey: '1', value: CellValue.Correct })
 
@@ -105,7 +105,7 @@ describe('serialize / deserialize round-trip', () => {
     ])
     const store = createQuizStore()
 
-    const file = JSON.parse(serializeStore(store, noJumps)) as QuizFile
+    const file = JSON.parse(serializeStore(store, noJumps, new Map())) as QuizFile
     expect(file.noJumps).toEqual(expect.arrayContaining(['3', '5']))
     expect(file.noJumps).not.toContain('4')
 
@@ -120,7 +120,7 @@ describe('serialize / deserialize round-trip', () => {
     store.setQuestionType('1', QuestionCategory.INT)
     store.setQuestionType('16A', QuestionCategory.FTV)
 
-    const file = JSON.parse(serializeStore(store, new Map())) as QuizFile
+    const file = JSON.parse(serializeStore(store, new Map(), new Map())) as QuizFile
     const result = deserialize(file)
 
     expect(result.quiz.questionTypes.get('1')).toBe(QuestionCategory.INT)
@@ -160,7 +160,7 @@ describe('deserialize — unknown/invalid data is silently dropped', () => {
 describe('parseQuizFile — validation', () => {
   it('parses a valid JSON string', () => {
     const store = createQuizStore()
-    const json = serializeStore(store, new Map())
+    const json = serializeStore(store, new Map(), new Map())
     const result = parseQuizFile(json)
     expect(result.teams).toHaveLength(3)
   })
@@ -177,19 +177,21 @@ describe('parseQuizFile — validation', () => {
 
   it('throws when version is wrong', () => {
     const store = createQuizStore()
-    const file = JSON.parse(serializeStore(store, new Map())) as QuizFile
+    const file = JSON.parse(serializeStore(store, new Map(), new Map())) as QuizFile
     expect(() => parseQuizFile(JSON.stringify({ ...file, version: 99 }))).toThrow()
   })
 
   it('throws on missing teams array', () => {
     const store = createQuizStore()
-    const { teams: _, ...rest } = JSON.parse(serializeStore(store, new Map())) as QuizFile
+    const { teams: _, ...rest } = JSON.parse(
+      serializeStore(store, new Map(), new Map()),
+    ) as QuizFile
     expect(() => parseQuizFile(JSON.stringify(rest))).toThrow()
   })
 
   it('throws on invalid CellValue in answers', () => {
     const store = createQuizStore()
-    const file = JSON.parse(serializeStore(store, new Map())) as QuizFile
+    const file = JSON.parse(serializeStore(store, new Map(), new Map())) as QuizFile
     const bad = { ...file, answers: [{ quizzerId: 1, columnKey: '1', value: 'x' }] }
     expect(() => parseQuizFile(JSON.stringify(bad))).toThrow()
   })

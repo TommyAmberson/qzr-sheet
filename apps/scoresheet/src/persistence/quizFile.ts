@@ -8,7 +8,7 @@ import {
 } from '@qzr/shared'
 import type { QuizFile } from '@qzr/shared'
 import { buildKeyToIdx, buildColumns } from '../types/scoresheet'
-import type { Quiz, Team, Quizzer, Answer } from '../types/scoresheet'
+import type { Quiz, Team, Quizzer, Answer, Timeout } from '../types/scoresheet'
 import type { QuizStore } from '../stores/quizStore'
 
 export { QuizFileSchema, FILE_VERSION }
@@ -22,10 +22,11 @@ export interface SerializeInput {
   quizzers: Quizzer[]
   answers: Answer[]
   noJumps: Map<string, boolean>
+  timeouts: Map<number, Timeout[]>
 }
 
 export function serialize(input: SerializeInput): QuizFile {
-  const { quiz, teams, quizzers, answers, noJumps } = input
+  const { quiz, teams, quizzers, answers, noJumps, timeouts } = input
   const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
 
   return {
@@ -38,16 +39,20 @@ export function serialize(input: SerializeInput): QuizFile {
       placementFormula: quiz.placementFormula,
       questionTypes: [...quiz.questionTypes.entries()],
     },
-    teams: sortedTeams.map((team) => ({
-      id: team.id,
-      name: team.name,
-      onTime: team.onTime,
-      seatOrder: team.seatOrder,
-      quizzers: quizzers
-        .filter((q) => q.teamId === team.id)
-        .sort((a, b) => a.seatOrder - b.seatOrder)
-        .map((q) => ({ id: q.id, name: q.name, seatOrder: q.seatOrder })),
-    })),
+    teams: sortedTeams.map((team) => {
+      const teamTimeouts = timeouts.get(team.id) ?? []
+      return {
+        id: team.id,
+        name: team.name,
+        onTime: team.onTime,
+        seatOrder: team.seatOrder,
+        quizzers: quizzers
+          .filter((q) => q.teamId === team.id)
+          .sort((a, b) => a.seatOrder - b.seatOrder)
+          .map((q) => ({ id: q.id, name: q.name, seatOrder: q.seatOrder })),
+        ...(teamTimeouts.length > 0 ? { timeouts: teamTimeouts } : {}),
+      }
+    }),
     answers: answers.filter((a) => a.value !== CellValue.Empty),
     noJumps: [...noJumps.entries()].filter(([, v]) => v).map(([k]) => k),
   }
@@ -61,6 +66,7 @@ export interface DeserializeResult {
   quizzers: Quizzer[]
   answers: Answer[]
   noJumps: Map<string, boolean>
+  timeouts: Map<number, Timeout[]>
 }
 
 export function deserialize(file: QuizFile): DeserializeResult {
@@ -83,9 +89,13 @@ export function deserialize(file: QuizFile): DeserializeResult {
 
   const teams: Omit<Team, 'quizId'>[] = []
   const quizzers: Quizzer[] = []
+  const timeouts = new Map<number, Timeout[]>()
 
   for (const t of file.teams) {
     teams.push({ id: t.id, name: t.name, onTime: t.onTime, seatOrder: t.seatOrder })
+    if (t.timeouts && t.timeouts.length > 0) {
+      timeouts.set(t.id, t.timeouts)
+    }
     for (const q of t.quizzers) {
       quizzers.push({ id: q.id, teamId: t.id, name: q.name, seatOrder: q.seatOrder })
     }
@@ -104,6 +114,7 @@ export function deserialize(file: QuizFile): DeserializeResult {
     quizzers,
     answers,
     noJumps,
+    timeouts,
   }
 }
 
@@ -117,7 +128,11 @@ export function parseQuizFile(json: string): DeserializeResult {
 }
 
 /** Serialize store state to a JSON string */
-export function serializeStore(store: QuizStore, noJumps: Map<string, boolean>): string {
+export function serializeStore(
+  store: QuizStore,
+  noJumps: Map<string, boolean>,
+  timeouts: Map<number, Timeout[]>,
+): string {
   return JSON.stringify(
     serialize({
       quiz: store.quiz,
@@ -125,6 +140,7 @@ export function serializeStore(store: QuizStore, noJumps: Map<string, boolean>):
       quizzers: store.quizzers,
       answers: store.answers,
       noJumps,
+      timeouts,
     }),
     null,
     2,

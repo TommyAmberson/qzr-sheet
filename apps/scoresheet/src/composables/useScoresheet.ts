@@ -3,11 +3,13 @@ import { useHistory } from './useHistory'
 import {
   CellValue,
   QuestionCategory,
+  MAX_TIMEOUTS_PER_TEAM,
   buildColumns,
   QuestionType,
   type Column,
   type Quiz,
   type Team,
+  type Timeout,
   type PlaceKey,
 } from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
@@ -51,12 +53,16 @@ export function useScoresheet() {
   /** No-jump flags — grows/shrinks with columns */
   const noJumpMap = ref(new Map<string, boolean>())
 
+  /** Timeouts per team — 0 to MAX_TIMEOUTS_PER_TEAM entries per team */
+  const timeoutMap = ref(new Map<number, Timeout[]>())
+
   // --- Restore persisted state from localStorage ---
   const restored = loadFromStorage()
   if (restored) {
     store.loadState(restored)
     quiz.value = store.quiz
     noJumpMap.value = restored.noJumps
+    timeoutMap.value = restored.timeouts
     internalOtRounds.value = restored.quiz.overtime
       ? Math.max(
           1,
@@ -449,6 +455,121 @@ export function useScoresheet() {
     })
   }
 
+  // --- Timeouts ---
+
+  function teamTimeouts(teamId: number): Timeout[] {
+    return timeoutMap.value.get(teamId) ?? []
+  }
+
+  function timeoutCount(teamId: number): number {
+    return teamTimeouts(teamId).length
+  }
+
+  /** Snapshot the entire timeoutMap for undo/redo */
+  function snapshotTimeouts(): Map<number, Timeout[]> {
+    const snap = new Map<number, Timeout[]>()
+    for (const [k, v] of timeoutMap.value) snap.set(k, [...v])
+    return snap
+  }
+
+  function applyTimeoutSnapshot(snap: Map<number, Timeout[]>): void {
+    timeoutMap.value = new Map(snap)
+  }
+
+  function addTimeout(teamId: number, afterColumnKey: string | null): void {
+    const snapshot = snapshotTimeouts()
+    const current = teamTimeouts(teamId)
+
+    // Only one team can have a timeout after a given question — clear the other team's
+    if (afterColumnKey !== null) {
+      for (const [otherId, otherTimeouts] of timeoutMap.value) {
+        if (otherId === teamId) continue
+        const filtered = otherTimeouts.filter((t) => t.afterColumnKey !== afterColumnKey)
+        if (filtered.length !== otherTimeouts.length) {
+          timeoutMap.value.set(otherId, filtered)
+        }
+      }
+    }
+
+    // If a column is specified and this team has an untracked timeout, upgrade it
+    if (afterColumnKey !== null) {
+      const untrackedIdx = current.findIndex((t) => t.afterColumnKey === null)
+      if (untrackedIdx >= 0) {
+        const next = [...current]
+        next[untrackedIdx] = { afterColumnKey }
+        timeoutMap.value.set(teamId, next)
+        timeoutMap.value = new Map(timeoutMap.value)
+        history.push({
+          undo: () => applyTimeoutSnapshot(snapshot),
+          redo: () => addTimeout(teamId, afterColumnKey),
+        })
+        return
+      }
+    }
+
+    if (current.length >= MAX_TIMEOUTS_PER_TEAM) return
+
+    const next = [...current, { afterColumnKey }]
+    timeoutMap.value.set(teamId, next)
+    timeoutMap.value = new Map(timeoutMap.value)
+    history.push({
+      undo: () => applyTimeoutSnapshot(snapshot),
+      redo: () => addTimeout(teamId, afterColumnKey),
+    })
+  }
+
+  function removeLastTimeout(teamId: number): void {
+    const current = teamTimeouts(teamId)
+    if (current.length === 0) return
+
+    const prev = [...current]
+    const next = current.slice(0, -1)
+    timeoutMap.value.set(teamId, next)
+    timeoutMap.value = new Map(timeoutMap.value)
+    history.push({
+      undo: () => {
+        timeoutMap.value.set(teamId, prev)
+        timeoutMap.value = new Map(timeoutMap.value)
+      },
+      redo: () => {
+        timeoutMap.value.set(teamId, next)
+        timeoutMap.value = new Map(timeoutMap.value)
+      },
+    })
+  }
+
+  /** Toggle a timeout for a team at a specific column */
+  function toggleTimeout(teamId: number, columnKey: string): void {
+    const current = teamTimeouts(teamId)
+    const existingIdx = current.findIndex((t) => t.afterColumnKey === columnKey)
+    if (existingIdx >= 0) {
+      // Remove it
+      const snapshot = snapshotTimeouts()
+      const next = current.filter((_, i) => i !== existingIdx)
+      timeoutMap.value.set(teamId, next)
+      timeoutMap.value = new Map(timeoutMap.value)
+      history.push({
+        undo: () => applyTimeoutSnapshot(snapshot),
+        redo: () => toggleTimeout(teamId, columnKey),
+      })
+    } else {
+      addTimeout(teamId, columnKey)
+    }
+  }
+
+  /** Check if a specific team has a timeout at a specific column */
+  function hasTimeoutAt(teamId: number, columnKey: string): boolean {
+    return teamTimeouts(teamId).some((t) => t.afterColumnKey === columnKey)
+  }
+
+  /** Check if any team has a timeout after the given column */
+  function hasTimeoutAfterCol(colKey: string): boolean {
+    for (const timeouts of timeoutMap.value.values()) {
+      if (timeouts.some((t) => t.afterColumnKey === colKey)) return true
+    }
+    return false
+  }
+
   /** Set the question category for a column by index (null clears it) */
   function setQuestionType(colIdx: number, category: QuestionCategory | null) {
     const col = columns.value[colIdx]
@@ -462,6 +583,7 @@ export function useScoresheet() {
     store.loadState(data)
     quiz.value = store.quiz
     noJumpMap.value = data.noJumps
+    timeoutMap.value = data.timeouts
     internalOtRounds.value = data.quiz.overtime
       ? Math.max(
           1,
@@ -476,7 +598,7 @@ export function useScoresheet() {
     answerVersion.value++
     teamVersion.value++
     history.clear()
-    saveToStorage(store, data.noJumps)
+    saveToStorage(store, data.noJumps, data.timeouts)
   }
   function resetStore() {
     const fresh = createQuizStore()
@@ -488,6 +610,7 @@ export function useScoresheet() {
     })
     quiz.value = store.quiz
     noJumpMap.value = new Map()
+    timeoutMap.value = new Map()
     internalOtRounds.value = 1
     answerVersion.value++
     teamVersion.value++
@@ -508,10 +631,11 @@ export function useScoresheet() {
       answers: [],
     })
     noJumpMap.value = new Map()
+    timeoutMap.value = new Map()
     internalOtRounds.value = 1
     answerVersion.value++
     history.clear()
-    saveToStorage(store, noJumpMap.value)
+    saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
 
   /** Reset all team and quizzer names to defaults (Team 1/2/3, Quizzer 1/2/3/4) */
@@ -527,20 +651,21 @@ export function useScoresheet() {
     }
     teamVersion.value++
     history.clear()
-    saveToStorage(store, noJumpMap.value)
+    saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
 
   // --- Auto-persist to localStorage ---
   let persistTimer: ReturnType<typeof setTimeout> | null = null
   function schedulePersist() {
     if (persistTimer) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => saveToStorage(store, noJumpMap.value), 300)
+    persistTimer = setTimeout(() => saveToStorage(store, noJumpMap.value, timeoutMap.value), 300)
   }
   watch(
     [
       () => answerVersion.value,
       () => teamVersion.value,
       noJumpMap,
+      timeoutMap,
       () => quiz.value.division,
       () => quiz.value.quizNumber,
       () => quiz.value.overtime,
@@ -606,10 +731,20 @@ export function useScoresheet() {
     // Persistence
     store,
     noJumpMap,
+    timeoutMap,
     loadFile,
     resetStore,
     clearAnswers,
     clearNames,
+
+    // Timeouts
+    teamTimeouts,
+    timeoutCount,
+    addTimeout,
+    removeLastTimeout,
+    toggleTimeout,
+    hasTimeoutAt,
+    hasTimeoutAfterCol,
 
     // Question types
     setQuestionType,

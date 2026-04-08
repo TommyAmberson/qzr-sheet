@@ -12,7 +12,7 @@ describe('autoSave', () => {
 
   it('round-trips a default store', () => {
     const store = createQuizStore()
-    saveToStorage(store, new Map())
+    saveToStorage(store, new Map(), new Map())
     const result = loadFromStorage()
     expect(result).not.toBeNull()
     expect(result!.quiz.division).toBe(store.quiz.division)
@@ -24,7 +24,7 @@ describe('autoSave', () => {
     const qzr = store.quizzersByTeam(store.teams[0]!.id)[0]!
     store.setAnswer(qzr.id, '1', CellValue.Correct)
     const noJumps = new Map([['3', true]])
-    saveToStorage(store, noJumps)
+    saveToStorage(store, noJumps, new Map())
 
     const result = loadFromStorage()!
     expect(result.answers).toHaveLength(1)
@@ -34,7 +34,7 @@ describe('autoSave', () => {
 
   it('clearStorage removes persisted data', () => {
     const store = createQuizStore()
-    saveToStorage(store, new Map())
+    saveToStorage(store, new Map(), new Map())
     clearStorage()
     expect(loadFromStorage()).toBeNull()
   })
