@@ -910,17 +910,9 @@ const appVersion: string = __APP_VERSION__
                   { 'row--fouled-out': scoring[ti]?.quizzers[qi]?.fouledOut },
                   { 'row--dragging': dragState?.ti === ti && dragState?.qi === qi },
                   {
-                    'row--drop-above':
+                    'row--drop-target':
                       dropTarget?.ti === ti &&
                       dropTarget?.qi === qi &&
-                      !dropTarget?.below &&
-                      !(dragState?.ti === ti && dragState?.qi === qi),
-                  },
-                  {
-                    'row--drop-below':
-                      dropTarget?.ti === ti &&
-                      dropTarget?.qi === qi &&
-                      dropTarget?.below &&
                       !(dragState?.ti === ti && dragState?.qi === qi),
                   },
                 ]"
@@ -2529,26 +2521,9 @@ thead tr th.sticky-col {
 .row--dragging > td {
   opacity: 0.4;
 }
-.row--drop-above > .col--name,
-.row--drop-below > .col--name {
-  position: relative;
-}
-.row--drop-above > .col--name::after,
-.row--drop-below > .col--name::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  width: var(--drop-indicator-width, 100%);
-  height: 2px;
-  background: var(--color-accent);
-  pointer-events: none;
-  z-index: 3;
-}
-.row--drop-above > .col--name::after {
-  top: -1px;
-}
-.row--drop-below > .col--name::after {
-  bottom: -1px;
+.row--drop-target > .col--name {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 /* Editable name inputs */

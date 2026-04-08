@@ -162,11 +162,8 @@ export function createQuizStore(): QuizStore {
     if (fromSeat === toSeat) return
     const sorted = quizzersByTeam(teamId)
     if (fromSeat < 0 || fromSeat >= sorted.length) return
-    if (toSeat < 0 || toSeat >= sorted.length) return
-
-    // Remove from old position and insert at new position
-    const [moved] = sorted.splice(fromSeat, 1)
-    sorted.splice(toSeat, 0, moved!)
+    if (toSeat < 0 || toSeat >= sorted.length) return // Swap the two quizzers
+    ;[sorted[fromSeat]!, sorted[toSeat]!] = [sorted[toSeat]!, sorted[fromSeat]!]
 
     // Reassign seatOrder to match new array order
     for (let i = 0; i < sorted.length; i++) {
