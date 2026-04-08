@@ -25,12 +25,12 @@ export enum QuestionCategory {
   SIT = 'SIT',
 }
 
-export const FILE_VERSION = 1
+export const FILE_VERSION = 2
 
 // ---- Schema ----
 
 export const QuizFileSchema = Type.Object({
-  version: Type.Literal(FILE_VERSION),
+  version: Type.Union([Type.Literal(1), Type.Literal(2)]),
   quiz: Type.Object({
     division: Type.String(),
     quizNumber: Type.String(),
@@ -52,6 +52,13 @@ export const QuizFileSchema = Type.Object({
           name: Type.String(),
           seatOrder: Type.Number(),
         }),
+      ),
+      timeouts: Type.Optional(
+        Type.Array(
+          Type.Object({
+            afterColumnKey: Type.Union([Type.String(), Type.Null()]),
+          }),
+        ),
       ),
     }),
   ),

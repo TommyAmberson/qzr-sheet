@@ -88,6 +88,12 @@ export interface Column {
   isOvertime: boolean
 }
 
+export interface Timeout {
+  afterColumnKey: string | null
+}
+
+export const MAX_TIMEOUTS_PER_TEAM = 2
+
 export const QUIZZERS_PER_TEAM = 5
 
 /** Build the ordered list of question columns */
