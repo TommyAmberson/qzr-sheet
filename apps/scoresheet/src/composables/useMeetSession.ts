@@ -100,8 +100,7 @@ export function useMeetSession() {
     const slot = session.value?.slots[slotIdx]
     if (!slot) return
     const quizzers = [...slot.quizzers]
-    const [moved] = quizzers.splice(fromSeat, 1)
-    quizzers.splice(toSeat, 0, moved!)
+    ;[quizzers[fromSeat]!, quizzers[toSeat]!] = [quizzers[toSeat]!, quizzers[fromSeat]!]
     session.value = {
       ...session.value!,
       slots: session.value!.slots.map((s, i) => (i === slotIdx && s ? { ...s, quizzers } : s)),

@@ -15,7 +15,7 @@ describe('moveQuizzer', () => {
 
     store.moveQuizzer(team.id, 0, 2)
     const after = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(after).toEqual(['Quizzer 2', 'Quizzer 3', 'Quizzer 1', 'Quizzer 4', ''])
+    expect(after).toEqual(['Quizzer 3', 'Quizzer 2', 'Quizzer 1', 'Quizzer 4', ''])
   })
 
   it('answers follow the quizzer after reorder', () => {
@@ -38,8 +38,8 @@ describe('moveQuizzer', () => {
     const gridAfter = store.cellGrid(cols)
     // Quizzer 1 is now at seat 2, answers follow
     expect(gridAfter[0]![2]![0]).toBe(C)
-    // Quizzer 3 is now at seat 1 (shifted up)
-    expect(gridAfter[0]![1]![1]).toBe(E)
+    // Quizzer 3 is now at seat 0 (swapped)
+    expect(gridAfter[0]![0]![1]).toBe(E)
   })
 
   it('no-op when fromSeat equals toSeat', () => {
@@ -69,7 +69,7 @@ describe('moveQuizzer', () => {
     const team = store.teams[0]!
     store.moveQuizzer(team.id, 4, 0)
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(names).toEqual(['', 'Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4'])
+    expect(names).toEqual(['', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', 'Quizzer 1'])
   })
 
   it('move first to last', () => {
@@ -77,7 +77,7 @@ describe('moveQuizzer', () => {
     const team = store.teams[0]!
     store.moveQuizzer(team.id, 0, 4)
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(names).toEqual(['Quizzer 2', 'Quizzer 3', 'Quizzer 4', '', 'Quizzer 1'])
+    expect(names).toEqual(['', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', 'Quizzer 1'])
   })
 
   it('does not affect other teams', () => {
@@ -92,13 +92,13 @@ describe('moveQuizzer', () => {
   it('multiple moves compose correctly', () => {
     const store = createQuizStore()
     const team = store.teams[0]!
-    // Move seat 0 → 1, then seat 2 → 0
+    // Move seat 0 → 1 (swap Q1, Q2), then seat 2 → 0 (swap Q3, Q2)
     store.moveQuizzer(team.id, 0, 1)
-    // After: [Q2, Q1, Q3, Q4, Q5]
+    // After: [Q2, Q1, Q3, Q4, '']
     store.moveQuizzer(team.id, 2, 0)
-    // After: [Q3, Q2, Q1, Q4, Q5]
+    // After: [Q3, Q1, Q2, Q4, '']
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
-    expect(names).toEqual(['Quizzer 3', 'Quizzer 2', 'Quizzer 1', 'Quizzer 4', ''])
+    expect(names).toEqual(['Quizzer 3', 'Quizzer 1', 'Quizzer 2', 'Quizzer 4', ''])
   })
 
   it('adjacent swap (move down one)', () => {

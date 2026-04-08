@@ -265,15 +265,15 @@ describe('useMeetSession — reorderSlotQuizzers', () => {
     expect(() => reorderSlotQuizzers(0, 0, 1)).not.toThrow()
   })
 
-  it('isQuizzerDiverged returns false for empty seat left between quizzers after reorder', async () => {
-    // Alice(0), Bob(1) from DB; seats 2-4 are empty. Drag Alice to seat 3.
-    // After: seat 0 = Bob, seat 1 = '' (empty), seat 2 = '' (empty), seat 3 = Alice, seat 4 = ''
+  it('isQuizzerDiverged returns false for empty seat swapped with quizzer after reorder', async () => {
+    // Alice(0), Bob(1) from DB; seats 2-4 are empty. Swap Alice with empty seat 3.
+    // After: seat 0 = '' (empty from seat 3), seat 1 = Bob, seat 2 = '', seat 3 = Alice, seat 4 = ''
     const { loadMeet, assignTeam, reorderSlotQuizzers, isQuizzerDiverged } = useMeetSession()
     await loadMeet(42, 'Finals')
     await assignTeam(0, 1, emptyNames) // Alice at 0, Bob at 1, nulls at 2-4
-    reorderSlotQuizzers(0, 0, 3) // move Alice to seat 3
-    expect(isQuizzerDiverged(0, 0, 'Bob')).toBe(false)
-    expect(isQuizzerDiverged(0, 1, '')).toBe(false) // empty seat — no DB record here now
+    reorderSlotQuizzers(0, 0, 3) // swap Alice with empty seat 3
+    expect(isQuizzerDiverged(0, 0, '')).toBe(false) // empty seat swapped in
+    expect(isQuizzerDiverged(0, 1, 'Bob')).toBe(false) // unchanged
     expect(isQuizzerDiverged(0, 2, '')).toBe(false) // empty seat
     expect(isQuizzerDiverged(0, 3, 'Alice')).toBe(false)
   })

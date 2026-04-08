@@ -6,7 +6,7 @@ export function useDragReorder(
   moveQuizzer: (teamIdx: number, fromSeat: number, toSeat: number) => void,
 ) {
   const dragState = ref<{ ti: number; qi: number } | null>(null)
-  const dropTarget = ref<{ ti: number; qi: number; below: boolean } | null>(null)
+  const dropTarget = ref<{ ti: number; qi: number } | null>(null)
   const dropIndicatorWidth = ref('100%')
 
   const quizzerRowEls = new Map<string, HTMLElement>()
@@ -59,7 +59,7 @@ export function useDragReorder(
     }
 
     if (found !== null && found !== dragState.value.qi) {
-      dropTarget.value = { ti, qi: found, below: found > dragState.value.qi }
+      dropTarget.value = { ti, qi: found }
     } else {
       dropTarget.value = null
     }
