@@ -17,7 +17,7 @@ import {
 import { fillOts } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import { anyTeamHasAnswer } from '../scoring/helpers'
-import { validationMessage } from '../scoring/validation'
+import { ValidationCode, validationMessage } from '../scoring/validation'
 import { useMeetSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
 import MeetPickerDialog from './MeetPickerDialog.vue'
@@ -204,6 +204,7 @@ const {
   visibleOtRounds,
   allQuestionsComplete,
   validationErrors,
+  timeoutValidationErrors,
   placements,
   placementPoints,
   setTeamName,
@@ -258,6 +259,9 @@ tutorial.recoverFromCrash()
 /** All unique validation messages for the status tooltip */
 const allValidationMessages = computed(() => {
   const msgs = new Set<string>()
+  if (timeoutValidationErrors.value.size > 0) {
+    msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+  }
   for (const codes of validationErrors.value.values()) {
     for (const code of codes) msgs.add(validationMessage(code))
   }
@@ -949,7 +953,7 @@ const appVersion: string = __APP_VERSION__
                   ]"
                   :title="
                     hasTimeoutAt(team.id, col.key) && !isTimeoutAllowed(col.key)
-                      ? 'Timeouts cannot be called after question 16'
+                      ? 'Timeouts can\'t be called after error points (after question 17)'
                       : undefined
                   "
                   @click.stop="toggleTimeout(team.id, col.key)"
