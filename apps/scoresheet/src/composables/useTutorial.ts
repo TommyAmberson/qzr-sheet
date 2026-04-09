@@ -101,6 +101,12 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       }
       const nj = document.querySelector<HTMLElement>(`[data-tutorial="no-jump-${ci}"]`)
       if (nj) els.push(nj)
+    } else if (step.target.type === 'timeout-row') {
+      const ti = step.target.ti
+      for (let ci = 0; ci < 20; ci++) {
+        const cell = document.querySelector<HTMLElement>(`[data-tutorial="timeout-${ti}-${ci}"]`)
+        if (cell) els.push(cell)
+      }
     }
 
     if (els.length > 0) {

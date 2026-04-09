@@ -17,6 +17,7 @@ export interface TutorialStep {
     | { type: 'selector'; css: string }
     | { type: 'cell'; ti: number; qi: number; ci: number }
     | { type: 'column'; ci: number }
+    | { type: 'timeout-row'; ti: number }
     | { type: 'none' }
   placement: 'top' | 'bottom' | 'left' | 'right'
   title: string
@@ -194,7 +195,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'explain-timeout',
-    target: { type: 'selector', css: '[data-tutorial="timeout-2-4"]' },
+    target: { type: 'timeout-row', ti: 2 },
     placement: 'bottom',
     title: 'Timeout',
     body: 'The "T" marker shows that Team 3 called a timeout here. During a timeout, coaches can substitute quizzers.',
