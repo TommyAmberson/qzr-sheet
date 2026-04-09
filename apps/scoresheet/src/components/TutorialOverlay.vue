@@ -186,7 +186,7 @@ const buttonLabel = computed(() => (props.completed ? 'Next' : 'Skip'))
   min-width: 260px;
   box-shadow:
     0 4px 20px rgba(0, 0, 0, 0.25),
-    0 0 0 1px rgba(0, 0, 0, 0.08);
+    0 0 0 1px var(--color-border, rgba(0, 0, 0, 0.08));
   pointer-events: auto;
   z-index: 10001;
 }
@@ -201,7 +201,7 @@ const buttonLabel = computed(() => (props.completed ? 'Next' : 'Skip'))
   font-size: 0.875rem;
   line-height: 1.5;
   margin: 0 0 0.75rem;
-  color: var(--color-text-secondary, #555);
+  color: var(--color-text-muted, #555);
 }
 
 .tutorial-tooltip__controls {
