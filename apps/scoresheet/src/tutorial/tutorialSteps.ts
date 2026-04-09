@@ -212,8 +212,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'explain-substitution',
-    target: { type: 'none' },
-    placement: 'bottom',
+    target: { type: 'selector', css: '[data-tutorial^="quizzer-row-2-"]' },
+    placement: 'top',
     title: 'Substitution Complete',
     body: 'The quizzers have been swapped. The substitute is now in the lineup and the other quizzer moves to the bench (seat 5).',
     completion: { type: 'acknowledge' },

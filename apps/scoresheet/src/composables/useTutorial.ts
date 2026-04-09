@@ -81,8 +81,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     const els: HTMLElement[] = []
 
     if (step.target.type === 'selector') {
-      const el = document.querySelector<HTMLElement>(step.target.css)
-      if (el) els.push(el)
+      const matched = document.querySelectorAll<HTMLElement>(step.target.css)
+      matched.forEach((el) => els.push(el))
     } else if (step.target.type === 'cell') {
       const { ti, qi, ci } = step.target
       const el = document.querySelector<HTMLElement>(`[data-tutorial="cell-${ti}-${qi}-${ci}"]`)
@@ -207,14 +207,13 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
 
     if (completion.type === 'seat-change') {
       const { teamIdx } = completion
-      const initialOrder = scoresheet.teamQuizzers.value[teamIdx]?.map((q) => q.seatOrder) ?? []
+      const initialNames = scoresheet.teamQuizzers.value[teamIdx]?.map((q) => q.name) ?? []
       cleanupFns.push(
         watch(
           () => scoresheet.teamVersion.value,
           () => {
-            const currentOrder =
-              scoresheet.teamQuizzers.value[teamIdx]?.map((q) => q.seatOrder) ?? []
-            if (JSON.stringify(currentOrder) !== JSON.stringify(initialOrder)) advance()
+            const currentNames = scoresheet.teamQuizzers.value[teamIdx]?.map((q) => q.name) ?? []
+            if (JSON.stringify(currentNames) !== JSON.stringify(initialNames)) advance()
           },
         ),
       )
