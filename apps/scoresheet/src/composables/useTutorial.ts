@@ -103,7 +103,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       if (nj) els.push(nj)
     } else if (step.target.type === 'timeout-row') {
       const ti = step.target.ti
-      for (let ci = 0; ci < 20; ci++) {
+      // Timeouts can't be called after Q17, so only show Q1–Q16 (indices 0–15)
+      for (let ci = 0; ci < 16; ci++) {
         const cell = document.querySelector<HTMLElement>(`[data-tutorial="timeout-${ti}-${ci}"]`)
         if (cell) els.push(cell)
       }
