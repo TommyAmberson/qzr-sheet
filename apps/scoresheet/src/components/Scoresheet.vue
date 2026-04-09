@@ -210,6 +210,11 @@ const {
   setQuestionType,
   store,
   noJumpMap,
+  timeoutMap,
+  timeoutCount,
+  toggleTimeout,
+  hasTimeoutAt,
+  hasTimeoutAfterCol,
   loadFile,
   resetStore,
   clearAnswers,
@@ -452,7 +457,7 @@ function closeMenus() {
 }
 
 async function saveFile() {
-  const json = serializeStore(store, noJumpMap.value)
+  const json = serializeStore(store, noJumpMap.value, timeoutMap.value)
   const filename = `D${quiz.value.division}${quiz.value.consolation ? 'c' : ''}Q${quiz.value.quizNumber}.json`
   const saved = await saveQuizToFile(json, filename)
   if (saved) markSaved()
@@ -522,6 +527,7 @@ async function exportOds() {
     quizzers: store.quizzers,
     answers: store.answers,
     noJumps: noJumpMap.value,
+    timeouts: timeoutMap.value,
   })
   try {
     const odsBytes = fillOts(otsBytes, quizFile)
@@ -772,6 +778,7 @@ const appVersion: string = __APP_VERSION__
                   'col--question',
                   colGroupClass(idx),
                   headerClass(idx),
+                  { 'timeout-after': hasTimeoutAfterCol(col.key) },
                   {
                     'col--entering': entering,
                     'col--hover': !dragState && (hoverCol === idx || selector?.ci === idx),
@@ -889,7 +896,19 @@ const appVersion: string = __APP_VERSION__
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
-                  :class="['team-header-spacer', colGroupClass(idx), { 'col--entering': entering }]"
+                  :class="[
+                    'team-header-spacer',
+                    'timeout-toggle',
+                    colGroupClass(idx),
+                    { 'col--entering': entering },
+                    { 'timeout-after': hasTimeoutAfterCol(col.key) },
+                    { 'has-timeout': hasTimeoutAt(team.id, col.key) },
+                    {
+                      'timeout-maxed':
+                        !hasTimeoutAt(team.id, col.key) && timeoutCount(team.id) >= 2,
+                    },
+                  ]"
+                  @click.stop="toggleTimeout(team.id, col.key)"
                 />
                 <td class="col--name team-score-label">Score</td>
               </tr>
@@ -1059,6 +1078,7 @@ const appVersion: string = __APP_VERSION__
                     'cell',
                     cellClass[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty],
                     colGroupClass(idx),
+                    { 'timeout-after': hasTimeoutAfterCol(col.key) },
                     {
                       'cell--greyed':
                         (isEmptySeat(ti, qi) && cells[ti]?.[qi]?.[idx] === '') ||
@@ -1135,7 +1155,11 @@ const appVersion: string = __APP_VERSION__
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
-                  :class="['cell--total', colGroupClass(idx), { 'col--entering': entering }]"
+                  :class="[
+                    'cell--total',
+                    colGroupClass(idx),
+                    { 'col--entering': entering, 'timeout-after': hasTimeoutAfterCol(col.key) },
+                  ]"
                   style="position: relative"
                 >
                   {{
@@ -1183,7 +1207,11 @@ const appVersion: string = __APP_VERSION__
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
-                  :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
+                  :class="[
+                    'spacer-cell',
+                    colGroupClass(idx),
+                    { 'col--entering': entering, 'timeout-after': hasTimeoutAfterCol(col.key) },
+                  ]"
                 />
                 <td />
               </tr>
@@ -1198,7 +1226,11 @@ const appVersion: string = __APP_VERSION__
               <td
                 v-for="{ col, idx, entering } in displayColumns"
                 :key="col.key"
-                :class="['spacer-cell', colGroupClass(idx), { 'col--entering': entering }]"
+                :class="[
+                  'spacer-cell',
+                  colGroupClass(idx),
+                  { 'col--entering': entering, 'timeout-after': hasTimeoutAfterCol(col.key) },
+                ]"
               />
               <td />
             </tr>
@@ -2837,5 +2869,51 @@ thead tr th.sticky-col {
     height: 2.75rem;
     font-size: 0.85rem;
   }
+}
+
+/* ---- Timeout column border ---- */
+.timeout-after,
+.row--team-total .cell--total.timeout-after,
+.team-header-spacer.timeout-after,
+.spacer-row .spacer-cell.timeout-after {
+  border-right: 2px dotted var(--color-border) !important;
+}
+.cell.timeout-after {
+  border-right: 1px solid var(--color-border) !important;
+}
+
+/* ---- Timeout T in team header spacer ---- */
+.timeout-toggle {
+  cursor: pointer;
+  position: relative;
+}
+.timeout-toggle::after {
+  content: 'T';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.7rem;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: -0.5px;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.12s;
+  pointer-events: none;
+}
+.timeout-toggle:hover::after {
+  opacity: 0.3;
+}
+.timeout-toggle.has-timeout::after {
+  opacity: 1;
+  color: var(--color-text);
+}
+.timeout-toggle.timeout-maxed {
+  cursor: default;
+}
+.timeout-toggle.timeout-maxed:hover::after {
+  opacity: 0;
 }
 </style>

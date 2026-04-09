@@ -1,11 +1,16 @@
 import { serializeStore, parseQuizFile, type DeserializeResult } from './quizFile'
 import type { QuizStore } from '../stores/quizStore'
+import type { Timeout } from '../types/scoresheet'
 
 const STORAGE_KEY = 'qzr-sheet:current'
 
-export function saveToStorage(store: QuizStore, noJumps: Map<string, boolean>): void {
+export function saveToStorage(
+  store: QuizStore,
+  noJumps: Map<string, boolean>,
+  timeouts: Map<number, Timeout[]>,
+): void {
   try {
-    localStorage.setItem(STORAGE_KEY, serializeStore(store, noJumps))
+    localStorage.setItem(STORAGE_KEY, serializeStore(store, noJumps, timeouts))
   } catch {
     // localStorage full or unavailable — silently ignore
   }
