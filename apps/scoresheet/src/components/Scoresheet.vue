@@ -244,6 +244,7 @@ const tutorial = useTutorial({
   teamQuizzers,
   setQuizzerName,
   setTeamName,
+  setCell,
   loadFile,
   resetStore,
 })
@@ -1316,9 +1317,19 @@ const appVersion: string = __APP_VERSION__
       <!-- Cell selector popup -->
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
-        <div v-if="selector" class="selector-backdrop" @click="closeSelector">
+        <div
+          v-if="selector"
+          :class="[
+            'selector-backdrop',
+            { 'selector-elevated': tutorial.currentStep.value?.allowSelectorPopup },
+          ]"
+          @click="closeSelector"
+        >
           <div
-            class="selector-popup"
+            :class="[
+              'selector-popup',
+              { 'selector-elevated': tutorial.currentStep.value?.allowSelectorPopup },
+            ]"
             :style="{ left: selector.x + 'px', top: selector.y + 'px' }"
             @click.stop
           >
@@ -2980,5 +2991,13 @@ thead tr th.sticky-col {
 }
 .timeout-toggle.timeout-maxed:hover::after {
   opacity: 0;
+}
+
+/* Elevate cell selector above tutorial overlay during allowSelectorPopup steps */
+.selector-backdrop.selector-elevated {
+  z-index: 10002 !important;
+}
+.selector-popup.selector-elevated {
+  z-index: 10003 !important;
 }
 </style>

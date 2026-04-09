@@ -18,6 +18,7 @@ export interface ScoresheetAPI {
   teamQuizzers: { value: { name: string; seatOrder: number }[][] }
   setQuizzerName: (ti: number, qi: number, name: string) => void
   setTeamName: (ti: number, name: string) => void
+  setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
   loadFile: (data: DeserializeResult) => void
   resetStore: () => void
 }
@@ -178,6 +179,7 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       step.onNext({
         setQuizzerName: scoresheet.setQuizzerName,
         setTeamName: scoresheet.setTeamName,
+        setCell: scoresheet.setCell,
       })
     }
     advance()

@@ -3,6 +3,7 @@ import { CellValue } from '../types/scoresheet'
 export type ScoresheetActions = {
   setQuizzerName: (ti: number, qi: number, name: string) => void
   setTeamName: (ti: number, name: string) => void
+  setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
 }
 
 export interface TutorialStep {
@@ -35,7 +36,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'none' },
     placement: 'bottom',
     title: 'Welcome to the Scoresheet',
-    body: "This tutorial walks you through scoring a Bible quiz. You'll learn how to set up teams, record answers, and use timeouts. Your current quiz is safely saved — we'll restore it when you're done.",
+    body: "This tutorial walks you through scoring a Bible quiz. You'll learn how to set up teams, record answers, and use timeouts. Your current quiz is safely saved \u2014 we'll restore it when you're done.",
     completion: { type: 'acknowledge' },
   },
   {
@@ -66,7 +67,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'add-fifth',
     target: { type: 'selector', css: '[data-tutorial="quizzer-name-2-4"]' },
-    placement: 'bottom',
+    placement: 'top',
     title: 'Add a 5th Quizzer',
     body: 'Each team can have up to 5 quizzers. The 5th quizzer starts on the bench. Type a name to add a substitute.',
     completion: { type: 'input-non-empty', teamIdx: 2, quizzerIdx: 4 },
@@ -99,6 +100,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: 'A quizzer on Team 1 answers question 1 correctly. Click this cell, then select C (Correct).',
     completion: { type: 'cell-value', ti: 0, qi: 0, ci: 0, value: CellValue.Correct },
     allowSelectorPopup: true,
+    onNext: (actions) => actions.setCell(0, 0, 0, CellValue.Correct),
   },
   {
     id: 'observe-total',
@@ -116,6 +118,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: 'A quizzer on Team 2 answers question 2 incorrectly. Click this cell and select E (Error).',
     completion: { type: 'cell-value', ti: 1, qi: 0, ci: 1, value: CellValue.Error },
     allowSelectorPopup: true,
+    onNext: (actions) => actions.setCell(1, 0, 1, CellValue.Error),
   },
   {
     id: 'explain-tossup',
@@ -133,25 +136,35 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: 'A quizzer on Team 3 also answers incorrectly on the toss-up. Click this cell and select E (Error).',
     completion: { type: 'cell-value', ti: 2, qi: 0, ci: 2, value: CellValue.Error },
     allowSelectorPopup: true,
+    onNext: (actions) => actions.setCell(2, 0, 2, CellValue.Error),
   },
   {
     id: 'explain-bonus',
-    target: { type: 'cell', ti: 0, qi: 1, ci: 2 },
+    target: { type: 'selector', css: '[data-tutorial="col-header-3"]' },
     placement: 'bottom',
     title: 'Bonus Question',
-    body: 'Both other teams erred, so only Team 1 is left. This is now a bonus question \u2014 they get to answer without competition. Click this cell and select B (Bonus) or MB (Missed Bonus).',
+    body: 'Both other teams erred, so the next question is a bonus for Team 1 \u2014 they get to answer without competition.',
+    completion: { type: 'acknowledge' },
+  },
+  {
+    id: 'q4-bonus',
+    target: { type: 'cell', ti: 0, qi: 1, ci: 3 },
+    placement: 'bottom',
+    title: 'Answer the Bonus',
+    body: 'Click this cell and select B (Bonus) if correct, or MB (Missed Bonus) if incorrect.',
     completion: {
       type: 'cell-value',
       ti: 0,
       qi: 1,
-      ci: 2,
+      ci: 3,
       value: [CellValue.Bonus, CellValue.MissedBonus],
     },
     allowSelectorPopup: true,
+    onNext: (actions) => actions.setCell(0, 1, 3, CellValue.Bonus),
   },
   {
     id: 'no-jump',
-    target: { type: 'selector', css: '[data-tutorial="no-jump-3"]' },
+    target: { type: 'selector', css: '[data-tutorial="no-jump-4"]' },
     placement: 'top',
     title: 'No Jump',
     body: 'If nobody jumps on a question, click No Jump to mark it. Click here to toggle it.',
@@ -161,15 +174,15 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   // --- Timeout + substitution ---
   {
     id: 'call-timeout',
-    target: { type: 'selector', css: '[data-tutorial="timeout-2-3"]' },
+    target: { type: 'selector', css: '[data-tutorial="timeout-2-4"]' },
     placement: 'bottom',
     title: 'Call a Timeout',
-    body: 'Each team gets 2 timeouts per quiz. Click here to mark a timeout for Team 3 after question 4.',
+    body: 'Each team gets 2 timeouts per quiz. Click here to mark a timeout for Team 3 after question 5.',
     completion: { type: 'click-target' },
   },
   {
     id: 'explain-timeout',
-    target: { type: 'selector', css: '[data-tutorial="timeout-2-3"]' },
+    target: { type: 'selector', css: '[data-tutorial="timeout-2-4"]' },
     placement: 'bottom',
     title: 'Timeout',
     body: 'The "T" marker shows that Team 3 called a timeout here. During a timeout, coaches can substitute quizzers.',
@@ -180,15 +193,15 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'selector', css: '[data-tutorial="quizzer-row-2-4"]' },
     placement: 'top',
     title: 'Substitute a Quizzer',
-    body: "Drag the 5th quizzer up to swap them into the lineup. Grab them and drag to another quizzer's position.",
+    body: "Drag the 5th quizzer up to swap them into the lineup. Grab the drag handle (\u2807) and drag to another quizzer's position.",
     completion: { type: 'seat-change', teamIdx: 2 },
   },
   {
     id: 'explain-substitution',
-    target: { type: 'selector', css: '[data-tutorial="quizzer-row-2-0"]' },
-    placement: 'top',
+    target: { type: 'none' },
+    placement: 'bottom',
     title: 'Substitution Complete',
-    body: 'The substitute is now in the game. The quizzer who was swapped out moves to the bench (seat 5).',
+    body: 'The quizzers have been swapped. The substitute is now in the lineup and the other quizzer moves to the bench (seat 5).',
     completion: { type: 'acknowledge' },
   },
 
