@@ -214,6 +214,7 @@ const {
   noJumpMap,
   timeoutMap,
   timeoutCount,
+  isTimeoutAllowed,
   toggleTimeout,
   hasTimeoutAt,
   hasTimeoutAfterCol,
@@ -941,7 +942,16 @@ const appVersion: string = __APP_VERSION__
                       'timeout-maxed':
                         !hasTimeoutAt(team.id, col.key) && timeoutCount(team.id) >= 2,
                     },
+                    {
+                      'timeout-invalid':
+                        hasTimeoutAt(team.id, col.key) && !isTimeoutAllowed(col.key),
+                    },
                   ]"
+                  :title="
+                    hasTimeoutAt(team.id, col.key) && !isTimeoutAllowed(col.key)
+                      ? 'Timeouts cannot be called after question 16'
+                      : undefined
+                  "
                   @click.stop="toggleTimeout(team.id, col.key)"
                 />
                 <td class="col--name team-score-label">Score</td>
@@ -2996,6 +3006,13 @@ thead tr th.sticky-col {
 }
 .timeout-toggle.timeout-maxed:hover::after {
   opacity: 0;
+}
+.timeout-toggle.timeout-invalid::after {
+  opacity: 1;
+  color: var(--color-error, #dc2626);
+}
+.timeout-toggle.timeout-invalid {
+  background: color-mix(in srgb, var(--color-error, #dc2626) 10%, transparent);
 }
 
 /* Elevate cell selector above tutorial overlay during allowSelectorPopup steps */

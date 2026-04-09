@@ -476,6 +476,12 @@ export function useScoresheet() {
     timeoutMap.value = new Map(snap)
   }
 
+  /** Timeouts can only be called up through question 16 (rules §8.a) */
+  function isTimeoutAllowed(columnKey: string): boolean {
+    const num = parseInt(columnKey, 10)
+    return !isNaN(num) && num <= 16
+  }
+
   function addTimeout(teamId: number, afterColumnKey: string | null): void {
     const snapshot = snapshotTimeouts()
     const current = teamTimeouts(teamId)
@@ -745,6 +751,7 @@ export function useScoresheet() {
     // Timeouts
     teamTimeouts,
     timeoutCount,
+    isTimeoutAllowed,
     addTimeout,
     removeLastTimeout,
     toggleTimeout,
