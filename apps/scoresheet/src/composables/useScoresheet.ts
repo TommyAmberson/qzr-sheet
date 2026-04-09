@@ -655,8 +655,10 @@ export function useScoresheet() {
   }
 
   // --- Auto-persist to localStorage ---
+  const pauseAutoSave = ref(false)
   let persistTimer: ReturnType<typeof setTimeout> | null = null
   function schedulePersist() {
+    if (pauseAutoSave.value) return
     if (persistTimer) clearTimeout(persistTimer)
     persistTimer = setTimeout(() => saveToStorage(store, noJumpMap.value, timeoutMap.value), 300)
   }
@@ -732,6 +734,9 @@ export function useScoresheet() {
     store,
     noJumpMap,
     timeoutMap,
+    pauseAutoSave,
+    answerVersion,
+    teamVersion,
     loadFile,
     resetStore,
     clearAnswers,

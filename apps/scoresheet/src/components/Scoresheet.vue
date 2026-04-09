@@ -19,8 +19,10 @@ import { readOds } from '../export/readOds'
 import { anyTeamHasAnswer } from '../scoring/helpers'
 import { validationMessage } from '../scoring/validation'
 import { useMeetSession } from '../composables/useMeetSession'
+import { useTutorial } from '../composables/useTutorial'
 import MeetPickerDialog from './MeetPickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
+import TutorialOverlay from './TutorialOverlay.vue'
 
 const { theme, toggleTheme } = useTheme()
 
@@ -215,6 +217,9 @@ const {
   toggleTimeout,
   hasTimeoutAt,
   hasTimeoutAfterCol,
+  pauseAutoSave,
+  answerVersion,
+  teamVersion,
   loadFile,
   resetStore,
   clearAnswers,
@@ -226,6 +231,23 @@ const {
   redo,
   markSaved,
 } = useScoresheet()
+
+const tutorial = useTutorial({
+  store,
+  noJumpMap,
+  timeoutMap,
+  pauseAutoSave,
+  answerVersion,
+  teamVersion,
+  cells,
+  teams,
+  teamQuizzers,
+  setQuizzerName,
+  setTeamName,
+  loadFile,
+  resetStore,
+})
+tutorial.recoverFromCrash()
 
 /** All unique validation messages for the status tooltip */
 const allValidationMessages = computed(() => {
@@ -743,6 +765,9 @@ const appVersion: string = __APP_VERSION__
                     <button @click="openMeetPicker">🔗 Load teams from meet…</button>
                   </div>
                 </div>
+                <button class="help-toggle" title="Interactive tutorial" @click="tutorial.start()">
+                  ?
+                </button>
               </div>
             </div>
             <div class="quiz-meta quiz-meta--right">
@@ -774,6 +799,7 @@ const appVersion: string = __APP_VERSION__
                 v-for="{ col, idx, entering } in displayColumns"
                 :key="col.key"
                 :ref="(el: any) => registerColHeader(idx, el as HTMLElement | null)"
+                :data-tutorial="`col-header-${idx}`"
                 :class="[
                   'col--question',
                   colGroupClass(idx),
@@ -870,9 +896,11 @@ const appVersion: string = __APP_VERSION__
                         >
                           <input
                             class="editable-name editable-name--team"
+                            :data-tutorial="`team-name-${ti}`"
                             :value="team.name"
                             @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
                             @focus="($event.target as HTMLInputElement).select()"
+                            @keydown.enter="($event.target as HTMLInputElement).blur()"
                           />
                         </span>
                       </template>
@@ -896,6 +924,7 @@ const appVersion: string = __APP_VERSION__
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
+                  :data-tutorial="`timeout-${ti}-${idx}`"
                   :class="[
                     'team-header-spacer',
                     'timeout-toggle',
@@ -918,6 +947,7 @@ const appVersion: string = __APP_VERSION__
                 v-for="(quizzer, qi) in teamQuizzers[ti]"
                 :key="quizzer.id"
                 :ref="(el: any) => registerRowEl(ti, qi, el as HTMLElement)"
+                :data-tutorial="`quizzer-row-${ti}-${qi}`"
                 :class="[
                   'row--quizzer',
                   { 'row--quizzed-out': scoring[ti]?.quizzers[qi]?.quizzedOut },
@@ -979,9 +1009,11 @@ const appVersion: string = __APP_VERSION__
                               ),
                             },
                           ]"
+                          :data-tutorial="`quizzer-name-${ti}-${qi}`"
                           :value="quizzer.name"
                           @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
                           @focus="($event.target as HTMLInputElement).select()"
+                          @keydown.enter="($event.target as HTMLInputElement).blur()"
                         />
                       </span>
                       <button
@@ -995,6 +1027,7 @@ const appVersion: string = __APP_VERSION__
                       <button
                         v-else-if="quizzer.name"
                         class="name-clear"
+                        :data-tutorial="`name-clear-${ti}-${qi}`"
                         title="Clear name (empty seat)"
                         @click.stop="setQuizzerName(ti, qi, '')"
                       >
@@ -1074,6 +1107,7 @@ const appVersion: string = __APP_VERSION__
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
                   :ref="(el: any) => registerCellEl(ti, qi, idx, el as HTMLElement | null)"
+                  :data-tutorial="`cell-${ti}-${qi}-${idx}`"
                   :class="[
                     'cell',
                     cellClass[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty],
@@ -1111,6 +1145,7 @@ const appVersion: string = __APP_VERSION__
                 <!-- Team total spans quizzer rows only -->
                 <td
                   v-if="qi === 0"
+                  :data-tutorial="`team-total-${ti}`"
                   :class="[
                     'col--total',
                     'team-total-value',
@@ -1144,6 +1179,7 @@ const appVersion: string = __APP_VERSION__
                   <span
                     class="on-time"
                     :class="{ 'on-time--active': team.onTime }"
+                    :data-tutorial="`on-time-${ti}`"
                     @click.stop="toggleOnTime(ti)"
                   >
                     <span class="on-time-box">✓</span>
@@ -1240,6 +1276,7 @@ const appVersion: string = __APP_VERSION__
               <td
                 v-for="{ col, idx, entering } in displayColumns"
                 :key="col.key"
+                :data-tutorial="`no-jump-${idx}`"
                 :class="[
                   'cell cell--no-jump',
                   colGroupClass(idx),
@@ -1302,6 +1339,16 @@ const appVersion: string = __APP_VERSION__
         </div>
       </Teleport>
     </div>
+
+    <TutorialOverlay
+      v-if="tutorial.active.value && tutorial.currentStep.value"
+      :step="tutorial.currentStep.value"
+      :step-index="tutorial.currentStepIndex.value"
+      :total-steps="tutorial.totalSteps"
+      :target-el="tutorial.targetEl.value"
+      @next="tutorial.onNext()"
+      @skip="tutorial.finish()"
+    />
   </div>
 </template>
 
@@ -1854,6 +1901,24 @@ const appVersion: string = __APP_VERSION__
     border-color 0.15s;
 }
 .theme-toggle:hover {
+  background: var(--color-border-alt);
+  border-color: var(--color-text-faint);
+}
+.help-toggle {
+  background: color-mix(in srgb, var(--color-meta-accent) 20%, transparent);
+  border: 1px solid var(--color-meta-accent);
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.15rem 0.6rem;
+  border-radius: 4px;
+  color: var(--color-text);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.help-toggle:hover {
   background: var(--color-border-alt);
   border-color: var(--color-text-faint);
 }
