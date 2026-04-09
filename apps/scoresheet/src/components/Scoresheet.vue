@@ -205,6 +205,7 @@ const {
   allQuestionsComplete,
   validationErrors,
   timeoutValidationErrors,
+  tooManyTimeoutsTeams,
   placements,
   placementPoints,
   setTeamName,
@@ -214,7 +215,6 @@ const {
   store,
   noJumpMap,
   timeoutMap,
-  timeoutCount,
   isTimeoutAllowed,
   toggleTimeout,
   hasTimeoutAt,
@@ -261,6 +261,9 @@ const allValidationMessages = computed(() => {
   const msgs = new Set<string>()
   if (timeoutValidationErrors.value.size > 0) {
     msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+  }
+  if (tooManyTimeoutsTeams.value.size > 0) {
+    msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
   }
   for (const codes of validationErrors.value.values()) {
     for (const code of codes) msgs.add(validationMessage(code))
@@ -943,18 +946,17 @@ const appVersion: string = __APP_VERSION__
                     { 'timeout-after': hasTimeoutAfterCol(col.key) },
                     { 'has-timeout': hasTimeoutAt(team.id, col.key) },
                     {
-                      'timeout-maxed':
-                        !hasTimeoutAt(team.id, col.key) && timeoutCount(team.id) >= 2,
-                    },
-                    {
                       'timeout-invalid':
-                        hasTimeoutAt(team.id, col.key) && !isTimeoutAllowed(col.key),
+                        hasTimeoutAt(team.id, col.key) &&
+                        (!isTimeoutAllowed(col.key) || tooManyTimeoutsTeams.has(ti)),
                     },
                   ]"
                   :title="
                     hasTimeoutAt(team.id, col.key) && !isTimeoutAllowed(col.key)
                       ? 'Timeouts can\'t be called after error points (after question 17)'
-                      : undefined
+                      : hasTimeoutAt(team.id, col.key) && tooManyTimeoutsTeams.has(ti)
+                        ? 'Each team is allowed only 2 timeouts per quiz'
+                        : undefined
                   "
                   @click.stop="toggleTimeout(team.id, col.key)"
                 />
@@ -3004,12 +3006,6 @@ thead tr th.sticky-col {
 .timeout-toggle.has-timeout::after {
   opacity: 1;
   color: var(--color-text);
-}
-.timeout-toggle.timeout-maxed {
-  cursor: default;
-}
-.timeout-toggle.timeout-maxed:hover::after {
-  opacity: 0;
 }
 .timeout-toggle.timeout-invalid::after {
   opacity: 1;

@@ -235,6 +235,18 @@ export function useScoresheet() {
     return map
   })
 
+  /** Team indices that have more than 2 timeouts */
+  const tooManyTimeoutsTeams = computed(() => {
+    const set = new Set<number>()
+    for (const [teamId, timeouts] of timeoutMap.value) {
+      if (timeouts.length > MAX_TIMEOUTS_PER_TEAM) {
+        const ti = teams.value.findIndex((t) => t.id === teamId)
+        if (ti >= 0) set.add(ti)
+      }
+    }
+    return set
+  })
+
   // --- Query helpers (business logic the template needs) ---
 
   function isBonusForTeam(teamIdx: number, colIdx: number): boolean {
@@ -304,6 +316,9 @@ export function useScoresheet() {
     if (timeoutErrorsByTeam.value.has(ti)) {
       msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
     }
+    if (tooManyTimeoutsTeams.value.has(ti)) {
+      msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
+    }
     for (const [key, codes] of validationErrors.value) {
       if (key.startsWith(`${ti}:`)) {
         for (const code of codes) msgs.add(validationMessage(code))
@@ -328,6 +343,7 @@ export function useScoresheet() {
 
   function teamHasErrors(ti: number): boolean {
     if (timeoutErrorsByTeam.value.has(ti)) return true
+    if (tooManyTimeoutsTeams.value.has(ti)) return true
     for (const key of validationErrors.value.keys()) {
       if (key.startsWith(`${ti}:`)) return true
     }
@@ -335,7 +351,10 @@ export function useScoresheet() {
   }
 
   const hasAnyErrors = computed(
-    () => validationErrors.value.size > 0 || timeoutValidationErrors.value.size > 0,
+    () =>
+      validationErrors.value.size > 0 ||
+      timeoutValidationErrors.value.size > 0 ||
+      tooManyTimeoutsTeams.value.size > 0,
   )
 
   /** Get the answer value for a column (first non-empty, non-foul value) */
@@ -556,8 +575,6 @@ export function useScoresheet() {
       }
     }
 
-    if (current.length >= MAX_TIMEOUTS_PER_TEAM) return
-
     const next = [...current, { afterColumnKey }]
     timeoutMap.value.set(teamId, next)
     timeoutMap.value = new Map(timeoutMap.value)
@@ -744,6 +761,7 @@ export function useScoresheet() {
     // Grey-out & validation
     validationErrors,
     timeoutValidationErrors,
+    tooManyTimeoutsTeams,
 
     // Query helpers
     isEmptySeat,
