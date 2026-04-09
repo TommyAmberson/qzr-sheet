@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0
+
+### Added
+
+* **Timeout tracking** — each team gets up to 2 timeouts per quiz; click a team header cell at any
+  question column to toggle a "T" marker; only one team can take a timeout at a given question;
+  timeouts persist to the QuizFile (v2 schema) and survive page reload
+* **QuizFile v2** — file format version bumped from 1 to 2; adds optional `timeouts` array per team;
+  v1 files load without issue (no timeouts assumed)
+
+### Changed
+
+* **Quizzer drag-reorder** — reordering quizzers within a team now swaps positions instead of
+  inserting and shifting
+
 ## 0.5.3
 
 ### Fixed
