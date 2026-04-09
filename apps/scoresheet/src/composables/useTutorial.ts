@@ -1,5 +1,5 @@
 import { ref, computed, watch } from 'vue'
-import { CellValue, type Timeout } from '../types/scoresheet'
+import { CellValue, QUIZZERS_PER_TEAM, type Timeout } from '../types/scoresheet'
 import { serializeStore, parseQuizFile, type DeserializeResult } from '../persistence/quizFile'
 import type { QuizStore } from '../stores/quizStore'
 import { TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
@@ -19,14 +19,19 @@ export interface ScoresheetAPI {
   setQuizzerName: (ti: number, qi: number, name: string) => void
   setTeamName: (ti: number, name: string) => void
   setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
+  toggleNoJump: (ci: number) => void
+  toggleTimeout: (teamId: number, colKey: string) => void
+  moveQuizzer: (ti: number, from: number, to: number) => void
   loadFile: (data: DeserializeResult) => void
   resetStore: () => void
+  columns: { value: { key: string }[] }
 }
 
 export function useTutorial(scoresheet: ScoresheetAPI) {
   const active = ref(false)
   const currentStepIndex = ref(0)
-  const targetEl = ref<HTMLElement | null>(null)
+  const targetEls = ref<HTMLElement[]>([])
+  const stepCompleted = ref(false)
   let snapshot: string | null = null
   let cleanupFns: (() => void)[] = []
 
@@ -58,6 +63,7 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
 
   function showStep(index: number) {
     cleanup()
+    stepCompleted.value = false
 
     const step = TUTORIAL_STEPS[index]
     if (!step) {
@@ -65,28 +71,42 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       return
     }
 
-    targetEl.value = resolveTargetEl(step)
+    targetEls.value = resolveTargetEls(step)
+    if (step.completion.type === 'acknowledge') stepCompleted.value = true
 
     setupCompletionWatcher(step)
   }
 
-  function resolveTargetEl(step: TutorialStep): HTMLElement | null {
-    let selector: string | null = null
+  function resolveTargetEls(step: TutorialStep): HTMLElement[] {
+    const els: HTMLElement[] = []
 
     if (step.target.type === 'selector') {
-      selector = step.target.css
+      const el = document.querySelector<HTMLElement>(step.target.css)
+      if (el) els.push(el)
     } else if (step.target.type === 'cell') {
       const { ti, qi, ci } = step.target
-      selector = `[data-tutorial="cell-${ti}-${qi}-${ci}"]`
+      const el = document.querySelector<HTMLElement>(`[data-tutorial="cell-${ti}-${qi}-${ci}"]`)
+      if (el) els.push(el)
+    } else if (step.target.type === 'column') {
+      const ci = step.target.ci
+      const header = document.querySelector<HTMLElement>(`[data-tutorial="col-header-${ci}"]`)
+      if (header) els.push(header)
+      for (let ti = 0; ti < 3; ti++) {
+        for (let qi = 0; qi < QUIZZERS_PER_TEAM; qi++) {
+          const cell = document.querySelector<HTMLElement>(
+            `[data-tutorial="cell-${ti}-${qi}-${ci}"]`,
+          )
+          if (cell) els.push(cell)
+        }
+      }
+      const nj = document.querySelector<HTMLElement>(`[data-tutorial="no-jump-${ci}"]`)
+      if (nj) els.push(nj)
     }
 
-    if (!selector) return null
-
-    const el = document.querySelector<HTMLElement>(selector)
-    if (el) {
-      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+    if (els.length > 0) {
+      els[0]!.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
     }
-    return el
+    return els
   }
 
   function setupCompletionWatcher(step: TutorialStep) {
@@ -107,10 +127,41 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     }
 
     if (completion.type === 'input-non-empty') {
-      const el = targetEl.value
-      if (el instanceof HTMLInputElement) {
-        el.focus()
-        el.select()
+      const { teamIdx, quizzerIdx } = completion
+      // Focus the input
+      const firstEl = targetEls.value[0]
+      if (firstEl instanceof HTMLInputElement) {
+        firstEl.focus()
+        firstEl.select()
+      }
+      // Watch for name change → mark completed
+      cleanupFns.push(
+        watch(
+          () => scoresheet.teamVersion.value,
+          () => {
+            const changed =
+              quizzerIdx !== undefined
+                ? (() => {
+                    const name = scoresheet.teamQuizzers.value[teamIdx]?.[quizzerIdx]?.name ?? ''
+                    return name.trim() !== '' && name !== `Quizzer ${quizzerIdx + 1}`
+                  })()
+                : (() => {
+                    const team = scoresheet.teams.value[teamIdx]
+                    return !!team && team.name !== `Team ${teamIdx + 1}`
+                  })()
+            if (changed) stepCompleted.value = true
+          },
+        ),
+      )
+      // Blur advances if name was changed
+      if (firstEl instanceof HTMLInputElement) {
+        const onBlur = () => {
+          setTimeout(() => {
+            if (stepCompleted.value) advance()
+          }, 0)
+        }
+        firstEl.addEventListener('blur', onBlur)
+        cleanupFns.push(() => firstEl.removeEventListener('blur', onBlur))
       }
     }
 
@@ -172,14 +223,19 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     }
   }
 
-  /** Called when user clicks Next — runs onNext callback then advances */
+  /** Called when user clicks the button. Runs onNext if step wasn't completed. */
   function onNext() {
     const step = currentStep.value
-    if (step?.onNext) {
+    if (step?.onNext && !stepCompleted.value) {
       step.onNext({
         setQuizzerName: scoresheet.setQuizzerName,
         setTeamName: scoresheet.setTeamName,
         setCell: scoresheet.setCell,
+        toggleNoJump: scoresheet.toggleNoJump,
+        toggleTimeout: scoresheet.toggleTimeout,
+        moveQuizzer: scoresheet.moveQuizzer,
+        columns: scoresheet.columns,
+        teams: scoresheet.teams,
       })
     }
     advance()
@@ -187,7 +243,7 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
 
   function finish() {
     cleanup()
-    targetEl.value = null
+    targetEls.value = []
 
     const snapshotData = snapshot || localStorage.getItem(SNAPSHOT_KEY)
     if (snapshotData) {
@@ -233,7 +289,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     currentStep,
     currentStepIndex,
     totalSteps,
-    targetEl,
+    targetEls,
+    stepCompleted,
     start,
     advance,
     onNext,

@@ -242,9 +242,13 @@ const tutorial = useTutorial({
   cells,
   teams,
   teamQuizzers,
+  columns,
   setQuizzerName,
   setTeamName,
   setCell,
+  toggleNoJump,
+  toggleTimeout,
+  moveQuizzer,
   loadFile,
   resetStore,
 })
@@ -1356,7 +1360,8 @@ const appVersion: string = __APP_VERSION__
       :step="tutorial.currentStep.value"
       :step-index="tutorial.currentStepIndex.value"
       :total-steps="tutorial.totalSteps"
-      :target-el="tutorial.targetEl.value"
+      :target-els="tutorial.targetEls.value"
+      :completed="tutorial.stepCompleted.value"
       @next="tutorial.onNext()"
       @skip="tutorial.finish()"
     />

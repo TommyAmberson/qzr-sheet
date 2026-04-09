@@ -6,7 +6,8 @@ const props = defineProps<{
   step: TutorialStep
   stepIndex: number
   totalSteps: number
-  targetEl: HTMLElement | null
+  targetEls: HTMLElement[]
+  completed: boolean
 }>()
 
 const emit = defineEmits<{
@@ -18,26 +19,38 @@ const spotlightRect = ref<DOMRect | null>(null)
 const tooltipRef = ref<HTMLElement | null>(null)
 const PADDING = 8
 
-function updateRect() {
-  if (props.targetEl) {
-    spotlightRect.value = props.targetEl.getBoundingClientRect()
-  } else {
-    spotlightRect.value = null
+function computeUnionRect(els: HTMLElement[]): DOMRect | null {
+  if (els.length === 0) return null
+  let top = Infinity
+  let left = Infinity
+  let bottom = -Infinity
+  let right = -Infinity
+  for (const el of els) {
+    const r = el.getBoundingClientRect()
+    if (r.width === 0 && r.height === 0) continue
+    top = Math.min(top, r.top)
+    left = Math.min(left, r.left)
+    bottom = Math.max(bottom, r.bottom)
+    right = Math.max(right, r.right)
   }
+  if (top === Infinity) return null
+  return new DOMRect(left, top, right - left, bottom - top)
 }
 
-// Track target position
+function updateRect() {
+  spotlightRect.value = computeUnionRect(props.targetEls)
+}
+
 let resizeObserver: ResizeObserver | null = null
 let scrollCleanup: (() => void) | null = null
 
 function setupTracking() {
   cleanupTracking()
-
   updateRect()
 
-  if (props.targetEl) {
+  if (props.targetEls.length > 0) {
     resizeObserver = new ResizeObserver(updateRect)
-    resizeObserver.observe(props.targetEl)
+    for (const el of props.targetEls) resizeObserver.observe(el)
   }
 
   const wrapper = document.querySelector('.scoresheet-wrapper')
@@ -57,7 +70,7 @@ function cleanupTracking() {
   window.removeEventListener('resize', updateRect)
 }
 
-watch(() => props.targetEl, setupTracking)
+watch(() => props.targetEls, setupTracking)
 watch(() => props.stepIndex, updateRect)
 onMounted(setupTracking)
 onUnmounted(cleanupTracking)
@@ -80,7 +93,6 @@ const tooltipStyle = computed(() => {
   const gap = 12
 
   if (!r) {
-    // Centered on screen
     return {
       top: '50%',
       left: '50%',
@@ -110,7 +122,6 @@ const tooltipStyle = computed(() => {
     left = r.left - PADDING - gap - tooltipWidth
   }
 
-  // Clamp to viewport
   left = Math.max(8, Math.min(left, vw - tooltipWidth - 8))
   top = Math.max(8, Math.min(top, vh - tooltipHeight - 8))
 
@@ -119,24 +130,23 @@ const tooltipStyle = computed(() => {
     left: `${left}px`,
   }
 })
+
+const buttonLabel = computed(() => (props.completed ? 'Next' : 'Skip'))
 </script>
 
 <template>
   <Teleport to="body">
     <div class="tutorial-overlay">
-      <!-- Spotlight: dims everything except the target -->
       <div v-if="spotlightStyle" class="tutorial-spotlight" :style="spotlightStyle" />
-      <!-- Full-screen dim when no target -->
       <div v-else class="tutorial-backdrop" />
 
-      <!-- Tooltip -->
       <div ref="tooltipRef" class="tutorial-tooltip" :style="tooltipStyle">
         <h3 class="tutorial-tooltip__title">{{ step.title }}</h3>
         <p class="tutorial-tooltip__body">{{ step.body }}</p>
         <div class="tutorial-tooltip__controls">
           <span class="tutorial-tooltip__counter">{{ stepIndex + 1 }} / {{ totalSteps }}</span>
-          <button class="tutorial-tooltip__next" @click="emit('next')">Next</button>
-          <button class="tutorial-tooltip__skip" @click="emit('skip')">Skip Tutorial</button>
+          <button class="tutorial-tooltip__next" @click="emit('next')">{{ buttonLabel }}</button>
+          <button class="tutorial-tooltip__skip" @click="emit('skip')">End Tutorial</button>
         </div>
       </div>
     </div>

@@ -4,6 +4,11 @@ export type ScoresheetActions = {
   setQuizzerName: (ti: number, qi: number, name: string) => void
   setTeamName: (ti: number, name: string) => void
   setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
+  toggleNoJump: (ci: number) => void
+  toggleTimeout: (teamId: number, colKey: string) => void
+  moveQuizzer: (ti: number, from: number, to: number) => void
+  columns: { value: { key: string }[] }
+  teams: { value: { id: number }[] }
 }
 
 export interface TutorialStep {
@@ -11,6 +16,7 @@ export interface TutorialStep {
   target:
     | { type: 'selector'; css: string }
     | { type: 'cell'; ti: number; qi: number; ci: number }
+    | { type: 'column'; ci: number }
     | { type: 'none' }
   placement: 'top' | 'bottom' | 'left' | 'right'
   title: string
@@ -25,7 +31,7 @@ export interface TutorialStep {
   allowSelectorPopup?: boolean
   /** Allow clicks through the overlay even for acknowledge steps */
   interactive?: boolean
-  /** Run when user presses Next to fix up state if they skipped the action */
+  /** Run when user presses Skip to fix up state */
   onNext?: (actions: ScoresheetActions) => void
 }
 
@@ -122,8 +128,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'explain-tossup',
-    target: { type: 'selector', css: '[data-tutorial="col-header-2"]' },
-    placement: 'bottom',
+    target: { type: 'column', ci: 2 },
+    placement: 'right',
     title: 'Toss-Up',
     body: "After an error, that team can't jump on the next question \u2014 it becomes a toss-up for the other two teams.",
     completion: { type: 'acknowledge' },
@@ -140,8 +146,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'explain-bonus',
-    target: { type: 'selector', css: '[data-tutorial="col-header-3"]' },
-    placement: 'bottom',
+    target: { type: 'column', ci: 3 },
+    placement: 'right',
     title: 'Bonus Question',
     body: 'Both other teams erred, so the next question is a bonus for Team 1 \u2014 they get to answer without competition.',
     completion: { type: 'acknowledge' },
@@ -169,6 +175,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: 'No Jump',
     body: 'If nobody jumps on a question, click No Jump to mark it. Click here to toggle it.',
     completion: { type: 'click-target' },
+    onNext: (actions) => actions.toggleNoJump(4),
   },
 
   // --- Timeout + substitution ---
@@ -179,6 +186,11 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: 'Call a Timeout',
     body: 'Each team gets 2 timeouts per quiz. Click here to mark a timeout for Team 3 after question 5.',
     completion: { type: 'click-target' },
+    onNext: (actions) => {
+      const teamId = actions.teams.value[2]?.id
+      const colKey = actions.columns.value[4]?.key
+      if (teamId !== undefined && colKey) actions.toggleTimeout(teamId, colKey)
+    },
   },
   {
     id: 'explain-timeout',
@@ -195,6 +207,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: 'Substitute a Quizzer',
     body: "Drag the 5th quizzer up to swap them into the lineup. Grab the drag handle (\u2807) and drag to another quizzer's position.",
     completion: { type: 'seat-change', teamIdx: 2 },
+    onNext: (actions) => actions.moveQuizzer(2, 4, 0),
   },
   {
     id: 'explain-substitution',
