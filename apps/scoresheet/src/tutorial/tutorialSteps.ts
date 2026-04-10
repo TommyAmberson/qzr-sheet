@@ -258,8 +258,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         if (!actions.teams.value[ti]!.onTime) actions.toggleOnTime(ti)
       }
 
-      // T2 q3 is an empty seat. T3 q0 is the substitute (swapped in after Q5),
-      // original T3 first quizzer is now at q4 (bench).
+      // T2 q3 is an empty seat.
       // T1 has 4 unique correct quizzers (+20), T2/T3 have 3 each (+10),
       // balancing T1's Q17 error (-10).
       // T1: 5C(100) + MB(0) + E(-10) + 4uniq(+20) + OT(+20) = 130
@@ -272,7 +271,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       const plays: [number, number, number, CellValue][] = [
         [0, 0, 0, CellValue.Correct], // Q1:  T1 q0 C
         [1, 1, 0, CellValue.Error], //   Q2:  T2 q0 E → toss-up
-        [2, 2, 4, CellValue.Error], //   Q3:  T3 q4 E → bonus for T1 (original q0, swapped to bench)
+        [2, 2, 0, CellValue.Error], //   Q3:  T3 q0 E → bonus for T1
         [3, 0, 1, CellValue.MissedBonus], // Q4: T1 q1 MB
         // Q5: no-jump
         [5, 1, 1, CellValue.Correct], //  Q6:  T2 q1 C
@@ -282,7 +281,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         [9, 2, 2, CellValue.Correct], //  Q10: T3 q2 C
         [10, 0, 1, CellValue.Correct], // Q11: T1 q1 C (4th unique for T1)
         [11, 1, 0, CellValue.Correct], // Q12: T2 q0 C
-        [12, 2, 4, CellValue.Correct], // Q13: T3 q4 C (original q0, now on bench)
+        [12, 2, 0, CellValue.Correct], // Q13: T3 q0 C
         [13, 1, 1, CellValue.Correct], // Q14: T2 q1 C
         [14, 2, 1, CellValue.Correct], // Q15: T3 q1 C
         [15, 0, 3, CellValue.Correct], // Q16: T1 q3 C (ci 15)
@@ -329,18 +328,20 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'none' },
     placement: 'bottom',
     title: 'Overtime — Round 1',
-    body: "Let's play through overtime. In round 1, Team 1 and Team 2 answer correctly, but Team 3 errors and nobody answers the toss-up.",
+    body: "Let's play through overtime. Each team errors once and two of the toss-ups are answered. Team 3 falls behind.",
     completion: { type: 'acknowledge' },
     setup: (actions) => {
       // OT columns: Q21/A/B → ci 30/31/32, Q22/A/B → 33/34/35, Q23/A/B → 36/37/38
-      // Q21: T1 q0 C (+20)
-      // Q22: T2 q0 C (+20)
-      // Q23: T3 q0 E (-10) → Q23A toss-up
-      // Q23A: No Jump (resolves Q23 chain)
-      actions.setCell(0, 0, 30, CellValue.Correct) // Q21
-      actions.setCell(1, 0, 33, CellValue.Correct) // Q22
-      actions.setCell(2, 0, 36, CellValue.Error) // Q23
-      actions.toggleNoJump(37) // Q23A — no jump on toss-up
+      // Q21: T1 E (-10) → 130, Q21A: T2 C (+20) → 150
+      // Q22: T2 E (-10) → 140, Q22A: T1 C (+20) → 140
+      // Q23: T3 E (-10) → 120, Q23A: NJ
+      // Result: T1=140, T2=140, T3=120
+      actions.setCell(0, 2, 30, CellValue.Error) // Q21: T1 q2 E
+      actions.setCell(1, 1, 31, CellValue.Correct) // Q21A: T2 q1 C
+      actions.setCell(1, 0, 33, CellValue.Error) // Q22: T2 q0 E
+      actions.setCell(0, 0, 34, CellValue.Correct) // Q22A: T1 q0 C
+      actions.setCell(2, 1, 36, CellValue.Error) // Q23: T3 q1 E
+      actions.toggleNoJump(37) // Q23A: NJ
     },
   },
   {
@@ -356,16 +357,21 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'none' },
     placement: 'bottom',
     title: 'Overtime — Round 2',
-    body: 'In round 2, Team 1 answers correctly and Team 2 does not. Team 1 takes 1st place, Team 2 takes 2nd.',
+    body: 'Team 1 has a rough round — three errors. Team 2 picks up one of the toss-ups. Watch what happens to the final scores.',
     completion: { type: 'acknowledge' },
     setup: (actions) => {
       // OT round 2: Q24/A/B → ci 39/40/41, Q25/A/B → 42/43/44, Q26/A/B → 45/46/47
-      // Q24: T1 q2 C (+20)
-      // Q25: No Jump
-      // Q26: No Jump
-      actions.setCell(0, 2, 39, CellValue.Correct) // Q24
-      actions.toggleNoJump(42) // Q25
-      actions.toggleNoJump(45) // Q26
+      // Q24: T1 E (-10) → 130, Q24A: T2 C (+20) → 160
+      // Q25: T1 E (-10) → 120, Q25A: NJ
+      // Q26: T1 E (-10) → 110, Q26A: NJ
+      // Result: T2=160 (1st), T1=110 (2nd), T3=120 (3rd)
+      // 2nd place (110) < 3rd place (120) — scores are non-linear!
+      actions.setCell(0, 1, 39, CellValue.Error) // Q24: T1 q1 E
+      actions.setCell(1, 1, 40, CellValue.Correct) // Q24A: T2 q1 C
+      actions.setCell(0, 3, 42, CellValue.Error) // Q25: T1 q3 E
+      actions.toggleNoJump(43) // Q25A: NJ
+      actions.setCell(0, 0, 45, CellValue.Error) // Q26: T1 q0 E
+      actions.toggleNoJump(46) // Q26A: NJ
     },
   },
   {
@@ -373,7 +379,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'selector', css: '[data-tutorial="team-total-0"]' },
     placement: 'top',
     title: 'Final Placements',
-    body: 'The quiz is complete! Placements are shown as medals. The scoresheet tracks everything automatically.',
+    body: 'Notice that 2nd place scored lower than 3rd — placement is determined by overtime, but the score reflects the full quiz. Be careful when recording placement points!',
     completion: { type: 'acknowledge' },
   },
 
