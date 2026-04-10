@@ -357,7 +357,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'none' },
     placement: 'bottom',
     title: 'Overtime — Round 2',
-    body: 'Team 1 has a rough round — three errors. Team 2 picks up one of the toss-ups. Watch what happens to the final scores.',
+    body: 'Team 1 has a rough round — three errors. Team 2 picks up one of the bonuses. Watch what happens to the final scores.',
     completion: { type: 'acknowledge' },
     setup: (actions) => {
       // OT round 2: Q24/A/B → ci 39/40/41, Q25/A/B → 42/43/44, Q26/A/B → 45/46/47
