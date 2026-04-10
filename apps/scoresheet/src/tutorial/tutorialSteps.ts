@@ -377,8 +377,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'ot-result',
-    target: { type: 'selector', css: '[data-tutorial="team-total-0"]' },
-    placement: 'top',
+    target: { type: 'selector', css: '[data-tutorial^="team-total-"]' },
+    placement: 'left',
     title: 'Final Placements',
     body: 'Notice that 2nd place scored lower than 3rd — placement is determined by overtime, but the score reflects the full quiz. Be careful when recording placement points!',
     completion: { type: 'acknowledge' },
