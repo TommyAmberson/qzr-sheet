@@ -260,6 +260,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
 
       // Realistic quiz: [colIdx, teamIdx, quizzerIdx, value]
       // Note: T2 (ti=1) q3 is an empty seat (removed during tutorial)
+      // Each team gets 3 unique correct quizzers (+10 bonus each)
       //
       // Q1:  T1 q0 C (+20)       T1: 20
       // Q2:  T2 q0 E (0)         T2: 0    → toss-up Q3
@@ -273,15 +274,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       // Q10: T3 q2 C (+20)       T3: 40
       // Q11: T1 q0 C (+20)       T1: 70
       // Q12: T2 q0 C (+20)       T2: 60
-      // Q13: T3 q3 C (+20)       T3: 60
+      // Q13: T3 q0 C (+20)       T3: 60   (q0 not q3 — keeps 3 unique)
       // Q14: T2 q1 C (+20)       T2: 80
       // Q15: T1 q3 C (+20)       T1: 90
-      // Q16: T3 q0 C (+20)       T3: 80
+      // Q16: T3 q1 C (+20)       T3: 80
       // Q17: T1 q1 E (-10)       T1: 80   → Q17A toss-up
       // Q17A:T2 q2 C (+20)       T2: 100  → resolves Q17
-      // Q18: T3 q1 C (+20)       T3: 100
+      // Q18: T3 q2 C (+20)       T3: 100
       // Q19: No Jump
       // Q20: T1 q0 C (+20)       T1: 100
+      //
+      // Unique correct quizzers: T1: q0,q2,q3 (3→+10), T2: q0,q1,q2 (3→+10),
+      //                          T3: q0,q1,q2 (3→+10)
+      // Final: 100 + 20 on-time + 10 unique = 130 each
       const plays: [number, number, number, CellValue][] = [
         [0, 0, 0, CellValue.Correct], // Q1
         [1, 1, 0, CellValue.Error], // Q2
@@ -295,13 +300,13 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         [9, 2, 2, CellValue.Correct], // Q10
         [10, 0, 0, CellValue.Correct], // Q11
         [11, 1, 0, CellValue.Correct], // Q12
-        [12, 2, 3, CellValue.Correct], // Q13
-        [13, 1, 1, CellValue.Correct], // Q14 (T2 q1, not q3 — empty seat)
+        [12, 2, 0, CellValue.Correct], // Q13 (T3 q0 — keep 3 unique quizzers)
+        [13, 1, 1, CellValue.Correct], // Q14
         [14, 0, 3, CellValue.Correct], // Q15
-        [15, 2, 0, CellValue.Correct], // Q16 (ci 15)
+        [15, 2, 1, CellValue.Correct], // Q16 (ci 15)
         [18, 0, 1, CellValue.Error], // Q17 (ci 18, error points -10)
         [19, 1, 2, CellValue.Correct], // Q17A (ci 19, toss-up)
-        [21, 2, 1, CellValue.Correct], // Q18 (ci 21)
+        [21, 2, 2, CellValue.Correct], // Q18 (ci 21)
         // Q19: no-jump (ci 24)
         [27, 0, 0, CellValue.Correct], // Q20 (ci 27)
       ]
@@ -319,7 +324,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'selector', css: '[data-tutorial="overtime-toggle"]' },
     placement: 'bottom',
     title: 'Enable Overtime',
-    body: 'All three teams are tied. Toggle the Overtime switch to add overtime rounds.',
+    body: 'All three teams are tied. If this quiz needs to break ties, toggle the Overtime switch to add overtime rounds.',
     completion: { type: 'acknowledge' },
     interactive: true,
     onNext: (actions) => {
@@ -331,7 +336,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'selector', css: '[data-tutorial="col-header-30"]' },
     placement: 'bottom',
     title: 'Overtime',
-    body: 'Overtime questions appear in groups of 3. Only tied teams can answer, and error points (-10) apply to all overtime questions.',
+    body: 'Overtime questions appear in groups of 3. Only tied teams can answer, and error points (-10) apply. Questions 21-23 have A/B parts just like 16-20.',
     completion: { type: 'acknowledge' },
     setup: (actions) => {
       if (!actions.quiz.value.overtime) actions.quiz.value.overtime = true
@@ -342,24 +347,26 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'none' },
     placement: 'bottom',
     title: 'Overtime — Round 1',
-    body: "Let's play through overtime. In round 1, Team 1 and Team 2 answer correctly, but Team 3 errors. Team 3 falls behind and is eliminated.",
+    body: "Let's play through overtime. In round 1, Team 1 and Team 2 answer correctly, but Team 3 errors and nobody answers the toss-up.",
     completion: { type: 'acknowledge' },
     setup: (actions) => {
-      // OT Q21-Q23 → ci 30-32 (Normal columns), 33-35 (A), 36-38 (B)
+      // OT columns: Q21/A/B → ci 30/31/32, Q22/A/B → 33/34/35, Q23/A/B → 36/37/38
       // Q21: T1 q0 C (+20)
       // Q22: T2 q0 C (+20)
-      // Q23: T3 q0 E (-10)
+      // Q23: T3 q0 E (-10) → Q23A toss-up
+      // Q23A: No Jump (resolves Q23 chain)
       actions.setCell(0, 0, 30, CellValue.Correct) // Q21
       actions.setCell(1, 0, 33, CellValue.Correct) // Q22
       actions.setCell(2, 0, 36, CellValue.Error) // Q23
+      actions.toggleNoJump(37) // Q23A — no jump on toss-up
     },
   },
   {
-    id: 'ot-eliminated',
+    id: 'ot-placed',
     target: { type: 'selector', css: '[data-tutorial="team-total-2"]' },
     placement: 'top',
-    title: 'Team Eliminated',
-    body: 'Team 3 is no longer tied and finishes in 3rd place. They can leave the platform. Teams 1 and 2 continue to the next round.',
+    title: 'Team Placed',
+    body: 'Team 3 is no longer tied and finishes in 3rd place. Their result is final — they can leave the platform. Teams 1 and 2 continue to break the remaining tie.',
     completion: { type: 'acknowledge' },
   },
   {
@@ -370,7 +377,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: 'In round 2, Team 1 answers correctly and Team 2 does not. Team 1 takes 1st place, Team 2 takes 2nd.',
     completion: { type: 'acknowledge' },
     setup: (actions) => {
-      // OT round 2: Q24-Q26 → ci 39-41 (Normal), 42-44 (A), 45-47 (B)
+      // OT round 2: Q24/A/B → ci 39/40/41, Q25/A/B → 42/43/44, Q26/A/B → 45/46/47
       // Q24: T1 q2 C (+20)
       // Q25: No Jump
       // Q26: No Jump
