@@ -1,0 +1,134 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import { useScoresheet } from '../useScoresheet'
+import { useTutorial } from '../useTutorial'
+import { TUTORIAL_STEPS } from '../../tutorial/tutorialSteps'
+import { CellValue } from '../../types/scoresheet'
+
+beforeEach(() => localStorage.clear())
+
+describe('useTutorial — start', () => {
+  it('is inactive initially', () => {
+    const s = useScoresheet()
+    const t = useTutorial(s)
+    expect(t.active.value).toBe(false)
+  })
+
+  it('start() activates the tutorial and lands on step 0', () => {
+    const s = useScoresheet()
+    const t = useTutorial(s)
+    t.start()
+    expect(t.active.value).toBe(true)
+    expect(t.currentStepIndex.value).toBe(0)
+    expect(t.currentStep.value?.id).toBe(TUTORIAL_STEPS[0]!.id)
+  })
+
+  it('start() saves a snapshot to localStorage', () => {
+    const s = useScoresheet()
+    s.setCell(0, 0, 0, CellValue.Correct)
+    const t = useTutorial(s)
+    t.start()
+    expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBeTruthy()
+  })
+
+  it('start() pauses auto-save and resets the store', () => {
+    const s = useScoresheet()
+    s.setCell(0, 0, 0, CellValue.Correct)
+    const t = useTutorial(s)
+    t.start()
+    expect(s.pauseAutoSave.value).toBe(true)
+    // After resetStore, Q1 should be empty again
+    expect(s.cells.value[0]![0]![0]).toBe(CellValue.Empty)
+  })
+})
+
+describe('useTutorial — advance', () => {
+  it('advance() increments currentStepIndex', () => {
+    const s = useScoresheet()
+    const t = useTutorial(s)
+    t.start()
+    t.advance()
+    expect(t.currentStepIndex.value).toBe(1)
+  })
+
+  it('advance() on the last step finishes the tutorial', () => {
+    const s = useScoresheet()
+    const t = useTutorial(s)
+    t.start()
+    t.currentStepIndex.value = t.totalSteps - 1
+    t.advance()
+    expect(t.active.value).toBe(false)
+  })
+})
+
+describe('useTutorial — finish', () => {
+  it('finish() deactivates and restores the snapshot', () => {
+    const s = useScoresheet()
+    s.setCell(0, 0, 0, CellValue.Correct)
+    const t = useTutorial(s)
+    t.start()
+    // Tutorial reset the store, Q1 is empty now
+    expect(s.cells.value[0]![0]![0]).toBe(CellValue.Empty)
+    t.finish()
+    expect(t.active.value).toBe(false)
+    // Q1 should be restored
+    expect(s.cells.value[0]![0]![0]).toBe(CellValue.Correct)
+  })
+
+  it('finish() clears the localStorage snapshot', () => {
+    const s = useScoresheet()
+    const t = useTutorial(s)
+    t.start()
+    expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBeTruthy()
+    t.finish()
+    expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBeNull()
+  })
+
+  it('finish() unpauses auto-save', () => {
+    const s = useScoresheet()
+    const t = useTutorial(s)
+    t.start()
+    expect(s.pauseAutoSave.value).toBe(true)
+    t.finish()
+    expect(s.pauseAutoSave.value).toBe(false)
+  })
+})
+
+describe('useTutorial — onNext double-advance guard', () => {
+  // Regression guard for commit 2511d41. The onNext path awaits nextTick,
+  // which can let a completion watcher fire and advance before the post-await
+  // advance runs. Without the index-guard, this would skip a step.
+  it('does not double-advance when a cell-value watcher fires during onNext', async () => {
+    const s = useScoresheet()
+    const t = useTutorial(s)
+    t.start()
+
+    // Jump to `q1-correct` — a cell-value completion step with an onNext fallback.
+    const q1Idx = TUTORIAL_STEPS.findIndex((step) => step.id === 'q1-correct')
+    expect(q1Idx).toBeGreaterThanOrEqual(0)
+    t.currentStepIndex.value = q1Idx
+
+    // Manually reinstate the cell-value watcher for the current step by re-running
+    // showStep via setting the index (start() already called showStep(0)).
+    // Since we jumped directly, we need to invoke showStep for the new step.
+    // The public API doesn't expose showStep, but calling advance() from q1Idx-1
+    // would trigger it. Easier: simulate by calling onNext from the previous step.
+    // Instead, just verify onNext advances correctly by calling it from the current
+    // step — the watcher is set by showStep, which hasn't run here.
+    // So this test verifies the no-double-advance behavior by running through
+    // start() normally and then advancing to q1-correct via the tutorial flow.
+
+    // Reset: go back and walk forward via advance() so showStep sets up watchers.
+    t.currentStepIndex.value = 0
+    // Advance until we reach q1-correct (all prior steps are acknowledge or input)
+    while (t.currentStepIndex.value < q1Idx) {
+      t.advance()
+    }
+    expect(t.currentStepIndex.value).toBe(q1Idx)
+
+    // At q1-correct, press the button (onNext). The fallback will fill the cell,
+    // the cell-value watcher will fire during nextTick, and advance() will run.
+    // With the index-guard, we end up exactly one step ahead, not two.
+    await t.onNext()
+    expect(t.currentStepIndex.value).toBe(q1Idx + 1)
+  })
+})
