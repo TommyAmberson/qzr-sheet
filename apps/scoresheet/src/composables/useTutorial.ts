@@ -14,13 +14,15 @@ export interface ScoresheetAPI {
   answerVersion: { value: number }
   teamVersion: { value: number }
   cells: { value: CellValue[][][] }
-  teams: { value: { id: number; seatOrder: number; name: string }[] }
+  teams: { value: { id: number; seatOrder: number; name: string; onTime: boolean }[] }
   teamQuizzers: { value: { name: string; seatOrder: number }[][] }
+  quiz: { value: { overtime: boolean } }
   setQuizzerName: (ti: number, qi: number, name: string) => void
   setTeamName: (ti: number, name: string) => void
   setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
   toggleNoJump: (ci: number) => void
   toggleTimeout: (teamId: number, colKey: string) => void
+  toggleOnTime: (ti: number) => void
   moveQuizzer: (ti: number, from: number, to: number) => void
   loadFile: (data: DeserializeResult) => void
   resetStore: () => void
@@ -61,6 +63,21 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     showStep(0)
   }
 
+  function buildActions() {
+    return {
+      setQuizzerName: scoresheet.setQuizzerName,
+      setTeamName: scoresheet.setTeamName,
+      setCell: scoresheet.setCell,
+      toggleNoJump: scoresheet.toggleNoJump,
+      toggleTimeout: scoresheet.toggleTimeout,
+      toggleOnTime: scoresheet.toggleOnTime,
+      moveQuizzer: scoresheet.moveQuizzer,
+      columns: scoresheet.columns,
+      teams: scoresheet.teams,
+      quiz: scoresheet.quiz,
+    }
+  }
+
   function showStep(index: number) {
     cleanup()
     stepCompleted.value = false
@@ -69,6 +86,10 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     if (!step) {
       finish()
       return
+    }
+
+    if (step.setup) {
+      step.setup(buildActions())
     }
 
     targetEls.value = resolveTargetEls(step)
@@ -233,16 +254,7 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   function onNext() {
     const step = currentStep.value
     if (step?.onNext && !stepCompleted.value) {
-      step.onNext({
-        setQuizzerName: scoresheet.setQuizzerName,
-        setTeamName: scoresheet.setTeamName,
-        setCell: scoresheet.setCell,
-        toggleNoJump: scoresheet.toggleNoJump,
-        toggleTimeout: scoresheet.toggleTimeout,
-        moveQuizzer: scoresheet.moveQuizzer,
-        columns: scoresheet.columns,
-        teams: scoresheet.teams,
-      })
+      step.onNext(buildActions())
     }
     advance()
   }

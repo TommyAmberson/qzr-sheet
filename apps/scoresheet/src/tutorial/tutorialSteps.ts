@@ -6,9 +6,11 @@ export type ScoresheetActions = {
   setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
   toggleNoJump: (ci: number) => void
   toggleTimeout: (teamId: number, colKey: string) => void
+  toggleOnTime: (ti: number) => void
   moveQuizzer: (ti: number, from: number, to: number) => void
   columns: { value: { key: string }[] }
-  teams: { value: { id: number }[] }
+  teams: { value: { id: number; onTime: boolean }[] }
+  quiz: { value: { overtime: boolean } }
 }
 
 export interface TutorialStep {
@@ -32,6 +34,8 @@ export interface TutorialStep {
   allowSelectorPopup?: boolean
   /** Allow clicks through the overlay even for acknowledge steps */
   interactive?: boolean
+  /** Run when this step is shown to prepare state */
+  setup?: (actions: ScoresheetActions) => void
   /** Run when user presses Skip to fix up state */
   onNext?: (actions: ScoresheetActions) => void
 }
@@ -224,6 +228,64 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     placement: 'top',
     title: 'Substitution Complete',
     body: 'The quizzers have been swapped. The substitute is now in the lineup and the other quizzer moves to the bench (seat 5).',
+    completion: { type: 'acknowledge' },
+  },
+
+  // --- Overtime ---
+  {
+    id: 'fill-quiz',
+    target: { type: 'none' },
+    placement: 'bottom',
+    title: 'Fast Forward',
+    body: "Let's skip ahead to see what happens when teams are tied. We've filled in a full quiz where all three teams scored equally.",
+    completion: { type: 'acknowledge' },
+    setup: (actions) => {
+      // Clear all existing cells
+      for (let ti = 0; ti < 3; ti++) {
+        for (let qi = 0; qi < 5; qi++) {
+          for (let ci = 0; ci < 20; ci++) {
+            actions.setCell(ti, qi, ci, CellValue.Empty)
+          }
+        }
+      }
+      // Set on-time for all teams
+      for (let ti = 0; ti < 3; ti++) {
+        if (!actions.teams.value[ti]!.onTime) actions.toggleOnTime(ti)
+      }
+      // Fill Q1-Q12 with alternating correct answers (4 per team)
+      const answers: [number, number][] = [
+        [0, 0],
+        [1, 0],
+        [2, 0],
+        [0, 1],
+        [1, 1],
+        [2, 1],
+        [0, 2],
+        [1, 2],
+        [2, 2],
+        [0, 3],
+        [1, 3],
+        [2, 3],
+      ]
+      for (let ci = 0; ci < answers.length; ci++) {
+        const [ti, qi] = answers[ci]!
+        actions.setCell(ti, qi, ci, CellValue.Correct)
+      }
+      // Clear Q5 no-jump (set during earlier tutorial step), then set Q13-Q20
+      actions.toggleNoJump(4)
+      for (let ci = 12; ci < 20; ci++) {
+        actions.toggleNoJump(ci)
+      }
+      // Enable overtime
+      actions.quiz.value.overtime = true
+    },
+  },
+  {
+    id: 'explain-overtime',
+    target: { type: 'selector', css: '[data-tutorial="col-header-20"]' },
+    placement: 'bottom',
+    title: 'Overtime',
+    body: 'When teams are tied after question 20, overtime rounds appear. Only tied teams can answer, and error points (-10) apply to all questions.',
     completion: { type: 'acknowledge' },
   },
 
