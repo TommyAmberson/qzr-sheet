@@ -258,47 +258,63 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         if (!actions.teams.value[ti]!.onTime) actions.toggleOnTime(ti)
       }
 
-      // T2 q3 is an empty seat.
-      // T1 has 4 unique correct quizzers (+20), T2/T3 have 3 each (+10),
-      // balancing T1's Q17 error (-10).
-      // T1: 5C(100) + MB(0) + E(-10) + 4uniq(+20) + OT(+20) = 130
-      // T2: 5C(100) + 3uniq(+10) + OT(+20) = 130
-      // T3: 5C(100) + 3uniq(+10) + OT(+20) = 130
+      // T2 q3 is an empty seat. Q18 demonstrates A/B chain.
+      // T1: 4C + MB + 2E(-20) + 4uniq(+20) + on-time(+20) = 80-20+20+20 = 100
+      // T2: 4C + E(-10) + 3uniq(+10) + on-time(+20) = 80-10+10+20 = 100
+      // T3: 4C + E(-10) + B(+10) + 3uniq(+10) + on-time(+20) = 80-10+10+10+20 = 110?
       //
-      // T1: 5C(100) - 10(E) + 20(4 unique: q0,q1,q2,q3) + 20(on-time) = 130
-      // T2: 5C(100) + 10(3 unique: q0,q1,q2) + 20(on-time) = 130
-      // T3: 5C(100) + 10(3 unique: q0,q1,q2) + 20(on-time) = 130 ✓
+      // Careful trace (unique bonuses fire on column where 3rd/4th quizzer first scores):
+      // T1: Q1 q0 C(20), Q8 q2 C(20), Q11 q1 C(20+10), Q16 q3 C(20+10),
+      //     Q17 q0 E(-10), Q18 q2 E(-10), Q19 q2 C(20) = 100
+      // T2: Q6 q1 C(20), Q9 q2 C(20), Q12 q0 C(20+10), Q14 q1 C(20),
+      //     Q17A q2 C(20), Q18A q1 E(-10) = 100
+      // T3: Q7 q1 C(20), Q10 q2 C(20), Q13 q0 C(20+10), Q15 q1 C(20),
+      //     Q18B q2 B(10) = 100
+      // All: 100 + 20 on-time = 120 ✓
       const plays: [number, number, number, CellValue][] = [
-        [0, 0, 0, CellValue.Correct], // Q1:  T1 q0 C
-        [1, 1, 0, CellValue.Error], //   Q2:  T2 q0 E → toss-up
-        [2, 2, 0, CellValue.Error], //   Q3:  T3 q0 E → bonus for T1
+        [0, 0, 0, CellValue.Correct], //   Q1:  T1 q0 C
+        [1, 1, 0, CellValue.Error], //     Q2:  T2 q0 E → toss-up
+        [2, 2, 0, CellValue.Error], //     Q3:  T3 q0 E → bonus for T1
         [3, 0, 1, CellValue.MissedBonus], // Q4: T1 q1 MB
         // Q5: no-jump
-        [5, 1, 1, CellValue.Correct], //  Q6:  T2 q1 C
-        [6, 2, 1, CellValue.Correct], //  Q7:  T3 q1 C
-        [7, 0, 2, CellValue.Correct], //  Q8:  T1 q2 C
-        [8, 1, 2, CellValue.Correct], //  Q9:  T2 q2 C
-        [9, 2, 2, CellValue.Correct], //  Q10: T3 q2 C
-        [10, 0, 1, CellValue.Correct], // Q11: T1 q1 C (4th unique for T1)
-        [11, 1, 0, CellValue.Correct], // Q12: T2 q0 C
-        [12, 2, 0, CellValue.Correct], // Q13: T3 q0 C
-        [13, 1, 1, CellValue.Correct], // Q14: T2 q1 C
-        [14, 2, 1, CellValue.Correct], // Q15: T3 q1 C
-        [15, 0, 3, CellValue.Correct], // Q16: T1 q3 C (ci 15)
-        [18, 0, 0, CellValue.Error], //   Q17: T1 q0 E (ci 18, -10)
-        [19, 1, 2, CellValue.Correct], // Q17A: T2 q2 C (ci 19, toss-up)
-        [21, 2, 2, CellValue.Correct], // Q18: T3 q2 C (ci 21)
-        // Q19: no-jump (ci 24)
-        [27, 0, 0, CellValue.Correct], // Q20: T1 q0 C (ci 27)
+        [5, 1, 1, CellValue.Correct], //   Q6:  T2 q1 C
+        [6, 2, 1, CellValue.Correct], //   Q7:  T3 q1 C
+        [7, 0, 2, CellValue.Correct], //   Q8:  T1 q2 C
+        [8, 1, 2, CellValue.Correct], //   Q9:  T2 q2 C
+        [9, 2, 2, CellValue.Correct], //   Q10: T3 q2 C
+        [10, 0, 1, CellValue.Correct], //  Q11: T1 q1 C (4th unique)
+        [11, 1, 0, CellValue.Correct], //  Q12: T2 q0 C (3rd unique)
+        [12, 2, 0, CellValue.Correct], //  Q13: T3 q0 C (3rd unique)
+        [13, 1, 1, CellValue.Correct], //  Q14: T2 q1 C
+        [14, 2, 1, CellValue.Correct], //  Q15: T3 q1 C
+        [15, 0, 3, CellValue.Correct], //  Q16: T1 q3 C (ci 15)
+        [18, 0, 0, CellValue.Error], //    Q17: T1 q0 E (ci 18, -10)
+        [19, 1, 2, CellValue.Correct], //  Q17A: T2 q2 C (ci 19)
+        [21, 0, 2, CellValue.Error], //    Q18: T1 q2 E (ci 21, -10)
+        [22, 1, 1, CellValue.Error], //    Q18A: T2 q1 E (ci 22, toss-up, -10)
+        [23, 2, 2, CellValue.Bonus], //    Q18B: T3 q2 B (ci 23, bonus, +10)
+        [24, 0, 2, CellValue.Correct], //  Q19: T1 q2 C (ci 24)
+        // Q20: no-jump (ci 27)
       ]
 
       for (const [ci, ti, qi, value] of plays) {
         actions.setCell(ti, qi, ci, value)
       }
 
-      // No-jump on Q5 (already set from tutorial) and Q19
-      actions.toggleNoJump(24) // Q19
+      // No-jump on Q5 (already set from tutorial) and Q20
+      actions.toggleNoJump(27) // Q20
     },
+  },
+  {
+    id: 'explain-ab',
+    target: {
+      type: 'selector',
+      css: '[data-tutorial="col-header-21"], [data-tutorial="col-header-22"], [data-tutorial="col-header-23"]',
+    },
+    placement: 'bottom',
+    title: 'A/B Questions',
+    body: 'Questions 16-20 have A/B parts. When a quizzer errors, the question continues as a toss-up (A). If that also errors, the remaining team gets a bonus (B). Here Team 1 erred on Q18, Team 2 erred on the toss-up, and Team 3 got the bonus.',
+    completion: { type: 'acknowledge' },
   },
   {
     id: 'overtime-toggle',
@@ -332,10 +348,10 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     completion: { type: 'acknowledge' },
     setup: (actions) => {
       // OT columns: Q21/A/B → ci 30/31/32, Q22/A/B → 33/34/35, Q23/A/B → 36/37/38
-      // Q21: T1 E (-10) → 130, Q21A: T2 C (+20) → 150
-      // Q22: T2 E (-10) → 140, Q22A: T1 C (+20) → 140
-      // Q23: T3 E (-10) → 120, Q23A: NJ
-      // Result: T1=140, T2=140, T3=120
+      // Q21: T1 E (-10) → 110, Q21A: T2 C (+20) → 140
+      // Q22: T2 E (-10) → 130, Q22A: T1 C (+20) → 130
+      // Q23: T3 E (-10) → 110, Q23A: NJ
+      // Result: T1=130, T2=130, T3=110
       actions.setCell(0, 2, 30, CellValue.Error) // Q21: T1 q2 E
       actions.setCell(1, 1, 31, CellValue.Correct) // Q21A: T2 q1 C
       actions.setCell(1, 0, 33, CellValue.Error) // Q22: T2 q0 E
@@ -362,11 +378,11 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     setup: (actions) => {
       // OT round 2: Q24/A/B → ci 39/40/41, Q25/A/B → 42/43/44, Q26/A/B → 45/46/47
       // With only 2 teams, A columns are skipped (greyedOut routes directly to B)
-      // Q24: T1 E (-10)→130, Q24B: T2 MB (bonus, 0)→140
-      // Q25: T1 E (-10)→120, Q25B: T2 MB (bonus, 0)→140
-      // Q26: T1 E (-10)→110, Q26B: T2 B  (bonus,+10)→150
-      // Result: T2=150 (1st), T1=110 (2nd), T3=120 (3rd)
-      // 2nd place (110) < 3rd place (120) — scores are non-linear!
+      // Q24: T1 E (-10)→120, Q24B: T2 MB (bonus, 0)→130
+      // Q25: T1 E (-10)→110, Q25B: T2 MB (bonus, 0)→130
+      // Q26: T1 E (-10)→100, Q26B: T2 B  (bonus,+10)→140
+      // Result: T2=140 (1st), T1=100 (2nd), T3=110 (3rd)
+      // 2nd place (100) < 3rd place (110) — scores are non-linear!
       actions.setCell(0, 1, 39, CellValue.Error) // Q24: T1 q1 E
       actions.setCell(1, 1, 41, CellValue.MissedBonus) // Q24B: T2 q1 MB
       actions.setCell(0, 3, 42, CellValue.Error) // Q25: T1 q3 E
