@@ -361,17 +361,20 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     completion: { type: 'acknowledge' },
     setup: (actions) => {
       // OT round 2: Q24/A/B → ci 39/40/41, Q25/A/B → 42/43/44, Q26/A/B → 45/46/47
-      // Q24: T1 E (-10) → 130, Q24A: T2 C (+20) → 160
-      // Q25: T1 E (-10) → 120, Q25A: NJ
-      // Q26: T1 E (-10) → 110, Q26A: NJ
-      // Result: T2=160 (1st), T1=110 (2nd), T3=120 (3rd)
+      // Q24: T1 E (-10)→130, Q24A: NJ, Q24B: T2 MB (bonus, 0)→140
+      // Q25: T1 E (-10)→120, Q25A: NJ, Q25B: T2 MB (bonus, 0)→140
+      // Q26: T1 E (-10)→110, Q26A: NJ, Q26B: T2 B  (bonus,+10)→150
+      // Result: T2=150 (1st), T1=110 (2nd), T3=120 (3rd)
       // 2nd place (110) < 3rd place (120) — scores are non-linear!
       actions.setCell(0, 1, 39, CellValue.Error) // Q24: T1 q1 E
-      actions.setCell(1, 1, 40, CellValue.Correct) // Q24A: T2 q1 C
+      actions.toggleNoJump(40) // Q24A: NJ
+      actions.setCell(1, 1, 41, CellValue.MissedBonus) // Q24B: T2 q1 MB
       actions.setCell(0, 3, 42, CellValue.Error) // Q25: T1 q3 E
       actions.toggleNoJump(43) // Q25A: NJ
+      actions.setCell(1, 2, 44, CellValue.MissedBonus) // Q25B: T2 q2 MB
       actions.setCell(0, 0, 45, CellValue.Error) // Q26: T1 q0 E
       actions.toggleNoJump(46) // Q26A: NJ
+      actions.setCell(1, 0, 47, CellValue.Bonus) // Q26B: T2 q0 B (+10)
     },
   },
   {
