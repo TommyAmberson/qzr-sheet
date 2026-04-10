@@ -298,8 +298,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'explain-q18a',
-    target: { type: 'selector', css: '[data-tutorial="col-header-22"]' },
-    placement: 'bottom',
+    target: { type: 'column', ci: 22 },
+    placement: 'right',
     title: 'Toss-Up (Q18A)',
     body: 'Because Team 1 errored, the question number doesn\u2019t advance \u2014 we ask an A version of Q18 instead. Q18A is a toss-up for the other two teams.',
     completion: { type: 'acknowledge' },
@@ -316,8 +316,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'explain-q18b',
-    target: { type: 'selector', css: '[data-tutorial="col-header-23"]' },
-    placement: 'bottom',
+    target: { type: 'column', ci: 23 },
+    placement: 'right',
     title: 'Bonus (Q18B)',
     body: 'Team 2 also errored, so the number still doesn\u2019t advance \u2014 we ask a B version of Q18. Q18B is a bonus for Team 3, who answers without competition. Only after this will we move to Q19.',
     completion: { type: 'acknowledge' },
