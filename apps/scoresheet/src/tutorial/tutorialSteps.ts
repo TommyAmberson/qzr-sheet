@@ -291,7 +291,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'cell', ti: 0, qi: 2, ci: 21 },
     placement: 'bottom',
     title: 'Question 18',
-    body: 'Team 1 answers question 18 incorrectly. Click this cell and select E (Error).',
+    body: 'Every question from 17-20 must have all three teams jumping. Team 1 errors on Q18 \u2014 click this cell and select E.',
     completion: { type: 'cell-value', ti: 0, qi: 2, ci: 21, value: CellValue.Error },
     allowSelectorPopup: true,
     onNext: (actions) => actions.setCell(0, 2, 21, CellValue.Error),
@@ -301,7 +301,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'selector', css: '[data-tutorial="col-header-22"]' },
     placement: 'bottom',
     title: 'Toss-Up (Q18A)',
-    body: 'Because Team 1 errored on Q18, a new column Q18A appears. It\u2019s a toss-up \u2014 the other two teams can jump.',
+    body: 'Because Team 1 errored, the question number doesn\u2019t advance \u2014 we ask an A version of Q18 instead. Q18A is a toss-up for the other two teams.',
     completion: { type: 'acknowledge' },
   },
   {
@@ -319,7 +319,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'selector', css: '[data-tutorial="col-header-23"]' },
     placement: 'bottom',
     title: 'Bonus (Q18B)',
-    body: 'Both other teams erred, so Q18B is a bonus for Team 3 \u2014 they answer without competition.',
+    body: 'Team 2 also errored, so the number still doesn\u2019t advance \u2014 we ask a B version of Q18. Q18B is a bonus for Team 3, who answers without competition. Only after this will we move to Q19.',
     completion: { type: 'acknowledge' },
   },
   {
