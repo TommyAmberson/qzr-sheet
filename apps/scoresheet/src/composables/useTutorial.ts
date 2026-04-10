@@ -255,10 +255,14 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   async function onNext() {
     const step = currentStep.value
     if (step?.onNext && !stepCompleted.value) {
+      const startIndex = currentStepIndex.value
       step.onNext(buildActions())
       // Wait for DOM to reflect the state change before advancing so the next
       // step's resolveTargetEls can find newly-added columns (e.g. Q18A after Q18 error).
       await nextTick()
+      // A completion watcher (cell-value, input-non-empty blur) may have already
+      // advanced during the flush — don't double-advance.
+      if (currentStepIndex.value !== startIndex) return
     }
     advance()
   }
