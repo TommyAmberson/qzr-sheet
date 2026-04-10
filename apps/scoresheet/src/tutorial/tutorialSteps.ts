@@ -258,57 +258,37 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         if (!actions.teams.value[ti]!.onTime) actions.toggleOnTime(ti)
       }
 
-      // Realistic quiz: [colIdx, teamIdx, quizzerIdx, value]
-      // Note: T2 (ti=1) q3 is an empty seat (removed during tutorial)
-      // Each team gets 3 unique correct quizzers (+10 bonus each)
+      // T2 q3 is an empty seat. T1 has 4 unique correct quizzers (+20),
+      // T2/T3 have 3 each (+10), balancing T1's Q17 error (-10).
+      // T1: 5C(100) + MB(0) + E(-10) + 4uniq(+20) + OT(+20) = 130
+      // T2: 5C(100) + 3uniq(+10) + OT(+20) = 130
+      // T3: 5C(100) + 3uniq(+10) + OT(+20) = 130
       //
-      // Q1:  T1 q0 C (+20)       T1: 20
-      // Q2:  T2 q0 E (0)         T2: 0    → toss-up Q3
-      // Q3:  T3 q0 E (0)         T3: 0    → bonus Q4 for T1
-      // Q4:  T1 q1 B (+10)       T1: 30
-      // Q5:  No Jump
-      // Q6:  T2 q1 C (+20)       T2: 20
-      // Q7:  T3 q1 C (+20)       T3: 20
-      // Q8:  T1 q2 C (+20)       T1: 50
-      // Q9:  T2 q2 C (+20)       T2: 40
-      // Q10: T3 q2 C (+20)       T3: 40
-      // Q11: T1 q0 C (+20)       T1: 70
-      // Q12: T2 q0 C (+20)       T2: 60
-      // Q13: T3 q0 C (+20)       T3: 60   (q0 not q3 — keeps 3 unique)
-      // Q14: T2 q1 C (+20)       T2: 80
-      // Q15: T1 q3 C (+20)       T1: 90
-      // Q16: T3 q1 C (+20)       T3: 80
-      // Q17: T1 q1 E (-10)       T1: 80   → Q17A toss-up
-      // Q17A:T2 q2 C (+20)       T2: 100  → resolves Q17
-      // Q18: T3 q2 C (+20)       T3: 100
-      // Q19: No Jump
-      // Q20: T1 q0 C (+20)       T1: 100
-      //
-      // Unique correct quizzers: T1: q0,q2,q3 (3→+10), T2: q0,q1,q2 (3→+10),
-      //                          T3: q0,q1,q2 (3→+10)
-      // Final: 100 + 20 on-time + 10 unique = 130 each
+      // T1: 5C(100) - 10(E) + 20(4 unique: q0,q1,q2,q3) + 20(on-time) = 130
+      // T2: 5C(100) + 10(3 unique: q0,q1,q2) + 20(on-time) = 130
+      // T3: 5C(100) + 10(3 unique: q0,q1,q2) + 20(on-time) = 130 ✓
       const plays: [number, number, number, CellValue][] = [
-        [0, 0, 0, CellValue.Correct], // Q1
-        [1, 1, 0, CellValue.Error], // Q2
-        [2, 2, 0, CellValue.Error], // Q3 (toss-up)
-        [3, 0, 1, CellValue.Bonus], // Q4 (bonus for T1)
+        [0, 0, 0, CellValue.Correct], // Q1:  T1 q0 C
+        [1, 1, 0, CellValue.Error], //   Q2:  T2 q0 E → toss-up
+        [2, 2, 0, CellValue.Error], //   Q3:  T3 q0 E → bonus for T1
+        [3, 0, 1, CellValue.MissedBonus], // Q4: T1 q1 MB
         // Q5: no-jump
-        [5, 1, 1, CellValue.Correct], // Q6
-        [6, 2, 1, CellValue.Correct], // Q7
-        [7, 0, 2, CellValue.Correct], // Q8
-        [8, 1, 2, CellValue.Correct], // Q9
-        [9, 2, 2, CellValue.Correct], // Q10
-        [10, 0, 0, CellValue.Correct], // Q11
-        [11, 1, 0, CellValue.Correct], // Q12
-        [12, 2, 0, CellValue.Correct], // Q13 (T3 q0 — keep 3 unique quizzers)
-        [13, 1, 1, CellValue.Correct], // Q14
-        [14, 0, 3, CellValue.Correct], // Q15
-        [15, 2, 1, CellValue.Correct], // Q16 (ci 15)
-        [18, 0, 1, CellValue.Error], // Q17 (ci 18, error points -10)
-        [19, 1, 2, CellValue.Correct], // Q17A (ci 19, toss-up)
-        [21, 2, 2, CellValue.Correct], // Q18 (ci 21)
+        [5, 1, 1, CellValue.Correct], //  Q6:  T2 q1 C
+        [6, 2, 1, CellValue.Correct], //  Q7:  T3 q1 C
+        [7, 0, 2, CellValue.Correct], //  Q8:  T1 q2 C
+        [8, 1, 2, CellValue.Correct], //  Q9:  T2 q2 C
+        [9, 2, 2, CellValue.Correct], //  Q10: T3 q2 C
+        [10, 0, 1, CellValue.Correct], // Q11: T1 q1 C (4th unique for T1)
+        [11, 1, 0, CellValue.Correct], // Q12: T2 q0 C
+        [12, 2, 0, CellValue.Correct], // Q13: T3 q0 C
+        [13, 1, 1, CellValue.Correct], // Q14: T2 q1 C
+        [14, 2, 1, CellValue.Correct], // Q15: T3 q1 C
+        [15, 0, 3, CellValue.Correct], // Q16: T1 q3 C (ci 15)
+        [18, 0, 0, CellValue.Error], //   Q17: T1 q0 E (ci 18, -10)
+        [19, 1, 2, CellValue.Correct], // Q17A: T2 q2 C (ci 19, toss-up)
+        [21, 2, 2, CellValue.Correct], // Q18: T3 q2 C (ci 21)
         // Q19: no-jump (ci 24)
-        [27, 0, 0, CellValue.Correct], // Q20 (ci 27)
+        [27, 0, 0, CellValue.Correct], // Q20: T1 q0 C (ci 27)
       ]
 
       for (const [ci, ti, qi, value] of plays) {
