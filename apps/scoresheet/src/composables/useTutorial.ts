@@ -34,7 +34,10 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   const currentStepIndex = ref(0)
   const targetEls = ref<HTMLElement[]>([])
   const stepCompleted = ref(false)
-  let snapshot: string | null = null
+  // In-memory copy of the parsed snapshot — the normal `finish()` path restores
+  // from this, not from the serialized string, so a parse failure at finish time
+  // can't destroy the user's pre-tutorial state.
+  let snapshotData: DeserializeResult | null = null
   let cleanupFns: (() => void)[] = []
 
   const currentStep = computed<TutorialStep | null>(() =>
@@ -44,13 +47,22 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   const totalSteps = TUTORIAL_STEPS.length
 
   function start() {
-    snapshot = serializeStore(
+    const serialized = serializeStore(
       scoresheet.store,
       scoresheet.noJumpMap.value,
       scoresheet.timeoutMap.value,
     )
+    // Parse immediately to verify we can restore later, and keep the parsed
+    // form in memory. If this throws, refuse to start — the user's state is
+    // still intact because we haven't touched the store yet.
     try {
-      localStorage.setItem(SNAPSHOT_KEY, snapshot)
+      snapshotData = parseQuizFile(serialized)
+    } catch (e) {
+      console.error('Tutorial: failed to snapshot current state, not starting', e)
+      return
+    }
+    try {
+      localStorage.setItem(SNAPSHOT_KEY, serialized)
     } catch {
       // localStorage full — proceed without crash recovery
     }
@@ -271,19 +283,27 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     cleanup()
     targetEls.value = []
 
-    const snapshotData = snapshot || localStorage.getItem(SNAPSHOT_KEY)
+    // Prefer the in-memory snapshot (no parse needed) so the normal exit path
+    // is immune to parse failures. Fall back to localStorage only if the
+    // in-memory copy was lost (e.g. tutorial was entered via crash recovery).
     if (snapshotData) {
-      try {
-        const data = parseQuizFile(snapshotData)
-        scoresheet.loadFile(data)
-      } catch {
-        scoresheet.resetStore()
+      scoresheet.loadFile(snapshotData)
+    } else {
+      const saved = localStorage.getItem(SNAPSHOT_KEY)
+      if (saved) {
+        try {
+          scoresheet.loadFile(parseQuizFile(saved))
+        } catch (e) {
+          // Leave the current store state alone rather than wiping it —
+          // leaking tutorial state is strictly better than destroying user data.
+          console.error('Tutorial: failed to restore snapshot on finish', e)
+        }
       }
     }
 
     scoresheet.pauseAutoSave.value = false
     active.value = false
-    snapshot = null
+    snapshotData = null
     try {
       localStorage.removeItem(SNAPSHOT_KEY)
     } catch {

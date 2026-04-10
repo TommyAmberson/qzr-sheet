@@ -1,10 +1,28 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
 import { TUTORIAL_STEPS } from '../../tutorial/tutorialSteps'
 import { CellValue } from '../../types/scoresheet'
 
-beforeEach(() => localStorage.clear())
+// Toggle to force parseQuizFile to throw, for snapshot-failure tests.
+let forceParseFailure = false
+vi.mock('../../persistence/quizFile', async () => {
+  const actual = await vi.importActual<typeof import('../../persistence/quizFile')>(
+    '../../persistence/quizFile',
+  )
+  return {
+    ...actual,
+    parseQuizFile: (json: string) => {
+      if (forceParseFailure) throw new Error('forced parse failure')
+      return actual.parseQuizFile(json)
+    },
+  }
+})
+
+beforeEach(() => {
+  localStorage.clear()
+  forceParseFailure = false
+})
 
 describe('useTutorial — start', () => {
   it('is inactive initially', () => {
@@ -130,5 +148,38 @@ describe('useTutorial — onNext double-advance guard', () => {
     // With the index-guard, we end up exactly one step ahead, not two.
     await t.onNext()
     expect(t.currentStepIndex.value).toBe(q1Idx + 1)
+  })
+})
+
+describe('useTutorial — snapshot safety', () => {
+  // If parseQuizFile throws when start() tries to snapshot state, the tutorial
+  // must refuse to activate. The user's pre-tutorial state must stay intact.
+  it('start() refuses to activate if snapshot cannot be parsed', () => {
+    const s = useScoresheet()
+    s.setCell(0, 0, 0, CellValue.Correct)
+    forceParseFailure = true
+    const t = useTutorial(s)
+    t.start()
+    expect(t.active.value).toBe(false)
+    // Pre-tutorial state is still there
+    expect(s.cells.value[0]![0]![0]).toBe(CellValue.Correct)
+    // Auto-save was not paused (start bailed before touching it)
+    expect(s.pauseAutoSave.value).toBe(false)
+  })
+
+  // finish() uses the in-memory snapshot — so restore works even if localStorage
+  // is wiped between start() and finish().
+  it('finish() restores state using in-memory snapshot even when localStorage is cleared', () => {
+    const s = useScoresheet()
+    s.setCell(0, 0, 0, CellValue.Correct)
+    const t = useTutorial(s)
+    t.start()
+    // Tutorial reset the store, Q1 is empty
+    expect(s.cells.value[0]![0]![0]).toBe(CellValue.Empty)
+    // Nuke localStorage mid-tutorial
+    localStorage.clear()
+    t.finish()
+    // Pre-tutorial state restored from the in-memory copy
+    expect(s.cells.value[0]![0]![0]).toBe(CellValue.Correct)
   })
 })
