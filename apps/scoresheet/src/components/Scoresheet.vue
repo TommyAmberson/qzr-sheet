@@ -17,10 +17,12 @@ import {
 import { fillOts } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import { anyTeamHasAnswer } from '../scoring/helpers'
-import { validationMessage } from '../scoring/validation'
+import { ValidationCode, validationMessage } from '../scoring/validation'
 import { useMeetSession } from '../composables/useMeetSession'
+import { useTutorial } from '../composables/useTutorial'
 import MeetPickerDialog from './MeetPickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
+import TutorialOverlay from './TutorialOverlay.vue'
 
 const { theme, toggleTheme } = useTheme()
 
@@ -202,6 +204,8 @@ const {
   visibleOtRounds,
   allQuestionsComplete,
   validationErrors,
+  timeoutValidationErrors,
+  tooManyTimeoutsTeams,
   placements,
   placementPoints,
   setTeamName,
@@ -211,10 +215,13 @@ const {
   store,
   noJumpMap,
   timeoutMap,
-  timeoutCount,
+  isTimeoutAllowed,
   toggleTimeout,
   hasTimeoutAt,
   hasTimeoutAfterCol,
+  pauseAutoSave,
+  answerVersion,
+  teamVersion,
   loadFile,
   resetStore,
   clearAnswers,
@@ -227,9 +234,39 @@ const {
   markSaved,
 } = useScoresheet()
 
+const tutorial = useTutorial({
+  store,
+  noJumpMap,
+  timeoutMap,
+  pauseAutoSave,
+  answerVersion,
+  teamVersion,
+  cells,
+  teams,
+  teamQuizzers,
+  columns,
+  quiz,
+  setQuizzerName,
+  setTeamName,
+  setCell,
+  toggleNoJump,
+  toggleTimeout,
+  toggleOnTime,
+  moveQuizzer,
+  loadFile,
+  resetStore,
+})
+tutorial.recoverFromCrash()
+
 /** All unique validation messages for the status tooltip */
 const allValidationMessages = computed(() => {
   const msgs = new Set<string>()
+  if (timeoutValidationErrors.value.size > 0) {
+    msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+  }
+  if (tooManyTimeoutsTeams.value.size > 0) {
+    msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
+  }
   for (const codes of validationErrors.value.values()) {
     for (const code of codes) msgs.add(validationMessage(code))
   }
@@ -743,10 +780,13 @@ const appVersion: string = __APP_VERSION__
                     <button @click="openMeetPicker">🔗 Load teams from meet…</button>
                   </div>
                 </div>
+                <button class="help-toggle" title="Interactive tutorial" @click="tutorial.start()">
+                  ?
+                </button>
               </div>
             </div>
             <div class="quiz-meta quiz-meta--right">
-              <label class="meta-field meta-field--toggle">
+              <label class="meta-field meta-field--toggle" data-tutorial="overtime-toggle">
                 <input v-model="quiz.overtime" type="checkbox" />
                 <span class="toggle-track"><span class="toggle-thumb" /></span>
                 <span class="meta-label">Overtime</span>
@@ -774,6 +814,7 @@ const appVersion: string = __APP_VERSION__
                 v-for="{ col, idx, entering } in displayColumns"
                 :key="col.key"
                 :ref="(el: any) => registerColHeader(idx, el as HTMLElement | null)"
+                :data-tutorial="`col-header-${idx}`"
                 :class="[
                   'col--question',
                   colGroupClass(idx),
@@ -870,9 +911,11 @@ const appVersion: string = __APP_VERSION__
                         >
                           <input
                             class="editable-name editable-name--team"
+                            :data-tutorial="`team-name-${ti}`"
                             :value="team.name"
                             @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
                             @focus="($event.target as HTMLInputElement).select()"
+                            @keydown.enter="($event.target as HTMLInputElement).blur()"
                           />
                         </span>
                       </template>
@@ -896,6 +939,7 @@ const appVersion: string = __APP_VERSION__
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
+                  :data-tutorial="`timeout-${ti}-${idx}`"
                   :class="[
                     'team-header-spacer',
                     'timeout-toggle',
@@ -904,10 +948,18 @@ const appVersion: string = __APP_VERSION__
                     { 'timeout-after': hasTimeoutAfterCol(col.key) },
                     { 'has-timeout': hasTimeoutAt(team.id, col.key) },
                     {
-                      'timeout-maxed':
-                        !hasTimeoutAt(team.id, col.key) && timeoutCount(team.id) >= 2,
+                      'timeout-invalid':
+                        hasTimeoutAt(team.id, col.key) &&
+                        (!isTimeoutAllowed(col.key) || tooManyTimeoutsTeams.has(ti)),
                     },
                   ]"
+                  :title="
+                    hasTimeoutAt(team.id, col.key) && !isTimeoutAllowed(col.key)
+                      ? 'Timeouts can\'t be called after error points (after question 17)'
+                      : hasTimeoutAt(team.id, col.key) && tooManyTimeoutsTeams.has(ti)
+                        ? 'Each team is allowed only 2 timeouts per quiz'
+                        : undefined
+                  "
                   @click.stop="toggleTimeout(team.id, col.key)"
                 />
                 <td class="col--name team-score-label">Score</td>
@@ -918,6 +970,7 @@ const appVersion: string = __APP_VERSION__
                 v-for="(quizzer, qi) in teamQuizzers[ti]"
                 :key="quizzer.id"
                 :ref="(el: any) => registerRowEl(ti, qi, el as HTMLElement)"
+                :data-tutorial="`quizzer-row-${ti}-${qi}`"
                 :class="[
                   'row--quizzer',
                   { 'row--quizzed-out': scoring[ti]?.quizzers[qi]?.quizzedOut },
@@ -979,9 +1032,11 @@ const appVersion: string = __APP_VERSION__
                               ),
                             },
                           ]"
+                          :data-tutorial="`quizzer-name-${ti}-${qi}`"
                           :value="quizzer.name"
                           @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
                           @focus="($event.target as HTMLInputElement).select()"
+                          @keydown.enter="($event.target as HTMLInputElement).blur()"
                         />
                       </span>
                       <button
@@ -995,6 +1050,7 @@ const appVersion: string = __APP_VERSION__
                       <button
                         v-else-if="quizzer.name"
                         class="name-clear"
+                        :data-tutorial="`name-clear-${ti}-${qi}`"
                         title="Clear name (empty seat)"
                         @click.stop="setQuizzerName(ti, qi, '')"
                       >
@@ -1074,6 +1130,7 @@ const appVersion: string = __APP_VERSION__
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
                   :ref="(el: any) => registerCellEl(ti, qi, idx, el as HTMLElement | null)"
+                  :data-tutorial="`cell-${ti}-${qi}-${idx}`"
                   :class="[
                     'cell',
                     cellClass[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty],
@@ -1111,6 +1168,7 @@ const appVersion: string = __APP_VERSION__
                 <!-- Team total spans quizzer rows only -->
                 <td
                   v-if="qi === 0"
+                  :data-tutorial="`team-total-${ti}`"
                   :class="[
                     'col--total',
                     'team-total-value',
@@ -1144,6 +1202,7 @@ const appVersion: string = __APP_VERSION__
                   <span
                     class="on-time"
                     :class="{ 'on-time--active': team.onTime }"
+                    :data-tutorial="`on-time-${ti}`"
                     @click.stop="toggleOnTime(ti)"
                   >
                     <span class="on-time-box">✓</span>
@@ -1240,6 +1299,7 @@ const appVersion: string = __APP_VERSION__
               <td
                 v-for="{ col, idx, entering } in displayColumns"
                 :key="col.key"
+                :data-tutorial="`no-jump-${idx}`"
                 :class="[
                   'cell cell--no-jump',
                   colGroupClass(idx),
@@ -1279,9 +1339,19 @@ const appVersion: string = __APP_VERSION__
       <!-- Cell selector popup -->
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
-        <div v-if="selector" class="selector-backdrop" @click="closeSelector">
+        <div
+          v-if="selector"
+          :class="[
+            'selector-backdrop',
+            { 'selector-elevated': tutorial.currentStep.value?.allowSelectorPopup },
+          ]"
+          @click="closeSelector"
+        >
           <div
-            class="selector-popup"
+            :class="[
+              'selector-popup',
+              { 'selector-elevated': tutorial.currentStep.value?.allowSelectorPopup },
+            ]"
             :style="{ left: selector.x + 'px', top: selector.y + 'px' }"
             @click.stop
           >
@@ -1302,6 +1372,17 @@ const appVersion: string = __APP_VERSION__
         </div>
       </Teleport>
     </div>
+
+    <TutorialOverlay
+      v-if="tutorial.active.value && tutorial.currentStep.value"
+      :step="tutorial.currentStep.value"
+      :step-index="tutorial.currentStepIndex.value"
+      :total-steps="tutorial.totalSteps"
+      :target-els="tutorial.targetEls.value"
+      :completed="tutorial.stepCompleted.value"
+      @next="tutorial.onNext()"
+      @skip="tutorial.finish()"
+    />
   </div>
 </template>
 
@@ -1854,6 +1935,24 @@ const appVersion: string = __APP_VERSION__
     border-color 0.15s;
 }
 .theme-toggle:hover {
+  background: var(--color-border-alt);
+  border-color: var(--color-text-faint);
+}
+.help-toggle {
+  background: color-mix(in srgb, var(--color-meta-accent) 20%, transparent);
+  border: 1px solid var(--color-meta-accent);
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.15rem 0.6rem;
+  border-radius: 4px;
+  color: var(--color-text);
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.help-toggle:hover {
   background: var(--color-border-alt);
   border-color: var(--color-text-faint);
 }
@@ -2910,10 +3009,19 @@ thead tr th.sticky-col {
   opacity: 1;
   color: var(--color-text);
 }
-.timeout-toggle.timeout-maxed {
-  cursor: default;
+.timeout-toggle.timeout-invalid::after {
+  opacity: 1;
+  color: var(--color-error, #dc2626);
 }
-.timeout-toggle.timeout-maxed:hover::after {
-  opacity: 0;
+.timeout-toggle.timeout-invalid {
+  background: color-mix(in srgb, var(--color-error, #dc2626) 10%, transparent);
+}
+
+/* Elevate cell selector above tutorial overlay during allowSelectorPopup steps */
+.selector-backdrop.selector-elevated {
+  z-index: 10002 !important;
+}
+.selector-popup.selector-elevated {
+  z-index: 10003 !important;
 }
 </style>

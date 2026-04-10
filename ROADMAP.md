@@ -118,10 +118,48 @@ Optional items that can happen any time, independent of Phase 4.
 * **Print-friendly layout** — CSS print styles, hide UI chrome, format for A4/letter
 * **Code signing** — macOS notarization and Windows signing for warning-free installers
 * **Auto-updater** — Tauri's built-in update mechanism
+* **Seat bonuses** — per the rules, bonus questions go to the "corresponding chair" on the remaining
+  team (the same seat number as the quizzer who erred), not the whole team. Currently any quizzer on
+  the bonus team can answer. Implementing this means: identifying which seat the bonus targets,
+  greying out non-target seats on bonus questions, and validating that only the correct seat answers
 
 ---
 
 ## In Progress / Up Next
+
+### Interactive Tutorial
+
+Guided walkthrough that teaches a new user how to fill out a quiz scoresheet. Runs in a sandbox —
+snapshots current state, resets to a clean scoresheet, walks through a scripted quiz with real
+interactions (click cells, select answers, assign names), then restores the original state on
+completion or cancel.
+
+**Approach:**
+
+* Tooltip/highlight library (Driver.js or Shepherd.js) for step-by-step popovers pointing at UI
+  elements
+* Custom step engine: each step defines a target element, instruction text, and an expected action;
+  the tutorial advances only when the user performs the correct action
+* Sandbox composable: snapshot all reactive state (cells, names, timeouts, meta) before entering
+  tutorial mode; restore on exit
+* Accessible from a help menu; replayable any time
+
+**Scenario covers:**
+
+* Naming teams and all 5 quizzers (including the 5th/substitute quizzer)
+* On-time bonus (before Q1)
+* Correct answers, errors, toss-ups, and bonus questions
+* No-jump toggle
+* Calling a timeout and swapping the 5th quizzer in
+* Question type dropdown
+
+**Library:** Driver.js (~5 KB, zero dependencies) for overlay/spotlight/tooltip.
+
+**Design questions to resolve before starting:**
+
+* How to handle the quizzer swap step — drag reorder vs a simpler "click to swap" UI during tutorial
+
+---
 
 ### Phase 4.7: Scoresheet — load teams from meet
 

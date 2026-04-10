@@ -202,6 +202,51 @@ export function useScoresheet() {
     ),
   )
 
+  /** Column indices that have an invalid timeout (after Q16) */
+  const timeoutValidationErrors = computed(() => {
+    const invalidCols = new Set<number>()
+    for (const timeouts of timeoutMap.value.values()) {
+      for (const t of timeouts) {
+        if (t.afterColumnKey !== null && !isTimeoutAllowed(t.afterColumnKey)) {
+          const ci = columns.value.findIndex((c) => c.key === t.afterColumnKey)
+          if (ci >= 0) invalidCols.add(ci)
+        }
+      }
+    }
+    return invalidCols
+  })
+
+  /** Team indices that have invalid timeouts, mapped to the offending column indices */
+  const timeoutErrorsByTeam = computed(() => {
+    const map = new Map<number, Set<number>>()
+    for (const [teamId, timeouts] of timeoutMap.value) {
+      const ti = teams.value.findIndex((t) => t.id === teamId)
+      if (ti < 0) continue
+      for (const t of timeouts) {
+        if (t.afterColumnKey !== null && !isTimeoutAllowed(t.afterColumnKey)) {
+          const ci = columns.value.findIndex((c) => c.key === t.afterColumnKey)
+          if (ci >= 0) {
+            if (!map.has(ti)) map.set(ti, new Set())
+            map.get(ti)!.add(ci)
+          }
+        }
+      }
+    }
+    return map
+  })
+
+  /** Team indices that have more than 2 timeouts */
+  const tooManyTimeoutsTeams = computed(() => {
+    const set = new Set<number>()
+    for (const [teamId, timeouts] of timeoutMap.value) {
+      if (timeouts.length > MAX_TIMEOUTS_PER_TEAM) {
+        const ti = teams.value.findIndex((t) => t.id === teamId)
+        if (ti >= 0) set.add(ti)
+      }
+    }
+    return set
+  })
+
   // --- Query helpers (business logic the template needs) ---
 
   function isBonusForTeam(teamIdx: number, colIdx: number): boolean {
@@ -225,6 +270,7 @@ export function useScoresheet() {
 
   /** Whether any cell in a column has a validation error */
   function columnHasErrors(ci: number): boolean {
+    if (timeoutValidationErrors.value.has(ci)) return true
     for (const key of validationErrors.value.keys()) {
       if (key.endsWith(`:${ci}`)) return true
     }
@@ -234,6 +280,9 @@ export function useScoresheet() {
   /** Get deduplicated validation messages for all cells in a column */
   function columnValidationMessages(ci: number): string[] {
     const msgs = new Set<string>()
+    if (timeoutValidationErrors.value.has(ci)) {
+      msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+    }
     for (const [key, codes] of validationErrors.value) {
       if (key.endsWith(`:${ci}`)) {
         for (const code of codes) msgs.add(validationMessage(code))
@@ -264,6 +313,12 @@ export function useScoresheet() {
   /** Get deduplicated validation messages for all cells in a team */
   function teamValidationMessages(ti: number): string[] {
     const msgs = new Set<string>()
+    if (timeoutErrorsByTeam.value.has(ti)) {
+      msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+    }
+    if (tooManyTimeoutsTeams.value.has(ti)) {
+      msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
+    }
     for (const [key, codes] of validationErrors.value) {
       if (key.startsWith(`${ti}:`)) {
         for (const code of codes) msgs.add(validationMessage(code))
@@ -287,13 +342,20 @@ export function useScoresheet() {
   }
 
   function teamHasErrors(ti: number): boolean {
+    if (timeoutErrorsByTeam.value.has(ti)) return true
+    if (tooManyTimeoutsTeams.value.has(ti)) return true
     for (const key of validationErrors.value.keys()) {
       if (key.startsWith(`${ti}:`)) return true
     }
     return false
   }
 
-  const hasAnyErrors = computed(() => validationErrors.value.size > 0)
+  const hasAnyErrors = computed(
+    () =>
+      validationErrors.value.size > 0 ||
+      timeoutValidationErrors.value.size > 0 ||
+      tooManyTimeoutsTeams.value.size > 0,
+  )
 
   /** Get the answer value for a column (first non-empty, non-foul value) */
   function colAnswerValue(colIdx: number): CellValue {
@@ -476,6 +538,12 @@ export function useScoresheet() {
     timeoutMap.value = new Map(snap)
   }
 
+  /** Timeouts can be called between questions up through Q16; not after Q17+ (error points) */
+  function isTimeoutAllowed(columnKey: string): boolean {
+    const num = parseInt(columnKey, 10)
+    return !isNaN(num) && num <= 16
+  }
+
   function addTimeout(teamId: number, afterColumnKey: string | null): void {
     const snapshot = snapshotTimeouts()
     const current = teamTimeouts(teamId)
@@ -506,8 +574,6 @@ export function useScoresheet() {
         return
       }
     }
-
-    if (current.length >= MAX_TIMEOUTS_PER_TEAM) return
 
     const next = [...current, { afterColumnKey }]
     timeoutMap.value.set(teamId, next)
@@ -655,8 +721,10 @@ export function useScoresheet() {
   }
 
   // --- Auto-persist to localStorage ---
+  const pauseAutoSave = ref(false)
   let persistTimer: ReturnType<typeof setTimeout> | null = null
   function schedulePersist() {
+    if (pauseAutoSave.value) return
     if (persistTimer) clearTimeout(persistTimer)
     persistTimer = setTimeout(() => saveToStorage(store, noJumpMap.value, timeoutMap.value), 300)
   }
@@ -692,6 +760,8 @@ export function useScoresheet() {
 
     // Grey-out & validation
     validationErrors,
+    timeoutValidationErrors,
+    tooManyTimeoutsTeams,
 
     // Query helpers
     isEmptySeat,
@@ -732,6 +802,9 @@ export function useScoresheet() {
     store,
     noJumpMap,
     timeoutMap,
+    pauseAutoSave,
+    answerVersion,
+    teamVersion,
     loadFile,
     resetStore,
     clearAnswers,
@@ -740,6 +813,7 @@ export function useScoresheet() {
     // Timeouts
     teamTimeouts,
     timeoutCount,
+    isTimeoutAllowed,
     addTimeout,
     removeLastTimeout,
     toggleTimeout,

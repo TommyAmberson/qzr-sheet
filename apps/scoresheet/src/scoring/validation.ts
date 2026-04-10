@@ -25,6 +25,10 @@ export enum ValidationCode {
   FouledOnQuestion = 'fouled-on-question',
   /** Non-foul answer on an overtime column by a team not eligible for overtime */
   NotInOvertime = 'not-in-overtime',
+  /** Timeout called after Q17+ where error points apply (not allowed per rules §8.a) */
+  TimeoutAfterQ16 = 'timeout-after-q16',
+  /** Team has used more than the allowed 2 timeouts */
+  TooManyTimeouts = 'too-many-timeouts',
 }
 
 /** Human-readable message for each validation code */
@@ -41,6 +45,9 @@ const validationMessages: Record<ValidationCode, string> = {
   [ValidationCode.FouledOnQuestion]:
     'A foul on this numbered question makes the quizzer ineligible',
   [ValidationCode.NotInOvertime]: 'Only tied teams can answer in overtime — this team is not tied',
+  [ValidationCode.TimeoutAfterQ16]:
+    "Timeouts can't be called after error points (after question 17)",
+  [ValidationCode.TooManyTimeouts]: 'Each team is allowed only 2 timeouts per quiz',
 }
 
 /** Get the human-readable message for a validation code */
