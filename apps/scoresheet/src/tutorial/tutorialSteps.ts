@@ -258,8 +258,10 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         if (!actions.teams.value[ti]!.onTime) actions.toggleOnTime(ti)
       }
 
-      // T2 q3 is an empty seat. T1 has 4 unique correct quizzers (+20),
-      // T2/T3 have 3 each (+10), balancing T1's Q17 error (-10).
+      // T2 q3 is an empty seat. T3 q0 is the substitute (swapped in after Q5),
+      // original T3 first quizzer is now at q4 (bench).
+      // T1 has 4 unique correct quizzers (+20), T2/T3 have 3 each (+10),
+      // balancing T1's Q17 error (-10).
       // T1: 5C(100) + MB(0) + E(-10) + 4uniq(+20) + OT(+20) = 130
       // T2: 5C(100) + 3uniq(+10) + OT(+20) = 130
       // T3: 5C(100) + 3uniq(+10) + OT(+20) = 130
@@ -270,7 +272,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       const plays: [number, number, number, CellValue][] = [
         [0, 0, 0, CellValue.Correct], // Q1:  T1 q0 C
         [1, 1, 0, CellValue.Error], //   Q2:  T2 q0 E → toss-up
-        [2, 2, 0, CellValue.Error], //   Q3:  T3 q0 E → bonus for T1
+        [2, 2, 4, CellValue.Error], //   Q3:  T3 q4 E → bonus for T1 (original q0, swapped to bench)
         [3, 0, 1, CellValue.MissedBonus], // Q4: T1 q1 MB
         // Q5: no-jump
         [5, 1, 1, CellValue.Correct], //  Q6:  T2 q1 C
@@ -280,7 +282,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         [9, 2, 2, CellValue.Correct], //  Q10: T3 q2 C
         [10, 0, 1, CellValue.Correct], // Q11: T1 q1 C (4th unique for T1)
         [11, 1, 0, CellValue.Correct], // Q12: T2 q0 C
-        [12, 2, 0, CellValue.Correct], // Q13: T3 q0 C
+        [12, 2, 4, CellValue.Correct], // Q13: T3 q4 C (original q0, now on bench)
         [13, 1, 1, CellValue.Correct], // Q14: T2 q1 C
         [14, 2, 1, CellValue.Correct], // Q15: T3 q1 C
         [15, 0, 3, CellValue.Correct], // Q16: T1 q3 C (ci 15)
