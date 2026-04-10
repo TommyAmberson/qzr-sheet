@@ -244,18 +244,13 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       // Q18/A/B → 21-23, Q19/A/B → 24-26, Q20/A/B → 27-29
       const totalCols = 30
 
-      // Clear all existing cells and no-jumps
+      // Clear all existing cells
       for (let ti = 0; ti < 3; ti++) {
         for (let qi = 0; qi < 5; qi++) {
           for (let ci = 0; ci < totalCols; ci++) {
             actions.setCell(ti, qi, ci, CellValue.Empty)
           }
         }
-      }
-      // Reset no-jumps: toggle twice to clear any that were set
-      for (let ci = 0; ci < totalCols; ci++) {
-        actions.toggleNoJump(ci)
-        actions.toggleNoJump(ci)
       }
 
       // Set on-time for all teams
@@ -264,7 +259,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       }
 
       // Realistic quiz: [colIdx, teamIdx, quizzerIdx, value]
-      // Scores: T1 = 80, T2 = 80, T3 = 80 (+20 on-time each = 100)
+      // Note: T2 (ti=1) q3 is an empty seat (removed during tutorial)
       //
       // Q1:  T1 q0 C (+20)       T1: 20
       // Q2:  T2 q0 E (0)         T2: 0    → toss-up Q3
@@ -279,13 +274,13 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       // Q11: T1 q0 C (+20)       T1: 70
       // Q12: T2 q0 C (+20)       T2: 60
       // Q13: T3 q3 C (+20)       T3: 60
-      // Q14: T2 q3 C (+20)       T2: 80
+      // Q14: T2 q1 C (+20)       T2: 80
       // Q15: T1 q3 C (+20)       T1: 90
       // Q16: T3 q0 C (+20)       T3: 80
       // Q17: T1 q1 E (-10)       T1: 80   → Q17A toss-up
-      // Q17A:T2 q1 C (+20)       T2: 100  → resolves Q17
-      // Q18: No Jump
-      // Q19: T3 q1 C (+20)       T3: 100
+      // Q17A:T2 q2 C (+20)       T2: 100  → resolves Q17
+      // Q18: T3 q1 C (+20)       T3: 100
+      // Q19: No Jump
       // Q20: T1 q0 C (+20)       T1: 100
       const plays: [number, number, number, CellValue][] = [
         [0, 0, 0, CellValue.Correct], // Q1
@@ -301,13 +296,13 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         [10, 0, 0, CellValue.Correct], // Q11
         [11, 1, 0, CellValue.Correct], // Q12
         [12, 2, 3, CellValue.Correct], // Q13
-        [13, 1, 3, CellValue.Correct], // Q14
+        [13, 1, 1, CellValue.Correct], // Q14 (T2 q1, not q3 — empty seat)
         [14, 0, 3, CellValue.Correct], // Q15
         [15, 2, 0, CellValue.Correct], // Q16 (ci 15)
         [18, 0, 1, CellValue.Error], // Q17 (ci 18, error points -10)
-        [19, 1, 1, CellValue.Correct], // Q17A (ci 19, toss-up)
-        // Q18: no-jump (ci 21)
-        [24, 2, 1, CellValue.Correct], // Q19 (ci 24)
+        [19, 1, 2, CellValue.Correct], // Q17A (ci 19, toss-up)
+        [21, 2, 1, CellValue.Correct], // Q18 (ci 21)
+        // Q19: no-jump (ci 24)
         [27, 0, 0, CellValue.Correct], // Q20 (ci 27)
       ]
 
@@ -315,11 +310,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         actions.setCell(ti, qi, ci, value)
       }
 
-      // No-jumps
-      actions.toggleNoJump(4) // Q5
-      actions.toggleNoJump(21) // Q18
-
-      // Enable overtime
+      // No-jump on Q5 (already set from tutorial) and Q19
+      actions.toggleNoJump(24) // Q19
+    },
+  },
+  {
+    id: 'overtime-toggle',
+    target: { type: 'selector', css: '[data-tutorial="overtime-toggle"]' },
+    placement: 'bottom',
+    title: 'Enable Overtime',
+    body: 'All three teams are tied. Toggle the Overtime switch to add overtime rounds.',
+    completion: { type: 'acknowledge' },
+    interactive: true,
+    onNext: (actions) => {
       actions.quiz.value.overtime = true
     },
   },
@@ -328,7 +331,60 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: { type: 'selector', css: '[data-tutorial="col-header-30"]' },
     placement: 'bottom',
     title: 'Overtime',
-    body: 'When teams are tied after question 20, overtime rounds appear. Only tied teams can answer, and error points (-10) apply to all questions.',
+    body: 'Overtime questions appear in groups of 3. Only tied teams can answer, and error points (-10) apply to all overtime questions.',
+    completion: { type: 'acknowledge' },
+    setup: (actions) => {
+      if (!actions.quiz.value.overtime) actions.quiz.value.overtime = true
+    },
+  },
+  {
+    id: 'ot-round-1',
+    target: { type: 'none' },
+    placement: 'bottom',
+    title: 'Overtime — Round 1',
+    body: "Let's play through overtime. In round 1, Team 1 and Team 2 answer correctly, but Team 3 errors. Team 3 falls behind and is eliminated.",
+    completion: { type: 'acknowledge' },
+    setup: (actions) => {
+      // OT Q21-Q23 → ci 30-32 (Normal columns), 33-35 (A), 36-38 (B)
+      // Q21: T1 q0 C (+20)
+      // Q22: T2 q0 C (+20)
+      // Q23: T3 q0 E (-10)
+      actions.setCell(0, 0, 30, CellValue.Correct) // Q21
+      actions.setCell(1, 0, 33, CellValue.Correct) // Q22
+      actions.setCell(2, 0, 36, CellValue.Error) // Q23
+    },
+  },
+  {
+    id: 'ot-eliminated',
+    target: { type: 'selector', css: '[data-tutorial="team-total-2"]' },
+    placement: 'top',
+    title: 'Team Eliminated',
+    body: 'Team 3 is no longer tied and finishes in 3rd place. They can leave the platform. Teams 1 and 2 continue to the next round.',
+    completion: { type: 'acknowledge' },
+  },
+  {
+    id: 'ot-round-2',
+    target: { type: 'none' },
+    placement: 'bottom',
+    title: 'Overtime — Round 2',
+    body: 'In round 2, Team 1 answers correctly and Team 2 does not. Team 1 takes 1st place, Team 2 takes 2nd.',
+    completion: { type: 'acknowledge' },
+    setup: (actions) => {
+      // OT round 2: Q24-Q26 → ci 39-41 (Normal), 42-44 (A), 45-47 (B)
+      // Q24: T1 q2 C (+20)
+      // Q25: No Jump
+      // Q26: No Jump
+      actions.setCell(0, 2, 39, CellValue.Correct) // Q24
+      actions.toggleNoJump(42) // Q25
+      actions.toggleNoJump(45) // Q26
+    },
+  },
+  {
+    id: 'ot-result',
+    target: { type: 'selector', css: '[data-tutorial="team-total-0"]' },
+    placement: 'top',
+    title: 'Final Placements',
+    body: 'The quiz is complete! Placements are shown as medals. The scoresheet tracks everything automatically.',
     completion: { type: 'acknowledge' },
   },
 

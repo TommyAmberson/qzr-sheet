@@ -786,7 +786,7 @@ const appVersion: string = __APP_VERSION__
               </div>
             </div>
             <div class="quiz-meta quiz-meta--right">
-              <label class="meta-field meta-field--toggle">
+              <label class="meta-field meta-field--toggle" data-tutorial="overtime-toggle">
                 <input v-model="quiz.overtime" type="checkbox" />
                 <span class="toggle-track"><span class="toggle-thumb" /></span>
                 <span class="meta-label">Overtime</span>
