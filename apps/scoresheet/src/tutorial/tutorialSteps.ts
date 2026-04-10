@@ -100,6 +100,14 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
 
   // --- Scoring ---
   {
+    id: 'question-type',
+    target: { type: 'selector', css: '[data-tutorial="col-header-0"]' },
+    placement: 'bottom',
+    title: 'Question Type',
+    body: 'You can set the question type (INT, FTV, REF, MA, Q, SIT) in the column header dropdown. This is optional but helpful for record-keeping.',
+    completion: { type: 'acknowledge' },
+  },
+  {
     id: 'q1-correct',
     target: { type: 'cell', ti: 0, qi: 0, ci: 0 },
     placement: 'bottom',
@@ -220,14 +228,6 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
 
   // --- Wrap-up ---
-  {
-    id: 'question-type',
-    target: { type: 'selector', css: '[data-tutorial="col-header-0"]' },
-    placement: 'bottom',
-    title: 'Question Type',
-    body: 'You can set the question type (INT, FTV, REF, MA, Q, SIT) in the column header dropdown. This is optional but helpful for record-keeping.',
-    completion: { type: 'acknowledge' },
-  },
   {
     id: 'done',
     target: { type: 'none' },

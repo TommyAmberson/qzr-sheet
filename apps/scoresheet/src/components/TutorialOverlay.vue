@@ -131,7 +131,8 @@ const tooltipStyle = computed(() => {
   }
 })
 
-const buttonLabel = computed(() => (props.completed ? 'Next' : 'Skip'))
+const isLastStep = computed(() => props.stepIndex === props.totalSteps - 1)
+const buttonLabel = computed(() => (isLastStep.value ? 'Done' : props.completed ? 'Next' : 'Skip'))
 </script>
 
 <template>
@@ -146,7 +147,9 @@ const buttonLabel = computed(() => (props.completed ? 'Next' : 'Skip'))
         <div class="tutorial-tooltip__controls">
           <span class="tutorial-tooltip__counter">{{ stepIndex + 1 }} / {{ totalSteps }}</span>
           <button class="tutorial-tooltip__next" @click="emit('next')">{{ buttonLabel }}</button>
-          <button class="tutorial-tooltip__skip" @click="emit('skip')">End Tutorial</button>
+          <button v-if="!isLastStep" class="tutorial-tooltip__skip" @click="emit('skip')">
+            End Tutorial
+          </button>
         </div>
       </div>
     </div>
