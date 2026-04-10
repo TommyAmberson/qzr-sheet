@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { CellValue, QUIZZERS_PER_TEAM, type Timeout } from '../types/scoresheet'
 import { serializeStore, parseQuizFile, type DeserializeResult } from '../persistence/quizFile'
 import type { QuizStore } from '../stores/quizStore'
@@ -150,6 +150,7 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
             const cellVal = scoresheet.cells.value[ti]?.[qi]?.[ci]
             if (cellVal !== undefined && values.includes(cellVal)) advance()
           },
+          { flush: 'post' },
         ),
       )
     }
@@ -251,10 +252,13 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   }
 
   /** Called when user clicks the button. Runs onNext if step wasn't completed. */
-  function onNext() {
+  async function onNext() {
     const step = currentStep.value
     if (step?.onNext && !stepCompleted.value) {
       step.onNext(buildActions())
+      // Wait for DOM to reflect the state change before advancing so the next
+      // step's resolveTargetEls can find newly-added columns (e.g. Q18A after Q18 error).
+      await nextTick()
     }
     advance()
   }
