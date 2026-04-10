@@ -233,11 +233,11 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
 
   // --- Overtime ---
   {
-    id: 'fill-quiz',
+    id: 'fast-forward-1',
     target: { type: 'none' },
     placement: 'bottom',
     title: 'Fast Forward',
-    body: "Let's skip ahead to see what happens when teams are tied. We've filled in a full quiz where all three teams scored equally.",
+    body: "Let's fast-forward through the first 17 questions. Then we'll walk through a Q18 A/B chain live.",
     completion: { type: 'acknowledge' },
     setup: (actions) => {
       // Column indices: Q1-Q15 → 0-14, Q16/A/B → 15-17, Q17/A/B → 18-20,
@@ -258,63 +258,98 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         if (!actions.teams.value[ti]!.onTime) actions.toggleOnTime(ti)
       }
 
-      // T2 q3 is an empty seat. Q18 demonstrates A/B chain.
-      // T1: 4C + MB + 2E(-20) + 4uniq(+20) + on-time(+20) = 80-20+20+20 = 100
-      // T2: 4C + E(-10) + 3uniq(+10) + on-time(+20) = 80-10+10+20 = 100
-      // T3: 4C + E(-10) + B(+10) + 3uniq(+10) + on-time(+20) = 80-10+10+10+20 = 110?
-      //
-      // Careful trace (unique bonuses fire on column where 3rd/4th quizzer first scores):
-      // T1: Q1 q0 C(20), Q8 q2 C(20), Q11 q1 C(20+10), Q16 q3 C(20+10),
-      //     Q17 q0 E(-10), Q18 q2 E(-10), Q19 q2 C(20) = 100
-      // T2: Q6 q1 C(20), Q9 q2 C(20), Q12 q0 C(20+10), Q14 q1 C(20),
-      //     Q17A q2 C(20), Q18A q1 E(-10) = 100
-      // T3: Q7 q1 C(20), Q10 q2 C(20), Q13 q0 C(20+10), Q15 q1 C(20),
-      //     Q18B q2 B(10) = 100
-      // All: 100 + 20 on-time = 120 ✓
+      // Fill Q1-Q17A only — Q18 chain is walked through interactively.
+      // Final scores after all answers will be 120 each (three-way tie).
       const plays: [number, number, number, CellValue][] = [
         [0, 0, 0, CellValue.Correct], //   Q1:  T1 q0 C
         [1, 1, 0, CellValue.Error], //     Q2:  T2 q0 E → toss-up
         [2, 2, 0, CellValue.Error], //     Q3:  T3 q0 E → bonus for T1
         [3, 0, 1, CellValue.MissedBonus], // Q4: T1 q1 MB
-        // Q5: no-jump
+        // Q5: no-jump (already set from earlier tutorial step)
         [5, 1, 1, CellValue.Correct], //   Q6:  T2 q1 C
         [6, 2, 1, CellValue.Correct], //   Q7:  T3 q1 C
         [7, 0, 2, CellValue.Correct], //   Q8:  T1 q2 C
         [8, 1, 2, CellValue.Correct], //   Q9:  T2 q2 C
         [9, 2, 2, CellValue.Correct], //   Q10: T3 q2 C
-        [10, 0, 1, CellValue.Correct], //  Q11: T1 q1 C (4th unique)
-        [11, 1, 0, CellValue.Correct], //  Q12: T2 q0 C (3rd unique)
-        [12, 2, 0, CellValue.Correct], //  Q13: T3 q0 C (3rd unique)
+        [10, 0, 1, CellValue.Correct], //  Q11: T1 q1 C (4th unique for T1)
+        [11, 1, 0, CellValue.Correct], //  Q12: T2 q0 C (3rd unique for T2)
+        [12, 2, 0, CellValue.Correct], //  Q13: T3 q0 C (3rd unique for T3)
         [13, 1, 1, CellValue.Correct], //  Q14: T2 q1 C
         [14, 2, 1, CellValue.Correct], //  Q15: T3 q1 C
-        [15, 0, 3, CellValue.Correct], //  Q16: T1 q3 C (ci 15)
-        [18, 0, 0, CellValue.Error], //    Q17: T1 q0 E (ci 18, -10)
-        [19, 1, 2, CellValue.Correct], //  Q17A: T2 q2 C (ci 19)
-        [21, 0, 2, CellValue.Error], //    Q18: T1 q2 E (ci 21, -10)
-        [22, 1, 1, CellValue.Error], //    Q18A: T2 q1 E (ci 22, toss-up, -10)
-        [23, 2, 2, CellValue.Bonus], //    Q18B: T3 q2 B (ci 23, bonus, +10)
-        [24, 0, 2, CellValue.Correct], //  Q19: T1 q2 C (ci 24)
-        // Q20: no-jump (ci 27)
+        [15, 0, 3, CellValue.Correct], //  Q16: T1 q3 C
+        [18, 0, 0, CellValue.Error], //    Q17: T1 q0 E (-10)
+        [19, 1, 2, CellValue.Correct], //  Q17A: T2 q2 C
       ]
 
       for (const [ci, ti, qi, value] of plays) {
         actions.setCell(ti, qi, ci, value)
       }
-
-      // No-jump on Q5 (already set from tutorial) and Q20
-      actions.toggleNoJump(27) // Q20
     },
   },
   {
-    id: 'explain-ab',
-    target: {
-      type: 'selector',
-      css: '[data-tutorial="col-header-21"], [data-tutorial="col-header-22"], [data-tutorial="col-header-23"]',
-    },
+    id: 'q18-error',
+    target: { type: 'cell', ti: 0, qi: 2, ci: 21 },
     placement: 'bottom',
-    title: 'A/B Questions',
-    body: 'Questions 16-20 have A/B parts. When a quizzer errors, the question continues as a toss-up (A). If that also errors, the remaining team gets a bonus (B). Here Team 1 erred on Q18, Team 2 erred on the toss-up, and Team 3 got the bonus.',
+    title: 'Question 18',
+    body: 'Team 1 answers question 18 incorrectly. Click this cell and select E (Error).',
+    completion: { type: 'cell-value', ti: 0, qi: 2, ci: 21, value: CellValue.Error },
+    allowSelectorPopup: true,
+    onNext: (actions) => actions.setCell(0, 2, 21, CellValue.Error),
+  },
+  {
+    id: 'explain-q18a',
+    target: { type: 'selector', css: '[data-tutorial="col-header-22"]' },
+    placement: 'bottom',
+    title: 'Toss-Up (Q18A)',
+    body: 'Because Team 1 errored on Q18, a new column Q18A appears. It\u2019s a toss-up \u2014 the other two teams can jump.',
     completion: { type: 'acknowledge' },
+  },
+  {
+    id: 'q18a-error',
+    target: { type: 'cell', ti: 1, qi: 1, ci: 22 },
+    placement: 'bottom',
+    title: 'Toss-Up Error',
+    body: 'Team 2 jumps on the toss-up and errors too. Click this cell and select E.',
+    completion: { type: 'cell-value', ti: 1, qi: 1, ci: 22, value: CellValue.Error },
+    allowSelectorPopup: true,
+    onNext: (actions) => actions.setCell(1, 1, 22, CellValue.Error),
+  },
+  {
+    id: 'explain-q18b',
+    target: { type: 'selector', css: '[data-tutorial="col-header-23"]' },
+    placement: 'bottom',
+    title: 'Bonus (Q18B)',
+    body: 'Both other teams erred, so Q18B is a bonus for Team 3 \u2014 they answer without competition.',
+    completion: { type: 'acknowledge' },
+  },
+  {
+    id: 'q18b-bonus',
+    target: { type: 'cell', ti: 2, qi: 2, ci: 23 },
+    placement: 'bottom',
+    title: 'Bonus Answer',
+    body: 'Click this cell and pick B (Bonus) or MB (Missed Bonus).',
+    completion: {
+      type: 'cell-value',
+      ti: 2,
+      qi: 2,
+      ci: 23,
+      value: [CellValue.Bonus, CellValue.MissedBonus],
+    },
+    allowSelectorPopup: true,
+    onNext: (actions) => actions.setCell(2, 2, 23, CellValue.Bonus),
+  },
+  {
+    id: 'fast-forward-2',
+    target: { type: 'none' },
+    placement: 'bottom',
+    title: 'Fast Forward',
+    body: "We'll fill in the rest of the quiz. All three teams end up tied \u2014 time for overtime.",
+    completion: { type: 'acknowledge' },
+    setup: (actions) => {
+      // Q19: T1 q2 C (ci 24), Q20: no-jump (ci 27)
+      actions.setCell(0, 2, 24, CellValue.Correct)
+      actions.toggleNoJump(27)
+    },
   },
   {
     id: 'overtime-toggle',
