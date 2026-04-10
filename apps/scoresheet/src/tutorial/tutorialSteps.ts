@@ -240,49 +240,92 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: "Let's skip ahead to see what happens when teams are tied. We've filled in a full quiz where all three teams scored equally.",
     completion: { type: 'acknowledge' },
     setup: (actions) => {
-      // Clear all existing cells
+      // Column indices: Q1-Q15 → 0-14, Q16/A/B → 15-17, Q17/A/B → 18-20,
+      // Q18/A/B → 21-23, Q19/A/B → 24-26, Q20/A/B → 27-29
+      const totalCols = 30
+
+      // Clear all existing cells and no-jumps
       for (let ti = 0; ti < 3; ti++) {
         for (let qi = 0; qi < 5; qi++) {
-          for (let ci = 0; ci < 20; ci++) {
+          for (let ci = 0; ci < totalCols; ci++) {
             actions.setCell(ti, qi, ci, CellValue.Empty)
           }
         }
       }
+      // Reset no-jumps: toggle twice to clear any that were set
+      for (let ci = 0; ci < totalCols; ci++) {
+        actions.toggleNoJump(ci)
+        actions.toggleNoJump(ci)
+      }
+
       // Set on-time for all teams
       for (let ti = 0; ti < 3; ti++) {
         if (!actions.teams.value[ti]!.onTime) actions.toggleOnTime(ti)
       }
-      // Fill Q1-Q12 with alternating correct answers (4 per team)
-      const answers: [number, number][] = [
-        [0, 0],
-        [1, 0],
-        [2, 0],
-        [0, 1],
-        [1, 1],
-        [2, 1],
-        [0, 2],
-        [1, 2],
-        [2, 2],
-        [0, 3],
-        [1, 3],
-        [2, 3],
+
+      // Realistic quiz: [colIdx, teamIdx, quizzerIdx, value]
+      // Scores: T1 = 80, T2 = 80, T3 = 80 (+20 on-time each = 100)
+      //
+      // Q1:  T1 q0 C (+20)       T1: 20
+      // Q2:  T2 q0 E (0)         T2: 0    → toss-up Q3
+      // Q3:  T3 q0 E (0)         T3: 0    → bonus Q4 for T1
+      // Q4:  T1 q1 B (+10)       T1: 30
+      // Q5:  No Jump
+      // Q6:  T2 q1 C (+20)       T2: 20
+      // Q7:  T3 q1 C (+20)       T3: 20
+      // Q8:  T1 q2 C (+20)       T1: 50
+      // Q9:  T2 q2 C (+20)       T2: 40
+      // Q10: T3 q2 C (+20)       T3: 40
+      // Q11: T1 q0 C (+20)       T1: 70
+      // Q12: T2 q0 C (+20)       T2: 60
+      // Q13: T3 q3 C (+20)       T3: 60
+      // Q14: T2 q3 C (+20)       T2: 80
+      // Q15: T1 q3 C (+20)       T1: 90
+      // Q16: T3 q0 C (+20)       T3: 80
+      // Q17: T1 q1 E (-10)       T1: 80   → Q17A toss-up
+      // Q17A:T2 q1 C (+20)       T2: 100  → resolves Q17
+      // Q18: No Jump
+      // Q19: T3 q1 C (+20)       T3: 100
+      // Q20: T1 q0 C (+20)       T1: 100
+      const plays: [number, number, number, CellValue][] = [
+        [0, 0, 0, CellValue.Correct], // Q1
+        [1, 1, 0, CellValue.Error], // Q2
+        [2, 2, 0, CellValue.Error], // Q3 (toss-up)
+        [3, 0, 1, CellValue.Bonus], // Q4 (bonus for T1)
+        // Q5: no-jump
+        [5, 1, 1, CellValue.Correct], // Q6
+        [6, 2, 1, CellValue.Correct], // Q7
+        [7, 0, 2, CellValue.Correct], // Q8
+        [8, 1, 2, CellValue.Correct], // Q9
+        [9, 2, 2, CellValue.Correct], // Q10
+        [10, 0, 0, CellValue.Correct], // Q11
+        [11, 1, 0, CellValue.Correct], // Q12
+        [12, 2, 3, CellValue.Correct], // Q13
+        [13, 1, 3, CellValue.Correct], // Q14
+        [14, 0, 3, CellValue.Correct], // Q15
+        [15, 2, 0, CellValue.Correct], // Q16 (ci 15)
+        [18, 0, 1, CellValue.Error], // Q17 (ci 18, error points -10)
+        [19, 1, 1, CellValue.Correct], // Q17A (ci 19, toss-up)
+        // Q18: no-jump (ci 21)
+        [24, 2, 1, CellValue.Correct], // Q19 (ci 24)
+        [27, 0, 0, CellValue.Correct], // Q20 (ci 27)
       ]
-      for (let ci = 0; ci < answers.length; ci++) {
-        const [ti, qi] = answers[ci]!
-        actions.setCell(ti, qi, ci, CellValue.Correct)
+
+      for (const [ci, ti, qi, value] of plays) {
+        actions.setCell(ti, qi, ci, value)
       }
-      // Clear Q5 no-jump (set during earlier tutorial step), then set Q13-Q20
-      actions.toggleNoJump(4)
-      for (let ci = 12; ci < 20; ci++) {
-        actions.toggleNoJump(ci)
-      }
+
+      // No-jumps
+      actions.toggleNoJump(4) // Q5
+      actions.toggleNoJump(21) // Q18
+
       // Enable overtime
       actions.quiz.value.overtime = true
     },
   },
   {
     id: 'explain-overtime',
-    target: { type: 'selector', css: '[data-tutorial="col-header-20"]' },
+    target: { type: 'selector', css: '[data-tutorial="col-header-30"]' },
     placement: 'bottom',
     title: 'Overtime',
     body: 'When teams are tied after question 20, overtime rounds appear. Only tied teams can answer, and error points (-10) apply to all questions.',
