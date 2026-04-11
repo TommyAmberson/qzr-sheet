@@ -9,6 +9,7 @@ import {
   type Quizzer,
   type Answer,
 } from '../types/scoresheet'
+import { type QuizzerId, type SeatIdx, toQuizzerId } from '../types/indices'
 
 let nextId = 1
 function genId(): number {
@@ -43,7 +44,7 @@ function createDefaultTeams(quizId: number): { teams: Team[]; quizzers: Quizzer[
 
     for (let q = 0; q < QUIZZERS_PER_TEAM; q++) {
       quizzers.push({
-        id: genId(),
+        id: toQuizzerId(genId()),
         teamId,
         name: q < 4 ? `Quizzer ${q + 1}` : '',
         seatOrder: q,
@@ -64,32 +65,37 @@ export interface QuizStore {
   quizzersByTeam(teamId: number): Quizzer[]
 
   /** Get the teamId for a quizzer */
-  teamForQuizzer(quizzerId: number): number | undefined
+  teamForQuizzer(quizzerId: QuizzerId): number | undefined
 
   /** Get a single answer value (Empty if not set) */
-  getAnswer(quizzerId: number, columnKey: string): CellValue
+  getAnswer(quizzerId: QuizzerId, columnKey: string): CellValue
 
   /** Set an answer value (Empty removes the answer) */
-  setAnswer(quizzerId: number, columnKey: string, value: CellValue): void
+  setAnswer(quizzerId: QuizzerId, columnKey: string, value: CellValue): void
 
   /** Update a team's name */
   setTeamName(teamId: number, name: string): void
 
   /** Update a quizzer's name */
-  setQuizzerName(quizzerId: number, name: string): void
+  setQuizzerName(quizzerId: QuizzerId, name: string): void
 
-  /** Move a quizzer from one seat to another within a team (insert, not swap) */
-  moveQuizzer(teamId: number, fromSeat: number, toSeat: number): void
+  /** Swap two seats within a team. Answers follow the quizzer (keyed by QuizzerId), not the seat. */
+  moveQuizzer(teamId: number, fromSeat: SeatIdx, toSeat: SeatIdx): void
 
-  /** Check if a quizzer is an empty seat (blank/whitespace name) */
-  isEmptySeat(quizzerId: number): boolean
+  /**
+   * Return true if the quizzer has a blank name. A seat with a blank-named
+   * quizzer is displayed as an "empty seat" in the scoresheet, but the
+   * quizzer record still exists in storage (with answers, etc.).
+   */
+  isQuizzerUnnamed(quizzerId: QuizzerId): boolean
 
   /** Set the question category for a column (null clears it) */
   setQuestionType(columnKey: string, category: QuestionCategory | null): void
 
   /**
    * Derive the positional cell grid for scoring functions.
-   * Returns cells[teamIdx][quizzerIdx][colIdx] ordered by seatOrder.
+   * Returns cells[teamIdx][seatIdx][colIdx] — the second index is SEAT ORDER,
+   * so after a substitution the answers follow the quizzer to their new seat.
    */
   cellGrid(columns: Column[]): CellValue[][][]
 
@@ -114,19 +120,19 @@ export function createQuizStore(): QuizStore {
     return quizzers.filter((q) => q.teamId === teamId).sort((a, b) => a.seatOrder - b.seatOrder)
   }
 
-  function teamForQuizzer(quizzerId: number): number | undefined {
+  function teamForQuizzer(quizzerId: QuizzerId): number | undefined {
     return quizzers.find((q) => q.id === quizzerId)?.teamId
   }
 
-  function answerKey(quizzerId: number, columnKey: string): string {
+  function answerKey(quizzerId: QuizzerId, columnKey: string): string {
     return `${quizzerId}:${columnKey}`
   }
 
-  function getAnswer(quizzerId: number, columnKey: string): CellValue {
+  function getAnswer(quizzerId: QuizzerId, columnKey: string): CellValue {
     return answerMap.get(answerKey(quizzerId, columnKey))?.value ?? CellValue.Empty
   }
 
-  function setAnswer(quizzerId: number, columnKey: string, value: CellValue): void {
+  function setAnswer(quizzerId: QuizzerId, columnKey: string, value: CellValue): void {
     const key = answerKey(quizzerId, columnKey)
     if (value === CellValue.Empty) {
       answerMap.delete(key)
@@ -140,12 +146,12 @@ export function createQuizStore(): QuizStore {
     if (team) team.name = name
   }
 
-  function setQuizzerName(quizzerId: number, name: string): void {
+  function setQuizzerName(quizzerId: QuizzerId, name: string): void {
     const qzr = quizzers.find((q) => q.id === quizzerId)
     if (qzr) qzr.name = name
   }
 
-  function isEmptySeat(quizzerId: number): boolean {
+  function isQuizzerUnnamed(quizzerId: QuizzerId): boolean {
     const qzr = quizzers.find((q) => q.id === quizzerId)
     return qzr ? !qzr.name.trim() : false
   }
@@ -158,7 +164,7 @@ export function createQuizStore(): QuizStore {
     }
   }
 
-  function moveQuizzer(teamId: number, fromSeat: number, toSeat: number): void {
+  function moveQuizzer(teamId: number, fromSeat: SeatIdx, toSeat: SeatIdx): void {
     if (fromSeat === toSeat) return
     const sorted = quizzersByTeam(teamId)
     if (fromSeat < 0 || fromSeat >= sorted.length) return
@@ -166,8 +172,8 @@ export function createQuizStore(): QuizStore {
     ;[sorted[fromSeat]!, sorted[toSeat]!] = [sorted[toSeat]!, sorted[fromSeat]!]
 
     // Reassign seatOrder to match new array order
-    for (let i = 0; i < sorted.length; i++) {
-      sorted[i]!.seatOrder = i
+    for (let seatIdx = 0; seatIdx < sorted.length; seatIdx++) {
+      sorted[seatIdx]!.seatOrder = seatIdx
     }
   }
 
@@ -219,7 +225,7 @@ export function createQuizStore(): QuizStore {
     setTeamName,
     setQuizzerName,
     moveQuizzer,
-    isEmptySeat,
+    isQuizzerUnnamed,
     setQuestionType,
     loadState,
     cellGrid,

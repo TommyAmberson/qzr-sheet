@@ -9,6 +9,7 @@ import {
 import type { QuizFile } from '@qzr/shared'
 import { buildKeyToIdx, buildColumns } from '../types/scoresheet'
 import type { Quiz, Team, Quizzer, Answer, Timeout } from '../types/scoresheet'
+import { toQuizzerId } from '../types/indices'
 import type { QuizStore } from '../stores/quizStore'
 
 export { QuizFileSchema, FILE_VERSION }
@@ -73,9 +74,13 @@ export function deserialize(file: QuizFile): DeserializeResult {
   const allCols = buildColumns(20) // generous upper bound for OT
   const validKeys = buildKeyToIdx(allCols)
 
-  const answers: Answer[] = file.answers.filter(
-    (a) => validKeys.has(a.columnKey) && a.value !== CellValue.Empty,
-  )
+  const answers: Answer[] = file.answers
+    .filter((a) => validKeys.has(a.columnKey) && a.value !== CellValue.Empty)
+    .map((a) => ({
+      quizzerId: toQuizzerId(a.quizzerId),
+      columnKey: a.columnKey,
+      value: a.value,
+    }))
 
   const noJumps = new Map<string, boolean>()
   for (const key of file.noJumps) {
@@ -97,7 +102,12 @@ export function deserialize(file: QuizFile): DeserializeResult {
       timeouts.set(t.id, t.timeouts)
     }
     for (const q of t.quizzers) {
-      quizzers.push({ id: q.id, teamId: t.id, name: q.name, seatOrder: q.seatOrder })
+      quizzers.push({
+        id: toQuizzerId(q.id),
+        teamId: t.id,
+        name: q.name,
+        seatOrder: q.seatOrder,
+      })
     }
   }
 

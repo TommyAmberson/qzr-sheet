@@ -3,6 +3,7 @@ import { ref, defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useKeyboardNav } from '../useKeyboardNav'
 import { CellValue, buildColumns } from '../../types/scoresheet'
+import { toQuizzerId } from '../../types/indices'
 import type { SelectorOption } from '../useCellSelector'
 
 // Helper to mount a minimal component that calls useKeyboardNav,
@@ -16,12 +17,12 @@ function mountNav() {
     ]),
     teamQuizzers: ref([
       [
-        { id: 1, teamId: 1, name: 'Q1', seatOrder: 0 },
-        { id: 2, teamId: 1, name: 'Q2', seatOrder: 1 },
+        { id: toQuizzerId(1), teamId: 1, name: 'Q1', seatOrder: 0 },
+        { id: toQuizzerId(2), teamId: 1, name: 'Q2', seatOrder: 1 },
       ],
       [
-        { id: 3, teamId: 2, name: 'Q3', seatOrder: 0 },
-        { id: 4, teamId: 2, name: 'Q4', seatOrder: 1 },
+        { id: toQuizzerId(3), teamId: 2, name: 'Q3', seatOrder: 0 },
+        { id: toQuizzerId(4), teamId: 2, name: 'Q4', seatOrder: 1 },
       ],
     ]),
     noJumps: ref([false, false, false]),

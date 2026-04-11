@@ -28,6 +28,7 @@ import {
   quizJumpedComplete,
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
+import { toSeatIdx } from '../types/indices'
 import type { DeserializeResult } from '../persistence/quizFile'
 import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/autoSave'
 
@@ -184,7 +185,7 @@ export function useScoresheet() {
     teams.value.forEach((team, ti) => {
       const qzrs = store.quizzersByTeam(team.id)
       qzrs.forEach((qzr, qi) => {
-        if (store.isEmptySeat(qzr.id)) set.add(`${ti}:${qi}`)
+        if (store.isQuizzerUnnamed(qzr.id)) set.add(`${ti}:${qi}`)
       })
     })
     return set
@@ -375,7 +376,7 @@ export function useScoresheet() {
     const qzrs = store.quizzersByTeam(team.id)
     const qzr = qzrs[quizzerIdx]
     if (!qzr) return false
-    return store.isEmptySeat(qzr.id)
+    return store.isQuizzerUnnamed(qzr.id)
   }
 
   function noJumpHasConflict(colIdx: number): boolean {
@@ -473,7 +474,7 @@ export function useScoresheet() {
   function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
     const team = teams.value[teamIdx]
     if (!team) return
-    store.moveQuizzer(team.id, fromSeat, toSeat)
+    store.moveQuizzer(team.id, toSeatIdx(fromSeat), toSeatIdx(toSeat))
     teamVersion.value++
     answerVersion.value++
   }

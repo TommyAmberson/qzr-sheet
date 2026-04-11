@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createQuizStore } from '../quizStore'
 import { CellValue, buildColumns, buildKeyToIdx } from '../../types/scoresheet'
+import { toQuizzerId } from '../../types/indices'
 
 const COLUMNS = buildColumns()
 const KEY_TO_IDX = buildKeyToIdx(COLUMNS)
@@ -225,6 +226,6 @@ describe('quizStore', () => {
 
   it('teamForQuizzer returns undefined for unknown quizzer', () => {
     const store = createQuizStore()
-    expect(store.teamForQuizzer(999)).toBeUndefined()
+    expect(store.teamForQuizzer(toQuizzerId(999))).toBeUndefined()
   })
 })

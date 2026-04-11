@@ -2,11 +2,12 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { ref } from 'vue'
 import { useDragReorder } from '../useDragReorder'
 import type { Quizzer } from '../../types/scoresheet'
+import { toQuizzerId } from '../../types/indices'
 
 function makeQuizzers(counts: number[]): Quizzer[][] {
   return counts.map((n, ti) =>
     Array.from({ length: n }, (_, qi) => ({
-      id: ti * 10 + qi,
+      id: toQuizzerId(ti * 10 + qi),
       teamId: ti,
       name: `Q${qi + 1}`,
       seatOrder: qi,

@@ -49,6 +49,8 @@ export interface Quiz {
   questionTypes: Map<string, QuestionCategory>
 }
 
+import type { QuizzerId } from './indices'
+
 export interface Team {
   id: number
   quizId: number
@@ -58,14 +60,15 @@ export interface Team {
 }
 
 export interface Quizzer {
-  id: number
+  /** Stable identity. Survives substitutions — answers are keyed by this. */
+  id: QuizzerId
   teamId: number
   name: string
   seatOrder: number
 }
 
 export interface Answer {
-  quizzerId: number
+  quizzerId: QuizzerId
   columnKey: string
   value: CellValue
 }
