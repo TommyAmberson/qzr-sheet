@@ -2,9 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../../composables/useScoresheet'
 import { TUTORIAL_STEPS, type ScoresheetActions } from '../tutorialSteps'
+import { toColIdx } from '../../types/indices'
 
 beforeEach(() => localStorage.clear())
 
+// TODO(refactor): Task 5 will update ScoresheetActions to use branded indices,
+// removing the need to cast through `unknown` here.
 function buildActions(s: ReturnType<typeof useScoresheet>): ScoresheetActions {
   return {
     setQuizzerName: s.setQuizzerName,
@@ -17,7 +20,7 @@ function buildActions(s: ReturnType<typeof useScoresheet>): ScoresheetActions {
     columns: s.columns,
     teams: s.teams,
     quiz: s.quiz,
-  }
+  } as unknown as ScoresheetActions
 }
 
 function runSetup(id: string, actions: ScoresheetActions) {
@@ -38,7 +41,7 @@ function runOnNext(id: string, actions: ScoresheetActions) {
  */
 function runThroughRegulationAndEnableOT(s: ReturnType<typeof useScoresheet>): ScoresheetActions {
   const actions = buildActions(s)
-  s.toggleNoJump(4) // Q5 no-jump (set by earlier tutorial step)
+  s.toggleNoJump(toColIdx(4)) // Q5 no-jump (set by earlier tutorial step)
   runSetup('fast-forward-1', actions)
   runOnNext('q18-error', actions)
   runOnNext('q18a-error', actions)

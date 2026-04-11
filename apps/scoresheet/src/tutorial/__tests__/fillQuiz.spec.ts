@@ -2,9 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useScoresheet } from '../../composables/useScoresheet'
 import { CellValue } from '../../types/scoresheet'
 import { TUTORIAL_STEPS, type ScoresheetActions } from '../tutorialSteps'
+import { toColIdx } from '../../types/indices'
 
 beforeEach(() => localStorage.clear())
 
+// TODO(refactor): Task 5 will update ScoresheetActions to use branded indices,
+// removing the need to cast through `unknown` here.
 function buildActions(s: ReturnType<typeof useScoresheet>): ScoresheetActions {
   return {
     setQuizzerName: s.setQuizzerName,
@@ -17,7 +20,7 @@ function buildActions(s: ReturnType<typeof useScoresheet>): ScoresheetActions {
     columns: s.columns,
     teams: s.teams,
     quiz: s.quiz,
-  }
+  } as unknown as ScoresheetActions
 }
 
 function runSetup(id: string, actions: ScoresheetActions) {
@@ -41,7 +44,7 @@ function runRegulationFill(s: ReturnType<typeof useScoresheet>): ScoresheetActio
   const actions = buildActions(s)
   // The tutorial sets Q5 as no-jump in the `no-jump` step before fast-forward-1 runs.
   // The fill-quiz setup relies on that already being set.
-  s.toggleNoJump(4)
+  s.toggleNoJump(toColIdx(4))
   runSetup('fast-forward-1', actions)
   // Q18 chain is normally interactive — simulate the skip path via onNext callbacks.
   runOnNext('q18-error', actions)

@@ -173,6 +173,57 @@ function isTeamDivisionDiverged(slotIdx: number): boolean {
   return team.division !== quiz.value.division || team.consolation !== quiz.value.consolation
 }
 
+// TODO(refactor): Task 6 propagates branded TeamIdx/SeatIdx/ColIdx through this
+// file. For now, cast the useScoresheet result so destructured functions keep
+// plain-number signatures that the template and downstream composables expect.
+type _PlainScoresheet = Omit<
+  ReturnType<typeof useScoresheet>,
+  | 'setCell'
+  | 'isEmptySeat'
+  | 'isBonusForTeam'
+  | 'isGreyedOut'
+  | 'isInvalid'
+  | 'cellValidationMessages'
+  | 'columnHasErrors'
+  | 'columnValidationMessages'
+  | 'quizzerHasErrors'
+  | 'quizzerValidationMessages'
+  | 'teamValidationMessages'
+  | 'isAfterOut'
+  | 'isFouledOnQuestion'
+  | 'toggleOnTime'
+  | 'toggleNoJump'
+  | 'teamHasErrors'
+  | 'colAnswerValue'
+  | 'noJumpHasConflict'
+  | 'setTeamName'
+  | 'setQuizzerName'
+  | 'moveQuizzer'
+  | 'setQuestionType'
+> & {
+  setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
+  isEmptySeat: (ti: number, qi: number) => boolean
+  isBonusForTeam: (ti: number, ci: number) => boolean
+  isGreyedOut: (ti: number, ci: number) => boolean
+  isInvalid: (ti: number, qi: number, ci: number) => boolean
+  cellValidationMessages: (ti: number, qi: number, ci: number) => string[]
+  columnHasErrors: (ci: number) => boolean
+  columnValidationMessages: (ci: number) => string[]
+  quizzerHasErrors: (ti: number, qi: number) => boolean
+  quizzerValidationMessages: (ti: number, qi: number) => string[]
+  teamValidationMessages: (ti: number) => string[]
+  isAfterOut: (ti: number, qi: number, ci: number) => boolean
+  isFouledOnQuestion: (ti: number, qi: number, ci: number) => boolean
+  toggleOnTime: (ti: number) => void
+  toggleNoJump: (ci: number) => void
+  teamHasErrors: (ti: number) => boolean
+  colAnswerValue: (ci: number) => CellValue
+  noJumpHasConflict: (ci: number) => boolean
+  setTeamName: (ti: number, name: string) => void
+  setQuizzerName: (ti: number, qi: number, name: string) => void
+  moveQuizzer: (ti: number, from: number, to: number) => void
+  setQuestionType: (ci: number, category: QuestionCategory | null) => void
+}
 const {
   columns,
   quiz,
@@ -232,7 +283,7 @@ const {
   undo,
   redo,
   markSaved,
-} = useScoresheet()
+} = useScoresheet() as unknown as _PlainScoresheet
 
 const tutorial = useTutorial({
   store,
