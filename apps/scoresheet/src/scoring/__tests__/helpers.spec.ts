@@ -27,13 +27,13 @@ function emptyGrid(cols = 3): CellValue[][][] {
 /** Set one cell in a cloned grid */
 function withCell(
   grid: CellValue[][][],
-  ti: number,
-  qi: number,
-  ci: number,
+  teamIdx: number,
+  seatIdx: number,
+  colIdx: number,
   v: CellValue,
 ): CellValue[][][] {
   const g = grid.map((team) => team.map((row) => [...row]))
-  g[ti]![qi]![ci] = v
+  g[teamIdx]![seatIdx]![colIdx] = v
   return g
 }
 
