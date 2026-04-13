@@ -6,8 +6,6 @@ import { toColIdx } from '../../types/indices'
 
 beforeEach(() => localStorage.clear())
 
-// TODO(refactor): Task 5 will update ScoresheetActions to use branded indices,
-// removing the need to cast through `unknown` here.
 function buildActions(s: ReturnType<typeof useScoresheet>): ScoresheetActions {
   return {
     setQuizzerName: s.setQuizzerName,
@@ -20,7 +18,7 @@ function buildActions(s: ReturnType<typeof useScoresheet>): ScoresheetActions {
     columns: s.columns,
     teams: s.teams,
     quiz: s.quiz,
-  } as unknown as ScoresheetActions
+  }
 }
 
 function runSetup(id: string, actions: ScoresheetActions) {

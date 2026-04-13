@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useScoresheet } from '../useScoresheet'
-import { useTutorial, type ScoresheetAPI } from '../useTutorial'
+import { useTutorial } from '../useTutorial'
 import { TUTORIAL_STEPS } from '../../tutorial/tutorialSteps'
 import { CellValue } from '../../types/scoresheet'
 import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
@@ -8,12 +8,6 @@ import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
 const T = toTeamIdx
 const S = toSeatIdx
 const C = toColIdx
-
-// TODO(refactor): Task 5 will update ScoresheetAPI to use branded TeamIdx/SeatIdx/ColIdx,
-// removing the need to cast through `unknown` here.
-function tutorialFor(s: ReturnType<typeof useScoresheet>) {
-  return useTutorial(s as unknown as ScoresheetAPI)
-}
 
 // Toggle to force parseQuizFile to throw, for snapshot-failure tests.
 let forceParseFailure = false
@@ -38,13 +32,13 @@ beforeEach(() => {
 describe('useTutorial — start', () => {
   it('is inactive initially', () => {
     const s = useScoresheet()
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     expect(t.active.value).toBe(false)
   })
 
   it('start() activates the tutorial and lands on step 0', () => {
     const s = useScoresheet()
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
     expect(t.active.value).toBe(true)
     expect(t.currentStepIndex.value).toBe(0)
@@ -54,7 +48,7 @@ describe('useTutorial — start', () => {
   it('start() saves a snapshot to localStorage', () => {
     const s = useScoresheet()
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
     expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBeTruthy()
   })
@@ -62,7 +56,7 @@ describe('useTutorial — start', () => {
   it('start() pauses auto-save and resets the store', () => {
     const s = useScoresheet()
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
     expect(s.pauseAutoSave.value).toBe(true)
     // After resetStore, Q1 should be empty again
@@ -73,7 +67,7 @@ describe('useTutorial — start', () => {
 describe('useTutorial — advance', () => {
   it('advance() increments currentStepIndex', () => {
     const s = useScoresheet()
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
     t.advance()
     expect(t.currentStepIndex.value).toBe(1)
@@ -81,7 +75,7 @@ describe('useTutorial — advance', () => {
 
   it('advance() on the last step finishes the tutorial', () => {
     const s = useScoresheet()
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
     t.currentStepIndex.value = t.totalSteps - 1
     t.advance()
@@ -93,7 +87,7 @@ describe('useTutorial — finish', () => {
   it('finish() deactivates and restores the snapshot', () => {
     const s = useScoresheet()
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
     // Tutorial reset the store, Q1 is empty now
     expect(s.cells.value[0]![0]![0]).toBe(CellValue.Empty)
@@ -105,7 +99,7 @@ describe('useTutorial — finish', () => {
 
   it('finish() clears the localStorage snapshot', () => {
     const s = useScoresheet()
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
     expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBeTruthy()
     t.finish()
@@ -114,7 +108,7 @@ describe('useTutorial — finish', () => {
 
   it('finish() unpauses auto-save', () => {
     const s = useScoresheet()
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
     expect(s.pauseAutoSave.value).toBe(true)
     t.finish()
@@ -128,7 +122,7 @@ describe('useTutorial — onNext double-advance guard', () => {
   // advance runs. Without the index-guard, this would skip a step.
   it('does not double-advance when a cell-value watcher fires during onNext', async () => {
     const s = useScoresheet()
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
 
     // Jump to `q1-correct` — a cell-value completion step with an onNext fallback.
@@ -169,7 +163,7 @@ describe('useTutorial — snapshot safety', () => {
     const s = useScoresheet()
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
     forceParseFailure = true
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
     expect(t.active.value).toBe(false)
     // Pre-tutorial state is still there
@@ -183,7 +177,7 @@ describe('useTutorial — snapshot safety', () => {
   it('finish() restores state using in-memory snapshot even when localStorage is cleared', () => {
     const s = useScoresheet()
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
-    const t = tutorialFor(s)
+    const t = useTutorial(s)
     t.start()
     // Tutorial reset the store, Q1 is empty
     expect(s.cells.value[0]![0]![0]).toBe(CellValue.Empty)
