@@ -67,14 +67,14 @@ const meetPickerRef = ref<InstanceType<typeof MeetPickerDialog> | null>(null)
 const openPickerSlot = ref<number | null>(null)
 const pickerPos = ref({ top: 0, left: 0 })
 
-function toggleTeamPicker(ti: number, event: MouseEvent) {
-  if (openPickerSlot.value === ti) {
+function toggleTeamPicker(teamIdx: number, event: MouseEvent) {
+  if (openPickerSlot.value === teamIdx) {
     openPickerSlot.value = null
     return
   }
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
   pickerPos.value = { top: rect.bottom + 4, left: rect.left }
-  openPickerSlot.value = ti
+  openPickerSlot.value = teamIdx
 }
 
 function pickFromOpenPicker(teamId: number) {
@@ -153,11 +153,11 @@ const filteredTeamList = computed(() =>
 )
 
 async function onMeetLoaded() {
-  for (let ti = 0; ti < 3; ti++) {
-    const teamName = store.teams[ti]?.name ?? ''
+  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+    const teamName = store.teams[teamIdx]?.name ?? ''
     if (isDefaultTeamName(teamName)) continue
     const match = findMatchingTeam(teamName)
-    if (match) await pickTeam(ti, match.id)
+    if (match) await pickTeam(teamIdx, match.id)
   }
 }
 
@@ -311,8 +311,8 @@ const allValidationMessages = computed(() => {
 })
 
 /** Show individual score if the quizzer jumped (correct or error) or fouled out. */
-function quizzerScoreLabel(ti: number, qi: number): string | null {
-  const q = scoring.value[ti]?.quizzers[qi]
+function quizzerScoreLabel(teamIdx: number, seatIdx: number): string | null {
+  const q = scoring.value[teamIdx]?.quizzers[seatIdx]
   if (!q) return null
   if (q.correctCount === 0 && q.errorCount === 0 && !q.fouledOut) return null
   return `${q.points}`
@@ -338,13 +338,13 @@ const boundaryColIndices = computed<Set<number>>(() => {
 })
 
 /** Running total at or before colIdx for a team (walks back to find last non-null). */
-function boundaryTotal(ti: number, colIdx: number): number | null {
-  const totals = scoring.value[ti]?.runningTotals
+function boundaryTotal(teamIdx: number, colIdx: number): number | null {
+  const totals = scoring.value[teamIdx]?.runningTotals
   if (!totals) return null
   for (let i = colIdx; i >= 0; i--) {
     if (totals[i] !== null && totals[i] !== undefined) return totals[i]!
   }
-  return scoring.value[ti]?.onTimeBonus ?? null
+  return scoring.value[teamIdx]?.onTimeBonus ?? null
 }
 
 /** Columns actually rendered — entering columns start collapsed, then expand */
@@ -356,7 +356,7 @@ const trailingTotalIndices = computed<Set<number>>(() => {
   const c = cells.value
   const nj = noJumps.value
   const lastVisible = lastVisibleColIdx.value
-  const isComplete = (ci: number) => nj[ci] || anyTeamHasAnswer(c, ci)
+  const isComplete = (colIdx: number) => nj[colIdx] || anyTeamHasAnswer(c, colIdx)
   for (let i = 0; i < dc.length; i++) {
     const { idx } = dc[i]!
     const nextIdx = dc[i + 1]?.idx
@@ -494,10 +494,10 @@ function onWrapperScroll() {
   if (!scrollRaf) scrollRaf = requestAnimationFrame(updateVisibleCols)
 }
 
-function baselineScore(ti: number): number {
+function baselineScore(teamIdx: number): number {
   const idx = firstVisibleColIdx.value
-  if (idx === 0) return scoring.value[ti]?.onTimeBonus ?? 0
-  return boundaryTotal(ti, idx - 1) ?? scoring.value[ti]?.onTimeBonus ?? 0
+  if (idx === 0) return scoring.value[teamIdx]?.onTimeBonus ?? 0
+  return boundaryTotal(teamIdx, idx - 1) ?? scoring.value[teamIdx]?.onTimeBonus ?? 0
 }
 
 onMounted(() => {

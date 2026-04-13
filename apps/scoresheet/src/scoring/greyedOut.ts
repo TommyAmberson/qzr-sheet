@@ -18,7 +18,7 @@ export interface GreyedOutResult {
   disabled: Set<string>
   /** Teams that can't jump on a column due to toss-up/error chain: Set of "teamIdx:colIdx" */
   tossedUp: Set<string>
-  /** Quizzers who fouled on a question and can't answer sub-parts: Set of "teamIdx:quizzerIdx:colIdx" */
+  /** Quizzers who fouled on a question and can't answer sub-parts: Set of "teamIdx:seatIdx:colIdx" */
   fouledQuizzers: Set<string>
   /** Per-column game-logic status: Pending, Errored, Resolved, or Skipped */
   colStatuses: ColStatus[]
