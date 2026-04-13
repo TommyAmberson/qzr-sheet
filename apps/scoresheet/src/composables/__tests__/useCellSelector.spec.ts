@@ -44,7 +44,7 @@ describe('useCellSelector — selectorOptions', () => {
     const { selector, selectorOptions, isBonusForTeam } = makeSelector()
     isBonusForTeam.mockReturnValue(false)
     // Open at col 0 (Q1, QuestionType.Normal)
-    selector.value = { ti: 0, qi: 0, ci: 0, x: 0, y: 0 }
+    selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 0, x: 0, y: 0 }
     expect(selectorOptions.value.map((o) => o.value)).toEqual([
       CellValue.Correct,
       CellValue.Error,
@@ -56,7 +56,7 @@ describe('useCellSelector — selectorOptions', () => {
   it('returns bonus options (B/MB/F/✕) when isBonusForTeam is true', () => {
     const { selector, selectorOptions, isBonusForTeam } = makeSelector()
     isBonusForTeam.mockReturnValue(true)
-    selector.value = { ti: 0, qi: 0, ci: 0, x: 0, y: 0 }
+    selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 0, x: 0, y: 0 }
     expect(selectorOptions.value.map((o) => o.value)).toEqual([
       CellValue.Bonus,
       CellValue.MissedBonus,
@@ -71,7 +71,7 @@ describe('useCellSelector — selectorOptions', () => {
     // Find the first B-type column (e.g. col index for "16B")
     const bColIdx = columns.value.findIndex((c) => c.type === QuestionType.B)
     expect(bColIdx).toBeGreaterThan(-1)
-    selector.value = { ti: 0, qi: 0, ci: bColIdx, x: 0, y: 0 }
+    selector.value = { teamIdx: 0, seatIdx: 0, colIdx: bColIdx, x: 0, y: 0 }
     expect(selectorOptions.value.map((o) => o.value)).toEqual([
       CellValue.Bonus,
       CellValue.MissedBonus,
@@ -88,7 +88,7 @@ describe('useCellSelector — selectorOptions', () => {
 
   it('returns empty array when column index is out of range', () => {
     const { selector, selectorOptions } = makeSelector()
-    selector.value = { ti: 0, qi: 0, ci: 9999, x: 0, y: 0 }
+    selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 9999, x: 0, y: 0 }
     expect(selectorOptions.value).toHaveLength(0)
   })
 })
@@ -96,7 +96,7 @@ describe('useCellSelector — selectorOptions', () => {
 describe('useCellSelector — selectValue', () => {
   it('calls setCell with the chosen value and closes the selector', () => {
     const { selector, selectValue, setCell } = makeSelector()
-    selector.value = { ti: 1, qi: 2, ci: 3, x: 0, y: 0 }
+    selector.value = { teamIdx: 1, seatIdx: 2, colIdx: 3, x: 0, y: 0 }
     selectValue(CellValue.Correct)
     expect(setCell).toHaveBeenCalledWith(1, 2, 3, CellValue.Correct)
     expect(selector.value).toBeNull()
@@ -110,7 +110,7 @@ describe('useCellSelector — selectValue', () => {
 
   it('can select Empty (clear)', () => {
     const { selector, selectValue, setCell } = makeSelector()
-    selector.value = { ti: 0, qi: 0, ci: 0, x: 0, y: 0 }
+    selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 0, x: 0, y: 0 }
     selectValue(CellValue.Empty)
     expect(setCell).toHaveBeenCalledWith(0, 0, 0, CellValue.Empty)
     expect(selector.value).toBeNull()
@@ -120,7 +120,7 @@ describe('useCellSelector — selectValue', () => {
 describe('useCellSelector — confirmFocusedOption', () => {
   it('selects the option at selectorFocusIdx', () => {
     const { selector, selectorFocusIdx, confirmFocusedOption, setCell } = makeSelector()
-    selector.value = { ti: 0, qi: 0, ci: 0, x: 0, y: 0 }
+    selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 0, x: 0, y: 0 }
     selectorFocusIdx.value = 1 // Error (index 1 in normalOptions)
     confirmFocusedOption()
     expect(setCell).toHaveBeenCalledWith(0, 0, 0, CellValue.Error)
@@ -128,7 +128,7 @@ describe('useCellSelector — confirmFocusedOption', () => {
 
   it('selects first option when focusIdx is 0', () => {
     const { selector, selectorFocusIdx, confirmFocusedOption, setCell } = makeSelector()
-    selector.value = { ti: 0, qi: 0, ci: 0, x: 0, y: 0 }
+    selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 0, x: 0, y: 0 }
     selectorFocusIdx.value = 0
     confirmFocusedOption()
     expect(setCell).toHaveBeenCalledWith(0, 0, 0, CellValue.Correct)
@@ -146,7 +146,7 @@ describe('useCellSelector — confirmFocusedOption', () => {
 describe('useCellSelector — close', () => {
   it('closes an open selector', () => {
     const { selector, close } = makeSelector()
-    selector.value = { ti: 0, qi: 0, ci: 0, x: 10, y: 20 }
+    selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 0, x: 10, y: 20 }
     close()
     expect(selector.value).toBeNull()
   })
@@ -197,7 +197,7 @@ describe('useCellSelector — registerCellEl', () => {
     })
     cellEls.set('1:2:3', el)
     openFromCell(1, 2, 3)
-    expect(selector.value).toMatchObject({ ti: 1, qi: 2, ci: 3, x: 130, y: 215 })
+    expect(selector.value).toMatchObject({ teamIdx: 1, seatIdx: 2, colIdx: 3, x: 130, y: 215 })
   })
 })
 
@@ -218,7 +218,7 @@ describe('useCellSelector — openFromClick', () => {
     })
     const event = { currentTarget: td } as unknown as MouseEvent
     openFromClick(0, 1, 2, event)
-    expect(selector.value).toMatchObject({ ti: 0, qi: 1, ci: 2, x: 70, y: 110 })
+    expect(selector.value).toMatchObject({ teamIdx: 0, seatIdx: 1, colIdx: 2, x: 70, y: 110 })
   })
 
   it('resets selectorFocusIdx to 0 when opening', () => {

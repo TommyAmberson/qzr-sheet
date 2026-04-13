@@ -23,31 +23,42 @@ const normalOptions: SelectorOption[] = [
 
 export function useCellSelector(
   columns: Ref<Column[]>,
-  isBonusForTeam: (ti: number, ci: number) => boolean,
-  setCell: (ti: number, qi: number, ci: number, value: CellValue) => void,
+  isBonusForTeam: (teamIdx: number, colIdx: number) => boolean,
+  setCell: (teamIdx: number, seatIdx: number, colIdx: number, value: CellValue) => void,
 ) {
-  const selector = ref<{ ti: number; qi: number; ci: number; x: number; y: number } | null>(null)
+  const selector = ref<{
+    teamIdx: number
+    seatIdx: number
+    colIdx: number
+    x: number
+    y: number
+  } | null>(null)
   const selectorFocusIdx = ref(0)
 
-  /** Map of "ti:qi:ci" → <td> element for keyboard-triggered open */
+  /** Map of "teamIdx:seatIdx:colIdx" → <td> element for keyboard-triggered open */
   const cellEls = new Map<string, HTMLElement>()
 
-  function registerCellEl(ti: number, qi: number, ci: number, el: HTMLElement | null) {
-    const key = `${ti}:${qi}:${ci}`
+  function registerCellEl(
+    teamIdx: number,
+    seatIdx: number,
+    colIdx: number,
+    el: HTMLElement | null,
+  ) {
+    const key = `${teamIdx}:${seatIdx}:${colIdx}`
     if (el) cellEls.set(key, el)
     else cellEls.delete(key)
   }
 
   const selectorOptions = computed<SelectorOption[]>(() => {
     if (!selector.value) return []
-    const { ti, ci } = selector.value
-    const col = columns.value[ci]
+    const { teamIdx, colIdx } = selector.value
+    const col = columns.value[colIdx]
     if (!col) return []
-    if (col.type === QuestionType.B || isBonusForTeam(ti, ci)) return bonusOptions
+    if (col.type === QuestionType.B || isBonusForTeam(teamIdx, colIdx)) return bonusOptions
     return normalOptions
   })
 
-  function openAt(ti: number, qi: number, ci: number, x: number, y: number) {
+  function openAt(teamIdx: number, seatIdx: number, colIdx: number, x: number, y: number) {
     selectorFocusIdx.value = 0
     // Clamp so the popup stays within the viewport (2×2 grid of buttons + padding)
     const isCoarse =
@@ -58,25 +69,25 @@ export function useCellSelector(
     const pad = 8
     const cx = Math.max(popupW / 2 + pad, Math.min(x, window.innerWidth - popupW / 2 - pad))
     const cy = Math.max(popupH / 2 + pad, Math.min(y, window.innerHeight - popupH / 2 - pad))
-    selector.value = { ti, qi, ci, x: cx, y: cy }
+    selector.value = { teamIdx, seatIdx, colIdx, x: cx, y: cy }
   }
 
-  function openFromClick(ti: number, qi: number, ci: number, event: MouseEvent) {
+  function openFromClick(teamIdx: number, seatIdx: number, colIdx: number, event: MouseEvent) {
     const td = event.currentTarget as HTMLElement
     const rect = td.getBoundingClientRect()
-    openAt(ti, qi, ci, rect.left + rect.width / 2, rect.top + rect.height / 2)
+    openAt(teamIdx, seatIdx, colIdx, rect.left + rect.width / 2, rect.top + rect.height / 2)
   }
 
-  function openFromCell(ti: number, qi: number, ci: number) {
-    const el = cellEls.get(`${ti}:${qi}:${ci}`)
+  function openFromCell(teamIdx: number, seatIdx: number, colIdx: number) {
+    const el = cellEls.get(`${teamIdx}:${seatIdx}:${colIdx}`)
     if (!el) return
     const rect = el.getBoundingClientRect()
-    openAt(ti, qi, ci, rect.left + rect.width / 2, rect.top + rect.height / 2)
+    openAt(teamIdx, seatIdx, colIdx, rect.left + rect.width / 2, rect.top + rect.height / 2)
   }
 
   function selectValue(value: CellValue) {
     if (!selector.value) return
-    setCell(selector.value.ti, selector.value.qi, selector.value.ci, value)
+    setCell(selector.value.teamIdx, selector.value.seatIdx, selector.value.colIdx, value)
     selector.value = null
   }
 

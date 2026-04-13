@@ -9,18 +9,18 @@ interface KeyboardNavDeps {
   noJumps: Ref<boolean[]>
   displayColumns: Ref<{ idx: number }[]>
   // Selector state — keyboard nav reads and drives these
-  selector: Ref<{ ti: number; qi: number; ci: number } | null>
+  selector: Ref<{ teamIdx: number; seatIdx: number; colIdx: number } | null>
   selectorFocusIdx: Ref<number>
   selectorOptions: Ref<SelectorOption[]>
-  openSelectorOnCell: (ti: number, qi: number, ci: number) => void
+  openSelectorOnCell: (teamIdx: number, seatIdx: number, colIdx: number) => void
   confirmFocusedOption: () => void
   closeSelector: () => void
   // Actions
-  setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
-  toggleNoJump: (ci: number) => void
-  isBonusForTeam: (ti: number, ci: number) => boolean
-  isAfterOut: (ti: number, qi: number, ci: number) => boolean
-  isFouledOnQuestion: (ti: number, qi: number, ci: number) => boolean
+  setCell: (teamIdx: number, seatIdx: number, colIdx: number, value: CellValue) => void
+  toggleNoJump: (colIdx: number) => void
+  isBonusForTeam: (teamIdx: number, colIdx: number) => boolean
+  isAfterOut: (teamIdx: number, seatIdx: number, colIdx: number) => boolean
+  isFouledOnQuestion: (teamIdx: number, seatIdx: number, colIdx: number) => boolean
   undo: () => void
   redo: () => void
 }
@@ -57,7 +57,7 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
     redo,
   } = deps
 
-  const focusedCell = ref<{ ti: number; qi: number; ci: number } | null>(null)
+  const focusedCell = ref<{ teamIdx: number; seatIdx: number; colIdx: number } | null>(null)
   const keyboardMode = ref(false)
   let keyboardModeTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -78,55 +78,55 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
     keyboardMode.value = false
   }
 
-  function focusCell(ti: number, qi: number, ci: number) {
-    focusedCell.value = { ti, qi, ci }
+  function focusCell(teamIdx: number, seatIdx: number, colIdx: number) {
+    focusedCell.value = { teamIdx, seatIdx, colIdx }
   }
 
   function isNoJumpFocus(): boolean {
-    return focusedCell.value?.ti === -1
+    return focusedCell.value?.teamIdx === -1
   }
 
-  function isCellNavigable(ti: number, qi: number, ci: number): boolean {
-    return !isAfterOut(ti, qi, ci) && !isFouledOnQuestion(ti, qi, ci)
+  function isCellNavigable(teamIdx: number, seatIdx: number, colIdx: number): boolean {
+    return !isAfterOut(teamIdx, seatIdx, colIdx) && !isFouledOnQuestion(teamIdx, seatIdx, colIdx)
   }
 
-  function allRows(): { ti: number; qi: number }[] {
-    const rows: { ti: number; qi: number }[] = []
-    for (let ti = 0; ti < teams.value.length; ti++) {
-      const count = teamQuizzers.value[ti]?.length ?? 0
-      for (let qi = 0; qi < count; qi++) rows.push({ ti, qi })
+  function allRows(): { teamIdx: number; seatIdx: number }[] {
+    const rows: { teamIdx: number; seatIdx: number }[] = []
+    for (let t = 0; t < teams.value.length; t++) {
+      const count = teamQuizzers.value[t]?.length ?? 0
+      for (let s = 0; s < count; s++) rows.push({ teamIdx: t, seatIdx: s })
     }
-    rows.push({ ti: -1, qi: -1 }) // no-jump row
+    rows.push({ teamIdx: -1, seatIdx: -1 }) // no-jump row
     return rows
   }
 
-  function moveFocus(dqi: number, dci: number) {
+  function moveFocus(dRow: number, dCol: number) {
     const f = focusedCell.value
     if (!f) return
     const cols = displayColumns.value
 
-    if (dci !== 0) {
-      const curPos = cols.findIndex((c) => c.idx === f.ci)
+    if (dCol !== 0) {
+      const curPos = cols.findIndex((c) => c.idx === f.colIdx)
       if (curPos === -1) return
-      const nextPos = curPos + dci
-      if (nextPos >= 0 && nextPos < cols.length) focusCell(f.ti, f.qi, cols[nextPos]!.idx)
+      const nextPos = curPos + dCol
+      if (nextPos >= 0 && nextPos < cols.length) focusCell(f.teamIdx, f.seatIdx, cols[nextPos]!.idx)
     }
 
-    if (dqi !== 0) {
+    if (dRow !== 0) {
       const rows = allRows()
-      const curRowIdx = rows.findIndex((r) => r.ti === f.ti && r.qi === f.qi)
+      const curRowIdx = rows.findIndex((r) => r.teamIdx === f.teamIdx && r.seatIdx === f.seatIdx)
       if (curRowIdx === -1) return
-      const nextRowIdx = curRowIdx + dqi
+      const nextRowIdx = curRowIdx + dRow
       if (nextRowIdx >= 0 && nextRowIdx < rows.length) {
         const row = rows[nextRowIdx]!
-        focusCell(row.ti, row.qi, f.ci)
+        focusCell(row.teamIdx, row.seatIdx, f.colIdx)
       }
     }
   }
 
-  function allowedValues(ti: number, ci: number): CellValue[] {
-    const col = columns.value[ci]
-    const isBonus = col?.type === QuestionType.B || isBonusForTeam(ti, ci)
+  function allowedValues(teamIdx: number, colIdx: number): CellValue[] {
+    const col = columns.value[colIdx]
+    const isBonus = col?.type === QuestionType.B || isBonusForTeam(teamIdx, colIdx)
     return isBonus
       ? [CellValue.Bonus, CellValue.MissedBonus, CellValue.Foul, CellValue.Empty]
       : [CellValue.Correct, CellValue.Error, CellValue.Foul, CellValue.Empty]
@@ -197,16 +197,16 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
-        if (f) setCell(f.ti, f.qi, f.ci, CellValue.Empty)
+        if (f) setCell(f.teamIdx, f.seatIdx, f.colIdx, CellValue.Empty)
         closeSelector()
         return
       }
       const letterVal = letterMap[event.key.toLowerCase()]
       if (letterVal !== undefined && f) {
         event.preventDefault()
-        const allowed = allowedValues(f.ti, f.ci)
+        const allowed = allowedValues(f.teamIdx, f.colIdx)
         if (allowed.includes(letterVal)) {
-          setCell(f.ti, f.qi, f.ci, letterVal)
+          setCell(f.teamIdx, f.seatIdx, f.colIdx, letterVal)
           closeSelector()
         }
         return
@@ -251,35 +251,35 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       if (isNoJumpFocus()) {
-        toggleNoJump(f.ci)
+        toggleNoJump(f.colIdx)
         return
       }
-      openSelectorOnCell(f.ti, f.qi, f.ci)
+      openSelectorOnCell(f.teamIdx, f.seatIdx, f.colIdx)
       return
     }
 
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault()
       if (isNoJumpFocus()) {
-        if (noJumps.value[f.ci]) toggleNoJump(f.ci)
+        if (noJumps.value[f.colIdx]) toggleNoJump(f.colIdx)
       } else {
-        setCell(f.ti, f.qi, f.ci, CellValue.Empty)
+        setCell(f.teamIdx, f.seatIdx, f.colIdx, CellValue.Empty)
       }
       return
     }
 
     if (event.key === 'x' || event.key === 'X') {
       event.preventDefault()
-      toggleNoJump(f.ci)
+      toggleNoJump(f.colIdx)
       return
     }
 
     if (!isNoJumpFocus()) {
       const value = letterMap[event.key.toLowerCase()]
-      if (value !== undefined && isCellNavigable(f.ti, f.qi, f.ci)) {
+      if (value !== undefined && isCellNavigable(f.teamIdx, f.seatIdx, f.colIdx)) {
         event.preventDefault()
-        const allowed = allowedValues(f.ti, f.ci)
-        if (allowed.includes(value)) setCell(f.ti, f.qi, f.ci, value)
+        const allowed = allowedValues(f.teamIdx, f.colIdx)
+        if (allowed.includes(value)) setCell(f.teamIdx, f.seatIdx, f.colIdx, value)
       }
     }
   }

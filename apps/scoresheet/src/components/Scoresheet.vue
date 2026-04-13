@@ -859,8 +859,8 @@ const appVersion: string = __APP_VERSION__
                   { 'timeout-after': hasTimeoutAfterCol(col.key) },
                   {
                     'col--entering': entering,
-                    'col--hover': !dragState && (hoverCol === idx || selector?.ci === idx),
-                    'col--focus': keyboardMode && focusedCell?.ci === idx,
+                    'col--hover': !dragState && (hoverCol === idx || selector?.colIdx === idx),
+                    'col--focus': keyboardMode && focusedCell?.colIdx === idx,
                   },
                 ]"
                 :title="
@@ -1026,12 +1026,15 @@ const appVersion: string = __APP_VERSION__
                       !scoring[teamIdx]?.quizzers[seatIdx]?.fouledOut,
                   },
                   { 'row--fouled-out': scoring[teamIdx]?.quizzers[seatIdx]?.fouledOut },
-                  { 'row--dragging': dragState?.ti === teamIdx && dragState?.qi === seatIdx },
+                  {
+                    'row--dragging':
+                      dragState?.teamIdx === teamIdx && dragState?.seatIdx === seatIdx,
+                  },
                   {
                     'row--drop-target':
-                      dropTarget?.ti === teamIdx &&
-                      dropTarget?.qi === seatIdx &&
-                      !(dragState?.ti === teamIdx && dragState?.qi === seatIdx),
+                      dropTarget?.teamIdx === teamIdx &&
+                      dropTarget?.seatIdx === seatIdx &&
+                      !(dragState?.teamIdx === teamIdx && dragState?.seatIdx === seatIdx),
                   },
                 ]"
               >
@@ -1044,12 +1047,14 @@ const appVersion: string = __APP_VERSION__
                     {
                       'cell--invalid': templateQuizzerHasErrors(teamIdx, seatIdx),
                       'col--name--active':
-                        !dragState && selector?.ti === teamIdx && selector?.qi === seatIdx,
+                        !dragState &&
+                        selector?.teamIdx === teamIdx &&
+                        selector?.seatIdx === seatIdx,
                       'col--name--focused':
                         !dragState &&
                         keyboardMode &&
-                        focusedCell?.ti === teamIdx &&
-                        focusedCell?.qi === seatIdx,
+                        focusedCell?.teamIdx === teamIdx &&
+                        focusedCell?.seatIdx === seatIdx,
                     },
                   ]"
                   :title="
@@ -1215,9 +1220,9 @@ const appVersion: string = __APP_VERSION__
                     {
                       'cell--focused':
                         keyboardMode &&
-                        focusedCell?.ti === teamIdx &&
-                        focusedCell?.qi === seatIdx &&
-                        focusedCell?.ci === idx,
+                        focusedCell?.teamIdx === teamIdx &&
+                        focusedCell?.seatIdx === seatIdx &&
+                        focusedCell?.colIdx === idx,
                     },
                   ]"
                   :title="
@@ -1381,7 +1386,7 @@ const appVersion: string = __APP_VERSION__
                     'cell--no-jump-answered': templateColAnswerValue(idx) !== CellValue.Empty,
                     'cell--invalid': templateNoJumpHasConflict(idx),
                     'col--entering': entering,
-                    'cell--focused': keyboardMode && isNoJumpFocus() && focusedCell?.ci === idx,
+                    'cell--focused': keyboardMode && isNoJumpFocus() && focusedCell?.colIdx === idx,
                   },
                 ]"
                 :title="
