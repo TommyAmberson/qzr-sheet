@@ -25,7 +25,7 @@ export function getOvertimeEligibleTeams(
   const regCols = cols.filter((c) => !c.isOvertime)
   const regCells = sliceCells(cellData, cols, regCols)
   const scores = regCells.map(
-    (teamCells, ti) => scoreTeam(teamCells, regCols, onTimes[ti] ?? true).total,
+    (teamCells, teamIdx) => scoreTeam(teamCells, regCols, onTimes[teamIdx] ?? true).total,
   )
 
   // Find teams that share a score with at least one other team
@@ -73,7 +73,7 @@ export function getActiveOtTeams(
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
     const throughCells = sliceCells(cellData, cols, throughCols)
     const scores = throughCells.map(
-      (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+      (teamCells, teamIdx) => scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true).total,
     )
     const stillTied = new Set<number>()
     for (let i = 0; i < competing.length; i++) {
@@ -122,14 +122,14 @@ export function computeOtIneligibility(
 
     // Teams not competing this round are ineligible on all its columns
     const ineligibleThisRound = new Set<number>()
-    for (let ti = 0; ti < teamCount; ti++) {
-      if (!competing.includes(ti)) ineligibleThisRound.add(ti)
+    for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
+      if (!competing.includes(teamIdx)) ineligibleThisRound.add(teamIdx)
     }
-    for (let ci = 0; ci < cols.length; ci++) {
-      const col = cols[ci]!
+    for (let colIdx = 0; colIdx < cols.length; colIdx++) {
+      const col = cols[colIdx]!
       if (!col.isOvertime) continue
       if (col.number < firstQ || col.number > lastQ) continue
-      ineligible.set(ci, new Set(ineligibleThisRound))
+      ineligible.set(colIdx, new Set(ineligibleThisRound))
     }
 
     if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) break
@@ -137,7 +137,7 @@ export function computeOtIneligibility(
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
     const throughCells = sliceCells(cellData, cols, throughCols)
     const scores = throughCells.map(
-      (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+      (teamCells, teamIdx) => scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true).total,
     )
     const stillTied = new Set<number>()
     for (let i = 0; i < competing.length; i++) {
@@ -166,11 +166,11 @@ function questionGroupComplete(
   cols: Column[],
   noJumps: boolean[],
   keyToIdx: Map<string, number>,
-  ci: number,
+  colIdx: number,
 ): boolean {
-  const col = cols[ci]!
-  if (noJumps[ci]) return true
-  const s = colStatuses[ci]!
+  const col = cols[colIdx]!
+  if (noJumps[colIdx]) return true
+  const s = colStatuses[colIdx]!
   if (s === ColStatus.Pending) return false
   if (!col.isAB || s === ColStatus.Resolved) return true
 
@@ -205,11 +205,11 @@ export function questionsComplete(
 ): boolean {
   const keyToIdx = buildKeyToIdx(cols)
   const { colStatuses } = computeGreyedOut(cellData, cols)
-  for (let ci = 0; ci < cols.length; ci++) {
-    const col = cols[ci]!
+  for (let colIdx = 0; colIdx < cols.length; colIdx++) {
+    const col = cols[colIdx]!
     if (col.type !== '') continue
     if (col.number < fromQ || col.number > toQ) continue
-    if (!questionGroupComplete(colStatuses, cols, noJumps, keyToIdx, ci)) return false
+    if (!questionGroupComplete(colStatuses, cols, noJumps, keyToIdx, colIdx)) return false
   }
   return true
 }
@@ -232,11 +232,11 @@ export function quizJumpedComplete(
   const maxOtQ = 20 + visibleOtRounds * 3
   const keyToIdx = buildKeyToIdx(cols)
   const { colStatuses } = computeGreyedOut(cellData, cols)
-  for (let ci = 0; ci < cols.length; ci++) {
-    const col = cols[ci]!
+  for (let colIdx = 0; colIdx < cols.length; colIdx++) {
+    const col = cols[colIdx]!
     if (col.isOvertime && col.number > maxOtQ) continue
     if (col.type !== '') continue
-    if (!questionGroupComplete(colStatuses, cols, noJumps, keyToIdx, ci)) return false
+    if (!questionGroupComplete(colStatuses, cols, noJumps, keyToIdx, colIdx)) return false
   }
   return true
 }
@@ -280,7 +280,7 @@ export function computeOvertimeRounds(
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
     const throughCells = sliceCells(cellData, cols, throughCols)
     const scores = throughCells.map(
-      (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+      (teamCells, teamIdx) => scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true).total,
     )
     const stillTied = new Set<number>()
     for (let i = 0; i < competing.length; i++) {
@@ -327,7 +327,7 @@ export function computeOtCheckpointScores(
     const throughCells = sliceCells(cellData, cols, throughCols)
     checkpoints.push(
       throughCells.map(
-        (teamCells, ti) => scoreTeam(teamCells, throughCols, onTimes[ti] ?? true).total,
+        (teamCells, teamIdx) => scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true).total,
       ),
     )
   }
@@ -345,5 +345,7 @@ export function computeRegulationScores(
 ): number[] {
   const regCols = cols.filter((c) => !c.isOvertime)
   const regCells = sliceCells(cellData, cols, regCols)
-  return regCells.map((teamCells, ti) => scoreTeam(teamCells, regCols, onTimes[ti] ?? true).total)
+  return regCells.map(
+    (teamCells, teamIdx) => scoreTeam(teamCells, regCols, onTimes[teamIdx] ?? true).total,
+  )
 }

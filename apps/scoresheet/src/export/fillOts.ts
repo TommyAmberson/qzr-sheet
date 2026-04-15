@@ -131,11 +131,11 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   const qtRow = 28
   const overtimeCell = 29 // row 29 col 2
 
-  for (let ti = 0; ti < sortedTeams.length; ti++) {
-    const team = sortedTeams[ti]!
-    const { nameRow, quizzerStartRow, onTimeRow } = teamRows[ti]!
+  for (let teamIdx = 0; teamIdx < sortedTeams.length; teamIdx++) {
+    const team = sortedTeams[teamIdx]!
+    const { nameRow, quizzerStartRow, onTimeRow } = teamRows[teamIdx]!
     const tQuizzers = quizzersByTeam.get(team.id) ?? []
-    const teamCells = cellGrid[ti]!
+    const teamCells = cellGrid[teamIdx]!
 
     // Team name
     sheetXml = patchCell(sheetXml, nameRow, 1, team.name)
@@ -144,9 +144,9 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
     sheetXml = patchCell(sheetXml, onTimeRow, 6, team.onTime ? 'y' : 'n')
 
     // Quizzer rows
-    for (let qi = 0; qi < 5; qi++) {
-      const qzr = tQuizzers[qi]
-      const qRow = quizzerStartRow + qi
+    for (let seatIdx = 0; seatIdx < 5; seatIdx++) {
+      const qzr = tQuizzers[seatIdx]
+      const qRow = quizzerStartRow + seatIdx
 
       // Quizzer name
       sheetXml = patchCell(sheetXml, qRow, 1, qzr?.name ?? '')
@@ -155,9 +155,9 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
       // question's column. A/B answers go in the same ODS column as the
       // parent question number (the ODS has one column per question).
       if (qzr) {
-        for (let ci = 0; ci < cols.length; ci++) {
-          const col = cols[ci]!
-          const cell = teamCells[qi]?.[ci] ?? ''
+        for (let colIdx = 0; colIdx < cols.length; colIdx++) {
+          const col = cols[colIdx]!
+          const cell = teamCells[seatIdx]?.[colIdx] ?? ''
           if (cell === '') continue
 
           // Normal keys map directly; A/B keys use the parent question number
