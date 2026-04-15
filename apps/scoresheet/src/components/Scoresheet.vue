@@ -161,8 +161,8 @@ async function onMeetLoaded() {
   }
 }
 
-function restoreQuizzerName(slotIdx: number, quizzerIdx: number) {
-  templateSetQuizzerName(slotIdx, quizzerIdx, meetSession.getDbName(slotIdx, quizzerIdx) ?? '')
+function restoreQuizzerName(slotIdx: number, seatIdx: number) {
+  templateSetQuizzerName(slotIdx, seatIdx, meetSession.getDbName(slotIdx, seatIdx) ?? '')
 }
 
 function isTeamDivisionDiverged(slotIdx: number): boolean {

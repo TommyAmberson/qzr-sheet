@@ -114,16 +114,16 @@ export function useMeetSession() {
   }
 
   /** Whether a name diverges from the DB value (empty seats have dbName ''). */
-  function isQuizzerDiverged(slotIdx: number, quizzerIdx: number, currentName: string): boolean {
+  function isQuizzerDiverged(slotIdx: number, seatIdx: number, currentName: string): boolean {
     const slot = session.value?.slots[slotIdx]
     if (!slot) return false
-    const dbName = slot.quizzers[quizzerIdx]?.dbName
+    const dbName = slot.quizzers[seatIdx]?.dbName
     if (dbName === undefined) return false
     return currentName.trim() !== dbName.trim()
   }
 
-  function getDbName(slotIdx: number, quizzerIdx: number): string | undefined {
-    return session.value?.slots[slotIdx]?.quizzers[quizzerIdx]?.dbName
+  function getDbName(slotIdx: number, seatIdx: number): string | undefined {
+    return session.value?.slots[slotIdx]?.quizzers[seatIdx]?.dbName
   }
 
   /** Disconnect from meet — called by clearNames / newQuiz */
