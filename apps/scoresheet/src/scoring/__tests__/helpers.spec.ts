@@ -11,7 +11,7 @@ import {
   isBonusSituation,
 } from '../helpers'
 
-// Shorthand builders for 3D cell grids [teamIdx][quizzerIdx][colIdx]
+// Shorthand builders for 3D cell grids [teamIdx][seatIdx][colIdx]
 const E = CellValue.Empty
 const C = CellValue.Correct
 const Err = CellValue.Error

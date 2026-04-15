@@ -108,7 +108,7 @@ describe('quizStore', () => {
 
   // --- Cell grid derivation ---
 
-  it('cellGrid returns a 3D array indexed by [teamIdx][quizzerIdx][colIdx]', () => {
+  it('cellGrid returns a 3D array indexed by [teamIdx][seatIdx][colIdx]', () => {
     const store = createQuizStore()
     const grid = store.cellGrid(COLUMNS)
     expect(grid).toHaveLength(3)
