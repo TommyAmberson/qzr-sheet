@@ -4,7 +4,7 @@ import { CellValue } from '../types/scoresheet'
  * Shared helper functions for querying the positional cell grid.
  *
  * All functions take `cellData: CellValue[][][]` (the 3D grid indexed by
- * [teamIdx][quizzerIdx][colIdx]) so they work as pure functions without
+ * [teamIdx][seatIdx][colIdx]) so they work as pure functions without
  * any Vue reactivity dependency.
  */
 

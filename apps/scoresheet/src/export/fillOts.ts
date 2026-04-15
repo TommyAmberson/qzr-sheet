@@ -51,7 +51,7 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
     )
   }
 
-  // Build cell grid for scoring: cells[teamIdx][quizzerIdx][colIdx]
+  // Build cell grid for scoring: cells[teamIdx][seatIdx][colIdx]
   const cellGrid: CellValue[][][] = sortedTeams.map((team) => {
     const tQuizzers = quizzersByTeam.get(team.id) ?? []
     return tQuizzers.map((qzr) =>
