@@ -163,9 +163,9 @@ function minimalCells(): Map<number, Map<number, string>> {
 // ---------------------------------------------------------------------------
 // ID assignment constants (derived from readOds nextId sequence)
 // ---------------------------------------------------------------------------
-// ti=0: teamId=1, quizzerIds 2-6
-// ti=1: teamId=7, quizzerIds 8-12
-// ti=2: teamId=13, quizzerIds 14-18
+// teamIdx=0: teamId=1, quizzerIds 2-6
+// teamIdx=1: teamId=7, quizzerIds 8-12
+// teamIdx=2: teamId=13, quizzerIds 14-18
 const T1_Q1 = 2 // team 1, quizzer slot 0 (row 5)
 const T1_Q2 = 3 // team 1, quizzer slot 1 (row 6)
 const T1_Q3 = 4 // team 1, quizzer slot 2 (row 7)
