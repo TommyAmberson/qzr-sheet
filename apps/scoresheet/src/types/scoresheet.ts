@@ -36,6 +36,11 @@ export enum PlacementFormula {
   Legacy = 'legacy',
 }
 
+export enum BonusRule {
+  Team = 'team',
+  Seat = 'seat',
+}
+
 export interface Quiz {
   id: number
   division: string
@@ -45,6 +50,7 @@ export interface Quiz {
   /** Whether this quiz is in the consolation bracket */
   consolation: boolean
   placementFormula: PlacementFormula
+  bonusRule: BonusRule
   /** Question category per column key (e.g. "1" → INT, "16A" → FTV) */
   questionTypes: Map<string, QuestionCategory>
 }

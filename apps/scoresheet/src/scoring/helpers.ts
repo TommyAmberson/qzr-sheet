@@ -107,3 +107,17 @@ export function isBonusSituation(
   }
   return tossedTeams === teamCount - 1
 }
+
+/** Find the seat index of the error on a team for a given column, if any. */
+export function findErrorSeat(
+  cellData: CellValue[][][],
+  teamIdx: number,
+  colIdx: number,
+): number | undefined {
+  const team = cellData[teamIdx]
+  if (!team) return undefined
+  for (let seatIdx = 0; seatIdx < team.length; seatIdx++) {
+    if (team[seatIdx]![colIdx] === CellValue.Error) return seatIdx
+  }
+  return undefined
+}

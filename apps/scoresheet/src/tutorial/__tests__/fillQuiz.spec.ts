@@ -115,12 +115,12 @@ describe('tutorial fill-quiz — produces a valid tied quiz', () => {
     expect(s.cells.value[1]![2]![19]).toBe(CellValue.Correct)
   })
 
-  it('Q18 chain: T1 q2 E → T2 q1 E → T3 q2 B', () => {
+  it('Q18 chain: T1 seat2 E → T2 seat1 E → T3 seat1 B (seat bonus)', () => {
     const s = useScoresheet()
     runRegulationFill(s)
     expect(s.cells.value[0]![2]![21]).toBe(CellValue.Error) // Q18
     expect(s.cells.value[1]![1]![22]).toBe(CellValue.Error) // Q18A
-    expect(s.cells.value[2]![2]![23]).toBe(CellValue.Bonus) // Q18B
+    expect(s.cells.value[2]![1]![23]).toBe(CellValue.Bonus) // Q18B — seat matches last error
   })
 
   it('Q20 (colIdx=27) is a no-jump', () => {

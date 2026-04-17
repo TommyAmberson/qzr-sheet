@@ -3,6 +3,7 @@ export {
   QuizFileSchema,
   FILE_VERSION,
   PlacementFormula,
+  BonusRule,
   CellValue,
   QuestionCategory,
 } from './quizFile'

@@ -172,7 +172,7 @@ export function useScoresheet() {
   )
 
   const greyedOutResult = computed<GreyedOutResult>(() =>
-    computeGreyedOut(cells.value, columns.value, otIneligibility.value),
+    computeGreyedOut(cells.value, columns.value, otIneligibility.value, quiz.value.bonusRule),
   )
 
   const orphanedColumns = computed(() =>
@@ -262,8 +262,9 @@ export function useScoresheet() {
     return isBonusSituation(greyedOutResult.value.tossedUp, teamIdx, colIdx, teams.value.length)
   }
 
-  function isGreyedOut(teamIdx: TeamIdx, colIdx: ColIdx): boolean {
-    return greyedOutResult.value.disabled.has(`${teamIdx}:${colIdx}`)
+  function isGreyedOut(teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx): boolean {
+    const d = greyedOutResult.value.disabled
+    return d.has(`${teamIdx}:${colIdx}`) || d.has(`${teamIdx}:${seatIdx}:${colIdx}`)
   }
 
   function isInvalid(teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx): boolean {
@@ -749,6 +750,7 @@ export function useScoresheet() {
       () => quiz.value.overtime,
       () => quiz.value.consolation,
       () => quiz.value.placementFormula,
+      () => quiz.value.bonusRule,
     ],
     schedulePersist,
   )

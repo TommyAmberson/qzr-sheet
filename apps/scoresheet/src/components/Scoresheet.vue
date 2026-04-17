@@ -251,7 +251,8 @@ const templateSetQuestionType = (c: number, cat: QuestionCategory | null) =>
   setQuestionType(toColIdx(c), cat)
 const templateIsEmptySeat = (t: number, s: number) => isEmptySeat(toTeamIdx(t), toSeatIdx(s))
 const templateIsBonusForTeam = (t: number, c: number) => isBonusForTeam(toTeamIdx(t), toColIdx(c))
-const templateIsGreyedOut = (t: number, c: number) => isGreyedOut(toTeamIdx(t), toColIdx(c))
+const templateIsGreyedOut = (t: number, s: number, c: number) =>
+  isGreyedOut(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
 const templateIsInvalid = (t: number, s: number, c: number) =>
   isInvalid(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
 const templateCellValidationMessages = (t: number, s: number, c: number) =>
@@ -1208,7 +1209,7 @@ const appVersion: string = __APP_VERSION__
                       'cell--greyed':
                         (templateIsEmptySeat(teamIdx, seatIdx) &&
                           cells[teamIdx]?.[seatIdx]?.[idx] === '') ||
-                        ((templateIsGreyedOut(teamIdx, idx) || noJumps[idx]) &&
+                        ((templateIsGreyedOut(teamIdx, seatIdx, idx) || noJumps[idx]) &&
                           cells[teamIdx]?.[seatIdx]?.[idx] === '') ||
                         templateIsAfterOut(teamIdx, seatIdx, idx) ||
                         (templateIsFouledOnQuestion(teamIdx, seatIdx, idx) &&

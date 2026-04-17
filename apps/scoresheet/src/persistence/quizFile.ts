@@ -2,6 +2,7 @@ import { Value } from '@sinclair/typebox/value'
 import {
   QuizFileSchema,
   FILE_VERSION,
+  BonusRule,
   PlacementFormula,
   QuestionCategory,
   CellValue,
@@ -38,6 +39,7 @@ export function serialize(input: SerializeInput): QuizFile {
       overtime: quiz.overtime,
       consolation: quiz.consolation,
       placementFormula: quiz.placementFormula,
+      bonusRule: quiz.bonusRule,
       questionTypes: [...quiz.questionTypes.entries()],
     },
     teams: sortedTeams.map((team) => {
@@ -118,6 +120,7 @@ export function deserialize(file: QuizFile): DeserializeResult {
       overtime: file.quiz.overtime,
       consolation: file.quiz.consolation ?? false,
       placementFormula: file.quiz.placementFormula ?? PlacementFormula.Rules,
+      bonusRule: file.quiz.bonusRule ?? BonusRule.Seat,
       questionTypes,
     },
     teams,
