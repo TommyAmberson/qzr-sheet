@@ -371,16 +371,20 @@ const trailingTotalIndices = computed<Set<number>>(() => {
   return s
 })
 
-// Last visible column for each OT round-ending question number (Q23, Q26, …).
+// Last visible column for each round-ending question number.
+// Covers Q20 (regulation→OT boundary) and Q23, Q26, … (OT round boundaries).
 // When A/B sub-columns are visible, the border belongs on the last sub-column,
 // not on the Normal column.
-const otRoundEndIndices = computed<Set<number>>(() => {
+const roundEndIndices = computed<Set<number>>(() => {
   const s = new Set<number>()
   const dc = displayColumns.value
   const cols = columns.value
   for (let i = 0; i < dc.length; i++) {
     const col = cols[dc[i]!.idx]
-    if (!col?.isOvertime || (col.number - 20) % 3 !== 0) continue
+    if (!col) continue
+    const isRegEnd = !col.isOvertime && col.number === 20
+    const isOtRoundEnd = col.isOvertime && (col.number - 20) % 3 === 0
+    if (!isRegEnd && !isOtRoundEnd) continue
     const nextCol = cols[dc[i + 1]?.idx ?? -1]
     if (!nextCol || nextCol.number !== col.number) {
       s.add(dc[i]!.idx)
@@ -678,14 +682,14 @@ function colGroupClass(colIdx: number): string {
   const classes: string[] = []
   const dc = displayColumns.value
   if (dc[dc.length - 1]?.idx === colIdx) classes.push('col--last')
-  if (!col.isOvertime && col.number === 20) classes.push('col--reg-last')
+  if (!col.isOvertime && roundEndIndices.value.has(colIdx)) classes.push('col--reg-last')
 
   if (col.isOvertime) {
     if (col.type === QuestionType.Normal && (col.number - 21) % 3 === 0) {
       classes.push(
         col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start',
       )
-    } else if (otRoundEndIndices.value.has(colIdx)) {
+    } else if (roundEndIndices.value.has(colIdx)) {
       classes.push('col--overtime col--ot-round-end')
     } else {
       classes.push('col--overtime')
