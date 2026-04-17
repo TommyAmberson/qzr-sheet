@@ -11,14 +11,19 @@ import {
 
 /**
  * Compute which cells are greyed out (disabled).
- * Returns a Set of "teamIdx:colIdx" keys.
  *
- * Two kinds of greying:
+ * `disabled` contains two key formats:
+ * - "teamIdx:colIdx" — team-level greying (question done, toss-up, OT ineligibility)
+ * - "teamIdx:seatIdx:colIdx" — seat-level greying (seat bonus mode)
+ *
+ * Three kinds of greying:
  * - "Question done": when a question has an answer (C/E/B/MB), all teams
  *   are greyed on that column (plus A/B cascade).
  * - "Toss-up": when a team errors, they can't jump on the next question.
  *   If the toss-up question also gets an error (not correct/bonus),
  *   the original team's grey carries forward too (bonus situation).
+ * - "Seat bonus": in seat bonus mode, non-matching seats on the bonus team
+ *   are greyed out (only the seat matching the last error can answer).
  *
  * Fouls don't end a question — it's re-asked.
  */
@@ -38,7 +43,7 @@ export function computeGreyedOut(
   cellData: CellValue[][][],
   cols: Column[],
   otIneligibility?: Map<number, Set<number>>,
-  bonusRule: BonusRule = BonusRule.Team,
+  bonusRule: BonusRule = BonusRule.Seat,
 ): GreyedOutResult {
   const disabled = new Set<string>()
   const colStatuses: ColStatus[] = cols.map(() => ColStatus.Pending)

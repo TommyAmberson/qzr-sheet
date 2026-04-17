@@ -178,6 +178,9 @@ export function useScoresheet() {
 
   // Auto-NJ: when a seat-bonus column targets an empty seat, auto-set NJ.
   // The user can remove the auto-NJ; dismissedAutoNJ prevents re-adding.
+  // This watchEffect reads greyedOutResult (which depends on noJumps via
+  // otIneligibility) and writes noJumpMap — but only adds new keys and never
+  // flips existing ones, so the next invocation is a no-op and the cycle stops.
   const autoNoJumpKeys = ref(new Set<string>())
   const dismissedAutoNJ = ref(new Set<string>())
 
@@ -758,6 +761,8 @@ export function useScoresheet() {
     quiz.value = store.quiz
     noJumpMap.value = new Map()
     timeoutMap.value = new Map()
+    autoNoJumpKeys.value = new Set()
+    dismissedAutoNJ.value = new Set()
     internalOtRounds.value = 1
     answerVersion.value++
     teamVersion.value++
@@ -779,6 +784,8 @@ export function useScoresheet() {
     })
     noJumpMap.value = new Map()
     timeoutMap.value = new Map()
+    autoNoJumpKeys.value = new Set()
+    dismissedAutoNJ.value = new Set()
     internalOtRounds.value = 1
     answerVersion.value++
     history.clear()
@@ -820,6 +827,7 @@ export function useScoresheet() {
       () => quiz.value.overtime,
       () => quiz.value.consolation,
       () => quiz.value.placementFormula,
+      () => quiz.value.bonusRule,
     ],
     schedulePersist,
   )
