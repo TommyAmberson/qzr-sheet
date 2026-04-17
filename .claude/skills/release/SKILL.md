@@ -51,7 +51,7 @@ style exactly:
 
 ### 5. Bump version files
 
-Run: `node scripts/bump-version.mjs <version>`
+Run: `pnpm bump <version>`
 
 This updates all package.json files and tauri.conf.json.
 

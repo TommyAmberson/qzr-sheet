@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.7.0
+
+### Added
+
+* **Interactive tutorial** — step-by-step walkthrough covering team setup, scoring (C/E/F/B/MB),
+  toss-ups, bonuses, no-jumps, timeouts, substitutions, A/B sub-questions (Q18 demo), and overtime
+  with two full OT rounds; starts from the `?` help button; current quiz is snapshot-saved and
+  restored on completion
+* **Seat bonus rule** — `BonusRule` enum (`Team`/`Seat`) stored per quiz; in seat bonus mode, only
+  the quizzer in the seat matching the last error can answer a bonus question; non-matching seats
+  are greyed out; defaults to `Seat`
+* **Timeout validation** — timeouts called after error-point questions (Q17+) are flagged as
+  validation errors in the column header and meta bar
+
+### Changed
+
+* **Branded index types** — `TeamIdx`, `SeatIdx`, `ColIdx`, and `QuizzerId` are now branded numeric
+  types (in `types/indices.ts`) to prevent argument-swap bugs at compile time; all loop variables
+  renamed from `ti`/`qi`/`ci` to `teamIdx`/`seatIdx`/`colIdx` throughout the scoring, composable,
+  and component layers
+* **`isEmptySeat` → `isQuizzerUnnamed`** — the store-level helper was renamed to clarify that it
+  checks quizzer identity (name), not seat position
+
 ## 0.6.0
 
 ### Added
