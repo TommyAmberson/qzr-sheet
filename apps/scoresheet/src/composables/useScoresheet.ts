@@ -1,7 +1,6 @@
-import { ref, computed, watch, watchEffect } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useHistory } from './useHistory'
 import {
-  BonusRule,
   CellValue,
   QuestionCategory,
   MAX_TIMEOUTS_PER_TEAM,
@@ -175,65 +174,6 @@ export function useScoresheet() {
   const greyedOutResult = computed<GreyedOutResult>(() =>
     computeGreyedOut(cells.value, columns.value, otIneligibility.value, quiz.value.bonusRule),
   )
-
-  // Auto-NJ: when a seat-bonus column targets an empty seat, auto-set NJ.
-  // The user can remove the auto-NJ; dismissedAutoNJ prevents re-adding.
-  // This watchEffect reads greyedOutResult (which depends on noJumps via
-  // otIneligibility) and writes noJumpMap — but only adds new keys and never
-  // flips existing ones, so the next invocation is a no-op and the cycle stops.
-  const autoNoJumpKeys = ref(new Set<string>())
-  const dismissedAutoNJ = ref(new Set<string>())
-
-  watchEffect(() => {
-    if (quiz.value.bonusRule !== BonusRule.Seat) return
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    teamVersion.value
-    let changed = false
-    const currentAuto = new Set<string>()
-
-    for (const [colIdx, seat] of greyedOutResult.value.bonusSeats) {
-      const key = columns.value[colIdx]?.key
-      if (!key) continue
-      const bonusTeamIdx = findBonusTeamIdx(colIdx)
-      if (bonusTeamIdx === undefined) continue
-      const qzrs = store.quizzersByTeam(teams.value[bonusTeamIdx]!.id)
-      const isEmpty = !qzrs[seat]?.name?.trim()
-
-      if (isEmpty) {
-        currentAuto.add(key)
-        if (!noJumpMap.value.get(key) && !dismissedAutoNJ.value.has(key)) {
-          noJumpMap.value.set(key, true)
-          changed = true
-        }
-      }
-    }
-
-    // Remove auto-NJ for keys that are no longer empty-seat bonuses
-    for (const key of autoNoJumpKeys.value) {
-      if (!currentAuto.has(key) && noJumpMap.value.get(key)) {
-        noJumpMap.value.delete(key)
-        changed = true
-      }
-    }
-
-    // Clear dismissals for keys no longer in bonusSeats
-    for (const key of dismissedAutoNJ.value) {
-      if (!currentAuto.has(key)) dismissedAutoNJ.value.delete(key)
-    }
-
-    if (changed) noJumpMap.value = new Map(noJumpMap.value)
-    autoNoJumpKeys.value = currentAuto
-  })
-
-  function findBonusTeamIdx(colIdx: number): number | undefined {
-    const tossed = greyedOutResult.value.tossedUp
-    const tc = teams.value.length
-    for (let teamIdx = 0; teamIdx < tc; teamIdx++) {
-      if (!tossed.has(`${teamIdx}:${colIdx}`) && isBonusSituation(tossed, teamIdx, colIdx, tc))
-        return teamIdx
-    }
-    return undefined
-  }
 
   const orphanedColumns = computed(() =>
     computeOrphanedColumns(
@@ -574,29 +514,16 @@ export function useScoresheet() {
     if (!key) return
     const prev = noJumpMap.value.get(key) ?? false
     const next = !prev
-    // If removing an auto-NJ, suppress re-adding until the bonus situation changes
-    if (!next && autoNoJumpKeys.value.has(key)) {
-      dismissedAutoNJ.value.add(key)
-      dismissedAutoNJ.value = new Set(dismissedAutoNJ.value)
-    }
     noJumpMap.value.set(key, next)
     noJumpMap.value = new Map(noJumpMap.value)
     history.push({
       undo: () => {
         noJumpMap.value.set(key, prev)
         noJumpMap.value = new Map(noJumpMap.value)
-        if (prev && autoNoJumpKeys.value.has(key)) {
-          dismissedAutoNJ.value.delete(key)
-          dismissedAutoNJ.value = new Set(dismissedAutoNJ.value)
-        }
       },
       redo: () => {
         noJumpMap.value.set(key, next)
         noJumpMap.value = new Map(noJumpMap.value)
-        if (!next && autoNoJumpKeys.value.has(key)) {
-          dismissedAutoNJ.value.add(key)
-          dismissedAutoNJ.value = new Set(dismissedAutoNJ.value)
-        }
       },
     })
   }
@@ -761,8 +688,6 @@ export function useScoresheet() {
     quiz.value = store.quiz
     noJumpMap.value = new Map()
     timeoutMap.value = new Map()
-    autoNoJumpKeys.value = new Set()
-    dismissedAutoNJ.value = new Set()
     internalOtRounds.value = 1
     answerVersion.value++
     teamVersion.value++
@@ -784,8 +709,6 @@ export function useScoresheet() {
     })
     noJumpMap.value = new Map()
     timeoutMap.value = new Map()
-    autoNoJumpKeys.value = new Set()
-    dismissedAutoNJ.value = new Set()
     internalOtRounds.value = 1
     answerVersion.value++
     history.clear()
