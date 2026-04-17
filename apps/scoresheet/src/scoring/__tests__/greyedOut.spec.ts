@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { CellValue, buildColumns } from '../../types/scoresheet'
+import { BonusRule, CellValue, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut } from '../greyedOut'
 import { ColStatus } from '../helpers'
 import { computeOtIneligibility } from '../overtime'
@@ -550,5 +550,94 @@ describe('greyed-out logic', () => {
     // Teams 1 & 2 still competing in round 2
     expect(isGreyed(result, 1, otCi('24'))).toBe(false)
     expect(isGreyed(result, 2, otCi('24'))).toBe(false)
+  })
+})
+
+/** Helper: check if a specific seat is greyed (3-part key) */
+function isSeatGreyed(
+  result: { disabled: Set<string> },
+  teamIdx: number,
+  seatIdx: number,
+  colIdx: number,
+): boolean {
+  return result.disabled.has(`${teamIdx}:${seatIdx}:${colIdx}`)
+}
+
+describe('seat bonus greying', () => {
+  it('greys non-matching seats on the bonus team', () => {
+    const cells = blankCells()
+    const q1 = colIdxOf('1')
+    const q2 = colIdxOf('2')
+    const q3 = colIdxOf('3')
+    // Team 0 seat 2 errors Q1 → toss-up
+    cells[0]![2]![q1] = E
+    // Team 1 seat 1 errors Q2 → bonus for Team 2, last error seat = 1
+    cells[1]![1]![q2] = E
+    const result = computeGreyedOut(cells, columns, undefined, BonusRule.Seat)
+    // Q3 is bonus for team 2 — only seat 1 should be un-greyed
+    expect(isBonusFor(result, 2, q3)).toBe(true)
+    expect(isSeatGreyed(result, 2, 0, q3)).toBe(true)
+    expect(isSeatGreyed(result, 2, 1, q3)).toBe(false) // matching seat
+    expect(isSeatGreyed(result, 2, 2, q3)).toBe(true)
+    expect(isSeatGreyed(result, 2, 3, q3)).toBe(true)
+    expect(isSeatGreyed(result, 2, 4, q3)).toBe(true)
+  })
+
+  it('does not add seat-level greying in team bonus mode', () => {
+    const cells = blankCells()
+    const q1 = colIdxOf('1')
+    const q2 = colIdxOf('2')
+    const q3 = colIdxOf('3')
+    cells[0]![2]![q1] = E
+    cells[1]![1]![q2] = E
+    const result = computeGreyedOut(cells, columns, undefined, BonusRule.Team)
+    // Q3 is bonus for team 2 — no seat-level greying
+    expect(isBonusFor(result, 2, q3)).toBe(true)
+    for (let s = 0; s < 5; s++) {
+      expect(isSeatGreyed(result, 2, s, q3)).toBe(false)
+    }
+  })
+
+  it('tracks error seat through A/B chain', () => {
+    const cells = blankCells()
+    const q16 = colIdxOf('16')
+    const q16a = colIdxOf('16A')
+    const q16b = colIdxOf('16B')
+    // Team 0 seat 3 errors Q16 Normal → toss-up on Q16A
+    cells[0]![3]![q16] = E
+    // Team 1 seat 0 errors Q16A → bonus on Q16B, last error seat = 0
+    cells[1]![0]![q16a] = E
+    const result = computeGreyedOut(cells, columns, undefined, BonusRule.Seat)
+    expect(isBonusFor(result, 2, q16b)).toBe(true)
+    expect(isSeatGreyed(result, 2, 0, q16b)).toBe(false) // matching seat
+    expect(isSeatGreyed(result, 2, 1, q16b)).toBe(true)
+    expect(isSeatGreyed(result, 2, 2, q16b)).toBe(true)
+  })
+
+  it('handles skip-A shortcut (Normal error → direct to B bonus)', () => {
+    const cells = blankCells()
+    const q16 = colIdxOf('16')
+    const q16b = colIdxOf('16B')
+    // Team 0 seat 2 errors Q16, Team 1 seat 4 errors Q16
+    // Both teams tossed → A is skipped, B is bonus for Team 2
+    cells[0]![2]![q16] = E
+    cells[1]![4]![q16] = E
+    const result = computeGreyedOut(cells, columns, undefined, BonusRule.Seat)
+    expect(isBonusFor(result, 2, q16b)).toBe(true)
+    // Last error seat: Team 1 seat 4 (the latest team scanned)
+    expect(result.bonusSeats.get(q16b)).toBe(4)
+    expect(isSeatGreyed(result, 2, 4, q16b)).toBe(false) // matching seat
+    expect(isSeatGreyed(result, 2, 0, q16b)).toBe(true)
+  })
+
+  it('populates bonusSeats map', () => {
+    const cells = blankCells()
+    const q1 = colIdxOf('1')
+    const q2 = colIdxOf('2')
+    const q3 = colIdxOf('3')
+    cells[0]![2]![q1] = E
+    cells[1]![1]![q2] = E
+    const result = computeGreyedOut(cells, columns, undefined, BonusRule.Seat)
+    expect(result.bonusSeats.get(q3)).toBe(1)
   })
 })
