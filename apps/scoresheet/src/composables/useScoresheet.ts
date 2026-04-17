@@ -176,8 +176,10 @@ export function useScoresheet() {
     computeGreyedOut(cells.value, columns.value, otIneligibility.value, quiz.value.bonusRule),
   )
 
-  // Auto-NJ: when a seat-bonus column targets an empty seat, auto-set NJ
+  // Auto-NJ: when a seat-bonus column targets an empty seat, auto-set NJ.
+  // The user can remove the auto-NJ; dismissedAutoNJ prevents re-adding.
   const autoNoJumpKeys = ref(new Set<string>())
+  const dismissedAutoNJ = ref(new Set<string>())
 
   watchEffect(() => {
     if (quiz.value.bonusRule !== BonusRule.Seat) return
@@ -196,18 +198,24 @@ export function useScoresheet() {
 
       if (isEmpty) {
         currentAuto.add(key)
-        if (!noJumpMap.value.get(key)) {
+        if (!noJumpMap.value.get(key) && !dismissedAutoNJ.value.has(key)) {
           noJumpMap.value.set(key, true)
           changed = true
         }
       }
     }
 
+    // Remove auto-NJ for keys that are no longer empty-seat bonuses
     for (const key of autoNoJumpKeys.value) {
       if (!currentAuto.has(key) && noJumpMap.value.get(key)) {
         noJumpMap.value.delete(key)
         changed = true
       }
+    }
+
+    // Clear dismissals for keys no longer in bonusSeats
+    for (const key of dismissedAutoNJ.value) {
+      if (!currentAuto.has(key)) dismissedAutoNJ.value.delete(key)
     }
 
     if (changed) noJumpMap.value = new Map(noJumpMap.value)
@@ -563,16 +571,29 @@ export function useScoresheet() {
     if (!key) return
     const prev = noJumpMap.value.get(key) ?? false
     const next = !prev
+    // If removing an auto-NJ, suppress re-adding until the bonus situation changes
+    if (!next && autoNoJumpKeys.value.has(key)) {
+      dismissedAutoNJ.value.add(key)
+      dismissedAutoNJ.value = new Set(dismissedAutoNJ.value)
+    }
     noJumpMap.value.set(key, next)
     noJumpMap.value = new Map(noJumpMap.value)
     history.push({
       undo: () => {
         noJumpMap.value.set(key, prev)
         noJumpMap.value = new Map(noJumpMap.value)
+        if (prev && autoNoJumpKeys.value.has(key)) {
+          dismissedAutoNJ.value.delete(key)
+          dismissedAutoNJ.value = new Set(dismissedAutoNJ.value)
+        }
       },
       redo: () => {
         noJumpMap.value.set(key, next)
         noJumpMap.value = new Map(noJumpMap.value)
+        if (!next && autoNoJumpKeys.value.has(key)) {
+          dismissedAutoNJ.value.add(key)
+          dismissedAutoNJ.value = new Set(dismissedAutoNJ.value)
+        }
       },
     })
   }
