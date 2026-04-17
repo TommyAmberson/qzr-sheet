@@ -92,9 +92,9 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
 
   function allRows(): { teamIdx: number; seatIdx: number }[] {
     const rows: { teamIdx: number; seatIdx: number }[] = []
-    for (let t = 0; t < teams.value.length; t++) {
-      const count = teamQuizzers.value[t]?.length ?? 0
-      for (let s = 0; s < count; s++) rows.push({ teamIdx: t, seatIdx: s })
+    for (let teamIdx = 0; teamIdx < teams.value.length; teamIdx++) {
+      const count = teamQuizzers.value[teamIdx]?.length ?? 0
+      for (let seatIdx = 0; seatIdx < count; seatIdx++) rows.push({ teamIdx, seatIdx })
     }
     rows.push({ teamIdx: -1, seatIdx: -1 }) // no-jump row
     return rows

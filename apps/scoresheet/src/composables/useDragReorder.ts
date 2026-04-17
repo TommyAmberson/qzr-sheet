@@ -31,11 +31,11 @@ export function useDragReorder(
 
   function onPointerMove(event: PointerEvent) {
     if (!dragState.value) return
-    const t = dragState.value.teamIdx
-    const count = teamQuizzers.value[t]?.length ?? 0
+    const teamIdx = dragState.value.teamIdx
+    const count = teamQuizzers.value[teamIdx]?.length ?? 0
 
-    const firstEl = quizzerRowEls.get(`${t}:0`)
-    const lastEl = quizzerRowEls.get(`${t}:${count - 1}`)
+    const firstEl = quizzerRowEls.get(`${teamIdx}:0`)
+    const lastEl = quizzerRowEls.get(`${teamIdx}:${count - 1}`)
     if (!firstEl || !lastEl) return
     const teamTop = firstEl.getBoundingClientRect().top
     const teamBottom = lastEl.getBoundingClientRect().bottom
@@ -47,19 +47,19 @@ export function useDragReorder(
     } else if (event.clientY >= teamBottom) {
       found = count - 1
     } else {
-      for (let s = 0; s < count; s++) {
-        const el = quizzerRowEls.get(`${t}:${s}`)
+      for (let seatIdx = 0; seatIdx < count; seatIdx++) {
+        const el = quizzerRowEls.get(`${teamIdx}:${seatIdx}`)
         if (!el) continue
         const rect = el.getBoundingClientRect()
         if (event.clientY >= rect.top && event.clientY < rect.bottom) {
-          found = s
+          found = seatIdx
           break
         }
       }
     }
 
     if (found !== null && found !== dragState.value.seatIdx) {
-      dropTarget.value = { teamIdx: t, seatIdx: found }
+      dropTarget.value = { teamIdx, seatIdx: found }
     } else {
       dropTarget.value = null
     }
