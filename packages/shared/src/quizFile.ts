@@ -7,6 +7,13 @@ export enum PlacementFormula {
   Legacy = 'legacy',
 }
 
+export enum BonusRule {
+  /** Any quizzer on the bonus team can answer */
+  Team = 'team',
+  /** Only the quizzer in the seat matching the last error can answer */
+  Seat = 'seat',
+}
+
 export enum CellValue {
   Correct = 'c',
   Error = 'e',
@@ -37,6 +44,7 @@ export const QuizFileSchema = Type.Object({
     overtime: Type.Boolean(),
     consolation: Type.Optional(Type.Boolean()),
     placementFormula: Type.Enum(PlacementFormula),
+    bonusRule: Type.Optional(Type.Enum(BonusRule)),
     /** Map serialized as an array of [columnKey, category] pairs */
     questionTypes: Type.Array(Type.Tuple([Type.String(), Type.Enum(QuestionCategory)])),
   }),

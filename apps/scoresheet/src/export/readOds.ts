@@ -1,6 +1,6 @@
 import { strFromU8, unzipSync } from 'fflate'
 import { readCell } from './odsXml'
-import { CellValue, PlacementFormula, QuestionCategory } from '../types/scoresheet'
+import { BonusRule, CellValue, PlacementFormula, QuestionCategory } from '../types/scoresheet'
 import type { QuizFile } from '../persistence/quizFile'
 import { FILE_VERSION } from '../persistence/quizFile'
 
@@ -240,6 +240,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
       quizNumber,
       overtime: overtimeFlag,
       placementFormula: PlacementFormula.Rules,
+      bonusRule: BonusRule.Seat,
       questionTypes,
     },
     teams,

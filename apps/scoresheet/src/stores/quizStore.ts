@@ -1,4 +1,5 @@
 import {
+  BonusRule,
   CellValue,
   PlacementFormula,
   QuestionCategory,
@@ -24,6 +25,7 @@ function createDefaultQuiz(): Quiz {
     overtime: false,
     consolation: false,
     placementFormula: PlacementFormula.Rules,
+    bonusRule: BonusRule.Seat,
     questionTypes: new Map(),
   }
 }
