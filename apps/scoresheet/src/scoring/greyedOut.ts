@@ -1,5 +1,13 @@
-import { CellValue, QuestionType, buildKeyToIdx, type Column } from '../types/scoresheet'
-import { ColStatus, teamHasValue, teamHasAnswer, anyTeamHasAnswer, isResolved } from './helpers'
+import { BonusRule, CellValue, QuestionType, buildKeyToIdx, type Column } from '../types/scoresheet'
+import {
+  ColStatus,
+  teamHasValue,
+  teamHasAnswer,
+  anyTeamHasAnswer,
+  isResolved,
+  isBonusForColumn,
+  findErrorSeat,
+} from './helpers'
 
 /**
  * Compute which cells are greyed out (disabled).
@@ -22,12 +30,15 @@ export interface GreyedOutResult {
   fouledQuizzers: Set<string>
   /** Per-column game-logic status: Pending, Errored, Resolved, or Skipped */
   colStatuses: ColStatus[]
+  /** For seat bonus mode: maps colIdx → seat that should answer the bonus */
+  bonusSeats: Map<number, number>
 }
 
 export function computeGreyedOut(
   cellData: CellValue[][][],
   cols: Column[],
   otIneligibility?: Map<number, Set<number>>,
+  bonusRule: BonusRule = BonusRule.Team,
 ): GreyedOutResult {
   const disabled = new Set<string>()
   const colStatuses: ColStatus[] = cols.map(() => ColStatus.Pending)
@@ -61,6 +72,9 @@ export function computeGreyedOut(
   // This is separate from "question is done" greying — only toss-up greying
   // carries forward.
   const tossedUp: Set<string>[] = cols.map(() => new Set<string>())
+  // For seat bonus: the seat of the most recent error feeding into each column
+  const lastErrorSeat: (number | undefined)[] = cols.map(() => undefined)
+  const bonusSeats = new Map<number, number>()
 
   // In OT, non-eligible teams can't jump at all. Seeding them into tossedUp
   // (rather than only greying them) means the toss-up/bonus carry-forward
@@ -122,14 +136,34 @@ export function computeGreyedOut(
       disabled.add(`${teamIdxStr}:${colIdx}`)
     }
 
+    // 4b. Seat bonus greying: on bonus columns, grey non-matching seats on the bonus team
+    if (bonusRule === BonusRule.Seat && lastErrorSeat[colIdx] !== undefined) {
+      for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
+        if (tossedUp[colIdx]!.has(`${teamIdx}`)) continue
+        if (isBonusForColumn(tossedUp[colIdx]!, teamIdx, teamCount)) {
+          bonusSeats.set(colIdx, lastErrorSeat[colIdx]!)
+          const seatCount = cellData[teamIdx]!.length
+          for (let seatIdx = 0; seatIdx < seatCount; seatIdx++) {
+            if (seatIdx !== lastErrorSeat[colIdx]) {
+              disabled.add(`${teamIdx}:${seatIdx}:${colIdx}`)
+            }
+          }
+        }
+      }
+    }
+
     // 5. Toss-up / bonus carry-forward
     // Only errors cause toss-ups — not B/MB
     if (colStatuses[colIdx] === ColStatus.Errored) {
       // Determine which teams would be tossed on the next column
       const wouldBeTossed: number[] = []
+      let newErrorSeat: number | undefined
       for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
         if (hasValue(teamIdx, colIdx, CellValue.Error)) {
           wouldBeTossed.push(teamIdx)
+          // Track the seat that caused this error (for seat bonus)
+          const seat = findErrorSeat(cellData, teamIdx, colIdx)
+          if (seat !== undefined) newErrorSeat = seat
         } else if (tossedUp[colIdx]!.has(`${teamIdx}`) && !hasAnswer(teamIdx, colIdx)) {
           wouldBeTossed.push(teamIdx)
         }
@@ -154,6 +188,8 @@ export function computeGreyedOut(
         for (const teamIdx of wouldBeTossed) {
           tossedUp[nq]!.add(`${teamIdx}`)
         }
+        // Propagate error seat: new error replaces, otherwise carry existing
+        lastErrorSeat[nq] = newErrorSeat ?? lastErrorSeat[colIdx]
       }
     }
   }
@@ -204,5 +240,5 @@ export function computeGreyedOut(
     }
   }
 
-  return { disabled, tossedUp: tossedUpSet, fouledQuizzers, colStatuses }
+  return { disabled, tossedUp: tossedUpSet, fouledQuizzers, colStatuses, bonusSeats }
 }
