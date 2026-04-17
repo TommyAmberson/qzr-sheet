@@ -49,7 +49,7 @@ export interface TeamScoring {
 /**
  * Calculate full scoring for one team.
  *
- * @param teamCells - cells[quizzerIdx][colIdx]
+ * @param teamCells - cells[seatIdx][colIdx]
  * @param columns - all column definitions
  * @param onTime - whether the team was on time
  */
@@ -58,17 +58,17 @@ export function scoreTeam(
   columns: Column[],
   onTime: boolean,
 ): TeamScoring {
-  const quizzerCount = teamCells.length
+  const seatCount = teamCells.length
 
-  // --- Per-quizzer accumulators (only non-bonus, non-OT questions) ---
-  const qCorrect = new Array(quizzerCount).fill(0) as number[]
-  const qError = new Array(quizzerCount).fill(0) as number[]
-  const qFoul = new Array(quizzerCount).fill(0) as number[]
-  const qHasQuizoutBonus = new Array(quizzerCount).fill(false) as boolean[]
-  const qOutAfterCol = new Array(quizzerCount).fill(-1) as number[]
+  // --- Per-seat accumulators (only non-bonus, non-OT questions) ---
+  const qCorrect = new Array(seatCount).fill(0) as number[]
+  const qError = new Array(seatCount).fill(0) as number[]
+  const qFoul = new Array(seatCount).fill(0) as number[]
+  const qHasQuizoutBonus = new Array(seatCount).fill(false) as boolean[]
+  const qOutAfterCol = new Array(seatCount).fill(-1) as number[]
 
-  // Track which quizzers have gotten at least one correct (for 3rd/4th/5th bonus)
-  const quizzerHasCorrect = new Array(quizzerCount).fill(false) as boolean[]
+  // Track which seats have gotten at least one correct (for 3rd/4th/5th bonus)
+  const seatHasCorrect = new Array(seatCount).fill(false) as boolean[]
 
   // Team-level accumulators
   let teamErrors = 0
@@ -88,12 +88,12 @@ export function scoreTeam(
   runningScore += onTimeBonus
 
   // Process columns left to right
-  for (let ci = 0; ci < columns.length; ci++) {
-    const col = columns[ci]!
+  for (let colIdx = 0; colIdx < columns.length; colIdx++) {
+    const col = columns[colIdx]!
     let colPoints = 0
 
-    for (let qi = 0; qi < quizzerCount; qi++) {
-      const cell = teamCells[qi]?.[ci] ?? CellValue.Empty
+    for (let seatIdx = 0; seatIdx < seatCount; seatIdx++) {
+      const cell = teamCells[seatIdx]?.[colIdx] ?? CellValue.Empty
       if (cell === CellValue.Empty) continue
 
       const isBonus = cell === CellValue.Bonus
@@ -105,28 +105,28 @@ export function scoreTeam(
         colPoints += 20
 
         if (!isOvertime) {
-          qCorrect[qi]!++
+          qCorrect[seatIdx]!++
 
           // 3rd/4th/5th unique quizzer bonus
-          if (!quizzerHasCorrect[qi]) {
-            quizzerHasCorrect[qi] = true
+          if (!seatHasCorrect[seatIdx]) {
+            seatHasCorrect[seatIdx] = true
             uniqueCorrectCount++
             if (uniqueCorrectCount >= 3) {
               colPoints += 10
-              uniqueBonusCols.set(ci, uniqueCorrectCount)
+              uniqueBonusCols.set(colIdx, uniqueCorrectCount)
             }
           }
 
           // Quizout bonus: awarded on the question where the 4th correct happens
-          if (qCorrect[qi] === 4 && qError[qi] === 0) {
-            qHasQuizoutBonus[qi] = true
+          if (qCorrect[seatIdx] === 4 && qError[seatIdx] === 0) {
+            qHasQuizoutBonus[seatIdx] = true
             colPoints += 10
-            quizoutBonusCols.add(ci)
+            quizoutBonusCols.add(colIdx)
           }
 
           // Track quiz-out column
-          if (qCorrect[qi] === 4 && qOutAfterCol[qi] === -1) {
-            qOutAfterCol[qi] = ci
+          if (qCorrect[seatIdx] === 4 && qOutAfterCol[seatIdx] === -1) {
+            qOutAfterCol[seatIdx] = colIdx
           }
         }
       } else if (isBonus) {
@@ -142,11 +142,11 @@ export function scoreTeam(
         // No points for missed bonus
       } else if (cell === CellValue.Error) {
         if (!isOvertime) {
-          qError[qi]!++
+          qError[seatIdx]!++
 
           // Track error-out column (3 errors = out)
-          if (qError[qi]! === 3 && qOutAfterCol[qi] === -1) {
-            qOutAfterCol[qi] = ci
+          if (qError[seatIdx]! === 3 && qOutAfterCol[seatIdx] === -1) {
+            qOutAfterCol[seatIdx] = colIdx
           }
         }
         teamErrors++
@@ -158,10 +158,10 @@ export function scoreTeam(
         let deduct = false
         if (col.isErrorPoints) {
           deduct = true
-        } else if (qError[qi]! >= 2) {
+        } else if (qError[seatIdx]! >= 2) {
           // 2nd+ individual error
           deduct = true
-        } else if (teamErrors >= 3 && qError[qi] === 1) {
+        } else if (teamErrors >= 3 && qError[seatIdx] === 1) {
           // 3rd+ team error, but this is the quizzer's 1st error
           // Still deduct team points, but doesn't count as individual error deduction
           deduct = true
@@ -169,15 +169,15 @@ export function scoreTeam(
         if (deduct) {
           colPoints -= 10
         } else {
-          freeErrorCols.add(ci)
+          freeErrorCols.add(colIdx)
         }
       } else if (cell === CellValue.Foul) {
         if (!isOvertime) {
-          qFoul[qi]!++
+          qFoul[seatIdx]!++
 
           // Track foul-out column (3 fouls = out)
-          if (qFoul[qi] === 3 && qOutAfterCol[qi] === -1) {
-            qOutAfterCol[qi] = ci
+          if (qFoul[seatIdx] === 3 && qOutAfterCol[seatIdx] === -1) {
+            qOutAfterCol[seatIdx] = colIdx
           }
         }
         teamFouls++
@@ -185,10 +185,10 @@ export function scoreTeam(
         // Deduct -10 for every 3rd team foul OR 3rd individual foul (foul-out),
         // but don't stack if both happen on the same foul
         const isTeamFoulDeduct = teamFouls % 3 === 0
-        const isFoulOut = !isOvertime && qFoul[qi] === 3
+        const isFoulOut = !isOvertime && qFoul[seatIdx] === 3
         if (isTeamFoulDeduct || isFoulOut) {
           colPoints -= 10
-          foulDeductCols.add(ci)
+          foulDeductCols.add(colIdx)
         }
       }
     }
@@ -204,16 +204,16 @@ export function scoreTeam(
     return null
   })
 
-  // Build per-quizzer results
+  // Build per-seat results
   const quizzers: QuizzerScoring[] = []
-  for (let qi = 0; qi < quizzerCount; qi++) {
-    const correct = qCorrect[qi]!
-    const errors = qError[qi]!
-    const fouls = qFoul[qi]!
+  for (let seatIdx = 0; seatIdx < seatCount; seatIdx++) {
+    const correct = qCorrect[seatIdx]!
+    const errors = qError[seatIdx]!
+    const fouls = qFoul[seatIdx]!
     const quizzedOut = correct >= 4
     const erroredOut = errors >= 3
     const fouledOut = fouls >= 3
-    const quizoutBonus = qHasQuizoutBonus[qi]!
+    const quizoutBonus = qHasQuizoutBonus[seatIdx]!
 
     // Individual points: 20 per correct (non-bonus, non-OT)
     let points = correct * 20
@@ -234,7 +234,7 @@ export function scoreTeam(
       erroredOut,
       fouledOut,
       quizoutBonus,
-      outAfterCol: qOutAfterCol[qi]!,
+      outAfterCol: qOutAfterCol[seatIdx]!,
     })
   }
 

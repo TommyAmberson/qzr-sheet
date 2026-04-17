@@ -1,13 +1,15 @@
 import { CellValue } from '../types/scoresheet'
+import type { TeamIdx, SeatIdx, ColIdx } from '../types/indices'
+import { toTeamIdx as T, toSeatIdx as S, toColIdx as C } from '../types/indices'
 
 export type ScoresheetActions = {
-  setQuizzerName: (ti: number, qi: number, name: string) => void
-  setTeamName: (ti: number, name: string) => void
-  setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
-  toggleNoJump: (ci: number) => void
+  setQuizzerName: (teamIdx: TeamIdx, seatIdx: SeatIdx, name: string) => void
+  setTeamName: (teamIdx: TeamIdx, name: string) => void
+  setCell: (teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx, value: CellValue) => void
+  toggleNoJump: (colIdx: ColIdx) => void
   toggleTimeout: (teamId: number, colKey: string) => void
-  toggleOnTime: (ti: number) => void
-  moveQuizzer: (ti: number, from: number, to: number) => void
+  toggleOnTime: (teamIdx: TeamIdx) => void
+  moveQuizzer: (teamIdx: TeamIdx, from: SeatIdx, to: SeatIdx) => void
   columns: { value: { key: string }[] }
   teams: { value: { id: number; onTime: boolean }[] }
   quiz: { value: { overtime: boolean } }
@@ -17,20 +19,26 @@ export interface TutorialStep {
   id: string
   target:
     | { type: 'selector'; css: string }
-    | { type: 'cell'; ti: number; qi: number; ci: number }
-    | { type: 'column'; ci: number }
-    | { type: 'timeout-row'; ti: number }
+    | { type: 'cell'; teamIdx: TeamIdx; seatIdx: SeatIdx; colIdx: ColIdx }
+    | { type: 'column'; colIdx: ColIdx }
+    | { type: 'timeout-row'; teamIdx: TeamIdx }
     | { type: 'none' }
   placement: 'top' | 'bottom' | 'left' | 'right'
   title: string
   body: string
   completion:
     | { type: 'acknowledge' }
-    | { type: 'cell-value'; ti: number; qi: number; ci: number; value: CellValue | CellValue[] }
-    | { type: 'input-non-empty'; teamIdx: number; quizzerIdx?: number }
-    | { type: 'input-empty'; teamIdx: number; quizzerIdx: number }
+    | {
+        type: 'cell-value'
+        teamIdx: TeamIdx
+        seatIdx: SeatIdx
+        colIdx: ColIdx
+        value: CellValue | CellValue[]
+      }
+    | { type: 'input-non-empty'; teamIdx: TeamIdx; seatIdx?: SeatIdx }
+    | { type: 'input-empty'; teamIdx: TeamIdx; seatIdx: SeatIdx }
     | { type: 'click-target' }
-    | { type: 'seat-change'; teamIdx: number }
+    | { type: 'seat-change'; teamIdx: TeamIdx }
   allowSelectorPopup?: boolean
   /** Allow clicks through the overlay even for acknowledge steps */
   interactive?: boolean
@@ -56,7 +64,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     placement: 'bottom',
     title: 'Name a Team',
     body: 'Click the team name and type a name for this team.',
-    completion: { type: 'input-non-empty', teamIdx: 0 },
+    completion: { type: 'input-non-empty', teamIdx: T(0) },
   },
   {
     id: 'name-quizzer',
@@ -64,7 +72,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     placement: 'bottom',
     title: 'Name a Quizzer',
     body: 'Type a name for the first quizzer on this team.',
-    completion: { type: 'input-non-empty', teamIdx: 0, quizzerIdx: 0 },
+    completion: { type: 'input-non-empty', teamIdx: T(0), seatIdx: S(0) },
   },
   {
     id: 'remove-quizzer',
@@ -72,8 +80,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     placement: 'bottom',
     title: 'Remove a Quizzer',
     body: 'To remove a quizzer, hover over their name and click the \u00d7 button that appears. This creates an empty seat.',
-    completion: { type: 'input-empty', teamIdx: 1, quizzerIdx: 3 },
-    onNext: (actions) => actions.setQuizzerName(1, 3, ''),
+    completion: { type: 'input-empty', teamIdx: T(1), seatIdx: S(3) },
+    onNext: (actions) => actions.setQuizzerName(T(1), S(3), ''),
   },
   {
     id: 'add-fifth',
@@ -81,8 +89,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     placement: 'top',
     title: 'Add a 5th Quizzer',
     body: 'Each team can have up to 5 quizzers. The 5th quizzer starts on the bench. Type a name to add a substitute.',
-    completion: { type: 'input-non-empty', teamIdx: 2, quizzerIdx: 4 },
-    onNext: (actions) => actions.setQuizzerName(2, 4, 'Quizzer 5'),
+    completion: { type: 'input-non-empty', teamIdx: T(2), seatIdx: S(4) },
+    onNext: (actions) => actions.setQuizzerName(T(2), S(4), 'Quizzer 5'),
   },
   {
     id: 'explain-fifth',
@@ -113,13 +121,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'q1-correct',
-    target: { type: 'cell', ti: 0, qi: 0, ci: 0 },
+    target: { type: 'cell', teamIdx: T(0), seatIdx: S(0), colIdx: C(0) },
     placement: 'bottom',
     title: 'Record a Correct Answer',
     body: 'A quizzer on Team 1 answers question 1 correctly. Click this cell, then select C (Correct).',
-    completion: { type: 'cell-value', ti: 0, qi: 0, ci: 0, value: CellValue.Correct },
+    completion: {
+      type: 'cell-value',
+      teamIdx: T(0),
+      seatIdx: S(0),
+      colIdx: C(0),
+      value: CellValue.Correct,
+    },
     allowSelectorPopup: true,
-    onNext: (actions) => actions.setCell(0, 0, 0, CellValue.Correct),
+    onNext: (actions) => actions.setCell(T(0), S(0), C(0), CellValue.Correct),
   },
   {
     id: 'observe-total',
@@ -131,17 +145,23 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'q2-error',
-    target: { type: 'cell', ti: 1, qi: 0, ci: 1 },
+    target: { type: 'cell', teamIdx: T(1), seatIdx: S(0), colIdx: C(1) },
     placement: 'bottom',
     title: 'Record an Error',
     body: 'A quizzer on Team 2 answers question 2 incorrectly. Click this cell and select E (Error).',
-    completion: { type: 'cell-value', ti: 1, qi: 0, ci: 1, value: CellValue.Error },
+    completion: {
+      type: 'cell-value',
+      teamIdx: T(1),
+      seatIdx: S(0),
+      colIdx: C(1),
+      value: CellValue.Error,
+    },
     allowSelectorPopup: true,
-    onNext: (actions) => actions.setCell(1, 0, 1, CellValue.Error),
+    onNext: (actions) => actions.setCell(T(1), S(0), C(1), CellValue.Error),
   },
   {
     id: 'explain-tossup',
-    target: { type: 'column', ci: 2 },
+    target: { type: 'column', colIdx: C(2) },
     placement: 'right',
     title: 'Toss-Up',
     body: "After an error, that team can't jump on the next question \u2014 it becomes a toss-up for the other two teams.",
@@ -149,17 +169,23 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'q3-tossup-error',
-    target: { type: 'cell', ti: 2, qi: 0, ci: 2 },
+    target: { type: 'cell', teamIdx: T(2), seatIdx: S(0), colIdx: C(2) },
     placement: 'bottom',
     title: 'Error on the Toss-Up',
     body: 'A quizzer on Team 3 also answers incorrectly on the toss-up. Click this cell and select E (Error).',
-    completion: { type: 'cell-value', ti: 2, qi: 0, ci: 2, value: CellValue.Error },
+    completion: {
+      type: 'cell-value',
+      teamIdx: T(2),
+      seatIdx: S(0),
+      colIdx: C(2),
+      value: CellValue.Error,
+    },
     allowSelectorPopup: true,
-    onNext: (actions) => actions.setCell(2, 0, 2, CellValue.Error),
+    onNext: (actions) => actions.setCell(T(2), S(0), C(2), CellValue.Error),
   },
   {
     id: 'explain-bonus',
-    target: { type: 'column', ci: 3 },
+    target: { type: 'column', colIdx: C(3) },
     placement: 'right',
     title: 'Bonus Question',
     body: 'Both other teams erred, so the next question is a bonus for Team 1 \u2014 they get to answer without competition.',
@@ -167,19 +193,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'q4-bonus',
-    target: { type: 'cell', ti: 0, qi: 1, ci: 3 },
+    target: { type: 'cell', teamIdx: T(0), seatIdx: S(1), colIdx: C(3) },
     placement: 'bottom',
     title: 'Answer the Bonus',
     body: 'Click this cell and select B (Bonus) if correct, or MB (Missed Bonus) if incorrect.',
     completion: {
       type: 'cell-value',
-      ti: 0,
-      qi: 1,
-      ci: 3,
+      teamIdx: T(0),
+      seatIdx: S(1),
+      colIdx: C(3),
       value: [CellValue.Bonus, CellValue.MissedBonus],
     },
     allowSelectorPopup: true,
-    onNext: (actions) => actions.setCell(0, 1, 3, CellValue.Bonus),
+    onNext: (actions) => actions.setCell(T(0), S(1), C(3), CellValue.Bonus),
   },
   {
     id: 'no-jump',
@@ -188,7 +214,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: 'No Jump',
     body: 'If nobody jumps on a question, click No Jump to mark it. Click here to toggle it.',
     completion: { type: 'click-target' },
-    onNext: (actions) => actions.toggleNoJump(4),
+    onNext: (actions) => actions.toggleNoJump(C(4)),
   },
 
   // --- Timeout + substitution ---
@@ -207,7 +233,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'explain-timeout',
-    target: { type: 'timeout-row', ti: 2 },
+    target: { type: 'timeout-row', teamIdx: T(2) },
     placement: 'bottom',
     title: 'Timeout',
     body: 'The "T" marker shows that Team 3 called a timeout here. During a timeout, coaches can substitute quizzers.',
@@ -219,8 +245,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     placement: 'top',
     title: 'Substitute a Quizzer',
     body: "Drag the 5th quizzer up to swap them into the lineup. Grab the drag handle (\u2807) and drag to another quizzer's position.",
-    completion: { type: 'seat-change', teamIdx: 2 },
-    onNext: (actions) => actions.moveQuizzer(2, 4, 0),
+    completion: { type: 'seat-change', teamIdx: T(2) },
+    onNext: (actions) => actions.moveQuizzer(T(2), S(4), S(0)),
   },
   {
     id: 'explain-substitution',
@@ -245,17 +271,17 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       const totalCols = 30
 
       // Clear all existing cells
-      for (let ti = 0; ti < 3; ti++) {
-        for (let qi = 0; qi < 5; qi++) {
-          for (let ci = 0; ci < totalCols; ci++) {
-            actions.setCell(ti, qi, ci, CellValue.Empty)
+      for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+        for (let seatIdx = 0; seatIdx < 5; seatIdx++) {
+          for (let colIdx = 0; colIdx < totalCols; colIdx++) {
+            actions.setCell(T(teamIdx), S(seatIdx), C(colIdx), CellValue.Empty)
           }
         }
       }
 
       // Set on-time for all teams
-      for (let ti = 0; ti < 3; ti++) {
-        if (!actions.teams.value[ti]!.onTime) actions.toggleOnTime(ti)
+      for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+        if (!actions.teams.value[teamIdx]!.onTime) actions.toggleOnTime(T(teamIdx))
       }
 
       // Fill Q1-Q17A only — Q18 chain is walked through interactively.
@@ -281,24 +307,30 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         [19, 1, 2, CellValue.Correct], //  Q17A: T2 q2 C
       ]
 
-      for (const [ci, ti, qi, value] of plays) {
-        actions.setCell(ti, qi, ci, value)
+      for (const [colIdx, teamIdx, seatIdx, value] of plays) {
+        actions.setCell(T(teamIdx), S(seatIdx), C(colIdx), value)
       }
     },
   },
   {
     id: 'q18-error',
-    target: { type: 'cell', ti: 0, qi: 2, ci: 21 },
+    target: { type: 'cell', teamIdx: T(0), seatIdx: S(2), colIdx: C(21) },
     placement: 'bottom',
     title: 'Question 18',
     body: 'Every question from 17-20 must have all three teams jumping. Team 1 errors on Q18 \u2014 click this cell and select E.',
-    completion: { type: 'cell-value', ti: 0, qi: 2, ci: 21, value: CellValue.Error },
+    completion: {
+      type: 'cell-value',
+      teamIdx: T(0),
+      seatIdx: S(2),
+      colIdx: C(21),
+      value: CellValue.Error,
+    },
     allowSelectorPopup: true,
-    onNext: (actions) => actions.setCell(0, 2, 21, CellValue.Error),
+    onNext: (actions) => actions.setCell(T(0), S(2), C(21), CellValue.Error),
   },
   {
     id: 'explain-q18a',
-    target: { type: 'column', ci: 22 },
+    target: { type: 'column', colIdx: C(22) },
     placement: 'right',
     title: 'Toss-Up (Q18A)',
     body: 'Because Team 1 errored, the question number doesn\u2019t advance \u2014 we ask an A version of Q18 instead. Q18A is a toss-up for the other two teams.',
@@ -306,17 +338,23 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'q18a-error',
-    target: { type: 'cell', ti: 1, qi: 1, ci: 22 },
+    target: { type: 'cell', teamIdx: T(1), seatIdx: S(1), colIdx: C(22) },
     placement: 'bottom',
     title: 'Toss-Up Error',
     body: 'Team 2 jumps on the toss-up and errors too. Click this cell and select E.',
-    completion: { type: 'cell-value', ti: 1, qi: 1, ci: 22, value: CellValue.Error },
+    completion: {
+      type: 'cell-value',
+      teamIdx: T(1),
+      seatIdx: S(1),
+      colIdx: C(22),
+      value: CellValue.Error,
+    },
     allowSelectorPopup: true,
-    onNext: (actions) => actions.setCell(1, 1, 22, CellValue.Error),
+    onNext: (actions) => actions.setCell(T(1), S(1), C(22), CellValue.Error),
   },
   {
     id: 'explain-q18b',
-    target: { type: 'column', ci: 23 },
+    target: { type: 'column', colIdx: C(23) },
     placement: 'right',
     title: 'Bonus (Q18B)',
     body: 'Team 2 also errored, so the number still doesn\u2019t advance \u2014 we ask a B version of Q18. Q18B is a bonus for Team 3, who answers without competition. Only after this will we move to Q19.',
@@ -324,19 +362,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: 'q18b-bonus',
-    target: { type: 'cell', ti: 2, qi: 2, ci: 23 },
+    target: { type: 'cell', teamIdx: T(2), seatIdx: S(2), colIdx: C(23) },
     placement: 'bottom',
     title: 'Bonus Answer',
     body: 'Click this cell and pick B (Bonus) or MB (Missed Bonus).',
     completion: {
       type: 'cell-value',
-      ti: 2,
-      qi: 2,
-      ci: 23,
+      teamIdx: T(2),
+      seatIdx: S(2),
+      colIdx: C(23),
       value: [CellValue.Bonus, CellValue.MissedBonus],
     },
     allowSelectorPopup: true,
-    onNext: (actions) => actions.setCell(2, 2, 23, CellValue.Bonus),
+    onNext: (actions) => actions.setCell(T(2), S(2), C(23), CellValue.Bonus),
   },
   {
     id: 'fast-forward-2',
@@ -346,9 +384,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: "We'll fill in the rest of the quiz. All three teams end up tied \u2014 time for overtime.",
     completion: { type: 'acknowledge' },
     setup: (actions) => {
-      // Q19: T1 q2 C (ci 24), Q20: no-jump (ci 27)
-      actions.setCell(0, 2, 24, CellValue.Correct)
-      actions.toggleNoJump(27)
+      // Q19: T1 q2 C (colIdx 24), Q20: no-jump (colIdx 27)
+      actions.setCell(T(0), S(2), C(24), CellValue.Correct)
+      actions.toggleNoJump(C(27))
     },
   },
   {
@@ -382,17 +420,17 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: "Let's play through overtime. Each team errors once and two of the toss-ups are answered. Team 3 falls behind.",
     completion: { type: 'acknowledge' },
     setup: (actions) => {
-      // OT columns: Q21/A/B → ci 30/31/32, Q22/A/B → 33/34/35, Q23/A/B → 36/37/38
+      // OT columns: Q21/A/B → colIdx 30/31/32, Q22/A/B → 33/34/35, Q23/A/B → 36/37/38
       // Q21: T1 E (-10) → 110, Q21A: T2 C (+20) → 140
       // Q22: T2 E (-10) → 130, Q22A: T1 C (+20) → 130
       // Q23: T3 E (-10) → 110, Q23A: NJ
       // Result: T1=130, T2=130, T3=110
-      actions.setCell(0, 2, 30, CellValue.Error) // Q21: T1 q2 E
-      actions.setCell(1, 1, 31, CellValue.Correct) // Q21A: T2 q1 C
-      actions.setCell(1, 0, 33, CellValue.Error) // Q22: T2 q0 E
-      actions.setCell(0, 0, 34, CellValue.Correct) // Q22A: T1 q0 C
-      actions.setCell(2, 1, 36, CellValue.Error) // Q23: T3 q1 E
-      actions.toggleNoJump(37) // Q23A: NJ
+      actions.setCell(T(0), S(2), C(30), CellValue.Error) // Q21: T1 q2 E
+      actions.setCell(T(1), S(1), C(31), CellValue.Correct) // Q21A: T2 q1 C
+      actions.setCell(T(1), S(0), C(33), CellValue.Error) // Q22: T2 q0 E
+      actions.setCell(T(0), S(0), C(34), CellValue.Correct) // Q22A: T1 q0 C
+      actions.setCell(T(2), S(1), C(36), CellValue.Error) // Q23: T3 q1 E
+      actions.toggleNoJump(C(37)) // Q23A: NJ
     },
   },
   {
@@ -411,19 +449,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: 'Team 1 has a rough round — three errors. Team 2 picks up one of the bonuses. Watch what happens to the final scores.',
     completion: { type: 'acknowledge' },
     setup: (actions) => {
-      // OT round 2: Q24/A/B → ci 39/40/41, Q25/A/B → 42/43/44, Q26/A/B → 45/46/47
+      // OT round 2: Q24/A/B → colIdx 39/40/41, Q25/A/B → 42/43/44, Q26/A/B → 45/46/47
       // With only 2 teams, A columns are skipped (greyedOut routes directly to B)
       // Q24: T1 E (-10)→120, Q24B: T2 MB (bonus, 0)→130
       // Q25: T1 E (-10)→110, Q25B: T2 MB (bonus, 0)→130
       // Q26: T1 E (-10)→100, Q26B: T2 B  (bonus,+10)→140
       // Result: T2=140 (1st), T1=100 (2nd), T3=110 (3rd)
       // 2nd place (100) < 3rd place (110) — scores are non-linear!
-      actions.setCell(0, 1, 39, CellValue.Error) // Q24: T1 q1 E
-      actions.setCell(1, 1, 41, CellValue.MissedBonus) // Q24B: T2 q1 MB
-      actions.setCell(0, 3, 42, CellValue.Error) // Q25: T1 q3 E
-      actions.setCell(1, 2, 44, CellValue.MissedBonus) // Q25B: T2 q2 MB
-      actions.setCell(0, 0, 45, CellValue.Error) // Q26: T1 q0 E
-      actions.setCell(1, 0, 47, CellValue.Bonus) // Q26B: T2 q0 B (+10)
+      actions.setCell(T(0), S(1), C(39), CellValue.Error) // Q24: T1 q1 E
+      actions.setCell(T(1), S(1), C(41), CellValue.MissedBonus) // Q24B: T2 q1 MB
+      actions.setCell(T(0), S(3), C(42), CellValue.Error) // Q25: T1 q3 E
+      actions.setCell(T(1), S(2), C(44), CellValue.MissedBonus) // Q25B: T2 q2 MB
+      actions.setCell(T(0), S(0), C(45), CellValue.Error) // Q26: T1 q0 E
+      actions.setCell(T(1), S(0), C(47), CellValue.Bonus) // Q26B: T2 q0 B (+10)
     },
   },
   {

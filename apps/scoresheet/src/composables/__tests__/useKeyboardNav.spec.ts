@@ -3,6 +3,7 @@ import { ref, defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useKeyboardNav } from '../useKeyboardNav'
 import { CellValue, buildColumns } from '../../types/scoresheet'
+import { toQuizzerId } from '../../types/indices'
 import type { SelectorOption } from '../useCellSelector'
 
 // Helper to mount a minimal component that calls useKeyboardNav,
@@ -16,18 +17,18 @@ function mountNav() {
     ]),
     teamQuizzers: ref([
       [
-        { id: 1, teamId: 1, name: 'Q1', seatOrder: 0 },
-        { id: 2, teamId: 1, name: 'Q2', seatOrder: 1 },
+        { id: toQuizzerId(1), teamId: 1, name: 'Q1', seatOrder: 0 },
+        { id: toQuizzerId(2), teamId: 1, name: 'Q2', seatOrder: 1 },
       ],
       [
-        { id: 3, teamId: 2, name: 'Q3', seatOrder: 0 },
-        { id: 4, teamId: 2, name: 'Q4', seatOrder: 1 },
+        { id: toQuizzerId(3), teamId: 2, name: 'Q3', seatOrder: 0 },
+        { id: toQuizzerId(4), teamId: 2, name: 'Q4', seatOrder: 1 },
       ],
     ]),
     noJumps: ref([false, false, false]),
     // Three display columns: indices 0, 1, 2
     displayColumns: ref([{ idx: 0 }, { idx: 1 }, { idx: 2 }]),
-    selector: ref<{ ti: number; qi: number; ci: number } | null>(null),
+    selector: ref<{ teamIdx: number; seatIdx: number; colIdx: number } | null>(null),
     selectorFocusIdx: ref(0),
     selectorOptions: ref<SelectorOption[]>([]),
     openSelectorOnCell: vi.fn(),
@@ -82,7 +83,7 @@ describe('useKeyboardNav — focusCell', () => {
   it('focusCell sets the focused cell', () => {
     const { nav, wrapper } = mountNav()
     nav.focusCell(0, 1, 2)
-    expect(nav.focusedCell.value).toEqual({ ti: 0, qi: 1, ci: 2 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 0, seatIdx: 1, colIdx: 2 })
     wrapper.unmount()
   })
 
@@ -93,7 +94,7 @@ describe('useKeyboardNav — focusCell', () => {
     wrapper.unmount()
   })
 
-  it('isNoJumpFocus returns true when ti === -1', () => {
+  it('isNoJumpFocus returns true when teamIdx === -1', () => {
     const { nav, wrapper } = mountNav()
     nav.focusCell(-1, -1, 0)
     expect(nav.isNoJumpFocus()).toBe(true)
@@ -105,14 +106,14 @@ describe('useKeyboardNav — arrow keys with no focus', () => {
   it('ArrowDown focuses top-left cell when nothing is focused', () => {
     const { nav, wrapper } = mountNav()
     key('ArrowDown')
-    expect(nav.focusedCell.value).toEqual({ ti: 0, qi: 0, ci: 0 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 0, seatIdx: 0, colIdx: 0 })
     wrapper.unmount()
   })
 
   it('ArrowUp focuses top-left cell when nothing is focused', () => {
     const { nav, wrapper } = mountNav()
     key('ArrowUp')
-    expect(nav.focusedCell.value).toEqual({ ti: 0, qi: 0, ci: 0 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 0, seatIdx: 0, colIdx: 0 })
     wrapper.unmount()
   })
 })
@@ -122,7 +123,7 @@ describe('useKeyboardNav — arrow navigation with focus', () => {
     const { nav, wrapper } = mountNav()
     nav.focusCell(0, 0, 0)
     key('ArrowDown')
-    expect(nav.focusedCell.value).toEqual({ ti: 0, qi: 1, ci: 0 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 0, seatIdx: 1, colIdx: 0 })
     wrapper.unmount()
   })
 
@@ -130,7 +131,7 @@ describe('useKeyboardNav — arrow navigation with focus', () => {
     const { nav, wrapper } = mountNav()
     nav.focusCell(0, 1, 0) // last quizzer of team 0
     key('ArrowDown')
-    expect(nav.focusedCell.value).toEqual({ ti: 1, qi: 0, ci: 0 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 1, seatIdx: 0, colIdx: 0 })
     wrapper.unmount()
   })
 
@@ -138,7 +139,7 @@ describe('useKeyboardNav — arrow navigation with focus', () => {
     const { nav, wrapper } = mountNav()
     nav.focusCell(0, 1, 0)
     key('ArrowUp')
-    expect(nav.focusedCell.value).toEqual({ ti: 0, qi: 0, ci: 0 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 0, seatIdx: 0, colIdx: 0 })
     wrapper.unmount()
   })
 
@@ -146,7 +147,7 @@ describe('useKeyboardNav — arrow navigation with focus', () => {
     const { nav, wrapper } = mountNav()
     nav.focusCell(0, 0, 0)
     key('ArrowRight')
-    expect(nav.focusedCell.value).toEqual({ ti: 0, qi: 0, ci: 1 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 0, seatIdx: 0, colIdx: 1 })
     wrapper.unmount()
   })
 
@@ -154,7 +155,7 @@ describe('useKeyboardNav — arrow navigation with focus', () => {
     const { nav, wrapper } = mountNav()
     nav.focusCell(0, 0, 1)
     key('ArrowLeft')
-    expect(nav.focusedCell.value).toEqual({ ti: 0, qi: 0, ci: 0 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 0, seatIdx: 0, colIdx: 0 })
     wrapper.unmount()
   })
 
@@ -162,7 +163,7 @@ describe('useKeyboardNav — arrow navigation with focus', () => {
     const { nav, wrapper } = mountNav()
     nav.focusCell(0, 0, 0)
     key('ArrowLeft')
-    expect(nav.focusedCell.value).toEqual({ ti: 0, qi: 0, ci: 0 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 0, seatIdx: 0, colIdx: 0 })
     wrapper.unmount()
   })
 
@@ -170,7 +171,7 @@ describe('useKeyboardNav — arrow navigation with focus', () => {
     const { nav, wrapper } = mountNav()
     nav.focusCell(0, 0, 2) // last display column index
     key('ArrowRight')
-    expect(nav.focusedCell.value).toEqual({ ti: 0, qi: 0, ci: 2 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 0, seatIdx: 0, colIdx: 2 })
     wrapper.unmount()
   })
 
@@ -178,7 +179,7 @@ describe('useKeyboardNav — arrow navigation with focus', () => {
     const { nav, wrapper } = mountNav()
     nav.focusCell(0, 0, 1)
     key('ArrowUp')
-    expect(nav.focusedCell.value).toEqual({ ti: 0, qi: 0, ci: 1 })
+    expect(nav.focusedCell.value).toEqual({ teamIdx: 0, seatIdx: 0, colIdx: 1 })
     wrapper.unmount()
   })
 })
@@ -195,7 +196,7 @@ describe('useKeyboardNav — Escape', () => {
   it('Escape calls closeSelector when selector is open', () => {
     const { nav, deps, wrapper } = mountNav()
     nav.focusCell(0, 0, 0)
-    deps.selector.value = { ti: 0, qi: 0, ci: 0 }
+    deps.selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 0 }
     key('Escape')
     expect(deps.closeSelector).toHaveBeenCalled()
     wrapper.unmount()
@@ -353,7 +354,7 @@ describe('useKeyboardNav — selector open navigation', () => {
   it('ArrowRight increments selectorFocusIdx when selector is open', () => {
     const { nav, deps, wrapper } = mountNav()
     nav.focusCell(0, 0, 0)
-    deps.selector.value = { ti: 0, qi: 0, ci: 0 }
+    deps.selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 0 }
     deps.selectorOptions.value = [
       { label: 'A', value: CellValue.Correct, cls: '' },
       { label: 'B', value: CellValue.Error, cls: '' },
@@ -367,7 +368,7 @@ describe('useKeyboardNav — selector open navigation', () => {
   it('ArrowLeft decrements selectorFocusIdx but not below 0', () => {
     const { nav, deps, wrapper } = mountNav()
     nav.focusCell(0, 0, 0)
-    deps.selector.value = { ti: 0, qi: 0, ci: 0 }
+    deps.selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 0 }
     deps.selectorOptions.value = [
       { label: 'A', value: CellValue.Correct, cls: '' },
       { label: 'B', value: CellValue.Error, cls: '' },
@@ -381,7 +382,7 @@ describe('useKeyboardNav — selector open navigation', () => {
   it('Enter confirms focused option when selector is open', () => {
     const { nav, deps, wrapper } = mountNav()
     nav.focusCell(0, 0, 0)
-    deps.selector.value = { ti: 0, qi: 0, ci: 0 }
+    deps.selector.value = { teamIdx: 0, seatIdx: 0, colIdx: 0 }
     key('Enter')
     expect(deps.confirmFocusedOption).toHaveBeenCalled()
     wrapper.unmount()

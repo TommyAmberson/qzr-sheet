@@ -3,6 +3,11 @@ import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
 import { TUTORIAL_STEPS } from '../../tutorial/tutorialSteps'
 import { CellValue } from '../../types/scoresheet'
+import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
+
+const T = toTeamIdx
+const S = toSeatIdx
+const C = toColIdx
 
 // Toggle to force parseQuizFile to throw, for snapshot-failure tests.
 let forceParseFailure = false
@@ -42,7 +47,7 @@ describe('useTutorial — start', () => {
 
   it('start() saves a snapshot to localStorage', () => {
     const s = useScoresheet()
-    s.setCell(0, 0, 0, CellValue.Correct)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
     const t = useTutorial(s)
     t.start()
     expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBeTruthy()
@@ -50,7 +55,7 @@ describe('useTutorial — start', () => {
 
   it('start() pauses auto-save and resets the store', () => {
     const s = useScoresheet()
-    s.setCell(0, 0, 0, CellValue.Correct)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
     const t = useTutorial(s)
     t.start()
     expect(s.pauseAutoSave.value).toBe(true)
@@ -81,7 +86,7 @@ describe('useTutorial — advance', () => {
 describe('useTutorial — finish', () => {
   it('finish() deactivates and restores the snapshot', () => {
     const s = useScoresheet()
-    s.setCell(0, 0, 0, CellValue.Correct)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
     const t = useTutorial(s)
     t.start()
     // Tutorial reset the store, Q1 is empty now
@@ -156,7 +161,7 @@ describe('useTutorial — snapshot safety', () => {
   // must refuse to activate. The user's pre-tutorial state must stay intact.
   it('start() refuses to activate if snapshot cannot be parsed', () => {
     const s = useScoresheet()
-    s.setCell(0, 0, 0, CellValue.Correct)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
     forceParseFailure = true
     const t = useTutorial(s)
     t.start()
@@ -171,7 +176,7 @@ describe('useTutorial — snapshot safety', () => {
   // is wiped between start() and finish().
   it('finish() restores state using in-memory snapshot even when localStorage is cleared', () => {
     const s = useScoresheet()
-    s.setCell(0, 0, 0, CellValue.Correct)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
     const t = useTutorial(s)
     t.start()
     // Tutorial reset the store, Q1 is empty

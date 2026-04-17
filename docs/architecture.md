@@ -168,10 +168,10 @@ results. No Vue, no store access.
 ### Cell grid indexing
 
 ```
-cells[teamIdx][quizzerIdx][colIdx]
+cells[teamIdx][seatIdx][colIdx]
 ```
 
-`teamIdx` and `quizzerIdx` are positional (sorted by `seatOrder`), not IDs. Column index matches
+`teamIdx` and `seatIdx` are positional (sorted by `seatOrder`), not IDs. Column index matches
 position in the `columns` array from `buildColumns()`.
 
 ### Grey-out vs. validation

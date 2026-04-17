@@ -11,7 +11,7 @@ import {
   isBonusSituation,
 } from '../helpers'
 
-// Shorthand builders for 3D cell grids [teamIdx][quizzerIdx][colIdx]
+// Shorthand builders for 3D cell grids [teamIdx][seatIdx][colIdx]
 const E = CellValue.Empty
 const C = CellValue.Correct
 const Err = CellValue.Error
@@ -27,13 +27,13 @@ function emptyGrid(cols = 3): CellValue[][][] {
 /** Set one cell in a cloned grid */
 function withCell(
   grid: CellValue[][][],
-  ti: number,
-  qi: number,
-  ci: number,
+  teamIdx: number,
+  seatIdx: number,
+  colIdx: number,
   v: CellValue,
 ): CellValue[][][] {
   const g = grid.map((team) => team.map((row) => [...row]))
-  g[ti]![qi]![ci] = v
+  g[teamIdx]![seatIdx]![colIdx] = v
   return g
 }
 

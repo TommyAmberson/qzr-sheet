@@ -182,20 +182,20 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   }
   const rawAnswersByQ = new Map<number, RawAnswer[]>()
 
-  for (let ti = 0; ti < TEAM_BLOCKS.length; ti++) {
-    const block = TEAM_BLOCKS[ti]!
+  for (let teamIdx = 0; teamIdx < TEAM_BLOCKS.length; teamIdx++) {
+    const block = TEAM_BLOCKS[teamIdx]!
     const teamId = nextId++
     const teamName = readCell(sheet, block.nameRow, 1)
     const onTime = readCell(sheet, block.onTimeRow, 6).toLowerCase() !== 'n'
 
     const quizzers: QuizFile['teams'][0]['quizzers'] = []
 
-    for (let qi = 0; qi < 5; qi++) {
-      const qRow = block.quizzerStart + qi
+    for (let seatIdx = 0; seatIdx < 5; seatIdx++) {
+      const qRow = block.quizzerStart + seatIdx
       const quizzerId = nextId++
       const quizzerName = readCell(sheet, qRow, 1)
 
-      quizzers.push({ id: quizzerId, name: quizzerName, seatOrder: qi })
+      quizzers.push({ id: quizzerId, name: quizzerName, seatOrder: seatIdx })
 
       for (let q = 1; q <= 20; q++) {
         const val = readCell(sheet, qRow, 3 + (q - 1)).toLowerCase()
@@ -214,7 +214,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
       }
     }
 
-    teams.push({ id: teamId, name: teamName, onTime, seatOrder: ti, quizzers })
+    teams.push({ id: teamId, name: teamName, onTime, seatOrder: teamIdx, quizzers })
   }
 
   // Second pass: assign column keys using footer rows to guess A/B depth

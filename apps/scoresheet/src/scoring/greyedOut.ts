@@ -18,7 +18,7 @@ export interface GreyedOutResult {
   disabled: Set<string>
   /** Teams that can't jump on a column due to toss-up/error chain: Set of "teamIdx:colIdx" */
   tossedUp: Set<string>
-  /** Quizzers who fouled on a question and can't answer sub-parts: Set of "teamIdx:quizzerIdx:colIdx" */
+  /** Quizzers who fouled on a question and can't answer sub-parts: Set of "teamIdx:seatIdx:colIdx" */
   fouledQuizzers: Set<string>
   /** Per-column game-logic status: Pending, Errored, Resolved, or Skipped */
   colStatuses: ColStatus[]
@@ -35,14 +35,15 @@ export function computeGreyedOut(
   const keyToIdx = buildKeyToIdx(cols)
 
   // Partially apply cellData so call sites read cleanly
-  const hasAnswer = (ti: number, ci: number) => teamHasAnswer(cellData, ti, ci)
-  const hasValue = (ti: number, ci: number, v: CellValue) => teamHasValue(cellData, ti, ci, v)
-  const anyHasAnswer = (ci: number) => anyTeamHasAnswer(cellData, ci)
-  const colResolved = (ci: number) => isResolved(cellData, ci)
+  const hasAnswer = (teamIdx: number, colIdx: number) => teamHasAnswer(cellData, teamIdx, colIdx)
+  const hasValue = (teamIdx: number, colIdx: number, v: CellValue) =>
+    teamHasValue(cellData, teamIdx, colIdx, v)
+  const anyHasAnswer = (colIdx: number) => anyTeamHasAnswer(cellData, colIdx)
+  const colResolved = (colIdx: number) => isResolved(cellData, colIdx)
 
   function greyAllTeams(colIdx: number) {
-    for (let ti = 0; ti < teamCount; ti++) {
-      disabled.add(`${ti}:${colIdx}`)
+    for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
+      disabled.add(`${teamIdx}:${colIdx}`)
     }
   }
 
@@ -69,8 +70,8 @@ export function computeGreyedOut(
   // not retroactively tossed-up on round N columns.
   if (otIneligibility) {
     for (const [colIdx, ineligible] of otIneligibility) {
-      for (const ti of ineligible) {
-        tossedUp[colIdx]!.add(`${ti}`)
+      for (const teamIdx of ineligible) {
+        tossedUp[colIdx]!.add(`${teamIdx}`)
       }
     }
   }
@@ -94,31 +95,31 @@ export function computeGreyedOut(
       col.isAB &&
       colStatuses[colIdx] === ColStatus.Resolved
     ) {
-      const aIdx = keyToIdx.get(`${col.number}A`)
-      const bIdx = keyToIdx.get(`${col.number}B`)
-      if (aIdx !== undefined) {
-        greyAllTeams(aIdx)
-        colStatuses[aIdx] = ColStatus.Skipped
+      const aColIdx = keyToIdx.get(`${col.number}A`)
+      const bColIdx = keyToIdx.get(`${col.number}B`)
+      if (aColIdx !== undefined) {
+        greyAllTeams(aColIdx)
+        colStatuses[aColIdx] = ColStatus.Skipped
       }
-      if (bIdx !== undefined) {
-        greyAllTeams(bIdx)
-        colStatuses[bIdx] = ColStatus.Skipped
+      if (bColIdx !== undefined) {
+        greyAllTeams(bColIdx)
+        colStatuses[bColIdx] = ColStatus.Skipped
       }
     }
 
     // 3. If an A question was resolved (C/B/MB), grey out B.
     //    Errors don't resolve — they lead to toss-ups on B.
     if (col.type === QuestionType.A && colStatuses[colIdx] === ColStatus.Resolved) {
-      const bIdx = keyToIdx.get(`${col.number}B`)
-      if (bIdx !== undefined) {
-        greyAllTeams(bIdx)
-        colStatuses[bIdx] = ColStatus.Skipped
+      const bColIdx = keyToIdx.get(`${col.number}B`)
+      if (bColIdx !== undefined) {
+        greyAllTeams(bColIdx)
+        colStatuses[bColIdx] = ColStatus.Skipped
       }
     }
 
     // 4. Toss-up greying: teams in tossedUp set are greyed on this column
-    for (const tiStr of tossedUp[colIdx]!) {
-      disabled.add(`${tiStr}:${colIdx}`)
+    for (const teamIdxStr of tossedUp[colIdx]!) {
+      disabled.add(`${teamIdxStr}:${colIdx}`)
     }
 
     // 5. Toss-up / bonus carry-forward
@@ -126,11 +127,11 @@ export function computeGreyedOut(
     if (colStatuses[colIdx] === ColStatus.Errored) {
       // Determine which teams would be tossed on the next column
       const wouldBeTossed: number[] = []
-      for (let ti = 0; ti < teamCount; ti++) {
-        if (hasValue(ti, colIdx, CellValue.Error)) {
-          wouldBeTossed.push(ti)
-        } else if (tossedUp[colIdx]!.has(`${ti}`) && !hasAnswer(ti, colIdx)) {
-          wouldBeTossed.push(ti)
+      for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
+        if (hasValue(teamIdx, colIdx, CellValue.Error)) {
+          wouldBeTossed.push(teamIdx)
+        } else if (tossedUp[colIdx]!.has(`${teamIdx}`) && !hasAnswer(teamIdx, colIdx)) {
+          wouldBeTossed.push(teamIdx)
         }
       }
 
@@ -140,28 +141,28 @@ export function computeGreyedOut(
       let nq: number | undefined
       if (col.type === QuestionType.Normal && col.isAB && wouldBeTossed.length === teamCount - 1) {
         nq = keyToIdx.get(`${col.number}B`)
-        const aIdx = keyToIdx.get(`${col.number}A`)
-        if (aIdx !== undefined) {
-          colStatuses[aIdx] = ColStatus.Skipped
-          greyAllTeams(aIdx)
+        const aColIdx = keyToIdx.get(`${col.number}A`)
+        if (aColIdx !== undefined) {
+          colStatuses[aColIdx] = ColStatus.Skipped
+          greyAllTeams(aColIdx)
         }
       } else {
         nq = nextQuestion(col)
       }
 
       if (nq !== undefined) {
-        for (const ti of wouldBeTossed) {
-          tossedUp[nq]!.add(`${ti}`)
+        for (const teamIdx of wouldBeTossed) {
+          tossedUp[nq]!.add(`${teamIdx}`)
         }
       }
     }
   }
 
-  // Flatten tossedUp array into a single Set of "ti:colIdx" for easy lookup
+  // Flatten tossedUp array into a single Set of "teamIdx:colIdx" for easy lookup
   const tossedUpSet = new Set<string>()
   for (let colIdx = 0; colIdx < cols.length; colIdx++) {
-    for (const tiStr of tossedUp[colIdx]!) {
-      tossedUpSet.add(`${tiStr}:${colIdx}`)
+    for (const teamIdxStr of tossedUp[colIdx]!) {
+      tossedUpSet.add(`${teamIdxStr}:${colIdx}`)
     }
   }
 
@@ -172,22 +173,22 @@ export function computeGreyedOut(
     const col = cols[colIdx]!
     if (!col.isAB) continue
 
-    for (let ti = 0; ti < teamCount; ti++) {
-      const team = cellData[ti]!
-      for (let qi = 0; qi < team.length; qi++) {
-        if (team[qi]![colIdx] !== CellValue.Foul) continue
+    for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
+      const team = cellData[teamIdx]!
+      for (let seatIdx = 0; seatIdx < team.length; seatIdx++) {
+        if (team[seatIdx]![colIdx] !== CellValue.Foul) continue
 
         // Foul on Normal → grey this quizzer on A and B
         if (col.type === QuestionType.Normal) {
-          const aIdx = keyToIdx.get(`${col.number}A`)
-          const bIdx = keyToIdx.get(`${col.number}B`)
-          if (aIdx !== undefined) fouledQuizzers.add(`${ti}:${qi}:${aIdx}`)
-          if (bIdx !== undefined) fouledQuizzers.add(`${ti}:${qi}:${bIdx}`)
+          const aColIdx = keyToIdx.get(`${col.number}A`)
+          const bColIdx = keyToIdx.get(`${col.number}B`)
+          if (aColIdx !== undefined) fouledQuizzers.add(`${teamIdx}:${seatIdx}:${aColIdx}`)
+          if (bColIdx !== undefined) fouledQuizzers.add(`${teamIdx}:${seatIdx}:${bColIdx}`)
         }
         // Foul on A → grey this quizzer on B
         if (col.type === QuestionType.A) {
-          const bIdx = keyToIdx.get(`${col.number}B`)
-          if (bIdx !== undefined) fouledQuizzers.add(`${ti}:${qi}:${bIdx}`)
+          const bColIdx = keyToIdx.get(`${col.number}B`)
+          if (bColIdx !== undefined) fouledQuizzers.add(`${teamIdx}:${seatIdx}:${bColIdx}`)
         }
         // Foul on B → nothing further
       }
@@ -197,8 +198,8 @@ export function computeGreyedOut(
   // Grey out non-eligible teams on overtime columns
   if (otIneligibility) {
     for (const [colIdx, ineligible] of otIneligibility) {
-      for (const ti of ineligible) {
-        disabled.add(`${ti}:${colIdx}`)
+      for (const teamIdx of ineligible) {
+        disabled.add(`${teamIdx}:${colIdx}`)
       }
     }
   }

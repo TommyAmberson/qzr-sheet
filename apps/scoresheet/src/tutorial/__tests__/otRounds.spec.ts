@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../../composables/useScoresheet'
 import { TUTORIAL_STEPS, type ScoresheetActions } from '../tutorialSteps'
+import { toColIdx } from '../../types/indices'
 
 beforeEach(() => localStorage.clear())
 
@@ -38,7 +39,7 @@ function runOnNext(id: string, actions: ScoresheetActions) {
  */
 function runThroughRegulationAndEnableOT(s: ReturnType<typeof useScoresheet>): ScoresheetActions {
   const actions = buildActions(s)
-  s.toggleNoJump(4) // Q5 no-jump (set by earlier tutorial step)
+  s.toggleNoJump(toColIdx(4)) // Q5 no-jump (set by earlier tutorial step)
   runSetup('fast-forward-1', actions)
   runOnNext('q18-error', actions)
   runOnNext('q18a-error', actions)

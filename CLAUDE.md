@@ -65,7 +65,7 @@ packages/
 
 ## Key Conventions
 
-* Scoring functions are **pure** — `cells[teamIdx][quizzerIdx][colIdx]` in, result out. No Vue.
+* Scoring functions are **pure** — `cells[teamIdx][seatIdx][colIdx]` in, result out. No Vue.
 * Column keys: `"1"`–`"15"`, `"16"`/`"16A"`/`"16B"` through `"20B"`, `"21"`+ for overtime.
 * Tests live in `__tests__/` subdirectories next to the code they test.
 * Slight preference for writing tests before features.

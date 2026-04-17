@@ -3,6 +3,7 @@ import { CellValue, QUIZZERS_PER_TEAM, type Timeout } from '../types/scoresheet'
 import { serializeStore, parseQuizFile, type DeserializeResult } from '../persistence/quizFile'
 import type { QuizStore } from '../stores/quizStore'
 import { TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
+import type { TeamIdx, SeatIdx, ColIdx } from '../types/indices'
 
 const SNAPSHOT_KEY = 'qzr-sheet:tutorial-snapshot'
 
@@ -17,13 +18,13 @@ export interface ScoresheetAPI {
   teams: { value: { id: number; seatOrder: number; name: string; onTime: boolean }[] }
   teamQuizzers: { value: { name: string; seatOrder: number }[][] }
   quiz: { value: { overtime: boolean } }
-  setQuizzerName: (ti: number, qi: number, name: string) => void
-  setTeamName: (ti: number, name: string) => void
-  setCell: (ti: number, qi: number, ci: number, value: CellValue) => void
-  toggleNoJump: (ci: number) => void
+  setQuizzerName: (teamIdx: TeamIdx, seatIdx: SeatIdx, name: string) => void
+  setTeamName: (teamIdx: TeamIdx, name: string) => void
+  setCell: (teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx, value: CellValue) => void
+  toggleNoJump: (colIdx: ColIdx) => void
   toggleTimeout: (teamId: number, colKey: string) => void
-  toggleOnTime: (ti: number) => void
-  moveQuizzer: (ti: number, from: number, to: number) => void
+  toggleOnTime: (teamIdx: TeamIdx) => void
+  moveQuizzer: (teamIdx: TeamIdx, from: SeatIdx, to: SeatIdx) => void
   loadFile: (data: DeserializeResult) => void
   resetStore: () => void
   columns: { value: { key: string }[] }
@@ -117,28 +118,32 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       const matched = document.querySelectorAll<HTMLElement>(step.target.css)
       matched.forEach((el) => els.push(el))
     } else if (step.target.type === 'cell') {
-      const { ti, qi, ci } = step.target
-      const el = document.querySelector<HTMLElement>(`[data-tutorial="cell-${ti}-${qi}-${ci}"]`)
+      const { teamIdx, seatIdx, colIdx } = step.target
+      const el = document.querySelector<HTMLElement>(
+        `[data-tutorial="cell-${teamIdx}-${seatIdx}-${colIdx}"]`,
+      )
       if (el) els.push(el)
     } else if (step.target.type === 'column') {
-      const ci = step.target.ci
-      const header = document.querySelector<HTMLElement>(`[data-tutorial="col-header-${ci}"]`)
+      const { colIdx } = step.target
+      const header = document.querySelector<HTMLElement>(`[data-tutorial="col-header-${colIdx}"]`)
       if (header) els.push(header)
-      for (let ti = 0; ti < 3; ti++) {
-        for (let qi = 0; qi < QUIZZERS_PER_TEAM; qi++) {
+      for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+        for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
           const cell = document.querySelector<HTMLElement>(
-            `[data-tutorial="cell-${ti}-${qi}-${ci}"]`,
+            `[data-tutorial="cell-${teamIdx}-${seatIdx}-${colIdx}"]`,
           )
           if (cell) els.push(cell)
         }
       }
-      const nj = document.querySelector<HTMLElement>(`[data-tutorial="no-jump-${ci}"]`)
+      const nj = document.querySelector<HTMLElement>(`[data-tutorial="no-jump-${colIdx}"]`)
       if (nj) els.push(nj)
     } else if (step.target.type === 'timeout-row') {
-      const ti = step.target.ti
+      const { teamIdx } = step.target
       // Timeouts can't be called after Q17, so only show Q1–Q16 (indices 0–15)
-      for (let ci = 0; ci < 16; ci++) {
-        const cell = document.querySelector<HTMLElement>(`[data-tutorial="timeout-${ti}-${ci}"]`)
+      for (let colIdx = 0; colIdx < 16; colIdx++) {
+        const cell = document.querySelector<HTMLElement>(
+          `[data-tutorial="timeout-${teamIdx}-${colIdx}"]`,
+        )
         if (cell) els.push(cell)
       }
     }
@@ -153,13 +158,13 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     const completion = step.completion
 
     if (completion.type === 'cell-value') {
-      const { ti, qi, ci, value } = completion
+      const { teamIdx, seatIdx, colIdx, value } = completion
       const values = Array.isArray(value) ? value : [value]
       cleanupFns.push(
         watch(
           () => scoresheet.answerVersion.value,
           () => {
-            const cellVal = scoresheet.cells.value[ti]?.[qi]?.[ci]
+            const cellVal = scoresheet.cells.value[teamIdx]?.[seatIdx]?.[colIdx]
             if (cellVal !== undefined && values.includes(cellVal)) advance()
           },
           { flush: 'post' },
@@ -168,7 +173,7 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     }
 
     if (completion.type === 'input-non-empty') {
-      const { teamIdx, quizzerIdx } = completion
+      const { teamIdx, seatIdx } = completion
       // Focus the input
       const firstEl = targetEls.value[0]
       if (firstEl instanceof HTMLInputElement) {
@@ -181,10 +186,10 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
           () => scoresheet.teamVersion.value,
           () => {
             const changed =
-              quizzerIdx !== undefined
+              seatIdx !== undefined
                 ? (() => {
-                    const name = scoresheet.teamQuizzers.value[teamIdx]?.[quizzerIdx]?.name ?? ''
-                    return name.trim() !== '' && name !== `Quizzer ${quizzerIdx + 1}`
+                    const name = scoresheet.teamQuizzers.value[teamIdx]?.[seatIdx]?.name ?? ''
+                    return name.trim() !== '' && name !== `Quizzer ${seatIdx + 1}`
                   })()
                 : (() => {
                     const team = scoresheet.teams.value[teamIdx]
@@ -207,12 +212,12 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     }
 
     if (completion.type === 'input-empty') {
-      const { teamIdx, quizzerIdx } = completion
+      const { teamIdx, seatIdx } = completion
       cleanupFns.push(
         watch(
           () => scoresheet.teamVersion.value,
           () => {
-            const name = scoresheet.teamQuizzers.value[teamIdx]?.[quizzerIdx]?.name ?? 'x'
+            const name = scoresheet.teamQuizzers.value[teamIdx]?.[seatIdx]?.name ?? 'x'
             if (!name.trim()) advance()
           },
         ),

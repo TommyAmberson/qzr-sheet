@@ -56,7 +56,7 @@ export function validationMessage(code: ValidationCode): string {
 }
 
 /**
- * Validate all cells and return a map of "ti:qi:ci" → ValidationCode[].
+ * Validate all cells and return a map of "teamIdx:seatIdx:colIdx" → ValidationCode[].
  * Only cells with problems appear in the map.
  */
 export function validateCells(
@@ -71,8 +71,8 @@ export function validateCells(
   const errors = new Map<string, ValidationCode[]>()
   const teamCount = cellData.length
 
-  function addError(ti: number, qi: number, ci: number, code: ValidationCode) {
-    const key = `${ti}:${qi}:${ci}`
+  function addError(teamIdx: number, seatIdx: number, colIdx: number, code: ValidationCode) {
+    const key = `${teamIdx}:${seatIdx}:${colIdx}`
     const existing = errors.get(key)
     if (existing) {
       existing.push(code)
@@ -81,74 +81,79 @@ export function validateCells(
     }
   }
 
-  // Track per-quizzer running counts for out detection (left-to-right)
-  // qCorrects[ti][qi], qErrors[ti][qi], qFouls[ti][qi]
+  // Track per-seat running counts for out detection (left-to-right)
+  // qCorrects[teamIdx][seatIdx], qErrors[teamIdx][seatIdx], qFouls[teamIdx][seatIdx]
   const qCorrects: number[][] = cellData.map((team) => new Array(team.length).fill(0))
   const qErrors: number[][] = cellData.map((team) => new Array(team.length).fill(0))
   const qFouls: number[][] = cellData.map((team) => new Array(team.length).fill(0))
 
-  for (let ci = 0; ci < cols.length; ci++) {
-    const col = cols[ci]!
+  for (let colIdx = 0; colIdx < cols.length; colIdx++) {
+    const col = cols[colIdx]!
 
     // Collect which teams have answers (non-foul) on this column
-    const teamsWithAnswers: { ti: number; qi: number }[] = []
+    const teamsWithAnswers: { teamIdx: number; seatIdx: number }[] = []
 
-    for (let ti = 0; ti < teamCount; ti++) {
-      const quizzerCount = cellData[ti]!.length
-      const teamAnswers: { ti: number; qi: number }[] = []
+    for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
+      const seatCount = cellData[teamIdx]!.length
+      const teamAnswers: { teamIdx: number; seatIdx: number }[] = []
 
-      for (let qi = 0; qi < quizzerCount; qi++) {
-        const v = cellData[ti]![qi]![ci]!
+      for (let seatIdx = 0; seatIdx < seatCount; seatIdx++) {
+        const v = cellData[teamIdx]![seatIdx]![colIdx]!
         if (v === CellValue.Empty) continue
 
         // --- Empty seat ---
-        if (emptySeats?.has(`${ti}:${qi}`)) {
-          addError(ti, qi, ci, ValidationCode.EmptySeat)
+        if (emptySeats?.has(`${teamIdx}:${seatIdx}`)) {
+          addError(teamIdx, seatIdx, colIdx, ValidationCode.EmptySeat)
         }
 
         // --- Column not active (orphaned) ---
-        if (orphanedColumns?.has(ci)) {
-          addError(ti, qi, ci, ValidationCode.QuestionNotNeeded)
+        if (orphanedColumns?.has(colIdx)) {
+          addError(teamIdx, seatIdx, colIdx, ValidationCode.QuestionNotNeeded)
         }
 
         // --- Not in overtime ---
-        if (col.isOvertime && otEligibleTeams && !otEligibleTeams.has(ti) && v !== CellValue.Foul) {
-          addError(ti, qi, ci, ValidationCode.NotInOvertime)
+        if (
+          col.isOvertime &&
+          otEligibleTeams &&
+          !otEligibleTeams.has(teamIdx) &&
+          v !== CellValue.Foul
+        ) {
+          addError(teamIdx, seatIdx, colIdx, ValidationCode.NotInOvertime)
         }
 
         // --- No-jump (fouls are still valid on no-jump columns) ---
-        if (noJumps?.[ci] && v !== CellValue.Foul) {
-          addError(ti, qi, ci, ValidationCode.NoJump)
+        if (noJumps?.[colIdx] && v !== CellValue.Foul) {
+          addError(teamIdx, seatIdx, colIdx, ValidationCode.NoJump)
         }
 
         // --- Wrong cell type ---
         if (col.type === QuestionType.B) {
           // B columns: only B/MB/F allowed
           if (v === CellValue.Correct || v === CellValue.Error) {
-            addError(ti, qi, ci, ValidationCode.IsBonus)
+            addError(teamIdx, seatIdx, colIdx, ValidationCode.IsBonus)
           }
         } else {
           // Non-B columns: check bonus situation for this team
-          const isBonus = isBonusSituation(greyResult.tossedUp, ti, ci, teamCount)
+          const isBonus = isBonusSituation(greyResult.tossedUp, teamIdx, colIdx, teamCount)
 
           // B/MB only valid if it's a bonus situation
           if ((v === CellValue.Bonus || v === CellValue.MissedBonus) && !isBonus) {
-            addError(ti, qi, ci, ValidationCode.NotBonus)
+            addError(teamIdx, seatIdx, colIdx, ValidationCode.NotBonus)
           }
           // C/E invalid if it IS a bonus situation (should be B/MB)
           if ((v === CellValue.Correct || v === CellValue.Error) && isBonus) {
-            addError(ti, qi, ci, ValidationCode.IsBonus)
+            addError(teamIdx, seatIdx, colIdx, ValidationCode.IsBonus)
           }
         }
 
         // --- Quizzer out ---
         // Check BEFORE updating counts: if already out, flag appropriately
-        const isQuizzedOut = qCorrects[ti]![qi]! >= 4
-        const isErrorOut = qErrors[ti]![qi]! >= 3
-        const isFoulOut = qFouls[ti]![qi]! >= 3
+        const isQuizzedOut = qCorrects[teamIdx]![seatIdx]! >= 4
+        const isErrorOut = qErrors[teamIdx]![seatIdx]! >= 3
+        const isFoulOut = qFouls[teamIdx]![seatIdx]! >= 3
         if ((isErrorOut || isFoulOut) && v !== CellValue.Foul) {
           // Error/foul out: must leave, can't answer anything (except fouls)
-          addError(ti, qi, ci, ValidationCode.QuizzerOut)
+          addError(teamIdx, seatIdx, colIdx, ValidationCode.QuizzerOut)
         } else if (
           isQuizzedOut &&
           v !== CellValue.Foul &&
@@ -156,55 +161,58 @@ export function validateCells(
           v !== CellValue.MissedBonus
         ) {
           // Quiz out: stays on bench, can still answer bonus (B/MB) but not C/E
-          addError(ti, qi, ci, ValidationCode.QuizzerOut)
+          addError(teamIdx, seatIdx, colIdx, ValidationCode.QuizzerOut)
         }
 
-        // Update running counts for this quizzer
+        // Update running counts for this seat
         if (v === CellValue.Correct && !col.isOvertime) {
-          qCorrects[ti]![qi]!++
+          qCorrects[teamIdx]![seatIdx]!++
         } else if (v === CellValue.Error && !col.isOvertime) {
-          qErrors[ti]![qi]!++
+          qErrors[teamIdx]![seatIdx]!++
         } else if (v === CellValue.Foul && !col.isOvertime) {
-          qFouls[ti]![qi]!++
+          qFouls[teamIdx]![seatIdx]!++
         }
 
         // --- Fouled on question (can't answer sub-parts) ---
-        if (greyResult.fouledQuizzers.has(`${ti}:${qi}:${ci}`)) {
-          addError(ti, qi, ci, ValidationCode.FouledOnQuestion)
+        if (greyResult.fouledQuizzers.has(`${teamIdx}:${seatIdx}:${colIdx}`)) {
+          addError(teamIdx, seatIdx, colIdx, ValidationCode.FouledOnQuestion)
         }
 
         // --- Tossed up / wrong team bonus ---
-        if (isAnswer(v) && greyResult.tossedUp.has(`${ti}:${ci}`)) {
+        if (isAnswer(v) && greyResult.tossedUp.has(`${teamIdx}:${colIdx}`)) {
           // Check if some other team has a bonus situation on this column
           let isBonusForOther = false
-          for (let oti = 0; oti < teamCount; oti++) {
-            if (oti !== ti && isBonusSituation(greyResult.tossedUp, oti, ci, teamCount)) {
+          for (let otherTeamIdx = 0; otherTeamIdx < teamCount; otherTeamIdx++) {
+            if (
+              otherTeamIdx !== teamIdx &&
+              isBonusSituation(greyResult.tossedUp, otherTeamIdx, colIdx, teamCount)
+            ) {
               isBonusForOther = true
               break
             }
           }
           addError(
-            ti,
-            qi,
-            ci,
+            teamIdx,
+            seatIdx,
+            colIdx,
             isBonusForOther ? ValidationCode.WrongTeamBonus : ValidationCode.WrongTeamTossUp,
           )
         }
 
         // --- Question resolved (A/B cascade) ---
         if (isAnswer(v)) {
-          if (greyResult.colStatuses[ci] === ColStatus.Skipped) {
-            addError(ti, qi, ci, ValidationCode.QuestionNotNeeded)
+          if (greyResult.colStatuses[colIdx] === ColStatus.Skipped) {
+            addError(teamIdx, seatIdx, colIdx, ValidationCode.QuestionNotNeeded)
           }
 
-          teamAnswers.push({ ti, qi })
+          teamAnswers.push({ teamIdx, seatIdx })
         }
       }
 
       // --- Duplicate answers (same team, same column) ---
       if (teamAnswers.length > 1) {
-        for (const { ti: t, qi: q } of teamAnswers) {
-          addError(t, q, ci, ValidationCode.DuplicateAnswer)
+        for (const { teamIdx: t, seatIdx: s } of teamAnswers) {
+          addError(t, s, colIdx, ValidationCode.DuplicateAnswer)
         }
       }
 
@@ -212,10 +220,10 @@ export function validateCells(
     }
 
     // --- Multiple teams with answers on same column ---
-    const uniqueTeams = new Set(teamsWithAnswers.map(({ ti }) => ti))
+    const uniqueTeams = new Set(teamsWithAnswers.map(({ teamIdx }) => teamIdx))
     if (uniqueTeams.size > 1) {
-      for (const { ti, qi } of teamsWithAnswers) {
-        addError(ti, qi, ci, ValidationCode.DuplicateAnswer)
+      for (const { teamIdx, seatIdx } of teamsWithAnswers) {
+        addError(teamIdx, seatIdx, colIdx, ValidationCode.DuplicateAnswer)
       }
     }
   }

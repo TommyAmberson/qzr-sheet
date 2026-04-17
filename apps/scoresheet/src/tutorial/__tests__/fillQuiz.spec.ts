@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useScoresheet } from '../../composables/useScoresheet'
 import { CellValue } from '../../types/scoresheet'
 import { TUTORIAL_STEPS, type ScoresheetActions } from '../tutorialSteps'
+import { toColIdx } from '../../types/indices'
 
 beforeEach(() => localStorage.clear())
 
@@ -41,7 +42,7 @@ function runRegulationFill(s: ReturnType<typeof useScoresheet>): ScoresheetActio
   const actions = buildActions(s)
   // The tutorial sets Q5 as no-jump in the `no-jump` step before fast-forward-1 runs.
   // The fill-quiz setup relies on that already being set.
-  s.toggleNoJump(4)
+  s.toggleNoJump(toColIdx(4))
   runSetup('fast-forward-1', actions)
   // Q18 chain is normally interactive — simulate the skip path via onNext callbacks.
   runOnNext('q18-error', actions)
@@ -108,7 +109,7 @@ describe('tutorial fill-quiz — produces a valid tied quiz', () => {
     expect(s.cells.value[0]![1]![3]).toBe(CellValue.MissedBonus)
   })
 
-  it('Q17A (ci=19) is a correct answer for team 2 quizzer 2', () => {
+  it('Q17A (colIdx=19) is a correct answer for team 2 quizzer 2', () => {
     const s = useScoresheet()
     runRegulationFill(s)
     expect(s.cells.value[1]![2]![19]).toBe(CellValue.Correct)
@@ -122,21 +123,21 @@ describe('tutorial fill-quiz — produces a valid tied quiz', () => {
     expect(s.cells.value[2]![2]![23]).toBe(CellValue.Bonus) // Q18B
   })
 
-  it('Q20 (ci=27) is a no-jump', () => {
+  it('Q20 (colIdx=27) is a no-jump', () => {
     const s = useScoresheet()
     runRegulationFill(s)
     expect(s.noJumps.value[27]).toBe(true)
   })
 
   it('T2 q3 stays empty (empty seat from tutorial remove-quizzer step)', () => {
-    // The regulation fill must not touch T2 qi=3 since that seat was cleared
+    // The regulation fill must not touch T2 seatIdx=3 since that seat was cleared
     // during the tutorial's remove-quizzer step.
     const s = useScoresheet()
     runRegulationFill(s)
     const t2q3Row = s.cells.value[1]![3]!
     // Every cell for T2 q3 in Q1–Q20 should be Empty
-    for (let ci = 0; ci < 30; ci++) {
-      expect(t2q3Row[ci]).toBe(CellValue.Empty)
+    for (let colIdx = 0; colIdx < 30; colIdx++) {
+      expect(t2q3Row[colIdx]).toBe(CellValue.Empty)
     }
   })
 })

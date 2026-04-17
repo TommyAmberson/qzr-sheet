@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createQuizStore } from '../quizStore'
+import { toQuizzerId } from '../../types/indices'
 
 describe('editable names', () => {
   // --- Team names ---
@@ -52,7 +53,7 @@ describe('editable names', () => {
 
   it('setQuizzerName does nothing for unknown quizzer', () => {
     const store = createQuizStore()
-    store.setQuizzerName(999, 'Nope')
+    store.setQuizzerName(toQuizzerId(999), 'Nope')
     // No crash — first 4 still have names, 5th still empty
     for (const team of store.teams) {
       const quizzers = store.quizzersByTeam(team.id)

@@ -2,14 +2,15 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { ref } from 'vue'
 import { useDragReorder } from '../useDragReorder'
 import type { Quizzer } from '../../types/scoresheet'
+import { toQuizzerId } from '../../types/indices'
 
 function makeQuizzers(counts: number[]): Quizzer[][] {
-  return counts.map((n, ti) =>
-    Array.from({ length: n }, (_, qi) => ({
-      id: ti * 10 + qi,
-      teamId: ti,
-      name: `Q${qi + 1}`,
-      seatOrder: qi,
+  return counts.map((n, teamIdx) =>
+    Array.from({ length: n }, (_, seatIdx) => ({
+      id: toQuizzerId(teamIdx * 10 + seatIdx),
+      teamId: teamIdx,
+      name: `Q${seatIdx + 1}`,
+      seatOrder: seatIdx,
     })),
   )
 }
@@ -69,7 +70,7 @@ describe('useDragReorder — onPointerDown', () => {
     const { dragState, onPointerDown } = makeDrag()
     const event = new PointerEvent('pointerdown', { bubbles: true })
     onPointerDown(0, 1, event)
-    expect(dragState.value).toEqual({ ti: 0, qi: 1 })
+    expect(dragState.value).toEqual({ teamIdx: 0, seatIdx: 1 })
   })
 
   it('attaches pointermove and pointerup listeners to document', () => {
@@ -89,7 +90,7 @@ describe('useDragReorder — onPointerUp', () => {
     const event = new PointerEvent('pointerdown', { bubbles: true })
     onPointerDown(0, 0, event)
     // Manually set a drop target (simulating what onPointerMove would set)
-    dropTarget.value = { ti: 0, qi: 2 }
+    dropTarget.value = { teamIdx: 0, seatIdx: 2 }
     document.dispatchEvent(pointerEvent('pointerup', 0))
     expect(moveQuizzer).toHaveBeenCalledWith(0, 0, 2)
     expect(dragState.value).toBeNull()
@@ -106,7 +107,7 @@ describe('useDragReorder — onPointerUp', () => {
   it('clears dragState and dropTarget on pointer up', () => {
     const { dragState, dropTarget, onPointerDown } = makeDrag()
     onPointerDown(0, 1, new PointerEvent('pointerdown'))
-    dropTarget.value = { ti: 0, qi: 0 }
+    dropTarget.value = { teamIdx: 0, seatIdx: 0 }
     document.dispatchEvent(pointerEvent('pointerup', 0))
     expect(dragState.value).toBeNull()
     expect(dropTarget.value).toBeNull()
@@ -141,32 +142,32 @@ describe('useDragReorder — onPointerMove', () => {
   it('sets dropTarget when moving to a lower row', () => {
     const { dropTarget, registerRowEl, onPointerDown } = makeDrag()
 
-    const rows = [0, 1, 2].map((qi) => {
+    const rows = [0, 1, 2].map((seatIdx) => {
       const el = document.createElement('tr')
-      mockRowRect(el, qi * 30)
-      registerRowEl(0, qi, el)
+      mockRowRect(el, seatIdx * 30)
+      registerRowEl(0, seatIdx, el)
       return el
     })
 
     onPointerDown(0, 0, new PointerEvent('pointerdown'))
     document.dispatchEvent(pointerEvent('pointermove', 65)) // row 2 (y=60–90)
-    expect(dropTarget.value).toEqual({ ti: 0, qi: 2 })
+    expect(dropTarget.value).toEqual({ teamIdx: 0, seatIdx: 2 })
     rows.forEach(() => vi.restoreAllMocks())
   })
 
   it('sets dropTarget when moving to a higher row', () => {
     const { dropTarget, registerRowEl, onPointerDown } = makeDrag()
 
-    const rows = [0, 1, 2].map((qi) => {
+    const rows = [0, 1, 2].map((seatIdx) => {
       const el = document.createElement('tr')
-      mockRowRect(el, qi * 30)
-      registerRowEl(0, qi, el)
+      mockRowRect(el, seatIdx * 30)
+      registerRowEl(0, seatIdx, el)
       return el
     })
 
     onPointerDown(0, 2, new PointerEvent('pointerdown')) // dragging from row 2
     document.dispatchEvent(pointerEvent('pointermove', 15)) // row 0 (y=0–30)
-    expect(dropTarget.value).toEqual({ ti: 0, qi: 0 })
+    expect(dropTarget.value).toEqual({ teamIdx: 0, seatIdx: 0 })
     rows.forEach(() => vi.restoreAllMocks())
   })
 

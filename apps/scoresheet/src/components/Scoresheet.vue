@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { CellValue, QuestionCategory, QuestionType, QUIZZERS_PER_TEAM } from '../types/scoresheet'
+import { toTeamIdx, toSeatIdx, toColIdx } from '../types/indices'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
@@ -66,14 +67,14 @@ const meetPickerRef = ref<InstanceType<typeof MeetPickerDialog> | null>(null)
 const openPickerSlot = ref<number | null>(null)
 const pickerPos = ref({ top: 0, left: 0 })
 
-function toggleTeamPicker(ti: number, event: MouseEvent) {
-  if (openPickerSlot.value === ti) {
+function toggleTeamPicker(teamIdx: number, event: MouseEvent) {
+  if (openPickerSlot.value === teamIdx) {
     openPickerSlot.value = null
     return
   }
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
   pickerPos.value = { top: rect.bottom + 4, left: rect.left }
-  openPickerSlot.value = ti
+  openPickerSlot.value = teamIdx
 }
 
 function pickFromOpenPicker(teamId: number) {
@@ -104,9 +105,9 @@ async function pickTeam(slotIdx: number, teamId: number) {
 
   // Clear default quizzer names so they become empty seats for the matching algorithm
   const storeTeamId = store.teams[slotIdx]!.id
-  for (let qi = 0; qi < QUIZZERS_PER_TEAM; qi++) {
-    if (isDefaultQuizzerName(store.quizzersByTeam(storeTeamId)[qi]?.name ?? '')) {
-      setQuizzerName(slotIdx, qi, '')
+  for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+    if (isDefaultQuizzerName(store.quizzersByTeam(storeTeamId)[seatIdx]?.name ?? '')) {
+      templateSetQuizzerName(slotIdx, seatIdx, '')
     }
   }
 
@@ -116,10 +117,10 @@ async function pickTeam(slotIdx: number, teamId: number) {
   // Fill empty store seats with the DB names that were matched to those positions
   const slot = meetSession.getSlot(slotIdx)
   if (!slot) return
-  setTeamName(slotIdx, slot.dbLabelFull)
-  for (let qi = 0; qi < QUIZZERS_PER_TEAM; qi++) {
-    if (!store.quizzersByTeam(storeTeamId)[qi]?.name.trim()) {
-      setQuizzerName(slotIdx, qi, slot.quizzers[qi]!.dbName)
+  templateSetTeamName(slotIdx, slot.dbLabelFull)
+  for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+    if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
+      templateSetQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
     }
   }
 }
@@ -152,16 +153,16 @@ const filteredTeamList = computed(() =>
 )
 
 async function onMeetLoaded() {
-  for (let ti = 0; ti < 3; ti++) {
-    const teamName = store.teams[ti]?.name ?? ''
+  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+    const teamName = store.teams[teamIdx]?.name ?? ''
     if (isDefaultTeamName(teamName)) continue
     const match = findMatchingTeam(teamName)
-    if (match) await pickTeam(ti, match.id)
+    if (match) await pickTeam(teamIdx, match.id)
   }
 }
 
-function restoreQuizzerName(slotIdx: number, quizzerIdx: number) {
-  setQuizzerName(slotIdx, quizzerIdx, meetSession.getDbName(slotIdx, quizzerIdx) ?? '')
+function restoreQuizzerName(slotIdx: number, seatIdx: number) {
+  templateSetQuizzerName(slotIdx, seatIdx, meetSession.getDbName(slotIdx, seatIdx) ?? '')
 }
 
 function isTeamDivisionDiverged(slotIdx: number): boolean {
@@ -234,6 +235,42 @@ const {
   markSaved,
 } = useScoresheet()
 
+// Template boundary wrappers: v-for loop variables are plain numbers, but
+// useScoresheet functions take branded TeamIdx/SeatIdx/ColIdx. These thin
+// wrappers apply the brand at the boundary so the template stays clean.
+const templateSetCell = (t: number, s: number, c: number, v: CellValue) =>
+  setCell(toTeamIdx(t), toSeatIdx(s), toColIdx(c), v)
+const templateSetTeamName = (t: number, name: string) => setTeamName(toTeamIdx(t), name)
+const templateSetQuizzerName = (t: number, s: number, name: string) =>
+  setQuizzerName(toTeamIdx(t), toSeatIdx(s), name)
+const templateMoveQuizzer = (t: number, from: number, to: number) =>
+  moveQuizzer(toTeamIdx(t), toSeatIdx(from), toSeatIdx(to))
+const templateToggleOnTime = (t: number) => toggleOnTime(toTeamIdx(t))
+const templateToggleNoJump = (c: number) => toggleNoJump(toColIdx(c))
+const templateSetQuestionType = (c: number, cat: QuestionCategory | null) =>
+  setQuestionType(toColIdx(c), cat)
+const templateIsEmptySeat = (t: number, s: number) => isEmptySeat(toTeamIdx(t), toSeatIdx(s))
+const templateIsBonusForTeam = (t: number, c: number) => isBonusForTeam(toTeamIdx(t), toColIdx(c))
+const templateIsGreyedOut = (t: number, c: number) => isGreyedOut(toTeamIdx(t), toColIdx(c))
+const templateIsInvalid = (t: number, s: number, c: number) =>
+  isInvalid(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
+const templateCellValidationMessages = (t: number, s: number, c: number) =>
+  cellValidationMessages(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
+const templateColumnHasErrors = (c: number) => columnHasErrors(toColIdx(c))
+const templateColumnValidationMessages = (c: number) => columnValidationMessages(toColIdx(c))
+const templateQuizzerHasErrors = (t: number, s: number) =>
+  quizzerHasErrors(toTeamIdx(t), toSeatIdx(s))
+const templateQuizzerValidationMessages = (t: number, s: number) =>
+  quizzerValidationMessages(toTeamIdx(t), toSeatIdx(s))
+const templateTeamValidationMessages = (t: number) => teamValidationMessages(toTeamIdx(t))
+const templateIsAfterOut = (t: number, s: number, c: number) =>
+  isAfterOut(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
+const templateIsFouledOnQuestion = (t: number, s: number, c: number) =>
+  isFouledOnQuestion(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
+const templateTeamHasErrors = (t: number) => teamHasErrors(toTeamIdx(t))
+const templateColAnswerValue = (c: number) => colAnswerValue(toColIdx(c))
+const templateNoJumpHasConflict = (c: number) => noJumpHasConflict(toColIdx(c))
+
 const tutorial = useTutorial({
   store,
   noJumpMap,
@@ -274,8 +311,8 @@ const allValidationMessages = computed(() => {
 })
 
 /** Show individual score if the quizzer jumped (correct or error) or fouled out. */
-function quizzerScoreLabel(ti: number, qi: number): string | null {
-  const q = scoring.value[ti]?.quizzers[qi]
+function quizzerScoreLabel(teamIdx: number, seatIdx: number): string | null {
+  const q = scoring.value[teamIdx]?.quizzers[seatIdx]
   if (!q) return null
   if (q.correctCount === 0 && q.errorCount === 0 && !q.fouledOut) return null
   return `${q.points}`
@@ -301,13 +338,13 @@ const boundaryColIndices = computed<Set<number>>(() => {
 })
 
 /** Running total at or before colIdx for a team (walks back to find last non-null). */
-function boundaryTotal(ti: number, colIdx: number): number | null {
-  const totals = scoring.value[ti]?.runningTotals
+function boundaryTotal(teamIdx: number, colIdx: number): number | null {
+  const totals = scoring.value[teamIdx]?.runningTotals
   if (!totals) return null
   for (let i = colIdx; i >= 0; i--) {
     if (totals[i] !== null && totals[i] !== undefined) return totals[i]!
   }
-  return scoring.value[ti]?.onTimeBonus ?? null
+  return scoring.value[teamIdx]?.onTimeBonus ?? null
 }
 
 /** Columns actually rendered — entering columns start collapsed, then expand */
@@ -319,7 +356,7 @@ const trailingTotalIndices = computed<Set<number>>(() => {
   const c = cells.value
   const nj = noJumps.value
   const lastVisible = lastVisibleColIdx.value
-  const isComplete = (ci: number) => nj[ci] || anyTeamHasAnswer(c, ci)
+  const isComplete = (colIdx: number) => nj[colIdx] || anyTeamHasAnswer(c, colIdx)
   for (let i = 0; i < dc.length; i++) {
     const { idx } = dc[i]!
     const nextIdx = dc[i + 1]?.idx
@@ -369,7 +406,7 @@ const {
   selectValue,
   confirmFocusedOption,
   close: closeSelector,
-} = useCellSelector(columns, isBonusForTeam, setCell)
+} = useCellSelector(columns, templateIsBonusForTeam, templateSetCell)
 
 const { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardMode } =
   useKeyboardNav({
@@ -384,34 +421,34 @@ const { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardM
     openSelectorOnCell,
     confirmFocusedOption,
     closeSelector,
-    setCell,
-    toggleNoJump,
-    isBonusForTeam,
-    isAfterOut,
-    isFouledOnQuestion,
+    setCell: templateSetCell,
+    toggleNoJump: templateToggleNoJump,
+    isBonusForTeam: templateIsBonusForTeam,
+    isAfterOut: templateIsAfterOut,
+    isFouledOnQuestion: templateIsFouledOnQuestion,
     undo,
     redo,
   })
 
-function moveQuizzerAndSync(ti: number, from: number, to: number) {
-  moveQuizzer(ti, from, to)
-  meetSession.reorderSlotQuizzers(ti, from, to)
+function moveQuizzerAndSync(teamIdx: number, from: number, to: number) {
+  templateMoveQuizzer(teamIdx, from, to)
+  meetSession.reorderSlotQuizzers(teamIdx, from, to)
 }
 const { dragState, dropTarget, dropIndicatorWidth, registerRowEl, onPointerDown } = useDragReorder(
   teamQuizzers,
   moveQuizzerAndSync,
 )
 
-function onCellClick(ti: number, qi: number, ci: number, event: MouseEvent) {
+function onCellClick(teamIdx: number, seatIdx: number, colIdx: number, event: MouseEvent) {
   deactivateKeyboardMode()
-  focusCell(ti, qi, ci)
-  openSelectorFromClick(ti, qi, ci, event)
+  focusCell(teamIdx, seatIdx, colIdx)
+  openSelectorFromClick(teamIdx, seatIdx, colIdx, event)
 }
 
-function onNoJumpClick(ci: number) {
+function onNoJumpClick(colIdx: number) {
   deactivateKeyboardMode()
-  focusCell(-1, -1, ci)
-  toggleNoJump(ci)
+  focusCell(-1, -1, colIdx)
+  templateToggleNoJump(colIdx)
 }
 
 /** Hovered column index for crosshair highlight */
@@ -457,10 +494,10 @@ function onWrapperScroll() {
   if (!scrollRaf) scrollRaf = requestAnimationFrame(updateVisibleCols)
 }
 
-function baselineScore(ti: number): number {
+function baselineScore(teamIdx: number): number {
   const idx = firstVisibleColIdx.value
-  if (idx === 0) return scoring.value[ti]?.onTimeBonus ?? 0
-  return boundaryTotal(ti, idx - 1) ?? scoring.value[ti]?.onTimeBonus ?? 0
+  if (idx === 0) return scoring.value[teamIdx]?.onTimeBonus ?? 0
+  return boundaryTotal(teamIdx, idx - 1) ?? scoring.value[teamIdx]?.onTimeBonus ?? 0
 }
 
 onMounted(() => {
@@ -608,10 +645,10 @@ const headerAnswerClass: Record<CellValue, string> = {
 
 function headerClass(colIdx: number): string {
   const classes: string[] = []
-  const answer = headerAnswerClass[colAnswerValue(colIdx)]
+  const answer = headerAnswerClass[templateColAnswerValue(colIdx)]
   if (answer) classes.push(answer)
   else if (noJumps.value[colIdx]) classes.push('col--header-no-jump')
-  if (columnHasErrors(colIdx)) classes.push('col--header-invalid')
+  if (templateColumnHasErrors(colIdx)) classes.push('col--header-invalid')
   return classes.join(' ')
 }
 
@@ -822,11 +859,15 @@ const appVersion: string = __APP_VERSION__
                   { 'timeout-after': hasTimeoutAfterCol(col.key) },
                   {
                     'col--entering': entering,
-                    'col--hover': !dragState && (hoverCol === idx || selector?.ci === idx),
-                    'col--focus': keyboardMode && focusedCell?.ci === idx,
+                    'col--hover': !dragState && (hoverCol === idx || selector?.colIdx === idx),
+                    'col--focus': keyboardMode && focusedCell?.colIdx === idx,
                   },
                 ]"
-                :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
+                :title="
+                  templateColumnHasErrors(idx)
+                    ? templateColumnValidationMessages(idx).join('\n')
+                    : undefined
+                "
               >
                 <div class="col-header-inner">
                   <span class="col-header-number">{{ col.label }}</span>
@@ -838,7 +879,7 @@ const appVersion: string = __APP_VERSION__
                     class="question-type-select"
                     :value="quiz.questionTypes.get(col.key) ?? ''"
                     @change="
-                      setQuestionType(
+                      templateSetQuestionType(
                         idx,
                         ($event.target as HTMLSelectElement).value
                           ? (($event.target as HTMLSelectElement).value as QuestionCategory)
@@ -858,9 +899,9 @@ const appVersion: string = __APP_VERSION__
           </thead>
 
           <tbody>
-            <template v-for="(team, ti) in teams" :key="team.id">
+            <template v-for="(team, teamIdx) in teams" :key="team.id">
               <!-- Team header row -->
-              <tr :class="['row--team-header', teamColors[ti]]">
+              <tr :class="['row--team-header', teamColors[teamIdx]]">
                 <td class="col--left-spacer" />
                 <td class="col--name sticky-col team-name" colspan="2">
                   <div class="name-cell-inner">
@@ -868,19 +909,19 @@ const appVersion: string = __APP_VERSION__
                       <template v-if="meetSession.isActive.value">
                         <button
                           class="team-picker-trigger"
-                          :class="{ 'is-open': openPickerSlot === ti }"
-                          @click.stop="toggleTeamPicker(ti, $event)"
+                          :class="{ 'is-open': openPickerSlot === teamIdx }"
+                          @click.stop="toggleTeamPicker(teamIdx, $event)"
                           @keydown.escape.stop="openPickerSlot = null"
                         >
                           <span
-                            v-if="meetSession.getSlot(ti)"
+                            v-if="meetSession.getSlot(teamIdx)"
                             v-fit-name="{
-                              full: meetSession.getSlot(ti)!.dbLabelFull,
-                              short: meetSession.getSlot(ti)!.dbLabel,
+                              full: meetSession.getSlot(teamIdx)!.dbLabelFull,
+                              short: meetSession.getSlot(teamIdx)!.dbLabel,
                             }"
                             :class="[
                               'team-name-fit',
-                              { 'team-name-fit--diverged': isTeamDivisionDiverged(ti) },
+                              { 'team-name-fit--diverged': isTeamDivisionDiverged(teamIdx) },
                             ]"
                           />
                           <span
@@ -911,9 +952,14 @@ const appVersion: string = __APP_VERSION__
                         >
                           <input
                             class="editable-name editable-name--team"
-                            :data-tutorial="`team-name-${ti}`"
+                            :data-tutorial="`team-name-${teamIdx}`"
                             :value="team.name"
-                            @input="setTeamName(ti, ($event.target as HTMLInputElement).value)"
+                            @input="
+                              templateSetTeamName(
+                                teamIdx,
+                                ($event.target as HTMLInputElement).value,
+                              )
+                            "
                             @focus="($event.target as HTMLInputElement).select()"
                             @keydown.enter="($event.target as HTMLInputElement).blur()"
                           />
@@ -922,13 +968,13 @@ const appVersion: string = __APP_VERSION__
                     </span>
                     <span class="team-stats">
                       <span
-                        v-if="(scoring[ti]?.uniqueCorrectQuizzers ?? 0) >= 3"
+                        v-if="(scoring[teamIdx]?.uniqueCorrectQuizzers ?? 0) >= 3"
                         class="stat-badge stat-badge--unique"
-                        :title="`${scoring[ti]!.uniqueCorrectQuizzers} quizzers jumped (+10 each from 3rd)`"
+                        :title="`${scoring[teamIdx]!.uniqueCorrectQuizzers} quizzers jumped (+10 each from 3rd)`"
                         >{{
-                          scoring[ti]!.uniqueCorrectQuizzers >= 5
+                          scoring[teamIdx]!.uniqueCorrectQuizzers >= 5
                             ? '5th'
-                            : scoring[ti]!.uniqueCorrectQuizzers >= 4
+                            : scoring[teamIdx]!.uniqueCorrectQuizzers >= 4
                               ? '4th'
                               : '3rd'
                         }}</span
@@ -939,7 +985,7 @@ const appVersion: string = __APP_VERSION__
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
-                  :data-tutorial="`timeout-${ti}-${idx}`"
+                  :data-tutorial="`timeout-${teamIdx}-${idx}`"
                   :class="[
                     'team-header-spacer',
                     'timeout-toggle',
@@ -950,13 +996,13 @@ const appVersion: string = __APP_VERSION__
                     {
                       'timeout-invalid':
                         hasTimeoutAt(team.id, col.key) &&
-                        (!isTimeoutAllowed(col.key) || tooManyTimeoutsTeams.has(ti)),
+                        (!isTimeoutAllowed(col.key) || tooManyTimeoutsTeams.has(teamIdx)),
                     },
                   ]"
                   :title="
                     hasTimeoutAt(team.id, col.key) && !isTimeoutAllowed(col.key)
                       ? 'Timeouts can\'t be called after error points (after question 17)'
-                      : hasTimeoutAt(team.id, col.key) && tooManyTimeoutsTeams.has(ti)
+                      : hasTimeoutAt(team.id, col.key) && tooManyTimeoutsTeams.has(teamIdx)
                         ? 'Each team is allowed only 2 timeouts per quiz'
                         : undefined
                   "
@@ -967,25 +1013,28 @@ const appVersion: string = __APP_VERSION__
 
               <!-- Quizzer rows -->
               <tr
-                v-for="(quizzer, qi) in teamQuizzers[ti]"
+                v-for="(quizzer, seatIdx) in teamQuizzers[teamIdx]"
                 :key="quizzer.id"
-                :ref="(el: any) => registerRowEl(ti, qi, el as HTMLElement)"
-                :data-tutorial="`quizzer-row-${ti}-${qi}`"
+                :ref="(el: any) => registerRowEl(teamIdx, seatIdx, el as HTMLElement)"
+                :data-tutorial="`quizzer-row-${teamIdx}-${seatIdx}`"
                 :class="[
                   'row--quizzer',
-                  { 'row--quizzed-out': scoring[ti]?.quizzers[qi]?.quizzedOut },
+                  { 'row--quizzed-out': scoring[teamIdx]?.quizzers[seatIdx]?.quizzedOut },
                   {
                     'row--errored-out':
-                      scoring[ti]?.quizzers[qi]?.erroredOut &&
-                      !scoring[ti]?.quizzers[qi]?.fouledOut,
+                      scoring[teamIdx]?.quizzers[seatIdx]?.erroredOut &&
+                      !scoring[teamIdx]?.quizzers[seatIdx]?.fouledOut,
                   },
-                  { 'row--fouled-out': scoring[ti]?.quizzers[qi]?.fouledOut },
-                  { 'row--dragging': dragState?.ti === ti && dragState?.qi === qi },
+                  { 'row--fouled-out': scoring[teamIdx]?.quizzers[seatIdx]?.fouledOut },
+                  {
+                    'row--dragging':
+                      dragState?.teamIdx === teamIdx && dragState?.seatIdx === seatIdx,
+                  },
                   {
                     'row--drop-target':
-                      dropTarget?.ti === ti &&
-                      dropTarget?.qi === qi &&
-                      !(dragState?.ti === ti && dragState?.qi === qi),
+                      dropTarget?.teamIdx === teamIdx &&
+                      dropTarget?.seatIdx === seatIdx &&
+                      !(dragState?.teamIdx === teamIdx && dragState?.seatIdx === seatIdx),
                   },
                 ]"
               >
@@ -996,24 +1045,29 @@ const appVersion: string = __APP_VERSION__
                     'col--name',
                     'sticky-col',
                     {
-                      'cell--invalid': quizzerHasErrors(ti, qi),
-                      'col--name--active': !dragState && selector?.ti === ti && selector?.qi === qi,
+                      'cell--invalid': templateQuizzerHasErrors(teamIdx, seatIdx),
+                      'col--name--active':
+                        !dragState &&
+                        selector?.teamIdx === teamIdx &&
+                        selector?.seatIdx === seatIdx,
                       'col--name--focused':
                         !dragState &&
                         keyboardMode &&
-                        focusedCell?.ti === ti &&
-                        focusedCell?.qi === qi,
+                        focusedCell?.teamIdx === teamIdx &&
+                        focusedCell?.seatIdx === seatIdx,
                     },
                   ]"
                   :title="
-                    quizzerHasErrors(ti, qi)
-                      ? quizzerValidationMessages(ti, qi).join('\n')
+                    templateQuizzerHasErrors(teamIdx, seatIdx)
+                      ? templateQuizzerValidationMessages(teamIdx, seatIdx).join('\n')
                       : undefined
                   "
                 >
                   <div class="name-cell-inner">
                     <span class="name-main">
-                      <span class="drag-handle" @pointerdown="onPointerDown(ti, qi, $event)"
+                      <span
+                        class="drag-handle"
+                        @pointerdown="onPointerDown(teamIdx, seatIdx, $event)"
                         >⠿</span
                       >
                       <span
@@ -1026,47 +1080,56 @@ const appVersion: string = __APP_VERSION__
                             'editable-name--quizzer',
                             {
                               'editable-name--diverged': meetSession.isQuizzerDiverged(
-                                ti,
-                                qi,
+                                teamIdx,
+                                seatIdx,
                                 quizzer.name,
                               ),
                             },
                           ]"
-                          :data-tutorial="`quizzer-name-${ti}-${qi}`"
+                          :data-tutorial="`quizzer-name-${teamIdx}-${seatIdx}`"
                           :value="quizzer.name"
-                          @input="setQuizzerName(ti, qi, ($event.target as HTMLInputElement).value)"
+                          @input="
+                            templateSetQuizzerName(
+                              teamIdx,
+                              seatIdx,
+                              ($event.target as HTMLInputElement).value,
+                            )
+                          "
                           @focus="($event.target as HTMLInputElement).select()"
                           @keydown.enter="($event.target as HTMLInputElement).blur()"
                         />
                       </span>
                       <button
-                        v-if="meetSession.isQuizzerDiverged(ti, qi, quizzer.name)"
+                        v-if="meetSession.isQuizzerDiverged(teamIdx, seatIdx, quizzer.name)"
                         class="name-restore"
-                        :title="`Restore: ${meetSession.getDbName(ti, qi)}`"
-                        @click.stop="restoreQuizzerName(ti, qi)"
+                        :title="`Restore: ${meetSession.getDbName(teamIdx, seatIdx)}`"
+                        @click.stop="restoreQuizzerName(teamIdx, seatIdx)"
                       >
                         ↺
                       </button>
                       <button
                         v-else-if="quizzer.name"
                         class="name-clear"
-                        :data-tutorial="`name-clear-${ti}-${qi}`"
+                        :data-tutorial="`name-clear-${teamIdx}-${seatIdx}`"
                         title="Clear name (empty seat)"
-                        @click.stop="setQuizzerName(ti, qi, '')"
+                        @click.stop="templateSetQuizzerName(teamIdx, seatIdx, '')"
                       >
                         ×
                       </button>
                     </span>
-                    <span v-if="scoring[ti]?.quizzers[qi]" class="quizzer-stats">
+                    <span v-if="scoring[teamIdx]?.quizzers[seatIdx]" class="quizzer-stats">
                       <span
-                        v-if="scoring[ti]!.quizzers[qi]!.quizzedOut"
+                        v-if="scoring[teamIdx]!.quizzers[seatIdx]!.quizzedOut"
                         :class="[
                           'stat-badge',
                           'stat-badge--quizout',
-                          { 'stat-badge--quizout-bonus': scoring[ti]!.quizzers[qi]!.quizoutBonus },
+                          {
+                            'stat-badge--quizout-bonus':
+                              scoring[teamIdx]!.quizzers[seatIdx]!.quizoutBonus,
+                          },
                         ]"
                         :title="
-                          scoring[ti]!.quizzers[qi]!.quizoutBonus
+                          scoring[teamIdx]!.quizzers[seatIdx]!.quizoutBonus
                             ? 'Quiz-out with bonus (+10)'
                             : 'Quiz-out'
                         "
@@ -1074,54 +1137,57 @@ const appVersion: string = __APP_VERSION__
                       >
                       <span
                         v-else-if="
-                          scoring[ti]!.quizzers[qi]!.erroredOut &&
-                          !scoring[ti]!.quizzers[qi]!.fouledOut
+                          scoring[teamIdx]!.quizzers[seatIdx]!.erroredOut &&
+                          !scoring[teamIdx]!.quizzers[seatIdx]!.fouledOut
                         "
                         class="stat-badge stat-badge--errorout"
                         title="Errored out"
                         >E</span
                       >
                       <span
-                        v-else-if="scoring[ti]!.quizzers[qi]!.fouledOut"
+                        v-else-if="scoring[teamIdx]!.quizzers[seatIdx]!.fouledOut"
                         class="stat-badge stat-badge--foulout"
                         title="Fouled out"
                         >F</span
                       >
                       <span
                         v-if="
-                          scoring[ti]!.quizzers[qi]!.correctCount > 0 &&
-                          !scoring[ti]!.quizzers[qi]!.quizzedOut
+                          scoring[teamIdx]!.quizzers[seatIdx]!.correctCount > 0 &&
+                          !scoring[teamIdx]!.quizzers[seatIdx]!.quizzedOut
                         "
                         class="stat-count stat-count--correct"
-                        :title="`${scoring[ti]!.quizzers[qi]!.correctCount} correct`"
-                        >{{ scoring[ti]!.quizzers[qi]!.correctCount }}c</span
+                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.correctCount} correct`"
+                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.correctCount }}c</span
                       >
                       <span
                         v-if="
-                          scoring[ti]!.quizzers[qi]!.errorCount > 0 &&
+                          scoring[teamIdx]!.quizzers[seatIdx]!.errorCount > 0 &&
                           !(
-                            scoring[ti]!.quizzers[qi]!.erroredOut &&
-                            !scoring[ti]!.quizzers[qi]!.fouledOut
+                            scoring[teamIdx]!.quizzers[seatIdx]!.erroredOut &&
+                            !scoring[teamIdx]!.quizzers[seatIdx]!.fouledOut
                           )
                         "
                         class="stat-count stat-count--error"
-                        :title="`${scoring[ti]!.quizzers[qi]!.errorCount} error(s)`"
-                        >{{ scoring[ti]!.quizzers[qi]!.errorCount }}e</span
+                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.errorCount} error(s)`"
+                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.errorCount }}e</span
                       >
                       <span
                         v-if="
-                          scoring[ti]!.quizzers[qi]!.foulCount > 0 &&
-                          !scoring[ti]!.quizzers[qi]!.fouledOut
+                          scoring[teamIdx]!.quizzers[seatIdx]!.foulCount > 0 &&
+                          !scoring[teamIdx]!.quizzers[seatIdx]!.fouledOut
                         "
                         class="stat-count stat-count--foul"
-                        :title="`${scoring[ti]!.quizzers[qi]!.foulCount} foul(s)`"
-                        >{{ scoring[ti]!.quizzers[qi]!.foulCount }}f</span
+                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.foulCount} foul(s)`"
+                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.foulCount }}f</span
                       >
                       <span
-                        v-if="!isEmptySeat(ti, qi) && quizzerScoreLabel(ti, qi) !== null"
+                        v-if="
+                          !templateIsEmptySeat(teamIdx, seatIdx) &&
+                          quizzerScoreLabel(teamIdx, seatIdx) !== null
+                        "
                         class="stat-count stat-count--individual"
                         title="Individual score"
-                        >{{ quizzerScoreLabel(ti, qi) }}</span
+                        >{{ quizzerScoreLabel(teamIdx, seatIdx) }}</span
                       >
                     </span>
                   </div>
@@ -1129,64 +1195,73 @@ const appVersion: string = __APP_VERSION__
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
                   :key="col.key"
-                  :ref="(el: any) => registerCellEl(ti, qi, idx, el as HTMLElement | null)"
-                  :data-tutorial="`cell-${ti}-${qi}-${idx}`"
+                  :ref="
+                    (el: any) => registerCellEl(teamIdx, seatIdx, idx, el as HTMLElement | null)
+                  "
+                  :data-tutorial="`cell-${teamIdx}-${seatIdx}-${idx}`"
                   :class="[
                     'cell',
-                    cellClass[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty],
+                    cellClass[cells[teamIdx]?.[seatIdx]?.[idx] ?? CellValue.Empty],
                     colGroupClass(idx),
                     { 'timeout-after': hasTimeoutAfterCol(col.key) },
                     {
                       'cell--greyed':
-                        (isEmptySeat(ti, qi) && cells[ti]?.[qi]?.[idx] === '') ||
-                        ((isGreyedOut(ti, idx) || noJumps[idx]) && cells[ti]?.[qi]?.[idx] === '') ||
-                        isAfterOut(ti, qi, idx) ||
-                        (isFouledOnQuestion(ti, qi, idx) && cells[ti]?.[qi]?.[idx] === ''),
+                        (templateIsEmptySeat(teamIdx, seatIdx) &&
+                          cells[teamIdx]?.[seatIdx]?.[idx] === '') ||
+                        ((templateIsGreyedOut(teamIdx, idx) || noJumps[idx]) &&
+                          cells[teamIdx]?.[seatIdx]?.[idx] === '') ||
+                        templateIsAfterOut(teamIdx, seatIdx, idx) ||
+                        (templateIsFouledOnQuestion(teamIdx, seatIdx, idx) &&
+                          cells[teamIdx]?.[seatIdx]?.[idx] === ''),
                     },
-                    { 'cell--invalid': isInvalid(ti, qi, idx) },
+                    { 'cell--invalid': templateIsInvalid(teamIdx, seatIdx, idx) },
                     { 'col--entering': entering },
                     { 'col--hover': !dragState && hoverCol === idx },
                     {
                       'cell--focused':
                         keyboardMode &&
-                        focusedCell?.ti === ti &&
-                        focusedCell?.qi === qi &&
-                        focusedCell?.ci === idx,
+                        focusedCell?.teamIdx === teamIdx &&
+                        focusedCell?.seatIdx === seatIdx &&
+                        focusedCell?.colIdx === idx,
                     },
                   ]"
                   :title="
-                    isInvalid(ti, qi, idx)
-                      ? cellValidationMessages(ti, qi, idx).join('\n')
+                    templateIsInvalid(teamIdx, seatIdx, idx)
+                      ? templateCellValidationMessages(teamIdx, seatIdx, idx).join('\n')
                       : undefined
                   "
-                  @click="onCellClick(ti, qi, idx, $event)"
+                  @click="onCellClick(teamIdx, seatIdx, idx, $event)"
                   @mouseenter="hoverCol = idx"
                   @mouseleave="hoverCol = null"
                 >
-                  {{ cellDisplay[cells[ti]?.[qi]?.[idx] ?? CellValue.Empty] }}
+                  {{ cellDisplay[cells[teamIdx]?.[seatIdx]?.[idx] ?? CellValue.Empty] }}
                 </td>
                 <!-- Team total spans quizzer rows only -->
                 <td
-                  v-if="qi === 0"
-                  :data-tutorial="`team-total-${ti}`"
+                  v-if="seatIdx === 0"
+                  :data-tutorial="`team-total-${teamIdx}`"
                   :class="[
                     'col--total',
                     'team-total-value',
-                    { 'cell--invalid': teamHasErrors(ti) },
+                    { 'cell--invalid': templateTeamHasErrors(teamIdx) },
                   ]"
-                  :rowspan="teamQuizzers[ti]?.length ?? 5"
-                  :title="teamHasErrors(ti) ? teamValidationMessages(ti).join('\n') : undefined"
+                  :rowspan="teamQuizzers[teamIdx]?.length ?? 5"
+                  :title="
+                    templateTeamHasErrors(teamIdx)
+                      ? templateTeamValidationMessages(teamIdx).join('\n')
+                      : undefined
+                  "
                 >
-                  <span v-if="placements[ti]" class="placement-medal">{{
-                    Math.floor(placements[ti]!) === 1
+                  <span v-if="placements[teamIdx]" class="placement-medal">{{
+                    Math.floor(placements[teamIdx]!) === 1
                       ? '🥇'
-                      : Math.floor(placements[ti]!) === 2
+                      : Math.floor(placements[teamIdx]!) === 2
                         ? '🥈'
                         : '🥉'
                   }}</span>
-                  {{ scoring[ti]?.total ?? 0 }}
-                  <span v-if="placementPoints[ti] !== null" class="placement-points">
-                    {{ placementPoints[ti] }} pts
+                  {{ scoring[teamIdx]?.total ?? 0 }}
+                  <span v-if="placementPoints[teamIdx] !== null" class="placement-points">
+                    {{ placementPoints[teamIdx] }} pts
                   </span>
                 </td>
               </tr>
@@ -1195,21 +1270,23 @@ const appVersion: string = __APP_VERSION__
               <tr class="row--team-total">
                 <td class="col--left-spacer" />
                 <td
-                  :ref="ti === 0 ? (el: any) => (stickyAreaRef = el as HTMLElement) : undefined"
+                  :ref="
+                    teamIdx === 0 ? (el: any) => (stickyAreaRef = el as HTMLElement) : undefined
+                  "
                   class="col--name sticky-col running-total-label"
                   colspan="2"
                 >
                   <span
                     class="on-time"
                     :class="{ 'on-time--active': team.onTime }"
-                    :data-tutorial="`on-time-${ti}`"
-                    @click.stop="toggleOnTime(ti)"
+                    :data-tutorial="`on-time-${teamIdx}`"
+                    @click.stop="templateToggleOnTime(teamIdx)"
                   >
                     <span class="on-time-box">✓</span>
                     <span class="on-time-label">on time</span>
                   </span>
                   Score
-                  <span class="baseline-score">{{ baselineScore(ti) }}</span>
+                  <span class="baseline-score">{{ baselineScore(teamIdx) }}</span>
                 </td>
                 <td
                   v-for="{ col, idx, entering } in displayColumns"
@@ -1222,35 +1299,35 @@ const appVersion: string = __APP_VERSION__
                   style="position: relative"
                 >
                   {{
-                    scoring[ti]?.runningTotals[idx] ??
+                    scoring[teamIdx]?.runningTotals[idx] ??
                     (boundaryColIndices.has(idx) || trailingTotalIndices.has(idx)
-                      ? boundaryTotal(ti, idx)
+                      ? boundaryTotal(teamIdx, idx)
                       : '')
                   }}
                   <span
-                    v-if="scoring[ti]?.uniqueQuizzerBonusCols.has(idx)"
+                    v-if="scoring[teamIdx]?.uniqueQuizzerBonusCols.has(idx)"
                     class="running-total-badge running-total-badge--unique"
                     >{{
-                      scoring[ti]!.uniqueQuizzerBonusCols.get(idx) === 3
+                      scoring[teamIdx]!.uniqueQuizzerBonusCols.get(idx) === 3
                         ? '3rd'
-                        : scoring[ti]!.uniqueQuizzerBonusCols.get(idx) === 4
+                        : scoring[teamIdx]!.uniqueQuizzerBonusCols.get(idx) === 4
                           ? '4th'
                           : '5th'
                     }}</span
                   >
                   <span
-                    v-if="scoring[ti]?.quizoutBonusCols.has(idx)"
+                    v-if="scoring[teamIdx]?.quizoutBonusCols.has(idx)"
                     class="running-total-badge running-total-badge--quizout"
                     >Q</span
                   >
                   <span
-                    v-if="scoring[ti]?.freeErrorCols.has(idx)"
+                    v-if="scoring[teamIdx]?.freeErrorCols.has(idx)"
                     class="running-total-badge running-total-badge--free-error"
                     title="Free error (no deduction)"
                     >≈</span
                   >
                   <span
-                    v-if="scoring[ti]?.foulDeductCols.has(idx)"
+                    v-if="scoring[teamIdx]?.foulDeductCols.has(idx)"
                     class="running-total-badge running-total-badge--foul-deduct"
                     title="Foul deduction (-10)"
                     >F</span
@@ -1260,7 +1337,7 @@ const appVersion: string = __APP_VERSION__
               </tr>
 
               <!-- Spacer between teams -->
-              <tr v-if="ti < teams.length - 1" class="spacer-row spacer-row--team">
+              <tr v-if="teamIdx < teams.length - 1" class="spacer-row spacer-row--team">
                 <td class="col--left-spacer" />
                 <td class="sticky-col" colspan="2" />
                 <td
@@ -1304,15 +1381,18 @@ const appVersion: string = __APP_VERSION__
                   'cell cell--no-jump',
                   colGroupClass(idx),
                   {
-                    'cell--no-jump-active': noJumps[idx] && colAnswerValue(idx) === CellValue.Empty,
-                    'cell--no-jump-answered': colAnswerValue(idx) !== CellValue.Empty,
-                    'cell--invalid': noJumpHasConflict(idx),
+                    'cell--no-jump-active':
+                      noJumps[idx] && templateColAnswerValue(idx) === CellValue.Empty,
+                    'cell--no-jump-answered': templateColAnswerValue(idx) !== CellValue.Empty,
+                    'cell--invalid': templateNoJumpHasConflict(idx),
                     'col--entering': entering,
-                    'cell--focused': keyboardMode && isNoJumpFocus() && focusedCell?.ci === idx,
+                    'cell--focused': keyboardMode && isNoJumpFocus() && focusedCell?.colIdx === idx,
                   },
                 ]"
                 :title="
-                  noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined
+                  templateNoJumpHasConflict(idx)
+                    ? templateColumnValidationMessages(idx).join('\n')
+                    : undefined
                 "
                 @click="onNoJumpClick(idx)"
                 @mouseenter="hoverCol = idx"
