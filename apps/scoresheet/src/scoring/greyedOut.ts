@@ -5,7 +5,6 @@ import {
   teamHasAnswer,
   anyTeamHasAnswer,
   isResolved,
-  isBonusForColumn,
   findErrorSeat,
 } from './helpers'
 
@@ -35,8 +34,6 @@ export interface GreyedOutResult {
   fouledQuizzers: Set<string>
   /** Per-column game-logic status: Pending, Errored, Resolved, or Skipped */
   colStatuses: ColStatus[]
-  /** For seat bonus mode: maps colIdx → seat that should answer the bonus */
-  bonusSeats: Map<number, number>
 }
 
 export function computeGreyedOut(
@@ -79,7 +76,6 @@ export function computeGreyedOut(
   const tossedUp: Set<string>[] = cols.map(() => new Set<string>())
   // For seat bonus: the seat of the most recent error feeding into each column
   const lastErrorSeat: (number | undefined)[] = cols.map(() => undefined)
-  const bonusSeats = new Map<number, number>()
 
   // In OT, non-eligible teams can't jump at all. Seeding them into tossedUp
   // (rather than only greying them) means the toss-up/bonus carry-forward
@@ -143,10 +139,11 @@ export function computeGreyedOut(
 
     // 4b. Seat bonus greying: on bonus columns, grey non-matching seats on the bonus team
     if (bonusRule === BonusRule.Seat && lastErrorSeat[colIdx] !== undefined) {
+      const tossedHere = tossedUp[colIdx]!
       for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
-        if (tossedUp[colIdx]!.has(`${teamIdx}`)) continue
-        if (isBonusForColumn(tossedUp[colIdx]!, teamIdx, teamCount)) {
-          bonusSeats.set(colIdx, lastErrorSeat[colIdx]!)
+        if (tossedHere.has(`${teamIdx}`)) continue
+        // Check if every OTHER team is tossed (= bonus for this team)
+        if (tossedHere.size === teamCount - 1) {
           const seatCount = cellData[teamIdx]!.length
           for (let seatIdx = 0; seatIdx < seatCount; seatIdx++) {
             if (seatIdx !== lastErrorSeat[colIdx]) {
@@ -245,5 +242,5 @@ export function computeGreyedOut(
     }
   }
 
-  return { disabled, tossedUp: tossedUpSet, fouledQuizzers, colStatuses, bonusSeats }
+  return { disabled, tossedUp: tossedUpSet, fouledQuizzers, colStatuses }
 }

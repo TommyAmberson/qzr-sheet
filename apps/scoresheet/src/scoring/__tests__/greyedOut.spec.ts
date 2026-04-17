@@ -624,13 +624,11 @@ describe('seat bonus greying', () => {
     cells[1]![4]![q16] = E
     const result = computeGreyedOut(cells, columns, undefined, BonusRule.Seat)
     expect(isBonusFor(result, 2, q16b)).toBe(true)
-    // Last error seat: Team 1 seat 4 (the latest team scanned)
-    expect(result.bonusSeats.get(q16b)).toBe(4)
-    expect(isSeatGreyed(result, 2, 4, q16b)).toBe(false) // matching seat
+    expect(isSeatGreyed(result, 2, 4, q16b)).toBe(false) // matching seat (Team 1 seat 4)
     expect(isSeatGreyed(result, 2, 0, q16b)).toBe(true)
   })
 
-  it('populates bonusSeats map', () => {
+  it('greys the right seat in a basic two-error chain', () => {
     const cells = blankCells()
     const q1 = colIdxOf('1')
     const q2 = colIdxOf('2')
@@ -638,6 +636,8 @@ describe('seat bonus greying', () => {
     cells[0]![2]![q1] = E
     cells[1]![1]![q2] = E
     const result = computeGreyedOut(cells, columns, undefined, BonusRule.Seat)
-    expect(result.bonusSeats.get(q3)).toBe(1)
+    // Bonus for team 2 — seat 1 matches the last error
+    expect(isSeatGreyed(result, 2, 0, q3)).toBe(true)
+    expect(isSeatGreyed(result, 2, 1, q3)).toBe(false)
   })
 })

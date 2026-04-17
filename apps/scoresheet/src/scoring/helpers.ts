@@ -108,19 +108,6 @@ export function isBonusSituation(
   return tossedTeams === teamCount - 1
 }
 
-/** Same as isBonusSituation but works with a per-column tossed set (no colIdx in keys). */
-export function isBonusForColumn(
-  tossedSet: Set<string>,
-  teamIdx: number,
-  teamCount: number,
-): boolean {
-  let tossedTeams = 0
-  for (let otherIdx = 0; otherIdx < teamCount; otherIdx++) {
-    if (otherIdx !== teamIdx && tossedSet.has(`${otherIdx}`)) tossedTeams++
-  }
-  return tossedTeams === teamCount - 1
-}
-
 /** Find the seat index of the error on a team for a given column, if any. */
 export function findErrorSeat(
   cellData: CellValue[][][],

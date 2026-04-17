@@ -37,9 +37,7 @@ export enum PlacementFormula {
 }
 
 export enum BonusRule {
-  /** Any quizzer on the bonus team can answer */
   Team = 'team',
-  /** Only the quizzer in the seat matching the last error can answer */
   Seat = 'seat',
 }
 
