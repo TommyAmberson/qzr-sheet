@@ -371,6 +371,24 @@ const trailingTotalIndices = computed<Set<number>>(() => {
   return s
 })
 
+// Last visible column for each OT round-ending question number (Q23, Q26, …).
+// When A/B sub-columns are visible, the border belongs on the last sub-column,
+// not on the Normal column.
+const otRoundEndIndices = computed<Set<number>>(() => {
+  const s = new Set<number>()
+  const dc = displayColumns.value
+  const cols = columns.value
+  for (let i = 0; i < dc.length; i++) {
+    const col = cols[dc[i]!.idx]
+    if (!col?.isOvertime || (col.number - 20) % 3 !== 0) continue
+    const nextCol = cols[dc[i + 1]?.idx ?? -1]
+    if (!nextCol || nextCol.number !== col.number) {
+      s.add(dc[i]!.idx)
+    }
+  }
+  return s
+})
+
 let prevVisibleKeys = new Set(visibleColumns.value.map(({ col }) => col.key))
 
 watch(visibleColumns, (curr) => {
@@ -667,7 +685,7 @@ function colGroupClass(colIdx: number): string {
       classes.push(
         col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start',
       )
-    } else if (col.type === QuestionType.Normal && (col.number - 20) % 3 === 0) {
+    } else if (otRoundEndIndices.value.has(colIdx)) {
       classes.push('col--overtime col--ot-round-end')
     } else {
       classes.push('col--overtime')
