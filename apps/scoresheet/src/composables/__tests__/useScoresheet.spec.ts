@@ -111,21 +111,21 @@ describe('useScoresheet — grey-out', () => {
     const s = useScoresheet()
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
     // teams 1 and 2 should be greyed out on column 0
-    expect(s.isGreyedOut(T(1), C(0))).toBe(true)
-    expect(s.isGreyedOut(T(2), C(0))).toBe(true)
+    expect(s.isGreyedOut(T(1), S(0), C(0))).toBe(true)
+    expect(s.isGreyedOut(T(2), S(0), C(0))).toBe(true)
   })
 
   it('the answering team cell is also greyed out (column is done)', () => {
     const s = useScoresheet()
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
-    expect(s.isGreyedOut(T(0), C(0))).toBe(true)
+    expect(s.isGreyedOut(T(0), S(0), C(0))).toBe(true)
   })
 
   it('unaffected columns are not greyed out', () => {
     const s = useScoresheet()
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
-    expect(s.isGreyedOut(T(0), C(1))).toBe(false)
-    expect(s.isGreyedOut(T(1), C(1))).toBe(false)
+    expect(s.isGreyedOut(T(0), S(0), C(1))).toBe(false)
+    expect(s.isGreyedOut(T(1), S(0), C(1))).toBe(false)
   })
 })
 

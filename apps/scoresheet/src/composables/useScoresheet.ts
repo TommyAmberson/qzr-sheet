@@ -1,6 +1,7 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, watchEffect } from 'vue'
 import { useHistory } from './useHistory'
 import {
+  BonusRule,
   CellValue,
   QuestionCategory,
   MAX_TIMEOUTS_PER_TEAM,
@@ -172,8 +173,56 @@ export function useScoresheet() {
   )
 
   const greyedOutResult = computed<GreyedOutResult>(() =>
-    computeGreyedOut(cells.value, columns.value, otIneligibility.value),
+    computeGreyedOut(cells.value, columns.value, otIneligibility.value, quiz.value.bonusRule),
   )
+
+  // Auto-NJ: when a seat-bonus column targets an empty seat, auto-set NJ
+  const autoNoJumpKeys = ref(new Set<string>())
+
+  watchEffect(() => {
+    if (quiz.value.bonusRule !== BonusRule.Seat) return
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    teamVersion.value
+    let changed = false
+    const currentAuto = new Set<string>()
+
+    for (const [colIdx, seat] of greyedOutResult.value.bonusSeats) {
+      const key = columns.value[colIdx]?.key
+      if (!key) continue
+      const bonusTeamIdx = findBonusTeamIdx(colIdx)
+      if (bonusTeamIdx === undefined) continue
+      const qzrs = store.quizzersByTeam(teams.value[bonusTeamIdx]!.id)
+      const isEmpty = !qzrs[seat]?.name?.trim()
+
+      if (isEmpty) {
+        currentAuto.add(key)
+        if (!noJumpMap.value.get(key)) {
+          noJumpMap.value.set(key, true)
+          changed = true
+        }
+      }
+    }
+
+    for (const key of autoNoJumpKeys.value) {
+      if (!currentAuto.has(key) && noJumpMap.value.get(key)) {
+        noJumpMap.value.delete(key)
+        changed = true
+      }
+    }
+
+    if (changed) noJumpMap.value = new Map(noJumpMap.value)
+    autoNoJumpKeys.value = currentAuto
+  })
+
+  function findBonusTeamIdx(colIdx: number): number | undefined {
+    const tossed = greyedOutResult.value.tossedUp
+    const tc = teams.value.length
+    for (let teamIdx = 0; teamIdx < tc; teamIdx++) {
+      if (!tossed.has(`${teamIdx}:${colIdx}`) && isBonusSituation(tossed, teamIdx, colIdx, tc))
+        return teamIdx
+    }
+    return undefined
+  }
 
   const orphanedColumns = computed(() =>
     computeOrphanedColumns(
@@ -262,8 +311,9 @@ export function useScoresheet() {
     return isBonusSituation(greyedOutResult.value.tossedUp, teamIdx, colIdx, teams.value.length)
   }
 
-  function isGreyedOut(teamIdx: TeamIdx, colIdx: ColIdx): boolean {
-    return greyedOutResult.value.disabled.has(`${teamIdx}:${colIdx}`)
+  function isGreyedOut(teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx): boolean {
+    const d = greyedOutResult.value.disabled
+    return d.has(`${teamIdx}:${colIdx}`) || d.has(`${teamIdx}:${seatIdx}:${colIdx}`)
   }
 
   function isInvalid(teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx): boolean {
