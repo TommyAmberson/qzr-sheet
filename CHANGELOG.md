@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.1
+
+### Fixed
+
+* **Round-boundary border placement** — the dotted vertical border separating regulation from
+  overtime (after Q20) and consecutive OT rounds (after Q23, Q26, …) now lands on the last visible
+  column for that question. Previously, when an A/B sub-column appeared after an error, the border
+  was stuck on the Normal column, so it ended up between Q20 and Q20A (or Q23 and Q23A) instead of
+  between the rightmost sub-column and the next round
+
+### Infrastructure
+
+* **Claude Code GitHub Actions** — added `claude.yml` (responds to `@claude` mentions in issues and
+  PR comments) and `claude-code-review.yml` (auto-reviews opened/synced PRs); both gated on trusted
+  `author_association` (OWNER/MEMBER/COLLABORATOR), with the review workflow set to allow the Claude
+  bot's own pushes via `allowed_bots: 'claude'`
+* **Slimmed ROADMAP** — moved active planning to GitHub Issues; ROADMAP.md is now a short ordered
+  pointer with a backlog list
+
 ## 0.7.0
 
 ### Added
