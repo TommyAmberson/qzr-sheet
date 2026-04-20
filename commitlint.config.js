@@ -16,7 +16,7 @@ export default {
     'scope-enum': [
       1,
       'always',
-      ['scoresheet', 'web', 'api', 'shared', 'tauri', 'ci', 'deps'],
+      ['scoresheet', 'web', 'api', 'shared', 'ui', 'tauri', 'ci', 'deps'],
     ],
   },
 }
