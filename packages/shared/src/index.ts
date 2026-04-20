@@ -10,3 +10,4 @@ export {
 export type { QuizFile } from './quizFile'
 export { ApiError, createApiClient } from './apiClient'
 export { createAppAuthClient } from './authClient'
+export type { SocialProvider } from './authClient'

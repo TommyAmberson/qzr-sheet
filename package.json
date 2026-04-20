@@ -15,8 +15,8 @@
     "dev:api": "pnpm --filter @qzr/api dev",
     "test:unit": "pnpm --filter scoresheet test:unit && pnpm --filter @qzr/web test:unit && pnpm --filter @qzr/api test:unit",
     "test:watch": "pnpm --parallel --filter scoresheet --filter @qzr/web --filter @qzr/api exec vitest",
-    "type-check": "pnpm --filter @qzr/shared type-check && pnpm --filter scoresheet type-check && pnpm --filter @qzr/web type-check && pnpm --filter @qzr/api type-check",
-    "format": "prettier --write --experimental-cli apps/scoresheet/src/ apps/web/src/ packages/shared/src/ packages/api/src/",
+    "type-check": "pnpm --filter @qzr/shared type-check && pnpm --filter @qzr/ui type-check && pnpm --filter scoresheet type-check && pnpm --filter @qzr/web type-check && pnpm --filter @qzr/api type-check",
+    "format": "prettier --write --experimental-cli apps/scoresheet/src/ apps/web/src/ packages/shared/src/ packages/ui/src/ packages/api/src/",
     "lint": "eslint",
     "tauri": "pnpm --filter scoresheet tauri",
     "android:dev": "pnpm --filter scoresheet tauri android dev",
@@ -37,6 +37,10 @@
     "apps/scoresheet/src/**/*.{ts,vue,css}": "prettier --write --experimental-cli",
     "apps/web/src/**/*.{ts,vue,css}": "prettier --write --experimental-cli",
     "packages/shared/src/**/*.ts": [
+      "eslint --fix",
+      "prettier --write --experimental-cli"
+    ],
+    "packages/ui/src/**/*.{ts,vue,css}": [
       "eslint --fix",
       "prettier --write --experimental-cli"
     ],

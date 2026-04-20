@@ -1,12 +1,14 @@
 import { createAuthClient } from 'better-auth/vue'
 
+export type SocialProvider = 'github' | 'google'
+
 export function createAppAuthClient(baseURL: string) {
   const authClient = createAuthClient({ baseURL })
 
   function useAuth() {
     const session = authClient.useSession()
 
-    function signInSocial(provider: 'github' | 'google') {
+    function signInSocial(provider: SocialProvider) {
       authClient.signIn.social({ provider, callbackURL: window.location.href })
     }
 

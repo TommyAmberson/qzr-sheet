@@ -95,6 +95,30 @@ export default tseslint.config(
     },
   },
   {
+    files: ['packages/ui/src/**/*.{ts,vue}'],
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser,
+        project: './packages/ui/tsconfig.json',
+        extraFileExtensions: ['.vue'],
+      },
+    },
+    rules: {
+      'prefer-const': 'error',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+      }],
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'vue/component-api-style': ['error', ['script-setup']],
+      'vue/block-order': ['error', { order: ['script', 'template', 'style'] }],
+      'vue/multi-word-component-names': 'off',
+    },
+  },
+  {
     files: ['packages/api/src/**/*.ts'],
     ignores: ['packages/api/src/**/__tests__/**'],
     languageOptions: {
