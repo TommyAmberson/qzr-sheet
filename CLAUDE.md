@@ -96,6 +96,8 @@ packages/
 
 When working on scoring logic, rules, or architecture, read the relevant file first:
 
+* `docs/issue-conventions.md` — labels, titles, AI attribution, and how issues relate to
+  `ROADMAP.md`
 * `ROADMAP.md` — feature breakdown and implementation plan
 * `apps/web/src/views/RoadmapView.vue` — user-facing feature status page; keep in sync with
   ROADMAP.md when features ship (move items from "Coming soon" to "Available now")
