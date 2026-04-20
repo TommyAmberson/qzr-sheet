@@ -65,6 +65,28 @@ export function useScoresheet() {
   /** Timeouts per team — 0 to MAX_TIMEOUTS_PER_TEAM entries per team */
   const timeoutMap = ref(new Map<number, Timeout[]>())
 
+  /**
+   * Recover the OT-rounds count from a freshly loaded quiz: with regulation-only
+   * columns we ask the scorer how many OT rounds the saved answers actually need.
+   */
+  function computeInitialOtRounds(
+    overtime: boolean,
+    loadedTeams: { onTime: boolean }[],
+    loadedNoJumps: Map<string, boolean>,
+  ): number {
+    if (!overtime) return 1
+    const cols = buildColumns(20)
+    return Math.max(
+      1,
+      computeOvertimeRounds(
+        store.cellGrid(cols),
+        cols,
+        loadedTeams.map((t) => t.onTime),
+        cols.map((c) => loadedNoJumps.get(c.key) ?? false),
+      ),
+    )
+  }
+
   // --- Restore persisted state from localStorage ---
   const restored = loadFromStorage()
   if (restored) {
@@ -72,17 +94,11 @@ export function useScoresheet() {
     quiz.value = store.quiz
     noJumpMap.value = restored.noJumps
     timeoutMap.value = restored.timeouts
-    internalOtRounds.value = restored.quiz.overtime
-      ? Math.max(
-          1,
-          computeOvertimeRounds(
-            store.cellGrid(buildColumns(20)),
-            buildColumns(20),
-            restored.teams.map((t) => t.onTime),
-            buildColumns(20).map((c) => restored.noJumps.get(c.key) ?? false),
-          ),
-        )
-      : 1
+    internalOtRounds.value = computeInitialOtRounds(
+      restored.quiz.overtime,
+      restored.teams,
+      restored.noJumps,
+    )
     if (restored.answers.length > 0 || restored.quizzers.some((q) => q.name.trim())) {
       history.push({ undo: () => {}, redo: () => {} })
     }
@@ -661,17 +677,7 @@ export function useScoresheet() {
     quiz.value = store.quiz
     noJumpMap.value = data.noJumps
     timeoutMap.value = data.timeouts
-    internalOtRounds.value = data.quiz.overtime
-      ? Math.max(
-          1,
-          computeOvertimeRounds(
-            store.cellGrid(buildColumns(20)),
-            buildColumns(20),
-            data.teams.map((t) => t.onTime),
-            buildColumns(20).map((c) => data.noJumps.get(c.key) ?? false),
-          ),
-        )
-      : 1
+    internalOtRounds.value = computeInitialOtRounds(data.quiz.overtime, data.teams, data.noJumps)
     answerVersion.value++
     teamVersion.value++
     history.clear()
