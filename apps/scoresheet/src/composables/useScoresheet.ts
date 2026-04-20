@@ -28,7 +28,7 @@ import {
   quizJumpedComplete,
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
-import type { SeatIdx } from '../types/indices'
+import { toSeatIdx } from '../types/indices'
 import type { DeserializeResult } from '../persistence/quizFile'
 import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/autoSave'
 
@@ -37,10 +37,8 @@ import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/aut
  * (`teamIdx`, `seatIdx`, `colIdx`) are 0-based slots. A "seat" is a position on
  * a team's bench — the occupant can change after a substitution — distinct
  * from a "quizzer," which is a stable person with an immutable `id`. The
- * branded types `TeamIdx` / `SeatIdx` / `ColIdx` live in the scoring/store
- * layers; the composable's public API takes plain `number` so Vue templates
- * (which can't carry brands through `v-for`) don't need boundary wrappers.
- * See `../types/indices.ts` for the full explanation.
+ * branded `TeamIdx` / `SeatIdx` / `ColIdx` types live in the scoring/store
+ * layers; see `../types/indices.ts` for the full explanation.
  */
 export function useScoresheet() {
   const store = createQuizStore()
@@ -133,7 +131,6 @@ export function useScoresheet() {
     return store.cellGrid(columns.value)
   })
 
-  /** Set a cell value using positional indices (for UI compatibility) */
   function setCell(teamIdx: number, seatIdx: number, colIdx: number, value: CellValue) {
     const team = teams.value[teamIdx]
     if (!team) return
@@ -397,7 +394,6 @@ export function useScoresheet() {
     return CellValue.Empty
   }
 
-  /** Check if a quizzer is an empty seat by positional indices */
   function isEmptySeat(teamIdx: number, seatIdx: number): boolean {
     const team = teams.value[teamIdx]
     if (!team) return false
@@ -494,7 +490,6 @@ export function useScoresheet() {
     )
   })
 
-  /** Update a team name by positional index */
   function setTeamName(teamIdx: number, name: string) {
     const team = teams.value[teamIdx]
     if (!team) return
@@ -502,16 +497,14 @@ export function useScoresheet() {
     teamVersion.value++
   }
 
-  /** Move a quizzer within a team by positional indices */
   function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
     const team = teams.value[teamIdx]
     if (!team) return
-    store.moveQuizzer(team.id, fromSeat as SeatIdx, toSeat as SeatIdx)
+    store.moveQuizzer(team.id, toSeatIdx(fromSeat), toSeatIdx(toSeat))
     teamVersion.value++
     answerVersion.value++
   }
 
-  /** Update a quizzer name by positional indices */
   function setQuizzerName(teamIdx: number, seatIdx: number, name: string) {
     const team = teams.value[teamIdx]
     if (!team) return
@@ -522,7 +515,6 @@ export function useScoresheet() {
     teamVersion.value++
   }
 
-  /** Toggle on-time for a team by index */
   function toggleOnTime(teamIdx: number) {
     const team = teams.value[teamIdx]
     if (!team) return
@@ -676,7 +668,7 @@ export function useScoresheet() {
     return false
   }
 
-  /** Set the question category for a column by index (null clears it) */
+  /** Null clears the category. */
   function setQuestionType(colIdx: number, category: QuestionCategory | null) {
     const col = columns.value[colIdx]
     if (!col) return
