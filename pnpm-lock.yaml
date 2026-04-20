@@ -230,6 +230,10 @@ importers:
         version: 3.5.28(typescript@5.9.3)
 
   packages/ui:
+    dependencies:
+      '@qzr/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@vue/tsconfig':
         specifier: ^0.8.1

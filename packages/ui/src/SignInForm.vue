@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { SocialProvider } from '@qzr/shared'
 
 type SignInResult = { error?: { message?: string | null } | null } | undefined
 
 const props = defineProps<{
-  signInSocial: (provider: 'github' | 'google') => void
+  signInSocial: (provider: SocialProvider) => void
   signInEmail: (email: string, password: string) => Promise<SignInResult>
   signUpEmail: (email: string, password: string) => Promise<SignInResult>
 }>()
@@ -16,16 +17,6 @@ const email = ref('')
 const password = ref('')
 const error = ref('')
 const pending = ref(false)
-
-function reset() {
-  mode.value = 'pick'
-  email.value = ''
-  password.value = ''
-  error.value = ''
-  pending.value = false
-}
-
-defineExpose({ reset })
 
 async function submitEmail() {
   error.value = ''
@@ -42,7 +33,6 @@ async function submitEmail() {
 </script>
 
 <template>
-  <!-- Provider pick -->
   <template v-if="mode === 'pick'">
     <button class="provider-btn" @click="signInSocial('github')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -78,7 +68,6 @@ async function submitEmail() {
     <button class="email-toggle" @click="mode = 'signup'">Create account</button>
   </template>
 
-  <!-- Email form -->
   <template v-else>
     <button class="back-btn" @click="mode = 'pick'">← Back</button>
     <p class="form-title">{{ mode === 'signup' ? 'Create account' : 'Sign in' }}</p>

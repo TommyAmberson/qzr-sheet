@@ -8,6 +8,9 @@
   "scripts": {
     "type-check": "vue-tsc --noEmit"
   },
+  "dependencies": {
+    "@qzr/shared": "workspace:*"
+  },
   "peerDependencies": {
     "vue": "^3.5.28"
   },

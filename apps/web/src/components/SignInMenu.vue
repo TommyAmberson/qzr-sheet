@@ -1,37 +1,25 @@
 <script setup lang="ts">
-import { ref, useTemplateRef } from 'vue'
+import { ref } from 'vue'
 import { SignInForm } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 
 const { signInSocial, signInEmail, signUpEmail } = useAuth()
 
 const open = ref(false)
-const form = useTemplateRef<{ reset: () => void }>('form')
-
-function toggle() {
-  open.value = !open.value
-  if (!open.value) form.value?.reset()
-}
-
-function close() {
-  open.value = false
-  form.value?.reset()
-}
 </script>
 
 <template>
   <div class="menu-wrap">
-    <button class="nav-link nav-btn" @click="toggle">Sign in</button>
+    <button class="nav-link nav-btn" @click="open = !open">Sign in</button>
 
-    <div v-if="open" class="backdrop" @click="toggle" />
+    <div v-if="open" class="backdrop" @click="open = false" />
 
     <div v-if="open" class="menu">
       <SignInForm
-        ref="form"
         :sign-in-social="signInSocial"
         :sign-in-email="signInEmail"
         :sign-up-email="signUpEmail"
-        @success="close"
+        @success="open = false"
       />
     </div>
   </div>

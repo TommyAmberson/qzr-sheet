@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, useTemplateRef } from 'vue'
+import { ref } from 'vue'
 import { SignInForm } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 import { useMeetSession } from '../composables/useMeetSession'
@@ -9,11 +9,10 @@ const { clearSession } = useMeetSession()
 
 const open = ref(false)
 const menuPos = ref({ top: 0, right: 0 })
-const form = useTemplateRef<{ reset: () => void }>('form')
 
 function toggle(event: MouseEvent) {
   if (open.value) {
-    close()
+    open.value = false
     return
   }
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
@@ -22,49 +21,39 @@ function toggle(event: MouseEvent) {
   open.value = true
 }
 
-function close() {
-  open.value = false
-  form.value?.reset()
-}
-
 async function doSignOut() {
   clearSession()
   await signOut()
-  close()
+  open.value = false
 }
 </script>
 
 <template>
   <div class="widget-wrap">
-    <!-- Signed in: show email truncated -->
     <button v-if="session.data" class="meta-btn" @click="toggle">
       {{ session.data.user.email }}
     </button>
-    <!-- Signed out -->
     <button v-else class="meta-btn" @click="toggle">Sign in</button>
 
     <Teleport to="body">
-      <div v-if="open" class="sign-in-backdrop" @click="close" />
+      <div v-if="open" class="sign-in-backdrop" @click="open = false" />
 
       <div
         v-if="open"
         class="sign-in-menu"
         :style="{ top: menuPos.top + 'px', right: menuPos.right + 'px' }"
       >
-        <!-- Signed in: sign out -->
         <template v-if="session.data">
           <p class="menu-email">{{ session.data.user.email }}</p>
           <button class="sign-out-btn" @click="doSignOut">Sign out</button>
         </template>
 
-        <!-- Signed out -->
         <SignInForm
           v-else
-          ref="form"
           :sign-in-social="signInSocial"
           :sign-in-email="signInEmail"
           :sign-up-email="signUpEmail"
-          @success="close"
+          @success="open = false"
         />
       </div>
     </Teleport>
