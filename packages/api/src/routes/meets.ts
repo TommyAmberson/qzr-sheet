@@ -344,65 +344,53 @@ meets.get('/:id/members', async (c) => {
     return c.json({ error: 'Admin or superuser access required' }, 403)
   }
 
-  const members: MeetMember[] = []
+  const [admins, coaches, officials, viewers] = await Promise.all([
+    db
+      .select({
+        userId: schema.adminMemberships.accountId,
+        name: schema.user.name,
+        email: schema.user.email,
+      })
+      .from(schema.adminMemberships)
+      .innerJoin(schema.user, eq(schema.adminMemberships.accountId, schema.user.id))
+      .where(eq(schema.adminMemberships.meetId, meetId)),
+    db
+      .select({
+        userId: schema.coachMemberships.accountId,
+        name: schema.user.name,
+        email: schema.user.email,
+        churchId: schema.coachMemberships.churchId,
+      })
+      .from(schema.coachMemberships)
+      .innerJoin(schema.user, eq(schema.coachMemberships.accountId, schema.user.id))
+      .where(eq(schema.coachMemberships.meetId, meetId)),
+    db
+      .select({
+        userId: schema.officialMemberships.accountId,
+        name: schema.user.name,
+        email: schema.user.email,
+        officialCodeId: schema.officialMemberships.officialCodeId,
+      })
+      .from(schema.officialMemberships)
+      .innerJoin(schema.user, eq(schema.officialMemberships.accountId, schema.user.id))
+      .where(eq(schema.officialMemberships.meetId, meetId)),
+    db
+      .select({
+        userId: schema.viewerMemberships.accountId,
+        name: schema.user.name,
+        email: schema.user.email,
+      })
+      .from(schema.viewerMemberships)
+      .innerJoin(schema.user, eq(schema.viewerMemberships.accountId, schema.user.id))
+      .where(eq(schema.viewerMemberships.meetId, meetId)),
+  ])
 
-  const admins = await db
-    .select({
-      userId: schema.adminMemberships.accountId,
-      name: schema.user.name,
-      email: schema.user.email,
-    })
-    .from(schema.adminMemberships)
-    .innerJoin(schema.user, eq(schema.adminMemberships.accountId, schema.user.id))
-    .where(eq(schema.adminMemberships.meetId, meetId))
-
-  for (const r of admins) {
-    members.push({ ...r, role: MeetRole.Admin })
-  }
-
-  const coaches = await db
-    .select({
-      userId: schema.coachMemberships.accountId,
-      name: schema.user.name,
-      email: schema.user.email,
-      churchId: schema.coachMemberships.churchId,
-    })
-    .from(schema.coachMemberships)
-    .innerJoin(schema.user, eq(schema.coachMemberships.accountId, schema.user.id))
-    .where(eq(schema.coachMemberships.meetId, meetId))
-
-  for (const r of coaches) {
-    members.push({ ...r, role: MeetRole.HeadCoach })
-  }
-
-  const officials = await db
-    .select({
-      userId: schema.officialMemberships.accountId,
-      name: schema.user.name,
-      email: schema.user.email,
-      officialCodeId: schema.officialMemberships.officialCodeId,
-    })
-    .from(schema.officialMemberships)
-    .innerJoin(schema.user, eq(schema.officialMemberships.accountId, schema.user.id))
-    .where(eq(schema.officialMemberships.meetId, meetId))
-
-  for (const r of officials) {
-    members.push({ ...r, role: MeetRole.Official })
-  }
-
-  const viewers = await db
-    .select({
-      userId: schema.viewerMemberships.accountId,
-      name: schema.user.name,
-      email: schema.user.email,
-    })
-    .from(schema.viewerMemberships)
-    .innerJoin(schema.user, eq(schema.viewerMemberships.accountId, schema.user.id))
-    .where(eq(schema.viewerMemberships.meetId, meetId))
-
-  for (const r of viewers) {
-    members.push({ ...r, role: MeetRole.Viewer })
-  }
+  const members: MeetMember[] = [
+    ...admins.map((r) => ({ ...r, role: MeetRole.Admin })),
+    ...coaches.map((r) => ({ ...r, role: MeetRole.HeadCoach })),
+    ...officials.map((r) => ({ ...r, role: MeetRole.Official })),
+    ...viewers.map((r) => ({ ...r, role: MeetRole.Viewer })),
+  ]
 
   return c.json({ members })
 })
