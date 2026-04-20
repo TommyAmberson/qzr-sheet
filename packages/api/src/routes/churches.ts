@@ -909,51 +909,58 @@ churches.post('/meets/:meetId/roster/import', async (c) => {
     }
   }
 
-  // Load existing teams + rosters for all involved churches, for deduplication
-  // existingTeamRosters: churchId → Array<{ teamId, division, quizzerNames: Set<string> }>
+  // Load existing teams + rosters across all involved churches in two queries.
   const allChurchIds = [...new Set([...teamGroupMap.values()].map((g) => g.key.churchId))]
-  const nextNumberByChurch = new Map<number, number>()
+  const existingTeams =
+    allChurchIds.length > 0
+      ? await db.select().from(schema.teams).where(inArray(schema.teams.churchId, allChurchIds))
+      : []
+  const existingRosterRows =
+    existingTeams.length > 0
+      ? await db
+          .select()
+          .from(schema.teamRosters)
+          .where(
+            inArray(
+              schema.teamRosters.teamId,
+              existingTeams.map((t) => t.id),
+            ),
+          )
+      : []
+
+  const rosterByTeam = new Map<number, string[]>()
+  for (const row of existingRosterRows) {
+    if (!rosterByTeam.has(row.teamId)) rosterByTeam.set(row.teamId, [])
+    rosterByTeam.get(row.teamId)!.push(row.name)
+  }
+  const nextNumberByChurch = new Map<number, number>(allChurchIds.map((cid) => [cid, 1]))
   const existingTeamRosters = new Map<
     number,
     Array<{ teamId: number; division: string; quizzerNames: Set<string> }>
-  >()
-  for (const cid of allChurchIds) {
-    const existingTeams = await db.select().from(schema.teams).where(eq(schema.teams.churchId, cid))
-    const max = existingTeams.length === 0 ? 0 : Math.max(...existingTeams.map((r) => r.number))
-    nextNumberByChurch.set(cid, max + 1)
-
-    const teamRosterRows =
-      existingTeams.length > 0
-        ? await db
-            .select()
-            .from(schema.teamRosters)
-            .where(
-              inArray(
-                schema.teamRosters.teamId,
-                existingTeams.map((t) => t.id),
-              ),
-            )
-        : []
-    const rosterByTeam = new Map<number, string[]>()
-    for (const row of teamRosterRows) {
-      if (!rosterByTeam.has(row.teamId)) rosterByTeam.set(row.teamId, [])
-      rosterByTeam.get(row.teamId)!.push(row.name)
+  >(allChurchIds.map((cid) => [cid, []]))
+  for (const t of existingTeams) {
+    existingTeamRosters.get(t.churchId)!.push({
+      teamId: t.id,
+      division: t.division,
+      quizzerNames: new Set(rosterByTeam.get(t.id) ?? []),
+    })
+    const nextNum = t.number + 1
+    if (nextNum > nextNumberByChurch.get(t.churchId)!) {
+      nextNumberByChurch.set(t.churchId, nextNum)
     }
-    existingTeamRosters.set(
-      cid,
-      existingTeams.map((t) => ({
-        teamId: t.id,
-        division: t.division,
-        quizzerNames: new Set(rosterByTeam.get(t.id) ?? []),
-      })),
-    )
   }
 
-  let teamsCreated = 0
-  let quizzersAdded = 0
-
+  // Decide new teams + names up front, then write in three batched phases:
+  // (1) insert all teams, (2) allocate all identities, (3) insert all rosters
+  // pairing identity ids to names by input-array index.
+  const teamInserts: Array<{
+    meetId: number
+    churchId: number
+    division: string
+    number: number
+  }> = []
+  const namesPerTeamSlot: string[][] = []
   for (const { key, quizzerNames } of teamGroupMap.values()) {
-    // Skip if an existing team in this church+division already has exactly this quizzer set
     const existing = existingTeamRosters.get(key.churchId) ?? []
     const isDuplicate = existing.some(
       (t) =>
@@ -965,23 +972,35 @@ churches.post('/meets/:meetId/roster/import', async (c) => {
 
     const number = nextNumberByChurch.get(key.churchId)!
     nextNumberByChurch.set(key.churchId, number + 1)
-
-    const [team] = await db
-      .insert(schema.teams)
-      .values({ meetId, churchId: key.churchId, division: key.division, number })
-      .returning()
-    teamsCreated++
-
-    for (const name of quizzerNames) {
-      const [identity] = await db.insert(schema.quizzerIdentities).values({}).returning()
-      await db
-        .insert(schema.teamRosters)
-        .values({ teamId: team!.id, quizzerId: identity!.id, name })
-      quizzersAdded++
-    }
+    teamInserts.push({ meetId, churchId: key.churchId, division: key.division, number })
+    namesPerTeamSlot.push(quizzerNames)
   }
 
-  return c.json({ churchesCreated, teamsCreated, quizzersAdded }, 201)
+  const insertedTeams =
+    teamInserts.length > 0 ? await db.insert(schema.teams).values(teamInserts).returning() : []
+
+  const totalQuizzers = namesPerTeamSlot.reduce((sum, ns) => sum + ns.length, 0)
+  const identities =
+    totalQuizzers > 0
+      ? await db
+          .insert(schema.quizzerIdentities)
+          .values(Array.from({ length: totalQuizzers }, () => ({})))
+          .returning()
+      : []
+
+  const rosterRows: Array<{ teamId: number; quizzerId: number; name: string }> = []
+  let idCursor = 0
+  insertedTeams.forEach((team, slot) => {
+    for (const name of namesPerTeamSlot[slot]!) {
+      rosterRows.push({ teamId: team.id, quizzerId: identities[idCursor++]!.id, name })
+    }
+  })
+  if (rosterRows.length > 0) await db.insert(schema.teamRosters).values(rosterRows)
+
+  return c.json(
+    { churchesCreated, teamsCreated: insertedTeams.length, quizzersAdded: rosterRows.length },
+    201,
+  )
 })
 
 // ---- Helpers ----
