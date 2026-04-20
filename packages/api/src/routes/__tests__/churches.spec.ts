@@ -1575,10 +1575,9 @@ describe('POST /api/meets/:meetId/roster/import', () => {
     expect(teams.map((t) => t.number).sort()).toEqual([1, 2])
   })
 
-  // Guards the batched-insert rewrite (issue #23): every roster row must point
-  // at a real identity row and the name-to-identity mapping must be 1:1. A
-  // silent index-pairing off-by-one in the batched path would cross-link
-  // quizzers and slip past the counter-only assertions above.
+  // Guards batchCreateQuizzers' slot-to-identity pairing (issue #23): an
+  // off-by-one in the batched path would cross-link quizzers and slip past the
+  // counter-only assertions above.
   it('pairs every inserted quizzer with its own identity row', async () => {
     const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)

@@ -1005,11 +1005,8 @@ churches.post('/meets/:meetId/roster/import', async (c) => {
 
 /**
  * Create N new quizzers in two batched writes: allocate identities, then insert
- * rosters pairing each identity id to its slot by input-array index.
- *
- * The pairing is the invariant: `slots[i]` receives `identities[i].id`. Drizzle
- * preserves input order in `.returning()` so this holds as long as both calls
- * complete successfully. The roster/import pairing test exercises this end-to-end.
+ * rosters pairing `slots[i]` with `identities[i].id`. Relies on Drizzle
+ * preserving input order in `.returning()`.
  */
 async function batchCreateQuizzers(
   db: Db,
