@@ -650,24 +650,31 @@ churches.post('/churches/:churchId/roster/sync', async (c) => {
 
   const teamIdMap = new Map<number, number>() // tempId → realId
 
+  // Batch-insert all new teams, then map input slot → real id by returning order.
+  const newTeamSlots = body.teams.map((t, i) => ({ t, number: i + 1 })).filter(({ t }) => t.id < 0)
+  const newTeamRows = newTeamSlots.map(({ t, number }) => ({
+    meetId: church.meetId,
+    churchId,
+    division: t.division,
+    number,
+  }))
+  const insertedTeams =
+    newTeamRows.length > 0 ? await db.insert(schema.teams).values(newTeamRows).returning() : []
+  insertedTeams.forEach((team, idx) => {
+    teamIdMap.set(newTeamSlots[idx]!.t.id, team.id)
+  })
+
+  // Existing team updates stay serial — typically 0–few edits per sync.
   for (let i = 0; i < body.teams.length; i++) {
     const t = body.teams[i]!
+    if (t.id < 0) continue
+    const current = currentTeamMap.get(t.id)
     const number = i + 1
-    if (t.id < 0) {
-      const [created] = await db
-        .insert(schema.teams)
-        .values({ meetId: church.meetId, churchId, division: t.division, number })
-        .returning()
-      teamIdMap.set(t.id, created!.id)
-    } else {
-      // Update division and/or number on existing team if changed
-      const current = currentTeamMap.get(t.id)
-      if (current && (current.division !== t.division || current.number !== number)) {
-        await db
-          .update(schema.teams)
-          .set({ division: t.division, number })
-          .where(eq(schema.teams.id, t.id))
-      }
+    if (current && (current.division !== t.division || current.number !== number)) {
+      await db
+        .update(schema.teams)
+        .set({ division: t.division, number })
+        .where(eq(schema.teams.id, t.id))
     }
   }
 
@@ -675,46 +682,64 @@ churches.post('/churches/:churchId/roster/sync', async (c) => {
 
   const quizzerIdMap = new Map<number, number>() // tempId → realId
 
+  // Collect all new-quizzer slots across teams first, then batch both the
+  // identity rows and the roster rows, pairing identity ids to names by
+  // input-array index.
+  const newQuizzerSlots: Array<{ tempId: number; teamId: number; name: string }> = []
   for (const t of body.teams) {
     const realTeamId = t.id > 0 ? t.id : teamIdMap.get(t.id)!
-
     for (const q of t.quizzers) {
       if (q.id < 0) {
-        // New quizzer: create identity + roster entry
-        const [identity] = await db.insert(schema.quizzerIdentities).values({}).returning()
-        await db
-          .insert(schema.teamRosters)
-          .values({ teamId: realTeamId, quizzerId: identity!.id, name: q.name.trim() })
-        quizzerIdMap.set(q.id, identity!.id)
-      } else {
-        // Existing quizzer: check for move or rename
-        const current = currentRosterMap.get(q.id)
-        if (current) {
-          const nameChanged = current.name !== q.name.trim()
-          const movedTeam = current.teamId !== realTeamId
+        newQuizzerSlots.push({ tempId: q.id, teamId: realTeamId, name: q.name.trim() })
+      }
+    }
+  }
+  const newIdentities =
+    newQuizzerSlots.length > 0
+      ? await db
+          .insert(schema.quizzerIdentities)
+          .values(Array.from({ length: newQuizzerSlots.length }, () => ({})))
+          .returning()
+      : []
+  const newRosterRows = newQuizzerSlots.map((slot, idx) => ({
+    teamId: slot.teamId,
+    quizzerId: newIdentities[idx]!.id,
+    name: slot.name,
+  }))
+  if (newRosterRows.length > 0) await db.insert(schema.teamRosters).values(newRosterRows)
+  newQuizzerSlots.forEach((slot, idx) => {
+    quizzerIdMap.set(slot.tempId, newIdentities[idx]!.id)
+  })
 
-          if (movedTeam) {
-            await db
-              .update(schema.teamRosters)
-              .set({ teamId: realTeamId, name: q.name.trim() })
-              .where(
-                and(
-                  eq(schema.teamRosters.quizzerId, q.id),
-                  eq(schema.teamRosters.teamId, current.teamId),
-                ),
-              )
-          } else if (nameChanged) {
-            await db
-              .update(schema.teamRosters)
-              .set({ name: q.name.trim() })
-              .where(
-                and(
-                  eq(schema.teamRosters.quizzerId, q.id),
-                  eq(schema.teamRosters.teamId, realTeamId),
-                ),
-              )
-          }
-        }
+  // Moves and renames stay serial — bounded by the number of actual changes,
+  // not the total roster size, and batching UPDATE would need CASE WHEN SQL
+  // that's harder to audit than this per-row form.
+  for (const t of body.teams) {
+    const realTeamId = t.id > 0 ? t.id : teamIdMap.get(t.id)!
+    for (const q of t.quizzers) {
+      if (q.id < 0) continue
+      const current = currentRosterMap.get(q.id)
+      if (!current) continue
+      const nameChanged = current.name !== q.name.trim()
+      const movedTeam = current.teamId !== realTeamId
+
+      if (movedTeam) {
+        await db
+          .update(schema.teamRosters)
+          .set({ teamId: realTeamId, name: q.name.trim() })
+          .where(
+            and(
+              eq(schema.teamRosters.quizzerId, q.id),
+              eq(schema.teamRosters.teamId, current.teamId),
+            ),
+          )
+      } else if (nameChanged) {
+        await db
+          .update(schema.teamRosters)
+          .set({ name: q.name.trim() })
+          .where(
+            and(eq(schema.teamRosters.quizzerId, q.id), eq(schema.teamRosters.teamId, realTeamId)),
+          )
       }
     }
   }
