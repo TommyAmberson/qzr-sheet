@@ -73,6 +73,7 @@ packages/
   obvious should be extremely brief or omitted. Prefer comments that explain "why" or complex logic.
 * Commits should be atomic and self-contained, with conventional commit messages. Commits should not
   be too large or too small. Use branches for larger features or refactors.
+* Work on feature branches, not directly on master. Merge when ready.
 * Always run pnpm commands from the repo root using root-level aliases (e.g. `pnpm test:unit`, not
   `pnpm --filter scoresheet test:unit`) — keeps commands predictable for auto-approval.
 
