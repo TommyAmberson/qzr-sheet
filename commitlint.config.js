@@ -11,5 +11,12 @@ export default {
     'header-max-length': [2, 'always', 50],
     'body-max-line-length': [1, 'always', 72],
     'footer-max-line-length': [1, 'always', 72],
+    // Optional scope; when present, warn if it isn't one of these.
+    // Keep this list short — if a new scope makes sense, add it here.
+    'scope-enum': [
+      1,
+      'always',
+      ['scoresheet', 'web', 'api', 'shared', 'tauri', 'ci', 'deps'],
+    ],
   },
 }
