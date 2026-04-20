@@ -1574,6 +1574,41 @@ describe('POST /api/meets/:meetId/roster/import', () => {
     expect(teams).toHaveLength(2)
     expect(teams.map((t) => t.number).sort()).toEqual([1, 2])
   })
+
+  // Guards the batched-insert rewrite (issue #23): every roster row must point
+  // at a real identity row and the name-to-identity mapping must be 1:1. A
+  // silent index-pairing off-by-one in the batched path would cross-link
+  // quizzers and slip past the counter-only assertions above.
+  it('pairs every inserted quizzer with its own identity row', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+
+    const rows = [
+      { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' },
+      { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Bob' },
+      { church: 'Grace', division: 'Teen', teamName: 'Doves', quizzerName: 'Carol' },
+      { church: 'First Baptist', division: 'Open', teamName: 'Hawks', quizzerName: 'Dan' },
+      { church: 'First Baptist', division: 'Open', teamName: 'Hawks', quizzerName: 'Eve' },
+      { church: 'First Baptist', division: 'Teen', teamName: 'Sparrows', quizzerName: 'Frank' },
+    ]
+    const res = await app.request(`/api/meets/${meet.id}/roster/import`, importBody(rows), env)
+    expect(res.status).toBe(201)
+
+    const rosters = await db.select().from(schema.teamRosters)
+    const identities = await db.select().from(schema.quizzerIdentities)
+    const identityIds = new Set(identities.map((r) => r.id))
+
+    expect(rosters).toHaveLength(rows.length)
+    expect(identities).toHaveLength(rows.length)
+    for (const r of rosters) expect(identityIds.has(r.quizzerId)).toBe(true)
+
+    // 1:1 mapping — no identity reused across rosters
+    const usedIdentities = new Set(rosters.map((r) => r.quizzerId))
+    expect(usedIdentities.size).toBe(rosters.length)
+
+    // Every expected name lands in the roster exactly once
+    expect(rosters.map((r) => r.name).sort()).toEqual(rows.map((r) => r.quizzerName).sort())
+  })
 })
 
 // ---- Roster export ----
