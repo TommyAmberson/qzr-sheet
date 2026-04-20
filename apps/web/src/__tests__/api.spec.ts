@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-import { ApiError, listMeets, createMeet, deleteMeet, joinMeet } from '../api'
+import { ApiError } from '@qzr/shared'
+
+import { listMeets, createMeet, deleteMeet, joinMeet } from '../api'
 
 const mockFetch = vi.fn()
 

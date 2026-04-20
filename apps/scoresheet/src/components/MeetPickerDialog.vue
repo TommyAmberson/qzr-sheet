@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { ApiError } from '@qzr/shared'
 import { ref } from 'vue'
-import { getMyMeets, joinMeet, ApiError, type MeetSummary } from '../api'
+
+import { getMyMeets, joinMeet, type MeetSummary } from '../api'
 import { useMeetSession } from '../composables/useMeetSession'
 
 const emit = defineEmits<{ loaded: [] }>()
