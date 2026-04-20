@@ -70,7 +70,8 @@ packages/
 * Tests live in `__tests__/` subdirectories next to the code they test.
 * Slight preference for writing tests before features.
 * Redundant comments are not helpful. Comments that simply say "what" is happening when the code is
-  obvious should be extremely brief or omitted. Prefer comments that explain "why" or complex logic.
+  obvious should be extremely brief or omitted. Prefer comments that explain "why", complicated
+  logic, or a "what" that is not obvious from the nearby code.
 * Commits should be atomic and self-contained, with conventional commit messages. Commits should not
   be too large or too small. Use branches for larger features or refactors.
 * Work on feature branches, not directly on master. Merge when ready.
