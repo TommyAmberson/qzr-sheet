@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { CellValue, QuestionCategory, QuestionType, QUIZZERS_PER_TEAM } from '../types/scoresheet'
-import { toTeamIdx, toSeatIdx, toColIdx } from '../types/indices'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
@@ -107,7 +106,7 @@ async function pickTeam(slotIdx: number, teamId: number) {
   const storeTeamId = store.teams[slotIdx]!.id
   for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
     if (isDefaultQuizzerName(store.quizzersByTeam(storeTeamId)[seatIdx]?.name ?? '')) {
-      templateSetQuizzerName(slotIdx, seatIdx, '')
+      setQuizzerName(slotIdx, seatIdx, '')
     }
   }
 
@@ -117,10 +116,10 @@ async function pickTeam(slotIdx: number, teamId: number) {
   // Fill empty store seats with the DB names that were matched to those positions
   const slot = meetSession.getSlot(slotIdx)
   if (!slot) return
-  templateSetTeamName(slotIdx, slot.dbLabelFull)
+  setTeamName(slotIdx, slot.dbLabelFull)
   for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
     if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
-      templateSetQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+      setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
     }
   }
 }
@@ -162,7 +161,7 @@ async function onMeetLoaded() {
 }
 
 function restoreQuizzerName(slotIdx: number, seatIdx: number) {
-  templateSetQuizzerName(slotIdx, seatIdx, meetSession.getDbName(slotIdx, seatIdx) ?? '')
+  setQuizzerName(slotIdx, seatIdx, meetSession.getDbName(slotIdx, seatIdx) ?? '')
 }
 
 function isTeamDivisionDiverged(slotIdx: number): boolean {
@@ -234,43 +233,6 @@ const {
   redo,
   markSaved,
 } = useScoresheet()
-
-// Template boundary wrappers: v-for loop variables are plain numbers, but
-// useScoresheet functions take branded TeamIdx/SeatIdx/ColIdx. These thin
-// wrappers apply the brand at the boundary so the template stays clean.
-const templateSetCell = (t: number, s: number, c: number, v: CellValue) =>
-  setCell(toTeamIdx(t), toSeatIdx(s), toColIdx(c), v)
-const templateSetTeamName = (t: number, name: string) => setTeamName(toTeamIdx(t), name)
-const templateSetQuizzerName = (t: number, s: number, name: string) =>
-  setQuizzerName(toTeamIdx(t), toSeatIdx(s), name)
-const templateMoveQuizzer = (t: number, from: number, to: number) =>
-  moveQuizzer(toTeamIdx(t), toSeatIdx(from), toSeatIdx(to))
-const templateToggleOnTime = (t: number) => toggleOnTime(toTeamIdx(t))
-const templateToggleNoJump = (c: number) => toggleNoJump(toColIdx(c))
-const templateSetQuestionType = (c: number, cat: QuestionCategory | null) =>
-  setQuestionType(toColIdx(c), cat)
-const templateIsEmptySeat = (t: number, s: number) => isEmptySeat(toTeamIdx(t), toSeatIdx(s))
-const templateIsBonusForTeam = (t: number, c: number) => isBonusForTeam(toTeamIdx(t), toColIdx(c))
-const templateIsGreyedOut = (t: number, s: number, c: number) =>
-  isGreyedOut(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
-const templateIsInvalid = (t: number, s: number, c: number) =>
-  isInvalid(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
-const templateCellValidationMessages = (t: number, s: number, c: number) =>
-  cellValidationMessages(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
-const templateColumnHasErrors = (c: number) => columnHasErrors(toColIdx(c))
-const templateColumnValidationMessages = (c: number) => columnValidationMessages(toColIdx(c))
-const templateQuizzerHasErrors = (t: number, s: number) =>
-  quizzerHasErrors(toTeamIdx(t), toSeatIdx(s))
-const templateQuizzerValidationMessages = (t: number, s: number) =>
-  quizzerValidationMessages(toTeamIdx(t), toSeatIdx(s))
-const templateTeamValidationMessages = (t: number) => teamValidationMessages(toTeamIdx(t))
-const templateIsAfterOut = (t: number, s: number, c: number) =>
-  isAfterOut(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
-const templateIsFouledOnQuestion = (t: number, s: number, c: number) =>
-  isFouledOnQuestion(toTeamIdx(t), toSeatIdx(s), toColIdx(c))
-const templateTeamHasErrors = (t: number) => teamHasErrors(toTeamIdx(t))
-const templateColAnswerValue = (c: number) => colAnswerValue(toColIdx(c))
-const templateNoJumpHasConflict = (c: number) => noJumpHasConflict(toColIdx(c))
 
 const tutorial = useTutorial({
   store,
@@ -429,7 +391,7 @@ const {
   selectValue,
   confirmFocusedOption,
   close: closeSelector,
-} = useCellSelector(columns, templateIsBonusForTeam, templateSetCell)
+} = useCellSelector(columns, isBonusForTeam, setCell)
 
 const { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardMode } =
   useKeyboardNav({
@@ -444,17 +406,17 @@ const { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardM
     openSelectorOnCell,
     confirmFocusedOption,
     closeSelector,
-    setCell: templateSetCell,
-    toggleNoJump: templateToggleNoJump,
-    isBonusForTeam: templateIsBonusForTeam,
-    isAfterOut: templateIsAfterOut,
-    isFouledOnQuestion: templateIsFouledOnQuestion,
+    setCell,
+    toggleNoJump,
+    isBonusForTeam,
+    isAfterOut,
+    isFouledOnQuestion,
     undo,
     redo,
   })
 
 function moveQuizzerAndSync(teamIdx: number, from: number, to: number) {
-  templateMoveQuizzer(teamIdx, from, to)
+  moveQuizzer(teamIdx, from, to)
   meetSession.reorderSlotQuizzers(teamIdx, from, to)
 }
 const { dragState, dropTarget, dropIndicatorWidth, registerRowEl, onPointerDown } = useDragReorder(
@@ -471,7 +433,7 @@ function onCellClick(teamIdx: number, seatIdx: number, colIdx: number, event: Mo
 function onNoJumpClick(colIdx: number) {
   deactivateKeyboardMode()
   focusCell(-1, -1, colIdx)
-  templateToggleNoJump(colIdx)
+  toggleNoJump(colIdx)
 }
 
 /** Hovered column index for crosshair highlight */
@@ -668,10 +630,10 @@ const headerAnswerClass: Record<CellValue, string> = {
 
 function headerClass(colIdx: number): string {
   const classes: string[] = []
-  const answer = headerAnswerClass[templateColAnswerValue(colIdx)]
+  const answer = headerAnswerClass[colAnswerValue(colIdx)]
   if (answer) classes.push(answer)
   else if (noJumps.value[colIdx]) classes.push('col--header-no-jump')
-  if (templateColumnHasErrors(colIdx)) classes.push('col--header-invalid')
+  if (columnHasErrors(colIdx)) classes.push('col--header-invalid')
   return classes.join(' ')
 }
 
@@ -896,11 +858,7 @@ const appVersion: string = __APP_VERSION__
                     'col--focus': keyboardMode && focusedCell?.colIdx === idx,
                   },
                 ]"
-                :title="
-                  templateColumnHasErrors(idx)
-                    ? templateColumnValidationMessages(idx).join('\n')
-                    : undefined
-                "
+                :title="columnHasErrors(idx) ? columnValidationMessages(idx).join('\n') : undefined"
               >
                 <div class="col-header-inner">
                   <span class="col-header-number">{{ col.label }}</span>
@@ -912,7 +870,7 @@ const appVersion: string = __APP_VERSION__
                     class="question-type-select"
                     :value="quiz.questionTypes.get(col.key) ?? ''"
                     @change="
-                      templateSetQuestionType(
+                      setQuestionType(
                         idx,
                         ($event.target as HTMLSelectElement).value
                           ? (($event.target as HTMLSelectElement).value as QuestionCategory)
@@ -987,12 +945,7 @@ const appVersion: string = __APP_VERSION__
                             class="editable-name editable-name--team"
                             :data-tutorial="`team-name-${teamIdx}`"
                             :value="team.name"
-                            @input="
-                              templateSetTeamName(
-                                teamIdx,
-                                ($event.target as HTMLInputElement).value,
-                              )
-                            "
+                            @input="setTeamName(teamIdx, ($event.target as HTMLInputElement).value)"
                             @focus="($event.target as HTMLInputElement).select()"
                             @keydown.enter="($event.target as HTMLInputElement).blur()"
                           />
@@ -1078,7 +1031,7 @@ const appVersion: string = __APP_VERSION__
                     'col--name',
                     'sticky-col',
                     {
-                      'cell--invalid': templateQuizzerHasErrors(teamIdx, seatIdx),
+                      'cell--invalid': quizzerHasErrors(teamIdx, seatIdx),
                       'col--name--active':
                         !dragState &&
                         selector?.teamIdx === teamIdx &&
@@ -1091,8 +1044,8 @@ const appVersion: string = __APP_VERSION__
                     },
                   ]"
                   :title="
-                    templateQuizzerHasErrors(teamIdx, seatIdx)
-                      ? templateQuizzerValidationMessages(teamIdx, seatIdx).join('\n')
+                    quizzerHasErrors(teamIdx, seatIdx)
+                      ? quizzerValidationMessages(teamIdx, seatIdx).join('\n')
                       : undefined
                   "
                 >
@@ -1122,7 +1075,7 @@ const appVersion: string = __APP_VERSION__
                           :data-tutorial="`quizzer-name-${teamIdx}-${seatIdx}`"
                           :value="quizzer.name"
                           @input="
-                            templateSetQuizzerName(
+                            setQuizzerName(
                               teamIdx,
                               seatIdx,
                               ($event.target as HTMLInputElement).value,
@@ -1145,7 +1098,7 @@ const appVersion: string = __APP_VERSION__
                         class="name-clear"
                         :data-tutorial="`name-clear-${teamIdx}-${seatIdx}`"
                         title="Clear name (empty seat)"
-                        @click.stop="templateSetQuizzerName(teamIdx, seatIdx, '')"
+                        @click.stop="setQuizzerName(teamIdx, seatIdx, '')"
                       >
                         ×
                       </button>
@@ -1215,7 +1168,7 @@ const appVersion: string = __APP_VERSION__
                       >
                       <span
                         v-if="
-                          !templateIsEmptySeat(teamIdx, seatIdx) &&
+                          !isEmptySeat(teamIdx, seatIdx) &&
                           quizzerScoreLabel(teamIdx, seatIdx) !== null
                         "
                         class="stat-count stat-count--individual"
@@ -1239,15 +1192,15 @@ const appVersion: string = __APP_VERSION__
                     { 'timeout-after': hasTimeoutAfterCol(col.key) },
                     {
                       'cell--greyed':
-                        (templateIsEmptySeat(teamIdx, seatIdx) &&
+                        (isEmptySeat(teamIdx, seatIdx) &&
                           cells[teamIdx]?.[seatIdx]?.[idx] === '') ||
-                        ((templateIsGreyedOut(teamIdx, seatIdx, idx) || noJumps[idx]) &&
+                        ((isGreyedOut(teamIdx, seatIdx, idx) || noJumps[idx]) &&
                           cells[teamIdx]?.[seatIdx]?.[idx] === '') ||
-                        templateIsAfterOut(teamIdx, seatIdx, idx) ||
-                        (templateIsFouledOnQuestion(teamIdx, seatIdx, idx) &&
+                        isAfterOut(teamIdx, seatIdx, idx) ||
+                        (isFouledOnQuestion(teamIdx, seatIdx, idx) &&
                           cells[teamIdx]?.[seatIdx]?.[idx] === ''),
                     },
-                    { 'cell--invalid': templateIsInvalid(teamIdx, seatIdx, idx) },
+                    { 'cell--invalid': isInvalid(teamIdx, seatIdx, idx) },
                     { 'col--entering': entering },
                     { 'col--hover': !dragState && hoverCol === idx },
                     {
@@ -1259,8 +1212,8 @@ const appVersion: string = __APP_VERSION__
                     },
                   ]"
                   :title="
-                    templateIsInvalid(teamIdx, seatIdx, idx)
-                      ? templateCellValidationMessages(teamIdx, seatIdx, idx).join('\n')
+                    isInvalid(teamIdx, seatIdx, idx)
+                      ? cellValidationMessages(teamIdx, seatIdx, idx).join('\n')
                       : undefined
                   "
                   @click="onCellClick(teamIdx, seatIdx, idx, $event)"
@@ -1276,13 +1229,11 @@ const appVersion: string = __APP_VERSION__
                   :class="[
                     'col--total',
                     'team-total-value',
-                    { 'cell--invalid': templateTeamHasErrors(teamIdx) },
+                    { 'cell--invalid': teamHasErrors(teamIdx) },
                   ]"
                   :rowspan="teamQuizzers[teamIdx]?.length ?? 5"
                   :title="
-                    templateTeamHasErrors(teamIdx)
-                      ? templateTeamValidationMessages(teamIdx).join('\n')
-                      : undefined
+                    teamHasErrors(teamIdx) ? teamValidationMessages(teamIdx).join('\n') : undefined
                   "
                 >
                   <span v-if="placements[teamIdx]" class="placement-medal">{{
@@ -1313,7 +1264,7 @@ const appVersion: string = __APP_VERSION__
                     class="on-time"
                     :class="{ 'on-time--active': team.onTime }"
                     :data-tutorial="`on-time-${teamIdx}`"
-                    @click.stop="templateToggleOnTime(teamIdx)"
+                    @click.stop="toggleOnTime(teamIdx)"
                   >
                     <span class="on-time-box">✓</span>
                     <span class="on-time-label">on time</span>
@@ -1414,18 +1365,15 @@ const appVersion: string = __APP_VERSION__
                   'cell cell--no-jump',
                   colGroupClass(idx),
                   {
-                    'cell--no-jump-active':
-                      noJumps[idx] && templateColAnswerValue(idx) === CellValue.Empty,
-                    'cell--no-jump-answered': templateColAnswerValue(idx) !== CellValue.Empty,
-                    'cell--invalid': templateNoJumpHasConflict(idx),
+                    'cell--no-jump-active': noJumps[idx] && colAnswerValue(idx) === CellValue.Empty,
+                    'cell--no-jump-answered': colAnswerValue(idx) !== CellValue.Empty,
+                    'cell--invalid': noJumpHasConflict(idx),
                     'col--entering': entering,
                     'cell--focused': keyboardMode && isNoJumpFocus() && focusedCell?.colIdx === idx,
                   },
                 ]"
                 :title="
-                  templateNoJumpHasConflict(idx)
-                    ? templateColumnValidationMessages(idx).join('\n')
-                    : undefined
+                  noJumpHasConflict(idx) ? columnValidationMessages(idx).join('\n') : undefined
                 "
                 @click="onNoJumpClick(idx)"
                 @mouseenter="hoverCol = idx"
