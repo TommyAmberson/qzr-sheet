@@ -45,13 +45,9 @@ export function useScoresheet() {
   const history = useHistory()
 
   // --- Reactive wrappers around store data ---
+  // store.quiz is a reactive proxy; ref() wraps it so consumer call sites
+  // keep their `quiz.value.x` shape and reads track the proxy natively.
   const quiz = ref<Quiz>(store.quiz)
-
-  // Bump this to force recomputation of cells/scoring after answer changes
-  const answerVersion = ref(0)
-
-  // Bump this to force recomputation when team metadata (e.g. onTime) changes
-  const teamVersion = ref(0)
 
   /**
    * Internally tracked overtime round count.
@@ -91,7 +87,6 @@ export function useScoresheet() {
   const restored = loadFromStorage()
   if (restored) {
     store.loadState(restored)
-    quiz.value = store.quiz
     noJumpMap.value = restored.noJumps
     timeoutMap.value = restored.timeouts
     internalOtRounds.value = computeInitialOtRounds(
@@ -115,21 +110,13 @@ export function useScoresheet() {
   )
 
   /** Teams sorted by seat order — this is the canonical iteration order */
-  const teams = computed<Team[]>(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    teamVersion.value // reactive dependency
-    return [...store.teams].sort((a, b) => a.seatOrder - b.seatOrder)
-  })
+  const teams = computed<Team[]>(() => [...store.teams].sort((a, b) => a.seatOrder - b.seatOrder))
 
   /** Quizzers per team, indexed by team position */
   const teamQuizzers = computed(() => teams.value.map((team) => store.quizzersByTeam(team.id)))
 
-  /** Derived cell grid — recomputes when answerVersion or columns change */
-  const cells = computed<CellValue[][][]>(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    answerVersion.value // reactive dependency
-    return store.cellGrid(columns.value)
-  })
+  /** Derived cell grid — recomputes when store data or columns change */
+  const cells = computed<CellValue[][][]>(() => store.cellGrid(columns.value))
 
   function setCell(teamIdx: number, seatIdx: number, colIdx: number, value: CellValue) {
     const team = teams.value[teamIdx]
@@ -141,16 +128,9 @@ export function useScoresheet() {
     const prev = store.getAnswer(qzr.id, col.key)
     if (prev === value) return
     store.setAnswer(qzr.id, col.key, value)
-    answerVersion.value++
     history.push({
-      undo: () => {
-        store.setAnswer(qzr.id, col.key, prev)
-        answerVersion.value++
-      },
-      redo: () => {
-        store.setAnswer(qzr.id, col.key, value)
-        answerVersion.value++
-      },
+      undo: () => store.setAnswer(qzr.id, col.key, prev),
+      redo: () => store.setAnswer(qzr.id, col.key, value),
     })
   }
 
@@ -202,8 +182,6 @@ export function useScoresheet() {
 
   /** Set of "teamIdx:seatIdx" keys for quizzers with empty/blank names */
   const emptySeats = computed(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    teamVersion.value // reactive dependency
     const set = new Set<string>()
     teams.value.forEach((team, teamIdx) => {
       const qzrs = store.quizzersByTeam(team.id)
@@ -494,15 +472,12 @@ export function useScoresheet() {
     const team = teams.value[teamIdx]
     if (!team) return
     store.setTeamName(team.id, name)
-    teamVersion.value++
   }
 
   function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
     const team = teams.value[teamIdx]
     if (!team) return
     store.moveQuizzer(team.id, toSeatIdx(fromSeat), toSeatIdx(toSeat))
-    teamVersion.value++
-    answerVersion.value++
   }
 
   function setQuizzerName(teamIdx: number, seatIdx: number, name: string) {
@@ -512,14 +487,12 @@ export function useScoresheet() {
     const qzr = qzrs[seatIdx]
     if (!qzr) return
     store.setQuizzerName(qzr.id, name)
-    teamVersion.value++
   }
 
   function toggleOnTime(teamIdx: number) {
     const team = teams.value[teamIdx]
     if (!team) return
     team.onTime = !team.onTime
-    teamVersion.value++
   }
 
   /**
@@ -673,18 +646,14 @@ export function useScoresheet() {
     const col = columns.value[colIdx]
     if (!col) return
     store.setQuestionType(col.key, category)
-    answerVersion.value++
   }
 
   /** Load a deserialized quiz file into the store, replacing all state */
   function loadFile(data: DeserializeResult) {
     store.loadState(data)
-    quiz.value = store.quiz
     noJumpMap.value = data.noJumps
     timeoutMap.value = data.timeouts
     internalOtRounds.value = computeInitialOtRounds(data.quiz.overtime, data.teams, data.noJumps)
-    answerVersion.value++
-    teamVersion.value++
     history.clear()
     saveToStorage(store, data.noJumps, data.timeouts)
   }
@@ -696,12 +665,9 @@ export function useScoresheet() {
       quizzers: fresh.quizzers,
       answers: [],
     })
-    quiz.value = store.quiz
     noJumpMap.value = new Map()
     timeoutMap.value = new Map()
     internalOtRounds.value = 1
-    answerVersion.value++
-    teamVersion.value++
     history.clear()
     clearStorage()
   }
@@ -721,7 +687,6 @@ export function useScoresheet() {
     noJumpMap.value = new Map()
     timeoutMap.value = new Map()
     internalOtRounds.value = 1
-    answerVersion.value++
     history.clear()
     saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
@@ -737,7 +702,6 @@ export function useScoresheet() {
         store.setQuizzerName(qzrs[j]!.id, j < 4 ? `Quizzer ${j + 1}` : '')
       }
     }
-    teamVersion.value++
     history.clear()
     saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
@@ -750,21 +714,17 @@ export function useScoresheet() {
     if (persistTimer) clearTimeout(persistTimer)
     persistTimer = setTimeout(() => saveToStorage(store, noJumpMap.value, timeoutMap.value), 300)
   }
+  // Deep-watch the reactive store directly — the `teams`/`teamQuizzers`
+  // computeds track array structure + seatOrder but not per-field edits
+  // like names, onTime, or questionTypes, so we'd miss auto-saves on those.
   watch(
-    [
-      () => answerVersion.value,
-      () => teamVersion.value,
-      noJumpMap,
-      timeoutMap,
-      () => quiz.value.division,
-      () => quiz.value.quizNumber,
-      () => quiz.value.overtime,
-      () => quiz.value.consolation,
-      () => quiz.value.placementFormula,
-      () => quiz.value.bonusRule,
-    ],
+    [() => store.quiz, () => store.teams, () => store.quizzers, noJumpMap, timeoutMap],
     schedulePersist,
+    { deep: true },
   )
+  // `cells` covers answer changes (reactive answerMap reads); outside the
+  // deep-watch because `cells.value` is a fresh array on every invalidation.
+  watch(cells, schedulePersist)
 
   return {
     columns,
@@ -826,8 +786,6 @@ export function useScoresheet() {
     noJumpMap,
     timeoutMap,
     pauseAutoSave,
-    answerVersion,
-    teamVersion,
     loadFile,
     resetStore,
     clearAnswers,
