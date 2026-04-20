@@ -1,3 +1,4 @@
+import { reactive } from 'vue'
 import {
   BonusRule,
   CellValue,
@@ -111,11 +112,16 @@ export interface QuizStore {
 }
 
 export function createQuizStore(): QuizStore {
-  const quiz = createDefaultQuiz()
-  const { teams, quizzers } = createDefaultTeams(quiz.id)
+  // Reactive so consumers (computeds in useScoresheet) re-run when fields/items
+  // change, without needing the composable to bump version refs.
+  const quiz = reactive(createDefaultQuiz())
+  const defaults = createDefaultTeams(quiz.id)
+  const teams = reactive(defaults.teams)
+  const quizzers = reactive(defaults.quizzers)
 
-  // Answers stored in a Map keyed by "quizzerId:columnKey" for O(1) lookup
-  const answerMap = new Map<string, Answer>()
+  // Answers stored in a Map keyed by "quizzerId:columnKey" for O(1) lookup.
+  // Vue's reactive proxy intercepts .get/.set/.delete, so reads track and writes notify.
+  const answerMap = reactive(new Map<string, Answer>())
 
   // Pre-build quizzer lookup by team
   function quizzersByTeam(teamId: number): Quizzer[] {
