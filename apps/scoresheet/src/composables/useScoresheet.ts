@@ -28,7 +28,7 @@ import {
   quizJumpedComplete,
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
-import type { TeamIdx, SeatIdx, ColIdx } from '../types/indices'
+import type { SeatIdx } from '../types/indices'
 import type { DeserializeResult } from '../persistence/quizFile'
 import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/autoSave'
 
@@ -37,8 +37,10 @@ import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/aut
  * (`teamIdx`, `seatIdx`, `colIdx`) are 0-based slots. A "seat" is a position on
  * a team's bench — the occupant can change after a substitution — distinct
  * from a "quizzer," which is a stable person with an immutable `id`. The
- * branded types `TeamIdx` / `SeatIdx` / `ColIdx` keep these straight at
- * compile time; see `../types/indices.ts` for the full explanation.
+ * branded types `TeamIdx` / `SeatIdx` / `ColIdx` live in the scoring/store
+ * layers; the composable's public API takes plain `number` so Vue templates
+ * (which can't carry brands through `v-for`) don't need boundary wrappers.
+ * See `../types/indices.ts` for the full explanation.
  */
 export function useScoresheet() {
   const store = createQuizStore()
@@ -132,7 +134,7 @@ export function useScoresheet() {
   })
 
   /** Set a cell value using positional indices (for UI compatibility) */
-  function setCell(teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx, value: CellValue) {
+  function setCell(teamIdx: number, seatIdx: number, colIdx: number, value: CellValue) {
     const team = teams.value[teamIdx]
     if (!team) return
     const qzrs = store.quizzersByTeam(team.id)
@@ -274,28 +276,28 @@ export function useScoresheet() {
 
   // --- Query helpers (business logic the template needs) ---
 
-  function isBonusForTeam(teamIdx: TeamIdx, colIdx: ColIdx): boolean {
+  function isBonusForTeam(teamIdx: number, colIdx: number): boolean {
     return isBonusSituation(greyedOutResult.value.tossedUp, teamIdx, colIdx, teams.value.length)
   }
 
-  function isGreyedOut(teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx): boolean {
+  function isGreyedOut(teamIdx: number, seatIdx: number, colIdx: number): boolean {
     const d = greyedOutResult.value.disabled
     return d.has(`${teamIdx}:${colIdx}`) || d.has(`${teamIdx}:${seatIdx}:${colIdx}`)
   }
 
-  function isInvalid(teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx): boolean {
+  function isInvalid(teamIdx: number, seatIdx: number, colIdx: number): boolean {
     return validationErrors.value.has(`${teamIdx}:${seatIdx}:${colIdx}`)
   }
 
   /** Get human-readable validation messages for a cell (deduplicated) */
-  function cellValidationMessages(teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx): string[] {
+  function cellValidationMessages(teamIdx: number, seatIdx: number, colIdx: number): string[] {
     const codes = validationErrors.value.get(`${teamIdx}:${seatIdx}:${colIdx}`)
     if (!codes) return []
     return [...new Set(codes.map(validationMessage))]
   }
 
   /** Whether any cell in a column has a validation error */
-  function columnHasErrors(colIdx: ColIdx): boolean {
+  function columnHasErrors(colIdx: number): boolean {
     if (timeoutValidationErrors.value.has(colIdx)) return true
     for (const key of validationErrors.value.keys()) {
       if (key.endsWith(`:${colIdx}`)) return true
@@ -304,7 +306,7 @@ export function useScoresheet() {
   }
 
   /** Get deduplicated validation messages for all cells in a column */
-  function columnValidationMessages(colIdx: ColIdx): string[] {
+  function columnValidationMessages(colIdx: number): string[] {
     const msgs = new Set<string>()
     if (timeoutValidationErrors.value.has(colIdx)) {
       msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
@@ -318,7 +320,7 @@ export function useScoresheet() {
   }
 
   /** Whether any cell for a specific quizzer has a validation error */
-  function quizzerHasErrors(teamIdx: TeamIdx, seatIdx: SeatIdx): boolean {
+  function quizzerHasErrors(teamIdx: number, seatIdx: number): boolean {
     for (const key of validationErrors.value.keys()) {
       if (key.startsWith(`${teamIdx}:${seatIdx}:`)) return true
     }
@@ -326,7 +328,7 @@ export function useScoresheet() {
   }
 
   /** Get deduplicated validation messages for a specific quizzer */
-  function quizzerValidationMessages(teamIdx: TeamIdx, seatIdx: SeatIdx): string[] {
+  function quizzerValidationMessages(teamIdx: number, seatIdx: number): string[] {
     const msgs = new Set<string>()
     for (const [key, codes] of validationErrors.value) {
       if (key.startsWith(`${teamIdx}:${seatIdx}:`)) {
@@ -337,7 +339,7 @@ export function useScoresheet() {
   }
 
   /** Get deduplicated validation messages for all cells in a team */
-  function teamValidationMessages(teamIdx: TeamIdx): string[] {
+  function teamValidationMessages(teamIdx: number): string[] {
     const msgs = new Set<string>()
     if (timeoutErrorsByTeam.value.has(teamIdx)) {
       msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
@@ -353,7 +355,7 @@ export function useScoresheet() {
     return [...msgs]
   }
 
-  function isAfterOut(teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx): boolean {
+  function isAfterOut(teamIdx: number, seatIdx: number, colIdx: number): boolean {
     const qs = scoring.value[teamIdx]?.quizzers[seatIdx]
     if (!qs || qs.outAfterCol < 0 || colIdx <= qs.outAfterCol) return false
     if (cells.value[teamIdx]![seatIdx]![colIdx] !== CellValue.Empty) return false
@@ -364,11 +366,11 @@ export function useScoresheet() {
     return true
   }
 
-  function isFouledOnQuestion(teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx): boolean {
+  function isFouledOnQuestion(teamIdx: number, seatIdx: number, colIdx: number): boolean {
     return greyedOutResult.value.fouledQuizzers.has(`${teamIdx}:${seatIdx}:${colIdx}`)
   }
 
-  function teamHasErrors(teamIdx: TeamIdx): boolean {
+  function teamHasErrors(teamIdx: number): boolean {
     if (timeoutErrorsByTeam.value.has(teamIdx)) return true
     if (tooManyTimeoutsTeams.value.has(teamIdx)) return true
     for (const key of validationErrors.value.keys()) {
@@ -385,7 +387,7 @@ export function useScoresheet() {
   )
 
   /** Get the answer value for a column (first non-empty, non-foul value) */
-  function colAnswerValue(colIdx: ColIdx): CellValue {
+  function colAnswerValue(colIdx: number): CellValue {
     for (const team of cells.value) {
       for (const row of team) {
         const v = row[colIdx] ?? CellValue.Empty
@@ -396,7 +398,7 @@ export function useScoresheet() {
   }
 
   /** Check if a quizzer is an empty seat by positional indices */
-  function isEmptySeat(teamIdx: TeamIdx, seatIdx: SeatIdx): boolean {
+  function isEmptySeat(teamIdx: number, seatIdx: number): boolean {
     const team = teams.value[teamIdx]
     if (!team) return false
     const qzrs = store.quizzersByTeam(team.id)
@@ -405,7 +407,7 @@ export function useScoresheet() {
     return store.isQuizzerUnnamed(qzr.id)
   }
 
-  function noJumpHasConflict(colIdx: ColIdx): boolean {
+  function noJumpHasConflict(colIdx: number): boolean {
     if (!noJumps.value[colIdx]) return false
     // No-jump on an orphaned column is itself invalid
     if (orphanedColumns.value.has(colIdx)) return true
@@ -493,7 +495,7 @@ export function useScoresheet() {
   })
 
   /** Update a team name by positional index */
-  function setTeamName(teamIdx: TeamIdx, name: string) {
+  function setTeamName(teamIdx: number, name: string) {
     const team = teams.value[teamIdx]
     if (!team) return
     store.setTeamName(team.id, name)
@@ -501,16 +503,16 @@ export function useScoresheet() {
   }
 
   /** Move a quizzer within a team by positional indices */
-  function moveQuizzer(teamIdx: TeamIdx, fromSeat: SeatIdx, toSeat: SeatIdx) {
+  function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
     const team = teams.value[teamIdx]
     if (!team) return
-    store.moveQuizzer(team.id, fromSeat, toSeat)
+    store.moveQuizzer(team.id, fromSeat as SeatIdx, toSeat as SeatIdx)
     teamVersion.value++
     answerVersion.value++
   }
 
   /** Update a quizzer name by positional indices */
-  function setQuizzerName(teamIdx: TeamIdx, seatIdx: SeatIdx, name: string) {
+  function setQuizzerName(teamIdx: number, seatIdx: number, name: string) {
     const team = teams.value[teamIdx]
     if (!team) return
     const qzrs = store.quizzersByTeam(team.id)
@@ -521,7 +523,7 @@ export function useScoresheet() {
   }
 
   /** Toggle on-time for a team by index */
-  function toggleOnTime(teamIdx: TeamIdx) {
+  function toggleOnTime(teamIdx: number) {
     const team = teams.value[teamIdx]
     if (!team) return
     team.onTime = !team.onTime
@@ -537,7 +539,7 @@ export function useScoresheet() {
    * → `greyedOutResult`) won't recompute without it. Same pattern repeats in
    * the timeout helpers below.
    */
-  function toggleNoJump(colIdx: ColIdx) {
+  function toggleNoJump(colIdx: number) {
     const key = columns.value[colIdx]?.key
     if (!key) return
     const prev = noJumpMap.value.get(key) ?? false
@@ -675,7 +677,7 @@ export function useScoresheet() {
   }
 
   /** Set the question category for a column by index (null clears it) */
-  function setQuestionType(colIdx: ColIdx, category: QuestionCategory | null) {
+  function setQuestionType(colIdx: number, category: QuestionCategory | null) {
     const col = columns.value[colIdx]
     if (!col) return
     store.setQuestionType(col.key, category)
