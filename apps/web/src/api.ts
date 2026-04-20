@@ -1,10 +1,8 @@
-import { ApiError, createApiClient, MeetRole } from '@qzr/shared'
+import { createApiClient, MeetRole } from '@qzr/shared'
 
 declare const __API_URL__: string
 
 const request = createApiClient(__API_URL__ || '')
-
-export { ApiError }
 
 // ---- Types ----
 

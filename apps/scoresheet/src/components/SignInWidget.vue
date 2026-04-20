@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { useMeetSession } from '../composables/useMeetSession'
 
-const { session, signInGithub, signInGoogle, signInEmail, signUpEmail, signOut } = useAuth()
+const { session, signInSocial, signInEmail, signUpEmail, signOut } = useAuth()
 const { clearSession } = useMeetSession()
 
 const open = ref(false)
@@ -85,7 +85,7 @@ async function doSignOut() {
         <template v-else>
           <!-- Provider pick -->
           <template v-if="mode === 'pick'">
-            <button class="provider-btn" @click="signInGithub">
+            <button class="provider-btn" @click="signInSocial('github')">
               <svg
                 width="15"
                 height="15"
@@ -99,7 +99,7 @@ async function doSignOut() {
               </svg>
               Continue with GitHub
             </button>
-            <button class="provider-btn" @click="signInGoogle">
+            <button class="provider-btn" @click="signInSocial('google')">
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
                 <path
                   fill="#4285F4"

@@ -6,12 +6,8 @@ export function createAppAuthClient(baseURL: string) {
   function useAuth() {
     const session = authClient.useSession()
 
-    function signInGithub() {
-      authClient.signIn.social({ provider: 'github', callbackURL: window.location.href })
-    }
-
-    function signInGoogle() {
-      authClient.signIn.social({ provider: 'google', callbackURL: window.location.href })
+    function signInSocial(provider: 'github' | 'google') {
+      authClient.signIn.social({ provider, callbackURL: window.location.href })
     }
 
     async function signInEmail(email: string, password: string) {
@@ -31,7 +27,7 @@ export function createAppAuthClient(baseURL: string) {
       authClient.signOut()
     }
 
-    return { session, signInGithub, signInGoogle, signInEmail, signUpEmail, signOut }
+    return { session, signInSocial, signInEmail, signUpEmail, signOut }
   }
 
   return { authClient, useAuth }
