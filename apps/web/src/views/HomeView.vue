@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { AccountRole } from '@qzr/shared'
 import { useAuth } from '../composables/useAuth'
 import { getMyMeets, joinMeet, joinMeetGuest, createMeet, type MeetMembership } from '../api'
 
@@ -17,7 +18,9 @@ const submitting = ref(false)
 const codeError = ref('')
 
 const isSuperuser = computed(
-  () => (session.value?.data?.user as Record<string, unknown> | undefined)?.role === 'superuser',
+  () =>
+    (session.value?.data?.user as Record<string, unknown> | undefined)?.role ===
+    AccountRole.Superuser,
 )
 
 const showCreateMeet = ref(false)

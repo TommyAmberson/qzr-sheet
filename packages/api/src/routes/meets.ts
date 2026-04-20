@@ -6,7 +6,7 @@ import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { generateCode, hashCode } from '../lib/codes'
 import * as schema from '../db/schema'
-import { AccountRole } from '@qzr/shared'
+import { AccountRole, MeetRole } from '@qzr/shared'
 
 export interface MeetsVariables extends SessionVariables {
   db: Db
@@ -329,7 +329,7 @@ interface MeetMember {
   userId: string
   name: string
   email: string
-  role: 'admin' | 'head_coach' | 'official' | 'viewer'
+  role: MeetRole
   churchId?: number
   officialCodeId?: number
 }
@@ -357,7 +357,7 @@ meets.get('/:id/members', async (c) => {
     .where(eq(schema.adminMemberships.meetId, meetId))
 
   for (const r of admins) {
-    members.push({ ...r, role: 'admin' })
+    members.push({ ...r, role: MeetRole.Admin })
   }
 
   const coaches = await db
@@ -372,7 +372,7 @@ meets.get('/:id/members', async (c) => {
     .where(eq(schema.coachMemberships.meetId, meetId))
 
   for (const r of coaches) {
-    members.push({ ...r, role: 'head_coach' })
+    members.push({ ...r, role: MeetRole.HeadCoach })
   }
 
   const officials = await db
@@ -387,7 +387,7 @@ meets.get('/:id/members', async (c) => {
     .where(eq(schema.officialMemberships.meetId, meetId))
 
   for (const r of officials) {
-    members.push({ ...r, role: 'official' })
+    members.push({ ...r, role: MeetRole.Official })
   }
 
   const viewers = await db
@@ -401,7 +401,7 @@ meets.get('/:id/members', async (c) => {
     .where(eq(schema.viewerMemberships.meetId, meetId))
 
   for (const r of viewers) {
-    members.push({ ...r, role: 'viewer' })
+    members.push({ ...r, role: MeetRole.Viewer })
   }
 
   return c.json({ members })
@@ -419,14 +419,14 @@ meets.delete('/:id/members/:userId', async (c) => {
   }
 
   const body = await c.req.json<{
-    role: string
+    role: MeetRole
     churchId?: number
     officialCodeId?: number
   }>()
 
   let deleted = 0
 
-  if (body.role === 'admin') {
+  if (body.role === MeetRole.Admin) {
     if (user.role !== AccountRole.Superuser) {
       return c.json({ error: 'Only superusers can revoke admin memberships' }, 403)
     }
@@ -440,7 +440,7 @@ meets.delete('/:id/members/:userId', async (c) => {
       )
       .returning()
     deleted = rows.length
-  } else if (body.role === 'head_coach' && body.churchId) {
+  } else if (body.role === MeetRole.HeadCoach && body.churchId) {
     const rows = await db
       .delete(schema.coachMemberships)
       .where(
@@ -451,7 +451,7 @@ meets.delete('/:id/members/:userId', async (c) => {
       )
       .returning()
     deleted = rows.length
-  } else if (body.role === 'official' && body.officialCodeId) {
+  } else if (body.role === MeetRole.Official && body.officialCodeId) {
     const rows = await db
       .delete(schema.officialMemberships)
       .where(
@@ -463,7 +463,7 @@ meets.delete('/:id/members/:userId', async (c) => {
       )
       .returning()
     deleted = rows.length
-  } else if (body.role === 'viewer') {
+  } else if (body.role === MeetRole.Viewer) {
     const rows = await db
       .delete(schema.viewerMemberships)
       .where(

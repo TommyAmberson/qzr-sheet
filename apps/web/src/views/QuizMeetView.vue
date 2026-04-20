@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { MeetRole } from '@qzr/shared'
 import {
   getMeet,
   getMyMeets,
@@ -38,8 +39,8 @@ const loading = ref(true)
 const error = ref('')
 
 const role = computed(() => membership.value?.role ?? null)
-const isSuperuser = computed(() => role.value === 'superuser')
-const isAdmin = computed(() => role.value === 'admin' || role.value === 'superuser')
+const isSuperuser = computed(() => role.value === MeetRole.Superuser)
+const isAdmin = computed(() => role.value === MeetRole.Admin || role.value === MeetRole.Superuser)
 
 const myCoachChurchIds = ref<Set<number>>(new Set())
 
@@ -293,9 +294,9 @@ async function loadDialogMembers() {
   const res = await listMembers(meetId.value!).catch(() => null)
   if (res) {
     d.members = res.members.filter((m) => {
-      if (d.kind === 'admin') return m.role === 'admin'
-      if (d.kind === 'church') return m.role === 'head_coach' && m.churchId === d.id
-      if (d.kind === 'official') return m.role === 'official' && m.officialCodeId === d.id
+      if (d.kind === 'admin') return m.role === MeetRole.Admin
+      if (d.kind === 'church') return m.role === MeetRole.HeadCoach && m.churchId === d.id
+      if (d.kind === 'official') return m.role === MeetRole.Official && m.officialCodeId === d.id
       return false
     })
   }
