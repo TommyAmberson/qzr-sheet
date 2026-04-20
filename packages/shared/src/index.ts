@@ -9,3 +9,4 @@ export {
 } from './quizFile'
 export type { QuizFile } from './quizFile'
 export { ApiError, createApiClient } from './apiClient'
+export { createAppAuthClient } from './authClient'
