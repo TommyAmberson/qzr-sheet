@@ -74,6 +74,14 @@ packages/
 * Commits should be atomic and self-contained, with conventional commit messages. Commits should not
   be too large or too small. Use branches for larger features or refactors.
 * Work on feature branches, not directly on master. Merge when ready.
+* Commit history should be clean and readable — it's the primary record of why each change happened,
+  so favor history that's easy to follow and easy to bisect.
+* Use merge commits, not squash. When merging a PR, use `gh pr merge <N> --merge --delete-branch`
+  (not `--squash`) — the individual branch commits should land on master so `git log` shows the
+  actual progression.
+* Rewriting history on feature branches is fine and often encouraged (rebase, amend, reorder, squash
+  fixups, force-push with `--force-with-lease`) when it produces a cleaner, more readable series
+  before merging. Never rewrite history on master — once a commit is on master, it stays.
 * Always run pnpm commands from the repo root using root-level aliases (e.g. `pnpm test:unit`, not
   `pnpm --filter scoresheet test:unit`) — keeps commands predictable for auto-approval.
 
