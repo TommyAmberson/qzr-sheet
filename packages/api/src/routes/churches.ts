@@ -664,7 +664,6 @@ churches.post('/churches/:churchId/roster/sync', async (c) => {
     teamIdMap.set(newTeamSlots[idx]!.t.id, team.id)
   })
 
-  // Existing team updates stay serial — typically 0–few edits per sync.
   for (let i = 0; i < body.teams.length; i++) {
     const t = body.teams[i]!
     if (t.id < 0) continue
@@ -682,9 +681,6 @@ churches.post('/churches/:churchId/roster/sync', async (c) => {
 
   const quizzerIdMap = new Map<number, number>() // tempId → realId
 
-  // Collect all new-quizzer slots across teams first, then batch both the
-  // identity rows and the roster rows, pairing identity ids to names by
-  // input-array index.
   const newQuizzerSlots: Array<{ tempId: number; teamId: number; name: string }> = []
   for (const t of body.teams) {
     const realTeamId = t.id > 0 ? t.id : teamIdMap.get(t.id)!
@@ -694,26 +690,10 @@ churches.post('/churches/:churchId/roster/sync', async (c) => {
       }
     }
   }
-  const newIdentities =
-    newQuizzerSlots.length > 0
-      ? await db
-          .insert(schema.quizzerIdentities)
-          .values(Array.from({ length: newQuizzerSlots.length }, () => ({})))
-          .returning()
-      : []
-  const newRosterRows = newQuizzerSlots.map((slot, idx) => ({
-    teamId: slot.teamId,
-    quizzerId: newIdentities[idx]!.id,
-    name: slot.name,
-  }))
-  if (newRosterRows.length > 0) await db.insert(schema.teamRosters).values(newRosterRows)
-  newQuizzerSlots.forEach((slot, idx) => {
-    quizzerIdMap.set(slot.tempId, newIdentities[idx]!.id)
-  })
+  const newIdentityIds = await batchCreateQuizzers(db, newQuizzerSlots)
+  newQuizzerSlots.forEach((slot, idx) => quizzerIdMap.set(slot.tempId, newIdentityIds[idx]!))
 
-  // Moves and renames stay serial — bounded by the number of actual changes,
-  // not the total roster size, and batching UPDATE would need CASE WHEN SQL
-  // that's harder to audit than this per-row form.
+  // Serial updates: bounded by actual changes; batching would need CASE WHEN SQL.
   for (const t of body.teams) {
     const realTeamId = t.id > 0 ? t.id : teamIdMap.get(t.id)!
     for (const q of t.quizzers) {
@@ -975,16 +955,12 @@ churches.post('/meets/:meetId/roster/import', async (c) => {
     }
   }
 
-  // Decide new teams + names up front, then write in three batched phases:
-  // (1) insert all teams, (2) allocate all identities, (3) insert all rosters
-  // pairing identity ids to names by input-array index.
-  const teamInserts: Array<{
-    meetId: number
-    churchId: number
-    division: string
-    number: number
+  // Decide new teams + their quizzer lists up front, then write in two phases:
+  // (1) batch-insert teams, (2) batch-create quizzers pairing identity ids by slot.
+  const teamPlans: Array<{
+    insert: { meetId: number; churchId: number; division: string; number: number }
+    names: string[]
   }> = []
-  const namesPerTeamSlot: string[][] = []
   for (const { key, quizzerNames } of teamGroupMap.values()) {
     const existing = existingTeamRosters.get(key.churchId) ?? []
     const isDuplicate = existing.some(
@@ -997,38 +973,61 @@ churches.post('/meets/:meetId/roster/import', async (c) => {
 
     const number = nextNumberByChurch.get(key.churchId)!
     nextNumberByChurch.set(key.churchId, number + 1)
-    teamInserts.push({ meetId, churchId: key.churchId, division: key.division, number })
-    namesPerTeamSlot.push(quizzerNames)
+    teamPlans.push({
+      insert: { meetId, churchId: key.churchId, division: key.division, number },
+      names: quizzerNames,
+    })
   }
 
   const insertedTeams =
-    teamInserts.length > 0 ? await db.insert(schema.teams).values(teamInserts).returning() : []
-
-  const totalQuizzers = namesPerTeamSlot.reduce((sum, ns) => sum + ns.length, 0)
-  const identities =
-    totalQuizzers > 0
+    teamPlans.length > 0
       ? await db
-          .insert(schema.quizzerIdentities)
-          .values(Array.from({ length: totalQuizzers }, () => ({})))
+          .insert(schema.teams)
+          .values(teamPlans.map((p) => p.insert))
           .returning()
       : []
 
-  const rosterRows: Array<{ teamId: number; quizzerId: number; name: string }> = []
-  let idCursor = 0
-  insertedTeams.forEach((team, slot) => {
-    for (const name of namesPerTeamSlot[slot]!) {
-      rosterRows.push({ teamId: team.id, quizzerId: identities[idCursor++]!.id, name })
+  const quizzerSlots: Array<{ teamId: number; name: string }> = []
+  insertedTeams.forEach((team, idx) => {
+    for (const name of teamPlans[idx]!.names) {
+      quizzerSlots.push({ teamId: team.id, name })
     }
   })
-  if (rosterRows.length > 0) await db.insert(schema.teamRosters).values(rosterRows)
+  await batchCreateQuizzers(db, quizzerSlots)
 
   return c.json(
-    { churchesCreated, teamsCreated: insertedTeams.length, quizzersAdded: rosterRows.length },
+    { churchesCreated, teamsCreated: insertedTeams.length, quizzersAdded: quizzerSlots.length },
     201,
   )
 })
 
 // ---- Helpers ----
+
+/**
+ * Create N new quizzers in two batched writes: allocate identities, then insert
+ * rosters pairing each identity id to its slot by input-array index.
+ *
+ * The pairing is the invariant: `slots[i]` receives `identities[i].id`. Drizzle
+ * preserves input order in `.returning()` so this holds as long as both calls
+ * complete successfully. The roster/import pairing test exercises this end-to-end.
+ */
+async function batchCreateQuizzers(
+  db: Db,
+  slots: Array<{ teamId: number; name: string }>,
+): Promise<number[]> {
+  if (slots.length === 0) return []
+  const identities = await db
+    .insert(schema.quizzerIdentities)
+    .values(Array.from({ length: slots.length }, () => ({})))
+    .returning()
+  const rosterRows = slots.map((slot, idx) => ({
+    teamId: slot.teamId,
+    quizzerId: identities[idx]!.id,
+    name: slot.name,
+  }))
+  await db.insert(schema.teamRosters).values(rosterRows)
+  return identities.map((i) => i.id)
+}
 
 async function getTeamWithChurch(
   db: Db,
