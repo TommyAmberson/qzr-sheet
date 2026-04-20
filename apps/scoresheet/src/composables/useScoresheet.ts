@@ -431,7 +431,11 @@ export function useScoresheet() {
     )
   })
 
-  /** Grow internal allocation when more rounds are needed */
+  /**
+   * Grow-only: once we've allocated columns for round N we keep them. Shrinking
+   * would silently drop user-entered answers in later rounds when the visible
+   * window contracts (e.g. after deleting a tie-breaking answer).
+   */
   watch(visibleOtRounds, (needed) => {
     if (needed > internalOtRounds.value) {
       internalOtRounds.value = needed
@@ -524,7 +528,15 @@ export function useScoresheet() {
     teamVersion.value++
   }
 
-  /** Toggle no-jump for a column by key */
+  /**
+   * Toggle no-jump for a column by key.
+   *
+   * The `noJumpMap.value = new Map(noJumpMap.value)` reassignment after each
+   * `.set()` is intentional: Vue's `ref(Map)` only tracks ref reassignment, not
+   * in-place Map mutation, so consumers (`noJumps` computed → `otIneligibility`
+   * → `greyedOutResult`) won't recompute without it. Same pattern repeats in
+   * the timeout helpers below.
+   */
   function toggleNoJump(colIdx: ColIdx) {
     const key = columns.value[colIdx]?.key
     if (!key) return
@@ -636,7 +648,6 @@ export function useScoresheet() {
     const current = teamTimeouts(teamId)
     const existingIdx = current.findIndex((t) => t.afterColumnKey === columnKey)
     if (existingIdx >= 0) {
-      // Remove it
       const snapshot = snapshotTimeouts()
       const next = current.filter((_, i) => i !== existingIdx)
       timeoutMap.value.set(teamId, next)
