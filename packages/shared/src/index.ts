@@ -8,3 +8,4 @@ export {
   QuestionCategory,
 } from './quizFile'
 export type { QuizFile } from './quizFile'
+export { ApiError, createApiClient } from './apiClient'
