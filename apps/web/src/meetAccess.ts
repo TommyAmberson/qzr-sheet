@@ -1,10 +1,11 @@
+import { AccountRole, MeetRole } from '@qzr/shared'
 import type { MeetMembership } from './api'
 
 /** Church IDs the current user coaches in a given meet. */
 export function coachChurchIds(memberships: MeetMembership[], meetId: number): Set<number> {
   return new Set(
     memberships
-      .filter((m) => m.meetId === meetId && m.role === 'head_coach' && m.churchId != null)
+      .filter((m) => m.meetId === meetId && m.role === MeetRole.HeadCoach && m.churchId != null)
       .map((m) => m.churchId!),
   )
 }
@@ -12,8 +13,8 @@ export function coachChurchIds(memberships: MeetMembership[], meetId: number): S
 /**
  * Whether the user has admin-level access for a meet.
  *
- * True when the account-level role is `'superuser'` OR any membership
- * for the meet has the `'admin'` role.
+ * True when the account-level role is superuser OR any membership
+ * for the meet has the admin role.
  */
 export function isAdminOrSuperuser(
   memberships: MeetMembership[],
@@ -21,8 +22,8 @@ export function isAdminOrSuperuser(
   accountRole: string | undefined,
 ): boolean {
   return (
-    accountRole === 'superuser' ||
-    memberships.some((m) => m.meetId === meetId && m.role === 'admin')
+    accountRole === AccountRole.Superuser ||
+    memberships.some((m) => m.meetId === meetId && m.role === MeetRole.Admin)
   )
 }
 

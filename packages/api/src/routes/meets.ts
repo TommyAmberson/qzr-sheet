@@ -6,7 +6,7 @@ import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { generateCode, hashCode } from '../lib/codes'
 import * as schema from '../db/schema'
-import { AccountRole } from '@qzr/shared'
+import { AccountRole, MeetRole } from '@qzr/shared'
 
 export interface MeetsVariables extends SessionVariables {
   db: Db
@@ -329,7 +329,7 @@ interface MeetMember {
   userId: string
   name: string
   email: string
-  role: 'admin' | 'head_coach' | 'official' | 'viewer'
+  role: MeetRole
   churchId?: number
   officialCodeId?: number
 }
@@ -344,65 +344,53 @@ meets.get('/:id/members', async (c) => {
     return c.json({ error: 'Admin or superuser access required' }, 403)
   }
 
-  const members: MeetMember[] = []
+  const [admins, coaches, officials, viewers] = await Promise.all([
+    db
+      .select({
+        userId: schema.adminMemberships.accountId,
+        name: schema.user.name,
+        email: schema.user.email,
+      })
+      .from(schema.adminMemberships)
+      .innerJoin(schema.user, eq(schema.adminMemberships.accountId, schema.user.id))
+      .where(eq(schema.adminMemberships.meetId, meetId)),
+    db
+      .select({
+        userId: schema.coachMemberships.accountId,
+        name: schema.user.name,
+        email: schema.user.email,
+        churchId: schema.coachMemberships.churchId,
+      })
+      .from(schema.coachMemberships)
+      .innerJoin(schema.user, eq(schema.coachMemberships.accountId, schema.user.id))
+      .where(eq(schema.coachMemberships.meetId, meetId)),
+    db
+      .select({
+        userId: schema.officialMemberships.accountId,
+        name: schema.user.name,
+        email: schema.user.email,
+        officialCodeId: schema.officialMemberships.officialCodeId,
+      })
+      .from(schema.officialMemberships)
+      .innerJoin(schema.user, eq(schema.officialMemberships.accountId, schema.user.id))
+      .where(eq(schema.officialMemberships.meetId, meetId)),
+    db
+      .select({
+        userId: schema.viewerMemberships.accountId,
+        name: schema.user.name,
+        email: schema.user.email,
+      })
+      .from(schema.viewerMemberships)
+      .innerJoin(schema.user, eq(schema.viewerMemberships.accountId, schema.user.id))
+      .where(eq(schema.viewerMemberships.meetId, meetId)),
+  ])
 
-  const admins = await db
-    .select({
-      userId: schema.adminMemberships.accountId,
-      name: schema.user.name,
-      email: schema.user.email,
-    })
-    .from(schema.adminMemberships)
-    .innerJoin(schema.user, eq(schema.adminMemberships.accountId, schema.user.id))
-    .where(eq(schema.adminMemberships.meetId, meetId))
-
-  for (const r of admins) {
-    members.push({ ...r, role: 'admin' })
-  }
-
-  const coaches = await db
-    .select({
-      userId: schema.coachMemberships.accountId,
-      name: schema.user.name,
-      email: schema.user.email,
-      churchId: schema.coachMemberships.churchId,
-    })
-    .from(schema.coachMemberships)
-    .innerJoin(schema.user, eq(schema.coachMemberships.accountId, schema.user.id))
-    .where(eq(schema.coachMemberships.meetId, meetId))
-
-  for (const r of coaches) {
-    members.push({ ...r, role: 'head_coach' })
-  }
-
-  const officials = await db
-    .select({
-      userId: schema.officialMemberships.accountId,
-      name: schema.user.name,
-      email: schema.user.email,
-      officialCodeId: schema.officialMemberships.officialCodeId,
-    })
-    .from(schema.officialMemberships)
-    .innerJoin(schema.user, eq(schema.officialMemberships.accountId, schema.user.id))
-    .where(eq(schema.officialMemberships.meetId, meetId))
-
-  for (const r of officials) {
-    members.push({ ...r, role: 'official' })
-  }
-
-  const viewers = await db
-    .select({
-      userId: schema.viewerMemberships.accountId,
-      name: schema.user.name,
-      email: schema.user.email,
-    })
-    .from(schema.viewerMemberships)
-    .innerJoin(schema.user, eq(schema.viewerMemberships.accountId, schema.user.id))
-    .where(eq(schema.viewerMemberships.meetId, meetId))
-
-  for (const r of viewers) {
-    members.push({ ...r, role: 'viewer' })
-  }
+  const members: MeetMember[] = [
+    ...admins.map((r) => ({ ...r, role: MeetRole.Admin })),
+    ...coaches.map((r) => ({ ...r, role: MeetRole.HeadCoach })),
+    ...officials.map((r) => ({ ...r, role: MeetRole.Official })),
+    ...viewers.map((r) => ({ ...r, role: MeetRole.Viewer })),
+  ]
 
   return c.json({ members })
 })
@@ -419,14 +407,14 @@ meets.delete('/:id/members/:userId', async (c) => {
   }
 
   const body = await c.req.json<{
-    role: string
+    role: MeetRole
     churchId?: number
     officialCodeId?: number
   }>()
 
   let deleted = 0
 
-  if (body.role === 'admin') {
+  if (body.role === MeetRole.Admin) {
     if (user.role !== AccountRole.Superuser) {
       return c.json({ error: 'Only superusers can revoke admin memberships' }, 403)
     }
@@ -440,7 +428,7 @@ meets.delete('/:id/members/:userId', async (c) => {
       )
       .returning()
     deleted = rows.length
-  } else if (body.role === 'head_coach' && body.churchId) {
+  } else if (body.role === MeetRole.HeadCoach && body.churchId) {
     const rows = await db
       .delete(schema.coachMemberships)
       .where(
@@ -451,7 +439,7 @@ meets.delete('/:id/members/:userId', async (c) => {
       )
       .returning()
     deleted = rows.length
-  } else if (body.role === 'official' && body.officialCodeId) {
+  } else if (body.role === MeetRole.Official && body.officialCodeId) {
     const rows = await db
       .delete(schema.officialMemberships)
       .where(
@@ -463,7 +451,7 @@ meets.delete('/:id/members/:userId', async (c) => {
       )
       .returning()
     deleted = rows.length
-  } else if (body.role === 'viewer') {
+  } else if (body.role === MeetRole.Viewer) {
     const rows = await db
       .delete(schema.viewerMemberships)
       .where(

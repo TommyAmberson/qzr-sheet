@@ -65,6 +65,28 @@ export function useScoresheet() {
   /** Timeouts per team — 0 to MAX_TIMEOUTS_PER_TEAM entries per team */
   const timeoutMap = ref(new Map<number, Timeout[]>())
 
+  /**
+   * Recover the OT-rounds count from a freshly loaded quiz: with regulation-only
+   * columns we ask the scorer how many OT rounds the saved answers actually need.
+   */
+  function computeInitialOtRounds(
+    overtime: boolean,
+    loadedTeams: { onTime: boolean }[],
+    loadedNoJumps: Map<string, boolean>,
+  ): number {
+    if (!overtime) return 1
+    const cols = buildColumns(20)
+    return Math.max(
+      1,
+      computeOvertimeRounds(
+        store.cellGrid(cols),
+        cols,
+        loadedTeams.map((t) => t.onTime),
+        cols.map((c) => loadedNoJumps.get(c.key) ?? false),
+      ),
+    )
+  }
+
   // --- Restore persisted state from localStorage ---
   const restored = loadFromStorage()
   if (restored) {
@@ -72,17 +94,11 @@ export function useScoresheet() {
     quiz.value = store.quiz
     noJumpMap.value = restored.noJumps
     timeoutMap.value = restored.timeouts
-    internalOtRounds.value = restored.quiz.overtime
-      ? Math.max(
-          1,
-          computeOvertimeRounds(
-            store.cellGrid(buildColumns(20)),
-            buildColumns(20),
-            restored.teams.map((t) => t.onTime),
-            buildColumns(20).map((c) => restored.noJumps.get(c.key) ?? false),
-          ),
-        )
-      : 1
+    internalOtRounds.value = computeInitialOtRounds(
+      restored.quiz.overtime,
+      restored.teams,
+      restored.noJumps,
+    )
     if (restored.answers.length > 0 || restored.quizzers.some((q) => q.name.trim())) {
       history.push({ undo: () => {}, redo: () => {} })
     }
@@ -415,7 +431,11 @@ export function useScoresheet() {
     )
   })
 
-  /** Grow internal allocation when more rounds are needed */
+  /**
+   * Grow-only: once we've allocated columns for round N we keep them. Shrinking
+   * would silently drop user-entered answers in later rounds when the visible
+   * window contracts (e.g. after deleting a tie-breaking answer).
+   */
   watch(visibleOtRounds, (needed) => {
     if (needed > internalOtRounds.value) {
       internalOtRounds.value = needed
@@ -508,7 +528,15 @@ export function useScoresheet() {
     teamVersion.value++
   }
 
-  /** Toggle no-jump for a column by key */
+  /**
+   * Toggle no-jump for a column by key.
+   *
+   * The `noJumpMap.value = new Map(noJumpMap.value)` reassignment after each
+   * `.set()` is intentional: Vue's `ref(Map)` only tracks ref reassignment, not
+   * in-place Map mutation, so consumers (`noJumps` computed → `otIneligibility`
+   * → `greyedOutResult`) won't recompute without it. Same pattern repeats in
+   * the timeout helpers below.
+   */
   function toggleNoJump(colIdx: ColIdx) {
     const key = columns.value[colIdx]?.key
     if (!key) return
@@ -620,7 +648,6 @@ export function useScoresheet() {
     const current = teamTimeouts(teamId)
     const existingIdx = current.findIndex((t) => t.afterColumnKey === columnKey)
     if (existingIdx >= 0) {
-      // Remove it
       const snapshot = snapshotTimeouts()
       const next = current.filter((_, i) => i !== existingIdx)
       timeoutMap.value.set(teamId, next)
@@ -661,17 +688,7 @@ export function useScoresheet() {
     quiz.value = store.quiz
     noJumpMap.value = data.noJumps
     timeoutMap.value = data.timeouts
-    internalOtRounds.value = data.quiz.overtime
-      ? Math.max(
-          1,
-          computeOvertimeRounds(
-            store.cellGrid(buildColumns(20)),
-            buildColumns(20),
-            data.teams.map((t) => t.onTime),
-            buildColumns(20).map((c) => data.noJumps.get(c.key) ?? false),
-          ),
-        )
-      : 1
+    internalOtRounds.value = computeInitialOtRounds(data.quiz.overtime, data.teams, data.noJumps)
     answerVersion.value++
     teamVersion.value++
     history.clear()

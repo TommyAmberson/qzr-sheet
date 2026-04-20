@@ -196,7 +196,10 @@ export function computeGreyedOut(
     }
   }
 
-  // Flatten tossedUp array into a single Set of "teamIdx:colIdx" for easy lookup
+  // Two views of the same data: the per-column `tossedUp` array drives the
+  // forward propagation above, while this flat Set lets downstream callers
+  // (validation, isBonusForTeam, the composable) check arbitrary (team, col)
+  // pairs in O(1) without needing the colIdx-indexed structure.
   const tossedUpSet = new Set<string>()
   for (let colIdx = 0; colIdx < cols.length; colIdx++) {
     for (const teamIdxStr of tossedUp[colIdx]!) {

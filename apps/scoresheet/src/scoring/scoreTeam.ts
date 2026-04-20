@@ -159,7 +159,6 @@ export function scoreTeam(
         if (col.isErrorPoints) {
           deduct = true
         } else if (qError[seatIdx]! >= 2) {
-          // 2nd+ individual error
           deduct = true
         } else if (teamErrors >= 3 && qError[seatIdx] === 1) {
           // 3rd+ team error, but this is the quizzer's 1st error

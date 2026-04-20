@@ -69,9 +69,11 @@ packages/
 * Column keys: `"1"`–`"15"`, `"16"`/`"16A"`/`"16B"` through `"20B"`, `"21"`+ for overtime.
 * Tests live in `__tests__/` subdirectories next to the code they test.
 * Slight preference for writing tests before features.
-* Redundant comments are not helpful. Only comment to explain "why" or complex logic.
+* Redundant comments are not helpful. Comments that simply say "what" is happening when the code is
+  obvious should be extremely brief or omitted. Prefer comments that explain "why" or complex logic.
 * Commits should be atomic and self-contained, with conventional commit messages. Commits should not
   be too large or too small. Use branches for larger features or refactors.
+* Work on feature branches, not directly on master. Merge when ready.
 * Always run pnpm commands from the repo root using root-level aliases (e.g. `pnpm test:unit`, not
   `pnpm --filter scoresheet test:unit`) — keeps commands predictable for auto-approval.
 

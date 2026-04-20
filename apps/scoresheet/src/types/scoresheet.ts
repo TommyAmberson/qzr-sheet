@@ -1,25 +1,12 @@
-export enum CellValue {
-  Correct = 'c',
-  Error = 'e',
-  Foul = 'f',
-  Bonus = 'b',
-  MissedBonus = 'mb',
-  Empty = '',
-}
+import { BonusRule, CellValue, PlacementFormula, QuestionCategory } from '@qzr/shared'
 
+export { BonusRule, CellValue, PlacementFormula, QuestionCategory }
+
+/** Sub-column kind within a question (Normal / A / B). Distinct from `QuestionCategory`. */
 export enum QuestionType {
   Normal = '',
   A = 'A',
   B = 'B',
-}
-
-export enum QuestionCategory {
-  INT = 'INT',
-  FTV = 'FTV',
-  REF = 'REF',
-  MA = 'MA',
-  Q = 'Q',
-  SIT = 'SIT',
 }
 
 /**
@@ -28,18 +15,6 @@ export enum QuestionCategory {
  * 2 = solo 2nd, 2.2 = two-way tie for 2nd, 3 = solo 3rd.
  */
 export type PlaceKey = 1 | 1.2 | 1.3 | 2 | 2.2 | 3
-
-export enum PlacementFormula {
-  /** Official rulebook: 1st=score/10, 2nd=score/10−1, 3rd=score/10−2; friendly ties */
-  Rules = 'rules',
-  /** Pre-2023 spreadsheet formula: 1st=score/10+2, 2nd=score/10, 3rd=score/10−1 */
-  Legacy = 'legacy',
-}
-
-export enum BonusRule {
-  Team = 'team',
-  Seat = 'seat',
-}
 
 export interface Quiz {
   id: number

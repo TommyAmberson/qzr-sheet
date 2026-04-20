@@ -675,30 +675,40 @@ function headerClass(colIdx: number): string {
   return classes.join(' ')
 }
 
-function colGroupClass(colIdx: number): string {
-  const col = columns.value[colIdx]
-  if (!col) return ''
-
-  const classes: string[] = []
+// Class string per column, called from 7 template sections per render.
+// Memoize once per column-list change instead of recomputing for each section.
+const colGroupClassMap = computed<Map<number, string>>(() => {
+  const map = new Map<number, string>()
   const dc = displayColumns.value
-  if (dc[dc.length - 1]?.idx === colIdx) classes.push('col--last')
-  if (!col.isOvertime && roundEndIndices.value.has(colIdx)) classes.push('col--reg-last')
-
-  if (col.isOvertime) {
-    if (col.type === QuestionType.Normal && (col.number - 21) % 3 === 0) {
-      classes.push(
-        col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start',
-      )
-    } else if (roundEndIndices.value.has(colIdx)) {
-      classes.push('col--overtime col--ot-round-end')
-    } else {
-      classes.push('col--overtime')
+  const cols = columns.value
+  const roundEnds = roundEndIndices.value
+  const lastIdx = dc[dc.length - 1]?.idx
+  for (const { idx } of dc) {
+    const col = cols[idx]
+    if (!col) continue
+    const classes: string[] = []
+    if (idx === lastIdx) classes.push('col--last')
+    if (!col.isOvertime && roundEnds.has(idx)) classes.push('col--reg-last')
+    if (col.isOvertime) {
+      if (col.type === QuestionType.Normal && (col.number - 21) % 3 === 0) {
+        classes.push(
+          col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start',
+        )
+      } else if (roundEnds.has(idx)) {
+        classes.push('col--overtime col--ot-round-end')
+      } else {
+        classes.push('col--overtime')
+      }
+    } else if (col.isAB && col.isErrorPoints) {
+      classes.push('col--ab')
     }
-  } else if (col.isAB && col.isErrorPoints) {
-    classes.push('col--ab')
+    map.set(idx, classes.join(' '))
   }
+  return map
+})
 
-  return classes.join(' ')
+function colGroupClass(colIdx: number): string {
+  return colGroupClassMap.value.get(colIdx) ?? ''
 }
 
 declare const __APP_VERSION__: string

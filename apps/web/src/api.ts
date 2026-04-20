@@ -1,3 +1,5 @@
+import { MeetRole } from '@qzr/shared'
+
 declare const __API_URL__: string
 
 const baseUrl = __API_URL__ || ''
@@ -54,7 +56,7 @@ export interface MeetMembership {
   meetId: number
   meetName: string
   viewerCode: string
-  role: 'admin' | 'head_coach' | 'official' | 'viewer' | 'superuser'
+  role: MeetRole
   label?: string
   churchId?: number
 }
@@ -141,7 +143,7 @@ export function rotateOfficialCode(
 
 export function joinMeet(
   code: string,
-): Promise<{ meet: { id: number; name: string }; role: string; label?: string }> {
+): Promise<{ meet: { id: number; name: string }; role: MeetRole; label?: string }> {
   return request('/api/join', {
     method: 'POST',
     body: JSON.stringify({ code }),
@@ -150,7 +152,7 @@ export function joinMeet(
 
 export function joinMeetGuest(
   code: string,
-): Promise<{ token: string; meet: { id: number; name: string }; role: string; label?: string }> {
+): Promise<{ token: string; meet: { id: number; name: string }; role: MeetRole; label?: string }> {
   return request('/api/join/guest', {
     method: 'POST',
     body: JSON.stringify({ code }),
@@ -167,7 +169,7 @@ export interface MeetMember {
   userId: string
   name: string
   email: string
-  role: 'admin' | 'head_coach' | 'official' | 'viewer'
+  role: MeetRole
   churchId?: number
   officialCodeId?: number
 }
@@ -179,7 +181,7 @@ export function listMembers(meetId: number): Promise<{ members: MeetMember[] }> 
 export function revokeMember(
   meetId: number,
   userId: string,
-  scope: { role: string; churchId?: number; officialCodeId?: number },
+  scope: { role: MeetRole; churchId?: number; officialCodeId?: number },
 ): Promise<{ deleted: true }> {
   return request(`/api/meets/${meetId}/members/${userId}`, {
     method: 'DELETE',
