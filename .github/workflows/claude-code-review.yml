@@ -22,15 +22,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
-      issues: read
+      # write so the action can post review comments + check runs
+      pull-requests: write
+      issues: write
       id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0 # need full history for git blame / log lookups during review
 
       - name: Run Claude Code Review
         id: claude-review
@@ -42,6 +43,7 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
+          # Tools the /code-review:code-review skill needs to inspect the PR + post results.
+          # Without this the SDK denied the gh calls and no review was posted.
+          claude_args: '--allowed-tools "Read,Grep,Glob,Bash(gh:*),Bash(git:*)"'
 
