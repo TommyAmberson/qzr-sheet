@@ -77,3 +77,4 @@ src-tauri/icons/favicon.ico
 # Git worktrees
 .worktrees/
 
+.claude/scheduled_tasks.lock

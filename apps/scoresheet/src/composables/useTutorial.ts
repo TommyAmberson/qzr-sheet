@@ -12,8 +12,6 @@ export interface ScoresheetAPI {
   noJumpMap: { value: Map<string, boolean> }
   timeoutMap: { value: Map<number, Timeout[]> }
   pauseAutoSave: { value: boolean }
-  answerVersion: { value: number }
-  teamVersion: { value: number }
   cells: { value: CellValue[][][] }
   teams: { value: { id: number; seatOrder: number; name: string; onTime: boolean }[] }
   teamQuizzers: { value: { name: string; seatOrder: number }[][] }
@@ -162,9 +160,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       const values = Array.isArray(value) ? value : [value]
       cleanupFns.push(
         watch(
-          () => scoresheet.answerVersion.value,
-          () => {
-            const cellVal = scoresheet.cells.value[teamIdx]?.[seatIdx]?.[colIdx]
+          () => scoresheet.cells.value[teamIdx]?.[seatIdx]?.[colIdx],
+          (cellVal) => {
             if (cellVal !== undefined && values.includes(cellVal)) advance()
           },
           { flush: 'post' },
@@ -181,23 +178,19 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
         firstEl.select()
       }
       // Watch for name change → mark completed
+      const nameSource =
+        seatIdx !== undefined
+          ? () => scoresheet.teamQuizzers.value[teamIdx]?.[seatIdx]?.name ?? ''
+          : () => scoresheet.teams.value[teamIdx]?.name ?? ''
+      const placeholder = seatIdx !== undefined ? `Quizzer ${seatIdx + 1}` : `Team ${teamIdx + 1}`
       cleanupFns.push(
-        watch(
-          () => scoresheet.teamVersion.value,
-          () => {
-            const changed =
-              seatIdx !== undefined
-                ? (() => {
-                    const name = scoresheet.teamQuizzers.value[teamIdx]?.[seatIdx]?.name ?? ''
-                    return name.trim() !== '' && name !== `Quizzer ${seatIdx + 1}`
-                  })()
-                : (() => {
-                    const team = scoresheet.teams.value[teamIdx]
-                    return !!team && team.name !== `Team ${teamIdx + 1}`
-                  })()
-            if (changed) stepCompleted.value = true
-          },
-        ),
+        watch(nameSource, (name) => {
+          const changed =
+            seatIdx !== undefined
+              ? name.trim() !== '' && name !== placeholder
+              : name !== placeholder
+          if (changed) stepCompleted.value = true
+        }),
       )
       // Blur advances if name was changed
       if (firstEl instanceof HTMLInputElement) {
@@ -215,9 +208,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       const { teamIdx, seatIdx } = completion
       cleanupFns.push(
         watch(
-          () => scoresheet.teamVersion.value,
-          () => {
-            const name = scoresheet.teamQuizzers.value[teamIdx]?.[seatIdx]?.name ?? 'x'
+          () => scoresheet.teamQuizzers.value[teamIdx]?.[seatIdx]?.name ?? 'x',
+          (name) => {
             if (!name.trim()) advance()
           },
         ),
@@ -249,10 +241,12 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       const initialNames = scoresheet.teamQuizzers.value[teamIdx]?.map((q) => q.name) ?? []
       cleanupFns.push(
         watch(
-          () => scoresheet.teamVersion.value,
-          () => {
-            const currentNames = scoresheet.teamQuizzers.value[teamIdx]?.map((q) => q.name) ?? []
-            if (JSON.stringify(currentNames) !== JSON.stringify(initialNames)) advance()
+          () => scoresheet.teamQuizzers.value[teamIdx]?.map((q) => q.name) ?? [],
+          (currentNames) => {
+            const changed =
+              currentNames.length !== initialNames.length ||
+              currentNames.some((n, i) => n !== initialNames[i])
+            if (changed) advance()
           },
         ),
       )
