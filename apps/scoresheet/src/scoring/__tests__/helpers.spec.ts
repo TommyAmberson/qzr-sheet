@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue } from '../../types/scoresheet'
+import { toTeamIdx } from '../../types/indices'
 import {
   isAnswer,
   isResolved,
@@ -203,42 +204,45 @@ describe('colHasAnyContent', () => {
 })
 
 describe('isBonusSituation', () => {
+  // tossedUp is now per-column: tossedUp[colIdx] is the set of teams tossed up on that column.
+  const teams = (...ts: number[]) => new Set(ts.map(toTeamIdx))
+
   // 3-team quiz: team X is in bonus if the other 2 teams are tossed up on that column.
   it('returns true when all other teams are tossed up', () => {
-    const tossedUp = new Set(['1:0', '2:0'])
+    const tossedUp = [teams(1, 2)]
     expect(isBonusSituation(tossedUp, 0, 0, 3)).toBe(true)
   })
 
   it('returns false when only one other team is tossed up', () => {
-    const tossedUp = new Set(['1:0'])
+    const tossedUp = [teams(1)]
     expect(isBonusSituation(tossedUp, 0, 0, 3)).toBe(false)
   })
 
   it('returns false when no other team is tossed up', () => {
-    expect(isBonusSituation(new Set(), 0, 0, 3)).toBe(false)
+    expect(isBonusSituation([teams()], 0, 0, 3)).toBe(false)
   })
 
   it('does not count the checked team itself as tossed up', () => {
     // Team 0 tossed up — but we are checking if team 0 is in a bonus situation
-    const tossedUp = new Set(['0:0', '1:0'])
+    const tossedUp = [teams(0, 1)]
     // Team 2 needs to be tossed up for team 0 to be in bonus; only 1 other team is
     expect(isBonusSituation(tossedUp, 0, 0, 3)).toBe(false)
   })
 
   it('checks the correct column index', () => {
     // Teams 1 and 2 tossed up on col 1, not col 0
-    const tossedUp = new Set(['1:1', '2:1'])
+    const tossedUp = [teams(), teams(1, 2)]
     expect(isBonusSituation(tossedUp, 0, 0, 3)).toBe(false)
     expect(isBonusSituation(tossedUp, 0, 1, 3)).toBe(true)
   })
 
   it('works correctly for team 1 as the bonus team', () => {
-    const tossedUp = new Set(['0:0', '2:0'])
+    const tossedUp = [teams(0, 2)]
     expect(isBonusSituation(tossedUp, 1, 0, 3)).toBe(true)
   })
 
   it('works correctly for a 2-team quiz', () => {
-    const tossedUp = new Set(['1:0'])
+    const tossedUp = [teams(1)]
     expect(isBonusSituation(tossedUp, 0, 0, 2)).toBe(true)
   })
 })

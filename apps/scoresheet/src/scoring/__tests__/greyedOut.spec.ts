@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { BonusRule, CellValue, buildColumns } from '../../types/scoresheet'
-import { computeGreyedOut } from '../greyedOut'
+import { computeGreyedOut, type GreyedOutResult } from '../greyedOut'
 import { ColStatus } from '../helpers'
 import { computeOtIneligibility } from '../overtime'
+import { teamSeatKey, toSeatIdx, toTeamIdx } from '../../types/indices'
 
 const columns = buildColumns()
 const C = CellValue.Correct
@@ -19,21 +20,23 @@ function colIdxOf(key: string): number {
   return idx
 }
 
-/** Helper: check if a team is greyed at a column */
-function isGreyed(result: { disabled: Set<string> }, teamIdx: number, colIdx: number): boolean {
-  return result.disabled.has(`${teamIdx}:${colIdx}`)
+/** Helper: check if a team is greyed at the team level on a column. */
+function isGreyed(result: GreyedOutResult, teamIdx: number, colIdx: number): boolean {
+  return result.disabledTeams[colIdx]?.has(toTeamIdx(teamIdx)) ?? false
 }
 
 /** Helper: check if a column is a bonus for a team (other 2 teams tossed-up) */
 function isBonusFor(
-  result: { tossedUp: Set<string> },
+  result: GreyedOutResult,
   teamIdx: number,
   colIdx: number,
   teamCount = 3,
 ): boolean {
+  const col = result.tossedUp[colIdx]
+  if (!col) return false
   let tossedTeams = 0
   for (let t = 0; t < teamCount; t++) {
-    if (t !== teamIdx && result.tossedUp.has(`${t}:${colIdx}`)) tossedTeams++
+    if (t !== teamIdx && col.has(toTeamIdx(t))) tossedTeams++
   }
   return tossedTeams === teamCount - 1
 }
@@ -287,25 +290,29 @@ describe('greyed-out logic', () => {
 
   // --- Quizzer foul on A/B question greys subsequent sub-parts ---
 
+  function fouled(result: GreyedOutResult, t: number, s: number, c: number): boolean {
+    return result.fouledQuizzers[c]?.has(teamSeatKey(toTeamIdx(t), toSeatIdx(s))) ?? false
+  }
+
   it('quizzer foul on base A/B question greys that quizzer on A and B', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('17')] = F // team 0, quizzer 0 fouls on Q17
     const result = computeGreyedOut(cells, columns)
-    expect(result.fouledQuizzers.has(`0:0:${colIdxOf('17A')}`)).toBe(true)
-    expect(result.fouledQuizzers.has(`0:0:${colIdxOf('17B')}`)).toBe(true)
+    expect(fouled(result, 0, 0, colIdxOf('17A'))).toBe(true)
+    expect(fouled(result, 0, 0, colIdxOf('17B'))).toBe(true)
     // Other quizzers on the same team are NOT affected
-    expect(result.fouledQuizzers.has(`0:1:${colIdxOf('17A')}`)).toBe(false)
+    expect(fouled(result, 0, 1, colIdxOf('17A'))).toBe(false)
     // Other teams are NOT affected
-    expect(result.fouledQuizzers.has(`1:0:${colIdxOf('17A')}`)).toBe(false)
+    expect(fouled(result, 1, 0, colIdxOf('17A'))).toBe(false)
   })
 
   it('quizzer foul on A question greys that quizzer on B', () => {
     const cells = blankCells()
     cells[1]![2]![colIdxOf('18A')] = F // team 1, quizzer 2 fouls on Q18A
     const result = computeGreyedOut(cells, columns)
-    expect(result.fouledQuizzers.has(`1:2:${colIdxOf('18B')}`)).toBe(true)
+    expect(fouled(result, 1, 2, colIdxOf('18B'))).toBe(true)
     // NOT greyed on 18A itself (that's where the foul happened)
-    expect(result.fouledQuizzers.has(`1:2:${colIdxOf('18A')}`)).toBe(false)
+    expect(fouled(result, 1, 2, colIdxOf('18A'))).toBe(false)
   })
 
   it('quizzer foul on B question does not propagate further', () => {
@@ -313,22 +320,22 @@ describe('greyed-out logic', () => {
     cells[0]![0]![colIdxOf('17B')] = F // foul on B — nowhere to propagate
     const result = computeGreyedOut(cells, columns)
     // No fouledQuizzers entries for Q18 or beyond from this
-    expect(result.fouledQuizzers.has(`0:0:${colIdxOf('18')}`)).toBe(false)
+    expect(fouled(result, 0, 0, colIdxOf('18'))).toBe(false)
   })
 
   it('foul on normal (non-AB) question does not create fouledQuizzers entries', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('1')] = F // Q1 is not A/B
     const result = computeGreyedOut(cells, columns)
-    expect(result.fouledQuizzers.size).toBe(0)
+    expect(result.fouledQuizzers.every((s) => s.size === 0)).toBe(true)
   })
 
   it('foul on Q16 (AB but not error-points) still greys quizzer on 16A and 16B', () => {
     const cells = blankCells()
     cells[2]![1]![colIdxOf('16')] = F // team 2, quizzer 1 fouls on Q16
     const result = computeGreyedOut(cells, columns)
-    expect(result.fouledQuizzers.has(`2:1:${colIdxOf('16A')}`)).toBe(true)
-    expect(result.fouledQuizzers.has(`2:1:${colIdxOf('16B')}`)).toBe(true)
+    expect(fouled(result, 2, 1, colIdxOf('16A'))).toBe(true)
+    expect(fouled(result, 2, 1, colIdxOf('16B'))).toBe(true)
   })
 
   // --- colStatuses ---
@@ -541,26 +548,28 @@ describe('greyed-out logic', () => {
     const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Team 0 was eligible in round 1 — NOT greyed on round 1 columns
     expect(isGreyed(result, 0, otCi('21'))).toBe(true) // greyed because answered
-    expect(result.tossedUp.has(`0:${otCi('21')}`)).toBe(false)
-    expect(result.tossedUp.has(`0:${otCi('22')}`)).toBe(false)
-    expect(result.tossedUp.has(`0:${otCi('23')}`)).toBe(false)
+    expect(result.tossedUp[otCi('21')]?.has(toTeamIdx(0)) ?? false).toBe(false)
+    expect(result.tossedUp[otCi('22')]?.has(toTeamIdx(0)) ?? false).toBe(false)
+    expect(result.tossedUp[otCi('23')]?.has(toTeamIdx(0)) ?? false).toBe(false)
     // Team 0 IS greyed/tossed on round 2 columns
     expect(isGreyed(result, 0, otCi('24'))).toBe(true)
-    expect(result.tossedUp.has(`0:${otCi('24')}`)).toBe(true)
+    expect(result.tossedUp[otCi('24')]?.has(toTeamIdx(0)) ?? false).toBe(true)
     // Teams 1 & 2 still competing in round 2
     expect(isGreyed(result, 1, otCi('24'))).toBe(false)
     expect(isGreyed(result, 2, otCi('24'))).toBe(false)
   })
 })
 
-/** Helper: check if a specific seat is greyed (3-part key) */
+/** Helper: check if a specific seat is greyed at the seat level. */
 function isSeatGreyed(
-  result: { disabled: Set<string> },
+  result: GreyedOutResult,
   teamIdx: number,
   seatIdx: number,
   colIdx: number,
 ): boolean {
-  return result.disabled.has(`${teamIdx}:${seatIdx}:${colIdx}`)
+  return (
+    result.disabledSeats[colIdx]?.has(teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))) ?? false
+  )
 }
 
 describe('seat bonus greying', () => {

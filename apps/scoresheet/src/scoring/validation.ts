@@ -1,6 +1,7 @@
 import { CellValue, QuestionType, type Column } from '../types/scoresheet'
 import type { GreyedOutResult } from './greyedOut'
 import { ColStatus, isAnswer, isBonusSituation } from './helpers'
+import { toSeatIdx, toTeamIdx, teamSeatKey } from '../types/indices'
 
 export enum ValidationCode {
   /** Answer by a quizzer with no name (empty seat) */
@@ -174,12 +175,16 @@ export function validateCells(
         }
 
         // --- Fouled on question (can't answer sub-parts) ---
-        if (greyResult.fouledQuizzers.has(`${teamIdx}:${seatIdx}:${colIdx}`)) {
+        if (
+          greyResult.fouledQuizzers[colIdx]?.has(
+            teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx)),
+          )
+        ) {
           addError(teamIdx, seatIdx, colIdx, ValidationCode.FouledOnQuestion)
         }
 
         // --- Tossed up / wrong team bonus ---
-        if (isAnswer(v) && greyResult.tossedUp.has(`${teamIdx}:${colIdx}`)) {
+        if (isAnswer(v) && greyResult.tossedUp[colIdx]?.has(toTeamIdx(teamIdx))) {
           // Check if some other team has a bonus situation on this column
           let isBonusForOther = false
           for (let otherTeamIdx = 0; otherTeamIdx < teamCount; otherTeamIdx++) {

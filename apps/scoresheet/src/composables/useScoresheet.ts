@@ -28,7 +28,7 @@ import {
   quizJumpedComplete,
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
-import { toSeatIdx } from '../types/indices'
+import { teamSeatKey, toSeatIdx, toTeamIdx } from '../types/indices'
 import type { DeserializeResult } from '../persistence/quizFile'
 import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/autoSave'
 
@@ -256,8 +256,11 @@ export function useScoresheet() {
   }
 
   function isGreyedOut(teamIdx: number, seatIdx: number, colIdx: number): boolean {
-    const d = greyedOutResult.value.disabled
-    return d.has(`${teamIdx}:${colIdx}`) || d.has(`${teamIdx}:${seatIdx}:${colIdx}`)
+    const g = greyedOutResult.value
+    return (
+      (g.disabledTeams[colIdx]?.has(toTeamIdx(teamIdx)) ?? false) ||
+      (g.disabledSeats[colIdx]?.has(teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))) ?? false)
+    )
   }
 
   function isInvalid(teamIdx: number, seatIdx: number, colIdx: number): boolean {
@@ -342,7 +345,11 @@ export function useScoresheet() {
   }
 
   function isFouledOnQuestion(teamIdx: number, seatIdx: number, colIdx: number): boolean {
-    return greyedOutResult.value.fouledQuizzers.has(`${teamIdx}:${seatIdx}:${colIdx}`)
+    return (
+      greyedOutResult.value.fouledQuizzers[colIdx]?.has(
+        teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx)),
+      ) ?? false
+    )
   }
 
   function teamHasErrors(teamIdx: number): boolean {
