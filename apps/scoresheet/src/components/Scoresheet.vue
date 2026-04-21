@@ -263,8 +263,10 @@ const allValidationMessages = computed(() => {
   if (tooManyTimeoutsTeams.value.size > 0) {
     msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
   }
-  for (const codes of validationErrors.value.values()) {
-    for (const code of codes) msgs.add(validationMessage(code))
+  for (const col of validationErrors.value.values()) {
+    for (const codes of col.values()) {
+      for (const code of codes) msgs.add(validationMessage(code))
+    }
   }
   return [...msgs]
 })

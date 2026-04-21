@@ -1,7 +1,7 @@
 import { CellValue, QuestionType, type Column } from '../types/scoresheet'
 import type { GreyedOutResult } from './greyedOut'
 import { ColStatus, isAnswer, isBonusSituation } from './helpers'
-import { toSeatIdx, toTeamIdx, teamSeatKey } from '../types/indices'
+import { toSeatIdx, toTeamIdx, teamSeatKey, type TeamSeat } from '../types/indices'
 
 export enum ValidationCode {
   /** Answer by a quizzer with no name (empty seat) */
@@ -57,8 +57,15 @@ export function validationMessage(code: ValidationCode): string {
 }
 
 /**
- * Validate all cells and return a map of "teamIdx:seatIdx:colIdx" → ValidationCode[].
- * Only cells with problems appear in the map.
+ * Per-column nested map of validation errors. Outer key is `colIdx`, inner is the
+ * branded (team, seat) composite. Only cells with problems appear in the map —
+ * a column with no errors has no entry in the outer map.
+ */
+export type ValidationErrors = Map<number, Map<TeamSeat, ValidationCode[]>>
+
+/**
+ * Validate all cells and return a per-column map of (team, seat) → codes.
+ * Only cells with problems appear in the result.
  */
 export function validateCells(
   cellData: CellValue[][][],
@@ -68,17 +75,22 @@ export function validateCells(
   otEligibleTeams?: Set<number>,
   orphanedColumns?: Set<number>,
   emptySeats?: Set<string>,
-): Map<string, ValidationCode[]> {
-  const errors = new Map<string, ValidationCode[]>()
+): ValidationErrors {
+  const errors: ValidationErrors = new Map()
   const teamCount = cellData.length
 
   function addError(teamIdx: number, seatIdx: number, colIdx: number, code: ValidationCode) {
-    const key = `${teamIdx}:${seatIdx}:${colIdx}`
-    const existing = errors.get(key)
+    let col = errors.get(colIdx)
+    if (!col) {
+      col = new Map()
+      errors.set(colIdx, col)
+    }
+    const key = teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))
+    const existing = col.get(key)
     if (existing) {
       existing.push(code)
     } else {
-      errors.set(key, [code])
+      col.set(key, [code])
     }
   }
 
