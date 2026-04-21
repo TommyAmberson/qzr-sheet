@@ -35,6 +35,7 @@ declare const TeamIdxBrand: unique symbol
 declare const SeatIdxBrand: unique symbol
 declare const ColIdxBrand: unique symbol
 declare const QuizzerIdBrand: unique symbol
+declare const TeamSeatBrand: unique symbol
 
 /** 0-based index into the teams array. Immutable for the life of a quiz. */
 export type TeamIdx = number & { readonly [TeamIdxBrand]: void }
@@ -44,6 +45,11 @@ export type SeatIdx = number & { readonly [SeatIdxBrand]: void }
 export type ColIdx = number & { readonly [ColIdxBrand]: void }
 /** Stable numeric identity of a quizzer. Immutable — survives seat changes. */
 export type QuizzerId = number & { readonly [QuizzerIdBrand]: void }
+/**
+ * Composite key for the (team, seat) pair, used as a Set/Map key where a single
+ * scalar is required. Built only via `teamSeatKey()` so the brand stays honest.
+ */
+export type TeamSeat = string & { readonly [TeamSeatBrand]: void }
 
 /** Cast a plain number to a TeamIdx. Use at boundaries where 0-based semantics are known. */
 export const toTeamIdx = (n: number): TeamIdx => n as TeamIdx
@@ -53,3 +59,5 @@ export const toSeatIdx = (n: number): SeatIdx => n as SeatIdx
 export const toColIdx = (n: number): ColIdx => n as ColIdx
 /** Cast a plain number to a QuizzerId. Use when reading an id from the store or a quiz file. */
 export const toQuizzerId = (n: number): QuizzerId => n as QuizzerId
+/** Build the composite key for a (team, seat) pair. */
+export const teamSeatKey = (t: TeamIdx, s: SeatIdx): TeamSeat => `${t}:${s}` as TeamSeat
