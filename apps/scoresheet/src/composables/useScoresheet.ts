@@ -332,10 +332,13 @@ export function useScoresheet() {
     if (tooManyTimeoutsTeams.value.has(teamIdx)) {
       msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
     }
-    const teamPrefix = `${teamIdx}:`
-    for (const col of validationErrors.value.values()) {
-      for (const [key, codes] of col) {
-        if ((key as string).startsWith(teamPrefix)) {
+    const seatCount = teamQuizzers.value[teamIdx]?.length ?? 0
+    const team = toTeamIdx(teamIdx)
+    for (let s = 0; s < seatCount; s++) {
+      const key = teamSeatKey(team, toSeatIdx(s))
+      for (const col of validationErrors.value.values()) {
+        const codes = col.get(key)
+        if (codes) {
           for (const code of codes) msgs.add(validationMessage(code))
         }
       }
@@ -365,10 +368,12 @@ export function useScoresheet() {
   function teamHasErrors(teamIdx: number): boolean {
     if (timeoutErrorsByTeam.value.has(teamIdx)) return true
     if (tooManyTimeoutsTeams.value.has(teamIdx)) return true
-    const teamPrefix = `${teamIdx}:`
-    for (const col of validationErrors.value.values()) {
-      for (const key of col.keys()) {
-        if ((key as string).startsWith(teamPrefix)) return true
+    const seatCount = teamQuizzers.value[teamIdx]?.length ?? 0
+    const team = toTeamIdx(teamIdx)
+    for (let s = 0; s < seatCount; s++) {
+      const key = teamSeatKey(team, toSeatIdx(s))
+      for (const col of validationErrors.value.values()) {
+        if (col.has(key)) return true
       }
     }
     return false

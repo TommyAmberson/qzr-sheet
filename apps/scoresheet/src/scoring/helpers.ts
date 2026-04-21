@@ -1,5 +1,5 @@
 import { CellValue } from '../types/scoresheet'
-import type { TeamIdx } from '../types/indices'
+import { toTeamIdx, type TeamIdx } from '../types/indices'
 
 /**
  * Shared helper functions for querying the positional cell grid.
@@ -108,7 +108,7 @@ export function isBonusSituation(
   if (!col) return false
   let tossedTeams = 0
   for (let otherIdx = 0; otherIdx < teamCount; otherIdx++) {
-    if (otherIdx !== teamIdx && col.has(otherIdx as TeamIdx)) tossedTeams++
+    if (otherIdx !== teamIdx && col.has(toTeamIdx(otherIdx))) tossedTeams++
   }
   return tossedTeams === teamCount - 1
 }
