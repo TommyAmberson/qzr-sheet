@@ -28,7 +28,7 @@ import {
   quizJumpedComplete,
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
-import { teamSeatKey, toSeatIdx, toTeamIdx } from '../types/indices'
+import { teamSeatKey, toSeatIdx, toTeamIdx, type TeamSeat } from '../types/indices'
 import type { DeserializeResult } from '../persistence/quizFile'
 import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/autoSave'
 
@@ -204,6 +204,38 @@ export function useScoresheet() {
     ),
   )
 
+  // Pre-grouped views of `validationErrors`. Folded once per validation change
+  // so the per-quizzer / per-team template helpers are O(1) lookups instead of
+  // scanning columns × seats on every render.
+  const errorsByQuizzer = computed(() => {
+    const m = new Map<TeamSeat, Set<ValidationCode>>()
+    for (const col of validationErrors.value.values()) {
+      for (const [key, codes] of col) {
+        let set = m.get(key)
+        if (!set) {
+          set = new Set()
+          m.set(key, set)
+        }
+        for (const c of codes) set.add(c)
+      }
+    }
+    return m
+  })
+
+  const errorsByTeam = computed(() => {
+    const m = new Map<number, Set<ValidationCode>>()
+    teamQuizzers.value.forEach((qzrs, teamIdx) => {
+      const agg = new Set<ValidationCode>()
+      const team = toTeamIdx(teamIdx)
+      for (let s = 0; s < qzrs.length; s++) {
+        const codes = errorsByQuizzer.value.get(teamSeatKey(team, toSeatIdx(s)))
+        if (codes) for (const c of codes) agg.add(c)
+      }
+      if (agg.size > 0) m.set(teamIdx, agg)
+    })
+    return m
+  })
+
   /** Column indices that have an invalid timeout (after Q16) */
   const timeoutValidationErrors = computed(() => {
     const invalidCols = new Set<number>()
@@ -303,24 +335,13 @@ export function useScoresheet() {
 
   /** Whether any cell for a specific quizzer has a validation error */
   function quizzerHasErrors(teamIdx: number, seatIdx: number): boolean {
-    const key = teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))
-    for (const col of validationErrors.value.values()) {
-      if (col.has(key)) return true
-    }
-    return false
+    return errorsByQuizzer.value.has(teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx)))
   }
 
   /** Get deduplicated validation messages for a specific quizzer */
   function quizzerValidationMessages(teamIdx: number, seatIdx: number): string[] {
-    const key = teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))
-    const msgs = new Set<string>()
-    for (const col of validationErrors.value.values()) {
-      const codes = col.get(key)
-      if (codes) {
-        for (const code of codes) msgs.add(validationMessage(code))
-      }
-    }
-    return [...msgs]
+    const codes = errorsByQuizzer.value.get(teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx)))
+    return codes ? [...codes].map(validationMessage) : []
   }
 
   /** Get deduplicated validation messages for all cells in a team */
@@ -332,17 +353,8 @@ export function useScoresheet() {
     if (tooManyTimeoutsTeams.value.has(teamIdx)) {
       msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
     }
-    const seatCount = teamQuizzers.value[teamIdx]?.length ?? 0
-    const team = toTeamIdx(teamIdx)
-    for (let s = 0; s < seatCount; s++) {
-      const key = teamSeatKey(team, toSeatIdx(s))
-      for (const col of validationErrors.value.values()) {
-        const codes = col.get(key)
-        if (codes) {
-          for (const code of codes) msgs.add(validationMessage(code))
-        }
-      }
-    }
+    const codes = errorsByTeam.value.get(teamIdx)
+    if (codes) for (const c of codes) msgs.add(validationMessage(c))
     return [...msgs]
   }
 
@@ -368,15 +380,7 @@ export function useScoresheet() {
   function teamHasErrors(teamIdx: number): boolean {
     if (timeoutErrorsByTeam.value.has(teamIdx)) return true
     if (tooManyTimeoutsTeams.value.has(teamIdx)) return true
-    const seatCount = teamQuizzers.value[teamIdx]?.length ?? 0
-    const team = toTeamIdx(teamIdx)
-    for (let s = 0; s < seatCount; s++) {
-      const key = teamSeatKey(team, toSeatIdx(s))
-      for (const col of validationErrors.value.values()) {
-        if (col.has(key)) return true
-      }
-    }
-    return false
+    return errorsByTeam.value.has(teamIdx)
   }
 
   const hasAnyErrors = computed(
