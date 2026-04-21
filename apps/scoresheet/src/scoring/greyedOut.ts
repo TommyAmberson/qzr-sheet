@@ -7,13 +7,10 @@ import {
   isResolved,
   findErrorSeat,
 } from './helpers'
+import { type TeamIdx, type TeamSeat, toTeamIdx, toSeatIdx, teamSeatKey } from '../types/indices'
 
 /**
  * Compute which cells are greyed out (disabled).
- *
- * `disabled` contains two key formats:
- * - "teamIdx:colIdx" — team-level greying (question done, toss-up, OT ineligibility)
- * - "teamIdx:seatIdx:colIdx" — seat-level greying (seat bonus mode)
  *
  * Three kinds of greying:
  * - "Question done": when a question has an answer (C/E/B/MB), all teams
@@ -25,13 +22,19 @@ import {
  *   are greyed out (only the seat matching the last error can answer).
  *
  * Fouls don't end a question — it's re-asked.
+ *
+ * Output is per-column nested: `disabledTeams[col]`, `tossedUp[col]`, etc.
+ * Lookups by colIdx are O(1) without scanning a flat composite-key set.
  */
 export interface GreyedOutResult {
-  disabled: Set<string>
-  /** Teams that can't jump on a column due to toss-up/error chain: Set of "teamIdx:colIdx" */
-  tossedUp: Set<string>
-  /** Quizzers who fouled on a question and can't answer sub-parts: Set of "teamIdx:seatIdx:colIdx" */
-  fouledQuizzers: Set<string>
+  /** Per column: teams disabled at the team level (question done, toss-up, OT-ineligible). */
+  disabledTeams: Set<TeamIdx>[]
+  /** Per column: (team, seat) pairs disabled at the seat level (seat-bonus mode). */
+  disabledSeats: Set<TeamSeat>[]
+  /** Per column: teams currently tossed up on this column (carry-forward chain). */
+  tossedUp: Set<TeamIdx>[]
+  /** Per column: (team, seat) pairs that fouled and can't answer this sub-part. */
+  fouledQuizzers: Set<TeamSeat>[]
   /** Per-column game-logic status: Pending, Errored, Resolved, or Skipped */
   colStatuses: ColStatus[]
 }
@@ -42,7 +45,8 @@ export function computeGreyedOut(
   otIneligibility?: Map<number, Set<number>>,
   bonusRule: BonusRule = BonusRule.Seat,
 ): GreyedOutResult {
-  const disabled = new Set<string>()
+  const disabledTeams: Set<TeamIdx>[] = cols.map(() => new Set<TeamIdx>())
+  const disabledSeats: Set<TeamSeat>[] = cols.map(() => new Set<TeamSeat>())
   const colStatuses: ColStatus[] = cols.map(() => ColStatus.Pending)
   const teamCount = cellData.length
   const keyToIdx = buildKeyToIdx(cols)
@@ -56,7 +60,7 @@ export function computeGreyedOut(
 
   function greyAllTeams(colIdx: number) {
     for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
-      disabled.add(`${teamIdx}:${colIdx}`)
+      disabledTeams[colIdx]!.add(toTeamIdx(teamIdx))
     }
   }
 
@@ -73,7 +77,7 @@ export function computeGreyedOut(
   // Track which teams are tossed-up (can't jump) per column due to error chain.
   // This is separate from "question is done" greying — only toss-up greying
   // carries forward.
-  const tossedUp: Set<string>[] = cols.map(() => new Set<string>())
+  const tossedUp: Set<TeamIdx>[] = cols.map(() => new Set<TeamIdx>())
   // For seat bonus: the seat of the most recent error feeding into each column
   const lastErrorSeat: (number | undefined)[] = cols.map(() => undefined)
 
@@ -86,7 +90,7 @@ export function computeGreyedOut(
   if (otIneligibility) {
     for (const [colIdx, ineligible] of otIneligibility) {
       for (const teamIdx of ineligible) {
-        tossedUp[colIdx]!.add(`${teamIdx}`)
+        tossedUp[colIdx]!.add(toTeamIdx(teamIdx))
       }
     }
   }
@@ -133,21 +137,22 @@ export function computeGreyedOut(
     }
 
     // 4. Toss-up greying: teams in tossedUp set are greyed on this column
-    for (const teamIdxStr of tossedUp[colIdx]!) {
-      disabled.add(`${teamIdxStr}:${colIdx}`)
+    for (const teamIdx of tossedUp[colIdx]!) {
+      disabledTeams[colIdx]!.add(teamIdx)
     }
 
     // 4b. Seat bonus greying: on bonus columns, grey non-matching seats on the bonus team
     if (bonusRule === BonusRule.Seat && lastErrorSeat[colIdx] !== undefined) {
       const tossedHere = tossedUp[colIdx]!
       for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
-        if (tossedHere.has(`${teamIdx}`)) continue
+        const branded = toTeamIdx(teamIdx)
+        if (tossedHere.has(branded)) continue
         // Check if every OTHER team is tossed (= bonus for this team)
         if (tossedHere.size === teamCount - 1) {
           const seatCount = cellData[teamIdx]!.length
           for (let seatIdx = 0; seatIdx < seatCount; seatIdx++) {
             if (seatIdx !== lastErrorSeat[colIdx]) {
-              disabled.add(`${teamIdx}:${seatIdx}:${colIdx}`)
+              disabledSeats[colIdx]!.add(teamSeatKey(branded, toSeatIdx(seatIdx)))
             }
           }
         }
@@ -158,16 +163,17 @@ export function computeGreyedOut(
     // Only errors cause toss-ups — not B/MB
     if (colStatuses[colIdx] === ColStatus.Errored) {
       // Determine which teams would be tossed on the next column
-      const wouldBeTossed: number[] = []
+      const wouldBeTossed: TeamIdx[] = []
       let newErrorSeat: number | undefined
       for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
+        const branded = toTeamIdx(teamIdx)
         if (hasValue(teamIdx, colIdx, CellValue.Error)) {
-          wouldBeTossed.push(teamIdx)
+          wouldBeTossed.push(branded)
           // Track the seat that caused this error (for seat bonus)
           const seat = findErrorSeat(cellData, teamIdx, colIdx)
           if (seat !== undefined) newErrorSeat = seat
-        } else if (tossedUp[colIdx]!.has(`${teamIdx}`) && !hasAnswer(teamIdx, colIdx)) {
-          wouldBeTossed.push(teamIdx)
+        } else if (tossedUp[colIdx]!.has(branded) && !hasAnswer(teamIdx, colIdx)) {
+          wouldBeTossed.push(branded)
         }
       }
 
@@ -188,7 +194,7 @@ export function computeGreyedOut(
 
       if (nq !== undefined) {
         for (const teamIdx of wouldBeTossed) {
-          tossedUp[nq]!.add(`${teamIdx}`)
+          tossedUp[nq]!.add(teamIdx)
         }
         // Propagate error seat: new error replaces, otherwise carry existing
         lastErrorSeat[nq] = newErrorSeat ?? lastErrorSeat[colIdx]
@@ -196,20 +202,9 @@ export function computeGreyedOut(
     }
   }
 
-  // Two views of the same data: the per-column `tossedUp` array drives the
-  // forward propagation above, while this flat Set lets downstream callers
-  // (validation, isBonusForTeam, the composable) check arbitrary (team, col)
-  // pairs in O(1) without needing the colIdx-indexed structure.
-  const tossedUpSet = new Set<string>()
-  for (let colIdx = 0; colIdx < cols.length; colIdx++) {
-    for (const teamIdxStr of tossedUp[colIdx]!) {
-      tossedUpSet.add(`${teamIdxStr}:${colIdx}`)
-    }
-  }
-
   // Build fouledQuizzers: quizzers who fouled on a numbered question
   // can't answer subsequent sub-parts (A/B) of the same question
-  const fouledQuizzers = new Set<string>()
+  const fouledQuizzers: Set<TeamSeat>[] = cols.map(() => new Set<TeamSeat>())
   for (let colIdx = 0; colIdx < cols.length; colIdx++) {
     const col = cols[colIdx]!
     if (!col.isAB) continue
@@ -219,17 +214,18 @@ export function computeGreyedOut(
       for (let seatIdx = 0; seatIdx < team.length; seatIdx++) {
         if (team[seatIdx]![colIdx] !== CellValue.Foul) continue
 
+        const key = teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))
         // Foul on Normal → grey this quizzer on A and B
         if (col.type === QuestionType.Normal) {
           const aColIdx = keyToIdx.get(`${col.number}A`)
           const bColIdx = keyToIdx.get(`${col.number}B`)
-          if (aColIdx !== undefined) fouledQuizzers.add(`${teamIdx}:${seatIdx}:${aColIdx}`)
-          if (bColIdx !== undefined) fouledQuizzers.add(`${teamIdx}:${seatIdx}:${bColIdx}`)
+          if (aColIdx !== undefined) fouledQuizzers[aColIdx]!.add(key)
+          if (bColIdx !== undefined) fouledQuizzers[bColIdx]!.add(key)
         }
         // Foul on A → grey this quizzer on B
         if (col.type === QuestionType.A) {
           const bColIdx = keyToIdx.get(`${col.number}B`)
-          if (bColIdx !== undefined) fouledQuizzers.add(`${teamIdx}:${seatIdx}:${bColIdx}`)
+          if (bColIdx !== undefined) fouledQuizzers[bColIdx]!.add(key)
         }
         // Foul on B → nothing further
       }
@@ -240,10 +236,10 @@ export function computeGreyedOut(
   if (otIneligibility) {
     for (const [colIdx, ineligible] of otIneligibility) {
       for (const teamIdx of ineligible) {
-        disabled.add(`${teamIdx}:${colIdx}`)
+        disabledTeams[colIdx]!.add(toTeamIdx(teamIdx))
       }
     }
   }
 
-  return { disabled, tossedUp: tossedUpSet, fouledQuizzers, colStatuses }
+  return { disabledTeams, disabledSeats, tossedUp, fouledQuizzers, colStatuses }
 }

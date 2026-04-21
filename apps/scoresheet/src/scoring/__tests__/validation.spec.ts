@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut } from '../greyedOut'
-import { validateCells, ValidationCode, validationMessage } from '../validation'
+import {
+  validateCells,
+  ValidationCode,
+  validationMessage,
+  type ValidationErrors,
+} from '../validation'
 import { getOvertimeEligibleTeams } from '../overtime'
 import { computeOrphanedColumns } from '../columnVisibility'
+import { teamSeatKey, toSeatIdx, toTeamIdx } from '../../types/indices'
 
 const columns = buildColumns()
 const C = CellValue.Correct
@@ -32,24 +38,24 @@ function blankCells(): CellValue[][][] {
 
 /** Check if a specific cell has a specific validation code */
 function hasCode(
-  errors: Map<string, ValidationCode[]>,
+  errors: ValidationErrors,
   teamIdx: number,
   seatIdx: number,
   colIdx: number,
   code: ValidationCode,
 ): boolean {
-  const codes = errors.get(`${teamIdx}:${seatIdx}:${colIdx}`)
+  const codes = errors.get(colIdx)?.get(teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx)))
   return codes ? codes.includes(code) : false
 }
 
 /** Check if a specific cell has any validation error */
 function hasAny(
-  errors: Map<string, ValidationCode[]>,
+  errors: ValidationErrors,
   teamIdx: number,
   seatIdx: number,
   colIdx: number,
 ): boolean {
-  return errors.has(`${teamIdx}:${seatIdx}:${colIdx}`)
+  return errors.get(colIdx)?.has(teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))) ?? false
 }
 
 describe('validationMessage', () => {
@@ -634,13 +640,13 @@ describe('cell validation', () => {
     }
 
     function otHasCode(
-      errors: Map<string, ValidationCode[]>,
+      errors: ValidationErrors,
       teamIdx: number,
       seatIdx: number,
       colIdx: number,
       code: ValidationCode,
     ): boolean {
-      const codes = errors.get(`${teamIdx}:${seatIdx}:${colIdx}`)
+      const codes = errors.get(colIdx)?.get(teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx)))
       return codes ? codes.includes(code) : false
     }
 

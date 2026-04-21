@@ -28,7 +28,7 @@ import {
   quizJumpedComplete,
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
-import { toSeatIdx } from '../types/indices'
+import { teamSeatKey, toSeatIdx, toTeamIdx } from '../types/indices'
 import type { DeserializeResult } from '../persistence/quizFile'
 import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/autoSave'
 
@@ -256,17 +256,26 @@ export function useScoresheet() {
   }
 
   function isGreyedOut(teamIdx: number, seatIdx: number, colIdx: number): boolean {
-    const d = greyedOutResult.value.disabled
-    return d.has(`${teamIdx}:${colIdx}`) || d.has(`${teamIdx}:${seatIdx}:${colIdx}`)
+    const g = greyedOutResult.value
+    return (
+      (g.disabledTeams[colIdx]?.has(toTeamIdx(teamIdx)) ?? false) ||
+      (g.disabledSeats[colIdx]?.has(teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))) ?? false)
+    )
   }
 
   function isInvalid(teamIdx: number, seatIdx: number, colIdx: number): boolean {
-    return validationErrors.value.has(`${teamIdx}:${seatIdx}:${colIdx}`)
+    return (
+      validationErrors.value
+        .get(colIdx)
+        ?.has(teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))) ?? false
+    )
   }
 
   /** Get human-readable validation messages for a cell (deduplicated) */
   function cellValidationMessages(teamIdx: number, seatIdx: number, colIdx: number): string[] {
-    const codes = validationErrors.value.get(`${teamIdx}:${seatIdx}:${colIdx}`)
+    const codes = validationErrors.value
+      .get(colIdx)
+      ?.get(teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx)))
     if (!codes) return []
     return [...new Set(codes.map(validationMessage))]
   }
@@ -274,10 +283,7 @@ export function useScoresheet() {
   /** Whether any cell in a column has a validation error */
   function columnHasErrors(colIdx: number): boolean {
     if (timeoutValidationErrors.value.has(colIdx)) return true
-    for (const key of validationErrors.value.keys()) {
-      if (key.endsWith(`:${colIdx}`)) return true
-    }
-    return false
+    return (validationErrors.value.get(colIdx)?.size ?? 0) > 0
   }
 
   /** Get deduplicated validation messages for all cells in a column */
@@ -286,8 +292,9 @@ export function useScoresheet() {
     if (timeoutValidationErrors.value.has(colIdx)) {
       msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
     }
-    for (const [key, codes] of validationErrors.value) {
-      if (key.endsWith(`:${colIdx}`)) {
+    const col = validationErrors.value.get(colIdx)
+    if (col) {
+      for (const codes of col.values()) {
         for (const code of codes) msgs.add(validationMessage(code))
       }
     }
@@ -296,17 +303,20 @@ export function useScoresheet() {
 
   /** Whether any cell for a specific quizzer has a validation error */
   function quizzerHasErrors(teamIdx: number, seatIdx: number): boolean {
-    for (const key of validationErrors.value.keys()) {
-      if (key.startsWith(`${teamIdx}:${seatIdx}:`)) return true
+    const key = teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))
+    for (const col of validationErrors.value.values()) {
+      if (col.has(key)) return true
     }
     return false
   }
 
   /** Get deduplicated validation messages for a specific quizzer */
   function quizzerValidationMessages(teamIdx: number, seatIdx: number): string[] {
+    const key = teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx))
     const msgs = new Set<string>()
-    for (const [key, codes] of validationErrors.value) {
-      if (key.startsWith(`${teamIdx}:${seatIdx}:`)) {
+    for (const col of validationErrors.value.values()) {
+      const codes = col.get(key)
+      if (codes) {
         for (const code of codes) msgs.add(validationMessage(code))
       }
     }
@@ -322,9 +332,15 @@ export function useScoresheet() {
     if (tooManyTimeoutsTeams.value.has(teamIdx)) {
       msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
     }
-    for (const [key, codes] of validationErrors.value) {
-      if (key.startsWith(`${teamIdx}:`)) {
-        for (const code of codes) msgs.add(validationMessage(code))
+    const seatCount = teamQuizzers.value[teamIdx]?.length ?? 0
+    const team = toTeamIdx(teamIdx)
+    for (let s = 0; s < seatCount; s++) {
+      const key = teamSeatKey(team, toSeatIdx(s))
+      for (const col of validationErrors.value.values()) {
+        const codes = col.get(key)
+        if (codes) {
+          for (const code of codes) msgs.add(validationMessage(code))
+        }
       }
     }
     return [...msgs]
@@ -342,14 +358,23 @@ export function useScoresheet() {
   }
 
   function isFouledOnQuestion(teamIdx: number, seatIdx: number, colIdx: number): boolean {
-    return greyedOutResult.value.fouledQuizzers.has(`${teamIdx}:${seatIdx}:${colIdx}`)
+    return (
+      greyedOutResult.value.fouledQuizzers[colIdx]?.has(
+        teamSeatKey(toTeamIdx(teamIdx), toSeatIdx(seatIdx)),
+      ) ?? false
+    )
   }
 
   function teamHasErrors(teamIdx: number): boolean {
     if (timeoutErrorsByTeam.value.has(teamIdx)) return true
     if (tooManyTimeoutsTeams.value.has(teamIdx)) return true
-    for (const key of validationErrors.value.keys()) {
-      if (key.startsWith(`${teamIdx}:`)) return true
+    const seatCount = teamQuizzers.value[teamIdx]?.length ?? 0
+    const team = toTeamIdx(teamIdx)
+    for (let s = 0; s < seatCount; s++) {
+      const key = teamSeatKey(team, toSeatIdx(s))
+      for (const col of validationErrors.value.values()) {
+        if (col.has(key)) return true
+      }
     }
     return false
   }
@@ -385,11 +410,10 @@ export function useScoresheet() {
     if (!noJumps.value[colIdx]) return false
     // No-jump on an orphaned column is itself invalid
     if (orphanedColumns.value.has(colIdx)) return true
-    for (const key of validationErrors.value.keys()) {
-      if (key.endsWith(`:${colIdx}`)) {
-        const codes = validationErrors.value.get(key)
-        if (codes?.includes(ValidationCode.NoJump)) return true
-      }
+    const col = validationErrors.value.get(colIdx)
+    if (!col) return false
+    for (const codes of col.values()) {
+      if (codes.includes(ValidationCode.NoJump)) return true
     }
     return false
   }

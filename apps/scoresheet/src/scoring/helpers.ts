@@ -1,4 +1,5 @@
 import { CellValue } from '../types/scoresheet'
+import { toTeamIdx, type TeamIdx } from '../types/indices'
 
 /**
  * Shared helper functions for querying the positional cell grid.
@@ -94,16 +95,20 @@ export function colHasAnyContent(cellData: CellValue[][][], colIdx: number): boo
 /**
  * Whether a column is a bonus situation for a given team.
  * A bonus situation means every *other* team is tossed up on that column.
+ *
+ * Takes the per-column nested array from `GreyedOutResult.tossedUp`.
  */
 export function isBonusSituation(
-  tossedUp: Set<string>,
+  tossedUp: Set<TeamIdx>[],
   teamIdx: number,
   colIdx: number,
   teamCount: number,
 ): boolean {
+  const col = tossedUp[colIdx]
+  if (!col) return false
   let tossedTeams = 0
   for (let otherIdx = 0; otherIdx < teamCount; otherIdx++) {
-    if (otherIdx !== teamIdx && tossedUp.has(`${otherIdx}:${colIdx}`)) tossedTeams++
+    if (otherIdx !== teamIdx && col.has(toTeamIdx(otherIdx))) tossedTeams++
   }
   return tossedTeams === teamCount - 1
 }
