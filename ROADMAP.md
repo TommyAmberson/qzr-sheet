@@ -10,12 +10,17 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
 1. [#7 Results submission](https://github.com/TommyAmberson/qzr-sheet/issues/7) — officials submit
    completed scoresheets to the server; standalone, foundational for stats and schedule linkage
 2. [#9 Schedule — generation, management, and views](https://github.com/TommyAmberson/qzr-sheet/issues/9)
-   — round-robin scheduling, broken into sub-issues:
-   * [#12 Schedule generation + schema](https://github.com/TommyAmberson/qzr-sheet/issues/12)
+   — admin-driven schedule builder per [docs/scheduling.md](./docs/scheduling.md), broken into
+   sub-issues:
+   * [#12 Schedule schema + rooms/slots CRUD](https://github.com/TommyAmberson/qzr-sheet/issues/12)
      (foundational)
-   * [#13 Schedule view + publish](https://github.com/TommyAmberson/qzr-sheet/issues/13)
-   * [#14 Schedule manual editing](https://github.com/TommyAmberson/qzr-sheet/issues/14)
-   * [#15 Schedule re-generation](https://github.com/TommyAmberson/qzr-sheet/issues/15)
+   * [#13 Schedule view (read-only)](https://github.com/TommyAmberson/qzr-sheet/issues/13)
+   * [#14 Schedule editor (direct manipulation)](https://github.com/TommyAmberson/qzr-sheet/issues/14)
+   * Prelim draw utility (new issue, coming)
+   * Schedule rule engine (new issue, coming)
+   * [#15 Late-team handling](https://github.com/TommyAmberson/qzr-sheet/issues/15)
+   * Post-stats-break consolation marking (new issue, coming) — blocked by #8
+   * Elim bracket epic (new issue, coming) — blocked by #12, #14
    * [#16 Schedule result linkage](https://github.com/TommyAmberson/qzr-sheet/issues/16) — blocked
      by #7, #12
 3. [#6 Load teams from schedule](https://github.com/TommyAmberson/qzr-sheet/issues/6) — blocked by
