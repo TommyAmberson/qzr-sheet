@@ -24,6 +24,8 @@ doc is the stable design reference those issues link back to.
 | Term                           | Meaning                                                                                                                                                                                                                                     |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Meet**                       | A named multi-day event. One `quiz_meets` row.                                                                                                                                                                                              |
+| **Phase**                      | Meet-wide lifecycle stage: `registration`, `build`, `live`, or `done`. Drives edit permissions and visibility. See §2.                                                                                                                      |
+| **Division state**             | Per-division sub-state inside the `live` phase: `prelim_running`, `stats_break`, `elim_running`, `division_done`. See §2.                                                                                                                   |
 | **Division**                   | A competitive tier inside the meet. Set once at meet creation and never changes for a team. Today: Divisions 1, 2, 3. Stored as JSON on `quiz_meets.divisions`; teams carry a `division` string.                                            |
 | **Team**                       | A church-owned roster for one meet + division. `teams` row. Has `consolation: boolean` (already in schema) — always `false` during prelims; set post-stats-break to route a team into the consolation elim bracket. Division never changes. |
 | **Room**                       | A physical location where quizzes run in parallel. Named ("Room 1"–"Room 5"). New concept — not in schema today.                                                                                                                            |
@@ -40,7 +42,42 @@ doc is the stable design reference those issues link back to.
 | **Championship quizzes**       | 3–5 end-of-bracket quizzes with "win twice" semantics. `rules.md` §3.                                                                                                                                                                       |
 | **Event**                      | Non-quiz item on the schedule — Breakfast, Stats Break, Worship, etc. Occupies a slot, no room/teams.                                                                                                                                       |
 
-## 2. How a meet actually runs
+## 2. Meet phases
+
+A meet moves through four meet-wide phases. Each phase gates what coaches and admins can edit. The
+phase model is the source of truth for "is registration still open?", "can the admin edit this
+quiz?", "are coaches allowed to see the schedule yet?".
+
+| Phase            | Trigger                                                                         | What's allowed                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **registration** | Default at meet creation.                                                       | Coaches edit their own rosters. Admin has all powers.                                                                  |
+| **build**        | Auto at `quiz_meets.registrationClosesAt` (admin-set), or admin manual advance. | Rosters read-only for coaches (changes go through admin via email). Admin builds schedule, manages rooms, rolls teams. |
+| **live**         | Auto at `quiz_meets.meetStartsAt` (admin-set), or admin manual advance.         | Coaches/viewers see the published schedule with team names. Admin can still edit, but completed quizzes are immutable. |
+| **done**         | Admin manual.                                                                   | Everything read-only. Final stats locked.                                                                              |
+
+Phase order is `registration → build → live → done`. Reverse transitions are admin-only and flagged
+in the UI as unusual.
+
+### Per-division state inside `live`
+
+While the meet is `live`, each division has its own state machine that the admin advances
+independently:
+
+```
+prelim_running → stats_break → elim_running → division_done
+```
+
+This lets Division 1 finish its prelims and start elims while Division 2 is still running prelims.
+State transitions are admin-manual.
+
+### Phases vs draft/publish
+
+The schedule still has a draft / published toggle, independent of phase. The admin can stage edits
+in any phase; they're not visible to coaches/viewers until published. In `registration` and `build`
+even a published schedule is visible only to admin (no coach-facing schedule yet); in `live` a
+published schedule is visible to everyone.
+
+## 3. How a meet actually runs
 
 Based on a sample Quiz Meet Finals 2023 schedule:
 
@@ -84,25 +121,27 @@ Observations that shape the data model:
    division never changes. `consolation: boolean` on a team is the bracket-lane marker.
 9. Consolation and XYZ are both conditional on team count per `rules.md` §2.a.
 
-## 3. Rules and invariants
+## 4. Rules and invariants
 
-Hard rules are enforced by the builder; soft rules produce warnings only.
+The builder enforces a small set of hard rules. There are no soft rules — opponent / room / round
+balance is already determined by the `rules.md` preliminary pairing tables, and once the admin
+deviates from those tables they're doing it on purpose.
 
-**Prelim hard rules**:
+**Prelim invariants enforced by the lookup table** (admin can't violate these because they pick the
+table by team count and the table is fixed):
 
-1. 3 teams per quiz. Always.
-2. 3 quizzes per team. A division with `q` teams has exactly `q` prelim quizzes.
-3. No team in two quizzes in the same round.
-4. No room hosts two quizzes in the same round.
-5. Divisions are fixed — no moving teams between divisions.
+1. 3 letter-slots per quiz. Always.
+2. 3 quizzes per letter. A division with `q` teams has exactly `q` prelim quizzes.
+3. No letter appears twice within a single quiz.
 
-**Prelim soft rules** (warn, don't block):
+**Prelim hard rules enforced by the editor** (these are the ones the admin can violate by dragging
+quizzes around):
 
-1. Opponent variety (may be unavoidable for 4–6 team divisions — `rules.md` §"Preliminary Round
-   Brackets" notes same-opponent repeats in small fields).
-2. Room variety — a team shouldn't be stuck in the same room for all 3 of its quizzes.
-3. Round variety — a team shouldn't always open or always close.
-4. Balanced division-room allocation per round.
+1. No room hosts two quizzes in the same round.
+2. No quiz from the same division appears twice in the same round (the admin shouldn't be able to
+   set this up by dragging — moving a quiz into a room where another from its division already lives
+   in that round is a hard conflict).
+3. Divisions are fixed — no moving teams between divisions.
 
 **Prelim count invariant**:
 
@@ -118,33 +157,64 @@ truth.
 * Events can be inserted between quiz rounds.
 * Events don't enforce the default slot duration.
 
-## 4. The prelim draw (utility, not the main UX)
+**Phase-aware rules** (see §2):
 
-**The draw is a lookup, not a search.** `rules.md` §"Preliminary Round Brackets" spells out pairings
-for 4–21 teams as a fixed table. Example for 9 teams:
+* Coach roster edits are blocked outside the `registration` phase. Admin can still edit on a coach's
+  behalf at any phase.
+* Schedule edits to a quiz are blocked once `scheduled_quizzes.completedAt` is set, regardless of
+  phase. Completed quizzes are immutable so prior results stay coherent.
+* Phase advances (`registration → build → live → done`) are one-way by default. Admin-manual reverse
+  transitions are allowed but flagged in the UI.
+* Per-division state advances (`prelim_running → stats_break → elim_running → division_done`) are
+  admin-manual; reverses also allowed and flagged.
+
+## 5. The prelim draw (utility, not the main UX)
+
+**The draw is a lookup keyed on team count, not on team identity.** `rules.md` §"Preliminary Round
+Brackets" spells out pairings for 4–21 teams as a fixed table. Example for 9 teams:
 
 ```
 Quizzes: 1. ABC  2. DEF  3. GHI  4. ADG  5. BEH  6. CDH  7. AEI  8. BFG  9. CFI
 ```
 
-The helper substitutes teams A–U into the slots. Team counts > 21 are out of scope for the built-in
-helper; the admin builds those manually in the editor.
+The schedule is built around these letter slots, not around concrete teams. Team identity is bound
+to letters only when the event is about to start (see §5.2). This decouples the schedule from the
+roster: the admin can build and publish the schedule before all teams are registered.
 
-**Inputs**: ordered team list for the division, target rooms/rounds.
+Team counts > 21 are out of scope for the built-in helper; the admin builds those compositions
+manually in the editor.
 
-**Output**: `q` quizzes each with `teamIds`, plus suggested `(round, room)` assignments from a
-second `autoSlot` step.
+### 5.1 Composition utility
 
-**Sub-utilities** (each individually invocable):
+`drawPrelims(teamCount: number): Quiz[]` — looks up the team count in the `rules.md` table and
+returns `teamCount` quizzes, each holding three letter slots (`A`–`U`). Pure function.
 
-1. **Composition** — `rules.md` lookup, returning `[team, team, team][]`.
-2. **Slot** — fit any list of quizzes into `(round, room)` without hard-rule conflicts.
+A second utility, `autoSlot(quizzes, rooms, rounds)`, fits the quizzes into a `(round, room)` grid
+without hard-rule conflicts. Each utility is independently invocable from the editor toolbar.
 
-Divisions are independent draws. Admin allocates rooms to divisions per round. Late teams are
-handled via the editor: add team to division, then place manually or with a "Suggest placement"
-helper. Regenerate stays available as a destructive button.
+### 5.2 Team assignment ("Roll Teams")
 
-## 5. Stats break — the pivot
+During the `build` phase, the admin clicks "Roll Teams" for a division. This generates a random
+permutation of the registered teams and binds each team to one letter: `A` → Heritage 1, `B` → GRBC
+2, etc. The mapping is propagated to every prelim quiz seat in that division.
+
+* Re-roll is allowed throughout `build`. There's no separate "lock" step — the `build → live` phase
+  transition is what makes the assignment coach-visible.
+* Admin can override individual letter→team assignments before advancing to `live` (drag a team chip
+  onto a letter slot).
+* In `live`, edits to team→letter assignments are still possible but constrained: completed quizzes
+  (`scheduled_quizzes.completedAt` set) are immutable.
+
+### 5.3 Late teams
+
+If a team is added _before_ `build` (i.e. during `registration`), the schedule isn't built yet —
+nothing to patch. If a team is added during `build` (admin approves a late roster change), the draw
+is regenerated to the new team count's table — the admin re-places quizzes into rooms/slots. During
+`live`, the admin patches manually in the editor, swapping teams between not-yet-completed quizzes;
+if too many quizzes have already completed for the team to fit fairly, the team forfeits the missed
+quizzes.
+
+## 6. Stats break — the pivot
 
 Per `rules.md` §2.a, the transition is deterministic once team count is known. Per division, the
 admin:
@@ -168,7 +238,7 @@ admin:
 `teams.consolation` is the authoritative lane marker, written at stats break and updated by the elim
 result pipeline. A team's `division` is never rewritten.
 
-## 6. Elims (elimination round)
+## 7. Elims (elimination round)
 
 Elim quizzes hold three **seed references** rather than teams. The structure is not a search —
 `rules.md` spells out every bracket template.
@@ -196,9 +266,29 @@ present in meets > 24 teams.
 | `winner(quizId)` / `loser(quizId)`         | Convenience for championship series          |
 | `tiebreaker(candidates)`                   | Unresolved tied teams (`rules.md` §2.b)      |
 
-## 7. Data model
+## 8. Data model
+
+New tables and columns. Existing `quiz_meets` gains phase fields.
 
 ```ts
+// Existing quiz_meets table gains:
+//   phase: text enum ['registration', 'build', 'live', 'done'] (default 'registration')
+//   registrationClosesAt: integer timestamp (nullable; auto-advance to 'build')
+//   meetStartsAt: integer timestamp (nullable; auto-advance to 'live')
+
+// Per-division state inside the 'live' meet phase.
+export const divisionStates = sqliteTable('division_states', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  meetId: integer('meet_id')
+    .notNull()
+    .references(() => quizMeets.id, { onDelete: 'cascade' }),
+  division: text('division').notNull(),
+  state: text('state', {
+    enum: ['prelim_running', 'stats_break', 'elim_running', 'division_done'],
+  }).notNull(),
+  transitionedAt: integer('transitioned_at', { mode: 'timestamp' }).notNull(),
+})
+
 // A named physical location within a meet.
 export const meetRooms = sqliteTable('meet_rooms', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -240,15 +330,19 @@ export const scheduledQuizzes = sqliteTable('scheduled_quizzes', {
   label: text('label').notNull(),
   bracketLabel: text('bracket_label'),
   publishedAt: integer('published_at', { mode: 'timestamp' }),
+  completedAt: integer('completed_at', { mode: 'timestamp' }), // set when results land — gates immutability
 })
 
-// Three seats per quiz. Either teamId (prelim, or elim once resolved) or seedRef (elim, unresolved).
+// Three seats per quiz. Identifier shape depends on phase:
+//   prelim — `letter` ('A'–'U') from the rules.md table; `teamId` filled when admin runs "Roll Teams"
+//   elim   — `seedRef` JSON; `teamId` filled as prior quizzes resolve
 export const scheduledQuizSeats = sqliteTable('scheduled_quiz_seats', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   quizId: integer('quiz_id')
     .notNull()
     .references(() => scheduledQuizzes.id, { onDelete: 'cascade' }),
   seatNumber: integer('seat_number').notNull(),
+  letter: text('letter'), // 'A'–'U' — set at composition time for prelim seats
   teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
   seedRef: text('seed_ref'),
 })
@@ -258,8 +352,11 @@ export const scheduledQuizSeats = sqliteTable('scheduled_quiz_seats', {
 
 * `scheduled_quizzes` is a single table for both phases; `phase` discriminates. `lane` is only
   meaningful when `phase='elim'`.
-* Prelim seats fill `teamId` at creation; `seedRef` stays null.
-* Elim seats start with `seedRef`; `teamId` fills in as prior quizzes resolve (issue `#16`).
+* `scheduled_quizzes.completedAt` is set by the result-linkage path (#16) when results land for a
+  quiz. Editor blocks edits to any seat on a completed quiz.
+* Prelim seats start with `letter` set and `teamId` null. "Roll Teams" (during `build` phase) fills
+  `teamId` for every prelim seat in a division by random A→Team mapping.
+* Elim seats start with `seedRef` set; `teamId` fills in as prior quizzes resolve (issue `#16`).
 * Events live on `meet_slots` with `kind='event'`, no child `scheduled_quizzes`.
 * `teams.division` is immutable. `teams.consolation` starts false, set post-stats-break or post-XYZ.
 
@@ -267,74 +364,111 @@ export const scheduledQuizSeats = sqliteTable('scheduled_quiz_seats', {
 `phase='prelim'` rows. The `lane`, `bracketLabel`, and `seedRef` columns exist from day one but stay
 unused until the elim epic.
 
-## 8. UX — the builder (primary experience)
+## 9. UX — the builder (primary experience)
 
 The Schedule tab is a grid editor: y-axis = slots, x-axis = rooms, plus division filter. Each cell
-is a quiz card with three team chips.
+is a quiz card with three seat chips. Before "Roll Teams" runs the chips show letters (`A`, `B`,
+`C`); after, they show team names.
 
-**Direct manipulation**:
+A **phase header bar** sits above the grid showing the current meet phase (`registration` / `build`
+/ `live` / `done`) with admin-only "Advance" and "Revert" controls. Inside the schedule, each
+division's row carries a state badge (e.g. "Div 2: prelim running") when the meet is `live`.
 
-* Click a team chip → dropdown to pick a different team in the same division.
-* Drag a team chip between quizzes → swap or move.
+**Direct manipulation (any time)**:
+
 * Drag a quiz card between `(round, room)` cells → move the whole quiz.
 * Drag a row header to reorder rounds.
-* Right-click / ellipsis on quiz card → delete, duplicate seats, move to…, convert to event row.
+* Right-click / ellipsis on quiz card → delete, move to…, convert to event row.
 * Click an empty cell → "Add quiz" popup.
 * Click "+" between rows → "Add event" popup.
 
+**Letter mode** (before Roll Teams runs):
+
+* The letter compositions are determined by the `rules.md` lookup; admin can't edit which letters
+  are in which quiz.
+* Admin focuses on slot placement: which rooms each division uses per round, where event rows go,
+  custom slot times.
+
+**Team mode** (after Roll Teams runs):
+
+* Click a team chip → dropdown to pick a different team in the same division (rare; reserved for
+  no-shows / late substitutions).
+* Drag a team chip between quizzes → swap.
+
 **Toolbar assists (not automation)**:
 
-* Draw Prelims (division picker) — first-draft.
+* Draw Prelims (division + count picker) — produces the letter-based composition for the chosen team
+  count. Available in `build` phase.
 * Auto-slot — assigns `(round, room)` without changing compositions.
-* Balance Rooms/Rounds — reshuffles slot assignments for variety.
-* Fill Empty Seats — suggest a team per-quiz; admin confirms.
 * Find Conflicts — jump to next hard-rule violation.
-* Regenerate (destructive) — wipes and restarts.
+* Roll Teams (per division) — random A→Team mapping. Available in `build` and on the boundary into
+  `live`. Re-rollable until the meet enters `live`; in `live`, individual swaps only.
+* Regenerate (destructive) — wipes prelim composition for a division and starts from scratch.
+  Forbidden once the meet is `live`.
 
 **Rule surfacing**:
 
-* Hard violations: red border, blocks save/publish.
-* Soft warnings: yellow dot, hover tooltip.
-* Division status panel: per-division progress summary.
+* Hard violations: red border, blocks save/publish. Hover tooltip names the rule.
+* Completed quizzes (`completedAt` set): rendered with a lock icon; all edits rejected with an
+  inline explanation.
+* Division status panel: per-division progress summary (e.g. "Div 2: 26 quizzes, prelim running, 18
+  of 26 complete").
 
-**Publish**: draft (admin-only) vs published (coaches/viewers see it). Published schedules remain
-editable; edits show a "draft changes" marker and don't affect public view until re-published.
+**Draft vs published**:
 
-## 9. UX flow (end-to-end)
+* Draft edits are admin-only until "Publish" is clicked.
+* In `registration` and `build`, even published schedules stay admin-only — no coach-facing schedule
+  before the meet starts.
+* In `live`, published schedules are visible to everyone.
+
+## 10. UX flow (end-to-end)
 
 ```
-Meet setup
-  1. Admin creates meet, adds divisions, adds rooms.
+Meet setup [phase: registration]
+  1. Admin creates meet, adds divisions, adds rooms, sets
+     registrationClosesAt and meetStartsAt timestamps.
   2. Coaches register churches / teams / quizzers.
 
-Prelim build
+Prelim build [phase: build — auto-advanced at registrationClosesAt]
   3. Admin opens Schedule tab (empty grid).
-  4. (Optional) clicks "Draw Prelims" for a division → first draft.
-  5. Admin edits: swaps, drags, adds event rows, tweaks slot times.
-  6. Publishes.
+  4. Admin enters team count per division → "Draw Prelims" produces letter
+     compositions from the rules.md table.
+  5. Admin places quizzes into (round, room) cells, adds event rows, tweaks
+     slot times. Chips show letters (A, B, C…).
+  6. Admin clicks "Roll Teams" per division → random A→Team mapping.
+     Re-roll or hand-edit as needed.
+  7. Publishes (admin-only visibility — phase still 'build').
 
-Prelim running
-  7. Scoresheet auto-populates teams.
-  8. Officials submit results.
+Live transition [phase: live — auto-advanced at meetStartsAt]
+  8. Coaches/viewers now see the published team-mode schedule.
+  9. Per-division state initialised to 'prelim_running'.
 
-Stats break (per division)
-  9.  Admin reviews Standings.
-  10. Picks elim shape (looks up team count in §5 table).
-  11. Flips `consolation=true` on bottom-M teams.
+Prelim running [div state: prelim_running]
+  10. Scoresheet auto-populates teams.
+  11. Officials submit results; scheduled_quizzes.completedAt fills in.
 
-Elim build
-  12. Admin opens Schedule tab, switches to Elim mode.
-  13. (Optional) clicks "Draw Elims" per division → bracket draft.
-  14. Admin edits seed refs, reorders rounds, adds events.
-  15. Publishes.
+Stats break [div state: stats_break — admin manual]
+  12. Admin reviews Standings.
+  13. Picks elim shape (looks up team count in §6 table).
+  14. Flips `consolation=true` on bottom-M teams.
 
-Elim running
-  16. XYZ/XXYYZZ resolve → `consolation=true` propagates to remaining teams.
-  17. Results flow in; seed refs resolve to teams.
-  18. Final placements displayed.
+Elim build [div state: stats_break]
+  15. Admin opens Schedule tab, switches to Elim mode.
+  16. (Optional) clicks "Draw Elims" per division → bracket draft.
+  17. Admin edits seed refs, reorders rounds, adds events.
+  18. Publishes; advances division to 'elim_running'.
+
+Elim running [div state: elim_running]
+  19. XYZ/XXYYZZ resolve → `consolation=true` propagates to remaining teams.
+  20. Results flow in; seed refs resolve to teams.
+  21. Final placements displayed → admin advances division to 'division_done'.
+
+Wrap-up [phase: done — admin manual]
+  22. When all divisions are 'division_done', admin advances meet to 'done'.
+      Schedule and stats become globally read-only.
 ```
 
-## 10. Open questions
+## 11. Open questions
 
 1. Is `docs/rules.md` complete vs the official PDF? Flagged as uncertain.
 2. Sample schedules show "Quiz X" and "Quiz Y" only (6 teams), but `rules.md` §2.a specifies XYZ (9
