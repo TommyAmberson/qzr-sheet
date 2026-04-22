@@ -84,6 +84,7 @@ docs/
   scoring-rules-explained.md     # Cell types, point values, all scoring rules
   architecture.md                # Monorepo structure, API stack, scoresheet internals
   rules.md                       # Full rules from the official rulebook PDF
+  scheduling.md                  # Meet scheduling: prelims, stats break, elims, data model
   auth.md                        # Auth implementation, OAuth, Tauri, security
   roles-and-access.md            # Meet roles, codes, join flow, rotation policy
   data-model.md                  # Full schema, memberships, quizzer identity
