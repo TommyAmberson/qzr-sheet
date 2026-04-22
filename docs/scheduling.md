@@ -90,13 +90,21 @@ The builder enforces a small set of hard rules. There are no soft rules — oppo
 balance is already determined by the `rules.md` preliminary pairing tables, and once the admin
 deviates from those tables they're doing it on purpose.
 
-**Prelim hard rules**:
+**Prelim invariants enforced by the lookup table** (admin can't violate these because they pick the
+table by team count and the table is fixed):
 
-1. 3 teams per quiz. Always.
-2. 3 quizzes per team. A division with `q` teams has exactly `q` prelim quizzes.
-3. No team in two quizzes in the same round.
-4. No room hosts two quizzes in the same round.
-5. Divisions are fixed — no moving teams between divisions.
+1. 3 letter-slots per quiz. Always.
+2. 3 quizzes per letter. A division with `q` teams has exactly `q` prelim quizzes.
+3. No letter appears twice within a single quiz.
+
+**Prelim hard rules enforced by the editor** (these are the ones the admin can violate by dragging
+quizzes around):
+
+1. No room hosts two quizzes in the same round.
+2. No quiz from the same division appears twice in the same round (the admin shouldn't be able to
+   set this up by dragging — moving a quiz into a room where another from its division already lives
+   in that round is a hard conflict).
+3. Divisions are fixed — no moving teams between divisions.
 
 **Prelim count invariant**:
 
@@ -114,29 +122,48 @@ truth.
 
 ## 4. The prelim draw (utility, not the main UX)
 
-**The draw is a lookup, not a search.** `rules.md` §"Preliminary Round Brackets" spells out pairings
-for 4–21 teams as a fixed table. Example for 9 teams:
+**The draw is a lookup keyed on team count, not on team identity.** `rules.md` §"Preliminary Round
+Brackets" spells out pairings for 4–21 teams as a fixed table. Example for 9 teams:
 
 ```
 Quizzes: 1. ABC  2. DEF  3. GHI  4. ADG  5. BEH  6. CDH  7. AEI  8. BFG  9. CFI
 ```
 
-The helper substitutes teams A–U into the slots. Team counts > 21 are out of scope for the built-in
-helper; the admin builds those manually in the editor.
+The schedule is built around these letter slots, not around concrete teams. Team identity is bound
+to letters only when the event is about to start (see §4.2). This decouples the schedule from the
+roster: the admin can build and publish the schedule before all teams are registered.
 
-**Inputs**: ordered team list for the division, target rooms/rounds.
+Team counts > 21 are out of scope for the built-in helper; the admin builds those compositions
+manually in the editor.
 
-**Output**: `q` quizzes each with `teamIds`, plus suggested `(round, room)` assignments from a
-second `autoSlot` step.
+### 4.1 Composition utility
 
-**Sub-utilities** (each individually invocable):
+`drawPrelims(teamCount: number): Quiz[]` — looks up the team count in the `rules.md` table and
+returns `teamCount` quizzes, each holding three letter slots (`A`–`U`). Pure function.
 
-1. **Composition** — `rules.md` lookup, returning `[team, team, team][]`.
-2. **Slot** — fit any list of quizzes into `(round, room)` without hard-rule conflicts.
+A second utility, `autoSlot(quizzes, rooms, rounds)`, fits the quizzes into a `(round, room)` grid
+without hard-rule conflicts. Each utility is independently invocable from the editor toolbar.
 
-Divisions are independent draws. Admin allocates rooms to divisions per round. Late teams are
-handled via the editor: add team to division, then place manually or with a "Suggest placement"
-helper. Regenerate stays available as a destructive button.
+### 4.2 Team assignment (at event start)
+
+When the admin is ready to start the meet (or one division of it), they hit a "Roll teams" button.
+This generates a random permutation of the registered teams and binds each team to one letter: `A` →
+Heritage 1, `B` → GRBC 2, etc. The mapping is then propagated to every prelim quiz seat in that
+division.
+
+* The roll can be re-rolled until the admin clicks "Lock", at which point the assignment is final.
+* Admin can override individual letter→team assignments before locking (drag a team chip onto a
+  letter slot).
+* After locking, the editor shows team chips instead of letter chips, and edits are direct
+  team-level edits (rare; mostly reserved for team-no-shows).
+
+### 4.3 Late teams
+
+If a team is added _before_ the event starts, the schedule is regenerated to the new team count's
+table (the structure changes — the admin re-places quizzes into rooms/slots). After "Lock", late
+teams are out of scope for automated handling; the admin patches manually in the editor.
+
+Divisions are independent: the admin can lock Division 1 while still tweaking Division 2.
 
 ## 5. Stats break — the pivot
 
@@ -236,15 +263,28 @@ export const scheduledQuizzes = sqliteTable('scheduled_quizzes', {
   publishedAt: integer('published_at', { mode: 'timestamp' }),
 })
 
-// Three seats per quiz. Either teamId (prelim, or elim once resolved) or seedRef (elim, unresolved).
+// Three seats per quiz. Identifier shape depends on phase:
+//   prelim — `letter` ('A'–'U') from the rules.md table; `teamId` filled at "Lock teams"
+//   elim   — `seedRef` JSON; `teamId` filled as prior quizzes resolve
 export const scheduledQuizSeats = sqliteTable('scheduled_quiz_seats', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   quizId: integer('quiz_id')
     .notNull()
     .references(() => scheduledQuizzes.id, { onDelete: 'cascade' }),
   seatNumber: integer('seat_number').notNull(),
+  letter: text('letter'), // 'A'–'U' — set at composition time for prelim seats
   teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
   seedRef: text('seed_ref'),
+})
+
+// Tracks the per-division team assignment lock (set by "Lock teams" at event start).
+export const divisionAssignments = sqliteTable('division_assignments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  meetId: integer('meet_id')
+    .notNull()
+    .references(() => quizMeets.id, { onDelete: 'cascade' }),
+  division: text('division').notNull(),
+  lockedAt: integer('locked_at', { mode: 'timestamp' }),
 })
 ```
 
@@ -252,8 +292,9 @@ export const scheduledQuizSeats = sqliteTable('scheduled_quiz_seats', {
 
 * `scheduled_quizzes` is a single table for both phases; `phase` discriminates. `lane` is only
   meaningful when `phase='elim'`.
-* Prelim seats fill `teamId` at creation; `seedRef` stays null.
-* Elim seats start with `seedRef`; `teamId` fills in as prior quizzes resolve (issue `#16`).
+* Prelim seats start with `letter` set and `teamId` null. "Lock teams" resolves all letters in a
+  division to concrete `teamId` values in one transaction.
+* Elim seats start with `seedRef` set; `teamId` fills in as prior quizzes resolve (issue `#16`).
 * Events live on `meet_slots` with `kind='event'`, no child `scheduled_quizzes`.
 * `teams.division` is immutable. `teams.consolation` starts false, set post-stats-break or post-XYZ.
 
@@ -264,34 +305,52 @@ unused until the elim epic.
 ## 8. UX — the builder (primary experience)
 
 The Schedule tab is a grid editor: y-axis = slots, x-axis = rooms, plus division filter. Each cell
-is a quiz card with three team chips.
+is a quiz card with three seat chips. Pre-lock, the chips show letters (`A`, `B`, `C`); post-lock,
+they show team names.
 
-**Direct manipulation**:
+**Direct manipulation (any time)**:
 
-* Click a team chip → dropdown to pick a different team in the same division.
-* Drag a team chip between quizzes → swap or move.
 * Drag a quiz card between `(round, room)` cells → move the whole quiz.
 * Drag a row header to reorder rounds.
-* Right-click / ellipsis on quiz card → delete, duplicate seats, move to…, convert to event row.
+* Right-click / ellipsis on quiz card → delete, move to…, convert to event row.
 * Click an empty cell → "Add quiz" popup.
 * Click "+" between rows → "Add event" popup.
 
+**Pre-lock interactions** (letter mode):
+
+* The letter compositions are determined by the `rules.md` lookup; admin can't edit which letters
+  are in which quiz.
+* Admin focuses on slot placement: which rooms each division uses per round, where event rows go,
+  custom slot times.
+
+**Post-lock interactions** (team mode):
+
+* Click a team chip → dropdown to pick a different team in the same division (rare; reserved for
+  no-shows / late substitutions).
+* Drag a team chip between quizzes → swap.
+
 **Toolbar assists (not automation)**:
 
-* Draw Prelims (division picker) — first-draft.
+* Draw Prelims (division + count picker) — produces the letter-based composition for the chosen team
+  count.
 * Auto-slot — assigns `(round, room)` without changing compositions.
-* Balance Rooms/Rounds — reshuffles slot assignments for variety.
-* Fill Empty Seats — suggest a team per-quiz; admin confirms.
 * Find Conflicts — jump to next hard-rule violation.
-* Regenerate (destructive) — wipes and restarts.
+* Roll Teams (per division) — random A→Team mapping; re-rollable until "Lock".
+* Lock Teams (per division) — finalises the assignment; chips switch from letter to team mode.
+* Regenerate (destructive) — wipes prelim composition for a division and starts from scratch
+  (forbidden after lock).
 
 **Rule surfacing**:
 
 * Hard violations: red border, blocks save/publish. Hover tooltip names the rule.
-* Division status panel: per-division progress summary (e.g. "Div 2: 26 quizzes, all teams at 3/3").
+* Division status panel: per-division progress summary (e.g. "Div 2: 26 quizzes, all letter slots
+  placed, awaiting team lock").
 
-**Publish**: draft (admin-only) vs published (coaches/viewers see it). Published schedules remain
-editable; edits show a "draft changes" marker and don't affect public view until re-published.
+**Publish vs lock**:
+
+* **Publish** — draft (admin-only) vs published (coaches/viewers see it). Coaches see the letter
+  schedule pre-lock and the team schedule post-lock.
+* **Lock teams** — separate per-division action. Independent of publish state.
 
 ## 9. UX flow (end-to-end)
 
@@ -300,31 +359,38 @@ Meet setup
   1. Admin creates meet, adds divisions, adds rooms.
   2. Coaches register churches / teams / quizzers.
 
-Prelim build
+Prelim build (letter mode)
   3. Admin opens Schedule tab (empty grid).
-  4. (Optional) clicks "Draw Prelims" for a division → first draft.
-  5. Admin edits: swaps, drags, adds event rows, tweaks slot times.
-  6. Publishes.
+  4. Admin enters team count per division → "Draw Prelims" produces letter
+     compositions from the rules.md table.
+  5. Admin places quizzes into (round, room) cells, adds event rows, tweaks
+     slot times. Chips show letters (A, B, C…).
+  6. Publishes (coaches see letter schedule).
+
+Event start (per division)
+  7. Admin clicks "Roll Teams" → random A→Team permutation.
+  8. Admin can re-roll or override individual letter→team assignments.
+  9. Admin clicks "Lock Teams" → assignment is final; chips switch to team mode.
 
 Prelim running
-  7. Scoresheet auto-populates teams.
-  8. Officials submit results.
+  10. Scoresheet auto-populates teams.
+  11. Officials submit results.
 
 Stats break (per division)
-  9.  Admin reviews Standings.
-  10. Picks elim shape (looks up team count in §5 table).
-  11. Flips `consolation=true` on bottom-M teams.
+  12. Admin reviews Standings.
+  13. Picks elim shape (looks up team count in §5 table).
+  14. Flips `consolation=true` on bottom-M teams.
 
 Elim build
-  12. Admin opens Schedule tab, switches to Elim mode.
-  13. (Optional) clicks "Draw Elims" per division → bracket draft.
-  14. Admin edits seed refs, reorders rounds, adds events.
-  15. Publishes.
+  15. Admin opens Schedule tab, switches to Elim mode.
+  16. (Optional) clicks "Draw Elims" per division → bracket draft.
+  17. Admin edits seed refs, reorders rounds, adds events.
+  18. Publishes.
 
 Elim running
-  16. XYZ/XXYYZZ resolve → `consolation=true` propagates to remaining teams.
-  17. Results flow in; seed refs resolve to teams.
-  18. Final placements displayed.
+  19. XYZ/XXYYZZ resolve → `consolation=true` propagates to remaining teams.
+  20. Results flow in; seed refs resolve to teams.
+  21. Final placements displayed.
 ```
 
 ## 10. Open questions
