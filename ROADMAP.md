@@ -16,13 +16,15 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
      (foundational)
    * [#13 Schedule view (read-only)](https://github.com/TommyAmberson/qzr-sheet/issues/13)
    * [#14 Schedule editor (direct manipulation)](https://github.com/TommyAmberson/qzr-sheet/issues/14)
-   * Prelim draw utility (new issue, coming)
-   * Schedule rule engine (new issue, coming)
+   * [#39 Prelim draw utility](https://github.com/TommyAmberson/qzr-sheet/issues/39)
+   * [#40 Schedule rule engine](https://github.com/TommyAmberson/qzr-sheet/issues/40)
    * [#15 Late-team handling](https://github.com/TommyAmberson/qzr-sheet/issues/15)
-   * Post-stats-break consolation marking (new issue, coming) — blocked by #8
-   * Elim bracket epic (new issue, coming) — blocked by #12, #14
+   * [#41 Post-stats-break consolation marking](https://github.com/TommyAmberson/qzr-sheet/issues/41)
+     — blocked by #8
+   * [#42 Elim bracket epic](https://github.com/TommyAmberson/qzr-sheet/issues/42) — blocked by #12,
+     #14, #41
    * [#16 Schedule result linkage](https://github.com/TommyAmberson/qzr-sheet/issues/16) — blocked
-     by #7, #12
+     by #7, #12, #42
 3. [#6 Load teams from schedule](https://github.com/TommyAmberson/qzr-sheet/issues/6) — blocked by
    #12
 4. [#8 Stats calculator](https://github.com/TommyAmberson/qzr-sheet/issues/8) — blocked by #7
