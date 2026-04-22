@@ -86,7 +86,9 @@ Observations that shape the data model:
 
 ## 3. Rules and invariants
 
-Hard rules are enforced by the builder; soft rules produce warnings only.
+The builder enforces a small set of hard rules. There are no soft rules — opponent / room / round
+balance is already determined by the `rules.md` preliminary pairing tables, and once the admin
+deviates from those tables they're doing it on purpose.
 
 **Prelim hard rules**:
 
@@ -95,14 +97,6 @@ Hard rules are enforced by the builder; soft rules produce warnings only.
 3. No team in two quizzes in the same round.
 4. No room hosts two quizzes in the same round.
 5. Divisions are fixed — no moving teams between divisions.
-
-**Prelim soft rules** (warn, don't block):
-
-1. Opponent variety (may be unavoidable for 4–6 team divisions — `rules.md` §"Preliminary Round
-   Brackets" notes same-opponent repeats in small fields).
-2. Room variety — a team shouldn't be stuck in the same room for all 3 of its quizzes.
-3. Round variety — a team shouldn't always open or always close.
-4. Balanced division-room allocation per round.
 
 **Prelim count invariant**:
 
@@ -293,9 +287,8 @@ is a quiz card with three team chips.
 
 **Rule surfacing**:
 
-* Hard violations: red border, blocks save/publish.
-* Soft warnings: yellow dot, hover tooltip.
-* Division status panel: per-division progress summary.
+* Hard violations: red border, blocks save/publish. Hover tooltip names the rule.
+* Division status panel: per-division progress summary (e.g. "Div 2: 26 quizzes, all teams at 3/3").
 
 **Publish**: draft (admin-only) vs published (coaches/viewers see it). Published schedules remain
 editable; edits show a "draft changes" marker and don't affect public view until re-published.
