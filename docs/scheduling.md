@@ -319,6 +319,11 @@ export const divisionStates = sqliteTable('division_states', {
 })
 
 // A named physical location within a meet.
+// This is the existing official_codes table renamed: it already exists per-meet,
+// already has a label conventionally meaning "Room A"/etc., and already carries
+// the codeHash that gates official-role access for that room. We rename label →
+// name, add sortOrder for grid display, and make codeHash nullable so admins can
+// create rooms in the build phase without immediately issuing an official code.
 export const meetRooms = sqliteTable('meet_rooms', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   meetId: integer('meet_id')
@@ -326,6 +331,7 @@ export const meetRooms = sqliteTable('meet_rooms', {
     .references(() => quizMeets.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   sortOrder: integer('sort_order').notNull(),
+  codeHash: text('code_hash'), // nullable; null = no official code issued yet
 })
 
 // A row in the left-hand time column. May hold quizzes or a non-quiz event.
