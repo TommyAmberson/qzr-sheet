@@ -151,6 +151,13 @@ the admin picks room count and round count.
 **Elim rules**: deferred to the elim epic; `rules.md` §"Elimination Round Brackets" is the source of
 truth.
 
+**Overtime rule**:
+
+* No overtime in prelims. Tied prelim quizzes are tied; tiebreaking happens at standings time per
+  `rules.md` §2.b.
+* Overtime allowed in elims. The scoresheet's existing OT support kicks in only for `phase='elim'`
+  quizzes.
+
 **Event rules**:
 
 * Events occupy a slot but no rooms or quizzes.
@@ -196,14 +203,16 @@ without hard-rule conflicts. Each utility is independently invocable from the ed
 
 During the `build` phase, the admin clicks "Roll Teams" for a division. This generates a random
 permutation of the registered teams and binds each team to one letter: `A` → Heritage 1, `B` → GRBC
-2, etc. The mapping is propagated to every prelim quiz seat in that division.
+2, etc. The mapping is written to `prelim_assignments` (one row per letter per division) in a single
+transaction.
 
-* Re-roll is allowed throughout `build`. There's no separate "lock" step — the `build → live` phase
-  transition is what makes the assignment coach-visible.
+* Re-roll is allowed throughout `build` — it's a transactional UPDATE on the same rows. There's no
+  separate "lock" step; the `build → live` phase transition is what makes the assignment
+  coach-visible.
 * Admin can override individual letter→team assignments before advancing to `live` (drag a team chip
-  onto a letter slot).
-* In `live`, edits to team→letter assignments are still possible but constrained: completed quizzes
-  (`scheduled_quizzes.completedAt` set) are immutable.
+  onto a letter slot — single-row UPDATE).
+* In `live`, edits to letter→team assignments are still possible but constrained: completed quizzes
+  (`scheduled_quizzes.completedAt` set) won't accept seat changes that would alter their results.
 
 ### 5.3 Late teams
 
@@ -216,11 +225,14 @@ quizzes.
 
 ## 6. Stats break — the pivot
 
-Per `rules.md` §2.a, the transition is deterministic once team count is known. Per division, the
-admin:
+Stats break is admin-triggered per division. The admin clicks "Advance to Stats Break" on a division
+once its prelims have completed; from then on, that division's elim slots are auto-filled as
+standings finalize and intermediate (XY/XYZ/XXYYZZ) results land. Per `rules.md` §2.a, the
+transition is deterministic once team count is known. Per division, the admin:
 
 1. Reviews prelim standings (sum of 3 prelim quiz scores per team, per `rules.md` §1.a).
-   Tiebreakers: quiz score at end of question 20 (§1.a.iv).
+   Tiebreakers, per `rules.md` §2.b: head-to-head competition first, then total prelim points, then
+   fewest errors. (Verify against current rulebook.)
 2. Looks up the tournament shape for team count:
 
    | Team count | Structure                                                                                                |
@@ -234,6 +246,10 @@ admin:
 3. Flips `teams.consolation=true` for teams headed to consolation. For the "> 24 teams" shape,
    consolation membership is finalised _after_ XYZ and XXYYZZ resolve, not at the break itself.
 4. Generates the elim schedule using the selected bracket template (A / B / C).
+
+After step 4, the elim quiz seats carry seedRefs (e.g., `prelimRank(4)`, `place(quizA, 2)`) and
+those seedRefs auto-resolve to teamIds in the `seed_resolutions` table (see §8) as prior quizzes
+complete. The admin doesn't manually fill in elim seats — the system propagates results.
 
 `teams.consolation` is the authoritative lane marker, written at stats break and updated by the elim
 result pipeline. A team's `division` is never rewritten.
@@ -257,14 +273,27 @@ present in meets > 24 teams.
 
 **Seed-reference formats**:
 
-| Format                                     | Meaning                                      |
-| ------------------------------------------ | -------------------------------------------- |
-| `prelimSeed(n)`                            | Team ranked `n` from prelim standings        |
-| `place(quizId, p)`                         | Team that placed `p` in a given bracket quiz |
-| `xyzTop3(rank)` / `xyzBottom6(rank)`       | XYZ advancers / fall-throughs                |
-| `xxyyzzTop3(rank)` / `xxyyzzBottom6(rank)` | XXYYZZ equivalents                           |
-| `winner(quizId)` / `loser(quizId)`         | Convenience for championship series          |
-| `tiebreaker(candidates)`                   | Unresolved tied teams (`rules.md` §2.b)      |
+| Format                                     | Meaning                                                                                 |
+| ------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `prelimSeed(n)`                            | Team ranked `n` from prelim standings                                                   |
+| `xyRank(n)`                                | Team at "new `n`" position after XY/XYZ rerank (e.g., `xyRank(11)` = sample's `new 11`) |
+| `place(quizId, p)`                         | Team that placed `p` in a given bracket quiz                                            |
+| `xyzTop3(rank)` / `xyzBottom6(rank)`       | XYZ advancers / fall-throughs                                                           |
+| `xxyyzzTop3(rank)` / `xxyyzzBottom6(rank)` | XXYYZZ equivalents                                                                      |
+| `winner(quizId)` / `loser(quizId)`         | Convenience for championship series                                                     |
+| `tiebreaker(candidates)`                   | Unresolved tied teams (`rules.md` §2.b)                                                 |
+
+The "`new N`" labels seen on sample schedules (`new 11`, `new 15`, etc.) refer to placement after
+the XY/XYZ intermediate quizzes finish: a team that started at prelim rank 12 may end up at `new 11`
+once intermediate results are factored in. Encoded as `xyRank(N)` in the data model.
+
+### Def vs resolution layering
+
+Elim quiz seats carry only the **def** — the seedRef. The **resolution** (which concrete team a
+given seedRef currently points to) lives in a separate table (`seed_resolutions`, see §8). This
+matters because the same seedRef appears in multiple seats (e.g. `place(quizB, 2)` could feed two
+downstream bracket quizzes), and a single resolution row keeps them consistent. The same pattern
+applies to prelim seats with their `letter` def → `prelim_assignments` resolution.
 
 ## 8. Data model
 
@@ -333,9 +362,8 @@ export const scheduledQuizzes = sqliteTable('scheduled_quizzes', {
   completedAt: integer('completed_at', { mode: 'timestamp' }), // set when results land — gates immutability
 })
 
-// Three seats per quiz. Identifier shape depends on phase:
-//   prelim — `letter` ('A'–'U') from the rules.md table; `teamId` filled when admin runs "Roll Teams"
-//   elim   — `seedRef` JSON; `teamId` filled as prior quizzes resolve
+// Three seats per quiz. Holds only the def — letter (prelim) or seedRef (elim).
+// The team binding lives in a separate resolution table (see below).
 export const scheduledQuizSeats = sqliteTable('scheduled_quiz_seats', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   quizId: integer('quiz_id')
@@ -343,9 +371,45 @@ export const scheduledQuizSeats = sqliteTable('scheduled_quiz_seats', {
     .references(() => scheduledQuizzes.id, { onDelete: 'cascade' }),
   seatNumber: integer('seat_number').notNull(),
   letter: text('letter'), // 'A'–'U' — set at composition time for prelim seats
-  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
-  seedRef: text('seed_ref'),
+  seedRef: text('seed_ref'), // JSON — set at composition time for elim seats
 })
+
+// Resolution layer — prelim. (meetId, division, letter) → teamId.
+// One row per letter per division. "Roll Teams" writes here; re-roll = transactional UPDATE.
+export const prelimAssignments = sqliteTable(
+  'prelim_assignments',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    division: text('division').notNull(),
+    letter: text('letter').notNull(), // 'A'–'U'
+    teamId: integer('team_id')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    assignedAt: integer('assigned_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [unique().on(t.meetId, t.division, t.letter)],
+)
+
+// Resolution layer — elim. (meetId, seedRef) → teamId.
+// Filled by the result-linkage pipeline as prior quizzes complete.
+export const seedResolutions = sqliteTable(
+  'seed_resolutions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    seedRef: text('seed_ref').notNull(), // canonical JSON form, e.g. '{"k":"place","quiz":42,"p":2}'
+    teamId: integer('team_id')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    resolvedAt: integer('resolved_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [unique().on(t.meetId, t.seedRef)],
+)
 ```
 
 **Notes**:
@@ -354,15 +418,20 @@ export const scheduledQuizSeats = sqliteTable('scheduled_quiz_seats', {
   meaningful when `phase='elim'`.
 * `scheduled_quizzes.completedAt` is set by the result-linkage path (#16) when results land for a
   quiz. Editor blocks edits to any seat on a completed quiz.
-* Prelim seats start with `letter` set and `teamId` null. "Roll Teams" (during `build` phase) fills
-  `teamId` for every prelim seat in a division by random A→Team mapping.
-* Elim seats start with `seedRef` set; `teamId` fills in as prior quizzes resolve (issue `#16`).
+* `scheduled_quiz_seats` carry only the def (letter or seedRef). To render "what team is in seat X",
+  JOIN through `prelim_assignments` (for letters) or `seed_resolutions` (for seedRefs).
+* "Roll Teams" (during `build` phase) writes one `prelim_assignments` row per letter per division in
+  a single transaction. Re-roll is just an UPDATE of the same rows.
+* Elim seedRefs auto-resolve into `seed_resolutions` as XY/XYZ/bracket quizzes complete (#16).
+* "Un-resolve" (admin marks a quiz incomplete to redo it) is a clean delete from `seed_resolutions`
+  for the affected refs; downstream seat reads naturally show null again.
 * Events live on `meet_slots` with `kind='event'`, no child `scheduled_quizzes`.
 * `teams.division` is immutable. `teams.consolation` starts false, set post-stats-break or post-XYZ.
 
-**First-delivery scope cut**: the initial schema PR ships these tables, but only writes
-`phase='prelim'` rows. The `lane`, `bracketLabel`, and `seedRef` columns exist from day one but stay
-unused until the elim epic.
+**First-delivery scope cut**: the initial schema PR ships all of the above tables, but only the
+prelim path writes rows. Elim columns (`scheduled_quizzes.lane`, `bracketLabel`,
+`scheduled_quiz_seats.seedRef`, `seed_resolutions`) exist from day one but stay unused until the
+elim epic.
 
 ## 9. UX — the builder (primary experience)
 
@@ -470,14 +539,23 @@ Wrap-up [phase: done — admin manual]
 
 ## 11. Open questions
 
+All remaining questions concern the elim phase; none block prelim implementation.
+
 1. Is `docs/rules.md` complete vs the official PDF? Flagged as uncertain.
 2. Sample schedules show "Quiz X" and "Quiz Y" only (6 teams), but `rules.md` §2.a specifies XYZ (9
-   teams). Is X+Y (no Z) a variant used for smaller fields?
-3. `new 11` / `new 15` placeholders in sample schedules — confirm naming convention for
-   XYZ-to-consolation transitions.
-4. Championship-series termination: auto-generate Quiz H/I/etc. or admin-added on demand?
-5. Tie-breaker quizzes for positions 6/15/24 (`rules.md` §2.b) — on-demand rows or pre-scheduled?
-6. Late teams during elims — current assumption: prelims only. Confirm.
-7. Bracket auto-advance vs manual confirm when Quiz A's result lands.
-8. Keep both `teams.consolation` and `scheduled_quizzes.lane`, or collapse one into the other?
-   Proposal keeps both.
+   teams). Is X+Y (no Z) a variant used for smaller fields, or does the sample reflect a different
+   meet's house rules?
+3. Which of Bracket A / B / C did the Finals 2023 sample use? Visual inspection of the sample should
+   pin this down.
+4. Tiebreaker rule confirmation — `rules.md` §2.b says head-to-head, then total prelim points, then
+   fewest errors. Verify this matches current rulebook practice.
+5. Championship-series termination (`rules.md` §3 "win twice"): auto-generate Quiz H/I/etc.
+   on-demand as results land, or admin-added manually?
+6. Tie-breaker quizzes for positions 6/15/24 (`rules.md` §2.b): pre-scheduled in the elim grid, or
+   on-demand only when a tie actually occurs?
+7. Late teams during elims — current assumption: prelims only, late elim entries handled with manual
+   editor swaps and no automated rebalancing. Confirm.
+8. Bracket auto-advance vs manual confirm: when a bracket quiz's result is submitted, should the
+   `seed_resolutions` write happen automatically, or wait for admin confirmation?
+9. Keep both `teams.consolation` and `scheduled_quizzes.lane`, or collapse one into the other?
+   Current proposal keeps both since they have different lifecycles.

@@ -18,6 +18,7 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
    * [#14 Schedule editor (direct manipulation)](https://github.com/TommyAmberson/qzr-sheet/issues/14)
    * [#39 Prelim draw utility](https://github.com/TommyAmberson/qzr-sheet/issues/39)
    * [#40 Schedule rule engine](https://github.com/TommyAmberson/qzr-sheet/issues/40)
+   * Phase state machine + transition API (new issue, coming) — blocked by #12
    * [#15 Late-team handling](https://github.com/TommyAmberson/qzr-sheet/issues/15)
    * [#41 Post-stats-break consolation marking](https://github.com/TommyAmberson/qzr-sheet/issues/41)
      — blocked by #8
