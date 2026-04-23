@@ -67,15 +67,27 @@ export const quizMeets = sqliteTable('quiz_meets', {
   viewerCode: text('viewer_code').notNull(), // admin-set human-readable slug
   divisions: text('divisions').notNull().default('[]'), // JSON string[]
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  phase: text('phase', {
+    enum: ['registration', 'build', 'live', 'done'],
+  })
+    .notNull()
+    .default('registration'),
+  registrationClosesAt: integer('registration_closes_at', { mode: 'timestamp' }),
+  meetStartsAt: integer('meet_starts_at', { mode: 'timestamp' }),
 })
 
-export const officialCodes = sqliteTable('official_codes', {
+// A named physical location within a meet. Renamed from `official_codes` — this
+// row both defines the room (name, sortOrder for grid display) and optionally
+// carries the official-access codeHash. `codeHash` is nullable: admins can
+// create rooms in the `build` phase before issuing an official code.
+export const meetRooms = sqliteTable('meet_rooms', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   meetId: integer('meet_id')
     .notNull()
     .references(() => quizMeets.id, { onDelete: 'cascade' }),
-  label: text('label').notNull(), // e.g. "Room A"
-  codeHash: text('code_hash').notNull(),
+  name: text('name').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  codeHash: text('code_hash'),
 })
 
 // ---- Meet memberships ----
@@ -119,11 +131,11 @@ export const officialMemberships = sqliteTable(
     meetId: integer('meet_id')
       .notNull()
       .references(() => quizMeets.id, { onDelete: 'cascade' }),
-    officialCodeId: integer('official_code_id')
+    roomId: integer('room_id')
       .notNull()
-      .references(() => officialCodes.id, { onDelete: 'cascade' }),
+      .references(() => meetRooms.id, { onDelete: 'cascade' }),
   },
-  (t) => [unique().on(t.accountId, t.meetId, t.officialCodeId)],
+  (t) => [unique().on(t.accountId, t.meetId, t.roomId)],
 )
 
 export const viewerMemberships = sqliteTable(
@@ -182,6 +194,113 @@ export const teamRosters = sqliteTable(
   (t) => [unique().on(t.teamId, t.quizzerId)],
 )
 
+// ---- Schedule ----
+
+// Per-division state machine inside the `live` meet phase.
+// Transitions: prelim_running → stats_break → elim_running → division_done.
+export const divisionStates = sqliteTable(
+  'division_states',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    division: text('division').notNull(),
+    state: text('state', {
+      enum: ['prelim_running', 'stats_break', 'elim_running', 'division_done'],
+    })
+      .notNull()
+      .default('prelim_running'),
+    transitionedAt: integer('transitioned_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [unique().on(t.meetId, t.division)],
+)
+
+// A time-column row on the schedule grid. `kind='quiz'` hosts scheduledQuizzes
+// across rooms; `kind='event'` spans all rooms (Breakfast, Stats Break, etc.).
+export const meetSlots = sqliteTable('meet_slots', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  meetId: integer('meet_id')
+    .notNull()
+    .references(() => quizMeets.id, { onDelete: 'cascade' }),
+  startAt: integer('start_at', { mode: 'timestamp' }).notNull(),
+  durationMinutes: integer('duration_minutes').notNull(),
+  kind: text('kind', { enum: ['quiz', 'event'] }).notNull(),
+  eventLabel: text('event_label'), // null for quiz slots
+  sortOrder: integer('sort_order').notNull(),
+})
+
+// One 3-team quiz at (slot, room). Prelim or elim.
+// `completedAt` is set by the result-linkage pipeline and gates immutability.
+export const scheduledQuizzes = sqliteTable('scheduled_quizzes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  meetId: integer('meet_id')
+    .notNull()
+    .references(() => quizMeets.id, { onDelete: 'cascade' }),
+  slotId: integer('slot_id')
+    .notNull()
+    .references(() => meetSlots.id, { onDelete: 'cascade' }),
+  roomId: integer('room_id')
+    .notNull()
+    .references(() => meetRooms.id, { onDelete: 'cascade' }),
+  division: text('division').notNull(),
+  phase: text('phase', { enum: ['prelim', 'elim'] }).notNull(),
+  lane: text('lane', { enum: ['main', 'consolation', 'intermediate'] }), // elim only
+  label: text('label').notNull(), // e.g. "Div 1 Quiz 1", "Div 2 Quiz A"
+  bracketLabel: text('bracket_label'), // elim only; e.g. "A", "D", "X"
+  publishedAt: integer('published_at', { mode: 'timestamp' }),
+  completedAt: integer('completed_at', { mode: 'timestamp' }),
+})
+
+// Three seats per quiz. Holds only the def — letter (prelim) or seedRef (elim).
+// The team binding lives in prelim_assignments or seed_resolutions.
+export const scheduledQuizSeats = sqliteTable('scheduled_quiz_seats', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  quizId: integer('quiz_id')
+    .notNull()
+    .references(() => scheduledQuizzes.id, { onDelete: 'cascade' }),
+  seatNumber: integer('seat_number').notNull(),
+  letter: text('letter'), // 'A'–'U' for prelim seats
+  seedRef: text('seed_ref'), // JSON for elim seats
+})
+
+// Resolution layer — prelim. (meetId, division, letter) → teamId.
+// "Roll Teams" writes here; re-roll is a transactional UPDATE on the same rows.
+export const prelimAssignments = sqliteTable(
+  'prelim_assignments',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    division: text('division').notNull(),
+    letter: text('letter').notNull(),
+    teamId: integer('team_id')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    assignedAt: integer('assigned_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [unique().on(t.meetId, t.division, t.letter)],
+)
+
+// Resolution layer — elim. (meetId, seedRef) → teamId. Written by the
+// result-linkage pipeline as prior quizzes complete.
+export const seedResolutions = sqliteTable(
+  'seed_resolutions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    seedRef: text('seed_ref').notNull(),
+    teamId: integer('team_id')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    resolvedAt: integer('resolved_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [unique().on(t.meetId, t.seedRef)],
+)
+
 // ---- Inferred types ----
 
 export type User = typeof user.$inferSelect
@@ -189,10 +308,16 @@ export type Session = typeof session.$inferSelect
 export type Account = typeof account.$inferSelect
 export type Verification = typeof verification.$inferSelect
 export type QuizMeet = typeof quizMeets.$inferSelect
-export type OfficialCode = typeof officialCodes.$inferSelect
+export type MeetRoom = typeof meetRooms.$inferSelect
 export type AdminMembership = typeof adminMemberships.$inferSelect
 export type CoachMembership = typeof coachMemberships.$inferSelect
 export type Church = typeof churches.$inferSelect
 export type Team = typeof teams.$inferSelect
 export type QuizzerIdentity = typeof quizzerIdentities.$inferSelect
 export type TeamRoster = typeof teamRosters.$inferSelect
+export type DivisionState = typeof divisionStates.$inferSelect
+export type MeetSlot = typeof meetSlots.$inferSelect
+export type ScheduledQuiz = typeof scheduledQuizzes.$inferSelect
+export type ScheduledQuizSeat = typeof scheduledQuizSeats.$inferSelect
+export type PrelimAssignment = typeof prelimAssignments.$inferSelect
+export type SeedResolution = typeof seedResolutions.$inferSelect

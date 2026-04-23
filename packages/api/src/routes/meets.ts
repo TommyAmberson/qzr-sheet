@@ -146,9 +146,9 @@ meets.get('/:id', async (c) => {
   }
 
   const codes = await db
-    .select({ id: schema.officialCodes.id, label: schema.officialCodes.label })
-    .from(schema.officialCodes)
-    .where(eq(schema.officialCodes.meetId, id))
+    .select({ id: schema.meetRooms.id, label: schema.meetRooms.name })
+    .from(schema.meetRooms)
+    .where(eq(schema.meetRooms.meetId, id))
 
   return c.json({ meet: formatMeet(meet), officialCodes: codes })
 })
@@ -268,11 +268,11 @@ meets.post('/:id/official-codes', async (c) => {
   const codeHash = await hashCode(code)
 
   const [created] = await db
-    .insert(schema.officialCodes)
-    .values({ meetId, label: body.label.trim(), codeHash })
+    .insert(schema.meetRooms)
+    .values({ meetId, name: body.label.trim(), codeHash })
     .returning()
 
-  return c.json({ officialCode: { id: created!.id, label: created!.label }, code }, 201)
+  return c.json({ officialCode: { id: created!.id, label: created!.name }, code }, 201)
 })
 
 meets.delete('/:id/official-codes/:codeId', async (c) => {
@@ -289,9 +289,9 @@ meets.delete('/:id/official-codes/:codeId', async (c) => {
   }
 
   const deleted = await db
-    .delete(schema.officialCodes)
-    .where(eq(schema.officialCodes.id, codeId))
-    .returning({ id: schema.officialCodes.id })
+    .delete(schema.meetRooms)
+    .where(eq(schema.meetRooms.id, codeId))
+    .returning({ id: schema.meetRooms.id })
 
   if (deleted.length === 0) return c.json({ error: 'Official code not found' }, 404)
   return c.json({ deleted: true })
@@ -314,10 +314,10 @@ meets.post('/:id/official-codes/:codeId/rotate', async (c) => {
   const codeHash = await hashCode(code)
 
   const [updated] = await db
-    .update(schema.officialCodes)
+    .update(schema.meetRooms)
     .set({ codeHash })
-    .where(eq(schema.officialCodes.id, codeId))
-    .returning({ id: schema.officialCodes.id, label: schema.officialCodes.label })
+    .where(eq(schema.meetRooms.id, codeId))
+    .returning({ id: schema.meetRooms.id, label: schema.meetRooms.name })
 
   if (!updated) return c.json({ error: 'Official code not found' }, 404)
   return c.json({ officialCode: updated, code })
@@ -331,7 +331,7 @@ interface MeetMember {
   email: string
   role: MeetRole
   churchId?: number
-  officialCodeId?: number
+  officialCodeId?: number // preserved API field name (maps to room id)
 }
 
 meets.get('/:id/members', async (c) => {
@@ -369,7 +369,7 @@ meets.get('/:id/members', async (c) => {
         userId: schema.officialMemberships.accountId,
         name: schema.user.name,
         email: schema.user.email,
-        officialCodeId: schema.officialMemberships.officialCodeId,
+        officialCodeId: schema.officialMemberships.roomId,
       })
       .from(schema.officialMemberships)
       .innerJoin(schema.user, eq(schema.officialMemberships.accountId, schema.user.id))
@@ -446,7 +446,7 @@ meets.delete('/:id/members/:userId', async (c) => {
         and(
           eq(schema.officialMemberships.accountId, targetUserId),
           eq(schema.officialMemberships.meetId, meetId),
-          eq(schema.officialMemberships.officialCodeId, body.officialCodeId),
+          eq(schema.officialMemberships.roomId, body.officialCodeId),
         ),
       )
       .returning()
