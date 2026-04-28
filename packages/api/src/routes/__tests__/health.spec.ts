@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import app from '../../index'
+import { app } from '../../index'
 
 // Minimal Bindings stub — only what the health route touches
 const env = { ENVIRONMENT: 'test', DB: {} as D1Database }

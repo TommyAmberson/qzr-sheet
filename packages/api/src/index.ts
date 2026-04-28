@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
+import type { ScheduledController, ExecutionContext } from '@cloudflare/workers-types'
 import type { Bindings } from './bindings'
 import type { SessionVariables } from './middleware/session'
 import { sessionMiddleware } from './middleware/session'
@@ -12,6 +13,8 @@ import { churches } from './routes/churches'
 import { phase } from './routes/phase'
 import { schedule } from './routes/schedule'
 import { createAuth } from './lib/auth'
+import { createDb } from './lib/db'
+import { autoAdvancePhases } from './scheduler'
 
 const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
 
@@ -50,4 +53,17 @@ app.route('/api/join', join)
 app.route('/api/my-meets', memberships)
 app.route('/api', churches)
 
-export default app
+export { app }
+
+export default {
+  fetch: app.fetch.bind(app),
+  async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+    ctx.waitUntil(
+      autoAdvancePhases(createDb(env.DB)).then((res) => {
+        if (res.promotedToBuild > 0 || res.promotedToLive > 0) {
+          console.log('phase auto-advance', res)
+        }
+      }),
+    )
+  },
+}
