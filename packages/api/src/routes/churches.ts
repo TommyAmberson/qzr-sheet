@@ -5,6 +5,7 @@ import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { generateCode, hashCode } from '../lib/codes'
+import { isAdminOrSuperuser } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { AccountRole } from '@qzr/shared'
 
@@ -27,21 +28,6 @@ churches.use('*', async (c, next) => {
 
 function getDb(c: { get(key: 'db'): Db }): Db {
   return c.get('db')
-}
-
-/** Returns true if the user is a superuser or has an admin membership for the given meet. */
-async function isAdminOrSuperuser(db: Db, userId: string, role: AccountRole, meetId: number) {
-  if (role === AccountRole.Superuser) return true
-  const [row] = await db
-    .select()
-    .from(schema.adminMemberships)
-    .where(
-      and(
-        eq(schema.adminMemberships.accountId, userId),
-        eq(schema.adminMemberships.meetId, meetId),
-      ),
-    )
-  return !!row
 }
 
 /** Returns true if the user can edit the given church (coach membership, admin, or superuser). */
