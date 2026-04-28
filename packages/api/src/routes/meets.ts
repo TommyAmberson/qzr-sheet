@@ -155,14 +155,23 @@ meets.patch('/:id', async (c) => {
     dateTo?: string
     viewerCode?: string
     divisions?: string[]
+    registrationClosesAt?: string | number | null
+    meetStartsAt?: string | number | null
   }>()
-  const updates: Record<string, string | null> = {}
+  const updates: Record<string, string | number | Date | null> = {}
   if (body.name?.trim()) updates.name = body.name.trim()
   if (body.dateFrom?.trim()) updates.dateFrom = body.dateFrom.trim()
   if ('dateTo' in body) updates.dateTo = body.dateTo?.trim() ?? null
   if (body.viewerCode?.trim()) updates.viewerCode = body.viewerCode.trim()
   if (Array.isArray(body.divisions) && body.divisions.length > 0) {
     updates.divisions = JSON.stringify(body.divisions.map((d: string) => d.trim()).filter(Boolean))
+  }
+  if ('registrationClosesAt' in body) {
+    updates.registrationClosesAt =
+      body.registrationClosesAt == null ? null : new Date(body.registrationClosesAt)
+  }
+  if ('meetStartsAt' in body) {
+    updates.meetStartsAt = body.meetStartsAt == null ? null : new Date(body.meetStartsAt)
   }
 
   if (Object.keys(updates).length === 0) {
@@ -467,6 +476,9 @@ function formatMeet(meet: schema.QuizMeet) {
     viewerCode: meet.viewerCode,
     divisions: JSON.parse(meet.divisions) as string[],
     createdAt: meet.createdAt,
+    phase: meet.phase,
+    registrationClosesAt: meet.registrationClosesAt,
+    meetStartsAt: meet.meetStartsAt,
   }
 }
 
