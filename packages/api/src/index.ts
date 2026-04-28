@@ -10,6 +10,7 @@ import { join } from './routes/join'
 import { memberships } from './routes/memberships'
 import { churches } from './routes/churches'
 import { phase } from './routes/phase'
+import { schedule } from './routes/schedule'
 import { createAuth } from './lib/auth'
 
 const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
@@ -44,6 +45,7 @@ app.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) => createAuth(c.env).handl
 app.use('/api/*', sessionMiddleware())
 app.route('/api/meets', meets)
 app.route('/api/meets', phase)
+app.route('/api/meets', schedule)
 app.route('/api/join', join)
 app.route('/api/my-meets', memberships)
 app.route('/api', churches)
