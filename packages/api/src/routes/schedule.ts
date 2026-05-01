@@ -365,7 +365,7 @@ schedule.patch('/:id/quizzes/:quizId', async (c) => {
   const [updated] = await db
     .update(schema.scheduledQuizzes)
     .set(updates)
-    .where(eq(schema.scheduledQuizzes.id, quizId))
+    .where(and(eq(schema.scheduledQuizzes.id, quizId), eq(schema.scheduledQuizzes.meetId, meetId)))
     .returning()
 
   return c.json({ quiz: updated })

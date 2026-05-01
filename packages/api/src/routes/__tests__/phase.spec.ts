@@ -254,4 +254,11 @@ describe('GET /api/meets/:id/divisions/state', () => {
     expect(states['Division 1']).toBe('stats_break')
     expect(states['Division 2']).toBe('elim_running')
   })
+
+  it('requires admin', async () => {
+    const meet = await seedMeet(db)
+    const userApp = createApp(testUser, db)
+    const res = await userApp.request(`/api/meets/${meet.id}/divisions/state`, {}, env)
+    expect(res.status).toBe(403)
+  })
 })

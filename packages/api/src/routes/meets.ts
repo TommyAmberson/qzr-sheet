@@ -88,11 +88,6 @@ meets.get('/:id', async (c) => {
 
   const id = meet.id
 
-  const roomsP = db
-    .select({ id: schema.meetRooms.id, label: schema.meetRooms.name })
-    .from(schema.meetRooms)
-    .where(eq(schema.meetRooms.meetId, id))
-
   if (user.role !== AccountRole.Superuser) {
     const [[admin], [coach], [official], [viewer]] = await Promise.all([
       db
@@ -135,7 +130,12 @@ meets.get('/:id', async (c) => {
     if (!admin && !coach && !official && !viewer) return c.json({ error: 'Forbidden' }, 403)
   }
 
-  return c.json({ meet: formatMeet(meet), officialCodes: await roomsP })
+  const codes = await db
+    .select({ id: schema.meetRooms.id, label: schema.meetRooms.name })
+    .from(schema.meetRooms)
+    .where(eq(schema.meetRooms.meetId, id))
+
+  return c.json({ meet: formatMeet(meet), officialCodes: codes })
 })
 
 meets.patch('/:id', async (c) => {
@@ -166,11 +166,22 @@ meets.patch('/:id', async (c) => {
     updates.divisions = JSON.stringify(body.divisions.map((d: string) => d.trim()).filter(Boolean))
   }
   if ('registrationClosesAt' in body) {
-    updates.registrationClosesAt =
-      body.registrationClosesAt == null ? null : new Date(body.registrationClosesAt)
+    if (body.registrationClosesAt == null) {
+      updates.registrationClosesAt = null
+    } else {
+      const d = new Date(body.registrationClosesAt)
+      if (Number.isNaN(d.getTime())) return c.json({ error: 'Invalid registrationClosesAt' }, 400)
+      updates.registrationClosesAt = d
+    }
   }
   if ('meetStartsAt' in body) {
-    updates.meetStartsAt = body.meetStartsAt == null ? null : new Date(body.meetStartsAt)
+    if (body.meetStartsAt == null) {
+      updates.meetStartsAt = null
+    } else {
+      const d = new Date(body.meetStartsAt)
+      if (Number.isNaN(d.getTime())) return c.json({ error: 'Invalid meetStartsAt' }, 400)
+      updates.meetStartsAt = d
+    }
   }
 
   if (Object.keys(updates).length === 0) {

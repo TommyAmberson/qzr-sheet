@@ -174,7 +174,12 @@ phase.get('/:id/divisions/state', async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
+  const user = getUser(c)
   const db = getDb(c)
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+
   const rows = await db
     .select({
       division: schema.divisionStates.division,
