@@ -113,14 +113,11 @@ memberships.get('/', async (c) => {
       meetId: schema.officialMemberships.meetId,
       meetName: schema.quizMeets.name,
       viewerCode: schema.quizMeets.viewerCode,
-      label: schema.officialCodes.label,
+      label: schema.meetRooms.name,
     })
     .from(schema.officialMemberships)
     .innerJoin(schema.quizMeets, eq(schema.officialMemberships.meetId, schema.quizMeets.id))
-    .innerJoin(
-      schema.officialCodes,
-      eq(schema.officialMemberships.officialCodeId, schema.officialCodes.id),
-    )
+    .innerJoin(schema.meetRooms, eq(schema.officialMemberships.roomId, schema.meetRooms.id))
     .where(eq(schema.officialMemberships.accountId, user.id))
 
   for (const row of officialRows) {

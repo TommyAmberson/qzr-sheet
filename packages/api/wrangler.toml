@@ -16,3 +16,8 @@ WEB_BASE_URL = "https://www.versevault.ca"
 [[routes]]
 pattern = "www.versevault.ca/api/*"
 zone_name = "versevault.ca"
+
+# Phase auto-advance: every 5 min, scan quiz_meets and promote any whose
+# registrationClosesAt or meetStartsAt timestamp has passed.
+[triggers]
+crons = ["*/5 * * * *"]

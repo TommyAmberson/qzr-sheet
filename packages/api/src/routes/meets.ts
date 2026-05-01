@@ -5,6 +5,7 @@ import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { generateCode, hashCode } from '../lib/codes'
+import { isAdminOrSuperuser } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { AccountRole, MeetRole } from '@qzr/shared'
 
@@ -29,21 +30,6 @@ meets.use('*', async (c, next) => {
 
 function getDb(c: { get(key: 'db'): Db }): Db {
   return c.get('db')
-}
-
-/** Returns true if the user is a superuser or has an admin membership for the given meet. */
-async function isAdminOrSuperuser(db: Db, userId: string, role: AccountRole, meetId: number) {
-  if (role === AccountRole.Superuser) return true
-  const [row] = await db
-    .select()
-    .from(schema.adminMemberships)
-    .where(
-      and(
-        eq(schema.adminMemberships.accountId, userId),
-        eq(schema.adminMemberships.meetId, meetId),
-      ),
-    )
-  return !!row
 }
 
 // ---- Meet CRUD ----
@@ -102,7 +88,6 @@ meets.get('/:id', async (c) => {
 
   const id = meet.id
 
-  // Superusers have access to all meets; others must have a membership
   if (user.role !== AccountRole.Superuser) {
     const [[admin], [coach], [official], [viewer]] = await Promise.all([
       db
@@ -146,9 +131,9 @@ meets.get('/:id', async (c) => {
   }
 
   const codes = await db
-    .select({ id: schema.officialCodes.id, label: schema.officialCodes.label })
-    .from(schema.officialCodes)
-    .where(eq(schema.officialCodes.meetId, id))
+    .select({ id: schema.meetRooms.id, label: schema.meetRooms.name })
+    .from(schema.meetRooms)
+    .where(eq(schema.meetRooms.meetId, id))
 
   return c.json({ meet: formatMeet(meet), officialCodes: codes })
 })
@@ -169,14 +154,34 @@ meets.patch('/:id', async (c) => {
     dateTo?: string
     viewerCode?: string
     divisions?: string[]
+    registrationClosesAt?: string | number | null
+    meetStartsAt?: string | number | null
   }>()
-  const updates: Record<string, string | null> = {}
+  const updates: Record<string, string | number | Date | null> = {}
   if (body.name?.trim()) updates.name = body.name.trim()
   if (body.dateFrom?.trim()) updates.dateFrom = body.dateFrom.trim()
   if ('dateTo' in body) updates.dateTo = body.dateTo?.trim() ?? null
   if (body.viewerCode?.trim()) updates.viewerCode = body.viewerCode.trim()
   if (Array.isArray(body.divisions) && body.divisions.length > 0) {
     updates.divisions = JSON.stringify(body.divisions.map((d: string) => d.trim()).filter(Boolean))
+  }
+  if ('registrationClosesAt' in body) {
+    if (body.registrationClosesAt == null) {
+      updates.registrationClosesAt = null
+    } else {
+      const d = new Date(body.registrationClosesAt)
+      if (Number.isNaN(d.getTime())) return c.json({ error: 'Invalid registrationClosesAt' }, 400)
+      updates.registrationClosesAt = d
+    }
+  }
+  if ('meetStartsAt' in body) {
+    if (body.meetStartsAt == null) {
+      updates.meetStartsAt = null
+    } else {
+      const d = new Date(body.meetStartsAt)
+      if (Number.isNaN(d.getTime())) return c.json({ error: 'Invalid meetStartsAt' }, 400)
+      updates.meetStartsAt = d
+    }
   }
 
   if (Object.keys(updates).length === 0) {
@@ -268,11 +273,11 @@ meets.post('/:id/official-codes', async (c) => {
   const codeHash = await hashCode(code)
 
   const [created] = await db
-    .insert(schema.officialCodes)
-    .values({ meetId, label: body.label.trim(), codeHash })
+    .insert(schema.meetRooms)
+    .values({ meetId, name: body.label.trim(), codeHash })
     .returning()
 
-  return c.json({ officialCode: { id: created!.id, label: created!.label }, code }, 201)
+  return c.json({ officialCode: { id: created!.id, label: created!.name }, code }, 201)
 })
 
 meets.delete('/:id/official-codes/:codeId', async (c) => {
@@ -289,9 +294,9 @@ meets.delete('/:id/official-codes/:codeId', async (c) => {
   }
 
   const deleted = await db
-    .delete(schema.officialCodes)
-    .where(eq(schema.officialCodes.id, codeId))
-    .returning({ id: schema.officialCodes.id })
+    .delete(schema.meetRooms)
+    .where(eq(schema.meetRooms.id, codeId))
+    .returning({ id: schema.meetRooms.id })
 
   if (deleted.length === 0) return c.json({ error: 'Official code not found' }, 404)
   return c.json({ deleted: true })
@@ -314,10 +319,10 @@ meets.post('/:id/official-codes/:codeId/rotate', async (c) => {
   const codeHash = await hashCode(code)
 
   const [updated] = await db
-    .update(schema.officialCodes)
+    .update(schema.meetRooms)
     .set({ codeHash })
-    .where(eq(schema.officialCodes.id, codeId))
-    .returning({ id: schema.officialCodes.id, label: schema.officialCodes.label })
+    .where(eq(schema.meetRooms.id, codeId))
+    .returning({ id: schema.meetRooms.id, label: schema.meetRooms.name })
 
   if (!updated) return c.json({ error: 'Official code not found' }, 404)
   return c.json({ officialCode: updated, code })
@@ -331,7 +336,7 @@ interface MeetMember {
   email: string
   role: MeetRole
   churchId?: number
-  officialCodeId?: number
+  officialCodeId?: number // preserved API field name (maps to room id)
 }
 
 meets.get('/:id/members', async (c) => {
@@ -369,7 +374,7 @@ meets.get('/:id/members', async (c) => {
         userId: schema.officialMemberships.accountId,
         name: schema.user.name,
         email: schema.user.email,
-        officialCodeId: schema.officialMemberships.officialCodeId,
+        officialCodeId: schema.officialMemberships.roomId,
       })
       .from(schema.officialMemberships)
       .innerJoin(schema.user, eq(schema.officialMemberships.accountId, schema.user.id))
@@ -446,7 +451,7 @@ meets.delete('/:id/members/:userId', async (c) => {
         and(
           eq(schema.officialMemberships.accountId, targetUserId),
           eq(schema.officialMemberships.meetId, meetId),
-          eq(schema.officialMemberships.officialCodeId, body.officialCodeId),
+          eq(schema.officialMemberships.roomId, body.officialCodeId),
         ),
       )
       .returning()
@@ -481,6 +486,9 @@ function formatMeet(meet: schema.QuizMeet) {
     viewerCode: meet.viewerCode,
     divisions: JSON.parse(meet.divisions) as string[],
     createdAt: meet.createdAt,
+    phase: meet.phase,
+    registrationClosesAt: meet.registrationClosesAt,
+    meetStartsAt: meet.meetStartsAt,
   }
 }
 

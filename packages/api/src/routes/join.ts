@@ -133,12 +133,12 @@ join.post('/', requireAuth(), async (c) => {
   // 2c. Try official codes
   const [officialMatch] = await db
     .select({
-      codeId: schema.officialCodes.id,
-      meetId: schema.officialCodes.meetId,
-      label: schema.officialCodes.label,
+      codeId: schema.meetRooms.id,
+      meetId: schema.meetRooms.meetId,
+      label: schema.meetRooms.name,
     })
-    .from(schema.officialCodes)
-    .where(eq(schema.officialCodes.codeHash, codeHash))
+    .from(schema.meetRooms)
+    .where(eq(schema.meetRooms.codeHash, codeHash))
 
   if (officialMatch) {
     const [meet] = await db
@@ -154,14 +154,14 @@ join.post('/', requireAuth(), async (c) => {
           and(
             eq(schema.officialMemberships.accountId, user.id),
             eq(schema.officialMemberships.meetId, officialMatch.meetId),
-            eq(schema.officialMemberships.officialCodeId, officialMatch.codeId),
+            eq(schema.officialMemberships.roomId, officialMatch.codeId),
           ),
         )
       if (!existing) {
         await db.insert(schema.officialMemberships).values({
           accountId: user.id,
           meetId: officialMatch.meetId,
-          officialCodeId: officialMatch.codeId,
+          roomId: officialMatch.codeId,
         })
       }
       return c.json({
@@ -213,12 +213,12 @@ join.post('/guest', async (c) => {
 
   const [officialMatch] = await db
     .select({
-      codeId: schema.officialCodes.id,
-      meetId: schema.officialCodes.meetId,
-      label: schema.officialCodes.label,
+      codeId: schema.meetRooms.id,
+      meetId: schema.meetRooms.meetId,
+      label: schema.meetRooms.name,
     })
-    .from(schema.officialCodes)
-    .where(eq(schema.officialCodes.codeHash, codeHash))
+    .from(schema.meetRooms)
+    .where(eq(schema.meetRooms.codeHash, codeHash))
 
   if (officialMatch) {
     const [meet] = await db

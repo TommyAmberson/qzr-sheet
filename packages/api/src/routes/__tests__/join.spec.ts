@@ -70,8 +70,8 @@ async function seedOfficialCode(db: Db, meetId: number, label: string) {
   const codeHash = await hashCode(code)
 
   const [row] = await db
-    .insert(schema.officialCodes)
-    .values({ meetId, label, codeHash })
+    .insert(schema.meetRooms)
+    .values({ meetId, name: label, codeHash })
     .returning()
 
   return { officialCode: row!, code }

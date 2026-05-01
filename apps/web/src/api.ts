@@ -1,4 +1,7 @@
 import { createApiClient, MeetRole } from '@qzr/shared'
+import type { MeetPhase, DivisionStateValue } from '@qzr/shared'
+
+export type { MeetPhase, DivisionStateValue }
 
 declare const __API_URL__: string
 
@@ -14,6 +17,15 @@ export interface QuizMeet {
   viewerCode: string
   divisions: string[]
   createdAt: string
+  phase?: MeetPhase
+  registrationClosesAt?: string | null
+  meetStartsAt?: string | null
+}
+
+export interface DivisionState {
+  division: string
+  state: DivisionStateValue
+  transitionedAt: string
 }
 
 export interface OfficialCode {
@@ -66,6 +78,8 @@ export function updateMeet(
     dateTo?: string | null
     viewerCode?: string
     divisions?: string[]
+    registrationClosesAt?: string | null
+    meetStartsAt?: string | null
   },
 ): Promise<{ meet: QuizMeet }> {
   return request(`/api/meets/${id}`, {
@@ -111,6 +125,33 @@ export function rotateOfficialCode(
   codeId: number,
 ): Promise<{ officialCode: OfficialCode; code: string }> {
   return request(`/api/meets/${meetId}/official-codes/${codeId}/rotate`, { method: 'POST' })
+}
+
+// ---- Phase / division state ----
+
+export function setMeetPhase(
+  meetId: number,
+  phase: MeetPhase,
+): Promise<{ phase: MeetPhase; reversed: boolean; unchanged?: boolean }> {
+  return request(`/api/meets/${meetId}/phase`, {
+    method: 'POST',
+    body: JSON.stringify({ phase }),
+  })
+}
+
+export function setDivisionState(
+  meetId: number,
+  division: string,
+  state: DivisionStateValue,
+): Promise<{ state: DivisionStateValue; reversed: boolean; unchanged?: boolean }> {
+  return request(`/api/meets/${meetId}/divisions/${encodeURIComponent(division)}/state`, {
+    method: 'POST',
+    body: JSON.stringify({ state }),
+  })
+}
+
+export function getDivisionStates(meetId: number): Promise<{ divisionStates: DivisionState[] }> {
+  return request(`/api/meets/${meetId}/divisions/state`)
 }
 
 // ---- Join / memberships ----

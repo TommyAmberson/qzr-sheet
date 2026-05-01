@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { MeetRole } from '@qzr/shared'
+import { MeetRole, MEET_PHASES, type MeetPhase } from '@qzr/shared'
 import {
   getMeet,
   getMyMeets,
@@ -17,6 +17,7 @@ import {
   rotateOfficialCode,
   importRoster,
   exportRoster,
+  setMeetPhase,
   type MeetDetail,
   type MeetMembership,
   type Church,
@@ -78,6 +79,59 @@ const showAddRoom = ref(false)
 const newRoomLabel = ref('')
 const addingRoom = ref(false)
 const addRoomError = ref('')
+
+// Phase header
+const phaseSaving = ref(false)
+const phaseError = ref('')
+
+const currentPhase = computed<MeetPhase>(() => detail.value?.meet.phase ?? 'registration')
+const phaseIdx = computed(() => MEET_PHASES.indexOf(currentPhase.value))
+const nextPhase = computed<MeetPhase | null>(() =>
+  phaseIdx.value < MEET_PHASES.length - 1 ? MEET_PHASES[phaseIdx.value + 1]! : null,
+)
+const prevPhase = computed<MeetPhase | null>(() =>
+  phaseIdx.value > 0 ? MEET_PHASES[phaseIdx.value - 1]! : null,
+)
+const canAdvancePhase = computed(() => nextPhase.value !== null)
+const canRevertPhase = computed(() => prevPhase.value !== null)
+const phaseAdvanceTitle = computed(() =>
+  nextPhase.value ? `Advance to ${phaseLabel(nextPhase.value)}` : 'Already in final phase',
+)
+const phaseRevertTitle = computed(() =>
+  prevPhase.value
+    ? `Revert to ${phaseLabel(prevPhase.value)} (flagged as unusual)`
+    : 'No earlier phase',
+)
+
+function phaseLabel(p: MeetPhase | undefined): string {
+  const phase = p ?? 'registration'
+  return phase[0]!.toUpperCase() + phase.slice(1)
+}
+
+async function advancePhase(direction: 'advance' | 'revert') {
+  if (!detail.value) return
+  const target = direction === 'advance' ? nextPhase.value : prevPhase.value
+  if (!target) return
+  if (
+    direction === 'revert' &&
+    !confirm(`Revert to ${phaseLabel(target)}? Phase reverses are unusual.`)
+  ) {
+    return
+  }
+  phaseSaving.value = true
+  phaseError.value = ''
+  try {
+    const res = await setMeetPhase(detail.value.meet.id, target)
+    detail.value = {
+      ...detail.value,
+      meet: { ...detail.value.meet, phase: res.phase },
+    }
+  } catch (e) {
+    phaseError.value = e instanceof Error ? e.message : 'Failed to change phase'
+  } finally {
+    phaseSaving.value = false
+  }
+}
 
 // Access dialog
 interface AccessDialog {
@@ -621,6 +675,33 @@ onMounted(load)
         </form>
       </div>
 
+      <!-- Phase indicator -->
+      <div class="phase-bar" :data-phase="detail.meet.phase ?? 'registration'">
+        <div class="phase-bar-label">
+          <span class="phase-bar-caption">Phase:</span>
+          <strong class="phase-bar-value">{{ phaseLabel(detail.meet.phase) }}</strong>
+        </div>
+        <div v-if="isAdmin" class="phase-bar-actions">
+          <button
+            class="phase-btn"
+            :disabled="!canRevertPhase || phaseSaving"
+            :title="phaseRevertTitle"
+            @click="advancePhase('revert')"
+          >
+            ← Revert
+          </button>
+          <button
+            class="phase-btn phase-btn--primary"
+            :disabled="!canAdvancePhase || phaseSaving"
+            :title="phaseAdvanceTitle"
+            @click="advancePhase('advance')"
+          >
+            Advance →
+          </button>
+        </div>
+      </div>
+      <p v-if="phaseError" class="state-msg state-msg--error">{{ phaseError }}</p>
+
       <!-- Admin code -->
       <div v-if="isAdmin" class="section">
         <div class="section-header">
@@ -1149,6 +1230,75 @@ onMounted(load)
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Phase header bar */
+.phase-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border, #ddd);
+  background: var(--bg-elevated, #f9f9f9);
+}
+
+.phase-bar[data-phase='build'] {
+  background: #fff7e6;
+  border-color: #f0c060;
+}
+.phase-bar[data-phase='live'] {
+  background: #e6f7ec;
+  border-color: #5cbf7a;
+}
+.phase-bar[data-phase='done'] {
+  background: #ececec;
+  border-color: #999;
+}
+
+.phase-bar-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.phase-bar-caption {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.phase-bar-value {
+  font-size: 1.05rem;
+  text-transform: capitalize;
+}
+
+.phase-bar-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.phase-btn {
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.35rem;
+  border: 1px solid var(--border, #ccc);
+  background: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.phase-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.phase-btn--primary {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+.phase-btn--primary:disabled {
+  background: #9aa9c8;
+  border-color: #9aa9c8;
 }
 
 /* Sections */

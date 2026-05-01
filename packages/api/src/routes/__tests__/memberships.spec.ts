@@ -96,14 +96,14 @@ describe('GET /api/my-meets', () => {
   it('returns official memberships with room label', async () => {
     const meet = await seedMeet(db, 'Official Meet')
     const [code] = await db
-      .insert(schema.officialCodes)
-      .values({ meetId: meet.id, label: 'Room A', codeHash: await hashCode('test') })
+      .insert(schema.meetRooms)
+      .values({ meetId: meet.id, name: 'Room A', codeHash: await hashCode('test') })
       .returning()
 
     await db.insert(schema.officialMemberships).values({
       accountId: testUser.id,
       meetId: meet.id,
-      officialCodeId: code!.id,
+      roomId: code!.id,
     })
 
     const res = await app.request('/api/my-meets', {}, env)
