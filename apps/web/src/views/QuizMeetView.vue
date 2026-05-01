@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { MeetRole } from '@qzr/shared'
+import { MeetRole, MEET_PHASES, type MeetPhase } from '@qzr/shared'
 import {
   getMeet,
   getMyMeets,
@@ -23,7 +23,6 @@ import {
   type Church,
   type OfficialCode,
   type MeetMember,
-  type MeetPhase,
   listMembers,
   revokeMember,
 } from '../api'
@@ -82,17 +81,16 @@ const addingRoom = ref(false)
 const addRoomError = ref('')
 
 // Phase header
-const PHASES: readonly MeetPhase[] = ['registration', 'build', 'live', 'done']
 const phaseSaving = ref(false)
 const phaseError = ref('')
 
 const currentPhase = computed<MeetPhase>(() => detail.value?.meet.phase ?? 'registration')
-const phaseIdx = computed(() => PHASES.indexOf(currentPhase.value))
+const phaseIdx = computed(() => MEET_PHASES.indexOf(currentPhase.value))
 const nextPhase = computed<MeetPhase | null>(() =>
-  phaseIdx.value < PHASES.length - 1 ? PHASES[phaseIdx.value + 1]! : null,
+  phaseIdx.value < MEET_PHASES.length - 1 ? MEET_PHASES[phaseIdx.value + 1]! : null,
 )
 const prevPhase = computed<MeetPhase | null>(() =>
-  phaseIdx.value > 0 ? PHASES[phaseIdx.value - 1]! : null,
+  phaseIdx.value > 0 ? MEET_PHASES[phaseIdx.value - 1]! : null,
 )
 const canAdvancePhase = computed(() => nextPhase.value !== null)
 const canRevertPhase = computed(() => prevPhase.value !== null)
@@ -106,18 +104,8 @@ const phaseRevertTitle = computed(() =>
 )
 
 function phaseLabel(p: MeetPhase | undefined): string {
-  switch (p) {
-    case 'registration':
-      return 'Registration'
-    case 'build':
-      return 'Build'
-    case 'live':
-      return 'Live'
-    case 'done':
-      return 'Done'
-    default:
-      return 'Registration'
-  }
+  const phase = p ?? 'registration'
+  return phase[0]!.toUpperCase() + phase.slice(1)
 }
 
 async function advancePhase(direction: 'advance' | 'revert') {

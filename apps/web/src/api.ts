@@ -1,14 +1,13 @@
 import { createApiClient, MeetRole } from '@qzr/shared'
+import type { MeetPhase, DivisionStateValue } from '@qzr/shared'
+
+export type { MeetPhase, DivisionStateValue }
 
 declare const __API_URL__: string
 
 const request = createApiClient(__API_URL__ || '')
 
 // ---- Types ----
-
-export type MeetPhase = 'registration' | 'build' | 'live' | 'done'
-
-export type DivisionStateValue = 'prelim_running' | 'stats_break' | 'elim_running' | 'division_done'
 
 export interface QuizMeet {
   id: number

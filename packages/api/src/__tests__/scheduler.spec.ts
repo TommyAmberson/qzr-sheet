@@ -3,32 +3,8 @@ import { eq } from 'drizzle-orm'
 import * as schema from '../db/schema'
 import { autoAdvancePhases } from '../scheduler'
 import { createTestDb } from '../test-db'
+import { seedMeet } from '../test-utils'
 import type { Db } from '../lib/db'
-
-async function seedMeet(
-  db: Db,
-  name: string,
-  opts: {
-    phase?: 'registration' | 'build' | 'live' | 'done'
-    registrationClosesAt?: Date | null
-    meetStartsAt?: Date | null
-  } = {},
-) {
-  const [meet] = await db
-    .insert(schema.quizMeets)
-    .values({
-      name,
-      dateFrom: '2026-01-01',
-      adminCodeHash: 'x',
-      viewerCode: name.toLowerCase().replace(/\s+/g, '-'),
-      createdAt: new Date(),
-      phase: opts.phase ?? 'registration',
-      registrationClosesAt: opts.registrationClosesAt ?? null,
-      meetStartsAt: opts.meetStartsAt ?? null,
-    })
-    .returning()
-  return meet!
-}
 
 describe('autoAdvancePhases', () => {
   let db: Db

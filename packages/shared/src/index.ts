@@ -1,4 +1,6 @@
 export { AccountRole, MeetRole } from './roles'
+export { MEET_PHASES, DIVISION_STATES } from './phases'
+export type { MeetPhase, DivisionStateValue } from './phases'
 export {
   QuizFileSchema,
   FILE_VERSION,

@@ -5,7 +5,15 @@ import type { Bindings } from '../../bindings'
 import type { SessionVariables } from '../../middleware/session'
 import { schedule } from '../schedule'
 import * as schema from '../../db/schema'
-import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
+import {
+  mockSession,
+  mockDb,
+  testSuperuser,
+  testUser,
+  jsonOf,
+  jsonRequest,
+  seedMeet,
+} from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 
@@ -19,35 +27,8 @@ function createApp(user: typeof testSuperuser | typeof testUser | null, db: Db) 
   return app
 }
 
-function postJson(body: Record<string, unknown>) {
-  return {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }
-}
-
-function patchJson(body: Record<string, unknown>) {
-  return {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }
-}
-
-async function seedMeet(db: Db, name = 'Test Meet') {
-  const [meet] = await db
-    .insert(schema.quizMeets)
-    .values({
-      name,
-      dateFrom: '2026-01-01',
-      adminCodeHash: 'x',
-      viewerCode: name.toLowerCase().replace(/\s+/g, '-'),
-      createdAt: new Date(),
-    })
-    .returning()
-  return meet!
-}
+const postJson = (body: Record<string, unknown>) => jsonRequest('POST', body)
+const patchJson = (body: Record<string, unknown>) => jsonRequest('PATCH', body)
 
 async function seedRoom(db: Db, meetId: number, name: string, sortOrder = 0) {
   const [room] = await db.insert(schema.meetRooms).values({ meetId, name, sortOrder }).returning()

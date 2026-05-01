@@ -88,7 +88,11 @@ meets.get('/:id', async (c) => {
 
   const id = meet.id
 
-  // Superusers have access to all meets; others must have a membership
+  const roomsP = db
+    .select({ id: schema.meetRooms.id, label: schema.meetRooms.name })
+    .from(schema.meetRooms)
+    .where(eq(schema.meetRooms.meetId, id))
+
   if (user.role !== AccountRole.Superuser) {
     const [[admin], [coach], [official], [viewer]] = await Promise.all([
       db
@@ -131,12 +135,7 @@ meets.get('/:id', async (c) => {
     if (!admin && !coach && !official && !viewer) return c.json({ error: 'Forbidden' }, 403)
   }
 
-  const codes = await db
-    .select({ id: schema.meetRooms.id, label: schema.meetRooms.name })
-    .from(schema.meetRooms)
-    .where(eq(schema.meetRooms.meetId, id))
-
-  return c.json({ meet: formatMeet(meet), officialCodes: codes })
+  return c.json({ meet: formatMeet(meet), officialCodes: await roomsP })
 })
 
 meets.patch('/:id', async (c) => {

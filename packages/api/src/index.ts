@@ -56,7 +56,7 @@ app.route('/api', churches)
 export { app }
 
 export default {
-  fetch: app.fetch.bind(app),
+  fetch: app.fetch,
   async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
     ctx.waitUntil(
       autoAdvancePhases(createDb(env.DB)).then((res) => {

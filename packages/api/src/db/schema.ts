@@ -1,5 +1,5 @@
 import { integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
-import { AccountRole } from '@qzr/shared'
+import { AccountRole, MEET_PHASES, DIVISION_STATES } from '@qzr/shared'
 
 // ---- Better Auth core tables ----
 
@@ -67,19 +67,13 @@ export const quizMeets = sqliteTable('quiz_meets', {
   viewerCode: text('viewer_code').notNull(), // admin-set human-readable slug
   divisions: text('divisions').notNull().default('[]'), // JSON string[]
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  phase: text('phase', {
-    enum: ['registration', 'build', 'live', 'done'],
-  })
-    .notNull()
-    .default('registration'),
+  phase: text('phase', { enum: MEET_PHASES }).notNull().default('registration'),
   registrationClosesAt: integer('registration_closes_at', { mode: 'timestamp' }),
   meetStartsAt: integer('meet_starts_at', { mode: 'timestamp' }),
 })
 
-// A named physical location within a meet. Renamed from `official_codes` — this
-// row both defines the room (name, sortOrder for grid display) and optionally
-// carries the official-access codeHash. `codeHash` is nullable: admins can
-// create rooms in the `build` phase before issuing an official code.
+// A named physical location within a meet (renamed from `official_codes`).
+// codeHash is nullable so admins can create rooms in 'build' before issuing codes.
 export const meetRooms = sqliteTable('meet_rooms', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   meetId: integer('meet_id')
@@ -206,11 +200,7 @@ export const divisionStates = sqliteTable(
       .notNull()
       .references(() => quizMeets.id, { onDelete: 'cascade' }),
     division: text('division').notNull(),
-    state: text('state', {
-      enum: ['prelim_running', 'stats_break', 'elim_running', 'division_done'],
-    })
-      .notNull()
-      .default('prelim_running'),
+    state: text('state', { enum: DIVISION_STATES }).notNull().default('prelim_running'),
     transitionedAt: integer('transitioned_at', { mode: 'timestamp' }).notNull(),
   },
   (t) => [unique().on(t.meetId, t.division)],

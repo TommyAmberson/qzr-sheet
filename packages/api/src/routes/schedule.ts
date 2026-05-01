@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono'
-import { eq, and, asc, inArray } from 'drizzle-orm'
+import { eq, and, asc, inArray, sql } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, getUser } from '../middleware/session'
@@ -48,7 +48,7 @@ schedule.get('/:id/rooms', async (c) => {
       id: schema.meetRooms.id,
       name: schema.meetRooms.name,
       sortOrder: schema.meetRooms.sortOrder,
-      hasCode: schema.meetRooms.codeHash,
+      hasCode: sql<number>`(${schema.meetRooms.codeHash} IS NOT NULL)`,
     })
     .from(schema.meetRooms)
     .where(eq(schema.meetRooms.meetId, meetId))
@@ -59,7 +59,7 @@ schedule.get('/:id/rooms', async (c) => {
       id: r.id,
       name: r.name,
       sortOrder: r.sortOrder,
-      hasCode: r.hasCode !== null,
+      hasCode: Boolean(r.hasCode),
     })),
   })
 })
@@ -91,7 +91,7 @@ schedule.patch('/:id/rooms/:roomId', async (c) => {
       id: schema.meetRooms.id,
       name: schema.meetRooms.name,
       sortOrder: schema.meetRooms.sortOrder,
-      hasCode: schema.meetRooms.codeHash,
+      codeHash: schema.meetRooms.codeHash,
     })
 
   if (!updated) return c.json({ error: 'Room not found' }, 404)
@@ -100,7 +100,7 @@ schedule.patch('/:id/rooms/:roomId', async (c) => {
       id: updated.id,
       name: updated.name,
       sortOrder: updated.sortOrder,
-      hasCode: updated.hasCode !== null,
+      hasCode: updated.codeHash !== null,
     },
   })
 })
@@ -145,7 +145,7 @@ schedule.post('/:id/slots', async (c) => {
     return c.json({ error: 'sortOrder is required' }, 400)
   }
 
-  const startAt = typeof body.startAt === 'number' ? new Date(body.startAt) : new Date(body.startAt)
+  const startAt = new Date(body.startAt)
   if (Number.isNaN(startAt.getTime())) return c.json({ error: 'Invalid startAt' }, 400)
 
   const db = getDb(c)
@@ -182,8 +182,7 @@ schedule.patch('/:id/slots/:slotId', async (c) => {
   }>()
   const updates: Record<string, unknown> = {}
   if (body.startAt !== undefined) {
-    const startAt =
-      typeof body.startAt === 'number' ? new Date(body.startAt) : new Date(body.startAt)
+    const startAt = new Date(body.startAt)
     if (Number.isNaN(startAt.getTime())) return c.json({ error: 'Invalid startAt' }, 400)
     updates.startAt = startAt
   }
@@ -397,10 +396,10 @@ schedule.delete('/:id/quizzes/:quizId', async (c) => {
 })
 
 /**
- * PATCH /api/meets/:id/quizzes/:quizId/seats
- * Body: { seats: [{ seatNumber, letter?, seedRef? }, ...] }
- *
- * Replace all seats for a quiz transactionally. Rejects if quiz is completed.
+ * Replace all seats for a quiz. NOTE: not atomic — D1 doesn't support
+ * interactive transactions, so a delete-failure-then-insert window is
+ * possible. Callers can recover by re-issuing the PATCH. Rejects if the
+ * quiz is already completed.
  */
 schedule.patch('/:id/quizzes/:quizId/seats', async (c) => {
   const meetId = Number(c.req.param('id'))
