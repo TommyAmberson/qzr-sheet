@@ -54,11 +54,24 @@ export function sessionMiddleware(): MiddlewareHandler<{
   }
 }
 
-/**
- * 401 if neither a signed-in user nor a guest JWT is present.
- * Must be used after sessionMiddleware.
- */
+/** 401 if no signed-in user. Mutation routes that need a real account use this. */
 export function requireAuth(): MiddlewareHandler<{
+  Bindings: Bindings
+  Variables: SessionVariables
+}> {
+  return async (c, next) => {
+    if (!c.get('user')) {
+      return c.json({ error: 'Authentication required' }, 401)
+    }
+    await next()
+  }
+}
+
+/**
+ * 401 if neither a signed-in user nor a guest JWT is present. Read routes
+ * that admit anonymous guest viewers (with a valid guest JWT) use this.
+ */
+export function requireAuthOrGuest(): MiddlewareHandler<{
   Bindings: Bindings
   Variables: SessionVariables
 }> {

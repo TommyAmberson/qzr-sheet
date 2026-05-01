@@ -2,10 +2,10 @@ import { Hono } from 'hono'
 import { eq, and, inArray, sql } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
-import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
+import { requireAuth, requireAuthOrGuest, requireSuperuser, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { generateCode, hashCode } from '../lib/codes'
-import { isAdminOrSuperuser } from '../lib/permissions'
+import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { AccountRole } from '@qzr/shared'
 
@@ -17,7 +17,9 @@ type Env = { Bindings: Bindings; Variables: ChurchesVariables }
 
 export const churches = new Hono<Env>()
 
-churches.use('*', requireAuth())
+// Reads (GET) admit guests with a meet-scoped JWT; mutations gate via
+// requireAuth + canEditChurch / isAdminOrSuperuser per-route.
+churches.use('*', requireAuthOrGuest())
 
 churches.use('*', async (c, next) => {
   if (!c.get('db')) {
@@ -62,6 +64,7 @@ churches.get('/meets/:meetId/churches', async (c) => {
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const db = getDb(c)
+  if (!(await isViewerOf(c, db, meetId))) return c.json({ error: 'Forbidden' }, 403)
 
   // Left join teams so churches with no teams still appear; count per church in one query.
   const rows = await db
@@ -87,7 +90,7 @@ churches.get('/meets/:meetId/churches', async (c) => {
  * Creates a church for the meet. Requires superuser or admin membership.
  * Generates a coach code for the church on creation.
  */
-churches.post('/meets/:meetId/churches', async (c) => {
+churches.post('/meets/:meetId/churches', requireAuth(), async (c) => {
   const meetId = Number(c.req.param('meetId'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -127,7 +130,7 @@ churches.post('/meets/:meetId/churches', async (c) => {
  *
  * Updates a church's name and/or shortName. Requires admin or superuser.
  */
-churches.patch('/churches/:churchId', async (c) => {
+churches.patch('/churches/:churchId', requireAuth(), async (c) => {
   const churchId = Number(c.req.param('churchId'))
   if (Number.isNaN(churchId)) return c.json({ error: 'Invalid church ID' }, 400)
 
@@ -166,7 +169,7 @@ churches.patch('/churches/:churchId', async (c) => {
  * Deletes a church, its teams, rosters, and coach memberships (via CASCADE).
  * Requires admin or superuser.
  */
-churches.delete('/churches/:churchId', async (c) => {
+churches.delete('/churches/:churchId', requireAuth(), async (c) => {
   const churchId = Number(c.req.param('churchId'))
   if (Number.isNaN(churchId)) return c.json({ error: 'Invalid church ID' }, 400)
 
@@ -191,7 +194,7 @@ churches.delete('/churches/:churchId', async (c) => {
  * Rotates the coach code for a church. Accepts { clearMembers: boolean }.
  * Requires admin or superuser.
  */
-churches.post('/churches/:churchId/rotate-coach-code', async (c) => {
+churches.post('/churches/:churchId/rotate-coach-code', requireAuth(), async (c) => {
   const churchId = Number(c.req.param('churchId'))
   if (Number.isNaN(churchId)) return c.json({ error: 'Invalid church ID' }, 400)
 
@@ -235,6 +238,7 @@ churches.get('/churches/:churchId/teams', async (c) => {
   const db = getDb(c)
   const [church] = await db.select().from(schema.churches).where(eq(schema.churches.id, churchId))
   if (!church) return c.json({ error: 'Church not found' }, 404)
+  if (!(await isViewerOf(c, db, church.meetId))) return c.json({ error: 'Forbidden' }, 403)
 
   const rows = await db
     .select({
@@ -255,7 +259,7 @@ churches.get('/churches/:churchId/teams', async (c) => {
  *
  * Creates a team under a church. Requires coach, admin, or superuser access.
  */
-churches.post('/churches/:churchId/teams', async (c) => {
+churches.post('/churches/:churchId/teams', requireAuth(), async (c) => {
   const churchId = Number(c.req.param('churchId'))
   if (Number.isNaN(churchId)) return c.json({ error: 'Invalid church ID' }, 400)
 
@@ -295,7 +299,7 @@ churches.post('/churches/:churchId/teams', async (c) => {
  *
  * Updates a team's division. Requires coach, admin, or superuser access.
  */
-churches.patch('/teams/:teamId', async (c) => {
+churches.patch('/teams/:teamId', requireAuth(), async (c) => {
   const teamId = Number(c.req.param('teamId'))
   if (Number.isNaN(teamId)) return c.json({ error: 'Invalid team ID' }, 400)
 
@@ -332,7 +336,7 @@ churches.patch('/teams/:teamId', async (c) => {
  *
  * Deletes a team and its entire roster. Requires coach, admin, or superuser access.
  */
-churches.delete('/teams/:teamId', async (c) => {
+churches.delete('/teams/:teamId', requireAuth(), async (c) => {
   const teamId = Number(c.req.param('teamId'))
   if (Number.isNaN(teamId)) return c.json({ error: 'Invalid team ID' }, 400)
 
@@ -357,7 +361,7 @@ churches.delete('/teams/:teamId', async (c) => {
  * Marks a team as consolation. Requires admin or superuser access.
  * Called at stats break when teams are split into the consolation bracket.
  */
-churches.post('/teams/:teamId/consolation', async (c) => {
+churches.post('/teams/:teamId/consolation', requireAuth(), async (c) => {
   const teamId = Number(c.req.param('teamId'))
   if (Number.isNaN(teamId)) return c.json({ error: 'Invalid team ID' }, 400)
 
@@ -385,7 +389,7 @@ churches.post('/teams/:teamId/consolation', async (c) => {
  *
  * Removes consolation status from a team. Requires admin or superuser access.
  */
-churches.delete('/teams/:teamId/consolation', async (c) => {
+churches.delete('/teams/:teamId/consolation', requireAuth(), async (c) => {
   const teamId = Number(c.req.param('teamId'))
   if (Number.isNaN(teamId)) return c.json({ error: 'Invalid team ID' }, 400)
 
@@ -418,6 +422,12 @@ churches.get('/teams/:teamId/quizzers', async (c) => {
   if (Number.isNaN(teamId)) return c.json({ error: 'Invalid team ID' }, 400)
 
   const db = getDb(c)
+  const [team] = await db
+    .select({ meetId: schema.teams.meetId })
+    .from(schema.teams)
+    .where(eq(schema.teams.id, teamId))
+  if (!team) return c.json({ error: 'Team not found' }, 404)
+  if (!(await isViewerOf(c, db, team.meetId))) return c.json({ error: 'Forbidden' }, 403)
 
   const rows = await db
     .select({ quizzerId: schema.teamRosters.quizzerId, name: schema.teamRosters.name })
@@ -430,7 +440,7 @@ churches.get('/teams/:teamId/quizzers', async (c) => {
 /**
  * POST /api/teams/:teamId/quizzers
  */
-churches.post('/teams/:teamId/quizzers', async (c) => {
+churches.post('/teams/:teamId/quizzers', requireAuth(), async (c) => {
   const teamId = Number(c.req.param('teamId'))
   if (Number.isNaN(teamId)) return c.json({ error: 'Invalid team ID' }, 400)
 
@@ -459,7 +469,7 @@ churches.post('/teams/:teamId/quizzers', async (c) => {
 /**
  * PATCH /api/teams/:teamId/quizzers/:quizzerId
  */
-churches.patch('/teams/:teamId/quizzers/:quizzerId', async (c) => {
+churches.patch('/teams/:teamId/quizzers/:quizzerId', requireAuth(), async (c) => {
   const teamId = Number(c.req.param('teamId'))
   const quizzerId = Number(c.req.param('quizzerId'))
   if (Number.isNaN(teamId) || Number.isNaN(quizzerId)) return c.json({ error: 'Invalid ID' }, 400)
@@ -490,7 +500,7 @@ churches.patch('/teams/:teamId/quizzers/:quizzerId', async (c) => {
 /**
  * DELETE /api/teams/:teamId/quizzers/:quizzerId
  */
-churches.delete('/teams/:teamId/quizzers/:quizzerId', async (c) => {
+churches.delete('/teams/:teamId/quizzers/:quizzerId', requireAuth(), async (c) => {
   const teamId = Number(c.req.param('teamId'))
   const quizzerId = Number(c.req.param('quizzerId'))
   if (Number.isNaN(teamId) || Number.isNaN(quizzerId)) return c.json({ error: 'Invalid ID' }, 400)
@@ -537,7 +547,7 @@ interface RosterSyncPayload {
  * Client sends desired state: ordered teams (with division + quizzer names) and unassigned pool.
  * Temp IDs (negative) signal new teams/quizzers; server returns the resolved state.
  */
-churches.post('/churches/:churchId/roster/sync', async (c) => {
+churches.post('/churches/:churchId/roster/sync', requireAuth(), async (c) => {
   const churchId = Number(c.req.param('churchId'))
   if (Number.isNaN(churchId)) return c.json({ error: 'Invalid church ID' }, 400)
 
@@ -751,6 +761,7 @@ churches.get('/meets/:meetId/teams', async (c) => {
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const db = getDb(c)
+  if (!(await isViewerOf(c, db, meetId))) return c.json({ error: 'Forbidden' }, 403)
 
   const [[meetRow], rows] = await Promise.all([
     db
@@ -789,6 +800,7 @@ churches.get('/meets/:meetId/roster/export', async (c) => {
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const db = getDb(c)
+  if (!(await isViewerOf(c, db, meetId))) return c.json({ error: 'Forbidden' }, 403)
 
   const rows = await db
     .select({
@@ -820,7 +832,7 @@ churches.get('/meets/:meetId/roster/export', async (c) => {
  * Skips quizzers already on a team by name.
  * Requires admin or superuser.
  */
-churches.post('/meets/:meetId/roster/import', async (c) => {
+churches.post('/meets/:meetId/roster/import', requireAuth(), async (c) => {
   const meetId = Number(c.req.param('meetId'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
