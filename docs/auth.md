@@ -116,8 +116,36 @@ the finished session cookie — OAuth client secrets never leave the server.
 
 ### Guest JWTs (officials and viewers without accounts)
 
-Short-lived signed JWTs issued server-side. Scoped to a single meet, expire after 24 hours or when
-the meet ends. No refresh — re-enter the code to get a new token. Stored in `localStorage`.
+Short-lived signed JWTs issued server-side by `POST /api/join/guest`. Scoped to a single meet,
+expire after 24 hours or when the meet ends. No refresh endpoint — re-enter the code (or revisit the
+URL) to get a new token. Stored in `localStorage`.
+
+**Wire format:** the client attaches the token as `Authorization: Bearer <jwt>` to outgoing API
+calls. `sessionMiddleware` checks the Better Auth cookie session first; if present, the cookie wins
+and the Bearer header is ignored, so signed-in users never produce ambiguity.
+
+**Server-side gate:** the per-route helper `isViewerOf(c, db, meetId)` admits superusers, members of
+the meet (any role), and guests whose JWT `meetId` matches. Mutation routes still require a real
+signed-in user via `requireAuth()`; reads use the lighter `requireAuthOrGuest()`.
+
+**URL-shareable viewer access (scoresheet):** the scoresheet auto-joins as a guest viewer when
+opened with `?meet=<viewerCode>`:
+
+```
+https://www.versevault.ca/scoresheet/?meet=fall-2025
+```
+
+`useGuestSession` parses the slug, posts to `/api/join/guest`, stashes the JWT, and the meet's
+roster becomes selectable in "Load teams from meet" without sign-in. The token is reused across
+reloads as long as its decoded `exp` claim has more than 5 min remaining; otherwise a fresh
+`/api/join/guest` call refreshes it.
+
+**Roadmap:** today only `?meet=<viewerCode>` is wired (viewer role only). The same pattern can be
+extended to `?official=<code>` for room-scoped officials and any other code-bearing roles — the
+server-side guest JWT issuance already handles official codes; only the client URL handler and a
+permission helper analogous to `isViewerOf` are missing. Putting official codes in URLs leaks them
+into browser history / referrers / logs, so admins should treat shared official URLs as one-shot and
+rotate the code afterward.
 
 ### Password hashing
 

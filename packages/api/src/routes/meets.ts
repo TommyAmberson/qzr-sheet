@@ -2,10 +2,10 @@ import { Hono } from 'hono'
 import { eq, and } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
-import { requireAuth, requireSuperuser, getUser } from '../middleware/session'
+import { requireAuth, requireAuthOrGuest, requireSuperuser, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { generateCode, hashCode } from '../lib/codes'
-import { isAdminOrSuperuser } from '../lib/permissions'
+import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { AccountRole, MeetRole } from '@qzr/shared'
 
@@ -17,8 +17,9 @@ type Env = { Bindings: Bindings; Variables: MeetsVariables }
 
 const meets = new Hono<Env>()
 
-// All meet management routes require auth; mutations require superuser
-meets.use('*', requireAuth())
+// Reads admit guest JWTs (scoped per-meet); mutations gate via requireAuth on the
+// individual route below.
+meets.use('*', requireAuthOrGuest())
 
 // Inject DB from env binding (overridable in tests via the db variable)
 meets.use('*', async (c, next) => {
@@ -70,14 +71,13 @@ meets.post('/', requireSuperuser(), async (c) => {
 
 meets.get('/', requireSuperuser(), async (c) => {
   const rows = await getDb(c).select().from(schema.quizMeets)
-  return c.json({ meets: rows.map(formatMeet) })
+  return c.json({ meets: rows.map((m) => formatMeet(m)) })
 })
 
 meets.get('/:id', async (c) => {
   const param = c.req.param('id')
   const numericId = Number(param)
 
-  const user = getUser(c)
   const db = getDb(c)
 
   const [meet] = Number.isNaN(numericId)
@@ -88,57 +88,23 @@ meets.get('/:id', async (c) => {
 
   const id = meet.id
 
-  if (user.role !== AccountRole.Superuser) {
-    const [[admin], [coach], [official], [viewer]] = await Promise.all([
-      db
-        .select({ meetId: schema.adminMemberships.meetId })
-        .from(schema.adminMemberships)
-        .where(
-          and(
-            eq(schema.adminMemberships.accountId, user.id),
-            eq(schema.adminMemberships.meetId, id),
-          ),
-        ),
-      db
-        .select({ meetId: schema.coachMemberships.meetId })
-        .from(schema.coachMemberships)
-        .where(
-          and(
-            eq(schema.coachMemberships.accountId, user.id),
-            eq(schema.coachMemberships.meetId, id),
-          ),
-        ),
-      db
-        .select({ meetId: schema.officialMemberships.meetId })
-        .from(schema.officialMemberships)
-        .where(
-          and(
-            eq(schema.officialMemberships.accountId, user.id),
-            eq(schema.officialMemberships.meetId, id),
-          ),
-        ),
-      db
-        .select({ meetId: schema.viewerMemberships.meetId })
-        .from(schema.viewerMemberships)
-        .where(
-          and(
-            eq(schema.viewerMemberships.accountId, user.id),
-            eq(schema.viewerMemberships.meetId, id),
-          ),
-        ),
-    ])
-    if (!admin && !coach && !official && !viewer) return c.json({ error: 'Forbidden' }, 403)
-  }
+  if (!(await isViewerOf(c, db, id))) return c.json({ error: 'Forbidden' }, 403)
 
   const codes = await db
     .select({ id: schema.meetRooms.id, label: schema.meetRooms.name })
     .from(schema.meetRooms)
     .where(eq(schema.meetRooms.meetId, id))
 
-  return c.json({ meet: formatMeet(meet), officialCodes: codes })
+  // Guests get a redacted view: no viewerCode (they could re-share it) and no
+  // official-code list. Signed-in members get the full payload.
+  const isGuest = !!c.get('guest')
+  return c.json({
+    meet: formatMeet(meet, { redactSensitive: isGuest }),
+    officialCodes: isGuest ? [] : codes,
+  })
 })
 
-meets.patch('/:id', async (c) => {
+meets.patch('/:id', requireAuth(), async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -213,7 +179,7 @@ meets.delete('/:id', requireSuperuser(), async (c) => {
 
 // ---- Admin code rotation ----
 
-meets.post('/:id/rotate-admin-code', async (c) => {
+meets.post('/:id/rotate-admin-code', requireAuth(), async (c) => {
   const id = Number(c.req.param('id'))
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -250,7 +216,7 @@ meets.post('/:id/rotate-admin-code', async (c) => {
 
 // ---- Official codes ----
 
-meets.post('/:id/official-codes', async (c) => {
+meets.post('/:id/official-codes', requireAuth(), async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -280,7 +246,7 @@ meets.post('/:id/official-codes', async (c) => {
   return c.json({ officialCode: { id: created!.id, label: created!.name }, code }, 201)
 })
 
-meets.delete('/:id/official-codes/:codeId', async (c) => {
+meets.delete('/:id/official-codes/:codeId', requireAuth(), async (c) => {
   const meetId = Number(c.req.param('id'))
   const codeId = Number(c.req.param('codeId'))
   if (Number.isNaN(meetId) || Number.isNaN(codeId)) {
@@ -302,7 +268,7 @@ meets.delete('/:id/official-codes/:codeId', async (c) => {
   return c.json({ deleted: true })
 })
 
-meets.post('/:id/official-codes/:codeId/rotate', async (c) => {
+meets.post('/:id/official-codes/:codeId/rotate', requireAuth(), async (c) => {
   const meetId = Number(c.req.param('id'))
   const codeId = Number(c.req.param('codeId'))
   if (Number.isNaN(meetId) || Number.isNaN(codeId)) {
@@ -339,7 +305,7 @@ interface MeetMember {
   officialCodeId?: number // preserved API field name (maps to room id)
 }
 
-meets.get('/:id/members', async (c) => {
+meets.get('/:id/members', requireAuth(), async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
@@ -400,7 +366,7 @@ meets.get('/:id/members', async (c) => {
   return c.json({ members })
 })
 
-meets.delete('/:id/members/:userId', async (c) => {
+meets.delete('/:id/members/:userId', requireAuth(), async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
   const targetUserId = c.req.param('userId')
@@ -477,13 +443,13 @@ meets.delete('/:id/members/:userId', async (c) => {
 
 // ---- Helpers ----
 
-function formatMeet(meet: schema.QuizMeet) {
+function formatMeet(meet: schema.QuizMeet, opts: { redactSensitive?: boolean } = {}) {
   return {
     id: meet.id,
     name: meet.name,
     dateFrom: meet.dateFrom,
     dateTo: meet.dateTo,
-    viewerCode: meet.viewerCode,
+    viewerCode: opts.redactSensitive ? null : meet.viewerCode,
     divisions: JSON.parse(meet.divisions) as string[],
     createdAt: meet.createdAt,
     phase: meet.phase,

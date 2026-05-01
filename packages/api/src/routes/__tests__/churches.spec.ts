@@ -405,8 +405,17 @@ describe('GET /api/churches/:churchId/teams', () => {
     expect(body.teams).toHaveLength(2)
   })
 
-  it('allows any authenticated member to read teams for any church', async () => {
+  it('forbids non-member readers (per-meet viewer scope)', async () => {
     const app = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const church = await seedChurch(db, meet.id)
+
+    const res = await app.request(`/api/churches/${church.id}/teams`, {}, env)
+    expect(res.status).toBe(403)
+  })
+
+  it('allows superuser to read teams for any church', async () => {
+    const app = createApp(testSuperuser, db)
     const meet = await seedMeet(db)
     const church = await seedChurch(db, meet.id)
 
@@ -576,6 +585,7 @@ describe('GET /api/meets/:meetId/teams', () => {
   it('returns empty list when meet has no teams', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
 
     const res = await app.request(`/api/meets/${meet.id}/teams`, {}, env)
     expect(res.status).toBe(200)
@@ -586,6 +596,7 @@ describe('GET /api/meets/:meetId/teams', () => {
   it('returns teams with all church fields', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
     const church = await seedChurch(db, meet.id, 'Grace Church')
     const team = await seedTeam(db, meet.id, church.id, 'Open')
 
@@ -622,6 +633,7 @@ describe('GET /api/meets/:meetId/teams', () => {
     const app = createApp(testUser, db)
     const meetA = await seedMeet(db)
     const meetB = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meetA.id)
     const churchA = await seedChurch(db, meetA.id, 'Alpha')
     const churchB = await seedChurch(db, meetB.id, 'Beta')
     await seedTeam(db, meetA.id, churchA.id)
@@ -636,6 +648,7 @@ describe('GET /api/meets/:meetId/teams', () => {
   it('returns teams ordered by church name then team number', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
     const zebra = await seedChurch(db, meet.id, 'Zebra Church')
     const alpha = await seedChurch(db, meet.id, 'Alpha Church')
     await seedTeam(db, meet.id, zebra.id)
@@ -661,6 +674,7 @@ describe('GET /api/meets/:meetId/teams', () => {
   it('returns consolation: false for a normal team', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
     const church = await seedChurch(db, meet.id)
     await seedTeam(db, meet.id, church.id)
 
@@ -672,6 +686,7 @@ describe('GET /api/meets/:meetId/teams', () => {
   it('returns consolation: true for a consolation team', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db)
+    await seedAdminMembership(db, testUser.id, meet.id)
     const church = await seedChurch(db, meet.id)
     const team = await seedTeam(db, meet.id, church.id)
     await db.update(schema.teams).set({ consolation: true }).where(eq(schema.teams.id, team.id))
@@ -696,6 +711,7 @@ describe('GET /api/meets/:meetId/teams', () => {
         createdAt: new Date(),
       })
       .returning()
+    await seedAdminMembership(db, testUser.id, meet!.id)
 
     const res = await app.request(`/api/meets/${meet!.id}/teams`, {}, env)
     const body = await res.json<{ teams: unknown[]; meetDivisions: string[] }>()
@@ -705,6 +721,7 @@ describe('GET /api/meets/:meetId/teams', () => {
   it('returns meetDivisions as empty array when meet has no divisions set', async () => {
     const app = createApp(testUser, db)
     const meet = await seedMeet(db) // divisions defaults to '[]'
+    await seedAdminMembership(db, testUser.id, meet.id)
 
     const res = await app.request(`/api/meets/${meet.id}/teams`, {}, env)
     const body = await res.json<{ teams: unknown[]; meetDivisions: string[] }>()

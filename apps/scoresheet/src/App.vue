@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import Scoresheet from './components/Scoresheet.vue'
+import { initGuestSession } from './composables/useGuestSession'
 
 const scoresheetRef = ref<InstanceType<typeof Scoresheet> | null>(null)
+
+// Fire and forget — the API client wrapper picks up the token reactively
+// once the join request resolves.
+void initGuestSession()
 
 function onDownload() {
   scoresheetRef.value?.saveFile()

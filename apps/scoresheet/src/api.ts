@@ -1,8 +1,23 @@
 import { createApiClient } from '@qzr/shared'
+import { getGuestToken } from './composables/useGuestSession'
 
 declare const __API_URL__: string
 
-const request = createApiClient(__API_URL__ || '')
+const baseRequest = createApiClient(__API_URL__ || '')
+
+/**
+ * Attach `Authorization: Bearer <jwt>` whenever a guest session is active so
+ * the API's session middleware can recognize the caller. Cookie sessions take
+ * precedence on the server, so signed-in users never need the header.
+ */
+function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getGuestToken()
+  if (!token) return baseRequest<T>(path, init)
+  return baseRequest<T>(path, {
+    ...init,
+    headers: { ...init?.headers, Authorization: `Bearer ${token}` },
+  })
+}
 
 // ---- Types ----
 
@@ -47,4 +62,21 @@ export function joinMeet(
   code: string,
 ): Promise<{ meet: { id: number; name: string }; role: string }> {
   return request('/api/join', { method: 'POST', body: JSON.stringify({ code }) })
+}
+
+/**
+ * Unauthenticated guest join — does NOT use the request wrapper because the
+ * wrapper attaches a Bearer token we don't have yet. Returns a 24h JWT plus
+ * the resolved meet identity.
+ */
+export async function joinMeetGuest(
+  code: string,
+): Promise<{ token: string; meet: { id: number; name: string }; role: string } | null> {
+  const res = await fetch(`${__API_URL__ || ''}/api/join/guest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+  if (!res.ok) return null
+  return (await res.json()) as { token: string; meet: { id: number; name: string }; role: string }
 }

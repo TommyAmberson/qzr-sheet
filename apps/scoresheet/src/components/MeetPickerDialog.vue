@@ -4,10 +4,12 @@ import { ref } from 'vue'
 
 import { getMyMeets, joinMeet, type MeetSummary } from '../api'
 import { useMeetSession } from '../composables/useMeetSession'
+import { useGuestSession } from '../composables/useGuestSession'
 
 const emit = defineEmits<{ loaded: [] }>()
 
 const { loadMeet } = useMeetSession()
+const guest = useGuestSession()
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
 const meets = ref<MeetSummary[]>([])
@@ -75,7 +77,23 @@ function close() {
   dialogRef.value?.close()
 }
 
-function open() {
+async function open() {
+  // Guest viewers (URL-shared meet) skip the picker — there's only one meet
+  // they have access to, so just load it.
+  if (guest.isActive.value && guest.meetId.value !== null && guest.meetName.value !== null) {
+    submitting.value = true
+    try {
+      await loadMeet(guest.meetId.value, guest.meetName.value)
+      emit('loaded')
+    } catch (e) {
+      // Fall back to opening the picker so the user can see the error.
+      error.value = (e as Error).message
+      dialogRef.value?.showModal()
+    } finally {
+      submitting.value = false
+    }
+    return
+  }
   dialogRef.value?.showModal()
   fetchMeets()
 }
