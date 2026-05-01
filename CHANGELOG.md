@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.8.0
+
+### Added
+
+* **Schedule data spine + phase control plane** — meet-wide phase model (`registration` → `build` →
+  `live` → `done`) plus per-division state machine (`prelim_running` → `stats_break` →
+  `elim_running` → `division_done`) for the `live` phase. New API endpoints:
+  `POST /api/meets/:id/phase`, `POST /api/meets/:id/divisions/:division/state`, plus rooms / slots /
+  scheduled-quizzes / seats CRUD under `/api/meets/:id/...`. New tables (`meet_slots`,
+  `scheduled_quizzes`, `scheduled_quiz_seats`, `prelim_assignments`, `seed_resolutions`,
+  `division_states`) and three new fields on `quiz_meets` (`phase`, `registrationClosesAt`,
+  `meetStartsAt`). Phase header bar in the portal `QuizMeetView` with admin Advance / Revert
+  controls
+* **Phase auto-advance cron** — Cloudflare Worker scheduled handler runs every 5 min to promote
+  meets from `registration → build` and `build → live` when their admin-set timestamp has passed
+* **`@qzr/ui` package** — shared Vue components (currently `SignInForm`, `SignInWidget`,
+  `SignInMenu`) extracted from the scoresheet for reuse by the web portal
+
+### Changed
+
+* **`officialCodes` table renamed to `meet_rooms`** — internal-only schema rename plus added `name`,
+  `sortOrder`, and a nullable `codeHash`. Existing API endpoints (`/official-codes/...`) and
+  response field names (`officialCodes`, `officialCodeId`, `label`) preserved for backwards
+  compatibility
+* **Per-column nested ValidationErrors + GreyedOutResult** — `useScoresheet` validation and
+  greyed-out outputs now indexed by column rather than flat string-keyed sets, with a `TeamSeat`
+  brand for composite keys. Hot-path scans (`columnHasErrors`, `columnValidationMessages`,
+  `noJumpHasConflict`) collapse from per-column iteration to O(1) map lookups
+* **Native quizStore reactivity** — the in-memory quiz store now exposes Vue refs directly instead
+  of going through a `version` counter, eliminating an extra render trigger on every mutation
+* **Pre-grouped per-quizzer / per-team validation aggregations** — derived `Map`s computed once per
+  change instead of per-render scans
+
+### Infrastructure
+
+* **Schedule design doc** — `docs/scheduling.md` documents the meet phase model, prelim draw
+  (lookup-table-based per `rules.md`), stats-break pivot, XYZ/XXYYZZ intermediates, Bracket A/B/C
+  templates, def/resolution layering, and the full data model. Source of truth for the schedule epic
+  (#9) and its sub-issues (#12–#16, #39–#42)
+* **Issue conventions guide** — `docs/issue-conventions.md` codifies labels, titles, AI attribution,
+  and how issues relate to `ROADMAP.md`
+* **Tighter commitlint** — header capped at 50 chars (error), body and footer at 72 chars (warn);
+  scope-enum warning for the known package scopes
+* **CLAUDE.md comment guidance** — clarified comment policy (avoid `what`, prefer `why`); merge +
+  history conventions; feature-branch requirement
+* **Trusted-author CI gating** — Claude review GitHub Action allowlist narrowed to `gh pr`
+  operations needed for posting reviews
+
 ## 0.7.1
 
 ### Fixed
