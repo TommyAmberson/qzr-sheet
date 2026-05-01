@@ -40,11 +40,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   // from this, not from the serialized string, so a parse failure at finish time
   // can't destroy the user's pre-tutorial state.
   let snapshotData: DeserializeResult | null = null
-  // Pre-tutorial meet link, captured so we can re-attach on finish. The
-  // tutorial UI assumes the team-name input and quizzer rows are editable;
-  // when a meet is linked those become a team-picker instead, breaking the
-  // walkthrough. Unlinking for the duration of the tutorial keeps the UI in
-  // its standalone shape.
+  // Pre-tutorial meet link. Linked meets replace the team-name input with a
+  // team-picker, so we unlink for the walkthrough and re-link on finish.
   let meetSnapshot: MeetSessionData | null = null
   let cleanupFns: (() => void)[] = []
 
@@ -356,7 +353,9 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       scoresheet.loadFile(data)
       localStorage.removeItem(SNAPSHOT_KEY)
     } catch {
+      // Quiz parse failed — clean up both keys so we don't leak stale state.
       localStorage.removeItem(SNAPSHOT_KEY)
+      localStorage.removeItem(MEET_SNAPSHOT_KEY)
       return false
     }
     // Re-link the meet if a snapshot was persisted. Best-effort: if the

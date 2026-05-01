@@ -133,9 +133,10 @@ export function useMeetSession() {
   }
 
   /**
-   * Capture the current session as a deep-cloned plain object — used by the
-   * tutorial to stash the meet link before clearing it, so the user's
-   * pre-tutorial linkage can be restored on tutorial exit.
+   * Deep-clone the current session — used by the tutorial to stash the meet
+   * link before clearing it. JSON round-trip rather than structuredClone
+   * because session.value is a Vue reactive proxy and structuredClone rejects
+   * it; the existing localStorage persistence does the same coercion anyway.
    */
   function snapshotSession(): MeetSessionData | null {
     if (!session.value) return null

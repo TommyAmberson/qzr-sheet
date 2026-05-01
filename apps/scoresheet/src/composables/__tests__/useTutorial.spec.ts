@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
+import { useMeetSession } from '../useMeetSession'
 import { TUTORIAL_STEPS } from '../../tutorial/tutorialSteps'
 import { CellValue } from '../../types/scoresheet'
 import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
@@ -190,8 +191,7 @@ describe('useTutorial — snapshot safety', () => {
 })
 
 describe('useTutorial — meet link', () => {
-  it('clears the meet link on start and restores it on finish', async () => {
-    const { useMeetSession } = await import('../useMeetSession')
+  it('clears the meet link on start and restores it on finish', () => {
     const meet = useMeetSession()
     // Plant a session directly so we don't depend on a network roundtrip.
     meet.restoreSession({
@@ -225,8 +225,7 @@ describe('useTutorial — meet link', () => {
     t.finish()
   })
 
-  it('recoverFromCrash restores both quiz and meet snapshots', async () => {
-    const { useMeetSession } = await import('../useMeetSession')
+  it('recoverFromCrash restores both quiz and meet snapshots', () => {
     const meet = useMeetSession()
     meet.restoreSession({
       meetId: 7,
