@@ -1,8 +1,23 @@
 import { createApiClient } from '@qzr/shared'
+import { getGuestToken } from './composables/useGuestSession'
 
 declare const __API_URL__: string
 
-const request = createApiClient(__API_URL__ || '')
+const baseRequest = createApiClient(__API_URL__ || '')
+
+/**
+ * Attach `Authorization: Bearer <jwt>` whenever a guest session is active so
+ * the API's session middleware can recognize the caller. Cookie sessions take
+ * precedence on the server, so signed-in users never need the header.
+ */
+function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getGuestToken()
+  if (!token) return baseRequest<T>(path, init)
+  return baseRequest<T>(path, {
+    ...init,
+    headers: { ...init?.headers, Authorization: `Bearer ${token}` },
+  })
+}
 
 // ---- Types ----
 
