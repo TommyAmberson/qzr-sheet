@@ -3,9 +3,11 @@ import { CellValue, QUIZZERS_PER_TEAM, type Timeout } from '../types/scoresheet'
 import { serializeStore, parseQuizFile, type DeserializeResult } from '../persistence/quizFile'
 import type { QuizStore } from '../stores/quizStore'
 import { TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
+import { useMeetSession, type MeetSessionData } from './useMeetSession'
 import type { TeamIdx, SeatIdx, ColIdx } from '../types/indices'
 
 const SNAPSHOT_KEY = 'qzr-sheet:tutorial-snapshot'
+const MEET_SNAPSHOT_KEY = 'qzr-sheet:tutorial-meet-snapshot'
 
 export interface ScoresheetAPI {
   store: QuizStore
@@ -29,6 +31,7 @@ export interface ScoresheetAPI {
 }
 
 export function useTutorial(scoresheet: ScoresheetAPI) {
+  const meetSession = useMeetSession()
   const active = ref(false)
   const currentStepIndex = ref(0)
   const targetEls = ref<HTMLElement[]>([])
@@ -37,6 +40,12 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   // from this, not from the serialized string, so a parse failure at finish time
   // can't destroy the user's pre-tutorial state.
   let snapshotData: DeserializeResult | null = null
+  // Pre-tutorial meet link, captured so we can re-attach on finish. The
+  // tutorial UI assumes the team-name input and quizzer rows are editable;
+  // when a meet is linked those become a team-picker instead, breaking the
+  // walkthrough. Unlinking for the duration of the tutorial keeps the UI in
+  // its standalone shape.
+  let meetSnapshot: MeetSessionData | null = null
   let cleanupFns: (() => void)[] = []
 
   const currentStep = computed<TutorialStep | null>(() =>
@@ -64,6 +73,19 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       localStorage.setItem(SNAPSHOT_KEY, serialized)
     } catch {
       // localStorage full — proceed without crash recovery
+    }
+
+    // Snapshot and clear the meet link so the team/quizzer inputs stay
+    // editable during the tutorial. Persist a copy too so a mid-tutorial
+    // crash recovery can restore the link along with the quiz state.
+    meetSnapshot = meetSession.snapshotSession()
+    if (meetSnapshot) {
+      try {
+        localStorage.setItem(MEET_SNAPSHOT_KEY, JSON.stringify(meetSnapshot))
+      } catch {
+        // localStorage full — proceed; the in-memory snapshot still restores on finish
+      }
+      meetSession.clearSession()
     }
 
     scoresheet.pauseAutoSave.value = true
@@ -300,6 +322,17 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       }
     }
 
+    // Restore the meet link if the user had one before starting.
+    if (meetSnapshot) {
+      meetSession.restoreSession(meetSnapshot)
+      meetSnapshot = null
+    }
+    try {
+      localStorage.removeItem(MEET_SNAPSHOT_KEY)
+    } catch {
+      // ignore
+    }
+
     scoresheet.pauseAutoSave.value = false
     active.value = false
     snapshotData = null
@@ -322,11 +355,22 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       const data = parseQuizFile(saved)
       scoresheet.loadFile(data)
       localStorage.removeItem(SNAPSHOT_KEY)
-      return true
     } catch {
       localStorage.removeItem(SNAPSHOT_KEY)
       return false
     }
+    // Re-link the meet if a snapshot was persisted. Best-effort: if the
+    // payload is malformed we drop it and the user re-picks via the dialog.
+    const savedMeet = localStorage.getItem(MEET_SNAPSHOT_KEY)
+    if (savedMeet) {
+      try {
+        meetSession.restoreSession(JSON.parse(savedMeet) as MeetSessionData)
+      } catch {
+        // ignore — meet just stays unlinked
+      }
+      localStorage.removeItem(MEET_SNAPSHOT_KEY)
+    }
+    return true
   }
 
   return {

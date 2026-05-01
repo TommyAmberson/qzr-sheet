@@ -132,6 +132,22 @@ export function useMeetSession() {
     persist()
   }
 
+  /**
+   * Capture the current session as a deep-cloned plain object — used by the
+   * tutorial to stash the meet link before clearing it, so the user's
+   * pre-tutorial linkage can be restored on tutorial exit.
+   */
+  function snapshotSession(): MeetSessionData | null {
+    if (!session.value) return null
+    return JSON.parse(JSON.stringify(session.value)) as MeetSessionData
+  }
+
+  /** Restore a previously-snapshotted session (or clear if null). */
+  function restoreSession(data: MeetSessionData | null): void {
+    session.value = data
+    persist()
+  }
+
   /** Re-fetch the team list (e.g. after a page restore, to pick up roster changes) */
   async function refresh(): Promise<void> {
     if (!session.value) return
@@ -160,6 +176,8 @@ export function useMeetSession() {
     isQuizzerDiverged,
     getDbName,
     clearSession,
+    snapshotSession,
+    restoreSession,
     refresh,
   }
 }
