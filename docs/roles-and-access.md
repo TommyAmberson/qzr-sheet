@@ -48,6 +48,8 @@ Superusers have implicit full access to all meets — no membership rows needed.
 * Read-only access to the meet's public data (standings, stats, schedules)
 * Intended for quizzers, parents, and spectators
 * **No account required** — same guest JWT mechanism as officials
+* **URL-shareable**: `https://www.versevault.ca/scoresheet/?meet=<viewerCode>` auto-issues a guest
+  viewer JWT and pre-selects the meet in "Load teams from meet"; no sign-in needed
 
 ## Resources and Codes
 
