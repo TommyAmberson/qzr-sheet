@@ -71,9 +71,11 @@ function tokenIsFresh(token: string): boolean {
   try {
     const segments = token.split('.')
     if (segments.length < 2) return false
-    const payload = JSON.parse(atob(segments[1]!.replace(/-/g, '+').replace(/_/g, '/'))) as {
-      exp?: number
-    }
+    // JWT uses unpadded base64url; atob is strict about padding in some
+    // engines (notably WebKit), so re-pad before decoding.
+    const seg = segments[1]!.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = seg + '='.repeat((4 - (seg.length % 4)) % 4)
+    const payload = JSON.parse(atob(padded)) as { exp?: number }
     if (typeof payload.exp !== 'number') return false
     return payload.exp * 1000 - Date.now() > REFRESH_SKEW_MS
   } catch {
