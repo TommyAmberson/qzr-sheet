@@ -40,16 +40,16 @@ export function sessionMiddleware(): MiddlewareHandler<{
         role: (session.user.role as AccountRole) ?? AccountRole.Normal,
       })
       c.set('guest', null)
-    } else {
-      c.set('user', null)
-      const authHeader = c.req.header('Authorization')
-      const token = authHeader?.startsWith('Bearer ')
-        ? authHeader.slice('Bearer '.length).trim()
-        : null
-      const guest = token ? await verifyGuestJwt(token, c.env.BETTER_AUTH_SECRET) : null
-      c.set('guest', guest)
+      await next()
+      return
     }
 
+    c.set('user', null)
+    const authHeader = c.req.header('Authorization')
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length).trim()
+      : null
+    c.set('guest', token ? await verifyGuestJwt(token, c.env.BETTER_AUTH_SECRET) : null)
     await next()
   }
 }

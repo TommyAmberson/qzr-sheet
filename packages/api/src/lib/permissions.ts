@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { AccountRole } from '@qzr/shared'
 import * as schema from '../db/schema'
@@ -43,43 +43,25 @@ export async function isViewerOf<E extends { Variables: SessionVariables }>(
   if (!user) return false
   if (user.role === AccountRole.Superuser) return true
 
-  const [[admin], [coach], [official], [viewer]] = await Promise.all([
-    db
-      .select({ id: schema.adminMemberships.accountId })
-      .from(schema.adminMemberships)
-      .where(
-        and(
-          eq(schema.adminMemberships.accountId, user.id),
-          eq(schema.adminMemberships.meetId, meetId),
-        ),
-      ),
-    db
-      .select({ id: schema.coachMemberships.accountId })
-      .from(schema.coachMemberships)
-      .where(
-        and(
-          eq(schema.coachMemberships.accountId, user.id),
-          eq(schema.coachMemberships.meetId, meetId),
-        ),
-      ),
-    db
-      .select({ id: schema.officialMemberships.accountId })
-      .from(schema.officialMemberships)
-      .where(
-        and(
-          eq(schema.officialMemberships.accountId, user.id),
-          eq(schema.officialMemberships.meetId, meetId),
-        ),
-      ),
-    db
-      .select({ id: schema.viewerMemberships.accountId })
-      .from(schema.viewerMemberships)
-      .where(
-        and(
-          eq(schema.viewerMemberships.accountId, user.id),
-          eq(schema.viewerMemberships.meetId, meetId),
-        ),
-      ),
-  ])
-  return !!(admin || coach || official || viewer)
+  // Single round-trip: any membership row across the four tables means viewer.
+  const result = await db.get<{ found: number }>(
+    sql`SELECT EXISTS (
+      SELECT 1 FROM ${schema.adminMemberships}
+        WHERE ${schema.adminMemberships.accountId} = ${user.id}
+          AND ${schema.adminMemberships.meetId} = ${meetId}
+      UNION ALL
+      SELECT 1 FROM ${schema.coachMemberships}
+        WHERE ${schema.coachMemberships.accountId} = ${user.id}
+          AND ${schema.coachMemberships.meetId} = ${meetId}
+      UNION ALL
+      SELECT 1 FROM ${schema.officialMemberships}
+        WHERE ${schema.officialMemberships.accountId} = ${user.id}
+          AND ${schema.officialMemberships.meetId} = ${meetId}
+      UNION ALL
+      SELECT 1 FROM ${schema.viewerMemberships}
+        WHERE ${schema.viewerMemberships.accountId} = ${user.id}
+          AND ${schema.viewerMemberships.meetId} = ${meetId}
+    ) AS found`,
+  )
+  return Boolean(result?.found)
 }
