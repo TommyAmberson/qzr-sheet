@@ -71,7 +71,7 @@ meets.post('/', requireSuperuser(), async (c) => {
 
 meets.get('/', requireSuperuser(), async (c) => {
   const rows = await getDb(c).select().from(schema.quizMeets)
-  return c.json({ meets: rows.map(formatMeet) })
+  return c.json({ meets: rows.map((m) => formatMeet(m)) })
 })
 
 meets.get('/:id', async (c) => {
