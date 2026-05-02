@@ -29,6 +29,8 @@ management.
 * **Auto-save** — debounced persist to `localStorage` on every change; restored on startup
 * **Offline PWA** — installable from any browser, full offline support via Workbox
 * **Sticky headers + touch panning** — thead and name column stay fixed; smooth 2-axis touch scroll
+* **Shareable meet links** — `…/scoresheet/?meet=<viewerCode>` auto-loads the meet's roster as a
+  guest viewer; no sign-in needed
 
 ## Setup
 

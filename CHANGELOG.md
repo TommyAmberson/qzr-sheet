@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.9.0
+
+### Added
+
+* **Guest viewer access without an account** — visiting
+  `https://www.versevault.ca/scoresheet/?meet=<viewerCode>` auto-issues a 24h guest viewer JWT,
+  stashes it in `localStorage`, and pre-loads the meet's roster in "Load teams from meet" without
+  requiring sign-in. Token reuse is `exp`-aware: the join endpoint is only re-hit when the stored
+  token has < 5 min remaining. Cookie-based signed-in sessions take precedence on the server when
+  both are present
+* **Bearer-token auth on read endpoints** — `sessionMiddleware` now also parses
+  `Authorization: Bearer <jwt>` and verifies via `verifyGuestJwt`. New `requireAuthOrGuest()` for
+  read-heavy routers; mutations keep `requireAuth()` (signed-in account required). New
+  `isViewerOf(c, db, meetId)` permission helper short-circuits guest reads to the meet in their JWT
+  and rejects cross-meet access (single SQL `UNION ALL` round-trip for member checks). Guest
+  responses also redact the meet's `viewerCode` and official-code list — those stay admin-only
+
+### Changed
+
+* **Tightened read scope on churches/teams/quizzers GETs** — `GET /api/meets/:meetId/churches`,
+  `/churches/:churchId/teams`, `/teams/:teamId/quizzers`, `/meets/:meetId/teams`, and
+  `/meets/:meetId/roster/export` now require viewer-of-meet (member or scoped guest) rather than
+  any-authenticated-user. Behavioral change for any client that was reading meet data they had no
+  membership in
+
+### Fixed
+
+* **Tutorial breaks when linked to a meet** — the interactive tutorial now snapshots and unlinks the
+  active meet session on start, then restores the link on finish (and on crash recovery). Pre-fix,
+  team and quizzer name editing during the tutorial was disabled (replaced by the team-picker
+  dropdown) or flagged as diverged from the DB roster
+
 ## 0.8.0
 
 ### Added
