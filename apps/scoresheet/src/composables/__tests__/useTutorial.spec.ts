@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
+import { useMeetSession } from '../useMeetSession'
 import { TUTORIAL_STEPS } from '../../tutorial/tutorialSteps'
 import { CellValue } from '../../types/scoresheet'
 import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
@@ -186,5 +187,67 @@ describe('useTutorial — snapshot safety', () => {
     t.finish()
     // Pre-tutorial state restored from the in-memory copy
     expect(s.cells.value[0]![0]![0]).toBe(CellValue.Correct)
+  })
+})
+
+describe('useTutorial — meet link', () => {
+  it('clears the meet link on start and restores it on finish', () => {
+    const meet = useMeetSession()
+    // Plant a session directly so we don't depend on a network roundtrip.
+    meet.restoreSession({
+      meetId: 42,
+      meetName: 'Test Meet',
+      slots: [undefined, undefined, undefined],
+      teamList: [],
+      meetDivisions: ['1'],
+    })
+    expect(meet.isActive.value).toBe(true)
+
+    const s = useScoresheet()
+    const t = useTutorial(s)
+    t.start()
+    expect(meet.isActive.value).toBe(false)
+    expect(localStorage.getItem('qzr-sheet:tutorial-meet-snapshot')).toBeTruthy()
+
+    t.finish()
+    expect(meet.isActive.value).toBe(true)
+    expect(meet.meetName.value).toBe('Test Meet')
+    expect(localStorage.getItem('qzr-sheet:tutorial-meet-snapshot')).toBeNull()
+
+    meet.clearSession()
+  })
+
+  it('does not persist a meet snapshot when no meet was linked', () => {
+    const s = useScoresheet()
+    const t = useTutorial(s)
+    t.start()
+    expect(localStorage.getItem('qzr-sheet:tutorial-meet-snapshot')).toBeNull()
+    t.finish()
+  })
+
+  it('recoverFromCrash restores both quiz and meet snapshots', () => {
+    const meet = useMeetSession()
+    meet.restoreSession({
+      meetId: 7,
+      meetName: 'Crash Meet',
+      slots: [undefined, undefined, undefined],
+      teamList: [],
+      meetDivisions: [],
+    })
+
+    const s = useScoresheet()
+    const t = useTutorial(s)
+    t.start()
+    // Simulate a crash mid-tutorial: clear in-memory session state via a
+    // fresh tutorial instance pointing at a fresh scoresheet.
+    const s2 = useScoresheet()
+    meet.clearSession()
+    const t2 = useTutorial(s2)
+
+    expect(t2.recoverFromCrash()).toBe(true)
+    expect(meet.isActive.value).toBe(true)
+    expect(meet.meetName.value).toBe('Crash Meet')
+
+    meet.clearSession()
   })
 })

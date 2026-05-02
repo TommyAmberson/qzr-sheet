@@ -132,6 +132,23 @@ export function useMeetSession() {
     persist()
   }
 
+  /**
+   * Deep-clone the current session — used by the tutorial to stash the meet
+   * link before clearing it. JSON round-trip rather than structuredClone
+   * because session.value is a Vue reactive proxy and structuredClone rejects
+   * it; the existing localStorage persistence does the same coercion anyway.
+   */
+  function snapshotSession(): MeetSessionData | null {
+    if (!session.value) return null
+    return JSON.parse(JSON.stringify(session.value)) as MeetSessionData
+  }
+
+  /** Restore a previously-snapshotted session (or clear if null). */
+  function restoreSession(data: MeetSessionData | null): void {
+    session.value = data
+    persist()
+  }
+
   /** Re-fetch the team list (e.g. after a page restore, to pick up roster changes) */
   async function refresh(): Promise<void> {
     if (!session.value) return
@@ -160,6 +177,8 @@ export function useMeetSession() {
     isQuizzerDiverged,
     getDbName,
     clearSession,
+    snapshotSession,
+    restoreSession,
     refresh,
   }
 }
