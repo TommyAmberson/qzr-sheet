@@ -116,5 +116,8 @@ When working on scoring logic, rules, or architecture, read the relevant file fi
   toss-up/bonus/A-B/foul/overtime/placement
 * `docs/rules.md` — full rules from official pdf
 * `docs/scheduling.md` — meet scheduling design: prelims, stats break, elims, data model, builder UX
+* `docs/example-winkler-2026.md` — worked example from a sister-org meet draw spreadsheet;
+  inspiration source for scheduling design where `docs/rules.md` underspecifies how meets actually
+  run (multi-bracket elims, lateness handling, slot pitches, etc.). Adapt or diverge as needed
 * `docs/architecture.md` — data flow, layer responsibilities, key design decisions
 * `docs/auth-proposal.md` — Phase 4 architecture, API stack, security, data model
