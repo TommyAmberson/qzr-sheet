@@ -9,6 +9,13 @@ that sits above those rules.
 **Source of truth for rules**: `docs/rules.md`. If `rules.md` is missing something from the official
 PDF, `rules.md` gets corrected first and this doc may need re-alignment.
 
+**Source of inspiration — a sister-org meet**: `docs/example-winkler-2026.md` is a worked example
+from a sister organisation that runs nearly the same rule book with more mature tooling and process.
+When the rule book underspecifies how a meet actually runs (multi-bracket elim composition for 12+
+team fields, late-team draw handling, realistic slot pitches), look there for one tested answer. The
+rule book always wins on rule conflicts; this example shows one working approach to the gaps the
+rule book leaves open. We're free to adapt or diverge wherever it makes sense for QuizMeet.
+
 **Philosophy**: the schedule feature is an **admin-driven builder**, not a generator. The admin
 assembles the schedule in a grid editor, and the system offers assists — draw helpers, drag-and-drop
 swaps, conflict warnings, quick fills — that make building fast without taking the wheel. When the
@@ -40,6 +47,8 @@ doc is the stable design reference those issues link back to.
 | **Championship bracket**       | 9-team elim bracket for the top 9 teams (or top 6 + top 3 of XYZ). Three named templates: Bracket A, B, C. `rules.md` §"Elimination Round Brackets".                                                                                        |
 | **Consolation bracket**        | Secondary 9-team bracket for positions 10–18 in meets with > 24 teams. Uses the same templates.                                                                                                                                             |
 | **Championship quizzes**       | 3–5 end-of-bracket quizzes with "win twice" semantics. `rules.md` §3.                                                                                                                                                                       |
+| **Lane**                       | A division's elim path. Real meets often run more than two — Winkler runs A (championship), K (next 12), B (consolation), and M (extras). See `docs/example-winkler-2026.md` §6.                                                            |
+| **Custom bracket template**    | Hand-composed elim template for fields larger than the rule book's 9-team A/B/C. Stored as data in `packages/shared/scheduling/templates/`. See `docs/example-winkler-2026.md` §6.1.                                                        |
 | **Event**                      | Non-quiz item on the schedule — Breakfast, Stats Break, Worship, etc. Occupies a slot, no room/teams.                                                                                                                                       |
 
 ## 2. Meet phases
@@ -78,6 +87,10 @@ even a published schedule is visible only to admin (no coach-facing schedule yet
 published schedule is visible to everyone.
 
 ## 3. How a meet actually runs
+
+For a fully worked example with team counts, time slots, room counts, and the exact post-stats-break
+multi-bracket layout, see `docs/example-winkler-2026.md`. The summary below is a generalised version
+of the pattern that example documents.
 
 Based on a sample Quiz Meet Finals 2023 schedule:
 
@@ -120,6 +133,17 @@ Observations that shape the data model:
 8. Consolation is a separate elim bracket _inside the same division_, not a separate division. Team
    division never changes. `consolation: boolean` on a team is the bracket-lane marker.
 9. Consolation and XYZ are both conditional on team count per `rules.md` §2.a.
+10. **Real meets run more than two elim lanes.** The rule book describes a championship + optional
+    consolation. Winkler 2026 runs four lanes off A division alone — A (championship, top 12), K
+    (next 12), B (consolation 25–36), and M (extras round-robin overlapping K and B) — plus a
+    separate C-division bracket. Lane structure beyond championship/consolation is
+    meet-director-authored using custom templates. See `docs/example-winkler-2026.md` §6.
+11. **Intermediate quizzes generalise beyond XYZ/XXYYZZ.** Winkler runs W/X/Y/Z (4 quizzes, 12
+    teams, ranks 9–20) where the rule book only specifies XYZ (3 quizzes, 9 teams). Rank-range
+    intermediates (`drawIntermediate(from, to)`) are a real requirement.
+12. **Lateness biases the draw.** Spreadsheets carry an "expected late?" flag per team that pushes
+    the team to higher-numbered letter slots, minimising the disruption of a delayed bus. See
+    `docs/example-winkler-2026.md` §3.2.
 
 ## 4. Rules and invariants
 
@@ -202,9 +226,9 @@ without hard-rule conflicts. Each utility is independently invocable from the ed
 ### 5.2 Team assignment ("Roll Teams")
 
 During the `build` phase, the admin clicks "Roll Teams" for a division. This generates a random
-permutation of the registered teams and binds each team to one letter: `A` → Heritage 1, `B` → GRBC
-2, etc. The mapping is written to `prelim_assignments` (one row per letter per division) in a single
-transaction.
+permutation of the registered teams and binds each team to one letter: `A` → first team, `B` →
+second team, etc. The mapping is written to `prelim_assignments` (one row per letter per division)
+in a single transaction.
 
 * Re-roll is allowed throughout `build` — it's a transactional UPDATE on the same rows. There's no
   separate "lock" step; the `build → live` phase transition is what makes the assignment
