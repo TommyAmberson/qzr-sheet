@@ -4,7 +4,7 @@ import { ref } from 'vue'
 
 import { getMyMeets, joinMeet, type MeetSummary } from '../api'
 import { useMeetSession } from '../composables/useMeetSession'
-import { useGuestSession } from '../composables/useGuestSession'
+import { useGuestSession, initGuestSession } from '../composables/useGuestSession'
 
 const emit = defineEmits<{ loaded: [] }>()
 
@@ -79,7 +79,10 @@ function close() {
 
 async function open() {
   // Guest viewers (URL-shared meet) skip the picker — there's only one meet
-  // they have access to, so just load it.
+  // they have access to, so just load it. Awaiting initGuestSession() avoids
+  // a click-before-init race where the join request hasn't resolved yet and
+  // we'd fall through to getMyMeets() (401 for an anonymous guest).
+  await initGuestSession()
   if (guest.isActive.value && guest.meetId.value !== null && guest.meetName.value !== null) {
     submitting.value = true
     try {

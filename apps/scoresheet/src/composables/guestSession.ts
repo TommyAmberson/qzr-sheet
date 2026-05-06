@@ -33,13 +33,30 @@ export function getGuestToken(): string | null {
 export function setGuestSession(data: GuestSessionData | null): void {
   guestSessionRef.value = data
   persist()
+  // Drop any cached init promise so a subsequent initGuestSession() call
+  // re-evaluates against the now-cleared session (used by tests).
+  if (data === null) initPromise = null
 }
 
 /**
- * Bootstrap: read `?meet=<slug>` from the URL and either reuse a fresh stored
- * token or obtain a new one. Safe to call multiple times.
+ * Cached promise from the first initGuestSession() call. Subsequent callers
+ * await the same promise so the join round-trip happens once. App.vue kicks
+ * this off at startup; consumers (e.g. MeetPickerDialog) await it before
+ * branching on guest state to avoid a click-before-init race.
  */
-export async function initGuestSession(): Promise<GuestSessionData | null> {
+let initPromise: Promise<GuestSessionData | null> | null = null
+
+/**
+ * Bootstrap: read `?meet=<slug>` from the URL and either reuse a fresh stored
+ * token or obtain a new one. Safe and cheap to call multiple times — the
+ * first call caches the in-flight promise and later calls await the same one.
+ */
+export function initGuestSession(): Promise<GuestSessionData | null> {
+  if (!initPromise) initPromise = doInitGuestSession()
+  return initPromise
+}
+
+async function doInitGuestSession(): Promise<GuestSessionData | null> {
   if (typeof window === 'undefined') return null
   const params = new URLSearchParams(window.location.search)
   const slug = params.get(URL_PARAM)?.trim()
