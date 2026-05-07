@@ -1,16 +1,29 @@
 import { computed } from 'vue'
-import { guestSessionRef, setGuestSession } from './guestSession'
+import {
+  guestStateRef,
+  setGuestState,
+  setActiveSession,
+  getActiveSession,
+  type GuestSessionData,
+} from './guestSession'
 
-export { initGuestSession, getGuestToken } from './guestSession'
+export { initGuestSession, getGuestToken, joinByCode } from './guestSession'
+export type { GuestSessionData } from './guestSession'
 
 export function useGuestSession() {
-  const isActive = computed(() => guestSessionRef.value !== null)
-  const meetId = computed(() => guestSessionRef.value?.meetId ?? null)
-  const meetName = computed(() => guestSessionRef.value?.meetName ?? null)
+  const isActive = computed(() => guestStateRef.value.active !== null)
+  const meetId = computed(() => getActiveSession()?.meetId ?? null)
+  const meetName = computed(() => getActiveSession()?.meetName ?? null)
+  /** Every meet the user has joined as a guest, oldest first. */
+  const joinedMeets = computed<GuestSessionData[]>(() => guestStateRef.value.joined)
 
-  function clear(): void {
-    setGuestSession(null)
+  function setActive(meetIdToActivate: number | null): void {
+    setActiveSession(meetIdToActivate)
   }
 
-  return { isActive, meetId, meetName, clear }
+  function clear(): void {
+    setGuestState(null)
+  }
+
+  return { isActive, meetId, meetName, joinedMeets, setActive, clear }
 }
