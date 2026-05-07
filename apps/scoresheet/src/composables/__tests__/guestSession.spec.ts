@@ -6,9 +6,13 @@ vi.mock('../../api', () => ({
 }))
 
 import { joinMeetGuest } from '../../api'
-import { initGuestSession, setGuestSession, guestSessionRef, getGuestToken } from '../guestSession'
-
-const STORAGE_KEY = 'qzr-guest-session'
+import {
+  initGuestSession,
+  setGuestSession,
+  guestSessionRef,
+  getGuestToken,
+  STORAGE_KEY,
+} from '../guestSession'
 
 /**
  * `initGuestSession()` reads `window.location.search`, but jsdom's location is

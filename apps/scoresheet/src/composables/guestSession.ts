@@ -10,7 +10,7 @@ import { joinMeetGuest } from '../api'
  * composable contract.
  */
 
-const STORAGE_KEY = 'qzr-guest-session'
+export const STORAGE_KEY = 'qzr-guest-session'
 const URL_PARAM = 'meet'
 /** Skew applied to the JWT exp claim — refresh if less than this remaining. */
 const REFRESH_SKEW_MS = 5 * 60 * 1000
@@ -33,8 +33,9 @@ export function getGuestToken(): string | null {
 export function setGuestSession(data: GuestSessionData | null): void {
   guestSessionRef.value = data
   persist()
-  // Drop any cached init promise so a subsequent initGuestSession() call
-  // re-evaluates against the now-cleared session (used by tests).
+  // Clearing also drops the cached init promise, so the next
+  // initGuestSession() call refetches a fresh token instead of resolving
+  // to the stale "previously cleared" result.
   if (data === null) initPromise = null
 }
 

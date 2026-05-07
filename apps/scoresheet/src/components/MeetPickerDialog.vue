@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ApiError } from '@qzr/shared'
+import { ApiError, MeetRole } from '@qzr/shared'
 import { ref } from 'vue'
 
 import { getMyMeets, joinMeet, type MeetSummary } from '../api'
@@ -28,7 +28,11 @@ async function fetchMeets() {
   const seen = new Set<number>()
   const list: MeetSummary[] = []
   if (guest.isActive.value && guest.meetId.value !== null && guest.meetName.value !== null) {
-    list.push({ meetId: guest.meetId.value, meetName: guest.meetName.value, role: 'viewer' })
+    list.push({
+      meetId: guest.meetId.value,
+      meetName: guest.meetName.value,
+      role: MeetRole.Viewer,
+    })
     seen.add(guest.meetId.value)
   }
   try {
