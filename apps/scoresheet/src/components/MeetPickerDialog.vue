@@ -23,22 +23,31 @@ const joining = ref(false)
 async function fetchMeets() {
   loading.value = true
   error.value = ''
+  // Seed the list with the URL-shared meet (if any) so anonymous guests have
+  // something to click. Signed-in memberships are layered on top below.
+  const seen = new Set<number>()
+  const list: MeetSummary[] = []
+  if (guest.isActive.value && guest.meetId.value !== null && guest.meetName.value !== null) {
+    list.push({ meetId: guest.meetId.value, meetName: guest.meetName.value, role: 'viewer' })
+    seen.add(guest.meetId.value)
+  }
   try {
     const res = await getMyMeets()
-    // Deduplicate by meetId (a user can have multiple roles in one meet)
-    const seen = new Set<number>()
-    meets.value = res.memberships.filter((m) => {
-      if (seen.has(m.meetId)) return false
+    for (const m of res.memberships) {
+      if (seen.has(m.meetId)) continue
       seen.add(m.meetId)
-      return true
-    })
+      list.push(m)
+    }
   } catch (e) {
+    // 401 is expected for anonymous guests — suppress if we already have
+    // the URL meet to show; otherwise surface "Not signed in."
     if (e instanceof ApiError && e.status === 401) {
-      error.value = 'Not signed in.'
+      if (list.length === 0) error.value = 'Not signed in.'
     } else {
       error.value = (e as Error).message
     }
   } finally {
+    meets.value = list
     loading.value = false
   }
 }
@@ -78,27 +87,12 @@ function close() {
 }
 
 async function open() {
-  // Guest viewers (URL-shared meet) skip the picker — there's only one meet
-  // they have access to, so just load it. Awaiting initGuestSession() avoids
-  // a click-before-init race where the join request hasn't resolved yet and
-  // we'd fall through to getMyMeets() (401 for an anonymous guest).
-  await initGuestSession()
-  if (guest.isActive.value && guest.meetId.value !== null && guest.meetName.value !== null) {
-    submitting.value = true
-    try {
-      await loadMeet(guest.meetId.value, guest.meetName.value)
-      emit('loaded')
-    } catch (e) {
-      // Fall back to opening the picker so the user can see the error.
-      error.value = (e as Error).message
-      dialogRef.value?.showModal()
-    } finally {
-      submitting.value = false
-    }
-    return
-  }
   dialogRef.value?.showModal()
-  fetchMeets()
+  // Wait for the URL-shared guest session before populating the list so the
+  // shared meet shows up as a clickable row even for anonymous viewers.
+  loading.value = true
+  await initGuestSession()
+  await fetchMeets()
 }
 
 defineExpose({ open })
@@ -155,12 +149,11 @@ defineExpose({ open })
   padding: 0;
   width: min(24rem, 90vw);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  /* Ensure centering in Tauri/WebKit */
+  /* Center via inset:0 + margin:auto. The earlier top:50% / left:50% /
+     transform combo collided with the UA :modal stylesheet (which sets
+     inset:0) and produced off-centre placement on Firefox/desktop. */
+  inset: 0;
   margin: auto;
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
 }
 
 .meet-picker-dialog::backdrop {
