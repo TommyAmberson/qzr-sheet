@@ -1,18 +1,21 @@
 import type { MiddlewareHandler } from 'hono'
 import type { Bindings } from './bindings'
 import type { SessionUser, SessionVariables } from './middleware/session'
+import type { GuestPayload } from './lib/jwt'
 import type { Db } from './lib/db'
 import { AccountRole } from '@qzr/shared'
 
 /**
- * Test-only middleware that injects a user directly into context,
- * bypassing Better Auth session lookup.
+ * Test-only middleware that injects user and/or guest directly into context,
+ * bypassing Better Auth session lookup and guest JWT verification.
  */
 export function mockSession(
   user: SessionUser | null,
+  guest: GuestPayload | null = null,
 ): MiddlewareHandler<{ Bindings: Bindings; Variables: SessionVariables }> {
   return async (c, next) => {
     c.set('user', user)
+    c.set('guest', guest)
     await next()
   }
 }
