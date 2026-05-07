@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.9.1
+
+Completes the guest-via-URL feature shipped in 0.9.0 — the API rejected guest reads on the path the
+scoresheet actually uses, and the picker UX needed work before guests could discover the meet they
+were sent to.
+
+### Added
+
+* **Guest can join more meets via the "Have a code?" form** — anonymous viewers can keep adding
+  meets to their picker beyond the single one from `?meet=<viewerCode>` by typing any viewer or
+  official code into the existing form. The code is sent to `POST /api/join/guest`, the resulting
+  token is stored alongside the URL-shared one, and the meet appears as another clickable row.
+  Selecting a row switches the active session before loading so the request is signed by the right
+  meet's JWT (each guest JWT is scoped to a single meetId). Signed-in users still use the
+  membership-join path (`/api/join`); the form auto-dispatches based on whether `getMyMeets()`
+  returned 401
+
+### Changed
+
+* **Meet picker stays open for guests instead of auto-loading** — visiting `?meet=<code>` previously
+  skipped the picker and went straight to loading the meet's teams, which made sign-in and the "Have
+  a code?" form unreachable, and any load error surfaced as an empty dialog. The picker now always
+  opens with the URL-shared meet as the first clickable row, with any signed-in memberships layered
+  on top
+* **Multi-session guest storage** — the `qzr-guest-session` localStorage key is now
+  `{ active, joined[] }` instead of a single session. Old single-session storage auto-migrates on
+  load, so existing 0.9.0 guest sessions carry over without re-joining
+
+### Fixed
+
+* **Guest URL meet load was actually broken in 0.9.0** — `phase` and `schedule` sub-apps register
+  `use('*', requireAuth())` and were mounted at `/api/meets` ahead of the guest-friendly `churches`
+  handler, so guest requests to `GET /api/meets/:meetId/teams` were short-circuited with 401 before
+  reaching the real handler. Reordered mounts so `churches` / `join` / `my-meets` land before
+  `phase` / `schedule`. Added a regression test that mirrors the index.ts mount order
+* **Click-before-init race in the meet picker** — `initGuestSession()` now caches its in-flight
+  promise so the meet picker (and any future caller) can await the same join round-trip
+  idempotently. Previously, clicking "Load teams from meet" before the join request resolved
+  surfaced "Not signed in." instead of the URL-shared meet
+* **Off-centre meet picker dialog on Firefox/desktop** — replaced the `position:fixed` / `top:50%` /
+  `left:50%` / `transform:translate` centering combo with `inset:0` plus `margin:auto`. The previous
+  approach collided with the user-agent `:modal` stylesheet's `inset:0` and rendered off-centre
+
+### Infrastructure
+
+* **Mass results importer roadmap entry (#52)** — `ROADMAP.md` backlog now lists a CLI for
+  bulk-uploading historical meet quiz files into the DB, useful for testing stats logic against real
+  meets. Blocked by the API portion of #7
+* **Winkler 2026 worked example** — `docs/example-winkler-2026.md` documents a real sister-org meet
+  draw spreadsheet as inspiration for scheduling design where `docs/rules.md` underspecifies how
+  meets actually run (multi-bracket elims, lateness handling, slot pitches)
+
 ## 0.9.0
 
 ### Added
