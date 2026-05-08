@@ -676,27 +676,43 @@ onMounted(load)
       </div>
 
       <!-- Phase indicator -->
-      <div class="phase-bar" :data-phase="detail.meet.phase ?? 'registration'">
-        <div class="phase-bar-label">
-          <span class="phase-bar-caption">Phase:</span>
-          <strong class="phase-bar-value">{{ phaseLabel(detail.meet.phase) }}</strong>
+      <div class="phase-strip" :data-phase="currentPhase">
+        <ol class="phase-steps" :aria-label="`Meet phase: ${phaseLabel(currentPhase)}`">
+          <li
+            v-for="(p, i) in MEET_PHASES"
+            :key="p"
+            class="phase-step"
+            :class="{
+              'is-past': i < phaseIdx,
+              'is-current': i === phaseIdx,
+            }"
+            :title="phaseLabel(p)"
+          >
+            <span class="phase-step-dot" aria-hidden="true" />
+          </li>
+        </ol>
+        <div class="phase-strip-label">
+          <span class="phase-strip-name">{{ phaseLabel(currentPhase) }}</span>
+          <span class="phase-strip-caption">phase</span>
         </div>
-        <div v-if="isAdmin" class="phase-bar-actions">
+        <div v-if="isAdmin" class="phase-strip-actions">
           <button
-            class="phase-btn"
-            :disabled="!canRevertPhase || phaseSaving"
+            v-if="canRevertPhase"
+            class="phase-link phase-link--quiet"
+            :disabled="phaseSaving"
             :title="phaseRevertTitle"
             @click="advancePhase('revert')"
           >
             ← Revert
           </button>
           <button
-            class="phase-btn phase-btn--primary"
-            :disabled="!canAdvancePhase || phaseSaving"
+            v-if="canAdvancePhase"
+            class="phase-link phase-link--primary"
+            :disabled="phaseSaving"
             :title="phaseAdvanceTitle"
             @click="advancePhase('advance')"
           >
-            Advance →
+            Advance to {{ phaseLabel(nextPhase!) }} →
           </button>
         </div>
       </div>
@@ -1247,73 +1263,167 @@ onMounted(load)
   cursor: default;
 }
 
-/* Phase header bar */
-.phase-bar {
+/* Phase strip — compact lifecycle indicator + admin actions.
+   Per-phase colour applies only to the current dot (and the Advance link),
+   never as a banner background. */
+.phase-strip {
+  --phase-color: var(--color-text-faint);
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
-  padding: 0.75rem 1rem;
-  margin-bottom: 1.5rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--border, #ddd);
-  background: var(--bg-elevated, #f9f9f9);
+  padding: 0.5rem 0;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border-alt);
+  flex-wrap: wrap;
 }
 
-.phase-bar[data-phase='build'] {
-  background: #fff7e6;
-  border-color: #f0c060;
+.phase-strip[data-phase='build'] {
+  --phase-color: var(--palette-amber);
 }
-.phase-bar[data-phase='live'] {
-  background: #e6f7ec;
-  border-color: #5cbf7a;
+.phase-strip[data-phase='live'] {
+  --phase-color: var(--palette-correct);
 }
-.phase-bar[data-phase='done'] {
-  background: #ececec;
-  border-color: #999;
+.phase-strip[data-phase='done'] {
+  --phase-color: var(--color-text-muted);
 }
 
-.phase-bar-label {
+.phase-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 6rem;
+  flex-shrink: 0;
+}
+
+.phase-step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  height: 0.75rem;
+}
+
+.phase-step::before,
+.phase-step::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  height: 1px;
+  width: 50%;
+  background: var(--color-border-alt);
+}
+.phase-step::before {
+  left: 0;
+}
+.phase-step::after {
+  left: 50%;
+}
+.phase-step:first-child::before,
+.phase-step:last-child::after {
+  display: none;
+}
+
+.phase-step-dot {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--color-bg);
+  box-shadow: 0 0 0 1px var(--color-border);
+  transition: box-shadow 120ms ease;
+}
+
+.phase-step.is-past .phase-step-dot {
+  background: var(--color-text-muted);
+  box-shadow: 0 0 0 1px var(--color-text-muted);
+}
+.phase-step.is-past::before,
+.phase-step.is-past::after,
+.phase-step.is-current::before {
+  background: var(--color-text-muted);
+}
+
+.phase-step.is-current .phase-step-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  background: var(--phase-color);
+  box-shadow:
+    0 0 0 1px var(--phase-color),
+    0 0 0 4px color-mix(in srgb, var(--phase-color) 18%, transparent);
+}
+
+.phase-strip-label {
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
 }
 
-.phase-bar-caption {
-  color: #666;
-  font-size: 0.85rem;
+.phase-strip-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: -0.01em;
 }
 
-.phase-bar-value {
-  font-size: 1.05rem;
-  text-transform: capitalize;
+.phase-strip-caption {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
 }
 
-.phase-bar-actions {
+.phase-strip-actions {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
 }
 
-.phase-btn {
-  padding: 0.35rem 0.75rem;
-  border-radius: 0.35rem;
-  border: 1px solid var(--border, #ccc);
-  background: white;
+.phase-link {
+  background: none;
+  border: none;
+  padding: 0.15rem 0;
+  font: inherit;
+  font-size: 0.8rem;
   cursor: pointer;
-  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid transparent;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
 }
-.phase-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+
+.phase-link:hover:not(:disabled) {
+  color: var(--color-text);
+  border-bottom-color: currentColor;
 }
-.phase-btn--primary {
-  background: #2563eb;
-  color: white;
-  border-color: #2563eb;
+
+.phase-link:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
-.phase-btn--primary:disabled {
-  background: #9aa9c8;
-  border-color: #9aa9c8;
+
+.phase-link--primary {
+  color: var(--phase-color);
+  font-weight: 600;
+}
+
+.phase-link--primary:hover:not(:disabled) {
+  color: var(--phase-color);
+  filter: brightness(1.1);
+  border-bottom-color: currentColor;
+}
+
+.phase-link--quiet {
+  color: var(--color-text-faint);
 }
 
 /* Sections */
