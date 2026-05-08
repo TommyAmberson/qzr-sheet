@@ -26,6 +26,12 @@ const router = createRouter({
             churchId: Number(route.params.churchId),
           }),
         },
+        {
+          path: 'schedule',
+          name: 'meet-schedule',
+          component: () => import('../views/ScheduleView.vue'),
+          props: (route) => ({ slug: route.params.slug as string }),
+        },
       ],
     },
   ],

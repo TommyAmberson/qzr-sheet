@@ -390,3 +390,57 @@ export interface RosterExportEntry {
 export function exportRoster(meetId: number): Promise<{ entries: RosterExportEntry[] }> {
   return request(`/api/meets/${meetId}/roster/export`)
 }
+
+// ---- Schedule (read-only, see issue #13) ----
+
+export interface MeetRoom {
+  id: number
+  name: string
+  sortOrder: number
+  hasCode: boolean
+}
+
+export interface MeetSlot {
+  id: number
+  meetId: number
+  startAt: string
+  durationMinutes: number
+  kind: 'quiz' | 'event'
+  eventLabel: string | null
+  sortOrder: number
+}
+
+export interface ScheduledQuizSeat {
+  id: number
+  quizId: number
+  seatNumber: number
+  letter: string | null
+  seedRef: string | null
+}
+
+export interface ScheduledQuiz {
+  id: number
+  meetId: number
+  slotId: number
+  roomId: number
+  division: string
+  phase: 'prelim' | 'elim'
+  lane: 'main' | 'consolation' | 'intermediate' | null
+  label: string
+  bracketLabel: string | null
+  publishedAt: string | null
+  completedAt: string | null
+  seats: ScheduledQuizSeat[]
+}
+
+export function listMeetRooms(meetId: number): Promise<{ rooms: MeetRoom[] }> {
+  return request(`/api/meets/${meetId}/rooms`)
+}
+
+export function listMeetSlots(meetId: number): Promise<{ slots: MeetSlot[] }> {
+  return request(`/api/meets/${meetId}/slots`)
+}
+
+export function listScheduledQuizzes(meetId: number): Promise<{ quizzes: ScheduledQuiz[] }> {
+  return request(`/api/meets/${meetId}/quizzes`)
+}
