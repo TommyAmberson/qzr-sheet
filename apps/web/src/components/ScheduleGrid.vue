@@ -16,12 +16,17 @@ const grid = computed(() =>
 )
 const isEmpty = computed(() => !hasAnyQuiz(grid.value))
 
-/**
- * Single render path for a seat chip. Future "follow team" highlighting hooks
- * in here once seats start carrying teamIds (see #39 Roll Teams).
- */
-function seatLabel(seat: ScheduledQuizSeat): string {
-  return seat.letter ?? seat.seedRef ?? '?'
+/** Letter slot for prelims, seedRef for elims, blank otherwise.
+ *  Single render path so future "follow team" highlighting hooks in here
+ *  once seats start carrying teamIds (see #39 Roll Teams). */
+function seatRef(seat: ScheduledQuizSeat): string {
+  return seat.letter ?? seat.seedRef ?? ''
+}
+
+/** Resolved team name for a seat. Always '—' until #39 ships the
+ *  prelim_assignments / seed_resolutions resolution layer. */
+function seatTeam(_seat: ScheduledQuizSeat): string {
+  return '—'
 }
 </script>
 
@@ -60,16 +65,19 @@ function seatLabel(seat: ScheduledQuizSeat): string {
             <td v-for="(quiz, i) in row.cells" :key="grid.rooms[i]!.id" class="quiz-cell">
               <div v-if="quiz" class="quiz-card" :data-quiz-id="quiz.id">
                 <div class="quiz-label">{{ quiz.label }}</div>
-                <ul class="seat-list">
-                  <li
-                    v-for="seat in quiz.seats"
-                    :key="seat.id"
-                    class="seat-chip"
-                    :data-seat-letter="seat.letter || undefined"
-                  >
-                    {{ seatLabel(seat) }}
-                  </li>
-                </ul>
+                <table class="seat-table">
+                  <tbody>
+                    <tr
+                      v-for="seat in quiz.seats"
+                      :key="seat.id"
+                      class="seat-row"
+                      :data-seat-letter="seat.letter || undefined"
+                    >
+                      <td class="seat-ref">{{ seatRef(seat) }}</td>
+                      <td class="seat-team">{{ seatTeam(seat) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </td>
           </template>
@@ -94,73 +102,95 @@ function seatLabel(seat: ScheduledQuizSeat): string {
   overflow-x: auto;
 }
 
+/* Datasheet aesthetic — tight cells, hairline borders, monospace numbers.
+   Mirrors the dense per-quiz layout from docs/example-winkler-2026.md. */
 .schedule-grid {
   border-collapse: collapse;
   width: 100%;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
+  table-layout: fixed;
 }
 
 .schedule-grid th,
 .schedule-grid td {
   border: 1px solid var(--color-border-alt);
-  padding: 0.4rem 0.6rem;
+  padding: 0;
   vertical-align: top;
   text-align: left;
 }
 
 .time-col {
-  width: 5rem;
+  width: 4.5rem;
   font-weight: 600;
   white-space: nowrap;
   background: var(--color-bg-raised);
+  padding: 0.35rem 0.5rem;
+  vertical-align: top;
+  color: var(--color-text-muted);
 }
 
 .room-col {
   font-weight: 600;
   background: var(--color-bg-raised);
   text-align: center;
+  padding: 0.35rem 0.5rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
 }
 
 .event-row .event-cell {
   background: var(--color-bg-warm);
   font-style: italic;
-  text-align: center;
+  text-align: left;
   color: var(--color-text-muted);
+  padding: 0.4rem 0.6rem;
+  letter-spacing: 0.02em;
 }
 
 .quiz-cell {
-  min-width: 8rem;
+  min-width: 7rem;
 }
 
 .quiz-card {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
 }
 
 .quiz-label {
   font-weight: 600;
-  font-size: 0.8rem;
+  text-align: center;
+  padding: 0.3rem 0.4rem 0.2rem;
+  border-bottom: 1px solid var(--color-border-alt);
+  color: var(--color-text);
 }
 
-.seat-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  gap: 0.25rem;
-  flex-wrap: wrap;
+.seat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
 }
 
-.seat-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.6rem;
-  padding: 0.1rem 0.35rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  font-size: 0.75rem;
-  background: var(--color-bg);
+.seat-table .seat-row td {
+  border: none;
+  border-top: 1px dotted var(--color-border-alt);
+  padding: 0.18rem 0.4rem;
+}
+.seat-table .seat-row:first-child td {
+  border-top: none;
+}
+
+.seat-ref {
+  width: 2.6rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.seat-team {
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
