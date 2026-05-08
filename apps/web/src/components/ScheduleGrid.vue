@@ -18,6 +18,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'edit-slot', slot: MeetSlot): void
   (e: 'delete-slot', slotId: number): void
+  (e: 'add-quiz', payload: { slotId: number; roomId: number }): void
+  (e: 'delete-quiz', quizId: number): void
 }>()
 
 const grid = computed(() =>
@@ -96,10 +98,19 @@ function seatTeam(_seat: ScheduledQuizSeat): string {
             <td v-for="(quiz, i) in row.cells" :key="grid.rooms[i]!.id" class="quiz-cell">
               <div v-if="quiz" class="quiz-card" :data-quiz-id="quiz.id">
                 <div class="quiz-label">{{ quiz.label }}</div>
+                <button
+                  v-if="editMode"
+                  type="button"
+                  class="row-action row-action--danger quiz-delete"
+                  title="Delete quiz"
+                  @click="emit('delete-quiz', quiz.id)"
+                >
+                  ×
+                </button>
                 <table class="seat-table">
                   <tbody>
                     <tr
-                      v-for="seat in quiz.seats"
+                      v-for="seat in [...quiz.seats].sort((a, b) => a.seatNumber - b.seatNumber)"
                       :key="seat.id"
                       class="seat-row"
                       :data-seat-letter="seat.letter || undefined"
@@ -110,6 +121,15 @@ function seatTeam(_seat: ScheduledQuizSeat): string {
                   </tbody>
                 </table>
               </div>
+              <button
+                v-else-if="editMode"
+                type="button"
+                class="empty-cell-add"
+                title="Add quiz"
+                @click="emit('add-quiz', { slotId: row.slot.id, roomId: grid.rooms[i]!.id })"
+              >
+                +
+              </button>
             </td>
           </template>
         </tr>
@@ -219,6 +239,7 @@ function seatTeam(_seat: ScheduledQuizSeat): string {
 }
 
 .quiz-card {
+  position: relative;
   display: flex;
   flex-direction: column;
 }
@@ -229,6 +250,30 @@ function seatTeam(_seat: ScheduledQuizSeat): string {
   padding: 0.3rem 0.4rem 0.2rem;
   border-bottom: 1px solid var(--color-border-alt);
   color: var(--color-text);
+}
+
+.quiz-delete {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+}
+
+.empty-cell-add {
+  width: 100%;
+  min-height: 2.5rem;
+  background: none;
+  border: 1px dashed transparent;
+  border-radius: 4px;
+  font-size: 1rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.empty-cell-add:hover {
+  border-color: var(--color-border);
+  color: var(--color-accent);
+  background: var(--color-bg);
 }
 
 .seat-table {

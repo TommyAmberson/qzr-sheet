@@ -5,7 +5,9 @@ import { MeetRole } from '@qzr/shared'
 
 import {
   createMeetSlot,
+  createScheduledQuiz,
   deleteMeetSlot,
+  deleteScheduledQuiz,
   getMeet,
   getMyMeets,
   listMeetRooms,
@@ -200,6 +202,117 @@ function slotSort(a: MeetSlot, b: MeetSlot): number {
   return a.sortOrder - b.sortOrder || a.id - b.id
 }
 
+// ---- Quiz dialog ----
+
+interface QuizDraft {
+  slotId: number
+  roomId: number
+  division: string
+  phase: 'prelim' | 'elim'
+  label: string
+  seatRefs: [string, string, string]
+}
+
+const quizDialogRef = ref<HTMLDialogElement | null>(null)
+const quizDraft = ref<QuizDraft | null>(null)
+const quizSaving = ref(false)
+const quizError = ref('')
+
+function nextQuizNumber(division: string): number {
+  const used = new Set<number>()
+  for (const q of quizzes.value) {
+    if (q.division !== division) continue
+    const m = q.label.match(/(\d+)\s*$/)
+    if (m) used.add(Number(m[1]))
+  }
+  let n = 1
+  while (used.has(n)) n++
+  return n
+}
+
+function openAddQuiz(payload: { slotId: number; roomId: number }) {
+  if (!divisions.value.length) {
+    alert('Add a division to the meet before scheduling quizzes.')
+    return
+  }
+  const initialDivision = divisionFilter.value ?? divisions.value[0]!
+  quizError.value = ''
+  quizDraft.value = {
+    slotId: payload.slotId,
+    roomId: payload.roomId,
+    division: initialDivision,
+    phase: 'prelim',
+    label: `Div ${initialDivision} Quiz ${nextQuizNumber(initialDivision)}`,
+    seatRefs: ['', '', ''],
+  }
+  nextTick(() => quizDialogRef.value?.showModal())
+}
+
+function closeQuizDialog() {
+  quizDialogRef.value?.close()
+  quizDraft.value = null
+}
+
+function onQuizDivisionChange() {
+  const draft = quizDraft.value
+  if (!draft) return
+  draft.label = `Div ${draft.division} Quiz ${nextQuizNumber(draft.division)}`
+}
+
+async function saveQuiz() {
+  const draft = quizDraft.value
+  if (!draft || !meetId.value) return
+  if (!draft.label.trim()) {
+    quizError.value = 'Label is required'
+    return
+  }
+  quizSaving.value = true
+  quizError.value = ''
+  try {
+    const seats = draft.seatRefs.map((ref, i) => {
+      const trimmed = ref.trim()
+      const seat: { seatNumber: number; letter?: string | null; seedRef?: string | null } = {
+        seatNumber: i + 1,
+      }
+      if (trimmed) {
+        if (draft.phase === 'prelim') seat.letter = trimmed
+        else seat.seedRef = trimmed
+      }
+      return seat
+    })
+    const res = await createScheduledQuiz(meetId.value, {
+      slotId: draft.slotId,
+      roomId: draft.roomId,
+      division: draft.division,
+      phase: draft.phase,
+      label: draft.label.trim(),
+      seats,
+    })
+    // POST returns the quiz row without seats; re-fetch to pull seat ids back.
+    const refreshed = await listScheduledQuizzes(meetId.value)
+    quizzes.value = refreshed.quizzes
+    void res
+    closeQuizDialog()
+  } catch (e) {
+    quizError.value = (e as Error).message
+  } finally {
+    quizSaving.value = false
+  }
+}
+
+async function handleDeleteQuiz(quizId: number) {
+  if (!meetId.value) return
+  const quiz = quizzes.value.find((q) => q.id === quizId)
+  if (!quiz) return
+  if (!confirm(`Delete ${quiz.label}? This cannot be undone.`)) return
+  try {
+    await deleteScheduledQuiz(meetId.value, quizId)
+    quizzes.value = quizzes.value.filter((q) => q.id !== quizId)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
 async function handleDeleteSlot(slotId: number) {
   if (!meetId.value) return
   const slot = slots.value.find((s) => s.id === slotId)
@@ -261,11 +374,66 @@ onMounted(load)
         :edit-mode="editMode && isAdmin"
         @edit-slot="openEditSlot"
         @delete-slot="handleDeleteSlot"
+        @add-quiz="openAddQuiz"
+        @delete-quiz="handleDeleteQuiz"
       />
 
       <button v-if="editMode && isAdmin" class="add-slot-btn" @click="openAddSlot">
         + Add slot
       </button>
+
+      <dialog ref="quizDialogRef" class="dialog" @close="quizDraft = null">
+        <form v-if="quizDraft" class="dialog-form" @submit.prevent="saveQuiz">
+          <h3 class="dialog-title">Add quiz</h3>
+
+          <div class="dialog-grid dialog-grid--two">
+            <label class="field">
+              <span class="field-label">Division</span>
+              <select v-model="quizDraft.division" required @change="onQuizDivisionChange">
+                <option v-for="d in divisions" :key="d" :value="d">{{ d }}</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">Phase</span>
+              <select v-model="quizDraft.phase">
+                <option value="prelim">Prelim</option>
+                <option value="elim">Elim</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span class="field-label">Label</span>
+            <input v-model="quizDraft.label" type="text" required />
+          </label>
+
+          <fieldset class="seats-fieldset">
+            <legend class="field-label">
+              {{ quizDraft.phase === 'prelim' ? 'Letters (A–U)' : 'Seed refs' }}
+            </legend>
+            <div class="seats-row">
+              <input
+                v-for="(_, i) in quizDraft.seatRefs"
+                :key="i"
+                v-model="quizDraft.seatRefs[i]"
+                type="text"
+                class="seat-input"
+                :placeholder="String.fromCharCode(65 + i)"
+                :maxlength="quizDraft.phase === 'prelim' ? 1 : undefined"
+              />
+            </div>
+          </fieldset>
+
+          <p v-if="quizError" class="field-error">{{ quizError }}</p>
+
+          <div class="dialog-actions">
+            <button type="button" class="btn btn--ghost" @click="closeQuizDialog">Cancel</button>
+            <button type="submit" class="btn btn--primary" :disabled="quizSaving">
+              {{ quizSaving ? 'Saving…' : 'Add quiz' }}
+            </button>
+          </div>
+        </form>
+      </dialog>
 
       <dialog ref="slotDialogRef" class="dialog" @close="slotDraft = null">
         <form v-if="slotDraft" class="dialog-form" @submit.prevent="saveSlot">
@@ -522,6 +690,58 @@ onMounted(load)
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0.6rem;
+}
+
+.dialog-grid--two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.field select {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.seats-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.seats-fieldset .field-label {
+  display: block;
+  margin-bottom: 0.1rem;
+}
+
+.seats-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.seat-input {
+  flex: 1;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  text-transform: uppercase;
+  text-align: center;
+  min-width: 0;
+}
+
+.seat-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
 }
 
 .field {
