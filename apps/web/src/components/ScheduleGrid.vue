@@ -4,11 +4,20 @@ import { computed } from 'vue'
 import type { MeetRoom, MeetSlot, ScheduledQuiz, ScheduledQuizSeat } from '../api'
 import { buildGrid, formatSlotTime, hasAnyQuiz } from '../scheduleGrid'
 
-const props = defineProps<{
-  rooms: MeetRoom[]
-  slots: MeetSlot[]
-  quizzes: ScheduledQuiz[]
-  divisionFilter: string | null
+const props = withDefaults(
+  defineProps<{
+    rooms: MeetRoom[]
+    slots: MeetSlot[]
+    quizzes: ScheduledQuiz[]
+    divisionFilter: string | null
+    editMode?: boolean
+  }>(),
+  { editMode: false },
+)
+
+const emit = defineEmits<{
+  (e: 'edit-slot', slot: MeetSlot): void
+  (e: 'delete-slot', slotId: number): void
 }>()
 
 const grid = computed(() =>
@@ -57,7 +66,29 @@ function seatTeam(_seat: ScheduledQuizSeat): string {
           :key="row.slot.id"
           :class="{ 'event-row': row.slot.kind === 'event' }"
         >
-          <th class="time-col" scope="row">{{ formatSlotTime(row.slot.startAt) }}</th>
+          <th class="time-col" scope="row">
+            <div class="time-col-inner">
+              <span class="time-text">{{ formatSlotTime(row.slot.startAt) }}</span>
+              <div v-if="editMode" class="time-actions">
+                <button
+                  type="button"
+                  class="row-action"
+                  title="Edit slot"
+                  @click="emit('edit-slot', row.slot)"
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  class="row-action row-action--danger"
+                  title="Delete slot"
+                  @click="emit('delete-slot', row.slot.id)"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </th>
           <td v-if="row.slot.kind === 'event'" class="event-cell" :colspan="grid.rooms.length">
             {{ row.slot.eventLabel || 'Event' }}
           </td>
@@ -85,7 +116,7 @@ function seatTeam(_seat: ScheduledQuizSeat): string {
       </tbody>
     </table>
 
-    <p v-if="isEmpty" class="schedule-state">No quizzes scheduled in this view.</p>
+    <p v-if="isEmpty && !editMode" class="schedule-state">No quizzes scheduled in this view.</p>
   </div>
 </template>
 
@@ -124,9 +155,44 @@ function seatTeam(_seat: ScheduledQuizSeat): string {
   font-weight: 600;
   white-space: nowrap;
   background: var(--color-bg-raised);
-  padding: 0.35rem 0.5rem;
+  padding: 0;
   vertical-align: top;
   color: var(--color-text-muted);
+}
+
+.time-col-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.time-actions {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.row-action {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0 0.25rem;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.1;
+  color: var(--color-text-faint);
+  cursor: pointer;
+}
+
+.row-action:hover {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+.row-action--danger:hover {
+  color: var(--color-invalid, #c00);
+  border-color: var(--color-invalid, #c00);
 }
 
 .room-col {
