@@ -444,3 +444,98 @@ export function listMeetSlots(meetId: number): Promise<{ slots: MeetSlot[] }> {
 export function listScheduledQuizzes(meetId: number): Promise<{ quizzes: ScheduledQuiz[] }> {
   return request(`/api/meets/${meetId}/quizzes`)
 }
+
+// ---- Schedule editor (slot + quiz CRUD) ----
+
+export interface SeatInput {
+  seatNumber: number
+  letter?: string | null
+  seedRef?: string | null
+}
+
+export function createMeetSlot(
+  meetId: number,
+  data: {
+    startAt: string | number
+    durationMinutes: number
+    kind: 'quiz' | 'event'
+    eventLabel?: string | null
+    sortOrder: number
+  },
+): Promise<{ slot: MeetSlot }> {
+  return request(`/api/meets/${meetId}/slots`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export function updateMeetSlot(
+  meetId: number,
+  slotId: number,
+  data: {
+    startAt?: string | number
+    durationMinutes?: number
+    eventLabel?: string | null
+    sortOrder?: number
+  },
+): Promise<{ slot: MeetSlot }> {
+  return request(`/api/meets/${meetId}/slots/${slotId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteMeetSlot(meetId: number, slotId: number): Promise<{ deleted: true }> {
+  return request(`/api/meets/${meetId}/slots/${slotId}`, { method: 'DELETE' })
+}
+
+export function createScheduledQuiz(
+  meetId: number,
+  data: {
+    slotId: number
+    roomId: number
+    division: string
+    phase: 'prelim' | 'elim'
+    lane?: 'main' | 'consolation' | 'intermediate' | null
+    label: string
+    bracketLabel?: string | null
+    seats?: SeatInput[]
+  },
+): Promise<{ quiz: ScheduledQuiz }> {
+  return request(`/api/meets/${meetId}/quizzes`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export function updateScheduledQuiz(
+  meetId: number,
+  quizId: number,
+  data: {
+    slotId?: number
+    roomId?: number
+    label?: string
+    bracketLabel?: string | null
+    publishedAt?: string | number | null
+  },
+): Promise<{ quiz: ScheduledQuiz }> {
+  return request(`/api/meets/${meetId}/quizzes/${quizId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteScheduledQuiz(meetId: number, quizId: number): Promise<{ deleted: true }> {
+  return request(`/api/meets/${meetId}/quizzes/${quizId}`, { method: 'DELETE' })
+}
+
+export function replaceQuizSeats(
+  meetId: number,
+  quizId: number,
+  seats: SeatInput[],
+): Promise<{ seats: ScheduledQuizSeat[] }> {
+  return request(`/api/meets/${meetId}/quizzes/${quizId}/seats`, {
+    method: 'PATCH',
+    body: JSON.stringify({ seats }),
+  })
+}
