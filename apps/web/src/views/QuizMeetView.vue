@@ -717,6 +717,21 @@ onMounted(load)
         </div>
       </div>
 
+      <!-- Schedule -->
+      <div class="section">
+        <div class="section-header">
+          <h3 class="section-title">Schedule</h3>
+          <div class="section-actions">
+            <button
+              class="btn btn--secondary btn--sm"
+              @click="router.push({ name: 'meet-schedule', params: { slug } })"
+            >
+              Open schedule →
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Churches -->
       <div class="section">
         <div class="section-header">
