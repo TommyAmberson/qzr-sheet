@@ -391,7 +391,13 @@ export function exportRoster(meetId: number): Promise<{ entries: RosterExportEnt
   return request(`/api/meets/${meetId}/roster/export`)
 }
 
-// ---- Schedule (read-only, see issue #13) ----
+// ---- Division team counts ----
+
+export function getMeetTeamCounts(meetId: number): Promise<{ counts: Record<string, number> }> {
+  return request(`/api/meets/${meetId}/team-counts`)
+}
+
+// ---- Schedule ----
 
 export interface MeetRoom {
   id: number
