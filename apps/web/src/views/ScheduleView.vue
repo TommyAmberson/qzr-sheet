@@ -9,6 +9,7 @@ import {
   deleteMeetSlot,
   deleteScheduledQuiz,
   getMeet,
+  getMeetTeamCounts,
   getMyMeets,
   listMeetRooms,
   listMeetSlots,
@@ -20,6 +21,8 @@ import {
   type MeetSlot,
   type ScheduledQuiz,
 } from '../api'
+import { defaultExtraLaneSize, type ExtraLane, type LaneId } from '../brackets'
+import FormatHeader from '../components/FormatHeader.vue'
 import ScheduleGrid from '../components/ScheduleGrid.vue'
 
 const props = defineProps<{ slug: string }>()
@@ -30,6 +33,8 @@ const membership = ref<MeetMembership | null>(null)
 const rooms = ref<MeetRoom[]>([])
 const slots = ref<MeetSlot[]>([])
 const quizzes = ref<ScheduledQuiz[]>([])
+const teamCounts = ref<Record<string, number>>({})
+const extraLanes = ref<Record<string, ExtraLane[]>>({})
 const loading = ref(true)
 const error = ref('')
 const divisionFilter = ref<string | null>(null)
@@ -49,14 +54,21 @@ async function load() {
     detail.value = meetDetail
     membership.value = myMeetsRes.memberships.find((m) => m.meetId === meetDetail.meet.id) ?? null
     const id = meetDetail.meet.id
-    const [r, s, q] = await Promise.all([
+    const [r, s, q, tc] = await Promise.all([
       listMeetRooms(id),
       listMeetSlots(id),
       listScheduledQuizzes(id),
+      getMeetTeamCounts(id),
     ])
     rooms.value = r.rooms
     slots.value = s.slots
     quizzes.value = q.quizzes
+    teamCounts.value = tc.counts
+    // Main lane is implicit per division. Extra lanes (C / CC) start empty;
+    // admin opts in and sizes them based on the post-stats-break split.
+    const seeded: Record<string, ExtraLane[]> = {}
+    for (const d of meetDetail.meet.divisions) seeded[d] = []
+    extraLanes.value = seeded
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -313,6 +325,47 @@ async function handleDeleteQuiz(quizId: number) {
   }
 }
 
+function toggleLane({ division, lane }: { division: string; lane: LaneId }) {
+  const current = extraLanes.value[division] ?? []
+  const has = current.some((l) => l.id === lane)
+  let next: ExtraLane[]
+  if (has) {
+    next = current.filter((l) => l.id !== lane)
+  } else {
+    const usedSoFar = current.reduce((sum, l) => sum + l.teamCount, 0)
+    const remainingInMain = (teamCounts.value[division] ?? 0) - usedSoFar
+    next = [...current, { id: lane, teamCount: defaultExtraLaneSize(remainingInMain) }]
+  }
+  // CC implies C — opting into CC auto-enables C; removing C also removes CC.
+  if (next.some((l) => l.id === 'cc') && !next.some((l) => l.id === 'c')) {
+    const remaining =
+      (teamCounts.value[division] ?? 0) - next.reduce((sum, l) => sum + l.teamCount, 0)
+    next = [...next, { id: 'c', teamCount: defaultExtraLaneSize(remaining) }]
+  }
+  if (!next.some((l) => l.id === 'c')) {
+    next = next.filter((l) => l.id !== 'cc')
+  }
+  extraLanes.value = { ...extraLanes.value, [division]: next }
+}
+
+function resizeLane({
+  division,
+  lane,
+  teamCount,
+}: {
+  division: string
+  lane: LaneId
+  teamCount: number
+}) {
+  const current = extraLanes.value[division] ?? []
+  extraLanes.value = {
+    ...extraLanes.value,
+    [division]: current.map((l) =>
+      l.id === lane ? { ...l, teamCount: Math.max(0, teamCount) } : l,
+    ),
+  }
+}
+
 async function handleDeleteSlot(slotId: number) {
   if (!meetId.value) return
   const slot = slots.value.find((s) => s.id === slotId)
@@ -357,6 +410,15 @@ onMounted(load)
           </button>
         </div>
       </div>
+
+      <FormatHeader
+        :divisions="divisions"
+        :team-counts="teamCounts"
+        :extra-lanes="extraLanes"
+        :editable="editMode && isAdmin"
+        @toggle-lane="toggleLane"
+        @resize-lane="resizeLane"
+      />
 
       <div v-if="divisions.length > 1" class="filter-row">
         <label class="filter-label" for="division-filter">Division</label>
