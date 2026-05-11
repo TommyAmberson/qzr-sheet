@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import { type MeetRoom, type MeetSlot } from '../../api'
 import { bySortOrder, formatSlotTime } from '../../scheduleGrid'
@@ -75,6 +75,10 @@ const roundNumbers = computed<Map<number, number>>(() => {
   return m
 })
 
+/** Number of body columns the slot-content cell spans. At least one even
+ *  if no rooms are defined yet, so the table doesn't collapse. */
+const contentColspan = computed(() => Math.max(1, props.rooms.length))
+
 function dateKey(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -103,6 +107,31 @@ function withTimeOfDay(iso: string, hhmm: string): string | null {
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null
   d.setHours(h!, m!, 0, 0)
   return d.toISOString()
+}
+
+// Refs for the hidden time inputs that we trigger via showPicker(). One
+// per day anchor; the picker UI is the native control, but the visible
+// affordance is a styled button.
+const timeInputs = ref(new Map<number, HTMLInputElement>())
+
+function registerTimeInput(slotId: number, el: HTMLInputElement | null) {
+  if (el) timeInputs.value.set(slotId, el)
+  else timeInputs.value.delete(slotId)
+}
+
+function openTimePicker(slotId: number) {
+  const input = timeInputs.value.get(slotId)
+  if (!input) return
+  if (typeof input.showPicker === 'function') {
+    try {
+      input.showPicker()
+      return
+    } catch {
+      // Fall through to focus.
+    }
+  }
+  input.focus()
+  input.click()
 }
 
 /** When the day-anchor moves, shift every slot in that day by the same
@@ -160,7 +189,6 @@ function addSlot(kind: 'quiz' | 'event') {
 function addDay() {
   const last = sortedSlots.value[sortedSlots.value.length - 1]
   const base = last ? new Date(last.startAt) : new Date()
-  // Move to the next day at 08:00 local.
   const next = new Date(base)
   next.setDate(next.getDate() + 1)
   next.setHours(8, 0, 0, 0)
@@ -208,18 +236,25 @@ function deleteSlot(slot: MeetSlot) {
         <thead>
           <tr>
             <th class="time-col" scope="col">Time</th>
-            <th class="dur-col" scope="col">Mins</th>
-            <th class="label-col" scope="col">Round / Event</th>
-            <th v-if="editable" class="action-col no-print" scope="col"></th>
+            <th v-if="rooms.length === 0" class="room-col" scope="col">Slot</th>
+            <th
+              v-for="room in rooms"
+              :key="room.id"
+              :data-room-id="room.id"
+              class="room-col"
+              scope="col"
+            >
+              {{ room.name }}
+            </th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="slots.length === 0">
-            <td colspan="4" class="empty-row">No slots yet — add a day below.</td>
+            <td :colspan="contentColspan + 1" class="empty-row">No slots yet — add a day below.</td>
           </tr>
           <template v-for="group in days" :key="group.dateKey">
             <tr class="day-row">
-              <th class="day-label" :colspan="editable ? 4 : 3" scope="colgroup">
+              <th class="day-label" :colspan="contentColspan + 1" scope="colgroup">
                 {{ group.label }}
               </th>
             </tr>
@@ -229,50 +264,68 @@ function deleteSlot(slot: MeetSlot) {
               :class="{ 'event-row': slot.kind === 'event' }"
             >
               <th class="time-col" scope="row">
-                <input
-                  v-if="idx === 0 && editable"
-                  class="time-input"
-                  type="time"
-                  :value="timeOfDay(slot.startAt)"
-                  @change="onAnchorTimeChange(group, $event)"
-                />
+                <template v-if="idx === 0 && editable">
+                  <button
+                    type="button"
+                    class="time-button"
+                    :title="`Change start time for ${group.label}`"
+                    @click="openTimePicker(slot.id)"
+                  >
+                    <span>{{ formatSlotTime(slot.startAt) }}</span>
+                    <span class="time-button-icon" aria-hidden="true">✎</span>
+                  </button>
+                  <input
+                    :ref="(el) => registerTimeInput(slot.id, el as HTMLInputElement | null)"
+                    type="time"
+                    class="hidden-picker"
+                    :value="timeOfDay(slot.startAt)"
+                    @change="onAnchorTimeChange(group, $event)"
+                  />
+                </template>
                 <span v-else class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
               </th>
-              <td class="dur-col">
-                <input
-                  v-if="editable"
-                  class="dur-input"
-                  type="number"
-                  min="1"
-                  step="1"
-                  :value="slot.durationMinutes"
-                  @change="onDurationChange(group, slot, $event)"
-                />
-                <span v-else>{{ slot.durationMinutes }}</span>
-              </td>
-              <td class="label-col">
-                <span v-if="slot.kind === 'quiz'" class="round-label">
-                  Round {{ roundNumbers.get(slot.id) }}
-                </span>
-                <input
-                  v-else-if="editable"
-                  class="label-input"
-                  type="text"
-                  :value="slot.eventLabel ?? ''"
-                  placeholder="Event name"
-                  @change="onLabelChange(slot, $event)"
-                />
-                <span v-else class="event-label">{{ slot.eventLabel || 'Event' }}</span>
-              </td>
-              <td v-if="editable" class="action-col no-print">
-                <button
-                  type="button"
-                  class="row-delete"
-                  title="Delete slot"
-                  @click="deleteSlot(slot)"
-                >
-                  ×
-                </button>
+              <td class="slot-cell" :colspan="contentColspan">
+                <div class="slot-inner">
+                  <span v-if="slot.kind === 'quiz'" class="slot-label">
+                    Round {{ roundNumbers.get(slot.id) }}
+                  </span>
+                  <input
+                    v-else-if="editable"
+                    class="event-input"
+                    type="text"
+                    :value="slot.eventLabel ?? ''"
+                    placeholder="Event name"
+                    @change="onLabelChange(slot, $event)"
+                  />
+                  <span v-else class="slot-label slot-label--event">
+                    {{ slot.eventLabel || 'Event' }}
+                  </span>
+
+                  <span class="slot-duration">
+                    <input
+                      v-if="editable"
+                      class="dur-input"
+                      type="number"
+                      min="1"
+                      step="1"
+                      :value="slot.durationMinutes"
+                      :aria-label="`Duration in minutes`"
+                      @change="onDurationChange(group, slot, $event)"
+                    />
+                    <span v-else>{{ slot.durationMinutes }}</span>
+                    <span class="dur-label">min</span>
+                  </span>
+
+                  <button
+                    v-if="editable"
+                    type="button"
+                    class="row-delete no-print"
+                    title="Delete slot"
+                    @click="deleteSlot(slot)"
+                  >
+                    ×
+                  </button>
+                </div>
               </td>
             </tr>
           </template>
@@ -358,13 +411,13 @@ function deleteSlot(slot: MeetSlot) {
   border-collapse: collapse;
   width: 100%;
   font-size: 0.85rem;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .schedule-table th,
 .schedule-table td {
   border-bottom: 1px solid var(--color-border-alt);
-  padding: 0.4rem 0.6rem;
+  padding: 0;
   vertical-align: middle;
   text-align: left;
 }
@@ -381,31 +434,31 @@ thead th {
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  padding: 0.4rem 0.6rem;
 }
 
 .time-col {
-  width: 6.5rem;
+  width: 7rem;
   font-variant-numeric: tabular-nums;
+  background: var(--color-bg);
+  padding: 0.4rem 0.6rem;
+  font-weight: 500;
+}
+
+thead .time-col {
+  background: var(--color-bg-raised);
 }
 
 .time-text {
   color: var(--color-text);
-  font-weight: 500;
 }
 
-.dur-col {
-  width: 4rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.label-col {
-  font-weight: 500;
+.room-col {
+  text-align: center;
+  min-width: 6.5rem;
+  font-weight: 600;
+  font-size: 0.78rem;
   color: var(--color-text);
-}
-
-.action-col {
-  width: 2.5rem;
-  text-align: right;
 }
 
 .day-row .day-label {
@@ -416,15 +469,52 @@ thead th {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 0.4rem 0.6rem;
+  text-align: left;
 }
 
-.event-row .label-col {
-  color: var(--color-text-muted);
-  font-style: italic;
+.slot-cell {
+  padding: 0;
+  background: var(--color-bg-raised);
 }
 
-.round-label {
+.event-row .slot-cell {
+  background: var(--color-bg-warm);
+}
+
+.slot-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.875rem;
+}
+
+.slot-label {
+  flex: 1;
+  font-weight: 600;
   color: var(--color-text);
+  text-align: center;
+  font-size: 0.92rem;
+}
+
+.slot-label--event {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.slot-duration {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.dur-label {
+  color: var(--color-text-faint);
+  font-size: 0.72rem;
 }
 
 .empty-row {
@@ -432,45 +522,91 @@ thead th {
   color: var(--color-text-faint);
   font-size: 0.85rem;
   padding: 1.25rem 0.6rem;
+  background: var(--color-bg);
 }
 
-input.time-input,
-input.dur-input,
-input.label-input {
+.time-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  color: var(--color-text);
   font: inherit;
   font-size: 0.85rem;
-  padding: 0.2rem 0.4rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+}
+
+.time-button:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.time-button-icon {
+  font-size: 0.7rem;
+  color: var(--color-text-faint);
+}
+
+.hidden-picker {
+  position: absolute;
+  width: 0;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.event-input {
+  flex: 1;
+  font: inherit;
+  font-size: 0.92rem;
+  font-style: italic;
+  text-align: center;
+  padding: 0.2rem 0.6rem;
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
   color: var(--color-text);
-  font-variant-numeric: tabular-nums;
-  width: 100%;
   min-width: 0;
 }
 
-input.time-input {
-  width: 5.5rem;
-  font-weight: 500;
-}
-
-input.dur-input {
-  width: 3rem;
-  text-align: right;
-}
-
-input.time-input:hover,
-input.dur-input:hover,
-input.label-input:hover {
+.event-input:hover {
   border-color: var(--color-border-alt);
+  background: var(--color-bg);
 }
 
-input.time-input:focus,
-input.dur-input:focus,
-input.label-input:focus {
+.event-input:focus {
   outline: none;
   border-color: var(--color-accent);
   background: var(--color-bg);
+}
+
+.dur-input {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--color-border-alt);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  width: 3rem;
+}
+
+.dur-input:hover {
+  border-color: var(--color-text-muted);
+}
+
+.dur-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
 }
 
 input::-webkit-outer-spin-button,
@@ -498,7 +634,7 @@ input[type='number'] {
 
 .row-delete:hover {
   color: var(--palette-error);
-  background: var(--color-bg-raised);
+  background: var(--color-bg);
 }
 
 .add-actions {
