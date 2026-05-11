@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, toRef } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, toRef, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { estimateLaneQuizzes } from '../brackets'
 import ElimSetupSection from '../components/schedule/ElimSetupSection.vue'
@@ -11,6 +11,7 @@ import { useScheduleData } from '../composables/useScheduleData'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
+const route = useRoute()
 
 const {
   rooms,
@@ -29,6 +30,34 @@ const {
 } = useScheduleData(toRef(props, 'slug'))
 
 const editable = ref(false)
+
+type TabId = 'prelim' | 'elim' | 'skeleton' | 'review'
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'prelim', label: 'Prelim setup' },
+  { id: 'elim', label: 'Elim setup' },
+  { id: 'skeleton', label: 'Skeleton' },
+  { id: 'review', label: 'Review' },
+]
+const VALID_TABS = new Set<TabId>(TABS.map((t) => t.id))
+
+function tabFromHash(hash: string): TabId {
+  const id = hash.replace(/^#/, '')
+  return VALID_TABS.has(id as TabId) ? (id as TabId) : 'review'
+}
+
+const activeTab = ref<TabId>(tabFromHash(route.hash))
+
+watch(
+  () => route.hash,
+  (h) => {
+    activeTab.value = tabFromHash(h)
+  },
+)
+
+function selectTab(tab: TabId) {
+  activeTab.value = tab
+  router.replace({ ...route, hash: `#${tab}` })
+}
 
 /** Total quiz budget across all divisions: prelims (= team count) + elim
  *  estimates per enabled lane. Threaded down so SkeletonSection can show
@@ -80,13 +109,30 @@ onMounted(load)
         </div>
       </header>
 
+      <nav class="tabs" role="tablist" aria-label="Schedule sections">
+        <button
+          v-for="tab in TABS"
+          :key="tab.id"
+          type="button"
+          role="tab"
+          class="tab"
+          :class="{ 'is-active': activeTab === tab.id }"
+          :aria-selected="activeTab === tab.id"
+          @click="selectTab(tab.id)"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+
       <PrelimSetupSection
+        v-if="activeTab === 'prelim'"
         :divisions="divisions"
         :team-counts="teamCounts"
         :editable="editable && isAdmin"
       />
 
       <ElimSetupSection
+        v-else-if="activeTab === 'elim'"
         :divisions="divisions"
         :team-counts="teamCounts"
         :extra-lanes="extraLanes"
@@ -96,13 +142,14 @@ onMounted(load)
       />
 
       <SkeletonSection
+        v-else-if="activeTab === 'skeleton'"
         :rooms="rooms"
         :slots="slots"
         :quiz-budget="quizBudget"
         :editable="editable && isAdmin"
       />
 
-      <ReviewSection :rooms="rooms" :slots="slots" :quizzes="quizzes" />
+      <ReviewSection v-else :rooms="rooms" :slots="slots" :quizzes="quizzes" />
     </template>
   </div>
 </template>
@@ -185,6 +232,46 @@ onMounted(load)
   display: flex;
   gap: 1.25rem;
   align-items: center;
+}
+
+.tabs {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.85rem;
+  overflow-x: auto;
+}
+
+.tab {
+  background: none;
+  border: none;
+  font: inherit;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: -0.005em;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 0.55rem 0;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.tab:hover {
+  color: var(--color-text-muted);
+}
+
+.tab.is-active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-text);
+}
+
+@media print {
+  .tabs {
+    display: none;
+  }
 }
 
 .link-btn {
