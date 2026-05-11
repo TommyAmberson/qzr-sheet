@@ -1,80 +1,41 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref, toRef } from 'vue'
 import { useRouter } from 'vue-router'
-import { MeetRole } from '@qzr/shared'
 
-import {
-  createMeetSlot,
-  createScheduledQuiz,
-  deleteMeetSlot,
-  deleteScheduledQuiz,
-  getMeet,
-  getMeetTeamCounts,
-  getMyMeets,
-  listMeetRooms,
-  listMeetSlots,
-  listScheduledQuizzes,
-  updateMeetSlot,
-  type MeetDetail,
-  type MeetMembership,
-  type MeetRoom,
-  type MeetSlot,
-  type ScheduledQuiz,
-} from '../api'
-import { defaultExtraLaneSize, type ExtraLane, type LaneId } from '../brackets'
+import { type MeetSlot } from '../api'
+import { type LaneId } from '../brackets'
 import FormatHeader from '../components/FormatHeader.vue'
 import ScheduleGrid from '../components/ScheduleGrid.vue'
+import { useScheduleData } from '../composables/useScheduleData'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
 
-const detail = ref<MeetDetail | null>(null)
-const membership = ref<MeetMembership | null>(null)
-const rooms = ref<MeetRoom[]>([])
-const slots = ref<MeetSlot[]>([])
-const quizzes = ref<ScheduledQuiz[]>([])
-const teamCounts = ref<Record<string, number>>({})
-const extraLanes = ref<Record<string, ExtraLane[]>>({})
-const loading = ref(true)
-const error = ref('')
+const data = useScheduleData(toRef(props, 'slug'))
+const {
+  rooms,
+  slots,
+  quizzes,
+  teamCounts,
+  extraLanes,
+  loading,
+  error,
+  meet,
+  divisions,
+  isAdmin,
+  load,
+  createSlot,
+  updateSlot,
+  deleteSlot,
+  createQuiz,
+  deleteQuiz,
+  nextQuizNumber,
+  toggleLane,
+  resizeLane,
+} = data
+
 const divisionFilter = ref<string | null>(null)
 const editMode = ref(false)
-
-const meet = computed(() => detail.value?.meet ?? null)
-const meetId = computed(() => detail.value?.meet.id ?? null)
-const divisions = computed(() => meet.value?.divisions ?? [])
-const role = computed(() => membership.value?.role ?? null)
-const isAdmin = computed(() => role.value === MeetRole.Admin || role.value === MeetRole.Superuser)
-
-async function load() {
-  loading.value = true
-  error.value = ''
-  try {
-    const [meetDetail, myMeetsRes] = await Promise.all([getMeet(props.slug), getMyMeets()])
-    detail.value = meetDetail
-    membership.value = myMeetsRes.memberships.find((m) => m.meetId === meetDetail.meet.id) ?? null
-    const id = meetDetail.meet.id
-    const [r, s, q, tc] = await Promise.all([
-      listMeetRooms(id),
-      listMeetSlots(id),
-      listScheduledQuizzes(id),
-      getMeetTeamCounts(id),
-    ])
-    rooms.value = r.rooms
-    slots.value = s.slots
-    quizzes.value = q.quizzes
-    teamCounts.value = tc.counts
-    // Main lane is implicit per division. Extra lanes (C / CC) start empty;
-    // admin opts in and sizes them based on the post-stats-break split.
-    const seeded: Record<string, ExtraLane[]> = {}
-    for (const d of meetDetail.meet.divisions) seeded[d] = []
-    extraLanes.value = seeded
-  } catch (e) {
-    error.value = (e as Error).message
-  } finally {
-    loading.value = false
-  }
-}
 
 // ---- Slot dialog ----
 
@@ -172,7 +133,7 @@ function closeSlotDialog() {
 
 async function saveSlot() {
   const draft = slotDraft.value
-  if (!draft || !meetId.value) return
+  if (!draft) return
   if (!draft.date || !draft.time) {
     slotError.value = 'Date and time are required'
     return
@@ -186,21 +147,19 @@ async function saveSlot() {
   try {
     const startAt = localPartsToIso(draft.date, draft.time)
     if (draft.mode === 'create') {
-      const res = await createMeetSlot(meetId.value, {
+      await createSlot({
         startAt,
         durationMinutes: draft.durationMinutes,
         kind: draft.kind,
         eventLabel: draft.kind === 'event' ? draft.eventLabel.trim() || null : null,
         sortOrder: draft.sortOrder,
       })
-      slots.value = [...slots.value, res.slot].sort(slotSort)
     } else if (draft.slotId != null) {
-      const res = await updateMeetSlot(meetId.value, draft.slotId, {
+      await updateSlot(draft.slotId, {
         startAt,
         durationMinutes: draft.durationMinutes,
         eventLabel: draft.kind === 'event' ? draft.eventLabel.trim() || null : null,
       })
-      slots.value = slots.value.map((s) => (s.id === res.slot.id ? res.slot : s)).sort(slotSort)
     }
     closeSlotDialog()
   } catch (e) {
@@ -210,8 +169,17 @@ async function saveSlot() {
   }
 }
 
-function slotSort(a: MeetSlot, b: MeetSlot): number {
-  return a.sortOrder - b.sortOrder || a.id - b.id
+async function handleDeleteSlot(slotId: number) {
+  const slot = slots.value.find((s) => s.id === slotId)
+  if (!slot) return
+  const label =
+    slot.kind === 'event' ? slot.eventLabel || 'this event' : 'this slot and its quizzes'
+  if (!confirm(`Delete ${label}? This cannot be undone.`)) return
+  try {
+    await deleteSlot(slotId)
+  } catch (e) {
+    alert((e as Error).message)
+  }
 }
 
 // ---- Quiz dialog ----
@@ -229,18 +197,6 @@ const quizDialogRef = ref<HTMLDialogElement | null>(null)
 const quizDraft = ref<QuizDraft | null>(null)
 const quizSaving = ref(false)
 const quizError = ref('')
-
-function nextQuizNumber(division: string): number {
-  const used = new Set<number>()
-  for (const q of quizzes.value) {
-    if (q.division !== division) continue
-    const m = q.label.match(/(\d+)\s*$/)
-    if (m) used.add(Number(m[1]))
-  }
-  let n = 1
-  while (used.has(n)) n++
-  return n
-}
 
 function openAddQuiz(payload: { slotId: number; roomId: number }) {
   if (!divisions.value.length) {
@@ -273,7 +229,7 @@ function onQuizDivisionChange() {
 
 async function saveQuiz() {
   const draft = quizDraft.value
-  if (!draft || !meetId.value) return
+  if (!draft) return
   if (!draft.label.trim()) {
     quizError.value = 'Label is required'
     return
@@ -292,7 +248,7 @@ async function saveQuiz() {
       }
       return seat
     })
-    const res = await createScheduledQuiz(meetId.value, {
+    await createQuiz({
       slotId: draft.slotId,
       roomId: draft.roomId,
       division: draft.division,
@@ -300,10 +256,6 @@ async function saveQuiz() {
       label: draft.label.trim(),
       seats,
     })
-    // POST returns the quiz row without seats; re-fetch to pull seat ids back.
-    const refreshed = await listScheduledQuizzes(meetId.value)
-    quizzes.value = refreshed.quizzes
-    void res
     closeQuizDialog()
   } catch (e) {
     quizError.value = (e as Error).message
@@ -313,73 +265,22 @@ async function saveQuiz() {
 }
 
 async function handleDeleteQuiz(quizId: number) {
-  if (!meetId.value) return
   const quiz = quizzes.value.find((q) => q.id === quizId)
   if (!quiz) return
   if (!confirm(`Delete ${quiz.label}? This cannot be undone.`)) return
   try {
-    await deleteScheduledQuiz(meetId.value, quizId)
-    quizzes.value = quizzes.value.filter((q) => q.id !== quizId)
+    await deleteQuiz(quizId)
   } catch (e) {
     alert((e as Error).message)
   }
 }
 
-function toggleLane({ division, lane }: { division: string; lane: LaneId }) {
-  const current = extraLanes.value[division] ?? []
-  const has = current.some((l) => l.id === lane)
-  let next: ExtraLane[]
-  if (has) {
-    next = current.filter((l) => l.id !== lane)
-  } else {
-    const usedSoFar = current.reduce((sum, l) => sum + l.teamCount, 0)
-    const remainingInMain = (teamCounts.value[division] ?? 0) - usedSoFar
-    next = [...current, { id: lane, teamCount: defaultExtraLaneSize(remainingInMain) }]
-  }
-  // CC implies C — opting into CC auto-enables C; removing C also removes CC.
-  if (next.some((l) => l.id === 'cc') && !next.some((l) => l.id === 'c')) {
-    const remaining =
-      (teamCounts.value[division] ?? 0) - next.reduce((sum, l) => sum + l.teamCount, 0)
-    next = [...next, { id: 'c', teamCount: defaultExtraLaneSize(remaining) }]
-  }
-  if (!next.some((l) => l.id === 'c')) {
-    next = next.filter((l) => l.id !== 'cc')
-  }
-  extraLanes.value = { ...extraLanes.value, [division]: next }
+function onToggleLane(payload: { division: string; lane: LaneId }) {
+  toggleLane(payload)
 }
 
-function resizeLane({
-  division,
-  lane,
-  teamCount,
-}: {
-  division: string
-  lane: LaneId
-  teamCount: number
-}) {
-  const current = extraLanes.value[division] ?? []
-  extraLanes.value = {
-    ...extraLanes.value,
-    [division]: current.map((l) =>
-      l.id === lane ? { ...l, teamCount: Math.max(0, teamCount) } : l,
-    ),
-  }
-}
-
-async function handleDeleteSlot(slotId: number) {
-  if (!meetId.value) return
-  const slot = slots.value.find((s) => s.id === slotId)
-  if (!slot) return
-  const label =
-    slot.kind === 'event' ? slot.eventLabel || 'this event' : 'this slot and its quizzes'
-  if (!confirm(`Delete ${label}? This cannot be undone.`)) return
-  try {
-    await deleteMeetSlot(meetId.value, slotId)
-    slots.value = slots.value.filter((s) => s.id !== slotId)
-    quizzes.value = quizzes.value.filter((q) => q.slotId !== slotId)
-  } catch (e) {
-    alert((e as Error).message)
-  }
+function onResizeLane(payload: { division: string; lane: LaneId; teamCount: number }) {
+  resizeLane(payload)
 }
 
 onMounted(load)
@@ -416,8 +317,8 @@ onMounted(load)
         :team-counts="teamCounts"
         :extra-lanes="extraLanes"
         :editable="editMode && isAdmin"
-        @toggle-lane="toggleLane"
-        @resize-lane="resizeLane"
+        @toggle-lane="onToggleLane"
+        @resize-lane="onResizeLane"
       />
 
       <div v-if="divisions.length > 1" class="filter-row">
