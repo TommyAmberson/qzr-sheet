@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import type { MeetRoom, MeetSlot, ScheduledQuiz, ScheduledQuizSeat } from '../api'
-import { buildGrid, formatSlotTime, hasAnyQuiz } from '../scheduleGrid'
+import type { MeetRoom, MeetSlot, ScheduledQuiz } from '../api'
+import { buildGrid, formatSlotTime, hasAnyQuiz, seatRef, seatTeam } from '../scheduleGrid'
 
 const props = withDefaults(
   defineProps<{
@@ -26,19 +26,6 @@ const grid = computed(() =>
   buildGrid(props.rooms, props.slots, props.quizzes, props.divisionFilter),
 )
 const isEmpty = computed(() => !hasAnyQuiz(grid.value))
-
-/** Letter slot for prelims, seedRef for elims, blank otherwise.
- *  Single render path so future "follow team" highlighting hooks in here
- *  once seats start carrying teamIds (see #39 Roll Teams). */
-function seatRef(seat: ScheduledQuizSeat): string {
-  return seat.letter ?? seat.seedRef ?? ''
-}
-
-/** Resolved team name for a seat. Always '—' until #39 ships the
- *  prelim_assignments / seed_resolutions resolution layer. */
-function seatTeam(_seat: ScheduledQuizSeat): string {
-  return '—'
-}
 </script>
 
 <template>

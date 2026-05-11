@@ -3,7 +3,6 @@ import { nextTick, onMounted, ref, toRef } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { type MeetSlot } from '../api'
-import { type LaneId } from '../brackets'
 import FormatHeader from '../components/FormatHeader.vue'
 import ScheduleGrid from '../components/ScheduleGrid.vue'
 import { useScheduleData } from '../composables/useScheduleData'
@@ -275,14 +274,6 @@ async function handleDeleteQuiz(quizId: number) {
   }
 }
 
-function onToggleLane(payload: { division: string; lane: LaneId }) {
-  toggleLane(payload)
-}
-
-function onResizeLane(payload: { division: string; lane: LaneId; teamCount: number }) {
-  resizeLane(payload)
-}
-
 onMounted(load)
 </script>
 
@@ -317,8 +308,8 @@ onMounted(load)
         :team-counts="teamCounts"
         :extra-lanes="extraLanes"
         :editable="editMode && isAdmin"
-        @toggle-lane="onToggleLane"
-        @resize-lane="onResizeLane"
+        @toggle-lane="toggleLane"
+        @resize-lane="resizeLane"
       />
 
       <div v-if="divisions.length > 1" class="filter-row">

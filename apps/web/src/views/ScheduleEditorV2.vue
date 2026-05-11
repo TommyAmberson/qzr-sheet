@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, toRef } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { estimateLaneQuizzes, type LaneId } from '../brackets'
+import { estimateLaneQuizzes } from '../brackets'
 import ElimSetupSection from '../components/schedule/ElimSetupSection.vue'
 import PrelimSetupSection from '../components/schedule/PrelimSetupSection.vue'
 import ReviewSection from '../components/schedule/ReviewSection.vue'
@@ -38,22 +38,17 @@ const quizBudget = computed(() => {
   let total = 0
   for (const d of divisions.value) {
     const teams = teamCounts.value[d] ?? 0
+    const extras = extraLanes.value[d] ?? []
+    const usedByExtras = extras.reduce((sum, l) => sum + l.teamCount, 0)
+    const mainSize = Math.max(0, teams - usedByExtras)
     total += teams // prelim count = team count
-    total += estimateLaneQuizzes(teams) // implicit main lane
-    for (const lane of extraLanes.value[d] ?? []) {
+    total += estimateLaneQuizzes(mainSize)
+    for (const lane of extras) {
       total += estimateLaneQuizzes(lane.teamCount)
     }
   }
   return total
 })
-
-function onToggleLane(payload: { division: string; lane: LaneId }) {
-  toggleLane(payload)
-}
-
-function onResizeLane(payload: { division: string; lane: LaneId; teamCount: number }) {
-  resizeLane(payload)
-}
 
 function backToV1() {
   router.replace({ name: 'meet-schedule', params: { slug: props.slug } })
@@ -104,8 +99,8 @@ onMounted(load)
         :team-counts="teamCounts"
         :extra-lanes="extraLanes"
         :editable="editable && isAdmin"
-        @toggle-lane="onToggleLane"
-        @resize-lane="onResizeLane"
+        @toggle-lane="toggleLane"
+        @resize-lane="resizeLane"
       />
 
       <SkeletonSection

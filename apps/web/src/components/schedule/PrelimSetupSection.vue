@@ -10,19 +10,18 @@ const props = defineProps<{
 interface DivisionRow {
   division: string
   teamCount: number
-  prelimQuizzes: number
 }
 
 const rows = computed<DivisionRow[]>(() =>
   props.divisions.map((d) => ({
     division: d,
     teamCount: props.teamCounts[d] ?? 0,
-    prelimQuizzes: props.teamCounts[d] ?? 0,
   })),
 )
 
+// Per `docs/rules.md`, # prelim quizzes = # teams (each team plays 3
+// prelims, 3 teams per quiz). Aggregate once.
 const totalTeams = computed(() => rows.value.reduce((sum, r) => sum + r.teamCount, 0))
-const totalPrelim = computed(() => rows.value.reduce((sum, r) => sum + r.prelimQuizzes, 0))
 </script>
 
 <template>
@@ -34,7 +33,7 @@ const totalPrelim = computed(() => rows.value.reduce((sum, r) => sum + r.prelimQ
         <span class="rule" aria-hidden="true">/</span>
         <span>{{ totalTeams }} teams</span>
         <span class="rule" aria-hidden="true">/</span>
-        <span>{{ totalPrelim }} prelim quizzes</span>
+        <span>{{ totalTeams }} prelim quizzes</span>
       </p>
     </header>
 
@@ -49,13 +48,13 @@ const totalPrelim = computed(() => rows.value.reduce((sum, r) => sum + r.prelimQ
             </div>
             <div class="stat">
               <dt>Prelim quizzes</dt>
-              <dd>{{ row.prelimQuizzes }}</dd>
+              <dd>{{ row.teamCount }}</dd>
             </div>
           </dl>
         </div>
         <p class="lateness-placeholder">
-          Per-team lateness flags ship with Roll Teams (#39). They'll bias the prelim draw so late
-          buses land in higher-numbered letter slots.
+          Per-team lateness flags will appear here once team-name resolution ships. They bias the
+          prelim draw so a late bus lands in higher-numbered letter slots.
         </p>
       </li>
     </ol>

@@ -21,6 +21,7 @@ import {
   type SeatInput,
 } from '../api'
 import { defaultExtraLaneSize, type ExtraLane, type LaneId } from '../brackets'
+import { bySortOrder } from '../scheduleGrid'
 
 /**
  * Single source of truth for the schedule editor's server-bound state.
@@ -74,10 +75,6 @@ export function useScheduleData(slug: Ref<string>) {
   const role = computed(() => membership.value?.role ?? null)
   const isAdmin = computed(() => role.value === MeetRole.Admin || role.value === MeetRole.Superuser)
 
-  function slotSort(a: MeetSlot, b: MeetSlot): number {
-    return a.sortOrder - b.sortOrder || a.id - b.id
-  }
-
   async function load() {
     loading.value = true
     error.value = ''
@@ -112,14 +109,14 @@ export function useScheduleData(slug: Ref<string>) {
   async function createSlot(input: CreateSlotInput): Promise<MeetSlot> {
     if (!meetId.value) throw new Error('No meet loaded')
     const res = await createMeetSlot(meetId.value, input)
-    slots.value = [...slots.value, res.slot].sort(slotSort)
+    slots.value = [...slots.value, res.slot].sort(bySortOrder)
     return res.slot
   }
 
   async function updateSlot(slotId: number, input: UpdateSlotInput): Promise<MeetSlot> {
     if (!meetId.value) throw new Error('No meet loaded')
     const res = await updateMeetSlot(meetId.value, slotId, input)
-    slots.value = slots.value.map((s) => (s.id === res.slot.id ? res.slot : s)).sort(slotSort)
+    slots.value = slots.value.map((s) => (s.id === res.slot.id ? res.slot : s)).sort(bySortOrder)
     return res.slot
   }
 
@@ -200,8 +197,6 @@ export function useScheduleData(slug: Ref<string>) {
   }
 
   return {
-    detail,
-    membership,
     rooms,
     slots,
     quizzes,
@@ -212,7 +207,6 @@ export function useScheduleData(slug: Ref<string>) {
     meet,
     meetId,
     divisions,
-    role,
     isAdmin,
     load,
     createSlot,
@@ -221,7 +215,6 @@ export function useScheduleData(slug: Ref<string>) {
     createQuiz,
     deleteQuiz,
     nextQuizNumber,
-    slotSort,
     toggleLane,
     resizeLane,
   }

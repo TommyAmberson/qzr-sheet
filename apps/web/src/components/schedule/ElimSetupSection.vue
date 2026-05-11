@@ -193,20 +193,17 @@ function onHandleDown(row: DivisionRow, handle: HandleSpec, event: PointerEvent)
   // lanes strictly LEFT of leftLane; ceiling = total − (sum of lanes
   // strictly RIGHT of rightLane).
   let pinFloor = 0
-  let pinCeiling = row.teamCount
-  let beforeLeft = 0
   for (const l of row.lanes) {
     if (l.id === handle.leftLane.id) break
-    beforeLeft += l.teamCount
+    pinFloor += l.teamCount
   }
-  pinFloor = beforeLeft
   let afterRight = 0
   let seenRight = false
   for (const l of row.lanes) {
     if (seenRight) afterRight += l.teamCount
     if (l.id === handle.rightLane.id) seenRight = true
   }
-  pinCeiling = row.teamCount - afterRight
+  const pinCeiling = row.teamCount - afterRight
 
   dragging.value = {
     division: row.division,
@@ -266,6 +263,10 @@ function onPointerMove(event: PointerEvent) {
 function onPointerUp() {
   dragging.value = null
   window.removeEventListener('pointermove', onPointerMove)
+  // Whichever of pointerup/pointercancel fired clears itself via
+  // {once: true}; the other never fires for this drag, so remove it.
+  window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
 }
 </script>
 
@@ -322,7 +323,12 @@ function onPointerUp() {
               class="lane-segment"
               :class="{ 'lane-segment--main': lane.id === 'main' }"
               :style="{
-                flexGrow: Math.max(0.0001, lane.teamCount),
+                /* Empty lanes (teamCount === 0) get a near-zero flex-grow
+                   so they keep a sliver of width — enough for the handle
+                   that sits at their boundary to remain reachable.
+                   Pure-zero would collapse the lane and snap two handles
+                   on top of each other. */
+                flexGrow: lane.teamCount > 0 ? lane.teamCount : 0.0001,
                 flexShrink: 1,
                 flexBasis: '0%',
               }"

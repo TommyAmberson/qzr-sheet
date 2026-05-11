@@ -1,4 +1,4 @@
-import type { MeetRoom, MeetSlot, ScheduledQuiz } from './api'
+import type { MeetRoom, MeetSlot, ScheduledQuiz, ScheduledQuizSeat } from './api'
 
 export interface GridRow {
   slot: MeetSlot
@@ -24,8 +24,8 @@ export function buildGrid(
   quizzes: ScheduledQuiz[],
   divisionFilter: string | null,
 ): Grid {
-  const sortedRooms = [...rooms].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
-  const sortedSlots = [...slots].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
+  const sortedRooms = [...rooms].sort(bySortOrder)
+  const sortedSlots = [...slots].sort(bySortOrder)
 
   const byCell = new Map<number, Map<number, ScheduledQuiz>>()
   for (const q of quizzes) {
@@ -59,4 +59,21 @@ export function formatSlotTime(startAt: string): string {
   const d = new Date(startAt)
   if (Number.isNaN(d.getTime())) return ''
   return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+/** Comparator for sorting slots and rooms by their canonical position. */
+export function bySortOrder<T extends { sortOrder: number; id: number }>(a: T, b: T): number {
+  return a.sortOrder - b.sortOrder || a.id - b.id
+}
+
+/** Letter for prelim seats, seedRef for elim seats. The canonical seat
+ *  identifier shown in letter mode. */
+export function seatRef(seat: ScheduledQuizSeat): string {
+  return seat.letter ?? seat.seedRef ?? ''
+}
+
+/** Resolved team name for a seat. Always `—` until team-name resolution
+ *  ships (#39 Roll Teams); both V1 grid and V2 review render through this. */
+export function seatTeam(_seat: ScheduledQuizSeat): string {
+  return '—'
 }

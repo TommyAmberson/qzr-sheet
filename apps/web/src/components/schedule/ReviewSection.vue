@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-import { type MeetRoom, type MeetSlot, type ScheduledQuiz, type ScheduledQuizSeat } from '../../api'
-import { buildGrid, formatSlotTime, hasAnyQuiz } from '../../scheduleGrid'
+import { type MeetRoom, type MeetSlot, type ScheduledQuiz } from '../../api'
+import { buildGrid, formatSlotTime, hasAnyQuiz, seatRef, seatTeam } from '../../scheduleGrid'
 
 const props = defineProps<{
   rooms: MeetRoom[]
@@ -16,18 +16,6 @@ const mode = ref<Mode>('letter')
 
 const grid = computed(() => buildGrid(props.rooms, props.slots, props.quizzes, null))
 const empty = computed(() => !hasAnyQuiz(grid.value))
-
-/** Letter for prelim seats, seedRef for elim seats. The canonical seat
- *  identifier shown in letter mode. */
-function seatRef(seat: ScheduledQuizSeat): string {
-  return seat.letter ?? seat.seedRef ?? ''
-}
-
-/** Resolved team name. Always `—` until #39 Roll Teams ships the
- *  prelim_assignments / seed_resolutions resolution layer. */
-function seatTeam(_seat: ScheduledQuizSeat): string {
-  return '—'
-}
 
 function sortedSeats(quiz: ScheduledQuiz) {
   return [...quiz.seats].sort((a, b) => a.seatNumber - b.seatNumber)
