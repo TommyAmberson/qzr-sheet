@@ -27,7 +27,47 @@ const {
   load,
   toggleLane,
   resizeLane,
+  createSlot,
+  updateSlot,
+  deleteSlot,
 } = useScheduleData(toRef(props, 'slug'))
+
+async function onCreateSlot(payload: {
+  startAt: string
+  durationMinutes: number
+  kind: 'quiz' | 'event'
+  eventLabel: string | null
+  sortOrder: number
+}) {
+  try {
+    await createSlot(payload)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
+async function onUpdateSlot(payload: {
+  slotId: number
+  patch: {
+    startAt?: string
+    durationMinutes?: number
+    eventLabel?: string | null
+  }
+}) {
+  try {
+    await updateSlot(payload.slotId, payload.patch)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
+async function onDeleteSlot(slotId: number) {
+  try {
+    await deleteSlot(slotId)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
 
 type TabId = 'prelim' | 'elim' | 'skeleton' | 'review'
 const TABS: { id: TabId; label: string }[] = [
@@ -136,6 +176,9 @@ onMounted(load)
         :slots="slots"
         :quiz-budget="quizBudget"
         :editable="isAdmin"
+        @create-slot="onCreateSlot"
+        @update-slot="onUpdateSlot"
+        @delete-slot="onDeleteSlot"
       />
 
       <ReviewSection v-else :rooms="rooms" :slots="slots" :quizzes="quizzes" />

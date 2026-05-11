@@ -2,79 +2,110 @@
 import { computed } from 'vue'
 
 import { type MeetRoom, type MeetSlot } from '../../api'
-import { formatSlotTime } from '../../scheduleGrid'
+import { bySortOrder, formatSlotTime } from '../../scheduleGrid'
 
 const props = defineProps<{
   rooms: MeetRoom[]
   slots: MeetSlot[]
-  /** Total quiz budget from RosterTally — feeds the capacity sentence. */
+  /** Threaded from parent so the capacity sentence reflects the same
+   *  budget the Elim setup section computed. */
   quizBudget: number
   editable: boolean
 }>()
 
-interface DayBlock {
-  date: string
-  start: string
-  end: string
-  slotCount: number
-  quizSlots: number
+const emit = defineEmits<{
+  (e: 'create-slot', payload: CreateSlotPayload): void
+  (e: 'update-slot', payload: { slotId: number; patch: UpdateSlotPatch }): void
+  (e: 'delete-slot', slotId: number): void
+}>()
+
+interface CreateSlotPayload {
+  startAt: string
+  durationMinutes: number
+  kind: 'quiz' | 'event'
+  eventLabel: string | null
+  sortOrder: number
 }
 
+interface UpdateSlotPatch {
+  startAt?: string
+  durationMinutes?: number
+  eventLabel?: string | null
+}
+
+const sortedSlots = computed(() => [...props.slots].sort(bySortOrder))
+
 const quizSlotCount = computed(() => props.slots.filter((s) => s.kind === 'quiz').length)
-
 const capacity = computed(() => quizSlotCount.value * props.rooms.length)
-
 const headroom = computed(() => capacity.value - props.quizBudget)
 
-/** Common pitch (mode of slot durations). `null` when slots are mixed
- *  enough that calling it a single pitch would mislead. */
-const dominantPitch = computed<number | null>(() => {
-  const quizSlots = props.slots.filter((s) => s.kind === 'quiz')
-  if (quizSlots.length === 0) return null
-  const counts = new Map<number, number>()
-  for (const s of quizSlots) counts.set(s.durationMinutes, (counts.get(s.durationMinutes) ?? 0) + 1)
-  let best: [number, number] | null = null
-  for (const entry of counts) {
-    if (!best || entry[1] > best[1]) best = entry
+/** Compose a "Round N" label for quiz slots, ordered by appearance. */
+const roundNumbers = computed<Map<number, number>>(() => {
+  const m = new Map<number, number>()
+  let n = 0
+  for (const s of sortedSlots.value) {
+    if (s.kind === 'quiz') m.set(s.id, ++n)
   }
-  if (!best) return null
-  // Only call it dominant when the mode covers at least 60% of slots.
-  return best[1] / quizSlots.length >= 0.6 ? best[0] : null
+  return m
 })
 
-const dayBlocks = computed<DayBlock[]>(() => {
-  if (props.slots.length === 0) return []
-  const byDate = new Map<string, MeetSlot[]>()
-  for (const s of props.slots) {
-    const d = new Date(s.startAt)
-    if (Number.isNaN(d.getTime())) continue
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-    const arr = byDate.get(key) ?? []
-    arr.push(s)
-    byDate.set(key, arr)
-  }
-  const blocks: DayBlock[] = []
-  for (const [, daySlots] of byDate) {
-    const sorted = [...daySlots].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
-    const first = sorted[0]
-    const last = sorted[sorted.length - 1]
-    if (!first || !last) continue
-    const firstStart = new Date(first.startAt)
-    const lastEnd = new Date(new Date(last.startAt).getTime() + last.durationMinutes * 60_000)
-    blocks.push({
-      date: firstStart.toLocaleDateString(undefined, {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric',
-      }),
-      start: formatSlotTime(first.startAt),
-      end: formatSlotTime(lastEnd.toISOString()),
-      slotCount: sorted.length,
-      quizSlots: sorted.filter((s) => s.kind === 'quiz').length,
-    })
-  }
-  return blocks
-})
+/** Local time `YYYY-MM-DDTHH:mm` for a `<input type="datetime-local">`. */
+function toDatetimeLocal(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function fromDatetimeLocal(value: string): string | null {
+  if (!value) return null
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+
+function onTimeChange(slot: MeetSlot, event: Event) {
+  const iso = fromDatetimeLocal((event.target as HTMLInputElement).value)
+  if (!iso || iso === slot.startAt) return
+  emit('update-slot', { slotId: slot.id, patch: { startAt: iso } })
+}
+
+function onDurationChange(slot: MeetSlot, event: Event) {
+  const v = Number.parseInt((event.target as HTMLInputElement).value, 10)
+  if (!Number.isFinite(v) || v <= 0 || v === slot.durationMinutes) return
+  emit('update-slot', { slotId: slot.id, patch: { durationMinutes: v } })
+}
+
+function onLabelChange(slot: MeetSlot, event: Event) {
+  if (slot.kind !== 'event') return
+  const label = (event.target as HTMLInputElement).value.trim() || null
+  if (label === slot.eventLabel) return
+  emit('update-slot', { slotId: slot.id, patch: { eventLabel: label } })
+}
+
+function addSlot(kind: 'quiz' | 'event') {
+  const last = sortedSlots.value[sortedSlots.value.length - 1]
+  const startAt = last
+    ? new Date(new Date(last.startAt).getTime() + last.durationMinutes * 60_000).toISOString()
+    : new Date().toISOString()
+  const durationMinutes = last?.durationMinutes ?? 25
+  const sortOrder = (last?.sortOrder ?? -1) + 1
+  emit('create-slot', {
+    startAt,
+    durationMinutes,
+    kind,
+    eventLabel: kind === 'event' ? '' : null,
+    sortOrder,
+  })
+}
+
+function deleteSlot(slot: MeetSlot) {
+  const label =
+    slot.kind === 'event'
+      ? slot.eventLabel || 'this event'
+      : `the ${formatSlotTime(slot.startAt)} round`
+  if (!confirm(`Delete ${label}?`)) return
+  emit('delete-slot', slot.id)
+}
 </script>
 
 <template>
@@ -82,39 +113,96 @@ const dayBlocks = computed<DayBlock[]>(() => {
     <div class="section-header">
       <h3 class="section-title">Skeleton</h3>
       <span class="section-meta">
-        {{ rooms.length }} rooms · {{ slots.length }} slots<template v-if="dominantPitch">
-          · {{ dominantPitch }}-min pitch</template
-        >
+        {{ slots.length }} slots · {{ quizSlotCount }} quiz rounds · {{ rooms.length }} rooms
       </span>
     </div>
 
-    <p v-if="slots.length === 0" class="empty">
-      No slots yet. The composer will generate a chained cadence from a single start time and pitch
-      — coming soon.
-    </p>
-
-    <p v-else class="capacity" :class="headroom < 0 ? 'is-short' : 'is-spare'">
+    <p v-if="slots.length > 0" class="capacity" :class="headroom < 0 ? 'is-short' : 'is-spare'">
       <strong>{{ rooms.length }}</strong> rooms × <strong>{{ quizSlotCount }}</strong> quiz slots =
       <strong>{{ capacity }}</strong> cells · budget <strong>{{ quizBudget }}</strong> ·
       <strong>{{ Math.abs(headroom) }}</strong> cells {{ headroom < 0 ? 'short' : 'to spare' }}
     </p>
 
-    <ul v-if="dayBlocks.length" class="days">
-      <li v-for="(day, i) in dayBlocks" :key="i" class="day">
-        <span class="day-date">{{ day.date }}</span>
-        <span class="day-times">{{ day.start }} → {{ day.end }}</span>
-        <span class="day-counts">
-          {{ day.slotCount }} slots<template v-if="day.quizSlots !== day.slotCount">
-            ({{ day.quizSlots }} quiz)</template
-          >
-        </span>
-      </li>
-    </ul>
+    <div v-if="rooms.length === 0 && slots.length === 0" class="empty">
+      Add rooms in the meet dashboard, then build the timeline here.
+    </div>
 
-    <p v-if="editable" class="composer-placeholder">
-      Compose cadence — generate slot rows from a single start time and pitch.
-      <em>Inline composer ships next.</em>
-    </p>
+    <div v-else class="schedule-scroll">
+      <table class="schedule-table">
+        <thead>
+          <tr>
+            <th class="time-col" scope="col">Time</th>
+            <th class="dur-col" scope="col">Mins</th>
+            <th class="label-col" scope="col">Round / Event</th>
+            <th v-if="editable" class="action-col no-print" scope="col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="slots.length === 0">
+            <td colspan="4" class="empty-row">No slots yet — add the first round below.</td>
+          </tr>
+          <tr
+            v-for="slot in sortedSlots"
+            :key="slot.id"
+            :class="{ 'event-row': slot.kind === 'event' }"
+          >
+            <th class="time-col" scope="row">
+              <input
+                v-if="editable"
+                class="time-input"
+                type="datetime-local"
+                :value="toDatetimeLocal(slot.startAt)"
+                @change="onTimeChange(slot, $event)"
+              />
+              <span v-else>{{ formatSlotTime(slot.startAt) }}</span>
+            </th>
+            <td class="dur-col">
+              <input
+                v-if="editable"
+                class="dur-input"
+                type="number"
+                min="1"
+                step="1"
+                :value="slot.durationMinutes"
+                @change="onDurationChange(slot, $event)"
+              />
+              <span v-else>{{ slot.durationMinutes }}</span>
+            </td>
+            <td class="label-col">
+              <span v-if="slot.kind === 'quiz'" class="round-label">
+                Round {{ roundNumbers.get(slot.id) }}
+              </span>
+              <input
+                v-else-if="editable"
+                class="label-input"
+                type="text"
+                :value="slot.eventLabel ?? ''"
+                placeholder="Event name"
+                @change="onLabelChange(slot, $event)"
+              />
+              <span v-else class="event-label">{{ slot.eventLabel || 'Event' }}</span>
+            </td>
+            <td v-if="editable" class="action-col no-print">
+              <button
+                type="button"
+                class="row-delete"
+                :title="`Delete slot`"
+                @click="deleteSlot(slot)"
+              >
+                ×
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div v-if="editable" class="add-actions no-print">
+      <button type="button" class="add-btn" @click="addSlot('quiz')">+ Round</button>
+      <button type="button" class="add-btn add-btn--event" @click="addSlot('event')">
+        + Event
+      </button>
+    </div>
   </section>
 </template>
 
@@ -147,14 +235,6 @@ const dayBlocks = computed<DayBlock[]>(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.empty {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  margin: 0;
-  max-width: 38rem;
-  line-height: 1.5;
-}
-
 .capacity {
   font-size: 0.85rem;
   color: var(--color-text-muted);
@@ -176,57 +256,170 @@ const dayBlocks = computed<DayBlock[]>(() => {
   color: var(--palette-error);
 }
 
-.days {
-  list-style: none;
+.empty {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
   margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
 }
 
-.day {
-  display: grid;
-  grid-template-columns: minmax(0, 12rem) minmax(0, 10rem) minmax(0, 1fr);
-  gap: 0.75rem;
-  align-items: baseline;
-  padding: 0.55rem 0.875rem;
-  background: var(--color-bg-raised);
+.schedule-scroll {
+  overflow-x: auto;
   border: 1px solid var(--color-border-alt);
   border-radius: 6px;
 }
 
-.day-date {
+.schedule-table {
+  border-collapse: collapse;
+  width: 100%;
   font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text);
+  table-layout: fixed;
 }
 
-.day-times,
-.day-counts {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+.schedule-table th,
+.schedule-table td {
+  border-bottom: 1px solid var(--color-border-alt);
+  padding: 0.4rem 0.6rem;
+  vertical-align: middle;
+  text-align: left;
+}
+
+.schedule-table tr:last-child th,
+.schedule-table tr:last-child td {
+  border-bottom: none;
+}
+
+thead th {
+  background: var(--color-bg-raised);
+  color: var(--color-text-faint);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-col {
+  width: 11rem;
   font-variant-numeric: tabular-nums;
 }
 
-.composer-placeholder {
-  font-size: 0.78rem;
-  color: var(--color-text-faint);
-  margin: 1rem 0 0;
-  padding-top: 0.85rem;
-  border-top: 1px dashed var(--color-border);
+.dur-col {
+  width: 5rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.composer-placeholder em {
-  font-style: normal;
+.label-col {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.action-col {
+  width: 2.5rem;
+  text-align: right;
+}
+
+.event-row .label-col {
   color: var(--color-text-muted);
-  margin-left: 0.5rem;
+  font-style: italic;
 }
 
-@media (max-width: 640px) {
-  .day {
-    grid-template-columns: 1fr;
-    gap: 0.15rem;
-  }
+.round-label {
+  color: var(--color-text);
+}
+
+.empty-row {
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 0.85rem;
+  padding: 1.25rem 0.6rem;
+}
+
+input.time-input,
+input.dur-input,
+input.label-input {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+  min-width: 0;
+}
+
+input.dur-input {
+  width: 3.25rem;
+  text-align: right;
+}
+
+input.time-input:hover,
+input.dur-input:hover,
+input.label-input:hover {
+  border-color: var(--color-border-alt);
+}
+
+input.time-input:focus,
+input.dur-input:focus,
+input.label-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  background: var(--color-bg);
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.row-delete {
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+}
+
+.row-delete:hover {
+  color: var(--palette-error);
+  background: var(--color-bg-raised);
+}
+
+.add-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.add-btn {
+  background: none;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  flex: 1;
+}
+
+.add-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.add-btn--event {
+  flex: 0 0 auto;
 }
 </style>
