@@ -3,9 +3,10 @@ import { computed, onMounted, ref, toRef } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { estimateLaneQuizzes, type LaneId } from '../brackets'
-import CadenceSection from '../components/schedule/CadenceSection.vue'
-import RosterTallySection from '../components/schedule/RosterTallySection.vue'
-import ScheduleSection from '../components/schedule/ScheduleSection.vue'
+import ElimSetupSection from '../components/schedule/ElimSetupSection.vue'
+import PrelimSetupSection from '../components/schedule/PrelimSetupSection.vue'
+import ReviewSection from '../components/schedule/ReviewSection.vue'
+import SkeletonSection from '../components/schedule/SkeletonSection.vue'
 import { useScheduleData } from '../composables/useScheduleData'
 
 const props = defineProps<{ slug: string }>()
@@ -92,7 +93,13 @@ onMounted(load)
         </div>
       </header>
 
-      <RosterTallySection
+      <PrelimSetupSection
+        :divisions="divisions"
+        :team-counts="teamCounts"
+        :editable="editable && isAdmin"
+      />
+
+      <ElimSetupSection
         :divisions="divisions"
         :team-counts="teamCounts"
         :extra-lanes="extraLanes"
@@ -101,14 +108,14 @@ onMounted(load)
         @resize-lane="onResizeLane"
       />
 
-      <CadenceSection
+      <SkeletonSection
         :rooms="rooms"
         :slots="slots"
         :quiz-budget="quizBudget"
         :editable="editable && isAdmin"
       />
 
-      <ScheduleSection :rooms="rooms" :slots="slots" :quizzes="quizzes" />
+      <ReviewSection :rooms="rooms" :slots="slots" :quizzes="quizzes" />
     </template>
   </div>
 </template>
