@@ -29,8 +29,6 @@ const {
   resizeLane,
 } = useScheduleData(toRef(props, 'slug'))
 
-const editable = ref(false)
-
 type TabId = 'prelim' | 'elim' | 'skeleton' | 'review'
 const TABS: { id: TabId; label: string }[] = [
   { id: 'prelim', label: 'Prelim setup' },
@@ -59,9 +57,8 @@ function selectTab(tab: TabId) {
   router.replace({ ...route, hash: `#${tab}` })
 }
 
-/** Total quiz budget across all divisions: prelims (= team count) + elim
- *  estimates per enabled lane. Threaded down so SkeletonSection can show
- *  capacity vs budget without recomputing. */
+/** Total quiz budget across all divisions. Threaded down so SkeletonSection
+ *  can show capacity vs budget without recomputing. */
 const quizBudget = computed(() => {
   let total = 0
   for (const d of divisions.value) {
@@ -82,7 +79,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="studio">
+  <div class="container">
     <button class="back-link" @click="router.push({ name: 'meet', params: { slug } })">
       ← {{ meet?.name || 'QuizMeet' }}
     </button>
@@ -91,25 +88,17 @@ onMounted(load)
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
 
     <template v-else-if="meet">
-      <header class="masthead">
-        <div class="masthead-text">
-          <h1 class="masthead-title">{{ meet.name }}</h1>
-          <p class="masthead-meta">
-            <span>Schedule</span>
-            <span class="masthead-rule" aria-hidden="true">·</span>
-            <span>{{ meet.dateFrom }}{{ meet.dateTo ? ` – ${meet.dateTo}` : '' }}</span>
-            <span class="masthead-rule" aria-hidden="true">·</span>
-            <span>{{ divisions.length }} divisions</span>
-          </p>
+      <div class="page-header">
+        <div class="meet-info">
+          <h2 class="page-title">Schedule — {{ meet.name }}</h2>
+          <span class="meet-meta">
+            {{ meet.dateFrom }}{{ meet.dateTo ? ` – ${meet.dateTo}` : '' }} ·
+            {{ divisions.length }} divisions
+          </span>
         </div>
-        <div v-if="isAdmin" class="masthead-actions no-print">
-          <button class="link-btn" @click="editable = !editable">
-            {{ editable ? 'Stop editing' : 'Edit' }}
-          </button>
-        </div>
-      </header>
+      </div>
 
-      <nav class="tabs" role="tablist" aria-label="Schedule sections">
+      <nav class="tabs no-print" role="tablist" aria-label="Schedule sections">
         <button
           v-for="tab in TABS"
           :key="tab.id"
@@ -128,7 +117,7 @@ onMounted(load)
         v-if="activeTab === 'prelim'"
         :divisions="divisions"
         :team-counts="teamCounts"
-        :editable="editable && isAdmin"
+        :editable="isAdmin"
       />
 
       <ElimSetupSection
@@ -136,7 +125,7 @@ onMounted(load)
         :divisions="divisions"
         :team-counts="teamCounts"
         :extra-lanes="extraLanes"
-        :editable="editable && isAdmin"
+        :editable="isAdmin"
         @toggle-lane="toggleLane"
         @resize-lane="resizeLane"
       />
@@ -146,7 +135,7 @@ onMounted(load)
         :rooms="rooms"
         :slots="slots"
         :quiz-budget="quizBudget"
-        :editable="editable && isAdmin"
+        :editable="isAdmin"
       />
 
       <ReviewSection v-else :rooms="rooms" :slots="slots" :quizzes="quizzes" />
@@ -155,89 +144,69 @@ onMounted(load)
 </template>
 
 <style scoped>
-.studio {
-  max-width: 72rem;
+.container {
+  max-width: 64rem;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 4rem;
+  padding: 2rem 1.5rem;
 }
 
 .back-link {
   background: none;
   border: none;
-  font: inherit;
-  font-size: 0.78rem;
+  padding: 0;
+  font-size: 0.8rem;
   color: var(--color-text-faint);
   cursor: pointer;
-  padding: 0;
+  font-family: inherit;
   margin-bottom: 1.5rem;
+  display: inline-block;
 }
 
 .back-link:hover {
-  color: var(--color-text);
+  color: var(--color-text-muted);
 }
 
 .state-msg {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  padding: 1rem 0;
+  font-size: 0.875rem;
+  color: var(--color-text-faint);
 }
 
 .state-msg--error {
-  color: var(--color-invalid, #c00);
+  color: var(--palette-error);
 }
 
-.masthead {
+.page-header {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid var(--color-text);
+  gap: 1rem;
+  margin-bottom: 1.25rem;
 }
 
-.masthead-text {
+.meet-info {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
 }
 
-.masthead-title {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: clamp(2rem, 4vw, 2.85rem);
-  line-height: 1.05;
-  letter-spacing: -0.015em;
-  margin: 0;
+.page-title {
+  font-size: 1.1rem;
+  font-weight: 700;
   color: var(--color-heading);
 }
 
-.masthead-meta {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.meet-meta {
+  font-size: 0.8rem;
   color: var(--color-text-faint);
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 0.6rem;
-  align-items: baseline;
-}
-
-.masthead-rule {
-  color: var(--color-border);
-}
-
-.masthead-actions {
-  display: flex;
-  gap: 1.25rem;
-  align-items: center;
 }
 
 .tabs {
   display: flex;
-  gap: 1.5rem;
-  margin-top: 0.85rem;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--color-border-alt);
+  margin-bottom: 1.25rem;
   overflow-x: auto;
 }
 
@@ -245,13 +214,12 @@ onMounted(load)
   background: none;
   border: none;
   font: inherit;
-  font-family: var(--font-display);
+  font-size: 0.8rem;
   font-weight: 600;
-  font-size: 1.05rem;
-  letter-spacing: -0.005em;
   color: var(--color-text-faint);
   cursor: pointer;
-  padding: 0.55rem 0;
+  padding: 0.55rem 0.85rem;
+  margin-bottom: -1px;
   border-bottom: 2px solid transparent;
   white-space: nowrap;
   transition:
@@ -265,40 +233,16 @@ onMounted(load)
 
 .tab.is-active {
   color: var(--color-text);
-  border-bottom-color: var(--color-text);
-}
-
-@media print {
-  .tabs {
-    display: none;
-  }
-}
-
-.link-btn {
-  background: none;
-  border: none;
-  font: inherit;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--color-text);
-  cursor: pointer;
-  padding: 0.3rem 0;
-  border-bottom: 1px solid currentColor;
-}
-
-.link-btn:hover {
-  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
 }
 
 @media print {
   .no-print {
     display: none !important;
   }
-  .studio {
-    padding: 0;
+  .container {
     max-width: none;
+    padding: 0;
   }
   .back-link {
     display: none;

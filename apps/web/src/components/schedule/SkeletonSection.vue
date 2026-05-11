@@ -78,55 +78,38 @@ const dayBlocks = computed<DayBlock[]>(() => {
 </script>
 
 <template>
-  <section class="skeleton">
-    <header class="section-head">
-      <h2 class="section-title">Skeleton</h2>
-      <p class="section-meta">
-        <span>{{ rooms.length }} rooms</span>
-        <span class="rule" aria-hidden="true">/</span>
-        <span>{{ slots.length }} slots</span>
-        <template v-if="dominantPitch">
-          <span class="rule" aria-hidden="true">/</span>
-          <span>{{ dominantPitch }}-min pitch</span>
-        </template>
-      </p>
-    </header>
+  <section class="section">
+    <div class="section-header">
+      <h3 class="section-title">Skeleton</h3>
+      <span class="section-meta">
+        {{ rooms.length }} rooms · {{ slots.length }} slots<template v-if="dominantPitch">
+          · {{ dominantPitch }}-min pitch</template
+        >
+      </span>
+    </div>
 
-    <p v-if="slots.length === 0" class="skeleton-empty">
+    <p v-if="slots.length === 0" class="empty">
       No slots yet. The composer will generate a chained cadence from a single start time and pitch
       — coming soon.
     </p>
 
-    <p v-else class="capacity">
-      <span class="capacity-eq">
-        <span class="capacity-num">{{ rooms.length }}</span>
-        <span class="capacity-op">rooms ×</span>
-        <span class="capacity-num">{{ quizSlotCount }}</span>
-        <span class="capacity-op">quiz slots =</span>
-        <span class="capacity-num capacity-num--lead">{{ capacity }}</span>
-        <span class="capacity-op">cells</span>
-      </span>
-      <span class="capacity-sep" aria-hidden="true">·</span>
-      <span class="capacity-budget">
-        budget <span class="capacity-num">{{ quizBudget }}</span>
-      </span>
-      <span class="capacity-sep" aria-hidden="true">·</span>
-      <span class="capacity-verdict" :class="headroom < 0 ? 'is-short' : 'is-spare'">
-        <span class="capacity-num">{{ Math.abs(headroom) }}</span>
-        {{ headroom < 0 ? 'cells short' : 'cells to spare' }}
-      </span>
+    <p v-else class="capacity" :class="headroom < 0 ? 'is-short' : 'is-spare'">
+      <strong>{{ rooms.length }}</strong> rooms × <strong>{{ quizSlotCount }}</strong> quiz slots =
+      <strong>{{ capacity }}</strong> cells · budget <strong>{{ quizBudget }}</strong> ·
+      <strong>{{ Math.abs(headroom) }}</strong> cells {{ headroom < 0 ? 'short' : 'to spare' }}
     </p>
 
-    <ol v-if="dayBlocks.length" class="days">
+    <ul v-if="dayBlocks.length" class="days">
       <li v-for="(day, i) in dayBlocks" :key="i" class="day">
         <span class="day-date">{{ day.date }}</span>
         <span class="day-times">{{ day.start }} → {{ day.end }}</span>
-        <span class="day-counts"
-          >{{ day.slotCount }} slots
-          <template v-if="day.quizSlots !== day.slotCount"> ({{ day.quizSlots }} quiz) </template>
+        <span class="day-counts">
+          {{ day.slotCount }} slots<template v-if="day.quizSlots !== day.slotCount">
+            ({{ day.quizSlots }} quiz)</template
+          >
         </span>
       </li>
-    </ol>
+    </ul>
 
     <p v-if="editable" class="composer-placeholder">
       Compose cadence — generate slot rows from a single start time and pitch.
@@ -136,124 +119,61 @@ const dayBlocks = computed<DayBlock[]>(() => {
 </template>
 
 <style scoped>
-.skeleton {
-  padding: 1.5rem 0 1rem;
-  border-top: 2px solid var(--color-text);
-  margin-top: 1.5rem;
+.section {
+  margin-bottom: 2rem;
 }
 
-.section-head {
+.section-header {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .section-title {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.55rem;
-  margin: 0;
-  letter-spacing: -0.015em;
-  color: var(--color-heading);
-  flex-shrink: 0;
-}
-
-.section-meta {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-text-faint);
   margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 0.5rem;
 }
 
-.rule {
-  color: var(--color-border);
+.section-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
-.skeleton-empty {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1rem;
-  line-height: 1.5;
+.empty {
+  font-size: 0.85rem;
   color: var(--color-text-muted);
-  margin: 0 0 1rem;
+  margin: 0;
   max-width: 38rem;
+  line-height: 1.5;
 }
 
 .capacity {
-  font-family: var(--font-mono);
   font-size: 0.85rem;
-  color: var(--color-text);
-  margin: 0 0 1.25rem;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 0.6rem;
-  padding: 0.65rem 0;
-  border-top: 1px solid var(--color-border-alt);
-  border-bottom: 1px solid var(--color-border-alt);
-}
-
-.capacity-eq,
-.capacity-budget,
-.capacity-verdict {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.3rem;
-}
-
-.capacity-num {
-  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  line-height: 1.55;
+}
+
+.capacity strong {
   color: var(--color-text);
+  font-weight: 600;
 }
 
-.capacity-num--lead {
-  font-size: 1.15rem;
-}
-
-.capacity-op {
-  color: var(--color-text-faint);
-  font-size: 0.78rem;
-  text-transform: lowercase;
-  letter-spacing: 0.02em;
-}
-
-.capacity-sep {
-  color: var(--color-border);
-  margin: 0 0.1rem;
-}
-
-.capacity-budget,
-.capacity-verdict {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-faint);
-}
-
-.capacity-budget .capacity-num,
-.capacity-verdict .capacity-num {
-  font-size: 0.95rem;
-}
-
-.capacity-verdict.is-short {
-  color: var(--color-invalid, #c00);
-}
-
-.capacity-verdict.is-short .capacity-num {
-  color: var(--color-invalid, #c00);
-}
-
-.capacity-verdict.is-spare {
-  color: var(--color-text);
+.capacity.is-short strong:last-of-type {
+  color: var(--palette-error);
 }
 
 .days {
@@ -262,52 +182,44 @@ const dayBlocks = computed<DayBlock[]>(() => {
   padding: 0;
   display: flex;
   flex-direction: column;
+  gap: 0.35rem;
 }
 
 .day {
   display: grid;
   grid-template-columns: minmax(0, 12rem) minmax(0, 10rem) minmax(0, 1fr);
-  gap: 1rem;
+  gap: 0.75rem;
   align-items: baseline;
-  padding: 0.6rem 0;
-  border-bottom: 1px dotted var(--color-border-alt);
-}
-
-.day:last-child {
-  border-bottom: none;
+  padding: 0.55rem 0.875rem;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
 }
 
 .day-date {
-  font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-text);
 }
 
 .day-times,
 .day-counts {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .composer-placeholder {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 0.78rem;
   color: var(--color-text-faint);
   margin: 1rem 0 0;
-  padding: 0.55rem 0;
+  padding-top: 0.85rem;
   border-top: 1px dashed var(--color-border);
 }
 
 .composer-placeholder em {
   font-style: normal;
   color: var(--color-text-muted);
-  text-transform: none;
-  letter-spacing: 0.02em;
   margin-left: 0.5rem;
 }
 
@@ -315,12 +227,6 @@ const dayBlocks = computed<DayBlock[]>(() => {
   .day {
     grid-template-columns: 1fr;
     gap: 0.15rem;
-  }
-}
-
-@media print {
-  .composer-placeholder {
-    display: none;
   }
 }
 </style>

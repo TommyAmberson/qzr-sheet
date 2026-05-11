@@ -271,31 +271,23 @@ function onPointerUp() {
 </script>
 
 <template>
-  <section class="elim-setup">
-    <header class="section-head">
-      <h2 class="section-title">Elim setup</h2>
-      <p class="section-meta">
-        <span>~{{ totalElim }} elim quizzes</span>
-        <span class="rule" aria-hidden="true">/</span>
-        <span>{{ divisions.length }} divisions</span>
-      </p>
-      <span v-if="editable" class="draft-badge">Draft</span>
-    </header>
+  <section class="section">
+    <div class="section-header">
+      <h3 class="section-title">Elim setup</h3>
+      <span class="section-meta">
+        ~{{ totalElim }} elim quizzes · {{ divisions.length }} divisions
+        <span v-if="editable" class="draft-tag">unsaved</span>
+      </span>
+    </div>
 
     <ol class="divisions">
       <li v-for="row in rows" :key="row.division" class="division">
         <div class="division-head">
-          <h3 class="division-name">Division {{ row.division }}</h3>
-          <dl class="division-stats">
-            <div class="stat">
-              <dt>Teams</dt>
-              <dd>{{ row.teamCount }}</dd>
-            </div>
-            <div class="stat">
-              <dt>Elim&nbsp;est</dt>
-              <dd>~{{ row.elimEstimate }}</dd>
-            </div>
-          </dl>
+          <h4 class="division-name">Div {{ row.division }}</h4>
+          <span class="division-stats">
+            <strong>{{ row.teamCount }}</strong> teams ·
+            <strong>~{{ row.elimEstimate }}</strong> elim
+          </span>
         </div>
 
         <div class="lanes">
@@ -382,56 +374,47 @@ function onPointerUp() {
 </template>
 
 <style scoped>
-.elim-setup {
-  padding: 1.5rem 0 1rem;
-  border-top: 2px solid var(--color-text);
-  margin-top: 1.5rem;
+.section {
+  margin-bottom: 2rem;
 }
 
-.section-head {
+.section-header {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .section-title {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.55rem;
-  margin: 0;
-  letter-spacing: -0.015em;
-  color: var(--color-heading);
-  flex-shrink: 0;
-}
-
-.section-meta {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-text-faint);
   margin: 0;
-  display: flex;
+}
+
+.section-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
   flex-wrap: wrap;
-  gap: 0 0.5rem;
 }
 
-.rule {
-  color: var(--color-border);
-}
-
-.draft-badge {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.12em;
+.draft-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-bg);
-  background: var(--color-text);
-  padding: 0.15rem 0.45rem;
-  margin-left: auto;
-  align-self: center;
+  color: var(--palette-amber);
+  border: 1px solid var(--palette-amber);
+  border-radius: 99px;
+  padding: 0.05rem 0.45rem;
 }
 
 .divisions {
@@ -440,65 +423,41 @@ function onPointerUp() {
   padding: 0;
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
 }
 
 .division {
   display: grid;
-  grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
-  gap: 1.5rem;
-  padding: 1.25rem 0;
-  border-top: 1px solid var(--color-border-alt);
-}
-
-.division:first-child {
-  border-top-color: var(--color-border);
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+  gap: 0.75rem 1.25rem;
+  padding: 0.75rem 0.875rem;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
 }
 
 .division-head {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.2rem;
 }
 
 .division-name {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 1.4rem;
-  line-height: 1.05;
-  letter-spacing: -0.01em;
-  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
   color: var(--color-text);
+  margin: 0;
 }
 
 .division-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 0.85rem;
-  margin: 0;
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.05rem;
-}
-
-.stat dt {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-faint);
-  margin: 0;
-}
-
-.stat dd {
-  font-family: var(--font-mono);
-  font-size: 1.1rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.division-stats strong {
   color: var(--color-text);
-  margin: 0;
-  line-height: 1;
+  font-weight: 600;
 }
 
 .lanes {
@@ -512,18 +471,22 @@ function onPointerUp() {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.4rem 0.85rem;
-  padding: 0.65rem 0.85rem;
+  gap: 0.4rem 0.75rem;
+  padding: 0.45rem 0.75rem;
+  background: var(--color-bg);
   border: 1px solid var(--color-border-alt);
+  border-radius: 5px;
+  font-size: 0.8rem;
 }
 
 .lane-bar {
   display: flex;
   align-items: stretch;
   border: 1px solid var(--color-border);
+  border-radius: 5px;
   background: var(--color-bg);
   overflow: hidden;
-  min-height: 4.5rem;
+  min-height: 3.5rem;
   position: relative;
   user-select: none;
 }
@@ -537,7 +500,7 @@ function onPointerUp() {
   flex-direction: column;
   justify-content: center;
   position: relative;
-  padding: 0.6rem 0.9rem;
+  padding: 0.5rem 0.7rem;
   min-width: 0;
   background: var(--color-bg);
   overflow: hidden;
@@ -552,8 +515,7 @@ function onPointerUp() {
 }
 
 .lane-name {
-  font-family: var(--font-display);
-  font-size: 1rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--color-text);
   white-space: nowrap;
@@ -562,59 +524,53 @@ function onPointerUp() {
 }
 
 .lane-segment-count {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 1.4rem;
-  font-weight: 500;
+  font-size: 1.05rem;
+  font-weight: 600;
   color: var(--color-text);
-  margin-top: 0.1rem;
+  margin-top: 0.15rem;
   line-height: 1;
 }
 
 .lane-segment-est {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.7rem;
   color: var(--color-text-faint);
   margin-top: 0.2rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .lane-stat {
   display: inline-flex;
   align-items: baseline;
   gap: 0.3rem;
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 .lane-size,
 .lane-est {
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   color: var(--color-text);
+  font-weight: 600;
 }
 
 .lane-stat-label {
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.72rem;
   color: var(--color-text-faint);
 }
 
 .lane-rule {
   color: var(--color-border);
-  margin: 0 0.2rem;
+  margin: 0 0.15rem;
 }
 
 .lane-remove {
   position: absolute;
-  top: 0.25rem;
-  right: 0.4rem;
+  top: 0.2rem;
+  right: 0.3rem;
   background: none;
   border: none;
   font: inherit;
-  font-family: var(--font-mono);
-  font-size: 1rem;
+  font-size: 0.95rem;
   line-height: 1;
   color: var(--color-text-faint);
   cursor: pointer;
@@ -622,7 +578,7 @@ function onPointerUp() {
 }
 
 .lane-remove:hover {
-  color: var(--color-invalid, #c00);
+  color: var(--palette-error);
 }
 
 .lane-handle {
@@ -689,24 +645,23 @@ function onPointerUp() {
 .lane-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.4rem;
 }
 
 .lane-add {
   background: none;
-  border: none;
+  border: 1px dashed var(--color-border);
+  border-radius: 99px;
   font: inherit;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 600;
   color: var(--color-text-faint);
   cursor: pointer;
-  padding: 0.3rem 0;
-  text-align: left;
+  padding: 0.15rem 0.6rem;
 }
 
 .lane-add:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
   color: var(--color-text);
 }
 
@@ -716,9 +671,8 @@ function onPointerUp() {
 }
 
 .lane-warning {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: var(--color-invalid, #c00);
+  font-size: 0.75rem;
+  color: var(--palette-error);
   margin: 0;
 }
 
@@ -729,7 +683,7 @@ function onPointerUp() {
 }
 
 @media print {
-  .draft-badge,
+  .draft-tag,
   .lane-add,
   .lane-remove,
   .lane-handle {

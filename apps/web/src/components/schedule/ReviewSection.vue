@@ -23,16 +23,12 @@ function sortedSeats(quiz: ScheduledQuiz) {
 </script>
 
 <template>
-  <section class="schedule-section">
-    <header class="section-head">
-      <h2 class="section-title">Schedule</h2>
-      <p class="section-meta">
-        <span>{{ slots.length }} slots</span>
-        <span class="rule" aria-hidden="true">/</span>
-        <span>{{ rooms.length }} rooms</span>
-        <span class="rule" aria-hidden="true">/</span>
-        <span>{{ quizzes.length }} quizzes</span>
-      </p>
+  <section class="section">
+    <div class="section-header">
+      <h3 class="section-title">Review</h3>
+      <span class="section-meta">
+        {{ slots.length }} slots · {{ rooms.length }} rooms · {{ quizzes.length }} quizzes
+      </span>
       <div class="mode-toggle no-print" role="tablist" aria-label="Schedule view mode">
         <button
           type="button"
@@ -53,14 +49,10 @@ function sortedSeats(quiz: ScheduledQuiz) {
           Team
         </button>
       </div>
-    </header>
+    </div>
 
-    <p v-if="rooms.length === 0" class="schedule-empty">
-      No rooms have been added to this meet yet.
-    </p>
-    <p v-else-if="empty" class="schedule-empty">
-      No quizzes scheduled yet. Add slots and quizzes to begin.
-    </p>
+    <p v-if="rooms.length === 0" class="empty">No rooms have been added to this meet yet.</p>
+    <p v-else-if="empty" class="empty">No quizzes scheduled yet. Add slots and quizzes to begin.</p>
 
     <div v-else class="schedule-scroll">
       <table class="schedule-table" :data-mode="mode">
@@ -121,63 +113,50 @@ function sortedSeats(quiz: ScheduledQuiz) {
 </template>
 
 <style scoped>
-.schedule-section {
-  padding: 1.5rem 0 1rem;
-  border-top: 2px solid var(--color-text);
-  margin-top: 1.5rem;
+.section {
+  margin-bottom: 2rem;
 }
 
-.section-head {
+.section-header {
   display: flex;
   align-items: baseline;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
 }
 
 .section-title {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.55rem;
-  margin: 0;
-  letter-spacing: -0.015em;
-  color: var(--color-heading);
-  flex-shrink: 0;
-}
-
-.section-meta {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-text-faint);
   margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 0.5rem;
 }
 
-.rule {
-  color: var(--color-border);
+.section-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .mode-toggle {
   margin-left: auto;
   display: inline-flex;
   border: 1px solid var(--color-border);
+  border-radius: 5px;
+  overflow: hidden;
 }
 
 .mode-toggle button {
   background: none;
   border: none;
   font: inherit;
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 600;
   color: var(--color-text-faint);
   cursor: pointer;
-  padding: 0.3rem 0.7rem;
+  padding: 0.25rem 0.65rem;
   border-right: 1px solid var(--color-border);
 }
 
@@ -190,27 +169,26 @@ function sortedSeats(quiz: ScheduledQuiz) {
 }
 
 .mode-toggle button.is-active {
-  background: var(--color-text);
+  background: var(--color-accent);
   color: var(--color-bg);
 }
 
-.schedule-empty {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1rem;
+.empty {
+  font-size: 0.85rem;
   color: var(--color-text-muted);
   margin: 0;
 }
 
 .schedule-scroll {
   overflow-x: auto;
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
 }
 
 .schedule-table {
   border-collapse: collapse;
   width: 100%;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   table-layout: fixed;
 }
 
@@ -223,8 +201,7 @@ function sortedSeats(quiz: ScheduledQuiz) {
 }
 
 .time-col {
-  width: 4.25rem;
-  font-family: var(--font-mono);
+  width: 4.5rem;
   font-variant-numeric: tabular-nums;
   font-weight: 500;
   font-size: 0.78rem;
@@ -240,20 +217,18 @@ function sortedSeats(quiz: ScheduledQuiz) {
 thead .time-col {
   background: var(--color-bg-raised);
   color: var(--color-text-faint);
-  font-weight: 600;
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .room-col {
-  font-family: var(--font-display);
   font-weight: 600;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   text-align: center;
   background: var(--color-bg-raised);
   padding: 0.4rem 0.5rem;
-  letter-spacing: 0.01em;
   color: var(--color-text);
   min-width: 6.5rem;
 }
@@ -265,11 +240,9 @@ thead .time-col {
 }
 
 .event-label {
-  font-family: var(--font-display);
   font-style: italic;
   font-weight: 400;
-  font-size: 0.95rem;
-  letter-spacing: 0.01em;
+  font-size: 0.85rem;
   color: var(--color-text-muted);
 }
 
@@ -287,14 +260,12 @@ thead .time-col {
 }
 
 .quiz-head {
-  font-family: var(--font-display);
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   text-align: center;
   padding: 0.3rem 0.4rem 0.25rem;
   border-bottom: 1px solid var(--color-border-alt);
   color: var(--color-text);
-  letter-spacing: -0.005em;
 }
 
 .seat-list {
