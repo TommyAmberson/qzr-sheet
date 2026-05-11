@@ -33,13 +33,39 @@ interface UpdateSlotPatch {
   eventLabel?: string | null
 }
 
+interface DayGroup {
+  /** Local-time YYYY-MM-DD for grouping. */
+  dateKey: string
+  /** Human-readable header label ("Friday, May 15"). */
+  label: string
+  slots: MeetSlot[]
+}
+
 const sortedSlots = computed(() => [...props.slots].sort(bySortOrder))
 
 const quizSlotCount = computed(() => props.slots.filter((s) => s.kind === 'quiz').length)
 const capacity = computed(() => quizSlotCount.value * props.rooms.length)
 const headroom = computed(() => capacity.value - props.quizBudget)
 
-/** Compose a "Round N" label for quiz slots, ordered by appearance. */
+/** Group slots by local date so we can show day headers and gate
+ *  time-edit to the first slot of each day. */
+const days = computed<DayGroup[]>(() => {
+  const map = new Map<string, DayGroup>()
+  for (const s of sortedSlots.value) {
+    const d = new Date(s.startAt)
+    if (Number.isNaN(d.getTime())) continue
+    const key = dateKey(d)
+    let group = map.get(key)
+    if (!group) {
+      group = { dateKey: key, label: dayLabel(d), slots: [] }
+      map.set(key, group)
+    }
+    group.slots.push(s)
+  }
+  return Array.from(map.values())
+})
+
+/** Quiz slot → "Round N" by global order. */
 const roundNumbers = computed<Map<number, number>>(() => {
   const m = new Map<number, number>()
   let n = 0
@@ -49,30 +75,63 @@ const roundNumbers = computed<Map<number, number>>(() => {
   return m
 })
 
-/** Local time `YYYY-MM-DDTHH:mm` for a `<input type="datetime-local">`. */
-function toDatetimeLocal(iso: string): string {
+function dateKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function dayLabel(d: Date): string {
+  return d.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function timeOfDay(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function fromDatetimeLocal(value: string): string | null {
-  if (!value) return null
-  const d = new Date(value)
-  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+/** Combine the date portion of `iso` with `HH:mm` into a new ISO string. */
+function withTimeOfDay(iso: string, hhmm: string): string | null {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  const [h, m] = hhmm.split(':').map(Number)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+  d.setHours(h!, m!, 0, 0)
+  return d.toISOString()
 }
 
-function onTimeChange(slot: MeetSlot, event: Event) {
-  const iso = fromDatetimeLocal((event.target as HTMLInputElement).value)
-  if (!iso || iso === slot.startAt) return
-  emit('update-slot', { slotId: slot.id, patch: { startAt: iso } })
+/** When the day-anchor moves, shift every slot in that day by the same
+ *  delta. Keeps each slot's relative position in the chain stable. */
+function onAnchorTimeChange(group: DayGroup, event: Event) {
+  const hhmm = (event.target as HTMLInputElement).value
+  const anchor = group.slots[0]
+  if (!anchor) return
+  const newStart = withTimeOfDay(anchor.startAt, hhmm)
+  if (!newStart || newStart === anchor.startAt) return
+  const delta = new Date(newStart).getTime() - new Date(anchor.startAt).getTime()
+  for (const s of group.slots) {
+    const shifted = new Date(new Date(s.startAt).getTime() + delta).toISOString()
+    emit('update-slot', { slotId: s.id, patch: { startAt: shifted } })
+  }
 }
 
-function onDurationChange(slot: MeetSlot, event: Event) {
-  const v = Number.parseInt((event.target as HTMLInputElement).value, 10)
-  if (!Number.isFinite(v) || v <= 0 || v === slot.durationMinutes) return
-  emit('update-slot', { slotId: slot.id, patch: { durationMinutes: v } })
+/** Duration change cascades: this slot's duration moves, every subsequent
+ *  same-day slot shifts by the delta to keep the chain consistent. */
+function onDurationChange(group: DayGroup, slot: MeetSlot, event: Event) {
+  const next = Number.parseInt((event.target as HTMLInputElement).value, 10)
+  if (!Number.isFinite(next) || next <= 0 || next === slot.durationMinutes) return
+  emit('update-slot', { slotId: slot.id, patch: { durationMinutes: next } })
+  const delta = (next - slot.durationMinutes) * 60_000
+  const i = group.slots.findIndex((s) => s.id === slot.id)
+  for (const s of group.slots.slice(i + 1)) {
+    const shifted = new Date(new Date(s.startAt).getTime() + delta).toISOString()
+    emit('update-slot', { slotId: s.id, patch: { startAt: shifted } })
+  }
 }
 
 function onLabelChange(slot: MeetSlot, event: Event) {
@@ -94,6 +153,23 @@ function addSlot(kind: 'quiz' | 'event') {
     durationMinutes,
     kind,
     eventLabel: kind === 'event' ? '' : null,
+    sortOrder,
+  })
+}
+
+function addDay() {
+  const last = sortedSlots.value[sortedSlots.value.length - 1]
+  const base = last ? new Date(last.startAt) : new Date()
+  // Move to the next day at 08:00 local.
+  const next = new Date(base)
+  next.setDate(next.getDate() + 1)
+  next.setHours(8, 0, 0, 0)
+  const sortOrder = (last?.sortOrder ?? -1) + 1
+  emit('create-slot', {
+    startAt: next.toISOString(),
+    durationMinutes: 25,
+    kind: 'quiz',
+    eventLabel: null,
     sortOrder,
   })
 }
@@ -139,69 +215,79 @@ function deleteSlot(slot: MeetSlot) {
         </thead>
         <tbody>
           <tr v-if="slots.length === 0">
-            <td colspan="4" class="empty-row">No slots yet — add the first round below.</td>
+            <td colspan="4" class="empty-row">No slots yet — add a day below.</td>
           </tr>
-          <tr
-            v-for="slot in sortedSlots"
-            :key="slot.id"
-            :class="{ 'event-row': slot.kind === 'event' }"
-          >
-            <th class="time-col" scope="row">
-              <input
-                v-if="editable"
-                class="time-input"
-                type="datetime-local"
-                :value="toDatetimeLocal(slot.startAt)"
-                @change="onTimeChange(slot, $event)"
-              />
-              <span v-else>{{ formatSlotTime(slot.startAt) }}</span>
-            </th>
-            <td class="dur-col">
-              <input
-                v-if="editable"
-                class="dur-input"
-                type="number"
-                min="1"
-                step="1"
-                :value="slot.durationMinutes"
-                @change="onDurationChange(slot, $event)"
-              />
-              <span v-else>{{ slot.durationMinutes }}</span>
-            </td>
-            <td class="label-col">
-              <span v-if="slot.kind === 'quiz'" class="round-label">
-                Round {{ roundNumbers.get(slot.id) }}
-              </span>
-              <input
-                v-else-if="editable"
-                class="label-input"
-                type="text"
-                :value="slot.eventLabel ?? ''"
-                placeholder="Event name"
-                @change="onLabelChange(slot, $event)"
-              />
-              <span v-else class="event-label">{{ slot.eventLabel || 'Event' }}</span>
-            </td>
-            <td v-if="editable" class="action-col no-print">
-              <button
-                type="button"
-                class="row-delete"
-                :title="`Delete slot`"
-                @click="deleteSlot(slot)"
-              >
-                ×
-              </button>
-            </td>
-          </tr>
+          <template v-for="group in days" :key="group.dateKey">
+            <tr class="day-row">
+              <th class="day-label" :colspan="editable ? 4 : 3" scope="colgroup">
+                {{ group.label }}
+              </th>
+            </tr>
+            <tr
+              v-for="(slot, idx) in group.slots"
+              :key="slot.id"
+              :class="{ 'event-row': slot.kind === 'event' }"
+            >
+              <th class="time-col" scope="row">
+                <input
+                  v-if="idx === 0 && editable"
+                  class="time-input"
+                  type="time"
+                  :value="timeOfDay(slot.startAt)"
+                  @change="onAnchorTimeChange(group, $event)"
+                />
+                <span v-else class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
+              </th>
+              <td class="dur-col">
+                <input
+                  v-if="editable"
+                  class="dur-input"
+                  type="number"
+                  min="1"
+                  step="1"
+                  :value="slot.durationMinutes"
+                  @change="onDurationChange(group, slot, $event)"
+                />
+                <span v-else>{{ slot.durationMinutes }}</span>
+              </td>
+              <td class="label-col">
+                <span v-if="slot.kind === 'quiz'" class="round-label">
+                  Round {{ roundNumbers.get(slot.id) }}
+                </span>
+                <input
+                  v-else-if="editable"
+                  class="label-input"
+                  type="text"
+                  :value="slot.eventLabel ?? ''"
+                  placeholder="Event name"
+                  @change="onLabelChange(slot, $event)"
+                />
+                <span v-else class="event-label">{{ slot.eventLabel || 'Event' }}</span>
+              </td>
+              <td v-if="editable" class="action-col no-print">
+                <button
+                  type="button"
+                  class="row-delete"
+                  title="Delete slot"
+                  @click="deleteSlot(slot)"
+                >
+                  ×
+                </button>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
 
     <div v-if="editable" class="add-actions no-print">
-      <button type="button" class="add-btn" @click="addSlot('quiz')">+ Round</button>
-      <button type="button" class="add-btn add-btn--event" @click="addSlot('event')">
+      <button type="button" class="add-btn" :disabled="days.length === 0" @click="addSlot('quiz')">
+        + Round
+      </button>
+      <button type="button" class="add-btn" :disabled="days.length === 0" @click="addSlot('event')">
         + Event
       </button>
+      <button type="button" class="add-btn add-btn--day" @click="addDay">+ Day</button>
     </div>
   </section>
 </template>
@@ -298,12 +384,17 @@ thead th {
 }
 
 .time-col {
-  width: 11rem;
+  width: 6.5rem;
   font-variant-numeric: tabular-nums;
 }
 
+.time-text {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
 .dur-col {
-  width: 5rem;
+  width: 4rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -315,6 +406,16 @@ thead th {
 .action-col {
   width: 2.5rem;
   text-align: right;
+}
+
+.day-row .day-label {
+  background: var(--color-bg-warm);
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.6rem;
 }
 
 .event-row .label-col {
@@ -348,8 +449,13 @@ input.label-input {
   min-width: 0;
 }
 
+input.time-input {
+  width: 5.5rem;
+  font-weight: 500;
+}
+
 input.dur-input {
-  width: 3.25rem;
+  width: 3rem;
   text-align: right;
 }
 
@@ -414,12 +520,17 @@ input[type='number'] {
   flex: 1;
 }
 
-.add-btn:hover {
+.add-btn:hover:not(:disabled) {
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
 
-.add-btn--event {
+.add-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.add-btn--day {
   flex: 0 0 auto;
 }
 </style>
