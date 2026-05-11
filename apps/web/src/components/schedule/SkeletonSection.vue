@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 
 import { type MeetRoom, type MeetSlot } from '../../api'
 import { bySortOrder, formatSlotTime } from '../../scheduleGrid'
@@ -107,31 +107,6 @@ function withTimeOfDay(iso: string, hhmm: string): string | null {
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null
   d.setHours(h!, m!, 0, 0)
   return d.toISOString()
-}
-
-// Refs for the hidden time inputs that we trigger via showPicker(). One
-// per day anchor; the picker UI is the native control, but the visible
-// affordance is a styled button.
-const timeInputs = ref(new Map<number, HTMLInputElement>())
-
-function registerTimeInput(slotId: number, el: HTMLInputElement | null) {
-  if (el) timeInputs.value.set(slotId, el)
-  else timeInputs.value.delete(slotId)
-}
-
-function openTimePicker(slotId: number) {
-  const input = timeInputs.value.get(slotId)
-  if (!input) return
-  if (typeof input.showPicker === 'function') {
-    try {
-      input.showPicker()
-      return
-    } catch {
-      // Fall through to focus.
-    }
-  }
-  input.focus()
-  input.click()
 }
 
 /** When the day-anchor moves, shift every slot in that day by the same
@@ -264,24 +239,20 @@ function deleteSlot(slot: MeetSlot) {
               :class="{ 'event-row': slot.kind === 'event' }"
             >
               <th class="time-col" scope="row">
-                <template v-if="idx === 0 && editable">
-                  <button
-                    type="button"
-                    class="time-button"
-                    :title="`Change start time for ${group.label}`"
-                    @click="openTimePicker(slot.id)"
-                  >
-                    <span>{{ formatSlotTime(slot.startAt) }}</span>
-                    <span class="time-button-icon" aria-hidden="true">✎</span>
-                  </button>
+                <label
+                  v-if="idx === 0 && editable"
+                  class="time-editor"
+                  :title="`Change start time for ${group.label}`"
+                >
+                  <span class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
+                  <span class="time-edit-icon" aria-hidden="true">✎</span>
                   <input
-                    :ref="(el) => registerTimeInput(slot.id, el as HTMLInputElement | null)"
                     type="time"
-                    class="hidden-picker"
+                    class="time-overlay"
                     :value="timeOfDay(slot.startAt)"
                     @change="onAnchorTimeChange(group, $event)"
                   />
-                </template>
+                </label>
                 <span v-else class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
               </th>
               <td class="slot-cell" :colspan="contentColspan">
@@ -525,41 +496,49 @@ thead .time-col {
   background: var(--color-bg);
 }
 
-.time-button {
+.time-editor {
+  position: relative;
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.35rem;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  color: var(--color-text);
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  padding: 0.2rem 0.55rem;
   cursor: pointer;
+  color: var(--color-text);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
-.time-button:hover {
-  border-color: var(--color-accent);
+.time-editor .time-edit-icon {
+  font-size: 0.7rem;
+  color: var(--color-text-faint);
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.time-editor:hover .time-edit-icon,
+.time-editor:focus-within .time-edit-icon {
+  opacity: 1;
+}
+
+.time-editor:hover .time-text,
+.time-editor:focus-within .time-text {
   color: var(--color-accent);
 }
 
-.time-button-icon {
-  font-size: 0.7rem;
-  color: var(--color-text-faint);
-}
-
-.hidden-picker {
+/* The native time picker is the actual control — overlaid invisibly so
+   clicks land on it (which opens the picker). The label-wrap also makes
+   focus accessible. */
+.time-overlay {
   position: absolute;
-  width: 0;
-  height: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+  border: none;
   padding: 0;
   margin: 0;
-  border: 0;
-  opacity: 0;
-  pointer-events: none;
+  background: transparent;
 }
 
 .event-input {
