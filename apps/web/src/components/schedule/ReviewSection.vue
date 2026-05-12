@@ -201,37 +201,40 @@ function sortedSeats(quiz: ScheduledQuiz) {
   vertical-align: top;
 }
 
-.time-col {
-  width: 4.5rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  font-size: 0.78rem;
-  white-space: nowrap;
-  background: var(--color-bg);
-  color: var(--color-text-muted);
-  padding: 0.4rem 0.55rem;
-  text-align: center;
-  position: sticky;
-  left: 0;
-  z-index: 1;
-}
-
-thead .time-col {
+thead th {
   background: var(--color-bg-raised);
   color: var(--color-text-faint);
   font-weight: 700;
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  padding: 0.5rem 0.875rem;
+  text-align: center;
+}
+
+.time-col {
+  width: 7rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: var(--color-bg);
+  padding: 0.55rem 0.875rem;
+  text-align: center;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+/* Body-only — keep header (.time-col in thead) faint/uppercase via thead th. */
+tbody .time-col {
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+thead .time-col {
+  background: var(--color-bg-raised);
 }
 
 .room-col {
-  font-weight: 600;
-  font-size: 0.8rem;
-  text-align: center;
-  background: var(--color-bg-raised);
-  padding: 0.4rem 0.5rem;
-  color: var(--color-text);
   min-width: 6.5rem;
 }
 
