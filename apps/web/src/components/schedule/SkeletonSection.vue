@@ -385,12 +385,13 @@ function deleteSlot(slot: MeetSlot) {
   table-layout: auto;
 }
 
+/* No padding/text-align on the parent rule — per-column class rules
+   below would lose the cascade ((0,1,0) vs (0,1,1)) and silently do
+   nothing. Each column class sets its own. */
 .schedule-table th,
 .schedule-table td {
   border-bottom: 1px solid var(--color-border-alt);
-  padding: 0;
   vertical-align: middle;
-  text-align: left;
 }
 
 .schedule-table tr:last-child th,
@@ -405,15 +406,17 @@ thead th {
   font-size: 0.7rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.875rem;
+  text-align: center;
 }
 
 .time-col {
   width: 7rem;
   font-variant-numeric: tabular-nums;
   background: var(--color-bg);
-  padding: 0.4rem 0.6rem;
+  padding: 0.55rem 0.875rem;
   font-weight: 500;
+  text-align: center;
 }
 
 thead .time-col {
@@ -425,11 +428,12 @@ thead .time-col {
 }
 
 .room-col {
-  text-align: center;
   min-width: 6.5rem;
   font-weight: 600;
   font-size: 0.78rem;
   color: var(--color-text);
+  padding: 0.5rem 0.875rem;
+  text-align: center;
 }
 
 .day-row .day-label {
