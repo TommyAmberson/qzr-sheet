@@ -236,6 +236,11 @@ thead .time-col {
 
 .room-col {
   min-width: 6.5rem;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--color-text);
+  padding: 0.5rem 0.875rem;
+  text-align: center;
 }
 
 .event-row .event-cell {
