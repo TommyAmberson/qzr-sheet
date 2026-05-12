@@ -192,12 +192,13 @@ function sortedSeats(quiz: ScheduledQuiz) {
   table-layout: fixed;
 }
 
+/* No padding/text-align on the parent rule — per-column class rules
+   below would lose the cascade ((0,1,0) vs (0,1,1)) and silently do
+   nothing. Each column class sets its own. */
 .schedule-table th,
 .schedule-table td {
   border: 1px solid var(--color-border-alt);
-  padding: 0;
   vertical-align: top;
-  text-align: left;
 }
 
 .time-col {
@@ -209,6 +210,7 @@ function sortedSeats(quiz: ScheduledQuiz) {
   background: var(--color-bg);
   color: var(--color-text-muted);
   padding: 0.4rem 0.55rem;
+  text-align: center;
   position: sticky;
   left: 0;
   z-index: 1;
