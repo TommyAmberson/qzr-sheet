@@ -279,7 +279,6 @@ function deleteSlot(slot: MeetSlot) {
                       @click="toggleMenu"
                     >
                       <span class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
-                      <span class="time-edit-icon" aria-hidden="true">✎</span>
                     </button>
                   </template>
                 </VueDatePicker>
@@ -530,12 +529,11 @@ thead .time-col {
   background: var(--color-bg);
 }
 
-/* Real <button> so the click carries transient activation for
-   showPicker(); the time input lives next to it, visually hidden. */
+/* Plain text + dashed underline signals "this is editable" without
+   adding width that would shift the time relative to other rows.
+   Width-affecting affordances (icons, borders, padding) are deliberately
+   avoided so the editable cell aligns with the read-only cells below. */
 .time-editor {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.35rem;
   cursor: pointer;
   color: var(--color-text);
   font: inherit;
@@ -546,21 +544,19 @@ thead .time-col {
   padding: 0;
 }
 
-.time-editor .time-edit-icon {
-  font-size: 0.7rem;
-  color: var(--color-text-faint);
-  opacity: 0;
-  transition: opacity 100ms ease;
-}
-
-.time-editor:hover .time-edit-icon,
-.time-editor:focus-visible .time-edit-icon {
-  opacity: 1;
+.time-editor .time-text {
+  text-decoration: underline dashed var(--color-text-faint);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition:
+    color 100ms ease,
+    text-decoration-color 100ms ease;
 }
 
 .time-editor:hover .time-text,
 .time-editor:focus-visible .time-text {
   color: var(--color-accent);
+  text-decoration-color: var(--color-accent);
 }
 
 /* VueDatePicker wraps the #trigger slot in a div with class .dp__main.
