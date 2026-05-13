@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 
-import { type MeetRoom, type MeetSlot, type ScheduledQuiz } from '../../api'
+import { type MeetRoom, type MeetSlot, type ScheduledQuiz, type SeatInput } from '../../api'
 import { buildGrid, formatSlotTime, hasAnyQuiz, seatRef, seatTeam } from '../../scheduleGrid'
 import TimePickerButton from './TimePickerButton.vue'
 
@@ -9,6 +9,21 @@ interface PickerTime {
   hours: number
   minutes: number
   seconds?: number
+}
+
+interface AddQuizPayload {
+  slotId: number
+  roomId: number
+  division: string
+  phase: 'prelim' | 'elim'
+  label: string
+  seats: SeatInput[]
+}
+
+interface UpdateQuizPayload {
+  quizId: number
+  patch: { label?: string }
+  seats: SeatInput[]
 }
 
 const props = defineProps<{
@@ -23,6 +38,9 @@ const props = defineProps<{
   sectionTitle?: string
   /** When true, show the Populate / Roll Teams action buttons. */
   canPopulate?: boolean
+  /** Available divisions, used to populate the add-quiz form's
+   *  division dropdown. */
+  divisions?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -30,6 +48,8 @@ const emit = defineEmits<{
   (e: 'delete-quiz', quizId: number): void
   (e: 'populate-skeleton'): void
   (e: 'roll-teams'): void
+  (e: 'add-quiz', payload: AddQuizPayload): void
+  (e: 'update-quiz', payload: UpdateQuizPayload): void
 }>()
 
 function confirmOverwrite(action: string): boolean {
@@ -80,6 +100,102 @@ function onSlotTimeChange(slot: MeetSlot, value: PickerTime | null) {
 function onDeleteQuiz(quiz: ScheduledQuiz) {
   if (!confirm(`Delete ${quiz.label}?`)) return
   emit('delete-quiz', quiz.id)
+}
+
+/** When set, the add/edit quiz dialog is open for this cell. quiz=null
+ *  means "add a new quiz here"; quiz=existing means "edit". */
+const editingCell = ref<{
+  slot: MeetSlot
+  room: MeetRoom
+  quiz: ScheduledQuiz | null
+} | null>(null)
+
+const editForm = reactive({
+  division: '',
+  phase: 'prelim' as 'prelim' | 'elim',
+  label: '',
+  seats: [
+    { seatNumber: 1, letter: 'A' },
+    { seatNumber: 2, letter: 'B' },
+    { seatNumber: 3, letter: 'C' },
+  ] as { seatNumber: number; letter: string }[],
+})
+
+function openEditDialog(slot: MeetSlot, room: MeetRoom, quiz: ScheduledQuiz | null) {
+  if (!props.editable) return
+  editingCell.value = { slot, room, quiz }
+  if (quiz) {
+    editForm.division = quiz.division
+    editForm.phase = quiz.phase
+    editForm.label = quiz.label
+    const sorted = sortedSeats(quiz)
+    editForm.seats = [1, 2, 3].map((n) => {
+      const existing = sorted.find((s) => s.seatNumber === n)
+      return { seatNumber: n, letter: existing?.letter ?? '' }
+    })
+  } else {
+    const div = props.divisions?.[0] ?? quiz_existing_div() ?? ''
+    editForm.division = div
+    editForm.phase = 'prelim'
+    editForm.label = div ? `${div} Qz ${nextQuizNumberFor(div)}` : ''
+    editForm.seats = [
+      { seatNumber: 1, letter: 'A' },
+      { seatNumber: 2, letter: 'B' },
+      { seatNumber: 3, letter: 'C' },
+    ]
+  }
+}
+
+/** Fallback: if `divisions` prop is empty, infer from existing quizzes. */
+function quiz_existing_div(): string | null {
+  return props.quizzes[0]?.division ?? null
+}
+
+/** Lowest unused trailing-integer in this division's labels — same logic
+ *  as the composable's nextQuizNumber, replicated here so the form can
+ *  preview the suggested label without round-tripping. */
+function nextQuizNumberFor(division: string): number {
+  const used = new Set<number>()
+  for (const q of props.quizzes) {
+    if (q.division !== division) continue
+    const m = q.label.match(/(\d+)\s*$/)
+    if (m) used.add(Number(m[1]))
+  }
+  let n = 1
+  while (used.has(n)) n++
+  return n
+}
+
+function closeEditDialog() {
+  editingCell.value = null
+}
+
+function saveEdit() {
+  if (!editingCell.value) return
+  const { slot, room, quiz } = editingCell.value
+  const seats: SeatInput[] = editForm.seats.map((s) => ({
+    seatNumber: s.seatNumber,
+    letter: s.letter || null,
+  }))
+  if (quiz) {
+    const patch: { label?: string } = {}
+    if (editForm.label !== quiz.label) patch.label = editForm.label
+    emit('update-quiz', { quizId: quiz.id, patch, seats })
+  } else {
+    if (!editForm.division) {
+      alert('Pick a division')
+      return
+    }
+    emit('add-quiz', {
+      slotId: slot.id,
+      roomId: room.id,
+      division: editForm.division,
+      phase: editForm.phase,
+      label: editForm.label,
+      seats,
+    })
+  }
+  closeEditDialog()
 }
 </script>
 
@@ -160,11 +276,20 @@ function onDeleteQuiz(quiz: ScheduledQuiz) {
                 v-for="(quiz, i) in row.cells"
                 :key="grid.rooms[i]!.id"
                 class="quiz-cell"
-                :class="{ 'quiz-cell--empty': !quiz }"
+                :class="{ 'quiz-cell--empty': !quiz, 'quiz-cell--editable': editable }"
               >
                 <article v-if="quiz" class="quiz" :data-quiz-id="quiz.id">
                   <header class="quiz-head">
-                    <span class="quiz-label">{{ quiz.label }}</span>
+                    <button
+                      v-if="editable"
+                      type="button"
+                      class="quiz-label-btn"
+                      :title="`Edit ${quiz.label}`"
+                      @click="openEditDialog(row.slot, grid.rooms[i]!, quiz)"
+                    >
+                      {{ quiz.label }}
+                    </button>
+                    <span v-else class="quiz-label">{{ quiz.label }}</span>
                     <button
                       v-if="editable"
                       type="button"
@@ -187,11 +312,62 @@ function onDeleteQuiz(quiz: ScheduledQuiz) {
                     </li>
                   </ol>
                 </article>
+                <button
+                  v-else-if="editable"
+                  type="button"
+                  class="quiz-add no-print"
+                  :title="`Add quiz at ${formatSlotTime(row.slot.startAt)} in ${grid.rooms[i]!.name}`"
+                  @click="openEditDialog(row.slot, grid.rooms[i]!, null)"
+                >
+                  +
+                </button>
               </td>
             </template>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-if="editingCell" class="edit-overlay no-print" @click.self="closeEditDialog">
+      <form class="edit-form" @submit.prevent="saveEdit">
+        <h4 class="edit-title">
+          {{ editingCell.quiz ? 'Edit quiz' : 'Add quiz' }} —
+          {{ formatSlotTime(editingCell.slot.startAt) }}, {{ editingCell.room.name }}
+        </h4>
+        <label class="edit-row">
+          <span>Division</span>
+          <select v-model="editForm.division" :disabled="!!editingCell.quiz">
+            <option v-for="d in divisions ?? []" :key="d" :value="d">Div {{ d }}</option>
+          </select>
+        </label>
+        <label class="edit-row">
+          <span>Phase</span>
+          <select v-model="editForm.phase" :disabled="!!editingCell.quiz">
+            <option value="prelim">Prelim</option>
+            <option value="elim">Elim</option>
+          </select>
+        </label>
+        <label class="edit-row">
+          <span>Label</span>
+          <input v-model="editForm.label" type="text" required />
+        </label>
+        <fieldset class="edit-seats">
+          <legend>Seats</legend>
+          <label v-for="seat in editForm.seats" :key="seat.seatNumber" class="edit-seat">
+            <span>{{ seat.seatNumber }}</span>
+            <input
+              v-model="seat.letter"
+              type="text"
+              maxlength="3"
+              :placeholder="String.fromCharCode(64 + seat.seatNumber)"
+            />
+          </label>
+        </fieldset>
+        <div class="edit-actions">
+          <button type="button" class="edit-btn" @click="closeEditDialog">Cancel</button>
+          <button type="submit" class="edit-btn edit-btn--primary">Save</button>
+        </div>
+      </form>
     </div>
   </section>
 </template>
@@ -392,6 +568,45 @@ thead .time-col {
   color: var(--color-text);
 }
 
+.quiz-label-btn {
+  background: none;
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 3px;
+}
+
+.quiz-label-btn:hover {
+  color: var(--color-accent);
+}
+
+.quiz-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 2.5rem;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 1.1rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.quiz-cell--editable:hover .quiz-add,
+.quiz-add:focus-visible {
+  opacity: 1;
+  color: var(--color-accent);
+}
+
 .quiz-delete {
   position: absolute;
   top: 0.05rem;
@@ -454,6 +669,138 @@ thead .time-col {
 .schedule-table[data-mode='letter'] .seat {
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
+}
+
+/* Inline modal for the quiz add/edit form. Centered overlay with a
+   click-outside-to-close backdrop. */
+.edit-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.edit-form {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 22rem;
+  max-width: 28rem;
+  font-size: 0.85rem;
+}
+
+.edit-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-heading);
+}
+
+.edit-row {
+  display: grid;
+  grid-template-columns: 5rem 1fr;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.edit-row > span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.edit-row select,
+.edit-row input,
+.edit-seat input {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.edit-row input:focus,
+.edit-row select:focus,
+.edit-seat input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.edit-seats {
+  display: flex;
+  gap: 0.5rem;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.edit-seats legend {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 0.35rem;
+  padding: 0;
+}
+
+.edit-seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  font-size: 0.7rem;
+  color: var(--color-text-faint);
+}
+
+.edit-seat input {
+  width: 100%;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.edit-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.edit-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.edit-btn--primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.edit-btn--primary:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+  color: var(--color-bg);
 }
 
 @media print {

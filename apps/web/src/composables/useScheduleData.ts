@@ -12,7 +12,9 @@ import {
   listMeetRooms,
   listMeetSlots,
   listScheduledQuizzes,
+  replaceQuizSeats,
   updateMeetSlot,
+  updateScheduledQuiz,
   type MeetDetail,
   type MeetMembership,
   type MeetRoom,
@@ -142,6 +144,31 @@ export function useScheduleData(slug: Ref<string>) {
     quizzes.value = quizzes.value.filter((q) => q.id !== quizId)
   }
 
+  /** Update a quiz's mutable fields (label, slot, room, bracket label).
+   *  Optionally replace its seats in the same call; refetches once at the
+   *  end so consumers see consistent post-state. */
+  async function updateQuiz(
+    quizId: number,
+    patch: {
+      label?: string
+      slotId?: number
+      roomId?: number
+      bracketLabel?: string | null
+      publishedAt?: string | number | null
+    },
+    seats?: SeatInput[],
+  ): Promise<void> {
+    if (!meetId.value) throw new Error('No meet loaded')
+    if (Object.keys(patch).length > 0) {
+      await updateScheduledQuiz(meetId.value, quizId, patch)
+    }
+    if (seats) {
+      await replaceQuizSeats(meetId.value, quizId, seats)
+    }
+    const refreshed = await listScheduledQuizzes(meetId.value)
+    quizzes.value = refreshed.quizzes
+  }
+
   /** Lowest unused integer suffix for "Div N Quiz K" auto-labelling. */
   function nextQuizNumber(division: string): number {
     const used = new Set<number>()
@@ -213,6 +240,7 @@ export function useScheduleData(slug: Ref<string>) {
     updateSlot,
     deleteSlot,
     createQuiz,
+    updateQuiz,
     deleteQuiz,
     nextQuizNumber,
     toggleLane,

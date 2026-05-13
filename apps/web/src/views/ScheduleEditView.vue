@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import type { SeatInput } from '../api'
 import { estimateLaneQuizzes } from '../brackets'
 import ElimSetupSection from '../components/schedule/ElimSetupSection.vue'
 import PrelimSetupSection from '../components/schedule/PrelimSetupSection.vue'
@@ -30,6 +31,8 @@ const {
   createSlot,
   updateSlot,
   deleteSlot,
+  createQuiz,
+  updateQuiz,
   deleteQuiz,
 } = useScheduleData(toRef(props, 'slug'))
 
@@ -73,6 +76,33 @@ async function onDeleteSlot(slotId: number) {
 async function onDeleteQuiz(quizId: number) {
   try {
     await deleteQuiz(quizId)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
+async function onAddQuiz(payload: {
+  slotId: number
+  roomId: number
+  division: string
+  phase: 'prelim' | 'elim'
+  label: string
+  seats: SeatInput[]
+}) {
+  try {
+    await createQuiz(payload)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
+async function onUpdateQuiz(payload: {
+  quizId: number
+  patch: { label?: string }
+  seats: SeatInput[]
+}) {
+  try {
+    await updateQuiz(payload.quizId, payload.patch, payload.seats)
   } catch (e) {
     alert((e as Error).message)
   }
@@ -212,11 +242,14 @@ onMounted(async () => {
         :rooms="rooms"
         :slots="slots"
         :quizzes="quizzes"
+        :divisions="divisions"
         :editable="isAdmin"
         :section-title="'Draw'"
         :can-populate="isAdmin"
         @update-slot="onUpdateSlot"
         @delete-quiz="onDeleteQuiz"
+        @add-quiz="onAddQuiz"
+        @update-quiz="onUpdateQuiz"
         @populate-skeleton="onPopulateSkeleton"
         @roll-teams="onRollTeams"
       />
