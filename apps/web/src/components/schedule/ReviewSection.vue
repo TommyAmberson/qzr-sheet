@@ -100,6 +100,43 @@ const mode = ref<Mode>('letter')
 const grid = computed(() => buildGrid(props.rooms, props.slots, props.quizzes, null))
 const empty = computed(() => !hasAnyQuiz(grid.value))
 
+/** Group grid rows by their slot's local date so the template can break
+ *  the schedule into "Friday, May 15 / Saturday, May 16 / …" sections,
+ *  matching the day grouping the Skeleton tab uses. */
+interface DayGroup {
+  dateKey: string
+  label: string
+  rows: typeof grid.value.rows
+}
+const days = computed<DayGroup[]>(() => {
+  const map = new Map<string, DayGroup>()
+  for (const row of grid.value.rows) {
+    const d = new Date(row.slot.startAt)
+    if (Number.isNaN(d.getTime())) continue
+    const key = dateKey(d)
+    let group = map.get(key)
+    if (!group) {
+      group = { dateKey: key, label: dayLabel(d), rows: [] }
+      map.set(key, group)
+    }
+    group.rows.push(row)
+  }
+  return Array.from(map.values())
+})
+
+function dateKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function dayLabel(d: Date): string {
+  return d.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 function sortedSeats(quiz: ScheduledQuiz) {
   return [...quiz.seats].sort((a, b) => a.seatNumber - b.seatNumber)
 }
@@ -347,78 +384,85 @@ function saveEdit() {
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="row in grid.rows"
-            :key="row.slot.id"
-            :class="{ 'event-row': row.slot.kind === 'event' }"
-          >
-            <th class="time-col" scope="row">
-              <TimePickerButton
-                v-if="editable"
-                :model-value="slotTimeModel(row.slot.startAt)"
-                :title="`Change time for ${formatSlotTime(row.slot.startAt)}`"
-                @update:model-value="onSlotTimeChange(row.slot, $event)"
-              >
-                {{ formatSlotTime(row.slot.startAt) }}
-              </TimePickerButton>
-              <template v-else>{{ formatSlotTime(row.slot.startAt) }}</template>
-            </th>
-            <td v-if="row.slot.kind === 'event'" class="event-cell" :colspan="grid.rooms.length">
-              <span class="event-label">{{ row.slot.eventLabel || 'Event' }}</span>
-            </td>
-            <template v-else>
-              <td
-                v-for="(quiz, i) in row.cells"
-                :key="grid.rooms[i]!.id"
-                class="quiz-cell"
-                :class="{ 'quiz-cell--empty': !quiz, 'quiz-cell--editable': editable }"
-              >
-                <article v-if="quiz" class="quiz" :data-quiz-id="quiz.id">
-                  <header class="quiz-head">
-                    <button
-                      v-if="editable"
-                      type="button"
-                      class="quiz-label-btn"
-                      :title="`Edit ${quiz.label}`"
-                      @click="openEditDialog(row.slot, grid.rooms[i]!, quiz)"
-                    >
-                      {{ quiz.label }}
-                    </button>
-                    <span v-else class="quiz-label">{{ quiz.label }}</span>
-                    <button
-                      v-if="editable"
-                      type="button"
-                      class="quiz-delete no-print"
-                      :title="`Delete ${quiz.label}`"
-                      @click="onDeleteQuiz(quiz)"
-                    >
-                      ×
-                    </button>
-                  </header>
-                  <ol class="seat-list">
-                    <li
-                      v-for="seat in sortedSeats(quiz)"
-                      :key="seat.id"
-                      class="seat"
-                      :data-seat-letter="seat.letter || undefined"
-                    >
-                      <span class="seat-ref">{{ seatRef(seat) }}</span>
-                      <span v-if="mode === 'team'" class="seat-team">{{ seatTeam(seat) }}</span>
-                    </li>
-                  </ol>
-                </article>
-                <button
-                  v-else-if="editable"
-                  type="button"
-                  class="quiz-add no-print"
-                  :title="`Add quiz at ${formatSlotTime(row.slot.startAt)} in ${grid.rooms[i]!.name}`"
-                  @click="openEditDialog(row.slot, grid.rooms[i]!, null)"
+          <template v-for="group in days" :key="group.dateKey">
+            <tr class="day-row">
+              <th class="day-label" :colspan="grid.rooms.length + 1" scope="colgroup">
+                {{ group.label }}
+              </th>
+            </tr>
+            <tr
+              v-for="row in group.rows"
+              :key="row.slot.id"
+              :class="{ 'event-row': row.slot.kind === 'event' }"
+            >
+              <th class="time-col" scope="row">
+                <TimePickerButton
+                  v-if="editable"
+                  :model-value="slotTimeModel(row.slot.startAt)"
+                  :title="`Change time for ${formatSlotTime(row.slot.startAt)}`"
+                  @update:model-value="onSlotTimeChange(row.slot, $event)"
                 >
-                  +
-                </button>
+                  {{ formatSlotTime(row.slot.startAt) }}
+                </TimePickerButton>
+                <template v-else>{{ formatSlotTime(row.slot.startAt) }}</template>
+              </th>
+              <td v-if="row.slot.kind === 'event'" class="event-cell" :colspan="grid.rooms.length">
+                <span class="event-label">{{ row.slot.eventLabel || 'Event' }}</span>
               </td>
-            </template>
-          </tr>
+              <template v-else>
+                <td
+                  v-for="(quiz, i) in row.cells"
+                  :key="grid.rooms[i]!.id"
+                  class="quiz-cell"
+                  :class="{ 'quiz-cell--empty': !quiz, 'quiz-cell--editable': editable }"
+                >
+                  <article v-if="quiz" class="quiz" :data-quiz-id="quiz.id">
+                    <header class="quiz-head">
+                      <button
+                        v-if="editable"
+                        type="button"
+                        class="quiz-label-btn"
+                        :title="`Edit ${quiz.label}`"
+                        @click="openEditDialog(row.slot, grid.rooms[i]!, quiz)"
+                      >
+                        {{ quiz.label }}
+                      </button>
+                      <span v-else class="quiz-label">{{ quiz.label }}</span>
+                      <button
+                        v-if="editable"
+                        type="button"
+                        class="quiz-delete no-print"
+                        :title="`Delete ${quiz.label}`"
+                        @click="onDeleteQuiz(quiz)"
+                      >
+                        ×
+                      </button>
+                    </header>
+                    <ol class="seat-list">
+                      <li
+                        v-for="seat in sortedSeats(quiz)"
+                        :key="seat.id"
+                        class="seat"
+                        :data-seat-letter="seat.letter || undefined"
+                      >
+                        <span class="seat-ref">{{ seatRef(seat) }}</span>
+                        <span v-if="mode === 'team'" class="seat-team">{{ seatTeam(seat) }}</span>
+                      </li>
+                    </ol>
+                  </article>
+                  <button
+                    v-else-if="editable"
+                    type="button"
+                    class="quiz-add no-print"
+                    :title="`Add quiz at ${formatSlotTime(row.slot.startAt)} in ${grid.rooms[i]!.name}`"
+                    @click="openEditDialog(row.slot, grid.rooms[i]!, null)"
+                  >
+                    +
+                  </button>
+                </td>
+              </template>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
@@ -733,6 +777,17 @@ thead .time-col {
   color: var(--color-text);
   padding: 0.5rem 0.875rem;
   text-align: center;
+}
+
+.day-row .day-label {
+  background: var(--color-bg-warm);
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.875rem;
+  text-align: left;
 }
 
 .event-row .event-cell {
