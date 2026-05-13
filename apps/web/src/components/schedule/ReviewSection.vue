@@ -3,11 +3,26 @@ import { computed, ref } from 'vue'
 
 import { type MeetRoom, type MeetSlot, type ScheduledQuiz } from '../../api'
 import { buildGrid, formatSlotTime, hasAnyQuiz, seatRef, seatTeam } from '../../scheduleGrid'
+import TimePickerButton from './TimePickerButton.vue'
+
+interface PickerTime {
+  hours: number
+  minutes: number
+  seconds?: number
+}
 
 const props = defineProps<{
   rooms: MeetRoom[]
   slots: MeetSlot[]
   quizzes: ScheduledQuiz[]
+  /** When true, each row's time becomes a picker and quiz cards get a
+   *  delete button. Defaults to read-only. */
+  editable?: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'update-slot', payload: { slotId: number; patch: { startAt: string } }): void
+  (e: 'delete-quiz', quizId: number): void
 }>()
 
 type Mode = 'letter' | 'team'
@@ -19,6 +34,28 @@ const empty = computed(() => !hasAnyQuiz(grid.value))
 
 function sortedSeats(quiz: ScheduledQuiz) {
   return [...quiz.seats].sort((a, b) => a.seatNumber - b.seatNumber)
+}
+
+function slotTimeModel(iso: string): PickerTime {
+  const d = new Date(iso)
+  return { hours: d.getHours(), minutes: d.getMinutes() }
+}
+
+/** Update one slot's start time directly — no cascade. Time edits in
+ *  Review are surgical adjustments; bulk shifts live in Skeleton's
+ *  duration/anchor handlers. */
+function onSlotTimeChange(slot: MeetSlot, value: PickerTime | null) {
+  if (!value) return
+  const d = new Date(slot.startAt)
+  d.setHours(value.hours, value.minutes, 0, 0)
+  const next = d.toISOString()
+  if (next === slot.startAt) return
+  emit('update-slot', { slotId: slot.id, patch: { startAt: next } })
+}
+
+function onDeleteQuiz(quiz: ScheduledQuiz) {
+  if (!confirm(`Delete ${quiz.label}?`)) return
+  emit('delete-quiz', quiz.id)
 }
 </script>
 
@@ -77,7 +114,15 @@ function sortedSeats(quiz: ScheduledQuiz) {
             :class="{ 'event-row': row.slot.kind === 'event' }"
           >
             <th class="time-col" scope="row">
-              {{ formatSlotTime(row.slot.startAt) }}
+              <TimePickerButton
+                v-if="editable"
+                :model-value="slotTimeModel(row.slot.startAt)"
+                :title="`Change time for ${formatSlotTime(row.slot.startAt)}`"
+                @update:model-value="onSlotTimeChange(row.slot, $event)"
+              >
+                {{ formatSlotTime(row.slot.startAt) }}
+              </TimePickerButton>
+              <template v-else>{{ formatSlotTime(row.slot.startAt) }}</template>
             </th>
             <td v-if="row.slot.kind === 'event'" class="event-cell" :colspan="grid.rooms.length">
               <span class="event-label">{{ row.slot.eventLabel || 'Event' }}</span>
@@ -90,7 +135,18 @@ function sortedSeats(quiz: ScheduledQuiz) {
                 :class="{ 'quiz-cell--empty': !quiz }"
               >
                 <article v-if="quiz" class="quiz" :data-quiz-id="quiz.id">
-                  <header class="quiz-head">{{ quiz.label }}</header>
+                  <header class="quiz-head">
+                    <span class="quiz-label">{{ quiz.label }}</span>
+                    <button
+                      v-if="editable"
+                      type="button"
+                      class="quiz-delete no-print"
+                      :title="`Delete ${quiz.label}`"
+                      @click="onDeleteQuiz(quiz)"
+                    >
+                      ×
+                    </button>
+                  </header>
                   <ol class="seat-list">
                     <li
                       v-for="seat in sortedSeats(quiz)"
@@ -270,12 +326,40 @@ thead .time-col {
 }
 
 .quiz-head {
+  position: relative;
   font-weight: 600;
   font-size: 0.78rem;
   text-align: center;
   padding: 0.3rem 0.4rem 0.25rem;
   border-bottom: 1px solid var(--color-border-alt);
   color: var(--color-text);
+}
+
+.quiz-delete {
+  position: absolute;
+  top: 0.05rem;
+  right: 0.2rem;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 0.1rem 0.25rem;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.quiz:hover .quiz-delete,
+.quiz-delete:focus-visible {
+  opacity: 1;
+}
+
+.quiz-delete:hover {
+  color: var(--palette-error);
+  background: var(--color-bg);
 }
 
 .seat-list {

@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { estimateLaneQuizzes } from '../brackets'
 import ElimSetupSection from '../components/schedule/ElimSetupSection.vue'
 import PrelimSetupSection from '../components/schedule/PrelimSetupSection.vue'
+import ReviewSection from '../components/schedule/ReviewSection.vue'
 import SkeletonSection from '../components/schedule/SkeletonSection.vue'
 import { useScheduleData } from '../composables/useScheduleData'
 
@@ -15,6 +16,7 @@ const route = useRoute()
 const {
   rooms,
   slots,
+  quizzes,
   teamCounts,
   extraLanes,
   loading,
@@ -28,6 +30,7 @@ const {
   createSlot,
   updateSlot,
   deleteSlot,
+  deleteQuiz,
 } = useScheduleData(toRef(props, 'slug'))
 
 async function onCreateSlot(payload: {
@@ -67,11 +70,20 @@ async function onDeleteSlot(slotId: number) {
   }
 }
 
-type TabId = 'prelim' | 'elim' | 'skeleton'
+async function onDeleteQuiz(quizId: number) {
+  try {
+    await deleteQuiz(quizId)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
+type TabId = 'prelim' | 'elim' | 'skeleton' | 'review'
 const TABS: { id: TabId; label: string }[] = [
   { id: 'prelim', label: 'Prelim setup' },
   { id: 'elim', label: 'Elim setup' },
   { id: 'skeleton', label: 'Skeleton' },
+  { id: 'review', label: 'Review' },
 ]
 const VALID_TABS = new Set<TabId>(TABS.map((t) => t.id))
 
@@ -183,6 +195,16 @@ onMounted(async () => {
         @create-slot="onCreateSlot"
         @update-slot="onUpdateSlot"
         @delete-slot="onDeleteSlot"
+      />
+
+      <ReviewSection
+        v-else-if="activeTab === 'review'"
+        :rooms="rooms"
+        :slots="slots"
+        :quizzes="quizzes"
+        :editable="isAdmin"
+        @update-slot="onUpdateSlot"
+        @delete-quiz="onDeleteQuiz"
       />
     </template>
   </div>
