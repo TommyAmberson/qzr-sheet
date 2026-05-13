@@ -112,7 +112,12 @@ async function onUpdateQuiz(payload: {
 /** Compute the per-division quiz plan from prelim team counts and elim
  *  lane structure. Labels follow `D{div}-Q{n}` for prelims (numbered)
  *  and `D{div}-Q{A,B,C…}` for elims (lettered, since those are bracket
- *  positions like SF/F rather than ordered rounds). */
+ *  positions like SF/F rather than ordered rounds).
+ *
+ *  Phase ordering: every division's prelims first, then every
+ *  division's elims, so the slot×room placement naturally produces all
+ *  prelim rounds before the elim rounds. (The stats break that
+ *  separates them lives in the Skeleton timeline, not the plan.) */
 function computePopulationPlan(): Array<{
   division: string
   phase: 'prelim' | 'elim'
@@ -121,15 +126,18 @@ function computePopulationPlan(): Array<{
   const plan: Array<{ division: string; phase: 'prelim' | 'elim'; label: string }> = []
   for (const div of divisions.value) {
     const teams = teamCounts.value[div] ?? 0
+    for (let i = 0; i < teams; i++) {
+      plan.push({ division: div, phase: 'prelim', label: `D${div}-Q${i + 1}` })
+    }
+  }
+  for (const div of divisions.value) {
+    const teams = teamCounts.value[div] ?? 0
     const extras = extraLanes.value[div] ?? []
     const usedByExtras = extras.reduce((sum, l) => sum + l.teamCount, 0)
     const mainSize = Math.max(0, teams - usedByExtras)
     const elimCount =
       estimateLaneQuizzes(mainSize) +
       extras.reduce((sum, l) => sum + estimateLaneQuizzes(l.teamCount), 0)
-    for (let i = 0; i < teams; i++) {
-      plan.push({ division: div, phase: 'prelim', label: `D${div}-Q${i + 1}` })
-    }
     for (let i = 0; i < elimCount; i++) {
       plan.push({ division: div, phase: 'elim', label: `D${div}-Q${String.fromCharCode(65 + i)}` })
     }
