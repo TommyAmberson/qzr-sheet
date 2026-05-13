@@ -1,119 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, toRef, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onMounted, toRef } from 'vue'
+import { useRouter } from 'vue-router'
 
-import { estimateLaneQuizzes } from '../brackets'
-import ElimSetupSection from '../components/schedule/ElimSetupSection.vue'
-import PrelimSetupSection from '../components/schedule/PrelimSetupSection.vue'
 import ReviewSection from '../components/schedule/ReviewSection.vue'
-import SkeletonSection from '../components/schedule/SkeletonSection.vue'
 import { useScheduleData } from '../composables/useScheduleData'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
-const route = useRoute()
 
-const {
-  rooms,
-  slots,
-  quizzes,
-  teamCounts,
-  extraLanes,
-  loading,
-  error,
-  meet,
-  divisions,
-  isAdmin,
-  load,
-  toggleLane,
-  resizeLane,
-  createSlot,
-  updateSlot,
-  deleteSlot,
-} = useScheduleData(toRef(props, 'slug'))
-
-async function onCreateSlot(payload: {
-  startAt: string
-  durationMinutes: number
-  kind: 'quiz' | 'event'
-  eventLabel: string | null
-  sortOrder: number
-}) {
-  try {
-    await createSlot(payload)
-  } catch (e) {
-    alert((e as Error).message)
-  }
-}
-
-async function onUpdateSlot(payload: {
-  slotId: number
-  patch: {
-    startAt?: string
-    durationMinutes?: number
-    eventLabel?: string | null
-  }
-}) {
-  try {
-    await updateSlot(payload.slotId, payload.patch)
-  } catch (e) {
-    alert((e as Error).message)
-  }
-}
-
-async function onDeleteSlot(slotId: number) {
-  try {
-    await deleteSlot(slotId)
-  } catch (e) {
-    alert((e as Error).message)
-  }
-}
-
-type TabId = 'prelim' | 'elim' | 'skeleton' | 'review'
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'prelim', label: 'Prelim setup' },
-  { id: 'elim', label: 'Elim setup' },
-  { id: 'skeleton', label: 'Skeleton' },
-  { id: 'review', label: 'Review' },
-]
-const VALID_TABS = new Set<TabId>(TABS.map((t) => t.id))
-
-function tabFromHash(hash: string): TabId {
-  const id = hash.replace(/^#/, '')
-  return VALID_TABS.has(id as TabId) ? (id as TabId) : 'review'
-}
-
-const activeTab = ref<TabId>(tabFromHash(route.hash))
-
-watch(
-  () => route.hash,
-  (h) => {
-    activeTab.value = tabFromHash(h)
-  },
+const { rooms, slots, quizzes, loading, error, meet, divisions, isAdmin, load } = useScheduleData(
+  toRef(props, 'slug'),
 )
-
-function selectTab(tab: TabId) {
-  activeTab.value = tab
-  router.replace({ ...route, hash: `#${tab}` })
-}
-
-/** Total quiz budget across all divisions. Threaded down so SkeletonSection
- *  can show capacity vs budget without recomputing. */
-const quizBudget = computed(() => {
-  let total = 0
-  for (const d of divisions.value) {
-    const teams = teamCounts.value[d] ?? 0
-    const extras = extraLanes.value[d] ?? []
-    const usedByExtras = extras.reduce((sum, l) => sum + l.teamCount, 0)
-    const mainSize = Math.max(0, teams - usedByExtras)
-    total += teams // prelim count = team count
-    total += estimateLaneQuizzes(mainSize)
-    for (const lane of extras) {
-      total += estimateLaneQuizzes(lane.teamCount)
-    }
-  }
-  return total
-})
 
 onMounted(load)
 </script>
@@ -136,52 +33,17 @@ onMounted(load)
             {{ divisions.length }} divisions
           </span>
         </div>
+        <button
+          v-if="isAdmin"
+          type="button"
+          class="edit-link no-print"
+          @click="router.push({ name: 'meet-schedule-edit', params: { slug } })"
+        >
+          Edit →
+        </button>
       </div>
 
-      <nav class="tabs no-print" role="tablist" aria-label="Schedule sections">
-        <button
-          v-for="tab in TABS"
-          :key="tab.id"
-          type="button"
-          role="tab"
-          class="tab"
-          :class="{ 'is-active': activeTab === tab.id }"
-          :aria-selected="activeTab === tab.id"
-          @click="selectTab(tab.id)"
-        >
-          {{ tab.label }}
-        </button>
-      </nav>
-
-      <PrelimSetupSection
-        v-if="activeTab === 'prelim'"
-        :divisions="divisions"
-        :team-counts="teamCounts"
-        :editable="isAdmin"
-      />
-
-      <ElimSetupSection
-        v-else-if="activeTab === 'elim'"
-        :divisions="divisions"
-        :team-counts="teamCounts"
-        :extra-lanes="extraLanes"
-        :editable="isAdmin"
-        @toggle-lane="toggleLane"
-        @resize-lane="resizeLane"
-      />
-
-      <SkeletonSection
-        v-else-if="activeTab === 'skeleton'"
-        :rooms="rooms"
-        :slots="slots"
-        :quiz-budget="quizBudget"
-        :editable="isAdmin"
-        @create-slot="onCreateSlot"
-        @update-slot="onUpdateSlot"
-        @delete-slot="onDeleteSlot"
-      />
-
-      <ReviewSection v-else :rooms="rooms" :slots="slots" :quizzes="quizzes" />
+      <ReviewSection :rooms="rooms" :slots="slots" :quizzes="quizzes" />
     </template>
   </div>
 </template>
@@ -245,38 +107,22 @@ onMounted(load)
   color: var(--color-text-faint);
 }
 
-.tabs {
-  display: flex;
-  gap: 0.25rem;
-  border-bottom: 1px solid var(--color-border-alt);
-  margin-bottom: 1.25rem;
-  overflow-x: auto;
-}
-
-.tab {
+.edit-link {
   background: none;
-  border: none;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 0.35rem 0.75rem;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  padding: 0.55rem 0.85rem;
-  margin-bottom: -1px;
-  border-bottom: 2px solid transparent;
-  white-space: nowrap;
-  transition:
-    color 120ms ease,
-    border-color 120ms ease;
-}
-
-.tab:hover {
   color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-.tab.is-active {
-  color: var(--color-text);
-  border-bottom-color: var(--color-accent);
+.edit-link:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 @media print {
