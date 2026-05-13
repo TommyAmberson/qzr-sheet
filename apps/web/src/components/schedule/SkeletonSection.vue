@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { VueDatePicker } from '@vuepic/vue-datepicker'
-import '@vuepic/vue-datepicker/dist/main.css'
 import { computed } from 'vue'
 
 import { type MeetRoom, type MeetSlot } from '../../api'
 import { bySortOrder, formatSlotTime } from '../../scheduleGrid'
+import TimePickerButton from './TimePickerButton.vue'
 
 interface PickerTime {
   hours: number
@@ -110,21 +109,8 @@ function withTimeOfDay(iso: string, hhmm: string): string | null {
   return d.toISOString()
 }
 
-/** Used to pick the picker's dark/light theme. Reactive enough for a
- *  one-time SSR-free read; the page reloads on theme change anyway. */
-const prefersDark =
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-color-scheme: dark)').matches
-
-/** Whether the user's locale prefers 24-hour clock display. */
-const pickerTimeConfig = {
-  is24: !new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hour12,
-  minutesGridIncrement: 5,
-}
-
-/** Current hour/minute of the day anchor, in the shape VueDatePicker
- *  expects for time-picker mode. */
+/** Current hour/minute of the day anchor, in the shape TimePickerButton
+ *  expects. */
 function anchorTimeModel(iso: string): PickerTime {
   const d = new Date(iso)
   return { hours: d.getHours(), minutes: d.getMinutes() }
@@ -262,26 +248,14 @@ function deleteSlot(slot: MeetSlot) {
               :class="{ 'event-row': slot.kind === 'event' }"
             >
               <th class="time-col" scope="row">
-                <VueDatePicker
+                <TimePickerButton
                   v-if="idx === 0 && editable"
                   :model-value="anchorTimeModel(slot.startAt)"
-                  time-picker
-                  :time-config="pickerTimeConfig"
-                  auto-apply
-                  :dark="prefersDark"
+                  :title="`Change start time for ${group.label}`"
                   @update:model-value="onAnchorPickerChange(group, $event)"
                 >
-                  <template #trigger="{ toggleMenu }">
-                    <button
-                      type="button"
-                      class="time-editor"
-                      :title="`Change start time for ${group.label}`"
-                      @click="toggleMenu"
-                    >
-                      <span class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
-                    </button>
-                  </template>
-                </VueDatePicker>
+                  {{ formatSlotTime(slot.startAt) }}
+                </TimePickerButton>
                 <span v-else class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
               </th>
               <td class="slot-cell" :colspan="contentColspan">
@@ -527,87 +501,6 @@ thead .time-col {
   font-size: 0.85rem;
   padding: 1.25rem 0.6rem;
   background: var(--color-bg);
-}
-
-/* Plain text + dashed underline signals "this is editable" without
-   adding width that would shift the time relative to other rows.
-   Width-affecting affordances (icons, borders, padding) are deliberately
-   avoided so the editable cell aligns with the read-only cells below. */
-.time-editor {
-  cursor: pointer;
-  color: var(--color-text);
-  font: inherit;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  background: none;
-  border: 0;
-  padding: 0;
-}
-
-.time-editor .time-text {
-  text-decoration: underline dashed var(--color-text-faint);
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1px;
-  transition:
-    color 100ms ease,
-    text-decoration-color 100ms ease;
-}
-
-.time-editor:hover .time-text,
-.time-editor:focus-visible .time-text {
-  color: var(--color-accent);
-  text-decoration-color: var(--color-accent);
-}
-
-/* VueDatePicker wraps the #trigger slot in a div with class .dp__main.
-   Strip its default block styling so the button still centers in the
-   time-col cell like the read-only span does. */
-:deep(.dp__main) {
-  display: inline-block;
-}
-
-:deep(.dp__theme_light),
-:deep(.dp__theme_dark) {
-  --dp-border-radius: 6px;
-  --dp-font-family: inherit;
-  --dp-primary-color: var(--color-accent);
-  --dp-menu-min-width: 200px;
-  --dp-menu-padding: 10px 18px;
-}
-
-:deep(.dp__theme_light) {
-  --dp-background-color: var(--color-bg-raised);
-  --dp-text-color: var(--color-text);
-  --dp-hover-color: var(--color-bg);
-  --dp-hover-text-color: var(--color-text);
-  --dp-menu-border-color: var(--color-border-alt);
-  --dp-border-color: var(--color-border-alt);
-  --dp-icon-color: var(--color-text-muted);
-}
-
-:deep(.dp__theme_dark) {
-  --dp-background-color: var(--color-bg-raised);
-  --dp-text-color: var(--color-text);
-  --dp-hover-color: var(--color-bg);
-  --dp-hover-text-color: var(--color-text);
-  --dp-menu-border-color: var(--color-border);
-  --dp-border-color: var(--color-border);
-  --dp-icon-color: var(--color-text-muted);
-}
-
-/* The arrow points to wherever the popup happens to align with the
-   trigger — when the popup is wider than our compact button, it lands
-   off-center. Just drop it; the boxed popup reads cleanly on its own. */
-:deep(.dp__arrow_top),
-:deep(.dp__arrow_bottom) {
-  display: none;
-}
-
-/* The AM/PM button lives in an unclassed <div> wrapper, so neither
-   the surrounding menu padding nor the hour/minute column padding
-   reaches it — it hugs the popup's right edge. Give it room directly. */
-:deep(.dp__pm_am_button) {
-  margin-inline-end: 0.75rem;
 }
 
 .event-input {
