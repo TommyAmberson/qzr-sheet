@@ -9,6 +9,7 @@ import PrelimSetupSection from '../components/schedule/PrelimSetupSection.vue'
 import ReviewSection from '../components/schedule/ReviewSection.vue'
 import SkeletonSection from '../components/schedule/SkeletonSection.vue'
 import { useScheduleData } from '../composables/useScheduleData'
+import { bySortOrder } from '../scheduleGrid'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
@@ -108,10 +109,84 @@ async function onUpdateQuiz(payload: {
   }
 }
 
-function onPopulateSkeleton() {
-  alert(
-    'Populate skeleton — coming soon. Will create empty quiz cards across the slot×room grid based on lane sizes from Prelim/Elim setup.',
-  )
+/** Compute the per-division quiz plan from prelim team counts and elim
+ *  lane structure. Each entry is one quiz card to create; labels follow
+ *  the "{div} Qz {n}" convention used in docs/example-winkler-2026.md. */
+function computePopulationPlan(): Array<{
+  division: string
+  phase: 'prelim' | 'elim'
+  label: string
+}> {
+  const plan: Array<{ division: string; phase: 'prelim' | 'elim'; label: string }> = []
+  for (const div of divisions.value) {
+    const teams = teamCounts.value[div] ?? 0
+    const extras = extraLanes.value[div] ?? []
+    const usedByExtras = extras.reduce((sum, l) => sum + l.teamCount, 0)
+    const mainSize = Math.max(0, teams - usedByExtras)
+    const elimCount =
+      estimateLaneQuizzes(mainSize) +
+      extras.reduce((sum, l) => sum + estimateLaneQuizzes(l.teamCount), 0)
+    let n = 1
+    for (let i = 0; i < teams; i++) {
+      plan.push({ division: div, phase: 'prelim', label: `${div} Qz ${n++}` })
+    }
+    for (let i = 0; i < elimCount; i++) {
+      plan.push({ division: div, phase: 'elim', label: `${div} Qz ${n++}` })
+    }
+  }
+  return plan
+}
+
+const populating = ref(false)
+
+async function onPopulateSkeleton() {
+  if (populating.value) return
+  populating.value = true
+  try {
+    // Wipe existing quizzes (the user has already confirmed overwrite).
+    for (const q of [...quizzes.value]) {
+      await deleteQuiz(q.id)
+    }
+
+    const plan = computePopulationPlan()
+    const quizSlots = slots.value.filter((s) => s.kind === 'quiz').sort(bySortOrder)
+    if (quizSlots.length === 0 || rooms.value.length === 0) {
+      alert('Add slots in Skeleton and rooms to the meet before populating.')
+      return
+    }
+
+    const cells = plan.length
+    const capacity = quizSlots.length * rooms.value.length
+    if (cells > capacity) {
+      const ok = confirm(`Need ${cells} cells but only ${capacity} are available. Truncate to fit?`)
+      if (!ok) return
+    }
+
+    let i = 0
+    for (const slot of quizSlots) {
+      for (const room of rooms.value) {
+        if (i >= plan.length) break
+        const item = plan[i]!
+        await createQuiz({
+          slotId: slot.id,
+          roomId: room.id,
+          division: item.division,
+          phase: item.phase,
+          label: item.label,
+          seats: [
+            { seatNumber: 1, letter: 'A' },
+            { seatNumber: 2, letter: 'B' },
+            { seatNumber: 3, letter: 'C' },
+          ],
+        })
+        i++
+      }
+    }
+  } catch (e) {
+    alert((e as Error).message)
+  } finally {
+    populating.value = false
+  }
 }
 
 function onRollTeams() {
