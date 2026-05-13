@@ -221,6 +221,73 @@ function selectTab(tab: TabId) {
   router.replace({ ...route, hash: `#${tab}` })
 }
 
+/** Capacity check fed into the Draw section's Populate card so the
+ *  user can see if there's room before clicking. */
+const populateInfo = computed(() => {
+  const needed = computePopulationPlan().length
+  const quizSlotCount = slots.value.filter((s) => s.kind === 'quiz').length
+  const capacity = quizSlotCount * rooms.value.length
+  let note: string
+  let ready: boolean
+  if (divisions.value.length === 0) {
+    note = 'No divisions yet. Add team rosters in Churches first.'
+    ready = false
+  } else if (needed === 0) {
+    note = 'Set team counts in Prelim setup and lane sizes in Elim setup.'
+    ready = false
+  } else if (quizSlotCount === 0) {
+    note = 'Add quiz slots in Skeleton.'
+    ready = false
+  } else if (rooms.value.length === 0) {
+    note = 'Add rooms to the meet on the dashboard.'
+    ready = false
+  } else if (capacity < needed) {
+    note = `${needed - capacity} cells short — add slots or rooms (or remove some quizzes from the plan).`
+    ready = false
+  } else {
+    const spare = capacity - needed
+    note = spare === 0 ? 'Exact fit.' : `${spare} cell${spare === 1 ? '' : 's'} to spare.`
+    ready = true
+  }
+  return { needed, capacity, ready, note }
+})
+
+/** Per-division prelim coverage check fed into the Roll Teams card. */
+const rollInfo = computed(() => {
+  const perDivision = divisions.value.map((division) => {
+    const needed = teamCounts.value[division] ?? 0
+    const present = quizzes.value.filter(
+      (q) => q.division === division && q.phase === 'prelim',
+    ).length
+    return { division, needed, present }
+  })
+  let note: string
+  let ready: boolean
+  if (perDivision.length === 0) {
+    note = 'No divisions yet.'
+    ready = false
+  } else if (perDivision.every((d) => d.needed === 0)) {
+    note = 'No teams in any division — set up Prelim first.'
+    ready = false
+  } else {
+    const issues = perDivision
+      .filter((d) => d.needed !== d.present)
+      .map((d) =>
+        d.present < d.needed
+          ? `Div ${d.division} short by ${d.needed - d.present}`
+          : `Div ${d.division} has ${d.present - d.needed} extra`,
+      )
+    if (issues.length === 0) {
+      note = 'Every division has the right number of prelim quizzes.'
+      ready = true
+    } else {
+      note = `${issues.join('. ')}. Run Populate first.`
+      ready = false
+    }
+  }
+  return { perDivision, ready, note }
+})
+
 /** Total quiz budget across all divisions. Threaded down so SkeletonSection
  *  can show capacity vs budget without recomputing. */
 const quizBudget = computed(() => {
@@ -321,6 +388,8 @@ onMounted(async () => {
         :editable="isAdmin"
         :section-title="'Draw'"
         :can-populate="isAdmin"
+        :populate-info="populateInfo"
+        :roll-info="rollInfo"
         @update-slot="onUpdateSlot"
         @delete-quiz="onDeleteQuiz"
         @add-quiz="onAddQuiz"

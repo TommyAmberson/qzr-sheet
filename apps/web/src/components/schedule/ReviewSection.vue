@@ -26,6 +26,19 @@ interface UpdateQuizPayload {
   seats: SeatInput[]
 }
 
+interface PopulateInfo {
+  needed: number
+  capacity: number
+  ready: boolean
+  note: string
+}
+
+interface RollInfo {
+  ready: boolean
+  perDivision: Array<{ division: string; needed: number; present: number }>
+  note: string
+}
+
 const props = defineProps<{
   rooms: MeetRoom[]
   slots: MeetSlot[]
@@ -36,11 +49,15 @@ const props = defineProps<{
   /** Override the section heading. Default "Review" suits the read-only
    *  view; "Draw" is more accurate when editing. */
   sectionTitle?: string
-  /** When true, show the Populate / Roll Teams action buttons. */
+  /** When true, show the Populate / Roll Teams action cards. */
   canPopulate?: boolean
   /** Available divisions, used to populate the add-quiz form's
    *  division dropdown. */
   divisions?: string[]
+  /** Capacity check + status for the Populate action card. */
+  populateInfo?: PopulateInfo
+  /** Prelim-coverage check + status for the Roll Teams action card. */
+  rollInfo?: RollInfo
 }>()
 
 const emit = defineEmits<{
@@ -206,10 +223,6 @@ function saveEdit() {
       <span class="section-meta">
         {{ slots.length }} slots · {{ rooms.length }} rooms · {{ quizzes.length }} quizzes
       </span>
-      <div v-if="canPopulate" class="populate-actions no-print">
-        <button type="button" class="populate-btn" @click="onPopulate">Populate</button>
-        <button type="button" class="populate-btn" @click="onRoll">Roll teams</button>
-      </div>
       <div class="mode-toggle no-print" role="tablist" aria-label="Schedule view mode">
         <button
           type="button"
@@ -230,6 +243,59 @@ function saveEdit() {
           Team
         </button>
       </div>
+    </div>
+
+    <div v-if="canPopulate" class="draw-actions no-print">
+      <article class="action-card" :class="{ 'is-ready': populateInfo?.ready }">
+        <header class="action-head">
+          <h4 class="action-title">Populate</h4>
+          <span class="action-state">{{ populateInfo?.ready ? '✓ Ready' : '✗ Not ready' }}</span>
+        </header>
+        <p class="action-desc">
+          Creates a quiz card for every prelim and elim quiz, labelled
+          <code>{div} Qz {n}</code>, across the slot×room grid.
+        </p>
+        <dl class="action-stats">
+          <div>
+            <dt>Cells needed</dt>
+            <dd>{{ populateInfo?.needed ?? 0 }}</dd>
+          </div>
+          <div>
+            <dt>Cells available</dt>
+            <dd>{{ populateInfo?.capacity ?? 0 }}</dd>
+          </div>
+        </dl>
+        <p class="action-note">{{ populateInfo?.note }}</p>
+        <button
+          type="button"
+          class="action-btn"
+          :disabled="!populateInfo?.ready"
+          @click="onPopulate"
+        >
+          Populate
+        </button>
+      </article>
+
+      <article class="action-card" :class="{ 'is-ready': rollInfo?.ready }">
+        <header class="action-head">
+          <h4 class="action-title">Roll teams</h4>
+          <span class="action-state">{{ rollInfo?.ready ? '✓ Ready' : '✗ Not ready' }}</span>
+        </header>
+        <p class="action-desc">
+          Assigns teams to A/B/C seats in every prelim quiz using a balanced round-robin so each
+          team plays every other team roughly evenly.
+        </p>
+        <dl v-if="rollInfo?.perDivision.length" class="action-stats action-stats--divisions">
+          <div v-for="d in rollInfo.perDivision" :key="d.division">
+            <dt>Div {{ d.division }} prelims</dt>
+            <dd>{{ d.present }} / {{ d.needed }}</dd>
+          </div>
+        </dl>
+        <p class="action-note">{{ rollInfo?.note }}</p>
+        <button type="button" class="action-btn" :disabled="!rollInfo?.ready" @click="onRoll">
+          Roll teams
+        </button>
+      </article>
     </div>
 
     <p v-if="rooms.length === 0" class="empty">No rooms have been added to this meet yet.</p>
@@ -400,41 +466,134 @@ function saveEdit() {
   font-variant-numeric: tabular-nums;
 }
 
-.populate-actions {
-  margin-left: auto;
-  display: inline-flex;
-  gap: 0.4rem;
-}
-
-.populate-btn {
-  background: none;
-  border: 1px dashed var(--color-border);
-  border-radius: 6px;
-  padding: 0.35rem 0.75rem;
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-text-faint);
-  cursor: pointer;
-}
-
-.populate-btn:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
 .mode-toggle {
+  margin-left: auto;
   display: inline-flex;
   border: 1px solid var(--color-border);
   border-radius: 5px;
   overflow: hidden;
 }
 
-/* When populate-actions is present it owns the right-edge spacer; the
-   mode-toggle no longer needs margin-left:auto. Without populate-actions
-   (read-only view), the mode-toggle pushes itself right. */
-.section-header > .mode-toggle:last-child {
-  margin-left: auto;
+.draw-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.action-card {
+  border: 1px solid var(--color-border-alt);
+  border-radius: 8px;
+  padding: 0.85rem 1rem 0.95rem;
+  background: var(--color-bg-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.action-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.action-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-heading);
+}
+
+.action-state {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--palette-error);
+  text-transform: uppercase;
+}
+
+.action-card.is-ready .action-state {
+  color: var(--color-correct);
+}
+
+.action-desc {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.action-desc code {
+  font-size: 0.78rem;
+  color: var(--color-text);
+  font-family: inherit;
+}
+
+.action-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1.25rem;
+  margin: 0;
+}
+
+.action-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 5rem;
+}
+
+.action-stats dt {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-faint);
+}
+
+.action-stats dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.action-note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+  font-style: italic;
+}
+
+.action-card.is-ready .action-note {
+  color: var(--color-text-muted);
+  font-style: normal;
+}
+
+.action-btn {
+  align-self: flex-start;
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border: 0;
+  border-radius: 5px;
+  padding: 0.4rem 0.95rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.action-btn:disabled {
+  background: var(--color-bg);
+  color: var(--color-text-faint);
+  border: 1px solid var(--color-border-alt);
+  cursor: not-allowed;
 }
 
 .mode-toggle button {
