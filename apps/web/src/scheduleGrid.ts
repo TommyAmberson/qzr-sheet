@@ -1,5 +1,15 @@
 import type { MeetRoom, MeetSlot, ScheduledQuiz, ScheduledQuizSeat } from './api'
 
+/** Reserved event-label that marks the schedule's prelim/elim divider.
+ *  Stats break is required for Populate to know where prelim quizzes
+ *  end and elim quizzes begin; Skeleton treats it as un-deletable
+ *  without an extra confirmation. */
+export const STATS_BREAK_LABEL = 'Stats break'
+
+export function isStatsBreak(slot: MeetSlot): boolean {
+  return slot.kind === 'event' && slot.eventLabel === STATS_BREAK_LABEL
+}
+
 export interface GridRow {
   slot: MeetSlot
   /** Quiz at each room column (same order as `Grid.rooms`). null = empty cell.

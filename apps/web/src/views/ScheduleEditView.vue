@@ -9,7 +9,7 @@ import PrelimSetupSection from '../components/schedule/PrelimSetupSection.vue'
 import ReviewSection from '../components/schedule/ReviewSection.vue'
 import SkeletonSection from '../components/schedule/SkeletonSection.vue'
 import { useScheduleData } from '../composables/useScheduleData'
-import { bySortOrder } from '../scheduleGrid'
+import { bySortOrder, isStatsBreak } from '../scheduleGrid'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
@@ -157,43 +157,62 @@ async function onPopulateSkeleton() {
     }
 
     const plan = computePopulationPlan()
-    const quizSlots = slots.value.filter((s) => s.kind === 'quiz').sort(bySortOrder)
-    if (quizSlots.length === 0 || rooms.value.length === 0) {
+    const sorted = [...slots.value].sort(bySortOrder)
+    const breakIdx = sorted.findIndex(isStatsBreak)
+    if (breakIdx === -1) {
+      alert('Add a Stats break in Skeleton — Populate uses it as the prelim/elim divider.')
+      return
+    }
+    const prelimSlots = sorted.slice(0, breakIdx).filter((s) => s.kind === 'quiz')
+    const elimSlots = sorted.slice(breakIdx + 1).filter((s) => s.kind === 'quiz')
+    if ((prelimSlots.length === 0 && elimSlots.length === 0) || rooms.value.length === 0) {
       alert('Add slots in Skeleton and rooms to the meet before populating.')
       return
     }
 
-    const cells = plan.length
-    const capacity = quizSlots.length * rooms.value.length
-    if (cells > capacity) {
-      const ok = confirm(`Need ${cells} cells but only ${capacity} are available. Truncate to fit?`)
+    const prelimPlan = plan.filter((p) => p.phase === 'prelim')
+    const elimPlan = plan.filter((p) => p.phase === 'elim')
+    const prelimCapacity = prelimSlots.length * rooms.value.length
+    const elimCapacity = elimSlots.length * rooms.value.length
+    if (prelimPlan.length > prelimCapacity || elimPlan.length > elimCapacity) {
+      const ok = confirm(
+        `Plan exceeds capacity (prelim ${prelimPlan.length}/${prelimCapacity}, elim ${elimPlan.length}/${elimCapacity}). Truncate to fit?`,
+      )
       if (!ok) return
     }
 
-    let i = 0
-    for (const slot of quizSlots) {
-      for (const room of rooms.value) {
-        if (i >= plan.length) break
-        const item = plan[i]!
-        await createQuiz({
-          slotId: slot.id,
-          roomId: room.id,
-          division: item.division,
-          phase: item.phase,
-          label: item.label,
-          seats: [
-            { seatNumber: 1, letter: 'A' },
-            { seatNumber: 2, letter: 'B' },
-            { seatNumber: 3, letter: 'C' },
-          ],
-        })
-        i++
-      }
-    }
+    await fillSlots(prelimSlots, prelimPlan)
+    await fillSlots(elimSlots, elimPlan)
   } catch (e) {
     alert((e as Error).message)
   } finally {
     populating.value = false
+  }
+}
+
+async function fillSlots(
+  targetSlots: typeof slots.value,
+  items: ReturnType<typeof computePopulationPlan>,
+) {
+  let i = 0
+  for (const slot of targetSlots) {
+    for (const room of rooms.value) {
+      if (i >= items.length) return
+      const item = items[i]!
+      await createQuiz({
+        slotId: slot.id,
+        roomId: room.id,
+        division: item.division,
+        phase: item.phase,
+        label: item.label,
+        seats: [
+          { seatNumber: 1, letter: 'A' },
+          { seatNumber: 2, letter: 'B' },
+          { seatNumber: 3, letter: 'C' },
+        ],
+      })
+      i++
+    }
   }
 }
 
@@ -232,9 +251,21 @@ function selectTab(tab: TabId) {
 /** Capacity check fed into the Draw section's Populate card so the
  *  user can see if there's room before clicking. */
 const populateInfo = computed(() => {
-  const needed = computePopulationPlan().length
-  const quizSlotCount = slots.value.filter((s) => s.kind === 'quiz').length
-  const capacity = quizSlotCount * rooms.value.length
+  const plan = computePopulationPlan()
+  const prelimNeeded = plan.filter((p) => p.phase === 'prelim').length
+  const elimNeeded = plan.filter((p) => p.phase === 'elim').length
+  const needed = plan.length
+
+  const sorted = [...slots.value].sort(bySortOrder)
+  const breakIdx = sorted.findIndex(isStatsBreak)
+  const prelimSlots =
+    breakIdx === -1 ? [] : sorted.slice(0, breakIdx).filter((s) => s.kind === 'quiz')
+  const elimSlots =
+    breakIdx === -1 ? [] : sorted.slice(breakIdx + 1).filter((s) => s.kind === 'quiz')
+  const prelimCapacity = prelimSlots.length * rooms.value.length
+  const elimCapacity = elimSlots.length * rooms.value.length
+  const capacity = prelimCapacity + elimCapacity
+
   let note: string
   let ready: boolean
   if (divisions.value.length === 0) {
@@ -243,14 +274,21 @@ const populateInfo = computed(() => {
   } else if (needed === 0) {
     note = 'Set team counts in Prelim setup and lane sizes in Elim setup.'
     ready = false
-  } else if (quizSlotCount === 0) {
-    note = 'Add quiz slots in Skeleton.'
-    ready = false
   } else if (rooms.value.length === 0) {
     note = 'Add rooms to the meet on the dashboard.'
     ready = false
-  } else if (capacity < needed) {
-    note = `${needed - capacity} cells short — add slots or rooms (or remove some quizzes from the plan).`
+  } else if (breakIdx === -1) {
+    note = 'No stats break in Skeleton. Add one to mark where prelims end and elims begin.'
+    ready = false
+  } else if (prelimCapacity < prelimNeeded || elimCapacity < elimNeeded) {
+    const issues: string[] = []
+    if (prelimCapacity < prelimNeeded) {
+      issues.push(`${prelimNeeded - prelimCapacity} prelim cells short before stats break`)
+    }
+    if (elimCapacity < elimNeeded) {
+      issues.push(`${elimNeeded - elimCapacity} elim cells short after stats break`)
+    }
+    note = `${issues.join(', ')} — add slots or move the stats break.`
     ready = false
   } else {
     const spare = capacity - needed

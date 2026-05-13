@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 import { type MeetRoom, type MeetSlot } from '../../api'
-import { bySortOrder, formatSlotTime } from '../../scheduleGrid'
+import { bySortOrder, formatSlotTime, isStatsBreak, STATS_BREAK_LABEL } from '../../scheduleGrid'
 import TimePickerButton from './TimePickerButton.vue'
 
 interface PickerTime {
@@ -154,7 +154,7 @@ function onLabelChange(slot: MeetSlot, event: Event) {
   emit('update-slot', { slotId: slot.id, patch: { eventLabel: label } })
 }
 
-function addSlot(kind: 'quiz' | 'event') {
+function addSlot(kind: 'quiz' | 'event', eventLabel: string | null = null) {
   const last = sortedSlots.value[sortedSlots.value.length - 1]
   const startAt = last
     ? new Date(new Date(last.startAt).getTime() + last.durationMinutes * 60_000).toISOString()
@@ -165,10 +165,20 @@ function addSlot(kind: 'quiz' | 'event') {
     startAt,
     durationMinutes,
     kind,
-    eventLabel: kind === 'event' ? '' : null,
+    eventLabel: kind === 'event' ? (eventLabel ?? '') : null,
     sortOrder,
   })
 }
+
+function addStatsBreak() {
+  if (props.slots.some(isStatsBreak)) {
+    alert('There is already a stats break. Move it instead of adding another.')
+    return
+  }
+  addSlot('event', STATS_BREAK_LABEL)
+}
+
+const hasStatsBreak = computed(() => props.slots.some(isStatsBreak))
 
 function addDay() {
   const last = sortedSlots.value[sortedSlots.value.length - 1]
@@ -187,11 +197,21 @@ function addDay() {
 }
 
 function deleteSlot(slot: MeetSlot) {
-  const label =
-    slot.kind === 'event'
-      ? slot.eventLabel || 'this event'
-      : `the ${formatSlotTime(slot.startAt)} round`
-  if (!confirm(`Delete ${label}?`)) return
+  if (isStatsBreak(slot)) {
+    if (
+      !confirm(
+        `The stats break separates prelims from elims. Populate won't run without one. Delete anyway?`,
+      )
+    ) {
+      return
+    }
+  } else {
+    const label =
+      slot.kind === 'event'
+        ? slot.eventLabel || 'this event'
+        : `the ${formatSlotTime(slot.startAt)} round`
+    if (!confirm(`Delete ${label}?`)) return
+  }
   emit('delete-slot', slot.id)
 }
 </script>
@@ -245,7 +265,10 @@ function deleteSlot(slot: MeetSlot) {
             <tr
               v-for="(slot, idx) in group.slots"
               :key="slot.id"
-              :class="{ 'event-row': slot.kind === 'event' }"
+              :class="{
+                'event-row': slot.kind === 'event',
+                'stats-break-row': isStatsBreak(slot),
+              }"
             >
               <th class="time-col" scope="row">
                 <TimePickerButton
@@ -262,6 +285,9 @@ function deleteSlot(slot: MeetSlot) {
                 <div class="slot-inner">
                   <span v-if="slot.kind === 'quiz'" class="slot-label">
                     Round {{ roundNumbers.get(slot.id) }}
+                  </span>
+                  <span v-else-if="isStatsBreak(slot)" class="slot-label slot-label--stats-break">
+                    {{ STATS_BREAK_LABEL }}
                   </span>
                   <input
                     v-else-if="editable"
@@ -313,6 +339,15 @@ function deleteSlot(slot: MeetSlot) {
       </button>
       <button type="button" class="add-btn" :disabled="days.length === 0" @click="addSlot('event')">
         + Event
+      </button>
+      <button
+        type="button"
+        class="add-btn"
+        :disabled="days.length === 0 || hasStatsBreak"
+        :title="hasStatsBreak ? 'Already in the schedule' : 'Required before populate'"
+        @click="addStatsBreak"
+      >
+        + Stats break
       </button>
       <button type="button" class="add-btn add-btn--day" @click="addDay">+ Day</button>
     </div>
@@ -457,6 +492,20 @@ thead .time-col {
 
 .event-row .slot-cell {
   background: var(--color-bg-warm);
+}
+
+.stats-break-row .slot-cell {
+  background: var(--color-bg-raised);
+  border-top: 2px solid var(--color-accent);
+  border-bottom: 2px solid var(--color-accent);
+}
+
+.slot-label--stats-break {
+  color: var(--color-accent);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .slot-inner {
