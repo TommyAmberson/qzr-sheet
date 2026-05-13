@@ -35,7 +35,14 @@ interface PopulateInfo {
 
 interface RollInfo {
   ready: boolean
-  perDivision: Array<{ division: string; needed: number; present: number }>
+  perDivision: Array<{
+    division: string
+    needed: number
+    present: number
+    /** null when this division's prelim quizzes form a valid round-robin;
+     *  otherwise a one-line reason it doesn't. */
+    issue: string | null
+  }>
   note: string
 }
 
@@ -286,9 +293,16 @@ function saveEdit() {
           team plays every other team roughly evenly.
         </p>
         <dl v-if="rollInfo?.perDivision.length" class="action-stats action-stats--divisions">
-          <div v-for="d in rollInfo.perDivision" :key="d.division">
-            <dt>Div {{ d.division }} prelims</dt>
-            <dd>{{ d.present }} / {{ d.needed }}</dd>
+          <div
+            v-for="d in rollInfo.perDivision"
+            :key="d.division"
+            :class="{ 'action-stat--ok': d.issue === null }"
+          >
+            <dt>
+              Div {{ d.division }}
+              <span class="action-stat-flag">{{ d.issue === null ? '✓' : '✗' }}</span>
+            </dt>
+            <dd>{{ d.present }} / {{ d.needed }} prelims</dd>
           </div>
         </dl>
         <p class="action-note">{{ rollInfo?.note }}</p>
@@ -558,6 +572,21 @@ function saveEdit() {
   font-weight: 600;
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
+}
+
+.action-stats--divisions > div dd {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.action-stat-flag {
+  margin-left: 0.2rem;
+  color: var(--palette-error);
+}
+
+.action-stats--divisions > .action-stat--ok .action-stat-flag {
+  color: var(--color-correct);
 }
 
 .action-note {

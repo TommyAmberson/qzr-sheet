@@ -252,15 +252,22 @@ const populateInfo = computed(() => {
   return { needed, capacity, ready, note }
 })
 
-/** Per-division prelim coverage check fed into the Roll Teams card. */
+/** Per-division prelim readiness check fed into the Roll Teams card.
+ *  Roll Teams needs every prelim quiz already shaped like a valid
+ *  round-robin: right number of quizzes, every team-letter appearing
+ *  exactly 3 times (each team plays 3 prelims), no duplicate letters
+ *  within a quiz, and pair co-occurrence balanced (max − min ≤ 1).
+ *  Once those preconditions hold, the actual rolling step just maps
+ *  letters to team identities. */
 const rollInfo = computed(() => {
   const perDivision = divisions.value.map((division) => {
     const needed = teamCounts.value[division] ?? 0
-    const present = quizzes.value.filter(
-      (q) => q.division === division && q.phase === 'prelim',
-    ).length
-    return { division, needed, present }
+    const prelims = quizzes.value.filter((q) => q.division === division && q.phase === 'prelim')
+    const present = prelims.length
+    const issue = checkPrelimRoundRobin(needed, prelims)
+    return { division, needed, present, issue }
   })
+
   let note: string
   let ready: boolean
   if (perDivision.length === 0) {
@@ -270,23 +277,83 @@ const rollInfo = computed(() => {
     note = 'No teams in any division — set up Prelim first.'
     ready = false
   } else {
-    const issues = perDivision
-      .filter((d) => d.needed !== d.present)
-      .map((d) =>
-        d.present < d.needed
-          ? `Div ${d.division} short by ${d.needed - d.present}`
-          : `Div ${d.division} has ${d.present - d.needed} extra`,
-      )
-    if (issues.length === 0) {
-      note = 'Every division has the right number of prelim quizzes.'
+    const blocked = perDivision.filter((d) => d.issue !== null)
+    if (blocked.length === 0) {
+      note = 'Every division has a valid round-robin layout.'
       ready = true
     } else {
-      note = `${issues.join('. ')}. Run Populate first.`
+      note = blocked.map((d) => `Div ${d.division}: ${d.issue}`).join('. ') + '.'
       ready = false
     }
   }
   return { perDivision, ready, note }
 })
+
+/** Returns null if the division's prelim quizzes form a valid letter-
+ *  level round-robin, or a one-line reason if not. The caller already
+ *  knows the team count; we don't gate on `present === needed` first
+ *  because the per-letter check naturally surfaces both shortfalls and
+ *  shape problems. */
+function checkPrelimRoundRobin(
+  teamCount: number,
+  prelims: { label: string; seats: { letter: string | null }[] }[],
+): string | null {
+  if (teamCount === 0) return 'no teams in division'
+  if (prelims.length !== teamCount) {
+    return prelims.length < teamCount
+      ? `${teamCount - prelims.length} prelim ${teamCount - prelims.length === 1 ? 'quiz' : 'quizzes'} short`
+      : `${prelims.length - teamCount} extra prelim ${prelims.length - teamCount === 1 ? 'quiz' : 'quizzes'}`
+  }
+  const expected = Array.from({ length: teamCount }, (_, i) => String.fromCharCode(65 + i))
+  const expectedSet = new Set(expected)
+  const occ: Record<string, number> = {}
+  for (const l of expected) occ[l] = 0
+
+  for (const q of prelims) {
+    if (q.seats.length !== 3) return `${q.label} has ${q.seats.length} seats (need 3)`
+    const inQuiz = new Set<string>()
+    for (const seat of q.seats) {
+      const letter = seat.letter
+      if (!letter) return `${q.label} has an empty seat`
+      if (!expectedSet.has(letter)) {
+        return `${q.label} uses letter ${letter} (only A–${expected[expected.length - 1]} expected)`
+      }
+      if (inQuiz.has(letter)) return `${q.label} has duplicate ${letter}`
+      inQuiz.add(letter)
+      occ[letter] = (occ[letter] ?? 0) + 1
+    }
+  }
+
+  for (const l of expected) {
+    if (occ[l] !== 3) return `${l} appears ${occ[l]}× (need 3)`
+  }
+
+  // Pair distribution. Each quiz contributes 3 unordered pairs; for a
+  // well-balanced round-robin every pair occurs roughly the same number
+  // of times (max − min ≤ 1).
+  const pair: Record<string, number> = {}
+  for (const q of prelims) {
+    const letters = q.seats.map((s) => s.letter!).sort()
+    for (let i = 0; i < letters.length; i++) {
+      for (let j = i + 1; j < letters.length; j++) {
+        const key = `${letters[i]}|${letters[j]}`
+        pair[key] = (pair[key] ?? 0) + 1
+      }
+    }
+  }
+  const counts = Object.values(pair)
+  if (counts.length === 0) return null
+  const totalPairs = (teamCount * (teamCount - 1)) / 2
+  const usedPairs = counts.length
+  // Pairs that never co-occur are min=0; account for them only if some
+  // exist (otherwise the inferred minimum would be misleading).
+  const min = usedPairs < totalPairs ? 0 : Math.min(...counts)
+  const max = Math.max(...counts)
+  if (max - min > 1) {
+    return `pair distribution unbalanced (some meet ${max}×, others ${min}×)`
+  }
+  return null
+}
 
 /** Total quiz budget across all divisions. Threaded down so SkeletonSection
  *  can show capacity vs budget without recomputing. */
