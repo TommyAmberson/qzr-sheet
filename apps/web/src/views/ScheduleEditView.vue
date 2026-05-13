@@ -78,12 +78,22 @@ async function onDeleteQuiz(quizId: number) {
   }
 }
 
-type TabId = 'prelim' | 'elim' | 'skeleton' | 'review'
+function onPopulateSkeleton() {
+  alert(
+    'Populate skeleton — coming soon. Will create empty quiz cards across the slot×room grid based on lane sizes from Prelim/Elim setup.',
+  )
+}
+
+function onRollTeams() {
+  alert('Roll Teams — coming soon. Will assign team letters to seats using a balanced rotation.')
+}
+
+type TabId = 'prelim' | 'elim' | 'skeleton' | 'draw'
 const TABS: { id: TabId; label: string }[] = [
   { id: 'prelim', label: 'Prelim setup' },
   { id: 'elim', label: 'Elim setup' },
   { id: 'skeleton', label: 'Skeleton' },
-  { id: 'review', label: 'Review' },
+  { id: 'draw', label: 'Draw' },
 ]
 const VALID_TABS = new Set<TabId>(TABS.map((t) => t.id))
 
@@ -198,13 +208,17 @@ onMounted(async () => {
       />
 
       <ReviewSection
-        v-else-if="activeTab === 'review'"
+        v-else-if="activeTab === 'draw'"
         :rooms="rooms"
         :slots="slots"
         :quizzes="quizzes"
         :editable="isAdmin"
+        :section-title="'Draw'"
+        :can-populate="isAdmin"
         @update-slot="onUpdateSlot"
         @delete-quiz="onDeleteQuiz"
+        @populate-skeleton="onPopulateSkeleton"
+        @roll-teams="onRollTeams"
       />
     </template>
   </div>

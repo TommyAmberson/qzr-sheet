@@ -18,12 +18,36 @@ const props = defineProps<{
   /** When true, each row's time becomes a picker and quiz cards get a
    *  delete button. Defaults to read-only. */
   editable?: boolean
+  /** Override the section heading. Default "Review" suits the read-only
+   *  view; "Draw" is more accurate when editing. */
+  sectionTitle?: string
+  /** When true, show the Populate / Roll Teams action buttons. */
+  canPopulate?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update-slot', payload: { slotId: number; patch: { startAt: string } }): void
   (e: 'delete-quiz', quizId: number): void
+  (e: 'populate-skeleton'): void
+  (e: 'roll-teams'): void
 }>()
+
+function confirmOverwrite(action: string): boolean {
+  if (props.quizzes.length === 0) return true
+  return confirm(
+    `${action} will overwrite ${props.quizzes.length} existing quiz${props.quizzes.length === 1 ? '' : 'es'}. Continue?`,
+  )
+}
+
+function onPopulate() {
+  if (!confirmOverwrite('Populating the schedule')) return
+  emit('populate-skeleton')
+}
+
+function onRoll() {
+  if (!confirmOverwrite('Rolling teams')) return
+  emit('roll-teams')
+}
 
 type Mode = 'letter' | 'team'
 
@@ -62,10 +86,14 @@ function onDeleteQuiz(quiz: ScheduledQuiz) {
 <template>
   <section class="section">
     <div class="section-header">
-      <h3 class="section-title">Review</h3>
+      <h3 class="section-title">{{ sectionTitle ?? 'Review' }}</h3>
       <span class="section-meta">
         {{ slots.length }} slots · {{ rooms.length }} rooms · {{ quizzes.length }} quizzes
       </span>
+      <div v-if="canPopulate" class="populate-actions no-print">
+        <button type="button" class="populate-btn" @click="onPopulate">Populate</button>
+        <button type="button" class="populate-btn" @click="onRoll">Roll teams</button>
+      </div>
       <div class="mode-toggle no-print" role="tablist" aria-label="Schedule view mode">
         <button
           type="button"
@@ -196,12 +224,41 @@ function onDeleteQuiz(quiz: ScheduledQuiz) {
   font-variant-numeric: tabular-nums;
 }
 
-.mode-toggle {
+.populate-actions {
   margin-left: auto;
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.populate-btn {
+  background: none;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  cursor: pointer;
+}
+
+.populate-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.mode-toggle {
   display: inline-flex;
   border: 1px solid var(--color-border);
   border-radius: 5px;
   overflow: hidden;
+}
+
+/* When populate-actions is present it owns the right-edge spacer; the
+   mode-toggle no longer needs margin-left:auto. Without populate-actions
+   (read-only view), the mode-toggle pushes itself right. */
+.section-header > .mode-toggle:last-child {
+  margin-left: auto;
 }
 
 .mode-toggle button {
