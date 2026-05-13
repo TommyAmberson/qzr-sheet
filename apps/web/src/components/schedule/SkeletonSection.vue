@@ -1,8 +1,16 @@
 <script setup lang="ts">
+import { VueDatePicker } from '@vuepic/vue-datepicker'
+import '@vuepic/vue-datepicker/dist/main.css'
 import { computed } from 'vue'
 
 import { type MeetRoom, type MeetSlot } from '../../api'
 import { bySortOrder, formatSlotTime } from '../../scheduleGrid'
+
+interface PickerTime {
+  hours: number
+  minutes: number
+  seconds?: number
+}
 
 const props = defineProps<{
   rooms: MeetRoom[]
@@ -92,13 +100,6 @@ function dayLabel(d: Date): string {
   })
 }
 
-function timeOfDay(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 /** Combine the date portion of `iso` with `HH:mm` into a new ISO string. */
 function withTimeOfDay(iso: string, hhmm: string): string | null {
   const d = new Date(iso)
@@ -109,10 +110,32 @@ function withTimeOfDay(iso: string, hhmm: string): string | null {
   return d.toISOString()
 }
 
+/** Used to pick the picker's dark/light theme. Reactive enough for a
+ *  one-time SSR-free read; the page reloads on theme change anyway. */
+const prefersDark =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-color-scheme: dark)').matches
+
+/** Whether the user's locale prefers 24-hour clock display. */
+const pickerTimeConfig = {
+  is24: !new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hour12,
+  minutesGridIncrement: 5,
+}
+
+/** Current hour/minute of the day anchor, in the shape VueDatePicker
+ *  expects for time-picker mode. */
+function anchorTimeModel(iso: string): PickerTime {
+  const d = new Date(iso)
+  return { hours: d.getHours(), minutes: d.getMinutes() }
+}
+
 /** When the day-anchor moves, shift every slot in that day by the same
- *  delta. Keeps each slot's relative position in the chain stable. */
-function onAnchorTimeChange(group: DayGroup, event: Event) {
-  const hhmm = (event.target as HTMLInputElement).value
+ *  delta so each slot's relative position in the chain stays stable. */
+function onAnchorPickerChange(group: DayGroup, value: PickerTime | null) {
+  if (!value) return
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const hhmm = `${pad(value.hours)}:${pad(value.minutes)}`
   const anchor = group.slots[0]
   if (!anchor) return
   const newStart = withTimeOfDay(anchor.startAt, hhmm)
@@ -239,20 +262,27 @@ function deleteSlot(slot: MeetSlot) {
               :class="{ 'event-row': slot.kind === 'event' }"
             >
               <th class="time-col" scope="row">
-                <label
+                <VueDatePicker
                   v-if="idx === 0 && editable"
-                  class="time-editor"
-                  :title="`Change start time for ${group.label}`"
+                  :model-value="anchorTimeModel(slot.startAt)"
+                  time-picker
+                  :time-config="pickerTimeConfig"
+                  auto-apply
+                  :dark="prefersDark"
+                  @update:model-value="onAnchorPickerChange(group, $event)"
                 >
-                  <span class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
-                  <span class="time-edit-icon" aria-hidden="true">✎</span>
-                  <input
-                    type="time"
-                    class="time-overlay"
-                    :value="timeOfDay(slot.startAt)"
-                    @change="onAnchorTimeChange(group, $event)"
-                  />
-                </label>
+                  <template #trigger="{ toggleMenu }">
+                    <button
+                      type="button"
+                      class="time-editor"
+                      :title="`Change start time for ${group.label}`"
+                      @click="toggleMenu"
+                    >
+                      <span class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
+                      <span class="time-edit-icon" aria-hidden="true">✎</span>
+                    </button>
+                  </template>
+                </VueDatePicker>
                 <span v-else class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
               </th>
               <td class="slot-cell" :colspan="contentColspan">
@@ -500,15 +530,20 @@ thead .time-col {
   background: var(--color-bg);
 }
 
+/* Real <button> so the click carries transient activation for
+   showPicker(); the time input lives next to it, visually hidden. */
 .time-editor {
-  position: relative;
   display: inline-flex;
   align-items: baseline;
   gap: 0.35rem;
   cursor: pointer;
   color: var(--color-text);
+  font: inherit;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+  background: none;
+  border: 0;
+  padding: 0;
 }
 
 .time-editor .time-edit-icon {
@@ -519,30 +554,26 @@ thead .time-col {
 }
 
 .time-editor:hover .time-edit-icon,
-.time-editor:focus-within .time-edit-icon {
+.time-editor:focus-visible .time-edit-icon {
   opacity: 1;
 }
 
 .time-editor:hover .time-text,
-.time-editor:focus-within .time-text {
+.time-editor:focus-visible .time-text {
   color: var(--color-accent);
 }
 
-/* The native time picker is the actual control — overlaid invisibly so
-   clicks land on it (which opens the picker). The label-wrap also makes
-   focus accessible. */
-.time-overlay {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  font: inherit;
-  border: none;
-  padding: 0;
-  margin: 0;
-  background: transparent;
+/* VueDatePicker wraps the #trigger slot in a div with class .dp__main.
+   Strip its default block styling so the button still centers in the
+   time-col cell like the read-only span does. */
+:deep(.dp__main) {
+  display: inline-block;
+}
+
+:deep(.dp__theme_light),
+:deep(.dp__theme_dark) {
+  --dp-border-radius: 6px;
+  --dp-font-family: inherit;
 }
 
 .event-input {
