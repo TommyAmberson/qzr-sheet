@@ -570,6 +570,44 @@ thead .time-col {
 :deep(.dp__theme_dark) {
   --dp-border-radius: 6px;
   --dp-font-family: inherit;
+  --dp-primary-color: var(--color-accent);
+  --dp-menu-min-width: 200px;
+  --dp-menu-padding: 10px 18px;
+}
+
+:deep(.dp__theme_light) {
+  --dp-background-color: var(--color-bg-raised);
+  --dp-text-color: var(--color-text);
+  --dp-hover-color: var(--color-bg);
+  --dp-hover-text-color: var(--color-text);
+  --dp-menu-border-color: var(--color-border-alt);
+  --dp-border-color: var(--color-border-alt);
+  --dp-icon-color: var(--color-text-muted);
+}
+
+:deep(.dp__theme_dark) {
+  --dp-background-color: var(--color-bg-raised);
+  --dp-text-color: var(--color-text);
+  --dp-hover-color: var(--color-bg);
+  --dp-hover-text-color: var(--color-text);
+  --dp-menu-border-color: var(--color-border);
+  --dp-border-color: var(--color-border);
+  --dp-icon-color: var(--color-text-muted);
+}
+
+/* The arrow points to wherever the popup happens to align with the
+   trigger — when the popup is wider than our compact button, it lands
+   off-center. Just drop it; the boxed popup reads cleanly on its own. */
+:deep(.dp__arrow_top),
+:deep(.dp__arrow_bottom) {
+  display: none;
+}
+
+/* The AM/PM button lives in an unclassed <div> wrapper, so neither
+   the surrounding menu padding nor the hour/minute column padding
+   reaches it — it hugs the popup's right edge. Give it room directly. */
+:deep(.dp__pm_am_button) {
+  margin-inline-end: 0.75rem;
 }
 
 .event-input {
