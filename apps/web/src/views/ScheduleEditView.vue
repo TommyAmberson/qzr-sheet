@@ -110,8 +110,9 @@ async function onUpdateQuiz(payload: {
 }
 
 /** Compute the per-division quiz plan from prelim team counts and elim
- *  lane structure. Each entry is one quiz card to create; labels follow
- *  the "{div} Qz {n}" convention used in docs/example-winkler-2026.md. */
+ *  lane structure. Labels follow `D{div}-Q{n}` for prelims (numbered)
+ *  and `D{div}-Q{A,B,C…}` for elims (lettered, since those are bracket
+ *  positions like SF/F rather than ordered rounds). */
 function computePopulationPlan(): Array<{
   division: string
   phase: 'prelim' | 'elim'
@@ -126,12 +127,11 @@ function computePopulationPlan(): Array<{
     const elimCount =
       estimateLaneQuizzes(mainSize) +
       extras.reduce((sum, l) => sum + estimateLaneQuizzes(l.teamCount), 0)
-    let n = 1
     for (let i = 0; i < teams; i++) {
-      plan.push({ division: div, phase: 'prelim', label: `${div} Qz ${n++}` })
+      plan.push({ division: div, phase: 'prelim', label: `D${div}-Q${i + 1}` })
     }
     for (let i = 0; i < elimCount; i++) {
-      plan.push({ division: div, phase: 'elim', label: `${div} Qz ${n++}` })
+      plan.push({ division: div, phase: 'elim', label: `D${div}-Q${String.fromCharCode(65 + i)}` })
     }
   }
   return plan

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 
 import { type MeetRoom, type MeetSlot, type ScheduledQuiz, type SeatInput } from '../../api'
 import { buildGrid, formatSlotTime, hasAnyQuiz, seatRef, seatTeam } from '../../scheduleGrid'
@@ -158,10 +158,10 @@ function openEditDialog(slot: MeetSlot, room: MeetRoom, quiz: ScheduledQuiz | nu
       return { seatNumber: n, letter: existing?.letter ?? '' }
     })
   } else {
-    const div = props.divisions?.[0] ?? quiz_existing_div() ?? ''
+    const div = props.divisions?.[0] ?? props.quizzes[0]?.division ?? ''
     editForm.division = div
     editForm.phase = 'prelim'
-    editForm.label = div ? `${div} Qz ${nextQuizNumberFor(div)}` : ''
+    editForm.label = div ? defaultQuizLabel(div, 'prelim') : ''
     editForm.seats = [
       { seatNumber: 1, letter: 'A' },
       { seatNumber: 2, letter: 'B' },
@@ -170,29 +170,44 @@ function openEditDialog(slot: MeetSlot, room: MeetRoom, quiz: ScheduledQuiz | nu
   }
 }
 
-/** Fallback: if `divisions` prop is empty, infer from existing quizzes. */
-function quiz_existing_div(): string | null {
-  return props.quizzes[0]?.division ?? null
-}
-
-/** Lowest unused trailing-integer in this division's labels — same logic
- *  as the composable's nextQuizNumber, replicated here so the form can
- *  preview the suggested label without round-tripping. */
-function nextQuizNumberFor(division: string): number {
-  const used = new Set<number>()
-  for (const q of props.quizzes) {
-    if (q.division !== division) continue
-    const m = q.label.match(/(\d+)\s*$/)
-    if (m) used.add(Number(m[1]))
+/** Suggested label for a new quiz card. Prelims are numbered, elims are
+ *  lettered (matching the populate convention). */
+function defaultQuizLabel(division: string, phase: 'prelim' | 'elim'): string {
+  if (phase === 'prelim') {
+    const used = new Set<number>()
+    for (const q of props.quizzes) {
+      if (q.division !== division || q.phase !== 'prelim') continue
+      const m = q.label.match(/(\d+)\s*$/)
+      if (m) used.add(Number(m[1]))
+    }
+    let n = 1
+    while (used.has(n)) n++
+    return `D${division}-Q${n}`
   }
-  let n = 1
-  while (used.has(n)) n++
-  return n
+  const used = new Set<string>()
+  for (const q of props.quizzes) {
+    if (q.division !== division || q.phase !== 'elim') continue
+    const m = q.label.match(/([A-Z])\s*$/)
+    if (m) used.add(m[1]!)
+  }
+  let code = 65
+  while (used.has(String.fromCharCode(code))) code++
+  return `D${division}-Q${String.fromCharCode(code)}`
 }
 
 function closeEditDialog() {
   editingCell.value = null
 }
+
+/** When user switches phase or division while adding a new quiz, refresh
+ *  the suggested label so the format keeps matching the chosen phase. */
+watch(
+  () => [editForm.division, editForm.phase] as const,
+  ([div, phase]) => {
+    if (!editingCell.value || editingCell.value.quiz || !div) return
+    editForm.label = defaultQuizLabel(div, phase)
+  },
+)
 
 function saveEdit() {
   if (!editingCell.value) return
