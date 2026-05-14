@@ -248,10 +248,17 @@ export function useScheduleData(slug: Ref<string>) {
    *  reshuffled on the visible schedule. Repeats until no further
    *  beneficial swap is possible.
    *
+   *  Strategy: walk slots from the LATEST backward; whenever a slot
+   *  holds a non-late quiz, look for an earlier late quiz to drag into
+   *  its place. This both (a) moves late quizzes toward the end and
+   *  (b) re-pairs them — when the late quiz arrives at the late tail
+   *  it may now share its slot with another late quiz, freeing the
+   *  former non-late partner to move to an earlier slot.
+   *
    *  Safety: a swap is rejected if it would put any letter in two
-   *  simultaneous quizzes within the same division (which would mean
-   *  one team is in two rooms at the same time). Cross-division
-   *  conflicts can't happen — letters are scoped per division.
+   *  simultaneous quizzes within the same division (a team can't be
+   *  in two rooms at the same time). Cross-division conflicts can't
+   *  happen — letters are scoped per division.
    *
    *  Returns the count of swaps applied. */
   async function swapLateTeamsLater(division: string): Promise<number> {
@@ -292,42 +299,44 @@ export function useScheduleData(slug: Ref<string>) {
         for (const s of q.seats) if (s.letter && lateLetters.has(s.letter)) return true
         return false
       }
-
-      const earlyIdx = prelims.findIndex((p) => containsLate(p.quiz))
-      if (earlyIdx === -1) return swapsApplied
-      const early = prelims[earlyIdx]!
-      const earlyLetters = lettersOf(early.quiz)
-
-      let didSwap = false
-      for (let j = prelims.length - 1; j > earlyIdx; j--) {
-        const later = prelims[j]!
-        if (containsLate(later.quiz)) continue
-        const laterLetters = lettersOf(later.quiz)
-
-        // After-swap conflict check: the moving quiz can't share a
-        // letter with any sibling quiz already at its destination slot.
-        const conflictsAt = (
-          slotId: number,
-          excludeQuizId: number,
-          movingLetters: Set<string>,
-        ): boolean => {
-          for (const p of prelims) {
-            if (p.quiz.id === excludeQuizId) continue
-            if (p.slot.id !== slotId) continue
-            const others = lettersOf(p.quiz)
-            for (const l of movingLetters) if (others.has(l)) return true
-          }
-          return false
+      const conflictsAt = (
+        slotId: number,
+        excludeQuizId: number,
+        movingLetters: Set<string>,
+      ): boolean => {
+        for (const p of prelims) {
+          if (p.quiz.id === excludeQuizId) continue
+          if (p.slot.id !== slotId) continue
+          const others = lettersOf(p.quiz)
+          for (const l of movingLetters) if (others.has(l)) return true
         }
-        if (conflictsAt(later.slot.id, later.quiz.id, earlyLetters)) continue
-        if (conflictsAt(early.slot.id, early.quiz.id, laterLetters)) continue
+        return false
+      }
 
-        // Swap slot/room only — labels and seats stay attached.
-        await updateQuiz(early.quiz.id, { slotId: later.slot.id, roomId: later.room.id })
-        await updateQuiz(later.quiz.id, { slotId: early.slot.id, roomId: early.room.id })
-        swapsApplied++
-        didSwap = true
-        break
+      // Walk from latest slot backward, dragging late quizzes from
+      // earlier into the position of the latest non-late quiz we find.
+      let didSwap = false
+      for (let i = prelims.length - 1; i >= 0 && !didSwap; i--) {
+        const target = prelims[i]!
+        if (containsLate(target.quiz)) continue
+        const targetLetters = lettersOf(target.quiz)
+
+        // Iterate earlier late quizzes (oldest first → biggest distance
+        // to push). Pick the first one whose swap is conflict-free.
+        for (let j = 0; j < i; j++) {
+          const source = prelims[j]!
+          if (!containsLate(source.quiz)) continue
+          const sourceLetters = lettersOf(source.quiz)
+
+          if (conflictsAt(target.slot.id, target.quiz.id, sourceLetters)) continue
+          if (conflictsAt(source.slot.id, source.quiz.id, targetLetters)) continue
+
+          await updateQuiz(target.quiz.id, { slotId: source.slot.id, roomId: source.room.id })
+          await updateQuiz(source.quiz.id, { slotId: target.slot.id, roomId: target.room.id })
+          swapsApplied++
+          didSwap = true
+          break
+        }
       }
 
       if (!didSwap) return swapsApplied
