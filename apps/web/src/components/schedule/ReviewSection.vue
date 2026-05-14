@@ -83,9 +83,12 @@ const emit = defineEmits<{
   (e: 'delete-quiz', quizId: number): void
   (e: 'populate-skeleton'): void
   (e: 'roll-teams'): void
+  (e: 'swap-late-teams'): void
   (e: 'add-quiz', payload: AddQuizPayload): void
   (e: 'update-quiz', payload: UpdateQuizPayload): void
 }>()
+
+const hasLateTeams = computed(() => (props.meetTeams ?? []).some((t) => t.lateness))
 
 function confirmOverwrite(action: string): boolean {
   if (props.quizzes.length === 0) return true
@@ -102,6 +105,10 @@ function onPopulate() {
 function onRoll() {
   if (!confirmOverwrite('Rolling teams')) return
   emit('roll-teams')
+}
+
+function onSwapLate() {
+  emit('swap-late-teams')
 }
 
 const grid = computed(() => buildGrid(props.rooms, props.slots, props.quizzes, null))
@@ -348,6 +355,18 @@ function saveEdit() {
         <button type="button" class="action-btn" :disabled="!rollInfo?.ready" @click="onRoll">
           Roll teams
         </button>
+      </article>
+
+      <article v-if="hasLateTeams" class="action-card">
+        <header class="action-head">
+          <h4 class="action-title">Push late teams</h4>
+        </header>
+        <p class="action-desc">
+          Swaps prelim quizzes (slot only — labels and seats stay put) so any quiz containing a team
+          marked <em>Late</em> moves to a later round. Won't put a team in two rooms at once.
+        </p>
+        <p class="action-note">Run after Roll Teams — uses the current letter→team mapping.</p>
+        <button type="button" class="action-btn" @click="onSwapLate">Push late teams later</button>
       </article>
     </div>
 

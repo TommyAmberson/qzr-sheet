@@ -40,6 +40,7 @@ const {
   deleteQuiz,
   updateTeamLateness,
   rollTeams,
+  swapLateTeamsLater,
 } = useScheduleData(toRef(props, 'slug'))
 
 async function onCreateSlot(payload: {
@@ -364,6 +365,20 @@ async function onRollTeams() {
   }
 }
 
+async function onSwapLateTeams() {
+  try {
+    let total = 0
+    for (const div of divisions.value) {
+      total += await swapLateTeamsLater(div)
+    }
+    if (total === 0) {
+      alert('No swap needed — late teams are already at the end of their division.')
+    }
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
 type TabId = 'prelim' | 'elim' | 'skeleton' | 'draw'
 const TABS: { id: TabId; label: string }[] = [
   { id: 'prelim', label: 'Prelim setup' },
@@ -658,6 +673,7 @@ onMounted(async () => {
         @update-quiz="onUpdateQuiz"
         @populate-skeleton="onPopulateSkeleton"
         @roll-teams="onRollTeams"
+        @swap-late-teams="onSwapLateTeams"
       />
     </template>
   </div>
