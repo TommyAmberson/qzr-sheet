@@ -182,8 +182,34 @@ async function onPopulateSkeleton() {
       if (!ok) return
     }
 
-    await fillSlots(prelimSlots, prelimPlan)
-    await fillSlots(elimSlots, elimPlan)
+    // Per-division column-major placement: each division clusters in its
+    // preferred room (Div N → Nth sorted room), spilling to the next
+    // higher room and wrapping around if necessary.
+    //
+    // Caveat: prelim spillover puts two same-division quizzes at the same
+    // slot in different rooms, which is a team-conflict while seats are
+    // populated with the placeholder A/B/C trio. Roll Teams is responsible
+    // for rewriting seats into a valid round-robin pattern; its rollInfo
+    // card already surfaces the conflict.
+    const sortedRooms = [...rooms.value].sort(bySortOrder)
+    const used = new Set<string>()
+    for (let i = 0; i < divisions.value.length; i++) {
+      const div = divisions.value[i]
+      await placeForDivision(
+        i,
+        prelimPlan.filter((p) => p.division === div),
+        prelimSlots,
+        sortedRooms,
+        used,
+      )
+      await placeForDivision(
+        i,
+        elimPlan.filter((p) => p.division === div),
+        elimSlots,
+        sortedRooms,
+        used,
+      )
+    }
   } catch (e) {
     alert((e as Error).message)
   } finally {
@@ -191,14 +217,29 @@ async function onPopulateSkeleton() {
   }
 }
 
-async function fillSlots(
-  targetSlots: typeof slots.value,
+/** Place one division's items column-major (room outer, slot inner)
+ *  starting at the division's preferred room and walking higher,
+ *  wrapping to lower rooms only after exhausting the rest. Skips
+ *  cells already used by an earlier division. */
+async function placeForDivision(
+  divIdx: number,
   items: ReturnType<typeof computePopulationPlan>,
+  targetSlots: typeof slots.value,
+  sortedRooms: typeof rooms.value,
+  used: Set<string>,
 ) {
+  if (items.length === 0 || targetSlots.length === 0 || sortedRooms.length === 0) return
+  const preferredIdx = divIdx % sortedRooms.length
+  const orderedRooms: typeof sortedRooms = []
+  for (let k = 0; k < sortedRooms.length; k++) {
+    orderedRooms.push(sortedRooms[(preferredIdx + k) % sortedRooms.length]!)
+  }
   let i = 0
-  for (const slot of targetSlots) {
-    for (const room of rooms.value) {
+  for (const room of orderedRooms) {
+    for (const slot of targetSlots) {
       if (i >= items.length) return
+      const key = `${slot.id}:${room.id}`
+      if (used.has(key)) continue
       const item = items[i]!
       await createQuiz({
         slotId: slot.id,
@@ -212,6 +253,7 @@ async function fillSlots(
           { seatNumber: 3, letter: 'C' },
         ],
       })
+      used.add(key)
       i++
     }
   }
