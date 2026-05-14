@@ -243,24 +243,17 @@ export function useScheduleData(slug: Ref<string>) {
   }
 
   /** Push late teams' prelim quizzes to later slots within their
-   *  division by swapping the (slotId, roomId) of two quizzes — labels
-   *  and seats stay attached to each quiz, so quiz numbers don't get
-   *  reshuffled on the visible schedule. Repeats until no further
-   *  beneficial swap is possible.
+   *  division. Computes the optimal arrangement from scratch via
+   *  bipartite matching between rooms (so labels and seats stay
+   *  attached, only slotId moves), then reassigns slots so non-late
+   *  pairs land first, mixed pairs in the middle, and fully-late
+   *  pairs at the end.
    *
-   *  Strategy: walk slots from the LATEST backward; whenever a slot
-   *  holds a non-late quiz, look for an earlier late quiz to drag into
-   *  its place. This both (a) moves late quizzes toward the end and
-   *  (b) re-pairs them — when the late quiz arrives at the late tail
-   *  it may now share its slot with another late quiz, freeing the
-   *  former non-late partner to move to an earlier slot.
+   *  Pair-compatibility constraint: two quizzes sharing a slot must
+   *  have disjoint letters (a team can't be in two rooms at once).
+   *  The matching honours that constraint by construction.
    *
-   *  Safety: a swap is rejected if it would put any letter in two
-   *  simultaneous quizzes within the same division (a team can't be
-   *  in two rooms at the same time). Cross-division conflicts can't
-   *  happen — letters are scoped per division.
-   *
-   *  Returns the count of swaps applied. */
+   *  Returns the count of quizzes moved. */
   async function swapLateTeamsLater(division: string): Promise<number> {
     if (!meetId.value) throw new Error('No meet loaded')
 
@@ -269,79 +262,181 @@ export function useScheduleData(slug: Ref<string>) {
     )
     if (lateTeamIds.size === 0) return 0
 
-    let swapsApplied = 0
-    // Defensive cap so we can't loop forever on unexpected input.
-    for (let iter = 0; iter < 200; iter++) {
-      const divAssignments = prelimAssignments.value.filter((a) => a.division === division)
-      const lateLetters = new Set<string>()
-      for (const a of divAssignments) {
-        if (lateTeamIds.has(a.teamId)) lateLetters.add(a.letter)
-      }
-      if (lateLetters.size === 0) return swapsApplied
-
-      const prelims = quizzes.value
-        .filter((q) => q.division === division && q.phase === 'prelim')
-        .map((q) => {
-          const slot = slots.value.find((s) => s.id === q.slotId)
-          const room = rooms.value.find((r) => r.id === q.roomId)
-          if (!slot || !room) return null
-          return { quiz: q, slot, room }
-        })
-        .filter((x): x is { quiz: ScheduledQuiz; slot: MeetSlot; room: MeetRoom } => x !== null)
-        .sort((a, b) => bySortOrder(a.slot, b.slot) || bySortOrder(a.room, b.room))
-
-      const lettersOf = (q: ScheduledQuiz): Set<string> => {
-        const set = new Set<string>()
-        for (const s of q.seats) if (s.letter) set.add(s.letter)
-        return set
-      }
-      const containsLate = (q: ScheduledQuiz): boolean => {
-        for (const s of q.seats) if (s.letter && lateLetters.has(s.letter)) return true
-        return false
-      }
-      const conflictsAt = (
-        slotId: number,
-        excludeQuizId: number,
-        movingLetters: Set<string>,
-      ): boolean => {
-        for (const p of prelims) {
-          if (p.quiz.id === excludeQuizId) continue
-          if (p.slot.id !== slotId) continue
-          const others = lettersOf(p.quiz)
-          for (const l of movingLetters) if (others.has(l)) return true
-        }
-        return false
-      }
-
-      // Walk from latest slot backward, dragging late quizzes from
-      // earlier into the position of the latest non-late quiz we find.
-      let didSwap = false
-      for (let i = prelims.length - 1; i >= 0 && !didSwap; i--) {
-        const target = prelims[i]!
-        if (containsLate(target.quiz)) continue
-        const targetLetters = lettersOf(target.quiz)
-
-        // Iterate earlier late quizzes (oldest first → biggest distance
-        // to push). Pick the first one whose swap is conflict-free.
-        for (let j = 0; j < i; j++) {
-          const source = prelims[j]!
-          if (!containsLate(source.quiz)) continue
-          const sourceLetters = lettersOf(source.quiz)
-
-          if (conflictsAt(target.slot.id, target.quiz.id, sourceLetters)) continue
-          if (conflictsAt(source.slot.id, source.quiz.id, targetLetters)) continue
-
-          await updateQuiz(target.quiz.id, { slotId: source.slot.id, roomId: source.room.id })
-          await updateQuiz(source.quiz.id, { slotId: target.slot.id, roomId: target.room.id })
-          swapsApplied++
-          didSwap = true
-          break
-        }
-      }
-
-      if (!didSwap) return swapsApplied
+    const divAssignments = prelimAssignments.value.filter((a) => a.division === division)
+    const lateLetters = new Set<string>()
+    for (const a of divAssignments) {
+      if (lateTeamIds.has(a.teamId)) lateLetters.add(a.letter)
     }
-    return swapsApplied
+    if (lateLetters.size === 0) return 0
+
+    const lettersOf = (q: ScheduledQuiz): Set<string> => {
+      const set = new Set<string>()
+      for (const s of q.seats) if (s.letter) set.add(s.letter)
+      return set
+    }
+    const containsLate = (q: ScheduledQuiz): boolean => {
+      for (const s of q.seats) if (s.letter && lateLetters.has(s.letter)) return true
+      return false
+    }
+    const disjoint = (a: Set<string>, b: Set<string>): boolean => {
+      for (const l of a) if (b.has(l)) return false
+      return true
+    }
+
+    const prelims = quizzes.value.filter((q) => q.division === division && q.phase === 'prelim')
+    if (prelims.length === 0) return 0
+
+    const slotIdsOrdered = [...new Set(prelims.map((q) => q.slotId))]
+      .map((id) => slots.value.find((s) => s.id === id))
+      .filter((s): s is MeetSlot => s !== undefined)
+      .sort(bySortOrder)
+      .map((s) => s.id)
+
+    const roomIds = [...new Set(prelims.map((q) => q.roomId))]
+      .map((id) => rooms.value.find((r) => r.id === id))
+      .filter((r): r is MeetRoom => r !== undefined)
+      .sort(bySortOrder)
+      .map((r) => r.id)
+
+    if (roomIds.length === 1) {
+      // Single-room column: just sort quizzes by lateness within
+      // chronological order — no pair-conflict check needed.
+      const sorted = [...prelims].sort((a, b) => {
+        const aLate = containsLate(a) ? 1 : 0
+        const bLate = containsLate(b) ? 1 : 0
+        if (aLate !== bLate) return aLate - bLate
+        // Stable on original slot order for ties.
+        return slotIdsOrdered.indexOf(a.slotId) - slotIdsOrdered.indexOf(b.slotId)
+      })
+      return await applySlotMoves(
+        sorted.map((q, i) => ({ quizId: q.id, slotId: slotIdsOrdered[i]! })),
+      )
+    }
+
+    if (roomIds.length !== 2) {
+      // 3+ rooms in one division is unusual and the matching gets
+      // hairier (tripartite, etc.). Bail out — admin can manually
+      // rearrange if needed.
+      return 0
+    }
+
+    // Two-room case: bipartite matching room-A × room-B.
+    const roomA = prelims.filter((q) => q.roomId === roomIds[0])
+    const roomB = prelims.filter((q) => q.roomId === roomIds[1])
+
+    const canPair = (a: ScheduledQuiz, b: ScheduledQuiz) => disjoint(lettersOf(a), lettersOf(b))
+    const nonLateA = roomA.filter((q) => !containsLate(q))
+    const nonLateB = roomB.filter((q) => !containsLate(q))
+    const lateA = roomA.filter(containsLate)
+    const lateB = roomB.filter(containsLate)
+
+    // Stage 1: max non-late × non-late matching.
+    const stage1 = bipartiteMatch(nonLateA, nonLateB, canPair)
+    const matchedAIds = new Set(stage1.map((p) => p[0].id))
+    const matchedBIds = new Set(stage1.map((p) => p[1].id))
+
+    // Stage 2: pair leftover non-lates with compatible lates (in opposite room).
+    const stage2A = bipartiteMatch(
+      nonLateA.filter((q) => !matchedAIds.has(q.id)),
+      lateB,
+      canPair,
+    )
+    for (const p of stage2A) {
+      matchedAIds.add(p[0].id)
+      matchedBIds.add(p[1].id)
+    }
+    const stage2B = bipartiteMatch(
+      nonLateB.filter((q) => !matchedBIds.has(q.id)),
+      lateA,
+      canPair,
+    )
+    for (const p of stage2B) {
+      matchedBIds.add(p[0].id)
+      matchedAIds.add(p[1].id)
+    }
+
+    // Stage 3: max late × late matching for the rest.
+    const stage3 = bipartiteMatch(
+      lateA.filter((q) => !matchedAIds.has(q.id)),
+      lateB.filter((q) => !matchedBIds.has(q.id)),
+      canPair,
+    )
+    for (const p of stage3) {
+      matchedAIds.add(p[0].id)
+      matchedBIds.add(p[1].id)
+    }
+
+    // Singletons: anyone left unmatched takes a slot alone.
+    const singletons = [
+      ...roomA.filter((q) => !matchedAIds.has(q.id)),
+      ...roomB.filter((q) => !matchedBIds.has(q.id)),
+    ]
+
+    // Order pairs by lateness rank: 0 = non-late, 1 = mixed, 2 = late-late, 3 = late singleton.
+    type Group = { quizzes: ScheduledQuiz[]; rank: number }
+    const groups: Group[] = []
+    for (const [a, b] of stage1) groups.push({ quizzes: [a, b], rank: 0 })
+    for (const [a, b] of stage2A) groups.push({ quizzes: [a, b], rank: 1 })
+    for (const [a, b] of stage2B) groups.push({ quizzes: [a, b], rank: 1 })
+    for (const [a, b] of stage3) groups.push({ quizzes: [a, b], rank: 2 })
+    for (const q of singletons) groups.push({ quizzes: [q], rank: containsLate(q) ? 3 : 0 })
+    groups.sort((a, b) => a.rank - b.rank)
+
+    // Assign each group to the next chronological slot.
+    const moves: { quizId: number; slotId: number }[] = []
+    for (let i = 0; i < groups.length && i < slotIdsOrdered.length; i++) {
+      const targetSlotId = slotIdsOrdered[i]!
+      for (const quiz of groups[i]!.quizzes) {
+        if (quiz.slotId !== targetSlotId) {
+          moves.push({ quizId: quiz.id, slotId: targetSlotId })
+        }
+      }
+    }
+    return await applySlotMoves(moves)
+  }
+
+  /** Apply a batch of slotId reassignments to scheduled quizzes,
+   *  bypassing updateQuiz so we refetch only once at the end. */
+  async function applySlotMoves(moves: { quizId: number; slotId: number }[]): Promise<number> {
+    if (!meetId.value) throw new Error('No meet loaded')
+    if (moves.length === 0) return 0
+    for (const m of moves) {
+      await updateScheduledQuiz(meetId.value, m.quizId, { slotId: m.slotId })
+    }
+    const refreshed = await listScheduledQuizzes(meetId.value)
+    quizzes.value = refreshed.quizzes
+    return moves.length
+  }
+
+  /** Maximum bipartite matching via augmenting paths (Hopcroft-Karp's
+   *  simpler cousin). For typical division sizes (≤ 20 nodes per side)
+   *  this is well under a millisecond. */
+  function bipartiteMatch<T extends { id: number }>(
+    left: T[],
+    right: T[],
+    canPair: (l: T, r: T) => boolean,
+  ): [T, T][] {
+    const matchR = new Map<number, T>()
+    const tryAugment = (node: T, visited: Set<number>): boolean => {
+      for (const r of right) {
+        if (!canPair(node, r)) continue
+        if (visited.has(r.id)) continue
+        visited.add(r.id)
+        const occupant = matchR.get(r.id)
+        if (!occupant || tryAugment(occupant, visited)) {
+          matchR.set(r.id, node)
+          return true
+        }
+      }
+      return false
+    }
+    for (const l of left) tryAugment(l, new Set<number>())
+    const pairs: [T, T][] = []
+    for (const [, l] of matchR) {
+      const r = right.find((x) => matchR.get(x.id) === l)
+      if (r) pairs.push([l, r])
+    }
+    return pairs
   }
 
   /** Toggle a team's lateness flag. Optimistic local update + PATCH;
