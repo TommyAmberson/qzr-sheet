@@ -104,10 +104,6 @@ function onRoll() {
   emit('roll-teams')
 }
 
-type Mode = 'letter' | 'team'
-
-const mode = ref<Mode>('letter')
-
 const grid = computed(() => buildGrid(props.rooms, props.slots, props.quizzes, null))
 const empty = computed(() => !hasAnyQuiz(grid.value))
 
@@ -293,26 +289,6 @@ function saveEdit() {
       <span class="section-meta">
         {{ slots.length }} slots · {{ rooms.length }} rooms · {{ quizzes.length }} quizzes
       </span>
-      <div class="mode-toggle no-print" role="tablist" aria-label="Schedule view mode">
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="mode === 'letter'"
-          :class="{ 'is-active': mode === 'letter' }"
-          @click="mode = 'letter'"
-        >
-          Letter
-        </button>
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="mode === 'team'"
-          :class="{ 'is-active': mode === 'team' }"
-          @click="mode = 'team'"
-        >
-          Team
-        </button>
-      </div>
     </div>
 
     <div v-if="canPopulate" class="draw-actions no-print">
@@ -379,7 +355,7 @@ function saveEdit() {
     <p v-else-if="empty" class="empty">No quizzes scheduled yet. Add slots and quizzes to begin.</p>
 
     <div v-else class="schedule-scroll">
-      <table class="schedule-table" :data-mode="mode">
+      <table class="schedule-table">
         <thead>
           <tr>
             <th class="time-col" scope="col">Time</th>
@@ -457,7 +433,7 @@ function saveEdit() {
                         :data-seat-letter="seat.letter || undefined"
                       >
                         <span class="seat-ref">{{ seatRef(seat) }}</span>
-                        <span v-if="mode === 'team'" class="seat-team">{{
+                        <span class="seat-team">{{
                           seatTeam(seat, {
                             division: quiz.division,
                             assignments: prelimAssignments ?? [],
@@ -554,14 +530,6 @@ function saveEdit() {
   font-size: 0.75rem;
   color: var(--color-text-faint);
   font-variant-numeric: tabular-nums;
-}
-
-.mode-toggle {
-  margin-left: auto;
-  display: inline-flex;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  overflow: hidden;
 }
 
 .draw-actions {
@@ -699,31 +667,6 @@ function saveEdit() {
   color: var(--color-text-faint);
   border: 1px solid var(--color-border-alt);
   cursor: not-allowed;
-}
-
-.mode-toggle button {
-  background: none;
-  border: none;
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  padding: 0.25rem 0.65rem;
-  border-right: 1px solid var(--color-border);
-}
-
-.mode-toggle button:last-child {
-  border-right: none;
-}
-
-.mode-toggle button:hover {
-  color: var(--color-text);
-}
-
-.mode-toggle button.is-active {
-  background: var(--color-accent);
-  color: var(--color-bg);
 }
 
 .empty {
@@ -939,11 +882,6 @@ thead .time-col {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.schedule-table[data-mode='letter'] .seat {
-  grid-template-columns: minmax(0, 1fr);
-  justify-items: center;
 }
 
 /* Inline modal for the quiz add/edit form. Centered overlay with a
