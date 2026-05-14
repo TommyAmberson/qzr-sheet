@@ -749,7 +749,7 @@ onMounted(load)
       </div>
 
       <!-- Churches -->
-      <div class="section">
+      <div id="churches" class="section">
         <div class="section-header">
           <h3 class="section-title">Churches</h3>
           <div v-if="isAdmin" class="section-actions">

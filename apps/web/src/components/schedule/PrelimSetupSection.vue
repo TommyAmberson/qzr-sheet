@@ -8,6 +8,9 @@ const props = defineProps<{
   teamCounts: Record<string, number>
   teams: MeetTeamRow[]
   editable: boolean
+  /** Slug of the current meet — used for the link back to the meet
+   *  dashboard's Churches section. */
+  slug: string
 }>()
 
 const emit = defineEmits<{
@@ -83,7 +86,11 @@ function onToggleLate(team: MeetTeamRow, event: Event) {
     </p>
 
     <p v-if="editable" class="footnote">
-      Team roster is edited in <em>Churches</em> on the meet dashboard, not here.
+      Team roster is edited in
+      <RouterLink :to="{ name: 'meet', params: { slug }, hash: '#churches' }" class="footnote-link">
+        Churches
+      </RouterLink>
+      on the meet dashboard, not here.
     </p>
   </section>
 </template>
@@ -226,5 +233,16 @@ function onToggleLate(team: MeetTeamRow, event: Event) {
 .footnote em {
   font-style: normal;
   color: var(--color-text-muted);
+}
+
+.footnote-link {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.footnote-link:hover {
+  text-decoration: underline;
 }
 </style>

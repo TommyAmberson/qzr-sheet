@@ -614,6 +614,7 @@ onMounted(async () => {
         :team-counts="teamCounts"
         :teams="teams"
         :editable="isAdmin"
+        :slug="slug"
         @update-team-lateness="onUpdateTeamLateness"
       />
 
