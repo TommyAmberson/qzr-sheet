@@ -243,23 +243,25 @@ export function useScheduleData(slug: Ref<string>) {
   }
 
   /** Push late teams' prelim quizzes to later slots within their
-   *  division. Robust for any room count (1, 2, 3+) by re-arranging
-   *  from scratch:
+   *  division by **permuting whole slot-tuples** in place.
    *
-   *  1. Group the division's quizzes by room (each room is a "lane"
-   *     that holds one quiz per slot).
-   *  2. Walk slots from LAST → FIRST. At each slot, pick the
-   *     **letter-disjoint tuple** (one quiz from each room, or
-   *     `null` for an empty room) that maximises the late-quiz
-   *     count — ties broken by tuple size, so empty cells only
-   *     appear when no fuller alternative is letter-compatible.
-   *  3. Apply the chosen quizzes to that slot, remove them from the
-   *     pool, repeat for the next-earlier slot.
+   *  Populate already groups quizzes into letter-disjoint tuples
+   *  (one per slot, K quizzes for K rooms — guaranteed by the rule-
+   *  book pattern). We don't try to re-pair within a tuple — that
+   *  would break the round-robin invariant and risk leaving cells
+   *  empty when no compatible re-pairing exists. Instead, we:
    *
-   *  Net effect: late quizzes get drawn into the latest slots they
-   *  can fit (subject to "no team in two rooms at once"), and non-
-   *  late quizzes naturally settle into the early slots. Labels and
-   *  seats stay attached to each quiz; only slotId changes.
+   *  1. Group the division's prelim quizzes by their current slot.
+   *  2. Score each tuple by how many late quizzes it contains.
+   *  3. Sort tuples ascending by late-count (ties broken by current
+   *     chronological order — keeps stable behaviour across re-runs).
+   *  4. Reassign each tuple to the next chronological slot.
+   *
+   *  Net effect: tuples with only non-late quizzes land in the early
+   *  slots; tuples that already contain late quizzes (because Roll
+   *  Teams gave those letters to late teams) get pushed to the back.
+   *  The Q-number labels stay attached to each quiz and seats are
+   *  untouched; only `slotId` changes.
    *
    *  Returns the count of quizzes moved. */
   async function swapLateTeamsLater(division: string): Promise<number> {
@@ -277,129 +279,53 @@ export function useScheduleData(slug: Ref<string>) {
     }
     if (lateLetters.size === 0) return 0
 
-    const lettersOf = (q: ScheduledQuiz): Set<string> => {
-      const set = new Set<string>()
-      for (const s of q.seats) if (s.letter) set.add(s.letter)
-      return set
-    }
     const containsLate = (q: ScheduledQuiz): boolean => {
       for (const s of q.seats) if (s.letter && lateLetters.has(s.letter)) return true
       return false
-    }
-    const disjoint = (a: Set<string>, b: Set<string>): boolean => {
-      for (const l of a) if (b.has(l)) return false
-      return true
     }
 
     const prelims = quizzes.value.filter((q) => q.division === division && q.phase === 'prelim')
     if (prelims.length === 0) return 0
 
-    const slotIdsOrdered = [...new Set(prelims.map((q) => q.slotId))]
+    // Group quizzes by their current slot — these are the rule-book
+    // tuples Populate built. Preserve insertion order so re-runs are
+    // stable when late counts tie.
+    const tuplesBySlot = new Map<number, ScheduledQuiz[]>()
+    for (const q of prelims) {
+      let arr = tuplesBySlot.get(q.slotId)
+      if (!arr) {
+        arr = []
+        tuplesBySlot.set(q.slotId, arr)
+      }
+      arr.push(q)
+    }
+
+    const slotIdsOrdered = [...tuplesBySlot.keys()]
       .map((id) => slots.value.find((s) => s.id === id))
       .filter((s): s is MeetSlot => s !== undefined)
       .sort(bySortOrder)
       .map((s) => s.id)
 
-    const roomIds = [...new Set(prelims.map((q) => q.roomId))]
-      .map((id) => rooms.value.find((r) => r.id === id))
-      .filter((r): r is MeetRoom => r !== undefined)
-      .sort(bySortOrder)
-      .map((r) => r.id)
+    const tuples = slotIdsOrdered.map((sid, chronoIdx) => {
+      const qs = tuplesBySlot.get(sid)!
+      return { quizzes: qs, chronoIdx, lateCount: qs.filter(containsLate).length }
+    })
 
-    // Quizzes pooled per room. Mutated as the algorithm consumes them.
-    const pool: ScheduledQuiz[][] = roomIds.map((rid) => prelims.filter((q) => q.roomId === rid))
-
-    // Working assignment: assignment[slotIdx] = chosen quizzes for that slot.
-    const assignment: ScheduledQuiz[][] = slotIdsOrdered.map(() => [])
-
-    for (let slotIdx = slotIdsOrdered.length - 1; slotIdx >= 0; slotIdx--) {
-      const tuple = pickBestTuple(pool, lettersOf, containsLate, disjoint)
-      if (!tuple) continue
-      for (let roomIdx = 0; roomIdx < tuple.length; roomIdx++) {
-        const quiz = tuple[roomIdx]
-        if (!quiz) continue
-        assignment[slotIdx]!.push(quiz)
-        const idx = pool[roomIdx]!.indexOf(quiz)
-        if (idx >= 0) pool[roomIdx]!.splice(idx, 1)
-      }
-    }
-
-    // If anything's left in the pool (e.g. all slots filled but some
-    // quizzes couldn't fit anywhere conflict-free), drop them at the
-    // first available slot — preserves prior placement at worst.
-    for (let roomIdx = 0; roomIdx < pool.length; roomIdx++) {
-      for (const quiz of pool[roomIdx]!) {
-        for (let slotIdx = 0; slotIdx < slotIdsOrdered.length; slotIdx++) {
-          const existing = assignment[slotIdx]!
-          if (existing.some((q) => q.roomId === quiz.roomId)) continue
-          // Must still be letter-compatible with the others at this slot.
-          const qLetters = lettersOf(quiz)
-          if (existing.some((q) => !disjoint(lettersOf(q), qLetters))) continue
-          existing.push(quiz)
-          break
-        }
-      }
-    }
+    const sorted = [...tuples].sort((a, b) => {
+      if (a.lateCount !== b.lateCount) return a.lateCount - b.lateCount
+      return a.chronoIdx - b.chronoIdx
+    })
 
     const moves: { quizId: number; slotId: number }[] = []
-    for (let slotIdx = 0; slotIdx < slotIdsOrdered.length; slotIdx++) {
-      const targetSlotId = slotIdsOrdered[slotIdx]!
-      for (const quiz of assignment[slotIdx]!) {
-        if (quiz.slotId !== targetSlotId) {
-          moves.push({ quizId: quiz.id, slotId: targetSlotId })
+    for (let i = 0; i < sorted.length; i++) {
+      const targetSlotId = slotIdsOrdered[i]!
+      for (const q of sorted[i]!.quizzes) {
+        if (q.slotId !== targetSlotId) {
+          moves.push({ quizId: q.id, slotId: targetSlotId })
         }
       }
     }
     return await applySlotMoves(moves)
-  }
-
-  /** Pick the best K-tuple from a per-room pool: one quiz per room
-   *  (or `null` to leave a room empty), pairwise letter-disjoint,
-   *  maximising late-quiz count then tuple size. Backtracking
-   *  enumeration; for typical division sizes (≤20 quizzes per room,
-   *  ≤4 rooms) this runs in microseconds. */
-  function pickBestTuple(
-    pool: ScheduledQuiz[][],
-    lettersOf: (q: ScheduledQuiz) => Set<string>,
-    containsLate: (q: ScheduledQuiz) => boolean,
-    disjoint: (a: Set<string>, b: Set<string>) => boolean,
-  ): (ScheduledQuiz | null)[] | null {
-    let bestTuple: (ScheduledQuiz | null)[] | null = null
-    let bestLate = -1
-    let bestSize = -1
-    const current: (ScheduledQuiz | null)[] = []
-
-    const recurse = (roomIdx: number, lateCount: number, size: number): void => {
-      if (roomIdx === pool.length) {
-        if (lateCount > bestLate || (lateCount === bestLate && size > bestSize)) {
-          bestLate = lateCount
-          bestSize = size
-          bestTuple = [...current]
-        }
-        return
-      }
-      for (const quiz of pool[roomIdx]!) {
-        const qLetters = lettersOf(quiz)
-        let ok = true
-        for (const picked of current) {
-          if (picked && !disjoint(lettersOf(picked), qLetters)) {
-            ok = false
-            break
-          }
-        }
-        if (!ok) continue
-        current.push(quiz)
-        recurse(roomIdx + 1, lateCount + (containsLate(quiz) ? 1 : 0), size + 1)
-        current.pop()
-      }
-      // Also consider leaving this room empty for this slot.
-      current.push(null)
-      recurse(roomIdx + 1, lateCount, size)
-      current.pop()
-    }
-
-    recurse(0, 0, 0)
-    return bestTuple
   }
 
   /** Apply a batch of slotId reassignments to scheduled quizzes,
