@@ -352,21 +352,20 @@ function saveEdit() {
           </div>
         </dl>
         <p class="action-note">{{ rollInfo?.note }}</p>
-        <button type="button" class="action-btn" :disabled="!rollInfo?.ready" @click="onRoll">
-          Roll teams
-        </button>
-      </article>
-
-      <article v-if="hasLateTeams" class="action-card">
-        <header class="action-head">
-          <h4 class="action-title">Push late teams</h4>
-        </header>
-        <p class="action-desc">
-          Swaps prelim quizzes (slot only — labels and seats stay put) so any quiz containing a team
-          marked <em>Late</em> moves to a later round. Won't put a team in two rooms at once.
-        </p>
-        <p class="action-note">Run after Roll Teams — uses the current letter→team mapping.</p>
-        <button type="button" class="action-btn" @click="onSwapLate">Push late teams later</button>
+        <div class="action-buttons">
+          <button type="button" class="action-btn" :disabled="!rollInfo?.ready" @click="onRoll">
+            Roll teams
+          </button>
+          <button
+            v-if="hasLateTeams"
+            type="button"
+            class="action-btn action-btn--secondary"
+            title="Swaps prelim quizzes (slot only) so late-team quizzes move to later rounds, without putting any team in two rooms at once."
+            @click="onSwapLate"
+          >
+            Push late later
+          </button>
+        </div>
       </article>
     </div>
 
@@ -664,8 +663,14 @@ function saveEdit() {
   font-style: normal;
 }
 
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
 .action-btn {
-  align-self: flex-start;
   background: var(--color-accent);
   color: var(--color-bg);
   border: 0;
@@ -686,6 +691,18 @@ function saveEdit() {
   color: var(--color-text-faint);
   border: 1px solid var(--color-border-alt);
   cursor: not-allowed;
+}
+
+.action-btn--secondary {
+  background: none;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+}
+
+.action-btn--secondary:hover:not(:disabled) {
+  background: var(--color-bg);
+  color: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
 }
 
 .empty {
