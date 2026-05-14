@@ -116,7 +116,7 @@ function handleSignOut() {
 
 .nav--desktop {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 1.25rem;
 }
 
