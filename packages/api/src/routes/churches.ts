@@ -784,6 +784,7 @@ churches.get('/meets/:meetId/teams', async (c) => {
         division: schema.teams.division,
         number: schema.teams.number,
         consolation: schema.teams.consolation,
+        lateness: schema.teams.lateness,
       })
       .from(schema.teams)
       .innerJoin(schema.churches, eq(schema.teams.churchId, schema.churches.id))

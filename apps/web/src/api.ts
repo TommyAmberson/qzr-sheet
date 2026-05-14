@@ -274,6 +274,26 @@ export function listTeams(churchId: number): Promise<{ teams: Team[] }> {
   return request(`/api/churches/${churchId}/teams`)
 }
 
+/** Team row joined with its church label and the meet's division list,
+ *  for any view that needs to render team names per division (Prelim
+ *  setup roster, Roll Teams summary, etc.). */
+export interface MeetTeamRow {
+  id: number
+  churchId: number
+  churchName: string
+  churchShortName: string
+  division: string
+  number: number
+  consolation: boolean
+  lateness: boolean
+}
+
+export function listMeetTeams(
+  meetId: number,
+): Promise<{ teams: MeetTeamRow[]; meetDivisions: string[] }> {
+  return request(`/api/meets/${meetId}/teams`)
+}
+
 export function createTeam(churchId: number, data: { division: string }): Promise<{ team: Team }> {
   return request(`/api/churches/${churchId}/teams`, {
     method: 'POST',

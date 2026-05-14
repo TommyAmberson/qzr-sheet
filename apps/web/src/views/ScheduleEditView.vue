@@ -21,6 +21,7 @@ const {
   slots,
   quizzes,
   teamCounts,
+  teams,
   extraLanes,
   loading,
   error,
@@ -36,6 +37,7 @@ const {
   createQuiz,
   updateQuiz,
   deleteQuiz,
+  updateTeamLateness,
 } = useScheduleData(toRef(props, 'slug'))
 
 async function onCreateSlot(payload: {
@@ -106,6 +108,14 @@ async function onUpdateQuiz(payload: {
 }) {
   try {
     await updateQuiz(payload.quizId, payload.patch, payload.seats)
+  } catch (e) {
+    alert((e as Error).message)
+  }
+}
+
+async function onUpdateTeamLateness(payload: { teamId: number; lateness: boolean }) {
+  try {
+    await updateTeamLateness(payload.teamId, payload.lateness)
   } catch (e) {
     alert((e as Error).message)
   }
@@ -596,7 +606,9 @@ onMounted(async () => {
         v-if="activeTab === 'prelim'"
         :divisions="divisions"
         :team-counts="teamCounts"
+        :teams="teams"
         :editable="isAdmin"
+        @update-team-lateness="onUpdateTeamLateness"
       />
 
       <ElimSetupSection

@@ -11,14 +11,17 @@ import {
   getMyMeets,
   listMeetRooms,
   listMeetSlots,
+  listMeetTeams,
   listScheduledQuizzes,
   replaceQuizSeats,
   updateMeetSlot,
   updateScheduledQuiz,
+  updateTeam,
   type MeetDetail,
   type MeetMembership,
   type MeetRoom,
   type MeetSlot,
+  type MeetTeamRow,
   type ScheduledQuiz,
   type SeatInput,
 } from '../api'
@@ -67,6 +70,7 @@ export function useScheduleData(slug: Ref<string>) {
   const slots = ref<MeetSlot[]>([])
   const quizzes = ref<ScheduledQuiz[]>([])
   const teamCounts = ref<Record<string, number>>({})
+  const teams = ref<MeetTeamRow[]>([])
   const extraLanes = ref<Record<string, ExtraLane[]>>({})
   const loading = ref(true)
   const error = ref('')
@@ -85,16 +89,18 @@ export function useScheduleData(slug: Ref<string>) {
       detail.value = meetDetail
       membership.value = myMeetsRes.memberships.find((m) => m.meetId === meetDetail.meet.id) ?? null
       const id = meetDetail.meet.id
-      const [r, s, q, tc] = await Promise.all([
+      const [r, s, q, tc, t] = await Promise.all([
         listMeetRooms(id),
         listMeetSlots(id),
         listScheduledQuizzes(id),
         getMeetTeamCounts(id),
+        listMeetTeams(id),
       ])
       rooms.value = r.rooms
       slots.value = s.slots
       quizzes.value = q.quizzes
       teamCounts.value = tc.counts
+      teams.value = t.teams
       // Main lane is implicit per division. Extra lanes (C / CC) start
       // empty; admin opts in based on the post-stats-break split. State
       // is in-memory only until persistence ships with the elim builder.
@@ -205,6 +211,21 @@ export function useScheduleData(slug: Ref<string>) {
     extraLanes.value = { ...extraLanes.value, [division]: next }
   }
 
+  /** Toggle a team's lateness flag. Optimistic local update + PATCH;
+   *  rolls back on failure so the UI doesn't lie about persistence. */
+  async function updateTeamLateness(teamId: number, lateness: boolean) {
+    const idx = teams.value.findIndex((t) => t.id === teamId)
+    if (idx < 0) return
+    const before = teams.value[idx]!.lateness
+    teams.value[idx] = { ...teams.value[idx]!, lateness }
+    try {
+      await updateTeam(teamId, { lateness })
+    } catch (e) {
+      teams.value[idx] = { ...teams.value[idx]!, lateness: before }
+      throw e
+    }
+  }
+
   function resizeLane({
     division,
     lane,
@@ -228,6 +249,7 @@ export function useScheduleData(slug: Ref<string>) {
     slots,
     quizzes,
     teamCounts,
+    teams,
     extraLanes,
     loading,
     error,
@@ -245,5 +267,6 @@ export function useScheduleData(slug: Ref<string>) {
     nextQuizNumber,
     toggleLane,
     resizeLane,
+    updateTeamLateness,
   }
 }
