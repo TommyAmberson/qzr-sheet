@@ -198,7 +198,12 @@ async function onPopulateSkeleton() {
     const sortedRooms = [...rooms.value].sort(bySortOrder)
     const used = new Set<string>()
     const unsupported: number[] = []
-    for (let i = 0; i < divisions.value.length; i++) {
+    // Place higher-numbered divisions first so they claim their
+    // preferred rooms before lower-numbered ones get a chance to spill.
+    // When a room ends up shared between two divisions, the higher
+    // (later-numbered) division gets the earlier slots — its quizzes
+    // were placed first into that room.
+    for (let i = divisions.value.length - 1; i >= 0; i--) {
       const div = divisions.value[i]!
       const teamCount = teamCounts.value[div] ?? 0
       const draw = getPrelimDraw(teamCount)
