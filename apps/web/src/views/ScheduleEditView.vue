@@ -57,6 +57,7 @@ async function onUpdateSlot(payload: {
     startAt?: string
     durationMinutes?: number
     eventLabel?: string | null
+    sortOrder?: number
   }
 }) {
   try {

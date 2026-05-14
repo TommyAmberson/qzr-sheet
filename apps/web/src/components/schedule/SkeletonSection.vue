@@ -38,6 +38,7 @@ interface UpdateSlotPatch {
   startAt?: string
   durationMinutes?: number
   eventLabel?: string | null
+  sortOrder?: number
 }
 
 interface DayGroup {
@@ -196,6 +197,32 @@ function addDay() {
   })
 }
 
+/** Swap a slot with its neighbour in the same day. Each slot keeps its
+ *  own duration — the duration "rides along" with the slot — so the
+ *  end of the pair stays anchored where it was; only the boundary
+ *  between the two moves. Both startAt and sortOrder swap so the
+ *  display order in the sorted list also updates. */
+function swapWithNeighbour(group: DayGroup, slot: MeetSlot, direction: 'up' | 'down') {
+  const idx = group.slots.findIndex((s) => s.id === slot.id)
+  if (idx < 0) return
+  const otherIdx = direction === 'up' ? idx - 1 : idx + 1
+  if (otherIdx < 0 || otherIdx >= group.slots.length) return
+  const earlier = idx < otherIdx ? slot : group.slots[otherIdx]!
+  const later = idx < otherIdx ? group.slots[otherIdx]! : slot
+  const sharedStart = earlier.startAt
+  const earlierNewStart = new Date(
+    new Date(sharedStart).getTime() + later.durationMinutes * 60_000,
+  ).toISOString()
+  emit('update-slot', {
+    slotId: later.id,
+    patch: { startAt: sharedStart, sortOrder: earlier.sortOrder },
+  })
+  emit('update-slot', {
+    slotId: earlier.id,
+    patch: { startAt: earlierNewStart, sortOrder: later.sortOrder },
+  })
+}
+
 function deleteSlot(slot: MeetSlot) {
   if (isStatsBreak(slot)) {
     if (
@@ -240,6 +267,7 @@ function deleteSlot(slot: MeetSlot) {
         <thead>
           <tr>
             <th class="time-col" scope="col">Time</th>
+            <th class="dur-col" scope="col">Length</th>
             <th v-if="rooms.length === 0" class="room-col" scope="col">Slot</th>
             <th
               v-for="room in rooms"
@@ -254,11 +282,11 @@ function deleteSlot(slot: MeetSlot) {
         </thead>
         <tbody>
           <tr v-if="slots.length === 0">
-            <td :colspan="contentColspan + 1" class="empty-row">No slots yet — add a day below.</td>
+            <td :colspan="contentColspan + 2" class="empty-row">No slots yet — add a day below.</td>
           </tr>
           <template v-for="group in days" :key="group.dateKey">
             <tr class="day-row">
-              <th class="day-label" :colspan="contentColspan + 1" scope="colgroup">
+              <th class="day-label" :colspan="contentColspan + 2" scope="colgroup">
                 {{ group.label }}
               </th>
             </tr>
@@ -281,6 +309,22 @@ function deleteSlot(slot: MeetSlot) {
                 </TimePickerButton>
                 <span v-else class="time-text">{{ formatSlotTime(slot.startAt) }}</span>
               </th>
+              <td class="dur-col">
+                <span class="slot-duration">
+                  <input
+                    v-if="editable"
+                    class="dur-input"
+                    type="number"
+                    min="1"
+                    step="1"
+                    :value="slot.durationMinutes"
+                    :aria-label="`Duration in minutes`"
+                    @change="onDurationChange(group, slot, $event)"
+                  />
+                  <span v-else>{{ slot.durationMinutes }}</span>
+                  <span class="dur-label">min</span>
+                </span>
+              </td>
               <td class="slot-cell" :colspan="contentColspan">
                 <div class="slot-inner">
                   <span v-if="slot.kind === 'quiz'" class="slot-label">
@@ -301,30 +345,34 @@ function deleteSlot(slot: MeetSlot) {
                     {{ slot.eventLabel || 'Event' }}
                   </span>
 
-                  <span class="slot-duration">
-                    <input
-                      v-if="editable"
-                      class="dur-input"
-                      type="number"
-                      min="1"
-                      step="1"
-                      :value="slot.durationMinutes"
-                      :aria-label="`Duration in minutes`"
-                      @change="onDurationChange(group, slot, $event)"
-                    />
-                    <span v-else>{{ slot.durationMinutes }}</span>
-                    <span class="dur-label">min</span>
+                  <span v-if="editable" class="row-controls no-print">
+                    <button
+                      type="button"
+                      class="row-arrow"
+                      :disabled="idx === 0"
+                      title="Move slot up"
+                      @click="swapWithNeighbour(group, slot, 'up')"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      class="row-arrow"
+                      :disabled="idx === group.slots.length - 1"
+                      title="Move slot down"
+                      @click="swapWithNeighbour(group, slot, 'down')"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      class="row-delete"
+                      title="Delete slot"
+                      @click="deleteSlot(slot)"
+                    >
+                      ×
+                    </button>
                   </span>
-
-                  <button
-                    v-if="editable"
-                    type="button"
-                    class="row-delete no-print"
-                    title="Delete slot"
-                    @click="deleteSlot(slot)"
-                  >
-                    ×
-                  </button>
                 </div>
               </td>
             </tr>
@@ -529,19 +577,60 @@ thead .time-col {
   color: var(--color-text-muted);
 }
 
+.dur-col {
+  width: 4.5rem;
+  background: var(--color-bg);
+  padding: 0.55rem 0.875rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+thead .dur-col {
+  background: var(--color-bg-raised);
+}
+
 .slot-duration {
   display: inline-flex;
   align-items: baseline;
+  justify-content: center;
   gap: 0.2rem;
   color: var(--color-text-muted);
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
 }
 
 .dur-label {
   color: var(--color-text-faint);
   font-size: 0.72rem;
+}
+
+.row-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.row-arrow {
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+}
+
+.row-arrow:hover:not(:disabled) {
+  color: var(--color-accent);
+  background: var(--color-bg);
+}
+
+.row-arrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .empty-row {
