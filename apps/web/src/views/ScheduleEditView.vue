@@ -183,12 +183,18 @@ async function onPopulateSkeleton() {
       if (!ok) return
     }
 
-    // Per-division column-major placement: each division clusters in its
-    // preferred room (Div N → Nth sorted room), spilling to the next
-    // higher room and wrapping around if necessary. Prelim seats use the
-    // rule-book draw pattern from `prelimDraw.ts` so the round-robin is
-    // valid out of the gate; elim seats stay placeholder A/B/C since
-    // elim seeds resolve lazily via seedRefs (Roll Teams' job).
+    // Per-division column-major placement: each division clusters in
+    // its preferred room (Div N → Nth sorted room), spilling to the
+    // next higher room and wrapping around if necessary. Prelim seats
+    // use the rule-book draw pattern from `prelimDraw.ts`; elim seats
+    // stay placeholder A/B/C since elim seeds resolve lazily via
+    // seedRefs (Roll Teams' job).
+    //
+    // Quiz numbering and pattern row are assigned in chronological
+    // order (slot first, then room) — even though placement itself is
+    // column-major. So in a no-spillover case nothing changes; in a
+    // spillover case the labels still read Q1, Q2, Q3, … in the order
+    // the quizzes happen rather than in the order rooms got filled.
     const sortedRooms = [...rooms.value].sort(bySortOrder)
     const used = new Set<string>()
     const unsupported: number[] = []
@@ -197,22 +203,45 @@ async function onPopulateSkeleton() {
       const teamCount = teamCounts.value[div] ?? 0
       const draw = getPrelimDraw(teamCount)
       if (teamCount > 0 && draw === null) unsupported.push(teamCount)
-      await placeForDivision(
-        i,
-        prelimPlan.filter((p) => p.division === div),
-        prelimSlots,
-        sortedRooms,
-        used,
-        draw,
-      )
-      await placeForDivision(
-        i,
-        elimPlan.filter((p) => p.division === div),
-        elimSlots,
-        sortedRooms,
-        used,
-        null,
-      )
+
+      const prelimCount = prelimPlan.filter((p) => p.division === div).length
+      const prelimPlacements = collectPlacements(i, prelimCount, prelimSlots, sortedRooms, used)
+      prelimPlacements.sort((a, b) => bySortOrder(a.slot, b.slot) || bySortOrder(a.room, b.room))
+      for (let k = 0; k < prelimPlacements.length; k++) {
+        const { slot, room } = prelimPlacements[k]!
+        const triple = draw?.[k] ?? (['A', 'B', 'C'] as const)
+        await createQuiz({
+          slotId: slot.id,
+          roomId: room.id,
+          division: div,
+          phase: 'prelim',
+          label: `D${div}-Q${k + 1}`,
+          seats: [
+            { seatNumber: 1, letter: triple[0] },
+            { seatNumber: 2, letter: triple[1] },
+            { seatNumber: 3, letter: triple[2] },
+          ],
+        })
+      }
+
+      const elimCount = elimPlan.filter((p) => p.division === div).length
+      const elimPlacements = collectPlacements(i, elimCount, elimSlots, sortedRooms, used)
+      elimPlacements.sort((a, b) => bySortOrder(a.slot, b.slot) || bySortOrder(a.room, b.room))
+      for (let k = 0; k < elimPlacements.length; k++) {
+        const { slot, room } = elimPlacements[k]!
+        await createQuiz({
+          slotId: slot.id,
+          roomId: room.id,
+          division: div,
+          phase: 'elim',
+          label: `D${div}-Q${String.fromCharCode(65 + k)}`,
+          seats: [
+            { seatNumber: 1, letter: 'A' },
+            { seatNumber: 2, letter: 'B' },
+            { seatNumber: 3, letter: 'C' },
+          ],
+        })
+      }
     }
     if (unsupported.length > 0) {
       console.warn(
@@ -227,50 +256,36 @@ async function onPopulateSkeleton() {
   }
 }
 
-/** Place one division's items column-major (room outer, slot inner)
- *  starting at the division's preferred room and walking higher,
- *  wrapping to lower rooms only after exhausting the rest. Skips
- *  cells already used by an earlier division. When `draw` is provided,
- *  the i-th item gets the i-th triple from the rule-book pattern as
- *  its seat letters; otherwise falls back to placeholder A/B/C. */
-async function placeForDivision(
+/** Reserve `count` cells for a division using the column-major
+ *  preference (room outer starting at the division's preferred room,
+ *  wrap around; slot inner). Marks each chosen `(slot, room)` as
+ *  used so later divisions skip it. Returns the placements unsorted
+ *  in column-major order — the caller can re-sort chronologically
+ *  before assigning labels. */
+function collectPlacements(
   divIdx: number,
-  items: ReturnType<typeof computePopulationPlan>,
+  count: number,
   targetSlots: typeof slots.value,
   sortedRooms: typeof rooms.value,
   used: Set<string>,
-  draw: ReadonlyArray<readonly [string, string, string]> | null,
-) {
-  if (items.length === 0 || targetSlots.length === 0 || sortedRooms.length === 0) return
+): Array<{ slot: (typeof slots.value)[number]; room: (typeof rooms.value)[number] }> {
+  const out: Array<{ slot: (typeof slots.value)[number]; room: (typeof rooms.value)[number] }> = []
+  if (count === 0 || targetSlots.length === 0 || sortedRooms.length === 0) return out
   const preferredIdx = divIdx % sortedRooms.length
   const orderedRooms: typeof sortedRooms = []
   for (let k = 0; k < sortedRooms.length; k++) {
     orderedRooms.push(sortedRooms[(preferredIdx + k) % sortedRooms.length]!)
   }
-  let i = 0
   for (const room of orderedRooms) {
     for (const slot of targetSlots) {
-      if (i >= items.length) return
+      if (out.length >= count) return out
       const key = `${slot.id}:${room.id}`
       if (used.has(key)) continue
-      const item = items[i]!
-      const triple = draw?.[i] ?? (['A', 'B', 'C'] as const)
-      await createQuiz({
-        slotId: slot.id,
-        roomId: room.id,
-        division: item.division,
-        phase: item.phase,
-        label: item.label,
-        seats: [
-          { seatNumber: 1, letter: triple[0] },
-          { seatNumber: 2, letter: triple[1] },
-          { seatNumber: 3, letter: triple[2] },
-        ],
-      })
       used.add(key)
-      i++
+      out.push({ slot, room })
     }
   }
+  return out
 }
 
 function onRollTeams() {
