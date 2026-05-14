@@ -9,6 +9,7 @@ import PrelimSetupSection from '../components/schedule/PrelimSetupSection.vue'
 import ReviewSection from '../components/schedule/ReviewSection.vue'
 import SkeletonSection from '../components/schedule/SkeletonSection.vue'
 import { useScheduleData } from '../composables/useScheduleData'
+import { getPrelimDraw } from '../prelimDraw'
 import { bySortOrder, isStatsBreak } from '../scheduleGrid'
 
 const props = defineProps<{ slug: string }>()
@@ -184,23 +185,25 @@ async function onPopulateSkeleton() {
 
     // Per-division column-major placement: each division clusters in its
     // preferred room (Div N → Nth sorted room), spilling to the next
-    // higher room and wrapping around if necessary.
-    //
-    // Caveat: prelim spillover puts two same-division quizzes at the same
-    // slot in different rooms, which is a team-conflict while seats are
-    // populated with the placeholder A/B/C trio. Roll Teams is responsible
-    // for rewriting seats into a valid round-robin pattern; its rollInfo
-    // card already surfaces the conflict.
+    // higher room and wrapping around if necessary. Prelim seats use the
+    // rule-book draw pattern from `prelimDraw.ts` so the round-robin is
+    // valid out of the gate; elim seats stay placeholder A/B/C since
+    // elim seeds resolve lazily via seedRefs (Roll Teams' job).
     const sortedRooms = [...rooms.value].sort(bySortOrder)
     const used = new Set<string>()
+    const unsupported: number[] = []
     for (let i = 0; i < divisions.value.length; i++) {
-      const div = divisions.value[i]
+      const div = divisions.value[i]!
+      const teamCount = teamCounts.value[div] ?? 0
+      const draw = getPrelimDraw(teamCount)
+      if (teamCount > 0 && draw === null) unsupported.push(teamCount)
       await placeForDivision(
         i,
         prelimPlan.filter((p) => p.division === div),
         prelimSlots,
         sortedRooms,
         used,
+        draw,
       )
       await placeForDivision(
         i,
@@ -208,6 +211,13 @@ async function onPopulateSkeleton() {
         elimSlots,
         sortedRooms,
         used,
+        null,
+      )
+    }
+    if (unsupported.length > 0) {
+      console.warn(
+        `Populate: no rule-book draw pattern for team counts ${unsupported.join(', ')}; ` +
+          'falling back to placeholder A/B/C seats. Edit those quizzes manually or add the pattern to prelimDraw.ts.',
       )
     }
   } catch (e) {
@@ -220,13 +230,16 @@ async function onPopulateSkeleton() {
 /** Place one division's items column-major (room outer, slot inner)
  *  starting at the division's preferred room and walking higher,
  *  wrapping to lower rooms only after exhausting the rest. Skips
- *  cells already used by an earlier division. */
+ *  cells already used by an earlier division. When `draw` is provided,
+ *  the i-th item gets the i-th triple from the rule-book pattern as
+ *  its seat letters; otherwise falls back to placeholder A/B/C. */
 async function placeForDivision(
   divIdx: number,
   items: ReturnType<typeof computePopulationPlan>,
   targetSlots: typeof slots.value,
   sortedRooms: typeof rooms.value,
   used: Set<string>,
+  draw: ReadonlyArray<readonly [string, string, string]> | null,
 ) {
   if (items.length === 0 || targetSlots.length === 0 || sortedRooms.length === 0) return
   const preferredIdx = divIdx % sortedRooms.length
@@ -241,6 +254,7 @@ async function placeForDivision(
       const key = `${slot.id}:${room.id}`
       if (used.has(key)) continue
       const item = items[i]!
+      const triple = draw?.[i] ?? (['A', 'B', 'C'] as const)
       await createQuiz({
         slotId: slot.id,
         roomId: room.id,
@@ -248,9 +262,9 @@ async function placeForDivision(
         phase: item.phase,
         label: item.label,
         seats: [
-          { seatNumber: 1, letter: 'A' },
-          { seatNumber: 2, letter: 'B' },
-          { seatNumber: 3, letter: 'C' },
+          { seatNumber: 1, letter: triple[0] },
+          { seatNumber: 2, letter: triple[1] },
+          { seatNumber: 3, letter: triple[2] },
         ],
       })
       used.add(key)
@@ -260,7 +274,9 @@ async function placeForDivision(
 }
 
 function onRollTeams() {
-  alert('Roll Teams — coming soon. Will assign team letters to seats using a balanced rotation.')
+  alert(
+    'Roll Teams — coming soon. Maps each team to a letter (A–N) for the prelim draw, biased by per-team lateness flags. The draw pattern itself is already laid down by Populate.',
+  )
 }
 
 type TabId = 'prelim' | 'elim' | 'skeleton' | 'draw'
