@@ -168,6 +168,10 @@ export const teams = sqliteTable('teams', {
   division: text('division').notNull(),
   number: integer('number').notNull(), // per-church sequential (display derived: "{shortName} {number}")
   consolation: integer('consolation', { mode: 'boolean' }).notNull().default(false),
+  // Roll Teams sorts by (lateness ASC, RAND ASC) so late teams land
+  // in the highest-numbered letters — those play their first prelim
+  // quiz in later rounds, giving a delayed bus more time to arrive.
+  lateness: integer('lateness', { mode: 'boolean' }).notNull().default(false),
 })
 
 export const quizzerIdentities = sqliteTable('quizzer_identities', {

@@ -297,7 +297,8 @@ churches.post('/churches/:churchId/teams', requireAuth(), async (c) => {
 /**
  * PATCH /api/teams/:teamId
  *
- * Updates a team's division. Requires coach, admin, or superuser access.
+ * Updates a team's division, number, and/or lateness flag. Requires
+ * coach, admin, or superuser access.
  */
 churches.patch('/teams/:teamId', requireAuth(), async (c) => {
   const teamId = Number(c.req.param('teamId'))
@@ -313,14 +314,20 @@ churches.patch('/teams/:teamId', requireAuth(), async (c) => {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
-  const body = await c.req.json<{ division?: string; number?: number }>()
-  if (!body.division?.trim() && (body.number == null || typeof body.number !== 'number')) {
-    return c.json({ error: 'division or number is required' }, 400)
-  }
+  const body = await c.req.json<{
+    division?: string
+    number?: number
+    lateness?: boolean
+  }>()
 
-  const patch: { division?: string; number?: number } = {}
+  const patch: { division?: string; number?: number; lateness?: boolean } = {}
   if (body.division?.trim()) patch.division = body.division.trim()
   if (typeof body.number === 'number') patch.number = body.number
+  if (typeof body.lateness === 'boolean') patch.lateness = body.lateness
+
+  if (Object.keys(patch).length === 0) {
+    return c.json({ error: 'division, number, or lateness is required' }, 400)
+  }
 
   const [updated] = await db
     .update(schema.teams)

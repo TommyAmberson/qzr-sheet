@@ -221,6 +221,10 @@ export interface Team {
   division: string
   number: number
   consolation: boolean
+  /** Late teams sort to the bottom of Roll Teams's permutation, landing
+   *  in the highest-numbered letters (which appear later in the
+   *  rule-book prelim pattern). */
+  lateness: boolean
 }
 
 export interface Quizzer {
@@ -279,7 +283,7 @@ export function createTeam(churchId: number, data: { division: string }): Promis
 
 export function updateTeam(
   teamId: number,
-  data: { division?: string; number?: number },
+  data: { division?: string; number?: number; lateness?: boolean },
 ): Promise<{ team: Team }> {
   return request(`/api/teams/${teamId}`, {
     method: 'PATCH',
