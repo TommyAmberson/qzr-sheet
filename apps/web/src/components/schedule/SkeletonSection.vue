@@ -205,22 +205,32 @@ const dragState = ref<{
   slotId: number
   groupKey: string
   fromIdx: number
+  /** Day the cursor is currently over — may differ from `groupKey`
+   *  when dragging across day boundaries. */
+  targetGroupKey: string
   toIdx: number
 } | null>(null)
 
 /** Where the drop indicator line should land — null when no drag, or
- *  when the current target index is a no-op (already there). */
-const dropIndicator = computed<{ idx: number; position: 'above' | 'below' } | null>(() => {
+ *  when the current target index is a no-op (same day, already there). */
+const dropIndicator = computed<{
+  groupKey: string
+  idx: number
+  position: 'above' | 'below'
+} | null>(() => {
   const ds = dragState.value
   if (!ds) return null
-  const insertIdx = ds.toIdx > ds.fromIdx ? ds.toIdx - 1 : ds.toIdx
-  if (insertIdx === ds.fromIdx) return null
-  const group = days.value.find((g) => g.dateKey === ds.groupKey)
+  const sameGroup = ds.targetGroupKey === ds.groupKey
+  if (sameGroup) {
+    const insertIdx = ds.toIdx > ds.fromIdx ? ds.toIdx - 1 : ds.toIdx
+    if (insertIdx === ds.fromIdx) return null
+  }
+  const group = days.value.find((g) => g.dateKey === ds.targetGroupKey)
   if (!group) return null
   if (ds.toIdx >= group.slots.length) {
-    return { idx: group.slots.length - 1, position: 'below' }
+    return { groupKey: ds.targetGroupKey, idx: group.slots.length - 1, position: 'below' }
   }
-  return { idx: ds.toIdx, position: 'above' }
+  return { groupKey: ds.targetGroupKey, idx: ds.toIdx, position: 'above' }
 })
 
 function startDrag(event: PointerEvent, group: DayGroup, slot: MeetSlot, idx: number) {
@@ -230,6 +240,7 @@ function startDrag(event: PointerEvent, group: DayGroup, slot: MeetSlot, idx: nu
     slotId: slot.id,
     groupKey: group.dateKey,
     fromIdx: idx,
+    targetGroupKey: group.dateKey,
     toIdx: idx,
   }
 }
@@ -240,10 +251,10 @@ function onDragMove(event: PointerEvent) {
   if (!target) return
   const tr = target.closest('tr[data-slot-id]') as HTMLElement | null
   if (!tr) return
-  if (tr.dataset.groupKey !== dragState.value.groupKey) return
-  const slotId = Number(tr.dataset.slotId)
-  const group = days.value.find((g) => g.dateKey === dragState.value!.groupKey)
+  const targetGroupKey = tr.dataset.groupKey ?? ''
+  const group = days.value.find((g) => g.dateKey === targetGroupKey)
   if (!group) return
+  const slotId = Number(tr.dataset.slotId)
   const idx = group.slots.findIndex((s) => s.id === slotId)
   if (idx < 0) return
   // Insertion-point semantics: if cursor is in the top half of this
@@ -251,6 +262,7 @@ function onDragMove(event: PointerEvent) {
   // (toIdx = idx + 1). Lets the user drop after the last row too.
   const rect = tr.getBoundingClientRect()
   const inTopHalf = event.clientY < rect.top + rect.height / 2
+  dragState.value.targetGroupKey = targetGroupKey
   dragState.value.toIdx = inTopHalf ? idx : idx + 1
 }
 
@@ -258,12 +270,62 @@ function endDrag(event: PointerEvent) {
   if (!dragState.value) return
   const el = event.currentTarget as HTMLElement
   if (el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId)
-  const { groupKey, fromIdx, toIdx } = dragState.value
+  const { groupKey, fromIdx, targetGroupKey, toIdx } = dragState.value
   dragState.value = null
-  if (fromIdx === toIdx) return
-  const group = days.value.find((g) => g.dateKey === groupKey)
-  if (!group) return
-  reorderWithinDay(group, fromIdx, toIdx)
+  if (groupKey === targetGroupKey) {
+    if (fromIdx === toIdx) return
+    const group = days.value.find((g) => g.dateKey === groupKey)
+    if (!group) return
+    reorderWithinDay(group, fromIdx, toIdx)
+    return
+  }
+  const srcGroup = days.value.find((g) => g.dateKey === groupKey)
+  const dstGroup = days.value.find((g) => g.dateKey === targetGroupKey)
+  if (!srcGroup || !dstGroup) return
+  moveAcrossDays(srcGroup, fromIdx, dstGroup, toIdx)
+}
+
+/** Cross-day reorder. The dragged slot moves from `srcGroup[fromIdx]`
+ *  to insert before `dstGroup[toIdx]` (toIdx = dst length means after
+ *  the last). After the move we recompute every affected day's slot
+ *  startAt's (cumulative from each day's anchor time) and reassign
+ *  global sortOrder so the new arrangement persists. */
+function moveAcrossDays(srcGroup: DayGroup, fromIdx: number, dstGroup: DayGroup, toIdx: number) {
+  const moved = srcGroup.slots[fromIdx]
+  if (!moved) return
+
+  // Build the new arrangement of all days, with `moved` removed from
+  // its source day and inserted into the destination day.
+  const arrangement = days.value.map((g) => {
+    if (g.dateKey === srcGroup.dateKey) {
+      const next = [...g.slots]
+      next.splice(fromIdx, 1)
+      return { dateKey: g.dateKey, anchor: g.slots[0]!.startAt, slots: next }
+    }
+    if (g.dateKey === dstGroup.dateKey) {
+      const next = [...g.slots]
+      next.splice(toIdx, 0, moved)
+      return { dateKey: g.dateKey, anchor: g.slots[0]!.startAt, slots: next }
+    }
+    return { dateKey: g.dateKey, anchor: g.slots[0]!.startAt, slots: g.slots }
+  })
+
+  let globalSortOrder = 0
+  for (const day of arrangement) {
+    if (day.slots.length === 0) continue
+    let cursor = new Date(day.anchor).getTime()
+    for (const s of day.slots) {
+      const newStart = new Date(cursor).toISOString()
+      const newSortOrder = globalSortOrder++
+      if (s.startAt !== newStart || s.sortOrder !== newSortOrder) {
+        emit('update-slot', {
+          slotId: s.id,
+          patch: { startAt: newStart, sortOrder: newSortOrder },
+        })
+      }
+      cursor += s.durationMinutes * 60_000
+    }
+  }
 }
 
 /** Insertion-style reorder: move slot from `fromIdx` to insert before
@@ -402,11 +464,11 @@ function deleteSlot(slot: MeetSlot) {
                 'is-drop-above':
                   dropIndicator?.position === 'above' &&
                   dropIndicator.idx === idx &&
-                  dragState?.groupKey === group.dateKey,
+                  dropIndicator.groupKey === group.dateKey,
                 'is-drop-below':
                   dropIndicator?.position === 'below' &&
                   dropIndicator.idx === idx &&
-                  dragState?.groupKey === group.dateKey,
+                  dropIndicator.groupKey === group.dateKey,
               }"
             >
               <th class="time-col" scope="row">
