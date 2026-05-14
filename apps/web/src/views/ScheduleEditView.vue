@@ -183,37 +183,45 @@ async function onPopulateSkeleton() {
       if (!ok) return
     }
 
-    // Per-division column-major placement: each division clusters in
-    // its preferred room (Div N → Nth sorted room), spilling to the
-    // next higher room and wrapping around if necessary. Prelim seats
-    // use the rule-book draw pattern from `prelimDraw.ts`; elim seats
-    // stay placeholder A/B/C since elim seeds resolve lazily via
-    // seedRefs (Roll Teams' job).
+    // Room-by-room placement so a division's spillover lands in the
+    // immediately-adjacent room rather than skipping ahead. For each
+    // room: the room's primary division (Div N → Nth sorted room)
+    // takes the early slots, and the *previous* room's primary
+    // overflow is parked in the late slots. Net result: a shared room
+    // shows the higher-numbered division in early slots and the lower-
+    // numbered division's spillover in late slots — and that
+    // spillover is always one room over from where it started.
     //
-    // Quiz numbering and pattern row are assigned in chronological
-    // order (slot first, then room) — even though placement itself is
-    // column-major. So in a no-spillover case nothing changes; in a
-    // spillover case the labels still read Q1, Q2, Q3, … in the order
-    // the quizzes happen rather than in the order rooms got filled.
+    // Prelim seats use the rule-book draw pattern from `prelimDraw.ts`;
+    // elim seats stay placeholder A/B/C since elim seeds resolve
+    // lazily via seedRefs (Roll Teams' job). Per-division labels and
+    // pattern rows are assigned in chronological order (slot, then
+    // room) after placement, so Q1, Q2, … read in time order.
     const sortedRooms = [...rooms.value].sort(bySortOrder)
-    const used = new Set<string>()
     const unsupported: number[] = []
-    // Place higher-numbered divisions first so they claim their
-    // preferred rooms before lower-numbered ones get a chance to spill.
-    // When a room ends up shared between two divisions, the higher
-    // (later-numbered) division gets the earlier slots — its quizzes
-    // were placed first into that room.
-    for (let i = divisions.value.length - 1; i >= 0; i--) {
-      const div = divisions.value[i]!
+    const prelimItemsByDiv: Record<string, ReturnType<typeof computePopulationPlan>> = {}
+    const elimItemsByDiv: Record<string, ReturnType<typeof computePopulationPlan>> = {}
+    for (const div of divisions.value) {
+      prelimItemsByDiv[div] = prelimPlan.filter((p) => p.division === div)
+      elimItemsByDiv[div] = elimPlan.filter((p) => p.division === div)
+    }
+    const prelimPlacements = placeAcrossRooms(
+      prelimItemsByDiv,
+      divisions.value,
+      sortedRooms,
+      prelimSlots,
+    )
+    const elimPlacements = placeAcrossRooms(elimItemsByDiv, divisions.value, sortedRooms, elimSlots)
+
+    for (const div of divisions.value) {
       const teamCount = teamCounts.value[div] ?? 0
       const draw = getPrelimDraw(teamCount)
       if (teamCount > 0 && draw === null) unsupported.push(teamCount)
 
-      const prelimCount = prelimPlan.filter((p) => p.division === div).length
-      const prelimPlacements = collectPlacements(i, prelimCount, prelimSlots, sortedRooms, used)
-      prelimPlacements.sort((a, b) => bySortOrder(a.slot, b.slot) || bySortOrder(a.room, b.room))
-      for (let k = 0; k < prelimPlacements.length; k++) {
-        const { slot, room } = prelimPlacements[k]!
+      const divPrelims = prelimPlacements[div] ?? []
+      divPrelims.sort((a, b) => bySortOrder(a.slot, b.slot) || bySortOrder(a.room, b.room))
+      for (let k = 0; k < divPrelims.length; k++) {
+        const { slot, room } = divPrelims[k]!
         const triple = draw?.[k] ?? (['A', 'B', 'C'] as const)
         await createQuiz({
           slotId: slot.id,
@@ -229,11 +237,10 @@ async function onPopulateSkeleton() {
         })
       }
 
-      const elimCount = elimPlan.filter((p) => p.division === div).length
-      const elimPlacements = collectPlacements(i, elimCount, elimSlots, sortedRooms, used)
-      elimPlacements.sort((a, b) => bySortOrder(a.slot, b.slot) || bySortOrder(a.room, b.room))
-      for (let k = 0; k < elimPlacements.length; k++) {
-        const { slot, room } = elimPlacements[k]!
+      const divElims = elimPlacements[div] ?? []
+      divElims.sort((a, b) => bySortOrder(a.slot, b.slot) || bySortOrder(a.room, b.room))
+      for (let k = 0; k < divElims.length; k++) {
+        const { slot, room } = divElims[k]!
         await createQuiz({
           slotId: slot.id,
           roomId: room.id,
@@ -261,36 +268,78 @@ async function onPopulateSkeleton() {
   }
 }
 
-/** Reserve `count` cells for a division using the column-major
- *  preference (room outer starting at the division's preferred room,
- *  wrap around; slot inner). Marks each chosen `(slot, room)` as
- *  used so later divisions skip it. Returns the placements unsorted
- *  in column-major order — the caller can re-sort chronologically
- *  before assigning labels. */
-function collectPlacements(
-  divIdx: number,
-  count: number,
-  targetSlots: typeof slots.value,
+/** Walk rooms in sorted order, placing each room's primary division
+ *  in early slots and the previous room's primary overflow in late
+ *  slots. Returns a per-division placement list. The caller is
+ *  expected to sort each division's list chronologically before
+ *  assigning labels.
+ *
+ *  Pending overflow that doesn't fit in the immediately-next room
+ *  cascades forward; if the cascade exhausts all rooms, the leftover
+ *  is dropped (the caller's capacity check should have warned). */
+function placeAcrossRooms(
+  itemsByDiv: Record<string, ReturnType<typeof computePopulationPlan>>,
+  divisions: string[],
   sortedRooms: typeof rooms.value,
-  used: Set<string>,
-): Array<{ slot: (typeof slots.value)[number]; room: (typeof rooms.value)[number] }> {
-  const out: Array<{ slot: (typeof slots.value)[number]; room: (typeof rooms.value)[number] }> = []
-  if (count === 0 || targetSlots.length === 0 || sortedRooms.length === 0) return out
-  const preferredIdx = divIdx % sortedRooms.length
-  const orderedRooms: typeof sortedRooms = []
-  for (let k = 0; k < sortedRooms.length; k++) {
-    orderedRooms.push(sortedRooms[(preferredIdx + k) % sortedRooms.length]!)
+  targetSlots: typeof slots.value,
+): Record<
+  string,
+  Array<{ slot: (typeof slots.value)[number]; room: (typeof rooms.value)[number] }>
+> {
+  type Placement = {
+    slot: (typeof slots.value)[number]
+    room: (typeof rooms.value)[number]
   }
-  for (const room of orderedRooms) {
-    for (const slot of targetSlots) {
-      if (out.length >= count) return out
-      const key = `${slot.id}:${room.id}`
-      if (used.has(key)) continue
-      used.add(key)
-      out.push({ slot, room })
+  const placements: Record<string, Array<Placement>> = {}
+  for (const div of divisions) placements[div] = []
+
+  const slotsCount = targetSlots.length
+  if (slotsCount === 0 || sortedRooms.length === 0) return placements
+
+  let pending: { div: string; count: number } | null = null
+
+  for (let r = 0; r < sortedRooms.length; r++) {
+    const room = sortedRooms[r]!
+    const primaryDiv = divisions[r] ?? null
+
+    if (primaryDiv) {
+      const items = itemsByDiv[primaryDiv] ?? []
+      const remaining = items.length - placements[primaryDiv]!.length
+      const reserved = pending ? Math.min(pending.count, slotsCount) : 0
+      const availableForPrimary = Math.max(0, slotsCount - reserved)
+      const toPlace = Math.min(remaining, availableForPrimary)
+
+      // Primary in early slots [0, toPlace).
+      for (let j = 0; j < toPlace; j++) {
+        placements[primaryDiv]!.push({ slot: targetSlots[j]!, room })
+      }
+
+      // Pending in late slots [slotsCount - pendingPlaceable, slotsCount).
+      if (pending) {
+        const pendingPlaceable = Math.min(pending.count, slotsCount - toPlace)
+        const lateStart = slotsCount - pendingPlaceable
+        for (let j = 0; j < pendingPlaceable; j++) {
+          placements[pending.div]!.push({ slot: targetSlots[lateStart + j]!, room })
+        }
+        // Any pending leftover is dropped — capacity check upstream warns.
+      }
+
+      const newOverflow = remaining - toPlace
+      pending = newOverflow > 0 ? { div: primaryDiv, count: newOverflow } : null
+    } else if (pending) {
+      // No primary — pending takes early slots (no primary to defer to).
+      const pendingDiv: string = pending.div
+      const pendingCount: number = pending.count
+      const toPlace: number = Math.min(pendingCount, slotsCount)
+      for (let j = 0; j < toPlace; j++) {
+        placements[pendingDiv]!.push({ slot: targetSlots[j]!, room })
+      }
+      const leftover: number = pendingCount - toPlace
+      pending = leftover > 0 ? { div: pendingDiv, count: leftover } : null
     }
   }
-  return out
+
+  return placements
 }
 
 function onRollTeams() {
