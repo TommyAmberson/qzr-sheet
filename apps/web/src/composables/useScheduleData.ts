@@ -243,15 +243,23 @@ export function useScheduleData(slug: Ref<string>) {
   }
 
   /** Push late teams' prelim quizzes to later slots within their
-   *  division. Computes the optimal arrangement from scratch via
-   *  bipartite matching between rooms (so labels and seats stay
-   *  attached, only slotId moves), then reassigns slots so non-late
-   *  pairs land first, mixed pairs in the middle, and fully-late
-   *  pairs at the end.
+   *  division. Robust for any room count (1, 2, 3+) by re-arranging
+   *  from scratch:
    *
-   *  Pair-compatibility constraint: two quizzes sharing a slot must
-   *  have disjoint letters (a team can't be in two rooms at once).
-   *  The matching honours that constraint by construction.
+   *  1. Group the division's quizzes by room (each room is a "lane"
+   *     that holds one quiz per slot).
+   *  2. Walk slots from LAST → FIRST. At each slot, pick the
+   *     **letter-disjoint tuple** (one quiz from each room, or
+   *     `null` for an empty room) that maximises the late-quiz
+   *     count — ties broken by tuple size, so empty cells only
+   *     appear when no fuller alternative is letter-compatible.
+   *  3. Apply the chosen quizzes to that slot, remove them from the
+   *     pool, repeat for the next-earlier slot.
+   *
+   *  Net effect: late quizzes get drawn into the latest slots they
+   *  can fit (subject to "no team in two rooms at once"), and non-
+   *  late quizzes naturally settle into the early slots. Labels and
+   *  seats stay attached to each quiz; only slotId changes.
    *
    *  Returns the count of quizzes moved. */
   async function swapLateTeamsLater(division: string): Promise<number> {
@@ -298,101 +306,100 @@ export function useScheduleData(slug: Ref<string>) {
       .sort(bySortOrder)
       .map((r) => r.id)
 
-    if (roomIds.length === 1) {
-      // Single-room column: just sort quizzes by lateness within
-      // chronological order — no pair-conflict check needed.
-      const sorted = [...prelims].sort((a, b) => {
-        const aLate = containsLate(a) ? 1 : 0
-        const bLate = containsLate(b) ? 1 : 0
-        if (aLate !== bLate) return aLate - bLate
-        // Stable on original slot order for ties.
-        return slotIdsOrdered.indexOf(a.slotId) - slotIdsOrdered.indexOf(b.slotId)
-      })
-      return await applySlotMoves(
-        sorted.map((q, i) => ({ quizId: q.id, slotId: slotIdsOrdered[i]! })),
-      )
+    // Quizzes pooled per room. Mutated as the algorithm consumes them.
+    const pool: ScheduledQuiz[][] = roomIds.map((rid) => prelims.filter((q) => q.roomId === rid))
+
+    // Working assignment: assignment[slotIdx] = chosen quizzes for that slot.
+    const assignment: ScheduledQuiz[][] = slotIdsOrdered.map(() => [])
+
+    for (let slotIdx = slotIdsOrdered.length - 1; slotIdx >= 0; slotIdx--) {
+      const tuple = pickBestTuple(pool, lettersOf, containsLate, disjoint)
+      if (!tuple) continue
+      for (let roomIdx = 0; roomIdx < tuple.length; roomIdx++) {
+        const quiz = tuple[roomIdx]
+        if (!quiz) continue
+        assignment[slotIdx]!.push(quiz)
+        const idx = pool[roomIdx]!.indexOf(quiz)
+        if (idx >= 0) pool[roomIdx]!.splice(idx, 1)
+      }
     }
 
-    if (roomIds.length !== 2) {
-      // 3+ rooms in one division is unusual and the matching gets
-      // hairier (tripartite, etc.). Bail out — admin can manually
-      // rearrange if needed.
-      return 0
+    // If anything's left in the pool (e.g. all slots filled but some
+    // quizzes couldn't fit anywhere conflict-free), drop them at the
+    // first available slot — preserves prior placement at worst.
+    for (let roomIdx = 0; roomIdx < pool.length; roomIdx++) {
+      for (const quiz of pool[roomIdx]!) {
+        for (let slotIdx = 0; slotIdx < slotIdsOrdered.length; slotIdx++) {
+          const existing = assignment[slotIdx]!
+          if (existing.some((q) => q.roomId === quiz.roomId)) continue
+          // Must still be letter-compatible with the others at this slot.
+          const qLetters = lettersOf(quiz)
+          if (existing.some((q) => !disjoint(lettersOf(q), qLetters))) continue
+          existing.push(quiz)
+          break
+        }
+      }
     }
 
-    // Two-room case: bipartite matching room-A × room-B.
-    const roomA = prelims.filter((q) => q.roomId === roomIds[0])
-    const roomB = prelims.filter((q) => q.roomId === roomIds[1])
-
-    const canPair = (a: ScheduledQuiz, b: ScheduledQuiz) => disjoint(lettersOf(a), lettersOf(b))
-    const nonLateA = roomA.filter((q) => !containsLate(q))
-    const nonLateB = roomB.filter((q) => !containsLate(q))
-    const lateA = roomA.filter(containsLate)
-    const lateB = roomB.filter(containsLate)
-
-    // Stage 1: max non-late × non-late matching.
-    const stage1 = bipartiteMatch(nonLateA, nonLateB, canPair)
-    const matchedAIds = new Set(stage1.map((p) => p[0].id))
-    const matchedBIds = new Set(stage1.map((p) => p[1].id))
-
-    // Stage 2: pair leftover non-lates with compatible lates (in opposite room).
-    const stage2A = bipartiteMatch(
-      nonLateA.filter((q) => !matchedAIds.has(q.id)),
-      lateB,
-      canPair,
-    )
-    for (const p of stage2A) {
-      matchedAIds.add(p[0].id)
-      matchedBIds.add(p[1].id)
-    }
-    const stage2B = bipartiteMatch(
-      nonLateB.filter((q) => !matchedBIds.has(q.id)),
-      lateA,
-      canPair,
-    )
-    for (const p of stage2B) {
-      matchedBIds.add(p[0].id)
-      matchedAIds.add(p[1].id)
-    }
-
-    // Stage 3: max late × late matching for the rest.
-    const stage3 = bipartiteMatch(
-      lateA.filter((q) => !matchedAIds.has(q.id)),
-      lateB.filter((q) => !matchedBIds.has(q.id)),
-      canPair,
-    )
-    for (const p of stage3) {
-      matchedAIds.add(p[0].id)
-      matchedBIds.add(p[1].id)
-    }
-
-    // Singletons: anyone left unmatched takes a slot alone.
-    const singletons = [
-      ...roomA.filter((q) => !matchedAIds.has(q.id)),
-      ...roomB.filter((q) => !matchedBIds.has(q.id)),
-    ]
-
-    // Order pairs by lateness rank: 0 = non-late, 1 = mixed, 2 = late-late, 3 = late singleton.
-    type Group = { quizzes: ScheduledQuiz[]; rank: number }
-    const groups: Group[] = []
-    for (const [a, b] of stage1) groups.push({ quizzes: [a, b], rank: 0 })
-    for (const [a, b] of stage2A) groups.push({ quizzes: [a, b], rank: 1 })
-    for (const [a, b] of stage2B) groups.push({ quizzes: [a, b], rank: 1 })
-    for (const [a, b] of stage3) groups.push({ quizzes: [a, b], rank: 2 })
-    for (const q of singletons) groups.push({ quizzes: [q], rank: containsLate(q) ? 3 : 0 })
-    groups.sort((a, b) => a.rank - b.rank)
-
-    // Assign each group to the next chronological slot.
     const moves: { quizId: number; slotId: number }[] = []
-    for (let i = 0; i < groups.length && i < slotIdsOrdered.length; i++) {
-      const targetSlotId = slotIdsOrdered[i]!
-      for (const quiz of groups[i]!.quizzes) {
+    for (let slotIdx = 0; slotIdx < slotIdsOrdered.length; slotIdx++) {
+      const targetSlotId = slotIdsOrdered[slotIdx]!
+      for (const quiz of assignment[slotIdx]!) {
         if (quiz.slotId !== targetSlotId) {
           moves.push({ quizId: quiz.id, slotId: targetSlotId })
         }
       }
     }
     return await applySlotMoves(moves)
+  }
+
+  /** Pick the best K-tuple from a per-room pool: one quiz per room
+   *  (or `null` to leave a room empty), pairwise letter-disjoint,
+   *  maximising late-quiz count then tuple size. Backtracking
+   *  enumeration; for typical division sizes (≤20 quizzes per room,
+   *  ≤4 rooms) this runs in microseconds. */
+  function pickBestTuple(
+    pool: ScheduledQuiz[][],
+    lettersOf: (q: ScheduledQuiz) => Set<string>,
+    containsLate: (q: ScheduledQuiz) => boolean,
+    disjoint: (a: Set<string>, b: Set<string>) => boolean,
+  ): (ScheduledQuiz | null)[] | null {
+    let bestTuple: (ScheduledQuiz | null)[] | null = null
+    let bestLate = -1
+    let bestSize = -1
+    const current: (ScheduledQuiz | null)[] = []
+
+    const recurse = (roomIdx: number, lateCount: number, size: number): void => {
+      if (roomIdx === pool.length) {
+        if (lateCount > bestLate || (lateCount === bestLate && size > bestSize)) {
+          bestLate = lateCount
+          bestSize = size
+          bestTuple = [...current]
+        }
+        return
+      }
+      for (const quiz of pool[roomIdx]!) {
+        const qLetters = lettersOf(quiz)
+        let ok = true
+        for (const picked of current) {
+          if (picked && !disjoint(lettersOf(picked), qLetters)) {
+            ok = false
+            break
+          }
+        }
+        if (!ok) continue
+        current.push(quiz)
+        recurse(roomIdx + 1, lateCount + (containsLate(quiz) ? 1 : 0), size + 1)
+        current.pop()
+      }
+      // Also consider leaving this room empty for this slot.
+      current.push(null)
+      recurse(roomIdx + 1, lateCount, size)
+      current.pop()
+    }
+
+    recurse(0, 0, 0)
+    return bestTuple
   }
 
   /** Apply a batch of slotId reassignments to scheduled quizzes,
@@ -406,37 +413,6 @@ export function useScheduleData(slug: Ref<string>) {
     const refreshed = await listScheduledQuizzes(meetId.value)
     quizzes.value = refreshed.quizzes
     return moves.length
-  }
-
-  /** Maximum bipartite matching via augmenting paths (Hopcroft-Karp's
-   *  simpler cousin). For typical division sizes (≤ 20 nodes per side)
-   *  this is well under a millisecond. */
-  function bipartiteMatch<T extends { id: number }>(
-    left: T[],
-    right: T[],
-    canPair: (l: T, r: T) => boolean,
-  ): [T, T][] {
-    const matchR = new Map<number, T>()
-    const tryAugment = (node: T, visited: Set<number>): boolean => {
-      for (const r of right) {
-        if (!canPair(node, r)) continue
-        if (visited.has(r.id)) continue
-        visited.add(r.id)
-        const occupant = matchR.get(r.id)
-        if (!occupant || tryAugment(occupant, visited)) {
-          matchR.set(r.id, node)
-          return true
-        }
-      }
-      return false
-    }
-    for (const l of left) tryAugment(l, new Set<number>())
-    const pairs: [T, T][] = []
-    for (const [, l] of matchR) {
-      const r = right.find((x) => matchR.get(x.id) === l)
-      if (r) pairs.push([l, r])
-    }
-    return pairs
   }
 
   /** Toggle a team's lateness flag. Optimistic local update + PATCH;
