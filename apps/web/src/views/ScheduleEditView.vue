@@ -22,6 +22,7 @@ const {
   quizzes,
   teamCounts,
   teams,
+  prelimAssignments,
   extraLanes,
   loading,
   error,
@@ -38,6 +39,7 @@ const {
   updateQuiz,
   deleteQuiz,
   updateTeamLateness,
+  rollTeams,
 } = useScheduleData(toRef(props, 'slug'))
 
 async function onCreateSlot(payload: {
@@ -352,10 +354,14 @@ function placeAcrossRooms(
   return placements
 }
 
-function onRollTeams() {
-  alert(
-    'Roll Teams — coming soon. Maps each team to a letter (A–N) for the prelim draw, biased by per-team lateness flags. The draw pattern itself is already laid down by Populate.',
-  )
+async function onRollTeams() {
+  try {
+    for (const div of divisions.value) {
+      await rollTeams(div)
+    }
+  } catch (e) {
+    alert((e as Error).message)
+  }
 }
 
 type TabId = 'prelim' | 'elim' | 'skeleton' | 'draw'
@@ -643,6 +649,8 @@ onMounted(async () => {
         :can-populate="isAdmin"
         :populate-info="populateInfo"
         :roll-info="rollInfo"
+        :prelim-assignments="prelimAssignments"
+        :meet-teams="teams"
         @update-slot="onUpdateSlot"
         @delete-quiz="onDeleteQuiz"
         @add-quiz="onAddQuiz"

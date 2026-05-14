@@ -569,3 +569,29 @@ export function replaceQuizSeats(
     body: JSON.stringify({ seats }),
   })
 }
+
+export interface PrelimAssignment {
+  id: number
+  meetId: number
+  division: string
+  letter: string
+  teamId: number
+  assignedAt: string | number
+}
+
+export function listPrelimAssignments(
+  meetId: number,
+): Promise<{ assignments: PrelimAssignment[] }> {
+  return request(`/api/meets/${meetId}/prelim-assignments`)
+}
+
+export function setPrelimAssignments(
+  meetId: number,
+  division: string,
+  mapping: { letter: string; teamId: number }[],
+): Promise<{ assignments: PrelimAssignment[] }> {
+  return request(`/api/meets/${meetId}/prelim-assignments`, {
+    method: 'POST',
+    body: JSON.stringify({ division, mapping }),
+  })
+}

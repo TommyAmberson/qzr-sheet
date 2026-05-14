@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 
-import { type MeetRoom, type MeetSlot, type ScheduledQuiz, type SeatInput } from '../../api'
+import {
+  type MeetRoom,
+  type MeetSlot,
+  type MeetTeamRow,
+  type PrelimAssignment,
+  type ScheduledQuiz,
+  type SeatInput,
+} from '../../api'
 import { buildGrid, formatSlotTime, hasAnyQuiz, seatRef, seatTeam } from '../../scheduleGrid'
 import TimePickerButton from './TimePickerButton.vue'
 
@@ -65,6 +72,10 @@ const props = defineProps<{
   populateInfo?: PopulateInfo
   /** Prelim-coverage check + status for the Roll Teams action card. */
   rollInfo?: RollInfo
+  /** Optional letter→team lookups; when provided, "Team" mode shows
+   *  resolved team names instead of `—`. */
+  prelimAssignments?: PrelimAssignment[]
+  meetTeams?: MeetTeamRow[]
 }>()
 
 const emit = defineEmits<{
@@ -446,7 +457,13 @@ function saveEdit() {
                         :data-seat-letter="seat.letter || undefined"
                       >
                         <span class="seat-ref">{{ seatRef(seat) }}</span>
-                        <span v-if="mode === 'team'" class="seat-team">{{ seatTeam(seat) }}</span>
+                        <span v-if="mode === 'team'" class="seat-team">{{
+                          seatTeam(seat, {
+                            division: quiz.division,
+                            assignments: prelimAssignments ?? [],
+                            teams: meetTeams ?? [],
+                          })
+                        }}</span>
                       </li>
                     </ol>
                   </article>

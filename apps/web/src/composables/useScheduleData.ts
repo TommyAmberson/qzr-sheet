@@ -12,8 +12,10 @@ import {
   listMeetRooms,
   listMeetSlots,
   listMeetTeams,
+  listPrelimAssignments,
   listScheduledQuizzes,
   replaceQuizSeats,
+  setPrelimAssignments,
   updateMeetSlot,
   updateScheduledQuiz,
   updateTeam,
@@ -22,6 +24,7 @@ import {
   type MeetRoom,
   type MeetSlot,
   type MeetTeamRow,
+  type PrelimAssignment,
   type ScheduledQuiz,
   type SeatInput,
 } from '../api'
@@ -71,6 +74,7 @@ export function useScheduleData(slug: Ref<string>) {
   const quizzes = ref<ScheduledQuiz[]>([])
   const teamCounts = ref<Record<string, number>>({})
   const teams = ref<MeetTeamRow[]>([])
+  const prelimAssignments = ref<PrelimAssignment[]>([])
   const extraLanes = ref<Record<string, ExtraLane[]>>({})
   const loading = ref(true)
   const error = ref('')
@@ -89,18 +93,20 @@ export function useScheduleData(slug: Ref<string>) {
       detail.value = meetDetail
       membership.value = myMeetsRes.memberships.find((m) => m.meetId === meetDetail.meet.id) ?? null
       const id = meetDetail.meet.id
-      const [r, s, q, tc, t] = await Promise.all([
+      const [r, s, q, tc, t, pa] = await Promise.all([
         listMeetRooms(id),
         listMeetSlots(id),
         listScheduledQuizzes(id),
         getMeetTeamCounts(id),
         listMeetTeams(id),
+        listPrelimAssignments(id),
       ])
       rooms.value = r.rooms
       slots.value = s.slots
       quizzes.value = q.quizzes
       teamCounts.value = tc.counts
       teams.value = t.teams
+      prelimAssignments.value = pa.assignments
       // Main lane is implicit per division. Extra lanes (C / CC) start
       // empty; admin opts in based on the post-stats-break split. State
       // is in-memory only until persistence ships with the elim builder.
@@ -211,6 +217,30 @@ export function useScheduleData(slug: Ref<string>) {
     extraLanes.value = { ...extraLanes.value, [division]: next }
   }
 
+  /** Roll Teams for one division: sort by (lateness ASC, RAND ASC),
+   *  zip onto letters A..N, and persist via setPrelimAssignments. The
+   *  letter pattern itself is fixed by Populate; this step only binds
+   *  teams to letters. */
+  async function rollTeams(division: string) {
+    if (!meetId.value) throw new Error('No meet loaded')
+    const divisionTeams = teams.value.filter((t) => t.division === division)
+    if (divisionTeams.length === 0) return
+    const shuffled = divisionTeams
+      .map((t) => ({ team: t, key: [t.lateness ? 1 : 0, Math.random()] as const }))
+      .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1])
+      .map((x) => x.team)
+    const mapping = shuffled.map((t, i) => ({
+      letter: String.fromCharCode(65 + i),
+      teamId: t.id,
+    }))
+    const res = await setPrelimAssignments(meetId.value, division, mapping)
+    // Replace this division's rows in the local cache; leave others as-is.
+    prelimAssignments.value = [
+      ...prelimAssignments.value.filter((a) => a.division !== division),
+      ...res.assignments,
+    ]
+  }
+
   /** Toggle a team's lateness flag. Optimistic local update + PATCH;
    *  rolls back on failure so the UI doesn't lie about persistence. */
   async function updateTeamLateness(teamId: number, lateness: boolean) {
@@ -250,6 +280,7 @@ export function useScheduleData(slug: Ref<string>) {
     quizzes,
     teamCounts,
     teams,
+    prelimAssignments,
     extraLanes,
     loading,
     error,
@@ -268,5 +299,6 @@ export function useScheduleData(slug: Ref<string>) {
     toggleLane,
     resizeLane,
     updateTeamLateness,
+    rollTeams,
   }
 }

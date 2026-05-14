@@ -8,9 +8,19 @@ import { useScheduleData } from '../composables/useScheduleData'
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
 
-const { rooms, slots, quizzes, loading, error, meet, divisions, isAdmin, load } = useScheduleData(
-  toRef(props, 'slug'),
-)
+const {
+  rooms,
+  slots,
+  quizzes,
+  teams,
+  prelimAssignments,
+  loading,
+  error,
+  meet,
+  divisions,
+  isAdmin,
+  load,
+} = useScheduleData(toRef(props, 'slug'))
 
 onMounted(load)
 </script>
@@ -43,7 +53,13 @@ onMounted(load)
         </button>
       </div>
 
-      <ReviewSection :rooms="rooms" :slots="slots" :quizzes="quizzes" />
+      <ReviewSection
+        :rooms="rooms"
+        :slots="slots"
+        :quizzes="quizzes"
+        :prelim-assignments="prelimAssignments"
+        :meet-teams="teams"
+      />
     </template>
   </div>
 </template>

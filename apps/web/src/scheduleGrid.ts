@@ -82,8 +82,26 @@ export function seatRef(seat: ScheduledQuizSeat): string {
   return seat.letter ?? seat.seedRef ?? ''
 }
 
-/** Resolved team name for a seat. Always `—` until team-name resolution
- *  ships (#39 Roll Teams); both V1 grid and V2 review render through this. */
-export function seatTeam(_seat: ScheduledQuizSeat): string {
-  return '—'
+/** Resolved team name for a seat: looks up the seat's letter in the
+ *  prelim assignments table, then renders the matching team's
+ *  `{shortName} {number}`. Returns `—` until Roll Teams has run for
+ *  this division (or for elim seats, which seed lazily via seedRefs).
+ *
+ *  Prelim assignments and the team list are passed in rather than
+ *  imported, so this stays pure and consumers (V1 grid, V2 review)
+ *  can both call it. */
+export function seatTeam(
+  seat: ScheduledQuizSeat,
+  ctx: {
+    division: string
+    assignments: ReadonlyArray<{ division: string; letter: string; teamId: number }>
+    teams: ReadonlyArray<{ id: number; churchShortName: string; number: number }>
+  },
+): string {
+  if (!seat.letter) return '—'
+  const a = ctx.assignments.find((x) => x.division === ctx.division && x.letter === seat.letter)
+  if (!a) return '—'
+  const t = ctx.teams.find((tm) => tm.id === a.teamId)
+  if (!t) return '—'
+  return `${t.churchShortName} ${t.number}`
 }
