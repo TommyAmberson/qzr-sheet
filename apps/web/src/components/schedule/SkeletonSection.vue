@@ -208,6 +208,21 @@ const dragState = ref<{
   toIdx: number
 } | null>(null)
 
+/** Where the drop indicator line should land — null when no drag, or
+ *  when the current target index is a no-op (already there). */
+const dropIndicator = computed<{ idx: number; position: 'above' | 'below' } | null>(() => {
+  const ds = dragState.value
+  if (!ds) return null
+  const insertIdx = ds.toIdx > ds.fromIdx ? ds.toIdx - 1 : ds.toIdx
+  if (insertIdx === ds.fromIdx) return null
+  const group = days.value.find((g) => g.dateKey === ds.groupKey)
+  if (!group) return null
+  if (ds.toIdx >= group.slots.length) {
+    return { idx: group.slots.length - 1, position: 'below' }
+  }
+  return { idx: ds.toIdx, position: 'above' }
+})
+
 function startDrag(event: PointerEvent, group: DayGroup, slot: MeetSlot, idx: number) {
   if (!props.editable) return
   ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
@@ -230,7 +245,13 @@ function onDragMove(event: PointerEvent) {
   const group = days.value.find((g) => g.dateKey === dragState.value!.groupKey)
   if (!group) return
   const idx = group.slots.findIndex((s) => s.id === slotId)
-  if (idx >= 0) dragState.value.toIdx = idx
+  if (idx < 0) return
+  // Insertion-point semantics: if cursor is in the top half of this
+  // row, drop above it (toIdx = idx); bottom half, drop below
+  // (toIdx = idx + 1). Lets the user drop after the last row too.
+  const rect = tr.getBoundingClientRect()
+  const inTopHalf = event.clientY < rect.top + rect.height / 2
+  dragState.value.toIdx = inTopHalf ? idx : idx + 1
 }
 
 function endDrag(event: PointerEvent) {
@@ -245,14 +266,19 @@ function endDrag(event: PointerEvent) {
   reorderWithinDay(group, fromIdx, toIdx)
 }
 
-/** Insertion-style reorder: move slot from `fromIdx` to `toIdx` within
- *  the day, then recompute each slot's startAt (cumulative from the
- *  day's first slot using each slot's own duration) and sortOrder. */
+/** Insertion-style reorder: move slot from `fromIdx` to insert before
+ *  `toIdx` (where toIdx ranges 0..length, length = past the end).
+ *  Then recompute each slot's startAt (cumulative from the day's
+ *  first slot using each slot's own duration) and sortOrder. */
 function reorderWithinDay(group: DayGroup, fromIdx: number, toIdx: number) {
+  // Removing fromIdx first shifts every later index down by one, so the
+  // post-removal insertion target is one less when we're moving down.
+  const insertIdx = toIdx > fromIdx ? toIdx - 1 : toIdx
+  if (insertIdx === fromIdx) return
   const newOrder = [...group.slots]
   const [moved] = newOrder.splice(fromIdx, 1)
   if (!moved) return
-  newOrder.splice(toIdx, 0, moved)
+  newOrder.splice(insertIdx, 0, moved)
   const sortOrders = group.slots.map((s) => s.sortOrder)
   const anchor = group.slots[0]?.startAt
   if (!anchor) return
@@ -373,11 +399,14 @@ function deleteSlot(slot: MeetSlot) {
                 'event-row': slot.kind === 'event',
                 'stats-break-row': isStatsBreak(slot),
                 'is-dragging': dragState?.slotId === slot.id,
-                'is-drop-target':
-                  dragState !== null &&
-                  dragState.slotId !== slot.id &&
-                  dragState.groupKey === group.dateKey &&
-                  dragState.toIdx === idx,
+                'is-drop-above':
+                  dropIndicator?.position === 'above' &&
+                  dropIndicator.idx === idx &&
+                  dragState?.groupKey === group.dateKey,
+                'is-drop-below':
+                  dropIndicator?.position === 'below' &&
+                  dropIndicator.idx === idx &&
+                  dragState?.groupKey === group.dateKey,
               }"
             >
               <th class="time-col" scope="row">
@@ -731,8 +760,17 @@ thead .dur-col {
   opacity: 0.45;
 }
 
-.is-drop-target .slot-cell {
+/* Drop indicator: a 2px accent line at the top or bottom of the row,
+   spanning all cells (time + length + slot). Inset box-shadow so it
+   doesn't change the row height. */
+.is-drop-above > th,
+.is-drop-above > td {
   box-shadow: inset 0 2px 0 0 var(--color-accent);
+}
+
+.is-drop-below > th,
+.is-drop-below > td {
+  box-shadow: inset 0 -2px 0 0 var(--color-accent);
 }
 
 .row-arrow {
