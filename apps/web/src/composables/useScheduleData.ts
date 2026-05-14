@@ -29,6 +29,7 @@ import {
   type SeatInput,
 } from '../api'
 import { defaultExtraLaneSize, type ExtraLane, type LaneId } from '../brackets'
+import { getPrelimDraw } from '../prelimDraw'
 import { bySortOrder } from '../scheduleGrid'
 
 /**
@@ -217,14 +218,24 @@ export function useScheduleData(slug: Ref<string>) {
     extraLanes.value = { ...extraLanes.value, [division]: next }
   }
 
-  /** Roll Teams for one division: sort by (lateness ASC, RAND ASC),
-   *  zip onto letters A..N, and persist via setPrelimAssignments. The
-   *  letter pattern itself is fixed by Populate; this step only binds
-   *  teams to letters. */
+  /** Roll Teams for one division. Two layers of biasing:
+   *
+   *  1. Team→letter binding: sort by (lateness ASC, RAND ASC), zip onto
+   *     letters A..N. Late teams land on the highest-numbered letters.
+   *  2. Quiz reorder: any pattern row that contains a late letter is
+   *     pushed to the end of the prelim sequence (preserving relative
+   *     order otherwise). The seats of every prelim quiz in this
+   *     division are rewritten to match the reordered pattern, so the
+   *     late team's first quiz physically lands in a later slot.
+   *
+   *  Step 2 only kicks in when at least one team is marked late and
+   *  the team count has a published rule-book pattern — otherwise the
+   *  rule-book row order stays as-is. */
   async function rollTeams(division: string) {
     if (!meetId.value) throw new Error('No meet loaded')
     const divisionTeams = teams.value.filter((t) => t.division === division)
     if (divisionTeams.length === 0) return
+
     const shuffled = divisionTeams
       .map((t) => ({ team: t, key: [t.lateness ? 1 : 0, Math.random()] as const }))
       .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1])
@@ -233,6 +244,51 @@ export function useScheduleData(slug: Ref<string>) {
       letter: String.fromCharCode(65 + i),
       teamId: t.id,
     }))
+
+    // Reorder the prelim quizzes' seats to push late letters later.
+    const draw = getPrelimDraw(divisionTeams.length)
+    const lateLetters = new Set(
+      mapping.filter((m) => shuffled.find((t) => t.id === m.teamId)?.lateness).map((m) => m.letter),
+    )
+    if (draw && lateLetters.size > 0) {
+      const reorderedRows = draw
+        .map((row, originalIdx) => ({
+          row,
+          originalIdx,
+          hasLate: row.some((l) => lateLetters.has(l)),
+        }))
+        .sort((a, b) => (a.hasLate ? 1 : 0) - (b.hasLate ? 1 : 0) || a.originalIdx - b.originalIdx)
+        .map((x) => x.row)
+
+      const divPrelims = quizzes.value
+        .filter((q) => q.division === division && q.phase === 'prelim')
+        .map((q) => ({
+          quiz: q,
+          slot: slots.value.find((s) => s.id === q.slotId),
+          room: rooms.value.find((r) => r.id === q.roomId),
+        }))
+        .filter((x) => x.slot && x.room)
+        .sort((a, b) => bySortOrder(a.slot!, b.slot!) || bySortOrder(a.room!, b.room!))
+
+      for (let i = 0; i < divPrelims.length && i < reorderedRows.length; i++) {
+        const triple = reorderedRows[i]!
+        const quiz = divPrelims[i]!.quiz
+        const seats = [
+          { seatNumber: 1, letter: triple[0] ?? null },
+          { seatNumber: 2, letter: triple[1] ?? null },
+          { seatNumber: 3, letter: triple[2] ?? null },
+        ]
+        // Skip the round-trip if the seats already match — re-rolling
+        // with no late teams shouldn't churn the DB.
+        const current = [...quiz.seats].sort((a, b) => a.seatNumber - b.seatNumber)
+        const sameSeats =
+          current.length === 3 && current.every((s, j) => s.letter === seats[j]!.letter)
+        if (!sameSeats) {
+          await updateQuiz(quiz.id, {}, seats)
+        }
+      }
+    }
+
     const res = await setPrelimAssignments(meetId.value, division, mapping)
     // Replace this division's rows in the local cache; leave others as-is.
     prelimAssignments.value = [
