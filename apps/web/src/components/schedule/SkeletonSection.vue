@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import { type MeetRoom, type MeetSlot } from '../../api'
 import { bySortOrder, formatSlotTime, isStatsBreak, STATS_BREAK_LABEL } from '../../scheduleGrid'
@@ -197,6 +197,80 @@ function addDay() {
   })
 }
 
+/** Active drag state for the grip handle. Reorder happens on pointerup;
+ *  during drag we just track which row the cursor is over. Uses pointer
+ *  events rather than HTML5 drag because the latter crashes on Linux/X11
+ *  (see CLAUDE.md). */
+const dragState = ref<{
+  slotId: number
+  groupKey: string
+  fromIdx: number
+  toIdx: number
+} | null>(null)
+
+function startDrag(event: PointerEvent, group: DayGroup, slot: MeetSlot, idx: number) {
+  if (!props.editable) return
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  dragState.value = {
+    slotId: slot.id,
+    groupKey: group.dateKey,
+    fromIdx: idx,
+    toIdx: idx,
+  }
+}
+
+function onDragMove(event: PointerEvent) {
+  if (!dragState.value) return
+  const target = document.elementFromPoint(event.clientX, event.clientY)
+  if (!target) return
+  const tr = target.closest('tr[data-slot-id]') as HTMLElement | null
+  if (!tr) return
+  if (tr.dataset.groupKey !== dragState.value.groupKey) return
+  const slotId = Number(tr.dataset.slotId)
+  const group = days.value.find((g) => g.dateKey === dragState.value!.groupKey)
+  if (!group) return
+  const idx = group.slots.findIndex((s) => s.id === slotId)
+  if (idx >= 0) dragState.value.toIdx = idx
+}
+
+function endDrag(event: PointerEvent) {
+  if (!dragState.value) return
+  const el = event.currentTarget as HTMLElement
+  if (el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId)
+  const { groupKey, fromIdx, toIdx } = dragState.value
+  dragState.value = null
+  if (fromIdx === toIdx) return
+  const group = days.value.find((g) => g.dateKey === groupKey)
+  if (!group) return
+  reorderWithinDay(group, fromIdx, toIdx)
+}
+
+/** Insertion-style reorder: move slot from `fromIdx` to `toIdx` within
+ *  the day, then recompute each slot's startAt (cumulative from the
+ *  day's first slot using each slot's own duration) and sortOrder. */
+function reorderWithinDay(group: DayGroup, fromIdx: number, toIdx: number) {
+  const newOrder = [...group.slots]
+  const [moved] = newOrder.splice(fromIdx, 1)
+  if (!moved) return
+  newOrder.splice(toIdx, 0, moved)
+  const sortOrders = group.slots.map((s) => s.sortOrder)
+  const anchor = group.slots[0]?.startAt
+  if (!anchor) return
+  let cursor = new Date(anchor).getTime()
+  for (let i = 0; i < newOrder.length; i++) {
+    const s = newOrder[i]!
+    const newStart = new Date(cursor).toISOString()
+    const newSortOrder = sortOrders[i]!
+    if (s.startAt !== newStart || s.sortOrder !== newSortOrder) {
+      emit('update-slot', {
+        slotId: s.id,
+        patch: { startAt: newStart, sortOrder: newSortOrder },
+      })
+    }
+    cursor += s.durationMinutes * 60_000
+  }
+}
+
 /** Swap a slot with its neighbour in the same day. Each slot keeps its
  *  own duration — the duration "rides along" with the slot — so the
  *  end of the pair stays anchored where it was; only the boundary
@@ -293,9 +367,17 @@ function deleteSlot(slot: MeetSlot) {
             <tr
               v-for="(slot, idx) in group.slots"
               :key="slot.id"
+              :data-slot-id="slot.id"
+              :data-group-key="group.dateKey"
               :class="{
                 'event-row': slot.kind === 'event',
                 'stats-break-row': isStatsBreak(slot),
+                'is-dragging': dragState?.slotId === slot.id,
+                'is-drop-target':
+                  dragState !== null &&
+                  dragState.slotId !== slot.id &&
+                  dragState.groupKey === group.dateKey &&
+                  dragState.toIdx === idx,
               }"
             >
               <th class="time-col" scope="row">
@@ -346,6 +428,17 @@ function deleteSlot(slot: MeetSlot) {
                   </span>
 
                   <span v-if="editable" class="row-controls no-print">
+                    <button
+                      type="button"
+                      class="row-grip"
+                      title="Drag to reorder"
+                      @pointerdown="startDrag($event, group, slot, idx)"
+                      @pointermove="onDragMove"
+                      @pointerup="endDrag"
+                      @pointercancel="endDrag"
+                    >
+                      ⋮⋮
+                    </button>
                     <button
                       type="button"
                       class="row-arrow"
@@ -609,6 +702,37 @@ thead .dur-col {
   align-items: center;
   gap: 0.15rem;
   flex-shrink: 0;
+}
+
+.row-grip {
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--color-text-faint);
+  cursor: grab;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+  letter-spacing: -0.15em;
+  touch-action: none;
+}
+
+.row-grip:hover {
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+}
+
+.row-grip:active {
+  cursor: grabbing;
+}
+
+.is-dragging {
+  opacity: 0.45;
+}
+
+.is-drop-target .slot-cell {
+  box-shadow: inset 0 2px 0 0 var(--color-accent);
 }
 
 .row-arrow {
