@@ -10,7 +10,10 @@ import ReviewSection from '../components/schedule/ReviewSection.vue'
 import SkeletonSection from '../components/schedule/SkeletonSection.vue'
 import { useScheduleData } from '../composables/useScheduleData'
 import { getPrelimDraw } from '../prelimDraw'
+import { allocateCells, type Cell } from '../scheduleAlloc'
+import { buildElimPlan, buildPrelimPlan, type QuizDef } from '../scheduleBuild'
 import { bySortOrder, isStatsBreak } from '../scheduleGrid'
+import { orderRowsByLateness, type Row } from '../scheduleSort'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
@@ -124,40 +127,42 @@ async function onUpdateTeamLateness(payload: { teamId: number; lateness: boolean
   }
 }
 
-/** Compute the per-division quiz plan from prelim team counts and elim
- *  lane structure. Labels follow `D{div}-Q{n}` for prelims (numbered)
- *  and `D{div}-Q{A,B,C…}` for elims (lettered, since those are bracket
- *  positions like SF/F rather than ordered rounds).
- *
- *  Phase ordering: every division's prelims first, then every
- *  division's elims, so the slot×room placement naturally produces all
- *  prelim rounds before the elim rounds. (The stats break that
- *  separates them lives in the Skeleton timeline, not the plan.) */
-function computePopulationPlan(): Array<{
-  division: string
-  phase: 'prelim' | 'elim'
-  label: string
-}> {
-  const plan: Array<{ division: string; phase: 'prelim' | 'elim'; label: string }> = []
-  for (const div of divisions.value) {
-    const teams = teamCounts.value[div] ?? 0
-    for (let i = 0; i < teams; i++) {
-      plan.push({ division: div, phase: 'prelim', label: `D${div}-Q${i + 1}` })
-    }
+/** Per-division elim quiz count from team count + extra-lane drafts.
+ *  Main bracket size = team count minus teams pulled into extra lanes;
+ *  each lane's quiz count comes from `estimateLaneQuizzes`. */
+function elimCountFor(division: string): number {
+  const teamCount = teamCounts.value[division] ?? 0
+  const extras = extraLanes.value[division] ?? []
+  const usedByExtras = extras.reduce((sum, l) => sum + l.teamCount, 0)
+  const mainSize = Math.max(0, teamCount - usedByExtras)
+  return (
+    estimateLaneQuizzes(mainSize) +
+    extras.reduce((sum, l) => sum + estimateLaneQuizzes(l.teamCount), 0)
+  )
+}
+
+/** Max rooms-per-slot in a division's allocated cells. Used to choose
+ *  the K-tuple size for `orderRowsByLateness`. */
+function maxRoomsPerSlot(cells: ReadonlyArray<Cell>): number {
+  if (cells.length === 0) return 1
+  const perSlot = new Map<number, number>()
+  for (const c of cells) perSlot.set(c.slotId, (perSlot.get(c.slotId) ?? 0) + 1)
+  return Math.max(...perSlot.values())
+}
+
+/** Late letters for a division: letters mapped by `prelim_assignments`
+ *  to teams whose `lateness` flag is set. Empty set when Roll Teams
+ *  hasn't run yet or no teams are late. */
+function lateLettersFor(division: string): Set<string> {
+  const lateTeamIds = new Set(
+    teams.value.filter((t) => t.lateness && t.division === division).map((t) => t.id),
+  )
+  const lateLetters = new Set<string>()
+  if (lateTeamIds.size === 0) return lateLetters
+  for (const a of prelimAssignments.value) {
+    if (a.division === division && lateTeamIds.has(a.teamId)) lateLetters.add(a.letter)
   }
-  for (const div of divisions.value) {
-    const teams = teamCounts.value[div] ?? 0
-    const extras = extraLanes.value[div] ?? []
-    const usedByExtras = extras.reduce((sum, l) => sum + l.teamCount, 0)
-    const mainSize = Math.max(0, teams - usedByExtras)
-    const elimCount =
-      estimateLaneQuizzes(mainSize) +
-      extras.reduce((sum, l) => sum + estimateLaneQuizzes(l.teamCount), 0)
-    for (let i = 0; i < elimCount; i++) {
-      plan.push({ division: div, phase: 'elim', label: `D${div}-Q${String.fromCharCode(65 + i)}` })
-    }
-  }
-  return plan
+  return lateLetters
 }
 
 const populating = ref(false)
@@ -166,12 +171,6 @@ async function onPopulateSkeleton() {
   if (populating.value) return
   populating.value = true
   try {
-    // Wipe existing quizzes (the user has already confirmed overwrite).
-    for (const q of [...quizzes.value]) {
-      await deleteQuiz(q.id)
-    }
-
-    const plan = computePopulationPlan()
     const sorted = [...slots.value].sort(bySortOrder)
     const breakIdx = sorted.findIndex(isStatsBreak)
     if (breakIdx === -1) {
@@ -185,89 +184,54 @@ async function onPopulateSkeleton() {
       return
     }
 
-    const prelimPlan = plan.filter((p) => p.phase === 'prelim')
-    const elimPlan = plan.filter((p) => p.phase === 'elim')
-    const prelimCapacity = prelimSlots.length * rooms.value.length
-    const elimCapacity = elimSlots.length * rooms.value.length
-    if (prelimPlan.length > prelimCapacity || elimPlan.length > elimCapacity) {
+    // Allocate (slot, room) cells per division for prelims and elims.
+    const elimCounts: Record<string, number> = {}
+    for (const div of divisions.value) elimCounts[div] = elimCountFor(div)
+
+    const prelimAlloc = allocateCells(divisions.value, teamCounts.value, prelimSlots, rooms.value)
+    const elimAlloc = allocateCells(divisions.value, elimCounts, elimSlots, rooms.value)
+
+    if (prelimAlloc.shortfall > 0 || elimAlloc.shortfall > 0) {
+      const parts: string[] = []
+      if (prelimAlloc.shortfall > 0) parts.push(`${prelimAlloc.shortfall} prelim`)
+      if (elimAlloc.shortfall > 0) parts.push(`${elimAlloc.shortfall} elim`)
       const ok = confirm(
-        `Plan exceeds capacity (prelim ${prelimPlan.length}/${prelimCapacity}, elim ${elimPlan.length}/${elimCapacity}). Truncate to fit?`,
+        `Plan exceeds capacity (${parts.join(', ')} cells short). Truncate to fit?`,
       )
       if (!ok) return
     }
 
-    // Room-by-room placement so a division's spillover lands in the
-    // immediately-adjacent room rather than skipping ahead. For each
-    // room: the room's primary division (Div N → Nth sorted room)
-    // takes the early slots, and the *previous* room's primary
-    // overflow is parked in the late slots. Net result: a shared room
-    // shows the higher-numbered division in early slots and the lower-
-    // numbered division's spillover in late slots — and that
-    // spillover is always one room over from where it started.
-    //
-    // Prelim seats use the rule-book draw pattern from `prelimDraw.ts`;
-    // elim seats stay placeholder A/B/C since elim seeds resolve
-    // lazily via seedRefs (Roll Teams' job). Per-division labels and
-    // pattern rows are assigned in chronological order (slot, then
-    // room) after placement, so Q1, Q2, … read in time order.
-    const sortedRooms = [...rooms.value].sort(bySortOrder)
+    // Build the full quiz plan: rule-book rows for prelims (lateness-
+    // sorted; identity sort when no Roll Teams or no late teams),
+    // placeholder seats for elims.
     const unsupported: number[] = []
-    const prelimItemsByDiv: Record<string, ReturnType<typeof computePopulationPlan>> = {}
-    const elimItemsByDiv: Record<string, ReturnType<typeof computePopulationPlan>> = {}
-    for (const div of divisions.value) {
-      prelimItemsByDiv[div] = prelimPlan.filter((p) => p.division === div)
-      elimItemsByDiv[div] = elimPlan.filter((p) => p.division === div)
-    }
-    const prelimPlacements = placeAcrossRooms(
-      prelimItemsByDiv,
-      divisions.value,
-      sortedRooms,
-      prelimSlots,
-    )
-    const elimPlacements = placeAcrossRooms(elimItemsByDiv, divisions.value, sortedRooms, elimSlots)
-
+    const plan: QuizDef[] = []
     for (const div of divisions.value) {
       const teamCount = teamCounts.value[div] ?? 0
+      const prelimCells = prelimAlloc.perDivision.get(div) ?? []
+      const elimCells = elimAlloc.perDivision.get(div) ?? []
       const draw = getPrelimDraw(teamCount)
       if (teamCount > 0 && draw === null) unsupported.push(teamCount)
 
-      const divPrelims = prelimPlacements[div] ?? []
-      divPrelims.sort((a, b) => bySortOrder(a.slot, b.slot) || bySortOrder(a.room, b.room))
-      for (let k = 0; k < divPrelims.length; k++) {
-        const { slot, room } = divPrelims[k]!
-        const triple = draw?.[k] ?? (['A', 'B', 'C'] as const)
-        await createQuiz({
-          slotId: slot.id,
-          roomId: room.id,
-          division: div,
-          phase: 'prelim',
-          label: `D${div}-Q${k + 1}`,
-          seats: [
-            { seatNumber: 1, letter: triple[0] },
-            { seatNumber: 2, letter: triple[1] },
-            { seatNumber: 3, letter: triple[2] },
-          ],
-        })
-      }
+      const rawRows: Row[] = draw
+        ? draw.map((r) => [r[0], r[1], r[2]] as Row)
+        : Array.from({ length: prelimCells.length }, () => ['A', 'B', 'C'] as Row)
+      const K = maxRoomsPerSlot(prelimCells)
+      const ordered = orderRowsByLateness(rawRows, K, lateLettersFor(div))
 
-      const divElims = elimPlacements[div] ?? []
-      divElims.sort((a, b) => bySortOrder(a.slot, b.slot) || bySortOrder(a.room, b.room))
-      for (let k = 0; k < divElims.length; k++) {
-        const { slot, room } = divElims[k]!
-        await createQuiz({
-          slotId: slot.id,
-          roomId: room.id,
-          division: div,
-          phase: 'elim',
-          label: `D${div}-Q${String.fromCharCode(65 + k)}`,
-          seats: [
-            { seatNumber: 1, letter: 'A' },
-            { seatNumber: 2, letter: 'B' },
-            { seatNumber: 3, letter: 'C' },
-          ],
-        })
-      }
+      plan.push(...buildPrelimPlan(div, prelimCells, ordered))
+      plan.push(...buildElimPlan(div, elimCells))
     }
+
+    // Wipe existing quizzes (overwrite already confirmed upstream) and
+    // create from the new plan.
+    for (const q of [...quizzes.value]) {
+      await deleteQuiz(q.id)
+    }
+    for (const def of plan) {
+      await createQuiz(def)
+    }
+
     if (unsupported.length > 0) {
       console.warn(
         `Populate: no rule-book draw pattern for team counts ${unsupported.join(', ')}; ` +
@@ -279,80 +243,6 @@ async function onPopulateSkeleton() {
   } finally {
     populating.value = false
   }
-}
-
-/** Walk rooms in sorted order, placing each room's primary division
- *  in early slots and the previous room's primary overflow in late
- *  slots. Returns a per-division placement list. The caller is
- *  expected to sort each division's list chronologically before
- *  assigning labels.
- *
- *  Pending overflow that doesn't fit in the immediately-next room
- *  cascades forward; if the cascade exhausts all rooms, the leftover
- *  is dropped (the caller's capacity check should have warned). */
-function placeAcrossRooms(
-  itemsByDiv: Record<string, ReturnType<typeof computePopulationPlan>>,
-  divisions: string[],
-  sortedRooms: typeof rooms.value,
-  targetSlots: typeof slots.value,
-): Record<
-  string,
-  Array<{ slot: (typeof slots.value)[number]; room: (typeof rooms.value)[number] }>
-> {
-  type Placement = {
-    slot: (typeof slots.value)[number]
-    room: (typeof rooms.value)[number]
-  }
-  const placements: Record<string, Array<Placement>> = {}
-  for (const div of divisions) placements[div] = []
-
-  const slotsCount = targetSlots.length
-  if (slotsCount === 0 || sortedRooms.length === 0) return placements
-
-  let pending: { div: string; count: number } | null = null
-
-  for (let r = 0; r < sortedRooms.length; r++) {
-    const room = sortedRooms[r]!
-    const primaryDiv = divisions[r] ?? null
-
-    if (primaryDiv) {
-      const items = itemsByDiv[primaryDiv] ?? []
-      const remaining = items.length - placements[primaryDiv]!.length
-      const reserved = pending ? Math.min(pending.count, slotsCount) : 0
-      const availableForPrimary = Math.max(0, slotsCount - reserved)
-      const toPlace = Math.min(remaining, availableForPrimary)
-
-      // Primary in early slots [0, toPlace).
-      for (let j = 0; j < toPlace; j++) {
-        placements[primaryDiv]!.push({ slot: targetSlots[j]!, room })
-      }
-
-      // Pending in late slots [slotsCount - pendingPlaceable, slotsCount).
-      if (pending) {
-        const pendingPlaceable = Math.min(pending.count, slotsCount - toPlace)
-        const lateStart = slotsCount - pendingPlaceable
-        for (let j = 0; j < pendingPlaceable; j++) {
-          placements[pending.div]!.push({ slot: targetSlots[lateStart + j]!, room })
-        }
-        // Any pending leftover is dropped — capacity check upstream warns.
-      }
-
-      const newOverflow = remaining - toPlace
-      pending = newOverflow > 0 ? { div: primaryDiv, count: newOverflow } : null
-    } else if (pending) {
-      // No primary — pending takes early slots (no primary to defer to).
-      const pendingDiv: string = pending.div
-      const pendingCount: number = pending.count
-      const toPlace: number = Math.min(pendingCount, slotsCount)
-      for (let j = 0; j < toPlace; j++) {
-        placements[pendingDiv]!.push({ slot: targetSlots[j]!, room })
-      }
-      const leftover: number = pendingCount - toPlace
-      pending = leftover > 0 ? { div: pendingDiv, count: leftover } : null
-    }
-  }
-
-  return placements
 }
 
 async function onRollTeams() {
@@ -410,10 +300,13 @@ function selectTab(tab: TabId) {
 /** Capacity check fed into the Draw section's Populate card so the
  *  user can see if there's room before clicking. */
 const populateInfo = computed(() => {
-  const plan = computePopulationPlan()
-  const prelimNeeded = plan.filter((p) => p.phase === 'prelim').length
-  const elimNeeded = plan.filter((p) => p.phase === 'elim').length
-  const needed = plan.length
+  let prelimNeeded = 0
+  let elimNeeded = 0
+  for (const div of divisions.value) {
+    prelimNeeded += teamCounts.value[div] ?? 0
+    elimNeeded += elimCountFor(div)
+  }
+  const needed = prelimNeeded + elimNeeded
 
   const sorted = [...slots.value].sort(bySortOrder)
   const breakIdx = sorted.findIndex(isStatsBreak)

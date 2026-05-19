@@ -129,7 +129,7 @@ describe('supportedKValues — rule-book K disjointness sweep', () => {
       expect(ks).toContain(1)
     }
     // Log so test output shows the matrix when this test runs.
-     
+
     console.log('K-support matrix:', matrix)
   })
 })
