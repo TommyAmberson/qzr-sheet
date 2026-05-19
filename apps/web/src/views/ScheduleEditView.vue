@@ -166,7 +166,12 @@ function lateLettersFor(division: string): Set<string> {
 
 const populating = ref(false)
 
-async function onPopulateSkeleton() {
+/** Wipe and recreate all prelim + elim quizzes from the current
+ *  rule-book + skeleton state. When `applyLateness` is true, the
+ *  prelim rule-book rows for each division are sorted so K-tuples
+ *  containing late letters land at the high cell indices; otherwise
+ *  rule-book order is preserved. */
+async function runPopulate(applyLateness: boolean) {
   if (populating.value) return
   populating.value = true
   try {
@@ -183,7 +188,6 @@ async function onPopulateSkeleton() {
       return
     }
 
-    // Allocate (slot, room) cells per division for prelims and elims.
     const elimCounts: Record<string, number> = {}
     for (const div of divisions.value) elimCounts[div] = elimCountFor(div)
 
@@ -200,9 +204,6 @@ async function onPopulateSkeleton() {
       if (!ok) return
     }
 
-    // Build the full quiz plan: rule-book rows for prelims (lateness-
-    // sorted; identity sort when no Roll Teams or no late teams),
-    // placeholder seats for elims.
     const unsupported: number[] = []
     const plan: QuizDef[] = []
     for (const div of divisions.value) {
@@ -216,14 +217,13 @@ async function onPopulateSkeleton() {
         ? draw.map((r) => [r[0], r[1], r[2]] as Row)
         : Array.from({ length: prelimCells.length }, () => ['A', 'B', 'C'] as Row)
       const K = maxRoomsPerSlot(prelimCells)
-      const ordered = orderRowsByLateness(rawRows, K, lateLettersFor(div))
+      const lateLetters = applyLateness ? lateLettersFor(div) : new Set<string>()
+      const ordered = orderRowsByLateness(rawRows, K, lateLetters)
 
       plan.push(...buildPrelimPlan(div, prelimCells, ordered))
       plan.push(...buildElimPlan(div, elimCells))
     }
 
-    // Wipe existing quizzes (overwrite already confirmed upstream) and
-    // create from the new plan.
     for (const q of [...quizzes.value]) {
       await deleteQuiz(q.id)
     }
@@ -242,6 +242,14 @@ async function onPopulateSkeleton() {
   } finally {
     populating.value = false
   }
+}
+
+function onPopulateSkeleton() {
+  return runPopulate(false)
+}
+
+function onSortByLateness() {
+  return runPopulate(true)
 }
 
 async function onRollTeams() {
@@ -551,6 +559,7 @@ onMounted(async () => {
         @update-quiz="onUpdateQuiz"
         @populate-skeleton="onPopulateSkeleton"
         @roll-teams="onRollTeams"
+        @sort-by-lateness="onSortByLateness"
       />
     </template>
   </div>
