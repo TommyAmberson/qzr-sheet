@@ -11,7 +11,8 @@ import SkeletonSection from '../components/schedule/SkeletonSection.vue'
 import { useScheduleData } from '../composables/useScheduleData'
 import { getPrelimDraw } from '../prelimDraw'
 import { allocateCells } from '../scheduleAlloc'
-import { buildElimPlan, buildPrelimPlan, type QuizDef } from '../scheduleBuild'
+import { arrangeAllDivisions, type DivisionPlacementInput, type QuizDef } from '../scheduleArrange'
+import { buildElimPlan } from '../scheduleBuild'
 import { bySortOrder, isStatsBreak } from '../scheduleGrid'
 import type { Row } from '../scheduleSort'
 
@@ -182,12 +183,34 @@ async function runPopulate(applyLateness: boolean) {
     const elimCounts: Record<string, number> = {}
     for (const div of divisions.value) elimCounts[div] = elimCountFor(div)
 
-    const prelimAlloc = allocateCells(divisions.value, teamCounts.value, prelimSlots, rooms.value)
+    // Build the prelim placement input for every division (rule-book
+    // rows + lateness mask). Divisions with no rule-book pattern fall
+    // back to placeholder A/B/C seats.
+    const unsupported: number[] = []
+    const prelimInputs: DivisionPlacementInput[] = []
+    for (const div of divisions.value) {
+      const teamCount = teamCounts.value[div] ?? 0
+      const draw = getPrelimDraw(teamCount)
+      if (teamCount > 0 && draw === null) unsupported.push(teamCount)
+      const rows: Row[] = draw
+        ? draw.map((r) => [r[0], r[1], r[2]] as Row)
+        : Array.from({ length: teamCount }, () => ['A', 'B', 'C'] as Row)
+      prelimInputs.push({
+        division: div,
+        teamCount,
+        rows,
+        lateLetters: applyLateness ? lateLettersFor(div) : new Set<string>(),
+      })
+    }
+
+    // Prelims: combined alloc + place. Elims: simpler allocateCells
+    // since elim seats are placeholder.
+    const prelimArrangement = arrangeAllDivisions(prelimInputs, prelimSlots, rooms.value)
     const elimAlloc = allocateCells(divisions.value, elimCounts, elimSlots, rooms.value)
 
-    if (prelimAlloc.shortfall > 0 || elimAlloc.shortfall > 0) {
+    if (prelimArrangement.shortfall > 0 || elimAlloc.shortfall > 0) {
       const parts: string[] = []
-      if (prelimAlloc.shortfall > 0) parts.push(`${prelimAlloc.shortfall} prelim`)
+      if (prelimArrangement.shortfall > 0) parts.push(`${prelimArrangement.shortfall} prelim`)
       if (elimAlloc.shortfall > 0) parts.push(`${elimAlloc.shortfall} elim`)
       const ok = confirm(
         `Plan exceeds capacity (${parts.join(', ')} cells short). Truncate to fit?`,
@@ -195,22 +218,10 @@ async function runPopulate(applyLateness: boolean) {
       if (!ok) return
     }
 
-    const unsupported: number[] = []
     const plan: QuizDef[] = []
     for (const div of divisions.value) {
-      const teamCount = teamCounts.value[div] ?? 0
-      const prelimCells = prelimAlloc.perDivision.get(div) ?? []
-      const elimCells = elimAlloc.perDivision.get(div) ?? []
-      const draw = getPrelimDraw(teamCount)
-      if (teamCount > 0 && draw === null) unsupported.push(teamCount)
-
-      const rawRows: Row[] = draw
-        ? draw.map((r) => [r[0], r[1], r[2]] as Row)
-        : Array.from({ length: prelimCells.length }, () => ['A', 'B', 'C'] as Row)
-      const lateLetters = applyLateness ? lateLettersFor(div) : new Set<string>()
-
-      plan.push(...buildPrelimPlan(div, prelimCells, rawRows, lateLetters))
-      plan.push(...buildElimPlan(div, elimCells))
+      plan.push(...(prelimArrangement.perDivision.get(div) ?? []))
+      plan.push(...buildElimPlan(div, elimAlloc.perDivision.get(div) ?? []))
     }
 
     for (const q of [...quizzes.value]) {

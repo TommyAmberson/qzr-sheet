@@ -47,7 +47,7 @@ export interface AllocationResult {
 }
 
 /** Walk rooms column-major, claiming cells for each division in turn. */
-function computeRoomOwnership(
+export function computeRoomOwnership(
   divisions: string[],
   teamCounts: Record<string, number>,
   slotCount: number,

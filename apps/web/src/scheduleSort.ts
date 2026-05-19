@@ -1,27 +1,59 @@
 /**
  * Row-to-cell placement for the schedule grid.
  *
- * One function — `placeRowsInGrid` — handles both Populate (no
- * lateness) and Sort by Lateness (with lateness). Algorithm:
+ * The placement decides which rule-book row (a triple of team letters)
+ * goes into each (slot, room) cell of a division's allocation. It has
+ * to satisfy one hard constraint and one soft objective:
  *
- * 1. Score each rule-book row by how many of its letters are in the
- *    `lateLetters` set. For Populate the set is empty, so every row
- *    scores 0 and the order falls back to rule-book order.
- * 2. Sort rows ascending by (score, original index). Non-late rows
- *    first, late rows last. Stable on rule-book order within a
- *    score bucket.
- * 3. Walk the division's cells in row-major order. At each cell,
- *    pick the *earliest* row from the sorted-remaining list that is
+ *   * Hard constraint — **letter disjointness within a slot**: across
+ *     all rows placed at the same slot for the same division, no
+ *     letter may appear twice. A letter is a team, and a team
+ *     physically can't play in two rooms at once. The placement
+ *     algorithm tries to honour this; when the rule book makes it
+ *     impossible (some patterns just don't have enough disjoint
+ *     pairings), unavoidable conflicts land in the latest cells.
+ *   * Soft objective — **late rows go to late cells**: rows containing
+ *     a "late team" letter should land in higher cell indices so they
+ *     fall in later slots. For Populate (no lateness), the soft
+ *     objective is trivially satisfied by an empty late-letter set.
+ *
+ * Algorithm (`placeRowsInGrid`):
+ *
+ * 1. Score each row by `lateCount` = how many of its letters are in
+ *    the `lateLetters` set. Sort rows ascending by `(lateCount,
+ *    original-index)`. Stable on rule-book order within a score bucket.
+ * 2. Walk the division's cells in row-major order. At each cell, scan
+ *    the sorted-remaining list and pick the **earliest** row that is
  *    letter-disjoint with rows already placed at the same slot for
- *    this division. If no non-conflicting row exists, take the
- *    earliest remaining row anyway — that conflict was unavoidable
- *    given the rule book.
+ *    this division.
+ * 3. If every remaining row conflicts, fall back to the earliest
+ *    remaining row anyway — the conflict was unavoidable.
  *
- * Net effect: pure-non-late rows fill the early cells of each
- *  division; late rows pile up at the back. Letter-disjointness
- * within a slot is honoured when achievable, so the early cells
- * (which matter most) avoid putting a team in two rooms at once.
- * Any leftover unavoidable conflicts land in the latest cells.
+ * Why "earliest non-conflicting" instead of just zipping in order:
+ *   sorted-order zip places row[i] at cell[i] blindly. If row[i+1]
+ *   shares a letter with row[i] and both land in the same slot, you
+ *   get a conflict you could have avoided by skipping ahead to a
+ *   disjoint row. The greedy skip-and-skip-back pattern fixes that.
+ *
+ * Trade-off vs. a fully optimal placement:
+ *   This is a single-pass greedy. It doesn't backtrack, doesn't try
+ *   to swap rows between slots after the fact, and doesn't search for
+ *   the globally optimal arrangement. For typical meets (where the
+ *   rule book supports the K being used), greedy gives the same
+ *   result as optimal. For pathological cases (K unsupported by the
+ *   rule book), it may leave conflicts in late slots that a more
+ *   sophisticated search could resolve — at the cost of orders of
+ *   magnitude more compute.
+ *
+ * What this algorithm does NOT do (yet):
+ *   - Decide cell ownership in shared rooms. The allocator
+ *     (`allocateCells`) pre-decides which slots in a shared room
+ *     belong to which division; this placement then fills those
+ *     pre-assigned cells. A future improvement could fold the
+ *     cell-ownership decision INTO the placement, choosing per-slot
+ *     ownership to maximise disjointness or lateness goals.
+ *   - Rearrange empty cells. If a division has fewer rows than cells,
+ *     the trailing cells are left empty; the empty doesn't move.
  */
 
 import type { Cell } from './scheduleAlloc'
@@ -82,10 +114,28 @@ export function placeRowsInGrid(
   return result
 }
 
-/** For a rule-book pattern, return the set of K values for which every
- *  consecutive K-row group is pairwise letter-disjoint. Diagnostic —
- *  the placement algorithm above no longer requires K-disjointness,
- *  but the matrix is still useful for documenting pattern shape. */
+/** Diagnostic: report which K values let you fold the rule book into
+ *  K-row slot groups **in row order** — i.e. rows 0..K-1 form the first
+ *  slot, K..2K-1 the second, and so on — with every group being
+ *  letter-disjoint.
+ *
+ *  This is the STRICTEST possible reading: it asks "can I trivially
+ *  partition the rule book into K-tuples by reading top to bottom?"
+ *  The 20-team pattern is designed for this (consecutive groups of 2
+ *  or 3 are disjoint by construction), which is why
+ *  `supportedKValues(rows20)` includes 2 and 3.
+ *
+ *  Most other patterns return only K=1 here, but that does NOT mean K>1
+ *  is impossible for them — it just means the rule book doesn't have a
+ *  valid K>1 partition pre-baked in row order. The placement algorithm
+ *  (`placeRowsInGrid`) can often still find a valid K>1 arrangement by
+ *  pairing non-consecutive rows. For example, 15-team K=2 is unreachable
+ *  by row-order grouping but the greedy placement does find a fully
+ *  disjoint pairing: (BEF+GJK) (DCO+FIJ) (NBC+ALO) (IML+HGD) (MJN+LKH)
+ *  (IHE+ONK) + three singletons.
+ *
+ *  Use this function for documentation / pattern-shape diagnostics, not
+ *  as a "can this team count run in K rooms" oracle. */
 export function supportedKValues(rows: ReadonlyArray<Row>): Set<number> {
   const supported = new Set<number>()
   if (rows.length === 0) return supported
