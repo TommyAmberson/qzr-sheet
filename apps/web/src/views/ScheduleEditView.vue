@@ -10,7 +10,7 @@ import ReviewSection from '../components/schedule/ReviewSection.vue'
 import SkeletonSection from '../components/schedule/SkeletonSection.vue'
 import { useScheduleData } from '../composables/useScheduleData'
 import { getPrelimDraw } from '../prelimDraw'
-import { allocateCells, type Cell } from '../scheduleAlloc'
+import { allocateCells } from '../scheduleAlloc'
 import { buildElimPlan, buildPrelimPlan, type QuizDef } from '../scheduleBuild'
 import { bySortOrder, isStatsBreak } from '../scheduleGrid'
 import { orderRowsByLateness, type Row } from '../scheduleSort'
@@ -140,15 +140,6 @@ function elimCountFor(division: string): number {
   )
 }
 
-/** Max rooms-per-slot in a division's allocated cells. Used to choose
- *  the K-tuple size for `orderRowsByLateness`. */
-function maxRoomsPerSlot(cells: ReadonlyArray<Cell>): number {
-  if (cells.length === 0) return 1
-  const perSlot = new Map<number, number>()
-  for (const c of cells) perSlot.set(c.slotId, (perSlot.get(c.slotId) ?? 0) + 1)
-  return Math.max(...perSlot.values())
-}
-
 /** Late letters for a division: letters mapped by `prelim_assignments`
  *  to teams whose `lateness` flag is set. Empty set when Roll Teams
  *  hasn't run yet or no teams are late. */
@@ -216,9 +207,8 @@ async function runPopulate(applyLateness: boolean) {
       const rawRows: Row[] = draw
         ? draw.map((r) => [r[0], r[1], r[2]] as Row)
         : Array.from({ length: prelimCells.length }, () => ['A', 'B', 'C'] as Row)
-      const K = maxRoomsPerSlot(prelimCells)
       const lateLetters = applyLateness ? lateLettersFor(div) : new Set<string>()
-      const ordered = orderRowsByLateness(rawRows, K, lateLetters)
+      const ordered = orderRowsByLateness(rawRows, lateLetters)
 
       plan.push(...buildPrelimPlan(div, prelimCells, ordered))
       plan.push(...buildElimPlan(div, elimCells))

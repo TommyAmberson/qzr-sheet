@@ -2,55 +2,44 @@
  * Rule-book row ordering for the schedule sort.
  *
  * Inputs: a list of letter-triples (the rule book pattern for a team
- * count), the K rooms-per-slot the division uses, and a set of "late"
- * letters (letters whose team was marked late after Roll Teams).
+ * count) and a set of "late" letters (letters whose team was marked
+ * late after Roll Teams).
  *
- * Output: the same rows, possibly reordered so that tuples (consecutive
- * K rows) containing late letters sort to the back. For Populate, the
- * late-letters set is empty so the output equals the input.
+ * Output: the same rows, sorted ascending by the number of late letters
+ * each row contains. Rows containing zero late letters land at the
+ * front (so they get placed in the early cells); rows with the most
+ * late letters land at the back (latest cells). Ties are broken by
+ * original rule-book order for stability.
  *
- * The K-tuple is the rule book's letter-disjointness unit: consecutive
- * K rows are designed to be pairwise letter-disjoint (no team in two
- * rooms at once within a slot). Push-late preserves the tuples and only
- * permutes their order — that way the disjointness invariant survives
- * the sort.
+ * Trade-off: this prioritises pushing late teams to later slots over
+ * preserving the rule book's K-tuple letter-disjointness invariant.
+ * For team counts and K values where the rule book supports
+ * disjointness (e.g. 20-team K=3), the back of the sorted list may
+ * have a slot where the same letter appears in two rows — that team
+ * plays in two rooms at the same time. The admin can fix those
+ * manually, or live with them since the conflicts are in the latest
+ * (lowest-priority) slots. For team counts where the rule book never
+ * supported K>1 disjointness anyway (most counts under 20), this
+ * algorithm at least guarantees the early slots are conflict-light.
  */
 
 export type Row = readonly [string, string, string]
 
-/** Reorder rule-book rows by lateness while preserving K-tuples.
- *
- * Algorithm:
- *  1. Slice `rows` into consecutive K-tuples (the last tuple may be
- *     shorter if `rows.length` isn't a multiple of K).
- *  2. Score each tuple by the count of its rows that contain at least
- *     one late letter.
- *  3. Sort tuples ascending by (score, original index) — non-late
- *     tuples first, late tuples last. Ties broken stably by rule-book
- *     order.
- *  4. Flatten the sorted tuples back into a row list. */
+/** Reorder rule-book rows by lateness. Rows with fewer late letters
+ *  come first. Stable sort by original rule-book index breaks ties. */
 export function orderRowsByLateness(
   rows: ReadonlyArray<Row>,
-  K: number,
   lateLetters: ReadonlySet<string>,
 ): Row[] {
-  if (K < 1) return [...rows]
+  if (lateLetters.size === 0) return [...rows]
 
-  const tuples: { rows: Row[]; originalIdx: number; lateCount: number }[] = []
-  for (let i = 0; i < rows.length; i += K) {
-    const tupleRows = rows.slice(i, i + K) as Row[]
+  const scored = rows.map((row, idx) => {
     let lateCount = 0
-    if (lateLetters.size > 0) {
-      for (const row of tupleRows) {
-        if (row.some((letter) => lateLetters.has(letter))) lateCount++
-      }
-    }
-    tuples.push({ rows: tupleRows, originalIdx: tuples.length, lateCount })
-  }
-
-  tuples.sort((a, b) => a.lateCount - b.lateCount || a.originalIdx - b.originalIdx)
-
-  return tuples.flatMap((t) => t.rows)
+    for (const letter of row) if (lateLetters.has(letter)) lateCount++
+    return { row, idx, lateCount }
+  })
+  scored.sort((a, b) => a.lateCount - b.lateCount || a.idx - b.idx)
+  return scored.map((s) => s.row)
 }
 
 /** For a rule-book pattern, return the set of K values for which every
