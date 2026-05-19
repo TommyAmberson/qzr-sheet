@@ -83,12 +83,9 @@ const emit = defineEmits<{
   (e: 'delete-quiz', quizId: number): void
   (e: 'populate-skeleton'): void
   (e: 'roll-teams'): void
-  (e: 'swap-late-teams'): void
   (e: 'add-quiz', payload: AddQuizPayload): void
   (e: 'update-quiz', payload: UpdateQuizPayload): void
 }>()
-
-const hasLateTeams = computed(() => (props.meetTeams ?? []).some((t) => t.lateness))
 
 function confirmOverwrite(action: string): boolean {
   if (props.quizzes.length === 0) return true
@@ -105,10 +102,6 @@ function onPopulate() {
 function onRoll() {
   if (!confirmOverwrite('Rolling teams')) return
   emit('roll-teams')
-}
-
-function onSwapLate() {
-  emit('swap-late-teams')
 }
 
 const grid = computed(() => buildGrid(props.rooms, props.slots, props.quizzes, null))
@@ -355,15 +348,6 @@ function saveEdit() {
         <div class="action-buttons">
           <button type="button" class="action-btn" :disabled="!rollInfo?.ready" @click="onRoll">
             Roll teams
-          </button>
-          <button
-            v-if="hasLateTeams"
-            type="button"
-            class="action-btn action-btn--secondary"
-            title="Swaps prelim quizzes (slot only) so late-team quizzes move to later rounds, without putting any team in two rooms at once."
-            @click="onSwapLate"
-          >
-            Push late later
           </button>
         </div>
       </article>
@@ -691,18 +675,6 @@ function saveEdit() {
   color: var(--color-text-faint);
   border: 1px solid var(--color-border-alt);
   cursor: not-allowed;
-}
-
-.action-btn--secondary {
-  background: none;
-  color: var(--color-accent);
-  border: 1px solid var(--color-accent);
-}
-
-.action-btn--secondary:hover:not(:disabled) {
-  background: var(--color-bg);
-  color: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
 }
 
 .empty {

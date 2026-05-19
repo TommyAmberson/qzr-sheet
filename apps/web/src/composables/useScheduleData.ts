@@ -218,9 +218,9 @@ export function useScheduleData(slug: Ref<string>) {
   }
 
   /** Roll Teams for one division: sort by (lateness ASC, RAND ASC),
-   *  zip onto letters A..N, and persist via setPrelimAssignments. The
-   *  rule-book pattern is left alone — a separate `swapLateTeamsLater`
-   *  pass handles physically moving late teams' quizzes later. */
+   *  zip onto letters A..N, and persist via setPrelimAssignments.
+   *  Running Populate after Roll Teams picks up the late-letter set
+   *  and pushes the affected rule-book rows to later cells. */
   async function rollTeams(division: string) {
     if (!meetId.value) throw new Error('No meet loaded')
     const divisionTeams = teams.value.filter((t) => t.division === division)
@@ -240,105 +240,6 @@ export function useScheduleData(slug: Ref<string>) {
       ...prelimAssignments.value.filter((a) => a.division !== division),
       ...res.assignments,
     ]
-  }
-
-  /** Push late teams' prelim quizzes to later slots within their
-   *  division by **permuting whole slot-tuples** in place.
-   *
-   *  Populate already groups quizzes into letter-disjoint tuples
-   *  (one per slot, K quizzes for K rooms — guaranteed by the rule-
-   *  book pattern). We don't try to re-pair within a tuple — that
-   *  would break the round-robin invariant and risk leaving cells
-   *  empty when no compatible re-pairing exists. Instead, we:
-   *
-   *  1. Group the division's prelim quizzes by their current slot.
-   *  2. Score each tuple by how many late quizzes it contains.
-   *  3. Sort tuples ascending by late-count (ties broken by current
-   *     chronological order — keeps stable behaviour across re-runs).
-   *  4. Reassign each tuple to the next chronological slot.
-   *
-   *  Net effect: tuples with only non-late quizzes land in the early
-   *  slots; tuples that already contain late quizzes (because Roll
-   *  Teams gave those letters to late teams) get pushed to the back.
-   *  The Q-number labels stay attached to each quiz and seats are
-   *  untouched; only `slotId` changes.
-   *
-   *  Returns the count of quizzes moved. */
-  async function swapLateTeamsLater(division: string): Promise<number> {
-    if (!meetId.value) throw new Error('No meet loaded')
-
-    const lateTeamIds = new Set(
-      teams.value.filter((t) => t.lateness && t.division === division).map((t) => t.id),
-    )
-    if (lateTeamIds.size === 0) return 0
-
-    const divAssignments = prelimAssignments.value.filter((a) => a.division === division)
-    const lateLetters = new Set<string>()
-    for (const a of divAssignments) {
-      if (lateTeamIds.has(a.teamId)) lateLetters.add(a.letter)
-    }
-    if (lateLetters.size === 0) return 0
-
-    const containsLate = (q: ScheduledQuiz): boolean => {
-      for (const s of q.seats) if (s.letter && lateLetters.has(s.letter)) return true
-      return false
-    }
-
-    const prelims = quizzes.value.filter((q) => q.division === division && q.phase === 'prelim')
-    if (prelims.length === 0) return 0
-
-    // Group quizzes by their current slot — these are the rule-book
-    // tuples Populate built. Preserve insertion order so re-runs are
-    // stable when late counts tie.
-    const tuplesBySlot = new Map<number, ScheduledQuiz[]>()
-    for (const q of prelims) {
-      let arr = tuplesBySlot.get(q.slotId)
-      if (!arr) {
-        arr = []
-        tuplesBySlot.set(q.slotId, arr)
-      }
-      arr.push(q)
-    }
-
-    const slotIdsOrdered = [...tuplesBySlot.keys()]
-      .map((id) => slots.value.find((s) => s.id === id))
-      .filter((s): s is MeetSlot => s !== undefined)
-      .sort(bySortOrder)
-      .map((s) => s.id)
-
-    const tuples = slotIdsOrdered.map((sid, chronoIdx) => {
-      const qs = tuplesBySlot.get(sid)!
-      return { quizzes: qs, chronoIdx, lateCount: qs.filter(containsLate).length }
-    })
-
-    const sorted = [...tuples].sort((a, b) => {
-      if (a.lateCount !== b.lateCount) return a.lateCount - b.lateCount
-      return a.chronoIdx - b.chronoIdx
-    })
-
-    const moves: { quizId: number; slotId: number }[] = []
-    for (let i = 0; i < sorted.length; i++) {
-      const targetSlotId = slotIdsOrdered[i]!
-      for (const q of sorted[i]!.quizzes) {
-        if (q.slotId !== targetSlotId) {
-          moves.push({ quizId: q.id, slotId: targetSlotId })
-        }
-      }
-    }
-    return await applySlotMoves(moves)
-  }
-
-  /** Apply a batch of slotId reassignments to scheduled quizzes,
-   *  bypassing updateQuiz so we refetch only once at the end. */
-  async function applySlotMoves(moves: { quizId: number; slotId: number }[]): Promise<number> {
-    if (!meetId.value) throw new Error('No meet loaded')
-    if (moves.length === 0) return 0
-    for (const m of moves) {
-      await updateScheduledQuiz(meetId.value, m.quizId, { slotId: m.slotId })
-    }
-    const refreshed = await listScheduledQuizzes(meetId.value)
-    quizzes.value = refreshed.quizzes
-    return moves.length
   }
 
   /** Toggle a team's lateness flag. Optimistic local update + PATCH;
@@ -400,6 +301,5 @@ export function useScheduleData(slug: Ref<string>) {
     resizeLane,
     updateTeamLateness,
     rollTeams,
-    swapLateTeamsLater,
   }
 }

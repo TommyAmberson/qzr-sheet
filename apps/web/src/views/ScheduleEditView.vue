@@ -43,7 +43,6 @@ const {
   deleteQuiz,
   updateTeamLateness,
   rollTeams,
-  swapLateTeamsLater,
 } = useScheduleData(toRef(props, 'slug'))
 
 async function onCreateSlot(payload: {
@@ -249,20 +248,6 @@ async function onRollTeams() {
   try {
     for (const div of divisions.value) {
       await rollTeams(div)
-    }
-  } catch (e) {
-    alert((e as Error).message)
-  }
-}
-
-async function onSwapLateTeams() {
-  try {
-    let total = 0
-    for (const div of divisions.value) {
-      total += await swapLateTeamsLater(div)
-    }
-    if (total === 0) {
-      alert('No swap needed — late teams are already at the end of their division.')
     }
   } catch (e) {
     alert((e as Error).message)
@@ -566,7 +551,6 @@ onMounted(async () => {
         @update-quiz="onUpdateQuiz"
         @populate-skeleton="onPopulateSkeleton"
         @roll-teams="onRollTeams"
-        @swap-late-teams="onSwapLateTeams"
       />
     </template>
   </div>
