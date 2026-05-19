@@ -1,50 +1,91 @@
 /**
- * Rule-book row ordering for the schedule sort.
+ * Row-to-cell placement for the schedule grid.
  *
- * Inputs: a list of letter-triples (the rule book pattern for a team
- * count) and a set of "late" letters (letters whose team was marked
- * late after Roll Teams).
+ * One function — `placeRowsInGrid` — handles both Populate (no
+ * lateness) and Sort by Lateness (with lateness). Algorithm:
  *
- * Output: the same rows, sorted ascending by the number of late letters
- * each row contains. Rows containing zero late letters land at the
- * front (so they get placed in the early cells); rows with the most
- * late letters land at the back (latest cells). Ties are broken by
- * original rule-book order for stability.
+ * 1. Score each rule-book row by how many of its letters are in the
+ *    `lateLetters` set. For Populate the set is empty, so every row
+ *    scores 0 and the order falls back to rule-book order.
+ * 2. Sort rows ascending by (score, original index). Non-late rows
+ *    first, late rows last. Stable on rule-book order within a
+ *    score bucket.
+ * 3. Walk the division's cells in row-major order. At each cell,
+ *    pick the *earliest* row from the sorted-remaining list that is
+ *    letter-disjoint with rows already placed at the same slot for
+ *    this division. If no non-conflicting row exists, take the
+ *    earliest remaining row anyway — that conflict was unavoidable
+ *    given the rule book.
  *
- * Trade-off: this prioritises pushing late teams to later slots over
- * preserving the rule book's K-tuple letter-disjointness invariant.
- * For team counts and K values where the rule book supports
- * disjointness (e.g. 20-team K=3), the back of the sorted list may
- * have a slot where the same letter appears in two rows — that team
- * plays in two rooms at the same time. The admin can fix those
- * manually, or live with them since the conflicts are in the latest
- * (lowest-priority) slots. For team counts where the rule book never
- * supported K>1 disjointness anyway (most counts under 20), this
- * algorithm at least guarantees the early slots are conflict-light.
+ * Net effect: pure-non-late rows fill the early cells of each
+ *  division; late rows pile up at the back. Letter-disjointness
+ * within a slot is honoured when achievable, so the early cells
+ * (which matter most) avoid putting a team in two rooms at once.
+ * Any leftover unavoidable conflicts land in the latest cells.
  */
+
+import type { Cell } from './scheduleAlloc'
 
 export type Row = readonly [string, string, string]
 
-/** Reorder rule-book rows by lateness. Rows with fewer late letters
- *  come first. Stable sort by original rule-book index breaks ties. */
-export function orderRowsByLateness(
+/** Place sorted rule-book rows into the division's cells. Returns
+ *  per-cell row assignment (or `null` for unfilled cells when there
+ *  are more cells than rows). */
+export function placeRowsInGrid(
+  cells: ReadonlyArray<Cell>,
   rows: ReadonlyArray<Row>,
   lateLetters: ReadonlySet<string>,
-): Row[] {
-  if (lateLetters.size === 0) return [...rows]
+): (Row | null)[] {
+  const sortedRemaining: Row[] = rows
+    .map((row, idx) => ({
+      row,
+      idx,
+      lateCount:
+        lateLetters.size === 0
+          ? 0
+          : row.reduce((n, letter) => n + (lateLetters.has(letter) ? 1 : 0), 0),
+    }))
+    .sort((a, b) => a.lateCount - b.lateCount || a.idx - b.idx)
+    .map((entry) => entry.row)
 
-  const scored = rows.map((row, idx) => {
-    let lateCount = 0
-    for (const letter of row) if (lateLetters.has(letter)) lateCount++
-    return { row, idx, lateCount }
-  })
-  scored.sort((a, b) => a.lateCount - b.lateCount || a.idx - b.idx)
-  return scored.map((s) => s.row)
+  const result: (Row | null)[] = new Array(cells.length).fill(null)
+  const placedLettersBySlot = new Map<number, Set<string>>()
+
+  for (let i = 0; i < cells.length; i++) {
+    if (sortedRemaining.length === 0) break
+    const cell = cells[i]!
+    const placed = placedLettersBySlot.get(cell.slotId)
+
+    let chosenIdx = -1
+    for (let r = 0; r < sortedRemaining.length; r++) {
+      const row = sortedRemaining[r]!
+      const conflicts = placed ? row.some((letter) => placed.has(letter)) : false
+      if (!conflicts) {
+        chosenIdx = r
+        break
+      }
+    }
+    if (chosenIdx === -1) chosenIdx = 0
+
+    const row = sortedRemaining[chosenIdx]!
+    result[i] = row
+    sortedRemaining.splice(chosenIdx, 1)
+
+    let updated = placedLettersBySlot.get(cell.slotId)
+    if (!updated) {
+      updated = new Set<string>()
+      placedLettersBySlot.set(cell.slotId, updated)
+    }
+    for (const letter of row) updated.add(letter)
+  }
+
+  return result
 }
 
 /** For a rule-book pattern, return the set of K values for which every
- *  consecutive K-row group is pairwise letter-disjoint. Useful for
- *  warning when an allocation needs a K the pattern doesn't support. */
+ *  consecutive K-row group is pairwise letter-disjoint. Diagnostic —
+ *  the placement algorithm above no longer requires K-disjointness,
+ *  but the matrix is still useful for documenting pattern shape. */
 export function supportedKValues(rows: ReadonlyArray<Row>): Set<number> {
   const supported = new Set<number>()
   if (rows.length === 0) return supported

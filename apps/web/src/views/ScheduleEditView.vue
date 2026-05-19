@@ -13,7 +13,7 @@ import { getPrelimDraw } from '../prelimDraw'
 import { allocateCells } from '../scheduleAlloc'
 import { buildElimPlan, buildPrelimPlan, type QuizDef } from '../scheduleBuild'
 import { bySortOrder, isStatsBreak } from '../scheduleGrid'
-import { orderRowsByLateness, type Row } from '../scheduleSort'
+import type { Row } from '../scheduleSort'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
@@ -208,9 +208,8 @@ async function runPopulate(applyLateness: boolean) {
         ? draw.map((r) => [r[0], r[1], r[2]] as Row)
         : Array.from({ length: prelimCells.length }, () => ['A', 'B', 'C'] as Row)
       const lateLetters = applyLateness ? lateLettersFor(div) : new Set<string>()
-      const ordered = orderRowsByLateness(rawRows, lateLetters)
 
-      plan.push(...buildPrelimPlan(div, prelimCells, ordered))
+      plan.push(...buildPrelimPlan(div, prelimCells, rawRows, lateLetters))
       plan.push(...buildElimPlan(div, elimCells))
     }
 
