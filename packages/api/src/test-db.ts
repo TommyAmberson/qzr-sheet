@@ -124,7 +124,8 @@ export async function createTestDb(): Promise<Db> {
       church_id INTEGER NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
       division TEXT NOT NULL,
       number INTEGER NOT NULL,
-      consolation INTEGER NOT NULL DEFAULT 0
+      consolation INTEGER NOT NULL DEFAULT 0,
+      lateness INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE quizzer_identities (

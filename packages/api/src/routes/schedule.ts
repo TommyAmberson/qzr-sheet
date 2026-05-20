@@ -445,3 +445,116 @@ schedule.patch('/:id/quizzes/:quizId/seats', async (c) => {
 
   return c.json({ seats })
 })
+
+/**
+ * GET /api/meets/:id/prelim-assignments
+ *
+ * Returns the team→letter mapping for every division in the meet.
+ * Any authenticated viewer can read; we use the wider phase/schedule
+ * `requireAuth` already mounted on this router.
+ */
+schedule.get('/:id/prelim-assignments', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const db = getDb(c)
+  const rows = await db
+    .select()
+    .from(schema.prelimAssignments)
+    .where(eq(schema.prelimAssignments.meetId, meetId))
+    .orderBy(schema.prelimAssignments.division, schema.prelimAssignments.letter)
+  return c.json({ assignments: rows })
+})
+
+/**
+ * POST /api/meets/:id/prelim-assignments
+ *
+ * Replaces the team→letter mapping for one division. Body shape:
+ * `{ division: string, mapping: { letter: string, teamId: number }[] }`.
+ * Admin-only (Roll Teams is an admin operation). Each (meet, division,
+ * letter) is unique; we delete-then-insert atomically per division.
+ */
+schedule.post('/:id/prelim-assignments', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const body = await c.req.json<{
+    division?: string
+    mapping?: { letter?: string; teamId?: number }[]
+  }>()
+  const division = body.division?.trim()
+  if (!division) return c.json({ error: 'division required' }, 400)
+  const mapping = body.mapping ?? []
+  if (!Array.isArray(mapping) || mapping.length === 0) {
+    return c.json({ error: 'mapping must be a non-empty array' }, 400)
+  }
+
+  const seenLetters = new Set<string>()
+  const seenTeams = new Set<number>()
+  for (const entry of mapping) {
+    if (!entry.letter || typeof entry.teamId !== 'number') {
+      return c.json({ error: 'each mapping entry needs letter + teamId' }, 400)
+    }
+    if (seenLetters.has(entry.letter)) {
+      return c.json({ error: `duplicate letter ${entry.letter}` }, 400)
+    }
+    if (seenTeams.has(entry.teamId)) {
+      return c.json({ error: `duplicate teamId ${entry.teamId}` }, 400)
+    }
+    seenLetters.add(entry.letter)
+    seenTeams.add(entry.teamId)
+  }
+
+  const db = getDb(c)
+  // Verify every teamId belongs to this meet AND this division.
+  const teamIds = mapping.map((m) => m.teamId!)
+  const teamRows = await db
+    .select({ id: schema.teams.id, division: schema.teams.division })
+    .from(schema.teams)
+    .where(and(eq(schema.teams.meetId, meetId), inArray(schema.teams.id, teamIds)))
+  if (teamRows.length !== teamIds.length) {
+    return c.json({ error: 'one or more teamIds are not in this meet' }, 400)
+  }
+  for (const row of teamRows) {
+    if (row.division !== division) {
+      return c.json(
+        { error: `team ${row.id} is in division ${row.division}, not ${division}` },
+        400,
+      )
+    }
+  }
+
+  await db
+    .delete(schema.prelimAssignments)
+    .where(
+      and(
+        eq(schema.prelimAssignments.meetId, meetId),
+        eq(schema.prelimAssignments.division, division),
+      ),
+    )
+  const now = new Date()
+  await db.insert(schema.prelimAssignments).values(
+    mapping.map((m) => ({
+      meetId,
+      division,
+      letter: m.letter!,
+      teamId: m.teamId!,
+      assignedAt: now,
+    })),
+  )
+
+  const assignments = await db
+    .select()
+    .from(schema.prelimAssignments)
+    .where(
+      and(
+        eq(schema.prelimAssignments.meetId, meetId),
+        eq(schema.prelimAssignments.division, division),
+      ),
+    )
+    .orderBy(schema.prelimAssignments.letter)
+  return c.json({ assignments })
+})

@@ -408,6 +408,7 @@ function startAddTeam() {
     division: meet.value!.divisions[0] ?? '',
     number: 0, // placeholder; server assigns on save
     consolation: false,
+    lateness: false,
   }
   teams.value.push(team)
   quizzerOrder.value[String(team.id)] = []
@@ -492,6 +493,7 @@ async function saveDraft() {
     teams.value = result.teams.map(({ quizzers: _, ...t }) => ({
       ...t,
       consolation: t.consolation ?? false,
+      lateness: (t as { lateness?: boolean }).lateness ?? false,
     }))
 
     allQuizzers.value = []

@@ -1,4 +1,14 @@
-import type { MeetRoom, MeetSlot, ScheduledQuiz } from './api'
+import type { MeetRoom, MeetSlot, ScheduledQuiz, ScheduledQuizSeat } from './api'
+
+/** Reserved event-label that marks the schedule's prelim/elim divider.
+ *  Stats break is required for Populate to know where prelim quizzes
+ *  end and elim quizzes begin; Skeleton treats it as un-deletable
+ *  without an extra confirmation. */
+export const STATS_BREAK_LABEL = 'Stats break'
+
+export function isStatsBreak(slot: MeetSlot): boolean {
+  return slot.kind === 'event' && slot.eventLabel === STATS_BREAK_LABEL
+}
 
 export interface GridRow {
   slot: MeetSlot
@@ -24,8 +34,8 @@ export function buildGrid(
   quizzes: ScheduledQuiz[],
   divisionFilter: string | null,
 ): Grid {
-  const sortedRooms = [...rooms].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
-  const sortedSlots = [...slots].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
+  const sortedRooms = [...rooms].sort(bySortOrder)
+  const sortedSlots = [...slots].sort(bySortOrder)
 
   const byCell = new Map<number, Map<number, ScheduledQuiz>>()
   for (const q of quizzes) {
@@ -59,4 +69,39 @@ export function formatSlotTime(startAt: string): string {
   const d = new Date(startAt)
   if (Number.isNaN(d.getTime())) return ''
   return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+/** Comparator for sorting slots and rooms by their canonical position. */
+export function bySortOrder<T extends { sortOrder: number; id: number }>(a: T, b: T): number {
+  return a.sortOrder - b.sortOrder || a.id - b.id
+}
+
+/** Letter for prelim seats, seedRef for elim seats. The canonical seat
+ *  identifier shown in letter mode. */
+export function seatRef(seat: ScheduledQuizSeat): string {
+  return seat.letter ?? seat.seedRef ?? ''
+}
+
+/** Resolved team name for a seat: looks up the seat's letter in the
+ *  prelim assignments table, then renders the matching team's
+ *  `{shortName} {number}`. Returns `—` until Roll Teams has run for
+ *  this division (or for elim seats, which seed lazily via seedRefs).
+ *
+ *  Prelim assignments and the team list are passed in rather than
+ *  imported, so this stays pure and consumers (V1 grid, V2 review)
+ *  can both call it. */
+export function seatTeam(
+  seat: ScheduledQuizSeat,
+  ctx: {
+    division: string
+    assignments: ReadonlyArray<{ division: string; letter: string; teamId: number }>
+    teams: ReadonlyArray<{ id: number; churchShortName: string; number: number }>
+  },
+): string {
+  if (!seat.letter) return '—'
+  const a = ctx.assignments.find((x) => x.division === ctx.division && x.letter === seat.letter)
+  if (!a) return '—'
+  const t = ctx.teams.find((tm) => tm.id === a.teamId)
+  if (!t) return '—'
+  return `${t.churchShortName} ${t.number}`
 }

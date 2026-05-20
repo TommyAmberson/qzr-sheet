@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireAuthOrGuest, requireSuperuser, getUser } from '../middleware/session'
@@ -212,6 +212,29 @@ meets.post('/:id/rotate-admin-code', requireAuth(), async (c) => {
   }
 
   return c.json({ adminCode })
+})
+
+// ---- Division team counts (drives schedule editor advice) ----
+
+meets.get('/:id/team-counts', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const db = getDb(c)
+  if (!(await isViewerOf(c, db, meetId))) return c.json({ error: 'Forbidden' }, 403)
+
+  const rows = await db
+    .select({
+      division: schema.teams.division,
+      count: sql<number>`count(${schema.teams.id})`.mapWith(Number),
+    })
+    .from(schema.teams)
+    .where(eq(schema.teams.meetId, meetId))
+    .groupBy(schema.teams.division)
+
+  const counts: Record<string, number> = {}
+  for (const r of rows) counts[r.division] = r.count
+  return c.json({ counts })
 })
 
 // ---- Official codes ----

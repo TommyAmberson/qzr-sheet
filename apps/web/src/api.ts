@@ -221,6 +221,10 @@ export interface Team {
   division: string
   number: number
   consolation: boolean
+  /** Late teams sort to the bottom of Roll Teams's permutation, landing
+   *  in the highest-numbered letters (which appear later in the
+   *  rule-book prelim pattern). */
+  lateness: boolean
 }
 
 export interface Quizzer {
@@ -270,6 +274,26 @@ export function listTeams(churchId: number): Promise<{ teams: Team[] }> {
   return request(`/api/churches/${churchId}/teams`)
 }
 
+/** Team row joined with its church label and the meet's division list,
+ *  for any view that needs to render team names per division (Prelim
+ *  setup roster, Roll Teams summary, etc.). */
+export interface MeetTeamRow {
+  id: number
+  churchId: number
+  churchName: string
+  churchShortName: string
+  division: string
+  number: number
+  consolation: boolean
+  lateness: boolean
+}
+
+export function listMeetTeams(
+  meetId: number,
+): Promise<{ teams: MeetTeamRow[]; meetDivisions: string[] }> {
+  return request(`/api/meets/${meetId}/teams`)
+}
+
 export function createTeam(churchId: number, data: { division: string }): Promise<{ team: Team }> {
   return request(`/api/churches/${churchId}/teams`, {
     method: 'POST',
@@ -279,7 +303,7 @@ export function createTeam(churchId: number, data: { division: string }): Promis
 
 export function updateTeam(
   teamId: number,
-  data: { division?: string; number?: number },
+  data: { division?: string; number?: number; lateness?: boolean },
 ): Promise<{ team: Team }> {
   return request(`/api/teams/${teamId}`, {
     method: 'PATCH',
@@ -391,7 +415,13 @@ export function exportRoster(meetId: number): Promise<{ entries: RosterExportEnt
   return request(`/api/meets/${meetId}/roster/export`)
 }
 
-// ---- Schedule (read-only, see issue #13) ----
+// ---- Division team counts ----
+
+export function getMeetTeamCounts(meetId: number): Promise<{ counts: Record<string, number> }> {
+  return request(`/api/meets/${meetId}/team-counts`)
+}
+
+// ---- Schedule ----
 
 export interface MeetRoom {
   id: number
@@ -443,4 +473,125 @@ export function listMeetSlots(meetId: number): Promise<{ slots: MeetSlot[] }> {
 
 export function listScheduledQuizzes(meetId: number): Promise<{ quizzes: ScheduledQuiz[] }> {
   return request(`/api/meets/${meetId}/quizzes`)
+}
+
+// ---- Schedule editor (slot + quiz CRUD) ----
+
+export interface SeatInput {
+  seatNumber: number
+  letter?: string | null
+  seedRef?: string | null
+}
+
+export function createMeetSlot(
+  meetId: number,
+  data: {
+    startAt: string | number
+    durationMinutes: number
+    kind: 'quiz' | 'event'
+    eventLabel?: string | null
+    sortOrder: number
+  },
+): Promise<{ slot: MeetSlot }> {
+  return request(`/api/meets/${meetId}/slots`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export function updateMeetSlot(
+  meetId: number,
+  slotId: number,
+  data: {
+    startAt?: string | number
+    durationMinutes?: number
+    eventLabel?: string | null
+    sortOrder?: number
+  },
+): Promise<{ slot: MeetSlot }> {
+  return request(`/api/meets/${meetId}/slots/${slotId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteMeetSlot(meetId: number, slotId: number): Promise<{ deleted: true }> {
+  return request(`/api/meets/${meetId}/slots/${slotId}`, { method: 'DELETE' })
+}
+
+export function createScheduledQuiz(
+  meetId: number,
+  data: {
+    slotId: number
+    roomId: number
+    division: string
+    phase: 'prelim' | 'elim'
+    lane?: 'main' | 'consolation' | 'intermediate' | null
+    label: string
+    bracketLabel?: string | null
+    seats?: SeatInput[]
+  },
+): Promise<{ quiz: ScheduledQuiz }> {
+  return request(`/api/meets/${meetId}/quizzes`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export function updateScheduledQuiz(
+  meetId: number,
+  quizId: number,
+  data: {
+    slotId?: number
+    roomId?: number
+    label?: string
+    bracketLabel?: string | null
+    publishedAt?: string | number | null
+  },
+): Promise<{ quiz: ScheduledQuiz }> {
+  return request(`/api/meets/${meetId}/quizzes/${quizId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export function deleteScheduledQuiz(meetId: number, quizId: number): Promise<{ deleted: true }> {
+  return request(`/api/meets/${meetId}/quizzes/${quizId}`, { method: 'DELETE' })
+}
+
+export function replaceQuizSeats(
+  meetId: number,
+  quizId: number,
+  seats: SeatInput[],
+): Promise<{ seats: ScheduledQuizSeat[] }> {
+  return request(`/api/meets/${meetId}/quizzes/${quizId}/seats`, {
+    method: 'PATCH',
+    body: JSON.stringify({ seats }),
+  })
+}
+
+export interface PrelimAssignment {
+  id: number
+  meetId: number
+  division: string
+  letter: string
+  teamId: number
+  assignedAt: string | number
+}
+
+export function listPrelimAssignments(
+  meetId: number,
+): Promise<{ assignments: PrelimAssignment[] }> {
+  return request(`/api/meets/${meetId}/prelim-assignments`)
+}
+
+export function setPrelimAssignments(
+  meetId: number,
+  division: string,
+  mapping: { letter: string; teamId: number }[],
+): Promise<{ assignments: PrelimAssignment[] }> {
+  return request(`/api/meets/${meetId}/prelim-assignments`, {
+    method: 'POST',
+    body: JSON.stringify({ division, mapping }),
+  })
 }
