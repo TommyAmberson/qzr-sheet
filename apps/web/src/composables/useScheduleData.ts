@@ -141,19 +141,43 @@ export function useScheduleData(slug: Ref<string>) {
     quizzes.value = quizzes.value.filter((q) => q.slotId !== slotId)
   }
 
+  /** Refetch the full quiz list and replace the local ref. Use after
+   *  any batch mutation to converge to server state. */
+  async function refetchQuizzes(): Promise<void> {
+    if (!meetId.value) throw new Error('No meet loaded')
+    const refreshed = await listScheduledQuizzes(meetId.value)
+    quizzes.value = refreshed.quizzes
+  }
+
   /** Create a quiz, then refetch the list to pick up server-assigned seat
-   *  ids (POST returns the row without seats). */
+   *  ids (POST returns the row without seats). For batch flows, use
+   *  `createScheduledQuiz` directly from `../api` followed by a single
+   *  `refetchQuizzes()` — otherwise N parallel `createQuiz` calls each
+   *  fire their own refetch and race over `quizzes.value`. */
   async function createQuiz(input: CreateQuizInput): Promise<void> {
     if (!meetId.value) throw new Error('No meet loaded')
     await createScheduledQuiz(meetId.value, input)
-    const refreshed = await listScheduledQuizzes(meetId.value)
-    quizzes.value = refreshed.quizzes
+    await refetchQuizzes()
   }
 
   async function deleteQuiz(quizId: number): Promise<void> {
     if (!meetId.value) throw new Error('No meet loaded')
     await deleteScheduledQuiz(meetId.value, quizId)
     quizzes.value = quizzes.value.filter((q) => q.id !== quizId)
+  }
+
+  /** Delete a quiz on the server without touching the local ref.
+   *  For batch flows; pair with `refetchQuizzes()` after the batch. */
+  async function deleteQuizRaw(quizId: number): Promise<void> {
+    if (!meetId.value) throw new Error('No meet loaded')
+    await deleteScheduledQuiz(meetId.value, quizId)
+  }
+
+  /** Create a quiz on the server without touching the local ref.
+   *  For batch flows; pair with `refetchQuizzes()` after the batch. */
+  async function createQuizRaw(input: CreateQuizInput): Promise<void> {
+    if (!meetId.value) throw new Error('No meet loaded')
+    await createScheduledQuiz(meetId.value, input)
   }
 
   /** Update a quiz's mutable fields (label, slot, room, bracket label).
@@ -294,8 +318,11 @@ export function useScheduleData(slug: Ref<string>) {
     updateSlot,
     deleteSlot,
     createQuiz,
+    createQuizRaw,
     updateQuiz,
     deleteQuiz,
+    deleteQuizRaw,
+    refetchQuizzes,
     nextQuizNumber,
     toggleLane,
     resizeLane,

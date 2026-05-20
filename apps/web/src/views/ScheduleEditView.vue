@@ -40,8 +40,11 @@ const {
   updateSlot,
   deleteSlot,
   createQuiz,
+  createQuizRaw,
   updateQuiz,
   deleteQuiz,
+  deleteQuizRaw,
+  refetchQuizzes,
   updateTeamLateness,
   rollTeams,
 } = useScheduleData(toRef(props, 'slug'))
@@ -226,9 +229,12 @@ async function runPopulate(applyLateness: boolean) {
 
     // Wipe and recreate in parallel — Populate touches a lot of
     // quizzes per click (often 30+) and the sequential await chain
-    // was the dominant user-visible latency.
-    await Promise.all([...quizzes.value].map((q) => deleteQuiz(q.id)))
-    await Promise.all(plan.map((def) => createQuiz(def)))
+    // was the dominant user-visible latency. The raw variants skip
+    // the per-call store mutation; we refetch once at the end so
+    // N parallel mutations don't race over `quizzes.value`.
+    await Promise.all([...quizzes.value].map((q) => deleteQuizRaw(q.id)))
+    await Promise.all(plan.map((def) => createQuizRaw(def)))
+    await refetchQuizzes()
 
     if (unsupported.length > 0) {
       console.warn(
