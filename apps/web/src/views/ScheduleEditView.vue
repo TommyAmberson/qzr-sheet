@@ -11,8 +11,8 @@ import SkeletonSection from '../components/schedule/SkeletonSection.vue'
 import { useScheduleData } from '../composables/useScheduleData'
 import { getPrelimDraw } from '../prelimDraw'
 import { allocateCells } from '../scheduleAlloc'
-import { arrangeAllDivisions, type DivisionPlacementInput, type QuizDef } from '../scheduleArrange'
-import { buildElimPlan } from '../scheduleBuild'
+import { arrangeAllDivisions, type DivisionPlacementInput } from '../scheduleArrange'
+import { buildElimPlan, type QuizDef } from '../scheduleBuild'
 import { bySortOrder, isStatsBreak } from '../scheduleGrid'
 import type { Row } from '../scheduleSort'
 
@@ -224,12 +224,11 @@ async function runPopulate(applyLateness: boolean) {
       plan.push(...buildElimPlan(div, elimAlloc.perDivision.get(div) ?? []))
     }
 
-    for (const q of [...quizzes.value]) {
-      await deleteQuiz(q.id)
-    }
-    for (const def of plan) {
-      await createQuiz(def)
-    }
+    // Wipe and recreate in parallel — Populate touches a lot of
+    // quizzes per click (often 30+) and the sequential await chain
+    // was the dominant user-visible latency.
+    await Promise.all([...quizzes.value].map((q) => deleteQuiz(q.id)))
+    await Promise.all(plan.map((def) => createQuiz(def)))
 
     if (unsupported.length > 0) {
       console.warn(

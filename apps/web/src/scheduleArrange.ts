@@ -1,72 +1,50 @@
-import type { SeatInput, MeetRoom, MeetSlot } from './api'
-import { computeRoomOwnership, type Cell } from './scheduleAlloc'
+import type { MeetRoom, MeetSlot } from './api'
+import { computeRoomOwnership } from './scheduleAlloc'
+import { type QuizDef } from './scheduleBuild'
 import { bySortOrder } from './scheduleGrid'
-import type { Row } from './scheduleSort'
+import { countLate, type Row } from './scheduleSort'
 
 /**
- * Combined cell allocation + row placement, with per-(slot, room)
- * division ownership chosen during placement instead of fixed up
- * front.
+ * Combined cell allocation + row placement for Populate / Sort by
+ * Lateness.
  *
- * The simpler pipeline (`allocateCells` + `placeRowsInGrid`) fixes the
- * shared-room slot ownership before placement runs — so if D2 owns
- * r3 at slots 1, 3, 4, 6, 7, 9 and D3 owns r3 at slots 2, 5, 8, that
- * mapping is locked in regardless of what would help disjointness or
- * lateness. This function instead defers per-slot ownership to a
- * greedy walk: at each (slot, room) cell, both candidate divisions
- * compete for the cell and the one with the better-fitting row wins.
- *
- * Per-(division, room) cell budgets are still respected — the room
- * ownership step decides how many cells each division gets in each
- * room, just like before — so each division still gets exactly its
- * team count of cells, and each room still hosts ≤2 divisions. The
- * flexibility is only in *which* slots within a shared room each
- * division uses.
+ * Each division gets exactly its team count of cells, each room hosts
+ * at most two divisions, and within any slot no team letter appears
+ * twice in the same division. The lateness-driven soft objective —
+ * late rows land in higher-numbered cells — is a comparator
+ * tiebreaker on top.
  *
  * Algorithm:
  *
- * 1. **Room ownership** (unchanged from `allocateCells`): column-major
- *    walk over rooms; each division claims cells until its team count
- *    is met. Output: per-room list of {division, cellCount} entries
- *    (1 or 2 entries per room).
+ * 1. **Room ownership** (delegated to `computeRoomOwnership`): walk
+ *    rooms column-major and assign cells to divisions until each
+ *    division's team count is met. Output: per-(division, room) cell
+ *    budget plus the room → divisions mapping. Each room ends up with
+ *    1 or 2 owning divisions.
  *
- * 2. **Per-division row queues**, sorted by lateness ascending then
- *    rule-book index. Non-late rows go to the front.
+ * 2. **Per-division row queues**, sorted by `(lateCount asc, rule-book
+ *    index asc)`. Non-late rows come first; ties resolved by rule-book
+ *    order for stability.
  *
- * 3. **Greedy cell-by-cell placement** in row-major order. At each
- *    (slot, room) cell:
- *      a. Find candidate divisions: room owners with remaining
- *         budget in this room AND remaining rows in their queue.
- *      b. For each candidate, find the earliest row from its queue
- *         that is letter-disjoint with rows already placed at the
- *         same slot for the same division. If none, fall back to the
- *         earliest row with the minimum conflict count.
- *      c. Score each candidate by (conflicts, lateCount, rowIdx,
- *         divisionOrder) — lex ascending, lower wins. So we prefer:
- *         no conflict > fewer-late-letters > earlier-rule-book-row >
- *         lower-numbered division.
- *      d. Place the winning row, decrement that division's room
- *         budget, advance its queue.
+ * 3. **Greedy cell-by-cell placement** in row-major order over the
+ *    full grid. At each `(slot, room)` cell:
+ *      a. The candidate divisions are this room's owners that still
+ *         have remaining budget AND remaining rows.
+ *      b. For each candidate, find the row in its queue with the
+ *         fewest letter conflicts against rows already placed at the
+ *         same slot for the same division.
+ *      c. Pick the candidate with the lowest
+ *         `(conflicts, lateCount, rowIndex, divisionOrder)`
+ *         tuple — fewer conflicts > fewer late letters > earlier rule-
+ *         book row > lower-numbered division.
+ *      d. Place the winning row, decrement that division's room budget,
+ *         remove from its queue.
  *
- * Trade-offs vs the simpler pipeline:
- *   * Better — produces fewer letter conflicts in late slots, because
- *     it can shift shared-room ownership to keep late rows aligned
- *     with cells where they fit cleanly.
- *   * Worse — the per-cell scoring lets the lower-numbered division
- *     "win" a cell even when ceding it would benefit the higher
- *     division more. A backtracking search or local optimisation
- *     could improve further, but the greedy is fast and good enough
- *     for typical meets.
+ * The greedy is single-pass; it doesn't backtrack or swap rows
+ * between cells after placement. For typical meets this still
+ * produces zero conflicts when the rule book permits one, and
+ * minimises conflicts otherwise.
  */
-
-export interface QuizDef {
-  slotId: number
-  roomId: number
-  division: string
-  phase: 'prelim' | 'elim'
-  label: string
-  seats: SeatInput[]
-}
 
 export interface DivisionPlacementInput {
   division: string
@@ -76,16 +54,30 @@ export interface DivisionPlacementInput {
 }
 
 export interface ArrangementResult {
-  /** Generated prelim quiz definitions per division, ready for the
-   *  API. Quiz numbers are sequential per non-empty cell. */
+  /** Quiz definitions per division, in placement (row-major) order
+   *  with sequential Q1..QN numbering. */
   perDivision: Map<string, QuizDef[]>
-  /** Per-division Q-number → late letter count in that quiz's row.
-   *  Useful for diagnostics. */
+  /** Per-division array of late-letter counts in placement order. */
   lateCountByQuiz: Map<string, number[]>
-  /** Cells the allocator couldn't fill (rows < budget × slot count). */
+  /** Grid cells left empty (rows < grid capacity). */
   emptyCellCount: number
-  /** Cells beyond grid capacity (sum of team counts > rows × slots). */
+  /** Cells beyond grid capacity (rows > grid capacity). */
   shortfall: number
+}
+
+interface QueueEntry {
+  row: Row
+  lateCount: number
+}
+
+/** Lex-compare two equal-length numeric tuples. Returns negative if a
+ *  < b, positive if a > b, 0 if equal. */
+function tupleCompare(a: number[], b: number[]): number {
+  for (let i = 0; i < a.length; i++) {
+    const diff = a[i]! - b[i]!
+    if (diff !== 0) return diff
+  }
+  return 0
 }
 
 export function arrangeAllDivisions(
@@ -98,42 +90,40 @@ export function arrangeAllDivisions(
   const S = sortedSlots.length
   const R = sortedRooms.length
 
-  // Layer 1 — room ownership (mirrors allocateCells).
   const teamCounts: Record<string, number> = {}
   for (const d of divisions) teamCounts[d.division] = d.teamCount
   const divNames = divisions.map((d) => d.division)
+  const divOrder = new Map(divNames.map((d, i) => [d, i]))
   const { ownership, shortfall } = computeRoomOwnership(divNames, teamCounts, S, R)
 
-  // Budget per (division, roomIdx).
-  const budget = new Map<string, number>()
+  // Per-(divIdx, roomIdx) remaining cell count.
+  const budget: number[][] = divNames.map(() => new Array(R).fill(0))
   for (let r = 0; r < ownership.length; r++) {
     for (const entry of ownership[r]!) {
-      budget.set(`${entry.division}|${r}`, entry.count)
+      budget[divOrder.get(entry.division)!]![r] = entry.count
     }
   }
 
-  // Per-division row queue sorted by (lateCount asc, original index asc).
-  const queue = new Map<string, Row[]>()
-  const lateLettersByDiv = new Map<string, ReadonlySet<string>>()
-  for (const d of divisions) {
-    lateLettersByDiv.set(d.division, d.lateLetters)
+  // Precompute per-room candidate division indices.
+  const ownersByRoom: number[][] = ownership.map((entries) =>
+    entries.map((e) => divOrder.get(e.division)!),
+  )
+
+  // Per-division row queues, each entry carrying its precomputed
+  // lateCount so the placement loop never recomputes it.
+  const queues: QueueEntry[][] = divisions.map((d) => {
     const scored = d.rows.map((row, idx) => ({
       row,
       idx,
-      lateCount:
-        d.lateLetters.size === 0 ? 0 : row.reduce((n, l) => n + (d.lateLetters.has(l) ? 1 : 0), 0),
+      lateCount: countLate(row, d.lateLetters),
     }))
     scored.sort((a, b) => a.lateCount - b.lateCount || a.idx - b.idx)
-    queue.set(
-      d.division,
-      scored.map((s) => s.row),
-    )
-  }
+    return scored.map((s) => ({ row: s.row, lateCount: s.lateCount }))
+  })
 
-  // Per-(division, slotId) placed letters (for conflict checking).
-  const placedLetters = new Map<string, Set<string>>()
+  // Per-(divIdx, slotId) letters placed so far (for conflict checks).
+  const placedLetters: Map<number, Set<string>>[] = divNames.map(() => new Map())
 
-  // Per-division output.
   const perDivision = new Map<string, QuizDef[]>()
   const lateCountByQuiz = new Map<string, number[]>()
   for (const d of divisions) {
@@ -147,31 +137,24 @@ export function arrangeAllDivisions(
     const slot = sortedSlots[s]!
     for (let r = 0; r < R; r++) {
       const room = sortedRooms[r]!
-      const owners = (ownership[r] ?? []).map((e) => e.division)
-
-      // Candidate divisions: own this room, have budget, have rows.
-      const candidates = owners.filter(
-        (div) => (budget.get(`${div}|${r}`) ?? 0) > 0 && (queue.get(div) ?? []).length > 0,
+      const candidates = ownersByRoom[r]!.filter(
+        (divIdx) => (budget[divIdx]![r] ?? 0) > 0 && queues[divIdx]!.length > 0,
       )
       if (candidates.length === 0) continue
 
-      // For each candidate, find best row at this cell.
-      let best: {
-        div: string
-        rowIdx: number
-        conflicts: number
-        lateCount: number
-      } | null = null
+      // For each candidate, find its best row at this cell. Track the
+      // overall best (lowest comparator tuple) across candidates.
+      let best: { divIdx: number; rowIdx: number; lateCount: number; score: number[] } | null = null
 
-      for (const div of candidates) {
-        const lateLetters = lateLettersByDiv.get(div)!
-        const placed = placedLetters.get(`${div}|${slot.id}`)
-        const divQueue = queue.get(div)!
+      for (const divIdx of candidates) {
+        const queue = queues[divIdx]!
+        const placed = placedLetters[divIdx]!.get(slot.id)
 
+        // Earliest row with the fewest conflicts.
         let candIdx = -1
         let candConflicts = Infinity
-        for (let i = 0; i < divQueue.length; i++) {
-          const row = divQueue[i]!
+        for (let i = 0; i < queue.length; i++) {
+          const row = queue[i]!.row
           let conflicts = 0
           if (placed) {
             for (const letter of row) if (placed.has(letter)) conflicts++
@@ -179,64 +162,48 @@ export function arrangeAllDivisions(
           if (conflicts < candConflicts) {
             candIdx = i
             candConflicts = conflicts
-            if (conflicts === 0) break // can't do better
+            if (conflicts === 0) break
           }
         }
         if (candIdx < 0) continue
-        const row = divQueue[candIdx]!
-        const lateCount =
-          lateLetters.size === 0 ? 0 : row.reduce((n, l) => n + (lateLetters.has(l) ? 1 : 0), 0)
-
-        const divNumber = divNames.indexOf(div)
-        const bestDivNumber = best ? divNames.indexOf(best.div) : Infinity
-        if (
-          !best ||
-          candConflicts < best.conflicts ||
-          (candConflicts === best.conflicts && lateCount < best.lateCount) ||
-          (candConflicts === best.conflicts &&
-            lateCount === best.lateCount &&
-            candIdx < best.rowIdx) ||
-          (candConflicts === best.conflicts &&
-            lateCount === best.lateCount &&
-            candIdx === best.rowIdx &&
-            divNumber < bestDivNumber)
-        ) {
-          best = { div, rowIdx: candIdx, conflicts: candConflicts, lateCount }
+        const candLate = queue[candIdx]!.lateCount
+        const score = [candConflicts, candLate, candIdx, divIdx]
+        if (!best || tupleCompare(score, best.score) < 0) {
+          best = { divIdx, rowIdx: candIdx, lateCount: candLate, score }
         }
       }
 
       if (!best) continue
 
-      // Place.
-      const divQueue = queue.get(best.div)!
-      const row = divQueue[best.rowIdx]!
-      divQueue.splice(best.rowIdx, 1)
+      const queue = queues[best.divIdx]!
+      const { row } = queue[best.rowIdx]!
+      queue.splice(best.rowIdx, 1)
 
-      const placedKey = `${best.div}|${slot.id}`
-      let placed = placedLetters.get(placedKey)
+      let placed = placedLetters[best.divIdx]!.get(slot.id)
       if (!placed) {
         placed = new Set<string>()
-        placedLetters.set(placedKey, placed)
+        placedLetters[best.divIdx]!.set(slot.id, placed)
       }
-      for (const l of row) placed.add(l)
+      for (const letter of row) placed.add(letter)
 
-      budget.set(`${best.div}|${r}`, (budget.get(`${best.div}|${r}`) ?? 0) - 1)
+      const divBudget = budget[best.divIdx]!
+      divBudget[r] = (divBudget[r] ?? 0) - 1
 
-      const list = perDivision.get(best.div)!
-      const quizNum = list.length + 1
+      const division = divNames[best.divIdx]!
+      const list = perDivision.get(division)!
       list.push({
         slotId: slot.id,
         roomId: room.id,
-        division: best.div,
+        division,
         phase: 'prelim',
-        label: `D${best.div}-Q${quizNum}`,
+        label: `D${division}-Q${list.length + 1}`,
         seats: [
           { seatNumber: 1, letter: row[0] },
           { seatNumber: 2, letter: row[1] },
           { seatNumber: 3, letter: row[2] },
         ],
       })
-      lateCountByQuiz.get(best.div)!.push(best.lateCount)
+      lateCountByQuiz.get(division)!.push(best.lateCount)
       totalCellsFilled++
     }
   }
@@ -245,9 +212,4 @@ export function arrangeAllDivisions(
   const emptyCellCount = totalGrid - totalCellsFilled - shortfall
 
   return { perDivision, lateCountByQuiz, emptyCellCount, shortfall }
-}
-
-/** Get the cells a division ended up occupying (in placement order = row-major). */
-export function cellsFromPlan(plan: QuizDef[]): Cell[] {
-  return plan.map((q) => ({ slotId: q.slotId, roomId: q.roomId }))
 }

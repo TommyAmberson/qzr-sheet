@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 
-import { arrangeAllDivisions, type DivisionPlacementInput, type QuizDef } from '../scheduleArrange'
+import { arrangeAllDivisions, type DivisionPlacementInput } from '../scheduleArrange'
 import { PRELIM_DRAW_PATTERNS } from '../prelimDraw'
+import { type QuizDef } from '../scheduleBuild'
 import type { Row } from '../scheduleSort'
 import type { MeetRoom, MeetSlot } from '../api'
 
