@@ -21,3 +21,9 @@ When consumers bump their own version, they must update their CHANGELOG's `### B
 subsection to name the current `@qzr/shared` version. CI verifies this in each deploy workflow.
 
 ## [Unreleased]
+
+## [0.9.2] — 2026-05-21
+
+First per-package release after the per-package deploys cutover. No source changes since v0.9.1
+(unified tag) — bumping to establish the per-package baseline so consumer changelogs have a contract
+version to reference under `### Bundled contract`. Future entries here document wire/state changes.

@@ -77,16 +77,14 @@ jobs:
           pnpm dlx wrangler pages deploy apps/web/dist \
             --project-name=versevault-www --branch=master
 
+      # Tag both the consumer (web) and the contract package (shared).
+      # The shared tag is idempotent across the three deploy workflows —
+      # whichever consumer deploy runs first wins, the others no-op.
       - name: Tag release
         run: |
-          version=$(jq -r .version apps/web/package.json)
-          tag="web@${version}"
-          if git rev-parse "$tag" >/dev/null 2>&1; then
-            echo "Tag $tag already exists; skipping"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$tag" -m "Deployed @qzr/web $version to Cloudflare Pages"
-            git push origin "$tag"
-            echo "Tagged $tag at $(git rev-parse HEAD)"
-          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          web_v=$(jq -r .version apps/web/package.json)
+          shared_v=$(jq -r .version packages/shared/package.json)
+          tools/tag-if-missing.sh "web@${web_v}" "Deployed @qzr/web ${web_v} to Cloudflare Pages"
+          tools/tag-if-missing.sh "shared@${shared_v}" "Bundled @qzr/shared ${shared_v} (shipped with web@${web_v})"
