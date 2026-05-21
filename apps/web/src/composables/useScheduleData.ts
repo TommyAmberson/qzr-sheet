@@ -21,28 +21,22 @@ import {
   type ScheduleSyncPrelimDivision,
   type ScheduleSyncTeamLateness,
   type ScheduledQuiz,
-  type ScheduledQuizSeat,
   type SeatInput,
 } from '../api'
 import { defaultExtraLaneSize, type ExtraLane, type LaneId } from '../brackets'
-import { bySortOrder } from '../scheduleGrid'
+import { bySortOrder, sortedSeats } from '../scheduleGrid'
 
 /**
- * Single source of truth for the schedule editor's server-bound state.
+ * Reactive draft of the schedule editor's server-bound state. Every
+ * mutation runs locally; `saveDraft()` commits via `/schedule/sync` and
+ * `discardDraft()` reverts to the last-committed snapshot.
  *
- * Holds the editable schedule as a *draft*: every slot/quiz/seat/prelim/
- * lateness mutation runs locally and accumulates in the reactive refs.
- * `saveDraft()` POSTs the full state to `/schedule/sync` in one shot and
- * rebuilds local refs from the response; `discardDraft()` reverts the
- * refs to the last-committed snapshot. Modelled on the roster pattern
- * in `MeetTeamsView.vue`.
+ * Lane state (`extraLanes`) is in-memory only and does not participate
+ * in dirty detection.
  *
- * Extra-lane state (`extraLanes`, `toggleLane`, `resizeLane`) and the
- * elim builder remain in-memory only (no persistence yet) and live
- * alongside the draft without participating in dirty detection.
- *
- * TODO: lock completed quizzes in the UI; the sync endpoint already
- * rejects destructive payloads against them.
+ * TODO: visually lock completed quizzes — sync already rejects mutations
+ * against them, but `replaceQuizzes` will currently drop them and cause
+ * the next save to 409.
  */
 
 interface CreateSlotInput {
@@ -93,12 +87,12 @@ function toIso(value: string | number): string {
   return typeof value === 'string' ? value : new Date(value).toISOString()
 }
 
-function cloneQuiz(q: ScheduledQuiz): ScheduledQuiz {
-  return { ...q, seats: q.seats.map((s) => ({ ...s })) }
+function toIsoOrNull(value: string | number | null | undefined): string | null {
+  return value == null ? null : toIso(value)
 }
 
-function sortedSeats(seats: ScheduledQuizSeat[]): ScheduledQuizSeat[] {
-  return [...seats].sort((a, b) => a.seatNumber - b.seatNumber)
+function cloneQuiz(q: ScheduledQuiz): ScheduledQuiz {
+  return { ...q, seats: q.seats.map((s) => ({ ...s })) }
 }
 
 export function useScheduleData(slug: Ref<string>) {
@@ -255,16 +249,7 @@ export function useScheduleData(slug: Ref<string>) {
         ...(patch.slotId !== undefined ? { slotId: patch.slotId } : {}),
         ...(patch.roomId !== undefined ? { roomId: patch.roomId } : {}),
         ...('bracketLabel' in patch ? { bracketLabel: patch.bracketLabel ?? null } : {}),
-        ...('publishedAt' in patch
-          ? {
-              publishedAt:
-                patch.publishedAt == null
-                  ? null
-                  : typeof patch.publishedAt === 'string'
-                    ? patch.publishedAt
-                    : new Date(patch.publishedAt).toISOString(),
-            }
-          : {}),
+        ...('publishedAt' in patch ? { publishedAt: toIsoOrNull(patch.publishedAt) } : {}),
         ...(seats !== undefined
           ? {
               seats: seats.map((s) => ({
@@ -352,8 +337,7 @@ export function useScheduleData(slug: Ref<string>) {
     const now = new Date().toISOString()
     const others = prelimAssignments.value.filter((a) => a.division !== division)
     const fresh: PrelimAssignment[] = shuffled.map((t, i) => ({
-      // id is server-assigned; 0 marks "unsaved" but the field isn't
-      // read locally and the full-replace endpoint discards old rows.
+      // id sentinel — the full-replace endpoint reissues rows on save.
       id: 0,
       meetId: mid,
       division,
@@ -416,83 +400,89 @@ export function useScheduleData(slug: Ref<string>) {
 
   // ---- Dirty detection ----
 
-  const isDirty = computed(() => {
-    const snap = committed.value
+  function slotsDirty(snap: ScheduleSnapshot): boolean {
     if (slots.value.some((s) => s.id < 0)) return true
-    {
-      const draftSlotIds = new Set(slots.value.filter((s) => s.id > 0).map((s) => s.id))
-      if (snap.slots.some((s) => !draftSlotIds.has(s.id))) return true
-      const snapMap = new Map(snap.slots.map((s) => [s.id, s]))
-      for (const s of slots.value) {
-        if (s.id < 0) continue
-        const orig = snapMap.get(s.id)
-        if (!orig) continue
-        if (
-          orig.startAt !== s.startAt ||
-          orig.durationMinutes !== s.durationMinutes ||
-          orig.kind !== s.kind ||
-          (orig.eventLabel ?? null) !== (s.eventLabel ?? null) ||
-          orig.sortOrder !== s.sortOrder
-        ) {
-          return true
-        }
+    const draftIds = new Set(slots.value.filter((s) => s.id > 0).map((s) => s.id))
+    if (snap.slots.some((s) => !draftIds.has(s.id))) return true
+    const origById = new Map(snap.slots.map((s) => [s.id, s]))
+    for (const s of slots.value) {
+      if (s.id < 0) continue
+      const orig = origById.get(s.id)
+      if (!orig) continue
+      if (
+        orig.startAt !== s.startAt ||
+        orig.durationMinutes !== s.durationMinutes ||
+        orig.kind !== s.kind ||
+        (orig.eventLabel ?? null) !== (s.eventLabel ?? null) ||
+        orig.sortOrder !== s.sortOrder
+      ) {
+        return true
       }
     }
+    return false
+  }
 
+  function seatsDiffer(a: ScheduledQuiz, b: ScheduledQuiz): boolean {
+    const sa = sortedSeats(a.seats)
+    const sb = sortedSeats(b.seats)
+    if (sa.length !== sb.length) return true
+    for (let i = 0; i < sa.length; i++) {
+      if (
+        sa[i]!.seatNumber !== sb[i]!.seatNumber ||
+        (sa[i]!.letter ?? null) !== (sb[i]!.letter ?? null) ||
+        (sa[i]!.seedRef ?? null) !== (sb[i]!.seedRef ?? null)
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  function quizzesDirty(snap: ScheduleSnapshot): boolean {
     if (quizzes.value.some((q) => q.id < 0)) return true
-    {
-      const draftQuizIds = new Set(quizzes.value.filter((q) => q.id > 0).map((q) => q.id))
-      if (snap.quizzes.some((q) => !draftQuizIds.has(q.id))) return true
-      const snapMap = new Map(snap.quizzes.map((q) => [q.id, q]))
-      for (const q of quizzes.value) {
-        if (q.id < 0) continue
-        const orig = snapMap.get(q.id)
-        if (!orig) continue
-        if (
-          orig.slotId !== q.slotId ||
-          orig.roomId !== q.roomId ||
-          orig.division !== q.division ||
-          orig.phase !== q.phase ||
-          orig.label !== q.label ||
-          (orig.bracketLabel ?? null) !== (q.bracketLabel ?? null)
-        ) {
-          return true
-        }
-        const a = sortedSeats(orig.seats)
-        const b = sortedSeats(q.seats)
-        if (a.length !== b.length) return true
-        for (let i = 0; i < a.length; i++) {
-          if (
-            a[i]!.seatNumber !== b[i]!.seatNumber ||
-            (a[i]!.letter ?? null) !== (b[i]!.letter ?? null) ||
-            (a[i]!.seedRef ?? null) !== (b[i]!.seedRef ?? null)
-          ) {
-            return true
-          }
-        }
+    const draftIds = new Set(quizzes.value.filter((q) => q.id > 0).map((q) => q.id))
+    if (snap.quizzes.some((q) => !draftIds.has(q.id))) return true
+    const origById = new Map(snap.quizzes.map((q) => [q.id, q]))
+    for (const q of quizzes.value) {
+      if (q.id < 0) continue
+      const orig = origById.get(q.id)
+      if (!orig) continue
+      if (
+        orig.slotId !== q.slotId ||
+        orig.roomId !== q.roomId ||
+        orig.division !== q.division ||
+        orig.phase !== q.phase ||
+        orig.label !== q.label ||
+        (orig.bracketLabel ?? null) !== (q.bracketLabel ?? null) ||
+        seatsDiffer(orig, q)
+      ) {
+        return true
       }
     }
+    return false
+  }
 
-    {
-      const draftKeys = new Map<string, number>()
-      for (const a of prelimAssignments.value) {
-        draftKeys.set(`${a.division}|${a.letter}`, a.teamId)
-      }
-      const snapKeys = new Map<string, number>()
-      for (const a of snap.prelimAssignments) {
-        snapKeys.set(`${a.division}|${a.letter}`, a.teamId)
-      }
-      if (draftKeys.size !== snapKeys.size) return true
-      for (const [k, v] of draftKeys) {
-        if (snapKeys.get(k) !== v) return true
-      }
+  function prelimDirty(snap: ScheduleSnapshot): boolean {
+    if (prelimAssignments.value.length !== snap.prelimAssignments.length) return true
+    const snapKeys = new Map<string, number>()
+    for (const a of snap.prelimAssignments) snapKeys.set(`${a.division}|${a.letter}`, a.teamId)
+    for (const a of prelimAssignments.value) {
+      if (snapKeys.get(`${a.division}|${a.letter}`) !== a.teamId) return true
     }
+    return false
+  }
 
+  function latenessDirty(snap: ScheduleSnapshot): boolean {
     for (const t of teams.value) {
       const orig = snap.teamLateness[t.id]
       if (orig !== undefined && orig !== t.lateness) return true
     }
     return false
+  }
+
+  const isDirty = computed(() => {
+    const snap = committed.value
+    return slotsDirty(snap) || quizzesDirty(snap) || prelimDirty(snap) || latenessDirty(snap)
   })
 
   // ---- Save / discard ----
