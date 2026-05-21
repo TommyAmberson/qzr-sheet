@@ -14,6 +14,16 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-05-21
+
+First per-package scoresheet release. No source changes since 0.9.1 — bumping to establish the
+per-package baseline so future releases ship as `scoresheet@x.y.z` independently of the web portal
+and API.
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` — unchanged from 0.9.1
+
 ## [0.9.1]
 
 Completes the guest-via-URL feature shipped in 0.9.0 — the API rejected guest reads on the path the
