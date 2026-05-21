@@ -6,19 +6,25 @@ name: Release scoresheet
 #
 # A scoresheet release ships through two channels:
 #   1. Native desktop (Tauri matrix: linux/windows/macos) + Android APK
-#      → drafts a GitHub release
+#      → GitHub release with installers attached
 #   2. PWA bundle inside the web Pages site (apps/web/dist/scoresheet/)
 #      → redeploys Cloudflare Pages so the live scoring tool at
 #        www.versevault.ca/scoresheet/ matches the desktop version
 #
 # A `create-release` job runs serially before the artefact jobs to
-# pre-create the draft GitHub release + `scoresheet@x.y.z` tag.
+# pre-create the GitHub release + `scoresheet@x.y.z` tag as a draft.
 # Without it, the desktop matrix (3 jobs) and android (1 job) would
 # all race to be the first to create the release via tauri-action /
 # softprops/action-gh-release, producing duplicate drafts or 422s.
-# Once the draft exists, the desktop matrix uploads by `releaseId`
+# Once the release exists, the desktop matrix uploads by `releaseId`
 # and android uploads by `tag_name` — both idempotent against the
 # existing release.
+#
+# Auto-publish: tauri-action flips the release from draft to
+# published at the end of a successful desktop matrix run. The
+# release goes live as soon as all three platforms upload cleanly.
+# No manual smoke-test gate — fix any installer regression by
+# bumping a patch and re-cutting the release.
 on:
   push:
     branches: [master]
@@ -77,7 +83,10 @@ jobs:
       - id: ver
         run: echo "v=$(jq -r .version apps/scoresheet/package.json)" >> "$GITHUB_OUTPUT"
 
-      - name: Create draft release
+      # Pre-create as draft so artefact jobs upload into a known
+      # release ID; tauri-action publishes it at the end of a
+      # successful desktop matrix.
+      - name: Create release
         id: create
         uses: softprops/action-gh-release@v2
         with:
@@ -170,7 +179,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: pnpm android:build
 
-      # Upload into the draft release created by `create-release`. No
+      # Upload into the release created by `create-release`. No
       # `name` / `draft` / `body` here — those come from the existing
       # release so they aren't fought over.
       - name: Upload APK to release
@@ -219,9 +228,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Upload into the draft release created by `create-release` via
+      # Upload into the release created by `create-release` via
       # releaseId — sidesteps tauri-action's "create if missing" path
       # so the three matrix legs don't race on release creation.
+      # tauri-action publishes the release (draft → live) at the end
+      # of a successful matrix run.
       - name: Build and upload
         uses: tauri-apps/tauri-action@v0
         env:
