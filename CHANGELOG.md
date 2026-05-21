@@ -1,460 +1,59 @@
-# Changelog
-
-## 0.9.1
-
-Completes the guest-via-URL feature shipped in 0.9.0 — the API rejected guest reads on the path the
-scoresheet actually uses, and the picker UX needed work before guests could discover the meet they
-were sent to.
-
-### Added
-
-* **Guest can join more meets via the "Have a code?" form** — anonymous viewers can keep adding
-  meets to their picker beyond the single one from `?meet=<viewerCode>` by typing any viewer or
-  official code into the existing form. The code is sent to `POST /api/join/guest`, the resulting
-  token is stored alongside the URL-shared one, and the meet appears as another clickable row.
-  Selecting a row switches the active session before loading so the request is signed by the right
-  meet's JWT (each guest JWT is scoped to a single meetId). Signed-in users still use the
-  membership-join path (`/api/join`); the form auto-dispatches based on whether `getMyMeets()`
-  returned 401
-
-### Changed
-
-* **Meet picker stays open for guests instead of auto-loading** — visiting `?meet=<code>` previously
-  skipped the picker and went straight to loading the meet's teams, which made sign-in and the "Have
-  a code?" form unreachable, and any load error surfaced as an empty dialog. The picker now always
-  opens with the URL-shared meet as the first clickable row, with any signed-in memberships layered
-  on top
-* **Multi-session guest storage** — the `qzr-guest-session` localStorage key is now
-  `{ active, joined[] }` instead of a single session. Old single-session storage auto-migrates on
-  load, so existing 0.9.0 guest sessions carry over without re-joining
-
-### Fixed
-
-* **Guest URL meet load was actually broken in 0.9.0** — `phase` and `schedule` sub-apps register
-  `use('*', requireAuth())` and were mounted at `/api/meets` ahead of the guest-friendly `churches`
-  handler, so guest requests to `GET /api/meets/:meetId/teams` were short-circuited with 401 before
-  reaching the real handler. Reordered mounts so `churches` / `join` / `my-meets` land before
-  `phase` / `schedule`. Added a regression test that mirrors the index.ts mount order
-* **Click-before-init race in the meet picker** — `initGuestSession()` now caches its in-flight
-  promise so the meet picker (and any future caller) can await the same join round-trip
-  idempotently. Previously, clicking "Load teams from meet" before the join request resolved
-  surfaced "Not signed in." instead of the URL-shared meet
-* **Off-centre meet picker dialog on Firefox/desktop** — replaced the `position:fixed` / `top:50%` /
-  `left:50%` / `transform:translate` centering combo with `inset:0` plus `margin:auto`. The previous
-  approach collided with the user-agent `:modal` stylesheet's `inset:0` and rendered off-centre
-
-### Infrastructure
-
-* **Mass results importer roadmap entry (#52)** — `ROADMAP.md` backlog now lists a CLI for
-  bulk-uploading historical meet quiz files into the DB, useful for testing stats logic against real
-  meets. Blocked by the API portion of #7
-* **Winkler 2026 worked example** — `docs/example-winkler-2026.md` documents a real sister-org meet
-  draw spreadsheet as inspiration for scheduling design where `docs/rules.md` underspecifies how
-  meets actually run (multi-bracket elims, lateness handling, slot pitches)
-
-## 0.9.0
-
-### Added
-
-* **Guest viewer access without an account** — visiting
-  `https://www.versevault.ca/scoresheet/?meet=<viewerCode>` auto-issues a 24h guest viewer JWT,
-  stashes it in `localStorage`, and pre-loads the meet's roster in "Load teams from meet" without
-  requiring sign-in. Token reuse is `exp`-aware: the join endpoint is only re-hit when the stored
-  token has < 5 min remaining. Cookie-based signed-in sessions take precedence on the server when
-  both are present
-* **Bearer-token auth on read endpoints** — `sessionMiddleware` now also parses
-  `Authorization: Bearer <jwt>` and verifies via `verifyGuestJwt`. New `requireAuthOrGuest()` for
-  read-heavy routers; mutations keep `requireAuth()` (signed-in account required). New
-  `isViewerOf(c, db, meetId)` permission helper short-circuits guest reads to the meet in their JWT
-  and rejects cross-meet access (single SQL `UNION ALL` round-trip for member checks). Guest
-  responses also redact the meet's `viewerCode` and official-code list — those stay admin-only
-
-### Changed
-
-* **Tightened read scope on churches/teams/quizzers GETs** — `GET /api/meets/:meetId/churches`,
-  `/churches/:churchId/teams`, `/teams/:teamId/quizzers`, `/meets/:meetId/teams`, and
-  `/meets/:meetId/roster/export` now require viewer-of-meet (member or scoped guest) rather than
-  any-authenticated-user. Behavioral change for any client that was reading meet data they had no
-  membership in
-
-### Fixed
-
-* **Tutorial breaks when linked to a meet** — the interactive tutorial now snapshots and unlinks the
-  active meet session on start, then restores the link on finish (and on crash recovery). Pre-fix,
-  team and quizzer name editing during the tutorial was disabled (replaced by the team-picker
-  dropdown) or flagged as diverged from the DB roster
-
-## 0.8.0
-
-### Added
-
-* **Schedule data spine + phase control plane** — meet-wide phase model (`registration` → `build` →
-  `live` → `done`) plus per-division state machine (`prelim_running` → `stats_break` →
-  `elim_running` → `division_done`) for the `live` phase. New API endpoints:
-  `POST /api/meets/:id/phase`, `POST /api/meets/:id/divisions/:division/state`, plus rooms / slots /
-  scheduled-quizzes / seats CRUD under `/api/meets/:id/...`. New tables (`meet_slots`,
-  `scheduled_quizzes`, `scheduled_quiz_seats`, `prelim_assignments`, `seed_resolutions`,
-  `division_states`) and three new fields on `quiz_meets` (`phase`, `registrationClosesAt`,
-  `meetStartsAt`). Phase header bar in the portal `QuizMeetView` with admin Advance / Revert
-  controls
-* **Phase auto-advance cron** — Cloudflare Worker scheduled handler runs every 5 min to promote
-  meets from `registration → build` and `build → live` when their admin-set timestamp has passed
-* **`@qzr/ui` package** — shared Vue components (currently `SignInForm`, `SignInWidget`,
-  `SignInMenu`) extracted from the scoresheet for reuse by the web portal
-
-### Changed
-
-* **`officialCodes` table renamed to `meet_rooms`** — internal-only schema rename plus added `name`,
-  `sortOrder`, and a nullable `codeHash`. Existing API endpoints (`/official-codes/...`) and
-  response field names (`officialCodes`, `officialCodeId`, `label`) preserved for backwards
-  compatibility
-* **Per-column nested ValidationErrors + GreyedOutResult** — `useScoresheet` validation and
-  greyed-out outputs now indexed by column rather than flat string-keyed sets, with a `TeamSeat`
-  brand for composite keys. Hot-path scans (`columnHasErrors`, `columnValidationMessages`,
-  `noJumpHasConflict`) collapse from per-column iteration to O(1) map lookups
-* **Native quizStore reactivity** — the in-memory quiz store now exposes Vue refs directly instead
-  of going through a `version` counter, eliminating an extra render trigger on every mutation
-* **Pre-grouped per-quizzer / per-team validation aggregations** — derived `Map`s computed once per
-  change instead of per-render scans
+# qzr — what's new
 
-### Infrastructure
+A short, user-oriented overview of recent scoresheet releases. For the full per-component change
+history with technical detail, see the dedicated changelogs at the bottom of this page.
 
-* **Schedule design doc** — `docs/scheduling.md` documents the meet phase model, prelim draw
-  (lookup-table-based per `rules.md`), stats-break pivot, XYZ/XXYYZZ intermediates, Bracket A/B/C
-  templates, def/resolution layering, and the full data model. Source of truth for the schedule epic
-  (#9) and its sub-issues (#12–#16, #39–#42)
-* **Issue conventions guide** — `docs/issue-conventions.md` codifies labels, titles, AI attribution,
-  and how issues relate to `ROADMAP.md`
-* **Tighter commitlint** — header capped at 50 chars (error), body and footer at 72 chars (warn);
-  scope-enum warning for the known package scopes
-* **CLAUDE.md comment guidance** — clarified comment policy (avoid `what`, prefer `why`); merge +
-  history conventions; feature-branch requirement
-* **Trusted-author CI gating** — Claude review GitHub Action allowlist narrowed to `gh pr`
-  operations needed for posting reviews
-
-## 0.7.1
-
-### Fixed
-
-* **Round-boundary border placement** — the dotted vertical border separating regulation from
-  overtime (after Q20) and consecutive OT rounds (after Q23, Q26, …) now lands on the last visible
-  column for that question. Previously, when an A/B sub-column appeared after an error, the border
-  was stuck on the Normal column, so it ended up between Q20 and Q20A (or Q23 and Q23A) instead of
-  between the rightmost sub-column and the next round
-
-### Infrastructure
-
-* **Claude Code GitHub Actions** — added `claude.yml` (responds to `@claude` mentions in issues and
-  PR comments) and `claude-code-review.yml` (auto-reviews opened/synced PRs); both gated on trusted
-  `author_association` (OWNER/MEMBER/COLLABORATOR), with the review workflow set to allow the Claude
-  bot's own pushes via `allowed_bots: 'claude'`
-* **Slimmed ROADMAP** — moved active planning to GitHub Issues; ROADMAP.md is now a short ordered
-  pointer with a backlog list
-
-## 0.7.0
-
-### Added
-
-* **Interactive tutorial** — step-by-step walkthrough covering team setup, scoring (C/E/F/B/MB),
-  toss-ups, bonuses, no-jumps, timeouts, substitutions, A/B sub-questions (Q18 demo), and overtime
-  with two full OT rounds; starts from the `?` help button; current quiz is snapshot-saved and
-  restored on completion
-* **Seat bonus rule** — `BonusRule` enum (`Team`/`Seat`) stored per quiz; in seat bonus mode, only
-  the quizzer in the seat matching the last error can answer a bonus question; non-matching seats
-  are greyed out; defaults to `Seat`
-* **Timeout validation** — timeouts called after error-point questions (Q17+) are flagged as
-  validation errors in the column header and meta bar
-
-### Changed
-
-* **Branded index types** — `TeamIdx`, `SeatIdx`, `ColIdx`, and `QuizzerId` are now branded numeric
-  types (in `types/indices.ts`) to prevent argument-swap bugs at compile time; all loop variables
-  renamed from `ti`/`qi`/`ci` to `teamIdx`/`seatIdx`/`colIdx` throughout the scoring, composable,
-  and component layers
-* **`isEmptySeat` → `isQuizzerUnnamed`** — the store-level helper was renamed to clarify that it
-  checks quizzer identity (name), not seat position
-
-## 0.6.0
-
-### Added
-
-* **Timeout tracking** — each team gets up to 2 timeouts per quiz; click a team header cell at any
-  question column to toggle a "T" marker; only one team can take a timeout at a given question;
-  timeouts persist to the QuizFile (v2 schema) and survive page reload
-* **QuizFile v2** — file format version bumped from 1 to 2; adds optional `timeouts` array per team;
-  v1 files load without issue (no timeouts assumed)
-
-### Changed
-
-* **Quizzer drag-reorder** — reordering quizzers within a team now swaps positions instead of
-  inserting and shifting
-
-## 0.5.3
-
-### Fixed
-
-* **Email/password auth** — sign-in and sign-up were failing with a 503 (CPU limit exceeded) on
-  Cloudflare Workers. Replaced Better Auth's default pure-JS scrypt with native `node:crypto`
-  scryptSync, which runs as compiled C++ in the Workers runtime
-
-## 0.5.2
-
-### Fixed
-
-* **Android APK signing** — release APK is now signed with a keystore so it can be installed
-
-## 0.5.1
-
-### Added
-
-* **Android APK** — unsigned APK included in releases; new `pnpm android:build` script
-
-### Improved
-
-* **Sticky running total** — team score row stays fixed while scrolling horizontally; shows baseline
-  (pre-scroll) score once the first question column is obscured
-* **Mobile scoresheet** — larger tap targets, visible controls, clamped cell-selector popup on touch
-  devices
-* **Mobile portal** — hamburger sidebar nav, responsive team cards grid, pointer-event drag reorder
-  for rosters (replaces HTML5 drag API, which crashes on Linux/X11 and doesn't work on touch)
-
-## 0.5.0
-
-### Added
-
-* **Quizmeet mode (4.7a–c)** — scoresheet can link to a live meet: sign in with GitHub, Google, or
-  email from within the scoresheet; pick a meet from your joined list; select teams from a
-  searchable dropdown that auto-populates quizzer names; quizzer names that diverge from the roster
-  get an amber underline with a restore button
-* **Sign-in widget (4.7c)** — auth UI built into the scoresheet's meta bar; works in both the PWA
-  and Tauri desktop app; signing out clears the meet session
-* **Tauri auth support (4.7c)** — Tauri webview origins added to CORS and Better Auth trusted
-  origins; `useHttpsScheme` enabled so cookies are delivered correctly on Windows
-* **Save / New submenus (4.7a)** — `[Save ▼]` offers Save as JSON and Export ODS; `[New ▼]` offers
-  New quiz, Clear answers, Clear names, and Load teams from meet
-* **Consolation division support (4.7e)** — `consolation` boolean column on teams; scoresheet
-  division field becomes a dropdown when meet-linked, with `"{div}c"` options for divisions that
-  have consolation teams; team picker filters to the selected division/bracket;
-  `POST/DELETE /api/teams/:id/consolation` endpoints for admin use; `GET /api/meets/:id/teams`
-  returns consolation flag and canonical division list
-* **Roadmap page** — user-facing `/roadmap` route on the portal listing available and upcoming
-  features; linked from the header, footer, and home page
-
-### Improved
-
-* **Scoresheet meta-bar** — Division + consolation + Quiz# grouped into a single bordered pill;
-  undo/redo wrapped in a joined pill; status shown as a colored-accent-border badge; `·` dot
-  separators removed; theme toggle styled to match file-action buttons
-* **Meet picker dialog** — join-code input added so users can join a new meet without leaving the
-  scoresheet; dialog properly centered in Tauri/WebKit
-
-### Fixed
-
-* **Division select dark mode (Tauri)** — native `<select>` ignored CSS variables in the WebKit
-  webview; `appearance: none` with a CSS background-image arrow fixes rendering
-* **Meet picker dialog centering (Tauri)** — `<dialog>` default centering ignored by WebKit;
-  switched to `position: fixed` + `transform: translate(-50%, -50%)`
-
-## 0.4.1
-
-### Added
-
-* **Batch roster sync (4.6b)** — `POST /api/churches/:id/roster/sync` replaces `saveDraft`'s ~10
-  sequential API calls with a single request; client sends full desired state (ordered teams +
-  quizzer names + unassigned pool), server diffs and applies all creates/updates/deletes/moves,
-  returns resolved state with real IDs in payload order
-* **Roster import endpoint** — `POST /api/meets/:id/roster/import` replaces the client-side
-  `applyRosterImport` loop; matches churches by name or shortName (case-insensitive), creates
-  missing ones, deduplicates teams by `(division, quizzer-set)` exact match so re-importing an
-  unchanged CSV is a no-op
-* **Roster export endpoint** — `GET /api/meets/:id/roster/export` returns all churches → teams →
-  quizzers in a single join query; replaces the export loop that made 1 + N_churches + N_teams
-  sequential requests
-* **Team counts on churches list** — `GET /api/meets/:id/churches` now includes `teamCount` per
-  church via left-join + group-by; eliminates the N per-church team requests that fired on every
-  `QuizMeetView` load
-
-## 0.4.0
-
-### Added
-
-* **Meet join codes (4.4)** — `POST /api/join` resolves admin, coach, and official codes via SHA-256
-  hash matching; `POST /api/join/guest` issues short-lived guest JWTs for officials and viewers;
-  `GET /api/my-meets` returns all meets the user has joined with their role(s)
-* **Superuser dashboard (4.5)** — meet CRUD (`POST/GET/PATCH/DELETE /api/meets`), official code
-  management (create/delete/rotate), typed API client with cookie credentials, admin router with
-  auth guard and lazy-loaded views, create-meet form on home page
-* **Coach roster flow (4.6)** — churches/teams/quizzers API routes with integration tests, coach
-  meets list with join form, single-church roster view with team cards, draft-mode editing
-  (Save/Discard bar flushes minimal diff to API), drag-to-reorder quizzers and teams, per-team size
-  and division-order warnings, inline division select, quizzer rename via pencil icon
-* **Role model and dashboard (4.6a)** — per-church coach codes, meet-scoped admin role
-  (`admin_memberships`/`coach_memberships` tables), consolidated `QuizMeetView` dashboard replacing
-  separate admin page, access dialog with member list and individual revocation, church name editing
-  (`PATCH /api/churches/:churchId`), `DELETE /api/churches/:churchId` with cascade
-* **Divisions** — `divisions` JSON column on `quiz_meets`, exposed on create/patch/format; pill tags
-  on dashboard with inline add/remove editing
-* **Viewer-code slug URLs** — meet routes use the admin-set `viewerCode` as a human-readable slug
-  (`/fall-2025` instead of `/meets/1`); `GET /api/meets/:id` accepts slug or numeric ID
-* **Roster CSV import/export** — admin can import a tournament roster from CSV (4-column or legacy
-  8-column format) and export the current roster back to CSV; duplicate detection on re-import
-* **Copy and share buttons** — viewer code row shows hover-revealed copy (clipboard) and share (Web
-  Share API with URL fallback) icons
-* **Multi-day meets** — `date_from` + `date_to` on `quiz_meets` (replaces single `date`)
-* **Portal unit tests** — vitest + jsdom setup for `@qzr/web`; tests for `rosterCsv`, `api` client,
-  router guards, and `meetAccess` helpers
-* **Meet access helpers** — `coachChurchIds`, `isAdminOrSuperuser`, `canAccessChurchRoster`
-  extracted to `meetAccess.ts` with full test coverage
-
-### Changed
-
-* **Renamed admin → superuser** throughout codebase (API, shared enums, portal, tests) to
-  distinguish account-level superusers from meet-scoped admins
-* **Redesigned meet edit form** — flat unlabeled inputs replaced with a structured card: labeled
-  fields, side-by-side date pickers, viewer-code URL-change hint, divisions tag editor, field order
-  matching the display layout
-* **Team card grid** — unified pool and team cards into a single 4-column CSS grid; cards stretch to
-  fill available width with consistent min-height (~5 quizzers)
-* **Church name display** — responsive CSS truncation with full name + short name in parentheses;
-  pencil icon appears on hover for inline editing
-* **Division pills** — smaller font and tighter padding for subtler metadata appearance
-* **Viewer code on its own line** — separated from divisions in the meet header
-* **Church shortName optional** — defaults to full name when omitted on create
-* **Home page** — redesigned with QuizMeets list and join form as primary content; scoresheet
-  section secondary
-* **Roster access gating** — Roster button only visible to admins and the church's own coach;
-  unauthorized users redirected from teams view
-* **Sign-in preserves page** — OAuth callback returns to the page the user was on, not `/`
-* **Unified monorepo versioning** — bump script now updates all package.json files and
-  tauri.conf.json in one step
-
-### Infrastructure
-
-* Session middleware reads Better Auth cookies; `requireAuth` (401) and `requireSuperuser` (403)
-  guards
-* Code hashing and generation utilities (`lib/codes.ts`)
-* Guest JWT signing via `jose` + Web Crypto
-* `sql.js` replaces `better-sqlite3` for in-memory test DB
-* Drizzle migrations regenerated from clean schema
-* `@qzr/web`, `@qzr/api`, `@qzr/shared` versions synced to monorepo version
-
-### Fixed
-
-* Sign-in redirected to API server after OAuth callback instead of web app
-* `GET /api/meets/:id` was unrestricted — now requires meet membership
-* Admin code `clearMembers` restricted to superuser only
-* Team number auto-increments per-church (was per-church-per-division)
-* Add-quizzer form sentinel collision between pool and first temp team
-* Quizzer reorder now marks draft dirty and is restored on discard
-* Team drag shows correct before/after insert indicator based on cursor position
-* Long team names truncate with ellipsis; team number always visible
-
-## 0.3.3
-
-### Fixed
-
-* Cloudflare Pages was intercepting `/api/*` with a 503 before the Worker route could handle it —
-  added `_routes.json` to exclude `/api/*` from Pages
-
-## 0.3.2
-
-### Fixed
-
-* Auth client used an invalid relative URL in production — now falls back to
-  `window.location.origin` so Better Auth always receives a valid absolute base URL
-* OAuth social sign-in redirected to the API server after callback instead of the web app —
-  `callbackURL` now uses `window.location.origin`
-
-## 0.3.1
-
-### Fixed
-
-* API now served at `www.versevault.ca/api/*` (same origin as the web app) via a Cloudflare Worker
-  route, eliminating all cross-origin CORS issues in production
-* CORS middleware restricted to localhost only — no longer needed in production
-* `bump-version.mjs` used `bumpToml` on `tauri.conf.json` (which is JSON) — switched to `bumpJson`
-* Removed pre-push type-check hook
-
-## 0.3.0
-
-### Added
-
-* **Authentication** — sign in with GitHub, Google, or email/password via
-  [Better Auth](https://better-auth.com)
-* **SignInMenu** — popover in the portal header with provider picker and inline email/password form
-  (sign-in / create-account toggle)
-* Cookie-based sessions — no localStorage JWTs, no redirect dance
-* Account linking for GitHub and Google (both verify email addresses)
-* `role` additionalField on user (`normal` by default, not user-settable; `admin` provisioned
-  out-of-band)
-* Drizzle schema migrated to Better Auth tables (`user`, `session`, `account`, `verification`); FK
-  columns updated from integer to text UUID
-
-### Infrastructure
-
-* `better-auth` replaces `arctic` — OAuth, email/password, sessions, and account linking in one
-  library
-* Hand-rolled `routes/auth.ts`, `routes/me.ts`, `lib/jwt.ts`, `lib/upsertAccount.ts` removed
-* `JWT_SECRET` replaced by `BETTER_AUTH_SECRET` (≥ 32 chars)
-* CI deploy workflow applies D1 migrations before deploying the Worker
-
-## 0.2.0
-
-### Added
-
-* Monorepo conversion — pnpm workspaces with `apps/scoresheet`, `apps/web`, `packages/shared`,
-  `packages/api`
-* Portal app (`apps/web`) — Vue 3 + vue-router landing page at `www.versevault.ca`
-* API (`packages/api`) — Hono + Cloudflare Workers + D1 + Drizzle; `GET /health`; full schema
-* Shared package (`packages/shared`) — QuizFile TypeBox schema and role enums extracted
-* Combined build and deploy (`pnpm build:all`, `pnpm deploy`) — scoresheet nested under portal
-
-## 0.1.1
-
-### Fixed
-
-* Tauri native builds now work (correct Vite base/outDir for Tauri vs web, renamed binary from `app`
-  to `qzr-sheet`, fixed frontendDist path)
-* Linux X11 env vars moved to `pnpm tauri:linux-x11` script so CI builds work on Windows
-* ESLint no longer lints `scripts/` directory; removed `any` casts in `fileIO.ts`
-
-### Added
-
-* Version number and links footer below the scoresheet table
-* `workflow_dispatch` trigger on release workflow for manual build testing
-* MIT license and NOTICE file for third-party rule documents
-* `scripts/bump-version.mjs` to sync version across `package.json` and `tauri.conf.json`
-
-## 0.1.0
-
-Initial release.
-
-### Features
-
-* **Live scoring** — running totals, per-quizzer stats (quiz-out, error-out, foul-out), running
-  total annotations (3rd/4th/5th quizzer bonus, quiz-out bonus, free error, foul deduction)
-* **Question types** — inline INT/FTV/REF/MA/Q/SIT selector per column header
-* **A/B columns** — Q16–20 sub-columns auto show/hide based on errors, with enter animation
-* **Overtime** — toggle enables extra rounds; columns appear when tied scores require them
-* **Placement points** — 1st/2nd/3rd calculated after completion, with tied-placement support
-* **Validation** — invalid cells pulse red with tooltip reasons; column headers pulse on errors
-* **Greyed-out cells** — disabled for answered questions, toss-up teams, after-out quizzers, and
-  fouled-on-question situations
-* **Keyboard navigation** — arrow keys, letter shortcuts (c/e/f/b/m), Enter/Space opens selector,
-  Escape clears; focus indicators only show during keyboard use
-* **Drag-drop reordering** — pointer-event drag to reorder quizzers within a team
-* **Undo/redo** — Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, capped at 100 entries
-* **Editable names** — inline team and quizzer name fields sized to content
-* **Save/load JSON** — Ctrl+S / Ctrl+O; native file dialog in Tauri, browser fallbacks
-* **ODS export/import** — fill a LibreOffice template with quiz data, or import a filled ODS back
-* **Auto-save** — debounced persist to localStorage; restored on startup
-* **Offline PWA** — installable from any browser, full offline support via Workbox
-* **Sticky headers + touch panning** — thead and name column stay fixed; smooth 2-axis scroll
-* **Dark/light theme** toggle
-
-### Infrastructure
-
-* Tauri 2 + Vue 3 + Vite + TypeScript
-* CI: type-check, lint, unit tests on every push/PR
-* Web deploy to Cloudflare Pages on tag push
-* Native release builds (Linux, Windows, macOS) via GitHub Actions on tag push
+## Recent highlights
+
+### Guest viewer access — share a meet with anyone
+
+Coaches, parents, and spectators can now follow a live meet without an account. Share a viewer URL
+(`?meet=<viewerCode>`) and they see the live results — schedule, teams, scores — but can't edit
+anything. Multiple guest meets are kept side-by-side so it's safe to follow more than one tournament
+at a time.
+
+### Schedule editor — draft and save
+
+Drafting a meet schedule no longer hits the server on every keystroke. Build out slots, quizzes,
+seats, prelim assignments, and team lateness locally; Populate / Roll Teams / Sort by Lateness run
+instantly with no network round-trips; commit the whole draft with one **Save**. **Discard** reverts
+everything to the last saved state.
+
+### Roster and meet management
+
+Coaches can manage their church's roster from a portal that mirrors the scoresheet's draft/save
+pattern. Admins set up meets, divisions, official codes, and viewer codes; the dashboard
+consolidates everything from membership management to roster CSV import/export.
+
+### Tutorial
+
+A guided walkthrough covers team setup, scoring (correct / error / foul / bonus / multi-bonus),
+toss-ups, no-jumps, timeouts, substitutions, A/B sub-questions, and overtime. Start it from the `?`
+help button — your current quiz is snapshotted and restored when the tutorial finishes.
+
+### Mobile and offline
+
+Full PWA install on any browser plus a signed Android APK. Sticky running totals, touch-friendly tap
+targets, and the scoresheet keeps working offline (auto-save to localStorage, restored on startup).
+Dark and light themes throughout.
+
+### Native desktop builds
+
+Tauri builds for Linux, Windows, and macOS, available as draft GitHub releases on each scoresheet
+version bump.
+
+## Per-component changelogs
+
+Detailed engineering history with date stamps, motivations, and migration notes:
+
+* **[apps/scoresheet/CHANGELOG.md](apps/scoresheet/CHANGELOG.md)** — the live scoring tool (Tauri
+  desktop, Android APK, browser PWA). The historical record of scoresheet features — every release
+  prior to 0.9.2 was a unified monorepo tag, so this file also captures the matching
+  portal/API/infra work for those releases.
+* **[apps/web/CHANGELOG.md](apps/web/CHANGELOG.md)** — the web portal (coach roster management,
+  admin dashboard) at `www.versevault.ca`.
+* **[packages/api/CHANGELOG.md](packages/api/CHANGELOG.md)** — the API (Hono + D1 on Cloudflare
+  Workers).
+* **[packages/shared/CHANGELOG.md](packages/shared/CHANGELOG.md)** — the shared contract package
+  (QuizFile schema, role enums, shared API types). A bump here ripples through every consumer; see
+  CLAUDE.md "Contract package versioning" for the discipline.
