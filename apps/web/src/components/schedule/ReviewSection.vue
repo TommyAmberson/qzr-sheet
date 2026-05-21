@@ -9,7 +9,14 @@ import {
   type ScheduledQuiz,
   type SeatInput,
 } from '../../api'
-import { buildGrid, formatSlotTime, hasAnyQuiz, seatRef, seatTeam } from '../../scheduleGrid'
+import {
+  buildGrid,
+  formatSlotTime,
+  hasAnyQuiz,
+  seatRef,
+  seatTeam,
+  sortedSeats,
+} from '../../scheduleGrid'
 import TimePickerButton from './TimePickerButton.vue'
 
 interface PickerTime {
@@ -152,10 +159,6 @@ function dayLabel(d: Date): string {
   })
 }
 
-function sortedSeats(quiz: ScheduledQuiz) {
-  return [...quiz.seats].sort((a, b) => a.seatNumber - b.seatNumber)
-}
-
 function slotTimeModel(iso: string): PickerTime {
   const d = new Date(iso)
   return { hours: d.getHours(), minutes: d.getMinutes() }
@@ -204,7 +207,7 @@ function openEditDialog(slot: MeetSlot, room: MeetRoom, quiz: ScheduledQuiz | nu
     editForm.division = quiz.division
     editForm.phase = quiz.phase
     editForm.label = quiz.label
-    const sorted = sortedSeats(quiz)
+    const sorted = sortedSeats(quiz.seats)
     editForm.seats = [1, 2, 3].map((n) => {
       const existing = sorted.find((s) => s.seatNumber === n)
       return { seatNumber: n, letter: existing?.letter ?? '' }
@@ -447,7 +450,7 @@ function saveEdit() {
                     </header>
                     <ol class="seat-list">
                       <li
-                        v-for="seat in sortedSeats(quiz)"
+                        v-for="seat in sortedSeats(quiz.seats)"
                         :key="seat.id"
                         class="seat"
                         :data-seat-letter="seat.letter || undefined"

@@ -2,10 +2,6 @@ import { computed, ref, type Ref } from 'vue'
 import { MeetRole } from '@qzr/shared'
 
 import {
-  createMeetSlot,
-  createScheduledQuiz,
-  deleteMeetSlot,
-  deleteScheduledQuiz,
   getMeet,
   getMeetTeamCounts,
   getMyMeets,
@@ -14,32 +10,33 @@ import {
   listMeetTeams,
   listPrelimAssignments,
   listScheduledQuizzes,
-  replaceQuizSeats,
-  setPrelimAssignments,
-  updateMeetSlot,
-  updateScheduledQuiz,
-  updateTeam,
+  syncSchedule,
   type MeetDetail,
   type MeetMembership,
   type MeetRoom,
   type MeetSlot,
   type MeetTeamRow,
   type PrelimAssignment,
+  type ScheduleSyncPayload,
+  type ScheduleSyncPrelimDivision,
+  type ScheduleSyncTeamLateness,
   type ScheduledQuiz,
   type SeatInput,
 } from '../api'
 import { defaultExtraLaneSize, type ExtraLane, type LaneId } from '../brackets'
-import { bySortOrder } from '../scheduleGrid'
+import { bySortOrder, sortedSeats } from '../scheduleGrid'
 
 /**
- * Single source of truth for the schedule editor's server-bound state.
- * Owned data (meet, rooms, slots, quizzes, team counts, lane drafts) and
- * the mutations that update both the server and local refs in one place.
+ * Reactive draft of the schedule editor's server-bound state. Every
+ * mutation runs locally; `saveDraft()` commits via `/schedule/sync` and
+ * `discardDraft()` reverts to the last-committed snapshot.
  *
- * UI-only state — dialog refs, form drafts, edit-mode toggles, division
- * filters — stays in the consuming view. The composable is pure plumbing
- * so V1 (modal-dialog editor) and V2 (typeset Studio) can share it
- * during the rethink without behaviour drift.
+ * Lane state (`extraLanes`) is in-memory only and does not participate
+ * in dirty detection.
+ *
+ * TODO: visually lock completed quizzes — sync already rejects mutations
+ * against them, but `replaceQuizzes` will currently drop them and cause
+ * the next save to 409.
  */
 
 interface CreateSlotInput {
@@ -66,6 +63,38 @@ interface CreateQuizInput {
   seats?: SeatInput[]
 }
 
+interface UpdateQuizPatch {
+  label?: string
+  slotId?: number
+  roomId?: number
+  bracketLabel?: string | null
+  publishedAt?: string | number | null
+}
+
+interface ScheduleSnapshot {
+  slots: MeetSlot[]
+  quizzes: ScheduledQuiz[]
+  prelimAssignments: PrelimAssignment[]
+  /** teamId → lateness, captured for diff in isDirty. */
+  teamLateness: Record<number, boolean>
+}
+
+function emptySnapshot(): ScheduleSnapshot {
+  return { slots: [], quizzes: [], prelimAssignments: [], teamLateness: {} }
+}
+
+function toIso(value: string | number): string {
+  return typeof value === 'string' ? value : new Date(value).toISOString()
+}
+
+function toIsoOrNull(value: string | number | null | undefined): string | null {
+  return value == null ? null : toIso(value)
+}
+
+function cloneQuiz(q: ScheduledQuiz): ScheduledQuiz {
+  return { ...q, seats: q.seats.map((s) => ({ ...s })) }
+}
+
 export function useScheduleData(slug: Ref<string>) {
   const detail = ref<MeetDetail | null>(null)
   const membership = ref<MeetMembership | null>(null)
@@ -79,15 +108,38 @@ export function useScheduleData(slug: Ref<string>) {
   const loading = ref(true)
   const error = ref('')
 
+  const committed = ref<ScheduleSnapshot>(emptySnapshot())
+  const saving = ref(false)
+  const saveError = ref('')
+
+  // Monotonically-decreasing negative ids for unsaved slots/quizzes.
+  // Server resolves them to real ids on saveDraft via tempId maps; the
+  // counter resets per load() so a long session doesn't accumulate
+  // ever-larger negative numbers.
+  let nextTempId = -1
+  function mintTempId(): number {
+    return nextTempId--
+  }
+
   const meet = computed(() => detail.value?.meet ?? null)
   const meetId = computed(() => detail.value?.meet.id ?? null)
   const divisions = computed(() => meet.value?.divisions ?? [])
   const role = computed(() => membership.value?.role ?? null)
   const isAdmin = computed(() => role.value === MeetRole.Admin || role.value === MeetRole.Superuser)
 
+  function takeSnapshot(): ScheduleSnapshot {
+    return {
+      slots: slots.value.map((s) => ({ ...s })),
+      quizzes: quizzes.value.map(cloneQuiz),
+      prelimAssignments: prelimAssignments.value.map((a) => ({ ...a })),
+      teamLateness: Object.fromEntries(teams.value.map((t) => [t.id, t.lateness])),
+    }
+  }
+
   async function load() {
     loading.value = true
     error.value = ''
+    nextTempId = -1
     try {
       const [meetDetail, myMeetsRes] = await Promise.all([getMeet(slug.value), getMyMeets()])
       detail.value = meetDetail
@@ -102,14 +154,14 @@ export function useScheduleData(slug: Ref<string>) {
         listPrelimAssignments(id),
       ])
       rooms.value = r.rooms
-      slots.value = s.slots
+      slots.value = [...s.slots].sort(bySortOrder)
       quizzes.value = q.quizzes
       teamCounts.value = tc.counts
       teams.value = t.teams
       prelimAssignments.value = pa.assignments
-      // Main lane is implicit per division. Extra lanes (C / CC) start
-      // empty; admin opts in based on the post-stats-break split. State
-      // is in-memory only until persistence ships with the elim builder.
+      committed.value = takeSnapshot()
+      // Extra lanes are in-memory only; admin opts in based on the
+      // post-stats-break split. State doesn't participate in dirty/save.
       const seeded: Record<string, ExtraLane[]> = {}
       for (const d of meetDetail.meet.divisions) seeded[d] = []
       extraLanes.value = seeded
@@ -120,89 +172,137 @@ export function useScheduleData(slug: Ref<string>) {
     }
   }
 
-  async function createSlot(input: CreateSlotInput): Promise<MeetSlot> {
+  // ---- Draft mutations (slots) ----
+
+  function createSlot(input: CreateSlotInput): MeetSlot {
     if (!meetId.value) throw new Error('No meet loaded')
-    const res = await createMeetSlot(meetId.value, input)
-    slots.value = [...slots.value, res.slot].sort(bySortOrder)
-    return res.slot
+    const slot: MeetSlot = {
+      id: mintTempId(),
+      meetId: meetId.value,
+      startAt: toIso(input.startAt),
+      durationMinutes: input.durationMinutes,
+      kind: input.kind,
+      eventLabel: input.eventLabel ?? null,
+      sortOrder: input.sortOrder,
+    }
+    slots.value = [...slots.value, slot].sort(bySortOrder)
+    return slot
   }
 
-  async function updateSlot(slotId: number, input: UpdateSlotInput): Promise<MeetSlot> {
-    if (!meetId.value) throw new Error('No meet loaded')
-    const res = await updateMeetSlot(meetId.value, slotId, input)
-    slots.value = slots.value.map((s) => (s.id === res.slot.id ? res.slot : s)).sort(bySortOrder)
-    return res.slot
+  function updateSlot(slotId: number, patch: UpdateSlotInput): MeetSlot | null {
+    const idx = slots.value.findIndex((s) => s.id === slotId)
+    if (idx < 0) return null
+    const current = slots.value[idx]!
+    const updated: MeetSlot = {
+      ...current,
+      ...(patch.startAt !== undefined ? { startAt: toIso(patch.startAt) } : {}),
+      ...(patch.durationMinutes !== undefined ? { durationMinutes: patch.durationMinutes } : {}),
+      ...('eventLabel' in patch ? { eventLabel: patch.eventLabel ?? null } : {}),
+      ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
+    }
+    slots.value = slots.value.map((s) => (s.id === slotId ? updated : s)).sort(bySortOrder)
+    return updated
   }
 
-  async function deleteSlot(slotId: number): Promise<void> {
-    if (!meetId.value) throw new Error('No meet loaded')
-    await deleteMeetSlot(meetId.value, slotId)
+  /** Delete locally and cascade to quizzes on that slot (mirrors the
+   *  FK cascade the server applies on commit). */
+  function deleteSlot(slotId: number): void {
     slots.value = slots.value.filter((s) => s.id !== slotId)
     quizzes.value = quizzes.value.filter((q) => q.slotId !== slotId)
   }
 
-  /** Refetch the full quiz list and replace the local ref. Use after
-   *  any batch mutation to converge to server state. */
-  async function refetchQuizzes(): Promise<void> {
+  // ---- Draft mutations (quizzes) ----
+
+  function createQuiz(input: CreateQuizInput): ScheduledQuiz {
     if (!meetId.value) throw new Error('No meet loaded')
-    const refreshed = await listScheduledQuizzes(meetId.value)
-    quizzes.value = refreshed.quizzes
+    const quizId = mintTempId()
+    const quiz: ScheduledQuiz = {
+      id: quizId,
+      meetId: meetId.value,
+      slotId: input.slotId,
+      roomId: input.roomId,
+      division: input.division,
+      phase: input.phase,
+      lane: null,
+      label: input.label,
+      bracketLabel: null,
+      publishedAt: null,
+      completedAt: null,
+      seats: (input.seats ?? []).map((s) => ({
+        id: mintTempId(),
+        quizId,
+        seatNumber: s.seatNumber,
+        letter: s.letter ?? null,
+        seedRef: s.seedRef ?? null,
+      })),
+    }
+    quizzes.value = [...quizzes.value, quiz]
+    return quiz
   }
 
-  /** Create a quiz, then refetch the list to pick up server-assigned seat
-   *  ids (POST returns the row without seats). For batch flows, use
-   *  `createScheduledQuiz` directly from `../api` followed by a single
-   *  `refetchQuizzes()` — otherwise N parallel `createQuiz` calls each
-   *  fire their own refetch and race over `quizzes.value`. */
-  async function createQuiz(input: CreateQuizInput): Promise<void> {
-    if (!meetId.value) throw new Error('No meet loaded')
-    await createScheduledQuiz(meetId.value, input)
-    await refetchQuizzes()
+  function updateQuiz(quizId: number, patch: UpdateQuizPatch, seats?: SeatInput[]): void {
+    quizzes.value = quizzes.value.map((q) => {
+      if (q.id !== quizId) return q
+      const updated: ScheduledQuiz = {
+        ...q,
+        ...(patch.label !== undefined ? { label: patch.label } : {}),
+        ...(patch.slotId !== undefined ? { slotId: patch.slotId } : {}),
+        ...(patch.roomId !== undefined ? { roomId: patch.roomId } : {}),
+        ...('bracketLabel' in patch ? { bracketLabel: patch.bracketLabel ?? null } : {}),
+        ...('publishedAt' in patch ? { publishedAt: toIsoOrNull(patch.publishedAt) } : {}),
+        ...(seats !== undefined
+          ? {
+              seats: seats.map((s) => ({
+                id: mintTempId(),
+                quizId: q.id,
+                seatNumber: s.seatNumber,
+                letter: s.letter ?? null,
+                seedRef: s.seedRef ?? null,
+              })),
+            }
+          : {}),
+      }
+      return updated
+    })
   }
 
-  async function deleteQuiz(quizId: number): Promise<void> {
-    if (!meetId.value) throw new Error('No meet loaded')
-    await deleteScheduledQuiz(meetId.value, quizId)
+  function deleteQuiz(quizId: number): void {
     quizzes.value = quizzes.value.filter((q) => q.id !== quizId)
   }
 
-  /** Delete a quiz on the server without touching the local ref.
-   *  For batch flows; pair with `refetchQuizzes()` after the batch. */
-  async function deleteQuizRaw(quizId: number): Promise<void> {
+  /** Bulk replace the quiz list with a Populate plan. Used by the
+   *  view's runPopulate; deletes every existing quiz and recreates the
+   *  full set in one local update, no network.
+   *
+   *  TODO: when completed-quiz lock UI lands, this needs to preserve
+   *  any quiz with `completedAt` set instead of dropping it — otherwise
+   *  saveDraft will 409 on the next save. */
+  function replaceQuizzes(defs: CreateQuizInput[]): void {
     if (!meetId.value) throw new Error('No meet loaded')
-    await deleteScheduledQuiz(meetId.value, quizId)
-  }
-
-  /** Create a quiz on the server without touching the local ref.
-   *  For batch flows; pair with `refetchQuizzes()` after the batch. */
-  async function createQuizRaw(input: CreateQuizInput): Promise<void> {
-    if (!meetId.value) throw new Error('No meet loaded')
-    await createScheduledQuiz(meetId.value, input)
-  }
-
-  /** Update a quiz's mutable fields (label, slot, room, bracket label).
-   *  Optionally replace its seats in the same call; refetches once at the
-   *  end so consumers see consistent post-state. */
-  async function updateQuiz(
-    quizId: number,
-    patch: {
-      label?: string
-      slotId?: number
-      roomId?: number
-      bracketLabel?: string | null
-      publishedAt?: string | number | null
-    },
-    seats?: SeatInput[],
-  ): Promise<void> {
-    if (!meetId.value) throw new Error('No meet loaded')
-    if (Object.keys(patch).length > 0) {
-      await updateScheduledQuiz(meetId.value, quizId, patch)
-    }
-    if (seats) {
-      await replaceQuizSeats(meetId.value, quizId, seats)
-    }
-    const refreshed = await listScheduledQuizzes(meetId.value)
-    quizzes.value = refreshed.quizzes
+    const mid = meetId.value
+    quizzes.value = defs.map((def) => {
+      const quizId = mintTempId()
+      return {
+        id: quizId,
+        meetId: mid,
+        slotId: def.slotId,
+        roomId: def.roomId,
+        division: def.division,
+        phase: def.phase,
+        lane: null,
+        label: def.label,
+        bracketLabel: null,
+        publishedAt: null,
+        completedAt: null,
+        seats: (def.seats ?? []).map((s) => ({
+          id: mintTempId(),
+          quizId,
+          seatNumber: s.seatNumber,
+          letter: s.letter ?? null,
+          seedRef: s.seedRef ?? null,
+        })),
+      }
+    })
   }
 
   /** Lowest unused integer suffix for "Div N Quiz K" auto-labelling. */
@@ -217,6 +317,45 @@ export function useScheduleData(slug: Ref<string>) {
     while (used.has(n)) n++
     return n
   }
+
+  // ---- Draft mutations (prelim assignments + lateness) ----
+
+  /** Roll Teams for one division (purely local): sort by
+   *  (lateness ASC, RAND ASC), zip onto letters A..N, replace this
+   *  division's slice of `prelimAssignments`. Commits on saveDraft. */
+  function rollTeams(division: string): void {
+    if (!meetId.value) return
+    const mid = meetId.value
+    const divisionTeams = teams.value.filter((t) => t.division === division)
+    if (divisionTeams.length === 0) return
+
+    const shuffled = divisionTeams
+      .map((t) => ({ team: t, key: [t.lateness ? 1 : 0, Math.random()] as const }))
+      .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1])
+      .map((x) => x.team)
+
+    const now = new Date().toISOString()
+    const others = prelimAssignments.value.filter((a) => a.division !== division)
+    const fresh: PrelimAssignment[] = shuffled.map((t, i) => ({
+      // id sentinel — the full-replace endpoint reissues rows on save.
+      id: 0,
+      meetId: mid,
+      division,
+      letter: String.fromCharCode(65 + i),
+      teamId: t.id,
+      assignedAt: now,
+    }))
+    prelimAssignments.value = [...others, ...fresh]
+  }
+
+  /** Flip a team's lateness flag locally. No server call until save. */
+  function updateTeamLateness(teamId: number, lateness: boolean): void {
+    const idx = teams.value.findIndex((t) => t.id === teamId)
+    if (idx < 0) return
+    teams.value[idx] = { ...teams.value[idx]!, lateness }
+  }
+
+  // ---- Lane state (in-memory only — not part of the draft) ----
 
   function toggleLane({ division, lane }: { division: string; lane: LaneId }) {
     const current = extraLanes.value[division] ?? []
@@ -241,46 +380,6 @@ export function useScheduleData(slug: Ref<string>) {
     extraLanes.value = { ...extraLanes.value, [division]: next }
   }
 
-  /** Roll Teams for one division: sort by (lateness ASC, RAND ASC),
-   *  zip onto letters A..N, and persist via setPrelimAssignments.
-   *  Running Populate after Roll Teams picks up the late-letter set
-   *  and pushes the affected rule-book rows to later cells. */
-  async function rollTeams(division: string) {
-    if (!meetId.value) throw new Error('No meet loaded')
-    const divisionTeams = teams.value.filter((t) => t.division === division)
-    if (divisionTeams.length === 0) return
-
-    const shuffled = divisionTeams
-      .map((t) => ({ team: t, key: [t.lateness ? 1 : 0, Math.random()] as const }))
-      .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1])
-      .map((x) => x.team)
-    const mapping = shuffled.map((t, i) => ({
-      letter: String.fromCharCode(65 + i),
-      teamId: t.id,
-    }))
-
-    const res = await setPrelimAssignments(meetId.value, division, mapping)
-    prelimAssignments.value = [
-      ...prelimAssignments.value.filter((a) => a.division !== division),
-      ...res.assignments,
-    ]
-  }
-
-  /** Toggle a team's lateness flag. Optimistic local update + PATCH;
-   *  rolls back on failure so the UI doesn't lie about persistence. */
-  async function updateTeamLateness(teamId: number, lateness: boolean) {
-    const idx = teams.value.findIndex((t) => t.id === teamId)
-    if (idx < 0) return
-    const before = teams.value[idx]!.lateness
-    teams.value[idx] = { ...teams.value[idx]!, lateness }
-    try {
-      await updateTeam(teamId, { lateness })
-    } catch (e) {
-      teams.value[idx] = { ...teams.value[idx]!, lateness: before }
-      throw e
-    }
-  }
-
   function resizeLane({
     division,
     lane,
@@ -297,6 +396,191 @@ export function useScheduleData(slug: Ref<string>) {
         l.id === lane ? { ...l, teamCount: Math.max(0, teamCount) } : l,
       ),
     }
+  }
+
+  // ---- Dirty detection ----
+
+  function slotsDirty(snap: ScheduleSnapshot): boolean {
+    if (slots.value.some((s) => s.id < 0)) return true
+    const draftIds = new Set(slots.value.filter((s) => s.id > 0).map((s) => s.id))
+    if (snap.slots.some((s) => !draftIds.has(s.id))) return true
+    const origById = new Map(snap.slots.map((s) => [s.id, s]))
+    for (const s of slots.value) {
+      if (s.id < 0) continue
+      const orig = origById.get(s.id)
+      if (!orig) continue
+      if (
+        orig.startAt !== s.startAt ||
+        orig.durationMinutes !== s.durationMinutes ||
+        orig.kind !== s.kind ||
+        (orig.eventLabel ?? null) !== (s.eventLabel ?? null) ||
+        orig.sortOrder !== s.sortOrder
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  function seatsDiffer(a: ScheduledQuiz, b: ScheduledQuiz): boolean {
+    const sa = sortedSeats(a.seats)
+    const sb = sortedSeats(b.seats)
+    if (sa.length !== sb.length) return true
+    for (let i = 0; i < sa.length; i++) {
+      if (
+        sa[i]!.seatNumber !== sb[i]!.seatNumber ||
+        (sa[i]!.letter ?? null) !== (sb[i]!.letter ?? null) ||
+        (sa[i]!.seedRef ?? null) !== (sb[i]!.seedRef ?? null)
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  function quizzesDirty(snap: ScheduleSnapshot): boolean {
+    if (quizzes.value.some((q) => q.id < 0)) return true
+    const draftIds = new Set(quizzes.value.filter((q) => q.id > 0).map((q) => q.id))
+    if (snap.quizzes.some((q) => !draftIds.has(q.id))) return true
+    const origById = new Map(snap.quizzes.map((q) => [q.id, q]))
+    for (const q of quizzes.value) {
+      if (q.id < 0) continue
+      const orig = origById.get(q.id)
+      if (!orig) continue
+      if (
+        orig.slotId !== q.slotId ||
+        orig.roomId !== q.roomId ||
+        orig.division !== q.division ||
+        orig.phase !== q.phase ||
+        orig.label !== q.label ||
+        (orig.bracketLabel ?? null) !== (q.bracketLabel ?? null) ||
+        seatsDiffer(orig, q)
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  function prelimDirty(snap: ScheduleSnapshot): boolean {
+    if (prelimAssignments.value.length !== snap.prelimAssignments.length) return true
+    const snapKeys = new Map<string, number>()
+    for (const a of snap.prelimAssignments) snapKeys.set(`${a.division}|${a.letter}`, a.teamId)
+    for (const a of prelimAssignments.value) {
+      if (snapKeys.get(`${a.division}|${a.letter}`) !== a.teamId) return true
+    }
+    return false
+  }
+
+  function latenessDirty(snap: ScheduleSnapshot): boolean {
+    for (const t of teams.value) {
+      const orig = snap.teamLateness[t.id]
+      if (orig !== undefined && orig !== t.lateness) return true
+    }
+    return false
+  }
+
+  const isDirty = computed(() => {
+    const snap = committed.value
+    return slotsDirty(snap) || quizzesDirty(snap) || prelimDirty(snap) || latenessDirty(snap)
+  })
+
+  // ---- Save / discard ----
+
+  function buildSyncPayload(): ScheduleSyncPayload {
+    const snap = committed.value
+    const slotPayload = slots.value.map((s) => ({
+      id: s.id,
+      startAt: s.startAt,
+      durationMinutes: s.durationMinutes,
+      kind: s.kind,
+      eventLabel: s.eventLabel,
+      sortOrder: s.sortOrder,
+    }))
+    const quizPayload = quizzes.value.map((q) => ({
+      id: q.id,
+      slotId: q.slotId,
+      roomId: q.roomId,
+      division: q.division,
+      phase: q.phase,
+      label: q.label,
+      bracketLabel: q.bracketLabel,
+      seats: q.seats.map((s) => ({
+        seatNumber: s.seatNumber,
+        letter: s.letter,
+        seedRef: s.seedRef,
+      })),
+    }))
+
+    // Include any division that appears in the current draft OR in the
+    // committed snapshot, so dropping a division's assignments to an
+    // empty mapping propagates to the server.
+    const divs = new Set<string>()
+    for (const a of prelimAssignments.value) divs.add(a.division)
+    for (const a of snap.prelimAssignments) divs.add(a.division)
+    const prelimPayload: ScheduleSyncPrelimDivision[] = []
+    for (const division of divs) {
+      const mapping = prelimAssignments.value
+        .filter((a) => a.division === division)
+        .map((a) => ({ letter: a.letter, teamId: a.teamId }))
+      prelimPayload.push({ division, mapping })
+    }
+
+    const lateness: ScheduleSyncTeamLateness[] = []
+    for (const t of teams.value) {
+      const orig = snap.teamLateness[t.id]
+      if (orig === undefined || orig !== t.lateness) {
+        lateness.push({ teamId: t.id, lateness: t.lateness })
+      }
+    }
+
+    return {
+      slots: slotPayload,
+      quizzes: quizPayload,
+      prelimAssignments: prelimPayload,
+      teamLateness: lateness,
+    }
+  }
+
+  async function saveDraft(): Promise<void> {
+    if (!meetId.value) throw new Error('No meet loaded')
+    if (saving.value) return
+    saving.value = true
+    saveError.value = ''
+    try {
+      const result = await syncSchedule(meetId.value, buildSyncPayload())
+      slots.value = [...result.slots].sort(bySortOrder)
+      quizzes.value = result.quizzes
+      prelimAssignments.value = result.prelimAssignments
+      // Merge lateness back into the joined team rows (church names,
+      // numbers, etc. come from the original listMeetTeams response).
+      const latenessMap = new Map(result.teams.map((t) => [t.id, t.lateness]))
+      teams.value = teams.value.map((t) => {
+        const fresh = latenessMap.get(t.id)
+        return fresh === undefined ? t : { ...t, lateness: fresh }
+      })
+      committed.value = takeSnapshot()
+    } catch (e) {
+      saveError.value = (e as Error).message
+      throw e
+    } finally {
+      saving.value = false
+    }
+  }
+
+  function discardDraft(): boolean {
+    if (!isDirty.value) return true
+    if (!confirm('Discard all unsaved schedule changes?')) return false
+    const snap = committed.value
+    slots.value = snap.slots.map((s) => ({ ...s }))
+    quizzes.value = snap.quizzes.map(cloneQuiz)
+    prelimAssignments.value = snap.prelimAssignments.map((a) => ({ ...a }))
+    teams.value = teams.value.map((t) => {
+      const orig = snap.teamLateness[t.id]
+      return orig === undefined ? t : { ...t, lateness: orig }
+    })
+    saveError.value = ''
+    return true
   }
 
   return {
@@ -318,15 +602,18 @@ export function useScheduleData(slug: Ref<string>) {
     updateSlot,
     deleteSlot,
     createQuiz,
-    createQuizRaw,
     updateQuiz,
     deleteQuiz,
-    deleteQuizRaw,
-    refetchQuizzes,
+    replaceQuizzes,
     nextQuizNumber,
     toggleLane,
     resizeLane,
     updateTeamLateness,
     rollTeams,
+    isDirty,
+    saving,
+    saveError,
+    saveDraft,
+    discardDraft,
   }
 }
