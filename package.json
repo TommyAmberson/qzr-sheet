@@ -1,6 +1,5 @@
 {
   "name": "qzr",
-  "version": "0.9.1",
   "private": true,
   "type": "module",
   "scripts": {

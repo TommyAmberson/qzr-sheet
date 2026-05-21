@@ -1,55 +1,65 @@
 #!/usr/bin/env node
 /**
- * Bump the version across all versioned files in the monorepo.
+ * Bump the version of a single package in the monorepo.
  *
  * Usage:
- *   node scripts/bump-version.mjs 1.2.3
+ *   pnpm bump <pkg> <semver>
+ *
+ * Packages:
+ *   scoresheet  → apps/scoresheet/package.json + apps/scoresheet/src-tauri/tauri.conf.json
+ *   web         → apps/web/package.json
+ *   api         → packages/api/package.json
+ *   shared      → packages/shared/package.json
+ *
+ * Per-package versioning: a bump to `<pkg>` is the deploy trigger for that package's
+ * workflow on master. No global tag — CI tags `<pkg>@<ver>` after successful deploy.
  */
 
 import { readFileSync, writeFileSync } from 'fs'
 
-const version = process.argv[2]
-if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
-  console.error('Usage: node scripts/bump-version.mjs <semver>  e.g. 1.2.3')
+const PACKAGES = {
+  scoresheet: [
+    'apps/scoresheet/package.json',
+    'apps/scoresheet/src-tauri/tauri.conf.json',
+  ],
+  web: ['apps/web/package.json'],
+  api: ['packages/api/package.json'],
+  shared: ['packages/shared/package.json'],
+}
+
+const [pkg, version] = process.argv.slice(2)
+const pkgList = Object.keys(PACKAGES).join(' | ')
+
+if (!pkg || !version) {
+  console.error(`Usage: pnpm bump <${pkgList}> <semver>  e.g. pnpm bump api 0.3.0`)
   process.exit(1)
 }
 
-function bumpJson(path, updater) {
+if (!PACKAGES[pkg]) {
+  console.error(`Unknown package: ${pkg}. Choose one of: ${pkgList}`)
+  process.exit(1)
+}
+
+if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
+  console.error(`Invalid version: ${version}. Expected semver like 0.3.0 or 1.0.0-rc.1`)
+  process.exit(1)
+}
+
+function bumpVersion(path, newVersion) {
   const obj = JSON.parse(readFileSync(path, 'utf8'))
-  updater(obj)
+  obj.version = newVersion
   writeFileSync(path, JSON.stringify(obj, null, 2) + '\n')
-  console.log(`  ${path}  →  ${version}`)
+  console.log(`  ${path}  →  ${newVersion}`)
 }
 
-function bumpToml(path, key) {
-  const content = readFileSync(path, 'utf8')
-  const updated = content.replace(
-    new RegExp(`^(${key}\\s*=\\s*)"[^"]+"`, 'm'),
-    `$1"${version}"`,
-  )
-  writeFileSync(path, updated)
-  console.log(`  ${path}  →  ${version}`)
+for (const path of PACKAGES[pkg]) {
+  bumpVersion(path, version)
 }
 
-bumpJson('package.json', (pkg) => (pkg.version = version))
-bumpJson('apps/scoresheet/package.json', (pkg) => (pkg.version = version))
-bumpJson('apps/web/package.json', (pkg) => (pkg.version = version))
-bumpJson('packages/api/package.json', (pkg) => (pkg.version = version))
-bumpJson('packages/shared/package.json', (pkg) => (pkg.version = version))
-bumpJson('apps/scoresheet/src-tauri/tauri.conf.json', (cfg) => (cfg.version = version))
+const files = PACKAGES[pkg].join(' ')
 
-const files = [
-  'package.json',
-  'apps/scoresheet/package.json',
-  'apps/web/package.json',
-  'packages/api/package.json',
-  'packages/shared/package.json',
-  'apps/scoresheet/src-tauri/tauri.conf.json',
-].join(' ')
-
-console.log(`\nVersion bumped to ${version}. Commit and tag:\n`)
+console.log(`\n${pkg} bumped to ${version}. Commit:\n`)
 console.log(`  git add ${files}`)
-console.log(`  git commit -m "chore: bump version to ${version}"`)
-console.log(`  git tag v${version}`)
-console.log(`  git push && git push --tags`)
-
+console.log(`  git commit -m "chore(${pkg}): bump to ${version}"`)
+console.log(`  git push`)
+console.log(`\nCI deploys + tags ${pkg}@${version} on push to master.`)
