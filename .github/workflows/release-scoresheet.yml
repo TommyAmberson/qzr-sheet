@@ -11,8 +11,14 @@ name: Release scoresheet
 #      → redeploys Cloudflare Pages so the live scoring tool at
 #        www.versevault.ca/scoresheet/ matches the desktop version
 #
-# Both run in parallel; only the desktop release job tags
-# `scoresheet@x.y.z`.
+# A `create-release` job runs serially before the artefact jobs to
+# pre-create the draft GitHub release + `scoresheet@x.y.z` tag.
+# Without it, the desktop matrix (3 jobs) and android (1 job) would
+# all race to be the first to create the release via tauri-action /
+# softprops/action-gh-release, producing duplicate drafts or 422s.
+# Once the draft exists, the desktop matrix uploads by `releaseId`
+# and android uploads by `tag_name` — both idempotent against the
+# existing release.
 on:
   push:
     branches: [master]
@@ -56,6 +62,30 @@ jobs:
       - name: Verify contract reference in CHANGELOG
         run: tools/check-contract-versions.sh --ci scoresheet
 
+  create-release:
+    needs: [filter, verify-contract]
+    if: needs.filter.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.ver.outputs.v }}
+      release-id: ${{ steps.create.outputs.id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: ver
+        run: echo "v=$(jq -r .version apps/scoresheet/package.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release
+        id: create
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: scoresheet@${{ steps.ver.outputs.v }}
+          name: scoresheet@${{ steps.ver.outputs.v }}
+          draft: true
+          body: 'See [apps/scoresheet/CHANGELOG.md](https://github.com/${{ github.repository }}/blob/master/apps/scoresheet/CHANGELOG.md) for details.'
+
   pwa:
     needs: [filter, verify-contract]
     if: needs.filter.outputs.bumped == 'true'
@@ -85,7 +115,7 @@ jobs:
             --project-name=versevault-www --branch=master
 
   android:
-    needs: [filter, verify-contract]
+    needs: [filter, verify-contract, create-release]
     if: needs.filter.outputs.bumped == 'true'
     permissions:
       contents: write
@@ -122,10 +152,6 @@ jobs:
       - name: Decode keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > /tmp/qzr-release.keystore
 
-      - name: Read scoresheet version
-        id: ver
-        run: echo "v=$(jq -r .version apps/scoresheet/package.json)" >> "$GITHUB_OUTPUT"
-
       - name: Build APK
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/29.0.14206865
@@ -134,16 +160,17 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: pnpm android:build
 
+      # Upload into the draft release created by `create-release`. No
+      # `name` / `draft` / `body` here — those come from the existing
+      # release so they aren't fought over.
       - name: Upload APK to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: scoresheet@${{ steps.ver.outputs.v }}
-          name: scoresheet@${{ steps.ver.outputs.v }}
-          draft: true
+          tag_name: scoresheet@${{ needs.create-release.outputs.version }}
           files: apps/scoresheet/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release*.apk
 
   desktop:
-    needs: [filter, verify-contract]
+    needs: [filter, verify-contract, create-release]
     if: needs.filter.outputs.bumped == 'true'
     permissions:
       contents: write
@@ -182,20 +209,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Read scoresheet version
-        id: ver
-        shell: bash
-        run: echo "v=$(jq -r .version apps/scoresheet/package.json)" >> "$GITHUB_OUTPUT"
-
-      - name: Build and release
+      # Upload into the draft release created by `create-release` via
+      # releaseId — sidesteps tauri-action's "create if missing" path
+      # so the three matrix legs don't race on release creation.
+      - name: Build and upload
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: scoresheet@${{ steps.ver.outputs.v }}
-          releaseName: scoresheet@${{ steps.ver.outputs.v }}
-          releaseBody: 'See [apps/scoresheet/CHANGELOG.md](https://github.com/${{ github.repository }}/blob/master/apps/scoresheet/CHANGELOG.md) for details.'
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release-id }}
           projectPath: apps/scoresheet
           args: --target ${{ matrix.target }}
