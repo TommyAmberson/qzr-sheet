@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, toRef, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import type { SeatInput } from '../api'
 import { estimateLaneQuizzes } from '../brackets'
@@ -40,30 +40,29 @@ const {
   updateSlot,
   deleteSlot,
   createQuiz,
-  createQuizRaw,
   updateQuiz,
   deleteQuiz,
-  deleteQuizRaw,
-  refetchQuizzes,
+  replaceQuizzes,
   updateTeamLateness,
   rollTeams,
+  isDirty,
+  saving,
+  saveError,
+  saveDraft,
+  discardDraft,
 } = useScheduleData(toRef(props, 'slug'))
 
-async function onCreateSlot(payload: {
+function onCreateSlot(payload: {
   startAt: string
   durationMinutes: number
   kind: 'quiz' | 'event'
   eventLabel: string | null
   sortOrder: number
 }) {
-  try {
-    await createSlot(payload)
-  } catch (e) {
-    alert((e as Error).message)
-  }
+  createSlot(payload)
 }
 
-async function onUpdateSlot(payload: {
+function onUpdateSlot(payload: {
   slotId: number
   patch: {
     startAt?: string
@@ -72,30 +71,18 @@ async function onUpdateSlot(payload: {
     sortOrder?: number
   }
 }) {
-  try {
-    await updateSlot(payload.slotId, payload.patch)
-  } catch (e) {
-    alert((e as Error).message)
-  }
+  updateSlot(payload.slotId, payload.patch)
 }
 
-async function onDeleteSlot(slotId: number) {
-  try {
-    await deleteSlot(slotId)
-  } catch (e) {
-    alert((e as Error).message)
-  }
+function onDeleteSlot(slotId: number) {
+  deleteSlot(slotId)
 }
 
-async function onDeleteQuiz(quizId: number) {
-  try {
-    await deleteQuiz(quizId)
-  } catch (e) {
-    alert((e as Error).message)
-  }
+function onDeleteQuiz(quizId: number) {
+  deleteQuiz(quizId)
 }
 
-async function onAddQuiz(payload: {
+function onAddQuiz(payload: {
   slotId: number
   roomId: number
   division: string
@@ -103,31 +90,15 @@ async function onAddQuiz(payload: {
   label: string
   seats: SeatInput[]
 }) {
-  try {
-    await createQuiz(payload)
-  } catch (e) {
-    alert((e as Error).message)
-  }
+  createQuiz(payload)
 }
 
-async function onUpdateQuiz(payload: {
-  quizId: number
-  patch: { label?: string }
-  seats: SeatInput[]
-}) {
-  try {
-    await updateQuiz(payload.quizId, payload.patch, payload.seats)
-  } catch (e) {
-    alert((e as Error).message)
-  }
+function onUpdateQuiz(payload: { quizId: number; patch: { label?: string }; seats: SeatInput[] }) {
+  updateQuiz(payload.quizId, payload.patch, payload.seats)
 }
 
-async function onUpdateTeamLateness(payload: { teamId: number; lateness: boolean }) {
-  try {
-    await updateTeamLateness(payload.teamId, payload.lateness)
-  } catch (e) {
-    alert((e as Error).message)
-  }
+function onUpdateTeamLateness(payload: { teamId: number; lateness: boolean }) {
+  updateTeamLateness(payload.teamId, payload.lateness)
 }
 
 /** Per-division elim quiz count from team count + extra-lane drafts.
@@ -159,113 +130,121 @@ function lateLettersFor(division: string): Set<string> {
   return lateLetters
 }
 
-const populating = ref(false)
-
 /** Wipe and recreate all prelim + elim quizzes from the current
- *  rule-book + skeleton state. When `applyLateness` is true, the
+ *  rule-book + skeleton state — purely on the local draft, no network.
+ *  Save commits the new layout. When `applyLateness` is true, the
  *  prelim rule-book rows for each division are sorted so K-tuples
  *  containing late letters land at the high cell indices; otherwise
  *  rule-book order is preserved. */
-async function runPopulate(applyLateness: boolean) {
-  if (populating.value) return
-  populating.value = true
-  try {
-    const sorted = [...slots.value].sort(bySortOrder)
-    const breakIdx = sorted.findIndex(isStatsBreak)
-    if (breakIdx === -1) {
-      alert('Add a Stats break in Skeleton — Populate uses it as the prelim/elim divider.')
-      return
-    }
-    const prelimSlots = sorted.slice(0, breakIdx).filter((s) => s.kind === 'quiz')
-    const elimSlots = sorted.slice(breakIdx + 1).filter((s) => s.kind === 'quiz')
-    if ((prelimSlots.length === 0 && elimSlots.length === 0) || rooms.value.length === 0) {
-      alert('Add slots in Skeleton and rooms to the meet before populating.')
-      return
-    }
+function runPopulate(applyLateness: boolean) {
+  const sorted = [...slots.value].sort(bySortOrder)
+  const breakIdx = sorted.findIndex(isStatsBreak)
+  if (breakIdx === -1) {
+    alert('Add a Stats break in Skeleton — Populate uses it as the prelim/elim divider.')
+    return
+  }
+  const prelimSlots = sorted.slice(0, breakIdx).filter((s) => s.kind === 'quiz')
+  const elimSlots = sorted.slice(breakIdx + 1).filter((s) => s.kind === 'quiz')
+  if ((prelimSlots.length === 0 && elimSlots.length === 0) || rooms.value.length === 0) {
+    alert('Add slots in Skeleton and rooms to the meet before populating.')
+    return
+  }
 
-    const elimCounts: Record<string, number> = {}
-    for (const div of divisions.value) elimCounts[div] = elimCountFor(div)
+  const elimCounts: Record<string, number> = {}
+  for (const div of divisions.value) elimCounts[div] = elimCountFor(div)
 
-    // Build the prelim placement input for every division (rule-book
-    // rows + lateness mask). Divisions with no rule-book pattern fall
-    // back to placeholder A/B/C seats.
-    const unsupported: number[] = []
-    const prelimInputs: DivisionPlacementInput[] = []
-    for (const div of divisions.value) {
-      const teamCount = teamCounts.value[div] ?? 0
-      const draw = getPrelimDraw(teamCount)
-      if (teamCount > 0 && draw === null) unsupported.push(teamCount)
-      const rows: Row[] = draw
-        ? draw.map((r) => [r[0], r[1], r[2]] as Row)
-        : Array.from({ length: teamCount }, () => ['A', 'B', 'C'] as Row)
-      prelimInputs.push({
-        division: div,
-        teamCount,
-        rows,
-        lateLetters: applyLateness ? lateLettersFor(div) : new Set<string>(),
-      })
-    }
+  // Build the prelim placement input for every division (rule-book
+  // rows + lateness mask). Divisions with no rule-book pattern fall
+  // back to placeholder A/B/C seats.
+  const unsupported: number[] = []
+  const prelimInputs: DivisionPlacementInput[] = []
+  for (const div of divisions.value) {
+    const teamCount = teamCounts.value[div] ?? 0
+    const draw = getPrelimDraw(teamCount)
+    if (teamCount > 0 && draw === null) unsupported.push(teamCount)
+    const rows: Row[] = draw
+      ? draw.map((r) => [r[0], r[1], r[2]] as Row)
+      : Array.from({ length: teamCount }, () => ['A', 'B', 'C'] as Row)
+    prelimInputs.push({
+      division: div,
+      teamCount,
+      rows,
+      lateLetters: applyLateness ? lateLettersFor(div) : new Set<string>(),
+    })
+  }
 
-    // Prelims: combined alloc + place. Elims: simpler allocateCells
-    // since elim seats are placeholder.
-    const prelimArrangement = arrangeAllDivisions(prelimInputs, prelimSlots, rooms.value)
-    const elimAlloc = allocateCells(divisions.value, elimCounts, elimSlots, rooms.value)
+  // Prelims: combined alloc + place. Elims: simpler allocateCells
+  // since elim seats are placeholder.
+  const prelimArrangement = arrangeAllDivisions(prelimInputs, prelimSlots, rooms.value)
+  const elimAlloc = allocateCells(divisions.value, elimCounts, elimSlots, rooms.value)
 
-    if (prelimArrangement.shortfall > 0 || elimAlloc.shortfall > 0) {
-      const parts: string[] = []
-      if (prelimArrangement.shortfall > 0) parts.push(`${prelimArrangement.shortfall} prelim`)
-      if (elimAlloc.shortfall > 0) parts.push(`${elimAlloc.shortfall} elim`)
-      const ok = confirm(
-        `Plan exceeds capacity (${parts.join(', ')} cells short). Truncate to fit?`,
-      )
-      if (!ok) return
-    }
+  if (prelimArrangement.shortfall > 0 || elimAlloc.shortfall > 0) {
+    const parts: string[] = []
+    if (prelimArrangement.shortfall > 0) parts.push(`${prelimArrangement.shortfall} prelim`)
+    if (elimAlloc.shortfall > 0) parts.push(`${elimAlloc.shortfall} elim`)
+    const ok = confirm(`Plan exceeds capacity (${parts.join(', ')} cells short). Truncate to fit?`)
+    if (!ok) return
+  }
 
-    const plan: QuizDef[] = []
-    for (const div of divisions.value) {
-      plan.push(...(prelimArrangement.perDivision.get(div) ?? []))
-      plan.push(...buildElimPlan(div, elimAlloc.perDivision.get(div) ?? []))
-    }
+  const plan: QuizDef[] = []
+  for (const div of divisions.value) {
+    plan.push(...(prelimArrangement.perDivision.get(div) ?? []))
+    plan.push(...buildElimPlan(div, elimAlloc.perDivision.get(div) ?? []))
+  }
 
-    // Wipe and recreate in parallel — Populate touches a lot of
-    // quizzes per click (often 30+) and the sequential await chain
-    // was the dominant user-visible latency. The raw variants skip
-    // the per-call store mutation; we refetch once at the end so
-    // N parallel mutations don't race over `quizzes.value`.
-    await Promise.all([...quizzes.value].map((q) => deleteQuizRaw(q.id)))
-    await Promise.all(plan.map((def) => createQuizRaw(def)))
-    await refetchQuizzes()
+  replaceQuizzes(plan)
 
-    if (unsupported.length > 0) {
-      console.warn(
-        `Populate: no rule-book draw pattern for team counts ${unsupported.join(', ')}; ` +
-          'falling back to placeholder A/B/C seats. Edit those quizzes manually or add the pattern to prelimDraw.ts.',
-      )
-    }
-  } catch (e) {
-    alert((e as Error).message)
-  } finally {
-    populating.value = false
+  if (unsupported.length > 0) {
+    console.warn(
+      `Populate: no rule-book draw pattern for team counts ${unsupported.join(', ')}; ` +
+        'falling back to placeholder A/B/C seats. Edit those quizzes manually or add the pattern to prelimDraw.ts.',
+    )
   }
 }
 
 function onPopulateSkeleton() {
-  return runPopulate(false)
+  runPopulate(false)
 }
 
 function onSortByLateness() {
-  return runPopulate(true)
+  runPopulate(true)
 }
 
-async function onRollTeams() {
-  try {
-    for (const div of divisions.value) {
-      await rollTeams(div)
-    }
-  } catch (e) {
-    alert((e as Error).message)
+function onRollTeams() {
+  for (const div of divisions.value) {
+    rollTeams(div)
   }
 }
+
+// ---- Save / Discard ----
+
+async function onSave() {
+  try {
+    await saveDraft()
+  } catch {
+    // saveError surfaces the message in the bar
+  }
+}
+
+function onDiscard() {
+  discardDraft()
+}
+
+// Browser-level guard: pageload-style navigation away while dirty
+// prompts the native "Leave site? Changes you made may not be saved."
+function onBeforeUnload(e: BeforeUnloadEvent) {
+  if (isDirty.value) {
+    e.preventDefault()
+    // Required by some browsers; the actual string is ignored.
+    e.returnValue = ''
+  }
+}
+
+// Vue Router navigation guard for in-app route changes.
+onBeforeRouteLeave(() => {
+  if (!isDirty.value) return true
+  return confirm('You have unsaved schedule changes. Leave anyway?')
+})
 
 type TabId = 'prelim' | 'elim' | 'skeleton' | 'draw'
 const TABS: { id: TabId; label: string }[] = [
@@ -470,12 +449,17 @@ const quizBudget = computed(() => {
 })
 
 onMounted(async () => {
+  window.addEventListener('beforeunload', onBeforeUnload)
   await load()
   // Editing is admin-only; coaches/viewers fall back to the read-only
   // view at /:slug/schedule.
   if (!loading.value && !isAdmin.value) {
     router.replace({ name: 'meet-schedule', params: { slug: props.slug } })
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
 })
 </script>
 
@@ -496,6 +480,19 @@ onMounted(async () => {
             {{ meet.dateFrom }}{{ meet.dateTo ? ` – ${meet.dateTo}` : '' }} ·
             {{ divisions.length }} divisions
           </span>
+        </div>
+      </div>
+
+      <div v-if="isAdmin && isDirty" class="draft-bar">
+        <span class="draft-bar-label">Unsaved schedule changes</span>
+        <p v-if="saveError" class="draft-bar-error">{{ saveError }}</p>
+        <div class="draft-bar-actions">
+          <button class="btn btn--ghost btn--sm" :disabled="saving" @click="onDiscard">
+            Discard
+          </button>
+          <button class="btn btn--primary btn--sm" :disabled="saving" @click="onSave">
+            {{ saving ? 'Saving…' : 'Save' }}
+          </button>
         </div>
       </div>
 
@@ -661,5 +658,33 @@ onMounted(async () => {
 .tab.is-active {
   color: var(--color-text);
   border-bottom-color: var(--color-accent);
+}
+
+.draft-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.draft-bar-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  flex: 1;
+}
+
+.draft-bar-error {
+  font-size: 0.75rem;
+  color: var(--palette-error);
+}
+
+.draft-bar-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
 }
 </style>
