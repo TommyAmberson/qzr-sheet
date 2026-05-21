@@ -366,3 +366,417 @@ describe('quizzes + seats CRUD', () => {
     expect(res.status).toBe(403)
   })
 })
+
+describe('POST /api/meets/:id/schedule/sync', () => {
+  let db: Db
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    app = createApp(testSuperuser, db)
+  })
+
+  async function seedChurch(meetId: number, name = 'Grace') {
+    const [church] = await db
+      .insert(schema.churches)
+      .values({ meetId, name, shortName: name, coachCodeHash: 'x' })
+      .returning()
+    return church!
+  }
+
+  async function seedTeam(meetId: number, churchId: number, division: string, number: number) {
+    const [team] = await db
+      .insert(schema.teams)
+      .values({ meetId, churchId, division, number })
+      .returning()
+    return team!
+  }
+
+  function emptyPayload() {
+    return { slots: [], quizzes: [], prelimAssignments: [], teamLateness: [] }
+  }
+
+  function syncReq(body: Record<string, unknown>) {
+    return jsonRequest('POST', body)
+  }
+
+  it('empty payload is a no-op that returns the current state', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const slot = await seedSlot(db, meet.id)
+    await db.insert(schema.scheduledQuizzes).values({
+      meetId: meet.id,
+      slotId: slot.id,
+      roomId: room.id,
+      division: 'Division 1',
+      phase: 'prelim',
+      label: 'D1Q1',
+    })
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq(emptyPayload()),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{
+      slots: { id: number }[]
+      quizzes: { id: number }[]
+    }>(res)
+    // Empty payload deletes everything (since nothing was sent to keep).
+    expect(body.slots).toHaveLength(0)
+    expect(body.quizzes).toHaveLength(0)
+  })
+
+  it('creates a new slot and a new quiz referencing it by temp id', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id, 'Room A')
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({
+        slots: [
+          {
+            id: -1,
+            startAt: '2026-01-01T20:00:00.000Z',
+            durationMinutes: 25,
+            kind: 'quiz',
+            eventLabel: null,
+            sortOrder: 0,
+          },
+        ],
+        quizzes: [
+          {
+            id: -10,
+            slotId: -1, // ← references the temp slot above
+            roomId: room.id,
+            division: 'Division 1',
+            phase: 'prelim',
+            label: 'D1Q1',
+            bracketLabel: null,
+            seats: [
+              { seatNumber: 1, letter: 'A', seedRef: null },
+              { seatNumber: 2, letter: 'B', seedRef: null },
+              { seatNumber: 3, letter: 'C', seedRef: null },
+            ],
+          },
+        ],
+        prelimAssignments: [],
+        teamLateness: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{
+      slots: { id: number; sortOrder: number }[]
+      quizzes: { id: number; slotId: number; label: string; seats: { letter: string }[] }[]
+    }>(res)
+    expect(body.slots).toHaveLength(1)
+    expect(body.quizzes).toHaveLength(1)
+    expect(body.quizzes[0]!.slotId).toBe(body.slots[0]!.id)
+    expect(body.quizzes[0]!.label).toBe('D1Q1')
+    const letters = body.quizzes[0]!.seats.map((s) => s.letter).sort()
+    expect(letters).toEqual(['A', 'B', 'C'])
+  })
+
+  it('updates an existing slot only when fields differ', async () => {
+    const meet = await seedMeet(db)
+    const slot = await seedSlot(db, meet.id, 0)
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({
+        slots: [
+          {
+            id: slot.id,
+            startAt: slot.startAt.toISOString(),
+            durationMinutes: slot.durationMinutes,
+            kind: slot.kind,
+            eventLabel: slot.eventLabel,
+            sortOrder: 7, // ← only sortOrder differs
+          },
+        ],
+        quizzes: [],
+        prelimAssignments: [],
+        teamLateness: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{ slots: { id: number; sortOrder: number }[] }>(res)
+    expect(body.slots).toHaveLength(1)
+    expect(body.slots[0]!.sortOrder).toBe(7)
+  })
+
+  it('deleting a slot cascades to its quizzes', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const slot = await seedSlot(db, meet.id)
+    await db.insert(schema.scheduledQuizzes).values({
+      meetId: meet.id,
+      slotId: slot.id,
+      roomId: room.id,
+      division: 'Division 1',
+      phase: 'prelim',
+      label: 'D1Q1',
+    })
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({ ...emptyPayload() }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{ slots: unknown[]; quizzes: unknown[] }>(res)
+    expect(body.slots).toHaveLength(0)
+    expect(body.quizzes).toHaveLength(0)
+    const remainingQuizzes = await db
+      .select()
+      .from(schema.scheduledQuizzes)
+      .where(eq(schema.scheduledQuizzes.meetId, meet.id))
+    expect(remainingQuizzes).toHaveLength(0)
+  })
+
+  it('replaces prelim assignments per division (full replace)', async () => {
+    const meet = await seedMeet(db)
+    const church = await seedChurch(meet.id)
+    const t1 = await seedTeam(meet.id, church.id, 'Division 1', 1)
+    const t2 = await seedTeam(meet.id, church.id, 'Division 1', 2)
+
+    // First sync: assign A→t1, B→t2
+    const first = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({
+        ...emptyPayload(),
+        prelimAssignments: [
+          {
+            division: 'Division 1',
+            mapping: [
+              { letter: 'A', teamId: t1.id },
+              { letter: 'B', teamId: t2.id },
+            ],
+          },
+        ],
+      }),
+      env,
+    )
+    expect(first.status).toBe(200)
+    const firstBody = await jsonOf<{ prelimAssignments: { letter: string; teamId: number }[] }>(
+      first,
+    )
+    expect(firstBody.prelimAssignments).toHaveLength(2)
+
+    // Second sync: swap the mapping
+    const second = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({
+        ...emptyPayload(),
+        prelimAssignments: [
+          {
+            division: 'Division 1',
+            mapping: [
+              { letter: 'A', teamId: t2.id },
+              { letter: 'B', teamId: t1.id },
+            ],
+          },
+        ],
+      }),
+      env,
+    )
+    expect(second.status).toBe(200)
+    const stored = await db
+      .select()
+      .from(schema.prelimAssignments)
+      .where(eq(schema.prelimAssignments.meetId, meet.id))
+    expect(stored).toHaveLength(2)
+    expect(stored.find((a) => a.letter === 'A')!.teamId).toBe(t2.id)
+    expect(stored.find((a) => a.letter === 'B')!.teamId).toBe(t1.id)
+  })
+
+  it('flips team lateness for only the teams in the payload', async () => {
+    const meet = await seedMeet(db)
+    const church = await seedChurch(meet.id)
+    const t1 = await seedTeam(meet.id, church.id, 'Division 1', 1)
+    const t2 = await seedTeam(meet.id, church.id, 'Division 1', 2)
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({
+        ...emptyPayload(),
+        teamLateness: [{ teamId: t1.id, lateness: true }],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const teams = await db.select().from(schema.teams).where(eq(schema.teams.meetId, meet.id))
+    expect(teams.find((t) => t.id === t1.id)!.lateness).toBe(true)
+    expect(teams.find((t) => t.id === t2.id)!.lateness).toBe(false)
+  })
+
+  it('rejects non-admin callers', async () => {
+    const meet = await seedMeet(db)
+    const userApp = createApp(testUser, db)
+    const res = await userApp.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq(emptyPayload()),
+      env,
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it('rejects payloads that delete a completed quiz', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const slot = await seedSlot(db, meet.id)
+    const [quiz] = await db
+      .insert(schema.scheduledQuizzes)
+      .values({
+        meetId: meet.id,
+        slotId: slot.id,
+        roomId: room.id,
+        division: 'Division 1',
+        phase: 'prelim',
+        label: 'Done',
+        completedAt: new Date(),
+      })
+      .returning()
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({
+        ...emptyPayload(),
+        slots: [
+          {
+            id: slot.id,
+            startAt: slot.startAt.toISOString(),
+            durationMinutes: slot.durationMinutes,
+            kind: slot.kind,
+            eventLabel: slot.eventLabel,
+            sortOrder: slot.sortOrder,
+          },
+        ],
+        // quiz omitted ⇒ would be deleted
+      }),
+      env,
+    )
+    expect(res.status).toBe(409)
+    const body = await jsonOf<{ error: string }>(res)
+    expect(body.error).toMatch(new RegExp(`Completed quiz ${quiz!.id}`))
+  })
+
+  it('rejects payloads that mutate a completed quiz row', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const slot = await seedSlot(db, meet.id)
+    const [quiz] = await db
+      .insert(schema.scheduledQuizzes)
+      .values({
+        meetId: meet.id,
+        slotId: slot.id,
+        roomId: room.id,
+        division: 'Division 1',
+        phase: 'prelim',
+        label: 'Done',
+        completedAt: new Date(),
+      })
+      .returning()
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({
+        ...emptyPayload(),
+        slots: [
+          {
+            id: slot.id,
+            startAt: slot.startAt.toISOString(),
+            durationMinutes: slot.durationMinutes,
+            kind: slot.kind,
+            eventLabel: slot.eventLabel,
+            sortOrder: slot.sortOrder,
+          },
+        ],
+        quizzes: [
+          {
+            id: quiz!.id,
+            slotId: slot.id,
+            roomId: room.id,
+            division: 'Division 1',
+            phase: 'prelim',
+            label: 'Renamed', // ← would mutate the locked row
+            bracketLabel: null,
+            seats: [],
+          },
+        ],
+      }),
+      env,
+    )
+    expect(res.status).toBe(409)
+  })
+
+  it('mixed payload: new slot + new quiz + existing-slot update + delete + lateness', async () => {
+    const meet = await seedMeet(db)
+    const church = await seedChurch(meet.id)
+    const t1 = await seedTeam(meet.id, church.id, 'Division 1', 1)
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const slotKeep = await seedSlot(db, meet.id, 0)
+    const slotDelete = await seedSlot(db, meet.id, 1)
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({
+        slots: [
+          // Keep this one but bump sortOrder
+          {
+            id: slotKeep.id,
+            startAt: slotKeep.startAt.toISOString(),
+            durationMinutes: slotKeep.durationMinutes,
+            kind: slotKeep.kind,
+            eventLabel: slotKeep.eventLabel,
+            sortOrder: 5,
+          },
+          // New slot
+          {
+            id: -1,
+            startAt: '2026-01-01T21:00:00.000Z',
+            durationMinutes: 25,
+            kind: 'quiz',
+            eventLabel: null,
+            sortOrder: 6,
+          },
+          // slotDelete is omitted ⇒ deleted
+        ],
+        quizzes: [
+          // New quiz on the new slot
+          {
+            id: -10,
+            slotId: -1,
+            roomId: room.id,
+            division: 'Division 1',
+            phase: 'prelim',
+            label: 'D1Q1',
+            bracketLabel: null,
+            seats: [{ seatNumber: 1, letter: 'A', seedRef: null }],
+          },
+        ],
+        prelimAssignments: [{ division: 'Division 1', mapping: [{ letter: 'A', teamId: t1.id }] }],
+        teamLateness: [{ teamId: t1.id, lateness: true }],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{
+      slots: { id: number; sortOrder: number }[]
+      quizzes: { id: number; slotId: number }[]
+      prelimAssignments: { letter: string; teamId: number }[]
+      teams: { id: number; lateness: boolean }[]
+    }>(res)
+    expect(body.slots).toHaveLength(2)
+    expect(body.slots.find((s) => s.id === slotKeep.id)!.sortOrder).toBe(5)
+    expect(body.slots.find((s) => s.id === slotDelete.id)).toBeUndefined()
+    expect(body.quizzes).toHaveLength(1)
+    const newSlot = body.slots.find((s) => s.id !== slotKeep.id)!
+    expect(body.quizzes[0]!.slotId).toBe(newSlot.id)
+    expect(body.prelimAssignments).toHaveLength(1)
+    expect(body.teams.find((t) => t.id === t1.id)!.lateness).toBe(true)
+  })
+})
