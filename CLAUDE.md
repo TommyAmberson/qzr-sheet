@@ -2,7 +2,21 @@
 
 Bible Quiz scoresheet app. Tauri 2 + Vue 3 + Vite + TypeScript. Monorepo with pnpm workspaces.
 
-See `README.md` for setup, project structure, and deployment. See `ROADMAP.md` for feature status.
+See `README.md` for setup and deployment. See `ROADMAP.md` for feature status.
+
+## Project layout
+
+```
+apps/
+  scoresheet/   # Vue 3 + Tauri 2 — offline-first scoring tool
+  web/          # Portal — coach roster mgmt, admin dashboard
+packages/
+  shared/       # QuizFile schema, role enums, shared API types
+  ui/           # Workspace-internal Vue components
+  api/          # Hono + D1 + Drizzle (Cloudflare Workers)
+```
+
+See `docs/architecture.md` for full detail on internals, data flow, and design decisions.
 
 ## Commands
 
@@ -35,6 +49,72 @@ These commands are wired up as project commands and should be used proactively a
 
 Dev servers (`pnpm dev`, `pnpm dev:all`, etc.) are long-running and should not be started from here.
 
+## Pre-commit checks
+
+Hooks are wired via `simple-git-hooks` + `lint-staged` and installed by `pnpm install` (see the
+`postinstall` script in `package.json`). The `pre-commit` hook runs `lint-staged` — which formats
+TS/Vue/CSS with Prettier, fixes lint with ESLint, and runs `dprint` on markdown / Dockerfiles. The
+`commit-msg` hook runs `commitlint` against the conventional-commits config (see
+`commitlint.config.js` for the scope-enum and length rules below).
+
+## Git conventions
+
+* Commits must be atomic and single-responsibility — one logical change per commit.
+* Commit as you go: after each logical chunk compiles and tests pass, commit it — don't batch at the
+  end.
+* Do not add `Co-Authored-By` lines.
+* Work on feature branches, not directly on master.
+* Always run pnpm commands from the repo root using root-level aliases (e.g. `pnpm test:unit`, not
+  `pnpm --filter scoresheet test:unit`) — keeps commands predictable for auto-approval.
+
+### Merging PRs
+
+* Always use a merge commit, never squash: `gh pr merge <N> --merge --delete-branch`. The individual
+  branch commits must land on master so `git log` shows the actual progression.
+* Merge-commit subjects follow conventional-commits, same as regular commits — typically
+  `chore: merge <branch-name>`. For local merges, set this via `git merge --no-ff -m "..."`. For
+  PRs, pass `--subject "chore: merge <branch>"` to `gh pr merge` (or edit before confirming) —
+  GitHub's default `Merge pull request #N from …` template doesn't conform to commitlint.
+
+### Rewriting history
+
+* **Feature branches:** rewriting is fine and often encouraged (rebase, amend, reorder, squash
+  fixups, `git push --force-with-lease`) when it produces a cleaner, more readable series _before_
+  merging.
+* **Master:** never rewrite history. Once a commit is on master, it stays.
+* **What to squash:** "changed my mind from X to Y" iterations where the intermediate state never
+  ships. Keep small atomic commits that each did meaningful incremental work — the goal is that
+  `git blame` on any given line lands on a commit whose message explains the change.
+* **`git rebase -i` is unavailable in Claude Code** (no interactive input). For targeted squashes,
+  `git cherry-pick --no-commit <a> <b> <c>` followed by a single `git commit` collapses a contiguous
+  group; for wider restructures, `git reset --soft <base>` then re-stage and re-commit in groups.
+
+### Commit message format ([Conventional Commits](https://www.conventionalcommits.org/))
+
+```
+<type>(<scope>): <short subject in lowercase>
+
+<wrapped body explaining why, not what (the diff shows what)>
+```
+
+Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, `style`, `revert`, `perf`, `build`.
+
+Scopes: `scoresheet`, `web`, `api`, `shared`, `ui`, `tauri`, `ci`, `deps`. Omit the scope for
+cross-cutting changes (e.g. `chore: bump version to 0.9.2`).
+
+Subject in lowercase, no trailing period, imperative mood ("add X", not "added X"), and **≤ 50
+characters** including the type/scope prefix. Body wrapped at ~72 cols, focuses on the why. Mark
+breaking changes with `!` after the type/scope (`feat(api)!: …`) — wire format, file format, or
+public-type changes.
+
+## Contract package versioning
+
+`packages/shared` (QuizFile schema, role enums, shared API types) is a contract across consumers —
+the API today, the scoresheet PWA + Tauri client, and the web portal. Same `@qzr/shared` version
+across consumers means same observable wire/state behaviour. Discipline for when this matters lives
+in `docs/release-process.md` once per-package deploys ship (PR pending) — until then, this section
+is a stub.
+
 ## Releasing
 
 1. Update `CHANGELOG.md` with a new version section
@@ -50,19 +130,6 @@ git push origin master --tags
 
 CI deploys on `v*` tags.
 
-## Project Structure
-
-See `docs/architecture.md` for full detail on internals, data flow, and design decisions.
-
-```
-apps/
-  scoresheet/   # Vue 3 + Tauri 2 — offline-first scoring tool
-  web/          # Portal — coach roster mgmt, admin dashboard
-packages/
-  shared/       # QuizFile schema, role enums, shared API types
-  api/          # Hono + D1 + Drizzle (Cloudflare Workers)
-```
-
 ## Key Conventions
 
 * Scoring functions are **pure** — `cells[teamIdx][seatIdx][colIdx]` in, result out. No Vue.
@@ -73,19 +140,6 @@ packages/
   code is obvious should be brief or perhaps even omitted. Prefer comments that explain "why" or
   clarify complex logic. Docstrings should be brief and focused on info that is not obvious from the
   signature and would be useful to consumers. (but don't be too picky about removing comments)
-* Commits should be atomic and self-contained, with conventional commit messages. Commits should not
-  be too large or too small. Use branches for larger features or refactors.
-* Work on feature branches, not directly on master. Merge when ready.
-* Commit history should be clean and readable — it's the primary record of why each change happened,
-  so favor history that's easy to follow and easy to bisect.
-* Use merge commits, not squash. When merging a PR, use `gh pr merge <N> --merge --delete-branch`
-  (not `--squash`) — the individual branch commits should land on master so `git log` shows the
-  actual progression.
-* Rewriting history on feature branches is fine and often encouraged (rebase, amend, reorder, squash
-  fixups, force-push with `--force-with-lease`) when it produces a cleaner, more readable series
-  before merging. Never rewrite history on master — once a commit is on master, it stays.
-* Always run pnpm commands from the repo root using root-level aliases (e.g. `pnpm test:unit`, not
-  `pnpm --filter scoresheet test:unit`) — keeps commands predictable for auto-approval.
 
 ## Gotchas
 
