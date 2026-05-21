@@ -287,7 +287,11 @@ export function useScheduleData(slug: Ref<string>) {
 
   /** Bulk replace the quiz list with a Populate plan. Used by the
    *  view's runPopulate; deletes every existing quiz and recreates the
-   *  full set in one local update, no network. */
+   *  full set in one local update, no network.
+   *
+   *  TODO: when completed-quiz lock UI lands, this needs to preserve
+   *  any quiz with `completedAt` set instead of dropping it — otherwise
+   *  saveDraft will 409 on the next save. */
   function replaceQuizzes(defs: CreateQuizInput[]): void {
     if (!meetId.value) throw new Error('No meet loaded')
     const mid = meetId.value
