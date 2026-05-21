@@ -32,8 +32,12 @@ pnpm test:watch         # Vitest watch mode (all packages, parallel)
 pnpm type-check         # vue-tsc / tsc (all packages)
 pnpm format             # Prettier (no semi, single quotes, 100 col)
 pnpm lint               # ESLint (all packages)
-pnpm deploy             # Build all + deploy to CF Pages + CF Worker
+pnpm bump <pkg> <ver>   # Bump a single package: scoresheet | web | api | shared
 ```
+
+The legacy `pnpm deploy` (build everything locally + `wrangler pages deploy`) still exists as an
+emergency-only escape hatch. Day-to-day deploys are driven by per-package `version` bumps on master
+— see **Releasing** below.
 
 ### Available as MCP tools
 
@@ -110,25 +114,56 @@ public-type changes.
 ## Contract package versioning
 
 `packages/shared` (QuizFile schema, role enums, shared API types) is a contract across consumers —
-the API today, the scoresheet PWA + Tauri client, and the web portal. Same `@qzr/shared` version
-across consumers means same observable wire/state behaviour. Discipline for when this matters lives
-in `docs/release-process.md` once per-package deploys ship (PR pending) — until then, this section
-is a stub.
+the API today, the scoresheet PWA + Tauri client, and the web portal. Its `package.json` version is
+the contract version: same `@qzr/shared@X.Y.Z` across consumers means same observable wire/state
+behaviour. Semver semantics:
+
+* **MAJOR** — breaking change to wire format, file format (`FILE_VERSION` bump in
+  `apps/scoresheet/src/persistence/quizFile.ts`), or shared types consumers must adapt to.
+* **MINOR** — additive (new optional field, new enum value consumers can ignore).
+* **PATCH** — pure documentation or refactor with no observable effect.
+
+Enforcement:
+
+* **Pre-commit** (`tools/check-contract-versions.sh`): blocks commits that touch
+  `packages/shared/src/` without bumping `packages/shared/package.json`. Bypass with
+  `git commit --no-verify` for refactors with no observable effect.
+* **CI** (each deploy workflow runs `tools/check-contract-versions.sh --ci <consumer>`): blocks the
+  consumer's deploy when its `CHANGELOG.md` entry for the version being deployed doesn't reference
+  the current `@qzr/shared` version under a `### Bundled contract` subsection. Catches "bumped
+  shared but forgot to update the api/web/scoresheet changelog."
+
+When you bump `@qzr/shared`, the next bump of any consumer (`api`, `web`, `scoresheet`) must update
+that consumer's `### Bundled contract` subsection to name the new shared version.
 
 ## Releasing
 
-1. Update `CHANGELOG.md` with a new version section
-2. Run:
+Per-package: each release surface (`scoresheet`, `web`, `api`, `shared`) has its own `package.json`
+`version` field, its own `CHANGELOG.md`, and its own CI deploy workflow that fires when the version
+bump lands on master.
+
+Use the `/release <pkg>` skill (see `.claude/skills/release/SKILL.md`) or do it manually:
 
 ```sh
-pnpm bump x.y.z   # bumps package.json, apps/scoresheet/package.json, tauri.conf.json
-git add package.json apps/scoresheet/package.json apps/scoresheet/src-tauri/tauri.conf.json
-git commit -m "chore: bump version to x.y.z"
-git tag vx.y.z
-git push origin master --tags
+# 1. Update the package's CHANGELOG.md under [Unreleased]:
+#       ## [<new>] — YYYY-MM-DD
+#       ### Added / Changed / Fixed
+#       …
+#    For api/web/scoresheet releases, also add a:
+#       ### Bundled contract
+#       * @qzr/shared@<current> — unchanged | bumped from <old>
+
+# 2. Bump the package version (only that package's files move):
+pnpm bump <scoresheet|web|api|shared> <semver>
+
+# 3. Commit and push:
+git add <reported-files> <package>/CHANGELOG.md
+git commit -m "chore(<pkg>): bump to <semver>"
+git push origin master
 ```
 
-CI deploys on `v*` tags.
+CI fires the matching `.github/workflows/deploy-<pkg>.yml` (or `release-scoresheet.yml`), runs the
+contract check, deploys, and tags `<pkg>@<semver>` on success. **Don't tag locally** — CI does it.
 
 ## Key Conventions
 
