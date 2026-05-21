@@ -1,2 +1,11 @@
+[files]
+extend-exclude = [
+    "dist/",
+    "apps/*/dist/",
+    "packages/api/.wrangler/",
+    "apps/scoresheet/src-tauri/target/",
+    "apps/scoresheet/src-tauri/gen/",
+]
+
 [default.extend-identifiers]
 OT = "OT"
