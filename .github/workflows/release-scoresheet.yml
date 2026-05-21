@@ -86,6 +86,16 @@ jobs:
           draft: true
           body: 'See [apps/scoresheet/CHANGELOG.md](https://github.com/${{ github.repository }}/blob/master/apps/scoresheet/CHANGELOG.md) for details.'
 
+      # Tag the contract package alongside the scoresheet release tag.
+      # Idempotent across the three deploy workflows — whichever
+      # consumer deploy runs first wins, the others no-op.
+      - name: Tag shared contract
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          shared_v=$(jq -r .version packages/shared/package.json)
+          tools/tag-if-missing.sh "shared@${shared_v}" "Bundled @qzr/shared ${shared_v} (shipped with scoresheet@${{ steps.ver.outputs.v }})"
+
   pwa:
     needs: [filter, verify-contract]
     if: needs.filter.outputs.bumped == 'true'

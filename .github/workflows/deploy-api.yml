@@ -74,17 +74,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      # Tag both the consumer (api) and the contract package (shared).
+      # The shared tag is idempotent across the three deploy workflows —
+      # whichever consumer deploy runs first wins, the others no-op.
       - name: Tag release
         working-directory: .
         run: |
-          version=$(jq -r .version packages/api/package.json)
-          tag="api@${version}"
-          if git rev-parse "$tag" >/dev/null 2>&1; then
-            echo "Tag $tag already exists; skipping"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$tag" -m "Deployed @qzr/api $version to Cloudflare Workers"
-            git push origin "$tag"
-            echo "Tagged $tag at $(git rev-parse HEAD)"
-          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          api_v=$(jq -r .version packages/api/package.json)
+          shared_v=$(jq -r .version packages/shared/package.json)
+          tools/tag-if-missing.sh "api@${api_v}" "Deployed @qzr/api ${api_v} to Cloudflare Workers"
+          tools/tag-if-missing.sh "shared@${shared_v}" "Bundled @qzr/shared ${shared_v} (shipped with api@${api_v})"
