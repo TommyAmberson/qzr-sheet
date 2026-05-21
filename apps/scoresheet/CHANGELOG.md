@@ -4,9 +4,10 @@ All notable changes to the scoresheet (Tauri desktop, Android APK, browser PWA) 
 following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Released via `.github/workflows/release-scoresheet.yml` (Tauri matrix + Android APK draft) plus
-`.github/workflows/deploy-web.yml` (PWA bundled into the web Pages deploy) on every `version` bump
-in `apps/scoresheet/package.json` that lands on `master`.
+Released via `.github/workflows/release-scoresheet.yml` (Tauri matrix linux/windows/macos + signed
+Android APK, auto-published as a GitHub release on a green matrix) plus the same workflow's `pwa`
+job (PWA bundled into the web Pages deploy) on every `version` bump in
+`apps/scoresheet/package.json` that lands on `master`.
 
 Entries prior to 0.9.2 are from the era of unified monorepo versioning — every release tag
 (`v0.x.y`) bumped scoresheet + portal + API in lockstep, so the same version section also documents
