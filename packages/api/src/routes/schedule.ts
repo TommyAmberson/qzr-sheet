@@ -226,21 +226,20 @@ interface ScheduleSyncPayload {
 /**
  * POST /api/meets/:id/schedule/sync
  *
- * Replaces the meet's editable schedule state in one request. Payload
- * carries the full desired state: slots, quizzes (with seats),
- * prelim-assignment mappings per division, and any team-lateness flips.
+ * Replaces the meet's editable schedule state in one request: slots,
+ * quizzes (with seats), prelim-assignment mappings per division, and
+ * any team-lateness flips. Negative ids mark new slots/quizzes;
+ * `quiz.slotId` may reference a negative slot id from the same payload
+ * and is resolved after the slot inserts. Response is the post-commit
+ * state.
  *
- * Temp IDs (negative) signal new slots/quizzes; `quiz.slotId` may
- * reference a negative slot id from the same payload, which is resolved
- * after slot inserts. Response is the post-commit state.
- *
- * NOT atomic — D1 has no interactive transactions, same constraint as
- * the per-row /seats and /prelim-assignments endpoints. A mid-flight
- * failure can leave the meet partly updated; callers recover by
+ * Not atomic — D1 has no interactive transactions. A mid-flight
+ * failure can leave the meet partly updated; the client recovers by
  * re-issuing the sync.
  *
- * TODO: lock completed quizzes via UI; today the server only blocks
- * destructive changes to them. See risks in the schedule-draft plan.
+ * TODO: lock completed quizzes in the editor UI. The server already
+ * rejects destructive payloads against them, but the client doesn't
+ * surface the constraint and can build a draft that 409s on save.
  */
 schedule.post('/:id/schedule/sync', async (c) => {
   const meetId = Number(c.req.param('id'))
