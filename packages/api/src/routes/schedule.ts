@@ -121,8 +121,6 @@ schedule.get('/:id/slots', async (c) => {
   return c.json({ slots })
 })
 
-// Slot mutations (create/update/delete) now go through POST /schedule/sync.
-
 // ---- Scheduled quizzes + seats ----
 
 interface SeatInput {
@@ -166,9 +164,6 @@ schedule.get('/:id/quizzes', async (c) => {
   })
 })
 
-// Quiz + seat mutations (create/update/delete/replace) now go through
-// POST /schedule/sync. Completed-quiz immutability is enforced there.
-
 /**
  * GET /api/meets/:id/prelim-assignments
  *
@@ -188,8 +183,6 @@ schedule.get('/:id/prelim-assignments', async (c) => {
     .orderBy(schema.prelimAssignments.division, schema.prelimAssignments.letter)
   return c.json({ assignments: rows })
 })
-
-// Prelim assignment mutations (Roll Teams) now go through POST /schedule/sync.
 
 // ---- Schedule sync (draft → server commit) ----
 
