@@ -82,6 +82,11 @@ export function seatRef(seat: ScheduledQuizSeat): string {
   return seat.letter ?? seat.seedRef ?? ''
 }
 
+/** Seats ordered by seatNumber. Server doesn't guarantee order. */
+export function sortedSeats(seats: ReadonlyArray<ScheduledQuizSeat>): ScheduledQuizSeat[] {
+  return [...seats].sort((a, b) => a.seatNumber - b.seatNumber)
+}
+
 /** Resolved team name for a seat: looks up the seat's letter in the
  *  prelim assignments table, then renders the matching team's
  *  `{shortName} {number}`. Returns `—` until Roll Teams has run for
