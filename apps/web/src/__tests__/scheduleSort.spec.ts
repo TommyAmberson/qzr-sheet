@@ -44,7 +44,7 @@ describe('supportedKValues — rule-book K disjointness sweep', () => {
     for (const ks of Object.values(matrix)) {
       expect(ks).toContain(1)
     }
-     
+
     console.log('K-support matrix:', matrix)
   })
 })
