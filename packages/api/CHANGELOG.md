@@ -16,3 +16,36 @@ Each release section must include a `### Bundled contract` subsection naming the
 wire/state compatibility signal — see CLAUDE.md "Contract package versioning".
 
 ## [Unreleased]
+
+## [0.10.0] — 2026-05-21
+
+First per-package API release. Covers everything shipped on master since unified tag `v0.9.1`.
+
+### Added
+
+* **Bulk `POST /api/meets/:id/schedule/sync` endpoint** — replaces the per-row schedule CRUD with a
+  single full-state-replace request. Server diffs payload against current state, resolves tempId
+  references between new slots and quizzes, full-replaces seats per editable quiz, full-replaces
+  prelim assignments per division in payload, and per-team lateness diff. Rejects with 409 on
+  attempts to delete or mutate completed quizzes. Mirrors the roster-sync pattern in
+  `POST /api/churches/:churchId/roster/sync`
+* **Team lateness flag** — `PATCH /api/teams/:teamId` accepts `lateness: boolean`; surfaces in the
+  joined `GET /api/meets/:id/teams` rows
+* **Roll Teams binding in prelim assignments** — server-side letter→teamId binding when populating
+  prelim assignments
+* **Per-division team counts** — `GET /api/meets/:id/teams` response includes per-division totals
+  for the prelim setup UI
+
+### Changed (breaking)
+
+* **Removed per-row schedule endpoints** — `POST /meets/:id/slots`,
+  `PATCH/DELETE /meets/:id/slots/:slotId`, `POST /meets/:id/quizzes`,
+  `PATCH/DELETE /meets/:id/quizzes/:quizId`, `PATCH /meets/:id/quizzes/:quizId/seats`, and the
+  standalone `POST /meets/:id/prelim-assignments` are gone. Clients must migrate to the bulk
+  `POST /schedule/sync` endpoint. The web portal landed the migration in `@qzr/web@0.10.0`; any
+  out-of-tree consumer needs the same change
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` — unchanged from 0.9.1 (no wire/schema changes; bump is the per-package
+  baseline)
