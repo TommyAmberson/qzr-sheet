@@ -40,6 +40,11 @@ const mockQuizzers = [
 /** Empty storeNames — simulates all-default (cleared) names */
 const emptyNames = Array<string>(5).fill('')
 
+let setItemSpy: ReturnType<typeof vi.spyOn>
+function localStorageWriteCount() {
+  return setItemSpy.mock.calls.length
+}
+
 beforeEach(() => {
   localStorage.clear()
   // Reset singleton session state between tests
@@ -48,6 +53,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getMeetTeams).mockResolvedValue({ teams: mockTeams, meetDivisions: ['1', '2'] })
   vi.mocked(getTeamQuizzers).mockResolvedValue({ quizzers: mockQuizzers })
+  setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
 })
 
 describe('useMeetSession — initial state', () => {
@@ -233,62 +239,19 @@ describe('useMeetSession — loadFromQuiz', () => {
     }
   }
 
-  it('assigns all 3 seats from a fully-resolved prelim quiz and stamps quizId', async () => {
+  it('returns details, leaves slot population and quizId stamping to the caller', async () => {
     const teamA = mockTeams[0]!
-    const teamB = mockTeams[1]!
-    const teamC: MeetTeam = {
-      id: 3,
-      churchId: 30,
-      churchName: 'Trinity Church',
-      churchShortName: 'TC',
-      division: '1',
-      number: 1,
-      consolation: false,
-    }
-    vi.mocked(getMeetTeams).mockResolvedValueOnce({
-      teams: [teamA, teamB, teamC],
-      meetDivisions: ['1'],
-    })
     vi.mocked(getScheduledQuiz).mockResolvedValueOnce(
       makeQuizDetails({}, [
         { seatNumber: 1, letter: 'A', seedRef: null, team: teamA, quizzers: mockQuizzers },
-        { seatNumber: 2, letter: 'B', seedRef: null, team: teamB, quizzers: mockQuizzers },
-        { seatNumber: 3, letter: 'C', seedRef: null, team: teamC, quizzers: mockQuizzers },
       ]),
     )
     const { loadFromQuiz, getSlot, quizId } = useMeetSession()
-    const result = await loadFromQuiz(42, 777, [emptyNames, emptyNames, emptyNames])
+    const result = await loadFromQuiz(42, 777)
 
     expect(result.quiz.id).toBe(777)
-    expect(getSlot(0)?.teamId).toBe(teamA.id)
-    expect(getSlot(1)?.teamId).toBe(teamB.id)
-    expect(getSlot(2)?.teamId).toBe(teamC.id)
-    expect(quizId.value).toBe(777)
-  })
-
-  it('leaves unresolved elim seats empty and assigns the rest', async () => {
-    const teamA = mockTeams[0]!
-    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(
-      makeQuizDetails({ phase: 'elim', lane: 'main', bracketLabel: 'A', label: 'D1-QA' }, [
-        { seatNumber: 1, letter: null, seedRef: '1stA', team: teamA, quizzers: mockQuizzers },
-        { seatNumber: 2, letter: null, seedRef: '2ndA', team: null, quizzers: [] },
-        { seatNumber: 3, letter: null, seedRef: '1stB', team: null, quizzers: [] },
-      ]),
-    )
-    const { loadFromQuiz, getSlot } = useMeetSession()
-    await loadFromQuiz(42, 778)
-
-    expect(getSlot(0)?.teamId).toBe(teamA.id)
-    expect(getSlot(1)).toBeUndefined()
-    expect(getSlot(2)).toBeUndefined()
-  })
-
-  it('persists quizId to localStorage', async () => {
-    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(makeQuizDetails({}, []))
-    const { loadFromQuiz } = useMeetSession()
-    await loadFromQuiz(42, 999)
-    const stored = JSON.parse(localStorage.getItem('qzr-meet-session')!)
-    expect(stored.quizId).toBe(999)
+    expect(quizId.value).toBeNull()
+    expect(getSlot(0)).toBeUndefined()
   })
 
   it('reuses an existing meet session without reloading the team list', async () => {
@@ -299,23 +262,73 @@ describe('useMeetSession — loadFromQuiz', () => {
     await loadFromQuiz(42, 777)
     expect(getMeetTeams).not.toHaveBeenCalled()
   })
+})
 
-  it('uses pre-fetched seat.quizzers — no per-team getTeamQuizzers calls', async () => {
+describe('useMeetSession — buildSlotFromSeat + applyLoadedQuiz', () => {
+  it('builds a slot from a pre-fetched seat without touching session state', async () => {
     const teamA = mockTeams[0]!
-    const teamB = mockTeams[1]!
-    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(
-      makeQuizDetails({}, [
-        { seatNumber: 1, letter: 'A', seedRef: null, team: teamA, quizzers: mockQuizzers },
-        { seatNumber: 2, letter: 'B', seedRef: null, team: teamB, quizzers: mockQuizzers },
-      ]),
+    const { loadMeet, buildSlotFromSeat, getSlot } = useMeetSession()
+    await loadMeet(42, 'Finals')
+
+    const slot = buildSlotFromSeat(
+      { seatNumber: 1, letter: 'A', seedRef: null, team: teamA, quizzers: mockQuizzers },
+      emptyNames,
     )
-    const { loadFromQuiz, getSlot } = useMeetSession()
-    await loadFromQuiz(42, 777)
-    // assignTeam path would have called getTeamQuizzers once per team; the
-    // pre-fetched path must not.
-    expect(getTeamQuizzers).not.toHaveBeenCalled()
-    // Verify the roster actually landed in the slot.
-    expect(getSlot(0)?.quizzers[0]!.dbName).toBe('Alice')
+
+    expect(slot?.teamId).toBe(teamA.id)
+    expect(slot?.quizzers[0]!.dbName).toBe('Alice')
+    // Pure builder — session.slots[0] must still be unset.
+    expect(getSlot(0)).toBeUndefined()
+  })
+
+  it('returns undefined for unresolved seats (team: null)', async () => {
+    const { loadMeet, buildSlotFromSeat } = useMeetSession()
+    await loadMeet(42, 'Finals')
+
+    const slot = buildSlotFromSeat(
+      { seatNumber: 1, letter: null, seedRef: '1stA', team: null, quizzers: [] },
+      emptyNames,
+    )
+
+    expect(slot).toBeUndefined()
+  })
+
+  it('exact-match storeNames preserves seat positions', async () => {
+    const teamA = mockTeams[0]!
+    const { loadMeet, buildSlotFromSeat } = useMeetSession()
+    await loadMeet(42, 'Finals')
+
+    // Store has Bob in seat 0, Alice in seat 1 (reversed from DB order)
+    const slot = buildSlotFromSeat(
+      { seatNumber: 1, letter: 'A', seedRef: null, team: teamA, quizzers: mockQuizzers },
+      ['Bob', 'Alice', '', '', ''],
+    )
+
+    expect(slot?.quizzers[0]!.dbName).toBe('Bob')
+    expect(slot?.quizzers[1]!.dbName).toBe('Alice')
+  })
+
+  it('applyLoadedQuiz commits all 3 slots + quizId in one localStorage write', async () => {
+    const teamA = mockTeams[0]!
+    const { loadMeet, buildSlotFromSeat, applyLoadedQuiz, getSlot, quizId } = useMeetSession()
+    await loadMeet(42, 'Finals')
+
+    const seat = {
+      seatNumber: 1 as const,
+      letter: 'A',
+      seedRef: null,
+      team: teamA,
+      quizzers: mockQuizzers,
+    }
+    const slot = buildSlotFromSeat(seat, emptyNames)!
+    const writesBefore = localStorageWriteCount()
+    applyLoadedQuiz([slot, undefined, undefined], 555)
+    const writesAfter = localStorageWriteCount()
+
+    expect(writesAfter - writesBefore).toBe(1)
+    expect(getSlot(0)?.teamId).toBe(teamA.id)
+    expect(getSlot(1)).toBeUndefined()
+    expect(quizId.value).toBe(555)
   })
 })
 

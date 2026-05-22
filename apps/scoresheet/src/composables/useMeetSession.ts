@@ -5,6 +5,7 @@ import {
   getTeamQuizzers,
   type MeetTeam,
   type ScheduledQuizDetails,
+  type ScheduledQuizSeat,
 } from '../api'
 import { QUIZZERS_PER_TEAM } from '../types/scoresheet'
 
@@ -80,41 +81,47 @@ export function useMeetSession() {
   }
 
   /**
-   * Load a meet AND prefill the 3 team slots from a scheduled quiz.
-   * `storeNamesByTeamIdx` (optional) mirrors the per-slot store
-   * quizzer names so the levenshtein matcher in `matchQuizzers` can
-   * place edited names against the right roster entries. When
-   * omitted, every slot's names are treated as empty.
-   *
-   * Reuses `details.seats[i].quizzers` from the server response — no
-   * per-team `getTeamQuizzers` round-trips, no per-seat persist. The
-   * whole load is one network call + one localStorage write.
+   * Fetch a scheduled quiz's resolved seats. If the active session
+   * isn't already on this meet, also loads it. Does NOT populate
+   * slots or stamp quizId — the caller decides per-slot policy,
+   * builds the slot data via `buildSlotFromSeat`, and commits it
+   * all atomically through `applyLoadedQuiz`.
    */
-  async function loadFromQuiz(
-    meetId: number,
-    quizId: number,
-    storeNamesByTeamIdx?: string[][],
-  ): Promise<ScheduledQuizDetails> {
+  async function loadFromQuiz(meetId: number, quizId: number): Promise<ScheduledQuizDetails> {
     const details = await getScheduledQuiz(meetId, quizId)
     if (!session.value || session.value.meetId !== meetId) {
       await loadMeet(meetId, details.quiz.meetName)
     }
-    if (!session.value) return details
-    const slots: (SlotSession | undefined)[] = [undefined, undefined, undefined]
-    for (const seat of details.seats) {
-      const slotIdx = seat.seatNumber - 1
-      if (slotIdx < 0 || slotIdx > 2 || !seat.team) continue
-      const storeNames = storeNamesByTeamIdx?.[slotIdx] ?? Array<string>(QUIZZERS_PER_TEAM).fill('')
-      slots[slotIdx] = {
-        teamId: seat.team.id,
-        dbLabel: teamLabel(seat.team),
-        dbLabelFull: teamLabelFull(seat.team),
-        quizzers: matchQuizzers(storeNames, seat.quizzers),
-      }
+    return details
+  }
+
+  /**
+   * Pure builder: produces a `SlotSession` from a pre-fetched seat
+   * and matcher input. Returns undefined when the seat is
+   * unresolved (`team: null`). Does not mutate session state.
+   */
+  function buildSlotFromSeat(
+    seat: ScheduledQuizSeat,
+    storeNames: string[],
+  ): SlotSession | undefined {
+    if (!seat.team) return undefined
+    return {
+      teamId: seat.team.id,
+      dbLabel: teamLabel(seat.team),
+      dbLabelFull: teamLabelFull(seat.team),
+      quizzers: matchQuizzers(storeNames, seat.quizzers),
     }
+  }
+
+  /**
+   * Atomically commit a quiz load: replace the 3 slot assignments
+   * and stamp `quizId`. One reactivity tick, one `localStorage`
+   * write — vs. one per slot if callers used per-slot setters.
+   */
+  function applyLoadedQuiz(slots: (SlotSession | undefined)[], quizId: number): void {
+    if (!session.value) return
     session.value = { ...session.value, slots, quizId }
     persist()
-    return details
   }
 
   /** Assign a team to a slot and fetch its quizzers */
@@ -203,8 +210,15 @@ export function useMeetSession() {
   /** Re-fetch the team list (e.g. after a page restore, to pick up roster changes) */
   async function refresh(): Promise<void> {
     if (!session.value) return
+    // Capture meetId at call-time. Scoresheet.vue's onMounted fires
+    // refresh() and loadFromUrlParams() in parallel, so a concurrent
+    // loadMeet(B) can replace session.value while we await
+    // getMeetTeams(A). Only write back if the active meet hasn't
+    // changed — otherwise we'd clobber meet B's teamList with A's.
+    const capturedMeetId = session.value.meetId
     try {
-      const { teams, meetDivisions } = await getMeetTeams(session.value.meetId)
+      const { teams, meetDivisions } = await getMeetTeams(capturedMeetId)
+      if (!session.value || session.value.meetId !== capturedMeetId) return
       session.value = { ...session.value, teamList: teams, meetDivisions }
       persist()
     } catch {
@@ -224,6 +238,8 @@ export function useMeetSession() {
     teamLabelFull,
     loadMeet,
     loadFromQuiz,
+    buildSlotFromSeat,
+    applyLoadedQuiz,
     assignTeam,
     clearSlot,
     getSlot,

@@ -18,7 +18,8 @@ import { fillOts } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import { anyTeamHasAnswer } from '../scoring/helpers'
 import { ValidationCode, validationMessage } from '../scoring/validation'
-import { useMeetSession } from '../composables/useMeetSession'
+import type { ScheduledQuizSeat } from '../api'
+import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
 import MeetPickerDialog from './MeetPickerDialog.vue'
@@ -103,53 +104,104 @@ function hasNonDefaultNames(): boolean {
 }
 
 /** Single entry point for loading a scheduled quiz into the
- *  scoresheet — shared by the URL ?meet&quiz prefill and the in-app
- *  picker. Mirrors pickTeam's clear-defaults-then-fill flow so
- *  "Quizzer 1..4" placeholders get replaced by DB names just like
- *  picking a team from the dropdown does. Warns first if the user
- *  has typed real names. Returns true on success so the picker
- *  dialog can decide whether to close. */
+ *  scoresheet — shared by the URL ?meet&quiz prefill and the
+ *  in-app picker. Warns first if the user has typed real names,
+ *  then per seat decides what to do via `computeSeatChange`, and
+ *  commits all slot updates in one atomic write. Returns true on
+ *  success so the picker dialog can decide whether to close. */
 async function loadScheduledQuiz(meetId: number, quizId: number): Promise<boolean> {
   if (hasNonDefaultNames()) {
     if (!(await confirmAction('Loading this quiz will overwrite your current names. Continue?'))) {
       return false
     }
   }
-  // Clear default names → empty seats so the matcher can fill them.
-  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
-    const storeTeamId = store.teams[teamIdx]?.id
-    if (storeTeamId === undefined) continue
-    for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-      if (isDefaultQuizzerName(store.quizzersByTeam(storeTeamId)[seatIdx]?.name ?? '')) {
-        setQuizzerName(teamIdx, seatIdx, '')
-      }
-    }
-  }
-  const storeNamesByTeamIdx = [0, 1, 2].map((teamIdx) => {
-    const storeTeamId = store.teams[teamIdx]?.id
-    if (storeTeamId === undefined) return Array<string>(QUIZZERS_PER_TEAM).fill('')
-    return store.quizzersByTeam(storeTeamId).map((q) => q.name)
-  })
+  let details
   try {
-    const details = await meetSession.loadFromQuiz(meetId, quizId, storeNamesByTeamIdx)
-    quiz.value.division = details.quiz.division
-    quiz.value.quizNumber = quizNumberFromScheduledQuiz(details.quiz)
-    quiz.value.consolation = consolationFromScheduledQuiz(details.quiz)
-    for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
-      const slot = meetSession.getSlot(teamIdx)
-      if (!slot) continue
-      const storeTeamId = store.teams[teamIdx]!.id
-      setTeamName(teamIdx, slot.dbLabelFull)
-      for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-        if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
-          setQuizzerName(teamIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
-        }
-      }
-    }
-    return true
+    details = await meetSession.loadFromQuiz(meetId, quizId)
   } catch (err) {
     alert(`Could not load scheduled quiz: ${(err as Error).message}`)
     return false
+  }
+  quiz.value.division = details.quiz.division
+  quiz.value.quizNumber = quizNumberFromScheduledQuiz(details.quiz)
+  quiz.value.consolation = consolationFromScheduledQuiz(details.quiz)
+
+  const slots = [0, 1, 2].map((i) => meetSession.getSlot(i))
+  const storeMirrors: (() => void)[] = []
+  for (const seat of details.seats) {
+    const slotIdx = seat.seatNumber - 1
+    if (slotIdx < 0 || slotIdx > 2) continue
+    const change = computeSeatChange(slotIdx, seat)
+    if (!change) continue
+    slots[slotIdx] = change.slot
+    storeMirrors.push(change.mirrorToStore)
+  }
+  meetSession.applyLoadedQuiz(slots, quizId)
+  for (const mirror of storeMirrors) mirror()
+  return true
+}
+
+/** Decide what to do for one seat. Three branches, in order:
+ *  - Same team as before — refresh team display, leave quizzer
+ *    names alone.
+ *  - Different team but every non-default typed name appears in
+ *    the incoming roster (case-insensitive, any order) — keep
+ *    the user's name positions, fill any default seats with the
+ *    unused roster names.
+ *  - Otherwise — clear all 5 quizzer seats and fill with the DB
+ *    roster in seat order. No fuzzy "Bobby ≈ Robert" rescue.
+ *
+ *  Returns the new SlotSession + a deferred store-mirror callback
+ *  so the caller can commit all slots atomically before any store
+ *  side-effects. Returns null when the seat is unresolved. */
+function computeSeatChange(
+  slotIdx: number,
+  seat: ScheduledQuizSeat,
+): { slot: SlotSession; mirrorToStore: () => void } | null {
+  if (!seat.team) return null
+  const currentSlot = meetSession.getSlot(slotIdx)
+  const storeTeamId = store.teams[slotIdx]!.id
+  const currentNames = store.quizzersByTeam(storeTeamId).map((q) => q.name)
+
+  if (currentSlot?.teamId === seat.team.id) {
+    const slot = meetSession.buildSlotFromSeat(seat, currentNames)!
+    return {
+      slot,
+      mirrorToStore: () => setTeamName(slotIdx, slot.dbLabelFull),
+    }
+  }
+
+  const currentNonDefault = currentNames.filter((n) => !isDefaultQuizzerName(n))
+  const rosterSet = new Set(seat.quizzers.map((q) => q.name.trim().toLowerCase()))
+  const allMatch =
+    currentNonDefault.length > 0 &&
+    currentNonDefault.every((n) => rosterSet.has(n.trim().toLowerCase()))
+
+  if (allMatch) {
+    const namesForMatch = currentNames.map((n) => (isDefaultQuizzerName(n) ? '' : n))
+    const slot = meetSession.buildSlotFromSeat(seat, namesForMatch)!
+    return {
+      slot,
+      mirrorToStore: () => {
+        setTeamName(slotIdx, slot.dbLabelFull)
+        for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+          if (isDefaultQuizzerName(currentNames[seatIdx] ?? '')) {
+            setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+          }
+        }
+      },
+    }
+  }
+
+  const slot = meetSession.buildSlotFromSeat(seat, [])!
+  return {
+    slot,
+    mirrorToStore: () => {
+      setTeamName(slotIdx, slot.dbLabelFull)
+      for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+        setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+      }
+    },
   }
 }
 
