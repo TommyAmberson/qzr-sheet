@@ -83,6 +83,11 @@ const props = defineProps<{
    *  resolved team names instead of `—`. */
   prelimAssignments?: PrelimAssignment[]
   meetTeams?: MeetTeamRow[]
+  /** Builds the scoresheet URL for a given quiz. When set AND
+   *  editable is false, each quiz cell's label becomes a link to
+   *  this href so users can open the scoresheet pre-filled with
+   *  that scheduled quiz (issue #6). */
+  scoresheetHref?: (quizId: number) => string
 }>()
 
 const emit = defineEmits<{
@@ -437,6 +442,14 @@ function saveEdit() {
                       >
                         {{ quiz.label }}
                       </button>
+                      <a
+                        v-else-if="scoresheetHref"
+                        :href="scoresheetHref(quiz.id)"
+                        class="quiz-label quiz-label--link"
+                        :title="`Open ${quiz.label} in the scoresheet`"
+                      >
+                        {{ quiz.label }}
+                      </a>
                       <span v-else class="quiz-label">{{ quiz.label }}</span>
                       <button
                         v-if="editable"
@@ -841,6 +854,16 @@ thead .time-col {
 
 .quiz-label-btn:hover {
   color: var(--color-accent);
+}
+
+.quiz-label--link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.quiz-label--link:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
 }
 
 .quiz-add {

@@ -22,6 +22,14 @@ const {
   load,
 } = useScheduleData(toRef(props, 'slug'))
 
+/** Build the scoresheet URL for a given quiz cell. The scoresheet
+ *  is bundled under /scoresheet/ by the build:all step that copies
+ *  apps/scoresheet/dist into apps/web/dist, so a same-origin link
+ *  inherits cookie sessions + guest tokens automatically. */
+function scoresheetHref(quizId: number): string {
+  return meet.value ? `/scoresheet/?meet=${meet.value.id}&quiz=${quizId}` : '#'
+}
+
 onMounted(load)
 </script>
 
@@ -59,6 +67,7 @@ onMounted(load)
         :quizzes="quizzes"
         :prelim-assignments="prelimAssignments"
         :meet-teams="teams"
+        :scoresheet-href="scoresheetHref"
       />
     </template>
   </div>
