@@ -7,9 +7,11 @@ import {
   type MeetRoomSummary,
   type MeetSlotSummary,
   type MeetSummary,
+  type MeetTeam,
   type PrelimAssignmentRow,
   type ScheduledQuizDetails,
   type ScheduledQuizSummaryRow,
+  getMeetTeams,
   listMeetRooms,
   listMeetSlots,
   listPrelimAssignments,
@@ -46,6 +48,7 @@ const quizzes = shallowRef<ScheduledQuizSummaryRow[]>([])
 const rooms = shallowRef<MeetRoomSummary[]>([])
 const slots = shallowRef<MeetSlotSummary[]>([])
 const prelimAssignments = shallowRef<PrelimAssignmentRow[]>([])
+const teams = shallowRef<MeetTeam[]>([])
 const quizLoading = ref(false)
 const quizError = ref('')
 
@@ -53,16 +56,18 @@ async function loadQuizzesForMeet(meetId: number) {
   quizLoading.value = true
   quizError.value = ''
   try {
-    const [q, r, s, p] = await Promise.all([
+    const [q, r, s, p, t] = await Promise.all([
       listScheduledQuizzes(meetId),
       listMeetRooms(meetId),
       listMeetSlots(meetId),
       listPrelimAssignments(meetId),
+      getMeetTeams(meetId),
     ])
     quizzes.value = q.quizzes
     rooms.value = r.rooms
     slots.value = s.slots
     prelimAssignments.value = p.assignments
+    teams.value = t.teams
   } catch (e) {
     quizError.value = (e as Error).message
   } finally {
@@ -107,6 +112,7 @@ function backToMeetStep() {
   rooms.value = []
   slots.value = []
   prelimAssignments.value = []
+  teams.value = []
 }
 
 function close() {
@@ -189,6 +195,7 @@ defineExpose({ open })
           :slots="slots"
           :quizzes="quizzes"
           :prelim-assignments="prelimAssignments"
+          :meet-teams="teams"
           empty-message="This meet has no scheduled quizzes yet."
         >
           <template #quiz-label="{ quiz }">

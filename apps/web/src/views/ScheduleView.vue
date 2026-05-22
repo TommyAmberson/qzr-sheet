@@ -8,6 +8,8 @@ import { useScheduleData } from '../composables/useScheduleData'
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
 
+declare const __SCORESHEET_URL__: string
+
 const {
   rooms,
   slots,
@@ -22,12 +24,14 @@ const {
   load,
 } = useScheduleData(toRef(props, 'slug'))
 
-/** Build the scoresheet URL for a given quiz cell. The scoresheet
- *  is bundled under /scoresheet/ by the build:all step that copies
- *  apps/scoresheet/dist into apps/web/dist, so a same-origin link
- *  inherits cookie sessions + guest tokens automatically. */
+/** Build the scoresheet URL for a given quiz cell. Vite injects
+ *  __SCORESHEET_URL__ as '/scoresheet/' in prod (same-origin bundle
+ *  via build:all) and 'http://localhost:5173' in dev (the scoresheet
+ *  Vite server). */
 function scoresheetHref(quizId: number): string {
-  return meet.value ? `/scoresheet/?meet=${meet.value.id}&quiz=${quizId}` : '#'
+  if (!meet.value) return '#'
+  const base = __SCORESHEET_URL__.replace(/\/$/, '')
+  return `${base}/?meet=${meet.value.id}&quiz=${quizId}`
 }
 
 onMounted(load)
