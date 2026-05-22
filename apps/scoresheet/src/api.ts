@@ -61,6 +61,7 @@ export function getTeamQuizzers(teamId: number): Promise<{ quizzers: MeetTeamQui
 export interface ScheduledQuizSummary {
   id: number
   meetId: number
+  meetName: string
   slotId: number
   roomId: number
   division: string
@@ -76,15 +77,7 @@ export interface ScheduledQuizSeat {
   seatNumber: number
   letter: string | null
   seedRef: string | null
-  team: {
-    id: number
-    churchId: number
-    churchName: string
-    churchShortName: string
-    division: string
-    number: number
-    consolation: boolean
-  } | null
+  team: MeetTeam | null
   quizzers: MeetTeamQuizzer[]
 }
 

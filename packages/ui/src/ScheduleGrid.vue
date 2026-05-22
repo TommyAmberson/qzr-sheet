@@ -15,7 +15,6 @@ import {
   groupRowsByDay,
   hasAnyQuiz,
   seatRef,
-  seatTeam,
   sortedSeats,
 } from './scheduleGrid'
 
@@ -55,12 +54,22 @@ const days = computed<DayGroup<ScheduledQuiz, ScheduleSlot>[]>(() =>
 
 const empty = computed(() => !hasAnyQuiz(grid.value))
 
+// Precomputed lookup maps so seat-team resolution is O(1) per seat
+// instead of O(assignments + teams). Without these, rendering a meet
+// with hundreds of seats does thousands of .find() scans per render.
+const assignmentByDivisionLetter = computed(() => {
+  const m = new Map<string, number>()
+  for (const a of props.prelimAssignments ?? []) m.set(`${a.division}|${a.letter}`, a.teamId)
+  return m
+})
+const teamById = computed(() => new Map((props.meetTeams ?? []).map((t) => [t.id, t])))
+
 function seatTeamLabel(quiz: ScheduledQuiz, seat: ScheduledSeat): string {
-  return seatTeam(seat, {
-    division: quiz.division,
-    assignments: props.prelimAssignments ?? [],
-    teams: props.meetTeams ?? [],
-  })
+  if (!seat.letter) return '—'
+  const teamId = assignmentByDivisionLetter.value.get(`${quiz.division}|${seat.letter}`)
+  if (teamId === undefined) return '—'
+  const t = teamById.value.get(teamId)
+  return t ? `${t.churchShortName} ${t.number}` : '—'
 }
 </script>
 

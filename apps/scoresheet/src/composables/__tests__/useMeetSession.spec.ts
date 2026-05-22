@@ -217,6 +217,7 @@ describe('useMeetSession — loadFromQuiz', () => {
       quiz: {
         id: 777,
         meetId: 42,
+        meetName: 'District Finals',
         slotId: 1,
         roomId: 1,
         division: '1',
@@ -256,7 +257,7 @@ describe('useMeetSession — loadFromQuiz', () => {
       ]),
     )
     const { loadFromQuiz, getSlot, quizId } = useMeetSession()
-    const result = await loadFromQuiz(42, 777, 'Finals', [emptyNames, emptyNames, emptyNames])
+    const result = await loadFromQuiz(42, 777, [emptyNames, emptyNames, emptyNames])
 
     expect(result.quiz.id).toBe(777)
     expect(getSlot(0)?.teamId).toBe(teamA.id)
@@ -275,7 +276,7 @@ describe('useMeetSession — loadFromQuiz', () => {
       ]),
     )
     const { loadFromQuiz, getSlot } = useMeetSession()
-    await loadFromQuiz(42, 778, 'Finals', [emptyNames, emptyNames, emptyNames])
+    await loadFromQuiz(42, 778)
 
     expect(getSlot(0)?.teamId).toBe(teamA.id)
     expect(getSlot(1)).toBeUndefined()
@@ -285,7 +286,7 @@ describe('useMeetSession — loadFromQuiz', () => {
   it('persists quizId to localStorage', async () => {
     vi.mocked(getScheduledQuiz).mockResolvedValueOnce(makeQuizDetails({}, []))
     const { loadFromQuiz } = useMeetSession()
-    await loadFromQuiz(42, 999, 'Finals', [emptyNames, emptyNames, emptyNames])
+    await loadFromQuiz(42, 999)
     const stored = JSON.parse(localStorage.getItem('qzr-meet-session')!)
     expect(stored.quizId).toBe(999)
   })
@@ -295,8 +296,26 @@ describe('useMeetSession — loadFromQuiz', () => {
     const { loadMeet, loadFromQuiz } = useMeetSession()
     await loadMeet(42, 'Finals')
     vi.mocked(getMeetTeams).mockClear()
-    await loadFromQuiz(42, 777, 'Finals', [emptyNames, emptyNames, emptyNames])
+    await loadFromQuiz(42, 777)
     expect(getMeetTeams).not.toHaveBeenCalled()
+  })
+
+  it('uses pre-fetched seat.quizzers — no per-team getTeamQuizzers calls', async () => {
+    const teamA = mockTeams[0]!
+    const teamB = mockTeams[1]!
+    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(
+      makeQuizDetails({}, [
+        { seatNumber: 1, letter: 'A', seedRef: null, team: teamA, quizzers: mockQuizzers },
+        { seatNumber: 2, letter: 'B', seedRef: null, team: teamB, quizzers: mockQuizzers },
+      ]),
+    )
+    const { loadFromQuiz, getSlot } = useMeetSession()
+    await loadFromQuiz(42, 777)
+    // assignTeam path would have called getTeamQuizzers once per team; the
+    // pre-fetched path must not.
+    expect(getTeamQuizzers).not.toHaveBeenCalled()
+    // Verify the roster actually landed in the slot.
+    expect(getSlot(0)?.quizzers[0]!.dbName).toBe('Alice')
   })
 })
 

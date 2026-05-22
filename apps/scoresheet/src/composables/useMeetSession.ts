@@ -37,6 +37,7 @@ const session = ref<MeetSessionData | null>(loadFromStorage())
 
 export function useMeetSession() {
   const isActive = computed(() => session.value !== null)
+  const meetId = computed(() => session.value?.meetId ?? null)
   const meetName = computed(() => session.value?.meetName ?? null)
   const teamList = computed(() => session.value?.teamList ?? [])
   const quizId = computed(() => session.value?.quizId ?? null)
@@ -80,38 +81,39 @@ export function useMeetSession() {
 
   /**
    * Load a meet AND prefill the 3 team slots from a scheduled quiz.
-   * `meetName` is required when this opens a meet the user hasn't
-   * loaded before; pass the empty string to use the quiz's own
-   * source of truth (currently unused — the quiz response doesn't
-   * carry the meet name).
+   * `storeNamesByTeamIdx` (optional) mirrors the per-slot store
+   * quizzer names so the levenshtein matcher in `matchQuizzers` can
+   * place edited names against the right roster entries. When
+   * omitted, every slot's names are treated as empty.
    *
-   * `storeNamesByTeamIdx` mirrors the per-slot store quizzer names
-   * passed to `assignTeam`, so the levenshtein matcher in
-   * `matchQuizzers` can place edited names against the right roster
-   * entries.
+   * Reuses `details.seats[i].quizzers` from the server response — no
+   * per-team `getTeamQuizzers` round-trips, no per-seat persist. The
+   * whole load is one network call + one localStorage write.
    */
   async function loadFromQuiz(
     meetId: number,
     quizId: number,
-    meetName: string,
-    storeNamesByTeamIdx: string[][],
+    storeNamesByTeamIdx?: string[][],
   ): Promise<ScheduledQuizDetails> {
-    if (!session.value || session.value.meetId !== meetId) {
-      await loadMeet(meetId, meetName)
-    }
     const details = await getScheduledQuiz(meetId, quizId)
+    if (!session.value || session.value.meetId !== meetId) {
+      await loadMeet(meetId, details.quiz.meetName)
+    }
+    if (!session.value) return details
+    const slots: (SlotSession | undefined)[] = [undefined, undefined, undefined]
     for (const seat of details.seats) {
       const slotIdx = seat.seatNumber - 1
-      if (slotIdx < 0 || slotIdx > 2) continue
-      if (!seat.team) continue
-      const storeNames =
-        storeNamesByTeamIdx[slotIdx] ?? (Array<string>(QUIZZERS_PER_TEAM).fill('') as string[])
-      await assignTeam(slotIdx, seat.team.id, storeNames)
+      if (slotIdx < 0 || slotIdx > 2 || !seat.team) continue
+      const storeNames = storeNamesByTeamIdx?.[slotIdx] ?? Array<string>(QUIZZERS_PER_TEAM).fill('')
+      slots[slotIdx] = {
+        teamId: seat.team.id,
+        dbLabel: teamLabel(seat.team),
+        dbLabelFull: teamLabelFull(seat.team),
+        quizzers: matchQuizzers(storeNames, seat.quizzers),
+      }
     }
-    if (session.value) {
-      session.value = { ...session.value, quizId }
-      persist()
-    }
+    session.value = { ...session.value, slots, quizId }
+    persist()
     return details
   }
 
@@ -212,6 +214,7 @@ export function useMeetSession() {
 
   return {
     isActive,
+    meetId,
     meetName,
     teamList,
     quizId,

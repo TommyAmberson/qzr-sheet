@@ -95,7 +95,6 @@ export function useMeetList() {
     joinCode,
     joinError,
     joining,
-    signedIn,
     init,
     fetchMeets,
     handleJoinCode,

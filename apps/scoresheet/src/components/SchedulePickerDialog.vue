@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 
 import { ScheduleGrid } from '@qzr/ui'
 
@@ -8,6 +8,7 @@ import {
   type MeetSlotSummary,
   type MeetSummary,
   type PrelimAssignmentRow,
+  type ScheduledQuizDetails,
   type ScheduledQuizSummaryRow,
   listMeetRooms,
   listMeetSlots,
@@ -17,9 +18,8 @@ import {
 import { initGuestSession } from '../composables/useGuestSession'
 import { useMeetList } from '../composables/useMeetList'
 import { useMeetSession } from '../composables/useMeetSession'
-import { QUIZZERS_PER_TEAM } from '../types/scoresheet'
 
-const emit = defineEmits<{ loaded: [{ quizId: number }] }>()
+const emit = defineEmits<{ loaded: [ScheduledQuizDetails] }>()
 
 const meetSession = useMeetSession()
 const {
@@ -39,7 +39,7 @@ type Step = 'meet' | 'quiz'
 const dialogRef = ref<HTMLDialogElement | null>(null)
 const step = ref<Step>('meet')
 const activeMeetId = ref<number | null>(null)
-const activeMeetName = ref<string>('')
+const headerMeetName = computed(() => meetSession.meetName.value ?? '')
 const submitting = ref(false)
 
 const quizzes = shallowRef<ScheduledQuizSummaryRow[]>([])
@@ -72,15 +72,14 @@ async function loadQuizzesForMeet(meetId: number) {
 
 async function selectMeet(meet: MeetSummary) {
   submitting.value = true
-  meetsError.value = ''
+  quizError.value = ''
   try {
     setActiveGuest(meet.meetId)
     activeMeetId.value = meet.meetId
-    activeMeetName.value = meet.meetName
     step.value = 'quiz'
     await loadQuizzesForMeet(meet.meetId)
   } catch (e) {
-    meetsError.value = (e as Error).message
+    quizError.value = (e as Error).message
   } finally {
     submitting.value = false
   }
@@ -91,14 +90,9 @@ async function pickQuiz(quizId: number) {
   submitting.value = true
   quizError.value = ''
   try {
-    await meetSession.loadFromQuiz(
-      activeMeetId.value,
-      quizId,
-      activeMeetName.value,
-      [0, 1, 2].map(() => Array<string>(QUIZZERS_PER_TEAM).fill('')),
-    )
+    const details = await meetSession.loadFromQuiz(activeMeetId.value, quizId)
     dialogRef.value?.close()
-    emit('loaded', { quizId })
+    emit('loaded', details)
   } catch (e) {
     quizError.value = (e as Error).message
   } finally {
@@ -109,7 +103,6 @@ async function pickQuiz(quizId: number) {
 function backToMeetStep() {
   step.value = 'meet'
   activeMeetId.value = null
-  activeMeetName.value = ''
   quizzes.value = []
   rooms.value = []
   slots.value = []
@@ -127,16 +120,11 @@ async function open() {
   // calls before the guest JWT is attached (initMeetList() awaits it
   // for the meet-picker step). Cached promise — no extra round-trip.
   await initGuestSession()
-  // If a meet is already loaded, jump straight to the quiz step for it.
-  if (meetSession.isActive.value) {
-    const session = meetSession.snapshotSession()
-    if (session) {
-      activeMeetId.value = session.meetId
-      activeMeetName.value = session.meetName
-      step.value = 'quiz'
-      await loadQuizzesForMeet(session.meetId)
-      return
-    }
+  if (meetSession.isActive.value && meetSession.meetId.value !== null) {
+    activeMeetId.value = meetSession.meetId.value
+    step.value = 'quiz'
+    await loadQuizzesForMeet(meetSession.meetId.value)
+    return
   }
   step.value = 'meet'
   await initMeetList()
@@ -150,12 +138,11 @@ defineExpose({ open })
     <div class="schedule-picker-inner">
       <div class="schedule-picker-header">
         <span class="schedule-picker-title">
-          {{ step === 'meet' ? 'Load from schedule' : `Load from schedule — ${activeMeetName}` }}
+          {{ step === 'meet' ? 'Load from schedule' : `Load from schedule — ${headerMeetName}` }}
         </span>
         <button class="schedule-picker-close" @click="close">×</button>
       </div>
 
-      <!-- Step 1: pick a meet (skipped when a meet is already active) -->
       <template v-if="step === 'meet'">
         <p v-if="meetsLoading" class="schedule-picker-state">Loading…</p>
         <p v-else-if="meetsError" class="schedule-picker-state schedule-picker-state--error">
@@ -191,7 +178,6 @@ defineExpose({ open })
         </form>
       </template>
 
-      <!-- Step 2: pick a scheduled quiz -->
       <template v-else>
         <p v-if="quizLoading" class="schedule-picker-state">Loading schedule…</p>
         <p v-else-if="quizError" class="schedule-picker-state schedule-picker-state--error">

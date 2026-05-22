@@ -184,71 +184,82 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
   }
 
   const db = getDb(c)
-  const [quizRow] = await db
-    .select({
-      id: schema.scheduledQuizzes.id,
-      meetId: schema.scheduledQuizzes.meetId,
-      slotId: schema.scheduledQuizzes.slotId,
-      roomId: schema.scheduledQuizzes.roomId,
-      division: schema.scheduledQuizzes.division,
-      phase: schema.scheduledQuizzes.phase,
-      lane: schema.scheduledQuizzes.lane,
-      label: schema.scheduledQuizzes.label,
-      bracketLabel: schema.scheduledQuizzes.bracketLabel,
-      slotStartAt: schema.meetSlots.startAt,
-      roomName: schema.meetRooms.name,
-    })
-    .from(schema.scheduledQuizzes)
-    .innerJoin(schema.meetSlots, eq(schema.meetSlots.id, schema.scheduledQuizzes.slotId))
-    .innerJoin(schema.meetRooms, eq(schema.meetRooms.id, schema.scheduledQuizzes.roomId))
-    .where(and(eq(schema.scheduledQuizzes.id, quizId), eq(schema.scheduledQuizzes.meetId, meetId)))
+
+  // Phase 1: quiz row + seats in parallel — seats only depend on quizId
+  // (a route param), so they can race with the join. If quiz is missing
+  // we discard the seats; cost is negligible vs. a serial extra round-trip.
+  const [quizRows, seats] = await Promise.all([
+    db
+      .select({
+        id: schema.scheduledQuizzes.id,
+        meetId: schema.scheduledQuizzes.meetId,
+        meetName: schema.quizMeets.name,
+        slotId: schema.scheduledQuizzes.slotId,
+        roomId: schema.scheduledQuizzes.roomId,
+        division: schema.scheduledQuizzes.division,
+        phase: schema.scheduledQuizzes.phase,
+        lane: schema.scheduledQuizzes.lane,
+        label: schema.scheduledQuizzes.label,
+        bracketLabel: schema.scheduledQuizzes.bracketLabel,
+        slotStartAt: schema.meetSlots.startAt,
+        roomName: schema.meetRooms.name,
+      })
+      .from(schema.scheduledQuizzes)
+      .innerJoin(schema.quizMeets, eq(schema.quizMeets.id, schema.scheduledQuizzes.meetId))
+      .innerJoin(schema.meetSlots, eq(schema.meetSlots.id, schema.scheduledQuizzes.slotId))
+      .innerJoin(schema.meetRooms, eq(schema.meetRooms.id, schema.scheduledQuizzes.roomId))
+      .where(
+        and(eq(schema.scheduledQuizzes.id, quizId), eq(schema.scheduledQuizzes.meetId, meetId)),
+      ),
+    db
+      .select()
+      .from(schema.scheduledQuizSeats)
+      .where(eq(schema.scheduledQuizSeats.quizId, quizId))
+      .orderBy(asc(schema.scheduledQuizSeats.seatNumber)),
+  ])
+  const quizRow = quizRows[0]
   if (!quizRow) return c.json({ error: 'Quiz not found' }, 404)
 
-  const seats = await db
-    .select()
-    .from(schema.scheduledQuizSeats)
-    .where(eq(schema.scheduledQuizSeats.quizId, quizId))
-    .orderBy(asc(schema.scheduledQuizSeats.seatNumber))
-
+  // Phase 2: prelim + elim seat resolutions in parallel — both only need
+  // the seats from phase 1.
   const prelimLetters = seats
     .map((s) => s.letter)
     .filter((l): l is string => l !== null && l !== '')
   const elimRefs = seats.map((s) => s.seedRef).filter((r): r is string => r !== null && r !== '')
 
-  const prelimMap = new Map<string, number>()
-  if (prelimLetters.length > 0) {
-    const rows = await db
-      .select({
-        letter: schema.prelimAssignments.letter,
-        teamId: schema.prelimAssignments.teamId,
-      })
-      .from(schema.prelimAssignments)
-      .where(
-        and(
-          eq(schema.prelimAssignments.meetId, meetId),
-          eq(schema.prelimAssignments.division, quizRow.division),
-          inArray(schema.prelimAssignments.letter, prelimLetters),
-        ),
-      )
-    for (const r of rows) prelimMap.set(r.letter, r.teamId)
-  }
-
-  const elimMap = new Map<string, number>()
-  if (elimRefs.length > 0) {
-    const rows = await db
-      .select({
-        seedRef: schema.seedResolutions.seedRef,
-        teamId: schema.seedResolutions.teamId,
-      })
-      .from(schema.seedResolutions)
-      .where(
-        and(
-          eq(schema.seedResolutions.meetId, meetId),
-          inArray(schema.seedResolutions.seedRef, elimRefs),
-        ),
-      )
-    for (const r of rows) elimMap.set(r.seedRef, r.teamId)
-  }
+  const [prelimRows, elimRows] = await Promise.all([
+    prelimLetters.length === 0
+      ? Promise.resolve([] as { letter: string; teamId: number }[])
+      : db
+          .select({
+            letter: schema.prelimAssignments.letter,
+            teamId: schema.prelimAssignments.teamId,
+          })
+          .from(schema.prelimAssignments)
+          .where(
+            and(
+              eq(schema.prelimAssignments.meetId, meetId),
+              eq(schema.prelimAssignments.division, quizRow.division),
+              inArray(schema.prelimAssignments.letter, prelimLetters),
+            ),
+          ),
+    elimRefs.length === 0
+      ? Promise.resolve([] as { seedRef: string; teamId: number }[])
+      : db
+          .select({
+            seedRef: schema.seedResolutions.seedRef,
+            teamId: schema.seedResolutions.teamId,
+          })
+          .from(schema.seedResolutions)
+          .where(
+            and(
+              eq(schema.seedResolutions.meetId, meetId),
+              inArray(schema.seedResolutions.seedRef, elimRefs),
+            ),
+          ),
+  ])
+  const prelimMap = new Map(prelimRows.map((r) => [r.letter, r.teamId]))
+  const elimMap = new Map(elimRows.map((r) => [r.seedRef, r.teamId]))
 
   const seatTeamIds = seats.map((s) => {
     if (s.letter) return prelimMap.get(s.letter) ?? null
@@ -296,6 +307,7 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
     quiz: {
       id: quizRow.id,
       meetId: quizRow.meetId,
+      meetName: quizRow.meetName,
       slotId: quizRow.slotId,
       roomId: quizRow.roomId,
       division: quizRow.division,

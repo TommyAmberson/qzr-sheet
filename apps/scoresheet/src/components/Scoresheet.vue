@@ -18,6 +18,7 @@ import { fillOts } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import { anyTeamHasAnswer } from '../scoring/helpers'
 import { ValidationCode, validationMessage } from '../scoring/validation'
+import type { ScheduledQuizDetails } from '../api'
 import { useMeetSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
@@ -88,14 +89,28 @@ onMounted(() => {
   void loadFromUrlParams()
 })
 
-/**
- * If the page was opened with `?meet=X&quiz=Y` (e.g. from the
- * portal's schedule view → quiz cell), prefill the meet session
- * with that scheduled quiz and populate the scoresheet meta
- * (division / quiz # / consolation) + the 3 team slots.
- * After loading, strip the params from the URL so a refresh
- * doesn't re-trigger and clobber edits.
- */
+/** Apply the resolved per-slot dbLabelFull + roster names from the
+ *  meet session into the scoresheet store. Used by both the URL
+ *  prefill path and the in-app picker callback — the store and the
+ *  meetSession are eventually-consistent after loadFromQuiz, this
+ *  is the function that bridges them. */
+function fillSlotsFromMeetSession() {
+  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+    const slot = meetSession.getSlot(teamIdx)
+    if (!slot) continue
+    const storeTeamId = store.teams[teamIdx]!.id
+    setTeamName(teamIdx, slot.dbLabelFull)
+    for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+      if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
+        setQuizzerName(teamIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+      }
+    }
+  }
+}
+
+/** Prefill from `?meet=&quiz=` (set by the portal's schedule view
+ *  when the user clicks a quiz cell). Always strips the params from
+ *  the URL afterward so a refresh doesn't re-clobber edits. */
 async function loadFromUrlParams() {
   const params = new URLSearchParams(window.location.search)
   const meetId = Number(params.get('meet'))
@@ -105,37 +120,20 @@ async function loadFromUrlParams() {
   const storeNamesByTeamIdx = [0, 1, 2].map((teamIdx) => {
     const storeTeamId = store.teams[teamIdx]?.id
     if (storeTeamId === undefined) return Array<string>(QUIZZERS_PER_TEAM).fill('')
-    // Cleared default names get sent as empty so the matcher fills them
-    // with the resolved DB names; edited names pass through and try to
-    // bind to roster entries.
     return store
       .quizzersByTeam(storeTeamId)
       .map((q) => (isDefaultQuizzerName(q.name) ? '' : q.name))
   })
 
   try {
-    const details = await meetSession.loadFromQuiz(meetId, quizId, '', storeNamesByTeamIdx)
-
+    const details = await meetSession.loadFromQuiz(meetId, quizId, storeNamesByTeamIdx)
     quiz.value.division = details.quiz.division
     quiz.value.quizNumber = quizNumberFromScheduledQuiz(details.quiz)
     quiz.value.consolation = consolationFromScheduledQuiz(details.quiz)
-
-    for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
-      const slot = meetSession.getSlot(teamIdx)
-      if (!slot) continue
-      const storeTeamId = store.teams[teamIdx]!.id
-      setTeamName(teamIdx, slot.dbLabelFull)
-      for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-        if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
-          setQuizzerName(teamIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
-        }
-      }
-    }
+    fillSlotsFromMeetSession()
   } catch (err) {
     alert(`Could not load scheduled quiz: ${(err as Error).message}`)
   } finally {
-    // Always strip the params so they don't re-fire on refresh, even
-    // when the load failed (the user can manually retry via the picker).
     history.replaceState(null, '', window.location.pathname)
   }
 }
@@ -150,22 +148,11 @@ async function openSchedulePicker() {
   schedulePickerRef.value?.open()
 }
 
-async function onSchedulePicked() {
-  // loadFromQuiz inside the dialog already populated the meet session,
-  // assigned the 3 team slots, and stamped quizId. We mirror the URL
-  // entry point's post-assign bookkeeping so the scoresheet's team
-  // labels + empty quizzer seats fill from the resolved DB data.
-  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
-    const slot = meetSession.getSlot(teamIdx)
-    if (!slot) continue
-    const storeTeamId = store.teams[teamIdx]!.id
-    setTeamName(teamIdx, slot.dbLabelFull)
-    for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-      if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
-        setQuizzerName(teamIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
-      }
-    }
-  }
+function onSchedulePicked(details: ScheduledQuizDetails) {
+  quiz.value.division = details.quiz.division
+  quiz.value.quizNumber = quizNumberFromScheduledQuiz(details.quiz)
+  quiz.value.consolation = consolationFromScheduledQuiz(details.quiz)
+  fillSlotsFromMeetSession()
 }
 
 function isDefaultQuizzerName(name: string): boolean {
