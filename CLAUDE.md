@@ -165,6 +165,18 @@ git push origin master
 CI fires the matching `.github/workflows/deploy-<pkg>.yml` (or `release-scoresheet.yml`), runs the
 contract check, deploys, and tags `<pkg>@<semver>` on success. **Don't tag locally** — CI does it.
 
+## Scope discipline
+
+When working on a feature and you notice something nearby that's bad, awkward, or should be
+changed/fixed — **stop and check with the user before acting**. Offer options:
+
+* address it now as a separate change (commit it before continuing the feature), or
+* leave it and document it (TODO comment, issue, or ROADMAP entry) and continue.
+
+Don't silently fix it as part of the current feature — it muddies the diff, and the user may have
+context (deliberate choice, planned rework, scope concerns) you don't. And don't just ignore it —
+surface it so the user can decide.
+
 ## Key Conventions
 
 * Scoring functions are **pure** — `cells[teamIdx][seatIdx][colIdx]` in, result out. No Vue.
