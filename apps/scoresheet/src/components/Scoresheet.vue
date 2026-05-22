@@ -2831,6 +2831,17 @@ thead tr th.sticky-col {
     inset 0 -2px 0 0 var(--color-accent),
     inset -2px 0 0 0 var(--color-accent);
 }
+/* col--name keeps its own 1px border-top to bridge the sticky-layer
+   gap, which pushes the padding box (where inset box-shadow paints)
+   1px lower than its neighbours. Recolour that border to accent and
+   shrink the top box-shadow to 1px so the visible blue stays 2px
+   tall and aligns continuously with the rest of the row's top edge. */
+.row--drop-target > .col--name {
+  border-top-color: var(--color-accent);
+  box-shadow:
+    inset 0 1px 0 0 var(--color-accent),
+    inset 0 -2px 0 0 var(--color-accent);
+}
 
 /* Editable name inputs */
 .editable-name {
