@@ -559,3 +559,184 @@ describe('POST /api/meets/:id/schedule/sync', () => {
     expect(body.teams.find((t) => t.id === t1.id)!.lateness).toBe(true)
   })
 })
+
+describe('GET /api/meets/:id/quizzes/:quizId/teams', () => {
+  let db: Db
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    app = createApp(testSuperuser, db)
+  })
+
+  async function seedChurchTeams(meetId: number) {
+    const [church] = await db
+      .insert(schema.churches)
+      .values({ meetId, name: 'Grace Church', shortName: 'Grace', coachCodeHash: 'x' })
+      .returning()
+    const teams = await db
+      .insert(schema.teams)
+      .values([
+        { meetId, churchId: church!.id, division: '1', number: 1 },
+        { meetId, churchId: church!.id, division: '1', number: 2 },
+        { meetId, churchId: church!.id, division: '1', number: 3 },
+      ])
+      .returning()
+    for (const team of teams) {
+      const identities = await db.insert(schema.quizzerIdentities).values([{}, {}, {}]).returning()
+      await db.insert(schema.teamRosters).values([
+        { teamId: team.id, quizzerId: identities[0]!.id, name: `${team.number}-Alice` },
+        { teamId: team.id, quizzerId: identities[1]!.id, name: `${team.number}-Bob` },
+        { teamId: team.id, quizzerId: identities[2]!.id, name: `${team.number}-Carol` },
+      ])
+    }
+    return { church: church!, teams }
+  }
+
+  async function seedQuizWithSeats(
+    meetId: number,
+    slotId: number,
+    roomId: number,
+    seats: { seatNumber: number; letter?: string; seedRef?: string }[],
+    overrides: Partial<typeof schema.scheduledQuizzes.$inferInsert> = {},
+  ) {
+    const [quiz] = await db
+      .insert(schema.scheduledQuizzes)
+      .values({
+        meetId,
+        slotId,
+        roomId,
+        division: '1',
+        phase: 'prelim',
+        label: 'D1-Q1',
+        ...overrides,
+      })
+      .returning()
+    await db.insert(schema.scheduledQuizSeats).values(
+      seats.map((s) => ({
+        quizId: quiz!.id,
+        seatNumber: s.seatNumber,
+        letter: s.letter ?? null,
+        seedRef: s.seedRef ?? null,
+      })),
+    )
+    return quiz!
+  }
+
+  it('returns 3 resolved teams + rosters for a prelim quiz', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const slot = await seedSlot(db, meet.id)
+    const { teams } = await seedChurchTeams(meet.id)
+    const now = new Date()
+    await db.insert(schema.prelimAssignments).values([
+      { meetId: meet.id, division: '1', letter: 'A', teamId: teams[0]!.id, assignedAt: now },
+      { meetId: meet.id, division: '1', letter: 'B', teamId: teams[1]!.id, assignedAt: now },
+      { meetId: meet.id, division: '1', letter: 'C', teamId: teams[2]!.id, assignedAt: now },
+    ])
+    const quiz = await seedQuizWithSeats(meet.id, slot.id, room.id, [
+      { seatNumber: 1, letter: 'A' },
+      { seatNumber: 2, letter: 'B' },
+      { seatNumber: 3, letter: 'C' },
+    ])
+
+    const res = await app.request(`/api/meets/${meet.id}/quizzes/${quiz.id}/teams`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{
+      quiz: { id: number; division: string; phase: string; label: string; roomName: string }
+      seats: Array<{
+        seatNumber: number
+        letter: string | null
+        seedRef: string | null
+        team: { id: number; churchShortName: string; number: number } | null
+        quizzers: Array<{ name: string }>
+      }>
+    }>(res)
+
+    expect(body.quiz.id).toBe(quiz.id)
+    expect(body.quiz.division).toBe('1')
+    expect(body.quiz.phase).toBe('prelim')
+    expect(body.quiz.label).toBe('D1-Q1')
+    expect(body.quiz.roomName).toBe('Room A')
+    expect(body.seats).toHaveLength(3)
+    expect(body.seats.map((s) => s.seatNumber)).toEqual([1, 2, 3])
+    expect(body.seats[0]!.team!.id).toBe(teams[0]!.id)
+    expect(body.seats[0]!.team!.churchShortName).toBe('Grace')
+    expect(body.seats[0]!.quizzers.map((q) => q.name)).toEqual(['1-Alice', '1-Bob', '1-Carol'])
+    expect(body.seats[2]!.team!.number).toBe(3)
+  })
+
+  it('returns team: null + quizzers: [] for unresolved elim seedRefs', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const slot = await seedSlot(db, meet.id)
+    const { teams } = await seedChurchTeams(meet.id)
+    const now = new Date()
+    await db.insert(schema.seedResolutions).values([
+      { meetId: meet.id, seedRef: '1stA', teamId: teams[0]!.id, resolvedAt: now },
+      // '2ndA' and '1stB' deliberately unresolved
+    ])
+    const quiz = await seedQuizWithSeats(
+      meet.id,
+      slot.id,
+      room.id,
+      [
+        { seatNumber: 1, seedRef: '1stA' },
+        { seatNumber: 2, seedRef: '2ndA' },
+        { seatNumber: 3, seedRef: '1stB' },
+      ],
+      { phase: 'elim', lane: 'main', label: 'D1-QA', bracketLabel: 'A' },
+    )
+
+    const res = await app.request(`/api/meets/${meet.id}/quizzes/${quiz.id}/teams`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{
+      quiz: { phase: string; lane: string | null; bracketLabel: string | null }
+      seats: Array<{
+        seedRef: string | null
+        team: { id: number } | null
+        quizzers: Array<{ name: string }>
+      }>
+    }>(res)
+
+    expect(body.quiz.phase).toBe('elim')
+    expect(body.quiz.lane).toBe('main')
+    expect(body.quiz.bracketLabel).toBe('A')
+    expect(body.seats[0]!.team!.id).toBe(teams[0]!.id)
+    expect(body.seats[0]!.quizzers).toHaveLength(3)
+    expect(body.seats[1]!.team).toBeNull()
+    expect(body.seats[1]!.quizzers).toEqual([])
+    expect(body.seats[2]!.team).toBeNull()
+  })
+
+  it('404s when the quiz belongs to a different meet', async () => {
+    const meetA = await seedMeet(db, 'Meet A')
+    const meetB = await seedMeet(db, 'Meet B')
+    const roomA = await seedRoom(db, meetA.id, 'Room A')
+    const slotA = await seedSlot(db, meetA.id)
+    const quiz = await seedQuizWithSeats(meetA.id, slotA.id, roomA.id, [
+      { seatNumber: 1, letter: 'A' },
+    ])
+
+    const res = await app.request(`/api/meets/${meetB.id}/quizzes/${quiz.id}/teams`, {}, env)
+    expect(res.status).toBe(404)
+  })
+
+  it('404s when the quiz does not exist', async () => {
+    const meet = await seedMeet(db)
+    const res = await app.request(`/api/meets/${meet.id}/quizzes/99999/teams`, {}, env)
+    expect(res.status).toBe(404)
+  })
+
+  it('401s when not signed in', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const slot = await seedSlot(db, meet.id)
+    const quiz = await seedQuizWithSeats(meet.id, slot.id, room.id, [
+      { seatNumber: 1, letter: 'A' },
+    ])
+    const anonApp = createApp(null, db)
+    const res = await anonApp.request(`/api/meets/${meet.id}/quizzes/${quiz.id}/teams`, {}, env)
+    expect(res.status).toBe(401)
+  })
+})

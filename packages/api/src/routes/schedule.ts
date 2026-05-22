@@ -165,6 +165,162 @@ schedule.get('/:id/quizzes', async (c) => {
 })
 
 /**
+ * GET /api/meets/:id/quizzes/:quizId/teams
+ *
+ * Returns one scheduled quiz with its 3 seats resolved end-to-end:
+ * each seat's `letter`/`seedRef`, the bound team (via
+ * `prelim_assignments` or `seed_resolutions`), and that team's
+ * roster. Unresolved seats (elim before #16 lands, prelim before
+ * Roll-Teams) return `team: null` and `quizzers: []`.
+ *
+ * Used by the scoresheet to prefill division/quiz #/teams when a
+ * user opens a scheduled quiz (issue #6).
+ */
+schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  const quizId = Number(c.req.param('quizId'))
+  if (Number.isNaN(meetId) || Number.isNaN(quizId)) {
+    return c.json({ error: 'Invalid ID' }, 400)
+  }
+
+  const db = getDb(c)
+  const [quizRow] = await db
+    .select({
+      id: schema.scheduledQuizzes.id,
+      meetId: schema.scheduledQuizzes.meetId,
+      slotId: schema.scheduledQuizzes.slotId,
+      roomId: schema.scheduledQuizzes.roomId,
+      division: schema.scheduledQuizzes.division,
+      phase: schema.scheduledQuizzes.phase,
+      lane: schema.scheduledQuizzes.lane,
+      label: schema.scheduledQuizzes.label,
+      bracketLabel: schema.scheduledQuizzes.bracketLabel,
+      slotStartAt: schema.meetSlots.startAt,
+      roomName: schema.meetRooms.name,
+    })
+    .from(schema.scheduledQuizzes)
+    .innerJoin(schema.meetSlots, eq(schema.meetSlots.id, schema.scheduledQuizzes.slotId))
+    .innerJoin(schema.meetRooms, eq(schema.meetRooms.id, schema.scheduledQuizzes.roomId))
+    .where(and(eq(schema.scheduledQuizzes.id, quizId), eq(schema.scheduledQuizzes.meetId, meetId)))
+  if (!quizRow) return c.json({ error: 'Quiz not found' }, 404)
+
+  const seats = await db
+    .select()
+    .from(schema.scheduledQuizSeats)
+    .where(eq(schema.scheduledQuizSeats.quizId, quizId))
+    .orderBy(asc(schema.scheduledQuizSeats.seatNumber))
+
+  const prelimLetters = seats
+    .map((s) => s.letter)
+    .filter((l): l is string => l !== null && l !== '')
+  const elimRefs = seats.map((s) => s.seedRef).filter((r): r is string => r !== null && r !== '')
+
+  const prelimMap = new Map<string, number>()
+  if (prelimLetters.length > 0) {
+    const rows = await db
+      .select({
+        letter: schema.prelimAssignments.letter,
+        teamId: schema.prelimAssignments.teamId,
+      })
+      .from(schema.prelimAssignments)
+      .where(
+        and(
+          eq(schema.prelimAssignments.meetId, meetId),
+          eq(schema.prelimAssignments.division, quizRow.division),
+          inArray(schema.prelimAssignments.letter, prelimLetters),
+        ),
+      )
+    for (const r of rows) prelimMap.set(r.letter, r.teamId)
+  }
+
+  const elimMap = new Map<string, number>()
+  if (elimRefs.length > 0) {
+    const rows = await db
+      .select({
+        seedRef: schema.seedResolutions.seedRef,
+        teamId: schema.seedResolutions.teamId,
+      })
+      .from(schema.seedResolutions)
+      .where(
+        and(
+          eq(schema.seedResolutions.meetId, meetId),
+          inArray(schema.seedResolutions.seedRef, elimRefs),
+        ),
+      )
+    for (const r of rows) elimMap.set(r.seedRef, r.teamId)
+  }
+
+  const seatTeamIds = seats.map((s) => {
+    if (s.letter) return prelimMap.get(s.letter) ?? null
+    if (s.seedRef) return elimMap.get(s.seedRef) ?? null
+    return null
+  })
+
+  const teamIds = Array.from(new Set(seatTeamIds.filter((t): t is number => t !== null)))
+  const [teamRows, rosterRows] =
+    teamIds.length === 0
+      ? [[], []]
+      : await Promise.all([
+          db
+            .select({
+              id: schema.teams.id,
+              churchId: schema.churches.id,
+              churchName: schema.churches.name,
+              churchShortName: schema.churches.shortName,
+              division: schema.teams.division,
+              number: schema.teams.number,
+              consolation: schema.teams.consolation,
+            })
+            .from(schema.teams)
+            .innerJoin(schema.churches, eq(schema.churches.id, schema.teams.churchId))
+            .where(inArray(schema.teams.id, teamIds)),
+          db
+            .select({
+              teamId: schema.teamRosters.teamId,
+              quizzerId: schema.teamRosters.quizzerId,
+              name: schema.teamRosters.name,
+            })
+            .from(schema.teamRosters)
+            .where(inArray(schema.teamRosters.teamId, teamIds)),
+        ])
+
+  const teamById = new Map(teamRows.map((t) => [t.id, t]))
+  const rosterByTeam = new Map<number, { quizzerId: number; name: string }[]>()
+  for (const r of rosterRows) {
+    const arr = rosterByTeam.get(r.teamId) ?? []
+    arr.push({ quizzerId: r.quizzerId, name: r.name })
+    rosterByTeam.set(r.teamId, arr)
+  }
+
+  return c.json({
+    quiz: {
+      id: quizRow.id,
+      meetId: quizRow.meetId,
+      slotId: quizRow.slotId,
+      roomId: quizRow.roomId,
+      division: quizRow.division,
+      phase: quizRow.phase,
+      lane: quizRow.lane,
+      label: quizRow.label,
+      bracketLabel: quizRow.bracketLabel,
+      slotStartAt: quizRow.slotStartAt,
+      roomName: quizRow.roomName,
+    },
+    seats: seats.map((s, i) => {
+      const tid = seatTeamIds[i]
+      const team = tid !== null && tid !== undefined ? (teamById.get(tid) ?? null) : null
+      return {
+        seatNumber: s.seatNumber,
+        letter: s.letter,
+        seedRef: s.seedRef,
+        team,
+        quizzers: tid !== null && tid !== undefined ? (rosterByTeam.get(tid) ?? []) : [],
+      }
+    }),
+  })
+})
+
+/**
  * GET /api/meets/:id/prelim-assignments
  *
  * Returns the team→letter mapping for every division in the meet.
