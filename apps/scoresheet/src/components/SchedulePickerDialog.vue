@@ -9,7 +9,6 @@ import {
   type MeetSummary,
   type MeetTeam,
   type PrelimAssignmentRow,
-  type ScheduledQuizDetails,
   type ScheduledQuizSummaryRow,
   getMeetTeams,
   listMeetRooms,
@@ -21,7 +20,12 @@ import { initGuestSession } from '../composables/useGuestSession'
 import { useMeetList } from '../composables/useMeetList'
 import { useMeetSession } from '../composables/useMeetSession'
 
-const emit = defineEmits<{ loaded: [ScheduledQuizDetails] }>()
+const props = defineProps<{
+  /** Parent-controlled commit: returns true when the quiz has been
+   *  loaded and the dialog should close. Returning false (e.g. user
+   *  cancelled an overwrite confirm) keeps the dialog open. */
+  onPick: (meetId: number, quizId: number) => Promise<boolean>
+}>()
 
 const meetSession = useMeetSession()
 const {
@@ -95,9 +99,8 @@ async function pickQuiz(quizId: number) {
   submitting.value = true
   quizError.value = ''
   try {
-    const details = await meetSession.loadFromQuiz(activeMeetId.value, quizId)
-    dialogRef.value?.close()
-    emit('loaded', details)
+    const ok = await props.onPick(activeMeetId.value, quizId)
+    if (ok) dialogRef.value?.close()
   } catch (e) {
     quizError.value = (e as Error).message
   } finally {

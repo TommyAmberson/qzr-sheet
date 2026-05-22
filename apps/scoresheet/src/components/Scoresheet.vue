@@ -18,7 +18,6 @@ import { fillOts } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import { anyTeamHasAnswer } from '../scoring/helpers'
 import { ValidationCode, validationMessage } from '../scoring/validation'
-import type { ScheduledQuizDetails } from '../api'
 import { useMeetSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
@@ -89,50 +88,81 @@ onMounted(() => {
   void loadFromUrlParams()
 })
 
-/** Apply the resolved per-slot dbLabelFull + roster names from the
- *  meet session into the scoresheet store. Used by both the URL
- *  prefill path and the in-app picker callback — the store and the
- *  meetSession are eventually-consistent after loadFromQuiz, this
- *  is the function that bridges them. */
-function fillSlotsFromMeetSession() {
+/** True when any team or quizzer name has been edited away from
+ *  the auto-generated defaults. Used to gate the overwrite confirm
+ *  before loading from schedule. */
+function hasNonDefaultNames(): boolean {
   for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
-    const slot = meetSession.getSlot(teamIdx)
-    if (!slot) continue
+    if (!isDefaultTeamName(store.teams[teamIdx]?.name ?? '')) return true
     const storeTeamId = store.teams[teamIdx]!.id
-    setTeamName(teamIdx, slot.dbLabelFull)
+    for (const q of store.quizzersByTeam(storeTeamId)) {
+      if (!isDefaultQuizzerName(q.name)) return true
+    }
+  }
+  return false
+}
+
+/** Single entry point for loading a scheduled quiz into the
+ *  scoresheet — shared by the URL ?meet&quiz prefill and the in-app
+ *  picker. Mirrors pickTeam's clear-defaults-then-fill flow so
+ *  "Quizzer 1..4" placeholders get replaced by DB names just like
+ *  picking a team from the dropdown does. Warns first if the user
+ *  has typed real names. Returns true on success so the picker
+ *  dialog can decide whether to close. */
+async function loadScheduledQuiz(meetId: number, quizId: number): Promise<boolean> {
+  if (hasNonDefaultNames()) {
+    if (!(await confirmAction('Loading this quiz will overwrite your current names. Continue?'))) {
+      return false
+    }
+  }
+  // Clear default names → empty seats so the matcher can fill them.
+  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+    const storeTeamId = store.teams[teamIdx]?.id
+    if (storeTeamId === undefined) continue
     for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-      if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
-        setQuizzerName(teamIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+      if (isDefaultQuizzerName(store.quizzersByTeam(storeTeamId)[seatIdx]?.name ?? '')) {
+        setQuizzerName(teamIdx, seatIdx, '')
       }
     }
   }
-}
-
-/** Prefill from `?meet=&quiz=` (set by the portal's schedule view
- *  when the user clicks a quiz cell). Always strips the params from
- *  the URL afterward so a refresh doesn't re-clobber edits. */
-async function loadFromUrlParams() {
-  const params = new URLSearchParams(window.location.search)
-  const meetId = Number(params.get('meet'))
-  const quizId = Number(params.get('quiz'))
-  if (!meetId || !quizId || Number.isNaN(meetId) || Number.isNaN(quizId)) return
-
   const storeNamesByTeamIdx = [0, 1, 2].map((teamIdx) => {
     const storeTeamId = store.teams[teamIdx]?.id
     if (storeTeamId === undefined) return Array<string>(QUIZZERS_PER_TEAM).fill('')
-    return store
-      .quizzersByTeam(storeTeamId)
-      .map((q) => (isDefaultQuizzerName(q.name) ? '' : q.name))
+    return store.quizzersByTeam(storeTeamId).map((q) => q.name)
   })
-
   try {
     const details = await meetSession.loadFromQuiz(meetId, quizId, storeNamesByTeamIdx)
     quiz.value.division = details.quiz.division
     quiz.value.quizNumber = quizNumberFromScheduledQuiz(details.quiz)
     quiz.value.consolation = consolationFromScheduledQuiz(details.quiz)
-    fillSlotsFromMeetSession()
+    for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+      const slot = meetSession.getSlot(teamIdx)
+      if (!slot) continue
+      const storeTeamId = store.teams[teamIdx]!.id
+      setTeamName(teamIdx, slot.dbLabelFull)
+      for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+        if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
+          setQuizzerName(teamIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+        }
+      }
+    }
+    return true
   } catch (err) {
     alert(`Could not load scheduled quiz: ${(err as Error).message}`)
+    return false
+  }
+}
+
+/** Strip ?meet=&quiz= from the URL after the prefill — set by the
+ *  portal's schedule view when the user clicks a quiz cell. Always
+ *  strips the params so a refresh doesn't re-clobber edits. */
+async function loadFromUrlParams() {
+  const params = new URLSearchParams(window.location.search)
+  const meetId = Number(params.get('meet'))
+  const quizId = Number(params.get('quiz'))
+  if (!meetId || !quizId || Number.isNaN(meetId) || Number.isNaN(quizId)) return
+  try {
+    await loadScheduledQuiz(meetId, quizId)
   } finally {
     history.replaceState(null, '', window.location.pathname)
   }
@@ -146,13 +176,6 @@ async function openMeetPicker() {
 async function openSchedulePicker() {
   closeMenus()
   schedulePickerRef.value?.open()
-}
-
-function onSchedulePicked(details: ScheduledQuizDetails) {
-  quiz.value.division = details.quiz.division
-  quiz.value.quizNumber = quizNumberFromScheduledQuiz(details.quiz)
-  quiz.value.consolation = consolationFromScheduledQuiz(details.quiz)
-  fillSlotsFromMeetSession()
 }
 
 function isDefaultQuizzerName(name: string): boolean {
@@ -1467,7 +1490,7 @@ const appVersion: string = __APP_VERSION__
       <!-- Cell selector popup -->
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
-        <SchedulePickerDialog ref="schedulePickerRef" @loaded="onSchedulePicked" />
+        <SchedulePickerDialog ref="schedulePickerRef" :on-pick="loadScheduledQuiz" />
         <div
           v-if="selector"
           :class="[
