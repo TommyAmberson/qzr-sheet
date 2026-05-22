@@ -20,6 +20,7 @@ import { anyTeamHasAnswer } from '../scoring/helpers'
 import { ValidationCode, validationMessage } from '../scoring/validation'
 import { useMeetSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
+import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
 import MeetPickerDialog from './MeetPickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
 import TutorialOverlay from './TutorialOverlay.vue'
@@ -80,7 +81,62 @@ function pickFromOpenPicker(teamId: number) {
   if (openPickerSlot.value !== null) pickTeam(openPickerSlot.value, teamId)
 }
 
-onMounted(() => meetSession.refresh())
+onMounted(() => {
+  void meetSession.refresh()
+  void loadFromUrlParams()
+})
+
+/**
+ * If the page was opened with `?meet=X&quiz=Y` (e.g. from the
+ * portal's schedule view → quiz cell), prefill the meet session
+ * with that scheduled quiz and populate the scoresheet meta
+ * (division / quiz # / consolation) + the 3 team slots.
+ * After loading, strip the params from the URL so a refresh
+ * doesn't re-trigger and clobber edits.
+ */
+async function loadFromUrlParams() {
+  const params = new URLSearchParams(window.location.search)
+  const meetId = Number(params.get('meet'))
+  const quizId = Number(params.get('quiz'))
+  if (!meetId || !quizId || Number.isNaN(meetId) || Number.isNaN(quizId)) return
+
+  const storeNamesByTeamIdx = [0, 1, 2].map((teamIdx) => {
+    const storeTeamId = store.teams[teamIdx]?.id
+    if (storeTeamId === undefined) return Array<string>(QUIZZERS_PER_TEAM).fill('')
+    // Cleared default names get sent as empty so the matcher fills them
+    // with the resolved DB names; edited names pass through and try to
+    // bind to roster entries.
+    return store
+      .quizzersByTeam(storeTeamId)
+      .map((q) => (isDefaultQuizzerName(q.name) ? '' : q.name))
+  })
+
+  try {
+    const details = await meetSession.loadFromQuiz(meetId, quizId, '', storeNamesByTeamIdx)
+
+    quiz.value.division = details.quiz.division
+    quiz.value.quizNumber = quizNumberFromScheduledQuiz(details.quiz)
+    quiz.value.consolation = consolationFromScheduledQuiz(details.quiz)
+
+    for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+      const slot = meetSession.getSlot(teamIdx)
+      if (!slot) continue
+      const storeTeamId = store.teams[teamIdx]!.id
+      setTeamName(teamIdx, slot.dbLabelFull)
+      for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+        if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
+          setQuizzerName(teamIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+        }
+      }
+    }
+  } catch (err) {
+    alert(`Could not load scheduled quiz: ${(err as Error).message}`)
+  } finally {
+    // Always strip the params so they don't re-fire on refresh, even
+    // when the load failed (the user can manually retry via the picker).
+    history.replaceState(null, '', window.location.pathname)
+  }
+}
 
 async function openMeetPicker() {
   closeMenus()
