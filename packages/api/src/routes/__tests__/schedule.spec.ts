@@ -605,6 +605,41 @@ describe('POST /api/meets/:id/schedule/sync', () => {
     const allSeats = await db.select().from(schema.scheduledQuizSeats)
     expect(allSeats).toHaveLength(QUIZ_COUNT * 3)
   })
+
+  it('chunks large prelim-assignment inserts under D1 param cap', async () => {
+    // Regression: a single division with 20+ letters × 5 cols/row
+    // exceeds D1's bound-parameter cap even though the for-loop
+    // already inserts one division at a time.
+    const meet = await seedMeet(db)
+    const church = await seedChurch(meet.id)
+    const LETTER_COUNT = 25
+    const teams = []
+    for (let i = 0; i < LETTER_COUNT; i++) {
+      teams.push(await seedTeam(meet.id, church.id, 'Division 1', i + 1))
+    }
+    const mapping = teams.map((t, i) => ({
+      letter: String.fromCharCode(65 + i),
+      teamId: t.id,
+    }))
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({
+        slots: [],
+        quizzes: [],
+        prelimAssignments: [{ division: 'Division 1', mapping }],
+        teamLateness: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(200)
+
+    const all = await db
+      .select()
+      .from(schema.prelimAssignments)
+      .where(eq(schema.prelimAssignments.meetId, meet.id))
+    expect(all).toHaveLength(LETTER_COUNT)
+  })
 })
 
 describe('GET /api/meets/:id/quizzes/:quizId/teams', () => {

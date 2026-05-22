@@ -785,15 +785,21 @@ schedule.post('/:id/schedule/sync', async (c) => {
         ),
       )
     if (div.mapping.length > 0) {
-      await db.insert(schema.prelimAssignments).values(
-        div.mapping.map((m) => ({
-          meetId,
-          division: div.division,
-          letter: m.letter,
-          teamId: m.teamId,
-          assignedAt: now,
-        })),
-      )
+      // 5 cols per row — a division with ~20+ letters trips D1's
+      // 100-param cap even though the for-loop only inserts one
+      // division at a time.
+      await chunkedInsert(div.mapping, 5, async (chunk) => {
+        await db.insert(schema.prelimAssignments).values(
+          chunk.map((m) => ({
+            meetId,
+            division: div.division,
+            letter: m.letter,
+            teamId: m.teamId,
+            assignedAt: now,
+          })),
+        )
+        return []
+      })
     }
   }
 
