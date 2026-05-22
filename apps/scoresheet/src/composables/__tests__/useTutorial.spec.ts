@@ -200,6 +200,7 @@ describe('useTutorial — meet link', () => {
       slots: [undefined, undefined, undefined],
       teamList: [],
       meetDivisions: ['1'],
+      quizId: null,
     })
     expect(meet.isActive.value).toBe(true)
 
@@ -233,6 +234,7 @@ describe('useTutorial — meet link', () => {
       slots: [undefined, undefined, undefined],
       teamList: [],
       meetDivisions: [],
+      quizId: null,
     })
 
     const s = useScoresheet()

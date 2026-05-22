@@ -58,6 +58,45 @@ export function getTeamQuizzers(teamId: number): Promise<{ quizzers: MeetTeamQui
   return request(`/api/teams/${teamId}/quizzers`)
 }
 
+export interface ScheduledQuizSummary {
+  id: number
+  meetId: number
+  slotId: number
+  roomId: number
+  division: string
+  phase: 'prelim' | 'elim'
+  lane: 'main' | 'consolation' | 'intermediate' | null
+  label: string
+  bracketLabel: string | null
+  slotStartAt: string
+  roomName: string
+}
+
+export interface ScheduledQuizSeat {
+  seatNumber: number
+  letter: string | null
+  seedRef: string | null
+  team: {
+    id: number
+    churchId: number
+    churchName: string
+    churchShortName: string
+    division: string
+    number: number
+    consolation: boolean
+  } | null
+  quizzers: MeetTeamQuizzer[]
+}
+
+export interface ScheduledQuizDetails {
+  quiz: ScheduledQuizSummary
+  seats: ScheduledQuizSeat[]
+}
+
+export function getScheduledQuiz(meetId: number, quizId: number): Promise<ScheduledQuizDetails> {
+  return request(`/api/meets/${meetId}/quizzes/${quizId}/teams`)
+}
+
 export function joinMeet(
   code: string,
 ): Promise<{ meet: { id: number; name: string }; role: string }> {

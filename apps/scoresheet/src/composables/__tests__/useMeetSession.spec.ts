@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { MeetTeam } from '../../api'
+import type { MeetTeam, ScheduledQuizDetails } from '../../api'
 
 // Mock the API module before importing useMeetSession
 vi.mock('../../api', () => ({
   getMeetTeams: vi.fn(),
   getTeamQuizzers: vi.fn(),
+  getScheduledQuiz: vi.fn(),
 }))
 
-import { getMeetTeams, getTeamQuizzers } from '../../api'
+import { getMeetTeams, getScheduledQuiz, getTeamQuizzers } from '../../api'
 import { useMeetSession } from '../useMeetSession'
 
 const mockTeams: MeetTeam[] = [
@@ -204,6 +205,98 @@ describe('useMeetSession — assignTeam', () => {
     expect(slot.quizzers[2]!.dbName).toBe('Charlie')
     expect(slot.quizzers[3]!.dbName).toBe('Dave')
     expect(slot.quizzers[4]!.dbName).toBe('')
+  })
+})
+
+describe('useMeetSession — loadFromQuiz', () => {
+  function makeQuizDetails(
+    overrides: Partial<ScheduledQuizDetails['quiz']> = {},
+    seats: ScheduledQuizDetails['seats'] = [],
+  ): ScheduledQuizDetails {
+    return {
+      quiz: {
+        id: 777,
+        meetId: 42,
+        slotId: 1,
+        roomId: 1,
+        division: '1',
+        phase: 'prelim',
+        lane: null,
+        label: 'D1-Q1',
+        bracketLabel: null,
+        slotStartAt: '2026-01-01T20:00:00.000Z',
+        roomName: 'Room A',
+        ...overrides,
+      },
+      seats,
+    }
+  }
+
+  it('assigns all 3 seats from a fully-resolved prelim quiz and stamps quizId', async () => {
+    const teamA = mockTeams[0]!
+    const teamB = mockTeams[1]!
+    const teamC: MeetTeam = {
+      id: 3,
+      churchId: 30,
+      churchName: 'Trinity Church',
+      churchShortName: 'TC',
+      division: '1',
+      number: 1,
+      consolation: false,
+    }
+    vi.mocked(getMeetTeams).mockResolvedValueOnce({
+      teams: [teamA, teamB, teamC],
+      meetDivisions: ['1'],
+    })
+    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(
+      makeQuizDetails({}, [
+        { seatNumber: 1, letter: 'A', seedRef: null, team: teamA, quizzers: mockQuizzers },
+        { seatNumber: 2, letter: 'B', seedRef: null, team: teamB, quizzers: mockQuizzers },
+        { seatNumber: 3, letter: 'C', seedRef: null, team: teamC, quizzers: mockQuizzers },
+      ]),
+    )
+    const { loadFromQuiz, getSlot, quizId } = useMeetSession()
+    const result = await loadFromQuiz(42, 777, 'Finals', [emptyNames, emptyNames, emptyNames])
+
+    expect(result.quiz.id).toBe(777)
+    expect(getSlot(0)?.teamId).toBe(teamA.id)
+    expect(getSlot(1)?.teamId).toBe(teamB.id)
+    expect(getSlot(2)?.teamId).toBe(teamC.id)
+    expect(quizId.value).toBe(777)
+  })
+
+  it('leaves unresolved elim seats empty and assigns the rest', async () => {
+    const teamA = mockTeams[0]!
+    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(
+      makeQuizDetails({ phase: 'elim', lane: 'main', bracketLabel: 'A', label: 'D1-QA' }, [
+        { seatNumber: 1, letter: null, seedRef: '1stA', team: teamA, quizzers: mockQuizzers },
+        { seatNumber: 2, letter: null, seedRef: '2ndA', team: null, quizzers: [] },
+        { seatNumber: 3, letter: null, seedRef: '1stB', team: null, quizzers: [] },
+      ]),
+    )
+    const { loadFromQuiz, getSlot } = useMeetSession()
+    await loadFromQuiz(42, 778, 'Finals', [emptyNames, emptyNames, emptyNames])
+
+    expect(getSlot(0)?.teamId).toBe(teamA.id)
+    expect(getSlot(1)).toBeUndefined()
+    expect(getSlot(2)).toBeUndefined()
+  })
+
+  it('persists quizId to localStorage', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(makeQuizDetails({}, []))
+    const { loadFromQuiz } = useMeetSession()
+    await loadFromQuiz(42, 999, 'Finals', [emptyNames, emptyNames, emptyNames])
+    const stored = JSON.parse(localStorage.getItem('qzr-meet-session')!)
+    expect(stored.quizId).toBe(999)
+  })
+
+  it('reuses an existing meet session without reloading the team list', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(makeQuizDetails({}, []))
+    const { loadMeet, loadFromQuiz } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    vi.mocked(getMeetTeams).mockClear()
+    await loadFromQuiz(42, 777, 'Finals', [emptyNames, emptyNames, emptyNames])
+    expect(getMeetTeams).not.toHaveBeenCalled()
   })
 })
 

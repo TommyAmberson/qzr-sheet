@@ -1,5 +1,11 @@
 import { ref, computed } from 'vue'
-import { getMeetTeams, getTeamQuizzers, type MeetTeam } from '../api'
+import {
+  getMeetTeams,
+  getScheduledQuiz,
+  getTeamQuizzers,
+  type MeetTeam,
+  type ScheduledQuizDetails,
+} from '../api'
 import { QUIZZERS_PER_TEAM } from '../types/scoresheet'
 
 const STORAGE_KEY = 'qzr-meet-session'
@@ -21,6 +27,10 @@ export interface MeetSessionData {
   teamList: MeetTeam[]
   /** The meet's canonical division list, e.g. ["1", "2", "3"] */
   meetDivisions: string[]
+  /** Set when this session was loaded from a specific scheduled quiz
+   *  (via loadFromQuiz). Stamped onto submitted results in the future
+   *  Submit flow (#7) so they back-link to the schedule entry. */
+  quizId: number | null
 }
 
 const session = ref<MeetSessionData | null>(loadFromStorage())
@@ -29,6 +39,7 @@ export function useMeetSession() {
   const isActive = computed(() => session.value !== null)
   const meetName = computed(() => session.value?.meetName ?? null)
   const teamList = computed(() => session.value?.teamList ?? [])
+  const quizId = computed(() => session.value?.quizId ?? null)
 
   /** Division options for the scoresheet dropdown — the meet's canonical division list. */
   const divisionOptions = computed((): string[] => session.value?.meetDivisions ?? [])
@@ -62,8 +73,46 @@ export function useMeetSession() {
       slots: [undefined, undefined, undefined],
       teamList: teams,
       meetDivisions,
+      quizId: null,
     }
     persist()
+  }
+
+  /**
+   * Load a meet AND prefill the 3 team slots from a scheduled quiz.
+   * `meetName` is required when this opens a meet the user hasn't
+   * loaded before; pass the empty string to use the quiz's own
+   * source of truth (currently unused — the quiz response doesn't
+   * carry the meet name).
+   *
+   * `storeNamesByTeamIdx` mirrors the per-slot store quizzer names
+   * passed to `assignTeam`, so the levenshtein matcher in
+   * `matchQuizzers` can place edited names against the right roster
+   * entries.
+   */
+  async function loadFromQuiz(
+    meetId: number,
+    quizId: number,
+    meetName: string,
+    storeNamesByTeamIdx: string[][],
+  ): Promise<ScheduledQuizDetails> {
+    if (!session.value || session.value.meetId !== meetId) {
+      await loadMeet(meetId, meetName)
+    }
+    const details = await getScheduledQuiz(meetId, quizId)
+    for (const seat of details.seats) {
+      const slotIdx = seat.seatNumber - 1
+      if (slotIdx < 0 || slotIdx > 2) continue
+      if (!seat.team) continue
+      const storeNames =
+        storeNamesByTeamIdx[slotIdx] ?? (Array<string>(QUIZZERS_PER_TEAM).fill('') as string[])
+      await assignTeam(slotIdx, seat.team.id, storeNames)
+    }
+    if (session.value) {
+      session.value = { ...session.value, quizId }
+      persist()
+    }
+    return details
   }
 
   /** Assign a team to a slot and fetch its quizzers */
@@ -165,11 +214,13 @@ export function useMeetSession() {
     isActive,
     meetName,
     teamList,
+    quizId,
     divisionOptions,
     teamsForDivision,
     teamLabel,
     teamLabelFull,
     loadMeet,
+    loadFromQuiz,
     assignTeam,
     clearSlot,
     getSlot,
@@ -282,9 +333,10 @@ function loadFromStorage(): MeetSessionData | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
-    // meetDivisions may be absent in old sessions — default to empty array
     const data = JSON.parse(raw) as MeetSessionData
+    // Migrate fields added after old sessions were persisted.
     if (!data.meetDivisions) data.meetDivisions = []
+    if (data.quizId === undefined) data.quizId = null
     return data
   } catch {
     return null
