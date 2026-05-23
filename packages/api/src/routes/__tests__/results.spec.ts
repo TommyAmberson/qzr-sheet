@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
 import { FILE_VERSION, MeetRole, PlacementFormula, type QuizFile } from '@qzr/shared'
 import type { Bindings } from '../../bindings'
 import type { SessionVariables } from '../../middleware/session'
@@ -352,5 +353,114 @@ describe('POST /api/meets/:id/results — happy path + storage', () => {
     expect(b.status).toBe(201)
     const rows = await db.select().from(schema.quizResults)
     expect(rows).toHaveLength(2)
+  })
+})
+
+describe('GET /api/meets/:id/results — admin list', () => {
+  let db: Db
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('401 when no signed-in user', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(null, db, { meetId: meet.id, role: MeetRole.Official })
+    const res = await app.request(`/api/meets/${meet.id}/results`, {}, env)
+    expect(res.status).toBe(401)
+  })
+
+  it('403 when signed-in non-admin', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id)
+    await seedOfficial(db, meet.id, testUser.id, room.id)
+    const app = createApp(testUser, db)
+    const res = await app.request(`/api/meets/${meet.id}/results`, {}, env)
+    expect(res.status).toBe(403)
+  })
+
+  it('returns rows newest first with openDisputes count', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testSuperuser, db)
+    const earlyRes = await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile({ quizNumber: 'early' }) }),
+      env,
+    )
+    const earlyId = (await jsonOf<{ id: number }>(earlyRes)).id
+    // Force the second row's submittedAt strictly later than the first.
+    await db
+      .update(schema.quizResults)
+      .set({ submittedAt: new Date(Date.now() - 60_000) })
+      .where(eq(schema.quizResults.id, earlyId))
+    await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile({ quizNumber: 'late' }) }),
+      env,
+    )
+    // Flag the earlier result twice; resolve one. openDisputes should be 1.
+    await db.insert(schema.quizDisputes).values([
+      {
+        resultId: earlyId,
+        createdAt: new Date(),
+        reason: 'looks wrong',
+        resolved: false,
+      },
+      {
+        resultId: earlyId,
+        createdAt: new Date(),
+        reason: 'already addressed',
+        resolved: true,
+      },
+    ])
+
+    const res = await app.request(`/api/meets/${meet.id}/results`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{
+      results: { id: number; round: string; openDisputes: number }[]
+    }>(res)
+    expect(body.results.map((r) => r.round)).toEqual(['late', 'early'])
+    expect(body.results.find((r) => r.id === earlyId)?.openDisputes).toBe(1)
+  })
+})
+
+describe('GET /api/meets/:id/results/:resultId — admin detail', () => {
+  let db: Db
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('403 for non-admin', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testUser, db)
+    const res = await app.request(`/api/meets/${meet.id}/results/1`, {}, env)
+    expect(res.status).toBe(403)
+  })
+
+  it('404 when the result is in a different meet', async () => {
+    const meetA = await seedMeet(db, 'Meet A')
+    const meetB = await seedMeet(db, 'Meet B')
+    const app = createApp(testSuperuser, db)
+    const post = await app.request(
+      `/api/meets/${meetA.id}/results`,
+      postJson({ quizFile: makeQuizFile() }),
+      env,
+    )
+    const { id } = await jsonOf<{ id: number }>(post)
+    const res = await app.request(`/api/meets/${meetB.id}/results/${id}`, {}, env)
+    expect(res.status).toBe(404)
+  })
+
+  it('returns the row with the QuizFile parsed', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testSuperuser, db)
+    const qf = makeQuizFile({ division: '3' })
+    const post = await app.request(`/api/meets/${meet.id}/results`, postJson({ quizFile: qf }), env)
+    const { id } = await jsonOf<{ id: number }>(post)
+    const res = await app.request(`/api/meets/${meet.id}/results/${id}`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{ result: { id: number; division: string; quizFile: QuizFile } }>(res)
+    expect(body.result.id).toBe(id)
+    expect(body.result.division).toBe('3')
+    expect(body.result.quizFile).toEqual(qf)
   })
 })

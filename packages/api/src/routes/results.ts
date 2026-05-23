@@ -1,12 +1,12 @@
-import { Hono } from 'hono'
-import { eq, and } from 'drizzle-orm'
+import { Hono, type Context } from 'hono'
+import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import { Value } from '@sinclair/typebox/value'
 import { QuizFileSchema, type QuizFile } from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
-import { isOfficialOf } from '../lib/permissions'
+import { isAdminOrSuperuser, isOfficialOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 
 interface ResultsVariables extends SessionVariables {
@@ -30,6 +30,16 @@ results.use('*', async (c, next) => {
 
 function getDb(c: { get(key: 'db'): Db }): Db {
   return c.get('db')
+}
+
+async function requireAdmin(c: Context<Env>, meetId: number) {
+  const user = c.get('user')
+  if (!user) return c.json({ error: 'Sign-in required' }, 401)
+  const db = getDb(c)
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+  return null
 }
 
 /**
@@ -112,4 +122,82 @@ results.post('/:id/results', async (c) => {
     }
     throw e
   }
+})
+
+/**
+ * GET /api/meets/:id/results
+ *
+ * Admin/superuser list of submitted results for a meet, newest first.
+ * Includes an `openDisputes` count per row so the future admin UI can
+ * surface the badge without a second round-trip.
+ */
+results.get('/:id/results', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const db = getDb(c)
+  const rows = await db
+    .select({
+      id: schema.quizResults.id,
+      meetId: schema.quizResults.meetId,
+      quizId: schema.quizResults.quizId,
+      roomId: schema.quizResults.roomId,
+      division: schema.quizResults.division,
+      round: schema.quizResults.round,
+      submittedAt: schema.quizResults.submittedAt,
+      submittedByAccountId: schema.quizResults.submittedByAccountId,
+      submittedByGuestLabel: schema.quizResults.submittedByGuestLabel,
+    })
+    .from(schema.quizResults)
+    .where(eq(schema.quizResults.meetId, meetId))
+    .orderBy(desc(schema.quizResults.submittedAt), desc(schema.quizResults.id))
+
+  // Open-dispute counts as a separate query — cheaper than a left-join
+  // aggregate and the admin list will be small.
+  const resultIds = rows.map((r) => r.id)
+  const disputeRows =
+    resultIds.length === 0
+      ? []
+      : await db
+          .select({
+            resultId: schema.quizDisputes.resultId,
+            open: sql<number>`SUM(CASE WHEN ${schema.quizDisputes.resolved} = 0 THEN 1 ELSE 0 END)`,
+          })
+          .from(schema.quizDisputes)
+          .where(inArray(schema.quizDisputes.resultId, resultIds))
+          .groupBy(schema.quizDisputes.resultId)
+  const openByResult = new Map(disputeRows.map((d) => [d.resultId, Number(d.open)]))
+
+  return c.json({
+    results: rows.map((r) => ({ ...r, openDisputes: openByResult.get(r.id) ?? 0 })),
+  })
+})
+
+/**
+ * GET /api/meets/:id/results/:resultId
+ *
+ * Returns one result with the full QuizFile parsed back out of storage
+ * for admins to inspect.
+ */
+results.get('/:id/results/:resultId', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  const resultId = Number(c.req.param('resultId'))
+  if (Number.isNaN(meetId) || Number.isNaN(resultId)) {
+    return c.json({ error: 'Invalid ID' }, 400)
+  }
+
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const db = getDb(c)
+  const [row] = await db
+    .select()
+    .from(schema.quizResults)
+    .where(and(eq(schema.quizResults.id, resultId), eq(schema.quizResults.meetId, meetId)))
+  if (!row) return c.json({ error: 'Result not found' }, 404)
+
+  return c.json({ result: { ...row, quizFile: JSON.parse(row.quizFile) as QuizFile } })
 })
