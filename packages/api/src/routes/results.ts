@@ -1,12 +1,12 @@
-import { Hono } from 'hono'
-import { eq, and } from 'drizzle-orm'
+import { Hono, type Context } from 'hono'
+import { eq, and, desc } from 'drizzle-orm'
 import { Value } from '@sinclair/typebox/value'
 import { QuizFileSchema, type QuizFile } from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
-import { isOfficialOf } from '../lib/permissions'
+import { isAdminOrSuperuser, isOfficialOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 
 interface ResultsVariables extends SessionVariables {
@@ -30,6 +30,16 @@ results.use('*', async (c, next) => {
 
 function getDb(c: { get(key: 'db'): Db }): Db {
   return c.get('db')
+}
+
+async function requireAdmin(c: Context<Env>, meetId: number) {
+  const user = c.get('user')
+  if (!user) return c.json({ error: 'Sign-in required' }, 401)
+  const db = getDb(c)
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+  return null
 }
 
 /**
@@ -120,4 +130,74 @@ results.post('/:id/saves', async (c) => {
     .returning({ id: schema.quizSaves.id, savedAt: schema.quizSaves.savedAt })
 
   return c.json({ id: inserted!.id, savedAt: inserted!.savedAt }, 201)
+})
+
+/**
+ * GET /api/meets/:id/saves
+ *
+ * Admin/superuser list. Returns metadata only (no quizFile blob) so
+ * scrubbing the history doesn't blow up the response. Optional query
+ * filters: ?scheduledQuizId=N, ?division=1, ?round=A. Newest first.
+ */
+results.get('/:id/saves', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const filters = [eq(schema.quizSaves.meetId, meetId)]
+  const qid = c.req.query('scheduledQuizId')
+  if (qid && !Number.isNaN(Number(qid))) {
+    filters.push(eq(schema.quizSaves.scheduledQuizId, Number(qid)))
+  }
+  const div = c.req.query('division')
+  if (div) filters.push(eq(schema.quizSaves.division, div))
+  const round = c.req.query('round')
+  if (round) filters.push(eq(schema.quizSaves.round, round))
+
+  const db = getDb(c)
+  const rows = await db
+    .select({
+      id: schema.quizSaves.id,
+      scheduledQuizId: schema.quizSaves.scheduledQuizId,
+      roomId: schema.quizSaves.roomId,
+      division: schema.quizSaves.division,
+      round: schema.quizSaves.round,
+      savedAt: schema.quizSaves.savedAt,
+      kind: schema.quizSaves.kind,
+      label: schema.quizSaves.label,
+      savedByAccountId: schema.quizSaves.savedByAccountId,
+      savedByGuestLabel: schema.quizSaves.savedByGuestLabel,
+    })
+    .from(schema.quizSaves)
+    .where(and(...filters))
+    .orderBy(desc(schema.quizSaves.savedAt), desc(schema.quizSaves.id))
+
+  return c.json({ saves: rows })
+})
+
+/**
+ * GET /api/meets/:id/saves/:saveId
+ *
+ * Admin detail with the QuizFile blob parsed back into the response.
+ */
+results.get('/:id/saves/:saveId', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  const saveId = Number(c.req.param('saveId'))
+  if (Number.isNaN(meetId) || Number.isNaN(saveId)) {
+    return c.json({ error: 'Invalid ID' }, 400)
+  }
+
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const db = getDb(c)
+  const [row] = await db
+    .select()
+    .from(schema.quizSaves)
+    .where(and(eq(schema.quizSaves.id, saveId), eq(schema.quizSaves.meetId, meetId)))
+  if (!row) return c.json({ error: 'Save not found' }, 404)
+
+  return c.json({ save: { ...row, quizFile: JSON.parse(row.quizFile) as QuizFile } })
 })

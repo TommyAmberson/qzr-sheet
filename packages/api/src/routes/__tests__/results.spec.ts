@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
 import { FILE_VERSION, MeetRole, PlacementFormula, type QuizFile } from '@qzr/shared'
 import type { Bindings } from '../../bindings'
 import type { SessionVariables } from '../../middleware/session'
@@ -318,5 +319,138 @@ describe('POST /api/meets/:id/saves — storage shape', () => {
     )
     const [row] = await db.select().from(schema.quizSaves)
     expect(row?.label).toBeNull()
+  })
+})
+
+describe('GET /api/meets/:id/saves — admin list', () => {
+  let db: Db
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('401 when no signed-in user', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(null, db, { meetId: meet.id, role: MeetRole.Official })
+    const res = await app.request(`/api/meets/${meet.id}/saves`, {}, env)
+    expect(res.status).toBe(401)
+  })
+
+  it('403 for signed-in non-admin', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id)
+    await seedOfficial(db, meet.id, testUser.id, room.id)
+    const app = createApp(testUser, db)
+    const res = await app.request(`/api/meets/${meet.id}/saves`, {}, env)
+    expect(res.status).toBe(403)
+  })
+
+  it('returns newest first; supports scheduledQuizId + division + round filters', async () => {
+    const meet = await seedMeet(db)
+    const quizA = await seedScheduledQuiz(db, meet.id)
+    const quizB = await seedScheduledQuiz(db, meet.id)
+    const app = createApp(testSuperuser, db)
+
+    async function post(scheduledQuizId: number, quizNumber: string) {
+      const r = await app.request(
+        `/api/meets/${meet.id}/saves`,
+        postJson({
+          quizFile: makeQuizFile({ quizNumber }),
+          kind: 'autosave',
+          scheduledQuizId,
+        }),
+        env,
+      )
+      return (await jsonOf<{ id: number }>(r)).id
+    }
+    const a1 = await post(quizA.id, '1')
+    const a2 = await post(quizA.id, '1')
+    await post(quizB.id, '2')
+
+    // Force a1 to look older than a2 for the ordering check.
+    await db
+      .update(schema.quizSaves)
+      .set({ savedAt: new Date(Date.now() - 60_000) })
+      .where(eq(schema.quizSaves.id, a1))
+
+    const all = await app.request(`/api/meets/${meet.id}/saves`, {}, env)
+    expect(all.status).toBe(200)
+    const allBody = await jsonOf<{ saves: { id: number }[] }>(all)
+    expect(allBody.saves).toHaveLength(3)
+    // a2 saved most recently, then quizB save, then a1.
+    expect(allBody.saves[allBody.saves.length - 1]!.id).toBe(a1)
+
+    const filtered = await app.request(
+      `/api/meets/${meet.id}/saves?scheduledQuizId=${quizA.id}`,
+      {},
+      env,
+    )
+    const filteredBody = await jsonOf<{ saves: { id: number }[] }>(filtered)
+    expect(filteredBody.saves).toHaveLength(2)
+
+    const byRound = await app.request(`/api/meets/${meet.id}/saves?round=2`, {}, env)
+    const byRoundBody = await jsonOf<{ saves: { id: number }[] }>(byRound)
+    expect(byRoundBody.saves).toHaveLength(1)
+  })
+
+  it('omits the quizFile blob from list rows', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testSuperuser, db)
+    await app.request(
+      `/api/meets/${meet.id}/saves`,
+      postJson({ quizFile: makeQuizFile(), kind: 'autosave' }),
+      env,
+    )
+    const res = await app.request(`/api/meets/${meet.id}/saves`, {}, env)
+    const body = await jsonOf<{ saves: Record<string, unknown>[] }>(res)
+    expect(body.saves[0]).not.toHaveProperty('quizFile')
+  })
+})
+
+describe('GET /api/meets/:id/saves/:saveId — admin detail', () => {
+  let db: Db
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('403 for non-admin', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testUser, db)
+    const res = await app.request(`/api/meets/${meet.id}/saves/1`, {}, env)
+    expect(res.status).toBe(403)
+  })
+
+  it('404 when the save belongs to a different meet', async () => {
+    const meetA = await seedMeet(db, 'A')
+    const meetB = await seedMeet(db, 'B')
+    const app = createApp(testSuperuser, db)
+    const post = await app.request(
+      `/api/meets/${meetA.id}/saves`,
+      postJson({ quizFile: makeQuizFile(), kind: 'autosave' }),
+      env,
+    )
+    const { id } = await jsonOf<{ id: number }>(post)
+    const res = await app.request(`/api/meets/${meetB.id}/saves/${id}`, {}, env)
+    expect(res.status).toBe(404)
+  })
+
+  it('returns the row with the QuizFile parsed', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testSuperuser, db)
+    const qf = makeQuizFile({ division: '3' })
+    const post = await app.request(
+      `/api/meets/${meet.id}/saves`,
+      postJson({ quizFile: qf, kind: 'checkpoint', label: 'mid-quiz' }),
+      env,
+    )
+    const { id } = await jsonOf<{ id: number }>(post)
+    const res = await app.request(`/api/meets/${meet.id}/saves/${id}`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{
+      save: { id: number; division: string; label: string; quizFile: QuizFile }
+    }>(res)
+    expect(body.save.id).toBe(id)
+    expect(body.save.division).toBe('3')
+    expect(body.save.label).toBe('mid-quiz')
+    expect(body.save.quizFile).toEqual(qf)
   })
 })
