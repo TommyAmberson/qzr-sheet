@@ -1,6 +1,6 @@
 import { eq, and, sql } from 'drizzle-orm'
 import type { Context } from 'hono'
-import { AccountRole } from '@qzr/shared'
+import { AccountRole, MeetRole } from '@qzr/shared'
 import * as schema from '../db/schema'
 import type { Db } from './db'
 import type { SessionVariables } from '../middleware/session'
@@ -61,6 +61,38 @@ export async function isViewerOf<E extends { Variables: SessionVariables }>(
       SELECT 1 FROM ${schema.viewerMemberships}
         WHERE ${schema.viewerMemberships.accountId} = ${user.id}
           AND ${schema.viewerMemberships.meetId} = ${meetId}
+    ) AS found`,
+  )
+  return Boolean(result?.found)
+}
+
+/**
+ * True if the requester is authorised to submit/manage results for this
+ * meet — superuser, meet admin, meet official (any room), or a guest
+ * JWT carrying role=Official for this meetId. First mutation gate that
+ * admits guests; readers should stay on isViewerOf.
+ */
+export async function isOfficialOf<E extends { Variables: SessionVariables }>(
+  c: Context<E>,
+  db: Db,
+  meetId: number,
+): Promise<boolean> {
+  const guest = c.get('guest')
+  if (guest && guest.meetId === meetId && guest.role === MeetRole.Official) return true
+
+  const user = c.get('user')
+  if (!user) return false
+  if (user.role === AccountRole.Superuser) return true
+
+  const result = await db.get<{ found: number }>(
+    sql`SELECT EXISTS (
+      SELECT 1 FROM ${schema.adminMemberships}
+        WHERE ${schema.adminMemberships.accountId} = ${user.id}
+          AND ${schema.adminMemberships.meetId} = ${meetId}
+      UNION ALL
+      SELECT 1 FROM ${schema.officialMemberships}
+        WHERE ${schema.officialMemberships.accountId} = ${user.id}
+          AND ${schema.officialMemberships.meetId} = ${meetId}
     ) AS found`,
   )
   return Boolean(result?.found)
