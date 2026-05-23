@@ -97,6 +97,75 @@ export function getScheduledQuiz(meetId: number, quizId: number): Promise<Schedu
   return request(`/api/meets/${meetId}/quizzes/${quizId}/teams`)
 }
 
+// ---- Picker bulk reads (used by SchedulePickerDialog) ----
+
+export interface MeetRoomSummary {
+  id: number
+  name: string
+  sortOrder: number
+  hasCode: boolean
+}
+
+export interface MeetSlotSummary {
+  id: number
+  meetId: number
+  startAt: string
+  durationMinutes: number
+  kind: 'quiz' | 'event'
+  eventLabel: string | null
+  sortOrder: number
+}
+
+export interface ScheduledQuizSummaryRow {
+  id: number
+  meetId: number
+  slotId: number
+  roomId: number
+  division: string
+  phase: 'prelim' | 'elim'
+  lane: 'main' | 'consolation' | 'intermediate' | null
+  label: string
+  bracketLabel: string | null
+  publishedAt: string | null
+  completedAt: string | null
+  seats: Array<{
+    id: number
+    quizId: number
+    seatNumber: number
+    letter: string | null
+    seedRef: string | null
+  }>
+}
+
+export interface PrelimAssignmentRow {
+  id: number
+  meetId: number
+  division: string
+  letter: string
+  teamId: number
+  assignedAt: string | number
+}
+
+export function listMeetRooms(meetId: number): Promise<{ rooms: MeetRoomSummary[] }> {
+  return request(`/api/meets/${meetId}/rooms`)
+}
+
+export function listMeetSlots(meetId: number): Promise<{ slots: MeetSlotSummary[] }> {
+  return request(`/api/meets/${meetId}/slots`)
+}
+
+export function listScheduledQuizzes(
+  meetId: number,
+): Promise<{ quizzes: ScheduledQuizSummaryRow[] }> {
+  return request(`/api/meets/${meetId}/quizzes`)
+}
+
+export function listPrelimAssignments(
+  meetId: number,
+): Promise<{ assignments: PrelimAssignmentRow[] }> {
+  return request(`/api/meets/${meetId}/prelim-assignments`)
+}
+
 export function joinMeet(
   code: string,
 ): Promise<{ meet: { id: number; name: string }; role: string }> {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 
+import { ScheduleGrid, formatSlotTime, sortedSeats } from '@qzr/ui'
 import {
   type MeetRoom,
   type MeetSlot,
@@ -9,14 +10,6 @@ import {
   type ScheduledQuiz,
   type SeatInput,
 } from '../../api'
-import {
-  buildGrid,
-  formatSlotTime,
-  hasAnyQuiz,
-  seatRef,
-  seatTeam,
-  sortedSeats,
-} from '../../scheduleGrid'
 import TimePickerButton from './TimePickerButton.vue'
 
 interface PickerTime {
@@ -122,46 +115,6 @@ function onRoll() {
 function onSortLateness() {
   if (!confirmOverwrite('Sorting by lateness')) return
   emit('sort-by-lateness')
-}
-
-const grid = computed(() => buildGrid(props.rooms, props.slots, props.quizzes, null))
-const empty = computed(() => !hasAnyQuiz(grid.value))
-
-/** Group grid rows by their slot's local date so the template can break
- *  the schedule into "Friday, May 15 / Saturday, May 16 / …" sections,
- *  matching the day grouping the Skeleton tab uses. */
-interface DayGroup {
-  dateKey: string
-  label: string
-  rows: typeof grid.value.rows
-}
-const days = computed<DayGroup[]>(() => {
-  const map = new Map<string, DayGroup>()
-  for (const row of grid.value.rows) {
-    const d = new Date(row.slot.startAt)
-    if (Number.isNaN(d.getTime())) continue
-    const key = dateKey(d)
-    let group = map.get(key)
-    if (!group) {
-      group = { dateKey: key, label: dayLabel(d), rows: [] }
-      map.set(key, group)
-    }
-    group.rows.push(row)
-  }
-  return Array.from(map.values())
-})
-
-function dateKey(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-function dayLabel(d: Date): string {
-  return d.toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-  })
 }
 
 function slotTimeModel(iso: string): PickerTime {
@@ -379,122 +332,71 @@ function saveEdit() {
       </article>
     </div>
 
-    <p v-if="rooms.length === 0" class="empty">No rooms have been added to this meet yet.</p>
-    <p v-else-if="empty" class="empty">No quizzes scheduled yet. Add slots and quizzes to begin.</p>
+    <ScheduleGrid
+      :rooms="rooms"
+      :slots="slots"
+      :quizzes="quizzes"
+      :prelim-assignments="prelimAssignments"
+      :meet-teams="meetTeams"
+      empty-message="No quizzes scheduled yet. Add slots and quizzes to begin."
+    >
+      <template #time-cell="{ gridSlot }">
+        <TimePickerButton
+          v-if="editable"
+          :model-value="slotTimeModel(gridSlot.startAt)"
+          :title="`Change time for ${formatSlotTime(gridSlot.startAt)}`"
+          @update:model-value="onSlotTimeChange(gridSlot as MeetSlot, $event)"
+        >
+          {{ formatSlotTime(gridSlot.startAt) }}
+        </TimePickerButton>
+        <template v-else>{{ formatSlotTime(gridSlot.startAt) }}</template>
+      </template>
 
-    <div v-else class="schedule-scroll">
-      <table class="schedule-table">
-        <thead>
-          <tr>
-            <th class="time-col" scope="col">Time</th>
-            <th
-              v-for="room in grid.rooms"
-              :key="room.id"
-              :data-room-id="room.id"
-              class="room-col"
-              scope="col"
-            >
-              {{ room.name }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="group in days" :key="group.dateKey">
-            <tr class="day-row">
-              <th class="day-label" :colspan="grid.rooms.length + 1" scope="colgroup">
-                {{ group.label }}
-              </th>
-            </tr>
-            <tr
-              v-for="row in group.rows"
-              :key="row.slot.id"
-              :class="{ 'event-row': row.slot.kind === 'event' }"
-            >
-              <th class="time-col" scope="row">
-                <TimePickerButton
-                  v-if="editable"
-                  :model-value="slotTimeModel(row.slot.startAt)"
-                  :title="`Change time for ${formatSlotTime(row.slot.startAt)}`"
-                  @update:model-value="onSlotTimeChange(row.slot, $event)"
-                >
-                  {{ formatSlotTime(row.slot.startAt) }}
-                </TimePickerButton>
-                <template v-else>{{ formatSlotTime(row.slot.startAt) }}</template>
-              </th>
-              <td v-if="row.slot.kind === 'event'" class="event-cell" :colspan="grid.rooms.length">
-                <span class="event-label">{{ row.slot.eventLabel || 'Event' }}</span>
-              </td>
-              <template v-else>
-                <td
-                  v-for="(quiz, i) in row.cells"
-                  :key="grid.rooms[i]!.id"
-                  class="quiz-cell"
-                  :class="{ 'quiz-cell--empty': !quiz, 'quiz-cell--editable': editable }"
-                >
-                  <article v-if="quiz" class="quiz" :data-quiz-id="quiz.id">
-                    <header class="quiz-head">
-                      <button
-                        v-if="editable"
-                        type="button"
-                        class="quiz-label-btn"
-                        :title="`Edit ${quiz.label}`"
-                        @click="openEditDialog(row.slot, grid.rooms[i]!, quiz)"
-                      >
-                        {{ quiz.label }}
-                      </button>
-                      <a
-                        v-else-if="scoresheetHref"
-                        :href="scoresheetHref(quiz.id)"
-                        class="quiz-label quiz-label--link"
-                        :title="`Open ${quiz.label} in the scoresheet`"
-                      >
-                        {{ quiz.label }}
-                      </a>
-                      <span v-else class="quiz-label">{{ quiz.label }}</span>
-                      <button
-                        v-if="editable"
-                        type="button"
-                        class="quiz-delete no-print"
-                        :title="`Delete ${quiz.label}`"
-                        @click="onDeleteQuiz(quiz)"
-                      >
-                        ×
-                      </button>
-                    </header>
-                    <ol class="seat-list">
-                      <li
-                        v-for="seat in sortedSeats(quiz.seats)"
-                        :key="seat.id"
-                        class="seat"
-                        :data-seat-letter="seat.letter || undefined"
-                      >
-                        <span class="seat-ref">{{ seatRef(seat) }}</span>
-                        <span class="seat-team">{{
-                          seatTeam(seat, {
-                            division: quiz.division,
-                            assignments: prelimAssignments ?? [],
-                            teams: meetTeams ?? [],
-                          })
-                        }}</span>
-                      </li>
-                    </ol>
-                  </article>
-                  <button
-                    v-else-if="editable"
-                    type="button"
-                    class="quiz-add no-print"
-                    :title="`Add quiz at ${formatSlotTime(row.slot.startAt)} in ${grid.rooms[i]!.name}`"
-                    @click="openEditDialog(row.slot, grid.rooms[i]!, null)"
-                  >
-                    +
-                  </button>
-                </td>
-              </template>
-            </tr>
-          </template>
-        </tbody>
-      </table>
-    </div>
+      <template #quiz-label="{ quiz, gridSlot, room }">
+        <button
+          v-if="editable"
+          type="button"
+          class="quiz-label-btn"
+          :title="`Edit ${quiz.label}`"
+          @click="openEditDialog(gridSlot as MeetSlot, room as MeetRoom, quiz as ScheduledQuiz)"
+        >
+          {{ quiz.label }}
+        </button>
+        <a
+          v-else-if="scoresheetHref"
+          :href="scoresheetHref(quiz.id)"
+          class="quiz-label quiz-label--link"
+          :title="`Open ${quiz.label} in the scoresheet`"
+        >
+          {{ quiz.label }}
+        </a>
+        <span v-else class="quiz-label">{{ quiz.label }}</span>
+      </template>
+
+      <template #cell-actions="{ quiz }">
+        <button
+          v-if="editable"
+          type="button"
+          class="quiz-delete no-print"
+          :title="`Delete ${quiz.label}`"
+          @click="onDeleteQuiz(quiz as ScheduledQuiz)"
+        >
+          ×
+        </button>
+      </template>
+
+      <template #empty-cell="{ gridSlot, room }">
+        <button
+          v-if="editable"
+          type="button"
+          class="quiz-add no-print"
+          :title="`Add quiz at ${formatSlotTime(gridSlot.startAt)} in ${room.name}`"
+          @click="openEditDialog(gridSlot as MeetSlot, room as MeetRoom, null)"
+        >
+          +
+        </button>
+      </template>
+    </ScheduleGrid>
 
     <div v-if="editingCell" class="edit-overlay no-print" @click.self="closeEditDialog">
       <form class="edit-form" @submit.prevent="saveEdit">
@@ -723,122 +625,9 @@ function saveEdit() {
   border-color: var(--color-accent-hover);
 }
 
-.empty {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.schedule-scroll {
-  overflow-x: auto;
-  border: 1px solid var(--color-border-alt);
-  border-radius: 6px;
-}
-
-.schedule-table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 0.78rem;
-  table-layout: fixed;
-}
-
-/* No padding/text-align on the parent rule — per-column class rules
-   below would lose the cascade ((0,1,0) vs (0,1,1)) and silently do
-   nothing. Each column class sets its own. */
-.schedule-table th,
-.schedule-table td {
-  border: 1px solid var(--color-border-alt);
-  vertical-align: top;
-}
-
-thead th {
-  background: var(--color-bg-raised);
-  color: var(--color-text-faint);
-  font-weight: 700;
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0.5rem 0.875rem;
-  text-align: center;
-}
-
-.time-col {
-  width: 7rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  background: var(--color-bg);
-  padding: 0.55rem 0.875rem;
-  text-align: center;
-  position: sticky;
-  left: 0;
-  z-index: 1;
-}
-
-/* Body-only — keep header (.time-col in thead) faint/uppercase via thead th. */
-tbody .time-col {
-  font-weight: 500;
-  color: var(--color-text-muted);
-}
-
-thead .time-col {
-  background: var(--color-bg-raised);
-}
-
-.room-col {
-  min-width: 6.5rem;
-  font-weight: 600;
-  font-size: 0.78rem;
-  color: var(--color-text);
-  padding: 0.5rem 0.875rem;
-  text-align: center;
-}
-
-.day-row .day-label {
-  background: var(--color-bg-warm);
-  color: var(--color-text-muted);
-  font-weight: 700;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0.45rem 0.875rem;
-  text-align: left;
-}
-
-.event-row .event-cell {
-  background: var(--color-bg-warm);
-  text-align: center;
-  padding: 0.55rem 0.6rem;
-}
-
-.event-label {
-  font-style: italic;
-  font-weight: 400;
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-}
-
-.quiz-cell {
-  min-width: 6.5rem;
-}
-
-.quiz-cell--empty {
-  background: transparent;
-}
-
-.quiz {
-  display: flex;
-  flex-direction: column;
-}
-
-.quiz-head {
-  position: relative;
-  font-weight: 600;
-  font-size: 0.78rem;
-  text-align: center;
-  padding: 0.3rem 0.4rem 0.25rem;
-  border-bottom: 1px solid var(--color-border-alt);
-  color: var(--color-text);
-}
+/* Slot-content styles below: rendered by this component into <ScheduleGrid>'s
+   slots, so they inherit this component's scoped attribute and need to live
+   here. Grid/cell skeleton styles moved to packages/ui/src/ScheduleGrid.vue. */
 
 .quiz-label-btn {
   background: none;
@@ -879,11 +668,12 @@ thead .time-col {
   font-size: 1.1rem;
   color: var(--color-text-faint);
   cursor: pointer;
-  opacity: 0;
+  /* Cell-hover reveal via the cascading custom property defined on
+     .schedule-grid-cell in @qzr/ui ScheduleGrid. */
+  opacity: var(--schedule-grid-action-opacity, 0);
   transition: opacity 100ms ease;
 }
 
-.quiz-cell--editable:hover .quiz-add,
 .quiz-add:focus-visible {
   opacity: 1;
   color: var(--color-accent);
@@ -902,11 +692,10 @@ thead .time-col {
   cursor: pointer;
   padding: 0.1rem 0.25rem;
   border-radius: 3px;
-  opacity: 0;
+  opacity: var(--schedule-grid-action-opacity, 0);
   transition: opacity 100ms ease;
 }
 
-.quiz:hover .quiz-delete,
 .quiz-delete:focus-visible {
   opacity: 1;
 }
@@ -914,38 +703,6 @@ thead .time-col {
 .quiz-delete:hover {
   color: var(--palette-error);
   background: var(--color-bg);
-}
-
-.seat-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.seat {
-  display: grid;
-  grid-template-columns: minmax(0, 1.6rem) minmax(0, 1fr);
-  gap: 0.4rem;
-  align-items: baseline;
-  padding: 0.18rem 0.45rem;
-  border-top: 1px dotted var(--color-border-alt);
-  font-variant-numeric: tabular-nums;
-}
-
-.seat:first-child {
-  border-top: none;
-}
-
-.seat-ref {
-  color: var(--color-text-muted);
-  font-weight: 500;
-}
-
-.seat-team {
-  color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Inline modal for the quiz add/edit form. Centered overlay with a

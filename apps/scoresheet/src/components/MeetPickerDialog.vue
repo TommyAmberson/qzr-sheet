@@ -1,69 +1,33 @@
 <script setup lang="ts">
-import { ApiError } from '@qzr/shared'
 import { ref } from 'vue'
 
-import { getMyMeets, joinMeet, type MeetSummary } from '../api'
+import { type MeetSummary } from '../api'
+import { useMeetList } from '../composables/useMeetList'
 import { useMeetSession } from '../composables/useMeetSession'
-import { useGuestSession, initGuestSession, joinByCode } from '../composables/useGuestSession'
 
 const emit = defineEmits<{ loaded: [] }>()
 
 const { loadMeet } = useMeetSession()
-const guest = useGuestSession()
+const {
+  meets,
+  loading,
+  error,
+  joinCode,
+  joinError,
+  joining,
+  init,
+  handleJoinCode,
+  setActiveGuest,
+} = useMeetList()
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
-const meets = ref<MeetSummary[]>([])
-const loading = ref(false)
-const error = ref('')
 const submitting = ref(false)
-const joinCode = ref('')
-const joinError = ref('')
-const joining = ref(false)
-/** Tracks whether the last getMyMeets() saw a signed-in cookie session. Drives
- * the "Have a code?" form: signed-in users add a real membership via /api/join,
- * anonymous viewers add a guest token via /api/join/guest. */
-const signedIn = ref(false)
-
-async function fetchMeets() {
-  loading.value = true
-  error.value = ''
-  const seen = new Set<number>()
-  const list: MeetSummary[] = []
-  for (const j of guest.joinedMeets.value) {
-    list.push({ meetId: j.meetId, meetName: j.meetName, role: j.role })
-    seen.add(j.meetId)
-  }
-  try {
-    const res = await getMyMeets()
-    signedIn.value = true
-    for (const m of res.memberships) {
-      if (seen.has(m.meetId)) continue
-      seen.add(m.meetId)
-      list.push(m)
-    }
-  } catch (e) {
-    // 401 just means anonymous guest — suppress the error if we already have
-    // joined meets to show. Other errors still surface.
-    if (e instanceof ApiError && e.status === 401) {
-      signedIn.value = false
-      if (list.length === 0) error.value = 'Not signed in.'
-    } else {
-      error.value = (e as Error).message
-    }
-  } finally {
-    meets.value = list
-    loading.value = false
-  }
-}
 
 async function selectMeet(meet: MeetSummary) {
   submitting.value = true
   error.value = ''
   try {
-    // If this meet is one the user joined as a guest, switch the active
-    // session so loadMeet's request uses that meet's JWT. setActive is a
-    // no-op for non-guest rows (signed-in memberships).
-    guest.setActive(meet.meetId)
+    setActiveGuest(meet.meetId)
     await loadMeet(meet.meetId, meet.meetName)
     dialogRef.value?.close()
     emit('loaded')
@@ -74,38 +38,13 @@ async function selectMeet(meet: MeetSummary) {
   }
 }
 
-async function handleJoinCode() {
-  const code = joinCode.value.trim()
-  if (!code) return
-  joining.value = true
-  joinError.value = ''
-  try {
-    if (signedIn.value) {
-      await joinMeet(code)
-    } else {
-      const data = await joinByCode(code)
-      if (!data) throw new Error('Invalid code.')
-    }
-    joinCode.value = ''
-    await fetchMeets()
-  } catch (e) {
-    joinError.value = (e as Error).message
-  } finally {
-    joining.value = false
-  }
-}
-
 function close() {
   dialogRef.value?.close()
 }
 
 async function open() {
   dialogRef.value?.showModal()
-  // Wait for the URL-shared guest session before populating the list so the
-  // shared meet shows up as a clickable row even for anonymous viewers.
-  loading.value = true
-  await initGuestSession()
-  await fetchMeets()
+  await init()
 }
 
 defineExpose({ open })

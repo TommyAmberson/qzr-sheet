@@ -22,6 +22,7 @@ import { useMeetSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
 import MeetPickerDialog from './MeetPickerDialog.vue'
+import SchedulePickerDialog from './SchedulePickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
 import TutorialOverlay from './TutorialOverlay.vue'
 
@@ -64,6 +65,7 @@ const vFitName = {
 
 const meetSession = useMeetSession()
 const meetPickerRef = ref<InstanceType<typeof MeetPickerDialog> | null>(null)
+const schedulePickerRef = ref<InstanceType<typeof SchedulePickerDialog> | null>(null)
 const openPickerSlot = ref<number | null>(null)
 const pickerPos = ref({ top: 0, left: 0 })
 
@@ -141,6 +143,29 @@ async function loadFromUrlParams() {
 async function openMeetPicker() {
   closeMenus()
   meetPickerRef.value?.open()
+}
+
+async function openSchedulePicker() {
+  closeMenus()
+  schedulePickerRef.value?.open()
+}
+
+async function onSchedulePicked() {
+  // loadFromQuiz inside the dialog already populated the meet session,
+  // assigned the 3 team slots, and stamped quizId. We mirror the URL
+  // entry point's post-assign bookkeeping so the scoresheet's team
+  // labels + empty quizzer seats fill from the resolved DB data.
+  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+    const slot = meetSession.getSlot(teamIdx)
+    if (!slot) continue
+    const storeTeamId = store.teams[teamIdx]!.id
+    setTeamName(teamIdx, slot.dbLabelFull)
+    for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+      if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
+        setQuizzerName(teamIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+      }
+    }
+  }
 }
 
 function isDefaultQuizzerName(name: string): boolean {
@@ -864,6 +889,7 @@ const appVersion: string = __APP_VERSION__
                     <button v-else @click="doClearNames">✕ Clear names</button>
                     <hr class="file-menu__divider" />
                     <button @click="openMeetPicker">🔗 Load teams from meet…</button>
+                    <button @click="openSchedulePicker">📅 Load from schedule…</button>
                   </div>
                 </div>
                 <button class="help-toggle" title="Interactive tutorial" @click="tutorial.start()">
@@ -1454,6 +1480,7 @@ const appVersion: string = __APP_VERSION__
       <!-- Cell selector popup -->
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
+        <SchedulePickerDialog ref="schedulePickerRef" @loaded="onSchedulePicked" />
         <div
           v-if="selector"
           :class="[
