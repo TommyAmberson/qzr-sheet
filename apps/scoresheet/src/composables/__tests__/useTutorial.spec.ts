@@ -203,6 +203,7 @@ describe('useTutorial — meet link', () => {
       quizId: null,
       roomId: null,
       roomName: null,
+      submittedAt: null,
     })
     expect(meet.isActive.value).toBe(true)
 
@@ -239,6 +240,7 @@ describe('useTutorial — meet link', () => {
       quizId: null,
       roomId: null,
       roomName: null,
+      submittedAt: null,
     })
 
     const s = useScoresheet()

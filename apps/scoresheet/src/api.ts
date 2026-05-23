@@ -1,4 +1,4 @@
-import { createApiClient } from '@qzr/shared'
+import { createApiClient, type QuizFile } from '@qzr/shared'
 import { getGuestToken } from './composables/useGuestSession'
 
 declare const __API_URL__: string
@@ -180,4 +180,25 @@ export async function joinMeetGuest(
   })
   if (!res.ok) return null
   return (await res.json()) as { token: string; meet: { id: number; name: string }; role: string }
+}
+
+// ---- Results ----
+
+export interface SubmitResultResponse {
+  id: number
+  submittedAt: string
+}
+
+export function postResult(
+  meetId: number,
+  payload: {
+    quizFile: QuizFile
+    quizId: number | null
+    roomId: number | null
+  },
+): Promise<SubmitResultResponse> {
+  return request(`/api/meets/${meetId}/results`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }

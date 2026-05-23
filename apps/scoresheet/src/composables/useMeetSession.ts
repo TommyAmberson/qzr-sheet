@@ -37,6 +37,12 @@ export interface MeetSessionData {
    *  quiz — those submissions are orphans for an admin to reconcile. */
   roomId: number | null
   roomName: string | null
+  /** ISO timestamp set by markSubmitted after a successful POST. The
+   *  Submit button hides and inputs disable while this is set. Cleared
+   *  whenever the session is replaced (New quiz, different schedule
+   *  load, unlink meet) — so the user must commit to leaving this
+   *  binding behind before they can submit again. */
+  submittedAt: string | null
 }
 
 const session = ref<MeetSessionData | null>(loadFromStorage())
@@ -49,6 +55,8 @@ export function useMeetSession() {
   const quizId = computed(() => session.value?.quizId ?? null)
   const roomId = computed(() => session.value?.roomId ?? null)
   const roomName = computed(() => session.value?.roomName ?? null)
+  const submittedAt = computed(() => session.value?.submittedAt ?? null)
+  const isSubmitted = computed(() => session.value?.submittedAt != null)
 
   /** Division options for the scoresheet dropdown — the meet's canonical division list. */
   const divisionOptions = computed((): string[] => session.value?.meetDivisions ?? [])
@@ -85,6 +93,7 @@ export function useMeetSession() {
       quizId: null,
       roomId: null,
       roomName: null,
+      submittedAt: null,
     }
     persist()
   }
@@ -140,7 +149,18 @@ export function useMeetSession() {
       quizId,
       roomId: room?.roomId ?? null,
       roomName: room?.roomName ?? null,
+      // Loading a quiz unlocks — the binding is fresh.
+      submittedAt: null,
     }
+    persist()
+  }
+
+  /** Mark the current scoresheet as submitted. Locks the UI until the
+   *  session is replaced. Idempotent — re-calling overwrites the
+   *  timestamp but has no other effect. */
+  function markSubmitted(at: Date = new Date()): void {
+    if (!session.value) return
+    session.value = { ...session.value, submittedAt: at.toISOString() }
     persist()
   }
 
@@ -254,6 +274,9 @@ export function useMeetSession() {
     quizId,
     roomId,
     roomName,
+    submittedAt,
+    isSubmitted,
+    markSubmitted,
     divisionOptions,
     teamsForDivision,
     teamLabel,
@@ -380,6 +403,7 @@ function loadFromStorage(): MeetSessionData | null {
     if (data.quizId === undefined) data.quizId = null
     if (data.roomId === undefined) data.roomId = null
     if (data.roomName === undefined) data.roomName = null
+    if (data.submittedAt === undefined) data.submittedAt = null
     return data
   } catch {
     return null
