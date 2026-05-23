@@ -330,6 +330,56 @@ describe('useMeetSession — buildSlotFromSeat + applyLoadedQuiz', () => {
     expect(getSlot(1)).toBeUndefined()
     expect(quizId.value).toBe(555)
   })
+
+  it('applyLoadedQuiz captures roomId + roomName + auto-enables server save', async () => {
+    const { loadMeet, applyLoadedQuiz, roomId, roomName, serverSaveEnabled } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    expect(serverSaveEnabled.value).toBe(false)
+
+    applyLoadedQuiz([undefined, undefined, undefined], 555, { roomId: 9, roomName: 'Sanctuary' })
+
+    expect(roomId.value).toBe(9)
+    expect(roomName.value).toBe('Sanctuary')
+    expect(serverSaveEnabled.value).toBe(true)
+  })
+
+  it('loadMeet without quiz clears any prior room context + server-save opt-in', async () => {
+    const { loadMeet, applyLoadedQuiz, roomId, roomName, serverSaveEnabled } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    applyLoadedQuiz([undefined, undefined, undefined], 555, { roomId: 9, roomName: 'Sanctuary' })
+    await loadMeet(42, 'Finals')
+    expect(roomId.value).toBeNull()
+    expect(roomName.value).toBeNull()
+    expect(serverSaveEnabled.value).toBe(false)
+  })
+
+  it('setServerSaveEnabled toggles the opt-in flag', async () => {
+    const { loadMeet, setServerSaveEnabled, serverSaveEnabled } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    expect(serverSaveEnabled.value).toBe(false)
+    setServerSaveEnabled(true)
+    expect(serverSaveEnabled.value).toBe(true)
+    setServerSaveEnabled(false)
+    expect(serverSaveEnabled.value).toBe(false)
+  })
+
+  it('markSubmitted stamps submittedAt and isSubmitted flips', async () => {
+    const { loadMeet, markSubmitted, isSubmitted, submittedAt } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    expect(isSubmitted.value).toBe(false)
+    markSubmitted(new Date('2026-05-23T18:00:00.000Z'))
+    expect(isSubmitted.value).toBe(true)
+    expect(submittedAt.value).toBe('2026-05-23T18:00:00.000Z')
+  })
+
+  it('applyLoadedQuiz clears submittedAt (fresh binding unlocks)', async () => {
+    const { loadMeet, markSubmitted, applyLoadedQuiz, isSubmitted } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    markSubmitted()
+    expect(isSubmitted.value).toBe(true)
+    applyLoadedQuiz([undefined, undefined, undefined], 556)
+    expect(isSubmitted.value).toBe(false)
+  })
 })
 
 describe('useMeetSession — clearSlot', () => {

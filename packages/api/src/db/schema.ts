@@ -295,6 +295,96 @@ export const seedResolutions = sqliteTable(
   (t) => [unique().on(t.meetId, t.seedRef)],
 )
 
+// ---- Saves + results ----
+
+// Append-only history of an official's in-progress QuizFile state. The
+// scoresheet debounces edits and POSTs autosaves; a manual "Save to
+// server" creates a `checkpoint` row. Admins scrub through this for
+// audit / recovery; stats never read it directly (stats read from
+// quiz_results, which is the frozen submit snapshot).
+//
+// Grouping for "the history of one quiz" is by
+// (meetId, submittedBy*, scheduledQuizId | (division+round)). No
+// uniqueness — every save is a new row.
+export const quizSaves = sqliteTable('quiz_saves', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  meetId: integer('meet_id')
+    .notNull()
+    .references(() => quizMeets.id, { onDelete: 'cascade' }),
+  // Nullable when the scoresheet wasn't loaded from the schedule.
+  scheduledQuizId: integer('scheduled_quiz_id').references(() => scheduledQuizzes.id, {
+    onDelete: 'set null',
+  }),
+  roomId: integer('room_id').references(() => meetRooms.id, { onDelete: 'set null' }),
+  division: text('division').notNull(),
+  round: text('round').notNull(),
+  savedAt: integer('saved_at', { mode: 'timestamp' }).notNull(),
+  kind: text('kind', { enum: ['autosave', 'checkpoint'] }).notNull(),
+  // Optional checkpoint label ("end of Q15", "before re-check") — null for autosaves.
+  label: text('label'),
+  // Exactly one of these is set; null for the other.
+  savedByAccountId: text('saved_by_account_id').references(() => user.id, {
+    onDelete: 'set null',
+  }),
+  savedByGuestLabel: text('saved_by_guest_label'),
+  quizFile: text('quiz_file').notNull(),
+})
+
+// Immutable submit snapshot. Created when an official marks the quiz
+// "done" via the Submit button — the server snapshots the current
+// QuizFile and stores it here. Stats read from this table.
+//
+// quizId is nullable for orphaned submissions (scoresheet wasn't
+// loaded from the schedule). SQLite treats NULL as distinct in
+// unique indexes, so orphans coexist freely; the (meetId, quizId)
+// constraint only fires when quizId is set.
+//
+// Post-submit, the underlying quiz_saves history keeps growing —
+// quiz_results stays frozen at submit-time. Admin can compare the
+// snapshot against later saves to spot post-submit edits.
+export const quizResults = sqliteTable(
+  'quiz_results',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    quizId: integer('quiz_id').references(() => scheduledQuizzes.id, {
+      onDelete: 'set null',
+    }),
+    roomId: integer('room_id').references(() => meetRooms.id, { onDelete: 'set null' }),
+    division: text('division').notNull(),
+    round: text('round').notNull(),
+    submittedAt: integer('submitted_at', { mode: 'timestamp' }).notNull(),
+    submittedByAccountId: text('submitted_by_account_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    submittedByGuestLabel: text('submitted_by_guest_label'),
+    quizFile: text('quiz_file').notNull(),
+  },
+  (t) => [unique().on(t.meetId, t.quizId)],
+)
+
+// Flag a submitted result for admin review. Multiple disputes per
+// result allowed. Officials raise; admins resolve.
+export const quizDisputes = sqliteTable('quiz_disputes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  resultId: integer('result_id')
+    .notNull()
+    .references(() => quizResults.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdByAccountId: text('created_by_account_id').references(() => user.id, {
+    onDelete: 'set null',
+  }),
+  createdByGuestLabel: text('created_by_guest_label'),
+  reason: text('reason').notNull(),
+  resolved: integer('resolved', { mode: 'boolean' }).notNull().default(false),
+  resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+  resolvedByAccountId: text('resolved_by_account_id').references(() => user.id, {
+    onDelete: 'set null',
+  }),
+})
+
 // ---- Inferred types ----
 
 export type User = typeof user.$inferSelect
@@ -315,3 +405,6 @@ export type ScheduledQuiz = typeof scheduledQuizzes.$inferSelect
 export type ScheduledQuizSeat = typeof scheduledQuizSeats.$inferSelect
 export type PrelimAssignment = typeof prelimAssignments.$inferSelect
 export type SeedResolution = typeof seedResolutions.$inferSelect
+export type QuizSave = typeof quizSaves.$inferSelect
+export type QuizResult = typeof quizResults.$inferSelect
+export type QuizDispute = typeof quizDisputes.$inferSelect

@@ -15,6 +15,33 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-23
+
+### Added
+
+* **Server-side autosave** — when a meet is linked and server save is enabled, the scoresheet
+  streams its QuizFile to `/api/meets/:id/saves` on a 10-second debounce. Auto-enables when loaded
+  from a scheduled quiz; otherwise an explicit "Server autosave" toggle in the New menu turns it on
+  (requires sign-in or guest-official permission). Same- content dedupe so a quiet scoresheet
+  doesn't generate identical history rows. localStorage autosave continues unchanged — the server
+  path is best-effort, the local copy is durable.
+* **Manual "Save to server" checkpoint** — under the Save menu. Prompts for an optional label
+  ("after Q15") and POSTs immediately as `kind: 'checkpoint'`, bypassing the autosave debounce. Lets
+  officials pin a named milestone in the audit history.
+* **Submit (mark this quiz done)** — primary button in the file-action group when a meet is linked
+  and the scoresheet is complete + clean. POSTs to `/results` to freeze the current QuizFile as the
+  immutable official record. After success the local UI locks (scoring surface dims, "✓ Submitted"
+  badge replaces the button). Distinct from saves — Submit is a status flip; the server's save
+  history keeps growing for audit after Submit.
+* **`roomId` + `roomName` on the meet session** — captured from scheduled loads, mirrored to save /
+  result payloads. Persists alongside `quizId` across reloads.
+* **`serverSaveEnabled` + `submittedAt` on the meet session** — opt-in flag and lock timestamp. Both
+  auto-clear when the session is replaced (New, Open, different scheduled load, Unlink).
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` — unchanged.
+
 ## [0.9.2] — 2026-05-21
 
 First per-package scoresheet release. No source changes since 0.9.1 — bumping to establish the
