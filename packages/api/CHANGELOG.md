@@ -17,6 +17,33 @@ wire/state compatibility signal — see CLAUDE.md "Contract package versioning".
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-05-23
+
+### Added
+
+* **`quiz_results` + `quiz_disputes` tables** — immutable submission record with the QuizFile JSON,
+  plus a flag/resolve loop for admins. `quiz_results.quizId` and `roomId` are nullable so orphan
+  submissions (scoresheet not loaded from the schedule) succeed; SQLite NULL≠NULL semantics mean the
+  (meetId, quizId) UNIQUE constraint only fires for scheduled submissions, returning 409.
+* **`POST /api/meets/:id/results`** — first mutation route in the codebase that admits guest
+  officials (via the new `isOfficialOf` helper). Validates the QuizFile against the shared TypeBox
+  schema before insert. Stamps the submitter as either an account or a guest label.
+* **`GET /api/meets/:id/results`** — admin/superuser list, newest first, with an `openDisputes`
+  count per row for the future review UI.
+* **`GET /api/meets/:id/results/:resultId`** — admin detail with the full QuizFile parsed back out
+  of storage.
+* **`POST /api/meets/:id/results/:resultId/disputes`** + **`PATCH /api/meets/:id/disputes/:id`** —
+  flag-and-resolve dispute lifecycle. Officials raise; admins resolve. Resolved-state toggle stamps
+  and clears the resolver attribution symmetrically.
+* **`isOfficialOf(c, db, meetId)` permission helper** — superuser, meet admin, meet official, or
+  guest-JWT official scoped to the meet. Composed inside the new submission and dispute routes.
+* **`@sinclair/typebox` direct dependency** — needed for `Value.Check(QuizFileSchema, …)` so the API
+  enforces the same schema the scoresheet serialises against.
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` — unchanged (the new endpoints consume the existing `QuizFileSchema`).
+
 ## [0.10.0] — 2026-05-21
 
 First per-package API release. Covers everything shipped on master since unified tag `v0.9.1`.
