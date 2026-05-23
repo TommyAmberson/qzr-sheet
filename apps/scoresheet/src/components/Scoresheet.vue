@@ -26,6 +26,8 @@ import MeetPickerDialog from './MeetPickerDialog.vue'
 import SchedulePickerDialog from './SchedulePickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
 import TutorialOverlay from './TutorialOverlay.vue'
+import { useResultSubmission } from '../composables/useResultSubmission'
+import { useServerAutoSave } from '../composables/useServerAutoSave'
 
 const { theme, toggleTheme } = useTheme()
 
@@ -399,6 +401,65 @@ const tutorial = useTutorial({
   resetStore,
 })
 tutorial.recoverFromCrash()
+
+const liveQuizFile = computed(() =>
+  serialize({
+    quiz: store.quiz,
+    teams: store.teams,
+    quizzers: store.quizzers,
+    answers: store.answers,
+    noJumps: noJumpMap.value,
+    timeouts: timeoutMap.value,
+  }),
+)
+
+const autoSave = useServerAutoSave({ quizFile: liveQuizFile })
+
+const submission = useResultSubmission({
+  hasAnyErrors,
+  allQuestionsComplete,
+  quiz,
+  buildQuizFile: () => liveQuizFile.value,
+})
+
+async function doSaveToServer() {
+  closeMenus()
+  const label = window.prompt('Optional checkpoint label (e.g. "after Q15")') ?? undefined
+  const ok = await autoSave.saveCheckpoint(label?.trim() || undefined)
+  if (ok) {
+    alert('Checkpoint saved to the server.')
+  } else if (autoSave.lastError.value) {
+    alert(`Save failed: ${autoSave.lastError.value}`)
+  }
+}
+
+function toggleServerSave() {
+  closeMenus()
+  meetSession.setServerSaveEnabled(!meetSession.serverSaveEnabled.value)
+}
+
+async function doSubmit() {
+  if (!submission.canSubmit.value) return
+  const meetLabel = meetSession.meetName.value ?? 'this meet'
+  const roomLabel = meetSession.roomName.value ? ` (${meetSession.roomName.value})` : ''
+  if (
+    !(await confirmAction(
+      `Submit Div ${quiz.value.division} Q${quiz.value.quizNumber}${roomLabel} to ${meetLabel} as the final result? The scoresheet will lock.`,
+    ))
+  ) {
+    return
+  }
+  const outcome = await submission.submit()
+  if (outcome.ok) {
+    alert('Submitted. The scoresheet is now locked.')
+  } else if (outcome.duplicate) {
+    alert(
+      'A final result has already been submitted for this scheduled quiz. Save the JSON locally if you need to compare.',
+    )
+  } else if (outcome.error) {
+    alert(`Submit failed: ${outcome.error}`)
+  }
+}
 
 /** All unique validation messages for the status tooltip */
 const allValidationMessages = computed(() => {
@@ -826,7 +887,7 @@ const appVersion: string = __APP_VERSION__
     <div
       ref="wrapperRef"
       class="scoresheet-wrapper"
-      :class="{ 'is-dragging': dragState }"
+      :class="{ 'is-dragging': dragState, 'is-submitted': meetSession.isSubmitted.value }"
       @dragstart.prevent
     >
       <div
@@ -935,11 +996,45 @@ const appVersion: string = __APP_VERSION__
               </span>
               <span class="meta-divider" />
               <div class="meta-field meta-field--file">
+                <button
+                  v-if="meetSession.isActive.value && !meetSession.isSubmitted.value"
+                  class="submit-btn"
+                  :disabled="!submission.canSubmit.value || submission.submitting.value"
+                  :title="
+                    submission.canSubmit.value
+                      ? `Submit final result to ${meetSession.meetName.value}`
+                      : 'Complete + clean scoresheet required'
+                  "
+                  @click="doSubmit"
+                >
+                  {{ submission.submitting.value ? '…' : '⇪ Submit' }}
+                </button>
+                <span
+                  v-else-if="meetSession.isSubmitted.value"
+                  class="submit-badge"
+                  :title="`Submitted at ${meetSession.submittedAt.value}`"
+                >
+                  ✓ Submitted
+                </span>
                 <div class="file-menu">
                   <button title="Save / Export (Ctrl+S)" @click="toggleSaveMenu">⤓ Save ▾</button>
                   <div v-if="saveMenuOpen" class="file-menu__dropdown">
                     <button @click="doSaveFile">⤓ Save as JSON</button>
                     <button @click="doExportOds">⬡ Export ODS</button>
+                    <template v-if="meetSession.isActive.value && !meetSession.isSubmitted.value">
+                      <hr class="file-menu__divider" />
+                      <button
+                        :disabled="!meetSession.serverSaveEnabled.value || autoSave.inflight.value"
+                        :title="
+                          meetSession.serverSaveEnabled.value
+                            ? 'Save a labelled checkpoint to the server'
+                            : 'Enable server save first (New menu)'
+                        "
+                        @click="doSaveToServer"
+                      >
+                        ☁ Save to server
+                      </button>
+                    </template>
                   </div>
                 </div>
                 <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
@@ -952,6 +1047,12 @@ const appVersion: string = __APP_VERSION__
                       ⚡ Unlink meet
                     </button>
                     <button v-else @click="doClearNames">✕ Clear names</button>
+                    <template v-if="meetSession.isActive.value">
+                      <hr class="file-menu__divider" />
+                      <button @click="toggleServerSave">
+                        {{ meetSession.serverSaveEnabled.value ? '◉' : '○' }} Server autosave
+                      </button>
+                    </template>
                     <hr class="file-menu__divider" />
                     <button @click="openMeetPicker">🔗 Load teams from meet…</button>
                     <button @click="openSchedulePicker">📅 Load from schedule…</button>
@@ -1925,6 +2026,45 @@ const appVersion: string = __APP_VERSION__
   color: var(--color-text);
   border-color: var(--color-text-faint);
   background: var(--color-border-alt);
+}
+
+.meta-field--file .submit-btn {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+.meta-field--file .submit-btn:not(:disabled):hover {
+  filter: brightness(1.08);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+.meta-field--file .submit-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.submit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+/* Lock the scoring surface once submitted. The meta header stays
+ * interactive (Save, Open, New, Submit badge) so the user can still
+ * download / start over / unlink. */
+.scoresheet-wrapper.is-submitted .scoresheet,
+.scoresheet-wrapper.is-submitted .quiz-meta--right {
+  pointer-events: none;
+  opacity: 0.7;
 }
 
 .menu-backdrop {
