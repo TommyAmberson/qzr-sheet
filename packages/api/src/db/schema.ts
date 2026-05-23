@@ -295,6 +295,59 @@ export const seedResolutions = sqliteTable(
   (t) => [unique().on(t.meetId, t.seedRef)],
 )
 
+// ---- Results ----
+
+// Immutable submission record. `quizId` and `roomId` are nullable for
+// orphaned submissions — a scoresheet not loaded from the schedule can
+// still submit; an admin reconciles the result later. SQLite treats
+// NULL as distinct in unique indexes, so two orphan submissions for the
+// same (division, round) coexist; the (meetId, quizId) constraint only
+// fires for scheduled submissions.
+export const quizResults = sqliteTable(
+  'quiz_results',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    quizId: integer('quiz_id').references(() => scheduledQuizzes.id, {
+      onDelete: 'set null',
+    }),
+    roomId: integer('room_id').references(() => meetRooms.id, { onDelete: 'set null' }),
+    division: text('division').notNull(),
+    round: text('round').notNull(),
+    submittedAt: integer('submitted_at', { mode: 'timestamp' }).notNull(),
+    // null when submitted via guest JWT — guest label is stored in the next field.
+    submittedByAccountId: text('submitted_by_account_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    submittedByGuestLabel: text('submitted_by_guest_label'),
+    // Full serialised QuizFile JSON. Parse at read-time.
+    quizFile: text('quiz_file').notNull(),
+  },
+  (t) => [unique().on(t.meetId, t.quizId)],
+)
+
+// Flag a submitted result for admin review. Officials and admins can
+// raise; only admins resolve. Multiple disputes per result are allowed.
+export const quizDisputes = sqliteTable('quiz_disputes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  resultId: integer('result_id')
+    .notNull()
+    .references(() => quizResults.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  createdByAccountId: text('created_by_account_id').references(() => user.id, {
+    onDelete: 'set null',
+  }),
+  createdByGuestLabel: text('created_by_guest_label'),
+  reason: text('reason').notNull(),
+  resolved: integer('resolved', { mode: 'boolean' }).notNull().default(false),
+  resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+  resolvedByAccountId: text('resolved_by_account_id').references(() => user.id, {
+    onDelete: 'set null',
+  }),
+})
+
 // ---- Inferred types ----
 
 export type User = typeof user.$inferSelect
@@ -315,3 +368,5 @@ export type ScheduledQuiz = typeof scheduledQuizzes.$inferSelect
 export type ScheduledQuizSeat = typeof scheduledQuizSeats.$inferSelect
 export type PrelimAssignment = typeof prelimAssignments.$inferSelect
 export type SeedResolution = typeof seedResolutions.$inferSelect
+export type QuizResult = typeof quizResults.$inferSelect
+export type QuizDispute = typeof quizDisputes.$inferSelect

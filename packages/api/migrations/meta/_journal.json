@@ -29,6 +29,13 @@
       "when": 1778793724215,
       "tag": "0003_dear_venus",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1779553408432,
+      "tag": "0004_dusty_golden_guardian",
+      "breakpoints": true
     }
   ]
 }
