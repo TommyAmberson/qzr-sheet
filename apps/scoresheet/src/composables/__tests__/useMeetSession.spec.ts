@@ -330,6 +330,40 @@ describe('useMeetSession — buildSlotFromSeat + applyLoadedQuiz', () => {
     expect(getSlot(1)).toBeUndefined()
     expect(quizId.value).toBe(555)
   })
+
+  it('applyLoadedQuiz captures roomId + roomName when room context is supplied', async () => {
+    const { loadMeet, applyLoadedQuiz, roomId, roomName } = useMeetSession()
+    await loadMeet(42, 'Finals')
+
+    applyLoadedQuiz([undefined, undefined, undefined], 555, {
+      roomId: 9,
+      roomName: 'Sanctuary',
+    })
+
+    expect(roomId.value).toBe(9)
+    expect(roomName.value).toBe('Sanctuary')
+  })
+
+  it('applyLoadedQuiz nulls roomId + roomName when no room context is supplied', async () => {
+    const { loadMeet, applyLoadedQuiz, roomId, roomName } = useMeetSession()
+    await loadMeet(42, 'Finals')
+
+    // Stamp a room, then commit a load without one — should clear back to null.
+    applyLoadedQuiz([undefined, undefined, undefined], 555, { roomId: 9, roomName: 'Sanctuary' })
+    applyLoadedQuiz([undefined, undefined, undefined], 556)
+
+    expect(roomId.value).toBeNull()
+    expect(roomName.value).toBeNull()
+  })
+
+  it('loadMeet (no quiz) clears any stamped room context', async () => {
+    const { loadMeet, applyLoadedQuiz, roomId, roomName } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    applyLoadedQuiz([undefined, undefined, undefined], 555, { roomId: 9, roomName: 'Sanctuary' })
+    await loadMeet(42, 'Finals')
+    expect(roomId.value).toBeNull()
+    expect(roomName.value).toBeNull()
+  })
 })
 
 describe('useMeetSession — clearSlot', () => {

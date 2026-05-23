@@ -29,9 +29,14 @@ export interface MeetSessionData {
   /** The meet's canonical division list, e.g. ["1", "2", "3"] */
   meetDivisions: string[]
   /** Set when this session was loaded from a specific scheduled quiz
-   *  (via loadFromQuiz). Stamped onto submitted results in the future
-   *  Submit flow (#7) so they back-link to the schedule entry. */
+   *  (via loadFromQuiz). Stamped onto submitted results so they
+   *  back-link to the schedule entry. */
   quizId: number | null
+  /** Room context from the scheduled-quiz load, mirrored to the submit
+   *  payload. Null when the scoresheet isn't pinned to a scheduled
+   *  quiz — those submissions are orphans for an admin to reconcile. */
+  roomId: number | null
+  roomName: string | null
 }
 
 const session = ref<MeetSessionData | null>(loadFromStorage())
@@ -42,6 +47,8 @@ export function useMeetSession() {
   const meetName = computed(() => session.value?.meetName ?? null)
   const teamList = computed(() => session.value?.teamList ?? [])
   const quizId = computed(() => session.value?.quizId ?? null)
+  const roomId = computed(() => session.value?.roomId ?? null)
+  const roomName = computed(() => session.value?.roomName ?? null)
 
   /** Division options for the scoresheet dropdown — the meet's canonical division list. */
   const divisionOptions = computed((): string[] => session.value?.meetDivisions ?? [])
@@ -76,6 +83,8 @@ export function useMeetSession() {
       teamList: teams,
       meetDivisions,
       quizId: null,
+      roomId: null,
+      roomName: null,
     }
     persist()
   }
@@ -114,13 +123,24 @@ export function useMeetSession() {
   }
 
   /**
-   * Atomically commit a quiz load: replace the 3 slot assignments
-   * and stamp `quizId`. One reactivity tick, one `localStorage`
-   * write — vs. one per slot if callers used per-slot setters.
+   * Atomically commit a quiz load: replace the 3 slot assignments,
+   * stamp `quizId`, and capture room context from the load. One
+   * reactivity tick, one `localStorage` write — vs. one per slot if
+   * callers used per-slot setters.
    */
-  function applyLoadedQuiz(slots: (SlotSession | undefined)[], quizId: number): void {
+  function applyLoadedQuiz(
+    slots: (SlotSession | undefined)[],
+    quizId: number,
+    room: { roomId: number; roomName: string } | null = null,
+  ): void {
     if (!session.value) return
-    session.value = { ...session.value, slots, quizId }
+    session.value = {
+      ...session.value,
+      slots,
+      quizId,
+      roomId: room?.roomId ?? null,
+      roomName: room?.roomName ?? null,
+    }
     persist()
   }
 
@@ -232,6 +252,8 @@ export function useMeetSession() {
     meetName,
     teamList,
     quizId,
+    roomId,
+    roomName,
     divisionOptions,
     teamsForDivision,
     teamLabel,
@@ -356,6 +378,8 @@ function loadFromStorage(): MeetSessionData | null {
     // Migrate fields added after old sessions were persisted.
     if (!data.meetDivisions) data.meetDivisions = []
     if (data.quizId === undefined) data.quizId = null
+    if (data.roomId === undefined) data.roomId = null
+    if (data.roomName === undefined) data.roomName = null
     return data
   } catch {
     return null

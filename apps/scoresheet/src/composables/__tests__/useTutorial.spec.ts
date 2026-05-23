@@ -201,6 +201,8 @@ describe('useTutorial — meet link', () => {
       teamList: [],
       meetDivisions: ['1'],
       quizId: null,
+      roomId: null,
+      roomName: null,
     })
     expect(meet.isActive.value).toBe(true)
 
@@ -235,6 +237,8 @@ describe('useTutorial — meet link', () => {
       teamList: [],
       meetDivisions: [],
       quizId: null,
+      roomId: null,
+      roomName: null,
     })
 
     const s = useScoresheet()
