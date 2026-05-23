@@ -583,3 +583,188 @@ describe('POST /api/meets/:id/results — submit', () => {
     expect(results).toHaveLength(1)
   })
 })
+
+describe('GET /api/meets/:id/results — admin list + detail', () => {
+  let db: Db
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('403 for signed-in non-admin', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testUser, db)
+    const res = await app.request(`/api/meets/${meet.id}/results`, {}, env)
+    expect(res.status).toBe(403)
+  })
+
+  it('returns rows newest first with openDisputes count', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testSuperuser, db)
+    const earlyRes = await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile({ quizNumber: 'early' }) }),
+      env,
+    )
+    const { id: earlyId } = await jsonOf<{ id: number }>(earlyRes)
+    await db
+      .update(schema.quizResults)
+      .set({ submittedAt: new Date(Date.now() - 60_000) })
+      .where(eq(schema.quizResults.id, earlyId))
+    await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile({ quizNumber: 'late' }) }),
+      env,
+    )
+    await db.insert(schema.quizDisputes).values([
+      { resultId: earlyId, createdAt: new Date(), reason: 'wrong', resolved: false },
+      { resultId: earlyId, createdAt: new Date(), reason: 'done', resolved: true },
+    ])
+
+    const res = await app.request(`/api/meets/${meet.id}/results`, {}, env)
+    const body = await jsonOf<{
+      results: { id: number; round: string; openDisputes: number }[]
+    }>(res)
+    expect(body.results.map((r) => r.round)).toEqual(['late', 'early'])
+    expect(body.results.find((r) => r.id === earlyId)?.openDisputes).toBe(1)
+  })
+
+  it('detail returns the QuizFile parsed', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testSuperuser, db)
+    const qf = makeQuizFile({ division: '3' })
+    const post = await app.request(`/api/meets/${meet.id}/results`, postJson({ quizFile: qf }), env)
+    const { id } = await jsonOf<{ id: number }>(post)
+    const res = await app.request(`/api/meets/${meet.id}/results/${id}`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{ result: { quizFile: QuizFile } }>(res)
+    expect(body.result.quizFile).toEqual(qf)
+  })
+})
+
+describe('POST /api/meets/:id/results/:resultId/disputes', () => {
+  let db: Db
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  async function seedResult(meetId: number): Promise<number> {
+    const app = createApp(testSuperuser, db)
+    const post = await app.request(
+      `/api/meets/${meetId}/results`,
+      postJson({ quizFile: makeQuizFile() }),
+      env,
+    )
+    return (await jsonOf<{ id: number }>(post)).id
+  }
+
+  it('403 for signed-in non-member', async () => {
+    const meet = await seedMeet(db)
+    const resultId = await seedResult(meet.id)
+    const app = createApp(testUser, db)
+    const res = await app.request(
+      `/api/meets/${meet.id}/results/${resultId}/disputes`,
+      postJson({ reason: 'wrong' }),
+      env,
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it('400 when reason is blank', async () => {
+    const meet = await seedMeet(db)
+    const resultId = await seedResult(meet.id)
+    const app = createApp(testSuperuser, db)
+    const res = await app.request(
+      `/api/meets/${meet.id}/results/${resultId}/disputes`,
+      postJson({ reason: '   ' }),
+      env,
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('201 for guest official with stored label and reason', async () => {
+    const meet = await seedMeet(db)
+    const resultId = await seedResult(meet.id)
+    const app = createApp(null, db, {
+      meetId: meet.id,
+      role: MeetRole.Official,
+      label: 'Room 2',
+    })
+    const res = await app.request(
+      `/api/meets/${meet.id}/results/${resultId}/disputes`,
+      postJson({ reason: 'score off' }),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const [row] = await db.select().from(schema.quizDisputes)
+    expect(row?.createdByGuestLabel).toBe('Room 2')
+    expect(row?.reason).toBe('score off')
+  })
+})
+
+describe('PATCH /api/meets/:id/disputes/:disputeId', () => {
+  let db: Db
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  async function seedResultAndDispute(meetId: number): Promise<number> {
+    const app = createApp(testSuperuser, db)
+    const post = await app.request(
+      `/api/meets/${meetId}/results`,
+      postJson({ quizFile: makeQuizFile() }),
+      env,
+    )
+    const { id: resultId } = await jsonOf<{ id: number }>(post)
+    const flag = await app.request(
+      `/api/meets/${meetId}/results/${resultId}/disputes`,
+      postJson({ reason: 'flag me' }),
+      env,
+    )
+    return (await jsonOf<{ id: number }>(flag)).id
+  }
+
+  it('403 for non-admin', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id)
+    await seedOfficial(db, meet.id, testUser.id, room.id)
+    const disputeId = await seedResultAndDispute(meet.id)
+    const app = createApp(testUser, db)
+    const res = await app.request(
+      `/api/meets/${meet.id}/disputes/${disputeId}`,
+      jsonRequest('PATCH', { resolved: true }),
+      env,
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it('toggles resolved and stamps resolver attribution', async () => {
+    const meet = await seedMeet(db)
+    const disputeId = await seedResultAndDispute(meet.id)
+    const app = createApp(testSuperuser, db)
+
+    await app.request(
+      `/api/meets/${meet.id}/disputes/${disputeId}`,
+      jsonRequest('PATCH', { resolved: true }),
+      env,
+    )
+    let [row] = await db
+      .select()
+      .from(schema.quizDisputes)
+      .where(eq(schema.quizDisputes.id, disputeId))
+    expect(row?.resolved).toBe(true)
+    expect(row?.resolvedByAccountId).toBe(testSuperuser.id)
+
+    await app.request(
+      `/api/meets/${meet.id}/disputes/${disputeId}`,
+      jsonRequest('PATCH', { resolved: false }),
+      env,
+    )
+    ;[row] = await db
+      .select()
+      .from(schema.quizDisputes)
+      .where(eq(schema.quizDisputes.id, disputeId))
+    expect(row?.resolved).toBe(false)
+    expect(row?.resolvedAt).toBeNull()
+    expect(row?.resolvedByAccountId).toBeNull()
+  })
+})

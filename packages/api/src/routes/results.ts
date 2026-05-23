@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import { Value } from '@sinclair/typebox/value'
 import { QuizFileSchema, type QuizFile } from '@qzr/shared'
 import type { Bindings } from '../bindings'
@@ -289,4 +289,171 @@ results.post('/:id/results', async (c) => {
     }
     throw e
   }
+})
+
+/**
+ * GET /api/meets/:id/results
+ *
+ * Admin/superuser list of submitted results. Each row carries an
+ * openDisputes count so a future review UI can flag rows without a
+ * second round-trip.
+ */
+results.get('/:id/results', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const db = getDb(c)
+  const rows = await db
+    .select({
+      id: schema.quizResults.id,
+      meetId: schema.quizResults.meetId,
+      quizId: schema.quizResults.quizId,
+      roomId: schema.quizResults.roomId,
+      division: schema.quizResults.division,
+      round: schema.quizResults.round,
+      submittedAt: schema.quizResults.submittedAt,
+      submittedByAccountId: schema.quizResults.submittedByAccountId,
+      submittedByGuestLabel: schema.quizResults.submittedByGuestLabel,
+    })
+    .from(schema.quizResults)
+    .where(eq(schema.quizResults.meetId, meetId))
+    .orderBy(desc(schema.quizResults.submittedAt), desc(schema.quizResults.id))
+
+  const resultIds = rows.map((r) => r.id)
+  const disputeRows =
+    resultIds.length === 0
+      ? []
+      : await db
+          .select({
+            resultId: schema.quizDisputes.resultId,
+            open: sql<number>`SUM(CASE WHEN ${schema.quizDisputes.resolved} = 0 THEN 1 ELSE 0 END)`,
+          })
+          .from(schema.quizDisputes)
+          .where(inArray(schema.quizDisputes.resultId, resultIds))
+          .groupBy(schema.quizDisputes.resultId)
+  const openByResult = new Map(disputeRows.map((d) => [d.resultId, Number(d.open)]))
+
+  return c.json({
+    results: rows.map((r) => ({ ...r, openDisputes: openByResult.get(r.id) ?? 0 })),
+  })
+})
+
+/**
+ * GET /api/meets/:id/results/:resultId
+ *
+ * Admin detail with the QuizFile parsed back out of storage.
+ */
+results.get('/:id/results/:resultId', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  const resultId = Number(c.req.param('resultId'))
+  if (Number.isNaN(meetId) || Number.isNaN(resultId)) {
+    return c.json({ error: 'Invalid ID' }, 400)
+  }
+
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const db = getDb(c)
+  const [row] = await db
+    .select()
+    .from(schema.quizResults)
+    .where(and(eq(schema.quizResults.id, resultId), eq(schema.quizResults.meetId, meetId)))
+  if (!row) return c.json({ error: 'Result not found' }, 404)
+
+  return c.json({ result: { ...row, quizFile: JSON.parse(row.quizFile) as QuizFile } })
+})
+
+/**
+ * POST /api/meets/:id/results/:resultId/disputes
+ *
+ * Flag a submitted result for review. Officials raise; admins resolve.
+ */
+results.post('/:id/results/:resultId/disputes', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  const resultId = Number(c.req.param('resultId'))
+  if (Number.isNaN(meetId) || Number.isNaN(resultId)) {
+    return c.json({ error: 'Invalid ID' }, 400)
+  }
+
+  const db = getDb(c)
+  const [result] = await db
+    .select({ id: schema.quizResults.id })
+    .from(schema.quizResults)
+    .where(and(eq(schema.quizResults.id, resultId), eq(schema.quizResults.meetId, meetId)))
+  if (!result) return c.json({ error: 'Result not found' }, 404)
+
+  if (!(await isOfficialOf(c, db, meetId))) {
+    return c.json({ error: 'Official access required' }, 403)
+  }
+
+  const body = await c.req.json<{ reason?: string }>()
+  const reason = body.reason?.trim() ?? ''
+  if (!reason) return c.json({ error: 'reason is required' }, 400)
+
+  const user = c.get('user')
+  const guest = c.get('guest')
+
+  const [inserted] = await db
+    .insert(schema.quizDisputes)
+    .values({
+      resultId,
+      createdAt: new Date(),
+      createdByAccountId: user?.id ?? null,
+      createdByGuestLabel: !user && guest ? (guest.label ?? null) : null,
+      reason,
+      resolved: false,
+    })
+    .returning({ id: schema.quizDisputes.id, createdAt: schema.quizDisputes.createdAt })
+  return c.json({ id: inserted!.id, createdAt: inserted!.createdAt }, 201)
+})
+
+/**
+ * PATCH /api/meets/:id/disputes/:disputeId
+ *
+ * Admin-only resolve/unresolve toggle. Stamps resolvedAt + resolver on
+ * true; clears both on false so reopening returns the row to its
+ * original state.
+ */
+results.patch('/:id/disputes/:disputeId', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  const disputeId = Number(c.req.param('disputeId'))
+  if (Number.isNaN(meetId) || Number.isNaN(disputeId)) {
+    return c.json({ error: 'Invalid ID' }, 400)
+  }
+
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const db = getDb(c)
+  const [dispute] = await db
+    .select({
+      id: schema.quizDisputes.id,
+      resultMeetId: schema.quizResults.meetId,
+    })
+    .from(schema.quizDisputes)
+    .innerJoin(schema.quizResults, eq(schema.quizResults.id, schema.quizDisputes.resultId))
+    .where(eq(schema.quizDisputes.id, disputeId))
+  if (!dispute || dispute.resultMeetId !== meetId) {
+    return c.json({ error: 'Dispute not found' }, 404)
+  }
+
+  const body = await c.req.json<{ resolved?: boolean }>()
+  if (typeof body.resolved !== 'boolean') {
+    return c.json({ error: 'resolved (boolean) is required' }, 400)
+  }
+
+  const user = c.get('user')!
+  const [updated] = await db
+    .update(schema.quizDisputes)
+    .set({
+      resolved: body.resolved,
+      resolvedAt: body.resolved ? new Date() : null,
+      resolvedByAccountId: body.resolved ? user.id : null,
+    })
+    .where(eq(schema.quizDisputes.id, disputeId))
+    .returning()
+  return c.json({ dispute: updated })
 })
