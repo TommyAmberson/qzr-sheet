@@ -15,6 +15,28 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-23
+
+### Added
+
+* **Submit results** — officials can POST a completed scoresheet to the server with one click. The
+  button appears in the file-action bar whenever a meet is linked and the scoresheet is complete +
+  clean. Confirms with a per-meet/per-room summary before posting, then locks the scoresheet UI with
+  a "✓ Submitted" badge so the same content can't be edited and re-sent. 409 (duplicate of a
+  scheduled quiz) surfaces a distinct alert pointing the official to the existing submission;
+  orphaned submissions (no scheduled quiz binding) succeed and become an admin-reconcile task on the
+  server. Schedule-loaded quizzes auto-stamp `quizId` + `roomId` on the request so the server can
+  keep the back-link; standalone scoresheets submit with both null.
+* **`roomId` + `roomName` on the meet session** — populated when loading from a scheduled quiz, read
+  by the submit payload. Persists alongside `quizId` across reloads.
+* **`submittedAt` on the meet session** — locks the scoresheet UI until the session is replaced (New
+  quiz, Open file, different scheduled-quiz load, or Unlink meet). Survives reloads via the existing
+  localStorage persistence.
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` — unchanged (submission consumes the existing QuizFile shape).
+
 ## [0.9.2] — 2026-05-21
 
 First per-package scoresheet release. No source changes since 0.9.1 — bumping to establish the
