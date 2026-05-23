@@ -464,3 +464,175 @@ describe('GET /api/meets/:id/results/:resultId — admin detail', () => {
     expect(body.result.quizFile).toEqual(qf)
   })
 })
+
+describe('POST /api/meets/:id/results/:resultId/disputes', () => {
+  let db: Db
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  async function seedResult(meetId: number, suUser = testSuperuser): Promise<number> {
+    const app = createApp(suUser, db)
+    const post = await app.request(
+      `/api/meets/${meetId}/results`,
+      postJson({ quizFile: makeQuizFile() }),
+      env,
+    )
+    return (await jsonOf<{ id: number }>(post)).id
+  }
+
+  it('403 when signed-in non-member raises a dispute', async () => {
+    const meet = await seedMeet(db)
+    const resultId = await seedResult(meet.id)
+    const app = createApp(testUser, db)
+    const res = await app.request(
+      `/api/meets/${meet.id}/results/${resultId}/disputes`,
+      postJson({ reason: 'wrong' }),
+      env,
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it('404 when the result is in a different meet', async () => {
+    const meetA = await seedMeet(db, 'A')
+    const meetB = await seedMeet(db, 'B')
+    const resultId = await seedResult(meetB.id)
+    const app = createApp(testSuperuser, db)
+    const res = await app.request(
+      `/api/meets/${meetA.id}/results/${resultId}/disputes`,
+      postJson({ reason: 'wrong' }),
+      env,
+    )
+    expect(res.status).toBe(404)
+  })
+
+  it('400 when reason is blank', async () => {
+    const meet = await seedMeet(db)
+    const resultId = await seedResult(meet.id)
+    const app = createApp(testSuperuser, db)
+    const res = await app.request(
+      `/api/meets/${meet.id}/results/${resultId}/disputes`,
+      postJson({ reason: '   ' }),
+      env,
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('201 for guest official with stored label and reason', async () => {
+    const meet = await seedMeet(db)
+    const resultId = await seedResult(meet.id)
+    const app = createApp(null, db, {
+      meetId: meet.id,
+      role: MeetRole.Official,
+      label: 'Room 2',
+    })
+    const res = await app.request(
+      `/api/meets/${meet.id}/results/${resultId}/disputes`,
+      postJson({ reason: 'score does not match my sheet' }),
+      env,
+    )
+    expect(res.status).toBe(201)
+    const [row] = await db.select().from(schema.quizDisputes)
+    expect(row?.resultId).toBe(resultId)
+    expect(row?.reason).toBe('score does not match my sheet')
+    expect(row?.createdByAccountId).toBeNull()
+    expect(row?.createdByGuestLabel).toBe('Room 2')
+    expect(row?.resolved).toBe(false)
+  })
+})
+
+describe('PATCH /api/meets/:id/disputes/:disputeId', () => {
+  let db: Db
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  async function seedResultAndDispute(meetId: number): Promise<number> {
+    const app = createApp(testSuperuser, db)
+    const post = await app.request(
+      `/api/meets/${meetId}/results`,
+      postJson({ quizFile: makeQuizFile() }),
+      env,
+    )
+    const { id: resultId } = await jsonOf<{ id: number }>(post)
+    const flag = await app.request(
+      `/api/meets/${meetId}/results/${resultId}/disputes`,
+      postJson({ reason: 'flag me' }),
+      env,
+    )
+    return (await jsonOf<{ id: number }>(flag)).id
+  }
+
+  it('403 for non-admin', async () => {
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id)
+    await seedOfficial(db, meet.id, testUser.id, room.id)
+    const disputeId = await seedResultAndDispute(meet.id)
+    const app = createApp(testUser, db)
+    const res = await app.request(
+      `/api/meets/${meet.id}/disputes/${disputeId}`,
+      jsonRequest('PATCH', { resolved: true }),
+      env,
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it('404 when dispute belongs to a different meet', async () => {
+    const meetA = await seedMeet(db, 'A')
+    const meetB = await seedMeet(db, 'B')
+    const disputeId = await seedResultAndDispute(meetA.id)
+    const app = createApp(testSuperuser, db)
+    const res = await app.request(
+      `/api/meets/${meetB.id}/disputes/${disputeId}`,
+      jsonRequest('PATCH', { resolved: true }),
+      env,
+    )
+    expect(res.status).toBe(404)
+  })
+
+  it('400 when resolved is not a boolean', async () => {
+    const meet = await seedMeet(db)
+    const disputeId = await seedResultAndDispute(meet.id)
+    const app = createApp(testSuperuser, db)
+    const res = await app.request(
+      `/api/meets/${meet.id}/disputes/${disputeId}`,
+      jsonRequest('PATCH', {}),
+      env,
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('toggles resolved + stamps resolver on true, clears on false', async () => {
+    const meet = await seedMeet(db)
+    const disputeId = await seedResultAndDispute(meet.id)
+    const app = createApp(testSuperuser, db)
+
+    const resolveRes = await app.request(
+      `/api/meets/${meet.id}/disputes/${disputeId}`,
+      jsonRequest('PATCH', { resolved: true }),
+      env,
+    )
+    expect(resolveRes.status).toBe(200)
+    let [row] = await db
+      .select()
+      .from(schema.quizDisputes)
+      .where(eq(schema.quizDisputes.id, disputeId))
+    expect(row?.resolved).toBe(true)
+    expect(row?.resolvedAt).not.toBeNull()
+    expect(row?.resolvedByAccountId).toBe(testSuperuser.id)
+
+    const reopenRes = await app.request(
+      `/api/meets/${meet.id}/disputes/${disputeId}`,
+      jsonRequest('PATCH', { resolved: false }),
+      env,
+    )
+    expect(reopenRes.status).toBe(200)
+    ;[row] = await db
+      .select()
+      .from(schema.quizDisputes)
+      .where(eq(schema.quizDisputes.id, disputeId))
+    expect(row?.resolved).toBe(false)
+    expect(row?.resolvedAt).toBeNull()
+    expect(row?.resolvedByAccountId).toBeNull()
+  })
+})

@@ -201,3 +201,97 @@ results.get('/:id/results/:resultId', async (c) => {
 
   return c.json({ result: { ...row, quizFile: JSON.parse(row.quizFile) as QuizFile } })
 })
+
+/**
+ * POST /api/meets/:id/results/:resultId/disputes
+ *
+ * Flag a submitted result for admin review. Officials (signed-in or
+ * guest) can raise; admins resolve via PATCH below.
+ */
+results.post('/:id/results/:resultId/disputes', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  const resultId = Number(c.req.param('resultId'))
+  if (Number.isNaN(meetId) || Number.isNaN(resultId)) {
+    return c.json({ error: 'Invalid ID' }, 400)
+  }
+
+  const db = getDb(c)
+  const [result] = await db
+    .select({ id: schema.quizResults.id })
+    .from(schema.quizResults)
+    .where(and(eq(schema.quizResults.id, resultId), eq(schema.quizResults.meetId, meetId)))
+  if (!result) return c.json({ error: 'Result not found' }, 404)
+
+  if (!(await isOfficialOf(c, db, meetId))) {
+    return c.json({ error: 'Official access required' }, 403)
+  }
+
+  const body = await c.req.json<{ reason?: string }>()
+  const reason = body.reason?.trim() ?? ''
+  if (!reason) return c.json({ error: 'reason is required' }, 400)
+
+  const user = c.get('user')
+  const guest = c.get('guest')
+
+  const [inserted] = await db
+    .insert(schema.quizDisputes)
+    .values({
+      resultId,
+      createdAt: new Date(),
+      createdByAccountId: user?.id ?? null,
+      createdByGuestLabel: !user && guest ? (guest.label ?? null) : null,
+      reason,
+      resolved: false,
+    })
+    .returning({ id: schema.quizDisputes.id, createdAt: schema.quizDisputes.createdAt })
+  return c.json({ id: inserted!.id, createdAt: inserted!.createdAt }, 201)
+})
+
+/**
+ * PATCH /api/meets/:id/disputes/:disputeId
+ *
+ * Admin-only resolve/unresolve toggle. Body: `{ resolved: boolean }`.
+ * `resolvedAt` and `resolvedByAccountId` are stamped on transitions to
+ * resolved=true and cleared on transitions back to false.
+ */
+results.patch('/:id/disputes/:disputeId', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  const disputeId = Number(c.req.param('disputeId'))
+  if (Number.isNaN(meetId) || Number.isNaN(disputeId)) {
+    return c.json({ error: 'Invalid ID' }, 400)
+  }
+
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const db = getDb(c)
+  // Cross-meet guard: ensure the dispute's parent result belongs to this meet.
+  const [dispute] = await db
+    .select({
+      id: schema.quizDisputes.id,
+      resultMeetId: schema.quizResults.meetId,
+    })
+    .from(schema.quizDisputes)
+    .innerJoin(schema.quizResults, eq(schema.quizResults.id, schema.quizDisputes.resultId))
+    .where(eq(schema.quizDisputes.id, disputeId))
+  if (!dispute || dispute.resultMeetId !== meetId) {
+    return c.json({ error: 'Dispute not found' }, 404)
+  }
+
+  const body = await c.req.json<{ resolved?: boolean }>()
+  if (typeof body.resolved !== 'boolean') {
+    return c.json({ error: 'resolved (boolean) is required' }, 400)
+  }
+
+  const user = c.get('user')!
+  const [updated] = await db
+    .update(schema.quizDisputes)
+    .set({
+      resolved: body.resolved,
+      resolvedAt: body.resolved ? new Date() : null,
+      resolvedByAccountId: body.resolved ? user.id : null,
+    })
+    .where(eq(schema.quizDisputes.id, disputeId))
+    .returning()
+  return c.json({ dispute: updated })
+})
