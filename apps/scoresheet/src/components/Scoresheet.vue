@@ -2568,6 +2568,9 @@ thead tr th.sticky-col {
   outline: 2px solid var(--color-border);
   outline-offset: -2px;
 }
+/* Drop the grey hover outline during drag — the drop-target's blue
+   indicator is a box-shadow on every td (see .row--drop-target rules
+   below), so suppressing the col--name outline here doesn't fight it. */
 .is-dragging .row--quizzer:hover > .col--name {
   outline: none;
 }
@@ -2804,9 +2807,40 @@ thead tr th.sticky-col {
 .row--dragging > td {
   opacity: 0.4;
 }
+/* Drop target: outline the entire row in accent. Inset box-shadow
+   on every cell stitches a continuous border across the whole row;
+   the first/last cells add the left/right ends. Outline doesn't work
+   here because adjacent cells' outlines leave a visible gap pattern
+   (outline-offset: -2px puts each cell's edge 2px inside).
+   Note: this temporarily overrides .sticky-col's right-edge shadow
+   on .col--name during drag — fine, the blue ring is what matters. */
+.row--drop-target > td {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-accent),
+    inset 0 -2px 0 0 var(--color-accent);
+}
+.row--drop-target > td:first-child {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-accent),
+    inset 0 -2px 0 0 var(--color-accent),
+    inset 2px 0 0 0 var(--color-accent);
+}
+.row--drop-target > td:last-child {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-accent),
+    inset 0 -2px 0 0 var(--color-accent),
+    inset -2px 0 0 0 var(--color-accent);
+}
+/* col--name keeps its own 1px border-top to bridge the sticky-layer
+   gap, which pushes the padding box (where inset box-shadow paints)
+   1px lower than its neighbours. Recolour that border to accent and
+   shrink the top box-shadow to 1px so the visible blue stays 2px
+   tall and aligns continuously with the rest of the row's top edge. */
 .row--drop-target > .col--name {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
+  border-top-color: var(--color-accent);
+  box-shadow:
+    inset 0 1px 0 0 var(--color-accent),
+    inset 0 -2px 0 0 var(--color-accent);
 }
 
 /* Editable name inputs */
