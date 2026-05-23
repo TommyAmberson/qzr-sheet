@@ -454,3 +454,132 @@ describe('GET /api/meets/:id/saves/:saveId — admin detail', () => {
     expect(body.save.quizFile).toEqual(qf)
   })
 })
+
+describe('POST /api/meets/:id/results — submit', () => {
+  let db: Db
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  it('401 with neither user nor guest', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(null, db, null)
+    const res = await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile() }),
+      env,
+    )
+    expect(res.status).toBe(401)
+  })
+
+  it('403 for guest with role=Viewer', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(null, db, { meetId: meet.id, role: MeetRole.Viewer })
+    const res = await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile() }),
+      env,
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it('400 when QuizFile is invalid', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testSuperuser, db)
+    const res = await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: { version: 2 } }),
+      env,
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('400 when quizId belongs to a different meet', async () => {
+    const meetA = await seedMeet(db, 'A')
+    const meetB = await seedMeet(db, 'B')
+    const quiz = await seedScheduledQuiz(db, meetB.id)
+    const app = createApp(testSuperuser, db)
+    const res = await app.request(
+      `/api/meets/${meetA.id}/results`,
+      postJson({ quizFile: makeQuizFile(), quizId: quiz.id }),
+      env,
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('201 for guest official, stores label and parses division/round from QuizFile', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(null, db, {
+      meetId: meet.id,
+      role: MeetRole.Official,
+      label: 'Room 1',
+    })
+    const qf = makeQuizFile({ division: '2', quizNumber: 'A' })
+    const res = await app.request(`/api/meets/${meet.id}/results`, postJson({ quizFile: qf }), env)
+    expect(res.status).toBe(201)
+    const [row] = await db.select().from(schema.quizResults)
+    expect(row?.division).toBe('2')
+    expect(row?.round).toBe('A')
+    expect(row?.submittedByAccountId).toBeNull()
+    expect(row?.submittedByGuestLabel).toBe('Room 1')
+    expect(JSON.parse(row!.quizFile)).toEqual(qf)
+  })
+
+  it('409 when submitting the same scheduled quiz twice', async () => {
+    const meet = await seedMeet(db)
+    const quiz = await seedScheduledQuiz(db, meet.id)
+    const app = createApp(testSuperuser, db)
+    const first = await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile(), quizId: quiz.id }),
+      env,
+    )
+    expect(first.status).toBe(201)
+    const second = await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile(), quizId: quiz.id }),
+      env,
+    )
+    expect(second.status).toBe(409)
+  })
+
+  it('allows two orphan submissions in the same meet (NULL ≠ NULL)', async () => {
+    const meet = await seedMeet(db)
+    const app = createApp(testSuperuser, db)
+    const a = await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile() }),
+      env,
+    )
+    const b = await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile() }),
+      env,
+    )
+    expect(a.status).toBe(201)
+    expect(b.status).toBe(201)
+    const rows = await db.select().from(schema.quizResults)
+    expect(rows).toHaveLength(2)
+  })
+
+  it('saves can still be appended after submit (history keeps growing)', async () => {
+    const meet = await seedMeet(db)
+    const quiz = await seedScheduledQuiz(db, meet.id)
+    const app = createApp(testSuperuser, db)
+    await app.request(
+      `/api/meets/${meet.id}/results`,
+      postJson({ quizFile: makeQuizFile(), quizId: quiz.id }),
+      env,
+    )
+    const save = await app.request(
+      `/api/meets/${meet.id}/saves`,
+      postJson({ quizFile: makeQuizFile(), kind: 'autosave', scheduledQuizId: quiz.id }),
+      env,
+    )
+    expect(save.status).toBe(201)
+    const saves = await db.select().from(schema.quizSaves)
+    expect(saves).toHaveLength(1)
+    const results = await db.select().from(schema.quizResults)
+    expect(results).toHaveLength(1)
+  })
+})

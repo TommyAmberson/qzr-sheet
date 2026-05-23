@@ -201,3 +201,92 @@ results.get('/:id/saves/:saveId', async (c) => {
 
   return c.json({ save: { ...row, quizFile: JSON.parse(row.quizFile) as QuizFile } })
 })
+
+/**
+ * POST /api/meets/:id/results
+ *
+ * Mark this room's quiz "done" by freezing the current QuizFile as the
+ * official record. Distinct from /saves — Submit is a status flip, not
+ * a data event. Subsequent /saves rows still flow (audit), but
+ * quiz_results stays frozen at submit-time.
+ *
+ * Body: { quizFile, quizId?, roomId? }
+ *
+ * UNIQUE(meetId, quizId) — SQLite NULL≠NULL lets orphans coexist; a
+ * second submit of the same scheduled quiz returns 409.
+ */
+results.post('/:id/results', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const db = getDb(c)
+  const [meet] = await db
+    .select({ id: schema.quizMeets.id })
+    .from(schema.quizMeets)
+    .where(eq(schema.quizMeets.id, meetId))
+  if (!meet) return c.json({ error: 'Meet not found' }, 404)
+
+  if (!(await isOfficialOf(c, db, meetId))) {
+    return c.json({ error: 'Official access required' }, 403)
+  }
+
+  const body = await c.req.json<{
+    quizFile: unknown
+    quizId?: number | null
+    roomId?: number | null
+  }>()
+
+  if (!Value.Check(QuizFileSchema, body.quizFile)) {
+    return c.json({ error: 'Invalid QuizFile' }, 400)
+  }
+  const quizFile = body.quizFile as QuizFile
+
+  if (body.quizId != null) {
+    const [q] = await db
+      .select({ id: schema.scheduledQuizzes.id })
+      .from(schema.scheduledQuizzes)
+      .where(
+        and(
+          eq(schema.scheduledQuizzes.id, body.quizId),
+          eq(schema.scheduledQuizzes.meetId, meetId),
+        ),
+      )
+    if (!q) return c.json({ error: 'Quiz does not belong to this meet' }, 400)
+  }
+  if (body.roomId != null) {
+    const [r] = await db
+      .select({ id: schema.meetRooms.id })
+      .from(schema.meetRooms)
+      .where(and(eq(schema.meetRooms.id, body.roomId), eq(schema.meetRooms.meetId, meetId)))
+    if (!r) return c.json({ error: 'Room does not belong to this meet' }, 400)
+  }
+
+  const user = c.get('user')
+  const guest = c.get('guest')
+
+  try {
+    const [inserted] = await db
+      .insert(schema.quizResults)
+      .values({
+        meetId,
+        quizId: body.quizId ?? null,
+        roomId: body.roomId ?? null,
+        division: quizFile.quiz.division,
+        round: quizFile.quiz.quizNumber,
+        submittedAt: new Date(),
+        submittedByAccountId: user?.id ?? null,
+        submittedByGuestLabel: !user && guest ? (guest.label ?? null) : null,
+        quizFile: JSON.stringify(quizFile),
+      })
+      .returning({
+        id: schema.quizResults.id,
+        submittedAt: schema.quizResults.submittedAt,
+      })
+    return c.json({ id: inserted!.id, submittedAt: inserted!.submittedAt }, 201)
+  } catch (e) {
+    if (e instanceof Error && /UNIQUE.*quiz_results/.test(e.message)) {
+      return c.json({ error: 'A result already exists for this scheduled quiz' }, 409)
+    }
+    throw e
+  }
+})
