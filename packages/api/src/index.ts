@@ -12,6 +12,7 @@ import { memberships } from './routes/memberships'
 import { churches } from './routes/churches'
 import { phase } from './routes/phase'
 import { schedule } from './routes/schedule'
+import { results } from './routes/results'
 import { createAuth } from './lib/auth'
 import { createDb } from './lib/db'
 import { autoAdvancePhases } from './scheduler'
@@ -58,6 +59,7 @@ app.route('/api/my-meets', memberships)
 app.route('/api', churches)
 app.route('/api/meets', phase)
 app.route('/api/meets', schedule)
+app.route('/api/meets', results)
 
 export { app }
 
