@@ -18,9 +18,12 @@ import { fillOts } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import { anyTeamHasAnswer } from '../scoring/helpers'
 import { ValidationCode, validationMessage } from '../scoring/validation'
-import { useMeetSession } from '../composables/useMeetSession'
+import type { ScheduledQuizSeat } from '../api'
+import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
+import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
 import MeetPickerDialog from './MeetPickerDialog.vue'
+import SchedulePickerDialog from './SchedulePickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
 import TutorialOverlay from './TutorialOverlay.vue'
 
@@ -63,6 +66,7 @@ const vFitName = {
 
 const meetSession = useMeetSession()
 const meetPickerRef = ref<InstanceType<typeof MeetPickerDialog> | null>(null)
+const schedulePickerRef = ref<InstanceType<typeof SchedulePickerDialog> | null>(null)
 const openPickerSlot = ref<number | null>(null)
 const pickerPos = ref({ top: 0, left: 0 })
 
@@ -80,11 +84,150 @@ function pickFromOpenPicker(teamId: number) {
   if (openPickerSlot.value !== null) pickTeam(openPickerSlot.value, teamId)
 }
 
-onMounted(() => meetSession.refresh())
+onMounted(() => {
+  void meetSession.refresh()
+  void loadFromUrlParams()
+})
+
+/** True when any team or quizzer name has been edited away from
+ *  the auto-generated defaults. Used to gate the overwrite confirm
+ *  before loading from schedule. */
+function hasNonDefaultNames(): boolean {
+  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+    if (!isDefaultTeamName(store.teams[teamIdx]?.name ?? '')) return true
+    const storeTeamId = store.teams[teamIdx]!.id
+    for (const q of store.quizzersByTeam(storeTeamId)) {
+      if (!isDefaultQuizzerName(q.name)) return true
+    }
+  }
+  return false
+}
+
+/** Single entry point for loading a scheduled quiz into the
+ *  scoresheet — shared by the URL ?meet&quiz prefill and the
+ *  in-app picker. Warns first if the user has typed real names,
+ *  then per seat decides what to do via `computeSeatChange`, and
+ *  commits all slot updates in one atomic write. Returns true on
+ *  success so the picker dialog can decide whether to close. */
+async function loadScheduledQuiz(meetId: number, quizId: number): Promise<boolean> {
+  if (hasNonDefaultNames()) {
+    if (!(await confirmAction('Loading this quiz will overwrite your current names. Continue?'))) {
+      return false
+    }
+  }
+  let details
+  try {
+    details = await meetSession.loadFromQuiz(meetId, quizId)
+  } catch (err) {
+    alert(`Could not load scheduled quiz: ${(err as Error).message}`)
+    return false
+  }
+  quiz.value.division = details.quiz.division
+  quiz.value.quizNumber = quizNumberFromScheduledQuiz(details.quiz)
+  quiz.value.consolation = consolationFromScheduledQuiz(details.quiz)
+
+  const slots = [0, 1, 2].map((i) => meetSession.getSlot(i))
+  const storeMirrors: (() => void)[] = []
+  for (const seat of details.seats) {
+    const slotIdx = seat.seatNumber - 1
+    if (slotIdx < 0 || slotIdx > 2) continue
+    const change = computeSeatChange(slotIdx, seat)
+    if (!change) continue
+    slots[slotIdx] = change.slot
+    storeMirrors.push(change.mirrorToStore)
+  }
+  meetSession.applyLoadedQuiz(slots, quizId)
+  for (const mirror of storeMirrors) mirror()
+  return true
+}
+
+/** Decide what to do for one seat. Three branches, in order:
+ *  - Same team as before — refresh team display, leave quizzer
+ *    names alone.
+ *  - Different team but every non-default typed name appears in
+ *    the incoming roster (case-insensitive, any order) — keep
+ *    the user's name positions, fill any default seats with the
+ *    unused roster names.
+ *  - Otherwise — clear all 5 quizzer seats and fill with the DB
+ *    roster in seat order. No fuzzy "Bobby ≈ Robert" rescue.
+ *
+ *  Returns the new SlotSession + a deferred store-mirror callback
+ *  so the caller can commit all slots atomically before any store
+ *  side-effects. Returns null when the seat is unresolved. */
+function computeSeatChange(
+  slotIdx: number,
+  seat: ScheduledQuizSeat,
+): { slot: SlotSession; mirrorToStore: () => void } | null {
+  if (!seat.team) return null
+  const currentSlot = meetSession.getSlot(slotIdx)
+  const storeTeamId = store.teams[slotIdx]!.id
+  const currentNames = store.quizzersByTeam(storeTeamId).map((q) => q.name)
+
+  if (currentSlot?.teamId === seat.team.id) {
+    const slot = meetSession.buildSlotFromSeat(seat, currentNames)!
+    return {
+      slot,
+      mirrorToStore: () => setTeamName(slotIdx, slot.dbLabelFull),
+    }
+  }
+
+  const currentNonDefault = currentNames.filter((n) => !isDefaultQuizzerName(n))
+  const rosterSet = new Set(seat.quizzers.map((q) => q.name.trim().toLowerCase()))
+  const allMatch =
+    currentNonDefault.length > 0 &&
+    currentNonDefault.every((n) => rosterSet.has(n.trim().toLowerCase()))
+
+  if (allMatch) {
+    const namesForMatch = currentNames.map((n) => (isDefaultQuizzerName(n) ? '' : n))
+    const slot = meetSession.buildSlotFromSeat(seat, namesForMatch)!
+    return {
+      slot,
+      mirrorToStore: () => {
+        setTeamName(slotIdx, slot.dbLabelFull)
+        for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+          if (isDefaultQuizzerName(currentNames[seatIdx] ?? '')) {
+            setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+          }
+        }
+      },
+    }
+  }
+
+  const slot = meetSession.buildSlotFromSeat(seat, [])!
+  return {
+    slot,
+    mirrorToStore: () => {
+      setTeamName(slotIdx, slot.dbLabelFull)
+      for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+        setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+      }
+    },
+  }
+}
+
+/** Strip ?meet=&quiz= from the URL after the prefill — set by the
+ *  portal's schedule view when the user clicks a quiz cell. Always
+ *  strips the params so a refresh doesn't re-clobber edits. */
+async function loadFromUrlParams() {
+  const params = new URLSearchParams(window.location.search)
+  const meetId = Number(params.get('meet'))
+  const quizId = Number(params.get('quiz'))
+  if (!meetId || !quizId || Number.isNaN(meetId) || Number.isNaN(quizId)) return
+  try {
+    await loadScheduledQuiz(meetId, quizId)
+  } finally {
+    history.replaceState(null, '', window.location.pathname)
+  }
+}
 
 async function openMeetPicker() {
   closeMenus()
   meetPickerRef.value?.open()
+}
+
+async function openSchedulePicker() {
+  closeMenus()
+  schedulePickerRef.value?.open()
 }
 
 function isDefaultQuizzerName(name: string): boolean {
@@ -808,6 +951,7 @@ const appVersion: string = __APP_VERSION__
                     <button v-else @click="doClearNames">✕ Clear names</button>
                     <hr class="file-menu__divider" />
                     <button @click="openMeetPicker">🔗 Load teams from meet…</button>
+                    <button @click="openSchedulePicker">📅 Load from schedule…</button>
                   </div>
                 </div>
                 <button class="help-toggle" title="Interactive tutorial" @click="tutorial.start()">
@@ -1398,6 +1542,7 @@ const appVersion: string = __APP_VERSION__
       <!-- Cell selector popup -->
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
+        <SchedulePickerDialog ref="schedulePickerRef" :on-pick="loadScheduledQuiz" />
         <div
           v-if="selector"
           :class="[
@@ -2475,6 +2620,9 @@ thead tr th.sticky-col {
   outline: 2px solid var(--color-border);
   outline-offset: -2px;
 }
+/* Drop the grey hover outline during drag — the drop-target's blue
+   indicator is a box-shadow on every td (see .row--drop-target rules
+   below), so suppressing the col--name outline here doesn't fight it. */
 .is-dragging .row--quizzer:hover > .col--name {
   outline: none;
 }
@@ -2711,9 +2859,40 @@ thead tr th.sticky-col {
 .row--dragging > td {
   opacity: 0.4;
 }
+/* Drop target: outline the entire row in accent. Inset box-shadow
+   on every cell stitches a continuous border across the whole row;
+   the first/last cells add the left/right ends. Outline doesn't work
+   here because adjacent cells' outlines leave a visible gap pattern
+   (outline-offset: -2px puts each cell's edge 2px inside).
+   Note: this temporarily overrides .sticky-col's right-edge shadow
+   on .col--name during drag — fine, the blue ring is what matters. */
+.row--drop-target > td {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-accent),
+    inset 0 -2px 0 0 var(--color-accent);
+}
+.row--drop-target > td:first-child {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-accent),
+    inset 0 -2px 0 0 var(--color-accent),
+    inset 2px 0 0 0 var(--color-accent);
+}
+.row--drop-target > td:last-child {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-accent),
+    inset 0 -2px 0 0 var(--color-accent),
+    inset -2px 0 0 0 var(--color-accent);
+}
+/* col--name keeps its own 1px border-top to bridge the sticky-layer
+   gap, which pushes the padding box (where inset box-shadow paints)
+   1px lower than its neighbours. Recolour that border to accent and
+   shrink the top box-shadow to 1px so the visible blue stays 2px
+   tall and aligns continuously with the rest of the row's top edge. */
 .row--drop-target > .col--name {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
+  border-top-color: var(--color-accent);
+  box-shadow:
+    inset 0 1px 0 0 var(--color-accent),
+    inset 0 -2px 0 0 var(--color-accent);
 }
 
 /* Editable name inputs */

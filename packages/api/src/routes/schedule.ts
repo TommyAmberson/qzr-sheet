@@ -27,6 +27,29 @@ function getDb(c: { get(key: 'db'): Db }): Db {
   return c.get('db')
 }
 
+/**
+ * D1 caps bound parameters at 100 per statement
+ * (https://developers.cloudflare.com/d1/platform/limits/). A full-meet
+ * Populate generates ~80–100 scheduled quizzes and ~250 seats — well
+ * past the cap. We chunk inserts so each statement fits, leaving a few
+ * params of headroom for any implicit binds Drizzle might add.
+ */
+const D1_MAX_PARAMS = 90
+
+async function chunkedInsert<TIn, TOut>(
+  rows: TIn[],
+  colsPerRow: number,
+  insertChunk: (chunk: TIn[]) => Promise<TOut[]>,
+): Promise<TOut[]> {
+  if (rows.length === 0) return []
+  const chunkSize = Math.max(1, Math.floor(D1_MAX_PARAMS / colsPerRow))
+  const out: TOut[] = []
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    out.push(...(await insertChunk(rows.slice(i, i + chunkSize))))
+  }
+  return out
+}
+
 async function requireAdmin(c: Context<Env>, meetId: number) {
   const user = getUser(c)
   const db = getDb(c)
@@ -161,6 +184,174 @@ schedule.get('/:id/quizzes', async (c) => {
 
   return c.json({
     quizzes: quizzes.map((q) => ({ ...q, seats: seatsByQuiz.get(q.id) ?? [] })),
+  })
+})
+
+/**
+ * GET /api/meets/:id/quizzes/:quizId/teams
+ *
+ * Returns one scheduled quiz with its 3 seats resolved end-to-end:
+ * each seat's `letter`/`seedRef`, the bound team (via
+ * `prelim_assignments` or `seed_resolutions`), and that team's
+ * roster. Unresolved seats (elim before #16 lands, prelim before
+ * Roll-Teams) return `team: null` and `quizzers: []`.
+ *
+ * Used by the scoresheet to prefill division/quiz #/teams when a
+ * user opens a scheduled quiz (issue #6).
+ */
+schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
+  const meetId = Number(c.req.param('id'))
+  const quizId = Number(c.req.param('quizId'))
+  if (Number.isNaN(meetId) || Number.isNaN(quizId)) {
+    return c.json({ error: 'Invalid ID' }, 400)
+  }
+
+  const db = getDb(c)
+
+  // Phase 1: quiz row + seats in parallel — seats only depend on quizId
+  // (a route param), so they can race with the join. If quiz is missing
+  // we discard the seats; cost is negligible vs. a serial extra round-trip.
+  const [quizRows, seats] = await Promise.all([
+    db
+      .select({
+        id: schema.scheduledQuizzes.id,
+        meetId: schema.scheduledQuizzes.meetId,
+        meetName: schema.quizMeets.name,
+        slotId: schema.scheduledQuizzes.slotId,
+        roomId: schema.scheduledQuizzes.roomId,
+        division: schema.scheduledQuizzes.division,
+        phase: schema.scheduledQuizzes.phase,
+        lane: schema.scheduledQuizzes.lane,
+        label: schema.scheduledQuizzes.label,
+        bracketLabel: schema.scheduledQuizzes.bracketLabel,
+        slotStartAt: schema.meetSlots.startAt,
+        roomName: schema.meetRooms.name,
+      })
+      .from(schema.scheduledQuizzes)
+      .innerJoin(schema.quizMeets, eq(schema.quizMeets.id, schema.scheduledQuizzes.meetId))
+      .innerJoin(schema.meetSlots, eq(schema.meetSlots.id, schema.scheduledQuizzes.slotId))
+      .innerJoin(schema.meetRooms, eq(schema.meetRooms.id, schema.scheduledQuizzes.roomId))
+      .where(
+        and(eq(schema.scheduledQuizzes.id, quizId), eq(schema.scheduledQuizzes.meetId, meetId)),
+      ),
+    db
+      .select()
+      .from(schema.scheduledQuizSeats)
+      .where(eq(schema.scheduledQuizSeats.quizId, quizId))
+      .orderBy(asc(schema.scheduledQuizSeats.seatNumber)),
+  ])
+  const quizRow = quizRows[0]
+  if (!quizRow) return c.json({ error: 'Quiz not found' }, 404)
+
+  // Phase 2: prelim + elim seat resolutions in parallel — both only need
+  // the seats from phase 1.
+  const prelimLetters = seats
+    .map((s) => s.letter)
+    .filter((l): l is string => l !== null && l !== '')
+  const elimRefs = seats.map((s) => s.seedRef).filter((r): r is string => r !== null && r !== '')
+
+  const [prelimRows, elimRows] = await Promise.all([
+    prelimLetters.length === 0
+      ? Promise.resolve([] as { letter: string; teamId: number }[])
+      : db
+          .select({
+            letter: schema.prelimAssignments.letter,
+            teamId: schema.prelimAssignments.teamId,
+          })
+          .from(schema.prelimAssignments)
+          .where(
+            and(
+              eq(schema.prelimAssignments.meetId, meetId),
+              eq(schema.prelimAssignments.division, quizRow.division),
+              inArray(schema.prelimAssignments.letter, prelimLetters),
+            ),
+          ),
+    elimRefs.length === 0
+      ? Promise.resolve([] as { seedRef: string; teamId: number }[])
+      : db
+          .select({
+            seedRef: schema.seedResolutions.seedRef,
+            teamId: schema.seedResolutions.teamId,
+          })
+          .from(schema.seedResolutions)
+          .where(
+            and(
+              eq(schema.seedResolutions.meetId, meetId),
+              inArray(schema.seedResolutions.seedRef, elimRefs),
+            ),
+          ),
+  ])
+  const prelimMap = new Map(prelimRows.map((r) => [r.letter, r.teamId]))
+  const elimMap = new Map(elimRows.map((r) => [r.seedRef, r.teamId]))
+
+  const seatTeamIds = seats.map((s) => {
+    if (s.letter) return prelimMap.get(s.letter) ?? null
+    if (s.seedRef) return elimMap.get(s.seedRef) ?? null
+    return null
+  })
+
+  const teamIds = Array.from(new Set(seatTeamIds.filter((t): t is number => t !== null)))
+  const [teamRows, rosterRows] =
+    teamIds.length === 0
+      ? [[], []]
+      : await Promise.all([
+          db
+            .select({
+              id: schema.teams.id,
+              churchId: schema.churches.id,
+              churchName: schema.churches.name,
+              churchShortName: schema.churches.shortName,
+              division: schema.teams.division,
+              number: schema.teams.number,
+              consolation: schema.teams.consolation,
+            })
+            .from(schema.teams)
+            .innerJoin(schema.churches, eq(schema.churches.id, schema.teams.churchId))
+            .where(inArray(schema.teams.id, teamIds)),
+          db
+            .select({
+              teamId: schema.teamRosters.teamId,
+              quizzerId: schema.teamRosters.quizzerId,
+              name: schema.teamRosters.name,
+            })
+            .from(schema.teamRosters)
+            .where(inArray(schema.teamRosters.teamId, teamIds)),
+        ])
+
+  const teamById = new Map(teamRows.map((t) => [t.id, t]))
+  const rosterByTeam = new Map<number, { quizzerId: number; name: string }[]>()
+  for (const r of rosterRows) {
+    const arr = rosterByTeam.get(r.teamId) ?? []
+    arr.push({ quizzerId: r.quizzerId, name: r.name })
+    rosterByTeam.set(r.teamId, arr)
+  }
+
+  return c.json({
+    quiz: {
+      id: quizRow.id,
+      meetId: quizRow.meetId,
+      meetName: quizRow.meetName,
+      slotId: quizRow.slotId,
+      roomId: quizRow.roomId,
+      division: quizRow.division,
+      phase: quizRow.phase,
+      lane: quizRow.lane,
+      label: quizRow.label,
+      bracketLabel: quizRow.bracketLabel,
+      slotStartAt: quizRow.slotStartAt,
+      roomName: quizRow.roomName,
+    },
+    seats: seats.map((s, i) => {
+      const tid = seatTeamIds[i]
+      const team = tid !== null && tid !== undefined ? (teamById.get(tid) ?? null) : null
+      return {
+        seatNumber: s.seatNumber,
+        letter: s.letter,
+        seedRef: s.seedRef,
+        team,
+        quizzers: tid !== null && tid !== undefined ? (rosterByTeam.get(tid) ?? []) : [],
+      }
+    }),
   })
 })
 
@@ -442,7 +633,10 @@ schedule.post('/:id/schedule/sync', async (c) => {
         bracketLabel: q.bracketLabel ?? null,
       })
     }
-    const inserted = await db.insert(schema.scheduledQuizzes).values(rows).returning()
+    // 8 cols per row — see chunkedInsert / D1_MAX_PARAMS at top of file.
+    const inserted = await chunkedInsert(rows, 8, (chunk) =>
+      db.insert(schema.scheduledQuizzes).values(chunk).returning(),
+    )
     newQuizzes.forEach((q, i) => quizTempIdMap.set(q.id, inserted[i]!.id))
   }
 
@@ -510,7 +704,11 @@ schedule.post('/:id/schedule/sync', async (c) => {
     }
   }
   if (seatRows.length > 0) {
-    await db.insert(schema.scheduledQuizSeats).values(seatRows)
+    // 4 cols per row — see chunkedInsert / D1_MAX_PARAMS at top of file.
+    await chunkedInsert(seatRows, 4, async (chunk) => {
+      await db.insert(schema.scheduledQuizSeats).values(chunk)
+      return []
+    })
   }
 
   // ---- Prelim assignments (full-replace per division in payload) ----
@@ -587,15 +785,21 @@ schedule.post('/:id/schedule/sync', async (c) => {
         ),
       )
     if (div.mapping.length > 0) {
-      await db.insert(schema.prelimAssignments).values(
-        div.mapping.map((m) => ({
-          meetId,
-          division: div.division,
-          letter: m.letter,
-          teamId: m.teamId,
-          assignedAt: now,
-        })),
-      )
+      // 5 cols per row — a division with ~20+ letters trips D1's
+      // 100-param cap even though the for-loop only inserts one
+      // division at a time.
+      await chunkedInsert(div.mapping, 5, async (chunk) => {
+        await db.insert(schema.prelimAssignments).values(
+          chunk.map((m) => ({
+            meetId,
+            division: div.division,
+            letter: m.letter,
+            teamId: m.teamId,
+            assignedAt: now,
+          })),
+        )
+        return []
+      })
     }
   }
 

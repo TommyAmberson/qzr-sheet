@@ -92,6 +92,23 @@ TS/Vue/CSS with Prettier, fixes lint with ESLint, and runs `dprint` on markdown 
 * **`git rebase -i` is unavailable in Claude Code** (no interactive input). For targeted squashes,
   `git cherry-pick --no-commit <a> <b> <c>` followed by a single `git commit` collapses a contiguous
   group; for wider restructures, `git reset --soft <base>` then re-stage and re-commit in groups.
+* **Fixup + autosquash for review fixes.** When a later commit corrects something an earlier commit
+  on the same branch got wrong (typo, missed branch, /simplify finding, code-review reply), consider
+  `git commit --fixup=<orig-sha>` instead of a fresh `fix(...): ...` commit. That produces a commit
+  named `fixup! <orig-subject>` paired with the target. Before merging, collapse with
+  `git -c sequence.editor=: rebase -i --autosquash master` — `-i` is required (autosquash only
+  activates in interactive mode) and the no-op sequence editor accepts the auto-prepared todo list.
+  Fixup-marked commits discard their own message and keep the original's verbatim, so no editor
+  prompts fire. End state: `git blame` lands on the original commit (whose message explains the
+  change), not a follow-up "fix" commit that re-states the same scope. Works best when the target is
+  recent and no intermediate commits touch the same lines — long-lived branches with interleaved
+  refactors will produce conflicts on autosquash, in which case keep the fresh `fix(...)` commit.
+  Before squashing, check whether the fixup's content changes what the target commit's subject
+  claims: a typo or off-by-one fix slots in invisibly, but a fixup that meaningfully expands scope
+  or reverses a stated intent leaves the original subject misleading. In that case, use
+  `git commit --fixup=amend:<orig-sha>` instead — autosquash will prompt for a new subject when
+  collapsing — or just `git commit --amend` directly if the target is HEAD. Otherwise the squashed
+  commit will lie about what it does.
 
 ### Commit message format ([Conventional Commits](https://www.conventionalcommits.org/))
 
@@ -164,6 +181,18 @@ git push origin master
 
 CI fires the matching `.github/workflows/deploy-<pkg>.yml` (or `release-scoresheet.yml`), runs the
 contract check, deploys, and tags `<pkg>@<semver>` on success. **Don't tag locally** — CI does it.
+
+## Scope discipline
+
+When working on a feature and you notice something nearby that's bad, awkward, or should be
+changed/fixed — **stop and check with the user before acting**. Offer options:
+
+* address it now as a separate change (commit it before continuing the feature), or
+* leave it and document it (TODO comment, issue, or ROADMAP entry) and continue.
+
+Don't silently fix it as part of the current feature — it muddies the diff, and the user may have
+context (deliberate choice, planned rework, scope concerns) you don't. And don't just ignore it —
+surface it so the user can decide.
 
 ## Key Conventions
 
