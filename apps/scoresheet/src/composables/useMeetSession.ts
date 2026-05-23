@@ -29,9 +29,23 @@ export interface MeetSessionData {
   /** The meet's canonical division list, e.g. ["1", "2", "3"] */
   meetDivisions: string[]
   /** Set when this session was loaded from a specific scheduled quiz
-   *  (via loadFromQuiz). Stamped onto submitted results in the future
-   *  Submit flow (#7) so they back-link to the schedule entry. */
+   *  (via loadFromQuiz). Stamped onto server saves + submitted results
+   *  so they back-link to the schedule entry. */
   quizId: number | null
+  /** Room context captured at scheduled-quiz load time. Mirrored to
+   *  the save / result payloads. Null on standalone sessions. */
+  roomId: number | null
+  roomName: string | null
+  /** Whether to stream the QuizFile to the server on every change.
+   *  Auto-true when loaded from a scheduled quiz; manual opt-in
+   *  otherwise via setServerSaveEnabled(). Off-by-default for
+   *  standalone meet bindings. */
+  serverSaveEnabled: boolean
+  /** ISO timestamp set after a successful POST /results. Locks the
+   *  scoresheet UI; saves keep flowing on the server side (audit
+   *  trail) but the local UI presents as final. Cleared whenever the
+   *  session is replaced (New, Open, different scheduled load, Unlink). */
+  submittedAt: string | null
 }
 
 const session = ref<MeetSessionData | null>(loadFromStorage())
@@ -42,6 +56,11 @@ export function useMeetSession() {
   const meetName = computed(() => session.value?.meetName ?? null)
   const teamList = computed(() => session.value?.teamList ?? [])
   const quizId = computed(() => session.value?.quizId ?? null)
+  const roomId = computed(() => session.value?.roomId ?? null)
+  const roomName = computed(() => session.value?.roomName ?? null)
+  const serverSaveEnabled = computed(() => session.value?.serverSaveEnabled ?? false)
+  const submittedAt = computed(() => session.value?.submittedAt ?? null)
+  const isSubmitted = computed(() => session.value?.submittedAt != null)
 
   /** Division options for the scoresheet dropdown — the meet's canonical division list. */
   const divisionOptions = computed((): string[] => session.value?.meetDivisions ?? [])
@@ -76,6 +95,11 @@ export function useMeetSession() {
       teamList: teams,
       meetDivisions,
       quizId: null,
+      roomId: null,
+      roomName: null,
+      // Standalone meet binding: opt-in to server save via the UI.
+      serverSaveEnabled: false,
+      submittedAt: null,
     }
     persist()
   }
@@ -114,13 +138,44 @@ export function useMeetSession() {
   }
 
   /**
-   * Atomically commit a quiz load: replace the 3 slot assignments
-   * and stamp `quizId`. One reactivity tick, one `localStorage`
-   * write — vs. one per slot if callers used per-slot setters.
+   * Atomically commit a quiz load: replace the 3 slot assignments,
+   * stamp `quizId` and room context, auto-enable server save (the
+   * scoresheet was opened from the schedule — the official is on
+   * record). Clears any prior submittedAt because this is a fresh
+   * binding.
    */
-  function applyLoadedQuiz(slots: (SlotSession | undefined)[], quizId: number): void {
+  function applyLoadedQuiz(
+    slots: (SlotSession | undefined)[],
+    quizId: number,
+    room: { roomId: number; roomName: string } | null = null,
+  ): void {
     if (!session.value) return
-    session.value = { ...session.value, slots, quizId }
+    session.value = {
+      ...session.value,
+      slots,
+      quizId,
+      roomId: room?.roomId ?? null,
+      roomName: room?.roomName ?? null,
+      serverSaveEnabled: true,
+      submittedAt: null,
+    }
+    persist()
+  }
+
+  /** Flip the server-save opt-in for a standalone meet binding. */
+  function setServerSaveEnabled(enabled: boolean): void {
+    if (!session.value) return
+    if (session.value.serverSaveEnabled === enabled) return
+    session.value = { ...session.value, serverSaveEnabled: enabled }
+    persist()
+  }
+
+  /** Mark the current scoresheet as submitted. Locks the local UI until
+   *  the session is replaced. Idempotent — overwriting the timestamp
+   *  has no other effect. */
+  function markSubmitted(at: Date = new Date()): void {
+    if (!session.value) return
+    session.value = { ...session.value, submittedAt: at.toISOString() }
     persist()
   }
 
@@ -236,10 +291,17 @@ export function useMeetSession() {
     teamsForDivision,
     teamLabel,
     teamLabelFull,
+    roomId,
+    roomName,
+    serverSaveEnabled,
+    submittedAt,
+    isSubmitted,
     loadMeet,
     loadFromQuiz,
     buildSlotFromSeat,
     applyLoadedQuiz,
+    setServerSaveEnabled,
+    markSubmitted,
     assignTeam,
     clearSlot,
     getSlot,
@@ -356,6 +418,10 @@ function loadFromStorage(): MeetSessionData | null {
     // Migrate fields added after old sessions were persisted.
     if (!data.meetDivisions) data.meetDivisions = []
     if (data.quizId === undefined) data.quizId = null
+    if (data.roomId === undefined) data.roomId = null
+    if (data.roomName === undefined) data.roomName = null
+    if (data.serverSaveEnabled === undefined) data.serverSaveEnabled = false
+    if (data.submittedAt === undefined) data.submittedAt = null
     return data
   } catch {
     return null

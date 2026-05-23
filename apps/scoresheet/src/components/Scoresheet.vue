@@ -136,7 +136,10 @@ async function loadScheduledQuiz(meetId: number, quizId: number): Promise<boolea
     slots[slotIdx] = change.slot
     storeMirrors.push(change.mirrorToStore)
   }
-  meetSession.applyLoadedQuiz(slots, quizId)
+  meetSession.applyLoadedQuiz(slots, quizId, {
+    roomId: details.quiz.roomId,
+    roomName: details.quiz.roomName,
+  })
   for (const mirror of storeMirrors) mirror()
   return true
 }
