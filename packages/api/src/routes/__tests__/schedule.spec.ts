@@ -558,6 +558,53 @@ describe('POST /api/meets/:id/schedule/sync', () => {
     expect(body.prelimAssignments).toHaveLength(1)
     expect(body.teams.find((t) => t.id === t1.id)!.lateness).toBe(true)
   })
+
+  it('chunks large quiz + seat inserts under D1 param cap', async () => {
+    // Regression: pre-fix, a single .insert().values(rows) statement
+    // exceeded D1's bound-parameter cap once a real-meet Populate
+    // generated ~80+ quizzes. 100 here is well above the legacy cap.
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const QUIZ_COUNT = 100
+    const slots: object[] = []
+    const quizzes: object[] = []
+    for (let i = 0; i < QUIZ_COUNT; i++) {
+      slots.push({
+        id: -(i + 1),
+        startAt: new Date(2026, 0, 1, 8 + i, 0, 0).toISOString(),
+        durationMinutes: 25,
+        kind: 'quiz',
+        eventLabel: null,
+        sortOrder: i,
+      })
+      quizzes.push({
+        id: -(QUIZ_COUNT + i + 1),
+        slotId: -(i + 1),
+        roomId: room.id,
+        division: '1',
+        phase: 'prelim',
+        label: `D1-Q${i + 1}`,
+        bracketLabel: null,
+        seats: [
+          { seatNumber: 1, letter: 'A', seedRef: null },
+          { seatNumber: 2, letter: 'B', seedRef: null },
+          { seatNumber: 3, letter: 'C', seedRef: null },
+        ],
+      })
+    }
+
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/sync`,
+      syncReq({ slots, quizzes, prelimAssignments: [], teamLateness: [] }),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{ quizzes: { id: number }[] }>(res)
+    expect(body.quizzes).toHaveLength(QUIZ_COUNT)
+
+    const allSeats = await db.select().from(schema.scheduledQuizSeats)
+    expect(allSeats).toHaveLength(QUIZ_COUNT * 3)
+  })
 })
 
 describe('GET /api/meets/:id/quizzes/:quizId/teams', () => {
