@@ -4,11 +4,12 @@ import {
   deserialize,
   serializeStore,
   parseQuizFile,
+  fileVersionFor,
   FILE_VERSION,
   type QuizFile,
 } from '../quizFile'
 import { createQuizStore } from '../../stores/quizStore'
-import { CellValue, PlacementFormula, QuestionCategory } from '../../types/scoresheet'
+import { CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '../../types/scoresheet'
 
 function makeFile(overrides: Partial<QuizFile> = {}): QuizFile {
   return {
@@ -154,6 +155,19 @@ describe('deserialize — unknown/invalid data is silently dropped', () => {
     })
     const result = deserialize(file)
     expect(result.quiz.questionTypes.size).toBe(0)
+  })
+})
+
+describe('file version (version needed to read)', () => {
+  it('stamps 20-question quizzes as version 2 and 15-question ones as version 3', () => {
+    expect(fileVersionFor(QuizFormat.TwentyQuestion)).toBe(2)
+    expect(fileVersionFor(QuizFormat.FifteenQuestion)).toBe(3)
+  })
+
+  it('serializes a default quiz as version 2 with no format, readable by older installs', () => {
+    const file = JSON.parse(serializeStore(createQuizStore(), new Map(), new Map())) as QuizFile
+    expect(file.version).toBe(2)
+    expect(file.quiz).not.toHaveProperty('format')
   })
 })
 

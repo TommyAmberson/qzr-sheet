@@ -6,6 +6,7 @@ import {
   PlacementFormula,
   QuestionCategory,
   CellValue,
+  QuizFormat,
 } from '@qzr/shared'
 import type { QuizFile } from '@qzr/shared'
 import { buildKeyToIdx, buildColumns } from '../types/scoresheet'
@@ -15,6 +16,14 @@ import { toQuizzerId } from '../types/indices'
 import type { QuizStore } from '../stores/quizStore'
 
 export { QuizFileSchema, FILE_VERSION }
+
+/**
+ * The version needed to read a quiz of this format (contracts: "version needed to read").
+ * 20-question files stay version 2 so installs from before quiz formats can still open them.
+ */
+export function fileVersionFor(format: QuizFormat): 2 | 3 {
+  return format === QuizFormat.TwentyQuestion ? 2 : 3
+}
 export type { QuizFile } from '@qzr/shared'
 
 // ---- Serialize ----
@@ -33,7 +42,7 @@ export function serialize(input: SerializeInput): QuizFile {
   const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
 
   return {
-    version: FILE_VERSION,
+    version: fileVersionFor(QuizFormat.TwentyQuestion),
     quiz: {
       division: quiz.division,
       quizNumber: quiz.quizNumber,

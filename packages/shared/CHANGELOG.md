@@ -23,6 +23,21 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-01
+
+### Added
+
+* `QuizFormat` enum (`'20-question'`, `'15-question'`) and an optional `quiz.format` field on
+  `QuizFile`. A missing format means a 20-question quiz.
+
+### Changed
+
+* **Breaking:** `FILE_VERSION` is now 3 and the schema accepts versions 1, 2, and 3. A file is
+  stamped with the version needed to read it: 20-question quizzes stay version 2, so readers of
+  0.10.x and earlier keep opening them, while 15-question quizzes are version 3 and carry
+  `quiz.format`. Readers of 0.10.x and earlier refuse version 3 files rather than opening them as
+  20-question quizzes.
+
 ## [0.10.0] - 2026-10-01
 
 ### Added

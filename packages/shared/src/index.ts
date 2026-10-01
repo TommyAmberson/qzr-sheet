@@ -6,6 +6,7 @@ export {
   FILE_VERSION,
   PlacementFormula,
   BonusRule,
+  QuizFormat,
   CellValue,
   QuestionCategory,
 } from './quizFile'

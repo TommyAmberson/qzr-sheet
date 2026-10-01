@@ -1,6 +1,6 @@
-import { BonusRule, CellValue, PlacementFormula, QuestionCategory } from '@qzr/shared'
+import { BonusRule, CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '@qzr/shared'
 
-export { BonusRule, CellValue, PlacementFormula, QuestionCategory }
+export { BonusRule, CellValue, PlacementFormula, QuestionCategory, QuizFormat }
 
 /** Sub-column kind within a question (Normal / A / B). Distinct from `QuestionCategory`. */
 export enum QuestionType {
