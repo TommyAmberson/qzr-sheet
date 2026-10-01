@@ -10,5 +10,12 @@ extend-exclude = [
     ".claude/skills/speckit-", # same, regenerated skills
 ]
 
-[default.extend-identifiers]
-OT = "OT"
+[default]
+extend-ignore-re = [
+    # Rulebook draw tables pair team letters (`2. BCK`, `13. ABL`)
+    "\\d+\\. ?[A-P]{3}\\b",
+]
+
+[default.extend-words]
+ot = "ot" # overtime (`otCi`, `otRounds`, `OT` columns)
+nd = "nd" # English ordinal suffix in seed refs (`2ndA`)

@@ -13,9 +13,9 @@ observable wire/state behaviour. Discipline:
 * **MINOR** — additive changes (new optional fields, new enum values consumers can ignore).
 * **PATCH** — an observable fix that leaves the contract's shape unchanged.
 
-The pre-commit hook `tools/check-contract-versions.sh` blocks commits that touch
-`packages/shared/src/` without a matching `version` bump in `packages/shared/package.json` in the
-same commit, so the bump and its entry here land with the change itself. A refactor with no
+A pull request that changes `packages/shared/src/` bumps `packages/shared/package.json` once, in the
+first commit that touches shared, with a dated entry here that later commits on the branch extend.
+`tools/check-contract-versions.sh` enforces this at pre-commit and in PR CI. A refactor with no
 observable effect doesn't bump: commit it with `git commit --no-verify` instead.
 
 When consumers bump their own version, they must update their CHANGELOG's `### Bundled contract`

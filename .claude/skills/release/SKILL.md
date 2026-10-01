@@ -22,10 +22,9 @@ The user normally provides a package name (one of `scoresheet`, `web`, `api`) an
 version. If they only said "release", ask which package, but suggest the most likely one based on
 which paths have unreleased commits.
 
-`shared` has no release step. The pre-commit hook requires its version bump, and its CHANGELOG
-entry, in the same commit as the `packages/shared/src/` change, so by release time it is already
-bumped. If asked to release `shared`, explain this and offer to release the consumers that bundle
-it.
+`shared` has no release step. The pre-commit hook requires its version bump, and its dated CHANGELOG
+section, in the PR that changes `packages/shared/src/`, so by release time it is already bumped. If
+asked to release `shared`, explain this and offer to release the consumers that bundle it.
 
 ## Steps
 
@@ -84,7 +83,7 @@ they miss. The new section goes under `## [Unreleased]`, which stays as an empty
 ```markdown
 ## [Unreleased]
 
-## [<new-version>] — YYYY-MM-DD
+## [<new-version>] - YYYY-MM-DD
 
 ### Added / Changed / Fixed / Infrastructure as appropriate
 
@@ -130,11 +129,12 @@ Stage the changes and commit:
 
 ```sh
 git add <files-the-bump-script-reported> <package>/CHANGELOG.md
-git commit -m "chore(<pkg>): bump to <new-version>"
+git commit -m "chore(<pkg>): release <new-version>"
 ```
 
-The scope is required so commitlint matches. The pre-commit hook rejects the commit if the
-CHANGELOG's dated section isn't staged with the bump.
+The subject says `release` because merging this commit to master deploys the package. The scope is
+required so commitlint matches. The pre-commit hook rejects the commit if the CHANGELOG's dated
+section isn't staged with the bump.
 
 ### 7. Do not tag locally; do not push
 
