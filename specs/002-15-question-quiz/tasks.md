@@ -195,7 +195,7 @@ Q11 and on Q12+, and an error on Q12+, and match every total against a hand-scor
 - [X] T032 [US1] Add the read-only format badge ("20 Q" / "15 Q", always shown, FR-011) to the
   `quiz-meta--right` area of `scoresheet/components/Scoresheet.vue`, before the Overtime toggle,
   styled with the existing meta tokens
-- [ ] T033 [US1] Run `pnpm test:unit`, `pnpm type-check`, `pnpm lint`; then quickstart.md steps 1
+- [X] T033 [US1] Run `pnpm test:unit`, `pnpm type-check`, `pnpm lint`; then quickstart.md steps 1
   to 5 in `pnpm dev`. This is the branch's first observable scoresheet change, so it releases the
   package (CONTRIBUTING.md "Release with the change"): add a dated `## [0.12.0]` section to
   `apps/scoresheet/CHANGELOG.md` (Added: 15-question quiz format; Changed: timeout message) with a
@@ -232,7 +232,7 @@ the tied teams only; 19 to 21 only if still tied.
 - [X] T037 [US2] Check `computeInitialOtRounds` in `scoresheet/composables/useScoresheet.ts` builds
   columns with the restored quiz's rules (`quizRules(restored.quiz.format)`), not the current
   quiz's; add a `useScoresheet.spec.ts` case restoring a tied 15-question quiz with overtime on
-- [ ] T038 [US2] In `pnpm dev`, run quickstart.md step 6 and confirm the regulation-end border sits
+- [X] T038 [US2] In `pnpm dev`, run quickstart.md step 6 and confirm the regulation-end border sits
   after 15B and OT round styling starts at 16. Commit as
   `test(scoresheet): cover 15-question overtime`. Any fix goes in its own `fix` commit that adds a
   line to the existing 0.12.0 changelog section (no second bump)
@@ -327,7 +327,7 @@ teams, press Ctrl+N: still 15-question with the same answers.
 - [X] T051 [US3] In `scoresheet/App.vue`, make Ctrl+N (`onNew`) start a new quiz in the current
   quiz's format (research R5): expose a way from `Scoresheet.vue` (e.g. `newQuiz()` with no
   argument repeats `quiz.format`) and keep the menu items explicit
-- [ ] T052 [US3] Run `pnpm test:unit`, `pnpm type-check`, `pnpm lint`, then quickstart.md steps 7
+- [X] T052 [US3] Run `pnpm test:unit`, `pnpm type-check`, `pnpm lint`, then quickstart.md steps 7
   to 11 and 13 (step 8 and 9 need a build from master before this feature, e.g. `git worktree add` of
   `origin/master` and `pnpm dev` there). Commit persistence and UI as separate commits, e.g.
   `feat(scoresheet): save quiz format in quiz files` and
@@ -346,16 +346,16 @@ teams, press Ctrl+N: still 15-question with the same answers.
 **Independent Test**: on a 15-question quiz the "Export ODS" item is disabled with its reason; on
 a 20-question quiz export works; an imported `.ods` is 20-question.
 
-- [ ] T053 [P] [US4] Add to `scoresheet/export/__tests__/readOds.spec.ts`: the `QuizFile` built by
+- [X] T053 [P] [US4] Add to `scoresheet/export/__tests__/readOds.spec.ts`: the `QuizFile` built by
   `readOds` deserializes as a 20-question quiz
-- [ ] T054 [US4] Confirm `scoresheet/export/readOds.ts` stamps
+- [X] T054 [US4] Confirm `scoresheet/export/readOds.ts` stamps
   `fileVersionFor(QuizFormat.TwentyQuestion)` (T016), sets no `format`, and uses
   `TWENTY_QUESTION_RULES` explicitly; no `FILE_VERSION` use remains outside the newer-version check
-- [ ] T055 [US4] In `scoresheet/components/Scoresheet.vue`, disable "⬡ Export ODS" when
+- [X] T055 [US4] In `scoresheet/components/Scoresheet.vue`, disable "⬡ Export ODS" when
   `quiz.format !== QuizFormat.TwentyQuestion`, with title "Spreadsheet export supports 20-question
   quizzes only" (shared with `fillOts`, which itself refuses non-20-question quizzes, so the
   export layer owns the limit)
-- [ ] T056 [US4] Run quickstart.md step 12. Add "Changed: ODS export disabled for 15-question
+- [X] T056 [US4] Run quickstart.md step 12. Add "Changed: ODS export disabled for 15-question
   quizzes" to the 0.12.0 changelog section and commit as
   `feat(scoresheet): no ODS export for 15q quizzes`
 
@@ -365,32 +365,32 @@ a 20-question quiz export works; an imported `.ods` is 20-question.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T057 [P] Update `docs/scoring-rules-explained.md`: layout and point rules per format (column
+- [X] T057 [P] Update `docs/scoring-rules-explained.md`: layout and point rules per format (column
   keys, A/B from 11, error points and 10-point bonuses from 12, quiz-out 3, timeouts until error
   points, overtime from 16), and a new section "Rules not in the rulebook" listing each
   15-question rule from the spec's Context table with its basis: the 20-question rule it shifts,
   the two-team tie-breaker (§2.b) rule it borrows (quiz-out at 3), or practice-meet convention
   (three teams, 2 timeouts, placement formulas unchanged) (FR-014)
-- [ ] T058 [P] Update `docs/architecture.md`: `scoring/quizRules.ts`, `QuizFormat`,
+- [X] T058 [P] Update `docs/architecture.md`: `scoring/quizRules.ts`, `QuizFormat`,
   `FILE_VERSION` 3 and the version-needed-to-read rule, the newer-file prompt, kept newer
   auto-saves
-- [ ] T059 [P] Update `CLAUDE.md`: "Column keys" convention per format; gotchas that say
+- [X] T059 [P] Update `CLAUDE.md`: "Column keys" convention per format; gotchas that say
   "`buildColumns(n)` takes an overtime round count" and "`isErrorPoints` is true for Q17–20" now
   describe `buildColumns(rules, overtimeRounds)` and the rules-based boundary. Also fix
   `CONTRIBUTING.md` "Contract package versioning", which places `FILE_VERSION` in
   `apps/scoresheet/src/persistence/quizFile.ts`; it lives in `packages/shared/src/quizFile.ts`
-- [ ] T060 [P] Add the 15-question quiz to "Available now" in
+- [X] T060 [P] Add the 15-question quiz to "Available now" in
   `apps/web/src/views/RoadmapView.vue`. This changes the `web` package, so in the same commit add a
   dated `## [0.12.2]` section to `apps/web/CHANGELOG.md` (Changed: roadmap lists 15-question
   quizzes) with `### Bundled contract` naming `@qzr/shared@1.0.0`, bumped from 0.10.0, and run
   `pnpm bump web 0.12.2`. Commit as `docs(web): list 15-question quizzes as available`
-- [ ] T061 Commit T057 to T059 as `docs: describe the 15-question quiz format` (T060 is its own
+- [X] T061 Commit T057 to T059 as `docs: describe the 15-question quiz format` (T060 is its own
   `web` commit)
-- [ ] T062 Check the release sections are complete: `apps/scoresheet/CHANGELOG.md` 0.12.0 lists
+- [X] T062 Check the release sections are complete: `apps/scoresheet/CHANGELOG.md` 0.12.0 lists
   every observable change from T033, T038, T052, and T056, and its date is today (update it in a
   fixup to the T033 commit if the branch spans several days); `apps/web/CHANGELOG.md` 0.12.2 and
   `packages/shared/CHANGELOG.md` 1.0.0 are present. No further bumps
-- [ ] T063 Final gate: `pnpm test:unit`, `pnpm type-check`, `pnpm lint` all pass; walk
+- [X] T063 Final gate: `pnpm test:unit`, `pnpm type-check`, `pnpm lint` all pass; walk
   quickstart.md end to end once more. Before merging, rebase onto current `origin/master` (the
   branch bumps versions; constitution, Development Workflow) and re-run the three checks
 

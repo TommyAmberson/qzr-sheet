@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-01
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: User description: "I want to make a feature in qzr-sheet with 15 question quizzes. Rule
 book tie-breaker, but we also use it often for 1-day meets where the stats don't count and we just
