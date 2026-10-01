@@ -15,7 +15,8 @@ the PR bumps.
 
 Hooks are wired via `simple-git-hooks` + `lint-staged` and installed by `pnpm install` (see the
 `postinstall` script in `package.json`). The `pre-commit` hook runs `lint-staged` (Prettier on
-TS/Vue/CSS, ESLint fixes, `dprint` on markdown / Dockerfiles), then
+TS/Vue/CSS, ESLint fixes, `dprint` on markdown / Dockerfiles), then `typos` (the bare binary, which
+must be on `PATH`: `cargo install typos-cli` or your distro's package), then
 `tools/check-contract-versions.sh` (see [Contract package versioning](#contract-package-versioning)
 and [Releasing](#releasing)). The `commit-msg` hook runs `commitlint` against the
 conventional-commits config (see `commitlint.config.js` for the scope-enum and length rules below).
