@@ -18,11 +18,17 @@ import type { QuizStore } from '../stores/quizStore'
 export { QuizFileSchema, FILE_VERSION }
 
 /**
- * The version needed to read a quiz of this format (contracts: "version needed to read").
- * 20-question files stay version 2 so installs from before quiz formats can still open them.
+ * The version needed to read a quiz of each format (contracts: "version needed to read").
+ * 20-question files stay version 2 so installs from before quiz formats can still open them. A
+ * Record, so a new format can't be saved until its version is decided.
  */
-export function fileVersionFor(format: QuizFormat): 2 | 3 {
-  return format === QuizFormat.TwentyQuestion ? 2 : 3
+const FILE_VERSION_FOR: Record<QuizFormat, QuizFile['version']> = {
+  [QuizFormat.TwentyQuestion]: 2,
+  [QuizFormat.FifteenQuestion]: 3,
+}
+
+export function fileVersionFor(format: QuizFormat): QuizFile['version'] {
+  return FILE_VERSION_FOR[format]
 }
 
 /** A file saved by a newer scoresheet. `parseQuizFileAttempt` can still try to open it. */
@@ -49,9 +55,10 @@ export interface SerializeInput {
 export function serialize(input: SerializeInput): QuizFile {
   const { quiz, teams, quizzers, answers, noJumps, timeouts } = input
   const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
+  const version = fileVersionFor(quiz.format)
 
   return {
-    version: fileVersionFor(quiz.format),
+    version,
     quiz: {
       division: quiz.division,
       quizNumber: quiz.quizNumber,
@@ -59,8 +66,8 @@ export function serialize(input: SerializeInput): QuizFile {
       consolation: quiz.consolation,
       placementFormula: quiz.placementFormula,
       bonusRule: quiz.bonusRule,
-      // 20-question files leave the format out so older installs read them unchanged
-      ...(quiz.format !== QuizFormat.TwentyQuestion ? { format: quiz.format } : {}),
+      // A version 2 file must stay exactly what older installs read, so it carries no format
+      ...(version > 2 ? { format: quiz.format } : {}),
       questionTypes: [...quiz.questionTypes.entries()],
     },
     teams: sortedTeams.map((team) => {
