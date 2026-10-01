@@ -122,6 +122,13 @@ the moment an `api` version bump lands on master.
   release by a version bump landing on master. `shared` carries a version and changelog and is
   tagged by the first consumer deploy that bundles it. Tags MUST NOT be created locally; CI creates
   them.
+* A change records itself in its package's changelog as part of the change, not at release time. By
+  default the pull request that changes a package also bumps it, so merging it is the release.
+  Deferring the bump to ship several changes together is allowed but deliberate: the pull request
+  body says so, and the entries wait under `## [Unreleased]`. Master SHOULD NOT hold unreleased
+  changes for long, because an urgent fix then cannot ship without them.
+* A pull request that bumps a package version MUST be rebased onto current master before it merges,
+  so that CI's run of the deploy-time contract check reflects the master it will deploy from.
 * Planned work lives in GitHub Issues ordered by `ROADMAP.md`, per `docs/issue-conventions.md`, and
   `apps/web/src/views/RoadmapView.vue` is kept in step with `ROADMAP.md` when features ship.
   Anything an agent writes on GitHub carries the attribution in `docs/issue-conventions.md` unless
@@ -145,4 +152,4 @@ Constitution Check and each merge against these principles; an exception MUST be
 plan's Complexity Tracking or the pull request body, and an exception that outlives its
 justification is a defect to be removed.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-01
+**Version**: 1.1.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-01
