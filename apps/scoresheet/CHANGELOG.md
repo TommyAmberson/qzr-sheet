@@ -26,6 +26,9 @@ Needs API 0.12.0 or later, which serves the API at `/qzr/api/`.
   manifest gains an explicit `id`, so an install from the old address must be reinstalled from the
   new one. Saved scoresheets are kept: they live in the browser's storage for the site, which does
   not change
+* **Desktop and Android apps call `/qzr/api/`** - the API base built into the native apps moves to
+  `https://www.versevault.ca/qzr`. Older app versions keep scoring offline, but lose sign-in once
+  verse-vault takes over `/api/`, so update before then
 
 ### Bundled contract
 

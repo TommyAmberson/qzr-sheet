@@ -66,7 +66,7 @@ export default defineConfig({
     __API_URL__: JSON.stringify(
       process.env.NODE_ENV === 'production'
         ? isTauri
-          ? 'https://www.versevault.ca'
+          ? 'https://www.versevault.ca/qzr'
           : '/qzr'
         : 'http://localhost:8787',
     ),
