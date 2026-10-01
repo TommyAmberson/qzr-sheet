@@ -170,14 +170,14 @@ while the root site keeps working (FR-001 to FR-007).
 - [X] T040 [P] Update `CLAUDE.md` (OAuth callbacks gotcha; `pnpm deploy` description) and `.claude/skills/release/SKILL.md` (deploy target)
 - [X] T041 Before opening each of PR 1a and PR 1b, check that each package it releases (1a: `api`; 1b: `web`, `scoresheet`) was bumped exactly once on that branch (`git log <base>.. -- <pkg>/package.json`) and that each dated section covers the whole change: `api` (`/qzr/api` mount, per-request auth base path, `qzr` cookie prefix), `web` (served at `/qzr/` by the `qzr-web` Worker, not-found page), `scoresheet` (served at `/qzr/scoresheet/`, apps call `/qzr/api`)
 - [ ] T042 Run `pnpm test:unit`, `pnpm type-check`, `pnpm lint`; then run `/speckit-analyze` before opening the PRs. The PR 1a body says it releases `api` and must deploy before PR 1b merges. The PR 1b body carries the `qzr-web` deployable justification from plan.md Complexity Tracking (constitution, Technology Constraints), says it releases `web` and `scoresheet`, and says it needs PR 1a live
-- [ ] T043 MAINTAINER, before merging PR 1b: confirm whether qzr's GitHub sign-in is an OAuth App or a GitHub App, and register the new callbacks (Google: add `https://www.versevault.ca/qzr/api/auth/callback/google`; GitHub OAuth App: set the callback to `https://www.versevault.ca/`; GitHub App: add the `/qzr/...` URL) (research R8). Immediately before merging each of PR 1a and PR 1b, rebase it onto current master and let CI re-run the contract check (constitution 1.1.0: PRs that bump a version are rebased before merge)
+- [ ] T043 MAINTAINER, before merging PR 1b: register the new callbacks next to the existing ones: Google adds `https://www.versevault.ca/qzr/api/auth/callback/google`, and the production GitHub OAuth App adds `https://www.versevault.ca/qzr/api/auth/callback/github` (research R8). Registered 2026-10-01. Immediately before merging each of PR 1a and PR 1b, rebase it onto current master and let CI re-run the contract check (constitution 1.1.0: PRs that bump a version are rebased before merge)
 - [ ] T044 MAINTAINER, after PR 1b deploys: walk quickstart section 2, publish the desktop and Android release, and tell known app users to update (SC-006)
 
 ### PR 2
 
 - [ ] T045 Docs for switch day: `docs/architecture.md`, `docs/auth.md`, `README.md` drop the root `/api` and Pages references; add entries to the dated sections created at T030 (`web`) and T033 (`api`)
 - [ ] T046 MAINTAINER, at cutover: rebase PR 2 onto current master and wait for CI, then merge it in the order in `~/notes/url-change/PLAN.md` Phase B, walk quickstart section 3
-- [ ] T047 MAINTAINER, weeks later: remove the old OAuth callbacks (narrow GitHub to `/qzr/api/auth/callback/github`), delete the `versevault-www` Pages project
+- [ ] T047 MAINTAINER, weeks later: remove the root `/api/auth/callback/{google,github}` entries from both providers, delete the `versevault-www` Pages project
 
 ---
 

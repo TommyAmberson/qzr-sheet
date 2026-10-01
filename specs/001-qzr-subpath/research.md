@@ -149,11 +149,10 @@ its own "meet not found" state.
 
 * Google (qzr client): add `https://www.versevault.ca/qzr/api/auth/callback/google` next to the
   existing one. Google allows many redirect URIs.
-* GitHub: an OAuth App holds one callback URL, and accepts any `redirect_uri` under it. Changing it
-  to `https://www.versevault.ca/` covers both `/api/auth/callback/github` and
-  `/qzr/api/auth/callback/github` during the parallel stage; narrow it to
-  `https://www.versevault.ca/qzr/api/auth/callback/github` after switch day. If qzr uses a GitHub
-  App instead, add the second URL (GitHub Apps allow several).
+* GitHub: qzr uses an OAuth App for production (a separate one serves local dev). OAuth Apps now
+  take several callback URLs, so add `https://www.versevault.ca/qzr/api/auth/callback/github` next
+  to the existing one rather than widening the callback to the whole host. Remove the root
+  `/api/auth/callback/github` entry after switch day.
 
 ## R9. CI and deploy
 
@@ -164,5 +163,5 @@ of its own: it is the hosting for the `web` and `scoresheet` releases and deploy
 
 ## Resolved unknowns
 
-No `NEEDS CLARIFICATION` items remain. One fact to confirm by hand: whether qzr's GitHub sign-in is
-an OAuth App or a GitHub App (R8).
+No `NEEDS CLARIFICATION` items remain. qzr's GitHub sign-in turned out to be an OAuth App (R8); both
+new callbacks were registered on 2026-10-01.
