@@ -16,12 +16,38 @@ In code these are the `CellValue` enum in `src/types/scoresheet.ts`.
 
 **Rows:** question header, 3 teams × (up to 5 quizzers + running total row)
 
-**Columns:**
+**Columns** (20-question quiz; see [Quiz Formats](#quiz-formats) for the 15-question layout):
 
 * Q1–15: normal questions
 * Q16–20: normal + optional A/B sub-columns
 * Q21+: overtime (3 questions per round, rounds added until the tie is broken)
 * Running total column per team (rightmost)
+
+## Quiz Formats
+
+Each quiz has a `QuizFormat` (`packages/shared/src/quizFile.ts`), chosen when it starts from the New
+menu and fixed for the life of the quiz. The rest of this document describes the default 20-question
+quiz; the 15-question quiz moves its final stretch five questions earlier:
+
+| Rule                                | 20-question quiz | 15-question quiz |
+| ----------------------------------- | ---------------- | ---------------- |
+| Regulation questions                | 1 to 20          | 1 to 15          |
+| Questions with A/B sub-columns      | 16 to 20         | 11 to 15         |
+| Error points (and 10-point bonuses) | from 17          | from 12          |
+| Free first errors, 20-point bonuses | through 16       | through 11       |
+| Timeouts allowed until error points | before 17        | before 12        |
+| Quiz-out, and the quiz-out bonus    | 4 correct        | 3 correct        |
+| First overtime question             | 21               | 16               |
+
+Everything else is the same in both: error-out and foul-out at 3, team foul and error deductions,
+the 3rd/4th/5th unique-quizzer bonuses, the on-time bonus, 2 timeouts per team, overtime rounds of
+3, and placement points from the end-of-regulation score. The numbers live in one table,
+`apps/scoresheet/src/scoring/quizRules.ts`. Column keys depend on the format: `16A` is a regulation
+column in a 20-question quiz and the first overtime round in a 15-question one, so a saved file is
+always read under the format it records.
+
+The rulebook does not define a three-team 15-question quiz; see
+[Rules Not in the Rulebook](#rules-not-in-the-rulebook).
 
 ## Point Values
 
@@ -135,7 +161,7 @@ are eligible to answer overtime questions.
 ## Placement Points
 
 Placement points are awarded once the quiz is complete, always based on the regulation score (end of
-Q20) even when overtime was played — per rules §1.e.4.
+Q20, or Q15 in a 15-question quiz) even when overtime was played — per rules §1.e.4.
 
 Two formula variants are available via `PlacementFormula` in `src/types/scoresheet.ts`. The
 **Rules** formula is the default and is shown in the UI; the **Legacy** formula is retained for
@@ -180,3 +206,34 @@ distinguishes between tied and untied placements differently than the rulebook.
 | `2`      | 5    | 60        | One team in 2nd outright | max(5, score/10 - 1)  |
 | `2.2`    | 5    | 60        | Two teams tied for 2nd   | max(5, score/10 - 1)  |
 | `3`      | 1    | 30        | One team in 3rd outright | max(1, score/10 - 2)  |
+
+## Rules Not in the Rulebook
+
+The official rulebook (`docs/rules.md`) is the specification. These rules are not stated there, so
+each is an opt-in departure, listed with what it is based on.
+
+### 15-question quiz
+
+The rulebook's only 15-question quiz is the two-team tie-breaker ("Types of Quizzes" §2.b). Practice
+meets also run short three-team quizzes, which the rulebook does not cover. The scoresheet's
+15-question format is that three-team quiz; the two-team tie-breaker is not supported yet.
+
+| Rule                                          | Based on                                                                                       |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Three teams                                   | Practice-meet convention                                                                       |
+| 15 regulation questions                       | The tie-breaker's length (§2.b)                                                                |
+| A/B sub-questions on 11 to 15                 | The 20-question quiz's 16 to 20 (§1.h–i), moved five questions earlier                         |
+| Error points and 10-point bonuses from 12     | The 20-question quiz's from 17 (§1.j–k), moved five questions earlier                          |
+| Free first errors and 20-point bonuses to 11  | The 20-question quiz's through 16, moved five questions earlier                                |
+| No timeouts once error points begin (from 12) | "No timeout can be called after question 17 is introduced" (§8.a), moved                       |
+| Quiz-out, and its bonus, at 3 correct         | The tie-breaker's three correct answers (§2.b.vi)                                              |
+| Overtime from 16, in rounds of 3              | The 20-question quiz's overtime units of three (§1.d), after question 15                       |
+| Error-out and foul-out at 3                   | Unchanged; the same in every rulebook quiz                                                     |
+| 2 timeouts per team                           | Unchanged from §8.a; practice-meet convention                                                  |
+| Unique-quizzer and on-time bonuses            | Unchanged; practice-meet convention                                                            |
+| Placement points from the end-of-Q15 score    | The existing formulas, unchanged (§1.e.4 uses the end of regulation); practice-meet convention |
+
+### Other departures
+
+* The **Legacy** placement formula and the **Team** bonus rule, described above, are opt-in variants
+  retained for meets that run them.

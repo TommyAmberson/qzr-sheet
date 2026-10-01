@@ -176,7 +176,7 @@ const RULES_TABLE: Record<string, PlacementTableEntry> = {
 /**
  * Compute placement points for a team given their regulation score and PlaceKey.
  *
- * Per rules §1.e.4, placement points are always based on the score at end of Q20,
+ * Per rules §1.e.4, placement points are always based on the end-of-regulation score,
  * even when overtime was played to break the tie. Callers must pass the regulation
  * score, not the total including overtime.
  *
