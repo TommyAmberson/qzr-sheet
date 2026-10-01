@@ -17,6 +17,26 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-01
+
+### Added
+
+* **Served at `/qzr/api/*`** - every route answers under `/qzr/api/` as well as `/api/`, ahead of
+  qzr moving under `/qzr/` so verse-vault can take the root. Better Auth picks its base path per
+  request (`/qzr/api/auth` or `/api/auth`), so OAuth callbacks return to the address sign-in started
+  on. The root `/api/*` route stays until switch day
+
+### Changed
+
+* **Session cookies use the `qzr` prefix** - `__Secure-qzr.session_token` and friends instead of
+  Better Auth's default `better-auth.` names, which verse-vault also uses on the same host. Each app
+  was overwriting the other's session. Existing qzr sessions are not read after this, so everyone
+  signs in once more
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` - unchanged since api 0.10.0
+
 ## [0.11.0] - 2026-10-01
 
 ### Added

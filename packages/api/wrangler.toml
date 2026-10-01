@@ -13,6 +13,13 @@ ENVIRONMENT = "production"
 API_BASE_URL = "https://www.versevault.ca"
 WEB_BASE_URL = "https://www.versevault.ca"
 
+# qzr is served under /qzr/ (specs/001-qzr-subpath). The root /api/* route keeps
+# the old address working until switch day, when verse-vault takes it over and
+# this route is removed.
+[[routes]]
+pattern = "www.versevault.ca/qzr/api/*"
+zone_name = "versevault.ca"
+
 [[routes]]
 pattern = "www.versevault.ca/api/*"
 zone_name = "versevault.ca"

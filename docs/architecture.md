@@ -26,6 +26,7 @@ qzr/
 | `www.versevault.ca/scoresheet/` | Scoresheet PWA | CF Pages   |
 | `www.versevault.ca/`            | Portal         | CF Pages   |
 | `www.versevault.ca/api/`        | API            | CF Workers |
+| `www.versevault.ca/qzr/api/`    | API            | CF Workers |
 
 The Worker is served at the same origin as the frontends — no CORS headers needed in production.
 

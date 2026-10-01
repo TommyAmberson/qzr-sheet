@@ -51,6 +51,15 @@ export async function jsonOf<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>
 }
 
+/** Bindings for tests that run the real `app`; `DB` is a stub for routes that never query it. */
+export const testBindings = {
+  ENVIRONMENT: 'test',
+  API_BASE_URL: 'http://localhost:8787',
+  WEB_BASE_URL: 'http://localhost:5174',
+  BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
+  DB: {} as D1Database,
+} as unknown as Bindings
+
 /** Build a JSON-bodied request init for use with `app.request(...)`. */
 export function jsonRequest(method: string, body: Record<string, unknown>) {
   return {

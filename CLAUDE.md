@@ -128,7 +128,10 @@ surface it so the user can decide.
   (vuejs/core#8854). Prettier removes semicolons on format, re-triggering the error. Always extract
   multi-statement handlers to named functions in `<script setup>` instead of inline expressions.
 * Auth uses Better Auth cookie sessions — no JWTs for user auth. `BETTER_AUTH_SECRET` must be ≥32
-  chars. OAuth callbacks: `/api/auth/callback/github`, `/api/auth/callback/google`.
+  chars. OAuth callbacks: `/qzr/api/auth/callback/github`, `/qzr/api/auth/callback/google` (plus the
+  root `/api/auth/...` pair until switch day; locally the dev API answers at the root). The base
+  path is the mount that matched (`routePath` in `src/index.ts`), and cookies use the `qzr` prefix
+  so they don't clash with verse-vault's on the same host.
 * **A stale Vite watcher looks like a CSS bug.** Long-running dev servers (especially once Linux
   hits its inotify limit) silently stop picking up edits. If a visual change "didn't work" but the
   file on disk is right, fetch the served stylesheet (`curl` the `?vue&type=style` URL) and compare
