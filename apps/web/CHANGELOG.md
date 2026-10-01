@@ -15,6 +15,27 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-10-01
+
+### Added
+
+* **Open a scheduled quiz in the scoresheet** — on the read-only schedule view, each quiz label is a
+  link to the scoresheet with `?meet=<id>&quiz=<id>`, which prefills that quiz's teams and rosters.
+  The link is same-origin, so the scoresheet inherits the signed-in session or guest token. The
+  editable schedule keeps its edit button
+
+### Changed
+
+* **Schedule grid shared with the scoresheet** — the grid renderer and its helpers (`buildGrid`,
+  `groupRowsByDay`, `formatSlotTime`, seat helpers) move to `@qzr/ui` as `ScheduleGrid`, so the
+  scoresheet's schedule picker draws the same grid. `ReviewSection` wraps it and supplies its
+  editing controls through named slots; `apps/web/src/scheduleGrid.ts` re-exports for existing
+  importers
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` — unchanged
+
 ## [0.10.0] — 2026-05-21
 
 First per-package web release. Covers everything shipped on master since unified tag `v0.9.1`.

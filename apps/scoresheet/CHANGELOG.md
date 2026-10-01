@@ -15,6 +15,36 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-10-01
+
+Load a scheduled quiz straight into the scoresheet. Needs API 0.11.0 or later, which added the
+`GET /api/meets/:id/quizzes/:quizId/teams` endpoint this uses.
+
+### Added
+
+* **Load from schedule** — a new "Load from schedule…" menu item opens the meet's schedule as the
+  same grid the portal shows (picking the meet first if none is loaded). Choosing a quiz fills in
+  its division, quiz number, team names, and rosters
+* **Open a quiz from the portal** — links from the portal's schedule (`?meet=<id>&quiz=<id>`) load
+  that quiz the same way. The parameters are removed from the address afterwards, so reloading does
+  not overwrite later edits
+
+### Changed
+
+* **Loading a quiz keeps names you typed where it can** — for each team slot: the same team keeps
+  its quizzer names; a different team keeps your name order if every typed name is on its roster,
+  filling the rest from the roster; otherwise the roster replaces the names. You are asked first if
+  any team or quizzer name has been edited, and the team label always resets to the schedule's
+
+### Fixed
+
+* **Drop highlight when dragging a quizzer** — the blue outline showing where a dragged quizzer will
+  land now appears, surrounds the whole row, and lines up with the neighbouring cells
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` — unchanged
+
 ## [0.9.2] — 2026-05-21
 
 First per-package scoresheet release. No source changes since 0.9.1 — bumping to establish the
