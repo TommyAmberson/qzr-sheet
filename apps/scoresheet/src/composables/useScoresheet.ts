@@ -14,6 +14,7 @@ import {
 } from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
 import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
+import { TWENTY_QUESTION_RULES, lastTimeoutQuestion, type QuizRules } from '../scoring/quizRules'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
 import { validateCells, ValidationCode, validationMessage } from '../scoring/validation'
 import { isBonusSituation } from '../scoring/helpers'
@@ -49,6 +50,9 @@ export function useScoresheet() {
   // keep their `quiz.value.x` shape and reads track the proxy natively.
   const quiz = ref<Quiz>(store.quiz)
 
+  /** Structural rules for the quiz's format */
+  const rules = computed<QuizRules>(() => TWENTY_QUESTION_RULES)
+
   /**
    * Internally tracked overtime round count.
    * Starts at 1 when OT is enabled, auto-grows when content is added.
@@ -71,7 +75,7 @@ export function useScoresheet() {
     loadedNoJumps: Map<string, boolean>,
   ): number {
     if (!overtime) return 1
-    const cols = buildColumns(20)
+    const cols = buildColumns(rules.value, 20)
     return Math.max(
       1,
       computeOvertimeRounds(
@@ -79,6 +83,7 @@ export function useScoresheet() {
         cols,
         loadedTeams.map((t) => t.onTime),
         cols.map((c) => loadedNoJumps.get(c.key) ?? false),
+        rules.value,
       ),
     )
   }
@@ -102,7 +107,7 @@ export function useScoresheet() {
   /** Columns built reactively — regulation when OT is off, + OT rounds when on */
   const columns = computed<Column[]>(() => {
     const rounds = quiz.value.overtime ? internalOtRounds.value : 0
-    return buildColumns(rounds)
+    return buildColumns(rules.value, rounds)
   })
 
   const noJumps = computed<boolean[]>(() =>
@@ -139,7 +144,9 @@ export function useScoresheet() {
   const scoring = computed<TeamScoring[]>(() => {
     const cols = columns.value
     const grid = cells.value
-    return teams.value.map((team, teamIdx) => scoreTeam(grid[teamIdx]!, cols, team.onTime))
+    return teams.value.map((team, teamIdx) =>
+      scoreTeam(grid[teamIdx]!, cols, team.onTime, rules.value),
+    )
   })
 
   // --- Grey-out & validation ---
@@ -153,6 +160,7 @@ export function useScoresheet() {
       columns.value,
       teams.value.map((t) => t.onTime),
       noJumps.value,
+      rules.value,
     ),
   )
 
@@ -163,6 +171,7 @@ export function useScoresheet() {
       cells.value,
       columns.value,
       teams.value.map((t) => t.onTime),
+      rules.value,
     ),
   )
 
@@ -176,6 +185,7 @@ export function useScoresheet() {
       columns.value,
       noJumps.value,
       visibleOtRounds.value,
+      rules.value,
       greyedOutResult.value.colStatuses,
     ),
   )
@@ -197,6 +207,7 @@ export function useScoresheet() {
       cells.value,
       columns.value,
       greyedOutResult.value,
+      rules.value,
       noJumps.value,
       otEligibleTeams.value,
       orphanedColumns.value,
@@ -236,7 +247,7 @@ export function useScoresheet() {
     return m
   })
 
-  /** Column indices that have an invalid timeout (after Q16) */
+  /** Column indices that have an invalid timeout (once error points begin) */
   const timeoutValidationErrors = computed(() => {
     const invalidCols = new Set<number>()
     for (const timeouts of timeoutMap.value.values()) {
@@ -322,7 +333,7 @@ export function useScoresheet() {
   function columnValidationMessages(colIdx: number): string[] {
     const msgs = new Set<string>()
     if (timeoutValidationErrors.value.has(colIdx)) {
-      msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+      msgs.add(validationMessage(ValidationCode.TimeoutAfterErrorPoints))
     }
     const col = validationErrors.value.get(colIdx)
     if (col) {
@@ -348,7 +359,7 @@ export function useScoresheet() {
   function teamValidationMessages(teamIdx: number): string[] {
     const msgs = new Set<string>()
     if (timeoutErrorsByTeam.value.has(teamIdx)) {
-      msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+      msgs.add(validationMessage(ValidationCode.TimeoutAfterErrorPoints))
     }
     if (tooManyTimeoutsTeams.value.has(teamIdx)) {
       msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
@@ -424,7 +435,7 @@ export function useScoresheet() {
 
   // --- Column visibility ---
 
-  /** How many OT rounds should be visible (0 = none, 1 = Q21-23, etc.) */
+  /** How many OT rounds should be visible (0 = none, 1 = the first round, etc.) */
   const visibleOtRounds = computed(() => {
     if (!quiz.value.overtime) return 0
     return computeOvertimeRounds(
@@ -432,6 +443,7 @@ export function useScoresheet() {
       columns.value,
       teams.value.map((t) => t.onTime),
       noJumps.value,
+      rules.value,
     )
   })
 
@@ -452,18 +464,31 @@ export function useScoresheet() {
       columns.value,
       noJumps.value,
       visibleOtRounds.value,
+      rules.value,
       greyedOutResult.value.colStatuses,
     ),
   )
 
-  /** Whether regulation questions (Q1–20) are fully filled out */
+  /** Whether every regulation question is fully filled out */
   const regulationComplete = computed(() =>
-    questionsComplete(cells.value, columns.value, noJumps.value, 1, 20),
+    questionsComplete(
+      cells.value,
+      columns.value,
+      noJumps.value,
+      1,
+      rules.value.regulationQuestions,
+    ),
   )
 
   /** Whether all questions in the visible range have been jumped on or no-jumped */
   const allQuestionsComplete = computed(() =>
-    quizJumpedComplete(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
+    quizJumpedComplete(
+      cells.value,
+      columns.value,
+      noJumps.value,
+      visibleOtRounds.value,
+      rules.value,
+    ),
   )
 
   /** Placement medals per team: PlaceKey (encoding rank + tie-width), or null if not yet placed */
@@ -472,21 +497,22 @@ export function useScoresheet() {
       return teams.value.map((): PlaceKey | null => null)
     }
     const onTimes = teams.value.map((t) => t.onTime)
-    const regScores = computeRegulationScores(cells.value, columns.value, onTimes)
+    const regScores = computeRegulationScores(cells.value, columns.value, onTimes, rules.value)
     const checkpoints = computeOtCheckpointScores(
       cells.value,
       columns.value,
       onTimes,
       noJumps.value,
+      rules.value,
     )
     return computePlacements(regScores, checkpoints, true, visibleOtRounds.value > 0)
   })
 
   /** Placement points per team (null if not yet placed), derived from placement + regulation score.
-   * Per rules §1.e.4: in case of a tie, placement points use the score at end of Q20, not OT. */
+   * Per rules §1.e.4: in case of a tie, placement points use the end-of-regulation score, not OT. */
   const placementPoints = computed(() => {
     const onTimes = teams.value.map((t) => t.onTime)
-    const regScores = computeRegulationScores(cells.value, columns.value, onTimes)
+    const regScores = computeRegulationScores(cells.value, columns.value, onTimes, rules.value)
     return teams.value.map((_, teamIdx) =>
       computePlacementPoints(
         regScores[teamIdx] ?? 0,
@@ -572,10 +598,10 @@ export function useScoresheet() {
     timeoutMap.value = new Map(snap)
   }
 
-  /** Timeouts can be called between questions up through Q16; not after Q17+ (error points) */
+  /** Timeouts can be called between questions until error points begin */
   function isTimeoutAllowed(columnKey: string): boolean {
     const num = parseInt(columnKey, 10)
-    return !isNaN(num) && num <= 16
+    return !isNaN(num) && num <= lastTimeoutQuestion(rules.value)
   }
 
   function addTimeout(teamId: number, afterColumnKey: string | null): void {
@@ -756,6 +782,7 @@ export function useScoresheet() {
 
   return {
     columns,
+    rules,
     quiz,
     teams,
     teamQuizzers,

@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import { TWENTY_QUESTION_RULES as TWENTY } from '../quizRules'
 import { scoreTeam } from '../scoreTeam'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 
-const columns = buildColumns()
+const columns = buildColumns(TWENTY)
 const C = CellValue.Correct
 const E = CellValue.Error
 const F = CellValue.Foul
@@ -25,14 +26,14 @@ function colIdx(key: string): number {
 describe('scoreTeam', () => {
   it('scores on-time bonus of +20', () => {
     const cells = blankCells()
-    const result = scoreTeam(cells, columns, true)
+    const result = scoreTeam(cells, columns, true, TWENTY)
     expect(result.total).toBe(20)
     expect(result.onTimeBonus).toBe(20)
   })
 
   it('no on-time bonus when not on time', () => {
     const cells = blankCells()
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(0)
     expect(result.onTimeBonus).toBe(0)
   })
@@ -40,7 +41,7 @@ describe('scoreTeam', () => {
   it('scores +20 for a correct answer', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = C
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(20)
   })
 
@@ -49,7 +50,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = C // quizzer 1
     cells[1]![colIdx('2')] = C // quizzer 2
     cells[2]![colIdx('3')] = C // quizzer 3 → +10 bonus
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(70) // 20+20+20+10
     expect(result.uniqueCorrectQuizzers).toBe(3)
   })
@@ -61,7 +62,7 @@ describe('scoreTeam', () => {
     cells[2]![colIdx('3')] = C // +10
     cells[3]![colIdx('4')] = C // +10
     cells[4]![colIdx('5')] = C // +10
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(130) // 5×20 + 3×10
   })
 
@@ -71,14 +72,14 @@ describe('scoreTeam', () => {
     cells[1]![colIdx('2')] = C
     cells[2]![colIdx('3')] = C // +10
     cells[0]![colIdx('4')] = C // quizzer 1 again, no new bonus
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(90) // 4×20 + 1×10
   })
 
   it('no deduction for 1st quizzer error before Q17', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(0)
   })
 
@@ -86,7 +87,7 @@ describe('scoreTeam', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E // 1st error: no deduction
     cells[0]![colIdx('2')] = E // 2nd error: -10
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(-10)
   })
 
@@ -95,21 +96,21 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = E // team 1st, quizzer 1st: no deduct
     cells[1]![colIdx('2')] = E // team 2nd, quizzer 1st: no deduct
     cells[2]![colIdx('3')] = E // team 3rd, quizzer 1st: -10
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(-10)
   })
 
   it('always deducts -10 for errors on Q17+ (isErrorPoints)', () => {
     const cells = blankCells()
     cells[0]![colIdx('17')] = E // 1st error but Q17+: -10
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(-10)
   })
 
   it('does not deduct for errors on Q16 (not isErrorPoints)', () => {
     const cells = blankCells()
     cells[0]![colIdx('16')] = E
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(0)
   })
 
@@ -118,7 +119,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = F
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('3')] = F // 3rd foul: -10
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(-10)
   })
 
@@ -128,7 +129,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('2')] = F // quizzer 1, team foul 2, quizzer 1 individual 1
     cells[0]![colIdx('3')] = F // quizzer 1, team foul 3, quizzer 1 individual 2 → team -10
     cells[0]![colIdx('4')] = F // quizzer 1, team foul 4, quizzer 1 individual 3 → foul-out -10
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(-20) // -10 for 3rd team + -10 for foul-out
   })
 
@@ -137,7 +138,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = F // quizzer 1, team foul 1, individual 1
     cells[0]![colIdx('2')] = F // quizzer 1, team foul 2, individual 2
     cells[0]![colIdx('3')] = F // quizzer 1, team foul 3, individual 3 → both 3rd team and foul-out
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(-10) // only -10, not -20
   })
 
@@ -147,7 +148,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('2')] = F // foul 1
     cells[0]![colIdx('3')] = F // foul 2
     cells[0]![colIdx('4')] = F // foul 3 → foul-out
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.points).toBe(10) // 20 - 10 = 10
     expect(result.quizzers[0]!.fouledOut).toBe(true)
   })
@@ -155,21 +156,21 @@ describe('scoreTeam', () => {
   it('scores bonus before Q17 as +20', () => {
     const cells = blankCells()
     cells[0]![colIdx('16B')] = B
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(20)
   })
 
   it('scores bonus Q17+ as +10', () => {
     const cells = blankCells()
     cells[0]![colIdx('17B')] = B
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(10)
   })
 
   it('scores missed bonus as 0', () => {
     const cells = blankCells()
     cells[0]![colIdx('17B')] = MB
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(0)
   })
 
@@ -179,7 +180,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('2')] = C
     cells[0]![colIdx('3')] = C
     cells[0]![colIdx('4')] = C
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(90) // 4×20 + 10 quizout
     expect(result.quizzers[0]!.quizzedOut).toBe(true)
     expect(result.quizzers[0]!.quizoutBonus).toBe(true)
@@ -192,7 +193,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('3')] = C
     cells[0]![colIdx('4')] = C
     cells[0]![colIdx('5')] = C // 4th correct = quiz-out, but has error → no bonus
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(80) // 4×20 + 0 (no quizout bonus)
     expect(result.quizzers[0]!.quizzedOut).toBe(true)
     expect(result.quizzers[0]!.quizoutBonus).toBe(false)
@@ -203,7 +204,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = E
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('3')] = E
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.erroredOut).toBe(false)
     expect(result.quizzers[0]!.fouledOut).toBe(false)
     expect(result.quizzers[0]!.outAfterCol).toBe(-1)
@@ -214,7 +215,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = E
     cells[0]![colIdx('2')] = E
     cells[0]![colIdx('3')] = E
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.erroredOut).toBe(true)
     expect(result.quizzers[0]!.fouledOut).toBe(false)
   })
@@ -224,7 +225,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = F
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('3')] = F
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.erroredOut).toBe(false)
     expect(result.quizzers[0]!.fouledOut).toBe(true)
   })
@@ -234,7 +235,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = E
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('3')] = F
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.erroredOut).toBe(false)
     expect(result.quizzers[0]!.fouledOut).toBe(false)
     expect(result.quizzers[0]!.outAfterCol).toBe(-1)
@@ -246,7 +247,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('3')] = C
     cells[0]![colIdx('5')] = C
     cells[1]![colIdx('2')] = C
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.correctCount).toBe(3)
     expect(result.quizzers[1]!.correctCount).toBe(1)
     expect(result.quizzers[2]!.correctCount).toBe(0)
@@ -257,7 +258,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = E
     cells[0]![colIdx('3')] = E
     cells[1]![colIdx('2')] = E
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.errorCount).toBe(2)
     expect(result.quizzers[1]!.errorCount).toBe(1)
   })
@@ -267,7 +268,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = F
     cells[0]![colIdx('2')] = F
     cells[1]![colIdx('3')] = F
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.foulCount).toBe(2)
     expect(result.quizzers[1]!.foulCount).toBe(1)
   })
@@ -279,7 +280,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('3')] = C // 3 correct, not 4
     cells[1]![colIdx('4')] = E
     cells[1]![colIdx('5')] = E // 2 errors+fouls, not 3
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.quizzedOut).toBe(false)
     expect(result.quizzers[1]!.erroredOut).toBe(false)
   })
@@ -290,7 +291,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('2')] = C
     cells[0]![colIdx('3')] = C
     cells[0]![colIdx('4')] = C // quizzed out here
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.outAfterCol).toBe(colIdx('4'))
   })
 
@@ -299,7 +300,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = E
     cells[0]![colIdx('3')] = E
     cells[0]![colIdx('5')] = E // errored out here
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.outAfterCol).toBe(colIdx('5'))
   })
 
@@ -308,7 +309,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('2')] = F
     cells[0]![colIdx('4')] = F
     cells[0]![colIdx('6')] = F // fouled out here
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.outAfterCol).toBe(colIdx('6'))
   })
 
@@ -316,7 +317,7 @@ describe('scoreTeam', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = C
     cells[0]![colIdx('2')] = C
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.outAfterCol).toBe(-1)
   })
 
@@ -326,7 +327,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('2')] = F // foul doesn't count toward error out
     cells[0]![colIdx('3')] = E
     cells[0]![colIdx('7')] = E // 3rd error → out here
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.quizzers[0]!.outAfterCol).toBe(colIdx('7'))
     expect(result.quizzers[0]!.erroredOut).toBe(true)
     expect(result.quizzers[0]!.fouledOut).toBe(false)
@@ -336,7 +337,7 @@ describe('scoreTeam', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = C
     cells[1]![colIdx('3')] = C
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.runningTotals[colIdx('1')]).toBe(20)
     expect(result.runningTotals[colIdx('2')]).toBeNull()
     expect(result.runningTotals[colIdx('3')]).toBe(40)
@@ -345,7 +346,7 @@ describe('scoreTeam', () => {
   it('running totals include on-time bonus from start', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = C
-    const result = scoreTeam(cells, columns, true)
+    const result = scoreTeam(cells, columns, true, TWENTY)
     expect(result.runningTotals[colIdx('1')]).toBe(40) // 20 on-time + 20 correct
   })
 
@@ -355,14 +356,14 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('2')] = C
     cells[0]![colIdx('3')] = C
     cells[0]![colIdx('4')] = C // quizout here: +20 correct + 10 quizout
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.runningTotals[colIdx('4')]).toBe(90) // 4×20 + 10
     expect(result.runningTotals[colIdx('5')]).toBeNull() // unchanged after
   })
 
   it('first column is null when only on-time bonus (shown in its own cell)', () => {
     const cells = blankCells()
-    const result = scoreTeam(cells, columns, true)
+    const result = scoreTeam(cells, columns, true, TWENTY)
     expect(result.runningTotals[colIdx('1')]).toBeNull() // on-time bonus in its own cell
     expect(result.total).toBe(20)
   })
@@ -372,7 +373,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = F
     cells[1]![colIdx('2')] = F
     cells[2]![colIdx('3')] = F // 3rd team foul → -10
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.foulDeductCols.has(colIdx('3'))).toBe(true)
     expect(result.foulDeductCols.has(colIdx('1'))).toBe(false)
     expect(result.foulDeductCols.has(colIdx('2'))).toBe(false)
@@ -384,7 +385,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('2')] = F // quizzer 1, team 2 → no deduction
     cells[0]![colIdx('3')] = F // quizzer 1, team 3 → -10 (3rd team)
     cells[0]![colIdx('4')] = F // quizzer 1, team 4, individual 3 → -10 (foul-out)
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.foulDeductCols.has(colIdx('3'))).toBe(true)
     expect(result.foulDeductCols.has(colIdx('4'))).toBe(true)
     expect(result.foulDeductCols.has(colIdx('1'))).toBe(false)
@@ -395,7 +396,7 @@ describe('scoreTeam', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = F // 1st team foul → no deduction
     cells[0]![colIdx('2')] = F // 2nd team foul → no deduction
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.foulDeductCols.has(colIdx('1'))).toBe(false)
     expect(result.foulDeductCols.has(colIdx('2'))).toBe(false)
   })
@@ -403,7 +404,7 @@ describe('scoreTeam', () => {
   it('marks free error for 1st individual error before Q17 with team errors < 3', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E // 1st individual, 1st team, not Q17+ → free
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(0)
     expect(result.freeErrorCols.has(colIdx('1'))).toBe(true)
   })
@@ -412,7 +413,7 @@ describe('scoreTeam', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = C // +20
     cells[0]![colIdx('2')] = E // free error, score stays at 20
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.runningTotals[colIdx('2')]).toBeNull()
   })
 
@@ -420,7 +421,7 @@ describe('scoreTeam', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = E // free
     cells[0]![colIdx('2')] = E // 2nd individual → not free
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.freeErrorCols.has(colIdx('1'))).toBe(true)
     expect(result.freeErrorCols.has(colIdx('2'))).toBe(false)
   })
@@ -428,7 +429,7 @@ describe('scoreTeam', () => {
   it('does not mark free error on Q17+', () => {
     const cells = blankCells()
     cells[0]![colIdx('17')] = E // Q17+ always deducts
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.freeErrorCols.has(colIdx('17'))).toBe(false)
   })
 
@@ -437,7 +438,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = E // free (1st individual, 1st team)
     cells[1]![colIdx('2')] = E // free (1st individual, 2nd team)
     cells[2]![colIdx('3')] = E // 3rd team → not free
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.freeErrorCols.has(colIdx('1'))).toBe(true)
     expect(result.freeErrorCols.has(colIdx('2'))).toBe(true)
     expect(result.freeErrorCols.has(colIdx('3'))).toBe(false)
@@ -448,7 +449,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('1')] = E // team 1st, quizzer 1 1st: no deduct
     cells[1]![colIdx('2')] = E // team 2nd, quizzer 2 1st: no deduct
     cells[0]![colIdx('3')] = E // team 3rd + quizzer 1 2nd: -10 (not -20)
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(-10)
   })
 
@@ -456,13 +457,13 @@ describe('scoreTeam', () => {
     const cells = blankCells()
     cells[0]![colIdx('16B')] = B // bonus before Q17: +20 team
     cells[0]![colIdx('17B')] = B // bonus Q17+: +10 team
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(30) // 20 + 10
     expect(result.quizzers[0]!.points).toBe(0) // no individual credit
   })
 
   it('no individual points for overtime correct answers', () => {
-    const otColumns = buildColumns(1)
+    const otColumns = buildColumns(TWENTY, 1)
     const otCells = Array.from({ length: 5 }, () => otColumns.map(() => _))
     const otColIdx = (key: string) => {
       const idx = otColumns.findIndex((c) => c.key === key)
@@ -470,14 +471,14 @@ describe('scoreTeam', () => {
       return idx
     }
     otCells[0]![otColIdx('21')] = C
-    const result = scoreTeam(otCells, otColumns, false)
+    const result = scoreTeam(otCells, otColumns, false, TWENTY)
     expect(result.total).toBe(20) // +20 team points
     expect(result.quizzers[0]!.points).toBe(0) // no individual credit for OT
     expect(result.quizzers[0]!.correctCount).toBe(0) // OT doesn't count
   })
 
   it('OT error always deducts -10 (isErrorPoints applies to all OT columns)', () => {
-    const otColumns = buildColumns(1)
+    const otColumns = buildColumns(TWENTY, 1)
     const otCells = Array.from({ length: 5 }, () => otColumns.map(() => _))
     const otColIdx = (key: string) => {
       const idx = otColumns.findIndex((c) => c.key === key)
@@ -485,7 +486,7 @@ describe('scoreTeam', () => {
       return idx
     }
     otCells[0]![otColIdx('21')] = E // 1st individual error, but OT → always -10
-    const result = scoreTeam(otCells, otColumns, false)
+    const result = scoreTeam(otCells, otColumns, false, TWENTY)
     expect(result.total).toBe(-10)
   })
 
@@ -497,7 +498,7 @@ describe('scoreTeam', () => {
     cells[1]![colIdx('4')] = F // team 4
     cells[1]![colIdx('5')] = F // team 5
     cells[1]![colIdx('6')] = F // team 6 → -10
-    const result = scoreTeam(cells, columns, false)
+    const result = scoreTeam(cells, columns, false, TWENTY)
     expect(result.total).toBe(-20) // -10 (3rd team foul / q0 foul-out) + -10 (6th team foul / q1 foul-out)
     expect(result.foulDeductCols.has(colIdx('3'))).toBe(true)
     expect(result.foulDeductCols.has(colIdx('6'))).toBe(true)
@@ -518,7 +519,7 @@ describe('scoreTeam', () => {
     cells[0]![colIdx('5')] = E
     // Q17B: quizzer 2 bonus: +10
     cells[1]![colIdx('17B')] = B
-    const result = scoreTeam(cells, columns, true)
+    const result = scoreTeam(cells, columns, true, TWENTY)
     // 20 + 20 + 20 + 30 + 0 + (-10) + 10 = 90
     expect(result.total).toBe(90)
   })

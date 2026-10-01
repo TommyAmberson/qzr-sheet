@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { CellValue, QuestionCategory, QuestionType, QUIZZERS_PER_TEAM } from '../types/scoresheet'
+import { firstOvertimeQuestion } from '../scoring/quizRules'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
@@ -345,6 +346,7 @@ const {
   noJumpHasConflict,
   visibleColumns,
   visibleOtRounds,
+  rules,
   allQuestionsComplete,
   validationErrors,
   timeoutValidationErrors,
@@ -401,7 +403,7 @@ tutorial.recoverFromCrash()
 const allValidationMessages = computed(() => {
   const msgs = new Set<string>()
   if (timeoutValidationErrors.value.size > 0) {
-    msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+    msgs.add(validationMessage(ValidationCode.TimeoutAfterErrorPoints))
   }
   if (tooManyTimeoutsTeams.value.size > 0) {
     msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
@@ -424,15 +426,16 @@ function quizzerScoreLabel(teamIdx: number, seatIdx: number): string | null {
 
 /**
  * Column indices at which a round-boundary running total should always be shown.
- * Q20 (regulation→OT) and the last question of each OT round (Q23, Q26, …).
+ * The last regulation question (regulation→OT) and the last question of each OT round.
  * Only relevant when OT is active.
  */
 const boundaryColIndices = computed<Set<number>>(() => {
   const s = new Set<number>()
   if (visibleOtRounds.value === 0) return s
-  const boundaryQs = [20]
-  for (let r = 0; r < visibleOtRounds.value - 1; r++) {
-    boundaryQs.push(23 + r * 3)
+  const { regulationQuestions, overtimeRoundSize } = rules.value
+  const boundaryQs = [regulationQuestions]
+  for (let r = 1; r < visibleOtRounds.value; r++) {
+    boundaryQs.push(regulationQuestions + r * overtimeRoundSize)
   }
   for (const q of boundaryQs) {
     const idx = columns.value.findIndex((c) => c.key === `${q}`)
@@ -475,7 +478,7 @@ const trailingTotalIndices = computed<Set<number>>(() => {
 })
 
 // Last visible column for each round-ending question number.
-// Covers Q20 (regulation→OT boundary) and Q23, Q26, … (OT round boundaries).
+// Covers the last regulation question (regulation→OT boundary) and each OT round's last question.
 // When A/B sub-columns are visible, the border belongs on the last sub-column,
 // not on the Normal column.
 const roundEndIndices = computed<Set<number>>(() => {
@@ -485,8 +488,10 @@ const roundEndIndices = computed<Set<number>>(() => {
   for (let i = 0; i < dc.length; i++) {
     const col = cols[dc[i]!.idx]
     if (!col) continue
-    const isRegEnd = !col.isOvertime && col.number === 20
-    const isOtRoundEnd = col.isOvertime && (col.number - 20) % 3 === 0
+    const { regulationQuestions, overtimeRoundSize } = rules.value
+    const isRegEnd = !col.isOvertime && col.number === regulationQuestions
+    const isOtRoundEnd =
+      col.isOvertime && (col.number - regulationQuestions) % overtimeRoundSize === 0
     if (!isRegEnd && !isOtRoundEnd) continue
     const nextCol = cols[dc[i + 1]?.idx ?? -1]
     if (!nextCol || nextCol.number !== col.number) {
@@ -793,9 +798,15 @@ const colGroupClassMap = computed<Map<number, string>>(() => {
     if (idx === lastIdx) classes.push('col--last')
     if (!col.isOvertime && roundEnds.has(idx)) classes.push('col--reg-last')
     if (col.isOvertime) {
-      if (col.type === QuestionType.Normal && (col.number - 21) % 3 === 0) {
+      const firstOt = firstOvertimeQuestion(rules.value)
+      if (
+        col.type === QuestionType.Normal &&
+        (col.number - firstOt) % rules.value.overtimeRoundSize === 0
+      ) {
         classes.push(
-          col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start',
+          col.number === firstOt
+            ? 'col--overtime col--ot-start'
+            : 'col--overtime col--ot-round-start',
         )
       } else if (roundEnds.has(idx)) {
         classes.push('col--overtime col--ot-round-end')
@@ -1129,7 +1140,7 @@ const appVersion: string = __APP_VERSION__
                   ]"
                   :title="
                     hasTimeoutAt(team.id, col.key) && !isTimeoutAllowed(col.key)
-                      ? 'Timeouts can\'t be called after error points (after question 17)'
+                      ? validationMessage(ValidationCode.TimeoutAfterErrorPoints)
                       : hasTimeoutAt(team.id, col.key) && tooManyTimeoutsTeams.has(teamIdx)
                         ? 'Each team is allowed only 2 timeouts per quiz'
                         : undefined

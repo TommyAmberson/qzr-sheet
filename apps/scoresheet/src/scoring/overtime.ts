@@ -2,11 +2,18 @@ import { CellValue, buildKeyToIdx, type Column } from '../types/scoresheet'
 import { scoreTeam } from './scoreTeam'
 import { ColStatus } from './helpers'
 import { computeGreyedOut } from './greyedOut'
+import { firstOvertimeQuestion, type QuizRules } from './quizRules'
 
 /** Slice a cell grid down to the given column subset, preserving team/quizzer structure */
 function sliceCells(cellData: CellValue[][][], cols: Column[], subset: Column[]): CellValue[][][] {
   const indices = subset.map((c) => cols.indexOf(c))
   return cellData.map((team) => team.map((row) => indices.map((i) => row[i]!)))
+}
+
+/** First and last question numbers of overtime round `roundIdx` (0-based) */
+function otRoundRange(rules: QuizRules, roundIdx: number): { firstQ: number; lastQ: number } {
+  const firstQ = firstOvertimeQuestion(rules) + roundIdx * rules.overtimeRoundSize
+  return { firstQ, lastQ: firstQ + rules.overtimeRoundSize - 1 }
 }
 
 /**
@@ -21,11 +28,12 @@ export function getOvertimeEligibleTeams(
   cellData: CellValue[][][],
   cols: Column[],
   onTimes: boolean[],
+  rules: QuizRules,
 ): Set<number> {
   const regCols = cols.filter((c) => !c.isOvertime)
   const regCells = sliceCells(cellData, cols, regCols)
   const scores = regCells.map(
-    (teamCells, teamIdx) => scoreTeam(teamCells, regCols, onTimes[teamIdx] ?? true).total,
+    (teamCells, teamIdx) => scoreTeam(teamCells, regCols, onTimes[teamIdx] ?? true, rules).total,
   )
 
   // Find teams that share a score with at least one other team
@@ -57,23 +65,24 @@ export function getActiveOtTeams(
   cols: Column[],
   onTimes: boolean[],
   noJumps: boolean[],
+  rules: QuizRules,
 ): Set<number> {
-  const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes)
+  const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes, rules)
   if (eligible.size < 2) return eligible
 
   const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
-  const totalRounds = Math.ceil(otNormals.length / 3)
+  const totalRounds = Math.ceil(otNormals.length / rules.overtimeRoundSize)
   let competing = [...eligible]
 
   for (let r = 0; r < totalRounds; r++) {
-    const firstQ = 21 + r * 3
-    const lastQ = firstQ + 2
+    const { firstQ, lastQ } = otRoundRange(rules, r)
     if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) break
 
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
     const throughCells = sliceCells(cellData, cols, throughCols)
     const scores = throughCells.map(
-      (teamCells, teamIdx) => scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true).total,
+      (teamCells, teamIdx) =>
+        scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true, rules).total,
     )
     const stillTied = new Set<number>()
     for (let i = 0; i < competing.length; i++) {
@@ -107,18 +116,18 @@ export function computeOtIneligibility(
   cols: Column[],
   onTimes: boolean[],
   noJumps: boolean[],
+  rules: QuizRules,
 ): Map<number, Set<number>> {
   const teamCount = cellData.length
-  const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes)
+  const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes, rules)
   const ineligible = new Map<number, Set<number>>()
 
   const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
-  const totalRounds = Math.ceil(otNormals.length / 3)
+  const totalRounds = Math.ceil(otNormals.length / rules.overtimeRoundSize)
   let competing = [...eligible]
 
   for (let r = 0; r < totalRounds; r++) {
-    const firstQ = 21 + r * 3
-    const lastQ = firstQ + 2
+    const { firstQ, lastQ } = otRoundRange(rules, r)
 
     // Teams not competing this round are ineligible on all its columns
     const ineligibleThisRound = new Set<number>()
@@ -137,7 +146,8 @@ export function computeOtIneligibility(
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
     const throughCells = sliceCells(cellData, cols, throughCols)
     const scores = throughCells.map(
-      (teamCells, teamIdx) => scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true).total,
+      (teamCells, teamIdx) =>
+        scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true, rules).total,
     )
     const stillTied = new Set<number>()
     for (let i = 0; i < competing.length; i++) {
@@ -228,8 +238,9 @@ export function quizJumpedComplete(
   cols: Column[],
   noJumps: boolean[],
   visibleOtRounds: number,
+  rules: QuizRules,
 ): boolean {
-  const maxOtQ = 20 + visibleOtRounds * 3
+  const maxOtQ = rules.regulationQuestions + visibleOtRounds * rules.overtimeRoundSize
   const keyToIdx = buildKeyToIdx(cols)
   const { colStatuses } = computeGreyedOut(cellData, cols)
   for (let colIdx = 0; colIdx < cols.length; colIdx++) {
@@ -256,11 +267,12 @@ export function computeOvertimeRounds(
   cols: Column[],
   onTimes: boolean[],
   noJumps: boolean[],
+  rules: QuizRules,
 ): number {
-  if (!questionsComplete(cellData, cols, noJumps, 1, 20)) return 0
+  if (!questionsComplete(cellData, cols, noJumps, 1, rules.regulationQuestions)) return 0
 
   // At least two teams must be tied on regulation scores
-  const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes)
+  const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes, rules)
   if (eligible.size < 2) return 0
 
   // Check each existing OT round: if complete and still tied, need another.
@@ -268,19 +280,19 @@ export function computeOvertimeRounds(
   // matching an eligible team's score is not a real tie.
   const eligibleTeams = [...eligible]
   const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
-  const totalRounds = Math.ceil(otNormals.length / 3)
+  const totalRounds = Math.ceil(otNormals.length / rules.overtimeRoundSize)
 
   // Track which eligible teams are still competing (haven't been resolved yet)
   let competing = [...eligibleTeams]
 
   for (let r = 0; r < totalRounds; r++) {
-    const firstQ = 21 + r * 3
-    const lastQ = firstQ + 2
+    const { firstQ, lastQ } = otRoundRange(rules, r)
     if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) return r + 1
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
     const throughCells = sliceCells(cellData, cols, throughCols)
     const scores = throughCells.map(
-      (teamCells, teamIdx) => scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true).total,
+      (teamCells, teamIdx) =>
+        scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true, rules).total,
     )
     const stillTied = new Set<number>()
     for (let i = 0; i < competing.length; i++) {
@@ -313,21 +325,22 @@ export function computeOtCheckpointScores(
   cols: Column[],
   onTimes: boolean[],
   noJumps: boolean[],
+  rules: QuizRules,
 ): number[][] {
   const checkpoints: number[][] = []
   const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
-  const totalRounds = Math.ceil(otNormals.length / 3)
+  const totalRounds = Math.ceil(otNormals.length / rules.overtimeRoundSize)
 
   for (let r = 0; r < totalRounds; r++) {
-    const firstQ = 21 + r * 3
-    const lastQ = firstQ + 2
+    const { firstQ, lastQ } = otRoundRange(rules, r)
     if (!questionsComplete(cellData, cols, noJumps, firstQ, lastQ)) break
 
     const throughCols = cols.filter((c) => !c.isOvertime || c.number <= lastQ)
     const throughCells = sliceCells(cellData, cols, throughCols)
     checkpoints.push(
       throughCells.map(
-        (teamCells, teamIdx) => scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true).total,
+        (teamCells, teamIdx) =>
+          scoreTeam(teamCells, throughCols, onTimes[teamIdx] ?? true, rules).total,
       ),
     )
   }
@@ -342,10 +355,11 @@ export function computeRegulationScores(
   cellData: CellValue[][][],
   cols: Column[],
   onTimes: boolean[],
+  rules: QuizRules,
 ): number[] {
   const regCols = cols.filter((c) => !c.isOvertime)
   const regCells = sliceCells(cellData, cols, regCols)
   return regCells.map(
-    (teamCells, teamIdx) => scoreTeam(teamCells, regCols, onTimes[teamIdx] ?? true).total,
+    (teamCells, teamIdx) => scoreTeam(teamCells, regCols, onTimes[teamIdx] ?? true, rules).total,
   )
 }

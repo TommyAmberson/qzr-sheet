@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { TWENTY_QUESTION_RULES as TWENTY } from '../../scoring/quizRules'
 import { ref, defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useKeyboardNav } from '../useKeyboardNav'
@@ -10,7 +11,7 @@ import type { SelectorOption } from '../useCellSelector'
 // giving the composable a proper lifecycle context (onMounted/onUnmounted).
 function mountNav() {
   const deps = {
-    columns: ref(buildColumns(0)),
+    columns: ref(buildColumns(TWENTY, 0)),
     teams: ref([
       { id: 1, name: 'T1', onTime: true, seatOrder: 0, quizId: 1 },
       { id: 2, name: 'T2', onTime: true, seatOrder: 1, quizId: 1 },

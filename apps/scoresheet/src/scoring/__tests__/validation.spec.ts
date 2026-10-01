@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { TWENTY_QUESTION_RULES as TWENTY } from '../quizRules'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut } from '../greyedOut'
 import {
@@ -11,7 +12,7 @@ import { getOvertimeEligibleTeams } from '../overtime'
 import { computeOrphanedColumns } from '../columnVisibility'
 import { teamSeatKey, toSeatIdx, toTeamIdx } from '../../types/indices'
 
-const columns = buildColumns()
+const columns = buildColumns(TWENTY)
 const C = CellValue.Correct
 const E = CellValue.Error
 const F = CellValue.Foul
@@ -72,7 +73,7 @@ describe('cell validation', () => {
   it('clean sheet has no errors', () => {
     const cells = blankCells()
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(errors.size).toBe(0)
   })
 
@@ -80,7 +81,7 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('1')] = C
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(errors.size).toBe(0)
   })
 
@@ -88,7 +89,7 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('1')] = E
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(errors.size).toBe(0)
   })
 
@@ -99,7 +100,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('1')] = C
     cells[0]![1]![colIdxOf('1')] = E
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(true)
     expect(hasCode(errors, 0, 1, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(true)
   })
@@ -109,7 +110,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('1')] = E
     cells[1]![0]![colIdxOf('2')] = C
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(errors.size).toBe(0)
   })
 
@@ -118,7 +119,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('1')] = F
     cells[0]![1]![colIdxOf('1')] = F
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(false)
     expect(hasCode(errors, 0, 1, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(false)
   })
@@ -128,7 +129,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('1')] = F
     cells[0]![1]![colIdxOf('1')] = C
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(false)
     expect(hasCode(errors, 0, 1, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(false)
   })
@@ -140,7 +141,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('1')] = E // team 0 errors on Q1
     cells[0]![1]![colIdxOf('2')] = C // team 0 answers Q2 — but they're tossed up!
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 1, colIdxOf('2'), ValidationCode.WrongTeamTossUp)).toBe(true)
   })
 
@@ -149,7 +150,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('1')] = E // team 0 errors on Q1
     cells[1]![0]![colIdxOf('2')] = C // team 1 answers Q2 toss-up — valid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasAny(errors, 1, 0, colIdxOf('2'))).toBe(false)
   })
 
@@ -160,7 +161,7 @@ describe('cell validation', () => {
     // Q3 is bonus for team 2 only
     cells[0]![1]![colIdxOf('3')] = B // team 0 answers Q3 bonus — wrong team!
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 1, colIdxOf('3'), ValidationCode.WrongTeamBonus)).toBe(true)
     expect(hasCode(errors, 0, 1, colIdxOf('3'), ValidationCode.WrongTeamTossUp)).toBe(false)
   })
@@ -170,7 +171,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('1')] = E // team 0 errors on Q1
     cells[0]![1]![colIdxOf('2')] = C // team 0 answers Q2 — tossed up but not a bonus
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 1, colIdxOf('2'), ValidationCode.WrongTeamTossUp)).toBe(true)
     expect(hasCode(errors, 0, 1, colIdxOf('2'), ValidationCode.WrongTeamBonus)).toBe(false)
   })
@@ -182,7 +183,7 @@ describe('cell validation', () => {
     // Q3 is bonus for team 2
     cells[2]![0]![colIdxOf('3')] = B // team 2 answers Q3 bonus — valid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasAny(errors, 2, 0, colIdxOf('3'))).toBe(false)
   })
 
@@ -193,7 +194,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('1')] = C // team 0 correct on Q1
     cells[1]![0]![colIdxOf('1')] = E // team 1 also answered Q1
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(true)
     expect(hasCode(errors, 1, 0, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(true)
   })
@@ -203,7 +204,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('1')] = F
     cells[1]![0]![colIdxOf('1')] = F
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(false)
     expect(hasCode(errors, 1, 0, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(false)
   })
@@ -213,7 +214,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('1')] = F
     cells[1]![0]![colIdxOf('1')] = C
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(false)
     expect(hasCode(errors, 1, 0, colIdxOf('1'), ValidationCode.DuplicateAnswer)).toBe(false)
   })
@@ -224,7 +225,7 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('17B')] = C
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.IsBonus)).toBe(true)
   })
 
@@ -232,7 +233,7 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('17B')] = E
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.IsBonus)).toBe(true)
   })
 
@@ -240,7 +241,7 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('17B')] = B
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.IsBonus)).toBe(false)
   })
 
@@ -248,7 +249,7 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('17B')] = MB
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.IsBonus)).toBe(false)
   })
 
@@ -256,7 +257,7 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('17B')] = F
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.IsBonus)).toBe(false)
   })
 
@@ -264,7 +265,7 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('1')] = B // bonus on Q1 with no toss-up chain — invalid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('1'), ValidationCode.NotBonus)).toBe(true)
   })
 
@@ -272,7 +273,7 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('1')] = MB // missed bonus on Q1 with no toss-up chain — invalid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('1'), ValidationCode.NotBonus)).toBe(true)
   })
 
@@ -282,7 +283,7 @@ describe('cell validation', () => {
     cells[1]![0]![colIdxOf('2')] = E // team 1 errors Q2 toss-up
     cells[2]![0]![colIdxOf('3')] = B // team 2 bonus on Q3 — valid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 2, 0, colIdxOf('3'), ValidationCode.NotBonus)).toBe(false)
     expect(hasCode(errors, 2, 0, colIdxOf('3'), ValidationCode.IsBonus)).toBe(false)
   })
@@ -293,7 +294,7 @@ describe('cell validation', () => {
     cells[1]![0]![colIdxOf('5')] = E // team 1 errors Q5 toss-up
     cells[2]![0]![colIdxOf('6')] = C // team 2 marks C on Q6 — but it's a bonus!
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 2, 0, colIdxOf('6'), ValidationCode.IsBonus)).toBe(true)
   })
 
@@ -303,7 +304,7 @@ describe('cell validation', () => {
     cells[1]![0]![colIdxOf('5')] = E // team 1 errors Q5 toss-up
     cells[2]![0]![colIdxOf('6')] = E // team 2 marks E on Q6 — but it's a bonus!
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 2, 0, colIdxOf('6'), ValidationCode.IsBonus)).toBe(true)
   })
 
@@ -315,7 +316,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('4')] = E // added later
     cells[1]![0]![colIdxOf('5')] = E // added later
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 2, 0, colIdxOf('6'), ValidationCode.IsBonus)).toBe(true)
   })
 
@@ -326,7 +327,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('17')] = C // Q17 correct
     cells[1]![0]![colIdxOf('17A')] = C // Q17A answered — but Q17 was already resolved!
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 1, 0, colIdxOf('17A'), ValidationCode.QuestionNotNeeded)).toBe(true)
   })
 
@@ -336,7 +337,7 @@ describe('cell validation', () => {
     cells[1]![0]![colIdxOf('17A')] = C // Q17A correct
     cells[2]![0]![colIdxOf('17B')] = B // Q17B answered — but 17A resolved it!
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 2, 0, colIdxOf('17B'), ValidationCode.QuestionNotNeeded)).toBe(true)
   })
 
@@ -345,7 +346,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('17')] = E // Q17 error
     cells[1]![0]![colIdxOf('17A')] = C // Q17A correct via toss-up — valid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 1, 0, colIdxOf('17A'), ValidationCode.QuestionNotNeeded)).toBe(false)
   })
 
@@ -357,7 +358,7 @@ describe('cell validation', () => {
     noJumps[colIdxOf('3')] = true
     cells[0]![0]![colIdxOf('3')] = C
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey, noJumps)
+    const errors = validateCells(cells, columns, grey, TWENTY, noJumps)
     expect(hasCode(errors, 0, 0, colIdxOf('3'), ValidationCode.NoJump)).toBe(true)
   })
 
@@ -367,7 +368,7 @@ describe('cell validation', () => {
     noJumps[colIdxOf('3')] = true
     cells[0]![0]![colIdxOf('3')] = F
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey, noJumps)
+    const errors = validateCells(cells, columns, grey, TWENTY, noJumps)
     expect(hasCode(errors, 0, 0, colIdxOf('3'), ValidationCode.NoJump)).toBe(false)
   })
 
@@ -376,7 +377,7 @@ describe('cell validation', () => {
     const noJumps = blankNoJumps()
     noJumps[colIdxOf('3')] = true
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey, noJumps)
+    const errors = validateCells(cells, columns, grey, TWENTY, noJumps)
     expect(errors.size).toBe(0)
   })
 
@@ -385,7 +386,7 @@ describe('cell validation', () => {
     const noJumps = blankNoJumps()
     cells[0]![0]![colIdxOf('3')] = C
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey, noJumps)
+    const errors = validateCells(cells, columns, grey, TWENTY, noJumps)
     expect(hasCode(errors, 0, 0, colIdxOf('3'), ValidationCode.NoJump)).toBe(false)
   })
 
@@ -399,7 +400,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('4')] = C // quizzed out
     cells[0]![0]![colIdxOf('5')] = C // should be invalid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('5'), ValidationCode.QuizzerOut)).toBe(true)
     // The 4th correct itself should NOT be flagged
     expect(hasCode(errors, 0, 0, colIdxOf('4'), ValidationCode.QuizzerOut)).toBe(false)
@@ -413,7 +414,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('4')] = C // quizzed out
     cells[0]![0]![colIdxOf('5')] = E // should be invalid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('5'), ValidationCode.QuizzerOut)).toBe(true)
   })
 
@@ -425,7 +426,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('4')] = C // quizzed out
     cells[0]![0]![colIdxOf('5')] = F // fouls are still allowed
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('5'), ValidationCode.QuizzerOut)).toBe(false)
   })
 
@@ -436,7 +437,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('3')] = E // errored out
     cells[0]![0]![colIdxOf('4')] = C // should be invalid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('4'), ValidationCode.QuizzerOut)).toBe(true)
   })
 
@@ -447,7 +448,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('3')] = E // errored out
     cells[0]![0]![colIdxOf('5')] = F // fouls still allowed
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('5'), ValidationCode.QuizzerOut)).toBe(false)
   })
 
@@ -458,7 +459,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('3')] = F // fouled out
     cells[0]![0]![colIdxOf('4')] = E // should be invalid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('4'), ValidationCode.QuizzerOut)).toBe(true)
   })
 
@@ -469,7 +470,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('3')] = E // 2 errors + 1 foul: NOT out
     cells[0]![0]![colIdxOf('4')] = C // should be valid — quizzer is still in
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('4'), ValidationCode.QuizzerOut)).toBe(false)
   })
 
@@ -480,7 +481,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('3')] = C // 3 correct, not 4
     cells[0]![0]![colIdxOf('4')] = C // 4th correct = quiz-out, not invalid itself
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('4'), ValidationCode.QuizzerOut)).toBe(false)
   })
 
@@ -492,7 +493,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('4')] = C // quizzed out
     cells[0]![0]![colIdxOf('17B')] = B // stays on bench, can answer bonus
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.QuizzerOut)).toBe(false)
   })
 
@@ -504,7 +505,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('4')] = C // quizzed out
     cells[0]![0]![colIdxOf('17B')] = MB // stays on bench, can attempt bonus
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.QuizzerOut)).toBe(false)
   })
 
@@ -515,7 +516,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('3')] = E // errored out
     cells[0]![0]![colIdxOf('17B')] = B // must leave, can't answer bonus
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.QuizzerOut)).toBe(true)
   })
 
@@ -526,7 +527,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('3')] = F // fouled out
     cells[0]![0]![colIdxOf('17B')] = B // must leave, can't answer bonus
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.QuizzerOut)).toBe(true)
   })
 
@@ -537,7 +538,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('17')] = F // quizzer 0 fouls on Q17
     cells[0]![0]![colIdxOf('17A')] = C // quizzer 0 answers Q17A — invalid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17A'), ValidationCode.FouledOnQuestion)).toBe(true)
   })
 
@@ -546,7 +547,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('17')] = F // quizzer 0 fouls on Q17
     cells[0]![0]![colIdxOf('17B')] = B // quizzer 0 answers Q17B — invalid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.FouledOnQuestion)).toBe(true)
   })
 
@@ -555,7 +556,7 @@ describe('cell validation', () => {
     cells[1]![2]![colIdxOf('18A')] = F // quizzer 2 fouls on Q18A
     cells[1]![2]![colIdxOf('18B')] = B // quizzer 2 answers Q18B — invalid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 1, 2, colIdxOf('18B'), ValidationCode.FouledOnQuestion)).toBe(true)
   })
 
@@ -564,7 +565,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('17')] = F // quizzer 0 fouls on Q17
     cells[0]![1]![colIdxOf('17A')] = C // quizzer 1 answers Q17A — valid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 1, colIdxOf('17A'), ValidationCode.FouledOnQuestion)).toBe(false)
   })
 
@@ -573,7 +574,7 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('17')] = F // quizzer 0 fouls on Q17
     cells[0]![0]![colIdxOf('17A')] = F // quizzer 0 fouls again on Q17A — invalid
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('17A'), ValidationCode.FouledOnQuestion)).toBe(true)
   })
 
@@ -583,8 +584,8 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('17A')] = C // no error on Q17
     const grey = computeGreyedOut(cells, columns)
-    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
-    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
+    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0, TWENTY)
+    const errors = validateCells(cells, columns, grey, TWENTY, blankNoJumps(), undefined, orphaned)
     expect(hasCode(errors, 0, 0, colIdxOf('17A'), ValidationCode.QuestionNotNeeded)).toBe(true)
   })
 
@@ -592,8 +593,8 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('17B')] = B // no error on Q17A
     const grey = computeGreyedOut(cells, columns)
-    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
-    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
+    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0, TWENTY)
+    const errors = validateCells(cells, columns, grey, TWENTY, blankNoJumps(), undefined, orphaned)
     expect(hasCode(errors, 0, 0, colIdxOf('17B'), ValidationCode.QuestionNotNeeded)).toBe(true)
   })
 
@@ -602,8 +603,8 @@ describe('cell validation', () => {
     cells[0]![0]![colIdxOf('17')] = E // error triggers 17A
     cells[1]![0]![colIdxOf('17A')] = C
     const grey = computeGreyedOut(cells, columns)
-    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
-    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
+    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0, TWENTY)
+    const errors = validateCells(cells, columns, grey, TWENTY, blankNoJumps(), undefined, orphaned)
     expect(hasCode(errors, 1, 0, colIdxOf('17A'), ValidationCode.QuestionNotNeeded)).toBe(false)
   })
 
@@ -611,15 +612,15 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('17A')] = F // foul on orphaned column
     const grey = computeGreyedOut(cells, columns)
-    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0)
-    const errors = validateCells(cells, columns, grey, blankNoJumps(), undefined, orphaned)
+    const orphaned = computeOrphanedColumns(cells, columns, blankNoJumps(), 0, TWENTY)
+    const errors = validateCells(cells, columns, grey, TWENTY, blankNoJumps(), undefined, orphaned)
     expect(hasCode(errors, 0, 0, colIdxOf('17A'), ValidationCode.QuestionNotNeeded)).toBe(true)
   })
 
   // --- Not in overtime ---
   // OT tests need columns with OT rounds so column 21+ exist
   describe('overtime validation', () => {
-    const otColumns = buildColumns(2)
+    const otColumns = buildColumns(TWENTY, 2)
 
     function otColIdxOf(key: string): number {
       const idx = otColumns.findIndex((c) => c.key === key)
@@ -636,7 +637,7 @@ describe('cell validation', () => {
     }
 
     function otEligibleOt(cells: CellValue[][][], onTimes = [true, true, true]): Set<number> {
-      return getOvertimeEligibleTeams(cells, otColumns, onTimes)
+      return getOvertimeEligibleTeams(cells, otColumns, onTimes, TWENTY)
     }
 
     function otHasCode(
@@ -668,7 +669,7 @@ describe('cell validation', () => {
       // Team 0 answers OT question — invalid
       cells[0]![3]![otColIdxOf('21')] = C
       const grey = computeGreyedOut(cells, otColumns)
-      const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), eligible)
+      const errors = validateCells(cells, otColumns, grey, TWENTY, otBlankNoJumps(), eligible)
       expect(otHasCode(errors, 0, 3, otColIdxOf('21'), ValidationCode.NotInOvertime)).toBe(true)
     })
 
@@ -683,7 +684,7 @@ describe('cell validation', () => {
 
       cells[0]![1]![otColIdxOf('21')] = C
       const grey = computeGreyedOut(cells, otColumns)
-      const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), eligible)
+      const errors = validateCells(cells, otColumns, grey, TWENTY, otBlankNoJumps(), eligible)
       expect(otHasCode(errors, 0, 1, otColIdxOf('21'), ValidationCode.NotInOvertime)).toBe(false)
     })
 
@@ -699,7 +700,7 @@ describe('cell validation', () => {
 
       cells[0]![2]![otColIdxOf('21')] = F // foul is always allowed
       const grey = computeGreyedOut(cells, otColumns)
-      const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), eligible)
+      const errors = validateCells(cells, otColumns, grey, TWENTY, otBlankNoJumps(), eligible)
       expect(otHasCode(errors, 0, 2, otColIdxOf('21'), ValidationCode.NotInOvertime)).toBe(false)
     })
 
@@ -717,7 +718,7 @@ describe('cell validation', () => {
       cells[1]![1]![otColIdxOf('22')] = C
       cells[2]![1]![otColIdxOf('23')] = C
       const grey = computeGreyedOut(cells, otColumns)
-      const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), eligible)
+      const errors = validateCells(cells, otColumns, grey, TWENTY, otBlankNoJumps(), eligible)
       expect(otHasCode(errors, 0, 1, otColIdxOf('21'), ValidationCode.NotInOvertime)).toBe(false)
       expect(otHasCode(errors, 1, 1, otColIdxOf('22'), ValidationCode.NotInOvertime)).toBe(false)
       expect(otHasCode(errors, 2, 1, otColIdxOf('23'), ValidationCode.NotInOvertime)).toBe(false)
@@ -728,7 +729,7 @@ describe('cell validation', () => {
       cells[0]![0]![otColIdxOf('21')] = C
       const grey = computeGreyedOut(cells, otColumns)
       // No otEligibleTeams parameter — should not flag
-      const errors = validateCells(cells, otColumns, grey)
+      const errors = validateCells(cells, otColumns, grey, TWENTY)
       expect(otHasCode(errors, 0, 0, otColIdxOf('21'), ValidationCode.NotInOvertime)).toBe(false)
     })
 
@@ -736,8 +737,16 @@ describe('cell validation', () => {
       const cells = otBlankCells()
       cells[0]![0]![otColIdxOf('21')] = C
       const grey = computeGreyedOut(cells, otColumns)
-      const orphaned = computeOrphanedColumns(cells, otColumns, otBlankNoJumps(), 0)
-      const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), undefined, orphaned)
+      const orphaned = computeOrphanedColumns(cells, otColumns, otBlankNoJumps(), 0, TWENTY)
+      const errors = validateCells(
+        cells,
+        otColumns,
+        grey,
+        TWENTY,
+        otBlankNoJumps(),
+        undefined,
+        orphaned,
+      )
       expect(otHasCode(errors, 0, 0, otColIdxOf('21'), ValidationCode.QuestionNotNeeded)).toBe(true)
     })
 
@@ -745,8 +754,16 @@ describe('cell validation', () => {
       const cells = otBlankCells()
       cells[0]![0]![otColIdxOf('21')] = C
       const grey = computeGreyedOut(cells, otColumns)
-      const orphaned = computeOrphanedColumns(cells, otColumns, otBlankNoJumps(), 1)
-      const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), undefined, orphaned)
+      const orphaned = computeOrphanedColumns(cells, otColumns, otBlankNoJumps(), 1, TWENTY)
+      const errors = validateCells(
+        cells,
+        otColumns,
+        grey,
+        TWENTY,
+        otBlankNoJumps(),
+        undefined,
+        orphaned,
+      )
       expect(otHasCode(errors, 0, 0, otColIdxOf('21'), ValidationCode.QuestionNotNeeded)).toBe(
         false,
       )
@@ -767,7 +784,7 @@ describe('cell validation', () => {
 
       cells[0]![3]![otColIdxOf('21')] = C // team 0 answers OT — shouldn't be in OT
       const grey = computeGreyedOut(cells, otColumns)
-      const errors = validateCells(cells, otColumns, grey, otBlankNoJumps(), eligible)
+      const errors = validateCells(cells, otColumns, grey, TWENTY, otBlankNoJumps(), eligible)
       expect(otHasCode(errors, 0, 3, otColIdxOf('21'), ValidationCode.NotInOvertime)).toBe(true)
     })
   })
@@ -783,6 +800,7 @@ describe('cell validation', () => {
       cells,
       columns,
       grey,
+      TWENTY,
       blankNoJumps(),
       undefined,
       undefined,
@@ -800,6 +818,7 @@ describe('cell validation', () => {
       cells,
       columns,
       grey,
+      TWENTY,
       blankNoJumps(),
       undefined,
       undefined,
@@ -816,6 +835,7 @@ describe('cell validation', () => {
       cells,
       columns,
       grey,
+      TWENTY,
       blankNoJumps(),
       undefined,
       undefined,
@@ -833,6 +853,7 @@ describe('cell validation', () => {
       cells,
       columns,
       grey,
+      TWENTY,
       blankNoJumps(),
       undefined,
       undefined,
@@ -845,7 +866,7 @@ describe('cell validation', () => {
     const cells = blankCells()
     cells[0]![0]![colIdxOf('1')] = C
     const grey = computeGreyedOut(cells, columns)
-    const errors = validateCells(cells, columns, grey)
+    const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('1'), ValidationCode.EmptySeat)).toBe(false)
   })
 })

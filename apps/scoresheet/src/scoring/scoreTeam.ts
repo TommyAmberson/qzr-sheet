@@ -1,4 +1,5 @@
 import { CellValue, type Column } from '../types/scoresheet'
+import type { QuizRules } from './quizRules'
 
 export interface QuizzerScoring {
   /** Points scored by this quizzer (no bonus/OT individual points) */
@@ -9,7 +10,7 @@ export interface QuizzerScoring {
   errorCount: number
   /** Number of fouls */
   foulCount: number
-  /** Quizzed out (4 correct) */
+  /** Quizzed out (the format's quiz-out count of correct answers) */
   quizzedOut: boolean
   /** Errored out (3 errors) */
   erroredOut: boolean
@@ -52,11 +53,13 @@ export interface TeamScoring {
  * @param teamCells - cells[seatIdx][colIdx]
  * @param columns - all column definitions
  * @param onTime - whether the team was on time
+ * @param rules - the quiz format's rules (quiz-out threshold)
  */
 export function scoreTeam(
   teamCells: CellValue[][],
   columns: Column[],
   onTime: boolean,
+  rules: QuizRules,
 ): TeamScoring {
   const seatCount = teamCells.length
 
@@ -117,25 +120,25 @@ export function scoreTeam(
             }
           }
 
-          // Quizout bonus: awarded on the question where the 4th correct happens
-          if (qCorrect[seatIdx] === 4 && qError[seatIdx] === 0) {
+          // Quizout bonus: awarded on the question where the quiz-out correct happens
+          if (qCorrect[seatIdx] === rules.quizOutCorrect && qError[seatIdx] === 0) {
             qHasQuizoutBonus[seatIdx] = true
             colPoints += 10
             quizoutBonusCols.add(colIdx)
           }
 
           // Track quiz-out column
-          if (qCorrect[seatIdx] === 4 && qOutAfterCol[seatIdx] === -1) {
+          if (qCorrect[seatIdx] === rules.quizOutCorrect && qOutAfterCol[seatIdx] === -1) {
             qOutAfterCol[seatIdx] = colIdx
           }
         }
       } else if (isBonus) {
         // Bonus question correct
         if (col.isErrorPoints) {
-          // Q17+ / OT: bonus worth 10
+          // Error points / OT: bonus worth 10
           colPoints += 10
         } else {
-          // Before Q17: bonus worth 20
+          // Before error points: bonus worth 20
           colPoints += 20
         }
       } else if (isMissedBonus) {
@@ -152,7 +155,7 @@ export function scoreTeam(
         teamErrors++
 
         // Error deduction: -10 if any of these (don't stack):
-        //   - isErrorPoints (Q17+/OT): always
+        //   - isErrorPoints (error-points questions / OT): always
         //   - 2nd+ individual error
         //   - 3rd+ team error (but doesn't count as individual if 1st quizzer error)
         let deduct = false
@@ -209,7 +212,7 @@ export function scoreTeam(
     const correct = qCorrect[seatIdx]!
     const errors = qError[seatIdx]!
     const fouls = qFoul[seatIdx]!
-    const quizzedOut = correct >= 4
+    const quizzedOut = correct >= rules.quizOutCorrect
     const erroredOut = errors >= 3
     const fouledOut = fouls >= 3
     const quizoutBonus = qHasQuizoutBonus[seatIdx]!

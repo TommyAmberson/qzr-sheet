@@ -9,6 +9,7 @@ import {
 } from '@qzr/shared'
 import type { QuizFile } from '@qzr/shared'
 import { buildKeyToIdx, buildColumns } from '../types/scoresheet'
+import { TWENTY_QUESTION_RULES } from '../scoring/quizRules'
 import type { Quiz, Team, Quizzer, Answer, Timeout } from '../types/scoresheet'
 import { toQuizzerId } from '../types/indices'
 import type { QuizStore } from '../stores/quizStore'
@@ -73,7 +74,7 @@ export interface DeserializeResult {
 }
 
 export function deserialize(file: QuizFile): DeserializeResult {
-  const allCols = buildColumns(20) // generous upper bound for OT
+  const allCols = buildColumns(TWENTY_QUESTION_RULES, 20) // generous upper bound for OT
   const validKeys = buildKeyToIdx(allCols)
 
   const answers: Answer[] = file.answers
