@@ -758,7 +758,8 @@ const formatTitle = computed(() =>
   quiz.value.format === QuizFormat.FifteenQuestion ? '15-question quiz' : '20-question quiz',
 )
 
-async function newQuiz(format = QuizFormat.TwentyQuestion) {
+/** With no format (Ctrl+N), repeat the current quiz's: practice meets run many in a row */
+async function newQuiz(format = quiz.value.format) {
   if (isDirty.value && !(await confirmAction('Start a new quiz? Unsaved changes will be lost.')))
     return
   resetStore(format)

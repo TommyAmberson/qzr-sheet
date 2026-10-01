@@ -39,6 +39,8 @@ portal/API/infra work shipped on that tag.
 
 * The timeout warning now reads "Timeouts can't be called once error points begin", which holds for
   both quiz formats.
+* Ctrl+N starts a new quiz in the current quiz's format, so a practice meet can run 15-question
+  quizzes back to back. The New menu still offers both formats.
 
 ### Bundled contract
 
