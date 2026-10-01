@@ -71,12 +71,14 @@ export function useScoresheet() {
    * columns we ask the scorer how many OT rounds the saved answers actually need.
    */
   function computeInitialOtRounds(
-    overtime: boolean,
+    loadedQuiz: { overtime: boolean; format: QuizFormat },
     loadedTeams: { onTime: boolean }[],
     loadedNoJumps: Map<string, boolean>,
   ): number {
-    if (!overtime) return 1
-    const cols = buildColumns(rules.value, 20)
+    if (!loadedQuiz.overtime) return 1
+    // The loaded quiz's rules, not whatever quiz was open before
+    const loadedRules = quizRules(loadedQuiz.format)
+    const cols = buildColumns(loadedRules, 20)
     return Math.max(
       1,
       computeOvertimeRounds(
@@ -84,7 +86,7 @@ export function useScoresheet() {
         cols,
         loadedTeams.map((t) => t.onTime),
         cols.map((c) => loadedNoJumps.get(c.key) ?? false),
-        rules.value,
+        loadedRules,
       ),
     )
   }
@@ -95,11 +97,7 @@ export function useScoresheet() {
     store.loadState(restored)
     noJumpMap.value = restored.noJumps
     timeoutMap.value = restored.timeouts
-    internalOtRounds.value = computeInitialOtRounds(
-      restored.quiz.overtime,
-      restored.teams,
-      restored.noJumps,
-    )
+    internalOtRounds.value = computeInitialOtRounds(restored.quiz, restored.teams, restored.noJumps)
     if (restored.answers.length > 0 || restored.quizzers.some((q) => q.name.trim())) {
       history.push({ undo: () => {}, redo: () => {} })
     }
@@ -708,7 +706,7 @@ export function useScoresheet() {
     store.loadState(data)
     noJumpMap.value = data.noJumps
     timeoutMap.value = data.timeouts
-    internalOtRounds.value = computeInitialOtRounds(data.quiz.overtime, data.teams, data.noJumps)
+    internalOtRounds.value = computeInitialOtRounds(data.quiz, data.teams, data.noJumps)
     history.clear()
     saveToStorage(store, data.noJumps, data.timeouts)
   }

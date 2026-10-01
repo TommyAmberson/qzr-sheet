@@ -454,6 +454,23 @@ describe('useScoresheet — 15-question quiz', () => {
     for (const key of ['12', '12A', '15']) expect(s.isTimeoutAllowed(key)).toBe(false)
   })
 
+  it('sizes overtime from the rules of the loaded quiz', () => {
+    const s = useScoresheet()
+    const { id: _, ...quiz } = s.store.quiz
+    // Regulation and round 1 (16 to 18) all no-jumped: still tied, so round 2 is needed
+    const noJumps = new Map(Array.from({ length: 18 }, (_, i) => [`${i + 1}`, true] as const))
+    s.loadFile({
+      quiz: { ...quiz, format: QuizFormat.FifteenQuestion, overtime: true },
+      teams: s.store.teams.map(({ quizId: _, ...t }) => t),
+      quizzers: [...s.store.quizzers],
+      answers: [],
+      noJumps,
+      timeouts: new Map(),
+    })
+    expect(s.columns.value.some((c) => c.key === '21')).toBe(true)
+    expect(s.columns.value.find((c) => c.key === '16')!.isOvertime).toBe(true)
+  })
+
   it("flags a team's third timeout (2 per team)", () => {
     const s = useScoresheet()
     s.resetStore(QuizFormat.FifteenQuestion)
