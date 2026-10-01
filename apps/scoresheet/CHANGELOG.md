@@ -15,6 +15,20 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-10-01
+
+### Fixed
+
+* **A refused GitHub or Google sign-in says why** - signing in with GitHub or Google on an email
+  that already has a password account no longer merges the two (since API 0.12.1), and used to leave
+  you on a bare error page. You now come back to the scoresheet with the sign-in menu open on email
+  sign-in and a note to sign in the way you first did. Any other failed GitHub or Google sign-in
+  comes back with a "try again" message
+
+### Bundled contract
+
+* `@qzr/shared@0.10.0` - bumped from 0.9.2 (`signInSocial` error return, `socialSignInError()`)
+
 ## [0.11.0] — 2026-10-01
 
 Needs API 0.12.0 or later, which serves the API at `/qzr/api/`.
