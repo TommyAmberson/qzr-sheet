@@ -11,11 +11,12 @@ auth implementation see [auth.md](./auth.md). For roles and codes see
 qzr/
 ├── apps/
 │   ├── scoresheet/   # Vue 3 + Tauri 2 — offline-first scoring tool
+│   │   └── src-tauri/  # Tauri 2 Rust backend (desktop + Android)
 │   └── web/          # Portal — coach roster mgmt, admin dashboard, viewer standings
-├── packages/
-│   ├── shared/       # QuizFile schema, role enums, shared API types
-│   └── api/          # Hono + D1 + Drizzle (Cloudflare Workers)
-└── src-tauri/        # Tauri 2 Rust backend
+└── packages/
+    ├── shared/       # QuizFile schema, role enums, API + auth clients
+    ├── ui/           # Workspace-internal Vue components
+    └── api/          # Hono + D1 + Drizzle (Cloudflare Workers)
 ```
 
 ## Deployable Units
@@ -86,12 +87,14 @@ URL, then auto-fetches and pre-populates.
 
 ## Shared Package (`packages/shared`)
 
-Types and schemas consumed by both frontend apps and the API:
+Contract package consumed by both frontend apps and the API (see "Contract package versioning" in
+`CLAUDE.md`):
 
-* `QuizFile` TypeBox schema
-* API request/response types
-* Role and code enums
-* Shared validation logic
+* `QuizFile` TypeBox schema, `FILE_VERSION`, and its enums (`PlacementFormula`, `BonusRule`,
+  `CellValue`, `QuestionCategory`)
+* Role enums (`AccountRole`, `MeetRole`) and meet phase / division state constants
+* `createApiClient` + `ApiError`, the fetch wrapper both apps construct with their own base URL
+* `createAppAuthClient`, the Better Auth client factory returning `{ authClient, useAuth }`
 
 ---
 
@@ -100,7 +103,7 @@ Types and schemas consumed by both frontend apps and the API:
 ## Data Flow
 
 ```
-quizStore  (plain objects, no Vue)
+quizStore  (reactive data, no scoring logic)
     │
     ▼
 useScoresheet  (Vue composable — reactivity layer)
@@ -113,7 +116,7 @@ useScoresheet  (Vue composable — reactivity layer)
     │   └── undo/redo                         via useHistory()
     │
     ▼
-Scoresheet.vue  (single component, delegates to UI composables)
+Scoresheet.vue  (main grid component, delegates to UI composables)
     ├── useCellSelector  (popup state, option list, open/close)
     ├── useKeyboardNav   (arrow keys, letter shortcuts, undo hotkeys)
     └── useDragReorder   (pointer-event drag, drop target, row refs)
@@ -144,7 +147,10 @@ Column keys: `"1"`–`"15"` (normal), `"16"`/`"16A"`/`"16B"` through `"20B"` (A/
 
 ## Store (`src/stores/quizStore.ts`)
 
-Plain factory function — **no singleton, no Vue reactivity**. Creates a fresh store per call.
+Factory function, **no singleton**. Creates a fresh store per call. Its state (`quiz`, `teams`,
+`quizzers`, and the answer map) is wrapped in Vue `reactive()`, so computeds in `useScoresheet`
+re-run when store data changes without version counters. The store holds data and mutations only; it
+never calls scoring functions.
 
 * Answers stored in a `Map<"quizzerId:columnKey", Answer>` for O(1) lookup.
 * `cellGrid(columns)` derives the `CellValue[][][]` grid on demand.
@@ -189,13 +195,12 @@ column the team shouldn't have jumped on).
 
 ### `useScoresheet.ts`
 
-The only place Vue reactivity lives for scoring state. Wraps the store and scoring functions with
-`ref`/`computed`.
+The only place scoring state is derived. Wraps the reactive store and the pure scoring functions in
+`computed`s; components read these rather than calling scoring functions themselves.
 
 Key reactive dependencies:
 
-* `answerVersion` — bumped on every `setCell()` to invalidate `cells` computed
-* `teamVersion` — bumped on name/seat changes to invalidate `teams` computed
+* store state: `cells` and `teams` track the store's reactive data directly
 * `internalOtRounds` — grows when `visibleOtRounds` needs more; never shrinks within a session
 
 `columns` is derived from `quiz.overtime` + `internalOtRounds`. All scoring/greyout/validation
@@ -266,10 +271,11 @@ when footer rows are empty.
 Low-level helpers for reading/writing ODS XML: ZIP entry parsing via `fflate`, cell value
 extraction, and XML patching.
 
-## Component (`src/components/Scoresheet.vue`)
+## Components (`src/components/`)
 
-Single `.vue` file. Reads from `useScoresheet()` and delegates interaction to the three UI
-composables above.
+`Scoresheet.vue` is the scoring grid. It reads from `useScoresheet()` and delegates interaction to
+the three UI composables above. The connected-mode and onboarding UI lives alongside it:
+`SignInWidget.vue`, `MeetPickerDialog.vue`, `SchedulePickerDialog.vue`, and `TutorialOverlay.vue`.
 
 Notable patterns:
 
