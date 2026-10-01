@@ -23,56 +23,21 @@ conventional-commits config (see `commitlint.config.js` for the scope-enum and l
 
 ## Git conventions
 
-* Commits must be atomic and single-responsibility — one logical change per commit.
-* Commit as you go: after each logical chunk compiles and tests pass, commit it — don't batch at the
-  end.
-* Work on feature branches, not directly on master.
-* A sub-feature that will take more than one commit gets its own branch off the feature branch
-  (`feat/schedule-editor` → `feat/roll-teams`), merged back with `git merge --no-ff`. Single-commit
-  tweaks stay on the parent branch.
-* Pull requests are feature-sized: many atomic commits, few PRs. Fold follow-ups that touch the same
-  surface into the in-flight branch, and land design docs with the code they describe. Split only
-  for different urgency, different reviewers, or a genuine precondition.
+<!-- BEGIN shared git conventions: keep identical in qzr-sheet and verse-vault -->
 
-### Merging PRs
+### Branches
 
-* Always use a merge commit, never squash: `gh pr merge <N> --merge --delete-branch`. The individual
-  branch commits must land on master so `git log` shows the actual progression.
-* Merge-commit subjects follow conventional-commits, same as regular commits — typically
-  `chore: merge <branch-name>`. For local merges, set this via `git merge --no-ff -m "..."`. For
-  PRs, pass `--subject "chore: merge <branch>"` to `gh pr merge` (or edit before confirming) —
-  GitHub's default `Merge pull request #N from …` template doesn't conform to commitlint.
-* `--delete-branch` only removes the remote branch. After merging, `git checkout master`,
-  `git pull --ff-only`, and `git branch -d <branch>` so stale local branches don't pile up.
+Work on feature branches; never commit directly to master. Branch names use a `type/short-slug`
+shape matching the commit type, e.g. `feat/schedule-editor`, `fix/empty-passage-blocks`,
+`docs/roadmap-anki-import`.
 
-### Rewriting history
+A sub-feature that will take more than one commit gets its own branch off the feature branch
+(`feat/schedule-editor` → `feat/roll-teams`), merged back with `git merge --no-ff`. Single-commit
+tweaks stay on the parent branch.
 
-* **Feature branches:** rewriting is fine and often encouraged (rebase, amend, reorder, squash
-  fixups, `git push --force-with-lease`) when it produces a cleaner, more readable series _before_
-  merging.
-* **Master:** never rewrite history. Once a commit is on master, it stays.
-* **What to squash:** "changed my mind from X to Y" iterations where the intermediate state never
-  ships. Keep small atomic commits that each did meaningful incremental work — the goal is that
-  `git blame` on any given line lands on a commit whose message explains the change.
-* **Fixup + autosquash for review fixes.** When a later commit corrects something an earlier commit
-  on the same branch got wrong (typo, missed branch, /simplify finding, code-review reply), consider
-  `git commit --fixup=<orig-sha>` instead of a fresh `fix(...): ...` commit. That produces a commit
-  named `fixup! <orig-subject>` paired with the target. Before merging, collapse with
-  `git -c sequence.editor=: rebase -i --autosquash master` — `-i` is required (autosquash only
-  activates in interactive mode) and the no-op sequence editor accepts the auto-prepared todo list.
-  Fixup-marked commits discard their own message and keep the original's verbatim, so no editor
-  prompts fire. End state: `git blame` lands on the original commit (whose message explains the
-  change), not a follow-up "fix" commit that re-states the same scope. Works best when the target is
-  recent and no intermediate commits touch the same lines — long-lived branches with interleaved
-  refactors will produce conflicts on autosquash, in which case keep the fresh `fix(...)` commit.
-  Before squashing, check whether the fixup's content changes what the target commit's subject
-  claims: a typo or off-by-one fix slots in invisibly, but a fixup that meaningfully expands scope
-  or reverses a stated intent leaves the original subject misleading. In that case, use
-  `git commit --fixup=amend:<orig-sha>` instead — autosquash will prompt for a new subject when
-  collapsing — or just `git commit --amend` directly if the target is HEAD. Otherwise the squashed
-  commit will lie about what it does.
+### Commit messages
 
-### Commit message format ([Conventional Commits](https://www.conventionalcommits.org/))
+[Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 <type>(<scope>): <short subject in lowercase>
@@ -80,15 +45,103 @@ conventional-commits config (see `commitlint.config.js` for the scope-enum and l
 <wrapped body explaining why, not what (the diff shows what)>
 ```
 
-Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, `style`, `revert`, `perf`, `build`.
+**Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, `style`, `revert`, `perf`,
+`build`.
 
-Scopes: `scoresheet`, `web`, `api`, `shared`, `ui`, `tauri`, `ci`, `deps`. Omit the scope for
-cross-cutting changes (e.g. `chore: bump version to 0.9.2`).
+**Scope:** one of the repo's scopes listed under [Commit scopes](#commit-scopes), or omitted for a
+cross-cutting change. Use bare `docs:` for doc-only edits; sub-scoping by doc area (`docs(arch)`,
+`docs(server-api)`) sprawls fast and isn't enforced.
 
-Subject in lowercase, no trailing period, imperative mood ("add X", not "added X"), and **≤ 50
-characters** including the type/scope prefix. Body wrapped at ~72 cols, focuses on the why. Mark
-breaking changes with `!` after the type/scope (`feat(api)!: …`) — wire format, file format, or
-public-type changes.
+**Subject:** lowercase, imperative mood, no trailing period, and **≤ 50 characters** including the
+`type(scope):` prefix. `commitlint` enforces the length as an error. Apply the "if applied, this
+commit will \_\_" test: `simplify cleanup pass` and `heading split + passage card render` both fail
+it, because they name the change as a noun rather than the action it performs.
+
+**Breaking changes** carry `!` after the type or scope (`feat(api)!: …`): a wire format, file
+format, or public-type change consumers must adapt to.
+
+**Body:** wrapped at ~72 columns (a warning, not an error: quoted URLs and stack traces are fair
+exceptions), and focused on _why_.
+
+### Commits are atomic
+
+One logical change per commit, and each commit should build on its own. Commit as you go: once a
+chunk compiles and its tests pass, commit it rather than batching everything at the end. The target
+is that `git blame` on any line lands on a commit whose message explains that line.
+
+### Pull requests
+
+PRs are feature-sized and carry several logical commits: many atomic commits, few PRs. A substantive
+change shouldn't arrive as a single commit, and a one-line change usually doesn't need its own PR.
+Fold follow-ups that touch the same surface into the in-flight branch, and land design docs with the
+code they describe. Split only for different urgency or a genuine precondition.
+
+### Merging
+
+* **Always merge, never squash:** `gh pr merge <N> --merge --delete-branch`. The individual branch
+  commits must land on master so `git log` shows the real progression. Squash and rebase merges are
+  disabled in the GitHub settings.
+* **Merge-commit subjects follow Conventional Commits too**, typically `chore: merge <branch-name>`.
+  GitHub's default `Merge pull request #N from …` template doesn't conform, so pass
+  `--subject "chore: merge <branch>"` to `gh pr merge`, or `git merge --no-ff -m "..."` for a local
+  merge.
+* **master is branch-protected.** GitHub blocks the merge until the
+  [required checks](#required-checks) pass on the PR head, so a merge commit's content is always
+  equivalent to a SHA CI already validated, and the deploy workflows that fire on master push can't
+  race a broken merge. The owner can bypass with `gh pr merge <N> --admin --merge ...` for a true
+  hotfix: a conscious decision, not a default.
+* **Rebase onto current master only for version-bump PRs.** A PR that bumps a deployable package's
+  version needs its branch current. PR CI runs the deploy-time
+  `tools/check-contract-versions.sh --ci` check for each package the PR bumps, against the PR merged
+  into master as of the run, so rebasing re-runs it against the master the PR will deploy from.
+  Other PRs merge fine when master has advanced; skip the pre-emptive rebase.
+* **Clean up locally.** GitHub deletes the remote branch on merge. Afterwards,
+  `git checkout master`, `git pull --ff-only`, and `git branch -d <branch>` so stale local branches
+  don't pile up.
+
+### Rewriting history
+
+**Feature branches:** rewriting is encouraged. Rebase, amend, reorder, and squash fixups
+(`git push --force-with-lease`) whenever it produces a cleaner series _before_ merging.
+
+**Master:** never. Once a commit is on master it stays.
+
+**What to squash:** "changed my mind from X to Y" iterations whose intermediate state never ships.
+Keep the small atomic commits that each did real incremental work.
+
+**Fixup + autosquash.** When a later commit corrects something an earlier commit on the same branch
+got wrong (a typo, a missed branch, a review reply), prefer `git commit --fixup=<orig-sha>` over a
+fresh `fix(...)` commit. Collapse before merging:
+
+```
+git -c sequence.editor=: rebase -i --autosquash master
+```
+
+`-i` is required (autosquash only activates in interactive mode); the no-op sequence editor accepts
+the auto-prepared todo list, and `fixup!` commits discard their own message, so no editor opens. The
+result is that `git blame` lands on the original commit, whose message explains the change, rather
+than a follow-up that restates the same scope.
+
+Two caveats. On a long-lived branch with interleaved refactors touching the same lines, autosquash
+will conflict; keep the plain `fix(...)` commit instead. And check whether the fixup changes what
+the target's subject claims: a typo fix slots in invisibly, but a fixup that expands scope or
+reverses a stated intent leaves the subject lying about the squashed commit. In that case use
+`git commit --fixup=amend:<orig-sha>`, which prompts for a new subject when collapsing, or
+`git commit --amend` if the target is HEAD.
+
+<!-- END shared git conventions -->
+
+### Commit scopes
+
+`scoresheet`, `web`, `api`, `shared`, `ui`, `tauri`, `ci`, `deps`. `commitlint` warns on any other
+scope; if a new one makes sense, add it to `commitlint.config.js`. A release commit names its
+package: `chore(<pkg>): release X.Y.Z` (see [Releasing](#releasing)).
+
+### Required checks
+
+One job, `check`: `pnpm type-check`, `pnpm lint`, `pnpm test:unit`, `dprint check`, `typos`, and the
+deploy's contract check for every package the PR bumps. The version files that make a PR a bump PR
+are `apps/scoresheet/package.json`, `apps/web/package.json`, and `packages/api/package.json`.
 
 ## Contract package versioning
 
@@ -137,10 +190,6 @@ bumping again. The pre-commit hook rejects a version bump without a staged dated
 changes to a package, an urgent fix to that package can only ship by releasing them too. Before
 deferring, check what is already waiting (`git log <pkg>@<last-version>..master -- <package-path>`),
 and release the backlog with `/release <pkg>` on a `chore/release-<pkg>-<version>` branch.
-
-**Rebase bump PRs.** A PR that bumps a version must be rebased onto current master before it merges,
-so CI re-runs the deploy's contract check (`check-contract-versions.sh --ci`, run in PR CI for each
-bumped package) against the master it will deploy from. Other PRs needn't be.
 
 For `scoresheet`, `web`, or `api`, use the `/release <pkg>` skill (see
 `.claude/skills/release/SKILL.md`) on the PR's branch, or do it manually:
