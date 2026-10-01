@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { TWENTY_QUESTION_RULES as TWENTY } from '../quizRules'
-import { CellValue, buildColumns } from '../../types/scoresheet'
+import { TWENTY_QUESTION_RULES as TWENTY, quizRules } from '../quizRules'
+import { CellValue, QuizFormat, buildColumns } from '../../types/scoresheet'
 import {
   getOvertimeEligibleTeams,
   getActiveOtTeams,
@@ -714,5 +714,69 @@ describe('getActiveOtTeams', () => {
     for (let n = 4; n <= 20; n++) noJumps[idx(`${n}`)] = true
     const active = getActiveOtTeams(cells, cols, onTimes, noJumps, TWENTY)
     expect(active.size).toBe(0)
+  })
+})
+
+describe('overtime — 15-question quiz', () => {
+  const FIFTEEN = quizRules(QuizFormat.FifteenQuestion)
+  const onTimes = [true, true, true]
+
+  function setup(rounds: number) {
+    const cols = buildColumns(FIFTEEN, rounds)
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    const noJumps = cols.map(() => false)
+    const at = (key: string) => cols.findIndex((c) => c.key === key)
+    /** No-jump every numbered question from `from` to `to`, leaving the scores tied */
+    const noJumpRange = (from: number, to: number) => {
+      cols.forEach((c, i) => {
+        if (c.type === '' && c.number >= from && c.number <= to) noJumps[i] = true
+      })
+    }
+    return { cols, cells, noJumps, at, noJumpRange }
+  }
+
+  it('has no overtime columns when overtime is off', () => {
+    expect(buildColumns(FIFTEEN, 0).some((c) => c.isOvertime)).toBe(false)
+  })
+
+  it('offers no overtime until questions 1 to 15 are complete', () => {
+    const { cols, cells, noJumps, noJumpRange } = setup(1)
+    noJumpRange(1, 14)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, FIFTEEN)).toBe(0)
+  })
+
+  it('offers one round starting at 16 once a tied regulation is complete', () => {
+    const { cols, cells, noJumps, noJumpRange } = setup(1)
+    noJumpRange(1, 15)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, FIFTEEN)).toBe(1)
+    expect(cols.find((c) => c.isOvertime)!.key).toBe('16')
+  })
+
+  it('offers a second round (19 to 21) only while the tie persists', () => {
+    const { cols, cells, noJumps, at, noJumpRange } = setup(2)
+    noJumpRange(1, 18)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, FIFTEEN)).toBe(2)
+    expect(cols.filter((c) => c.isOvertime && c.type === '').map((c) => c.key)).toEqual([
+      '16',
+      '17',
+      '18',
+      '19',
+      '20',
+      '21',
+    ])
+
+    // Round 1 separates all three teams (60, 40, 20): no second round
+    for (const key of ['16', '17', '18']) noJumps[at(key)] = false
+    cells[0]![0]![at('16')] = C
+    cells[0]![1]![at('17')] = C
+    cells[1]![0]![at('18')] = C
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, FIFTEEN)).toBe(1)
+  })
+
+  it('limits overtime to the tied teams', () => {
+    const { cols, cells, noJumps, at, noJumpRange } = setup(1)
+    noJumpRange(1, 14)
+    cells[0]![0]![at('15')] = C
+    expect(getActiveOtTeams(cells, cols, onTimes, noJumps, FIFTEEN)).toEqual(new Set([1, 2]))
   })
 })

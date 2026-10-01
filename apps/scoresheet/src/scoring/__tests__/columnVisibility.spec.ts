@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { TWENTY_QUESTION_RULES as TWENTY } from '../quizRules'
-import { CellValue, buildColumns } from '../../types/scoresheet'
+import { TWENTY_QUESTION_RULES as TWENTY, quizRules } from '../quizRules'
+import { CellValue, QuizFormat, buildColumns } from '../../types/scoresheet'
 import { computeVisibleColumns, computeOrphanedColumns } from '../columnVisibility'
 import { ColStatus } from '../helpers'
 
@@ -396,5 +396,24 @@ describe('computeOrphanedColumns', () => {
       const orphaned = computeOrphanedColumns(cells, columns, noJumps, 0, TWENTY)
       expect(orphaned.has(colIdxOf('21A'))).toBe(true)
     })
+  })
+})
+
+describe('computeVisibleColumns — 15-question quiz', () => {
+  const FIFTEEN = quizRules(QuizFormat.FifteenQuestion)
+  const columns = buildColumns(FIFTEEN, 2)
+  const cells = blankCells(columns.length)
+  const noJumps = columns.map(() => false)
+  const visibleKeys = (rounds: number) =>
+    computeVisibleColumns(cells, columns, noJumps, rounds, FIFTEEN).map((r) => r.col.key)
+
+  it('hides overtime when no round is visible', () => {
+    expect(visibleKeys(0)).not.toContain('16')
+  })
+
+  it('shows only the first round (16 to 18) when one round is visible', () => {
+    const keys = visibleKeys(1)
+    expect(keys).toEqual(expect.arrayContaining(['16', '17', '18']))
+    expect(keys).not.toContain('19')
   })
 })
