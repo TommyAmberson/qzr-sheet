@@ -139,9 +139,10 @@ package: `chore(<pkg>): release X.Y.Z` (see [Releasing](#releasing)).
 
 ### Required checks
 
-One job, `check`: `pnpm type-check`, `pnpm lint`, `pnpm test:unit`, `dprint check`, `typos`, and the
-deploy's contract check for every package the PR bumps. The version files that make a PR a bump PR
-are `apps/scoresheet/package.json`, `apps/web/package.json`, and `packages/api/package.json`.
+One job, `check`: `pnpm type-check`, `pnpm lint`, `pnpm test:unit`, `dprint check`, `typos`, the
+`@qzr/shared` bump check (`tools/check-contract-versions.sh --pr`), and the deploy's contract check
+for every package the PR bumps. The version files that make a PR a bump PR are
+`apps/scoresheet/package.json`, `apps/web/package.json`, and `packages/api/package.json`.
 
 ## Contract package versioning
 
@@ -159,10 +160,14 @@ A refactor with no observable effect doesn't bump at all: commit it with `--no-v
 
 Enforcement:
 
-* **Pre-commit** (`tools/check-contract-versions.sh`): blocks commits that touch
-  `packages/shared/src/` without bumping `packages/shared/package.json` **in the same commit**. A
-  separate follow-up bump commit doesn't satisfy it, so the bump, and its `CHANGELOG.md` entry, ride
-  along with the change itself.
+* **Pre-commit** (`tools/check-contract-versions.sh`): blocks a commit that touches
+  `packages/shared/src/` while `packages/shared/package.json` still has the version the branch
+  started from (the more recent fork point of `master` and `origin/master`). Bump once per PR, in
+  the first commit that changes shared (or an earlier one); later shared commits extend that dated
+  `CHANGELOG.md` section rather than bumping again.
+* **PR CI** (`--pr <base>`, run by the required `check` job): the same check against the PR's base,
+  which also catches commits that skipped the hook (`--no-verify`, or history rewritten by a rebase
+  or cherry-pick, which don't run pre-commit).
 * **CI** (each deploy workflow runs `tools/check-contract-versions.sh --ci <consumer>`): blocks the
   consumer's deploy when its `CHANGELOG.md` entry for the version being deployed doesn't reference
   the current `@qzr/shared` version under a `### Bundled contract` subsection. Catches "bumped
@@ -176,7 +181,7 @@ that consumer's `### Bundled contract` subsection to name the new shared version
 Per-package: `scoresheet`, `web`, and `api` each have their own `package.json` `version` field,
 their own `CHANGELOG.md`, and their own CI deploy workflow that fires when the version bump lands on
 master. `shared` has a version and changelog but no deploy workflow and no separate release step: it
-is bumped in the commit that changes it (see above), and the first consumer deploy that bundles the
+is bumped once in the PR that changes it (see above), and the first consumer deploy that bundles the
 new version tags `shared@<version>`.
 
 **Release with the change.** A pull request that changes `scoresheet`, `web`, or `api` records the

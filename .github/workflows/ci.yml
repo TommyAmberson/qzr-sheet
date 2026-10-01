@@ -14,6 +14,11 @@ jobs:
           # A PR checks out its merge into the base, so HEAD^1 is the base.
           fetch-depth: 2
 
+      # A PR that changes packages/shared/src/ must bump shared.
+      - name: Verify the contract package is bumped
+        if: github.event_name == 'pull_request'
+        run: tools/check-contract-versions.sh --pr HEAD^1
+
       # Run the deploy's contract check for every package this PR bumps,
       # against the master it merges into, so a stale `### Bundled contract`
       # fails here instead of in the deploy after merge.

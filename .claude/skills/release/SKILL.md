@@ -22,10 +22,9 @@ The user normally provides a package name (one of `scoresheet`, `web`, `api`) an
 version. If they only said "release", ask which package, but suggest the most likely one based on
 which paths have unreleased commits.
 
-`shared` has no release step. The pre-commit hook requires its version bump, and its CHANGELOG
-entry, in the same commit as the `packages/shared/src/` change, so by release time it is already
-bumped. If asked to release `shared`, explain this and offer to release the consumers that bundle
-it.
+`shared` has no release step. The pre-commit hook requires its version bump, and its dated CHANGELOG
+section, in the PR that changes `packages/shared/src/`, so by release time it is already bumped. If
+asked to release `shared`, explain this and offer to release the consumers that bundle it.
 
 ## Steps
 

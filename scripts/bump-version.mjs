@@ -59,7 +59,7 @@ for (const path of PACKAGES[pkg]) {
 const files = PACKAGES[pkg].join(' ')
 
 // A deployable's bump ships it once merged, so its commit says `release`. `shared` never deploys
-// on its own; its bump rides in the commit that changes it.
+// on its own; it is bumped once in the PR that changes it.
 const subject = pkg === 'shared' ? `bump to ${version}` : `release ${version}`
 
 console.log(`\n${pkg} bumped to ${version}. Commit on the PR's branch:\n`)

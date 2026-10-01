@@ -72,10 +72,12 @@ model, so a route that checks only for a session hands every meet to every accou
 * `packages/shared` is the contract between the API, the portal, and the scoresheet, and its
   `package.json` version _is_ the contract version: equal `@qzr/shared` versions MUST mean identical
   wire and file behaviour.
-* A commit that changes `packages/shared/src/` MUST bump `packages/shared/package.json` in that same
-  commit; `tools/check-contract-versions.sh` rejects the pair split across commits. The one
-  exception is a refactor with no observable effect, which passes `--no-verify` instead of bumping.
-  `--no-verify` MUST NOT be used for anything else.
+* A pull request that changes `packages/shared/src/` MUST bump `packages/shared/package.json` once,
+  with a dated changelog section that later commits in the same pull request extend.
+  `tools/check-contract-versions.sh` enforces this at commit time against the point where the branch
+  left master, and in CI against the pull request's base. The one exception is a refactor with no
+  observable effect, which passes `--no-verify` instead of bumping. `--no-verify` MUST NOT be used
+  for anything else.
 * Semver is read strictly: MAJOR for a breaking change to the wire format, the `QuizFile` format
   (`FILE_VERSION`), or shared types consumers must adapt to; MINOR for additive changes consumers
   can ignore; PATCH for an observable fix that leaves the contract's shape unchanged. Breaking
@@ -85,7 +87,9 @@ model, so a route that checks only for a session hands every meet to every accou
 
 Rationale: a scoresheet saved at one meet is opened in a later release at the next. The version
 number is the only signal that two parts of the system agree on what a file means, and it is
-worthless if it can drift from the behaviour.
+worthless if it can drift from the behaviour. Every consumer is built from master, so the version is
+bumped per pull request, the unit that reaches master; a commit in the middle of a branch never
+ships.
 
 ### VI. Validate Before You Merge
 
@@ -152,4 +156,4 @@ Constitution Check and each merge against these principles; an exception MUST be
 plan's Complexity Tracking or the pull request body, and an exception that outlives its
 justification is a defect to be removed.
 
-**Version**: 1.2.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-01
+**Version**: 1.3.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-01

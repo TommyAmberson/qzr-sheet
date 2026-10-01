@@ -107,7 +107,7 @@ pull request that changes it: that PR adds a dated `CHANGELOG.md` section and ru
 checks the bundled `@qzr/shared` contract version, deploys, and tags `<pkg>@<version>`. Don't tag
 locally. The API deploy applies pending D1 migrations before deploying the Worker.
 
-`@qzr/shared` is bumped in the same commit as the change to it, not at release time. See
+`@qzr/shared` is bumped once in the PR that changes it, not at release time. See
 [CONTRIBUTING.md](./CONTRIBUTING.md#releasing) for the full procedure and the contract rules.
 
 The Worker secrets (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`,
