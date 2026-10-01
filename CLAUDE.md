@@ -144,13 +144,16 @@ behaviour. Semver semantics:
 * **MAJOR** — breaking change to wire format, file format (`FILE_VERSION` bump in
   `apps/scoresheet/src/persistence/quizFile.ts`), or shared types consumers must adapt to.
 * **MINOR** — additive (new optional field, new enum value consumers can ignore).
-* **PATCH** — pure documentation or refactor with no observable effect.
+* **PATCH** — an observable fix that leaves the contract's shape unchanged.
+
+A refactor with no observable effect doesn't bump at all: commit it with `--no-verify` instead.
 
 Enforcement:
 
 * **Pre-commit** (`tools/check-contract-versions.sh`): blocks commits that touch
-  `packages/shared/src/` without bumping `packages/shared/package.json`. Bypass with
-  `git commit --no-verify` for refactors with no observable effect.
+  `packages/shared/src/` without bumping `packages/shared/package.json` **in the same commit**. A
+  separate follow-up bump commit doesn't satisfy it, so the bump, and its `CHANGELOG.md` entry, ride
+  along with the change itself.
 * **CI** (each deploy workflow runs `tools/check-contract-versions.sh --ci <consumer>`): blocks the
   consumer's deploy when its `CHANGELOG.md` entry for the version being deployed doesn't reference
   the current `@qzr/shared` version under a `### Bundled contract` subsection. Catches "bumped
@@ -161,23 +164,26 @@ that consumer's `### Bundled contract` subsection to name the new shared version
 
 ## Releasing
 
-Per-package: each release surface (`scoresheet`, `web`, `api`, `shared`) has its own `package.json`
-`version` field, its own `CHANGELOG.md`, and its own CI deploy workflow that fires when the version
-bump lands on master.
+Per-package: `scoresheet`, `web`, and `api` each have their own `package.json` `version` field,
+their own `CHANGELOG.md`, and their own CI deploy workflow that fires when the version bump lands on
+master. `shared` has a version and changelog but no deploy workflow and no separate release step: it
+is bumped in the commit that changes it (see above), and the first consumer deploy that bundles the
+new version tags `shared@<version>`.
 
-Use the `/release <pkg>` skill (see `.claude/skills/release/SKILL.md`) or do it manually:
+For `scoresheet`, `web`, or `api`, use the `/release <pkg>` skill (see
+`.claude/skills/release/SKILL.md`) or do it manually:
 
 ```sh
 # 1. Update the package's CHANGELOG.md under [Unreleased]:
 #       ## [<new>] — YYYY-MM-DD
 #       ### Added / Changed / Fixed
 #       …
-#    For api/web/scoresheet releases, also add a:
+#    Also add a:
 #       ### Bundled contract
 #       * @qzr/shared@<current> — unchanged | bumped from <old>
 
 # 2. Bump the package version (only that package's files move):
-pnpm bump <scoresheet|web|api|shared> <semver>
+pnpm bump <scoresheet|web|api> <semver>
 
 # 3. Commit and push:
 git add <reported-files> <package>/CHANGELOG.md
