@@ -17,6 +17,29 @@ wire/state compatibility signal — see CLAUDE.md "Contract package versioning".
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-01
+
+### Added
+
+* **`GET /api/meets/:id/quizzes/:quizId/teams`** - one scheduled quiz with its 3 seats resolved to
+  teams (via `prelim_assignments` or `seed_resolutions`) and their rosters, in one request.
+  Unresolved seats return `team: null` and `quizzers: []`. Backs the scoresheet's load-from-schedule
+  flow
+
+### Fixed
+
+* **Schedule reads gated per meet** - `GET /api/meets/:id/rooms`, `/slots`, `/quizzes`,
+  `/prelim-assignments`, and the new quiz-teams route now require membership of that meet (any role)
+  or superuser, and return 403 to anyone else. Previously any signed-in account could read any
+  meet's schedule
+* **Schedule sync on full-sized meets** - `POST /api/meets/:id/schedule/sync` chunks its slot, quiz,
+  seat, and prelim-assignment inserts to stay under D1's 100 bound-parameter cap. A full-meet
+  Populate, or a division of 20+ teams, failed with `too many SQL variables`
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` - unchanged since api 0.10.0
+
 ## [0.10.0] — 2026-05-21
 
 First per-package API release. Covers everything shipped on master since unified tag `v0.9.1`.
