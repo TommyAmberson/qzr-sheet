@@ -143,6 +143,19 @@ confirm the format is still 15 questions.
    from a meet or schedule, **Then** it stays a 15-question quiz.
 5. **Given** any quiz, **When** the official chooses "New 20-question quiz", **Then** a 20-question
    quiz starts, exactly as "New quiz" does today.
+6. **Given** a 20-question quiz saved by this version, **When** it is opened in a scoresheet from
+   before this feature, **Then** it opens normally.
+7. **Given** a 15-question quiz saved by this version, **When** it is opened in a scoresheet from
+   before this feature, **Then** that scoresheet refuses it with an error instead of opening it as a
+   20-question quiz.
+8. **Given** a quiz file saved by a newer version of the scoresheet than the one opening it,
+   **When** it is opened, **Then** the official is told it comes from a newer version and asked
+   whether to try opening it anyway; declining changes nothing, and accepting opens it with a
+   visible warning that it may be scored wrong.
+9. **Given** the auto-save holds a quiz from a newer version of the scoresheet, **When** the
+   scoresheet starts, **Then** it starts with an empty sheet and a notice that the newer auto-save
+   was kept, offering to try opening it or to discard it; scoring the empty sheet does not overwrite
+   the kept quiz.
 
 ---
 
@@ -170,7 +183,19 @@ export works as before.
 ### Edge Cases
 
 * A quiz file that names a quiz format this version does not recognise fails to load with a message
-  that names the unknown format, rather than loading as some other format.
+  that names the unknown format, rather than loading as some other format, even when the official
+  chose to try opening a newer file.
+* An auto-save from a newer version can appear when a device goes back to an older scoresheet (a
+  rolled-back install, or a cached older web version). It is kept aside rather than deleted
+  (FR-018).
+* **Trade-off:** while such a quiz is kept in place because storage is too full to set it aside, the
+  interactive tutorial is unavailable until the official discards it. Before this feature the
+  tutorial always worked, but in that state the newer quiz was silently deleted. The tutorial's
+  reset and crash copy would otherwise compete for the storage slots that hold the kept quiz, and
+  every way found to let both coexist risked losing one of the quizzes. The message names the way
+  out: discard it, after saving it to a file if it's wanted.
+* Scoresheets already installed before this feature cannot learn the try-anyway prompt; they refuse
+  15-question files outright. The prompt helps from this release onward.
 * Column names mean different things in the two formats: in a 15-question quiz, 16, 16A, and 16B are
   the first overtime round, not regulation questions. Loading a file MUST interpret its answers
   under the format the file records, never the other one. Answers in columns that exist in neither
@@ -224,6 +249,19 @@ export works as before.
   convention. This satisfies the constitution's requirement that every departure from the rulebook
   be opt-in and documented.
 * **FR-015**: Each team MUST be allowed 2 timeouts in a 15-question quiz, as in a 20-question quiz.
+* **FR-016**: Saving a 20-question quiz MUST produce a file that scoresheets from before this
+  feature open unchanged. Saving a 15-question quiz MUST produce a file those scoresheets refuse,
+  never one they open as a 20-question quiz.
+* **FR-017**: When a file was saved by a newer scoresheet version than the one opening it, the
+  scoresheet MUST ask before opening it, and a quiz opened this way MUST show a warning that it may
+  be scored wrong until another quiz replaces it (a new quiz, or any file opened normally); the
+  warning survives reloads and the tutorial. Content the scoresheet cannot interpret, such as an
+  unknown quiz format, MUST still fail with a message naming it.
+* **FR-018**: An auto-saved quiz from a newer scoresheet version MUST NOT be deleted or overwritten.
+  The scoresheet MUST keep it aside, start with an empty sheet, and tell the official it exists,
+  offering to try opening it (as in FR-017) or to discard it. Only an explicit discard removes it.
+  This covers the tutorial's crash-recovery copy of a quiz too, and holds when storage is too full
+  to set the quiz aside: auto-save then pauses rather than overwrite it, and the notice MUST say so.
 
 ### Key Entities
 
