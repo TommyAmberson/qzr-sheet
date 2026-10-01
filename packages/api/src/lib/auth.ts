@@ -82,6 +82,9 @@ export function createAuth(env: Bindings, basePath = '/api/auth') {
       },
     },
     advanced: {
+      // verse-vault runs Better Auth on the same host with the default prefix;
+      // sharing cookie names let each app overwrite the other's session.
+      cookiePrefix: 'qzr',
       database: {
         generateId: () => crypto.randomUUID(),
       },
