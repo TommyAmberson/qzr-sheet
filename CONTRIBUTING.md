@@ -7,8 +7,9 @@ implement are in the [constitution](./.specify/memory/constitution.md). Coding a
 
 ## Before you push
 
-`pnpm test:unit`, `pnpm type-check`, and `pnpm lint` must pass; CI runs them as the required `check`
-status, along with the deploy's contract check for any package the PR bumps.
+`pnpm test:unit`, `pnpm type-check`, `pnpm lint`, `pnpm exec dprint check`, and `typos` must pass;
+CI runs them as the required `check` status, along with the deploy's contract check for any package
+the PR bumps.
 
 ## Hooks
 

@@ -31,6 +31,8 @@ jobs:
             fi
           done
 
+      - uses: crate-ci/typos@master
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
@@ -39,6 +41,10 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # lint-staged only formats the markdown a commit touches; this catches
+      # anything that reached master without the hooks installed.
+      - run: pnpm exec dprint check
 
       - run: pnpm type-check
 
