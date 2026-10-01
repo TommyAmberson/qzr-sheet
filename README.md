@@ -1,9 +1,9 @@
 # qzr
 
 Digital scoresheet for Quizmeet Bible Quiz tournaments. Replaces paper sheets and spreadsheets with
-a fast, portable app that runs natively on Windows/macOS/Linux (via [Tauri 2](https://tauri.app))
-and in any browser as an installable PWA. Monorepo with a planned web portal and API for quiz meet
-management.
+a fast, portable app that runs natively on Windows/macOS/Linux/Android (via
+[Tauri 2](https://tauri.app)) and in any browser as an installable PWA. Monorepo with a web portal
+and API for quiz meet management.
 
 **Live web app:** [www.versevault.ca/scoresheet](https://www.versevault.ca/scoresheet)
 
@@ -48,16 +48,15 @@ pnpm dev:api               # API only (requires wrangler login)
 pnpm tauri dev             # Tauri native window (hot-reload)
 pnpm tauri:linux-x11 dev   # Same, with Linux/X11 GPU workarounds
 
-pnpm test:unit         # Vitest unit tests (scoresheet + api)
-pnpm type-check        # vue-tsc / tsc (all four packages)
+pnpm test:unit         # Vitest unit tests (all packages)
+pnpm type-check        # vue-tsc / tsc (all packages)
 pnpm lint              # ESLint
 pnpm format            # Prettier (no semi, single quotes, 100 col)
-
-# Deploy both apps to www.versevault.ca
-pnpm deploy
-# Or build the combined output manually:
-pnpm build:all && wrangler pages deploy apps/web/dist --project-name versevault-www --branch master
+pnpm bump <pkg> <ver>  # Bump one package: scoresheet | web | api
 ```
+
+Deploys are driven by CI (see [Releasing](#releasing)). `pnpm deploy` still builds everything
+locally and runs `wrangler pages deploy`, as an emergency-only escape hatch.
 
 All root scripts delegate to the relevant workspace packages via `pnpm --filter`.
 
@@ -78,9 +77,10 @@ apps/
       persistence/               # JSON schema, file I/O, localStorage auto-save
       components/                # Scoresheet.vue (single-component UI)
     src-tauri/                   # Tauri 2 Rust backend
-  web/                           # Portal app (landing page; coach, admin, viewer views planned)
+  web/                           # Portal app: coach rosters, admin dashboard, schedules
 packages/
-  shared/                        # QuizFile schema, role enums, shared API types
+  shared/                        # QuizFile schema, role enums, API + auth clients
+  ui/                            # Workspace-internal Vue components
   api/                           # Hono + D1 + Drizzle API (Cloudflare Workers)
 docs/
   scoring-rules-explained.md     # Cell types, point values, all scoring rules
@@ -95,17 +95,15 @@ docs/
 
 ## Releasing
 
-1. Merge the feature branch to `master`
-2. `pnpm bump x.y.z` — bumps version in all `package.json` files, and `tauri.conf.json`
-3. Stage and commit the changed files: `git commit -m "chore: bump version to x.y.z"`
-4. Tag: `git tag vx.y.z`
-5. Push: `git push origin master --tags`
+Each deployable (`scoresheet`, `web`, `api`) is versioned and released on its own. Update the
+package's `CHANGELOG.md`, run `pnpm bump <pkg> <version>`, commit, and push to `master`. The
+matching workflow (`deploy-api.yml`, `deploy-web.yml`, or `release-scoresheet.yml`) fires when the
+version moves, checks the bundled `@qzr/shared` contract version, deploys, and tags
+`<pkg>@<version>`. Don't tag locally. The API deploy applies pending D1 migrations before deploying
+the Worker.
 
-The `deploy` CI workflow triggers on `v*` tags and:
-
-* Runs `db:migrate:remote` against the live D1 database
-* Deploys the Cloudflare Worker (routed at `www.versevault.ca/api/*`)
-* Builds and deploys the web + scoresheet apps to `www.versevault.ca`
+`@qzr/shared` is bumped in the same commit as the change to it, not at release time. See
+[CLAUDE.md](./CLAUDE.md#releasing) for the full procedure and the contract rules.
 
 The Worker secrets (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET`) must be set via `wrangler secret put` before the first
