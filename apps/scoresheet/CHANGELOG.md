@@ -15,6 +15,22 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-10-01
+
+Needs API 0.12.0 or later, which serves the API at `/qzr/api/`.
+
+### Changed
+
+* **Served at `/qzr/scoresheet/`** - the web app moves from `/scoresheet/` to `/qzr/scoresheet/` so
+  verse-vault can take the root of www.versevault.ca, and calls the API at `/qzr/api/`. The PWA
+  manifest gains an explicit `id`, so an install from the old address must be reinstalled from the
+  new one. Saved scoresheets are kept: they live in the browser's storage for the site, which does
+  not change
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` — unchanged
+
 ## [0.10.0] — 2026-10-01
 
 Load a scheduled quiz straight into the scoresheet. Needs API 0.11.0 or later, which added the
