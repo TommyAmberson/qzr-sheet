@@ -24,6 +24,11 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   `qzr-web` Worker (Workers Static Assets), which also serves the bundled scoresheet at
   `/qzr/scoresheet/`
 
+### Added
+
+* **Not-found page** - unknown multi-level addresses show a "Page not found" page instead of a blank
+  screen. Single-level addresses are still treated as meet slugs
+
 ### Bundled contract
 
 * `@qzr/shared@0.9.2` — unchanged
