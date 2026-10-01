@@ -511,15 +511,43 @@ schedule.post('/:id/schedule/sync', async (c) => {
   const db = getDb(c)
 
   // ---- Load current state ----
-  const currentSlots = await db
-    .select()
-    .from(schema.meetSlots)
-    .where(eq(schema.meetSlots.meetId, meetId))
-  const currentQuizzes = await db
-    .select()
-    .from(schema.scheduledQuizzes)
-    .where(eq(schema.scheduledQuizzes.meetId, meetId))
-  const currentTeams = await db.select().from(schema.teams).where(eq(schema.teams.meetId, meetId))
+  const [currentSlots, currentQuizzes, currentTeams, currentRooms] = await Promise.all([
+    db.select().from(schema.meetSlots).where(eq(schema.meetSlots.meetId, meetId)),
+    db.select().from(schema.scheduledQuizzes).where(eq(schema.scheduledQuizzes.meetId, meetId)),
+    db.select().from(schema.teams).where(eq(schema.teams.meetId, meetId)),
+    db
+      .select({ id: schema.meetRooms.id })
+      .from(schema.meetRooms)
+      .where(eq(schema.meetRooms.meetId, meetId)),
+  ])
+  const currentSlotMap = new Map(currentSlots.map((s) => [s.id, s]))
+
+  // ---- Ownership ----
+  // Positive IDs name existing rows, and requireAdmin only vouches for :id.
+  // Refuse any slot, quiz or room that isn't this meet's before writing, or
+  // a foreign quiz ID would skip the completed-quiz guard below and have its
+  // seats rewritten, and foreign rooms/slots would cross-link the meets.
+  const ownQuizIds = new Set(currentQuizzes.map((q) => q.id))
+  const ownRoomIds = new Set(currentRooms.map((r) => r.id))
+  // Sync replaces the whole schedule, so a quiz's slot must be one the payload
+  // keeps or creates; one it omits is about to be deleted.
+  const keptSlotIds = new Set(body.slots.map((s) => s.id))
+  for (const s of body.slots) {
+    if (s.id > 0 && !currentSlotMap.has(s.id)) {
+      return c.json({ error: `Slot ${s.id} is not in this meet` }, 400)
+    }
+  }
+  for (const q of body.quizzes) {
+    if (q.id > 0 && !ownQuizIds.has(q.id)) {
+      return c.json({ error: `Quiz ${q.id} is not in this meet` }, 400)
+    }
+    if (!ownRoomIds.has(q.roomId)) {
+      return c.json({ error: `Room ${q.roomId} is not in this meet` }, 400)
+    }
+    if (!keptSlotIds.has(q.slotId)) {
+      return c.json({ error: `Slot ${q.slotId} is not in this meet or payload` }, 400)
+    }
+  }
 
   // ---- Completed-quiz guard ----
   // Reject sync payloads that would delete or mutate a completed quiz.
@@ -584,7 +612,6 @@ schedule.post('/:id/schedule/sync', async (c) => {
   }
 
   // ---- Update existing slot rows ----
-  const currentSlotMap = new Map(currentSlots.map((s) => [s.id, s]))
   for (const s of body.slots) {
     if (s.id < 0) continue
     const current = currentSlotMap.get(s.id)
@@ -606,7 +633,7 @@ schedule.post('/:id/schedule/sync', async (c) => {
           eventLabel: s.eventLabel ?? null,
           sortOrder: s.sortOrder,
         })
-        .where(eq(schema.meetSlots.id, s.id))
+        .where(and(eq(schema.meetSlots.id, s.id), eq(schema.meetSlots.meetId, meetId)))
     }
   }
 
@@ -695,7 +722,9 @@ schedule.post('/:id/schedule/sync', async (c) => {
           label: labelTrim,
           bracketLabel: q.bracketLabel ?? null,
         })
-        .where(eq(schema.scheduledQuizzes.id, q.id))
+        .where(
+          and(eq(schema.scheduledQuizzes.id, q.id), eq(schema.scheduledQuizzes.meetId, meetId)),
+        )
     }
   }
 

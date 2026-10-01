@@ -48,6 +48,37 @@ async function seedSlot(db: Db, meetId: number, sortOrder = 0) {
   return slot!
 }
 
+async function seedQuizWithSeats(
+  db: Db,
+  meetId: number,
+  slotId: number,
+  roomId: number,
+  seats: { seatNumber: number; letter?: string; seedRef?: string }[],
+  overrides: Partial<typeof schema.scheduledQuizzes.$inferInsert> = {},
+) {
+  const [quiz] = await db
+    .insert(schema.scheduledQuizzes)
+    .values({
+      meetId,
+      slotId,
+      roomId,
+      division: '1',
+      phase: 'prelim',
+      label: 'D1-Q1',
+      ...overrides,
+    })
+    .returning()
+  await db.insert(schema.scheduledQuizSeats).values(
+    seats.map((s) => ({
+      quizId: quiz!.id,
+      seatNumber: s.seatNumber,
+      letter: s.letter ?? null,
+      seedRef: s.seedRef ?? null,
+    })),
+  )
+  return quiz!
+}
+
 describe('GET /api/meets/:id/rooms', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
@@ -640,6 +671,105 @@ describe('POST /api/meets/:id/schedule/sync', () => {
       .where(eq(schema.prelimAssignments.meetId, meet.id))
     expect(all).toHaveLength(LETTER_COUNT)
   })
+
+  // An admin of meet A must not reach meet B's rows by putting B's IDs in A's
+  // payload. Each foreign ID is refused before anything is written.
+  describe('IDs from another meet', () => {
+    let adminApp: ReturnType<typeof createApp>
+    let meetA: number
+    let roomA: number
+    let roomB: number
+    let slotB: number
+    let quizB: number
+
+    beforeEach(async () => {
+      adminApp = createApp(testUser, db)
+      meetA = (await seedMeet(db, 'Meet A')).id
+      roomA = (await seedRoom(db, meetA, 'Room A')).id
+      const meetB = (await seedMeet(db, 'Meet B')).id
+      roomB = (await seedRoom(db, meetB, 'Room B')).id
+      slotB = (await seedSlot(db, meetB)).id
+      const quiz = await seedQuizWithSeats(
+        db,
+        meetB,
+        slotB,
+        roomB,
+        [{ seatNumber: 1, letter: 'A' }],
+        {
+          completedAt: new Date(),
+        },
+      )
+      quizB = quiz.id
+      await db.insert(schema.adminMemberships).values({ accountId: testUser.id, meetId: meetA })
+    })
+
+    function newSlot(id: number) {
+      return {
+        id,
+        startAt: '2026-01-01T20:00:00.000Z',
+        durationMinutes: 25,
+        kind: 'quiz',
+        eventLabel: null,
+        sortOrder: 0,
+      }
+    }
+
+    function quiz(id: number, slotId: number, roomId: number) {
+      return {
+        id,
+        slotId,
+        roomId,
+        division: '1',
+        phase: 'prelim',
+        label: 'X',
+        bracketLabel: null,
+        seats: [{ seatNumber: 1, letter: 'Z', seedRef: null }],
+      }
+    }
+
+    function sync(payload: Record<string, unknown>) {
+      return adminApp.request(
+        `/api/meets/${meetA}/schedule/sync`,
+        syncReq({ ...emptyPayload(), ...payload }),
+        env,
+      )
+    }
+
+    it("refuses another meet's quiz id and leaves its seats alone", async () => {
+      const res = await sync({ slots: [newSlot(-1)], quizzes: [quiz(quizB, -1, roomA)] })
+      expect(res.status).toBe(400)
+      const seats = await db
+        .select()
+        .from(schema.scheduledQuizSeats)
+        .where(eq(schema.scheduledQuizSeats.quizId, quizB))
+      expect(seats.map((seat) => seat.letter)).toEqual(['A'])
+    })
+
+    it("refuses a quiz placed in another meet's room", async () => {
+      const res = await sync({ slots: [newSlot(-1)], quizzes: [quiz(-10, -1, roomB)] })
+      expect(res.status).toBe(400)
+    })
+
+    it("refuses a quiz placed in another meet's slot", async () => {
+      const res = await sync({ quizzes: [quiz(-10, slotB, roomA)] })
+      expect(res.status).toBe(400)
+    })
+
+    it('refuses a quiz on a slot the payload deletes', async () => {
+      const slotA = (await seedSlot(db, meetA)).id
+      const res = await sync({ quizzes: [quiz(-10, slotA, roomA)] })
+      expect(res.status).toBe(400)
+      const [row] = await db.select().from(schema.meetSlots).where(eq(schema.meetSlots.id, slotA))
+      expect(row).toBeDefined()
+    })
+
+    it("refuses an update to another meet's slot", async () => {
+      const res = await sync({ slots: [{ ...newSlot(slotB), durationMinutes: 99 }] })
+      expect(res.status).toBe(400)
+      const [row] = await db.select().from(schema.meetSlots).where(eq(schema.meetSlots.id, slotB))
+      expect(row!.durationMinutes).toBe(25)
+    })
+  })
 })
 
 describe('GET /api/meets/:id/quizzes/:quizId/teams', () => {
@@ -675,36 +805,6 @@ describe('GET /api/meets/:id/quizzes/:quizId/teams', () => {
     return { church: church!, teams }
   }
 
-  async function seedQuizWithSeats(
-    meetId: number,
-    slotId: number,
-    roomId: number,
-    seats: { seatNumber: number; letter?: string; seedRef?: string }[],
-    overrides: Partial<typeof schema.scheduledQuizzes.$inferInsert> = {},
-  ) {
-    const [quiz] = await db
-      .insert(schema.scheduledQuizzes)
-      .values({
-        meetId,
-        slotId,
-        roomId,
-        division: '1',
-        phase: 'prelim',
-        label: 'D1-Q1',
-        ...overrides,
-      })
-      .returning()
-    await db.insert(schema.scheduledQuizSeats).values(
-      seats.map((s) => ({
-        quizId: quiz!.id,
-        seatNumber: s.seatNumber,
-        letter: s.letter ?? null,
-        seedRef: s.seedRef ?? null,
-      })),
-    )
-    return quiz!
-  }
-
   it('returns 3 resolved teams + rosters for a prelim quiz', async () => {
     const meet = await seedMeet(db)
     const room = await seedRoom(db, meet.id, 'Room A')
@@ -716,7 +816,7 @@ describe('GET /api/meets/:id/quizzes/:quizId/teams', () => {
       { meetId: meet.id, division: '1', letter: 'B', teamId: teams[1]!.id, assignedAt: now },
       { meetId: meet.id, division: '1', letter: 'C', teamId: teams[2]!.id, assignedAt: now },
     ])
-    const quiz = await seedQuizWithSeats(meet.id, slot.id, room.id, [
+    const quiz = await seedQuizWithSeats(db, meet.id, slot.id, room.id, [
       { seatNumber: 1, letter: 'A' },
       { seatNumber: 2, letter: 'B' },
       { seatNumber: 3, letter: 'C' },
@@ -759,6 +859,7 @@ describe('GET /api/meets/:id/quizzes/:quizId/teams', () => {
       // '2ndA' and '1stB' deliberately unresolved
     ])
     const quiz = await seedQuizWithSeats(
+      db,
       meet.id,
       slot.id,
       room.id,
@@ -796,7 +897,7 @@ describe('GET /api/meets/:id/quizzes/:quizId/teams', () => {
     const meetB = await seedMeet(db, 'Meet B')
     const roomA = await seedRoom(db, meetA.id, 'Room A')
     const slotA = await seedSlot(db, meetA.id)
-    const quiz = await seedQuizWithSeats(meetA.id, slotA.id, roomA.id, [
+    const quiz = await seedQuizWithSeats(db, meetA.id, slotA.id, roomA.id, [
       { seatNumber: 1, letter: 'A' },
     ])
 
@@ -814,7 +915,7 @@ describe('GET /api/meets/:id/quizzes/:quizId/teams', () => {
     const meet = await seedMeet(db)
     const room = await seedRoom(db, meet.id, 'Room A')
     const slot = await seedSlot(db, meet.id)
-    const quiz = await seedQuizWithSeats(meet.id, slot.id, room.id, [
+    const quiz = await seedQuizWithSeats(db, meet.id, slot.id, room.id, [
       { seatNumber: 1, letter: 'A' },
     ])
     const anonApp = createApp(null, db)

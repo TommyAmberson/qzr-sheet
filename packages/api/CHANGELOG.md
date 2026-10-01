@@ -30,6 +30,11 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 * **Admin code kept on a refused clear** - `POST /api/meets/:id/rotate-admin-code` with
   `clearMembers` from a non-superuser rotated the code before refusing with 403, so the new code was
   never shown. It now refuses first and changes nothing
+* **Schedule sync confined to its meet** - `POST /api/meets/:id/schedule/sync` trusted positive
+  quiz, slot and room IDs from the payload. A foreign quiz ID skipped the completed-quiz guard and
+  had its seats deleted and rewritten, even for a completed quiz in another meet, and foreign rooms
+  or slots linked the two meets' rows. Any slot, quiz or room that isn't the meet's is now refused
+  with 400 before anything is written
 
 ### Bundled contract
 
