@@ -77,7 +77,12 @@ export function createAuth(env: Bindings, basePath = '/api/auth') {
     account: {
       accountLinking: {
         enabled: true,
-        // GitHub and Google both verify email addresses — safe to auto-link
+        // Trusting GitHub/Google skips only the provider-side email check.
+        // better-auth >= 1.6.11 still refuses to auto-link onto a local
+        // account whose own email is unverified (`requireLocalEmailVerified`,
+        // default true), which blocks pre-registering a victim's email with a
+        // password (GHSA-g38m-r43w-p2q7). Email/password accounts are never
+        // verified here, so they don't auto-link; don't turn that off.
         trustedProviders: ['github', 'google'],
       },
     },
