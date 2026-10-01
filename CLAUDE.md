@@ -73,7 +73,6 @@ TS/Vue/CSS with Prettier, fixes lint with ESLint, and runs `dprint` on markdown 
 * Commits must be atomic and single-responsibility — one logical change per commit.
 * Commit as you go: after each logical chunk compiles and tests pass, commit it — don't batch at the
   end.
-* Do not add `Co-Authored-By` lines.
 * Work on feature branches, not directly on master.
 * A sub-feature that will take more than one commit gets its own branch off the feature branch
   (`feat/schedule-editor` → `feat/roll-teams`), merged back with `git merge --no-ff`. Single-commit

@@ -62,7 +62,9 @@ Per `CLAUDE.md`, anything Claude writes on GitHub must be marked as AI-generated
    * `🤖 Generated with [Claude Code](https://claude.ai/code)` — for code reviews (this is what the
      `/code-review:code-review` skill template emits)
 
-Git commits are exempt — no `Co-Authored-By` trailers, and commit messages don't mention AI.
+Git commits carry their attribution as trailers instead: Claude's commits end with the
+`Co-Authored-By` and `Claude-Session` lines Claude Code appends. The message itself doesn't need to
+mention AI.
 
 The exception: when the user and Claude have collaboratively drafted content and the user explicitly
 says it's OK to skip the label/footer for that specific item.
