@@ -1,74 +1,148 @@
-# [PROJECT_NAME] Constitution
-
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# qzr Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
+### I. The Scoresheet Works Offline, Always
 
-<!-- Example: I. Library-First -->
+* Scoring a quiz MUST work with no network, no account, and no API, in the browser PWA and in Tauri
+  alike.
+* Connected features (sign-in, loading a quiz from a schedule, guest viewer links, and future ones
+  such as submitting results) MUST degrade to the standalone tool when the network or the API is
+  unavailable, and MUST NOT block entering or saving a score.
+* Auto-save to `localStorage` on every change, and explicit file save and load, MUST stay available
+  in every mode.
+* Loading a scoresheet MUST NOT silently discard scores. A `QuizFile` from an earlier `FILE_VERSION`
+  loads with defaults for the fields that version lacked; a file that fails schema validation fails
+  with a message that says why.
 
-[PRINCIPLE_1_DESCRIPTION]
+Rationale: meets run in church basements and gyms with unreliable Wi-Fi. An official mid-quiz cannot
+wait for a server, and a lost scoresheet cannot be reconstructed after the quizzers go home.
 
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### II. The Rulebook Is the Specification
 
-### [PRINCIPLE_2_NAME]
+* `docs/rules.md` (the official rulebook, transcribed) and `docs/scoring-rules-explained.md` define
+  scoring. Under the default `Rules` placement formula and `Seat` bonus rule, where code and
+  rulebook disagree, the code is the bug.
+* Every deliberate departure from the rulebook (today the `Legacy` placement formula and the `Team`
+  bonus rule) MUST be an opt-in setting on the quiz and MUST be documented in
+  `docs/scoring-rules-explained.md`.
+* The design decisions recorded in `docs/scheduling.md`, `docs/auth.md`, `docs/roles-and-access.md`,
+  and `docs/data-model.md` outrank the code for the areas they cover. A change that contradicts one
+  MUST arrive with the doc amendment that justifies it.
+* `docs/architecture.md` and `docs/ods-format.md` describe the code rather than govern it; a change
+  that alters what they describe MUST update them in the same pull request.
+* `docs/example-winkler-2026.md` is an inspiration source for how meets run where the rulebook is
+  silent, not a specification.
 
-<!-- Example: II. CLI Interface -->
+Rationale: officials and coaches trust the sheet because it matches the rulebook they already know.
+A scoring rule that drifts from the book is a wrong result at a real meet, and nobody notices until
+a placement is disputed.
 
-[PRINCIPLE_2_DESCRIPTION]
+### III. Scoring Has One Pure Implementation
 
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+* Scoring, validation, grey-out, column visibility, overtime, and placement are pure functions in
+  `apps/scoresheet/src/scoring/` over `cells[teamIdx][seatIdx][colIdx]`. They MUST NOT import Vue,
+  perform I/O, or read the store.
+* `quizStore` owns the quiz data, `useScoresheet` derives every scoring result from it, and
+  components MUST read those derived results rather than call scoring functions themselves.
+* Other packages MUST NOT reimplement or approximate a scoring rule. The first consumer outside the
+  scoresheet that needs a scoring result (the API or the portal) MUST move that function into
+  `packages/shared` and import it, never copy it.
 
-### [PRINCIPLE_3_NAME]
+Rationale: pure functions are the only part of the system that can be exhaustively unit-tested
+against the rulebook. A rule that leaks into a component or a route handler is tested less and can
+disagree with its twin, and a placement computed two ways will eventually be computed two ways
+differently.
 
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
+### IV. Meet Data Is Gated per Meet
 
-[PRINCIPLE_3_DESCRIPTION]
+* Access to a meet's data is granted by meet-scoped codes, as described in
+  `docs/roles-and-access.md`. Every API route that reads or writes a meet's data MUST authorise the
+  caller for that meet: a membership, a guest token for that meet, or superuser. Being signed in is
+  not authorisation.
+* Account sessions MUST be Better Auth cookies. The only bearer tokens are the guest JWTs in
+  `packages/api/src/lib/jwt.ts`, issued in exchange for a meet code and scoped to one meet and one
+  role. Other token schemes MUST NOT be introduced.
 
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+Rationale: meets hold quizzers' names, church affiliations, and results. Codes are the whole access
+model, so a route that checks only for a session hands every meet to every account.
 
-### [PRINCIPLE_4_NAME]
+### V. Contract Versions Are Promises
 
-<!-- Example: IV. Integration Testing -->
+* `packages/shared` is the contract between the API, the portal, and the scoresheet, and its
+  `package.json` version _is_ the contract version: equal `@qzr/shared` versions MUST mean identical
+  wire and file behaviour.
+* A commit that changes `packages/shared/src/` MUST bump `packages/shared/package.json` in that same
+  commit; `tools/check-contract-versions.sh` rejects the pair split across commits. The one
+  exception is a refactor with no observable effect, which passes `--no-verify` instead of bumping.
+  `--no-verify` MUST NOT be used for anything else.
+* Semver is read strictly: MAJOR for a breaking change to the wire format, the `QuizFile` format
+  (`FILE_VERSION`), or shared types consumers must adapt to; MINOR for additive changes consumers
+  can ignore; PATCH for an observable fix that leaves the contract's shape unchanged. Breaking
+  changes carry `!` in the commit type.
+* Each consumer release MUST name the bundled shared version under `### Bundled contract` in its
+  changelog; `tools/check-contract-versions.sh --ci` blocks the deploy otherwise.
 
-[PRINCIPLE_4_DESCRIPTION]
+Rationale: a scoresheet saved at one meet is opened in a later release at the next. The version
+number is the only signal that two parts of the system agree on what a file means, and it is
+worthless if it can drift from the behaviour.
 
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### VI. Validate Before You Merge
 
-### [PRINCIPLE_5_NAME]
+* Tests live in `__tests__/` beside the code they cover and SHOULD be written before the feature.
+  Scoring and validation changes MUST be covered by unit tests.
+* `pnpm test:unit`, `pnpm type-check`, and `pnpm lint` MUST pass before a branch merges to master;
+  CI runs them as the required `check` status.
+* Database migrations MUST be generated from the Drizzle schema diff with `db:generate`, never
+  hand-written or hand-edited. A migration that will not apply is fixed in the schema design.
 
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
+Rationale: a scoring regression is invisible until a meet, and a migration applies to production D1
+the moment an `api` version bump lands on master.
 
-[PRINCIPLE_5_DESCRIPTION]
+## Technology Constraints
 
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+* The stack is a pnpm workspace on Node `>=22.12.0`: `apps/scoresheet` (Vue 3 + Vite, shipped as a
+  PWA and wrapped by Tauri 2 for desktop and Android), `apps/web` (Vue 3 + Vite portal),
+  `packages/ui`, `packages/shared`, and `packages/api` (Hono + Drizzle on Cloudflare Workers with
+  D1). A new package or deployable MUST carry its justification in the pull request body.
+* In production the portal, the scoresheet PWA, and the API MUST stay on one origin so Better Auth
+  cookies need no CORS. Tauri webviews are the only cross-origin clients and are allow-listed in
+  `packages/api/src/index.ts`.
+* Drag interactions MUST use pointer events; the HTML5 drag API crashes Tauri on Linux/X11.
 
-## [SECTION_2_NAME]
+## Development Workflow
 
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
-
-[SECTION_2_CONTENT]
-
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
-
-## [SECTION_3_NAME]
-
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
-
-[SECTION_3_CONTENT]
-
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+* The hooks that `pnpm install` writes are the only local gates. A checkout without them is not a
+  valid development environment.
+* Work happens on `type/short-slug` branches. Pull requests merge with a merge commit and MUST NOT
+  be squashed. Master MUST NOT be rewritten; feature branches may be, freely, before they merge.
+* Commit subjects MUST pass `commitlint.config.js` (Conventional Commits, at most 50 characters),
+  merge commits included.
+* `scoresheet`, `web`, and `api` each carry their own version, changelog, and deploy workflow, and
+  release by a version bump landing on master. `shared` carries a version and changelog and is
+  tagged by the first consumer deploy that bundles it. Tags MUST NOT be created locally; CI creates
+  them.
+* Planned work lives in GitHub Issues ordered by `ROADMAP.md`, per `docs/issue-conventions.md`, and
+  `apps/web/src/views/RoadmapView.vue` is kept in step with `ROADMAP.md` when features ship.
+  Anything an agent writes on GitHub carries the attribution in `docs/issue-conventions.md` unless
+  the maintainer waives it for that item.
 
 ## Governance
 
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+This constitution states principles. `CLAUDE.md` holds the mechanics they compile down to and the
+runtime guidance for agents, and each rule has one home: where the two disagree, this document
+decides the principle and the divergence MUST be fixed in the operational file. Where this document
+is silent, `CLAUDE.md` governs.
 
-[GOVERNANCE_RULES]
+`.specify/templates/overrides/plan-template.md` turns each principle into a yes/no gate in every
+plan's Constitution Check. Amending a principle MUST update its gate in the same pull request.
 
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+Amendments arrive as a pull request that changes this file, bumps the version below by semver (MAJOR
+for a removed or redefined principle, MINOR for a new or materially expanded one, PATCH for
+clarification), and updates the amendment date. The Sync Impact Report that `/speckit-constitution`
+produces goes in that pull request's body, not in this file. The maintainer checks each plan's
+Constitution Check and each merge against these principles; an exception MUST be justified in the
+plan's Complexity Tracking or the pull request body, and an exception that outlives its
+justification is a defect to be removed.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**:
-[LAST_AMENDED_DATE]
-
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-01
