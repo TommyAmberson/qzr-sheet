@@ -30,6 +30,10 @@ portal/API/infra work shipped on that tag.
 * **Opening a file from a newer scoresheet** asks whether to try anyway instead of failing. A quiz
   opened that way shows a warning that it may be scored wrong until another quiz replaces it. An
   unknown quiz format still fails, by name.
+* **Auto-saves from a newer scoresheet are kept**, not deleted. The sheet starts empty and shows a
+  notice offering to try opening the kept quiz or to discard it. If storage is too full to set it
+  aside, auto-save pauses and the tutorial is unavailable until it is discarded, so nothing
+  overwrites it.
 
 ### Changed
 

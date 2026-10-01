@@ -27,11 +27,8 @@ export function fileVersionFor(format: QuizFormat): 2 | 3 {
 
 /** A file saved by a newer scoresheet. `parseQuizFileAttempt` can still try to open it. */
 export class NewerFileVersionError extends Error {
-  constructor(readonly fileVersion: number) {
-    super(
-      `This file was saved by a newer version of the scoresheet (file version ${fileVersion}). ` +
-        'Update to open it reliably.',
-    )
+  constructor() {
+    super('This file was saved by a newer version of the scoresheet')
     this.name = 'NewerFileVersionError'
   }
 }
@@ -189,7 +186,7 @@ export function parseQuizFile(json: string): DeserializeResult {
   const raw: unknown = JSON.parse(json)
   const version = (raw as { version?: unknown } | null)?.version
   if (typeof version === 'number' && version > FILE_VERSION) {
-    throw new NewerFileVersionError(version)
+    throw new NewerFileVersionError()
   }
   assertKnownFormat(raw)
   return deserialize(Value.Parse(QuizFileSchema, raw))

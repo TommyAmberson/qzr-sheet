@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { resetAutoSave } from '../../persistence/__tests__/resetAutoSave'
 import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
 import { useMeetSession } from '../useMeetSession'
 import { TUTORIAL_STEPS } from '../../tutorial/tutorialSteps'
 import { CellValue, QuizFormat } from '../../types/scoresheet'
 import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
+import { serializeStore } from '../../persistence/quizFile'
 
 const T = toTeamIdx
 const S = toSeatIdx
@@ -26,7 +28,7 @@ vi.mock('../../persistence/quizFile', async () => {
 })
 
 beforeEach(() => {
-  localStorage.clear()
+  resetAutoSave()
   forceParseFailure = false
 })
 
@@ -310,5 +312,128 @@ describe('useTutorial — a quiz opened from a newer file', () => {
     const next = useScoresheet()
     expect(useTutorial(next).recoverFromCrash()).toBe(true)
     expect(next.openedFromNewerFile.value).toBe(true)
+  })
+})
+
+describe("useTutorial — crash recovery of a newer build's snapshot", () => {
+  it('sets the snapshot aside instead of deleting it', () => {
+    const s = useScoresheet()
+    const { id: _, ...quiz } = s.store.quiz
+    const newer = JSON.stringify({
+      version: 99,
+      quiz: { ...quiz, questionTypes: [] },
+      teams: [],
+      answers: [],
+      noJumps: [],
+    })
+    localStorage.setItem('qzr-sheet:tutorial-snapshot', newer)
+    expect(useTutorial(s).recoverFromCrash()).toBe(false)
+    expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBeNull()
+    expect(s.keptNewerAutoSaves.value).toHaveLength(1)
+  })
+})
+
+describe('useTutorial — a newer snapshot that cannot be set aside', () => {
+  it('stays in place, is listed, and the tutorial will not start until it is discarded', () => {
+    const s = useScoresheet()
+    const { id: _, ...quiz } = s.store.quiz
+    const newer = JSON.stringify({
+      version: 99,
+      quiz: { ...quiz, questionTypes: [] },
+      teams: [],
+      answers: [],
+      noJumps: [],
+    })
+    localStorage.setItem('qzr-sheet:tutorial-snapshot', newer)
+    // Storage is full: setting the snapshot aside fails
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (key) {
+      if (String(key).startsWith('qzr-sheet:newer-autosave:')) throw new Error('quota')
+    })
+    try {
+      expect(useTutorial(s).recoverFromCrash()).toBe(false)
+    } finally {
+      setItem.mockRestore()
+    }
+    expect(s.keptNewerAutoSaves.value).toEqual(['qzr-sheet:tutorial-snapshot'])
+
+    expect(s.tutorialBlockedByKept.value).toBe(true)
+    const t = useTutorial(s)
+    t.start()
+    expect(t.active.value).toBe(false)
+    expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBe(newer)
+
+    s.discardKeptNewerAutoSave()
+    expect(s.tutorialBlockedByKept.value).toBe(false)
+    expect(s.keptNewerAutoSaves.value).toEqual([])
+  })
+})
+
+describe('useTutorial — keeping the quiz recoverable around a kept newer quiz', () => {
+  const realSetItem = Storage.prototype.setItem
+  // Storage is full: setting a newer quiz aside fails, every other write goes through
+  const failSettingAside = () =>
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (key.startsWith('qzr-sheet:newer-autosave:')) throw new Error('quota')
+      realSetItem.call(this, key, value)
+    })
+
+  function newerFile(s: ReturnType<typeof useScoresheet>) {
+    const { id: _, ...quiz } = s.store.quiz
+    return JSON.stringify({
+      version: 99,
+      quiz: { ...quiz, questionTypes: [] },
+      teams: [],
+      answers: [],
+      noJumps: [],
+    })
+  }
+
+  it('will not start, so the auto-save stays intact, while its slot holds a kept newer quiz', () => {
+    const s = useScoresheet()
+    localStorage.setItem('qzr-sheet:tutorial-snapshot', newerFile(s))
+    const spy = failSettingAside()
+    try {
+      useTutorial(s).recoverFromCrash()
+    } finally {
+      spy.mockRestore()
+    }
+    // The official's quiz is auto-saved, then they start the tutorial and the app crashes
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    localStorage.setItem(
+      'qzr-sheet:current',
+      serializeStore(s.store, s.noJumpMap.value, s.timeoutMap.value),
+    )
+    const t = useTutorial(s)
+    t.start()
+    expect(t.active.value).toBe(false)
+    const afterCrash = useScoresheet()
+    expect(afterCrash.cells.value[0]![0]![0]).toBe(CellValue.Correct)
+  })
+
+  it('keeps the crash snapshot until the recovered quiz is actually saved', () => {
+    const s = useScoresheet()
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    const snapshot = serializeStore(s.store, s.noJumpMap.value, s.timeoutMap.value)
+    // A newer auto-save that can't be moved holds qzr-sheet:current, so auto-save is paused
+    localStorage.setItem('qzr-sheet:current', newerFile(s))
+    localStorage.setItem('qzr-sheet:tutorial-snapshot', snapshot)
+    const spy = failSettingAside()
+    let next: ReturnType<typeof useScoresheet>
+    try {
+      next = useScoresheet()
+    } finally {
+      spy.mockRestore()
+    }
+    expect(useTutorial(next).recoverFromCrash()).toBe(true)
+    expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBe(snapshot)
+
+    next.discardKeptNewerAutoSave()
+    expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBeNull()
+    const saved = JSON.parse(localStorage.getItem('qzr-sheet:current')!)
+    expect(saved.answers).toHaveLength(1)
   })
 })

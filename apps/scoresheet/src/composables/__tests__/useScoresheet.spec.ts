@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { resetAutoSave } from '../../persistence/__tests__/resetAutoSave'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../useScoresheet'
 import { CellValue, QuestionCategory, QuizFormat } from '../../types/scoresheet'
@@ -8,7 +9,9 @@ const T = toTeamIdx
 const S = toSeatIdx
 const C = toColIdx
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  resetAutoSave()
+})
 
 describe('useScoresheet — initial state', () => {
   it('has 3 teams', () => {
@@ -550,5 +553,63 @@ describe('useScoresheet — keeping a 15-question quiz', () => {
       { fromNewerFile: true },
     )
     expect(useScoresheet().openedFromNewerFile.value).toBe(true)
+  })
+})
+
+describe('useScoresheet — an auto-save from a newer version', () => {
+  it('is offered back and opens on request, flagged as from a newer file', () => {
+    const { id: _, ...quiz } = useScoresheet().store.quiz
+    const newer = {
+      version: 99,
+      quiz: { ...quiz, division: '8', questionTypes: [] },
+      teams: [],
+      answers: [],
+      noJumps: [],
+    }
+    localStorage.setItem('qzr-sheet:current', JSON.stringify(newer))
+    const s = useScoresheet()
+    expect(s.keptNewerAutoSaves.value).toHaveLength(1)
+    s.openKeptNewerAutoSave()
+    expect(s.quiz.value.division).toBe('8')
+    expect(s.openedFromNewerFile.value).toBe(true)
+    // Only Discard removes the kept original
+    expect(s.keptNewerAutoSaves.value).toHaveLength(1)
+  })
+
+  it('can be discarded', () => {
+    localStorage.setItem('qzr-sheet:current', JSON.stringify({ version: 99 }))
+    const s = useScoresheet()
+    expect(s.keptNewerAutoSaves.value).toHaveLength(1)
+    s.discardKeptNewerAutoSave()
+    expect(s.keptNewerAutoSaves.value).toHaveLength(0)
+  })
+})
+
+describe('useScoresheet — discarding a newer auto-save that paused auto-save', () => {
+  it('saves the sheet straight away, keeping work done during the pause', () => {
+    localStorage.setItem('qzr-sheet:current', JSON.stringify({ version: 99 }))
+    // Storage is full: the newer auto-save can't be set aside, so auto-save pauses
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (key) {
+      if (String(key).startsWith('qzr-sheet:newer-autosave:')) throw new Error('quota')
+    })
+    let s: ReturnType<typeof useScoresheet>
+    try {
+      s = useScoresheet()
+    } finally {
+      setItem.mockRestore()
+    }
+    expect(s.autoSavePausedForKept.value).toBe(true)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.discardKeptNewerAutoSave()
+    const saved = JSON.parse(localStorage.getItem('qzr-sheet:current')!)
+    expect(saved.answers).toHaveLength(1)
+  })
+})
+
+describe('useScoresheet — the newer-file warning with nothing restored', () => {
+  it('is cleared when the auto-save could not be restored', () => {
+    localStorage.setItem('qzr-sheet:opened-from-newer-file', '1')
+    localStorage.setItem('qzr-sheet:current', '{not json')
+    expect(useScoresheet().openedFromNewerFile.value).toBe(false)
   })
 })

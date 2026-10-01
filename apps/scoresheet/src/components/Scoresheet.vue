@@ -361,6 +361,12 @@ const {
   visibleOtRounds,
   rules,
   openedFromNewerFile,
+  keptNewerAutoSaves,
+  autoSavePausedForKept,
+  tutorialBlockedByKept,
+  refreshKeptNewerAutoSaves,
+  openKeptNewerAutoSave,
+  discardKeptNewerAutoSave,
   allQuestionsComplete,
   validationErrors,
   timeoutValidationErrors,
@@ -394,6 +400,7 @@ const {
 const tutorial = useTutorial({
   store,
   openedFromNewerFile,
+  refreshKeptNewerAutoSaves,
   noJumpMap,
   timeoutMap,
   pauseAutoSave,
@@ -714,6 +721,36 @@ async function openJsonQuiz(json: string) {
   }
 }
 
+function startTutorial() {
+  if (tutorialBlockedByKept.value) {
+    alert(
+      'The tutorial is unavailable while a quiz from a newer version is kept. Discard it first ' +
+        '(to keep a copy, open it and save it to a file before discarding).',
+    )
+    return
+  }
+  tutorial.start()
+}
+
+async function tryOpenKeptAutoSave() {
+  if (isDirty.value && !(await confirmAction('Open the kept quiz? Unsaved changes will be lost.')))
+    return
+  if (!(await confirmAction(TRY_NEWER_PROMPT))) return
+  try {
+    openKeptNewerAutoSave()
+  } catch (e) {
+    alert(`Failed to open the kept quiz: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
+async function discardKeptAutoSave() {
+  if (
+    !(await confirmAction('Discard the quiz auto-saved by a newer version? This cannot be undone.'))
+  )
+    return
+  discardKeptNewerAutoSave()
+}
+
 const formatBadge = computed(() =>
   quiz.value.format === QuizFormat.FifteenQuestion ? '15 Q' : '20 Q',
 )
@@ -1009,7 +1046,7 @@ const appVersion: string = __APP_VERSION__
                     <button @click="openSchedulePicker">📅 Load from schedule…</button>
                   </div>
                 </div>
-                <button class="help-toggle" title="Interactive tutorial" @click="tutorial.start()">
+                <button class="help-toggle" title="Interactive tutorial" @click="startTutorial">
                   ?
                 </button>
               </div>
@@ -1033,11 +1070,20 @@ const appVersion: string = __APP_VERSION__
           </div>
         </div>
 
-        <div v-if="openedFromNewerFile" class="notice-row">
+        <div v-if="openedFromNewerFile || keptNewerAutoSaves.length" class="notice-row">
           <div class="col--left-spacer" />
           <div class="notice-row-inner">
             <p v-if="openedFromNewerFile" class="notice">
               Opened from a newer file; may be scored wrong.
+            </p>
+            <p v-if="keptNewerAutoSaves.length" class="notice">
+              An auto-saved quiz from a newer version was kept{{
+                keptNewerAutoSaves.length > 1 ? ` (${keptNewerAutoSaves.length} kept)` : ''
+              }}.<template v-if="autoSavePausedForKept">
+                Auto-save is paused until it is discarded, so nothing overwrites it.</template
+              >
+              <button class="notice-action" @click="tryOpenKeptAutoSave">Try to open it</button>
+              <button class="notice-action" @click="discardKeptAutoSave">Discard</button>
             </p>
           </div>
         </div>
@@ -1715,6 +1761,16 @@ const appVersion: string = __APP_VERSION__
   color: var(--color-error);
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.notice-action {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--color-invalid);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  cursor: pointer;
 }
 
 .meta-row-inner {

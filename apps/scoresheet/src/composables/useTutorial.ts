@@ -1,6 +1,17 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { CellValue, QUIZZERS_PER_TEAM, type Timeout } from '../types/scoresheet'
-import { serializeStore, parseQuizFile, type DeserializeResult } from '../persistence/quizFile'
+import {
+  serializeStore,
+  parseQuizFile,
+  NewerFileVersionError,
+  type DeserializeResult,
+} from '../persistence/quizFile'
+import {
+  keepNewerAutoSave,
+  keepNewerInPlace,
+  hasNewerKeptInPlace,
+  removeOnceSaved,
+} from '../persistence/autoSave'
 import type { QuizStore } from '../stores/quizStore'
 import { TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
 import { useMeetSession, type MeetSessionData } from './useMeetSession'
@@ -30,6 +41,7 @@ export interface ScoresheetAPI {
   moveQuizzer: (teamIdx: TeamIdx, from: SeatIdx, to: SeatIdx) => void
   loadFile: (data: DeserializeResult, options?: { fromNewerFile?: boolean }) => void
   resetStore: () => void
+  refreshKeptNewerAutoSaves: () => void
   columns: { value: { key: string }[] }
 }
 
@@ -57,6 +69,9 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   const totalSteps = TUTORIAL_STEPS.length
 
   function start() {
+    // A newer quiz kept in place pins the crash-recovery and auto-save slots the tutorial relies
+    // on, so the tutorial waits until it is discarded (a deliberate trade-off; see the spec)
+    if (hasNewerKeptInPlace()) return
     const serialized = serializeStore(
       scoresheet.store,
       scoresheet.noJumpMap.value,
@@ -367,12 +382,22 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     try {
       const data = parseQuizFile(saved)
       scoresheet.loadFile(data, { fromNewerFile: localStorage.getItem(FROM_NEWER_KEY) === '1' })
-      localStorage.removeItem(SNAPSHOT_KEY)
+      // The snapshot is the quiz's only copy until it is saved, which waits while auto-save is paused
+      removeOnceSaved(SNAPSHOT_KEY)
       localStorage.removeItem(FROM_NEWER_KEY)
-    } catch {
-      // Quiz parse failed — clean up both keys so we don't leak stale state.
-      localStorage.removeItem(SNAPSHOT_KEY)
+    } catch (e) {
+      if (e instanceof NewerFileVersionError) {
+        // A newer build's snapshot is the only copy of its quiz: set it aside like a newer
+        // auto-save, or keep it where it is (listed, never overwritten) if that fails
+        if (keepNewerAutoSave(saved)) localStorage.removeItem(SNAPSHOT_KEY)
+        else keepNewerInPlace(SNAPSHOT_KEY)
+        scoresheet.refreshKeptNewerAutoSaves()
+      } else {
+        // The parse failed — clean up so we don't leak stale state.
+        localStorage.removeItem(SNAPSHOT_KEY)
+      }
       localStorage.removeItem(MEET_SNAPSHOT_KEY)
+      localStorage.removeItem(FROM_NEWER_KEY)
       return false
     }
     // Re-link the meet if a snapshot was persisted. Best-effort: if the

@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, shallowRef, watch } from 'vue'
 import { useHistory } from './useHistory'
 import {
   readOpenedFromNewerFile,
@@ -35,8 +35,17 @@ import {
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
 import { teamSeatKey, toSeatIdx, toTeamIdx, type TeamSeat } from '../types/indices'
-import type { DeserializeResult } from '../persistence/quizFile'
-import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/autoSave'
+import { parseQuizFileAttempt, type DeserializeResult } from '../persistence/quizFile'
+import {
+  saveToStorage,
+  loadFromStorage,
+  clearStorage,
+  listKeptNewerAutoSaves,
+  isAutoSavePausedForNewer,
+  hasNewerKeptInPlace,
+  readKeptNewerAutoSave,
+  discardKeptNewerAutoSave as discardKeptAutoSaveKey,
+} from '../persistence/autoSave'
 
 /**
  * Seat vs. Quizzer: the positional indices used throughout this composable
@@ -110,6 +119,42 @@ export function useScoresheet() {
     if (restored.answers.length > 0 || restored.quizzers.some((q) => q.name.trim())) {
       history.push({ undo: () => {}, redo: () => {} })
     }
+  } else {
+    // Nothing restored (empty, corrupt, or a newer auto-save set aside): no quiz to warn about
+    openedFromNewerFile.value = false
+  }
+
+  /** Keys of auto-saves from a newer version, which loadFromStorage set aside above */
+  const keptNewerAutoSaves = shallowRef(listKeptNewerAutoSaves())
+  /** Auto-save is paused because a kept newer auto-save couldn't be moved out of its way */
+  const autoSavePausedForKept = shallowRef(isAutoSavePausedForNewer())
+  /** A newer quiz kept in place blocks the tutorial until it is discarded */
+  const tutorialBlockedByKept = shallowRef(hasNewerKeptInPlace())
+
+  function refreshKeptNewerAutoSaves(): void {
+    keptNewerAutoSaves.value = listKeptNewerAutoSaves()
+    autoSavePausedForKept.value = isAutoSavePausedForNewer()
+    tutorialBlockedByKept.value = hasNewerKeptInPlace()
+  }
+
+  /**
+   * Best-effort open of the most recent kept auto-save; throws if it can't be read. The kept
+   * original stays until it is discarded: the opened copy has lost whatever this build can't read.
+   */
+  function openKeptNewerAutoSave(): void {
+    const key = keptNewerAutoSaves.value[0]
+    if (!key) return
+    const json = readKeptNewerAutoSave(key)
+    if (json !== null) loadFile(parseQuizFileAttempt(json), { fromNewerFile: true })
+  }
+
+  function discardKeptNewerAutoSave(): void {
+    const key = keptNewerAutoSaves.value[0]
+    if (!key) return
+    discardKeptAutoSaveKey(key)
+    refreshKeptNewerAutoSaves()
+    // If that quiz was pausing auto-save, save the sheet now so work done meanwhile survives a reload
+    if (!pauseAutoSave.value) saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
 
   /** Columns built reactively — regulation when OT is off, + OT rounds when on */
@@ -794,6 +839,12 @@ export function useScoresheet() {
     columns,
     rules,
     openedFromNewerFile,
+    keptNewerAutoSaves,
+    autoSavePausedForKept,
+    tutorialBlockedByKept,
+    refreshKeptNewerAutoSaves,
+    openKeptNewerAutoSave,
+    discardKeptNewerAutoSave,
     quiz,
     teams,
     teamQuizzers,
