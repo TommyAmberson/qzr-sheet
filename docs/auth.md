@@ -12,7 +12,10 @@ all meets — no membership rows are needed.
 
 ## Implementation
 
-Auth is handled by [Better Auth](https://better-auth.com) mounted at `/api/auth/*` in Hono.
+Auth is handled by [Better Auth](https://better-auth.com) mounted at `/qzr/api/auth/*` in Hono.
+Until switch day the API also answers at the root, so `/api/auth/*` works too. The auth handler
+passes Better Auth the base path of the mount that matched (Hono's `routePath`): OAuth callbacks are
+built from it, so each entrance gets callbacks that come back to it.
 
 ### Sign-in methods
 
@@ -39,14 +42,20 @@ Both providers verify email addresses, making this safe.
 User sessions are stored as `HttpOnly` cookies set by Better Auth. No `localStorage` involvement for
 user auth. Better Auth handles session creation, expiry, and rotation automatically.
 
+The cookies carry the `qzr` prefix (`__Secure-qzr.session_token`, ...) via `advanced.cookiePrefix`.
+verse-vault runs Better Auth on the same host with the default `better-auth` prefix, and sharing the
+names let each app overwrite the other's session.
+
 ## OAuth in Tauri
 
 OAuth sign-in works in both web and Tauri contexts, but the redirect mechanism differs.
 
 ### Web (PWA in browser)
 
-Standard OAuth popup. The provider redirects back to `www.versevault.ca/auth/callback`, the page
-extracts the authorization code, sends it to the API to exchange for a session cookie.
+Standard OAuth redirect. The provider sends the user back to Better Auth's callback,
+`https://www.versevault.ca/qzr/api/auth/callback/{github,google}`, which sets the session cookie and
+returns to the page sign-in started on. Both callback URLs must be registered with the providers;
+during the move the root `/api/auth/callback/...` ones stay registered too.
 
 ### Tauri (native desktop)
 
