@@ -1245,7 +1245,7 @@ const appVersion: string = __APP_VERSION__
                     hasTimeoutAt(team.id, col.key) && !isTimeoutAllowed(col.key)
                       ? validationMessage(ValidationCode.TimeoutAfterErrorPoints)
                       : hasTimeoutAt(team.id, col.key) && tooManyTimeoutsTeams.has(teamIdx)
-                        ? 'Each team is allowed only 2 timeouts per quiz'
+                        ? validationMessage(ValidationCode.TooManyTimeouts)
                         : undefined
                   "
                   @click.stop="toggleTimeout(team.id, col.key)"

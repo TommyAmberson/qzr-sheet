@@ -120,7 +120,7 @@ export function scoreTeam(
             }
           }
 
-          // Quizout bonus: awarded on the question where the quiz-out correct happens
+          // Quizout bonus: awarded on the answer that quizzes the quizzer out
           if (qCorrect[seatIdx] === rules.quizOutCorrect && qError[seatIdx] === 0) {
             qHasQuizoutBonus[seatIdx] = true
             colPoints += 10
