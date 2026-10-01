@@ -31,11 +31,15 @@ async function verifyPassword({
   return timingSafeEqual(Buffer.from(key, 'hex'), derived)
 }
 
-export function createAuth(env: Bindings) {
+// `basePath` is the entrance the request came in on (`/api/auth` or
+// `/qzr/api/auth`): OAuth callbacks are built from it, so they return there.
+export function createAuth(env: Bindings, basePath = '/api/auth') {
   const db = drizzle(env.DB, { schema })
 
   return betterAuth({
+    // Bare origin: Better Auth appends `basePath`, and ignores it if baseURL has a path.
     baseURL: env.API_BASE_URL,
+    basePath,
     secret: env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: 'sqlite', schema }),
     trustedOrigins: [
