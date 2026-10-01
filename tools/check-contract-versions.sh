@@ -25,7 +25,7 @@
 # the CI check by ensuring the consumer changelog explicitly notes that
 # the contract version is unchanged from the previous release.
 #
-# See CLAUDE.md "Contract package versioning" and "Releasing".
+# See CONTRIBUTING.md "Contract package versioning" and "Releasing".
 
 set -euo pipefail
 
@@ -97,7 +97,7 @@ check_version_promotion() {
   dated "## [$new_version] - YYYY-MM-DD" section staged.
 
   Promote the [Unreleased] entries to a dated section for $new_version in
-  the same commit. See CLAUDE.md "Releasing".
+  the same commit. See CONTRIBUTING.md "Releasing".
 
 EOF
 	return 1

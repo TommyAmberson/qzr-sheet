@@ -13,7 +13,7 @@ covered API changes. This per-package changelog starts fresh from 0.9.1 as the b
 
 Each release section must include a `### Bundled contract` subsection naming the current
 `@qzr/shared` version. A mismatch between the version named here and what consumers ship is a real
-wire/state compatibility signal — see CLAUDE.md "Contract package versioning".
+wire/state compatibility signal — see CONTRIBUTING.md "Contract package versioning".
 
 ## [Unreleased]
 

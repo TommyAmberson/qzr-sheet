@@ -136,10 +136,10 @@ the moment an `api` version bump lands on master.
 
 ## Governance
 
-This constitution states principles. `CLAUDE.md` holds the mechanics they compile down to and the
-runtime guidance for agents, and each rule has one home: where the two disagree, this document
-decides the principle and the divergence MUST be fixed in the operational file. Where this document
-is silent, `CLAUDE.md` governs.
+This constitution states principles. `CONTRIBUTING.md` holds the mechanics they compile down to, and
+`CLAUDE.md` the runtime guidance for agents. Each rule has one home: where an operational file
+disagrees with this document, this document decides the principle and the divergence MUST be fixed
+in the operational file. Where this document is silent, `CONTRIBUTING.md` governs.
 
 `.specify/templates/overrides/plan-template.md` turns each principle into a yes/no gate in every
 plan's Constitution Check. Amending a principle MUST update its gate in the same pull request.
@@ -152,4 +152,4 @@ Constitution Check and each merge against these principles; an exception MUST be
 plan's Complexity Tracking or the pull request body, and an exception that outlives its
 justification is a defect to be removed.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-01
+**Version**: 1.2.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-01
