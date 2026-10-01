@@ -26,6 +26,8 @@ export interface Quiz {
   consolation: boolean
   placementFormula: PlacementFormula
   bonusRule: BonusRule
+  /** Set when the quiz is created; never changed afterwards. Default 20-question */
+  format: QuizFormat
   /** Question category per column key (e.g. "1" → INT, "16A" → FTV) */
   questionTypes: Map<string, QuestionCategory>
 }

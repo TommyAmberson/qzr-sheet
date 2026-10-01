@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { TWENTY_QUESTION_RULES as TWENTY } from '../../scoring/quizRules'
 import { createQuizStore } from '../quizStore'
-import { CellValue, buildColumns, buildKeyToIdx } from '../../types/scoresheet'
+import { CellValue, QuizFormat, buildColumns, buildKeyToIdx } from '../../types/scoresheet'
 import { toQuizzerId } from '../../types/indices'
 
 const COLUMNS = buildColumns(TWENTY)
@@ -228,5 +228,23 @@ describe('quizStore', () => {
   it('teamForQuizzer returns undefined for unknown quizzer', () => {
     const store = createQuizStore()
     expect(store.teamForQuizzer(toQuizzerId(999))).toBeUndefined()
+  })
+})
+
+describe('quizStore format', () => {
+  it('starts as a 20-question quiz', () => {
+    expect(createQuizStore().quiz.format).toBe(QuizFormat.TwentyQuestion)
+  })
+
+  it('loadState keeps the loaded format', () => {
+    const store = createQuizStore()
+    const { id: _, ...quiz } = store.quiz
+    store.loadState({
+      quiz: { ...quiz, format: QuizFormat.FifteenQuestion },
+      teams: [...store.teams],
+      quizzers: [...store.quizzers],
+      answers: [],
+    })
+    expect(store.quiz.format).toBe(QuizFormat.FifteenQuestion)
   })
 })

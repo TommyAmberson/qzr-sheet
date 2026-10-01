@@ -131,6 +131,7 @@ export function deserialize(file: QuizFile): DeserializeResult {
       consolation: file.quiz.consolation ?? false,
       placementFormula: file.quiz.placementFormula ?? PlacementFormula.Rules,
       bonusRule: file.quiz.bonusRule ?? BonusRule.Seat,
+      format: file.quiz.format ?? QuizFormat.TwentyQuestion,
       questionTypes,
     },
     teams,

@@ -14,7 +14,7 @@ import {
 } from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
 import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
-import { TWENTY_QUESTION_RULES, lastTimeoutQuestion, type QuizRules } from '../scoring/quizRules'
+import { quizRules, lastTimeoutQuestion, type QuizRules } from '../scoring/quizRules'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
 import { validateCells, ValidationCode, validationMessage } from '../scoring/validation'
 import { isBonusSituation } from '../scoring/helpers'
@@ -51,7 +51,7 @@ export function useScoresheet() {
   const quiz = ref<Quiz>(store.quiz)
 
   /** Structural rules for the quiz's format */
-  const rules = computed<QuizRules>(() => TWENTY_QUESTION_RULES)
+  const rules = computed<QuizRules>(() => quizRules(quiz.value.format))
 
   /**
    * Internally tracked overtime round count.

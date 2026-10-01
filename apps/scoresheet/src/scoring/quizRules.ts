@@ -1,3 +1,5 @@
+import { QuizFormat } from '@qzr/shared'
+
 /**
  * The structural numbers that differ between quiz formats. Everything else about scoring
  * (error-out, foul-out, bonus chains, deductions) is shared by every format.
@@ -22,6 +24,15 @@ export const TWENTY_QUESTION_RULES: QuizRules = Object.freeze({
   quizOutCorrect: 4,
   overtimeRoundSize: 3,
 })
+
+export function quizRules(format: QuizFormat): QuizRules {
+  switch (format) {
+    case QuizFormat.TwentyQuestion:
+      return TWENTY_QUESTION_RULES
+    case QuizFormat.FifteenQuestion:
+      throw new Error('15-question rules are not implemented yet')
+  }
+}
 
 export function firstOvertimeQuestion(rules: QuizRules): number {
   return rules.regulationQuestions + 1
