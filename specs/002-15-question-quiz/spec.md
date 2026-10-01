@@ -32,15 +32,27 @@ tie-breaker's quiz-out of 3 correct:
 | Regulation questions                 | 1 to 20          | 1 to 15          |
 | Questions with A/B sub-questions     | 16 to 20         | 11 to 15         |
 | Error points (and 10-point bonuses)  | from 17          | from 12          |
-| Last question a timeout may follow   | 16               | 11               |
+| Timeouts allowed until error points  | before 17        | before 12        |
 | Quiz-out, and the quiz-out bonus     | 4 correct        | 3 correct        |
 | First overtime question              | 21               | 16               |
 | Error-out, foul-out                  | 3, 3             | 3, 3             |
 | 3rd, 4th, 5th unique quizzer bonuses | yes              | yes              |
 | On-time bonus                        | yes              | yes              |
+| Timeouts per team                    | 2                | 2                |
 
 This spec delivers the **three-team** 15-question quiz. The two-team rulebook tie-breaker (§2.b),
 which also needs a two-team scoresheet, is a later feature.
+
+## Clarifications
+
+### Session 2026-10-01
+
+* Q: In a 15-question quiz, when is the last point a team may call a timeout? → A: No timeouts after
+  error points are announced, so the cutoff follows the start of error points (before question 12 in
+  a 15-question quiz, before 17 in a 20-question quiz).
+* Q: How many timeouts does each team get in a 15-question quiz? → A: 2 per team, as in a
+  20-question quiz. Rules like this one, which the rulebook does not state for this format, get
+  their own section in the scoring rules reference.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -186,9 +198,9 @@ export works as before.
   bonus for 3 correct answers with no errors.
 * **FR-005**: Error-out, foul-out, team foul and team error deductions, the unique-quizzer bonuses,
   and the on-time bonus MUST behave identically in both formats.
-* **FR-006**: In a 15-question quiz the sheet MUST accept a timeout after question 11, 11A, or 11B
-  and MUST refuse one after question 12 or later, as a 20-question quiz accepts one after 16, 16A,
-  or 16B and refuses one after 17 or later.
+* **FR-006**: No timeout may be called once error points have begun. In a 15-question quiz the sheet
+  MUST accept a timeout after question 11, 11A, or 11B and MUST refuse one after question 12 or
+  later, as a 20-question quiz accepts one after 16, 16A, or 16B and refuses one after 17 or later.
 * **FR-007**: When overtime is on, a 15-question quiz MUST offer overtime once questions 1 to 15 are
   complete and two or more teams are tied, in rounds of three numbered from 16, with the same
   overtime rules as a 20-question quiz.
@@ -205,9 +217,13 @@ export works as before.
   Spreadsheet import MUST continue to produce a 20-question quiz.
 * **FR-013**: Every scoring result for a 20-question quiz (totals, outs, bonuses, deductions,
   grey-outs, validation, overtime, placement) MUST be unchanged by this feature.
-* **FR-014**: Because the rulebook does not define a three-team 15-question quiz, the format and
-  each rule in the Context table MUST be documented as an opt-in departure in the scoring rules
-  reference, as the constitution requires for every departure from the rulebook.
+* **FR-014**: Because the rulebook does not define a three-team 15-question quiz, the scoring rules
+  reference MUST gain a dedicated section of rules not grounded in the rulebook. It MUST list every
+  15-question rule in the Context table, and for each one say what it is based on: the 20-question
+  rule it shifts, the two-team tie-breaker (§2.b) rule it borrows, or the maintainer's practice-meet
+  convention. This satisfies the constitution's requirement that every departure from the rulebook
+  be opt-in and documented.
+* **FR-015**: Each team MUST be allowed 2 timeouts in a 15-question quiz, as in a 20-question quiz.
 
 ### Key Entities
 
@@ -239,8 +255,6 @@ export works as before.
 
 * Three-team 15-question rules are the user's stated practice-meet format: the 20-question structure
   shifted five questions earlier, with quiz-out (and its bonus) at 3 correct.
-* The timeout cutoff shifts with the rest of the final stretch: timeouts may follow question 11 at
-  the latest, as they may follow question 16 at the latest in a 20-question quiz.
 * Placement points apply the existing formulas unchanged to the end-of-regulation score, even though
   practice-meet stats don't count; a 15-question quiz simply scores lower.
 * The quiz format is chosen per quiz on the scoresheet. Meets and schedules do not yet record a
