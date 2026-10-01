@@ -159,8 +159,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # The action installs `tools platform-tools` by default, but `tools` is gone
+      # from current SDK command-line tools and sdkmanager fails on it. The
+      # platform, build-tools, and NDK come from the next step.
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install Android targets
         run: |
