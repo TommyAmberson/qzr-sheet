@@ -21,14 +21,19 @@ qzr/
 
 ## Deployable Units
 
-| URL                             | App            | Infra      |
-| ------------------------------- | -------------- | ---------- |
-| `www.versevault.ca/scoresheet/` | Scoresheet PWA | CF Pages   |
-| `www.versevault.ca/`            | Portal         | CF Pages   |
-| `www.versevault.ca/api/`        | API            | CF Workers |
-| `www.versevault.ca/qzr/api/`    | API            | CF Workers |
+| URL                                 | App            | Infra                            |
+| ----------------------------------- | -------------- | -------------------------------- |
+| `www.versevault.ca/qzr/scoresheet/` | Scoresheet PWA | `qzr-web` Worker (static assets) |
+| `www.versevault.ca/qzr/`            | Portal         | `qzr-web` Worker (static assets) |
+| `www.versevault.ca/qzr/api/`        | API            | `qzr-api` Worker                 |
 
-The Worker is served at the same origin as the frontends — no CORS headers needed in production.
+qzr lives under `/qzr/` because the root of www.versevault.ca belongs to verse-vault
+(`specs/001-qzr-subpath`). Pages can only bind a whole hostname, so the portal and the bundled
+scoresheet are served by `qzr-web`, a Worker with static assets configured in
+`apps/web/wrangler.toml`. Its script serves each app's shell on an asset miss. `qzr-api` answers
+under `/qzr/api/` and, until switch day, `/api/` too; the more specific route wins over `/qzr/*`.
+
+Everything is served from one origin, so production needs no CORS headers.
 
 ## API Stack
 
@@ -78,13 +83,13 @@ A separate web app for everything that isn't live scoring: admin dashboard, coac
 official schedule, and viewer standings.
 
 The portal links into the scoresheet with context. An official viewing their schedule clicks a quiz
-and is taken to `/scoresheet/?quiz=abc123`. The scoresheet reads the session and quiz ID from the
-URL, then auto-fetches and pre-populates.
+and is taken to `/qzr/scoresheet/?quiz=abc123`. The scoresheet reads the session and quiz ID from
+the URL, then auto-fetches and pre-populates.
 
-| Path                        | Flow                                                       |
-| --------------------------- | ---------------------------------------------------------- |
-| Portal → click quiz         | Opens `/scoresheet/?quiz=abc`, session already established |
-| Scoresheet → sign in → load | OAuth flow, pick from list in a modal, same end state      |
+| Path                        | Flow                                                           |
+| --------------------------- | -------------------------------------------------------------- |
+| Portal → click quiz         | Opens `/qzr/scoresheet/?quiz=abc`, session already established |
+| Scoresheet → sign in → load | OAuth flow, pick from list in a modal, same end state          |
 
 ## Shared Package (`packages/shared`)
 

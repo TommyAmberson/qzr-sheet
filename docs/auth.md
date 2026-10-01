@@ -141,10 +141,10 @@ signed-in user via `requireAuth()`; reads use the lighter `requireAuthOrGuest()`
 opened with `?meet=<viewerCode>`:
 
 ```
-https://www.versevault.ca/scoresheet/?meet=fall-2025
+https://www.versevault.ca/qzr/scoresheet/?meet=fall-2025
 ```
 
-`useGuestSession` parses the slug, posts to `/api/join/guest`, stashes the JWT, and the meet's
+`useGuestSession` parses the slug, posts to `/qzr/api/join/guest`, stashes the JWT, and the meet's
 roster becomes selectable in "Load teams from meet" without sign-in. The token is reused across
 reloads as long as its decoded `exp` claim has more than 5 min remaining; otherwise a fresh
 `/api/join/guest` call refreshes it.

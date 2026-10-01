@@ -48,8 +48,8 @@ Superusers have implicit full access to all meets — no membership rows needed.
 * Read-only access to the meet's public data (standings, stats, schedules)
 * Intended for quizzers, parents, and spectators
 * **No account required** — same guest JWT mechanism as officials
-* **URL-shareable**: `https://www.versevault.ca/scoresheet/?meet=<viewerCode>` auto-issues a guest
-  viewer JWT and pre-selects the meet in "Load teams from meet"; no sign-in needed
+* **URL-shareable**: `https://www.versevault.ca/qzr/scoresheet/?meet=<viewerCode>` auto-issues a
+  guest viewer JWT and pre-selects the meet in "Load teams from meet"; no sign-in needed
 
 ## Resources and Codes
 
@@ -92,7 +92,7 @@ without creating duplicates.
 Any participant with access to a code can share a join link that encodes the code:
 
 ```
-https://versevault.ca/join?code=<code>
+https://www.versevault.ca/qzr/join?code=<code>
 ```
 
 Visiting the link takes the user through sign-in/signup and automatically applies the code on
