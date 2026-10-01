@@ -7,7 +7,12 @@ import {
   QuizFormat,
   QUIZZERS_PER_TEAM,
 } from '../types/scoresheet'
-import { firstOvertimeQuestion } from '../scoring/quizRules'
+import {
+  endsRound,
+  firstOvertimeQuestion,
+  lastQuestionThroughRound,
+  startsOtRound,
+} from '../scoring/quizRules'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
@@ -454,11 +459,9 @@ function quizzerScoreLabel(teamIdx: number, seatIdx: number): string | null {
 const boundaryColIndices = computed<Set<number>>(() => {
   const s = new Set<number>()
   if (visibleOtRounds.value === 0) return s
-  const { regulationQuestions, overtimeRoundSize } = rules.value
-  const boundaryQs = [regulationQuestions]
-  for (let r = 1; r < visibleOtRounds.value; r++) {
-    boundaryQs.push(regulationQuestions + r * overtimeRoundSize)
-  }
+  const boundaryQs = Array.from({ length: visibleOtRounds.value }, (_, r) =>
+    lastQuestionThroughRound(rules.value, r),
+  )
   for (const q of boundaryQs) {
     const idx = columns.value.findIndex((c) => c.key === `${q}`)
     if (idx !== -1) s.add(idx)
@@ -510,11 +513,7 @@ const roundEndIndices = computed<Set<number>>(() => {
   for (let i = 0; i < dc.length; i++) {
     const col = cols[dc[i]!.idx]
     if (!col) continue
-    const { regulationQuestions, overtimeRoundSize } = rules.value
-    const isRegEnd = !col.isOvertime && col.number === regulationQuestions
-    const isOtRoundEnd =
-      col.isOvertime && (col.number - regulationQuestions) % overtimeRoundSize === 0
-    if (!isRegEnd && !isOtRoundEnd) continue
+    if (!endsRound(rules.value, col.number)) continue
     const nextCol = cols[dc[i + 1]?.idx ?? -1]
     if (!nextCol || nextCol.number !== col.number) {
       s.add(dc[i]!.idx)
@@ -881,6 +880,7 @@ const colGroupClassMap = computed<Map<number, string>>(() => {
   const dc = displayColumns.value
   const cols = columns.value
   const roundEnds = roundEndIndices.value
+  const firstOt = firstOvertimeQuestion(rules.value)
   const lastIdx = dc[dc.length - 1]?.idx
   for (const { idx } of dc) {
     const col = cols[idx]
@@ -889,11 +889,7 @@ const colGroupClassMap = computed<Map<number, string>>(() => {
     if (idx === lastIdx) classes.push('col--last')
     if (!col.isOvertime && roundEnds.has(idx)) classes.push('col--reg-last')
     if (col.isOvertime) {
-      const firstOt = firstOvertimeQuestion(rules.value)
-      if (
-        col.type === QuestionType.Normal &&
-        (col.number - firstOt) % rules.value.overtimeRoundSize === 0
-      ) {
+      if (col.type === QuestionType.Normal && startsOtRound(rules.value, col.number)) {
         classes.push(
           col.number === firstOt
             ? 'col--overtime col--ot-start'

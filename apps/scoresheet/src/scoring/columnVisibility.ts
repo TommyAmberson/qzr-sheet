@@ -1,7 +1,7 @@
 import { CellValue, QuestionType, buildKeyToIdx, type Column } from '../types/scoresheet'
 import { ColStatus, colHasAnyContent } from './helpers'
 import { computeGreyedOut } from './greyedOut'
-import type { QuizRules } from './quizRules'
+import { lastQuestionThroughRound, type QuizRules } from './quizRules'
 
 export interface VisibleColumn {
   col: Column
@@ -52,7 +52,7 @@ export function computeOrphanedColumns(
   colStatuses?: ColStatus[],
 ): Set<number> {
   const statuses = colStatuses ?? computeGreyedOut(cellData, cols).colStatuses
-  const maxOtQuestion = rules.regulationQuestions + visibleOtRounds * rules.overtimeRoundSize
+  const maxOtQuestion = lastQuestionThroughRound(rules, visibleOtRounds)
   const keyToIdx = buildKeyToIdx(cols)
   const orphaned = new Set<number>()
 
@@ -114,7 +114,7 @@ export function computeVisibleColumns(
   colStatuses?: ColStatus[],
 ): VisibleColumn[] {
   const statuses = colStatuses ?? computeGreyedOut(cellData, cols).colStatuses
-  const maxOtQuestion = rules.regulationQuestions + visibleOtRounds * rules.overtimeRoundSize
+  const maxOtQuestion = lastQuestionThroughRound(rules, visibleOtRounds)
   const keyToIdx = buildKeyToIdx(cols)
 
   return cols

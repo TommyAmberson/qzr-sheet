@@ -2,7 +2,7 @@ import { CellValue, buildKeyToIdx, type Column } from '../types/scoresheet'
 import { scoreTeam } from './scoreTeam'
 import { ColStatus } from './helpers'
 import { computeGreyedOut } from './greyedOut'
-import { firstOvertimeQuestion, type QuizRules } from './quizRules'
+import { lastQuestionThroughRound, otRoundRange, type QuizRules } from './quizRules'
 
 /** Slice a cell grid down to the given column subset, preserving team/quizzer structure */
 function sliceCells(cellData: CellValue[][][], cols: Column[], subset: Column[]): CellValue[][][] {
@@ -10,10 +10,10 @@ function sliceCells(cellData: CellValue[][][], cols: Column[], subset: Column[])
   return cellData.map((team) => team.map((row) => indices.map((i) => row[i]!)))
 }
 
-/** First and last question numbers of overtime round `roundIdx` (0-based) */
-function otRoundRange(rules: QuizRules, roundIdx: number): { firstQ: number; lastQ: number } {
-  const firstQ = firstOvertimeQuestion(rules) + roundIdx * rules.overtimeRoundSize
-  return { firstQ, lastQ: firstQ + rules.overtimeRoundSize - 1 }
+/** How many overtime rounds the columns hold */
+function otRoundCount(cols: Column[], rules: QuizRules): number {
+  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
+  return Math.ceil(otNormals.length / rules.overtimeRoundSize)
 }
 
 /**
@@ -70,8 +70,7 @@ export function getActiveOtTeams(
   const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes, rules)
   if (eligible.size < 2) return eligible
 
-  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
-  const totalRounds = Math.ceil(otNormals.length / rules.overtimeRoundSize)
+  const totalRounds = otRoundCount(cols, rules)
   let competing = [...eligible]
 
   for (let r = 0; r < totalRounds; r++) {
@@ -122,8 +121,7 @@ export function computeOtIneligibility(
   const eligible = getOvertimeEligibleTeams(cellData, cols, onTimes, rules)
   const ineligible = new Map<number, Set<number>>()
 
-  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
-  const totalRounds = Math.ceil(otNormals.length / rules.overtimeRoundSize)
+  const totalRounds = otRoundCount(cols, rules)
   let competing = [...eligible]
 
   for (let r = 0; r < totalRounds; r++) {
@@ -240,7 +238,7 @@ export function quizJumpedComplete(
   visibleOtRounds: number,
   rules: QuizRules,
 ): boolean {
-  const maxOtQ = rules.regulationQuestions + visibleOtRounds * rules.overtimeRoundSize
+  const maxOtQ = lastQuestionThroughRound(rules, visibleOtRounds)
   const keyToIdx = buildKeyToIdx(cols)
   const { colStatuses } = computeGreyedOut(cellData, cols)
   for (let colIdx = 0; colIdx < cols.length; colIdx++) {
@@ -279,8 +277,7 @@ export function computeOvertimeRounds(
   // Only check ties among the originally-eligible teams — a non-eligible team
   // matching an eligible team's score is not a real tie.
   const eligibleTeams = [...eligible]
-  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
-  const totalRounds = Math.ceil(otNormals.length / rules.overtimeRoundSize)
+  const totalRounds = otRoundCount(cols, rules)
 
   // Track which eligible teams are still competing (haven't been resolved yet)
   let competing = [...eligibleTeams]
@@ -328,8 +325,7 @@ export function computeOtCheckpointScores(
   rules: QuizRules,
 ): number[][] {
   const checkpoints: number[][] = []
-  const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
-  const totalRounds = Math.ceil(otNormals.length / rules.overtimeRoundSize)
+  const totalRounds = otRoundCount(cols, rules)
 
   for (let r = 0; r < totalRounds; r++) {
     const { firstQ, lastQ } = otRoundRange(rules, r)

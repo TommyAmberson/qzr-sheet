@@ -54,3 +54,32 @@ export function firstOvertimeQuestion(rules: QuizRules): number {
 export function lastTimeoutQuestion(rules: QuizRules): number {
   return rules.firstErrorPointsQuestion - 1
 }
+
+/** Last question number once `rounds` overtime rounds are played (0 = end of regulation) */
+export function lastQuestionThroughRound(rules: QuizRules, rounds: number): number {
+  return rules.regulationQuestions + rounds * rules.overtimeRoundSize
+}
+
+/** First and last question numbers of overtime round `roundIdx` (0-based) */
+export function otRoundRange(
+  rules: QuizRules,
+  roundIdx: number,
+): { firstQ: number; lastQ: number } {
+  return {
+    firstQ: lastQuestionThroughRound(rules, roundIdx) + 1,
+    lastQ: lastQuestionThroughRound(rules, roundIdx + 1),
+  }
+}
+
+/** Whether question `n` is the last of regulation or of an overtime round */
+export function endsRound(rules: QuizRules, n: number): boolean {
+  return (
+    n >= rules.regulationQuestions &&
+    (n - rules.regulationQuestions) % rules.overtimeRoundSize === 0
+  )
+}
+
+/** Whether question `n` is the first of an overtime round */
+export function startsOtRound(rules: QuizRules, n: number): boolean {
+  return n > rules.regulationQuestions && endsRound(rules, n - 1)
+}
