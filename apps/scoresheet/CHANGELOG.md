@@ -24,6 +24,9 @@ portal/API/infra work shipped on that tag.
   sub-questions on 11 to 15, error points and 10-point bonuses from 12, quiz-out (and its bonus) at
   3 correct, and overtime from 16. The rulebook doesn't define this format; it is the 20-question
   quiz with its final stretch moved five questions earlier.
+* **15-question quizzes are saved** in quiz files and auto-save. A file records the version needed
+  to read it: 20-question quizzes are still version 2, so older scoresheets open them as before, and
+  15-question quizzes are version 3, which older scoresheets refuse rather than misscore.
 
 ### Changed
 

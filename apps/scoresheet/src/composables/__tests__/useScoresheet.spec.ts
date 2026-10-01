@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../useScoresheet'
 import { CellValue, QuestionCategory, QuizFormat } from '../../types/scoresheet'
@@ -480,5 +480,38 @@ describe('useScoresheet — 15-question quiz', () => {
     expect(s.tooManyTimeoutsTeams.value.has(0)).toBe(false)
     s.toggleTimeout(teamId, '3')
     expect(s.tooManyTimeoutsTeams.value.has(0)).toBe(true)
+  })
+})
+
+describe('useScoresheet — keeping a 15-question quiz', () => {
+  function fifteenWithAnswer() {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    return s
+  }
+
+  it('keeps the format through clearAnswers and clearNames', () => {
+    const s = fifteenWithAnswer()
+    s.clearAnswers()
+    expect(s.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
+    s.clearNames()
+    expect(s.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
+  })
+
+  it('restores a 15-question quiz from auto-save', async () => {
+    vi.useFakeTimers()
+    try {
+      fifteenWithAnswer()
+      await nextTick()
+      // Auto-save is debounced
+      vi.advanceTimersByTime(1000)
+    } finally {
+      vi.useRealTimers()
+    }
+    const restored = useScoresheet()
+    expect(restored.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
+    expect(restored.cells.value[0]![0]![0]).toBe(CellValue.Correct)
+    expect(restored.columns.value).toHaveLength(25)
   })
 })

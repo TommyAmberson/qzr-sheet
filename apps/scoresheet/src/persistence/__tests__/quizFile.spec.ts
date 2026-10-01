@@ -13,7 +13,7 @@ import { CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '../..
 
 function makeFile(overrides: Partial<QuizFile> = {}): QuizFile {
   return {
-    version: FILE_VERSION,
+    version: 2,
     quiz: {
       division: '1',
       quizNumber: '3',
@@ -208,5 +208,67 @@ describe('parseQuizFile — validation', () => {
     const file = JSON.parse(serializeStore(store, new Map(), new Map())) as QuizFile
     const bad = { ...file, answers: [{ quizzerId: 1, columnKey: '1', value: 'x' }] }
     expect(() => parseQuizFile(JSON.stringify(bad))).toThrow()
+  })
+})
+
+describe('quiz format in quiz files', () => {
+  function fifteenStore() {
+    const store = createQuizStore()
+    store.quiz.format = QuizFormat.FifteenQuestion
+    return store
+  }
+
+  it('saves a 15-question quiz as version 3 with its format', () => {
+    const file = JSON.parse(serializeStore(fifteenStore(), new Map(), new Map())) as QuizFile
+    expect(file.version).toBe(3)
+    expect(file.quiz.format).toBe(QuizFormat.FifteenQuestion)
+  })
+
+  it('round-trips every quiz field, format included', () => {
+    const store = fifteenStore()
+    store.quiz.division = '4'
+    store.quiz.overtime = true
+    store.quiz.consolation = true
+    store.quiz.placementFormula = PlacementFormula.Legacy
+    const { id: _, ...expected } = store.quiz
+    const result = parseQuizFile(serializeStore(store, new Map(), new Map()))
+    expect(result.quiz).toEqual(expected)
+  })
+
+  it('loads version 1 and 2 files as 20-question quizzes', () => {
+    for (const version of [1, 2] as const) {
+      expect(deserialize(makeFile({ version })).quiz.format).toBe(QuizFormat.TwentyQuestion)
+    }
+  })
+
+  it('rejects a version 1 or 2 file that names a format, rather than guess its rules', () => {
+    for (const version of [1, 2] as const) {
+      const file = makeFile({ version })
+      file.quiz.format = QuizFormat.FifteenQuestion
+      expect(() => deserialize(file)).toThrow(/format/)
+    }
+  })
+
+  it('rejects a version 3 file without a format', () => {
+    expect(() => parseQuizFile(JSON.stringify(makeFile({ version: 3 })))).toThrow(/format/)
+  })
+
+  it('rejects an unknown format, naming it', () => {
+    const file = makeFile({ version: 3 })
+    const json = JSON.stringify({ ...file, quiz: { ...file.quiz, format: 'nonsense' } })
+    expect(() => parseQuizFile(json)).toThrow(/nonsense/)
+  })
+
+  it('reads column keys under the format the file records', () => {
+    // 13A exists only in a 15-question quiz, and 16A is its first overtime round
+    const answers = ['13A', '16A'].map((columnKey) => ({
+      quizzerId: 100,
+      columnKey,
+      value: CellValue.Correct,
+    }))
+    const fifteen = makeFile({ version: 3, answers })
+    fifteen.quiz.format = QuizFormat.FifteenQuestion
+    expect(deserialize(fifteen).answers.map((a) => a.columnKey)).toEqual(['13A', '16A'])
+    expect(deserialize(makeFile({ answers })).answers.map((a) => a.columnKey)).toEqual(['16A'])
   })
 })

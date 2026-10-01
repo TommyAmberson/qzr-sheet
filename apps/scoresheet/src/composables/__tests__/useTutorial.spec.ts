@@ -3,7 +3,7 @@ import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
 import { useMeetSession } from '../useMeetSession'
 import { TUTORIAL_STEPS } from '../../tutorial/tutorialSteps'
-import { CellValue } from '../../types/scoresheet'
+import { CellValue, QuizFormat } from '../../types/scoresheet'
 import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
 
 const T = toTeamIdx
@@ -251,5 +251,19 @@ describe('useTutorial — meet link', () => {
     expect(meet.meetName.value).toBe('Crash Meet')
 
     meet.clearSession()
+  })
+})
+
+describe('useTutorial — 15-question quiz', () => {
+  it('teaches on a 20-question sheet and restores the 15-question quiz afterwards', () => {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    const t = useTutorial(s)
+    t.start()
+    expect(s.quiz.value.format).toBe(QuizFormat.TwentyQuestion)
+    t.finish()
+    expect(s.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
+    expect(s.cells.value[0]![0]![0]).toBe(CellValue.Correct)
   })
 })
