@@ -41,9 +41,9 @@ pnpm lint               # ESLint (all packages)
 pnpm bump <pkg> <ver>   # Bump a single package: scoresheet | web | api | shared
 ```
 
-The legacy `pnpm deploy` (build everything locally + `wrangler pages deploy`) still exists as an
-emergency-only escape hatch. Day-to-day deploys are driven by per-package `version` bumps on master
-— see "Releasing" in [CONTRIBUTING.md](./CONTRIBUTING.md).
+The legacy `pnpm deploy` (build everything locally + `wrangler deploy` for `qzr-web`) still exists
+as an emergency-only escape hatch. Day-to-day deploys are driven by per-package `version` bumps on
+master — see "Releasing" in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ### CodeCompanion project commands
 

@@ -7,9 +7,9 @@ name: Release scoresheet
 # A scoresheet release ships through two channels:
 #   1. Native desktop (Tauri matrix: linux/windows/macos) + Android APK
 #      → GitHub release with installers attached
-#   2. PWA bundle inside the web Pages site (apps/web/dist/scoresheet/)
-#      → redeploys Cloudflare Pages so the live scoring tool at
-#        www.versevault.ca/scoresheet/ matches the desktop version
+#   2. PWA bundle inside the qzr-web site (apps/web/dist/qzr/scoresheet/)
+#      → redeploys the qzr-web Worker so the live scoring tool at
+#        www.versevault.ca/qzr/scoresheet/ matches the desktop version
 #
 # A `create-release` job runs serially before the artefact jobs to
 # pre-create the GitHub release + `scoresheet@x.y.z` tag as a draft.
@@ -121,17 +121,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # build:all bundles the new scoresheet PWA into apps/web/dist/scoresheet/
+      # build:all bundles the new scoresheet PWA into apps/web/dist/qzr/scoresheet/
       # alongside the current portal build.
       - run: pnpm build:all
 
-      - name: Publish to Cloudflare Pages
+      # qzr-web serves apps/web/dist at www.versevault.ca/qzr/ (routes in its
+      # wrangler.toml).
+      - name: Deploy qzr-web Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          pnpm dlx wrangler pages deploy apps/web/dist \
-            --project-name=versevault-www --branch=master
+        run: pnpm dlx wrangler deploy --config apps/web/wrangler.toml
 
   android:
     needs: [filter, verify-contract, create-release]

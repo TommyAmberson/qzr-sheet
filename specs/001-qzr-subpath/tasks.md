@@ -51,11 +51,11 @@ with Conventional Commit subjects of at most 50 characters.
 
 **Purpose**: scaffolding for the `qzr-web` Worker inside `apps/web` (plan: no new package)
 
-- [ ] T001 Add `@cloudflare/workers-types` (same version range as `packages/api/package.json`) to `apps/web/package.json` devDependencies and run `pnpm install`
-- [ ] T002 Create `apps/web/tsconfig.worker.json` (extends nothing DOM-specific; `include: ["worker/**/*.ts"]`, `types: ["@cloudflare/workers-types"]`, `noEmit`, `module`/`moduleResolution` `ESNext`/`Bundler`, its own `tsBuildInfoFile` under `node_modules/.tmp/`) and add it to the `references` in `apps/web/tsconfig.json` so `pnpm type-check` covers it
-- [ ] T003 Create `apps/web/worker/index.ts` exporting a default `{ fetch(request, env) }` handler with an `Env` type `{ ASSETS: Fetcher }` that, for now, returns `env.ASSETS.fetch(request)`
-- [ ] T004 Create `apps/web/wrangler.toml`: `name = "qzr-web"`, `main = "worker/index.ts"`, `compatibility_date` = today, `[assets]` with `directory = "./dist"`, `binding = "ASSETS"` (no `not_found_handling`, no `run_worker_first`: assets are served first and the script runs only on a miss), and `[[routes]]` for `pattern = "www.versevault.ca/qzr"` and `pattern = "www.versevault.ca/qzr/*"`, both `zone_name = "versevault.ca"`
-- [ ] T005 Make worker tests run in Node rather than jsdom: add `// @vitest-environment node` at the top of each `apps/web/worker/__tests__/*.spec.ts` (note the convention in a comment in the first spec file), and confirm `apps/web/vitest.config.ts` picks up `worker/**/__tests__/*.spec.ts`
+- [X] T001 Add `@cloudflare/workers-types` (same version range as `packages/api/package.json`) to `apps/web/package.json` devDependencies and run `pnpm install`
+- [X] T002 Create `apps/web/tsconfig.worker.json` (extends nothing DOM-specific; `include: ["worker/**/*.ts"]`, `types: ["@cloudflare/workers-types"]`, `noEmit`, `module`/`moduleResolution` `ESNext`/`Bundler`, its own `tsBuildInfoFile` under `node_modules/.tmp/`) and add it to the `references` in `apps/web/tsconfig.json` so `pnpm type-check` covers it
+- [X] T003 Create `apps/web/worker/index.ts` exporting a default `{ fetch(request, env) }` handler with an `Env` type `{ ASSETS: Fetcher }` that, for now, returns `env.ASSETS.fetch(request)`
+- [X] T004 Create `apps/web/wrangler.toml`: `name = "qzr-web"`, `main = "worker/index.ts"`, `compatibility_date` = today, `[assets]` with `directory = "./dist"`, `binding = "ASSETS"` (no `not_found_handling`, no `run_worker_first`: assets are served first and the script runs only on a miss), and `[[routes]]` for `pattern = "www.versevault.ca/qzr"` and `pattern = "www.versevault.ca/qzr/*"`, both `zone_name = "versevault.ca"`
+- [X] T005 Make worker tests run in Node rather than jsdom: add `// @vitest-environment node` at the top of each `apps/web/worker/__tests__/*.spec.ts` (note the convention in a comment in the first spec file), and confirm `apps/web/vitest.config.ts` picks up `worker/**/__tests__/*.spec.ts`
 
 **Checkpoint**: `pnpm type-check` and `pnpm test:unit` pass with the empty Worker.
 
@@ -85,23 +85,23 @@ while the root site keeps working (FR-001 to FR-007).
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Write failing tests in `apps/web/worker/__tests__/index.spec.ts` against a fake `ASSETS` (a `fetch` returning 200 for a fixed set of paths, 404 otherwise), per `contracts/routing.md` "Parallel stage": `GET /qzr` gives `308` with `Location: /qzr/` and the query kept; an existing file is passed through; `GET /qzr/scoresheet/anything` on a miss returns the body of `/qzr/scoresheet/index.html` with `200`; `GET /qzr/some/page` on a miss returns `/qzr/index.html` with `200`; `POST` on a miss returns `405`
-- [ ] T013 [P] [US1] Write a failing test in `apps/web/src/router/__tests__/notFound.spec.ts`: resolving `/a/b/c/d/e` matches a route named `not-found`, while `/fall-2025`, `/fall-2025/schedule`, and `/roadmap` still match `meet`, `meet-schedule`, and `roadmap`
+- [X] T012 [P] [US1] Write failing tests in `apps/web/worker/__tests__/index.spec.ts` against a fake `ASSETS` (a `fetch` returning 200 for a fixed set of paths, 404 otherwise), per `contracts/routing.md` "Parallel stage": `GET /qzr` gives `308` with `Location: /qzr/` and the query kept; an existing file is passed through; `GET /qzr/scoresheet/anything` on a miss returns the body of `/qzr/scoresheet/index.html` with `200`; `GET /qzr/some/page` on a miss returns `/qzr/index.html` with `200`; `POST` on a miss returns `405`
+- [X] T013 [P] [US1] Write a failing test in `apps/web/src/router/__tests__/notFound.spec.ts`: resolving `/a/b/c/d/e` matches a route named `not-found`, while `/fall-2025`, `/fall-2025/schedule`, and `/roadmap` still match `meet`, `meet-schedule`, and `roadmap`
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Implement `apps/web/worker/index.ts` to pass T012: try `env.ASSETS.fetch(request)` first; on 404, redirect bare `/qzr`, return `405` for non-GET/HEAD, and otherwise fetch `/qzr/scoresheet/index.html` for paths under `/qzr/scoresheet/` and `/qzr/index.html` for the rest, returning that body with status `200`
-- [ ] T015 [P] [US1] In `apps/web/vite.config.ts` set `base: '/qzr/'`, `build.outDir: 'dist/qzr'` (T020 cleans the parent `dist`), `__API_URL__` to `'/qzr'` in production (dev stays `'http://localhost:8787'`), and `__SCORESHEET_URL__` to `'/qzr/scoresheet/'` in production and `'http://localhost:5173/qzr/scoresheet/'` in dev (the scoresheet dev server uses its build base too)
-- [ ] T016 [P] [US1] In `apps/web/index.html` change the favicon `href` to `%BASE_URL%favicon.ico` and add a `favicon.ico` to `apps/web/public/` (copy from `apps/scoresheet/public/favicon.ico`) so it resolves to `/qzr/favicon.ico`
-- [ ] T017 [P] [US1] Delete `apps/web/public/_redirects` and `apps/web/public/_routes.json` (Pages-only; the Worker script does the SPA fallback)
-- [ ] T018 [US1] In `apps/web/src/router/index.ts` add `{ path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFoundView.vue') }` after the `/:slug` route, and create `apps/web/src/views/NotFoundView.vue` (heading, short message, `RouterLink` home) in the style of `RoadmapView.vue`; T013 passes
-- [ ] T019 [P] [US1] In `apps/scoresheet/vite.config.ts`, for the non-Tauri build: `base: '/qzr/scoresheet/'`; VitePWA `scope` and `base` `'/qzr/scoresheet/'`; manifest `id: '/qzr/scoresheet/'`, `start_url` and `scope` `'/qzr/scoresheet/'`; every icon `src` under `/qzr/scoresheet/`; workbox `navigateFallback: '/qzr/scoresheet/index.html'` and `navigateFallbackAllowlist: [/^\/qzr\/scoresheet/]`; `build.outDir: 'dist/qzr/scoresheet'`; web production `__API_URL__` `'/qzr'`. Leave the Tauri `base: '/'` and `outDir: 'dist'` untouched (Tauri API URL is T027)
-- [ ] T020 [US1] In root `package.json`, change `build:all` to clean `apps/web/dist`, build both, and copy `apps/scoresheet/dist/qzr/scoresheet` to `apps/web/dist/qzr/scoresheet`; change `deploy` to `pnpm build:all && wrangler deploy --config apps/web/wrangler.toml`. Confirm `pnpm build:all` leaves nothing in `apps/web/dist/` outside `qzr/`
-- [ ] T021 [P] [US1] In `apps/scoresheet/index.html` change the favicon and apple-touch-icon `href`s to `%BASE_URL%favicon.ico` and `%BASE_URL%apple-touch-icon-180x180.png`
-- [ ] T022 [P] [US1] In `apps/web/src/composables/useAuth.ts` and `apps/scoresheet/src/composables/useAuth.ts`, pass the full auth URL to `createAppAuthClient`: `new URL(`${__API_URL__}/api/auth`, window.location.origin).href` (absolute because Better Auth rejects relative base URLs, and with a path so the client uses it as-is; research R4). No change to `packages/shared`
-- [ ] T023 [US1] Grep `apps/web/src` and `apps/scoresheet/src` for remaining root-absolute paths (`'/scoresheet`, `"/scoresheet`, `'/api/` outside `api.ts` endpoint strings, `href="/`, `src="/`) and fix any that bypass `__API_URL__`, `__SCORESHEET_URL__`, or the router base
-- [ ] T024 [US1] In `.github/workflows/deploy-web.yml` and `.github/workflows/release-scoresheet.yml`, replace the "Publish to Cloudflare Pages" step with "Deploy qzr-web Worker" running `pnpm dlx wrangler deploy --config apps/web/wrangler.toml` (same env secrets), and update the `build:all` comments to the `dist/qzr/` layout
-- [ ] T025 [US1] Run `pnpm build:all`, then `pnpm dlx wrangler dev --config apps/web/wrangler.toml` and `pnpm dev:api`, and walk quickstart section 1 locally (portal, deep-link refresh, scoresheet, email sign-in)
+- [X] T014 [US1] Implement `apps/web/worker/index.ts` to pass T012: try `env.ASSETS.fetch(request)` first; on 404, redirect bare `/qzr`, return `405` for non-GET/HEAD, and otherwise fetch `/qzr/scoresheet/index.html` for paths under `/qzr/scoresheet/` and `/qzr/index.html` for the rest, returning that body with status `200`
+- [X] T015 [P] [US1] In `apps/web/vite.config.ts` set `base: '/qzr/'`, `build.outDir: 'dist/qzr'` (T020 cleans the parent `dist`), `__API_URL__` to `'/qzr'` in production (dev stays `'http://localhost:8787'`), and `__SCORESHEET_URL__` to `'/qzr/scoresheet/'` in production and `'http://localhost:5173/qzr/scoresheet/'` in dev (the scoresheet dev server uses its build base too)
+- [X] T016 [P] [US1] In `apps/web/index.html` change the favicon `href` to `%BASE_URL%favicon.ico` and add a `favicon.ico` to `apps/web/public/` (copy from `apps/scoresheet/public/favicon.ico`) so it resolves to `/qzr/favicon.ico`
+- [X] T017 [P] [US1] Delete `apps/web/public/_redirects` and `apps/web/public/_routes.json` (Pages-only; the Worker script does the SPA fallback)
+- [X] T018 [US1] In `apps/web/src/router/index.ts` add `{ path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFoundView.vue') }` after the `/:slug` route, and create `apps/web/src/views/NotFoundView.vue` (heading, short message, `RouterLink` home) in the style of `RoadmapView.vue`; T013 passes
+- [X] T019 [P] [US1] In `apps/scoresheet/vite.config.ts`, for the non-Tauri build: `base: '/qzr/scoresheet/'`; VitePWA `scope` and `base` `'/qzr/scoresheet/'`; manifest `id: '/qzr/scoresheet/'`, `start_url` and `scope` `'/qzr/scoresheet/'`; every icon `src` under `/qzr/scoresheet/`; workbox `navigateFallback: '/qzr/scoresheet/index.html'` and `navigateFallbackAllowlist: [/^\/qzr\/scoresheet/]`; `build.outDir: 'dist/qzr/scoresheet'`; web production `__API_URL__` `'/qzr'`. Leave the Tauri `base: '/'` and `outDir: 'dist'` untouched (Tauri API URL is T027)
+- [X] T020 [US1] In root `package.json`, change `build:all` to clean `apps/web/dist`, build both, and copy `apps/scoresheet/dist/qzr/scoresheet` to `apps/web/dist/qzr/scoresheet`; change `deploy` to `pnpm build:all && wrangler deploy --config apps/web/wrangler.toml`. Confirm `pnpm build:all` leaves nothing in `apps/web/dist/` outside `qzr/`
+- [X] T021 [P] [US1] In `apps/scoresheet/index.html` change the favicon and apple-touch-icon `href`s to `%BASE_URL%favicon.ico` and `%BASE_URL%apple-touch-icon-180x180.png`
+- [X] T022 [P] [US1] In `apps/web/src/composables/useAuth.ts` and `apps/scoresheet/src/composables/useAuth.ts`, pass the full auth URL to `createAppAuthClient`: `new URL(`${__API_URL__}/api/auth`, window.location.origin).href` (absolute because Better Auth rejects relative base URLs, and with a path so the client uses it as-is; research R4). No change to `packages/shared`
+- [X] T023 [US1] Grep `apps/web/src` and `apps/scoresheet/src` for remaining root-absolute paths (`'/scoresheet`, `"/scoresheet`, `'/api/` outside `api.ts` endpoint strings, `href="/`, `src="/`) and fix any that bypass `__API_URL__`, `__SCORESHEET_URL__`, or the router base
+- [X] T024 [US1] In `.github/workflows/deploy-web.yml` and `.github/workflows/release-scoresheet.yml`, replace the "Publish to Cloudflare Pages" step with "Deploy qzr-web Worker" running `pnpm dlx wrangler deploy --config apps/web/wrangler.toml` (same env secrets), and update the `build:all` comments to the `dist/qzr/` layout
+- [X] T025 [US1] Run `pnpm build:all`, then `pnpm dlx wrangler dev --config apps/web/wrangler.toml` and `pnpm dev:api`, and walk quickstart section 1 locally (portal, deep-link refresh, scoresheet, email sign-in)
 
 **Checkpoint**: US1 complete locally; deployable as PR 1b's core.
 
@@ -125,8 +125,8 @@ while the root site keeps working (FR-001 to FR-007).
 
 **Independent Test**: quickstart section 2 step 9 with the new builds.
 
-- [ ] T027 [US3] In `apps/scoresheet/vite.config.ts` set the Tauri production `__API_URL__` to `'https://www.versevault.ca/qzr'`
-- [ ] T028 [US3] Read `apps/scoresheet/src/components/SignInWidget.vue` and the connected-feature call sites in `apps/scoresheet/src/api.ts` to confirm what an already-released build shows when its auth or API call fails (error message vs hang); record the answer as a note under "Switch day" in `specs/001-qzr-subpath/quickstart.md`. No code change to released builds is possible; if the current code hangs, raise it with the maintainer as a separate issue (scope discipline)
+- [X] T027 [US3] In `apps/scoresheet/vite.config.ts` set the Tauri production `__API_URL__` to `'https://www.versevault.ca/qzr'`
+- [X] T028 [US3] Read `apps/scoresheet/src/components/SignInWidget.vue` and the connected-feature call sites in `apps/scoresheet/src/api.ts` to confirm what an already-released build shows when its auth or API call fails (error message vs hang); record the answer as a note under "Switch day" in `specs/001-qzr-subpath/quickstart.md`. No code change to released builds is possible; if the current code hangs, raise it with the maintainer as a separate issue (scope discipline)
 
 **Checkpoint**: `TAURI_ENV_PLATFORM=linux pnpm build` output references `https://www.versevault.ca/qzr/api/`.
 
@@ -165,19 +165,19 @@ while the root site keeps working (FR-001 to FR-007).
 ### PR 1a and PR 1b
 
 - [X] T037 [P] Update `docs/auth.md`: OAuth callbacks are `/qzr/api/auth/callback/{github,google}` (plus `/api/auth/...` until switch day), the per-request base path, the `qzr` cookie prefix and why
-- [ ] T038 [P] Update `docs/architecture.md` hosting table: `/qzr/` portal and `/qzr/scoresheet/` via the `qzr-web` Worker, `/qzr/api/` via `qzr-api`, root owned by verse-vault after switch day
-- [ ] T039 [P] Update URLs in `docs/roles-and-access.md` (`/qzr/scoresheet/?meet=...`, join link) and `README.md` (live app link, deploy section, `wrangler deploy` instead of Pages)
-- [ ] T040 [P] Update `CLAUDE.md` (OAuth callbacks gotcha; `pnpm deploy` description) and `.claude/skills/release/SKILL.md` (deploy target)
-- [ ] T041 Before opening each of PR 1a and PR 1b, check that each package it releases (1a: `api`; 1b: `web`, `scoresheet`) was bumped exactly once on that branch (`git log <base>.. -- <pkg>/package.json`) and that each dated section covers the whole change: `api` (`/qzr/api` mount, per-request auth base path, `qzr` cookie prefix), `web` (served at `/qzr/` by the `qzr-web` Worker, not-found page), `scoresheet` (served at `/qzr/scoresheet/`, apps call `/qzr/api`)
+- [X] T038 [P] Update `docs/architecture.md` hosting table: `/qzr/` portal and `/qzr/scoresheet/` via the `qzr-web` Worker, `/qzr/api/` via `qzr-api`, root owned by verse-vault after switch day
+- [X] T039 [P] Update URLs in `docs/roles-and-access.md` (`/qzr/scoresheet/?meet=...`, join link) and `README.md` (live app link, deploy section, `wrangler deploy` instead of Pages)
+- [X] T040 [P] Update `CLAUDE.md` (OAuth callbacks gotcha; `pnpm deploy` description) and `.claude/skills/release/SKILL.md` (deploy target)
+- [X] T041 Before opening each of PR 1a and PR 1b, check that each package it releases (1a: `api`; 1b: `web`, `scoresheet`) was bumped exactly once on that branch (`git log <base>.. -- <pkg>/package.json`) and that each dated section covers the whole change: `api` (`/qzr/api` mount, per-request auth base path, `qzr` cookie prefix), `web` (served at `/qzr/` by the `qzr-web` Worker, not-found page), `scoresheet` (served at `/qzr/scoresheet/`, apps call `/qzr/api`)
 - [ ] T042 Run `pnpm test:unit`, `pnpm type-check`, `pnpm lint`; then run `/speckit-analyze` before opening the PRs. The PR 1a body says it releases `api` and must deploy before PR 1b merges. The PR 1b body carries the `qzr-web` deployable justification from plan.md Complexity Tracking (constitution, Technology Constraints), says it releases `web` and `scoresheet`, and says it needs PR 1a live
-- [ ] T043 MAINTAINER, before merging PR 1b: confirm whether qzr's GitHub sign-in is an OAuth App or a GitHub App, and register the new callbacks (Google: add `https://www.versevault.ca/qzr/api/auth/callback/google`; GitHub OAuth App: set the callback to `https://www.versevault.ca/`; GitHub App: add the `/qzr/...` URL) (research R8). Immediately before merging each of PR 1a and PR 1b, rebase it onto current master and let CI re-run the contract check (constitution 1.1.0: PRs that bump a version are rebased before merge)
+- [ ] T043 MAINTAINER, before merging PR 1b: register the new callbacks next to the existing ones: Google adds `https://www.versevault.ca/qzr/api/auth/callback/google`, and the production GitHub OAuth App adds `https://www.versevault.ca/qzr/api/auth/callback/github` (research R8). Registered 2026-10-01. Immediately before merging each of PR 1a and PR 1b, rebase it onto current master and let CI re-run the contract check (constitution 1.1.0: PRs that bump a version are rebased before merge)
 - [ ] T044 MAINTAINER, after PR 1b deploys: walk quickstart section 2, publish the desktop and Android release, and tell known app users to update (SC-006)
 
 ### PR 2
 
 - [ ] T045 Docs for switch day: `docs/architecture.md`, `docs/auth.md`, `README.md` drop the root `/api` and Pages references; add entries to the dated sections created at T030 (`web`) and T033 (`api`)
 - [ ] T046 MAINTAINER, at cutover: rebase PR 2 onto current master and wait for CI, then merge it in the order in `~/notes/url-change/PLAN.md` Phase B, walk quickstart section 3
-- [ ] T047 MAINTAINER, weeks later: remove the old OAuth callbacks (narrow GitHub to `/qzr/api/auth/callback/github`), delete the `versevault-www` Pages project
+- [ ] T047 MAINTAINER, weeks later: remove the root `/api/auth/callback/{google,github}` entries from both providers, delete the `versevault-www` Pages project
 
 ---
 
@@ -254,3 +254,19 @@ PR 1a:
   starts with the `qzr` prefix.
 - T040: the OAuth callbacks gotcha in `CLAUDE.md` changed here; the `pnpm deploy` line moves with
   the `qzr-web` Worker in PR 1b.
+
+PR 1b:
+
+- T013: the not-found tests live in the existing `apps/web/src/router/__tests__/index.spec.ts`,
+  which already mocks the auth client and views.
+- T014: shells are fetched by directory path (`/qzr/`, `/qzr/scoresheet/`), since Workers Static
+  Assets answers `.../index.html` with a redirect to the directory. The shell response is returned
+  as-is: rewriting it into a 200 turned a revalidation 304 into an empty page.
+  The script does not re-fetch the request first (the asset layer already missed it) and has no
+  `/qzr` redirect of its own: the asset layer adds the trailing slash (307, query kept, seen in
+  `wrangler dev`).
+- T025: the worker was checked against the built tree with `wrangler dev` (shells, redirects, 405;
+  bare `/qzr` gets the platform's 307). The browser walk with sign-in is left to quickstart section 2.
+- T040: `.claude/skills/release/SKILL.md` names no deploy target, so only `CLAUDE.md` changed.
+- T042: tests, type-check, lint, and the contract check pass. `pnpm lint` reports errors from local
+  build output in `apps/*/dist` (ESLint only ignores the root `dist/`); that predates this branch.

@@ -6,6 +6,8 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const isTauri = !!process.env.TAURI_ENV_PLATFORM
+// The web build is served under /qzr/ so verse-vault can take the root of www.versevault.ca.
+const webBase = '/qzr/scoresheet/'
 
 export default defineConfig({
   plugins: [
@@ -14,9 +16,8 @@ export default defineConfig({
     ...(!isTauri
       ? [
           VitePWA({
+            // Scope, start_url, and the SW base default to Vite's `base` (webBase).
             registerType: 'autoUpdate',
-            scope: '/scoresheet/',
-            base: '/scoresheet/',
             manifest: {
               name: 'qzr-sheet',
               short_name: 'qzr-sheet',
@@ -24,26 +25,26 @@ export default defineConfig({
               theme_color: '#1a1a2e',
               background_color: '#1a1a2e',
               display: 'standalone',
-              start_url: '/scoresheet/',
-              scope: '/scoresheet/',
+              // Explicit id: the install identity no longer depends on start_url.
+              id: webBase,
               icons: [
                 {
-                  src: '/scoresheet/pwa-64x64.png',
+                  src: 'pwa-64x64.png',
                   sizes: '64x64',
                   type: 'image/png',
                 },
                 {
-                  src: '/scoresheet/pwa-192x192.png',
+                  src: 'pwa-192x192.png',
                   sizes: '192x192',
                   type: 'image/png',
                 },
                 {
-                  src: '/scoresheet/pwa-512x512.png',
+                  src: 'pwa-512x512.png',
                   sizes: '512x512',
                   type: 'image/png',
                 },
                 {
-                  src: '/scoresheet/maskable-icon-512x512.png',
+                  src: 'maskable-icon-512x512.png',
                   sizes: '512x512',
                   type: 'image/png',
                   purpose: 'maskable',
@@ -52,8 +53,8 @@ export default defineConfig({
             },
             workbox: {
               globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-              navigateFallback: '/scoresheet/index.html',
-              navigateFallbackAllowlist: [/^\/scoresheet/],
+              navigateFallback: `${webBase}index.html`,
+              navigateFallbackAllowlist: [new RegExp(`^${webBase}`)],
             },
           }),
         ]
@@ -65,15 +66,15 @@ export default defineConfig({
     __API_URL__: JSON.stringify(
       process.env.NODE_ENV === 'production'
         ? isTauri
-          ? 'https://www.versevault.ca'
-          : ''
+          ? 'https://www.versevault.ca/qzr'
+          : '/qzr'
         : 'http://localhost:8787',
     ),
   },
   server: { port: 5173 },
-  base: isTauri ? '/' : '/scoresheet/',
+  base: isTauri ? '/' : webBase,
   build: {
-    outDir: isTauri ? 'dist' : 'dist/scoresheet',
+    outDir: isTauri ? 'dist' : `dist${webBase}`,
   },
   resolve: {
     alias: {

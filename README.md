@@ -5,7 +5,7 @@ a fast, portable app that runs natively on Windows/macOS/Linux/Android (via
 [Tauri 2](https://tauri.app)) and in any browser as an installable PWA. Monorepo with a web portal
 and API for quiz meet management.
 
-**Live web app:** [www.versevault.ca/scoresheet](https://www.versevault.ca/scoresheet)
+**Live web app:** [www.versevault.ca/qzr/scoresheet](https://www.versevault.ca/qzr/scoresheet/)
 
 ## Features
 
@@ -29,7 +29,7 @@ and API for quiz meet management.
 * **Auto-save** — debounced persist to `localStorage` on every change; restored on startup
 * **Offline PWA** — installable from any browser, full offline support via Workbox
 * **Sticky headers + touch panning** — thead and name column stay fixed; smooth 2-axis touch scroll
-* **Shareable meet links** — `…/scoresheet/?meet=<viewerCode>` auto-loads the meet's roster as a
+* **Shareable meet links** — `…/qzr/scoresheet/?meet=<viewerCode>` auto-loads the meet's roster as a
   guest viewer; no sign-in needed
 
 ## Setup
@@ -56,7 +56,7 @@ pnpm bump <pkg> <ver>  # Bump one package: scoresheet | web | api
 ```
 
 Deploys are driven by CI (see [Releasing](#releasing)). `pnpm deploy` still builds everything
-locally and runs `wrangler pages deploy`, as an emergency-only escape hatch.
+locally and runs `wrangler deploy` for the `qzr-web` Worker, as an emergency-only escape hatch.
 
 All root scripts delegate to the relevant workspace packages via `pnpm --filter`.
 
@@ -125,7 +125,7 @@ deploy. They are not stored in source control — use `packages/api/.dev.vars.ex
    `http://localhost:8787/api/auth/callback/google`
 4. `BETTER_AUTH_SECRET` can be any string ≥ 32 characters for local dev (the example value is fine)
 5. Run `pnpm --filter @qzr/api db:migrate:local` to apply migrations to the local D1 instance
-6. `pnpm dev:all` — API at `:8787`, portal at `:5174`, scoresheet at `:5173`
+6. `pnpm dev:all` — API at `:8787`, portal at `:5174/qzr/`, scoresheet at `:5173/qzr/scoresheet/`
 
 ## Editor Setup
 

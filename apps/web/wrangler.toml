@@ -1,0 +1,20 @@
+# qzr-web serves the portal and the bundled scoresheet PWA at www.versevault.ca/qzr/.
+# Pages can only bind a whole hostname, and the root belongs to verse-vault, so qzr
+# is served from a path by a Worker with static assets. `dist/` holds the files at
+# their public paths (`dist/qzr/...`); assets are served first and the script only
+# runs on a miss.
+name = "qzr-web"
+main = "worker/index.ts"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+[[routes]]
+pattern = "www.versevault.ca/qzr"
+zone_name = "versevault.ca"
+
+[[routes]]
+pattern = "www.versevault.ca/qzr/*"
+zone_name = "versevault.ca"

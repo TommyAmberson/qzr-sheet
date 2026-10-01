@@ -11,6 +11,7 @@ vi.mock('../../composables/useAuth', () => ({
 vi.mock('../../views/HomeView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/QuizMeetView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/MeetTeamsView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
 
 let router: Router
 
@@ -79,5 +80,19 @@ describe('route props', () => {
     const matched = route.matched.find((r) => r.name === 'meet-church-teams')!
     const propsFn = matched.props.default as (r: typeof route) => Record<string, unknown>
     expect(propsFn(route)).toEqual({ slug: 'fall-2025', churchId: 7 })
+  })
+})
+
+describe('not-found route', () => {
+  it('matches deep unknown paths', () => {
+    expect(router.resolve('/a/b/c/d/e').name).toBe('not-found')
+  })
+
+  it.each([
+    ['/fall-2025', 'meet'],
+    ['/fall-2025/schedule', 'meet-schedule'],
+    ['/roadmap', 'roadmap'],
+  ])('still routes %s to %s', (path, name) => {
+    expect(router.resolve(path).name).toBe(name)
   })
 })

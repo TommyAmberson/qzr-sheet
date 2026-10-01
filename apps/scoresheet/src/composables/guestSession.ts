@@ -5,7 +5,7 @@ import { joinMeetGuest } from '../api'
 /**
  * Guest session state for visitors who don't have an account. Two entry points:
  *
- * 1. Shareable URL — `/scoresheet/?meet=<viewerCode>` auto-joins as viewer on
+ * 1. Shareable URL — `/qzr/scoresheet/?meet=<viewerCode>` auto-joins as viewer on
  *    page load. Restricted to viewer codes only (the URL is shareable, so we
  *    can't trust the recipient with an official code).
  * 2. "Have a code?" form in the meet picker — accepts viewer or official

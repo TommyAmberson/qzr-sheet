@@ -50,3 +50,21 @@ Prerequisite: new OAuth callbacks registered (research R8).
 4. A real meet slug at the root redirects to `/qzr/<slug>` (verse-vault catch-all).
 5. An old desktop build: guest viewer access works; sign-in fails (how it fails was recorded in
    T028); scoring offline works.
+
+### What old app builds do after switch day (T028)
+
+Read from the 0.10.x sources (`packages/shared/src/authClient.ts`, `packages/ui/src/SignInForm.vue`,
+`packages/shared/src/apiClient.ts`). Old builds call `https://www.versevault.ca/api/...`, which then
+belongs to verse-vault:
+
+* **Email sign-in**: posts to verse-vault's Better Auth. With no matching verse-vault account,
+  `SignInForm` shows the returned error message. No hang.
+* **Social sign-in**: runs through verse-vault's OAuth client and returns to the app without a qzr
+  session. No hang, but the user looks signed out.
+* **Session check**: `get-session` is answered by verse-vault. If the webview holds a verse-vault
+  session, an old build will think it is signed in, and its meet calls (forwarded to `qzr-api`)
+  return 401, which `apiClient` surfaces as an `ApiError`.
+* **Scoring**: unaffected; it needs no network.
+
+Worth raising on the verse-vault side: its router could refuse `/api/auth/*` from Tauri origins so
+old qzr builds fail plainly instead of half-signing into verse-vault.
