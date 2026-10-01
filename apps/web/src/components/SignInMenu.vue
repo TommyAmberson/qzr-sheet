@@ -1,25 +1,49 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { SocialSignInError } from '@qzr/shared'
 import { SignInForm } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 
+const props = defineProps<{
+  /** A failed social sign-in to explain. The header passes it only to the
+   *  copy the user can see, which then opens straight away. */
+  oauthError?: SocialSignInError | null
+}>()
+const emit = defineEmits<{ (e: 'dismissed'): void; (e: 'signedIn'): void }>()
+
 const { signInSocial, signInEmail, signUpEmail } = useAuth()
 
-const open = ref(false)
+const open = ref(props.oauthError != null)
+
+function close() {
+  open.value = false
+  emit('dismissed')
+}
+
+function onSignedIn() {
+  open.value = false
+  emit('signedIn')
+}
+
+function toggle() {
+  if (open.value) close()
+  else open.value = true
+}
 </script>
 
 <template>
   <div class="menu-wrap">
-    <button class="nav-link nav-btn" @click="open = !open">Sign in</button>
+    <button class="nav-link nav-btn" @click="toggle">Sign in</button>
 
-    <div v-if="open" class="backdrop" @click="open = false" />
+    <div v-if="open" class="backdrop" @click="close" />
 
     <div v-if="open" class="menu">
       <SignInForm
         :sign-in-social="signInSocial"
         :sign-in-email="signInEmail"
         :sign-up-email="signUpEmail"
-        @success="open = false"
+        :oauth-error="oauthError"
+        @success="onSignedIn"
       />
     </div>
   </div>

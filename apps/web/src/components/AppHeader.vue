@@ -1,15 +1,31 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
+import { useSocialSignInError } from '../composables/useSocialSignInError'
 import SignInMenu from './SignInMenu.vue'
 
 const scoresheetUrl = __SCORESHEET_URL__
 const { session, signOut } = useAuth()
 
-const menuOpen = ref(false)
+// After a failed social sign-in, open the sign-in menu the user can see: the
+// nav's on desktop, the sidebar's on mobile (opening the sidebar too). Keep
+// the breakpoint in step with the `.nav--desktop` media query below. Each copy
+// gets the error only when it is the visible one.
+const { error: oauthError, clear: clearOauthError } = useSocialSignInError(useRouter())
+const mobile =
+  typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches
+
+const menuOpen = ref(mobile && oauthError.value !== null)
 
 function closeMenu() {
   menuOpen.value = false
+  clearOauthError()
+}
+
+function toggleMenu() {
+  if (menuOpen.value) closeMenu()
+  else menuOpen.value = true
 }
 
 function handleSignOut() {
@@ -40,11 +56,16 @@ function handleSignOut() {
           <span class="nav-user">{{ session.data.user.email ?? 'signed in' }}</span>
           <button class="nav-link nav-btn" @click="signOut">Sign out</button>
         </template>
-        <SignInMenu v-else />
+        <SignInMenu
+          v-else
+          :oauth-error="mobile ? null : oauthError"
+          @dismissed="clearOauthError"
+          @signed-in="clearOauthError"
+        />
       </nav>
 
       <!-- Mobile hamburger -->
-      <button class="hamburger" aria-label="Menu" @click="menuOpen = !menuOpen">
+      <button class="hamburger" aria-label="Menu" @click="toggleMenu">
         <span class="hamburger-bar" />
         <span class="hamburger-bar" />
         <span class="hamburger-bar" />
@@ -71,7 +92,14 @@ function handleSignOut() {
           <button class="sidebar-link" @click="handleSignOut">Sign out</button>
         </template>
         <template v-else>
-          <SignInMenu @click="closeMenu" />
+          <!-- Keyed on the sidebar so closing it (from anywhere, e.g. the
+               backdrop) also resets the sign-in form inside. -->
+          <SignInMenu
+            :key="String(menuOpen)"
+            :oauth-error="mobile ? oauthError : null"
+            @dismissed="clearOauthError"
+            @signed-in="closeMenu"
+          />
         </template>
       </nav>
     </Teleport>
