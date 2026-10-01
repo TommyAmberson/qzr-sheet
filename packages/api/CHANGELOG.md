@@ -17,6 +17,23 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-02
+
+Switch day: verse-vault takes the root of www.versevault.ca.
+
+### Removed
+
+* **The public `/api/*` route** - the Worker answers only under `www.versevault.ca/qzr/api/*`, and
+  verse-vault's router takes `/api/*`. App builds before 0.11.0 (which call `/api/...`) lose their
+  connected features; scoring is unaffected. The root mount stays in the code for local dev and the
+  tests. The root `/api/auth/callback/{github,google}` URLs can come out of the OAuth providers
+
+### Bundled contract
+
+* `@qzr/shared@1.1.0` - bumped from 0.9.2. The API code doesn't change with it: the newer shared
+  versions add the social sign-in error helper, 15-question quiz formats, and the scoring and
+  quiz-file functions moved out of the scoresheet, none of which this release calls
+
 ## [0.12.2] - 2026-10-01
 
 ### Fixed
