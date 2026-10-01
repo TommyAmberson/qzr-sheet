@@ -750,12 +750,12 @@ async function discardKeptAutoSave() {
   discardKeptNewerAutoSave()
 }
 
-const formatBadge = computed(() =>
-  quiz.value.format === QuizFormat.FifteenQuestion ? '15 Q' : '20 Q',
-)
-const formatTitle = computed(() =>
-  quiz.value.format === QuizFormat.FifteenQuestion ? '15-question quiz' : '20-question quiz',
-)
+// A Record, so a new format fails type-checking until it has labels of its own
+const FORMAT_LABELS: Record<QuizFormat, { badge: string; name: string }> = {
+  [QuizFormat.TwentyQuestion]: { badge: '20 Q', name: '20-question quiz' },
+  [QuizFormat.FifteenQuestion]: { badge: '15 Q', name: '15-question quiz' },
+}
+const QUIZ_FORMATS = Object.values(QuizFormat)
 
 /** With no format (Ctrl+N), repeat the current quiz's: practice meets run many in a row */
 async function newQuiz(format = quiz.value.format) {
@@ -774,15 +774,9 @@ async function doExportOds() {
   await exportOds()
 }
 
-async function doNewTwentyQuestionQuiz() {
+async function doNewQuiz(format: QuizFormat) {
   closeMenus()
-  await newQuiz(QuizFormat.TwentyQuestion)
-  meetSession.clearSession()
-}
-
-async function doNewFifteenQuestionQuiz() {
-  closeMenus()
-  await newQuiz(QuizFormat.FifteenQuestion)
+  await newQuiz(format)
   meetSession.clearSession()
 }
 
@@ -1047,8 +1041,9 @@ const appVersion: string = __APP_VERSION__
                 <div class="file-menu">
                   <button title="New quiz (Ctrl+N)" @click="toggleNewMenu">✦ New ▾</button>
                   <div v-if="newMenuOpen" class="file-menu__dropdown">
-                    <button @click="doNewTwentyQuestionQuiz">✦ New 20-question quiz</button>
-                    <button @click="doNewFifteenQuestionQuiz">✦ New 15-question quiz</button>
+                    <button v-for="format in QUIZ_FORMATS" :key="format" @click="doNewQuiz(format)">
+                      ✦ New {{ FORMAT_LABELS[format].name }}
+                    </button>
                     <button @click="doClearAnswers">✕ Clear answers</button>
                     <button v-if="meetSession.isActive.value" @click="doUnlinkMeet">
                       ⚡ Unlink meet
@@ -1065,7 +1060,9 @@ const appVersion: string = __APP_VERSION__
               </div>
             </div>
             <div class="quiz-meta quiz-meta--right">
-              <span class="meta-format" :title="formatTitle">{{ formatBadge }}</span>
+              <span class="meta-format" :title="FORMAT_LABELS[quiz.format].name">{{
+                FORMAT_LABELS[quiz.format].badge
+              }}</span>
               <label class="meta-field meta-field--toggle" data-tutorial="overtime-toggle">
                 <input v-model="quiz.overtime" type="checkbox" />
                 <span class="toggle-track"><span class="toggle-thumb" /></span>
