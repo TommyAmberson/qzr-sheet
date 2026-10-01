@@ -6,7 +6,7 @@ following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 Released via `.github/workflows/release-scoresheet.yml` (Tauri matrix linux/windows/macos + signed
 Android APK, auto-published as a GitHub release on a green matrix) plus the same workflow's `pwa`
-job (PWA bundled into the web Pages deploy) on every `version` bump in
+job (PWA bundled into the `qzr-web` Worker deploy) on every `version` bump in
 `apps/scoresheet/package.json` that lands on `master`.
 
 Entries prior to 0.9.2 are from the era of unified monorepo versioning — every release tag
