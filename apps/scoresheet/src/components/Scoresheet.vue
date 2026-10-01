@@ -33,7 +33,7 @@ import {
   exportOdsFile,
   openOtsTemplate,
 } from '../persistence/fileIO'
-import { fillOts } from '../export/fillOts'
+import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import { anyTeamHasAnswer } from '../scoring/helpers'
 import { ValidationCode, validationMessage } from '../scoring/validation'
@@ -797,17 +797,10 @@ function doUnlinkMeet() {
   meetSession.clearSession()
 }
 
-const ODS_TWENTY_ONLY = 'Spreadsheet export supports 20-question quizzes only'
-
-// The ODS template's layout and formulas score a 20-question quiz only
-const canExportOds = computed(() => quiz.value.format === QuizFormat.TwentyQuestion)
+// fillOts refuses other formats; disabling the menu item spares a pointless template dialog
+const canExportOds = computed(() => odsSupportsFormat(quiz.value.format))
 
 async function exportOds() {
-  // Also reachable from App.vue, so guard here as well as in the menu
-  if (!canExportOds.value) {
-    alert(ODS_TWENTY_ONLY)
-    return
-  }
   const otsBytes = await openOtsTemplate()
   if (!otsBytes) return
   const quizFile = serialize({
