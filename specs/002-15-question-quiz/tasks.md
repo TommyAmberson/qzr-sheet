@@ -149,50 +149,50 @@ Q11 and on Q12+, and an error on Q12+, and match every total against a hand-scor
 
 ### Tests for User Story 1 (write first, see them fail)
 
-- [ ] T021 [P] [US1] Extend `scoresheet/scoring/__tests__/quizRules.spec.ts`:
+- [X] T021 [P] [US1] Extend `scoresheet/scoring/__tests__/quizRules.spec.ts`:
   `quizRules(FifteenQuestion)` is `{ regulationQuestions: 15, firstAbQuestion: 11,
   firstErrorPointsQuestion: 12, quizOutCorrect: 3, overtimeRoundSize: 3 }`, first overtime 16,
   last timeout question 11, invariant holds for every `QuizFormat` value
-- [ ] T022 [P] [US1] Create `scoresheet/types/__tests__/buildColumns.spec.ts`: for 15-question
+- [X] T022 [P] [US1] Create `scoresheet/types/__tests__/buildColumns.spec.ts`: for 15-question
   rules, keys are `1`..`10`, then `11`,`11A`,`11B` .. `15B` (no `16`..`20` without overtime);
   `isAB` true from 11; `isErrorPoints` false on 11/11A/11B and true from 12; one overtime round
   yields `16`,`16A`,`16B`..`18B` with `isOvertime`. Also assert 20-question keys are unchanged
-- [ ] T023 [P] [US1] Add 15-question cases to `scoresheet/scoring/__tests__/scoreTeam.spec.ts`:
+- [X] T023 [P] [US1] Add 15-question cases to `scoresheet/scoring/__tests__/scoreTeam.spec.ts`:
   quiz-out after 3 correct, with the +10 quiz-out bonus only when errors are 0; bonus `b` on Q11
   worth +20 and on Q12 worth +10; a first individual error (team's first) on Q11 costs 0 and on
   Q12 costs 10; unique-quizzer bonuses and on-time bonus unchanged
-- [ ] T024 [P] [US1] Add 15-question cases to `scoresheet/scoring/__tests__/validation.spec.ts`:
+- [X] T024 [P] [US1] Add 15-question cases to `scoresheet/scoring/__tests__/validation.spec.ts`:
   a 4th correct after 3 is `QuizzerOut`; and to
   `scoresheet/scoring/__tests__/greyedOut.spec.ts`: an error on Q12 opens 12A as a toss-up for
   the other two teams and 12B as the bonus, mirroring the existing Q17 cases
-- [ ] T025 [P] [US1] Add to `scoresheet/composables/__tests__/useScoresheet.spec.ts`:
+- [X] T025 [P] [US1] Add to `scoresheet/composables/__tests__/useScoresheet.spec.ts`:
   `resetStore(QuizFormat.FifteenQuestion)` yields a 15-question quiz with 15-question columns;
   timeouts after `11`, `11A`, and `11B` are allowed and after `12` or later are refused; a team's
   third timeout is refused (2 per team, FR-015); `resetStore()` yields 20-question
-- [ ] T026 [P] [US1] Add to `scoresheet/scoring/__tests__/placement.spec.ts` (FR-008): for a
+- [X] T026 [P] [US1] Add to `scoresheet/scoring/__tests__/placement.spec.ts` (FR-008): for a
   15-question quiz with one overtime round, `computeRegulationScores` counts only Q1 to 15B and
   `computePlacements`/`computePlacementPoints` use those end-of-Q15 scores with the quiz's formula
-- [ ] T027 [P] [US1] Create `scoresheet/scoring/__tests__/fifteenQuestionQuiz.spec.ts` (SC-002): one
+- [X] T027 [P] [US1] Create `scoresheet/scoring/__tests__/fifteenQuestionQuiz.spec.ts` (SC-002): one
   complete three-team 15-question quiz, hand-scored in a comment table, covering a quiz-out with its
   bonus, a Q11 bonus (+20), a 12A/12B chain (+10), a first error on Q12 (-10), a foul, and the
   unique-quizzer bonuses; assert every team total, quizzer total, out, and placement
 
 ### Implementation for User Story 1
 
-- [ ] T028 [US1] Replace the FifteenQuestion `throw` in `quizRules` in
+- [X] T028 [US1] Replace the FifteenQuestion `throw` in `quizRules` in
   `scoresheet/scoring/quizRules.ts` with its row; T021 to T024, T026, and T027 should now pass with no
   further scoring change (if one fails, a literal was missed in Phase 2: fix it in the scoring
   module, not in the test)
-- [ ] T029 [US1] Change `resetStore()` to `resetStore(format = QuizFormat.TwentyQuestion)` in
+- [X] T029 [US1] Change `resetStore()` to `resetStore(format = QuizFormat.TwentyQuestion)` in
   `scoresheet/composables/useScoresheet.ts`, setting the fresh quiz's format before `loadState`
-- [ ] T030 [US1] Change the `TimeoutAfterErrorPoints` message in
+- [X] T030 [US1] Change the `TimeoutAfterErrorPoints` message in
   `scoresheet/scoring/validation.ts` to "Timeouts can't be called once error points begin" (true
   in both formats; research R9); `Scoresheet.vue` already reads it through `validationMessage`
-- [ ] T031 [US1] In `scoresheet/components/Scoresheet.vue`: `newQuiz(format)` passes the format to
+- [X] T031 [US1] In `scoresheet/components/Scoresheet.vue`: `newQuiz(format)` passes the format to
   `resetStore`; the New menu replaces "✦ New quiz" with "✦ New 20-question quiz" and "✦ New
   15-question quiz", each calling its own named handler (no multi-statement inline `@click`,
   see CLAUDE.md Vue gotcha)
-- [ ] T032 [US1] Add the read-only format badge ("20 Q" / "15 Q", always shown, FR-011) to the
+- [X] T032 [US1] Add the read-only format badge ("20 Q" / "15 Q", always shown, FR-011) to the
   `quiz-meta--right` area of `scoresheet/components/Scoresheet.vue`, before the Overtime toggle,
   styled with the existing meta tokens
 - [ ] T033 [US1] Run `pnpm test:unit`, `pnpm type-check`, `pnpm lint`; then quickstart.md steps 1
@@ -217,19 +217,19 @@ the tied teams only; 19 to 21 only if still tied.
 
 ### Tests for User Story 2 (write first)
 
-- [ ] T034 [P] [US2] Add 15-question cases to `scoresheet/scoring/__tests__/overtime.spec.ts`:
+- [X] T034 [P] [US2] Add 15-question cases to `scoresheet/scoring/__tests__/overtime.spec.ts`:
   `computeOvertimeRounds` is 0 until Q1 to Q15 are complete; a tie after 15 gives one round whose
   first question is 16; a second round (19 to 21) only while tied; `getActiveOtTeams` limits it to
   the tied teams; with overtime off no OT columns exist
-- [ ] T035 [P] [US2] Add 15-question cases to
+- [X] T035 [P] [US2] Add 15-question cases to
   `scoresheet/scoring/__tests__/columnVisibility.spec.ts`: OT columns beyond
   `15 + visibleOtRounds * 3` are hidden/orphaned
 
 ### Implementation for User Story 2
 
-- [ ] T036 [US2] Make T034 and T035 pass; expected to need no change beyond Phase 2. If anything
+- [X] T036 [US2] Make T034 and T035 pass; expected to need no change beyond Phase 2. If anything
   still assumes 20/21, fix it in `scoresheet/scoring/overtime.ts` or `columnVisibility.ts`
-- [ ] T037 [US2] Check `computeInitialOtRounds` in `scoresheet/composables/useScoresheet.ts` builds
+- [X] T037 [US2] Check `computeInitialOtRounds` in `scoresheet/composables/useScoresheet.ts` builds
   columns with the restored quiz's rules (`quizRules(restored.quiz.format)`), not the current
   quiz's; add a `useScoresheet.spec.ts` case restoring a tied 15-question quiz with overtime on
 - [ ] T038 [US2] In `pnpm dev`, run quickstart.md step 6 and confirm the regulation-end border sits
@@ -251,30 +251,30 @@ teams, press Ctrl+N: still 15-question with the same answers.
 
 ### Tests for User Story 3 (write first)
 
-- [ ] T039 [P] [US3] Add to `scoresheet/persistence/__tests__/quizFile.spec.ts`
+- [X] T039 [P] [US3] Add to `scoresheet/persistence/__tests__/quizFile.spec.ts`
   (contracts/quiz-file.md): a 20-question quiz serializes with `version: 2` and no `quiz.format`; a
   15-question quiz serializes with `version: 3` and `format: '15-question'`; version 1 and 2 files
   deserialize as 20-question and are rejected if they name a format; a version 3 file without
   `format` is rejected; a version 3 file with
   `format: 'nonsense'` is rejected with a message containing `nonsense`; answers at `16A` in a
   15-question file land on the overtime column `16A`; a round trip preserves every quiz field
-- [ ] T040 [P] [US3] Add newer-file cases to `scoresheet/persistence/__tests__/quizFile.spec.ts`:
+- [X] T040 [P] [US3] Add newer-file cases to `scoresheet/persistence/__tests__/quizFile.spec.ts`:
   parsing a `version: 4` file throws a distinguishable `NewerFileVersionError` (or equivalent typed
   result); the attempt path parses it as version 3 if it names a known format and version 2 if it
   names none, drops unknown fields, and still rejects an unknown `format`
-- [ ] T041 [P] [US3] Add to `scoresheet/composables/__tests__/useScoresheet.spec.ts`:
+- [X] T041 [P] [US3] Add to `scoresheet/composables/__tests__/useScoresheet.spec.ts`:
   `clearAnswers` and `clearNames` keep a 15-question format; auto-save then restore yields a
   15-question quiz with the same answers; the opened-from-newer-file flag clears on `resetStore`
   and on any normal `loadFile` but survives a reload; discarding a newer auto-save that paused
   auto-save saves the sheet at once. Unlinking a meet and loading teams from a meet or schedule
   leave the format alone (checked by inspection: they set only division, quiz number,
   consolation, and names)
-- [ ] T042 [P] [US3] Add to `scoresheet/composables/__tests__/useTutorial.spec.ts`: starting the
+- [X] T042 [P] [US3] Add to `scoresheet/composables/__tests__/useTutorial.spec.ts`: starting the
   tutorial from a 15-question quiz runs on a 20-question sheet and finishing it restores the
   15-question quiz with its answers; the newer-file warning survives the tutorial and its crash
   recovery, with no stale warning carried over; a newer crash snapshot is set aside, or kept in
   place (listed, and the tutorial won't start until it is discarded) when storage is full
-- [ ] T043 [P] [US3] Add to `scoresheet/persistence/__tests__/autoSave.spec.ts` (FR-018,
+- [X] T043 [P] [US3] Add to `scoresheet/persistence/__tests__/autoSave.spec.ts` (FR-018,
   contracts/quiz-file.md "Newer auto-save"): with a `version: 4` value in `qzr-sheet:current`,
   `loadFromStorage` returns no quiz, moves the value unchanged to a
   `qzr-sheet:newer-autosave:<timestamp>` key, and never deletes it; a second newer value moved
@@ -285,32 +285,32 @@ teams, press Ctrl+N: still 15-question with the same answers.
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] In `scoresheet/persistence/quizFile.ts` `serialize`: stamp
+- [X] T044 [US3] In `scoresheet/persistence/quizFile.ts` `serialize`: stamp
   `fileVersionFor(quiz.format)` (from T016) and write `quiz.format` only when it is not
   TwentyQuestion, so 20-question files stay byte-compatible with version 2
-- [ ] T045 [US3] In `scoresheet/persistence/quizFile.ts` `deserialize`: resolve the format
+- [X] T045 [US3] In `scoresheet/persistence/quizFile.ts` `deserialize`: resolve the format
   (`version < 3` means TwentyQuestion and must not name a format, `version 3` requires one), and
   build `validKeys`
   from `buildColumns(quizRules(format), 20)` instead of fixed 20-question columns; return the
   format on the result's `quiz`
-- [ ] T046 [US3] In `scoresheet/persistence/quizFile.ts` `parseQuizFile`: before `Value.Parse`,
+- [X] T046 [US3] In `scoresheet/persistence/quizFile.ts` `parseQuizFile`: before `Value.Parse`,
   read the raw `version`; above `FILE_VERSION`, throw `NewerFileVersionError`. Add
   `parseQuizFileAttempt(json)` that re-parses it as the version needed for what this build reads
   (3 with a known format, 2 with none, dropping a 20-question format). Unknown `format` values must
   still fail
-- [ ] T047 [US3] In `openFile` in `scoresheet/components/Scoresheet.vue` (~667, the `.json`
+- [X] T047 [US3] In `openFile` in `scoresheet/components/Scoresheet.vue` (~667, the `.json`
   branch that calls `parseQuizFile`): on `NewerFileVersionError`, ask via
   `confirmAction("This file was saved by a newer version of the scoresheet. Update to open it
   reliably. Try to open it anyway? Scores may be wrong.")`; on yes, load via
   `parseQuizFileAttempt`, pass it to `loadFile`, then set an `openedFromNewerFile` flag kept in
   `scoresheet/composables/useScoresheet.ts`; on no, change nothing
-- [ ] T048 [US3] Show a persistent warning badge "Opened from a newer file; may be scored wrong"
+- [X] T048 [US3] Show a persistent warning badge "Opened from a newer file; may be scored wrong"
   in `scoresheet/components/Scoresheet.vue` while `openedFromNewerFile` is set; clear the flag in
   `resetStore` and at the start of every `loadFile` in `scoresheet/composables/useScoresheet.ts`
   (the attempt path sets it again after loading). Persist it in
   `scoresheet/persistence/openedFromNewerFile.ts` so it survives reloads, and have the tutorial
   carry it across its reset and crash recovery
-- [ ] T049 [US3] In `scoresheet/persistence/autoSave.ts` `loadFromStorage`: on
+- [X] T049 [US3] In `scoresheet/persistence/autoSave.ts` `loadFromStorage`: on
   `NewerFileVersionError`, move the raw value unchanged to
   `qzr-sheet:newer-autosave:<new Date().toISOString()>` and return null instead of removing it;
   export `listKeptNewerAutoSaves()` (most recent first) and `discardKeptNewerAutoSave(key)`.
@@ -318,13 +318,13 @@ teams, press Ctrl+N: still 15-question with the same answers.
   auto-save while it is `qzr-sheet:current`, and never overwrite or clear it until it is
   discarded. The tutorial's crash recovery uses the same path for a newer snapshot. Other failures
   keep today's handling
-- [ ] T050 [US3] In `scoresheet/components/Scoresheet.vue`, while any kept newer auto-save exists,
+- [X] T050 [US3] In `scoresheet/components/Scoresheet.vue`, while any kept newer auto-save exists,
   show a notice ("An auto-saved quiz from a newer version was kept", with the count when more than
   one) offering, for the first listed: **Try to open it** (unsaved-changes confirmation as in
   `openFile`, then the T047 attempt flow on the kept value; the kept original stays) and
   **Discard** (`confirmAction`, then `discardKeptNewerAutoSave`), the only way to remove it. When
   the quiz is pausing auto-save, the notice says so, and Discard saves the sheet at once
-- [ ] T051 [US3] In `scoresheet/App.vue`, make Ctrl+N (`onNew`) start a new quiz in the current
+- [X] T051 [US3] In `scoresheet/App.vue`, make Ctrl+N (`onNew`) start a new quiz in the current
   quiz's format (research R5): expose a way from `Scoresheet.vue` (e.g. `newQuiz()` with no
   argument repeats `quiz.format`) and keep the menu items explicit
 - [ ] T052 [US3] Run `pnpm test:unit`, `pnpm type-check`, `pnpm lint`, then quickstart.md steps 7
