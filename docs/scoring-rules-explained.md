@@ -73,6 +73,19 @@ When a quizzer answers incorrectly, their team **cannot jump** on the next quest
 * When only one team remains eligible, the question is a **bonus** question (`b`/`mb`).
 * If a toss-up is answered correctly, all three teams can jump on the next question.
 
+### Who may answer a bonus
+
+Two variants are available via `BonusRule` (`packages/shared/src/quizFile.ts`), stored per quiz in
+`QuizFile`:
+
+* **Seat** (default, per "Types of Quizzes" §1.g–h and §3.c in `docs/rules.md`): the bonus goes to
+  the corresponding chair on the team that has not erred, so only the quizzer in the seat matching
+  the last error may answer. The other seats on the bonus team are greyed out.
+* **Team**: any quizzer on the bonus team may answer. Retained as an opt-in variant for meets that
+  run it that way; there is no UI toggle, and it is set only through a loaded `QuizFile`.
+
+Files saved before `bonusRule` existed load as **Seat**.
+
 ## A/B Questions (Q16–20)
 
 Questions 16–20 have optional A and B sub-columns. These exist to preserve the rule that Q17–20

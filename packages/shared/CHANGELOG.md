@@ -11,11 +11,12 @@ observable wire/state behaviour. Discipline:
 * **MAJOR** — breaking changes to wire format, file format (`FILE_VERSION` bump in `quizFile.ts`),
   or shared types that consumers must adapt to.
 * **MINOR** — additive changes (new optional fields, new enum values consumers can ignore).
-* **PATCH** — pure documentation or refactor with no observable effect.
+* **PATCH** — an observable fix that leaves the contract's shape unchanged.
 
 The pre-commit hook `tools/check-contract-versions.sh` blocks commits that touch
-`packages/shared/src/` without a matching `version` bump in `packages/shared/package.json`. Bypass
-with `git commit --no-verify` for refactors with no observable effect.
+`packages/shared/src/` without a matching `version` bump in `packages/shared/package.json` in the
+same commit, so the bump and its entry here land with the change itself. A refactor with no
+observable effect doesn't bump: commit it with `git commit --no-verify` instead.
 
 When consumers bump their own version, they must update their CHANGELOG's `### Bundled contract`
 subsection to name the current `@qzr/shared` version. CI verifies this in each deploy workflow.

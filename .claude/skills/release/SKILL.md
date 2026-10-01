@@ -14,9 +14,14 @@ after the bump commit lands on master — never tag locally.
 
 ## Arguments
 
-The user normally provides a package name (one of `scoresheet`, `web`, `api`, `shared`) and
-optionally a version. If they only said "release", ask which package — but suggest the most likely
-one based on which paths have unreleased commits.
+The user normally provides a package name (one of `scoresheet`, `web`, `api`) and optionally a
+version. If they only said "release", ask which package, but suggest the most likely one based on
+which paths have unreleased commits.
+
+`shared` has no release step. The pre-commit hook requires its version bump, and its CHANGELOG
+entry, in the same commit as the `packages/shared/src/` change, so by release time it is already
+bumped. If asked to release `shared`, explain this and offer to release the consumers that bundle
+it.
 
 ## Steps
 
@@ -47,7 +52,6 @@ Package path mapping:
 * `scoresheet` → `apps/scoresheet/` (excluding `apps/scoresheet/CHANGELOG.md`)
 * `web` → `apps/web/` (excluding `apps/web/CHANGELOG.md`)
 * `api` → `packages/api/` (excluding `packages/api/CHANGELOG.md` and `.wrangler/`)
-* `shared` → `packages/shared/`
 
 Also read the current version from the package's `package.json`.
 
@@ -59,9 +63,6 @@ If the user provided a version, use that. Otherwise, suggest one based on the sc
 * **minor** — new features, new UI, new file format versions, meaningful behavioural changes
 * **major** — breaking changes to file format (non-backwards-compatible), API contract changes,
   major rewrites
-
-For `shared`, MAJOR is reserved for wire/state contract breaks (consumers must adapt). See CLAUDE.md
-"Contract package versioning".
 
 Present the suggested version and a brief rationale. Ask the user to confirm or override before
 proceeding.
@@ -89,7 +90,7 @@ Style rules:
 * Look at actual code changes (not just commit messages) to write accurate, specific descriptions.
 * Match the tone and detail level of existing entries in the file.
 
-#### Extra step for `api`
+#### Bundled contract
 
 After the regular sections, add a `### Bundled contract` subsection:
 
@@ -99,8 +100,9 @@ After the regular sections, add a `### Bundled contract` subsection:
 * @qzr/shared@<current-shared-version> — <one-line note: changed since last release, or unchanged>
 ```
 
-Read the current shared version from `packages/shared/package.json`. CI rejects api deploys where
-the entry for the version being deployed doesn't reference the current shared version.
+Read the current shared version from `packages/shared/package.json`. Every consumer (`api`, `web`,
+`scoresheet`) needs this subsection: each deploy workflow rejects a release whose entry doesn't
+reference the current shared version.
 
 ### 5. Bump the package version
 
@@ -134,7 +136,5 @@ ready — pushing fires the deploy.
 * Never push automatically — always let the user push.
 * Keep changelog entries concise and audience-appropriate (scoresheet entries face end-users;
   api/web/shared entries face engineers).
-* For `shared` bumps: every consumer that bundles shared (`api`, plus `web` and `scoresheet` if
-  they're being bumped in the same window) must have their `### Bundled contract` subsection updated
-  to name the new shared version when they next release. The deploy workflows enforce this at CI
-  time.
+* After a `shared` bump, every consumer's next release must name the new shared version in its
+  `### Bundled contract` subsection. The deploy workflows enforce this at CI time.

@@ -14,9 +14,15 @@ packages/
   shared/       # QuizFile schema, role enums, shared API types
   ui/           # Workspace-internal Vue components
   api/          # Hono + D1 + Drizzle (Cloudflare Workers)
+specs/          # Spec Kit artefacts, one NNN-slug/ per feature (spec, plan, tasks)
+.specify/       # Spec Kit scaffolding: templates, shell helpers, constitution
 ```
 
 See `docs/architecture.md` for full detail on internals, data flow, and design decisions.
+
+`.specify/` is vendored by the Specify CLI, which rewrites `scripts/` and `templates/*.md` on every
+refresh. Customise through `.specify/templates/overrides/<name>.md` rather than editing them in
+place.
 
 ## Commands
 
@@ -39,9 +45,10 @@ The legacy `pnpm deploy` (build everything locally + `wrangler pages deploy`) st
 emergency-only escape hatch. Day-to-day deploys are driven by per-package `version` bumps on master
 — see **Releasing** below.
 
-### Available as MCP tools
+### CodeCompanion project commands
 
-These commands are wired up as project commands and should be used proactively after making changes:
+`.codecompanion-commands.json` exposes these to CodeCompanion (Neovim) as MCP tools. They don't
+exist in Claude Code; run the `pnpm` aliases above instead.
 
 * `run_test` — run unit tests to verify changes
 * `run_format` — run Prettier after editing files
@@ -68,6 +75,13 @@ TS/Vue/CSS with Prettier, fixes lint with ESLint, and runs `dprint` on markdown 
   end.
 * Do not add `Co-Authored-By` lines.
 * Work on feature branches, not directly on master.
+* A sub-feature that will take more than one commit gets its own branch off the feature branch
+  (`feat/schedule-editor` → `feat/roll-teams`), merged back with `git merge --no-ff`. Single-commit
+  tweaks stay on the parent branch.
+* Pull requests are feature-sized: many atomic commits, few PRs. Fold follow-ups that touch the same
+  surface into the in-flight branch, and land design docs with the code they describe. Split only
+  for different urgency, different reviewers, or a genuine precondition. Ask before opening,
+  closing, or splitting a PR.
 * Always run pnpm commands from the repo root using root-level aliases (e.g. `pnpm test:unit`, not
   `pnpm --filter scoresheet test:unit`) — keeps commands predictable for auto-approval.
 
@@ -79,6 +93,8 @@ TS/Vue/CSS with Prettier, fixes lint with ESLint, and runs `dprint` on markdown 
   `chore: merge <branch-name>`. For local merges, set this via `git merge --no-ff -m "..."`. For
   PRs, pass `--subject "chore: merge <branch>"` to `gh pr merge` (or edit before confirming) —
   GitHub's default `Merge pull request #N from …` template doesn't conform to commitlint.
+* `--delete-branch` only removes the remote branch. After merging, `git checkout master`,
+  `git pull --ff-only`, and `git branch -d <branch>` so stale local branches don't pile up.
 
 ### Rewriting history
 
@@ -138,13 +154,16 @@ behaviour. Semver semantics:
 * **MAJOR** — breaking change to wire format, file format (`FILE_VERSION` bump in
   `apps/scoresheet/src/persistence/quizFile.ts`), or shared types consumers must adapt to.
 * **MINOR** — additive (new optional field, new enum value consumers can ignore).
-* **PATCH** — pure documentation or refactor with no observable effect.
+* **PATCH** — an observable fix that leaves the contract's shape unchanged.
+
+A refactor with no observable effect doesn't bump at all: commit it with `--no-verify` instead.
 
 Enforcement:
 
 * **Pre-commit** (`tools/check-contract-versions.sh`): blocks commits that touch
-  `packages/shared/src/` without bumping `packages/shared/package.json`. Bypass with
-  `git commit --no-verify` for refactors with no observable effect.
+  `packages/shared/src/` without bumping `packages/shared/package.json` **in the same commit**. A
+  separate follow-up bump commit doesn't satisfy it, so the bump, and its `CHANGELOG.md` entry, ride
+  along with the change itself.
 * **CI** (each deploy workflow runs `tools/check-contract-versions.sh --ci <consumer>`): blocks the
   consumer's deploy when its `CHANGELOG.md` entry for the version being deployed doesn't reference
   the current `@qzr/shared` version under a `### Bundled contract` subsection. Catches "bumped
@@ -155,23 +174,26 @@ that consumer's `### Bundled contract` subsection to name the new shared version
 
 ## Releasing
 
-Per-package: each release surface (`scoresheet`, `web`, `api`, `shared`) has its own `package.json`
-`version` field, its own `CHANGELOG.md`, and its own CI deploy workflow that fires when the version
-bump lands on master.
+Per-package: `scoresheet`, `web`, and `api` each have their own `package.json` `version` field,
+their own `CHANGELOG.md`, and their own CI deploy workflow that fires when the version bump lands on
+master. `shared` has a version and changelog but no deploy workflow and no separate release step: it
+is bumped in the commit that changes it (see above), and the first consumer deploy that bundles the
+new version tags `shared@<version>`.
 
-Use the `/release <pkg>` skill (see `.claude/skills/release/SKILL.md`) or do it manually:
+For `scoresheet`, `web`, or `api`, use the `/release <pkg>` skill (see
+`.claude/skills/release/SKILL.md`) or do it manually:
 
 ```sh
 # 1. Update the package's CHANGELOG.md under [Unreleased]:
 #       ## [<new>] — YYYY-MM-DD
 #       ### Added / Changed / Fixed
 #       …
-#    For api/web/scoresheet releases, also add a:
+#    Also add a:
 #       ### Bundled contract
 #       * @qzr/shared@<current> — unchanged | bumped from <old>
 
 # 2. Bump the package version (only that package's files move):
-pnpm bump <scoresheet|web|api|shared> <semver>
+pnpm bump <scoresheet|web|api> <semver>
 
 # 3. Commit and push:
 git add <reported-files> <package>/CHANGELOG.md
@@ -181,6 +203,24 @@ git push origin master
 
 CI fires the matching `.github/workflows/deploy-<pkg>.yml` (or `release-scoresheet.yml`), runs the
 contract check, deploys, and tags `<pkg>@<semver>` on success. **Don't tag locally** — CI does it.
+
+## Spec-driven development
+
+Feature-sized work runs through the `speckit-*` skills (`/speckit-specify`, `/speckit-plan`,
+`/speckit-tasks`, `/speckit-implement`), writing into `specs/<NNN-slug>/`. `/speckit-clarify` before
+planning de-risks an ambiguous spec, and `/speckit-analyze` cross-checks the three artefacts before
+implementation starts. Run `/speckit-analyze` before every `/speckit-implement`, even when asked to
+just "continue", unless the user says it already ran or to skip it. Small fixes and one-commit
+changes skip the pipeline.
+
+Those commands gate against `.specify/memory/constitution.md`. It states principles; this file holds
+the mechanics they compile down to and the runtime guidance for agents. Where they disagree, fix the
+operational file rather than working around it.
+
+Spec Kit is branch-agnostic: `create-new-feature.sh` invokes git nowhere, and its `NNN-slug` string
+names the `specs/` directory rather than a branch. Keep using `type/short-slug` branches. Commit
+each artefact as it lands (`docs: spec <feature>`, `docs: plan <feature>`,
+`docs: break <feature> into tasks`).
 
 ## Scope discipline
 
@@ -217,15 +257,34 @@ surface it so the user can decide.
   multi-statement handlers to named functions in `<script setup>` instead of inline expressions.
 * Auth uses Better Auth cookie sessions — no JWTs for user auth. `BETTER_AUTH_SECRET` must be ≥32
   chars. OAuth callbacks: `/api/auth/callback/github`, `/api/auth/callback/google`.
+* **A stale Vite watcher looks like a CSS bug.** Long-running dev servers (especially once Linux
+  hits its inotify limit) silently stop picking up edits. If a visual change "didn't work" but the
+  file on disk is right, fetch the served stylesheet (`curl` the `?vue&type=style` URL) and compare
+  before editing again; if it's stale, ask the user to restart `pnpm dev:all`.
 * **Never hand-write or edit migration files.** Always run `pnpm --filter @qzr/api db:generate` to
   generate migrations from the schema diff. If the generated SQL won't work (e.g. `ADD NOT NULL` on
   existing rows), fix the schema design instead — make the column nullable, provide a default, or
   split into two migrations. The `migrations/meta/_journal.json` must stay in sync.
+* **A fresh clone cannot resume a committed Spec Kit feature.** `.specify/feature.json` is the only
+  feature-context source the scripts accept, and Spec Kit gitignores it as machine-local state.
+  Every speckit command fails with "Feature directory not found" until you
+  `export SPECIFY_FEATURE_DIRECTORY=specs/<NNN-slug>` or re-run `/speckit-specify`.
+* **dprint rewrites Spec Kit's checkboxes, so `specs/**/tasks.md` and `specs/**/checklists/` are
+  excluded.** `unorderedListKind: "asterisks"` turns `- [ ]` into `* [ ]`, and `/speckit-implement`
+  and `/speckit-converge` read task state from the hyphen form. The rewrite is silent and still
+  renders fine, so the damage only shows when a speckit command finds no tasks. Prose artefacts in
+  `specs/` carry no checkboxes and stay linted.
+* **Vendored Spec Kit files are exempt from dprint and typos, narrowly.** `.specify/scripts/`,
+  `.specify/templates/`, and `.claude/skills/speckit-*/` are rewritten on every `specify` refresh,
+  so any fix would be undone. `.specify/memory/constitution.md` and `.specify/templates/overrides/`
+  are project-authored and stay linted. Don't widen either exclusion to `.specify/**`.
 
 ## Reference Docs
 
 When working on scoring logic, rules, or architecture, read the relevant file first:
 
+* `.specify/memory/constitution.md`: project constitution, the principles the `speckit-*` commands
+  gate against
 * `docs/issue-conventions.md` — labels, titles, AI attribution, and how issues relate to
   `ROADMAP.md`
 * `ROADMAP.md` — feature breakdown and implementation plan
@@ -239,4 +298,7 @@ When working on scoring logic, rules, or architecture, read the relevant file fi
   inspiration source for scheduling design where `docs/rules.md` underspecifies how meets actually
   run (multi-bracket elims, lateness handling, slot pitches, etc.). Adapt or diverge as needed
 * `docs/architecture.md` — data flow, layer responsibilities, key design decisions
-* `docs/auth-proposal.md` — Phase 4 architecture, API stack, security, data model
+* `docs/auth.md`: Better Auth setup, account types, OAuth and Tauri flows, security
+* `docs/roles-and-access.md`: meet-scoped roles, codes, join flow, guest tokens
+* `docs/data-model.md`: full schema, memberships, quizzer identity
+* `docs/ods-format.md`: the LibreOffice template layout that ODS export and import target
