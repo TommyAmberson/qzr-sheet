@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { TWENTY_QUESTION_RULES as TWENTY } from '../quizRules'
-import { BonusRule, CellValue, buildColumns } from '../../types/scoresheet'
+import { TWENTY_QUESTION_RULES as TWENTY, quizRules } from '../quizRules'
+import { BonusRule, CellValue, QuizFormat, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut, type GreyedOutResult } from '../greyedOut'
 import { ColStatus } from '../helpers'
 import { computeOtIneligibility } from '../overtime'
@@ -685,5 +685,28 @@ describe('seat bonus greying', () => {
     // Bonus for team 2 — seat 1 matches the last error
     expect(isSeatGreyed(result, 2, 0, q3)).toBe(true)
     expect(isSeatGreyed(result, 2, 1, q3)).toBe(false)
+  })
+})
+
+describe('computeGreyedOut — 15-question quiz', () => {
+  const cols = buildColumns(quizRules(QuizFormat.FifteenQuestion))
+  const at = (key: string) => cols.findIndex((c) => c.key === key)
+  const blank = () => [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+
+  it('makes 12A a toss-up for the other two teams after an error on Q12', () => {
+    const cells = blank()
+    cells[0]![0]![at('12')] = E
+    const result = computeGreyedOut(cells, cols)
+    expect(isGreyed(result, 0, at('12A'))).toBe(true)
+    expect(isGreyed(result, 1, at('12A'))).toBe(false)
+    expect(isGreyed(result, 2, at('12A'))).toBe(false)
+  })
+
+  it('makes 12B a bonus for the remaining team after 12A is also missed', () => {
+    const cells = blank()
+    cells[0]![0]![at('12')] = E
+    cells[1]![0]![at('12A')] = E
+    const result = computeGreyedOut(cells, cols)
+    expect(isBonusFor(result, 2, at('12B'))).toBe(true)
   })
 })

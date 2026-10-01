@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { TWENTY_QUESTION_RULES as TWENTY } from '../quizRules'
+import { TWENTY_QUESTION_RULES as TWENTY, quizRules } from '../quizRules'
 import { scoreTeam } from '../scoreTeam'
-import { CellValue, buildColumns } from '../../types/scoresheet'
+import { CellValue, QuizFormat, buildColumns } from '../../types/scoresheet'
 
 const columns = buildColumns(TWENTY)
 const C = CellValue.Correct
@@ -522,5 +522,61 @@ describe('scoreTeam', () => {
     const result = scoreTeam(cells, columns, true, TWENTY)
     // 20 + 20 + 20 + 30 + 0 + (-10) + 10 = 90
     expect(result.total).toBe(90)
+  })
+})
+
+describe('scoreTeam — 15-question quiz', () => {
+  const FIFTEEN = quizRules(QuizFormat.FifteenQuestion)
+  const cols = buildColumns(FIFTEEN)
+  const at = (key: string) => cols.findIndex((c) => c.key === key)
+  const blank = () => Array.from({ length: 5 }, () => cols.map(() => _))
+  const score = (cells: CellValue[][]) => scoreTeam(cells, cols, false, FIFTEEN)
+
+  it('quizzes out at 3 correct with the +10 quiz-out bonus', () => {
+    const cells = blank()
+    for (const key of ['1', '2', '3']) cells[0]![at(key)] = C
+    const result = score(cells)
+    expect(result.quizzers[0]!.quizzedOut).toBe(true)
+    expect(result.quizoutBonusCols.has(at('3'))).toBe(true)
+    expect(result.total).toBe(70)
+  })
+
+  it('gives no quiz-out bonus when the quizzer has an error', () => {
+    const cells = blank()
+    cells[0]![at('1')] = E
+    for (const key of ['2', '3', '4']) cells[0]![at(key)] = C
+    const result = score(cells)
+    expect(result.quizzers[0]!.quizzedOut).toBe(true)
+    expect(result.quizoutBonusCols.size).toBe(0)
+  })
+
+  it('values a bonus at 20 on Q11 and 10 from Q12', () => {
+    const q11 = blank()
+    q11[0]![at('11B')] = B
+    expect(score(q11).total).toBe(20)
+    const q12 = blank()
+    q12[0]![at('12B')] = B
+    expect(score(q12).total).toBe(10)
+  })
+
+  it("frees a quizzer's first error on Q11 but deducts it from Q12", () => {
+    const q11 = blank()
+    q11[0]![at('11')] = E
+    expect(score(q11).total).toBe(0)
+    const q12 = blank()
+    q12[0]![at('12')] = E
+    expect(score(q12).total).toBe(-10)
+  })
+
+  it('keeps the unique-quizzer and on-time bonuses', () => {
+    const cells = blank()
+    for (const [seat, key] of [
+      [0, '1'],
+      [1, '2'],
+      [2, '3'],
+    ] as const) {
+      cells[seat]![at(key)] = C
+    }
+    expect(scoreTeam(cells, cols, true, FIFTEEN).total).toBe(20 + 60 + 10)
   })
 })

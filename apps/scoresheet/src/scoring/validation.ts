@@ -47,8 +47,7 @@ const validationMessages: Record<ValidationCode, string> = {
   [ValidationCode.FouledOnQuestion]:
     'A foul on this numbered question makes the quizzer ineligible',
   [ValidationCode.NotInOvertime]: 'Only tied teams can answer in overtime — this team is not tied',
-  [ValidationCode.TimeoutAfterErrorPoints]:
-    "Timeouts can't be called after error points (after question 17)",
+  [ValidationCode.TimeoutAfterErrorPoints]: "Timeouts can't be called once error points begin",
   [ValidationCode.TooManyTimeouts]: 'Each team is allowed only 2 timeouts per quiz',
 }
 

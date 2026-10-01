@@ -15,6 +15,25 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-01
+
+### Added
+
+* **15-question quizzes** for practice meets: the New menu offers "New 20-question quiz" and "New
+  15-question quiz", and a badge in the header shows which one is open. A 15-question quiz has A/B
+  sub-questions on 11 to 15, error points and 10-point bonuses from 12, quiz-out (and its bonus) at
+  3 correct, and overtime from 16. The rulebook doesn't define this format; it is the 20-question
+  quiz with its final stretch moved five questions earlier.
+
+### Changed
+
+* The timeout warning now reads "Timeouts can't be called once error points begin", which holds for
+  both quiz formats.
+
+### Bundled contract
+
+* `@qzr/shared@1.0.0` - bumped from 0.10.0
+
 ## [0.11.1] - 2026-10-01
 
 ### Fixed

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { TWENTY_QUESTION_RULES as TWENTY } from '../quizRules'
-import { CellValue, buildColumns } from '../../types/scoresheet'
+import { TWENTY_QUESTION_RULES as TWENTY, quizRules } from '../quizRules'
+import { CellValue, QuizFormat, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut } from '../greyedOut'
 import {
   validateCells,
@@ -868,5 +868,19 @@ describe('cell validation', () => {
     const grey = computeGreyedOut(cells, columns)
     const errors = validateCells(cells, columns, grey, TWENTY)
     expect(hasCode(errors, 0, 0, colIdxOf('1'), ValidationCode.EmptySeat)).toBe(false)
+  })
+})
+
+describe('validateCells — 15-question quiz', () => {
+  const FIFTEEN = quizRules(QuizFormat.FifteenQuestion)
+  const cols = buildColumns(FIFTEEN)
+  const at = (key: string) => cols.findIndex((c) => c.key === key)
+
+  it('treats a 4th correct after 3 as answering while quizzed out', () => {
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    for (const key of ['1', '2', '3', '4']) cells[0]![0]![at(key)] = C
+    const errors = validateCells(cells, cols, computeGreyedOut(cells, cols), FIFTEEN)
+    expect(hasCode(errors, 0, 0, at('3'), ValidationCode.QuizzerOut)).toBe(false)
+    expect(hasCode(errors, 0, 0, at('4'), ValidationCode.QuizzerOut)).toBe(true)
   })
 })

@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { CellValue, QuestionCategory, QuestionType, QUIZZERS_PER_TEAM } from '../types/scoresheet'
+import {
+  CellValue,
+  QuestionCategory,
+  QuestionType,
+  QuizFormat,
+  QUIZZERS_PER_TEAM,
+} from '../types/scoresheet'
 import { firstOvertimeQuestion } from '../scoring/quizRules'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
@@ -684,10 +690,17 @@ async function openFile() {
   }
 }
 
-async function newQuiz() {
+const formatBadge = computed(() =>
+  quiz.value.format === QuizFormat.FifteenQuestion ? '15 Q' : '20 Q',
+)
+const formatTitle = computed(() =>
+  quiz.value.format === QuizFormat.FifteenQuestion ? '15-question quiz' : '20-question quiz',
+)
+
+async function newQuiz(format = QuizFormat.TwentyQuestion) {
   if (isDirty.value && !(await confirmAction('Start a new quiz? Unsaved changes will be lost.')))
     return
-  resetStore()
+  resetStore(format)
 }
 
 async function doSaveFile() {
@@ -700,9 +713,15 @@ async function doExportOds() {
   await exportOds()
 }
 
-async function doNewQuiz() {
+async function doNewTwentyQuestionQuiz() {
   closeMenus()
-  await newQuiz()
+  await newQuiz(QuizFormat.TwentyQuestion)
+  meetSession.clearSession()
+}
+
+async function doNewFifteenQuestionQuiz() {
+  closeMenus()
+  await newQuiz(QuizFormat.FifteenQuestion)
   meetSession.clearSession()
 }
 
@@ -954,7 +973,8 @@ const appVersion: string = __APP_VERSION__
                 <div class="file-menu">
                   <button title="New quiz (Ctrl+N)" @click="toggleNewMenu">✦ New ▾</button>
                   <div v-if="newMenuOpen" class="file-menu__dropdown">
-                    <button @click="doNewQuiz">✦ New quiz</button>
+                    <button @click="doNewTwentyQuestionQuiz">✦ New 20-question quiz</button>
+                    <button @click="doNewFifteenQuestionQuiz">✦ New 15-question quiz</button>
                     <button @click="doClearAnswers">✕ Clear answers</button>
                     <button v-if="meetSession.isActive.value" @click="doUnlinkMeet">
                       ⚡ Unlink meet
@@ -971,6 +991,7 @@ const appVersion: string = __APP_VERSION__
               </div>
             </div>
             <div class="quiz-meta quiz-meta--right">
+              <span class="meta-format" :title="formatTitle">{{ formatBadge }}</span>
               <label class="meta-field meta-field--toggle" data-tutorial="overtime-toggle">
                 <input v-model="quiz.overtime" type="checkbox" />
                 <span class="toggle-track"><span class="toggle-thumb" /></span>
@@ -1765,6 +1786,16 @@ const appVersion: string = __APP_VERSION__
   display: flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.meta-format {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
 }
 
 .meta-label {

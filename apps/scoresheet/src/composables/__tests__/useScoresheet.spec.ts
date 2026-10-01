@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../useScoresheet'
-import { CellValue, QuestionCategory } from '../../types/scoresheet'
+import { CellValue, QuestionCategory, QuizFormat } from '../../types/scoresheet'
 import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
 
 const T = toTeamIdx
@@ -426,5 +426,42 @@ describe('useScoresheet — resetStore', () => {
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
     s.resetStore()
     expect(s.canUndo.value).toBe(false)
+  })
+})
+
+describe('useScoresheet — 15-question quiz', () => {
+  it('resetStore(FifteenQuestion) starts a 15-question quiz', () => {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    expect(s.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
+    // 10 plain questions + 5 questions with A/B
+    expect(s.columns.value).toHaveLength(25)
+    expect(s.columns.value[s.columns.value.length - 1]!.key).toBe('15B')
+  })
+
+  it('resetStore() starts a 20-question quiz', () => {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    s.resetStore()
+    expect(s.quiz.value.format).toBe(QuizFormat.TwentyQuestion)
+    expect(s.columns.value).toHaveLength(30)
+  })
+
+  it('allows timeouts through 11B and refuses them from 12', () => {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    for (const key of ['10', '11', '11A', '11B']) expect(s.isTimeoutAllowed(key)).toBe(true)
+    for (const key of ['12', '12A', '15']) expect(s.isTimeoutAllowed(key)).toBe(false)
+  })
+
+  it("flags a team's third timeout (2 per team)", () => {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    const teamId = s.teams.value[0]!.id
+    s.toggleTimeout(teamId, '1')
+    s.toggleTimeout(teamId, '2')
+    expect(s.tooManyTimeoutsTeams.value.has(0)).toBe(false)
+    s.toggleTimeout(teamId, '3')
+    expect(s.tooManyTimeoutsTeams.value.has(0)).toBe(true)
   })
 })

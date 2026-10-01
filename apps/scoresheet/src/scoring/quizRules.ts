@@ -25,12 +25,24 @@ export const TWENTY_QUESTION_RULES: QuizRules = Object.freeze({
   overtimeRoundSize: 3,
 })
 
+/**
+ * Three-team practice-meet quiz: the 20-question structure moved five questions earlier, with the
+ * two-team tie-breaker's quiz-out of 3. Not in the rulebook; see docs/scoring-rules-explained.md.
+ */
+const FIFTEEN_QUESTION_RULES: QuizRules = Object.freeze({
+  regulationQuestions: 15,
+  firstAbQuestion: 11,
+  firstErrorPointsQuestion: 12,
+  quizOutCorrect: 3,
+  overtimeRoundSize: 3,
+})
+
 export function quizRules(format: QuizFormat): QuizRules {
   switch (format) {
     case QuizFormat.TwentyQuestion:
       return TWENTY_QUESTION_RULES
     case QuizFormat.FifteenQuestion:
-      throw new Error('15-question rules are not implemented yet')
+      return FIFTEEN_QUESTION_RULES
   }
 }
 

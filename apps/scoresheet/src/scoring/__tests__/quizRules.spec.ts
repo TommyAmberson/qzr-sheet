@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
+import { QuizFormat } from '@qzr/shared'
 import {
   TWENTY_QUESTION_RULES,
   firstOvertimeQuestion,
   lastTimeoutQuestion,
+  quizRules,
   type QuizRules,
 } from '../quizRules'
 
@@ -29,5 +31,31 @@ describe('TWENTY_QUESTION_RULES', () => {
 
   it('is internally consistent', () => {
     expectConsistent(TWENTY_QUESTION_RULES)
+  })
+})
+
+describe('quizRules', () => {
+  it('gives the 15-question quiz its shifted rules', () => {
+    expect(quizRules(QuizFormat.FifteenQuestion)).toEqual({
+      regulationQuestions: 15,
+      firstAbQuestion: 11,
+      firstErrorPointsQuestion: 12,
+      quizOutCorrect: 3,
+      overtimeRoundSize: 3,
+    })
+  })
+
+  it('starts 15-question overtime at 16 and allows timeouts through 11', () => {
+    const rules = quizRules(QuizFormat.FifteenQuestion)
+    expect(firstOvertimeQuestion(rules)).toBe(16)
+    expect(lastTimeoutQuestion(rules)).toBe(11)
+  })
+
+  it('gives the 20-question quiz the 20-question rules', () => {
+    expect(quizRules(QuizFormat.TwentyQuestion)).toBe(TWENTY_QUESTION_RULES)
+  })
+
+  it.each(Object.values(QuizFormat))('%s rules are internally consistent', (format) => {
+    expectConsistent(quizRules(format))
   })
 })

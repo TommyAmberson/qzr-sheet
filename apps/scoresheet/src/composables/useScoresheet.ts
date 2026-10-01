@@ -3,6 +3,7 @@ import { useHistory } from './useHistory'
 import {
   CellValue,
   QuestionCategory,
+  QuizFormat,
   MAX_TIMEOUTS_PER_TEAM,
   buildColumns,
   QuestionType,
@@ -711,10 +712,10 @@ export function useScoresheet() {
     history.clear()
     saveToStorage(store, data.noJumps, data.timeouts)
   }
-  function resetStore() {
+  function resetStore(format = QuizFormat.TwentyQuestion) {
     const fresh = createQuizStore()
     store.loadState({
-      quiz: fresh.quiz,
+      quiz: { ...fresh.quiz, format },
       teams: fresh.teams,
       quizzers: fresh.quizzers,
       answers: [],
