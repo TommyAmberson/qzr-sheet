@@ -20,10 +20,6 @@ specs/          # Spec Kit artefacts, one NNN-slug/ per feature (spec, plan, tas
 
 See `docs/architecture.md` for full detail on internals, data flow, and design decisions.
 
-`.specify/` is vendored by the Specify CLI, which rewrites `scripts/` and `templates/*.md` on every
-refresh. Customise through `.specify/templates/overrides/<name>.md` rather than editing them in
-place.
-
 ## Commands
 
 ```sh
@@ -60,20 +56,35 @@ exist in Claude Code; run the `pnpm` aliases above instead.
 
 Dev servers (`pnpm dev`, `pnpm dev:all`, etc.) are long-running and should not be started from here.
 
-## Contributing
+Always run pnpm commands from the repo root using root-level aliases (e.g. `pnpm test:unit`, not
+`pnpm --filter scoresheet test:unit`), which keeps commands predictable for auto-approval.
 
-[CONTRIBUTING.md](./CONTRIBUTING.md) holds the mechanics: hooks, git conventions, commit format,
-contract package versioning, and releasing. Read it before committing; its rules aren't repeated
-here. What only applies to agents:
+<!-- BEGIN shared agent workflow: keep identical in qzr-sheet and verse-vault -->
 
+## Git workflow
+
+[CONTRIBUTING.md](./CONTRIBUTING.md) holds the mechanics: hooks, branches, commit format, PRs,
+merging, history rewriting, versioning, and releasing. Read it before committing; its rules aren't
+repeated here. On top of it:
+
+* Commit as you go on a `type/short-slug` branch, without waiting to be asked.
 * Ask before opening, closing, or splitting a PR.
-* Always run pnpm commands from the repo root using root-level aliases (e.g. `pnpm test:unit`, not
-  `pnpm --filter scoresheet test:unit`) — keeps commands predictable for auto-approval.
+* `git rebase -i` is unavailable in Claude Code (no interactive input). For a contiguous squash,
+  `git cherry-pick --no-commit <a> <b> <c>`, then a single `git commit`. For a wider restructure,
+  `git reset --soft <base>`, then re-stage and re-commit in groups. Autosquash still works
+  non-interactively, `git -c sequence.editor=: rebase -i --autosquash master`, because `fixup!`
+  commits discard their own message, so no editor opens; see CONTRIBUTING "Rewriting history".
 
-**`git rebase -i` is unavailable in Claude Code** (no interactive input). For targeted squashes,
-`git cherry-pick --no-commit <a> <b> <c>` followed by a single `git commit` collapses a contiguous
-group; for wider restructures, `git reset --soft <base>` then re-stage and re-commit in groups.
-Fixup autosquash still works; see CONTRIBUTING "Rewriting history".
+## Scope discipline
+
+When you notice something nearby that's bad, awkward, or wrong while working on a feature, **stop
+and check with the user before acting**. Offer to either:
+
+* fix it now as a separate commit before continuing the feature, or
+* record it (TODO comment, issue, or ROADMAP entry) and carry on.
+
+Don't fold it silently into the current change: it muddies the diff, and the user may have context
+(a deliberate choice, planned rework) you don't. Don't ignore it either.
 
 ## Spec-driven development
 
@@ -94,28 +105,46 @@ names the `specs/` directory rather than a branch. Keep using `type/short-slug` 
 each artefact as it lands (`docs: spec <feature>`, `docs: plan <feature>`,
 `docs: break <feature> into tasks`).
 
-## Scope discipline
+`.specify/` is vendored by the Specify CLI, which rewrites `scripts/` and `templates/*.md` on every
+refresh. Customise through `.specify/templates/overrides/<name>.md` rather than editing them in
+place.
 
-When working on a feature and you notice something nearby that's bad, awkward, or should be
-changed/fixed — **stop and check with the user before acting**. Offer options:
+Spec Kit gotchas:
 
-* address it now as a separate change (commit it before continuing the feature), or
-* leave it and document it (TODO comment, issue, or ROADMAP entry) and continue.
+* **A fresh clone cannot resume a committed feature.** `.specify/feature.json` is the only
+  feature-context source the scripts accept, and Spec Kit gitignores it as machine-local state.
+  Every speckit command fails with "Feature directory not found" until you
+  `export SPECIFY_FEATURE_DIRECTORY=specs/<NNN-slug>` or re-run `/speckit-specify`. Set the env var
+  when picking up a feature started elsewhere, including in another worktree.
+* **dprint rewrites Spec Kit's checkboxes, so `specs/**/tasks.md` and `specs/**/checklists/` are
+  excluded.** `unorderedListKind: "asterisks"` turns `- [ ]` into `* [ ]`, and `/speckit-implement`
+  and `/speckit-converge` read task state from the hyphen form. The rewrite is silent and still
+  renders fine, so the damage only shows when a speckit command finds no tasks. Prose artefacts in
+  `specs/` carry no checkboxes and stay linted.
+* **Vendored Spec Kit files are exempt from dprint and typos, narrowly.** `typos` skips
+  `.specify/scripts/`, `.specify/templates/`, and `.claude/skills/speckit-*`; `dprint` skips
+  `.specify/templates/*.md` and `.claude/skills/speckit-*/`. The Specify CLI rewrites all of them on
+  refresh, so any fix would be undone. `.specify/memory/constitution.md` and
+  `.specify/templates/overrides/` are project-authored and stay linted. Don't widen either exclusion
+  to `.specify/**`.
 
-Don't silently fix it as part of the current feature — it muddies the diff, and the user may have
-context (deliberate choice, planned rework, scope concerns) you don't. And don't just ignore it —
-surface it so the user can decide.
+## Code style
+
+* Slight preference for writing tests before features.
+* Comments are part of the code: update them when the surrounding code changes, since stale comments
+  are bugs. Use correct grammar and spelling.
+* Comments explain **why**, sometimes **how at a high level**, never **how at a low level** (don't
+  restate what well-named code already says). Prefer line comments on the previous line over block
+  or trailing comments. Docstrings stay brief and focus on what isn't obvious from the signature.
+  Don't be too picky about removing existing comments.
+
+<!-- END shared agent workflow -->
 
 ## Key Conventions
 
 * Scoring functions are **pure** — `cells[teamIdx][seatIdx][colIdx]` in, result out. No Vue.
 * Column keys: `"1"`–`"15"`, `"16"`/`"16A"`/`"16B"` through `"20B"`, `"21"`+ for overtime.
 * Tests live in `__tests__/` subdirectories next to the code they test.
-* Slight preference for writing tests before features.
-* Redundant inline comments are not helpful. Comments that simply say "what" is happening when the
-  code is obvious should be brief or perhaps even omitted. Prefer comments that explain "why" or
-  clarify complex logic. Docstrings should be brief and focused on info that is not obvious from the
-  signature and would be useful to consumers. (but don't be too picky about removing comments)
 
 ## Gotchas
 
@@ -140,19 +169,6 @@ surface it so the user can decide.
   generate migrations from the schema diff. If the generated SQL won't work (e.g. `ADD NOT NULL` on
   existing rows), fix the schema design instead — make the column nullable, provide a default, or
   split into two migrations. The `migrations/meta/_journal.json` must stay in sync.
-* **A fresh clone cannot resume a committed Spec Kit feature.** `.specify/feature.json` is the only
-  feature-context source the scripts accept, and Spec Kit gitignores it as machine-local state.
-  Every speckit command fails with "Feature directory not found" until you
-  `export SPECIFY_FEATURE_DIRECTORY=specs/<NNN-slug>` or re-run `/speckit-specify`.
-* **dprint rewrites Spec Kit's checkboxes, so `specs/**/tasks.md` and `specs/**/checklists/` are
-  excluded.** `unorderedListKind: "asterisks"` turns `- [ ]` into `* [ ]`, and `/speckit-implement`
-  and `/speckit-converge` read task state from the hyphen form. The rewrite is silent and still
-  renders fine, so the damage only shows when a speckit command finds no tasks. Prose artefacts in
-  `specs/` carry no checkboxes and stay linted.
-* **Vendored Spec Kit files are exempt from dprint and typos, narrowly.** `.specify/scripts/`,
-  `.specify/templates/`, and `.claude/skills/speckit-*/` are rewritten on every `specify` refresh,
-  so any fix would be undone. `.specify/memory/constitution.md` and `.specify/templates/overrides/`
-  are project-authored and stay linted. Don't widen either exclusion to `.specify/**`.
 
 ## Reference Docs
 
