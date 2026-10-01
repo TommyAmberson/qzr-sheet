@@ -3,8 +3,18 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { MeetsVariables } from '../meets'
 import { meets } from '../meets'
-import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
+import {
+  mockSession,
+  mockDb,
+  testSuperuser,
+  testUser,
+  jsonOf,
+  jsonRequest,
+  seedMeet,
+} from '../../test-utils'
 import { createTestDb } from '../../test-db'
+import * as schema from '../../db/schema'
+import { eq } from 'drizzle-orm'
 import type { Db } from '../../lib/db'
 
 const env = { ENVIRONMENT: 'test' } as unknown as Bindings
@@ -332,7 +342,15 @@ describe('admin code rotation', () => {
     )
     expect(rotateRes.status).toBe(200)
 
-    // Rotate with clearMembers — should be rejected
+    // Rotate with clearMembers — should be rejected, leaving the code as it was
+    const adminCodeHash = async () => {
+      const [row] = await db
+        .select({ hash: schema.quizMeets.adminCodeHash })
+        .from(schema.quizMeets)
+        .where(eq(schema.quizMeets.id, meet.id))
+      return row?.hash
+    }
+    const hashBefore = await adminCodeHash()
     const clearRes = await adminApp.request(
       `/api/meets/${meet.id}/rotate-admin-code`,
       {
@@ -343,6 +361,7 @@ describe('admin code rotation', () => {
       env,
     )
     expect(clearRes.status).toBe(403)
+    expect(await adminCodeHash()).toBe(hashBefore)
   })
 })
 
@@ -491,6 +510,39 @@ describe('members', () => {
       )
       expect(res.status).toBe(404)
     })
+
+    it("won't remove a coach membership in another meet", async () => {
+      const meetA = await seedMeet(db, 'Meet A')
+      const meetB = await seedMeet(db, 'Meet B')
+      await db.insert(schema.adminMemberships).values({ accountId: testUser.id, meetId: meetA.id })
+      const [churchB] = await db
+        .insert(schema.churches)
+        .values({ meetId: meetB.id, name: 'Church B', shortName: 'CB', coachCodeHash: 'x' })
+        .returning()
+      await db.insert(schema.user).values({
+        id: 'coach-b',
+        name: 'Coach B',
+        email: 'coach-b@test.com',
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      await db
+        .insert(schema.coachMemberships)
+        .values({ accountId: 'coach-b', churchId: churchB!.id, meetId: meetB.id })
+
+      const res = await createApp(testUser, db).request(
+        `/api/meets/${meetA.id}/members/coach-b`,
+        jsonRequest('DELETE', { role: 'head_coach', churchId: churchB!.id }),
+        env,
+      )
+      expect(res.status).toBe(404)
+      const rows = await db
+        .select()
+        .from(schema.coachMemberships)
+        .where(eq(schema.coachMemberships.accountId, 'coach-b'))
+      expect(rows).toHaveLength(1)
+    })
   })
 })
 
@@ -600,6 +652,52 @@ describe('official codes', () => {
       expect(body.code).toBeTypeOf('string')
       expect(body.code).not.toBe(oldCode)
       expect(body.officialCode.label).toBe('Room A')
+    })
+  })
+
+  // An admin of this meet must not reach another meet's room by putting its
+  // ID in a route scoped to this meet.
+  describe("another meet's code", () => {
+    let adminApp: ReturnType<typeof createApp>
+    let roomB: number
+
+    async function roomCodeHash() {
+      const [row] = await db
+        .select({ codeHash: schema.meetRooms.codeHash })
+        .from(schema.meetRooms)
+        .where(eq(schema.meetRooms.id, roomB))
+      return row?.codeHash
+    }
+
+    beforeEach(async () => {
+      adminApp = createApp(testUser, db)
+      await db.insert(schema.adminMemberships).values({ accountId: testUser.id, meetId })
+      const meetB = await seedMeet(db, 'Meet B')
+      const [room] = await db
+        .insert(schema.meetRooms)
+        .values({ meetId: meetB.id, name: 'Room B', codeHash: 'x' })
+        .returning()
+      roomB = room!.id
+    })
+
+    it("won't be rotated", async () => {
+      const res = await adminApp.request(
+        `/api/meets/${meetId}/official-codes/${roomB}/rotate`,
+        { method: 'POST' },
+        env,
+      )
+      expect(res.status).toBe(404)
+      expect(await roomCodeHash()).toBe('x')
+    })
+
+    it("won't be deleted", async () => {
+      const res = await adminApp.request(
+        `/api/meets/${meetId}/official-codes/${roomB}`,
+        { method: 'DELETE' },
+        env,
+      )
+      expect(res.status).toBe(404)
+      expect(await roomCodeHash()).toBe('x')
     })
   })
 })

@@ -17,6 +17,35 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-10-01
+
+### Fixed
+
+* **Meet admins confined to their own meet** - routes scoped to one meet acted on child rows from
+  any meet when given a foreign ID. An admin of one meet could rotate another meet's official code
+  (and use the returned code to join as its official) or delete another meet's room, cascading to
+  its scheduled quizzes, via `POST/DELETE /api/meets/:id/official-codes/:codeId`, and remove a
+  coach's membership in another meet via `DELETE /api/meets/:id/members/:userId`. Each now matches
+  the child row against the meet in the URL and returns 404 otherwise
+* **Admin code kept on a refused clear** - `POST /api/meets/:id/rotate-admin-code` with
+  `clearMembers` from a non-superuser rotated the code before refusing with 403, so the new code was
+  never shown. It now refuses first and changes nothing
+* **Schedule sync confined to its meet** - `POST /api/meets/:id/schedule/sync` trusted positive
+  quiz, slot and room IDs from the payload. A foreign quiz ID skipped the completed-quiz guard and
+  had its seats deleted and rewritten, even for a completed quiz in another meet, and foreign rooms
+  or slots linked the two meets' rows. Any slot, quiz or room that isn't the meet's is now refused
+  with 400 before anything is written
+* **Roster sync confined to its church** - `POST /api/churches/:churchId/roster/sync` trusted
+  positive team IDs from the payload, so a coach (or an admin, via a throwaway church) could add or
+  move quizzers into any team in any meet. A team that isn't the church's is now refused with 400
+  before anything is written
+* **No coach-code hashes in church lists** - `GET /api/meets/:meetId/churches`, which any viewer of
+  the meet can read, no longer returns `coachCodeHash`
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` - unchanged
+
 ## [0.12.1] - 2026-10-01
 
 ### Fixed
