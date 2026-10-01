@@ -24,14 +24,11 @@ const {
   load,
 } = useScheduleData(toRef(props, 'slug'))
 
-/** Build the scoresheet URL for a given quiz cell. Vite injects
- *  __SCORESHEET_URL__ as '/scoresheet/' in prod (same-origin bundle
- *  via build:all) and 'http://localhost:5173' in dev (the scoresheet
- *  Vite server). */
+/** Build the scoresheet URL for a given quiz cell. Vite injects the
+ *  scoresheet's base URL, with a trailing slash, as __SCORESHEET_URL__. */
 function scoresheetHref(quizId: number): string {
   if (!meet.value) return '#'
-  const base = __SCORESHEET_URL__.replace(/\/$/, '')
-  return `${base}/?meet=${meet.value.id}&quiz=${quizId}`
+  return `${__SCORESHEET_URL__}?meet=${meet.value.id}&quiz=${quizId}`
 }
 
 onMounted(load)
