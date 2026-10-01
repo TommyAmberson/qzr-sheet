@@ -12,6 +12,13 @@
             </dd>
           </div>
           <div class="feature-item">
+            <dt class="feature-name">15-question quizzes</dt>
+            <dd class="feature-desc">
+              Short three-team quizzes for practice meets, with their own A/B, error-point, and
+              quiz-out rules. Start one from the scoresheet's New menu.
+            </dd>
+          </div>
+          <div class="feature-item">
             <dt class="feature-name">QuizMeets</dt>
             <dd class="feature-desc">
               Join a meet with a code. Coaches build team rosters; officials are assigned to rooms.

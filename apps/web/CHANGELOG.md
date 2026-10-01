@@ -16,6 +16,16 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-10-01
+
+### Changed
+
+* The roadmap page lists 15-question quizzes under "Available now".
+
+### Bundled contract
+
+* `@qzr/shared@1.0.0` - bumped from 0.10.0
+
 ## [0.12.1] - 2026-10-01
 
 ### Fixed
