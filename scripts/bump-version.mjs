@@ -58,8 +58,13 @@ for (const path of PACKAGES[pkg]) {
 
 const files = PACKAGES[pkg].join(' ')
 
-console.log(`\n${pkg} bumped to ${version}. Commit:\n`)
+// A deployable's bump ships it once merged, so its commit says `release`. `shared` never deploys
+// on its own; its bump rides in the commit that changes it.
+const subject = pkg === 'shared' ? `bump to ${version}` : `release ${version}`
+
+console.log(`\n${pkg} bumped to ${version}. Commit on the PR's branch:\n`)
 console.log(`  git add ${files}`)
-console.log(`  git commit -m "chore(${pkg}): bump to ${version}"`)
-console.log(`  git push`)
-console.log(`\nCI deploys + tags ${pkg}@${version} on push to master.`)
+console.log(`  git commit -m "chore(${pkg}): ${subject}"`)
+if (pkg !== 'shared') {
+  console.log(`\nMerging the PR to master deploys and tags ${pkg}@${version}.`)
+}

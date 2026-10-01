@@ -147,7 +147,7 @@ For `scoresheet`, `web`, or `api`, use the `/release <pkg>` skill (see
 
 ```sh
 # 1. Promote the package's [Unreleased] entries to a dated section:
-#       ## [<new>] — YYYY-MM-DD
+#       ## [<new>] - YYYY-MM-DD
 #       ### Added / Changed / Fixed
 #       …
 #    Also add a:
@@ -159,7 +159,7 @@ pnpm bump <scoresheet|web|api> <semver>
 
 # 3. Commit on the PR's branch, with the change or as its own commit:
 git add <reported-files> <package>/CHANGELOG.md
-git commit -m "chore(<pkg>): bump to <semver>"
+git commit -m "chore(<pkg>): release <semver>"
 ```
 
 Merging the PR to master fires the matching `.github/workflows/deploy-<pkg>.yml` (or

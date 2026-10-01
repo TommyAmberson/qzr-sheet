@@ -84,7 +84,7 @@ they miss. The new section goes under `## [Unreleased]`, which stays as an empty
 ```markdown
 ## [Unreleased]
 
-## [<new-version>] — YYYY-MM-DD
+## [<new-version>] - YYYY-MM-DD
 
 ### Added / Changed / Fixed / Infrastructure as appropriate
 
@@ -130,11 +130,12 @@ Stage the changes and commit:
 
 ```sh
 git add <files-the-bump-script-reported> <package>/CHANGELOG.md
-git commit -m "chore(<pkg>): bump to <new-version>"
+git commit -m "chore(<pkg>): release <new-version>"
 ```
 
-The scope is required so commitlint matches. The pre-commit hook rejects the commit if the
-CHANGELOG's dated section isn't staged with the bump.
+The subject says `release` because merging this commit to master deploys the package. The scope is
+required so commitlint matches. The pre-commit hook rejects the commit if the CHANGELOG's dated
+section isn't staged with the bump.
 
 ### 7. Do not tag locally; do not push
 
