@@ -4,7 +4,7 @@ import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
-import { isAdminOrSuperuser } from '../lib/permissions'
+import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 
 interface ScheduleVariables extends SessionVariables {
@@ -59,11 +59,25 @@ async function requireAdmin(c: Context<Env>, meetId: number) {
   return null
 }
 
+/**
+ * Being signed in is not enough to read a meet's schedule: the caller must
+ * be a member of that meet in any role, or a superuser.
+ */
+async function requireViewer(c: Context<Env>, meetId: number) {
+  if (!(await isViewerOf(c, getDb(c), meetId))) {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+  return null
+}
+
 // ---- Rooms ----
 
 schedule.get('/:id/rooms', async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const denied = await requireViewer(c, meetId)
+  if (denied) return denied
 
   const db = getDb(c)
   const rooms = await db
@@ -134,6 +148,9 @@ schedule.get('/:id/slots', async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
+  const denied = await requireViewer(c, meetId)
+  if (denied) return denied
+
   const db = getDb(c)
   const slots = await db
     .select()
@@ -155,6 +172,9 @@ interface SeatInput {
 schedule.get('/:id/quizzes', async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const denied = await requireViewer(c, meetId)
+  if (denied) return denied
 
   const db = getDb(c)
   const quizzes = await db
@@ -205,6 +225,9 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
   if (Number.isNaN(meetId) || Number.isNaN(quizId)) {
     return c.json({ error: 'Invalid ID' }, 400)
   }
+
+  const denied = await requireViewer(c, meetId)
+  if (denied) return denied
 
   const db = getDb(c)
 
@@ -359,12 +382,14 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
  * GET /api/meets/:id/prelim-assignments
  *
  * Returns the team→letter mapping for every division in the meet.
- * Any authenticated viewer can read; we use the wider phase/schedule
- * `requireAuth` already mounted on this router.
+ * Readable by any member of the meet (`requireViewer`).
  */
 schedule.get('/:id/prelim-assignments', async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const denied = await requireViewer(c, meetId)
+  if (denied) return denied
 
   const db = getDb(c)
   const rows = await db

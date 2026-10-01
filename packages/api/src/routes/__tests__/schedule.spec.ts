@@ -822,3 +822,93 @@ describe('GET /api/meets/:id/quizzes/:quizId/teams', () => {
     expect(res.status).toBe(401)
   })
 })
+
+describe('GET schedule reads: per-meet membership gate', () => {
+  let db: Db
+  let userApp: ReturnType<typeof createApp>
+  let meetId: number
+  let roomId: number
+  let quizId: number
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    userApp = createApp(testUser, db)
+    const meet = await seedMeet(db)
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const slot = await seedSlot(db, meet.id)
+    const [quiz] = await db
+      .insert(schema.scheduledQuizzes)
+      .values({
+        meetId: meet.id,
+        slotId: slot.id,
+        roomId: room.id,
+        division: '1',
+        phase: 'prelim',
+        label: 'D1-Q1',
+      })
+      .returning()
+    meetId = meet.id
+    roomId = room.id
+    quizId = quiz!.id
+  })
+
+  const routes: [string, () => string][] = [
+    ['rooms', () => `/api/meets/${meetId}/rooms`],
+    ['slots', () => `/api/meets/${meetId}/slots`],
+    ['quizzes', () => `/api/meets/${meetId}/quizzes`],
+    ['quiz teams', () => `/api/meets/${meetId}/quizzes/${quizId}/teams`],
+    ['prelim-assignments', () => `/api/meets/${meetId}/prelim-assignments`],
+  ]
+
+  it.each(routes)('%s: 403s for a signed-in non-member', async (_name, path) => {
+    const res = await userApp.request(path(), {}, env)
+    expect(res.status).toBe(403)
+  })
+
+  it.each(routes)('%s: 403s for a member of a different meet', async (_name, path) => {
+    const otherMeet = await seedMeet(db, 'Other Meet')
+    await db
+      .insert(schema.viewerMemberships)
+      .values({ accountId: testUser.id, meetId: otherMeet.id })
+    const res = await userApp.request(path(), {}, env)
+    expect(res.status).toBe(403)
+  })
+
+  const memberships: [string, () => Promise<unknown>][] = [
+    ['admin', () => db.insert(schema.adminMemberships).values({ accountId: testUser.id, meetId })],
+    [
+      'coach',
+      async () => {
+        const [church] = await db
+          .insert(schema.churches)
+          .values({ meetId, name: 'Grace Church', shortName: 'Grace', coachCodeHash: 'x' })
+          .returning()
+        await db
+          .insert(schema.coachMemberships)
+          .values({ accountId: testUser.id, churchId: church!.id, meetId })
+      },
+    ],
+    [
+      'official',
+      () =>
+        db.insert(schema.officialMemberships).values({ accountId: testUser.id, meetId, roomId }),
+    ],
+    [
+      'viewer',
+      () => db.insert(schema.viewerMemberships).values({ accountId: testUser.id, meetId }),
+    ],
+  ]
+
+  it.each(memberships)('admits a %s member of the meet on every read', async (_role, seed) => {
+    await seed()
+    for (const [name, path] of routes) {
+      const res = await userApp.request(path(), {}, env)
+      expect(res.status, name).toBe(200)
+    }
+  })
+
+  it('quiz teams: 403s before revealing whether the quiz exists', async () => {
+    const res = await userApp.request(`/api/meets/${meetId}/quizzes/99999/teams`, {}, env)
+    expect(res.status).toBe(403)
+  })
+})
