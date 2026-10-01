@@ -17,6 +17,23 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-01
+
+### Fixed
+
+* **Account takeover via OAuth auto-link** - upgrade better-auth 1.5.6 -> 1.6.33
+  (GHSA-g38m-r43w-p2q7). Signing in with Google or GitHub no longer links onto an existing account
+  whose email is unverified, so pre-registering someone's address with a password no longer captures
+  their account. Since email/password accounts are never verified here, OAuth sign-in on an address
+  that already has a password account now fails with "account not linked"; the user signs in with
+  the password instead
+* **Localhost trusted only in development** - Better Auth's `trustedOrigins` no longer includes
+  `http://localhost:5173` / `:5174` when `ENVIRONMENT` is `production`
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` - unchanged
+
 ## [0.12.0] - 2026-10-01
 
 ### Added
