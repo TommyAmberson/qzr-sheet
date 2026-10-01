@@ -41,6 +41,8 @@ portal/API/infra work shipped on that tag.
   both quiz formats.
 * Ctrl+N starts a new quiz in the current quiz's format, so a practice meet can run 15-question
   quizzes back to back. The New menu still offers both formats.
+* "Export ODS" is disabled for 15-question quizzes: the spreadsheet template only scores 20-question
+  quizzes. Importing an ODS file still gives a 20-question quiz.
 
 ### Bundled contract
 

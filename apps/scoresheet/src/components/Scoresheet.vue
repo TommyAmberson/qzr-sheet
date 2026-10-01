@@ -804,7 +804,17 @@ function doUnlinkMeet() {
   meetSession.clearSession()
 }
 
+const ODS_TWENTY_ONLY = 'Spreadsheet export supports 20-question quizzes only'
+
+// The ODS template's layout and formulas score a 20-question quiz only
+const canExportOds = computed(() => quiz.value.format === QuizFormat.TwentyQuestion)
+
 async function exportOds() {
+  // Also reachable from App.vue, so guard here as well as in the menu
+  if (!canExportOds.value) {
+    alert(ODS_TWENTY_ONLY)
+    return
+  }
   const otsBytes = await openOtsTemplate()
   if (!otsBytes) return
   const quizFile = serialize({
@@ -1028,7 +1038,13 @@ const appVersion: string = __APP_VERSION__
                   <button title="Save / Export (Ctrl+S)" @click="toggleSaveMenu">⤓ Save ▾</button>
                   <div v-if="saveMenuOpen" class="file-menu__dropdown">
                     <button @click="doSaveFile">⤓ Save as JSON</button>
-                    <button @click="doExportOds">⬡ Export ODS</button>
+                    <button
+                      :disabled="!canExportOds"
+                      :title="canExportOds ? undefined : ODS_TWENTY_ONLY"
+                      @click="doExportOds"
+                    >
+                      ⬡ Export ODS
+                    </button>
                   </div>
                 </div>
                 <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
@@ -2108,6 +2124,10 @@ const appVersion: string = __APP_VERSION__
   gap: 1px;
 }
 
+.file-menu__dropdown button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .file-menu__dropdown button {
   width: 100%;
   text-align: left !important;
