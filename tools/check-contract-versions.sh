@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
 #
-# Two-mode guard for the @qzr/shared contract package.
+# Two-mode guard for the @qzr/shared contract package, and for the wider
+# "a version bump needs a dated CHANGELOG section" rule.
 #
 # packages/shared is a contract across consumers (scoresheet PWA + Tauri client,
 # web portal, API Worker). Its package.json version is the contract version;
 # consumer changelogs must reference which contract version they ship.
 #
 # Modes:
-#   pre-commit (default): blocks commits that touch packages/shared/src/
-#     without a matching packages/shared/package.json version bump. Run as
-#     part of the simple-git-hooks pre-commit chain.
+#   pre-commit (default): run as part of the simple-git-hooks pre-commit
+#     chain. Blocks
+#     a) commits that touch packages/shared/src/ without a matching
+#        packages/shared/package.json version bump.
+#     b) any package version bump (scoresheet, web, api, shared) without a
+#        matching dated `## [X.Y.Z]` section in that package's staged
+#        CHANGELOG. Catches "bumped package.json but left the entry under
+#        [Unreleased]" before the deploy CI check has to.
 #   --ci: blocks consumer deploy workflows when the consumer's CHANGELOG
 #     doesn't reference the current @qzr/shared version for the version
 #     being deployed. Catches "bumped shared but forgot to update the
@@ -19,7 +25,7 @@
 # the CI check by ensuring the consumer changelog explicitly notes that
 # the contract version is unchanged from the previous release.
 #
-# See CLAUDE.md "Contract package versioning".
+# See CLAUDE.md "Contract package versioning" and "Releasing".
 
 set -euo pipefail
 
@@ -55,6 +61,43 @@ check_staged() {
   CHANGELOG entry.
 
   Refactor with no observable behaviour change? Bypass with --no-verify.
+
+EOF
+	return 1
+}
+
+# A staged bump of a package's "version" must come with a dated section for
+# the new version in that package's staged CHANGELOG.
+check_version_promotion() {
+	local manifest=$1
+	local changelog=$2
+	local new_version
+
+	# Anchored to the top-level "version" line, as in check_staged.
+	new_version=$(git diff --cached --unified=0 -- "$manifest" 2>/dev/null \
+		| sed -nE 's/^\+  "version": "([^"]+)".*/\1/p')
+	if [ -z "$new_version" ]; then
+		return 0
+	fi
+
+	# Literal prefix match, so semver build metadata (`+`) isn't read as
+	# regex, then a trailing YYYY-MM-DD. awk reads to EOF: an early-exiting
+	# `grep -q` would SIGPIPE `git show` on a large CHANGELOG, and pipefail
+	# would read that as a miss.
+	if git show ":$changelog" 2>/dev/null | awk -v ver="$new_version" '
+		index($0, "## [" ver "] ") == 1 && $0 ~ /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ { found = 1 }
+		END { exit !found }
+	'; then
+		return 0
+	fi
+
+	cat >&2 <<EOF
+
+  $manifest bumps "version" to $new_version, but $changelog has no
+  dated "## [$new_version] - YYYY-MM-DD" section staged.
+
+  Promote the [Unreleased] entries to a dated section for $new_version in
+  the same commit. See CLAUDE.md "Releasing".
 
 EOF
 	return 1
@@ -114,6 +157,10 @@ failed=0
 case "$MODE" in
 	pre-commit)
 		check_staged || failed=1
+		check_version_promotion apps/scoresheet/package.json apps/scoresheet/CHANGELOG.md || failed=1
+		check_version_promotion apps/web/package.json apps/web/CHANGELOG.md || failed=1
+		check_version_promotion packages/api/package.json packages/api/CHANGELOG.md || failed=1
+		check_version_promotion packages/shared/package.json packages/shared/CHANGELOG.md || failed=1
 		;;
 	--ci)
 		consumer="${2:-}"

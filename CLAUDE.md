@@ -179,11 +179,27 @@ master. `shared` has a version and changelog but no deploy workflow and no separ
 is bumped in the commit that changes it (see above), and the first consumer deploy that bundles the
 new version tags `shared@<version>`.
 
+**Release with the change.** A pull request that changes `scoresheet`, `web`, or `api` records the
+change in that package's `CHANGELOG.md` and, by default, bumps the package in the same PR, so
+merging it is the release. Bump once per package per PR: the first commit that touches the package
+bumps it and adds the dated section, and later commits on the branch extend that section rather than
+bumping again. The pre-commit hook rejects a version bump without a staged dated section.
+
+**Deferring a release.** To ship several PRs as one release, leave their entries under
+`## [Unreleased]` and say so in each PR body. Keep the window short. While master holds unreleased
+changes to a package, an urgent fix to that package can only ship by releasing them too. Before
+deferring, check what is already waiting (`git log <pkg>@<last-version>..master -- <package-path>`),
+and release the backlog with `/release <pkg>` on a `chore/release-<pkg>-<version>` branch.
+
+**Rebase bump PRs.** A PR that bumps a version must be rebased onto current master before it merges,
+so CI re-runs the deploy's contract check (`check-contract-versions.sh --ci`, run in PR CI for each
+bumped package) against the master it will deploy from. Other PRs needn't be.
+
 For `scoresheet`, `web`, or `api`, use the `/release <pkg>` skill (see
-`.claude/skills/release/SKILL.md`) or do it manually:
+`.claude/skills/release/SKILL.md`) on the PR's branch, or do it manually:
 
 ```sh
-# 1. Update the package's CHANGELOG.md under [Unreleased]:
+# 1. Promote the package's [Unreleased] entries to a dated section:
 #       ## [<new>] — YYYY-MM-DD
 #       ### Added / Changed / Fixed
 #       …
@@ -194,14 +210,14 @@ For `scoresheet`, `web`, or `api`, use the `/release <pkg>` skill (see
 # 2. Bump the package version (only that package's files move):
 pnpm bump <scoresheet|web|api> <semver>
 
-# 3. Commit and push:
+# 3. Commit on the PR's branch, with the change or as its own commit:
 git add <reported-files> <package>/CHANGELOG.md
 git commit -m "chore(<pkg>): bump to <semver>"
-git push origin master
 ```
 
-CI fires the matching `.github/workflows/deploy-<pkg>.yml` (or `release-scoresheet.yml`), runs the
-contract check, deploys, and tags `<pkg>@<semver>` on success. **Don't tag locally** — CI does it.
+Merging the PR to master fires the matching `.github/workflows/deploy-<pkg>.yml` (or
+`release-scoresheet.yml`), runs the contract check, deploys, and tags `<pkg>@<semver>` on success.
+**Don't tag locally** — CI does it.
 
 ## Spec-driven development
 

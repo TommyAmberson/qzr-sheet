@@ -12,6 +12,10 @@ Prepare a per-package versioned release: scope the commit list to the package, s
 type, update that package's CHANGELOG, run the bump, and commit. CI deploys + tags `<pkg>@<ver>`
 after the bump commit lands on master — never tag locally.
 
+A release normally rides in the pull request that makes the change (see CLAUDE.md "Releasing"), so
+this usually runs on that PR's branch. Run it on a `chore/release-<pkg>-<version>` branch only to
+ship changes whose release was deferred and are waiting under `## [Unreleased]`.
+
 ## Arguments
 
 The user normally provides a package name (one of `scoresheet`, `web`, `api`) and optionally a
@@ -27,8 +31,12 @@ it.
 
 ### 1. Check preconditions
 
-Run `git status`. If there are uncommitted changes, warn the user and stop — releases should start
-from a clean working tree on `master` (or a release branch).
+Run `git status`. If there are uncommitted changes, warn the user and stop. Releases start from a
+clean working tree on the change's branch or a release branch, never on `master` itself.
+
+Scope with `<last-tag>..HEAD`, so the list covers both what is already waiting on master and what
+this branch adds. If master already holds unreleased changes to the package, say so: they ship with
+this release.
 
 ### 2. Scope to the package
 
@@ -69,7 +77,9 @@ proceeding.
 
 ### 4. Update the package's CHANGELOG
 
-Read `<package>/CHANGELOG.md` and add a new section under `## [Unreleased]`:
+Read `<package>/CHANGELOG.md`. Entries recorded with earlier changes may already sit under
+`## [Unreleased]`: move them into the new section, then add anything the scoped commits cover that
+they miss. The new section goes under `## [Unreleased]`, which stays as an empty heading:
 
 ```markdown
 ## [Unreleased]
@@ -123,16 +133,19 @@ git add <files-the-bump-script-reported> <package>/CHANGELOG.md
 git commit -m "chore(<pkg>): bump to <new-version>"
 ```
 
-The scope is required so commitlint matches.
+The scope is required so commitlint matches. The pre-commit hook rejects the commit if the
+CHANGELOG's dated section isn't staged with the bump.
 
 ### 7. Do not tag locally; do not push
 
 CI tags `<pkg>@<new-version>` after a successful deploy on master. Let the user push when they're
-ready — pushing fires the deploy.
+ready. Merging the PR fires the deploy, so before it merges, rebase the branch onto current master:
+PR CI then re-runs the deploy's contract check against the master it will deploy from.
 
 ## Rules
 
 * Never push automatically — always let the user push.
+* Never commit a bump directly to `master`; it lands through a PR like any other change.
 * Keep changelog entries concise and audience-appropriate (scoresheet entries face end-users;
   api/web/shared entries face engineers).
 * After a `shared` bump, every consumer's next release must name the new shared version in its

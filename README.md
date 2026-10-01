@@ -95,12 +95,12 @@ docs/
 
 ## Releasing
 
-Each deployable (`scoresheet`, `web`, `api`) is versioned and released on its own. Update the
-package's `CHANGELOG.md`, run `pnpm bump <pkg> <version>`, commit, and push to `master`. The
-matching workflow (`deploy-api.yml`, `deploy-web.yml`, or `release-scoresheet.yml`) fires when the
-version moves, checks the bundled `@qzr/shared` contract version, deploys, and tags
-`<pkg>@<version>`. Don't tag locally. The API deploy applies pending D1 migrations before deploying
-the Worker.
+Each deployable (`scoresheet`, `web`, `api`) is versioned and released on its own, normally by the
+pull request that changes it: that PR adds a dated `CHANGELOG.md` section and runs
+`pnpm bump <pkg> <version>`, so merging it to `master` is the release. The matching workflow
+(`deploy-api.yml`, `deploy-web.yml`, or `release-scoresheet.yml`) fires when the version moves,
+checks the bundled `@qzr/shared` contract version, deploys, and tags `<pkg>@<version>`. Don't tag
+locally. The API deploy applies pending D1 migrations before deploying the Worker.
 
 `@qzr/shared` is bumped in the same commit as the change to it, not at release time. See
 [CLAUDE.md](./CLAUDE.md#releasing) for the full procedure and the contract rules.
