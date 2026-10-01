@@ -12,9 +12,9 @@ Prepare a per-package versioned release: scope the commit list to the package, s
 type, update that package's CHANGELOG, run the bump, and commit. CI deploys + tags `<pkg>@<ver>`
 after the bump commit lands on master — never tag locally.
 
-A release normally rides in the pull request that makes the change (see CLAUDE.md "Releasing"), so
-this usually runs on that PR's branch. Run it on a `chore/release-<pkg>-<version>` branch only to
-ship changes whose release was deferred and are waiting under `## [Unreleased]`.
+A release normally rides in the pull request that makes the change (see CONTRIBUTING.md
+"Releasing"), so this usually runs on that PR's branch. Run it on a `chore/release-<pkg>-<version>`
+branch only to ship changes whose release was deferred and are waiting under `## [Unreleased]`.
 
 ## Arguments
 

@@ -56,4 +56,4 @@ Detailed engineering history with date stamps, motivations, and migration notes:
   Workers).
 * **[packages/shared/CHANGELOG.md](packages/shared/CHANGELOG.md)** — the shared contract package
   (QuizFile schema, role enums, shared API types). A bump here ripples through every consumer; see
-  CLAUDE.md "Contract package versioning" for the discipline.
+  CONTRIBUTING.md "Contract package versioning" for the discipline.

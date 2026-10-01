@@ -93,6 +93,11 @@ docs/
   data-model.md                  # Full schema, memberships, quizzer identity
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for hooks, git conventions, commit format, contract
+versioning, and releasing.
+
 ## Releasing
 
 Each deployable (`scoresheet`, `web`, `api`) is versioned and released on its own, normally by the
@@ -103,7 +108,7 @@ checks the bundled `@qzr/shared` contract version, deploys, and tags `<pkg>@<ver
 locally. The API deploy applies pending D1 migrations before deploying the Worker.
 
 `@qzr/shared` is bumped in the same commit as the change to it, not at release time. See
-[CLAUDE.md](./CLAUDE.md#releasing) for the full procedure and the contract rules.
+[CONTRIBUTING.md](./CONTRIBUTING.md#releasing) for the full procedure and the contract rules.
 
 The Worker secrets (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET`) must be set via `wrangler secret put` before the first

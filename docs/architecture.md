@@ -88,7 +88,7 @@ URL, then auto-fetches and pre-populates.
 ## Shared Package (`packages/shared`)
 
 Contract package consumed by both frontend apps and the API (see "Contract package versioning" in
-`CLAUDE.md`):
+`CONTRIBUTING.md`):
 
 * `QuizFile` TypeBox schema, `FILE_VERSION`, and its enums (`PlacementFormula`, `BonusRule`,
   `CellValue`, `QuestionCategory`)
