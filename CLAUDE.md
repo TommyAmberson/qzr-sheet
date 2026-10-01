@@ -45,9 +45,10 @@ The legacy `pnpm deploy` (build everything locally + `wrangler pages deploy`) st
 emergency-only escape hatch. Day-to-day deploys are driven by per-package `version` bumps on master
 — see **Releasing** below.
 
-### Available as MCP tools
+### CodeCompanion project commands
 
-These commands are wired up as project commands and should be used proactively after making changes:
+`.codecompanion-commands.json` exposes these to CodeCompanion (Neovim) as MCP tools. They don't
+exist in Claude Code; run the `pnpm` aliases above instead.
 
 * `run_test` — run unit tests to verify changes
 * `run_format` — run Prettier after editing files
@@ -282,4 +283,7 @@ When working on scoring logic, rules, or architecture, read the relevant file fi
   inspiration source for scheduling design where `docs/rules.md` underspecifies how meets actually
   run (multi-bracket elims, lateness handling, slot pitches, etc.). Adapt or diverge as needed
 * `docs/architecture.md` — data flow, layer responsibilities, key design decisions
-* `docs/auth-proposal.md` — Phase 4 architecture, API stack, security, data model
+* `docs/auth.md`: Better Auth setup, account types, OAuth and Tauri flows, security
+* `docs/roles-and-access.md`: meet-scoped roles, codes, join flow, guest tokens
+* `docs/data-model.md`: full schema, memberships, quizzer identity
+* `docs/ods-format.md`: the LibreOffice template layout that ODS export and import target
