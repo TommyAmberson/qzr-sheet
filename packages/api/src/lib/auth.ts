@@ -42,10 +42,13 @@ export function createAuth(env: Bindings, basePath = '/api/auth') {
     basePath,
     secret: env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: 'sqlite', schema }),
+    // Local Vite origins only outside production, matching the CORS
+    // allowlist in index.ts; production trusts only the web origin and Tauri.
     trustedOrigins: [
       env.WEB_BASE_URL,
-      'http://localhost:5173',
-      'http://localhost:5174',
+      ...(env.ENVIRONMENT === 'production'
+        ? []
+        : ['http://localhost:5173', 'http://localhost:5174']),
       'tauri://localhost',
       'https://tauri.localhost',
     ],
