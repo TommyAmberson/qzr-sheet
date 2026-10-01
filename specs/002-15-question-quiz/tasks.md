@@ -34,7 +34,7 @@ CONTRIBUTING.md "Git conventions" and "Releasing".
 
 **Purpose**: confirm a green baseline in the feature worktree before changing anything.
 
-- [ ] T001 Run `pnpm install`, `pnpm test:unit`, `pnpm type-check`, and `pnpm lint` from the
+- [X] T001 Run `pnpm install`, `pnpm test:unit`, `pnpm type-check`, and `pnpm lint` from the
   repository root; record any pre-existing failure before proceeding (none expected)
 
 ---
@@ -48,29 +48,29 @@ depends on these.
 
 ### Rules table, no behaviour change (research R3, R4)
 
-- [ ] T002 Write `scoresheet/scoring/__tests__/quizRules.spec.ts`: `TWENTY_QUESTION_RULES` equals
+- [X] T002 Write `scoresheet/scoring/__tests__/quizRules.spec.ts`: `TWENTY_QUESTION_RULES` equals
   `{ regulationQuestions: 20, firstAbQuestion: 16, firstErrorPointsQuestion: 17, quizOutCorrect: 4,
   overtimeRoundSize: 3 }`; `firstOvertimeQuestion(rules)` is 21; `lastTimeoutQuestion(rules)` is
   16; invariant `firstAbQuestion < firstErrorPointsQuestion <= regulationQuestions`
-- [ ] T003 Create `scoresheet/scoring/quizRules.ts` exporting the `QuizRules` interface,
+- [X] T003 Create `scoresheet/scoring/quizRules.ts` exporting the `QuizRules` interface,
   `TWENTY_QUESTION_RULES`, `firstOvertimeQuestion(rules) = regulationQuestions + 1`, and
   `lastTimeoutQuestion(rules) = firstErrorPointsQuestion - 1`; pure, no Vue imports (principle III)
-- [ ] T004 Change `buildColumns(overtimeRounds)` to `buildColumns(rules: QuizRules,
+- [X] T004 Change `buildColumns(overtimeRounds)` to `buildColumns(rules: QuizRules,
   overtimeRounds = 0)` in `scoresheet/types/scoresheet.ts`: plain columns 1 to
   `firstAbQuestion - 1`; Normal/A/B for `firstAbQuestion` to `regulationQuestions` with
   `isErrorPoints = n >= firstErrorPointsQuestion`; overtime from `firstOvertimeQuestion(rules)` in
   rounds of `overtimeRoundSize`. Update the doc comments on `Column.isAB`, `isErrorPoints`,
   `isOvertime` to describe the rule, not Q16/Q17/Q21
-- [ ] T005 Add required `rules: QuizRules` to `scoreTeam` in `scoresheet/scoring/scoreTeam.ts` and
+- [X] T005 Add required `rules: QuizRules` to `scoreTeam` in `scoresheet/scoring/scoreTeam.ts` and
   replace the quiz-out literal `4` (lines ~121, ~128, ~212) with `rules.quizOutCorrect`; fix the
   "Before Q17" comment to "before error points"
-- [ ] T006 Add required `rules: QuizRules` to `validateCells` in `scoresheet/scoring/validation.ts`
+- [X] T006 Add required `rules: QuizRules` to `validateCells` in `scoresheet/scoring/validation.ts`
   and replace `>= 4` (line ~164) with `rules.quizOutCorrect`. Rename `ValidationCode.TimeoutAfterQ16`
   to `TimeoutAfterErrorPoints` (value `'timeout-after-error-points'`), keeping its message text
   unchanged for now (it changes in US1, T030); update every reference
   (`scoresheet/composables/useScoresheet.ts` ~325 and ~351, `scoresheet/components/Scoresheet.vue`
   ~404) and make `Scoresheet.vue` ~1132 use `validationMessage(...)` instead of its own literal
-- [ ] T007 Add required `rules: QuizRules` to `getOvertimeEligibleTeams`, `getActiveOtTeams`,
+- [X] T007 Add required `rules: QuizRules` to `getOvertimeEligibleTeams`, `getActiveOtTeams`,
   `computeOtIneligibility`, `quizJumpedComplete`, `computeOvertimeRounds`,
   `computeOtCheckpointScores`, and `computeRegulationScores` (all but `questionsComplete` call
   `scoreTeam`, which now needs the rules) in
@@ -78,41 +78,41 @@ depends on these.
   `firstOvertimeQuestion(rules) + r * rules.overtimeRoundSize`, `20 + visibleOtRounds * 3` with
   `rules.regulationQuestions + visibleOtRounds * rules.overtimeRoundSize`, and
   `questionsComplete(..., 1, 20)` with `rules.regulationQuestions`
-- [ ] T008 Add required `rules: QuizRules` to `computeOrphanedColumns` and `computeVisibleColumns`
+- [X] T008 Add required `rules: QuizRules` to `computeOrphanedColumns` and `computeVisibleColumns`
   in `scoresheet/scoring/columnVisibility.ts`; replace `20 + visibleOtRounds * 3` (lines ~53, ~113)
   as in T007
-- [ ] T009 Correct the "Q1–20" doc comment in `scoresheet/scoring/placement.ts` (~line 12) to
+- [X] T009 Correct the "Q1–20" doc comment in `scoresheet/scoring/placement.ts` (~line 12) to
   "regulation columns"; no logic change
-- [ ] T010 In `scoresheet/composables/useScoresheet.ts`, add a `rules` computed (for now always
+- [X] T010 In `scoresheet/composables/useScoresheet.ts`, add a `rules` computed (for now always
   `TWENTY_QUESTION_RULES`) and pass it to every function changed in T004 to T008; replace
   `buildColumns(20)` (~74), the `questionsComplete(..., 1, 20)` in `regulationComplete` (~461), and
   `num <= 16` in `isTimeoutAllowed` (~578) with `lastTimeoutQuestion(rules)`
-- [ ] T011 In `scoresheet/components/Scoresheet.vue`, derive the round-boundary list (~433:
+- [X] T011 In `scoresheet/components/Scoresheet.vue`, derive the round-boundary list (~433:
   `[20]`, `23 + r * 3`), the regulation-end check (~488), the OT round-end check (~489), and the OT
   start classes (~796, ~798) from the `rules` exposed by `useScoresheet` instead of 20/21/23
-- [ ] T012 Pass `TWENTY_QUESTION_RULES` explicitly in `scoresheet/export/fillOts.ts` (~35) and
+- [X] T012 Pass `TWENTY_QUESTION_RULES` explicitly in `scoresheet/export/fillOts.ts` (~35) and
   `scoresheet/persistence/quizFile.ts` (~76) wherever `buildColumns` is called
-- [ ] T013 Update every existing spec that calls the changed functions to pass
+- [X] T013 Update every existing spec that calls the changed functions to pass
   `TWENTY_QUESTION_RULES` (import as `TWENTY`): `scoring/__tests__/{greyedOut,validation,
   columnVisibility,scoreTeam,overtime}.spec.ts`, `composables/__tests__/{useCellSelector,
   useKeyboardNav}.spec.ts`, `stores/__tests__/{quizStore,moveQuizzer}.spec.ts`. Mechanical only:
   no assertion changes. Then run `pnpm test:unit`, `pnpm type-check`, `pnpm lint`: all pass
-- [ ] T014 Commit T002 to T013 as `refactor(scoresheet): derive quiz shape from rules`
+- [X] T014 Commit T002 to T013 as `refactor(scoresheet): derive quiz shape from rules`
   (no `packages/shared/src/` touched, so no version bump)
 
 ### Shared contract (research R1, R2; contracts/quiz-file.md)
 
-- [ ] T015 In `shared/src/quizFile.ts`: add `export enum QuizFormat { TwentyQuestion =
+- [X] T015 In `shared/src/quizFile.ts`: add `export enum QuizFormat { TwentyQuestion =
   '20-question', FifteenQuestion = '15-question' }`; add `format:
   Type.Optional(Type.Enum(QuizFormat))` to the `quiz` object; widen `version` to
   `Type.Union([Type.Literal(1), Type.Literal(2), Type.Literal(3)])`; set `FILE_VERSION = 3`
-- [ ] T016 In `scoresheet/persistence/quizFile.ts`, add exported `fileVersionFor(format:
+- [X] T016 In `scoresheet/persistence/quizFile.ts`, add exported `fileVersionFor(format:
   QuizFormat): 2 | 3` returning 2 for `TwentyQuestion` and 3 otherwise
   (contracts/quiz-file.md, "version needed to read"). Make `serialize` and
   `scoresheet/export/readOds.ts` (~237) stamp `version: fileVersionFor(QuizFormat.TwentyQuestion)`
   instead of `FILE_VERSION`, so no commit on this branch writes a 20-question file as version 3.
   Add a `quizFile.spec.ts` case: a serialized default quiz has `version: 2` and no `quiz.format`
-- [ ] T017 Bump `shared/package.json` 0.9.2 to 1.0.0 and add a dated `## [1.0.0]` section to
+- [X] T017 Bump `shared/package.json` 0.10.0 to 1.0.0 and add a dated `## [1.0.0]` section to
   `shared/CHANGELOG.md` (breaking: `QuizFile` version 3, `QuizFormat`, version-needed-to-read
   rule). Commit T015, T016, and T017 together as `feat!: add quiz format and file version 3` (no scope:
   it spans `shared` and `scoresheet`);
@@ -121,14 +121,14 @@ depends on these.
 
 ### Quiz format on the quiz (data-model.md "Quiz")
 
-- [ ] T018 Write a failing test in `scoresheet/stores/__tests__/quizStore.spec.ts`: `loadState`
+- [X] T018 Write a failing test in `scoresheet/stores/__tests__/quizStore.spec.ts`: `loadState`
   with `format: QuizFormat.FifteenQuestion` leaves `store.quiz.format` at FifteenQuestion; a fresh
   store's format is TwentyQuestion
-- [ ] T019 Add `format: QuizFormat` to `Quiz` in `scoresheet/types/scoresheet.ts` ("Set when the
+- [X] T019 Add `format: QuizFormat` to `Quiz` in `scoresheet/types/scoresheet.ts` ("Set when the
   quiz is created; never changed afterwards. Default 20-question"); default it in
   `createDefaultQuiz` and copy `state.quiz.format` in `loadState` in
   `scoresheet/stores/quizStore.ts`. Do **not** fix the missing `bonusRule` copy here (#78)
-- [ ] T020 Create `quizRules(format: QuizFormat): QuizRules` in `scoresheet/scoring/quizRules.ts`
+- [X] T020 Create `quizRules(format: QuizFormat): QuizRules` in `scoresheet/scoring/quizRules.ts`
   as an exhaustive `switch` so a future enum value fails type-check: the TwentyQuestion case
   returns `TWENTY_QUESTION_RULES`, and the FifteenQuestion case throws
   `new Error('15-question rules are not implemented yet')` until T028 replaces it. Then
