@@ -25,6 +25,17 @@ export function fileVersionFor(format: QuizFormat): 2 | 3 {
   return format === QuizFormat.TwentyQuestion ? 2 : 3
 }
 
+/** A file saved by a newer scoresheet. `parseQuizFileAttempt` can still try to open it. */
+export class NewerFileVersionError extends Error {
+  constructor(readonly fileVersion: number) {
+    super(
+      `This file was saved by a newer version of the scoresheet (file version ${fileVersion}). ` +
+        'Update to open it reliably.',
+    )
+    this.name = 'NewerFileVersionError'
+  }
+}
+
 export type { QuizFile } from '@qzr/shared'
 
 // ---- Serialize ----
@@ -170,11 +181,38 @@ function assertKnownFormat(raw: unknown): void {
   }
 }
 
-/** Parse and validate a JSON string, returning a DeserializeResult or throwing on invalid input */
+/**
+ * Parse and validate a JSON string, returning a DeserializeResult or throwing on invalid input.
+ * Throws `NewerFileVersionError` for files from a newer scoresheet.
+ */
 export function parseQuizFile(json: string): DeserializeResult {
   const raw: unknown = JSON.parse(json)
+  const version = (raw as { version?: unknown } | null)?.version
+  if (typeof version === 'number' && version > FILE_VERSION) {
+    throw new NewerFileVersionError(version)
+  }
   assertKnownFormat(raw)
   return deserialize(Value.Parse(QuizFileSchema, raw))
+}
+
+/**
+ * Best-effort parse of a file from a newer scoresheet, only on the official's request. Reads it as
+ * the version needed for the contents this build understands; fields it doesn't know are dropped,
+ * and an unknown format still fails rather than being scored by the wrong rules.
+ */
+export function parseQuizFileAttempt(json: string): DeserializeResult {
+  const raw = JSON.parse(json) as { quiz?: { format?: QuizFormat } }
+  assertKnownFormat(raw)
+  const { format = QuizFormat.TwentyQuestion, ...quiz } = raw.quiz ?? {}
+  const version = fileVersionFor(format)
+  // A version 2 file carries no format, so a 20-question format goes with the downgrade
+  return deserialize(
+    Value.Parse(QuizFileSchema, {
+      ...raw,
+      version,
+      quiz: version > 2 ? { ...quiz, format } : quiz,
+    }),
+  )
 }
 
 /** Serialize store state to a JSON string */

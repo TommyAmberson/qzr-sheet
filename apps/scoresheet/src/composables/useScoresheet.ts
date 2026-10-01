@@ -1,6 +1,10 @@
 import { ref, computed, watch } from 'vue'
 import { useHistory } from './useHistory'
 import {
+  readOpenedFromNewerFile,
+  writeOpenedFromNewerFile,
+} from '../persistence/openedFromNewerFile'
+import {
   CellValue,
   QuestionCategory,
   QuizFormat,
@@ -50,6 +54,11 @@ export function useScoresheet() {
   // store.quiz is a reactive proxy; ref() wraps it so consumer call sites
   // keep their `quiz.value.x` shape and reads track the proxy natively.
   const quiz = ref<Quiz>(store.quiz)
+
+  /** The current quiz came from a newer scoresheet's file and may be scored wrong */
+  const openedFromNewerFile = ref(readOpenedFromNewerFile())
+  // Synchronous, so a reload right after opening such a file still shows the warning
+  watch(openedFromNewerFile, writeOpenedFromNewerFile, { flush: 'sync' })
 
   /** Structural rules for the quiz's format */
   const rules = computed<QuizRules>(() => quizRules(quiz.value.format))
@@ -702,7 +711,8 @@ export function useScoresheet() {
   }
 
   /** Load a deserialized quiz file into the store, replacing all state */
-  function loadFile(data: DeserializeResult) {
+  function loadFile(data: DeserializeResult, { fromNewerFile = false } = {}) {
+    openedFromNewerFile.value = fromNewerFile
     store.loadState(data)
     noJumpMap.value = data.noJumps
     timeoutMap.value = data.timeouts
@@ -711,6 +721,7 @@ export function useScoresheet() {
     saveToStorage(store, data.noJumps, data.timeouts)
   }
   function resetStore(format = QuizFormat.TwentyQuestion) {
+    openedFromNewerFile.value = false
     const fresh = createQuizStore()
     store.loadState({
       quiz: { ...fresh.quiz, format },
@@ -782,6 +793,7 @@ export function useScoresheet() {
   return {
     columns,
     rules,
+    openedFromNewerFile,
     quiz,
     teams,
     teamQuizzers,

@@ -267,3 +267,48 @@ describe('useTutorial — 15-question quiz', () => {
     expect(s.cells.value[0]![0]![0]).toBe(CellValue.Correct)
   })
 })
+
+describe('useTutorial — a quiz opened from a newer file', () => {
+  function openedFromNewer() {
+    const s = useScoresheet()
+    const { id: _, ...quiz } = s.store.quiz
+    s.loadFile(
+      {
+        quiz: { ...quiz },
+        teams: s.store.teams.map(({ quizId: _, ...t }) => t),
+        quizzers: [...s.store.quizzers],
+        answers: [],
+        noJumps: new Map<string, boolean>(),
+        timeouts: new Map(),
+      },
+      { fromNewerFile: true },
+    )
+    return s
+  }
+
+  it('keeps its warning through the tutorial', () => {
+    const s = openedFromNewer()
+    const t = useTutorial(s)
+    t.start()
+    t.finish()
+    expect(s.openedFromNewerFile.value).toBe(true)
+  })
+
+  it('does not carry a stale warning into a later tutorial', () => {
+    localStorage.setItem('qzr-sheet:tutorial-from-newer-file', '1')
+    const s = useScoresheet()
+    useTutorial(s).start()
+    const next = useScoresheet()
+    expect(useTutorial(next).recoverFromCrash()).toBe(true)
+    expect(next.openedFromNewerFile.value).toBe(false)
+  })
+
+  it('keeps its warning through crash recovery', () => {
+    const s = openedFromNewer()
+    useTutorial(s).start()
+    // The app crashes mid-tutorial; the next session recovers the snapshot
+    const next = useScoresheet()
+    expect(useTutorial(next).recoverFromCrash()).toBe(true)
+    expect(next.openedFromNewerFile.value).toBe(true)
+  })
+})

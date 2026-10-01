@@ -4,6 +4,8 @@ import {
   deserialize,
   serializeStore,
   parseQuizFile,
+  parseQuizFileAttempt,
+  NewerFileVersionError,
   fileVersionFor,
   FILE_VERSION,
   type QuizFile,
@@ -270,5 +272,39 @@ describe('quiz format in quiz files', () => {
     fifteen.quiz.format = QuizFormat.FifteenQuestion
     expect(deserialize(fifteen).answers.map((a) => a.columnKey)).toEqual(['13A', '16A'])
     expect(deserialize(makeFile({ answers })).answers.map((a) => a.columnKey)).toEqual(['16A'])
+  })
+})
+
+describe('files from a newer scoresheet', () => {
+  const newer = () => ({
+    ...makeFile(),
+    version: FILE_VERSION + 1,
+    futureField: 'from a later release',
+  })
+
+  it('parseQuizFile refuses them with a NewerFileVersionError', () => {
+    expect(() => parseQuizFile(JSON.stringify(newer()))).toThrow(NewerFileVersionError)
+  })
+
+  it('parseQuizFileAttempt opens them, dropping what it does not know', () => {
+    const result = parseQuizFileAttempt(JSON.stringify(newer()))
+    expect(result.quiz.division).toBe('1')
+    expect(result.answers).toHaveLength(1)
+    expect(result).not.toHaveProperty('futureField')
+  })
+
+  it('parseQuizFileAttempt opens one that records the 20-question format explicitly', () => {
+    const file = newer()
+    const json = JSON.stringify({
+      ...file,
+      quiz: { ...file.quiz, format: QuizFormat.TwentyQuestion },
+    })
+    expect(parseQuizFileAttempt(json).quiz.format).toBe(QuizFormat.TwentyQuestion)
+  })
+
+  it('parseQuizFileAttempt still rejects an unknown format, naming it', () => {
+    const file = newer()
+    const json = JSON.stringify({ ...file, quiz: { ...file.quiz, format: 'two-team' } })
+    expect(() => parseQuizFileAttempt(json)).toThrow(/two-team/)
   })
 })

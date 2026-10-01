@@ -514,4 +514,41 @@ describe('useScoresheet — keeping a 15-question quiz', () => {
     expect(restored.cells.value[0]![0]![0]).toBe(CellValue.Correct)
     expect(restored.columns.value).toHaveLength(25)
   })
+
+  it('clears the opened-from-newer-file flag when another quiz replaces it', () => {
+    const s = fifteenWithAnswer()
+    const { id: _, ...quiz } = s.store.quiz
+    const data = {
+      quiz: { ...quiz },
+      teams: s.store.teams.map(({ quizId: _, ...t }) => t),
+      quizzers: [...s.store.quizzers],
+      answers: [],
+      noJumps: new Map<string, boolean>(),
+      timeouts: new Map(),
+    }
+    s.loadFile(data, { fromNewerFile: true })
+    expect(s.openedFromNewerFile.value).toBe(true)
+    s.loadFile(data)
+    expect(s.openedFromNewerFile.value).toBe(false)
+    s.loadFile(data, { fromNewerFile: true })
+    s.resetStore()
+    expect(s.openedFromNewerFile.value).toBe(false)
+  })
+
+  it('keeps the opened-from-newer-file warning across a reload', () => {
+    const s = fifteenWithAnswer()
+    const { id: _, ...quiz } = s.store.quiz
+    s.loadFile(
+      {
+        quiz: { ...quiz },
+        teams: s.store.teams.map(({ quizId: _, ...t }) => t),
+        quizzers: [...s.store.quizzers],
+        answers: [],
+        noJumps: new Map<string, boolean>(),
+        timeouts: new Map(),
+      },
+      { fromNewerFile: true },
+    )
+    expect(useScoresheet().openedFromNewerFile.value).toBe(true)
+  })
 })

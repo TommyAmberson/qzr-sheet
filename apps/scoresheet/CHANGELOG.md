@@ -27,6 +27,9 @@ portal/API/infra work shipped on that tag.
 * **15-question quizzes are saved** in quiz files and auto-save. A file records the version needed
   to read it: 20-question quizzes are still version 2, so older scoresheets open them as before, and
   15-question quizzes are version 3, which older scoresheets refuse rather than misscore.
+* **Opening a file from a newer scoresheet** asks whether to try anyway instead of failing. A quiz
+  opened that way shows a warning that it may be scored wrong until another quiz replaces it. An
+  unknown quiz format still fails, by name.
 
 ### Changed
 

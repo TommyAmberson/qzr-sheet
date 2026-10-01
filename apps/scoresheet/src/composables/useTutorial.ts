@@ -8,6 +8,8 @@ import type { TeamIdx, SeatIdx, ColIdx } from '../types/indices'
 
 const SNAPSHOT_KEY = 'qzr-sheet:tutorial-snapshot'
 const MEET_SNAPSHOT_KEY = 'qzr-sheet:tutorial-meet-snapshot'
+// Set while the tutorial holds aside a quiz opened from a newer file, so its warning comes back
+const FROM_NEWER_KEY = 'qzr-sheet:tutorial-from-newer-file'
 
 export interface ScoresheetAPI {
   store: QuizStore
@@ -18,6 +20,7 @@ export interface ScoresheetAPI {
   teams: { value: { id: number; seatOrder: number; name: string; onTime: boolean }[] }
   teamQuizzers: { value: { name: string; seatOrder: number }[][] }
   quiz: { value: { overtime: boolean } }
+  openedFromNewerFile: { value: boolean }
   setQuizzerName: (teamIdx: TeamIdx, seatIdx: SeatIdx, name: string) => void
   setTeamName: (teamIdx: TeamIdx, name: string) => void
   setCell: (teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx, value: CellValue) => void
@@ -25,7 +28,7 @@ export interface ScoresheetAPI {
   toggleTimeout: (teamId: number, colKey: string) => void
   toggleOnTime: (teamIdx: TeamIdx) => void
   moveQuizzer: (teamIdx: TeamIdx, from: SeatIdx, to: SeatIdx) => void
-  loadFile: (data: DeserializeResult) => void
+  loadFile: (data: DeserializeResult, options?: { fromNewerFile?: boolean }) => void
   resetStore: () => void
   columns: { value: { key: string }[] }
 }
@@ -43,6 +46,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   // Pre-tutorial meet link. Linked meets replace the team-name input with a
   // team-picker, so we unlink for the walkthrough and re-link on finish.
   let meetSnapshot: MeetSessionData | null = null
+  // Whether the snapshotted quiz carried the opened-from-newer-file warning
+  let snapshotFromNewer = false
   let cleanupFns: (() => void)[] = []
 
   const currentStep = computed<TutorialStep | null>(() =>
@@ -70,6 +75,13 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       localStorage.setItem(SNAPSHOT_KEY, serialized)
     } catch {
       // localStorage full — proceed without crash recovery
+    }
+    snapshotFromNewer = scoresheet.openedFromNewerFile.value
+    try {
+      if (snapshotFromNewer) localStorage.setItem(FROM_NEWER_KEY, '1')
+      else localStorage.removeItem(FROM_NEWER_KEY)
+    } catch {
+      // localStorage full — the warning still returns on a normal finish
     }
 
     // Snapshot and clear the meet link so the team/quizzer inputs stay
@@ -305,12 +317,14 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     // is immune to parse failures. Fall back to localStorage only if the
     // in-memory copy was lost (e.g. tutorial was entered via crash recovery).
     if (snapshotData) {
-      scoresheet.loadFile(snapshotData)
+      scoresheet.loadFile(snapshotData, { fromNewerFile: snapshotFromNewer })
     } else {
       const saved = localStorage.getItem(SNAPSHOT_KEY)
       if (saved) {
         try {
-          scoresheet.loadFile(parseQuizFile(saved))
+          scoresheet.loadFile(parseQuizFile(saved), {
+            fromNewerFile: localStorage.getItem(FROM_NEWER_KEY) === '1',
+          })
         } catch (e) {
           // Leave the current store state alone rather than wiping it —
           // leaking tutorial state is strictly better than destroying user data.
@@ -333,8 +347,10 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     scoresheet.pauseAutoSave.value = false
     active.value = false
     snapshotData = null
+    snapshotFromNewer = false
     try {
       localStorage.removeItem(SNAPSHOT_KEY)
+      localStorage.removeItem(FROM_NEWER_KEY)
     } catch {
       // ignore
     }
@@ -350,8 +366,9 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     if (!saved) return false
     try {
       const data = parseQuizFile(saved)
-      scoresheet.loadFile(data)
+      scoresheet.loadFile(data, { fromNewerFile: localStorage.getItem(FROM_NEWER_KEY) === '1' })
       localStorage.removeItem(SNAPSHOT_KEY)
+      localStorage.removeItem(FROM_NEWER_KEY)
     } catch {
       // Quiz parse failed — clean up both keys so we don't leak stale state.
       localStorage.removeItem(SNAPSHOT_KEY)

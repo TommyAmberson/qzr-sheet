@@ -13,7 +13,14 @@ import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
-import { serializeStore, parseQuizFile, serialize, deserialize } from '../persistence/quizFile'
+import {
+  serializeStore,
+  parseQuizFile,
+  parseQuizFileAttempt,
+  NewerFileVersionError,
+  serialize,
+  deserialize,
+} from '../persistence/quizFile'
 import {
   saveQuizToFile,
   openAnyQuizFile,
@@ -353,6 +360,7 @@ const {
   visibleColumns,
   visibleOtRounds,
   rules,
+  openedFromNewerFile,
   allQuestionsComplete,
   validationErrors,
   timeoutValidationErrors,
@@ -385,6 +393,7 @@ const {
 
 const tutorial = useTutorial({
   store,
+  openedFromNewerFile,
   noJumpMap,
   timeoutMap,
   pauseAutoSave,
@@ -683,10 +692,25 @@ async function openFile() {
       const data = deserialize(readOds(result.content))
       loadFile(data)
     } else {
-      loadFile(parseQuizFile(result.content))
+      await openJsonQuiz(result.content)
     }
   } catch (e) {
     alert(`Failed to open file: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
+const TRY_NEWER_PROMPT =
+  'This file was saved by a newer version of the scoresheet. Update to open it reliably. ' +
+  'Try to open it anyway? Scores may be wrong.'
+
+/** Open a .json quiz, offering a best-effort open when a newer scoresheet saved it */
+async function openJsonQuiz(json: string) {
+  try {
+    loadFile(parseQuizFile(json))
+  } catch (e) {
+    if (!(e instanceof NewerFileVersionError)) throw e
+    if (!(await confirmAction(TRY_NEWER_PROMPT))) return
+    loadFile(parseQuizFileAttempt(json), { fromNewerFile: true })
   }
 }
 
@@ -1006,6 +1030,15 @@ const appVersion: string = __APP_VERSION__
               </button>
               <SignInWidget />
             </div>
+          </div>
+        </div>
+
+        <div v-if="openedFromNewerFile" class="notice-row">
+          <div class="col--left-spacer" />
+          <div class="notice-row-inner">
+            <p v-if="openedFromNewerFile" class="notice">
+              Opened from a newer file; may be scored wrong.
+            </p>
           </div>
         </div>
 
@@ -1656,6 +1689,32 @@ const appVersion: string = __APP_VERSION__
   padding-top: 1rem;
   min-width: max-content;
   flex-shrink: 0;
+}
+
+.notice-row {
+  display: flex;
+  margin-bottom: 0.75rem;
+  min-width: max-content;
+}
+
+.notice-row-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--color-invalid);
+  border-radius: 4px;
+  background: var(--color-error-alt);
+  color: var(--color-error);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .meta-row-inner {
