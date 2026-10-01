@@ -75,6 +75,13 @@ TS/Vue/CSS with Prettier, fixes lint with ESLint, and runs `dprint` on markdown 
   end.
 * Do not add `Co-Authored-By` lines.
 * Work on feature branches, not directly on master.
+* A sub-feature that will take more than one commit gets its own branch off the feature branch
+  (`feat/schedule-editor` → `feat/roll-teams`), merged back with `git merge --no-ff`. Single-commit
+  tweaks stay on the parent branch.
+* Pull requests are feature-sized: many atomic commits, few PRs. Fold follow-ups that touch the same
+  surface into the in-flight branch, and land design docs with the code they describe. Split only
+  for different urgency, different reviewers, or a genuine precondition. Ask before opening,
+  closing, or splitting a PR.
 * Always run pnpm commands from the repo root using root-level aliases (e.g. `pnpm test:unit`, not
   `pnpm --filter scoresheet test:unit`) — keeps commands predictable for auto-approval.
 
@@ -86,6 +93,8 @@ TS/Vue/CSS with Prettier, fixes lint with ESLint, and runs `dprint` on markdown 
   `chore: merge <branch-name>`. For local merges, set this via `git merge --no-ff -m "..."`. For
   PRs, pass `--subject "chore: merge <branch>"` to `gh pr merge` (or edit before confirming) —
   GitHub's default `Merge pull request #N from …` template doesn't conform to commitlint.
+* `--delete-branch` only removes the remote branch. After merging, `git checkout master`,
+  `git pull --ff-only`, and `git branch -d <branch>` so stale local branches don't pile up.
 
 ### Rewriting history
 
@@ -200,7 +209,9 @@ contract check, deploys, and tags `<pkg>@<semver>` on success. **Don't tag local
 Feature-sized work runs through the `speckit-*` skills (`/speckit-specify`, `/speckit-plan`,
 `/speckit-tasks`, `/speckit-implement`), writing into `specs/<NNN-slug>/`. `/speckit-clarify` before
 planning de-risks an ambiguous spec, and `/speckit-analyze` cross-checks the three artefacts before
-implementation starts. Small fixes and one-commit changes skip the pipeline.
+implementation starts. Run `/speckit-analyze` before every `/speckit-implement`, even when asked to
+just "continue", unless the user says it already ran or to skip it. Small fixes and one-commit
+changes skip the pipeline.
 
 Those commands gate against `.specify/memory/constitution.md`. It states principles; this file holds
 the mechanics they compile down to and the runtime guidance for agents. Where they disagree, fix the
@@ -246,6 +257,10 @@ surface it so the user can decide.
   multi-statement handlers to named functions in `<script setup>` instead of inline expressions.
 * Auth uses Better Auth cookie sessions — no JWTs for user auth. `BETTER_AUTH_SECRET` must be ≥32
   chars. OAuth callbacks: `/api/auth/callback/github`, `/api/auth/callback/google`.
+* **A stale Vite watcher looks like a CSS bug.** Long-running dev servers (especially once Linux
+  hits its inotify limit) silently stop picking up edits. If a visual change "didn't work" but the
+  file on disk is right, fetch the served stylesheet (`curl` the `?vue&type=style` URL) and compare
+  before editing again; if it's stale, ask the user to restart `pnpm dev:all`.
 * **Never hand-write or edit migration files.** Always run `pnpm --filter @qzr/api db:generate` to
   generate migrations from the schema diff. If the generated SQL won't work (e.g. `ADD NOT NULL` on
   existing rows), fix the schema design instead — make the column nullable, provide a default, or
