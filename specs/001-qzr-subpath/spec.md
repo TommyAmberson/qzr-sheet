@@ -99,10 +99,7 @@ every connected feature, then repeat after switch day.
 
 1. **Given** the new app release, **When** a user signs in and loads a quiz from a schedule,
    **Then** it works during the parallel stage and after switch day.
-2. **Given** an old app release after switch day, **When** a user loads meet data that does not need
-   sign-in (guest viewer access, public meet information), **Then** it keeps working for the grace
-   period.
-3. **Given** an old app release after switch day, **When** a user tries to sign in, **Then** sign-in
+2. **Given** an old app release after switch day, **When** a user tries to sign in, **Then** sign-in
    fails, and scoring keeps working offline. How the failure looks is fixed in the released build
    and is checked before switch day (FR-010).
 
@@ -214,9 +211,9 @@ open it after switch day, online and offline.
   does not recognise to `/qzr/`: a redirect in the browser, not a permanent HTTP redirect.
 * **FR-014**: Old installed scoresheet web apps MUST remove their stale copy and move the user to
   `/qzr/scoresheet/` the next time they are opened online, without deleting saved scoresheets.
-* **FR-015**: For a grace period after switch day, old app releases MUST still be able to reach qzr
-  meet data that does not need sign-in at the old API address (provided by verse-vault's router
-  forwarding those requests to qzr).
+* **FR-015**: _Withdrawn 2026-10-01._ It kept old app releases reaching meet data at the old API
+  address for a grace period. qzr has no known desktop or Android users, so nothing forwards the old
+  address after switch day.
 
 **Documentation**
 
@@ -247,8 +244,9 @@ open it after switch day, online and offline.
   session of switching between them.
 * **SC-005**: No saved scoresheet is lost by the move: an auto-saved scoresheet from before switch
   day opens afterwards in both the old installed web app and `/qzr/scoresheet/`.
-* **SC-006**: The new desktop and Android releases are published at least one week before switch
-  day, with users who are known to rely on them told to update.
+* **SC-006**: _Not applicable._ It asked for the new desktop and Android releases a week before
+  switch day so users could update; there are no known app users. scoresheet 0.11.0 shipped the new
+  API address before switch day anyway.
 
 ## Assumptions
 
@@ -256,12 +254,12 @@ open it after switch day, online and offline.
   one-origin rule for portal, scoresheet, and API in the constitution both still hold.
 * The apex `versevault.ca` keeps redirecting to `www`.
 * The maintainer adds the new Google and GitHub sign-in return addresses before the parallel stage
-  goes live, and removes the old ones after the grace period.
-* The grace period for old app releases is a few weeks; the user base is small enough that
-  maintainers can reach the people who use the desktop and Android apps.
+  goes live, and removes the old ones after switch day.
+* There are no known desktop or Android users, so switch day needs no grace period for old app
+  releases.
 * Old installed web apps must be reinstalled from the new address; the browser does not carry the
   install over.
 * qzr gets a new hosting target for `/qzr/` so it can go live alongside the current root site; the
   old Pages project is retired after switch day.
-* Forwarding old-app API requests (FR-015) and the catch-all for unknown root addresses (FR-013) are
-  implemented in verse-vault; this feature only depends on them.
+* The catch-all for unknown root addresses (FR-013) is implemented in verse-vault; this feature only
+  depends on it.
