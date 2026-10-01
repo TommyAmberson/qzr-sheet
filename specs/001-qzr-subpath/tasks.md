@@ -65,12 +65,12 @@ with Conventional Commit subjects of at most 50 characters.
 
 **Purpose**: the API answers under `/qzr/api/*` with sign-in on a matching base path (research R1, R2)
 
-- [ ] T006 [P] Write failing tests in `packages/api/src/routes/__tests__/qzrPrefix.spec.ts` (copy the env/DB setup from `routeMountOrder.spec.ts`): the same request to `/api/meets` and `/qzr/api/meets` returns the same status and body; `/qzr/api/join/guest` behaves like `/api/join/guest`; `/qzr/does-not-exist` returns 404
-- [ ] T007 [P] Write failing tests in `packages/api/src/lib/__tests__/authBasePath.spec.ts` for a pure helper `authBasePathFor(pathname: string): string` that returns `'/qzr/api/auth'` when `pathname` starts with `/qzr/` and `'/api/auth'` otherwise (`/qzr/api/auth/session`, `/api/auth/session`, `/qzrx/api/auth`, `/qzr` cases)
-- [ ] T008 In `packages/api/src/lib/auth.ts`, add and export `authBasePathFor`, and change `createAuth(env)` to `createAuth(env, opts?: { basePath?: string })`, passing `basePath: opts?.basePath ?? '/api/auth'` to `betterAuth`. Keep `baseURL: env.API_BASE_URL` (bare origin). Update the `Auth` type export if needed
-- [ ] T009 In `packages/api/src/index.ts`, keep CORS and the logger on the outer `app` (registered once), and move `/health`, the auth handler, the session middleware, and all `/api/...` routes onto an inner `const api = new Hono<...>()`, then create the exported `app` and mount `app.route('/qzr', api)` and `app.route('/', api)` (prefixed first). The auth handler becomes `createAuth(c.env, { basePath: authBasePathFor(c.req.path) }).handler(c.req.raw)`; do not rewrite `c.req.raw`. Keep the existing mount-order comment with the routes it explains
-- [ ] T010 Add an auth test to `packages/api/src/lib/__tests__/authBasePath.spec.ts`, with `env` built from `createTestDb()` (`packages/api/src/test-db.ts`) and a 32-character test `BETTER_AUTH_SECRET`: `app.request('/qzr/api/auth/ok', {}, env)` and `app.request('/api/auth/ok', {}, env)` both return 200 (Better Auth's health endpoint), proving the router matches each base path on the unmodified URL
-- [ ] T011 Add the route `[[routes]] pattern = "www.versevault.ca/qzr/api/*"`, `zone_name = "versevault.ca"` to `packages/api/wrangler.toml`, keeping the existing `/api/*` route, with a comment that `/api/*` is removed on switch day (PR 2)
+- [X] T006 [P] Write failing tests in `packages/api/src/routes/__tests__/qzrPrefix.spec.ts` (copy the env/DB setup from `routeMountOrder.spec.ts`): the same request to `/api/meets` and `/qzr/api/meets` returns the same status and body; `/qzr/api/join/guest` behaves like `/api/join/guest`; `/qzr/does-not-exist` returns 404
+- [X] T007 [P] Write failing tests in `packages/api/src/lib/__tests__/authBasePath.spec.ts` for a pure helper `authBasePathFor(pathname: string): string` that returns `'/qzr/api/auth'` when `pathname` starts with `/qzr/` and `'/api/auth'` otherwise (`/qzr/api/auth/session`, `/api/auth/session`, `/qzrx/api/auth`, `/qzr` cases)
+- [X] T008 In `packages/api/src/lib/auth.ts`, add and export `authBasePathFor`, and change `createAuth(env)` to `createAuth(env, opts?: { basePath?: string })`, passing `basePath: opts?.basePath ?? '/api/auth'` to `betterAuth`. Keep `baseURL: env.API_BASE_URL` (bare origin). Update the `Auth` type export if needed
+- [X] T009 In `packages/api/src/index.ts`, keep CORS and the logger on the outer `app` (registered once), and move `/health`, the auth handler, the session middleware, and all `/api/...` routes onto an inner `const api = new Hono<...>()`, then create the exported `app` and mount `app.route('/qzr', api)` and `app.route('/', api)` (prefixed first). The auth handler becomes `createAuth(c.env, { basePath: authBasePathFor(c.req.path) }).handler(c.req.raw)`; do not rewrite `c.req.raw`. Keep the existing mount-order comment with the routes it explains
+- [X] T010 Add an auth test to `packages/api/src/lib/__tests__/authBasePath.spec.ts`, with `env` built from `createTestDb()` (`packages/api/src/test-db.ts`) and a 32-character test `BETTER_AUTH_SECRET`: `app.request('/qzr/api/auth/ok', {}, env)` and `app.request('/api/auth/ok', {}, env)` both return 200 (Better Auth's health endpoint), proving the router matches each base path on the unmodified URL
+- [X] T011 Add the route `[[routes]] pattern = "www.versevault.ca/qzr/api/*"`, `zone_name = "versevault.ca"` to `packages/api/wrangler.toml`, keeping the existing `/api/*` route, with a comment that `/api/*` is removed on switch day (PR 2)
 
 **Checkpoint**: `pnpm test:unit` passes, including every existing API spec unchanged.
 
@@ -113,7 +113,7 @@ while the root site keeps working (FR-001 to FR-007).
 
 **Independent Test**: after sign-in, the response sets cookies named with the `qzr` prefix only.
 
-- [ ] T026 [US2] Write a failing test in `packages/api/src/lib/__tests__/cookiePrefix.spec.ts` that an email sign-up or sign-in through `/qzr/api/auth/...` (use the test DB setup from `packages/api/src/test-db.ts`) returns `Set-Cookie` headers whose names start with `qzr.` and none starting with `better-auth.`; then add `cookiePrefix: 'qzr'` to the existing `advanced` block in `createAuth` in `packages/api/src/lib/auth.ts` (cookie "Name: `__Secure-qzr.session_token` (was `__Secure-better-auth.session_token`)", data-model.md)
+- [X] T026 [US2] Write a failing test in `packages/api/src/lib/__tests__/cookiePrefix.spec.ts` that an email sign-up or sign-in through `/qzr/api/auth/...` (use the test DB setup from `packages/api/src/test-db.ts`) returns `Set-Cookie` headers whose names start with `qzr.` and none starting with `better-auth.`; then add `cookiePrefix: 'qzr'` to the existing `advanced` block in `createAuth` in `packages/api/src/lib/auth.ts` (cookie "Name: `__Secure-qzr.session_token` (was `__Secure-better-auth.session_token`)", data-model.md)
 
 **Checkpoint**: US2 test passes; nothing else reads the old cookie name (`grep -rn "better-auth\." packages apps`).
 
@@ -164,7 +164,7 @@ while the root site keeps working (FR-001 to FR-007).
 
 ### PR 1a and PR 1b
 
-- [ ] T037 [P] Update `docs/auth.md`: OAuth callbacks are `/qzr/api/auth/callback/{github,google}` (plus `/api/auth/...` until switch day), the per-request base path, the `qzr` cookie prefix and why
+- [X] T037 [P] Update `docs/auth.md`: OAuth callbacks are `/qzr/api/auth/callback/{github,google}` (plus `/api/auth/...` until switch day), the per-request base path, the `qzr` cookie prefix and why
 - [ ] T038 [P] Update `docs/architecture.md` hosting table: `/qzr/` portal and `/qzr/scoresheet/` via the `qzr-web` Worker, `/qzr/api/` via `qzr-api`, root owned by verse-vault after switch day
 - [ ] T039 [P] Update URLs in `docs/roles-and-access.md` (`/qzr/scoresheet/?meet=...`, join link) and `README.md` (live app link, deploy section, `wrangler deploy` instead of Pages)
 - [ ] T040 [P] Update `CLAUDE.md` (OAuth callbacks gotcha; `pnpm deploy` description) and `.claude/skills/release/SKILL.md` (deploy target)
@@ -237,3 +237,20 @@ Task: "T022 useAuth.ts in both apps: full auth URL"
 - Keep `tasks.md` checkboxes in the hyphen form; dprint is excluded for this file (CLAUDE.md)
 - Scope discipline: anything nearby that looks wrong (for example `/health` being unreachable in
   production) is raised with the maintainer, not fixed here
+
+## Implementation notes
+
+Where the work departed from the task text.
+
+PR 1a:
+
+- T007-T009: no `authBasePathFor` helper. The auth handler takes Better Auth's base path from the
+  route that matched (Hono's `routePath`, e.g. `/qzr/api/auth/*`), so the mount is the only place the
+  prefix is written; the integration tests in `authBasePath.spec.ts` cover both entrances.
+- T010: `env.DB` is an empty stub (`testBindings` in `test-utils.ts`), not `createTestDb()`. `createAuth` wraps a D1 binding and
+  `createTestDb()` returns a sql.js drizzle instance, and `/ok` touches no table anyway.
+- T026: the test reads the cookie names from `createAuth(env).$context.authCookies` instead of a
+  sign-up round trip, which would need a D1 shim over sql.js. Same guarantee: every auth cookie name
+  starts with the `qzr` prefix.
+- T040: the OAuth callbacks gotcha in `CLAUDE.md` changed here; the `pnpm deploy` line moves with
+  the `qzr-web` Worker in PR 1b.
