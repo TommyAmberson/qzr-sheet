@@ -132,7 +132,6 @@ ready — pushing fires the deploy.
 
 ## Rules
 
-* Never add `Co-Authored-By` trailers to commits.
 * Never push automatically — always let the user push.
 * Keep changelog entries concise and audience-appropriate (scoresheet entries face end-users;
   api/web/shared entries face engineers).
