@@ -192,6 +192,9 @@ meets.post('/:id/rotate-admin-code', requireAuth(), async (c) => {
   if (!(await isAdminOrSuperuser(db, user.id, user.role, id))) {
     return c.json({ error: 'Admin or superuser access required' }, 403)
   }
+  if (body.clearMembers && user.role !== AccountRole.Superuser) {
+    return c.json({ error: 'Only superusers can clear admin memberships' }, 403)
+  }
 
   const adminCode = generateCode()
   const adminHash = await hashCode(adminCode)
@@ -205,9 +208,6 @@ meets.post('/:id/rotate-admin-code', requireAuth(), async (c) => {
   if (!updated) return c.json({ error: 'Meet not found' }, 404)
 
   if (body.clearMembers) {
-    if (user.role !== AccountRole.Superuser) {
-      return c.json({ error: 'Only superusers can clear admin memberships' }, 403)
-    }
     await db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.meetId, id))
   }
 
@@ -284,7 +284,7 @@ meets.delete('/:id/official-codes/:codeId', requireAuth(), async (c) => {
 
   const deleted = await db
     .delete(schema.meetRooms)
-    .where(eq(schema.meetRooms.id, codeId))
+    .where(and(eq(schema.meetRooms.id, codeId), eq(schema.meetRooms.meetId, meetId)))
     .returning({ id: schema.meetRooms.id })
 
   if (deleted.length === 0) return c.json({ error: 'Official code not found' }, 404)
@@ -310,7 +310,7 @@ meets.post('/:id/official-codes/:codeId/rotate', requireAuth(), async (c) => {
   const [updated] = await db
     .update(schema.meetRooms)
     .set({ codeHash })
-    .where(eq(schema.meetRooms.id, codeId))
+    .where(and(eq(schema.meetRooms.id, codeId), eq(schema.meetRooms.meetId, meetId)))
     .returning({ id: schema.meetRooms.id, label: schema.meetRooms.name })
 
   if (!updated) return c.json({ error: 'Official code not found' }, 404)
@@ -428,6 +428,7 @@ meets.delete('/:id/members/:userId', requireAuth(), async (c) => {
       .where(
         and(
           eq(schema.coachMemberships.accountId, targetUserId),
+          eq(schema.coachMemberships.meetId, meetId),
           eq(schema.coachMemberships.churchId, body.churchId),
         ),
       )

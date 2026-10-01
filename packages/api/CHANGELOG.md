@@ -17,6 +17,24 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-10-01
+
+### Fixed
+
+* **Meet admins confined to their own meet** - routes scoped to one meet acted on child rows from
+  any meet when given a foreign ID. An admin of one meet could rotate another meet's official code
+  (and use the returned code to join as its official) or delete another meet's room, cascading to
+  its scheduled quizzes, via `POST/DELETE /api/meets/:id/official-codes/:codeId`, and remove a
+  coach's membership in another meet via `DELETE /api/meets/:id/members/:userId`. Each now matches
+  the child row against the meet in the URL and returns 404 otherwise
+* **Admin code kept on a refused clear** - `POST /api/meets/:id/rotate-admin-code` with
+  `clearMembers` from a non-superuser rotated the code before refusing with 403, so the new code was
+  never shown. It now refuses first and changes nothing
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` - unchanged
+
 ## [0.12.1] - 2026-10-01
 
 ### Fixed
