@@ -18,3 +18,18 @@ zone_name = "versevault.ca"
 [[routes]]
 pattern = "www.versevault.ca/qzr/*"
 zone_name = "versevault.ca"
+
+# qzr's addresses from before the move, now that verse-vault owns the root:
+# redirects into /qzr/, and a self-destroying service worker for PWA installs
+# made from /scoresheet/ (see worker/legacySw.ts).
+[[routes]]
+pattern = "www.versevault.ca/scoresheet"
+zone_name = "versevault.ca"
+
+[[routes]]
+pattern = "www.versevault.ca/scoresheet/*"
+zone_name = "versevault.ca"
+
+[[routes]]
+pattern = "www.versevault.ca/roadmap"
+zone_name = "versevault.ca"
