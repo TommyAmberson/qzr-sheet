@@ -12,11 +12,11 @@
     "@sinclair/typebox": "^0.34.0"
   },
   "peerDependencies": {
-    "better-auth": "^1.2.7",
+    "better-auth": "^1.6.33",
     "vue": "^3.5.28"
   },
   "devDependencies": {
-    "better-auth": "^1.2.7",
+    "better-auth": "~1.6.33",
     "typescript": "~5.9.3",
     "vue": "^3.5.28"
   }

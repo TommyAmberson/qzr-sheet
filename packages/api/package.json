@@ -1,6 +1,6 @@
 {
   "name": "@qzr/api",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@qzr/shared": "workspace:*",
-    "better-auth": "^1.2.7",
+    "better-auth": "~1.6.33",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.7.0",
     "jose": "^6.0.0"
