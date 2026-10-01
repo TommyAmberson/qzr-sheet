@@ -14,9 +14,15 @@ packages/
   shared/       # QuizFile schema, role enums, shared API types
   ui/           # Workspace-internal Vue components
   api/          # Hono + D1 + Drizzle (Cloudflare Workers)
+specs/          # Spec Kit artefacts, one NNN-slug/ per feature (spec, plan, tasks)
+.specify/       # Spec Kit scaffolding: templates, shell helpers, constitution
 ```
 
 See `docs/architecture.md` for full detail on internals, data flow, and design decisions.
+
+`.specify/` is vendored by the Specify CLI, which rewrites `scripts/` and `templates/*.md` on every
+refresh. Customise through `.specify/templates/overrides/<name>.md` rather than editing them in
+place.
 
 ## Commands
 
@@ -182,6 +188,22 @@ git push origin master
 CI fires the matching `.github/workflows/deploy-<pkg>.yml` (or `release-scoresheet.yml`), runs the
 contract check, deploys, and tags `<pkg>@<semver>` on success. **Don't tag locally** — CI does it.
 
+## Spec-driven development
+
+Feature-sized work runs through the `speckit-*` skills (`/speckit-specify`, `/speckit-plan`,
+`/speckit-tasks`, `/speckit-implement`), writing into `specs/<NNN-slug>/`. `/speckit-clarify` before
+planning de-risks an ambiguous spec, and `/speckit-analyze` cross-checks the three artefacts before
+implementation starts. Small fixes and one-commit changes skip the pipeline.
+
+Those commands gate against `.specify/memory/constitution.md`. It states principles; this file holds
+the mechanics they compile down to and the runtime guidance for agents. Where they disagree, fix the
+operational file rather than working around it.
+
+Spec Kit is branch-agnostic: `create-new-feature.sh` invokes git nowhere, and its `NNN-slug` string
+names the `specs/` directory rather than a branch. Keep using `type/short-slug` branches. Commit
+each artefact as it lands (`docs: spec <feature>`, `docs: plan <feature>`,
+`docs: break <feature> into tasks`).
+
 ## Scope discipline
 
 When working on a feature and you notice something nearby that's bad, awkward, or should be
@@ -221,11 +243,26 @@ surface it so the user can decide.
   generate migrations from the schema diff. If the generated SQL won't work (e.g. `ADD NOT NULL` on
   existing rows), fix the schema design instead — make the column nullable, provide a default, or
   split into two migrations. The `migrations/meta/_journal.json` must stay in sync.
+* **A fresh clone cannot resume a committed Spec Kit feature.** `.specify/feature.json` is the only
+  feature-context source the scripts accept, and Spec Kit gitignores it as machine-local state.
+  Every speckit command fails with "Feature directory not found" until you
+  `export SPECIFY_FEATURE_DIRECTORY=specs/<NNN-slug>` or re-run `/speckit-specify`.
+* **dprint rewrites Spec Kit's checkboxes, so `specs/**/tasks.md` and `specs/**/checklists/` are
+  excluded.** `unorderedListKind: "asterisks"` turns `- [ ]` into `* [ ]`, and `/speckit-implement`
+  and `/speckit-converge` read task state from the hyphen form. The rewrite is silent and still
+  renders fine, so the damage only shows when a speckit command finds no tasks. Prose artefacts in
+  `specs/` carry no checkboxes and stay linted.
+* **Vendored Spec Kit files are exempt from dprint and typos, narrowly.** `.specify/scripts/`,
+  `.specify/templates/`, and `.claude/skills/speckit-*/` are rewritten on every `specify` refresh,
+  so any fix would be undone. `.specify/memory/constitution.md` and `.specify/templates/overrides/`
+  are project-authored and stay linted. Don't widen either exclusion to `.specify/**`.
 
 ## Reference Docs
 
 When working on scoring logic, rules, or architecture, read the relevant file first:
 
+* `.specify/memory/constitution.md`: project constitution, the principles the `speckit-*` commands
+  gate against
 * `docs/issue-conventions.md` — labels, titles, AI attribution, and how issues relate to
   `ROADMAP.md`
 * `ROADMAP.md` — feature breakdown and implementation plan
