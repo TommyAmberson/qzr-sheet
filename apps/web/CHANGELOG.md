@@ -15,6 +15,19 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-10-01
+
+### Changed
+
+* **Served at `/qzr/`** - the portal moves from the root of www.versevault.ca to `/qzr/` so
+  verse-vault can take the root. Hosting moves from the `versevault-www` Pages project to the
+  `qzr-web` Worker (Workers Static Assets), which also serves the bundled scoresheet at
+  `/qzr/scoresheet/`
+
+### Bundled contract
+
+* `@qzr/shared@0.9.2` — unchanged
+
 ## [0.11.0] — 2026-10-01
 
 ### Added
