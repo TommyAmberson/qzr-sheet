@@ -5,6 +5,9 @@ extend-exclude = [
     "packages/api/.wrangler/",
     "apps/scoresheet/src-tauri/target/",
     "apps/scoresheet/src-tauri/gen/",
+    ".specify/scripts/", # vendored by the Specify CLI; rewritten on every refresh
+    ".specify/templates/", # same, the CLI rewrites these on refresh
+    ".claude/skills/speckit-", # same, regenerated skills
 ]
 
 [default.extend-identifiers]

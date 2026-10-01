@@ -47,7 +47,7 @@
       "eslint --fix",
       "prettier --write --experimental-cli"
     ],
-    "**/*.{md,dockerfile}": "pnpm exec dprint fmt"
+    "**/*.{md,dockerfile}": "pnpm exec dprint fmt --allow-no-files"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",
