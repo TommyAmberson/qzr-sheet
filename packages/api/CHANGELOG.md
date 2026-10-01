@@ -35,6 +35,12 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   had its seats deleted and rewritten, even for a completed quiz in another meet, and foreign rooms
   or slots linked the two meets' rows. Any slot, quiz or room that isn't the meet's is now refused
   with 400 before anything is written
+* **Roster sync confined to its church** - `POST /api/churches/:churchId/roster/sync` trusted
+  positive team IDs from the payload, so a coach (or an admin, via a throwaway church) could add or
+  move quizzers into any team in any meet. A team that isn't the church's is now refused with 400
+  before anything is written
+* **No coach-code hashes in church lists** - `GET /api/meets/:meetId/churches`, which any viewer of
+  the meet can read, no longer returns `coachCodeHash`
 
 ### Bundled contract
 

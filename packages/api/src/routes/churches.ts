@@ -73,7 +73,6 @@ churches.get('/meets/:meetId/churches', async (c) => {
       meetId: schema.churches.meetId,
       name: schema.churches.name,
       shortName: schema.churches.shortName,
-      coachCodeHash: schema.churches.coachCodeHash,
       teamCount: sql<number>`count(${schema.teams.id})`.mapWith(Number),
     })
     .from(schema.churches)
@@ -579,6 +578,15 @@ churches.post('/churches/:churchId/roster/sync', requireAuth(), async (c) => {
     .select()
     .from(schema.teams)
     .where(eq(schema.teams.churchId, churchId))
+  const currentTeamMap = new Map(currentTeams.map((t) => [t.id, t]))
+
+  // canEditChurch vouches for this church only. A positive team ID that isn't
+  // one of its teams would otherwise receive new or moved quizzers, in any
+  // church or meet. Refuse before the deletions below run.
+  const foreignTeam = body.teams.find((t) => t.id > 0 && !currentTeamMap.has(t.id))
+  if (foreignTeam) {
+    return c.json({ error: `Team ${foreignTeam.id} is not in this church` }, 400)
+  }
 
   const currentRosters =
     currentTeams.length > 0
@@ -593,7 +601,6 @@ churches.post('/churches/:churchId/roster/sync', requireAuth(), async (c) => {
           )
       : []
 
-  const currentTeamMap = new Map(currentTeams.map((t) => [t.id, t]))
   // quizzerId → { teamId, name }
   const currentRosterMap = new Map(
     currentRosters.map((r) => [r.quizzerId, { teamId: r.teamId, name: r.name }]),
@@ -676,7 +683,7 @@ churches.post('/churches/:churchId/roster/sync', requireAuth(), async (c) => {
       await db
         .update(schema.teams)
         .set({ division: t.division, number })
-        .where(eq(schema.teams.id, t.id))
+        .where(and(eq(schema.teams.id, t.id), eq(schema.teams.churchId, churchId)))
     }
   }
 

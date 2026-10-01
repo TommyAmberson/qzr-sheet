@@ -142,6 +142,18 @@ describe('GET /api/meets/:meetId/churches', () => {
     const row = body.churches.find((c) => c.id === church.id)!
     expect(row.teamCount).toBe(2)
   })
+
+  it('omits coachCodeHash', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    await seedChurch(db, meet.id)
+
+    const res = await app.request(`/api/meets/${meet.id}/churches`, {}, env)
+    expect(res.status).toBe(200)
+    const body = await jsonOf<{ churches: Record<string, unknown>[] }>(res)
+    expect(body.churches).toHaveLength(1)
+    expect(body.churches[0]).not.toHaveProperty('coachCodeHash')
+  })
 })
 
 describe('POST /api/meets/:meetId/churches', () => {
@@ -1333,6 +1345,38 @@ describe('POST /api/churches/:churchId/roster/sync', () => {
       env,
     )
     expect(res.status).toBe(404)
+  })
+
+  // Roster sync is scoped to one church: a team ID from another church (here
+  // in another meet) must be refused before anything is written.
+  it("refuses another church's team and leaves both rosters alone", async () => {
+    const app = createApp(testUser, db)
+    const meetA = await seedMeet(db)
+    const churchA = await seedChurch(db, meetA.id, 'Church A')
+    const teamA = await seedTeam(db, meetA.id, churchA.id)
+    await seedCoachMembership(db, testUser.id, churchA.id, meetA.id)
+    const meetB = await seedMeet(db)
+    const churchB = await seedChurch(db, meetB.id, 'Church B')
+    const teamB = await seedTeam(db, meetB.id, churchB.id)
+    await seedQuizzer(db, teamB.id, 'Real B Quizzer')
+
+    const res = await app.request(
+      `/api/churches/${churchA.id}/roster/sync`,
+      syncBody({
+        teams: [{ id: teamB.id, division: 'Open', quizzers: [{ id: -1, name: 'Injected' }] }],
+        unassigned: [],
+      }),
+      env,
+    )
+    expect(res.status).toBe(400)
+
+    const rosterB = await db
+      .select({ name: schema.teamRosters.name })
+      .from(schema.teamRosters)
+      .where(eq(schema.teamRosters.teamId, teamB.id))
+    expect(rosterB.map((r) => r.name)).toEqual(['Real B Quizzer'])
+    const teamsA = await db.select().from(schema.teams).where(eq(schema.teams.id, teamA.id))
+    expect(teamsA).toHaveLength(1)
   })
 })
 
