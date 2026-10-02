@@ -1,5 +1,5 @@
 import { ref, onMounted, onUnmounted, type Ref } from 'vue'
-import { CellValue, QuestionType, type Column, type Team, type Quizzer } from '../types/scoresheet'
+import { CellValue, QuestionType, type Column, type Team, type Quizzer } from '@qzr/shared'
 import type { SelectorOption } from './useCellSelector'
 
 interface KeyboardNavDeps {

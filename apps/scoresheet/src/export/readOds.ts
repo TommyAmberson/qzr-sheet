@@ -1,12 +1,6 @@
 import { strFromU8, unzipSync } from 'fflate'
 import { readCell } from './odsXml'
-import {
-  BonusRule,
-  CellValue,
-  PlacementFormula,
-  QuestionCategory,
-  QuizFormat,
-} from '../types/scoresheet'
+import { BonusRule, CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '@qzr/shared'
 import type { QuizFile } from '../persistence/quizFile'
 import { fileVersionFor } from '../persistence/quizFile'
 

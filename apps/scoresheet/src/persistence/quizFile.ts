@@ -9,10 +9,10 @@ import {
   QuizFormat,
 } from '@qzr/shared'
 import type { QuizFile } from '@qzr/shared'
-import { buildKeyToIdx, buildColumns } from '../types/scoresheet'
-import { quizRules } from '../scoring/quizRules'
-import type { Quiz, Team, Quizzer, Answer, Timeout } from '../types/scoresheet'
-import { toQuizzerId } from '../types/indices'
+import { buildKeyToIdx, buildColumns } from '@qzr/shared'
+import { quizRules } from '@qzr/shared'
+import type { Quiz, Team, Quizzer, Answer, Timeout } from '@qzr/shared'
+import { toQuizzerId } from '@qzr/shared'
 import type { QuizStore } from '../stores/quizStore'
 
 export { QuizFileSchema, FILE_VERSION }

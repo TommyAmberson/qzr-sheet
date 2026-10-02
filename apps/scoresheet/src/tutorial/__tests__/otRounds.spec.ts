@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../../composables/useScoresheet'
 import { TUTORIAL_STEPS, type ScoresheetActions } from '../tutorialSteps'
-import { toColIdx } from '../../types/indices'
+import { toColIdx } from '@qzr/shared'
 
 beforeEach(() => localStorage.clear())
 

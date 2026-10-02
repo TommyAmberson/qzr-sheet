@@ -6,13 +6,13 @@ import {
   QuestionType,
   QuizFormat,
   QUIZZERS_PER_TEAM,
-} from '../types/scoresheet'
+} from '@qzr/shared'
 import {
   endsRound,
   firstOvertimeQuestion,
   lastQuestionThroughRound,
   startsOtRound,
-} from '../scoring/quizRules'
+} from '@qzr/shared'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
@@ -35,8 +35,8 @@ import {
 } from '../persistence/fileIO'
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
-import { anyTeamHasAnswer } from '../scoring/helpers'
-import { ValidationCode, validationMessage } from '../scoring/validation'
+import { anyTeamHasAnswer } from '@qzr/shared'
+import { ValidationCode, validationMessage } from '@qzr/shared'
 import type { ScheduledQuizSeat } from '../api'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { TWENTY_QUESTION_RULES as TWENTY } from '../../scoring/quizRules'
+import { TWENTY_QUESTION_RULES as TWENTY } from '@qzr/shared'
 import { ref, defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useKeyboardNav } from '../useKeyboardNav'
-import { CellValue, buildColumns } from '../../types/scoresheet'
-import { toQuizzerId } from '../../types/indices'
+import { CellValue, buildColumns } from '@qzr/shared'
+import { toQuizzerId } from '@qzr/shared'
 import type { SelectorOption } from '../useCellSelector'
 
 // Helper to mount a minimal component that calls useKeyboardNav,

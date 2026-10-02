@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createQuizStore } from '../quizStore'
-import { QuestionCategory } from '../../types/scoresheet'
+import { QuestionCategory } from '@qzr/shared'
 
 describe('questionTypes', () => {
   it('starts with no question types set', () => {

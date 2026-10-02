@@ -23,6 +23,15 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-02
+
+### Added
+
+* The scoresheet's scoring, moved here unchanged so the portal and API can score stored quiz files:
+  `scoreTeam`, grey-out, validation, overtime, placement and column visibility, the per-format
+  `quizRules`, the scoresheet's column and quiz types (`buildColumns`, `Column`, `Quiz`, …), and the
+  branded index types.
+
 ## [1.0.0] - 2026-10-01
 
 ### Added

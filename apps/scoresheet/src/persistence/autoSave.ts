@@ -5,7 +5,7 @@ import {
   type DeserializeResult,
 } from './quizFile'
 import type { QuizStore } from '../stores/quizStore'
-import type { Timeout } from '../types/scoresheet'
+import type { Timeout } from '@qzr/shared'
 
 const STORAGE_KEY = 'qzr-sheet:current'
 const KEPT_NEWER_PREFIX = 'qzr-sheet:newer-autosave:'

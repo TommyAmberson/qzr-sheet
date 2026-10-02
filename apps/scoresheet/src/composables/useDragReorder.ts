@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import type { Quizzer } from '../types/scoresheet'
+import type { Quizzer } from '@qzr/shared'
 
 export function useDragReorder(
   teamQuizzers: Ref<Quizzer[][]>,

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useScoresheet } from '../../composables/useScoresheet'
-import { CellValue } from '../../types/scoresheet'
+import { CellValue } from '@qzr/shared'
 import { TUTORIAL_STEPS, type ScoresheetActions } from '../tutorialSteps'
-import { toColIdx } from '../../types/indices'
+import { toColIdx } from '@qzr/shared'
 
 beforeEach(() => localStorage.clear())
 

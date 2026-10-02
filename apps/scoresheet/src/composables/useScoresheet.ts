@@ -16,14 +16,14 @@ import {
   type Team,
   type Timeout,
   type PlaceKey,
-} from '../types/scoresheet'
+} from '@qzr/shared'
 import { createQuizStore } from '../stores/quizStore'
-import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
-import { quizRules, lastTimeoutQuestion, type QuizRules } from '../scoring/quizRules'
-import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
-import { validateCells, ValidationCode, validationMessage } from '../scoring/validation'
-import { isBonusSituation } from '../scoring/helpers'
-import { computeVisibleColumns, computeOrphanedColumns } from '../scoring/columnVisibility'
+import { scoreTeam, type TeamScoring } from '@qzr/shared'
+import { quizRules, lastTimeoutQuestion, type QuizRules } from '@qzr/shared'
+import { computeGreyedOut, type GreyedOutResult } from '@qzr/shared'
+import { validateCells, ValidationCode, validationMessage } from '@qzr/shared'
+import { isBonusSituation } from '@qzr/shared'
+import { computeVisibleColumns, computeOrphanedColumns } from '@qzr/shared'
 import {
   getOvertimeEligibleTeams,
   computeOtIneligibility,
@@ -32,9 +32,9 @@ import {
   computeRegulationScores,
   questionsComplete,
   quizJumpedComplete,
-} from '../scoring/overtime'
-import { computePlacements, computePlacementPoints } from '../scoring/placement'
-import { teamSeatKey, toSeatIdx, toTeamIdx, type TeamSeat } from '../types/indices'
+} from '@qzr/shared'
+import { computePlacements, computePlacementPoints } from '@qzr/shared'
+import { teamSeatKey, toSeatIdx, toTeamIdx, type TeamSeat } from '@qzr/shared'
 import { parseQuizFileAttempt, type DeserializeResult } from '../persistence/quizFile'
 import {
   saveToStorage,

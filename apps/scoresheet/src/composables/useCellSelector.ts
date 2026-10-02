@@ -1,5 +1,5 @@
 import { ref, computed, type Ref } from 'vue'
-import { CellValue, QuestionType, type Column } from '../types/scoresheet'
+import { CellValue, QuestionType, type Column } from '@qzr/shared'
 
 export interface SelectorOption {
   value: CellValue

@@ -11,7 +11,7 @@ import {
   type QuizFile,
 } from '../quizFile'
 import { createQuizStore } from '../../stores/quizStore'
-import { CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '../../types/scoresheet'
+import { CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '@qzr/shared'
 
 function makeFile(overrides: Partial<QuizFile> = {}): QuizFile {
   return {

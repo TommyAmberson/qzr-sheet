@@ -11,7 +11,7 @@ import {
 } from '../autoSave'
 import { resetAutoSave } from './resetAutoSave'
 import { createQuizStore } from '../../stores/quizStore'
-import { CellValue } from '../../types/scoresheet'
+import { CellValue } from '@qzr/shared'
 import { serializeStore, FILE_VERSION } from '../quizFile'
 
 beforeEach(() => {

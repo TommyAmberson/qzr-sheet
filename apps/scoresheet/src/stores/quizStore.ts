@@ -11,8 +11,8 @@ import {
   type Team,
   type Quizzer,
   type Answer,
-} from '../types/scoresheet'
-import { type QuizzerId, type SeatIdx, toQuizzerId } from '../types/indices'
+} from '@qzr/shared'
+import { type QuizzerId, type SeatIdx, toQuizzerId } from '@qzr/shared'
 
 let nextId = 1
 function genId(): number {

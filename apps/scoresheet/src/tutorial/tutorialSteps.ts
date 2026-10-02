@@ -1,6 +1,6 @@
-import { CellValue } from '../types/scoresheet'
-import type { TeamIdx, SeatIdx, ColIdx } from '../types/indices'
-import { toTeamIdx as T, toSeatIdx as S, toColIdx as C } from '../types/indices'
+import { CellValue } from '@qzr/shared'
+import type { TeamIdx, SeatIdx, ColIdx } from '@qzr/shared'
+import { toTeamIdx as T, toSeatIdx as S, toColIdx as C } from '@qzr/shared'
 
 export type ScoresheetActions = {
   setQuizzerName: (teamIdx: TeamIdx, seatIdx: SeatIdx, name: string) => void

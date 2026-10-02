@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { TWENTY_QUESTION_RULES as TWENTY } from '../../scoring/quizRules'
+import { TWENTY_QUESTION_RULES as TWENTY } from '@qzr/shared'
 import { createQuizStore } from '../quizStore'
-import { CellValue, QuizFormat, buildColumns, buildKeyToIdx } from '../../types/scoresheet'
-import { toQuizzerId } from '../../types/indices'
+import { CellValue, QuizFormat, buildColumns, buildKeyToIdx } from '@qzr/shared'
+import { toQuizzerId } from '@qzr/shared'
 
 const COLUMNS = buildColumns(TWENTY)
 const KEY_TO_IDX = buildKeyToIdx(COLUMNS)

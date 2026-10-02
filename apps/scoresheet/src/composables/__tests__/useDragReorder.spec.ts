@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { ref } from 'vue'
 import { useDragReorder } from '../useDragReorder'
-import type { Quizzer } from '../../types/scoresheet'
-import { toQuizzerId } from '../../types/indices'
+import type { Quizzer } from '@qzr/shared'
+import { toQuizzerId } from '@qzr/shared'
 
 function makeQuizzers(counts: number[]): Quizzer[][] {
   return counts.map((n, teamIdx) =>

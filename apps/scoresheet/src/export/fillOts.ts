@@ -1,11 +1,11 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
-import { QuizFormat, buildColumns } from '../types/scoresheet'
-import { computeOvertimeRounds } from '../scoring/overtime'
-import { TWENTY_QUESTION_RULES } from '../scoring/quizRules'
+import { QuizFormat, buildColumns } from '@qzr/shared'
+import { computeOvertimeRounds } from '@qzr/shared'
+import { TWENTY_QUESTION_RULES } from '@qzr/shared'
 import { patchCell } from './odsXml'
 import type { QuizFile } from '../persistence/quizFile'
 import { deserialize } from '../persistence/quizFile'
-import type { CellValue } from '../types/scoresheet'
+import type { CellValue } from '@qzr/shared'
 
 /**
  * Fill an OTS template with quiz data and return an ODS file as bytes.
