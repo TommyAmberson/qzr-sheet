@@ -14,7 +14,7 @@ qzr/
 │   │   └── src-tauri/  # Tauri 2 Rust backend (desktop + Android)
 │   └── web/          # Portal — coach roster mgmt, admin dashboard, viewer standings
 └── packages/
-    ├── shared/       # QuizFile schema, role enums, API + auth clients
+    ├── shared/       # QuizFile schema, scoring, role enums, API + auth clients
     ├── ui/           # Workspace-internal Vue components
     └── api/          # Hono + D1 + Drizzle (Cloudflare Workers)
 ```
@@ -115,10 +115,9 @@ quizStore  (reactive data, no scoring logic)
 useScoresheet  (Vue composable — reactivity layer)
     │   ├── cells: CellValue[][][]            from store.cellGrid()
     │   ├── scoring: TeamScoring[]            from scoreTeam()
-    │   ├── greyedOutResult: GreyedOutResult  from computeGreyedOut()
-    │   ├── validationErrors: Map<key, codes> from validateCells()
+    │   ├── assessment: grey-out, validation, timeout errors, placements
+    │   │                                     from assessQuiz()
     │   ├── visibleColumns: VisibleColumn[]   from computeVisibleColumns()
-    │   ├── placements: (number|null)[]       from computePlacements()
     │   └── undo/redo                         via useHistory()
     │
     ▼
@@ -138,7 +137,7 @@ useScoresheet  ──serialize()──▶  fileIO  ──▶  .json / .ods file
                ◀──deserialize()─  fileIO  ◀──  .json / .ods file
 ```
 
-## Core Types (`src/types/scoresheet.ts`)
+## Core Types (`packages/shared/src/types/scoresheet.ts`)
 
 * **`CellValue`** — enum: `Correct | Error | Foul | Bonus | MissedBonus | Empty`
 * **`Column`** — `{ key, label, number, type, isAB, isErrorPoints, isOvertime }`
@@ -162,15 +161,18 @@ re-run when store data changes without version counters. The store holds data an
 never calls scoring functions.
 
 * Answers stored in a `Map<"quizzerId:columnKey", Answer>` for O(1) lookup.
-* `cellGrid(columns)` derives the `CellValue[][][]` grid on demand.
+* `cellGrid(columns)` derives the `CellValue[][][]` grid on demand, through the shared
+  `buildCellGrid` that also lays out stored quiz files.
 * `moveQuizzer()` does an insert (not a swap) and reassigns `seatOrder`.
 
-## Scoring (`src/scoring/`)
+## Scoring (`packages/shared/src/scoring/`)
 
-All scoring functions are **pure functions** — they take `CellValue[][][]` and `Column[]` and return
-results. No Vue, no store access. Functions that need the quiz format's numbers (quiz-out threshold,
-where regulation ends, overtime round size) take a `QuizRules` as a required parameter, so a missed
-call site fails type-checking instead of silently using 20-question rules.
+Scoring lives in `packages/shared` so the scoresheet, the portal and the API score a quiz the same
+way (constitution principle III). All scoring functions are **pure functions** — they take
+`CellValue[][][]` and `Column[]` and return results. No Vue, no store access. Functions that need
+the quiz format's numbers (quiz-out threshold, where regulation ends, overtime round size) take a
+`QuizRules` as a required parameter, so a missed call site fails type-checking instead of silently
+using 20-question rules.
 
 | File                  | Responsibility                                                               |
 | --------------------- | ---------------------------------------------------------------------------- |
@@ -182,6 +184,8 @@ call site fails type-checking instead of silently using 20-question rules.
 | `overtime.ts`         | OT eligibility, round count, checkpoint scores                               |
 | `placement.ts`        | Progressive 1st/2nd/3rd placement derivation                                 |
 | `helpers.ts`          | Pure cell-grid queries (`teamHasValue`, `isResolved`, `isBonusSituation`, …) |
+| `cellGrid.ts`         | `buildCellGrid()`: a quiz's answers as `cells[team][seat][col]`              |
+| `assessQuiz.ts`       | Validation and timeout checks, and placement once the quiz can be placed     |
 
 ### Cell grid indexing
 
@@ -217,7 +221,9 @@ Key reactive dependencies:
 
 `rules` is derived from `quiz.format`, and `columns` from `rules`, `quiz.overtime`, and
 `internalOtRounds`. All scoring/greyout/validation computeds depend on `rules`, `columns`, and
-`cells`. `openedFromNewerFile` marks a quiz opened through the try-anyway path, and
+`cells`. Grey-out, validation, timeout errors and placements come from one `assessQuiz` call, the
+same function that places stored quizzes, so the sheet and the portal can't disagree about a
+placement. `openedFromNewerFile` marks a quiz opened through the try-anyway path, and
 `keptNewerAutoSaves` lists the keys of set-aside newer auto-saves, with `openKeptNewerAutoSave` and
 `discardKeptNewerAutoSave` acting on the first listed.
 
