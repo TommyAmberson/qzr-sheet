@@ -16,6 +16,23 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-01
+
+### Fixed
+
+* **Refused social sign-in explained** - since API 0.12.1 (better-auth 1.6.33), signing in with
+  GitHub or Google on an address that already has a password account is refused rather than merged,
+  and the browser landed on Better Auth's bare error page. It now returns to the page it started on
+  with the sign-in menu open on email sign-in and a note to sign in the way the account was created.
+  Other failed social sign-ins return with a "try again" message. The `?error=` is removed from the
+  address once read
+* **Signing in from the mobile menu** - tapping Sign in in the phone sidebar closed the sidebar, and
+  the sign-in form with it. The sidebar now stays open until you sign in
+
+### Bundled contract
+
+* `@qzr/shared@0.10.0` - bumped from 0.9.2 (`signInSocial` error return, `socialSignInError()`)
+
 ## [0.12.0] — 2026-10-01
 
 ### Changed

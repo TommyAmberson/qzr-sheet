@@ -23,6 +23,21 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-01
+
+### Added
+
+* **`socialSignInError()` / `withoutErrorParam()`** - read and strip the `?error=` a failed GitHub
+  or Google sign-in comes back with. `account_not_linked` (since better-auth 1.6.11, a social
+  sign-in refuses to merge into an existing account whose email is unverified, which our password
+  accounts always are) is reported as an existing account, so the UI can point the user at email
+  sign-in
+
+### Changed
+
+* **`signInSocial` passes `errorCallbackURL`** - a failed social sign-in now returns to the page it
+  started on, with `?error=`, instead of Better Auth's error page on the API
+
 ## [0.9.2] — 2026-05-21
 
 First per-package release after the per-package deploys cutover. No source changes since v0.9.1

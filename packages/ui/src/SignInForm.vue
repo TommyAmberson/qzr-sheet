@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { SocialProvider } from '@qzr/shared'
+import { ref, watch } from 'vue'
+import type { SocialProvider, SocialSignInError } from '@qzr/shared'
 
 type SignInResult = { error?: { message?: string | null } | null } | undefined
 
@@ -8,14 +8,24 @@ const props = defineProps<{
   signInSocial: (provider: SocialProvider) => void
   signInEmail: (email: string, password: string) => Promise<SignInResult>
   signUpEmail: (email: string, password: string) => Promise<SignInResult>
+  /** A social sign-in that came back with `?error=`, read by the host app
+   *  (which also strips it from the URL). Read once at mount. */
+  oauthError?: SocialSignInError | null
 }>()
 
 const emit = defineEmits<{ (e: 'success'): void }>()
 
-const mode = ref<'pick' | 'signin' | 'signup'>('pick')
+const mode = ref<'pick' | 'signin' | 'signup'>(
+  props.oauthError?.passwordAccount ? 'signin' : 'pick',
+)
 const email = ref('')
 const password = ref('')
-const error = ref('')
+const error = ref(props.oauthError?.message ?? '')
+// Switching between the picker and the email forms starts clean, so a social
+// sign-in error doesn't follow the user into a form it doesn't apply to.
+watch(mode, () => {
+  error.value = ''
+})
 const pending = ref(false)
 
 async function submitEmail() {
@@ -34,6 +44,7 @@ async function submitEmail() {
 
 <template>
   <template v-if="mode === 'pick'">
+    <p v-if="error" class="error-msg">{{ error }}</p>
     <button class="provider-btn" @click="signInSocial('github')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path

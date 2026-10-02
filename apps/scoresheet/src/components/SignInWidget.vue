@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { socialSignInError, withoutErrorParam } from '@qzr/shared'
 import { SignInForm } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 import { useMeetSession } from '../composables/useMeetSession'
@@ -9,16 +10,36 @@ const { clearSession } = useMeetSession()
 
 const open = ref(false)
 const menuPos = ref({ top: 0, right: 0 })
+// The widget's one visible button (email when signed in, Sign in otherwise):
+// the menu anchors to it.
+const button = ref<HTMLElement | null>(null)
 
-function toggle(event: MouseEvent) {
-  if (open.value) {
-    open.value = false
-    return
-  }
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+// A failed GitHub/Google sign-in returns with `?error=`. Show why once, and
+// strip it (keeping history.state) so a reload doesn't repeat it.
+const oauthError = ref(socialSignInError(window.location.search))
+if (oauthError.value) {
+  window.history.replaceState(window.history.state, '', withoutErrorParam(window.location.href))
+}
+onMounted(() => {
+  if (oauthError.value) openMenu()
+})
+
+function openMenu() {
+  if (!button.value) return
+  const rect = button.value.getBoundingClientRect()
   // Anchor to right edge of button so menu aligns right
   menuPos.value = { top: rect.bottom + 4, right: window.innerWidth - rect.right }
   open.value = true
+}
+
+function close() {
+  open.value = false
+  oauthError.value = null
+}
+
+function toggle() {
+  if (open.value) close()
+  else openMenu()
 }
 
 async function doSignOut() {
@@ -30,13 +51,13 @@ async function doSignOut() {
 
 <template>
   <div class="widget-wrap">
-    <button v-if="session.data" class="meta-btn" @click="toggle">
+    <button v-if="session.data" ref="button" class="meta-btn" @click="toggle">
       {{ session.data.user.email }}
     </button>
-    <button v-else class="meta-btn" @click="toggle">Sign in</button>
+    <button v-else ref="button" class="meta-btn" @click="toggle">Sign in</button>
 
     <Teleport to="body">
-      <div v-if="open" class="sign-in-backdrop" @click="open = false" />
+      <div v-if="open" class="sign-in-backdrop" @click="close" />
 
       <div
         v-if="open"
@@ -53,7 +74,8 @@ async function doSignOut() {
           :sign-in-social="signInSocial"
           :sign-in-email="signInEmail"
           :sign-up-email="signUpEmail"
-          @success="open = false"
+          :oauth-error="oauthError"
+          @success="close"
         />
       </div>
     </Teleport>
