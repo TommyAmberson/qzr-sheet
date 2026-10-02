@@ -19,13 +19,13 @@ import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
 import {
-  serializeStore,
   parseQuizFile,
   parseQuizFileAttempt,
   NewerFileVersionError,
   serialize,
   deserialize,
-} from '../persistence/quizFile'
+} from '@qzr/shared'
+import { serializeStore } from '../persistence/quizFile'
 import {
   saveQuizToFile,
   openAnyQuizFile,

@@ -14,10 +14,8 @@ const C = toColIdx
 
 // Toggle to force parseQuizFile to throw, for snapshot-failure tests.
 let forceParseFailure = false
-vi.mock('../../persistence/quizFile', async () => {
-  const actual = await vi.importActual<typeof import('../../persistence/quizFile')>(
-    '../../persistence/quizFile',
-  )
+vi.mock('@qzr/shared', async () => {
+  const actual = await vi.importActual<typeof import('@qzr/shared')>('@qzr/shared')
   return {
     ...actual,
     parseQuizFile: (json: string) => {

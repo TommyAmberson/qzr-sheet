@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest'
 import {
   serialize,
   deserialize,
-  serializeStore,
   parseQuizFile,
   parseQuizFileAttempt,
   NewerFileVersionError,
   fileVersionFor,
   FILE_VERSION,
   type QuizFile,
-} from '../quizFile'
+} from '@qzr/shared'
+import { serializeStore } from '../quizFile'
 import { createQuizStore } from '../../stores/quizStore'
 import { CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '@qzr/shared'
 

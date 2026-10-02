@@ -35,7 +35,7 @@ import {
 } from '@qzr/shared'
 import { computePlacements, computePlacementPoints } from '@qzr/shared'
 import { teamSeatKey, toSeatIdx, toTeamIdx, type TeamSeat } from '@qzr/shared'
-import { parseQuizFileAttempt, type DeserializeResult } from '../persistence/quizFile'
+import { parseQuizFileAttempt, type DeserializeResult } from '@qzr/shared'
 import {
   saveToStorage,
   loadFromStorage,

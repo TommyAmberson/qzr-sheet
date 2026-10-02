@@ -31,6 +31,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   `scoreTeam`, grey-out, validation, overtime, placement and column visibility, the per-format
   `quizRules`, the scoresheet's column and quiz types (`buildColumns`, `Column`, `Quiz`, …), and the
   branded index types.
+* Quiz file reading and writing, moved from the scoresheet: `serialize`, `deserialize`,
+  `parseQuizFile`, `parseQuizFileAttempt`, `fileVersionFor` and `NewerFileVersionError`, so the API
+  can validate submitted files the way the scoresheet does.
 
 ## [1.0.0] - 2026-10-01
 

@@ -19,8 +19,8 @@ portal/API/infra work shipped on that tag.
 
 ### Changed
 
-* Scoring now comes from `@qzr/shared`, so the portal can score submitted quizzes the same way. No
-  change to how quizzes are scored.
+* Scoring and quiz file reading now come from `@qzr/shared`, so the portal can score submitted
+  quizzes the same way. No change to how quizzes are scored or files are read.
 
 ### Bundled contract
 

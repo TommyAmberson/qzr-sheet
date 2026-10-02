@@ -3,8 +3,8 @@ import { QuizFormat, buildColumns } from '@qzr/shared'
 import { computeOvertimeRounds } from '@qzr/shared'
 import { TWENTY_QUESTION_RULES } from '@qzr/shared'
 import { patchCell } from './odsXml'
-import type { QuizFile } from '../persistence/quizFile'
-import { deserialize } from '../persistence/quizFile'
+import type { QuizFile } from '@qzr/shared'
+import { deserialize } from '@qzr/shared'
 import type { CellValue } from '@qzr/shared'
 
 /**

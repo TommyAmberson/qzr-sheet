@@ -1,11 +1,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { CellValue, QUIZZERS_PER_TEAM, type Timeout } from '@qzr/shared'
-import {
-  serializeStore,
-  parseQuizFile,
-  NewerFileVersionError,
-  type DeserializeResult,
-} from '../persistence/quizFile'
+import { parseQuizFile, NewerFileVersionError, type DeserializeResult } from '@qzr/shared'
+import { serializeStore } from '../persistence/quizFile'
 import {
   keepNewerAutoSave,
   keepNewerInPlace,

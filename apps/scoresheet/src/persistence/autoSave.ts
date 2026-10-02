@@ -1,9 +1,5 @@
-import {
-  serializeStore,
-  parseQuizFile,
-  NewerFileVersionError,
-  type DeserializeResult,
-} from './quizFile'
+import { parseQuizFile, NewerFileVersionError, type DeserializeResult } from '@qzr/shared'
+import { serializeStore } from './quizFile'
 import type { QuizStore } from '../stores/quizStore'
 import type { Timeout } from '@qzr/shared'
 
