@@ -1,5 +1,4 @@
-import { serialize } from '@qzr/shared'
-import type { Timeout } from '@qzr/shared'
+import { serialize, type Timeout } from '@qzr/shared'
 import type { QuizStore } from '../stores/quizStore'
 
 /** Serialize store state to a JSON string */

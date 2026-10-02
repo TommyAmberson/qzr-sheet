@@ -1,6 +1,12 @@
-import { CellValue } from '@qzr/shared'
-import type { TeamIdx, SeatIdx, ColIdx } from '@qzr/shared'
-import { toTeamIdx as T, toSeatIdx as S, toColIdx as C } from '@qzr/shared'
+import {
+  CellValue,
+  type ColIdx,
+  type SeatIdx,
+  type TeamIdx,
+  toColIdx as C,
+  toSeatIdx as S,
+  toTeamIdx as T,
+} from '@qzr/shared'
 
 export type ScoresheetActions = {
   setQuizzerName: (teamIdx: TeamIdx, seatIdx: SeatIdx, name: string) => void

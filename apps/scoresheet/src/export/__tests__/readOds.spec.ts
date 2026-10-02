@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { deflateRawSync } from 'node:zlib'
 import { readOds } from '../readOds'
-import { CellValue, QuizFormat } from '@qzr/shared'
-import { deserialize } from '@qzr/shared'
+import { CellValue, deserialize, QuizFormat } from '@qzr/shared'
 
 // ---------------------------------------------------------------------------
 // Fixture helpers

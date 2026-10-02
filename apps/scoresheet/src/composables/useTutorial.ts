@@ -1,6 +1,15 @@
 import { ref, computed, watch, nextTick } from 'vue'
-import { CellValue, QUIZZERS_PER_TEAM, type Timeout } from '@qzr/shared'
-import { parseQuizFile, NewerFileVersionError, type DeserializeResult } from '@qzr/shared'
+import {
+  CellValue,
+  type ColIdx,
+  type DeserializeResult,
+  NewerFileVersionError,
+  parseQuizFile,
+  QUIZZERS_PER_TEAM,
+  type SeatIdx,
+  type TeamIdx,
+  type Timeout,
+} from '@qzr/shared'
 import { serializeStore } from '../persistence/quizFile'
 import {
   keepNewerAutoSave,
@@ -11,7 +20,6 @@ import {
 import type { QuizStore } from '../stores/quizStore'
 import { TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
 import { useMeetSession, type MeetSessionData } from './useMeetSession'
-import type { TeamIdx, SeatIdx, ColIdx } from '@qzr/shared'
 
 const SNAPSHOT_KEY = 'qzr-sheet:tutorial-snapshot'
 const MEET_SNAPSHOT_KEY = 'qzr-sheet:tutorial-meet-snapshot'

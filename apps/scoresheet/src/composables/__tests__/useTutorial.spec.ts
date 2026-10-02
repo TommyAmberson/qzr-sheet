@@ -4,8 +4,7 @@ import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
 import { useMeetSession } from '../useMeetSession'
 import { TUTORIAL_STEPS } from '../../tutorial/tutorialSteps'
-import { CellValue, QuizFormat } from '@qzr/shared'
-import { toTeamIdx, toSeatIdx, toColIdx } from '@qzr/shared'
+import { CellValue, QuizFormat, toColIdx, toSeatIdx, toTeamIdx } from '@qzr/shared'
 import { serializeStore } from '../../persistence/quizFile'
 
 const T = toTeamIdx

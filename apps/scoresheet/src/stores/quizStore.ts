@@ -1,18 +1,22 @@
 import { reactive } from 'vue'
 import {
+  type Answer,
+  answerKey,
   BonusRule,
-  QuizFormat,
+  buildCellGrid,
   CellValue,
+  type Column,
   PlacementFormula,
   QuestionCategory,
-  QUIZZERS_PER_TEAM,
-  type Column,
   type Quiz,
-  type Team,
+  QuizFormat,
   type Quizzer,
-  type Answer,
+  type QuizzerId,
+  QUIZZERS_PER_TEAM,
+  type SeatIdx,
+  type Team,
+  toQuizzerId,
 } from '@qzr/shared'
-import { type QuizzerId, type SeatIdx, toQuizzerId, buildCellGrid, answerKey } from '@qzr/shared'
 
 let nextId = 1
 function genId(): number {

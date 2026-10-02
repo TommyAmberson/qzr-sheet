@@ -1,8 +1,14 @@
 import { strFromU8, unzipSync } from 'fflate'
 import { readCell } from './odsXml'
-import { BonusRule, CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '@qzr/shared'
-import type { QuizFile } from '@qzr/shared'
-import { fileVersionFor } from '@qzr/shared'
+import {
+  BonusRule,
+  CellValue,
+  fileVersionFor,
+  PlacementFormula,
+  QuestionCategory,
+  type QuizFile,
+  QuizFormat,
+} from '@qzr/shared'
 
 /**
  * Team block addresses in the Quiz sheet (0-based row/col).
