@@ -48,15 +48,16 @@ Answer each gate for this feature. A wrong answer blocks the phase until the des
 violation is justified in Complexity Tracking. Gates mirror `.specify/memory/constitution.md`; amend
 both together.
 
-| #   | Principle                       | Gate                                                                                                                                                                                                                                  | Pass when           | Answer |
-| --- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ------ |
-| I   | Offline, always                 | Can an official still score, auto-save, and save/load a quiz with the API down? Can any load path drop scores silently?                                                                                                               | yes, then no        |        |
-| II  | Rulebook is the spec            | Does the feature change scoring, scheduling, auth, roles, or the data model? If so, which doc in `docs/` is amended, and does any new rulebook departure arrive as an opt-in setting documented in `docs/scoring-rules-explained.md`? | doc named, or N/A   |        |
-| III | One pure scoring implementation | Does anything outside `apps/scoresheet/src/scoring/` (or `packages/shared`, once moved) compute a score, validation, grey-out, visibility, overtime, or placement?                                                                    | no                  |        |
-| IV  | Meet data gated per meet        | Does every new or changed API route touching a meet's data check membership, a guest token for that meet, or superuser? Is any new token or session scheme introduced?                                                                | yes, then no        |        |
-| V   | Contract versions               | Does it touch `packages/shared/src/`? If so, which semver level, is it bumped once in this PR, and does it change `FILE_VERSION`?                                                                                                     | level named, or N/A |        |
-| VI  | Validate before merge           | Are scoring and validation changes covered by unit tests in `__tests__/`? Is every D1 schema change shipped as a migration from `db:generate`?                                                                                        | yes, or N/A         |        |
-| -   | Technology constraints          | Does it add a package or deployable, a cross-origin production client, or HTML5 drag?                                                                                                                                                 | no, or justified    |        |
+| #   | Principle                       | Gate                                                                                                                                                                                                                                  | Pass when                                          | Answer |
+| --- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ------ |
+| I   | Offline, always                 | Can an official still score, auto-save, and save/load a quiz with the API down? Can any load path drop scores silently?                                                                                                               | yes, then no                                       |        |
+| II  | Rulebook is the spec            | Does the feature change scoring, scheduling, auth, roles, or the data model? If so, which doc in `docs/` is amended, and does any new rulebook departure arrive as an opt-in setting documented in `docs/scoring-rules-explained.md`? | doc named, or N/A                                  |        |
+| III | One pure scoring implementation | Does anything outside `apps/scoresheet/src/scoring/` (or `packages/shared`, once moved) compute a score, validation, grey-out, visibility, overtime, or placement?                                                                    | no                                                 |        |
+| IV  | Meet data gated per meet        | Does every new or changed API route touching a meet's data check membership, a guest token for that meet, or superuser? Is any new token or session scheme introduced?                                                                | yes, then no                                       |        |
+| V   | Contract versions               | Does it touch `packages/shared/src/`? If so, which semver level, is it bumped once in this PR, and does it change `FILE_VERSION`?                                                                                                     | level named, or N/A                                |        |
+| VI  | Validate before merge           | Are scoring and validation changes covered by unit tests in `__tests__/`? Is every D1 schema change shipped as a migration from `db:generate`?                                                                                        | yes, or N/A                                        |        |
+| VII | Simplest design that works      | Does every decision or write path the feature adds have one owner in Reuse and Ownership? Does the design add a production export, option, or state that only a test reads, duplicate existing code, or restate a framework default?  | post-design: yes, then no (pre-research: deferred) |        |
+| -   | Technology constraints          | Does it add a package or deployable, a cross-origin production client, or HTML5 drag?                                                                                                                                                 | no, or justified                                   |        |
 
 ## Project Structure
 
@@ -119,6 +120,23 @@ ios/ or android/
 
 **Structure Decision**: [Document the selected structure and reference the real directories captured
 above]
+
+## Reuse and Ownership
+
+<!--
+  ACTION REQUIRED: Fill this in during Phase 1, after searching the codebase for code to reuse
+  (constitution principle VII). The post-design Constitution Check reads it, and /speckit-tasks
+  points tasks at these owners instead of inventing structure, so one decision never ends up split
+  across files.
+-->
+
+| Decision or write path                   | Owner (existing symbol, or file and responsibility if new)                                                            | Existing code reused                   |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| [e.g., which team places first on a tie] | [e.g., existing function in `apps/scoresheet/src/scoring/`, or new: the tie-break decision in `scoring/placement.ts`] | [e.g., the existing placement helpers] |
+
+**Platform already provides**: [behaviour this feature relies on and must not re-implement or
+restate, e.g., "static assets are served before the Worker runs", "VitePWA derives `scope` from
+`base`"]
 
 ## Complexity Tracking
 
