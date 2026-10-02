@@ -41,13 +41,12 @@ a placement is disputed.
 ### III. Scoring Has One Pure Implementation
 
 * Scoring, validation, grey-out, column visibility, overtime, and placement are pure functions in
-  `apps/scoresheet/src/scoring/` over `cells[teamIdx][seatIdx][colIdx]`. They MUST NOT import Vue,
+  `packages/shared/src/scoring/` over `cells[teamIdx][seatIdx][colIdx]`. They MUST NOT import Vue,
   perform I/O, or read the store.
 * `quizStore` owns the quiz data, `useScoresheet` derives every scoring result from it, and
   components MUST read those derived results rather than call scoring functions themselves.
-* Other packages MUST NOT reimplement or approximate a scoring rule. The first consumer outside the
-  scoresheet that needs a scoring result (the API or the portal) MUST move that function into
-  `packages/shared` and import it, never copy it.
+* Other packages MUST NOT reimplement or approximate a scoring rule; the API and the portal import
+  it from `packages/shared`, never copy it.
 
 Rationale: pure functions are the only part of the system that can be exhaustively unit-tested
 against the rulebook. A rule that leaks into a component or a route handler is tested less and can
@@ -179,4 +178,4 @@ Constitution Check and each merge against these principles; an exception MUST be
 plan's Complexity Tracking or the pull request body, and an exception that outlives its
 justification is a defect to be removed.
 
-**Version**: 1.4.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-01
+**Version**: 1.4.1 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-02
