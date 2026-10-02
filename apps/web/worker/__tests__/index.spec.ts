@@ -2,6 +2,7 @@
 // Worker specs run in Node, not the portal's jsdom: the Worker has no DOM.
 import { describe, it, expect } from 'vitest'
 import worker, { type Env } from '../index'
+import { legacyServiceWorker } from '../legacySw'
 
 const shells: Record<string, string> = {
   '/qzr/': 'portal shell',
@@ -44,5 +45,35 @@ describe('qzr-web worker', () => {
   it('rejects non-GET requests', async () => {
     const res = await get('/qzr/fall-2025', { method: 'POST' })
     expect(res.status).toBe(405)
+  })
+})
+
+describe('qzr-web worker: old qzr addresses', () => {
+  it('redirects /scoresheet to /qzr/scoresheet/', async () => {
+    const res = await get('/scoresheet')
+    expect(res.status).toBe(308)
+    expect(res.headers.get('Location')).toBe('/qzr/scoresheet/')
+  })
+
+  it('redirects /scoresheet/* to /qzr/scoresheet/*, keeping the query', async () => {
+    const res = await get('/scoresheet/x?meet=A&quiz=B')
+    expect(res.status).toBe(308)
+    expect(res.headers.get('Location')).toBe('/qzr/scoresheet/x?meet=A&quiz=B')
+  })
+
+  it('redirects /roadmap to /qzr/roadmap, keeping the query', async () => {
+    const res = await get('/roadmap?x=1')
+    expect(res.status).toBe(308)
+    expect(res.headers.get('Location')).toBe('/qzr/roadmap?x=1')
+  })
+
+  it('serves the self-destroying worker at /scoresheet/sw.js instead of redirecting', async () => {
+    // Browsers re-fetch an installed worker's script at its original URL and
+    // don't follow redirects for it.
+    const res = await get('/scoresheet/sw.js')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toMatch(/^text\/javascript/)
+    expect(res.headers.get('Cache-Control')).toBe('no-cache')
+    expect(await res.text()).toBe(legacyServiceWorker)
   })
 })

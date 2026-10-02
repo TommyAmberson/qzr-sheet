@@ -12,10 +12,11 @@ all meets — no membership rows are needed.
 
 ## Implementation
 
-Auth is handled by [Better Auth](https://better-auth.com) mounted at `/qzr/api/auth/*` in Hono.
-Until switch day the API also answers at the root, so `/api/auth/*` works too. The auth handler
-passes Better Auth the base path of the mount that matched (Hono's `routePath`): OAuth callbacks are
-built from it, so each entrance gets callbacks that come back to it.
+Auth is handled by [Better Auth](https://better-auth.com) mounted at `/qzr/api/auth/*` in Hono. The
+app is also mounted at the root, which local dev uses (`http://localhost:8787/api/auth/*`); in
+production the public `/api/*` belongs to verse-vault. The auth handler passes Better Auth the base
+path of the mount that matched (Hono's `routePath`): OAuth callbacks are built from it, so each
+entrance gets callbacks that come back to it.
 
 ### Sign-in methods
 
@@ -54,8 +55,8 @@ OAuth sign-in works in both web and Tauri contexts, but the redirect mechanism d
 
 Standard OAuth redirect. The provider sends the user back to Better Auth's callback,
 `https://www.versevault.ca/qzr/api/auth/callback/{github,google}`, which sets the session cookie and
-returns to the page sign-in started on. Both callback URLs must be registered with the providers;
-during the move the root `/api/auth/callback/...` ones stay registered too.
+returns to the page sign-in started on. Both callback URLs must be registered with the providers.
+Local dev uses separate OAuth apps with `http://localhost:8787/api/auth/callback/...`.
 
 ### Tauri (native desktop)
 

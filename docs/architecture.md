@@ -30,8 +30,9 @@ qzr/
 qzr lives under `/qzr/` because the root of www.versevault.ca belongs to verse-vault
 (`specs/001-qzr-subpath`). Pages can only bind a whole hostname, so the portal and the bundled
 scoresheet are served by `qzr-web`, a Worker with static assets configured in
-`apps/web/wrangler.toml`. Its script serves each app's shell on an asset miss. `qzr-api` answers
-under `/qzr/api/` and, until switch day, `/api/` too; the more specific route wins over `/qzr/*`.
+`apps/web/wrangler.toml`. Its script serves each app's shell on an asset miss, and redirects qzr's
+old addresses (`/scoresheet*`, `/roadmap`) into `/qzr/`. `qzr-api` answers under `/qzr/api/`; the
+more specific route wins over `/qzr/*`. The root and `/api/*` are verse-vault's.
 
 Everything is served from one origin, so production needs no CORS headers.
 

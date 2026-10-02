@@ -138,11 +138,11 @@ while the root site keeps working (FR-001 to FR-007).
 
 **Independent Test**: quickstart section 3 steps 1 and 4.
 
-- [ ] T029 [US4] Create branch `feat/qzr-switch-day` off master after PR 1b has merged and deployed
-- [ ] T030 [US4] Add failing tests to `apps/web/worker/__tests__/index.spec.ts` per `contracts/routing.md` "Switch day": `GET /scoresheet` gives `308` to `/qzr/scoresheet/`; `GET /scoresheet/x?meet=A&quiz=B` gives `308` to `/qzr/scoresheet/x?meet=A&quiz=B`; `GET /roadmap?x=1` gives `308` to `/qzr/roadmap?x=1`
-- [ ] T031 [US4] Implement the legacy redirects in `apps/web/worker/index.ts`, handled before the asset lookup for paths outside `/qzr`
-- [ ] T032 [US4] Add routes `www.versevault.ca/scoresheet`, `www.versevault.ca/scoresheet/*`, and `www.versevault.ca/roadmap` to `apps/web/wrangler.toml`
-- [ ] T033 [US4] Remove the `www.versevault.ca/api/*` route from `packages/api/wrangler.toml` (keep the root mount in `index.ts`: verse-vault forwards old-app data requests through a service binding, research R2) and update the comment
+- [X] T029 [US4] Create branch `feat/qzr-switch-day` off master after PR 1b has merged and deployed
+- [X] T030 [US4] Add failing tests to `apps/web/worker/__tests__/index.spec.ts` per `contracts/routing.md` "Switch day": `GET /scoresheet` gives `308` to `/qzr/scoresheet/`; `GET /scoresheet/x?meet=A&quiz=B` gives `308` to `/qzr/scoresheet/x?meet=A&quiz=B`; `GET /roadmap?x=1` gives `308` to `/qzr/roadmap?x=1`
+- [X] T031 [US4] Implement the legacy redirects in `apps/web/worker/index.ts`, handled before the asset lookup for paths outside `/qzr`
+- [X] T032 [US4] Add routes `www.versevault.ca/scoresheet`, `www.versevault.ca/scoresheet/*`, and `www.versevault.ca/roadmap` to `apps/web/wrangler.toml`
+- [X] T033 [US4] Remove the `www.versevault.ca/api/*` route from `packages/api/wrangler.toml` (keep the root mount in `index.ts`: verse-vault forwards old-app data requests through a service binding, research R2) and update the comment
 
 ---
 
@@ -152,9 +152,9 @@ while the root site keeps working (FR-001 to FR-007).
 
 **Independent Test**: quickstart section 3 steps 2 and 3.
 
-- [ ] T034 [US5] Create `apps/web/worker/legacySw.ts` exporting the self-destroying service worker source as a string, per `contracts/routing.md` "Self-destroying service worker": on `install` call `skipWaiting()`; on `activate` delete only caches whose name contains `/scoresheet/` and not `/qzr/scoresheet/`, then `self.registration.unregister()`, then `client.navigate('/qzr/scoresheet/' + new URL(client.url).search)` for each window client. Never touch `localStorage`, IndexedDB, or `/qzr/scoresheet/` caches
-- [ ] T035 [US5] Add a failing test to `apps/web/worker/__tests__/index.spec.ts`: `GET /scoresheet/sw.js` returns `200`, `Content-Type: text/javascript`, `Cache-Control: no-cache`, body equal to the `legacySw.ts` export, and is not redirected; then handle it in `apps/web/worker/index.ts` ahead of the `/scoresheet` redirect
-- [ ] T036 [US5] Add `apps/web/worker/__tests__/legacySw.spec.ts`: evaluate the source against fake `self`, `caches`, and `clients` objects and assert the cache filter keeps `workbox-precache-v2-https://www.versevault.ca/qzr/scoresheet/` and deletes `workbox-precache-v2-https://www.versevault.ca/scoresheet/`, and that unregister happens before navigate
+- [X] T034 [US5] Create `apps/web/worker/legacySw.ts` exporting the self-destroying service worker source as a string, per `contracts/routing.md` "Self-destroying service worker": on `install` call `skipWaiting()`; on `activate` delete only caches whose name contains `/scoresheet/` and not `/qzr/scoresheet/`, then `self.registration.unregister()`, then `client.navigate('/qzr/scoresheet/' + new URL(client.url).search)` for each window client. Never touch `localStorage`, IndexedDB, or `/qzr/scoresheet/` caches
+- [X] T035 [US5] Add a failing test to `apps/web/worker/__tests__/index.spec.ts`: `GET /scoresheet/sw.js` returns `200`, `Content-Type: text/javascript`, `Cache-Control: no-cache`, body equal to the `legacySw.ts` export, and is not redirected; then handle it in `apps/web/worker/index.ts` ahead of the `/scoresheet` redirect
+- [X] T036 [US5] Add `apps/web/worker/__tests__/legacySw.spec.ts`: evaluate the source against fake `self`, `caches`, and `clients` objects and assert the cache filter keeps `workbox-precache-v2-https://www.versevault.ca/qzr/scoresheet/` and deletes `workbox-precache-v2-https://www.versevault.ca/scoresheet/`, and that unregister happens before navigate
 
 ---
 
@@ -171,11 +171,11 @@ while the root site keeps working (FR-001 to FR-007).
 - [X] T041 Before opening each of PR 1a and PR 1b, check that each package it releases (1a: `api`; 1b: `web`, `scoresheet`) was bumped exactly once on that branch (`git log <base>.. -- <pkg>/package.json`) and that each dated section covers the whole change: `api` (`/qzr/api` mount, per-request auth base path, `qzr` cookie prefix), `web` (served at `/qzr/` by the `qzr-web` Worker, not-found page), `scoresheet` (served at `/qzr/scoresheet/`, apps call `/qzr/api`)
 - [ ] T042 Run `pnpm test:unit`, `pnpm type-check`, `pnpm lint`; then run `/speckit-analyze` before opening the PRs. The PR 1a body says it releases `api` and must deploy before PR 1b merges. The PR 1b body carries the `qzr-web` deployable justification from plan.md Complexity Tracking (constitution, Technology Constraints), says it releases `web` and `scoresheet`, and says it needs PR 1a live
 - [ ] T043 MAINTAINER, before merging PR 1b: register the new callbacks next to the existing ones: Google adds `https://www.versevault.ca/qzr/api/auth/callback/google`, and the production GitHub OAuth App adds `https://www.versevault.ca/qzr/api/auth/callback/github` (research R8). Registered 2026-10-01. Immediately before merging each of PR 1a and PR 1b, rebase it onto current master and let CI re-run the contract check (constitution 1.1.0: PRs that bump a version are rebased before merge)
-- [ ] T044 MAINTAINER, after PR 1b deploys: walk quickstart section 2, publish the desktop and Android release, and tell known app users to update (SC-006)
+- [ ] T044 MAINTAINER, after PR 1b deploys: walk quickstart section 2 (the desktop and Android release published itself; there are no known app users to tell, SC-006)
 
 ### PR 2
 
-- [ ] T045 Docs for switch day: `docs/architecture.md`, `docs/auth.md`, `README.md` drop the root `/api` and Pages references; add entries to the dated sections created at T030 (`web`) and T033 (`api`)
+- [X] T045 Docs for switch day: `docs/architecture.md`, `docs/auth.md`, `README.md` drop the root `/api` and Pages references; add entries to the dated sections created at T030 (`web`) and T033 (`api`)
 - [ ] T046 MAINTAINER, at cutover: rebase PR 2 onto current master and wait for CI, then merge it in the order in `~/notes/url-change/PLAN.md` Phase B, walk quickstart section 3
 - [ ] T047 MAINTAINER, weeks later: remove the root `/api/auth/callback/{google,github}` entries from both providers, delete the `versevault-www` Pages project
 
@@ -270,3 +270,12 @@ PR 1b:
 - T040: `.claude/skills/release/SKILL.md` names no deploy target, so only `CLAUDE.md` changed.
 - T042: tests, type-check, lint, and the contract check pass. `pnpm lint` reports errors from local
   build output in `apps/*/dist` (ESLint only ignores the root `dist/`); that predates this branch.
+
+PR 2 (switch day):
+
+- T030-T035: the redirects and `/scoresheet/sw.js` live in a `legacyResponse` helper ahead of the
+  405 check, so a POST to an old address also gets its 308. `/scoresheet` (no slash) goes straight
+  to `/qzr/scoresheet/` rather than through the asset layer's trailing-slash redirect.
+- T033: no forwarding of the old `/api/*` to qzr: FR-015 was withdrawn (no known app users). The root
+  mount stays for local dev and the tests.
+- T045: spec FR-015 withdrawn and SC-006 marked not applicable in the same PR.

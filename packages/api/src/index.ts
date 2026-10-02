@@ -44,10 +44,9 @@ app.use(
 )
 app.use('*', logger())
 
-// Every route lives on `api`, mounted at both `/qzr` and the root: qzr is served
-// under `/qzr/` (specs/001-qzr-subpath), and the root mount keeps the old `/api/*`
-// address working for the frozen root site, old app installs, and requests
-// verse-vault forwards after switch day.
+// Every route lives on `api`, mounted at both `/qzr` and the root. Production
+// reaches it only under `/qzr/` (specs/001-qzr-subpath; the public `/api/*` belongs
+// to verse-vault); the root mount is what local dev and the tests call.
 const api = new Hono<Env>()
 
 api.route('/health', health)

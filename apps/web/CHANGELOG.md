@@ -16,6 +16,27 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-02
+
+Switch day: verse-vault takes the root of www.versevault.ca, and qzr's old addresses move to
+`/qzr/`.
+
+### Added
+
+* **Old addresses redirect into `/qzr/`** - the `qzr-web` Worker takes the routes `/scoresheet`,
+  `/scoresheet/*`, and `/roadmap` and answers `308` to the same path under `/qzr/`, query kept, so
+  shared scoresheet links (`/scoresheet/?meet=...`) keep working. Old meet links (`/<slug>`) are
+  sent to `/qzr/<slug>` by verse-vault's catch-all route
+* **Old scoresheet installs clean themselves up** - `/scoresheet/sw.js` serves a self-destroying
+  service worker. The next time an install made from `/scoresheet/` is opened online, it deletes the
+  old offline copy, unregisters, and moves to `/qzr/scoresheet/`. Saved scoresheets are kept, and
+  scoring offline still works until then
+
+### Bundled contract
+
+* `@qzr/shared@1.1.0` - bumped from 1.0.0 (scoring and quiz-file reading moved into shared; the
+  portal doesn't use them yet)
+
 ## [0.12.2] - 2026-10-01
 
 ### Changed
