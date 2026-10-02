@@ -138,6 +138,10 @@ above]
 restate, e.g., "static assets are served before the Worker runs", "VitePWA derives `scope` from
 `base`"]
 
+**Releases**: [packages this feature bumps and the semver level of each, e.g., "shared MINOR, then
+api and web PATCH". Never the resulting version numbers: each is set when its bump commit is
+written, from master at that time, and a hotfix that lands first takes it.]
+
 ## Complexity Tracking
 
 > **Fill ONLY if Constitution Check has violations that must be justified**
