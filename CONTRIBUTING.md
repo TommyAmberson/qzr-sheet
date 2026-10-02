@@ -154,7 +154,7 @@ the contract version: same `@qzr/shared@X.Y.Z` across consumers means same obser
 behaviour. Semver semantics:
 
 * **MAJOR** — breaking change to wire format, file format (`FILE_VERSION` bump in
-  `apps/scoresheet/src/persistence/quizFile.ts`), or shared types consumers must adapt to.
+  `packages/shared/src/quizFile.ts`), or shared types consumers must adapt to.
 * **MINOR** — additive (new optional field, new enum value consumers can ignore).
 * **PATCH** — an observable fix that leaves the contract's shape unchanged.
 

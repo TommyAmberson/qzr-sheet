@@ -1,8 +1,13 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, shallowRef, watch } from 'vue'
 import { useHistory } from './useHistory'
+import {
+  readOpenedFromNewerFile,
+  writeOpenedFromNewerFile,
+} from '../persistence/openedFromNewerFile'
 import {
   CellValue,
   QuestionCategory,
+  QuizFormat,
   MAX_TIMEOUTS_PER_TEAM,
   buildColumns,
   QuestionType,
@@ -14,6 +19,7 @@ import {
 } from '../types/scoresheet'
 import { createQuizStore } from '../stores/quizStore'
 import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
+import { quizRules, lastTimeoutQuestion, type QuizRules } from '../scoring/quizRules'
 import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
 import { validateCells, ValidationCode, validationMessage } from '../scoring/validation'
 import { isBonusSituation } from '../scoring/helpers'
@@ -29,8 +35,17 @@ import {
 } from '../scoring/overtime'
 import { computePlacements, computePlacementPoints } from '../scoring/placement'
 import { teamSeatKey, toSeatIdx, toTeamIdx, type TeamSeat } from '../types/indices'
-import type { DeserializeResult } from '../persistence/quizFile'
-import { saveToStorage, loadFromStorage, clearStorage } from '../persistence/autoSave'
+import { parseQuizFileAttempt, type DeserializeResult } from '../persistence/quizFile'
+import {
+  saveToStorage,
+  loadFromStorage,
+  clearStorage,
+  listKeptNewerAutoSaves,
+  isAutoSavePausedForNewer,
+  hasNewerKeptInPlace,
+  readKeptNewerAutoSave,
+  discardKeptNewerAutoSave as discardKeptAutoSaveKey,
+} from '../persistence/autoSave'
 
 /**
  * Seat vs. Quizzer: the positional indices used throughout this composable
@@ -49,6 +64,14 @@ export function useScoresheet() {
   // keep their `quiz.value.x` shape and reads track the proxy natively.
   const quiz = ref<Quiz>(store.quiz)
 
+  /** The current quiz came from a newer scoresheet's file and may be scored wrong */
+  const openedFromNewerFile = ref(readOpenedFromNewerFile())
+  // Synchronous, so a reload right after opening such a file still shows the warning
+  watch(openedFromNewerFile, writeOpenedFromNewerFile, { flush: 'sync' })
+
+  /** Structural rules for the quiz's format */
+  const rules = computed<QuizRules>(() => quizRules(quiz.value.format))
+
   /**
    * Internally tracked overtime round count.
    * Starts at 1 when OT is enabled, auto-grows when content is added.
@@ -66,12 +89,14 @@ export function useScoresheet() {
    * columns we ask the scorer how many OT rounds the saved answers actually need.
    */
   function computeInitialOtRounds(
-    overtime: boolean,
+    loadedQuiz: { overtime: boolean; format: QuizFormat },
     loadedTeams: { onTime: boolean }[],
     loadedNoJumps: Map<string, boolean>,
   ): number {
-    if (!overtime) return 1
-    const cols = buildColumns(20)
+    if (!loadedQuiz.overtime) return 1
+    // The loaded quiz's rules, not whatever quiz was open before
+    const loadedRules = quizRules(loadedQuiz.format)
+    const cols = buildColumns(loadedRules, 20)
     return Math.max(
       1,
       computeOvertimeRounds(
@@ -79,6 +104,7 @@ export function useScoresheet() {
         cols,
         loadedTeams.map((t) => t.onTime),
         cols.map((c) => loadedNoJumps.get(c.key) ?? false),
+        loadedRules,
       ),
     )
   }
@@ -89,20 +115,52 @@ export function useScoresheet() {
     store.loadState(restored)
     noJumpMap.value = restored.noJumps
     timeoutMap.value = restored.timeouts
-    internalOtRounds.value = computeInitialOtRounds(
-      restored.quiz.overtime,
-      restored.teams,
-      restored.noJumps,
-    )
+    internalOtRounds.value = computeInitialOtRounds(restored.quiz, restored.teams, restored.noJumps)
     if (restored.answers.length > 0 || restored.quizzers.some((q) => q.name.trim())) {
       history.push({ undo: () => {}, redo: () => {} })
     }
+  } else {
+    // Nothing restored (empty, corrupt, or a newer auto-save set aside): no quiz to warn about
+    openedFromNewerFile.value = false
+  }
+
+  /** Keys of auto-saves from a newer version, which loadFromStorage set aside above */
+  const keptNewerAutoSaves = shallowRef(listKeptNewerAutoSaves())
+  /** Auto-save is paused because a kept newer auto-save couldn't be moved out of its way */
+  const autoSavePausedForKept = shallowRef(isAutoSavePausedForNewer())
+  /** A newer quiz kept in place blocks the tutorial until it is discarded */
+  const tutorialBlockedByKept = shallowRef(hasNewerKeptInPlace())
+
+  function refreshKeptNewerAutoSaves(): void {
+    keptNewerAutoSaves.value = listKeptNewerAutoSaves()
+    autoSavePausedForKept.value = isAutoSavePausedForNewer()
+    tutorialBlockedByKept.value = hasNewerKeptInPlace()
+  }
+
+  /**
+   * Best-effort open of the most recent kept auto-save; throws if it can't be read. The kept
+   * original stays until it is discarded: the opened copy has lost whatever this build can't read.
+   */
+  function openKeptNewerAutoSave(): void {
+    const key = keptNewerAutoSaves.value[0]
+    if (!key) return
+    const json = readKeptNewerAutoSave(key)
+    if (json !== null) loadFile(parseQuizFileAttempt(json), { fromNewerFile: true })
+  }
+
+  function discardKeptNewerAutoSave(): void {
+    const key = keptNewerAutoSaves.value[0]
+    if (!key) return
+    discardKeptAutoSaveKey(key)
+    refreshKeptNewerAutoSaves()
+    // If that quiz was pausing auto-save, save the sheet now so work done meanwhile survives a reload
+    if (!pauseAutoSave.value) saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
 
   /** Columns built reactively — regulation when OT is off, + OT rounds when on */
   const columns = computed<Column[]>(() => {
     const rounds = quiz.value.overtime ? internalOtRounds.value : 0
-    return buildColumns(rounds)
+    return buildColumns(rules.value, rounds)
   })
 
   const noJumps = computed<boolean[]>(() =>
@@ -139,7 +197,9 @@ export function useScoresheet() {
   const scoring = computed<TeamScoring[]>(() => {
     const cols = columns.value
     const grid = cells.value
-    return teams.value.map((team, teamIdx) => scoreTeam(grid[teamIdx]!, cols, team.onTime))
+    return teams.value.map((team, teamIdx) =>
+      scoreTeam(grid[teamIdx]!, cols, team.onTime, rules.value),
+    )
   })
 
   // --- Grey-out & validation ---
@@ -153,6 +213,7 @@ export function useScoresheet() {
       columns.value,
       teams.value.map((t) => t.onTime),
       noJumps.value,
+      rules.value,
     ),
   )
 
@@ -163,6 +224,7 @@ export function useScoresheet() {
       cells.value,
       columns.value,
       teams.value.map((t) => t.onTime),
+      rules.value,
     ),
   )
 
@@ -176,6 +238,7 @@ export function useScoresheet() {
       columns.value,
       noJumps.value,
       visibleOtRounds.value,
+      rules.value,
       greyedOutResult.value.colStatuses,
     ),
   )
@@ -197,6 +260,7 @@ export function useScoresheet() {
       cells.value,
       columns.value,
       greyedOutResult.value,
+      rules.value,
       noJumps.value,
       otEligibleTeams.value,
       orphanedColumns.value,
@@ -236,7 +300,7 @@ export function useScoresheet() {
     return m
   })
 
-  /** Column indices that have an invalid timeout (after Q16) */
+  /** Column indices that have an invalid timeout (once error points begin) */
   const timeoutValidationErrors = computed(() => {
     const invalidCols = new Set<number>()
     for (const timeouts of timeoutMap.value.values()) {
@@ -322,7 +386,7 @@ export function useScoresheet() {
   function columnValidationMessages(colIdx: number): string[] {
     const msgs = new Set<string>()
     if (timeoutValidationErrors.value.has(colIdx)) {
-      msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+      msgs.add(validationMessage(ValidationCode.TimeoutAfterErrorPoints))
     }
     const col = validationErrors.value.get(colIdx)
     if (col) {
@@ -348,7 +412,7 @@ export function useScoresheet() {
   function teamValidationMessages(teamIdx: number): string[] {
     const msgs = new Set<string>()
     if (timeoutErrorsByTeam.value.has(teamIdx)) {
-      msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+      msgs.add(validationMessage(ValidationCode.TimeoutAfterErrorPoints))
     }
     if (tooManyTimeoutsTeams.value.has(teamIdx)) {
       msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
@@ -424,7 +488,7 @@ export function useScoresheet() {
 
   // --- Column visibility ---
 
-  /** How many OT rounds should be visible (0 = none, 1 = Q21-23, etc.) */
+  /** How many OT rounds should be visible (0 = none, 1 = the first round, etc.) */
   const visibleOtRounds = computed(() => {
     if (!quiz.value.overtime) return 0
     return computeOvertimeRounds(
@@ -432,6 +496,7 @@ export function useScoresheet() {
       columns.value,
       teams.value.map((t) => t.onTime),
       noJumps.value,
+      rules.value,
     )
   })
 
@@ -452,18 +517,31 @@ export function useScoresheet() {
       columns.value,
       noJumps.value,
       visibleOtRounds.value,
+      rules.value,
       greyedOutResult.value.colStatuses,
     ),
   )
 
-  /** Whether regulation questions (Q1–20) are fully filled out */
+  /** Whether every regulation question is fully filled out */
   const regulationComplete = computed(() =>
-    questionsComplete(cells.value, columns.value, noJumps.value, 1, 20),
+    questionsComplete(
+      cells.value,
+      columns.value,
+      noJumps.value,
+      1,
+      rules.value.regulationQuestions,
+    ),
   )
 
   /** Whether all questions in the visible range have been jumped on or no-jumped */
   const allQuestionsComplete = computed(() =>
-    quizJumpedComplete(cells.value, columns.value, noJumps.value, visibleOtRounds.value),
+    quizJumpedComplete(
+      cells.value,
+      columns.value,
+      noJumps.value,
+      visibleOtRounds.value,
+      rules.value,
+    ),
   )
 
   /** Placement medals per team: PlaceKey (encoding rank + tie-width), or null if not yet placed */
@@ -472,21 +550,22 @@ export function useScoresheet() {
       return teams.value.map((): PlaceKey | null => null)
     }
     const onTimes = teams.value.map((t) => t.onTime)
-    const regScores = computeRegulationScores(cells.value, columns.value, onTimes)
+    const regScores = computeRegulationScores(cells.value, columns.value, onTimes, rules.value)
     const checkpoints = computeOtCheckpointScores(
       cells.value,
       columns.value,
       onTimes,
       noJumps.value,
+      rules.value,
     )
     return computePlacements(regScores, checkpoints, true, visibleOtRounds.value > 0)
   })
 
   /** Placement points per team (null if not yet placed), derived from placement + regulation score.
-   * Per rules §1.e.4: in case of a tie, placement points use the score at end of Q20, not OT. */
+   * Per rules §1.e.4: in case of a tie, placement points use the end-of-regulation score, not OT. */
   const placementPoints = computed(() => {
     const onTimes = teams.value.map((t) => t.onTime)
-    const regScores = computeRegulationScores(cells.value, columns.value, onTimes)
+    const regScores = computeRegulationScores(cells.value, columns.value, onTimes, rules.value)
     return teams.value.map((_, teamIdx) =>
       computePlacementPoints(
         regScores[teamIdx] ?? 0,
@@ -572,10 +651,10 @@ export function useScoresheet() {
     timeoutMap.value = new Map(snap)
   }
 
-  /** Timeouts can be called between questions up through Q16; not after Q17+ (error points) */
+  /** Timeouts can be called between questions until error points begin */
   function isTimeoutAllowed(columnKey: string): boolean {
     const num = parseInt(columnKey, 10)
-    return !isNaN(num) && num <= 16
+    return !isNaN(num) && num <= lastTimeoutQuestion(rules.value)
   }
 
   function addTimeout(teamId: number, afterColumnKey: string | null): void {
@@ -677,18 +756,20 @@ export function useScoresheet() {
   }
 
   /** Load a deserialized quiz file into the store, replacing all state */
-  function loadFile(data: DeserializeResult) {
+  function loadFile(data: DeserializeResult, { fromNewerFile = false } = {}) {
+    openedFromNewerFile.value = fromNewerFile
     store.loadState(data)
     noJumpMap.value = data.noJumps
     timeoutMap.value = data.timeouts
-    internalOtRounds.value = computeInitialOtRounds(data.quiz.overtime, data.teams, data.noJumps)
+    internalOtRounds.value = computeInitialOtRounds(data.quiz, data.teams, data.noJumps)
     history.clear()
     saveToStorage(store, data.noJumps, data.timeouts)
   }
-  function resetStore() {
+  function resetStore(format = QuizFormat.TwentyQuestion) {
+    openedFromNewerFile.value = false
     const fresh = createQuizStore()
     store.loadState({
-      quiz: fresh.quiz,
+      quiz: { ...fresh.quiz, format },
       teams: fresh.teams,
       quizzers: fresh.quizzers,
       answers: [],
@@ -756,6 +837,14 @@ export function useScoresheet() {
 
   return {
     columns,
+    rules,
+    openedFromNewerFile,
+    keptNewerAutoSaves,
+    autoSavePausedForKept,
+    tutorialBlockedByKept,
+    refreshKeptNewerAutoSaves,
+    openKeptNewerAutoSave,
+    discardKeptNewerAutoSave,
     quiz,
     teams,
     teamQuizzers,

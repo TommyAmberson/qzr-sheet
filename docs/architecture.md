@@ -97,7 +97,7 @@ Contract package consumed by both frontend apps and the API (see "Contract packa
 `CONTRIBUTING.md`):
 
 * `QuizFile` TypeBox schema, `FILE_VERSION`, and its enums (`PlacementFormula`, `BonusRule`,
-  `CellValue`, `QuestionCategory`)
+  `QuizFormat`, `CellValue`, `QuestionCategory`)
 * Role enums (`AccountRole`, `MeetRole`) and meet phase / division state constants
 * `createApiClient` + `ApiError`, the fetch wrapper both apps construct with their own base URL
 * `createAppAuthClient`, the Better Auth client factory returning `{ authClient, useAuth }`
@@ -142,14 +142,17 @@ useScoresheet  ──serialize()──▶  fileIO  ──▶  .json / .ods file
 
 * **`CellValue`** — enum: `Correct | Error | Foul | Bonus | MissedBonus | Empty`
 * **`Column`** — `{ key, label, number, type, isAB, isErrorPoints, isOvertime }`
-* **`Quiz`** — metadata: division, quizNumber, overtime toggle, placementFormula, questionTypes
+* **`Quiz`** — metadata: division, quizNumber, overtime toggle, placementFormula, bonusRule, format
+  (`QuizFormat`, fixed when the quiz starts), questionTypes
 * **`Team`** — name, onTime, seatOrder
 * **`Quizzer`** — name, teamId, seatOrder
 * **`PlacementFormula`** — enum: `Rules` (official rulebook) | `Legacy` (pre-2023 spreadsheet)
 * **`PlaceKey`** — encodes rank + tie-width: `1`, `1.2`, `1.3`, `2`, `2.2`, `3`
 
-Column keys: `"1"`–`"15"` (normal), `"16"`/`"16A"`/`"16B"` through `"20B"` (A/B), `"21"`+
-(overtime).
+`buildColumns(rules, overtimeRounds)` builds the columns for a quiz format. Column keys for a
+20-question quiz: `"1"`–`"15"` (normal), `"16"`/`"16A"`/`"16B"` through `"20B"` (A/B), `"21"`+
+(overtime). For a 15-question quiz: `"1"`–`"10"`, `"11"`/`"11A"`/`"11B"` through `"15B"`, `"16"`+
+(overtime). The same key can mean different things in the two formats.
 
 ## Store (`src/stores/quizStore.ts`)
 
@@ -165,10 +168,13 @@ never calls scoring functions.
 ## Scoring (`src/scoring/`)
 
 All scoring functions are **pure functions** — they take `CellValue[][][]` and `Column[]` and return
-results. No Vue, no store access.
+results. No Vue, no store access. Functions that need the quiz format's numbers (quiz-out threshold,
+where regulation ends, overtime round size) take a `QuizRules` as a required parameter, so a missed
+call site fails type-checking instead of silently using 20-question rules.
 
 | File                  | Responsibility                                                               |
 | --------------------- | ---------------------------------------------------------------------------- |
+| `quizRules.ts`        | `QuizRules` per `QuizFormat`: regulation length, A/B and error-points start  |
 | `scoreTeam.ts`        | Per-team score, running totals, per-quizzer stats                            |
 | `greyedOut.ts`        | Which cells are disabled (answered, toss-up, foul cascade)                   |
 | `columnVisibility.ts` | Which columns render; orphaned column detection                              |
@@ -209,8 +215,11 @@ Key reactive dependencies:
 * store state: `cells` and `teams` track the store's reactive data directly
 * `internalOtRounds` — grows when `visibleOtRounds` needs more; never shrinks within a session
 
-`columns` is derived from `quiz.overtime` + `internalOtRounds`. All scoring/greyout/validation
-computeds depend on `columns` and `cells`.
+`rules` is derived from `quiz.format`, and `columns` from `rules`, `quiz.overtime`, and
+`internalOtRounds`. All scoring/greyout/validation computeds depend on `rules`, `columns`, and
+`cells`. `openedFromNewerFile` marks a quiz opened through the try-anyway path, and
+`keptNewerAutoSaves` lists the keys of set-aside newer auto-saves, with `openKeptNewerAutoSave` and
+`discardKeptNewerAutoSave` acting on the first listed.
 
 ### `useHistory.ts`
 
@@ -245,6 +254,14 @@ Dark/light theme toggle. Persists preference to `localStorage`.
 TypeBox schema for the `.json` save format (`QuizFile`). `serialize()` converts store state to a
 `QuizFile`; `deserialize()` validates and returns a `DeserializeResult` (ok or error with details).
 
+A file records the **version needed to read it**, not the newest version the build knows
+(`fileVersionFor(format)`): 20-question quizzes are version 2 with no `format`, so installs from
+before quiz formats still open them, and 15-question quizzes are version 3 with `quiz.format`, which
+those installs refuse rather than misscore. `FILE_VERSION` (3) is the newest version this build
+reads. `parseQuizFile` throws `NewerFileVersionError` for anything newer; `parseQuizFileAttempt`
+opens such a file on request, dropping fields it doesn't know but still rejecting an unknown format.
+See `specs/002-15-question-quiz/contracts/quiz-file.md`.
+
 ### `fileIO.ts`
 
 Platform-aware file I/O. Detects Tauri via `__TAURI_INTERNALS__` and uses the native dialog/fs
@@ -256,7 +273,16 @@ Exports: `saveQuizToFile`, `openAnyQuizFile` (handles `.json` and `.ods`), `expo
 ### `autoSave.ts`
 
 Debounced (300 ms) `saveToStorage` writes serialized state to `localStorage`. `loadFromStorage`
-returns the saved state on startup; `clearStorage` is called on New Quiz / Reset.
+returns the saved state on startup; `clearStorage` is called on New Quiz / Reset. An auto-save from
+a newer version is never deleted: it moves to its own `qzr-sheet:newer-autosave:<timestamp>` key
+(`listKeptNewerAutoSaves`, `readKeptNewerAutoSave`, `discardKeptNewerAutoSave`), and the sheet
+offers to try opening it. If storage is too full to move it, it stays where it is, listed first, and
+auto-save pauses until it is discarded. The tutorial's crash snapshot from a newer version is set
+aside the same way, or kept in place (`keepNewerInPlace`). While anything is kept in place the
+tutorial won't start (a deliberate trade-off), and while auto-save is paused crash recovery leaves
+its own snapshot until auto-save resumes and saves the quiz (`removeOnceSaved`; full-disk save
+failures aren't detected, #92). `persistence/openedFromNewerFile.ts` persists the "may be scored
+wrong" warning across reloads.
 
 ## Export (`src/export/`)
 

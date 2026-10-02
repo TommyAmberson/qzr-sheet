@@ -14,6 +14,13 @@ export enum BonusRule {
   Seat = 'seat',
 }
 
+/** Quiz format: how many regulation questions, and the rules that follow from that */
+export enum QuizFormat {
+  TwentyQuestion = '20-question',
+  /** Three-team practice-meet quiz; see docs/scoring-rules-explained.md */
+  FifteenQuestion = '15-question',
+}
+
 export enum CellValue {
   Correct = 'c',
   Error = 'e',
@@ -32,12 +39,17 @@ export enum QuestionCategory {
   SIT = 'SIT',
 }
 
-export const FILE_VERSION = 2
+/**
+ * Newest file version this build reads and writes. A file is stamped with the version needed to
+ * read it, not this one: 20-question quizzes stay version 2 so older installs can open them, and
+ * 15-question quizzes are version 3 so older installs refuse them instead of misscoring them.
+ */
+export const FILE_VERSION = 3
 
 // ---- Schema ----
 
 export const QuizFileSchema = Type.Object({
-  version: Type.Union([Type.Literal(1), Type.Literal(2)]),
+  version: Type.Union([Type.Literal(1), Type.Literal(2), Type.Literal(3)]),
   quiz: Type.Object({
     division: Type.String(),
     quizNumber: Type.String(),
@@ -45,6 +57,8 @@ export const QuizFileSchema = Type.Object({
     consolation: Type.Optional(Type.Boolean()),
     placementFormula: Type.Enum(PlacementFormula),
     bonusRule: Type.Optional(Type.Enum(BonusRule)),
+    /** Absent means 20-question; required from version 3 */
+    format: Type.Optional(Type.Enum(QuizFormat)),
     /** Map serialized as an array of [columnKey, category] pairs */
     questionTypes: Type.Array(Type.Tuple([Type.String(), Type.Enum(QuestionCategory)])),
   }),

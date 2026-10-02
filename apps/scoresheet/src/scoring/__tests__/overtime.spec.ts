@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { CellValue, buildColumns } from '../../types/scoresheet'
+import { TWENTY_QUESTION_RULES as TWENTY, quizRules } from '../quizRules'
+import { CellValue, QuizFormat, buildColumns } from '../../types/scoresheet'
 import {
   getOvertimeEligibleTeams,
   getActiveOtTeams,
@@ -19,7 +20,7 @@ const _ = CellValue.Empty
 
 describe('questionsComplete', () => {
   function setup() {
-    const cols = buildColumns(0)
+    const cols = buildColumns(TWENTY, 0)
     const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
     const idx = (key: string) => {
       const i = cols.findIndex((c) => c.key === key)
@@ -147,7 +148,7 @@ describe('questionsComplete', () => {
 
 describe('quizJumpedComplete', () => {
   function setup() {
-    const cols = buildColumns(1) // 1 OT round allocated
+    const cols = buildColumns(TWENTY, 1) // 1 OT round allocated
     const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
     const idx = (key: string) => {
       const i = cols.findIndex((c) => c.key === key)
@@ -160,13 +161,13 @@ describe('quizJumpedComplete', () => {
 
   it('returns false when no questions answered', () => {
     const { cols, cells, noJumps } = setup()
-    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(false)
+    expect(quizJumpedComplete(cells, cols, noJumps, 0, TWENTY)).toBe(false)
   })
 
   it('returns true when all normal questions no-jumped', () => {
     const { cols, cells, idx, noJumps } = setup()
     for (let n = 1; n <= 20; n++) noJumps[idx(`${n}`)] = true
-    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+    expect(quizJumpedComplete(cells, cols, noJumps, 0, TWENTY)).toBe(true)
   })
 
   it('returns true when errors count as jumped on', () => {
@@ -174,7 +175,7 @@ describe('quizJumpedComplete', () => {
     // Q1 error, Q2–20 no-jumped
     cells[0]![0]![idx('1')] = E
     for (let n = 2; n <= 20; n++) noJumps[idx(`${n}`)] = true
-    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+    expect(quizJumpedComplete(cells, cols, noJumps, 0, TWENTY)).toBe(true)
   })
 
   it('returns true when fouls do not count but the question was still answered', () => {
@@ -183,14 +184,14 @@ describe('quizJumpedComplete', () => {
     cells[0]![0]![idx('1')] = F
     cells[1]![0]![idx('1')] = C
     for (let n = 2; n <= 20; n++) noJumps[idx(`${n}`)] = true
-    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+    expect(quizJumpedComplete(cells, cols, noJumps, 0, TWENTY)).toBe(true)
   })
 
   it('returns false when Q1 has only a foul (not jumped)', () => {
     const { cols, cells, idx, noJumps } = setup()
     cells[0]![0]![idx('1')] = F
     for (let n = 2; n <= 20; n++) noJumps[idx(`${n}`)] = true
-    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(false)
+    expect(quizJumpedComplete(cells, cols, noJumps, 0, TWENTY)).toBe(false)
   })
 
   it('returns true when Q16 normal has only errors but Q16A has an answer', () => {
@@ -199,7 +200,7 @@ describe('quizJumpedComplete', () => {
     for (let n = 17; n <= 20; n++) noJumps[idx(`${n}`)] = true
     cells[0]![0]![idx('16')] = E
     cells[1]![0]![idx('16A')] = C
-    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+    expect(quizJumpedComplete(cells, cols, noJumps, 0, TWENTY)).toBe(true)
   })
 
   it('returns true when Q16 normal has only errors but Q16B has an answer', () => {
@@ -209,21 +210,21 @@ describe('quizJumpedComplete', () => {
     cells[0]![0]![idx('16')] = E
     cells[1]![0]![idx('16A')] = E
     cells[2]![0]![idx('16B')] = MB
-    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+    expect(quizJumpedComplete(cells, cols, noJumps, 0, TWENTY)).toBe(true)
   })
 
   it('ignores allocated OT columns when visibleOtRounds is 0', () => {
     const { cols, cells, idx, noJumps } = setup()
     // cols has Q21–23 allocated but visibleOtRounds=0 should ignore them
     for (let n = 1; n <= 20; n++) noJumps[idx(`${n}`)] = true
-    expect(quizJumpedComplete(cells, cols, noJumps, 0)).toBe(true)
+    expect(quizJumpedComplete(cells, cols, noJumps, 0, TWENTY)).toBe(true)
   })
 
   it('returns false when OT round is visible but not yet answered', () => {
     const { cols, cells, idx, noJumps } = setup()
     for (let n = 1; n <= 20; n++) noJumps[idx(`${n}`)] = true
     // visibleOtRounds=1 means Q21–23 must be answered
-    expect(quizJumpedComplete(cells, cols, noJumps, 1)).toBe(false)
+    expect(quizJumpedComplete(cells, cols, noJumps, 1, TWENTY)).toBe(false)
   })
 
   it('returns true when OT round is visible and fully answered', () => {
@@ -232,43 +233,43 @@ describe('quizJumpedComplete', () => {
     cells[0]![0]![idx('21')] = C
     cells[1]![0]![idx('22')] = C
     cells[2]![0]![idx('23')] = C
-    expect(quizJumpedComplete(cells, cols, noJumps, 1)).toBe(true)
+    expect(quizJumpedComplete(cells, cols, noJumps, 1, TWENTY)).toBe(true)
   })
 })
 
 describe('buildColumns overtime', () => {
   it('builds no OT columns with 0 rounds', () => {
-    const cols = buildColumns(0)
+    const cols = buildColumns(TWENTY, 0)
     expect(cols.some((c) => c.isOvertime)).toBe(false)
   })
 
   it('builds 3 OT normal columns for 1 round (Q21–23 with A/B)', () => {
-    const cols = buildColumns(1)
+    const cols = buildColumns(TWENTY, 1)
     const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
     expect(otNormals.map((c) => c.number)).toEqual([21, 22, 23])
   })
 
   it('builds 6 OT normal columns for 2 rounds (Q21–26)', () => {
-    const cols = buildColumns(2)
+    const cols = buildColumns(TWENTY, 2)
     const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
     expect(otNormals.map((c) => c.number)).toEqual([21, 22, 23, 24, 25, 26])
   })
 
   it('builds 9 OT normal columns for 3 rounds (Q21–29)', () => {
-    const cols = buildColumns(3)
+    const cols = buildColumns(TWENTY, 3)
     const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
     expect(otNormals.map((c) => c.number)).toEqual([21, 22, 23, 24, 25, 26, 27, 28, 29])
   })
 
   it('each OT question has A and B sub-columns', () => {
-    const cols = buildColumns(1)
+    const cols = buildColumns(TWENTY, 1)
     expect(cols.find((c) => c.key === '21A')).toBeDefined()
     expect(cols.find((c) => c.key === '21B')).toBeDefined()
     expect(cols.find((c) => c.key === '23B')).toBeDefined()
   })
 
   it('no cap — can build many rounds', () => {
-    const cols = buildColumns(10)
+    const cols = buildColumns(TWENTY, 10)
     const otNormals = cols.filter((c) => c.isOvertime && c.type === '')
     expect(otNormals).toHaveLength(30)
     expect(otNormals[29]!.number).toBe(50)
@@ -276,7 +277,7 @@ describe('buildColumns overtime', () => {
 })
 
 /** Columns with 2 OT rounds for eligible-team tests */
-const columns = buildColumns(2)
+const columns = buildColumns(TWENTY, 2)
 
 /** Find column index by key */
 function colIdxOf(key: string): number {
@@ -299,7 +300,7 @@ describe('getOvertimeEligibleTeams', () => {
     cells[0]![1]![colIdxOf('2')] = C
     cells[1]![0]![colIdxOf('3')] = C
     // Team 0: 60, Team 1: 40, Team 2: 20
-    const eligible = getOvertimeEligibleTeams(cells, columns, onTimes)
+    const eligible = getOvertimeEligibleTeams(cells, columns, onTimes, TWENTY)
     expect(eligible.size).toBe(0)
   })
 
@@ -308,7 +309,7 @@ describe('getOvertimeEligibleTeams', () => {
     cells[0]![0]![colIdxOf('1')] = C
     cells[1]![0]![colIdxOf('2')] = C
     // Team 0 and 1: 40 each, Team 2: 20
-    const eligible = getOvertimeEligibleTeams(cells, columns, onTimes)
+    const eligible = getOvertimeEligibleTeams(cells, columns, onTimes, TWENTY)
     expect(eligible.has(0)).toBe(true)
     expect(eligible.has(1)).toBe(true)
     expect(eligible.has(2)).toBe(false)
@@ -319,7 +320,7 @@ describe('getOvertimeEligibleTeams', () => {
     cells[0]![0]![colIdxOf('1')] = C
     cells[1]![0]![colIdxOf('2')] = C
     cells[2]![0]![colIdxOf('3')] = C
-    const eligible = getOvertimeEligibleTeams(cells, columns, onTimes)
+    const eligible = getOvertimeEligibleTeams(cells, columns, onTimes, TWENTY)
     expect(eligible.has(0)).toBe(true)
     expect(eligible.has(1)).toBe(true)
     expect(eligible.has(2)).toBe(true)
@@ -333,7 +334,7 @@ describe('getOvertimeEligibleTeams', () => {
     cells[0]![2]![colIdxOf('3')] = C
     cells[1]![0]![colIdxOf('4')] = C
     cells[2]![0]![colIdxOf('5')] = C
-    const eligible = getOvertimeEligibleTeams(cells, columns, onTimes)
+    const eligible = getOvertimeEligibleTeams(cells, columns, onTimes, TWENTY)
     expect(eligible.has(0)).toBe(false)
     expect(eligible.has(1)).toBe(true)
     expect(eligible.has(2)).toBe(true)
@@ -346,7 +347,7 @@ describe('getOvertimeEligibleTeams', () => {
     cells[1]![0]![colIdxOf('2')] = C
     // Team 0 also has an OT answer — should be ignored for eligibility
     cells[0]![1]![colIdxOf('21')] = C
-    const eligible = getOvertimeEligibleTeams(cells, columns, onTimes)
+    const eligible = getOvertimeEligibleTeams(cells, columns, onTimes, TWENTY)
     // Both should still be eligible (OT answer doesn't affect regulation score)
     expect(eligible.has(0)).toBe(true)
     expect(eligible.has(1)).toBe(true)
@@ -358,7 +359,7 @@ describe('getOvertimeEligibleTeams', () => {
     // Team 1: 1 correct (20 pts) + no on-time (0) = 20
     cells[0]![0]![colIdxOf('1')] = C
     cells[1]![0]![colIdxOf('2')] = C
-    const eligible = getOvertimeEligibleTeams(cells, columns, [true, false, true])
+    const eligible = getOvertimeEligibleTeams(cells, columns, [true, false, true], TWENTY)
     // Team 0: 40, Team 1: 20, Team 2: 20 (on-time only)
     // Teams 1 & 2 tied at 20
     expect(eligible.has(0)).toBe(false)
@@ -375,7 +376,7 @@ describe('computeOvertimeRounds', () => {
    * Returns cols, blank cells, and a column-index lookup.
    */
   function setup(rounds: number) {
-    const cols = buildColumns(rounds)
+    const cols = buildColumns(TWENTY, rounds)
     const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
     const idx = (key: string) => {
       const i = cols.findIndex((c) => c.key === key)
@@ -410,7 +411,7 @@ describe('computeOvertimeRounds', () => {
     const noJumps = cols.map(() => false)
     // Only a couple answers — regulation incomplete
     cells[0]![0]![0] = C
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(0)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, TWENTY)).toBe(0)
   })
 
   it('returns 0 when regulation is complete but no teams are tied', () => {
@@ -426,14 +427,14 @@ describe('computeOvertimeRounds', () => {
     cells[2]![0]![idx('6')] = C
     // No-jump the rest
     for (let n = 7; n <= 20; n++) noJumps[idx(`${n}`)] = true
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(0)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, TWENTY)).toBe(0)
   })
 
   it('returns 1 when regulation is complete and teams are tied', () => {
     const { cols, cells, idx } = setup(2)
     const noJumps = cols.map(() => false)
     fillRegulationTiedSimple(cells, idx, noJumps)
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, TWENTY)).toBe(1)
   })
 
   it('returns 1 when regulation has error-only Q1-15 columns and teams are tied', () => {
@@ -445,7 +446,7 @@ describe('computeOvertimeRounds', () => {
     // questionsComplete must still treat it as done.
     noJumps[idx('1')] = false
     cells[0]![0]![idx('1')] = E
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, TWENTY)).toBe(1)
   })
 
   it('returns 2 when OT round 1 is complete and still tied', () => {
@@ -456,7 +457,7 @@ describe('computeOvertimeRounds', () => {
     cells[0]![0]![idx('21')] = C
     cells[1]![0]![idx('22')] = C
     cells[2]![0]![idx('23')] = C
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(2)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, TWENTY)).toBe(2)
   })
 
   it('returns 1 when OT round 1 fully breaks the tie', () => {
@@ -470,7 +471,7 @@ describe('computeOvertimeRounds', () => {
     cells[0]![0]![idx('21')] = C
     cells[0]![1]![idx('22')] = C
     cells[1]![0]![idx('23')] = C
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, TWENTY)).toBe(1)
   })
 
   it('returns 2 when OT round 1 only partially breaks a 3-way tie', () => {
@@ -482,7 +483,7 @@ describe('computeOvertimeRounds', () => {
     cells[0]![0]![idx('21')] = C
     noJumps[idx('22')] = true
     noJumps[idx('23')] = true
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(2)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, TWENTY)).toBe(2)
   })
 
   it('returns 1 when OT round 1 is partially filled (not complete yet)', () => {
@@ -491,7 +492,7 @@ describe('computeOvertimeRounds', () => {
     fillRegulationTiedSimple(cells, idx, noJumps)
     // Only 1 of 3 OT questions answered
     cells[0]![0]![idx('21')] = C
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, TWENTY)).toBe(1)
   })
 
   it('does not trigger another round when a non-eligible team happens to match an eligible team score', () => {
@@ -521,7 +522,7 @@ describe('computeOvertimeRounds', () => {
     noJumps[idx('22')] = true
     noJumps[idx('23')] = true
 
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(1)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, TWENTY)).toBe(1)
   })
 
   it('triggers another round when originally-tied teams are still tied after OT', () => {
@@ -536,7 +537,7 @@ describe('computeOvertimeRounds', () => {
     cells[1]![0]![idx('22')] = C
     noJumps[idx('23')] = true
 
-    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps)).toBe(2)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, TWENTY)).toBe(2)
   })
 })
 
@@ -544,20 +545,20 @@ describe('computeRegulationScores', () => {
   const onTimes = [true, true, true]
 
   it('returns on-time bonus only for blank sheets', () => {
-    const cols = buildColumns()
+    const cols = buildColumns(TWENTY)
     const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
-    const scores = computeRegulationScores(cells, cols, onTimes)
+    const scores = computeRegulationScores(cells, cols, onTimes, TWENTY)
     expect(scores).toEqual([20, 20, 20])
   })
 
   it('computes correct scores per team from regulation columns', () => {
-    const cols = buildColumns()
+    const cols = buildColumns(TWENTY)
     const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
     const idx = (key: string) => cols.findIndex((c) => c.key === key)
     cells[0]![0]![idx('1')] = C // team 0: +20
     cells[1]![0]![idx('2')] = C // team 1: +20
     cells[1]![1]![idx('3')] = C // team 1: +20
-    const scores = computeRegulationScores(cells, cols, onTimes)
+    const scores = computeRegulationScores(cells, cols, onTimes, TWENTY)
     // on-time (+20) + corrects
     expect(scores[0]).toBe(40) // 20 on-time + 20
     expect(scores[1]).toBe(60) // 20 on-time + 20 + 20
@@ -565,19 +566,19 @@ describe('computeRegulationScores', () => {
   })
 
   it('ignores OT columns when computing regulation scores', () => {
-    const cols = buildColumns(1) // has Q21–23
+    const cols = buildColumns(TWENTY, 1) // has Q21–23
     const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
     const idx = (key: string) => cols.findIndex((c) => c.key === key)
     cells[0]![0]![idx('1')] = C // regulation: +20
     cells[0]![1]![idx('21')] = C // OT: should be ignored
-    const scores = computeRegulationScores(cells, cols, onTimes)
+    const scores = computeRegulationScores(cells, cols, onTimes, TWENTY)
     expect(scores[0]).toBe(40) // 20 on-time + 20 from Q1 only
   })
 
   it('respects onTime flag per team', () => {
-    const cols = buildColumns()
+    const cols = buildColumns(TWENTY)
     const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
-    const scores = computeRegulationScores(cells, cols, [true, false, true])
+    const scores = computeRegulationScores(cells, cols, [true, false, true], TWENTY)
     expect(scores[0]).toBe(20) // on-time
     expect(scores[1]).toBe(0) // not on-time
     expect(scores[2]).toBe(20) // on-time
@@ -588,7 +589,7 @@ describe('computeOtCheckpointScores', () => {
   const onTimes = [true, true, true]
 
   function setup(rounds: number) {
-    const cols = buildColumns(rounds)
+    const cols = buildColumns(TWENTY, rounds)
     const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
     const idx = (key: string) => {
       const i = cols.findIndex((c) => c.key === key)
@@ -602,7 +603,7 @@ describe('computeOtCheckpointScores', () => {
   it('returns empty array when no OT rounds are complete', () => {
     const { cols, cells, noJumps } = setup(1)
     // Q21 not answered
-    expect(computeOtCheckpointScores(cells, cols, onTimes, noJumps)).toEqual([])
+    expect(computeOtCheckpointScores(cells, cols, onTimes, noJumps, TWENTY)).toEqual([])
   })
 
   it('returns one checkpoint when OT round 1 is complete', () => {
@@ -610,7 +611,7 @@ describe('computeOtCheckpointScores', () => {
     noJumps[idx('21')] = true
     noJumps[idx('22')] = true
     noJumps[idx('23')] = true
-    const checkpoints = computeOtCheckpointScores(cells, cols, onTimes, noJumps)
+    const checkpoints = computeOtCheckpointScores(cells, cols, onTimes, noJumps, TWENTY)
     expect(checkpoints).toHaveLength(1)
     // All teams: 20 on-time, no answers
     expect(checkpoints[0]).toEqual([20, 20, 20])
@@ -626,7 +627,7 @@ describe('computeOtCheckpointScores', () => {
     cells[1]![0]![idx('24')] = C
     noJumps[idx('25')] = true
     noJumps[idx('26')] = true
-    const checkpoints = computeOtCheckpointScores(cells, cols, onTimes, noJumps)
+    const checkpoints = computeOtCheckpointScores(cells, cols, onTimes, noJumps, TWENTY)
     expect(checkpoints).toHaveLength(2)
     // Round 1 checkpoint: team 0 has 20 on-time + 20 Q21 = 40
     expect(checkpoints[0]![0]).toBe(40)
@@ -645,7 +646,7 @@ describe('computeOtCheckpointScores', () => {
     noJumps[idx('22')] = true
     noJumps[idx('23')] = true
     // Round 2: incomplete (Q24 not answered)
-    const checkpoints = computeOtCheckpointScores(cells, cols, onTimes, noJumps)
+    const checkpoints = computeOtCheckpointScores(cells, cols, onTimes, noJumps, TWENTY)
     expect(checkpoints).toHaveLength(1)
   })
 })
@@ -654,7 +655,7 @@ describe('getActiveOtTeams', () => {
   const onTimes = [true, true, true]
 
   function setup(rounds: number) {
-    const cols = buildColumns(rounds)
+    const cols = buildColumns(TWENTY, rounds)
     const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
     const idx = (key: string) => {
       const i = cols.findIndex((c) => c.key === key)
@@ -676,7 +677,7 @@ describe('getActiveOtTeams', () => {
   it('returns all eligible teams when no OT rounds are complete', () => {
     const { cols, cells, idx, noJumps } = setup(1)
     fillRegTied(cells, idx, noJumps)
-    const active = getActiveOtTeams(cells, cols, onTimes, noJumps)
+    const active = getActiveOtTeams(cells, cols, onTimes, noJumps, TWENTY)
     expect(active).toEqual(new Set([0, 1, 2]))
   })
 
@@ -687,7 +688,7 @@ describe('getActiveOtTeams', () => {
     cells[0]![0]![idx('21')] = C
     cells[1]![0]![idx('22')] = C
     cells[2]![0]![idx('23')] = C
-    const active = getActiveOtTeams(cells, cols, onTimes, noJumps)
+    const active = getActiveOtTeams(cells, cols, onTimes, noJumps, TWENTY)
     expect(active).toEqual(new Set([0, 1, 2]))
   })
 
@@ -699,7 +700,7 @@ describe('getActiveOtTeams', () => {
     cells[0]![0]![idx('21')] = C
     cells[0]![1]![idx('22')] = C
     noJumps[idx('23')] = true
-    const active = getActiveOtTeams(cells, cols, onTimes, noJumps)
+    const active = getActiveOtTeams(cells, cols, onTimes, noJumps, TWENTY)
     expect(active.has(0)).toBe(false)
     expect(active.has(1)).toBe(true)
     expect(active.has(2)).toBe(true)
@@ -711,7 +712,71 @@ describe('getActiveOtTeams', () => {
     cells[0]![1]![idx('2')] = C
     cells[1]![0]![idx('3')] = C
     for (let n = 4; n <= 20; n++) noJumps[idx(`${n}`)] = true
-    const active = getActiveOtTeams(cells, cols, onTimes, noJumps)
+    const active = getActiveOtTeams(cells, cols, onTimes, noJumps, TWENTY)
     expect(active.size).toBe(0)
+  })
+})
+
+describe('overtime — 15-question quiz', () => {
+  const FIFTEEN = quizRules(QuizFormat.FifteenQuestion)
+  const onTimes = [true, true, true]
+
+  function setup(rounds: number) {
+    const cols = buildColumns(FIFTEEN, rounds)
+    const cells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+    const noJumps = cols.map(() => false)
+    const at = (key: string) => cols.findIndex((c) => c.key === key)
+    /** No-jump every numbered question from `from` to `to`, leaving the scores tied */
+    const noJumpRange = (from: number, to: number) => {
+      cols.forEach((c, i) => {
+        if (c.type === '' && c.number >= from && c.number <= to) noJumps[i] = true
+      })
+    }
+    return { cols, cells, noJumps, at, noJumpRange }
+  }
+
+  it('has no overtime columns when overtime is off', () => {
+    expect(buildColumns(FIFTEEN, 0).some((c) => c.isOvertime)).toBe(false)
+  })
+
+  it('offers no overtime until questions 1 to 15 are complete', () => {
+    const { cols, cells, noJumps, noJumpRange } = setup(1)
+    noJumpRange(1, 14)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, FIFTEEN)).toBe(0)
+  })
+
+  it('offers one round starting at 16 once a tied regulation is complete', () => {
+    const { cols, cells, noJumps, noJumpRange } = setup(1)
+    noJumpRange(1, 15)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, FIFTEEN)).toBe(1)
+    expect(cols.find((c) => c.isOvertime)!.key).toBe('16')
+  })
+
+  it('offers a second round (19 to 21) only while the tie persists', () => {
+    const { cols, cells, noJumps, at, noJumpRange } = setup(2)
+    noJumpRange(1, 18)
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, FIFTEEN)).toBe(2)
+    expect(cols.filter((c) => c.isOvertime && c.type === '').map((c) => c.key)).toEqual([
+      '16',
+      '17',
+      '18',
+      '19',
+      '20',
+      '21',
+    ])
+
+    // Round 1 separates all three teams (60, 40, 20): no second round
+    for (const key of ['16', '17', '18']) noJumps[at(key)] = false
+    cells[0]![0]![at('16')] = C
+    cells[0]![1]![at('17')] = C
+    cells[1]![0]![at('18')] = C
+    expect(computeOvertimeRounds(cells, cols, onTimes, noJumps, FIFTEEN)).toBe(1)
+  })
+
+  it('limits overtime to the tied teams', () => {
+    const { cols, cells, noJumps, at, noJumpRange } = setup(1)
+    noJumpRange(1, 14)
+    cells[0]![0]![at('15')] = C
+    expect(getActiveOtTeams(cells, cols, onTimes, noJumps, FIFTEEN)).toEqual(new Set([1, 2]))
   })
 })

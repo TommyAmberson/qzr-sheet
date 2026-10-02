@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TWENTY_QUESTION_RULES as TWENTY } from '../../scoring/quizRules'
 import { ref } from 'vue'
 import { useCellSelector } from '../useCellSelector'
 import { CellValue, QuestionType, buildColumns } from '../../types/scoresheet'
 
 function makeSelector(isBonusOverride = false) {
-  const columns = ref(buildColumns(0))
+  const columns = ref(buildColumns(TWENTY, 0))
   const isBonusForTeam = vi.fn().mockReturnValue(isBonusOverride)
   const setCell = vi.fn()
   const s = useCellSelector(columns, isBonusForTeam, setCell)

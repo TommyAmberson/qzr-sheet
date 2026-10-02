@@ -1,6 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
-import { buildColumns } from '../types/scoresheet'
+import { QuizFormat, buildColumns } from '../types/scoresheet'
 import { computeOvertimeRounds } from '../scoring/overtime'
+import { TWENTY_QUESTION_RULES } from '../scoring/quizRules'
 import { patchCell } from './odsXml'
 import type { QuizFile } from '../persistence/quizFile'
 import { deserialize } from '../persistence/quizFile'
@@ -19,7 +20,17 @@ import type { CellValue } from '../types/scoresheet'
  * @param quizFile - parsed quiz file data
  * @returns Uint8Array of the filled .ods file
  */
+/** The template's layout and formulas only score a 20-question quiz */
+export const ODS_TWENTY_ONLY = 'Spreadsheet export supports 20-question quizzes only'
+
+/** Whether the template can score this format; a file without a format is 20-question */
+export function odsSupportsFormat(format = QuizFormat.TwentyQuestion): boolean {
+  return format === QuizFormat.TwentyQuestion
+}
+
 export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
+  if (!odsSupportsFormat(quizFile.quiz.format)) throw new Error(ODS_TWENTY_ONLY)
+
   // --- 1. Unzip ---
   const files = unzipSync(otsBytes)
 
@@ -32,7 +43,7 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   const { quiz, teams, quizzers, answers, noJumps } = deserialize(quizFile)
 
   const overtimeRounds = quiz.overtime ? 6 : 0 // max 6 OT rounds = 18 OT questions
-  const cols = buildColumns(overtimeRounds)
+  const cols = buildColumns(TWENTY_QUESTION_RULES, overtimeRounds)
 
   const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
 
@@ -206,7 +217,7 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   const noJumpFlags = cols.map((c) => !!noJumps.get(c.key))
   const onTimes = sortedTeams.map((t) => t.onTime)
   const visibleOtRounds = quiz.overtime
-    ? computeOvertimeRounds(cellGrid, cols, onTimes, noJumpFlags)
+    ? computeOvertimeRounds(cellGrid, cols, onTimes, noJumpFlags, TWENTY_QUESTION_RULES)
     : 0
   sheetXml = patchCell(sheetXml, overtimeCell, 2, visibleOtRounds > 0 ? 'y' : 'n')
 

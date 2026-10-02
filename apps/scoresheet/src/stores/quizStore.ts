@@ -1,6 +1,7 @@
 import { reactive } from 'vue'
 import {
   BonusRule,
+  QuizFormat,
   CellValue,
   PlacementFormula,
   QuestionCategory,
@@ -27,6 +28,7 @@ function createDefaultQuiz(): Quiz {
     consolation: false,
     placementFormula: PlacementFormula.Rules,
     bonusRule: BonusRule.Seat,
+    format: QuizFormat.TwentyQuestion,
     questionTypes: new Map(),
   }
 }
@@ -205,6 +207,7 @@ export function createQuizStore(): QuizStore {
     quiz.overtime = state.quiz.overtime
     quiz.consolation = state.quiz.consolation
     quiz.placementFormula = state.quiz.placementFormula
+    quiz.format = state.quiz.format
     quiz.questionTypes.clear()
     for (const [k, v] of state.quiz.questionTypes) quiz.questionTypes.set(k, v)
 

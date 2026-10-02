@@ -15,6 +15,39 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-01
+
+### Added
+
+* **15-question quizzes** for practice meets: the New menu offers "New 20-question quiz" and "New
+  15-question quiz", and a badge in the header shows which one is open. A 15-question quiz has A/B
+  sub-questions on 11 to 15, error points and 10-point bonuses from 12, quiz-out (and its bonus) at
+  3 correct, and overtime from 16. The rulebook doesn't define this format; it is the 20-question
+  quiz with its final stretch moved five questions earlier.
+* **15-question quizzes are saved** in quiz files and auto-save. A file records the version needed
+  to read it: 20-question quizzes are still version 2, so older scoresheets open them as before, and
+  15-question quizzes are version 3, which older scoresheets refuse rather than misscore.
+* **Opening a file from a newer scoresheet** asks whether to try anyway instead of failing. A quiz
+  opened that way shows a warning that it may be scored wrong until another quiz replaces it. An
+  unknown quiz format still fails, by name.
+* **Auto-saves from a newer scoresheet are kept**, not deleted. The sheet starts empty and shows a
+  notice offering to try opening the kept quiz or to discard it. If storage is too full to set it
+  aside, auto-save pauses and the tutorial is unavailable until it is discarded, so nothing
+  overwrites it.
+
+### Changed
+
+* The timeout warning now reads "Timeouts can't be called once error points begin", which holds for
+  both quiz formats.
+* Ctrl+N starts a new quiz in the current quiz's format, so a practice meet can run 15-question
+  quizzes back to back. The New menu still offers both formats.
+* "Export ODS" is disabled for 15-question quizzes: the spreadsheet template only scores 20-question
+  quizzes. Importing an ODS file still gives a 20-question quiz.
+
+### Bundled contract
+
+* `@qzr/shared@1.0.0` - bumped from 0.10.0
+
 ## [0.11.1] - 2026-10-01
 
 ### Fixed

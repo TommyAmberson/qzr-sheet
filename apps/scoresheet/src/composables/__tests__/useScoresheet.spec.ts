@@ -1,14 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { resetAutoSave } from '../../persistence/__tests__/resetAutoSave'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../useScoresheet'
-import { CellValue, QuestionCategory } from '../../types/scoresheet'
+import { CellValue, QuestionCategory, QuizFormat } from '../../types/scoresheet'
 import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
 
 const T = toTeamIdx
 const S = toSeatIdx
 const C = toColIdx
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  resetAutoSave()
+})
 
 describe('useScoresheet — initial state', () => {
   it('has 3 teams', () => {
@@ -426,5 +429,187 @@ describe('useScoresheet — resetStore', () => {
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
     s.resetStore()
     expect(s.canUndo.value).toBe(false)
+  })
+})
+
+describe('useScoresheet — 15-question quiz', () => {
+  it('resetStore(FifteenQuestion) starts a 15-question quiz', () => {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    expect(s.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
+    // 10 plain questions + 5 questions with A/B
+    expect(s.columns.value).toHaveLength(25)
+    expect(s.columns.value[s.columns.value.length - 1]!.key).toBe('15B')
+  })
+
+  it('resetStore() starts a 20-question quiz', () => {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    s.resetStore()
+    expect(s.quiz.value.format).toBe(QuizFormat.TwentyQuestion)
+    expect(s.columns.value).toHaveLength(30)
+  })
+
+  it('allows timeouts through 11B and refuses them from 12', () => {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    for (const key of ['10', '11', '11A', '11B']) expect(s.isTimeoutAllowed(key)).toBe(true)
+    for (const key of ['12', '12A', '15']) expect(s.isTimeoutAllowed(key)).toBe(false)
+  })
+
+  it('sizes overtime from the rules of the loaded quiz', () => {
+    const s = useScoresheet()
+    const { id: _, ...quiz } = s.store.quiz
+    // Regulation and round 1 (16 to 18) all no-jumped: still tied, so round 2 is needed
+    const noJumps = new Map(Array.from({ length: 18 }, (_, i) => [`${i + 1}`, true] as const))
+    s.loadFile({
+      quiz: { ...quiz, format: QuizFormat.FifteenQuestion, overtime: true },
+      teams: s.store.teams.map(({ quizId: _, ...t }) => t),
+      quizzers: [...s.store.quizzers],
+      answers: [],
+      noJumps,
+      timeouts: new Map(),
+    })
+    expect(s.columns.value.some((c) => c.key === '21')).toBe(true)
+    expect(s.columns.value.find((c) => c.key === '16')!.isOvertime).toBe(true)
+  })
+
+  it("flags a team's third timeout (2 per team)", () => {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    const teamId = s.teams.value[0]!.id
+    s.toggleTimeout(teamId, '1')
+    s.toggleTimeout(teamId, '2')
+    expect(s.tooManyTimeoutsTeams.value.has(0)).toBe(false)
+    s.toggleTimeout(teamId, '3')
+    expect(s.tooManyTimeoutsTeams.value.has(0)).toBe(true)
+  })
+})
+
+describe('useScoresheet — keeping a 15-question quiz', () => {
+  function fifteenWithAnswer() {
+    const s = useScoresheet()
+    s.resetStore(QuizFormat.FifteenQuestion)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    return s
+  }
+
+  it('keeps the format through clearAnswers and clearNames', () => {
+    const s = fifteenWithAnswer()
+    s.clearAnswers()
+    expect(s.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
+    s.clearNames()
+    expect(s.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
+  })
+
+  it('restores a 15-question quiz from auto-save', async () => {
+    vi.useFakeTimers()
+    try {
+      fifteenWithAnswer()
+      await nextTick()
+      // Auto-save is debounced
+      vi.advanceTimersByTime(1000)
+    } finally {
+      vi.useRealTimers()
+    }
+    const restored = useScoresheet()
+    expect(restored.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
+    expect(restored.cells.value[0]![0]![0]).toBe(CellValue.Correct)
+    expect(restored.columns.value).toHaveLength(25)
+  })
+
+  it('clears the opened-from-newer-file flag when another quiz replaces it', () => {
+    const s = fifteenWithAnswer()
+    const { id: _, ...quiz } = s.store.quiz
+    const data = {
+      quiz: { ...quiz },
+      teams: s.store.teams.map(({ quizId: _, ...t }) => t),
+      quizzers: [...s.store.quizzers],
+      answers: [],
+      noJumps: new Map<string, boolean>(),
+      timeouts: new Map(),
+    }
+    s.loadFile(data, { fromNewerFile: true })
+    expect(s.openedFromNewerFile.value).toBe(true)
+    s.loadFile(data)
+    expect(s.openedFromNewerFile.value).toBe(false)
+    s.loadFile(data, { fromNewerFile: true })
+    s.resetStore()
+    expect(s.openedFromNewerFile.value).toBe(false)
+  })
+
+  it('keeps the opened-from-newer-file warning across a reload', () => {
+    const s = fifteenWithAnswer()
+    const { id: _, ...quiz } = s.store.quiz
+    s.loadFile(
+      {
+        quiz: { ...quiz },
+        teams: s.store.teams.map(({ quizId: _, ...t }) => t),
+        quizzers: [...s.store.quizzers],
+        answers: [],
+        noJumps: new Map<string, boolean>(),
+        timeouts: new Map(),
+      },
+      { fromNewerFile: true },
+    )
+    expect(useScoresheet().openedFromNewerFile.value).toBe(true)
+  })
+})
+
+describe('useScoresheet — an auto-save from a newer version', () => {
+  it('is offered back and opens on request, flagged as from a newer file', () => {
+    const { id: _, ...quiz } = useScoresheet().store.quiz
+    const newer = {
+      version: 99,
+      quiz: { ...quiz, division: '8', questionTypes: [] },
+      teams: [],
+      answers: [],
+      noJumps: [],
+    }
+    localStorage.setItem('qzr-sheet:current', JSON.stringify(newer))
+    const s = useScoresheet()
+    expect(s.keptNewerAutoSaves.value).toHaveLength(1)
+    s.openKeptNewerAutoSave()
+    expect(s.quiz.value.division).toBe('8')
+    expect(s.openedFromNewerFile.value).toBe(true)
+    // Only Discard removes the kept original
+    expect(s.keptNewerAutoSaves.value).toHaveLength(1)
+  })
+
+  it('can be discarded', () => {
+    localStorage.setItem('qzr-sheet:current', JSON.stringify({ version: 99 }))
+    const s = useScoresheet()
+    expect(s.keptNewerAutoSaves.value).toHaveLength(1)
+    s.discardKeptNewerAutoSave()
+    expect(s.keptNewerAutoSaves.value).toHaveLength(0)
+  })
+})
+
+describe('useScoresheet — discarding a newer auto-save that paused auto-save', () => {
+  it('saves the sheet straight away, keeping work done during the pause', () => {
+    localStorage.setItem('qzr-sheet:current', JSON.stringify({ version: 99 }))
+    // Storage is full: the newer auto-save can't be set aside, so auto-save pauses
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (key) {
+      if (String(key).startsWith('qzr-sheet:newer-autosave:')) throw new Error('quota')
+    })
+    let s: ReturnType<typeof useScoresheet>
+    try {
+      s = useScoresheet()
+    } finally {
+      setItem.mockRestore()
+    }
+    expect(s.autoSavePausedForKept.value).toBe(true)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.discardKeptNewerAutoSave()
+    const saved = JSON.parse(localStorage.getItem('qzr-sheet:current')!)
+    expect(saved.answers).toHaveLength(1)
+  })
+})
+
+describe('useScoresheet — the newer-file warning with nothing restored', () => {
+  it('is cleared when the auto-save could not be restored', () => {
+    localStorage.setItem('qzr-sheet:opened-from-newer-file', '1')
+    localStorage.setItem('qzr-sheet:current', '{not json')
+    expect(useScoresheet().openedFromNewerFile.value).toBe(false)
   })
 })

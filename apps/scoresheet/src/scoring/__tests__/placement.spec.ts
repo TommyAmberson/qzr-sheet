@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { computePlacements, computePlacementPoints } from '../placement'
-import { PlacementFormula } from '../../types/scoresheet'
+import { CellValue, PlacementFormula, QuizFormat, buildColumns } from '../../types/scoresheet'
+import { computeRegulationScores } from '../overtime'
+import { quizRules } from '../quizRules'
 
 describe('computePlacements', () => {
   // --- Regulation incomplete ---
@@ -229,5 +231,24 @@ describe('computePlacementPoints', () => {
       expect(computePlacementPoints(20, 3, f)).toBe(1) // at threshold
       expect(computePlacementPoints(10, 3, f)).toBe(1) // clamped to base
     })
+  })
+})
+
+describe('placement — 15-question quiz', () => {
+  const FIFTEEN = quizRules(QuizFormat.FifteenQuestion)
+  const cols = buildColumns(FIFTEEN, 1)
+  const at = (key: string) => cols.findIndex((c) => c.key === key)
+
+  it('uses only the end-of-Q15 scores, ignoring overtime', () => {
+    const cells = [0, 1, 2].map(() =>
+      Array.from({ length: 5 }, () => cols.map(() => CellValue.Empty)),
+    )
+    cells[0]![0]![at('15')] = CellValue.Correct
+    cells[1]![0]![at('16')] = CellValue.Correct // overtime: must not count
+    const regScores = computeRegulationScores(cells, cols, [false, false, false], FIFTEEN)
+    expect(regScores).toEqual([20, 0, 0])
+    const places = computePlacements(regScores, [], true, false)
+    expect(places).toEqual([1, 2.2, 2.2])
+    expect(computePlacementPoints(regScores[0]!, places[0]!, PlacementFormula.Rules)).toBe(10)
   })
 })

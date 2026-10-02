@@ -9,7 +9,7 @@ import { PlacementFormula, type PlaceKey } from '../types/scoresheet'
  *
  * OT teams can never pass non-OT teams regardless of final score.
  *
- * @param regulationScores - scores using only regulation columns (Q1–20)
+ * @param regulationScores - scores using only regulation columns (no overtime)
  * @param checkpointScores - scores after each completed OT round;
  *   only includes rounds that are fully complete
  * @param regulationComplete - whether all regulation questions are filled out
@@ -176,7 +176,7 @@ const RULES_TABLE: Record<string, PlacementTableEntry> = {
 /**
  * Compute placement points for a team given their regulation score and PlaceKey.
  *
- * Per rules §1.e.4, placement points are always based on the score at end of Q20,
+ * Per rules §1.e.4, placement points are always based on the end-of-regulation score,
  * even when overtime was played to break the tie. Callers must pass the regulation
  * score, not the total including overtime.
  *

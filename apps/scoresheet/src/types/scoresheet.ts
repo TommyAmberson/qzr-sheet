@@ -1,6 +1,6 @@
-import { BonusRule, CellValue, PlacementFormula, QuestionCategory } from '@qzr/shared'
+import { BonusRule, CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '@qzr/shared'
 
-export { BonusRule, CellValue, PlacementFormula, QuestionCategory }
+export { BonusRule, CellValue, PlacementFormula, QuestionCategory, QuizFormat }
 
 /** Sub-column kind within a question (Normal / A / B). Distinct from `QuestionCategory`. */
 export enum QuestionType {
@@ -26,11 +26,14 @@ export interface Quiz {
   consolation: boolean
   placementFormula: PlacementFormula
   bonusRule: BonusRule
+  /** Set when the quiz is created; never changed afterwards. Default 20-question */
+  format: QuizFormat
   /** Question category per column key (e.g. "1" → INT, "16A" → FTV) */
   questionTypes: Map<string, QuestionCategory>
 }
 
 import type { QuizzerId } from './indices'
+import { firstOvertimeQuestion, type QuizRules } from '../scoring/quizRules'
 
 export interface Team {
   id: number
@@ -56,19 +59,19 @@ export interface Answer {
 
 /** All columns in the scoresheet grid */
 export interface Column {
-  /** Unique key like "1", "16A", "21" */
+  /** Unique key like "1", "16A", "21" (meaning depends on the quiz format) */
   key: string
   /** Display label for the header */
   label: string
-  /** The question number (1–35) */
+  /** The question number */
   number: number
   /** Normal / A / B sub-part */
   type: QuestionType
-  /** Is this an A/B eligible column (questions 16–20, overtime)? */
+  /** Is this an A/B eligible column (from the format's first A/B question, and overtime)? */
   isAB: boolean
-  /** Do error-point rules apply (questions 17–20, overtime)? */
+  /** Do error-point rules apply (from the format's first error-points question, and overtime)? */
   isErrorPoints: boolean
-  /** Is this an overtime column (21+)? */
+  /** Is this an overtime column (after the format's last regulation question)? */
   isOvertime: boolean
 }
 
@@ -80,85 +83,36 @@ export const MAX_TIMEOUTS_PER_TEAM = 2
 
 export const QUIZZERS_PER_TEAM = 5
 
-/** Build the ordered list of question columns */
-export function buildColumns(overtimeRounds = 0): Column[] {
+/** Build the ordered list of question columns for a quiz format */
+export function buildColumns(rules: QuizRules, overtimeRounds = 0): Column[] {
   const cols: Column[] = []
 
-  // Questions 1-15: normal only
-  for (let n = 1; n <= 15; n++) {
-    cols.push({
-      key: `${n}`,
-      label: `${n}`,
-      number: n,
-      type: QuestionType.Normal,
-      isAB: false,
-      isErrorPoints: false,
-      isOvertime: false,
-    })
+  function pushQuestion(n: number, isAB: boolean, isErrorPoints: boolean, isOvertime: boolean) {
+    const types = isAB
+      ? [QuestionType.Normal, QuestionType.A, QuestionType.B]
+      : [QuestionType.Normal]
+    for (const type of types) {
+      cols.push({
+        key: `${n}${type}`,
+        label: `${n}${type}`,
+        number: n,
+        type,
+        isAB,
+        isErrorPoints,
+        isOvertime,
+      })
+    }
   }
 
-  // Questions 16-20: normal + A + B
-  for (let n = 16; n <= 20; n++) {
-    const isErrorPoints = n >= 17
-    cols.push({
-      key: `${n}`,
-      label: `${n}`,
-      number: n,
-      type: QuestionType.Normal,
-      isAB: true,
-      isErrorPoints,
-      isOvertime: false,
-    })
-    cols.push({
-      key: `${n}A`,
-      label: `${n}A`,
-      number: n,
-      type: QuestionType.A,
-      isAB: true,
-      isErrorPoints,
-      isOvertime: false,
-    })
-    cols.push({
-      key: `${n}B`,
-      label: `${n}B`,
-      number: n,
-      type: QuestionType.B,
-      isAB: true,
-      isErrorPoints,
-      isOvertime: false,
-    })
+  for (let n = 1; n <= rules.regulationQuestions; n++) {
+    pushQuestion(n, n >= rules.firstAbQuestion, n >= rules.firstErrorPointsQuestion, false)
   }
 
-  // Overtime questions (with A/B parts) — only as many as requested
-  const otQuestions = Math.max(0, overtimeRounds) * 3
-  for (let n = 21; n <= 20 + otQuestions; n++) {
-    cols.push({
-      key: `${n}`,
-      label: `${n}`,
-      number: n,
-      type: QuestionType.Normal,
-      isAB: true,
-      isErrorPoints: true,
-      isOvertime: true,
-    })
-    cols.push({
-      key: `${n}A`,
-      label: `${n}A`,
-      number: n,
-      type: QuestionType.A,
-      isAB: true,
-      isErrorPoints: true,
-      isOvertime: true,
-    })
-    cols.push({
-      key: `${n}B`,
-      label: `${n}B`,
-      number: n,
-      type: QuestionType.B,
-      isAB: true,
-      isErrorPoints: true,
-      isOvertime: true,
-    })
+  // Overtime questions (with A/B parts), only as many rounds as requested
+  const firstOt = firstOvertimeQuestion(rules)
+  const otQuestions = Math.max(0, overtimeRounds) * rules.overtimeRoundSize
+  for (let n = firstOt; n < firstOt + otQuestions; n++) {
+    pushQuestion(n, true, true, true)
   }
 
   return cols

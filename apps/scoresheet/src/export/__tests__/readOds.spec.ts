@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { deflateRawSync } from 'node:zlib'
 import { readOds } from '../readOds'
-import { CellValue } from '../../types/scoresheet'
+import { CellValue, QuizFormat } from '../../types/scoresheet'
+import { deserialize } from '../../persistence/quizFile'
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -406,5 +407,14 @@ describe('readOds — OT answers', () => {
     setCell(cells, T1_QUIZZER_ROW, OT_COL(21), 'c')
     const { answers } = readOds(makeOds(makeSheetXml(cells)))
     expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '21', value: CellValue.Correct })
+  })
+})
+
+describe('readOds — quiz format', () => {
+  it('imports a spreadsheet as a 20-question quiz, at the version older installs read', () => {
+    const file = readOds(makeOds(makeSheetXml(minimalCells())))
+    expect(file.version).toBe(2)
+    expect(file.quiz).not.toHaveProperty('format')
+    expect(deserialize(file).quiz.format).toBe(QuizFormat.TwentyQuestion)
   })
 })

@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { BonusRule, CellValue, buildColumns } from '../../types/scoresheet'
+import { TWENTY_QUESTION_RULES as TWENTY, quizRules } from '../quizRules'
+import { BonusRule, CellValue, QuizFormat, buildColumns } from '../../types/scoresheet'
 import { computeGreyedOut, type GreyedOutResult } from '../greyedOut'
 import { ColStatus } from '../helpers'
 import { computeOtIneligibility } from '../overtime'
 import { teamSeatKey, toSeatIdx, toTeamIdx } from '../../types/indices'
 
-const columns = buildColumns()
+const columns = buildColumns(TWENTY)
 const C = CellValue.Correct
 const E = CellValue.Error
 const F = CellValue.Foul
@@ -405,7 +406,7 @@ describe('greyed-out logic', () => {
   // --- Overtime eligibility greying ---
 
   it('non-eligible teams are greyed on overtime columns', () => {
-    const otCols = buildColumns(1)
+    const otCols = buildColumns(TWENTY, 1)
     const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
     const otCi = (key: string) => {
       const i = otCols.findIndex((c) => c.key === key)
@@ -419,7 +420,13 @@ describe('greyed-out logic', () => {
     otCells[2]![0]![otCi('3')] = C
     otCells[2]![1]![otCi('4')] = C
     for (let n = 5; n <= 20; n++) noJumps[otCi(`${n}`)] = true
-    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
+    const ineligibility = computeOtIneligibility(
+      otCells,
+      otCols,
+      [true, true, true],
+      noJumps,
+      TWENTY,
+    )
     const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Team 2 greyed on all OT columns
     expect(isGreyed(result, 2, otCi('21'))).toBe(true)
@@ -431,7 +438,7 @@ describe('greyed-out logic', () => {
   })
 
   it('eligible teams are NOT greyed on regulation columns', () => {
-    const otCols = buildColumns(1)
+    const otCols = buildColumns(TWENTY, 1)
     const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
     const otCi = (key: string) => {
       const i = otCols.findIndex((c) => c.key === key)
@@ -444,7 +451,13 @@ describe('greyed-out logic', () => {
     otCells[2]![0]![otCi('3')] = C
     otCells[2]![1]![otCi('4')] = C
     for (let n = 5; n <= 20; n++) noJumps[otCi(`${n}`)] = true
-    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
+    const ineligibility = computeOtIneligibility(
+      otCells,
+      otCols,
+      [true, true, true],
+      noJumps,
+      TWENTY,
+    )
     const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Team 2 NOT greyed on unanswered regulation columns (OT ineligibility doesn't affect regulation)
     expect(isGreyed(result, 2, otCi('14'))).toBe(false)
@@ -454,7 +467,7 @@ describe('greyed-out logic', () => {
   // --- 2-way OT tie: every numbered question is a toss-up ---
 
   it('2-way OT: error on numbered question skips A, routes to B as bonus', () => {
-    const otCols = buildColumns(1)
+    const otCols = buildColumns(TWENTY, 1)
     const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
     const otCi = (key: string) => {
       const i = otCols.findIndex((c) => c.key === key)
@@ -467,7 +480,13 @@ describe('greyed-out logic', () => {
     otCells[0]![0]![otCi('1')] = C
     otCells[1]![0]![otCi('2')] = C
     for (let n = 3; n <= 20; n++) noJumps[otCi(`${n}`)] = true
-    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
+    const ineligibility = computeOtIneligibility(
+      otCells,
+      otCols,
+      [true, true, true],
+      noJumps,
+      TWENTY,
+    )
     otCells[0]![0]![otCi('21')] = E // team 0 errors on Q21
     const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Q21A: skipped (bypassed) — only 1 eligible team remains
@@ -483,7 +502,7 @@ describe('greyed-out logic', () => {
   })
 
   it('2-way OT: correct on numbered question does not trigger A or B', () => {
-    const otCols = buildColumns(1)
+    const otCols = buildColumns(TWENTY, 1)
     const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
     const otCi = (key: string) => {
       const i = otCols.findIndex((c) => c.key === key)
@@ -494,7 +513,13 @@ describe('greyed-out logic', () => {
     otCells[0]![0]![otCi('1')] = C
     otCells[1]![0]![otCi('2')] = C
     for (let n = 3; n <= 20; n++) noJumps[otCi(`${n}`)] = true
-    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
+    const ineligibility = computeOtIneligibility(
+      otCells,
+      otCols,
+      [true, true, true],
+      noJumps,
+      TWENTY,
+    )
     otCells[0]![0]![otCi('21')] = C // team 0 correct on Q21
     const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Q21A and Q21B: skipped (parent resolved)
@@ -503,7 +528,7 @@ describe('greyed-out logic', () => {
   })
 
   it('3-way OT: error on numbered question shows A as toss-up (not bypassed)', () => {
-    const otCols = buildColumns(1)
+    const otCols = buildColumns(TWENTY, 1)
     const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
     const otCi = (key: string) => {
       const i = otCols.findIndex((c) => c.key === key)
@@ -516,7 +541,13 @@ describe('greyed-out logic', () => {
     otCells[1]![0]![otCi('2')] = C
     otCells[2]![0]![otCi('3')] = C
     for (let n = 4; n <= 20; n++) noJumps[otCi(`${n}`)] = true
-    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
+    const ineligibility = computeOtIneligibility(
+      otCells,
+      otCols,
+      [true, true, true],
+      noJumps,
+      TWENTY,
+    )
     otCells[0]![0]![otCi('21')] = E // team 0 errors on Q21
     const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Q21A: toss-up for teams 1 and 2 (not bypassed)
@@ -527,7 +558,7 @@ describe('greyed-out logic', () => {
   })
 
   it('team resolved out after OT round 1 is greyed on round 2 but not round 1', () => {
-    const otCols = buildColumns(2)
+    const otCols = buildColumns(TWENTY, 2)
     const otCells = [0, 1, 2].map(() => Array.from({ length: 5 }, () => otCols.map(() => _)))
     const otCi = (key: string) => {
       const i = otCols.findIndex((c) => c.key === key)
@@ -544,7 +575,13 @@ describe('greyed-out logic', () => {
     otCells[0]![0]![otCi('21')] = C
     otCells[0]![1]![otCi('22')] = C
     noJumps[otCi('23')] = true
-    const ineligibility = computeOtIneligibility(otCells, otCols, [true, true, true], noJumps)
+    const ineligibility = computeOtIneligibility(
+      otCells,
+      otCols,
+      [true, true, true],
+      noJumps,
+      TWENTY,
+    )
     const result = computeGreyedOut(otCells, otCols, ineligibility)
     // Team 0 was eligible in round 1 — NOT greyed on round 1 columns
     expect(isGreyed(result, 0, otCi('21'))).toBe(true) // greyed because answered
@@ -648,5 +685,28 @@ describe('seat bonus greying', () => {
     // Bonus for team 2 — seat 1 matches the last error
     expect(isSeatGreyed(result, 2, 0, q3)).toBe(true)
     expect(isSeatGreyed(result, 2, 1, q3)).toBe(false)
+  })
+})
+
+describe('computeGreyedOut — 15-question quiz', () => {
+  const cols = buildColumns(quizRules(QuizFormat.FifteenQuestion))
+  const at = (key: string) => cols.findIndex((c) => c.key === key)
+  const blank = () => [0, 1, 2].map(() => Array.from({ length: 5 }, () => cols.map(() => _)))
+
+  it('makes 12A a toss-up for the other two teams after an error on Q12', () => {
+    const cells = blank()
+    cells[0]![0]![at('12')] = E
+    const result = computeGreyedOut(cells, cols)
+    expect(isGreyed(result, 0, at('12A'))).toBe(true)
+    expect(isGreyed(result, 1, at('12A'))).toBe(false)
+    expect(isGreyed(result, 2, at('12A'))).toBe(false)
+  })
+
+  it('makes 12B a bonus for the remaining team after 12A is also missed', () => {
+    const cells = blank()
+    cells[0]![0]![at('12')] = E
+    cells[1]![0]![at('12A')] = E
+    const result = computeGreyedOut(cells, cols)
+    expect(isBonusFor(result, 2, at('12B'))).toBe(true)
   })
 })

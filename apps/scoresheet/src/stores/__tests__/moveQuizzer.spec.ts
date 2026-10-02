@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { TWENTY_QUESTION_RULES as TWENTY } from '../../scoring/quizRules'
 import { createQuizStore } from '../quizStore'
 import { CellValue, buildColumns } from '../../types/scoresheet'
 import { toSeatIdx as S } from '../../types/indices'
@@ -28,7 +29,7 @@ describe('moveQuizzer', () => {
     // Quizzer 3 (seat 2) gets an error on Q2
     store.setAnswer(qzrs[2]!.id, '2', E)
 
-    const cols = buildColumns()
+    const cols = buildColumns(TWENTY)
     const gridBefore = store.cellGrid(cols)
     expect(gridBefore[0]![0]![0]).toBe(C) // seat 0 = Quizzer 1
     expect(gridBefore[0]![2]![1]).toBe(E) // seat 2 = Quizzer 3

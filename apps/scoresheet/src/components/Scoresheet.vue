@@ -1,12 +1,31 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { CellValue, QuestionCategory, QuestionType, QUIZZERS_PER_TEAM } from '../types/scoresheet'
+import {
+  CellValue,
+  QuestionCategory,
+  QuestionType,
+  QuizFormat,
+  QUIZZERS_PER_TEAM,
+} from '../types/scoresheet'
+import {
+  endsRound,
+  firstOvertimeQuestion,
+  lastQuestionThroughRound,
+  startsOtRound,
+} from '../scoring/quizRules'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
-import { serializeStore, parseQuizFile, serialize, deserialize } from '../persistence/quizFile'
+import {
+  serializeStore,
+  parseQuizFile,
+  parseQuizFileAttempt,
+  NewerFileVersionError,
+  serialize,
+  deserialize,
+} from '../persistence/quizFile'
 import {
   saveQuizToFile,
   openAnyQuizFile,
@@ -14,7 +33,7 @@ import {
   exportOdsFile,
   openOtsTemplate,
 } from '../persistence/fileIO'
-import { fillOts } from '../export/fillOts'
+import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import { anyTeamHasAnswer } from '../scoring/helpers'
 import { ValidationCode, validationMessage } from '../scoring/validation'
@@ -345,6 +364,14 @@ const {
   noJumpHasConflict,
   visibleColumns,
   visibleOtRounds,
+  rules,
+  openedFromNewerFile,
+  keptNewerAutoSaves,
+  autoSavePausedForKept,
+  tutorialBlockedByKept,
+  refreshKeptNewerAutoSaves,
+  openKeptNewerAutoSave,
+  discardKeptNewerAutoSave,
   allQuestionsComplete,
   validationErrors,
   timeoutValidationErrors,
@@ -377,6 +404,8 @@ const {
 
 const tutorial = useTutorial({
   store,
+  openedFromNewerFile,
+  refreshKeptNewerAutoSaves,
   noJumpMap,
   timeoutMap,
   pauseAutoSave,
@@ -401,7 +430,7 @@ tutorial.recoverFromCrash()
 const allValidationMessages = computed(() => {
   const msgs = new Set<string>()
   if (timeoutValidationErrors.value.size > 0) {
-    msgs.add(validationMessage(ValidationCode.TimeoutAfterQ16))
+    msgs.add(validationMessage(ValidationCode.TimeoutAfterErrorPoints))
   }
   if (tooManyTimeoutsTeams.value.size > 0) {
     msgs.add(validationMessage(ValidationCode.TooManyTimeouts))
@@ -424,16 +453,15 @@ function quizzerScoreLabel(teamIdx: number, seatIdx: number): string | null {
 
 /**
  * Column indices at which a round-boundary running total should always be shown.
- * Q20 (regulation→OT) and the last question of each OT round (Q23, Q26, …).
+ * The last regulation question (regulation→OT) and the last question of each OT round.
  * Only relevant when OT is active.
  */
 const boundaryColIndices = computed<Set<number>>(() => {
   const s = new Set<number>()
   if (visibleOtRounds.value === 0) return s
-  const boundaryQs = [20]
-  for (let r = 0; r < visibleOtRounds.value - 1; r++) {
-    boundaryQs.push(23 + r * 3)
-  }
+  const boundaryQs = Array.from({ length: visibleOtRounds.value }, (_, r) =>
+    lastQuestionThroughRound(rules.value, r),
+  )
   for (const q of boundaryQs) {
     const idx = columns.value.findIndex((c) => c.key === `${q}`)
     if (idx !== -1) s.add(idx)
@@ -475,7 +503,7 @@ const trailingTotalIndices = computed<Set<number>>(() => {
 })
 
 // Last visible column for each round-ending question number.
-// Covers Q20 (regulation→OT boundary) and Q23, Q26, … (OT round boundaries).
+// Covers the last regulation question (regulation→OT boundary) and each OT round's last question.
 // When A/B sub-columns are visible, the border belongs on the last sub-column,
 // not on the Normal column.
 const roundEndIndices = computed<Set<number>>(() => {
@@ -485,9 +513,7 @@ const roundEndIndices = computed<Set<number>>(() => {
   for (let i = 0; i < dc.length; i++) {
     const col = cols[dc[i]!.idx]
     if (!col) continue
-    const isRegEnd = !col.isOvertime && col.number === 20
-    const isOtRoundEnd = col.isOvertime && (col.number - 20) % 3 === 0
-    if (!isRegEnd && !isOtRoundEnd) continue
+    if (!endsRound(rules.value, col.number)) continue
     const nextCol = cols[dc[i + 1]?.idx ?? -1]
     if (!nextCol || nextCol.number !== col.number) {
       s.add(dc[i]!.idx)
@@ -672,17 +698,70 @@ async function openFile() {
       const data = deserialize(readOds(result.content))
       loadFile(data)
     } else {
-      loadFile(parseQuizFile(result.content))
+      await openJsonQuiz(result.content)
     }
   } catch (e) {
     alert(`Failed to open file: ${e instanceof Error ? e.message : e}`)
   }
 }
 
-async function newQuiz() {
+const TRY_NEWER_PROMPT =
+  'This file was saved by a newer version of the scoresheet. Update to open it reliably. ' +
+  'Try to open it anyway? Scores may be wrong.'
+
+/** Open a .json quiz, offering a best-effort open when a newer scoresheet saved it */
+async function openJsonQuiz(json: string) {
+  try {
+    loadFile(parseQuizFile(json))
+  } catch (e) {
+    if (!(e instanceof NewerFileVersionError)) throw e
+    if (!(await confirmAction(TRY_NEWER_PROMPT))) return
+    loadFile(parseQuizFileAttempt(json), { fromNewerFile: true })
+  }
+}
+
+function startTutorial() {
+  if (tutorialBlockedByKept.value) {
+    alert(
+      'The tutorial is unavailable while a quiz from a newer version is kept. Discard it first ' +
+        '(to keep a copy, open it and save it to a file before discarding).',
+    )
+    return
+  }
+  tutorial.start()
+}
+
+async function tryOpenKeptAutoSave() {
+  if (isDirty.value && !(await confirmAction('Open the kept quiz? Unsaved changes will be lost.')))
+    return
+  if (!(await confirmAction(TRY_NEWER_PROMPT))) return
+  try {
+    openKeptNewerAutoSave()
+  } catch (e) {
+    alert(`Failed to open the kept quiz: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
+async function discardKeptAutoSave() {
+  if (
+    !(await confirmAction('Discard the quiz auto-saved by a newer version? This cannot be undone.'))
+  )
+    return
+  discardKeptNewerAutoSave()
+}
+
+// A Record, so a new format fails type-checking until it has labels of its own
+const FORMAT_LABELS: Record<QuizFormat, { badge: string; name: string }> = {
+  [QuizFormat.TwentyQuestion]: { badge: '20 Q', name: '20-question quiz' },
+  [QuizFormat.FifteenQuestion]: { badge: '15 Q', name: '15-question quiz' },
+}
+const QUIZ_FORMATS = Object.values(QuizFormat)
+
+/** With no format (Ctrl+N), repeat the current quiz's: practice meets run many in a row */
+async function newQuiz(format = quiz.value.format) {
   if (isDirty.value && !(await confirmAction('Start a new quiz? Unsaved changes will be lost.')))
     return
-  resetStore()
+  resetStore(format)
 }
 
 async function doSaveFile() {
@@ -695,9 +774,9 @@ async function doExportOds() {
   await exportOds()
 }
 
-async function doNewQuiz() {
+async function doNewQuiz(format: QuizFormat) {
   closeMenus()
-  await newQuiz()
+  await newQuiz(format)
   meetSession.clearSession()
 }
 
@@ -717,6 +796,9 @@ function doUnlinkMeet() {
   closeMenus()
   meetSession.clearSession()
 }
+
+// fillOts refuses other formats; disabling the menu item spares a pointless template dialog
+const canExportOds = computed(() => odsSupportsFormat(quiz.value.format))
 
 async function exportOds() {
   const otsBytes = await openOtsTemplate()
@@ -785,6 +867,7 @@ const colGroupClassMap = computed<Map<number, string>>(() => {
   const dc = displayColumns.value
   const cols = columns.value
   const roundEnds = roundEndIndices.value
+  const firstOt = firstOvertimeQuestion(rules.value)
   const lastIdx = dc[dc.length - 1]?.idx
   for (const { idx } of dc) {
     const col = cols[idx]
@@ -793,9 +876,11 @@ const colGroupClassMap = computed<Map<number, string>>(() => {
     if (idx === lastIdx) classes.push('col--last')
     if (!col.isOvertime && roundEnds.has(idx)) classes.push('col--reg-last')
     if (col.isOvertime) {
-      if (col.type === QuestionType.Normal && (col.number - 21) % 3 === 0) {
+      if (col.type === QuestionType.Normal && startsOtRound(rules.value, col.number)) {
         classes.push(
-          col.number === 21 ? 'col--overtime col--ot-start' : 'col--overtime col--ot-round-start',
+          col.number === firstOt
+            ? 'col--overtime col--ot-start'
+            : 'col--overtime col--ot-round-start',
         )
       } else if (roundEnds.has(idx)) {
         classes.push('col--overtime col--ot-round-end')
@@ -936,14 +1021,22 @@ const appVersion: string = __APP_VERSION__
                   <button title="Save / Export (Ctrl+S)" @click="toggleSaveMenu">⤓ Save ▾</button>
                   <div v-if="saveMenuOpen" class="file-menu__dropdown">
                     <button @click="doSaveFile">⤓ Save as JSON</button>
-                    <button @click="doExportOds">⬡ Export ODS</button>
+                    <button
+                      :disabled="!canExportOds"
+                      :title="canExportOds ? undefined : ODS_TWENTY_ONLY"
+                      @click="doExportOds"
+                    >
+                      ⬡ Export ODS
+                    </button>
                   </div>
                 </div>
                 <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
                 <div class="file-menu">
                   <button title="New quiz (Ctrl+N)" @click="toggleNewMenu">✦ New ▾</button>
                   <div v-if="newMenuOpen" class="file-menu__dropdown">
-                    <button @click="doNewQuiz">✦ New quiz</button>
+                    <button v-for="format in QUIZ_FORMATS" :key="format" @click="doNewQuiz(format)">
+                      ✦ New {{ FORMAT_LABELS[format].name }}
+                    </button>
                     <button @click="doClearAnswers">✕ Clear answers</button>
                     <button v-if="meetSession.isActive.value" @click="doUnlinkMeet">
                       ⚡ Unlink meet
@@ -954,12 +1047,15 @@ const appVersion: string = __APP_VERSION__
                     <button @click="openSchedulePicker">📅 Load from schedule…</button>
                   </div>
                 </div>
-                <button class="help-toggle" title="Interactive tutorial" @click="tutorial.start()">
+                <button class="help-toggle" title="Interactive tutorial" @click="startTutorial">
                   ?
                 </button>
               </div>
             </div>
             <div class="quiz-meta quiz-meta--right">
+              <span class="meta-format" :title="FORMAT_LABELS[quiz.format].name">{{
+                FORMAT_LABELS[quiz.format].badge
+              }}</span>
               <label class="meta-field meta-field--toggle" data-tutorial="overtime-toggle">
                 <input v-model="quiz.overtime" type="checkbox" />
                 <span class="toggle-track"><span class="toggle-thumb" /></span>
@@ -974,6 +1070,24 @@ const appVersion: string = __APP_VERSION__
               </button>
               <SignInWidget />
             </div>
+          </div>
+        </div>
+
+        <div v-if="openedFromNewerFile || keptNewerAutoSaves.length" class="notice-row">
+          <div class="col--left-spacer" />
+          <div class="notice-row-inner">
+            <p v-if="openedFromNewerFile" class="notice">
+              Opened from a newer file; may be scored wrong.
+            </p>
+            <p v-if="keptNewerAutoSaves.length" class="notice">
+              An auto-saved quiz from a newer version was kept{{
+                keptNewerAutoSaves.length > 1 ? ` (${keptNewerAutoSaves.length} kept)` : ''
+              }}.<template v-if="autoSavePausedForKept">
+                Auto-save is paused until it is discarded, so nothing overwrites it.</template
+              >
+              <button class="notice-action" @click="tryOpenKeptAutoSave">Try to open it</button>
+              <button class="notice-action" @click="discardKeptAutoSave">Discard</button>
+            </p>
           </div>
         </div>
 
@@ -1129,9 +1243,9 @@ const appVersion: string = __APP_VERSION__
                   ]"
                   :title="
                     hasTimeoutAt(team.id, col.key) && !isTimeoutAllowed(col.key)
-                      ? 'Timeouts can\'t be called after error points (after question 17)'
+                      ? validationMessage(ValidationCode.TimeoutAfterErrorPoints)
                       : hasTimeoutAt(team.id, col.key) && tooManyTimeoutsTeams.has(teamIdx)
-                        ? 'Each team is allowed only 2 timeouts per quiz'
+                        ? validationMessage(ValidationCode.TooManyTimeouts)
                         : undefined
                   "
                   @click.stop="toggleTimeout(team.id, col.key)"
@@ -1626,6 +1740,42 @@ const appVersion: string = __APP_VERSION__
   flex-shrink: 0;
 }
 
+.notice-row {
+  display: flex;
+  margin-bottom: 0.75rem;
+  min-width: max-content;
+}
+
+.notice-row-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--color-invalid);
+  border-radius: 4px;
+  background: var(--color-error-alt);
+  color: var(--color-error);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.notice-action {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--color-invalid);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
 .meta-row-inner {
   display: flex;
   justify-content: space-between;
@@ -1754,6 +1904,16 @@ const appVersion: string = __APP_VERSION__
   display: flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.meta-format {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
 }
 
 .meta-label {
@@ -1950,6 +2110,10 @@ const appVersion: string = __APP_VERSION__
   gap: 1px;
 }
 
+.file-menu__dropdown button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .file-menu__dropdown button {
   width: 100%;
   text-align: left !important;

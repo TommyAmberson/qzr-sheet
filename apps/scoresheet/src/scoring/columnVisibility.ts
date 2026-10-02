@@ -1,6 +1,7 @@
 import { CellValue, QuestionType, buildKeyToIdx, type Column } from '../types/scoresheet'
 import { ColStatus, colHasAnyContent } from './helpers'
 import { computeGreyedOut } from './greyedOut'
+import { lastQuestionThroughRound, type QuizRules } from './quizRules'
 
 export interface VisibleColumn {
   col: Column
@@ -47,10 +48,11 @@ export function computeOrphanedColumns(
   cols: Column[],
   noJumps: boolean[],
   visibleOtRounds: number,
+  rules: QuizRules,
   colStatuses?: ColStatus[],
 ): Set<number> {
   const statuses = colStatuses ?? computeGreyedOut(cellData, cols).colStatuses
-  const maxOtQuestion = 20 + visibleOtRounds * 3
+  const maxOtQuestion = lastQuestionThroughRound(rules, visibleOtRounds)
   const keyToIdx = buildKeyToIdx(cols)
   const orphaned = new Set<number>()
 
@@ -101,16 +103,18 @@ export function computeOrphanedColumns(
  * @param cols - all column definitions (including OT)
  * @param noJumps - per-column no-jump flags
  * @param visibleOtRounds - how many OT rounds should be shown based on game state
+ * @param rules - the quiz format's rules (where regulation ends)
  */
 export function computeVisibleColumns(
   cellData: CellValue[][][],
   cols: Column[],
   noJumps: boolean[],
   visibleOtRounds: number,
+  rules: QuizRules,
   colStatuses?: ColStatus[],
 ): VisibleColumn[] {
   const statuses = colStatuses ?? computeGreyedOut(cellData, cols).colStatuses
-  const maxOtQuestion = 20 + visibleOtRounds * 3
+  const maxOtQuestion = lastQuestionThroughRound(rules, visibleOtRounds)
   const keyToIdx = buildKeyToIdx(cols)
 
   return cols

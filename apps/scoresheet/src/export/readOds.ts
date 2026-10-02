@@ -1,8 +1,14 @@
 import { strFromU8, unzipSync } from 'fflate'
 import { readCell } from './odsXml'
-import { BonusRule, CellValue, PlacementFormula, QuestionCategory } from '../types/scoresheet'
+import {
+  BonusRule,
+  CellValue,
+  PlacementFormula,
+  QuestionCategory,
+  QuizFormat,
+} from '../types/scoresheet'
 import type { QuizFile } from '../persistence/quizFile'
-import { FILE_VERSION } from '../persistence/quizFile'
+import { fileVersionFor } from '../persistence/quizFile'
 
 /**
  * Team block addresses in the Quiz sheet (0-based row/col).
@@ -234,7 +240,8 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   }
 
   return {
-    version: FILE_VERSION,
+    // The ODS template only holds 20-question quizzes
+    version: fileVersionFor(QuizFormat.TwentyQuestion),
     quiz: {
       division,
       quizNumber,
