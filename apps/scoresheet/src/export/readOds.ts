@@ -3,12 +3,12 @@ import { readCell } from './odsXml'
 import {
   BonusRule,
   CellValue,
+  fileVersionFor,
   PlacementFormula,
   QuestionCategory,
+  type QuizFile,
   QuizFormat,
-} from '../types/scoresheet'
-import type { QuizFile } from '../persistence/quizFile'
-import { fileVersionFor } from '../persistence/quizFile'
+} from '@qzr/shared'
 
 /**
  * Team block addresses in the Quiz sheet (0-based row/col).

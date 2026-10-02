@@ -4,8 +4,7 @@ import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
 import { useMeetSession } from '../useMeetSession'
 import { TUTORIAL_STEPS } from '../../tutorial/tutorialSteps'
-import { CellValue, QuizFormat } from '../../types/scoresheet'
-import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
+import { CellValue, QuizFormat, toColIdx, toSeatIdx, toTeamIdx } from '@qzr/shared'
 import { serializeStore } from '../../persistence/quizFile'
 
 const T = toTeamIdx
@@ -14,10 +13,8 @@ const C = toColIdx
 
 // Toggle to force parseQuizFile to throw, for snapshot-failure tests.
 let forceParseFailure = false
-vi.mock('../../persistence/quizFile', async () => {
-  const actual = await vi.importActual<typeof import('../../persistence/quizFile')>(
-    '../../persistence/quizFile',
-  )
+vi.mock('@qzr/shared', async () => {
+  const actual = await vi.importActual<typeof import('@qzr/shared')>('@qzr/shared')
   return {
     ...actual,
     parseQuizFile: (json: string) => {

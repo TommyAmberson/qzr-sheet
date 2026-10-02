@@ -7,7 +7,7 @@ import {
   type ScheduledQuizDetails,
   type ScheduledQuizSeat,
 } from '../api'
-import { QUIZZERS_PER_TEAM } from '../types/scoresheet'
+import { QUIZZERS_PER_TEAM } from '@qzr/shared'
 
 const STORAGE_KEY = 'qzr-meet-session'
 

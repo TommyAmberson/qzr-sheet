@@ -1,17 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import {
-  serialize,
+  CellValue,
   deserialize,
-  serializeStore,
+  FILE_VERSION,
+  fileVersionFor,
+  NewerFileVersionError,
   parseQuizFile,
   parseQuizFileAttempt,
-  NewerFileVersionError,
-  fileVersionFor,
-  FILE_VERSION,
+  PlacementFormula,
+  QuestionCategory,
   type QuizFile,
-} from '../quizFile'
+  QuizFormat,
+  serialize,
+} from '@qzr/shared'
+import { serializeStore } from '../quizFile'
 import { createQuizStore } from '../../stores/quizStore'
-import { CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '../../types/scoresheet'
 
 function makeFile(overrides: Partial<QuizFile> = {}): QuizFile {
   return {

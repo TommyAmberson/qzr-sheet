@@ -1,14 +1,9 @@
-import { describe, it, expect } from 'vitest'
-import { CellValue, PlacementFormula, QuizFormat, buildColumns } from '../../types/scoresheet'
-import { quizRules } from '../quizRules'
-import { scoreTeam } from '../scoreTeam'
-import { computeGreyedOut } from '../greyedOut'
-import { validateCells } from '../validation'
-import { computeRegulationScores } from '../overtime'
-import { computePlacements, computePlacementPoints } from '../placement'
+import { CellValue, QuizFormat } from '../../../quizFile'
+import { buildColumns } from '../../../types/scoresheet'
+import { quizRules } from '../../quizRules'
 
-const RULES = quizRules(QuizFormat.FifteenQuestion)
-const cols = buildColumns(RULES)
+export const RULES = quizRules(QuizFormat.FifteenQuestion)
+export const cols = buildColumns(RULES)
 const { Correct: C, Error: E, Foul: F, Bonus: B } = CellValue
 
 // One complete three-team 15-question quiz (teams A, B, C; seat numbers 0-4), scored by hand.
@@ -36,7 +31,7 @@ const { Correct: C, Error: E, Foul: F, Bonus: B } = CellValue
 // | 14  | A4 c     | +30     |         |         | 4th unique quizzer                           |
 // | 15  | B3 c     |         | +20     |         |                                              |
 // |     | total    | 200     | 30      | 100     |                                              |
-const ANSWERS: [team: number, seat: number, key: string, value: CellValue][] = [
+export const ANSWERS: [team: number, seat: number, key: string, value: CellValue][] = [
   [0, 0, '1', C],
   [0, 0, '2', C],
   [0, 0, '3', C],
@@ -59,7 +54,7 @@ const ANSWERS: [team: number, seat: number, key: string, value: CellValue][] = [
   [1, 3, '15', C],
 ]
 
-function buildCells(): CellValue[][][] {
+export function buildCells(): CellValue[][][] {
   const cells = [0, 1, 2].map(() =>
     Array.from({ length: 5 }, () => cols.map(() => CellValue.Empty)),
   )
@@ -70,37 +65,3 @@ function buildCells(): CellValue[][][] {
   }
   return cells
 }
-
-describe('a complete 15-question quiz, scored by hand', () => {
-  const cells = buildCells()
-  const onTimes = [true, true, true]
-  const scores = cells.map((team, i) => scoreTeam(team, cols, onTimes[i]!, RULES))
-
-  it('is a valid sequence of answers', () => {
-    const errors = validateCells(cells, cols, computeGreyedOut(cells, cols), RULES)
-    expect(errors.size).toBe(0)
-  })
-
-  it('matches the hand-scored team totals', () => {
-    expect(scores.map((s) => s.total)).toEqual([200, 30, 100])
-  })
-
-  it('matches the hand-scored quizzer totals and outs', () => {
-    const a = scores[0]!.quizzers
-    expect(a[0]!.points).toBe(70)
-    expect(a[0]!.quizzedOut).toBe(true)
-    expect(scores[2]!.quizzers[1]!.points).toBe(70)
-    expect(scores[2]!.quizzers[1]!.quizzedOut).toBe(true)
-    expect(scores[1]!.quizzers.some((q) => q.quizzedOut || q.erroredOut || q.fouledOut)).toBe(false)
-  })
-
-  it('places A, C, B with the Rules placement points', () => {
-    const regScores = computeRegulationScores(cells, cols, onTimes, RULES)
-    const places = computePlacements(regScores, [], true, false)
-    expect(places).toEqual([1, 3, 2])
-    const points = regScores.map((score, i) =>
-      computePlacementPoints(score, places[i]!, PlacementFormula.Rules),
-    )
-    expect(points).toEqual([20, 1, 9])
-  })
-})

@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { TWENTY_QUESTION_RULES as TWENTY } from '../../scoring/quizRules'
+import {
+  buildColumns,
+  CellValue,
+  toSeatIdx as S,
+  TWENTY_QUESTION_RULES as TWENTY,
+} from '@qzr/shared'
 import { createQuizStore } from '../quizStore'
-import { CellValue, buildColumns } from '../../types/scoresheet'
-import { toSeatIdx as S } from '../../types/indices'
 
 const C = CellValue.Correct
 const E = CellValue.Error

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createQuizStore } from '../quizStore'
-import { toQuizzerId } from '../../types/indices'
+import { toQuizzerId } from '@qzr/shared'
 
 describe('editable names', () => {
   // --- Team names ---

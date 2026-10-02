@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createQuizStore } from '../quizStore'
-import { CellValue } from '../../types/scoresheet'
-import { toQuizzerId } from '../../types/indices'
+import { CellValue, toQuizzerId } from '@qzr/shared'
 
 const C = CellValue.Correct
 const _ = CellValue.Empty

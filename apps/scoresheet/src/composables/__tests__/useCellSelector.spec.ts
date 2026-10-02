@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { TWENTY_QUESTION_RULES as TWENTY } from '../../scoring/quizRules'
+import { buildColumns, CellValue, QuestionType, TWENTY_QUESTION_RULES as TWENTY } from '@qzr/shared'
 import { ref } from 'vue'
 import { useCellSelector } from '../useCellSelector'
-import { CellValue, QuestionType, buildColumns } from '../../types/scoresheet'
 
 function makeSelector(isBonusOverride = false) {
   const columns = ref(buildColumns(TWENTY, 0))

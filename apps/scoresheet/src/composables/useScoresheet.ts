@@ -5,37 +5,36 @@ import {
   writeOpenedFromNewerFile,
 } from '../persistence/openedFromNewerFile'
 import {
-  CellValue,
-  QuestionCategory,
-  QuizFormat,
-  MAX_TIMEOUTS_PER_TEAM,
+  assessQuiz,
   buildColumns,
-  QuestionType,
+  CellValue,
   type Column,
-  type Quiz,
-  type Team,
-  type Timeout,
-  type PlaceKey,
-} from '../types/scoresheet'
-import { createQuizStore } from '../stores/quizStore'
-import { scoreTeam, type TeamScoring } from '../scoring/scoreTeam'
-import { quizRules, lastTimeoutQuestion, type QuizRules } from '../scoring/quizRules'
-import { computeGreyedOut, type GreyedOutResult } from '../scoring/greyedOut'
-import { validateCells, ValidationCode, validationMessage } from '../scoring/validation'
-import { isBonusSituation } from '../scoring/helpers'
-import { computeVisibleColumns, computeOrphanedColumns } from '../scoring/columnVisibility'
-import {
-  getOvertimeEligibleTeams,
-  computeOtIneligibility,
   computeOvertimeRounds,
-  computeOtCheckpointScores,
-  computeRegulationScores,
-  questionsComplete,
+  computeVisibleColumns,
+  type DeserializeResult,
+  type GreyedOutResult,
+  isBonusSituation,
+  isTimeoutAllowed as isTimeoutAllowedBy,
+  parseQuizFileAttempt,
+  QuestionCategory,
+  QuestionType,
+  type Quiz,
+  QuizFormat,
   quizJumpedComplete,
-} from '../scoring/overtime'
-import { computePlacements, computePlacementPoints } from '../scoring/placement'
-import { teamSeatKey, toSeatIdx, toTeamIdx, type TeamSeat } from '../types/indices'
-import { parseQuizFileAttempt, type DeserializeResult } from '../persistence/quizFile'
+  quizRules,
+  type QuizRules,
+  scoreTeam,
+  type Team,
+  type TeamScoring,
+  type TeamSeat,
+  teamSeatKey,
+  type Timeout,
+  toSeatIdx,
+  toTeamIdx,
+  ValidationCode,
+  validationMessage,
+} from '@qzr/shared'
+import { createQuizStore } from '../stores/quizStore'
 import {
   saveToStorage,
   loadFromStorage,
@@ -204,47 +203,8 @@ export function useScoresheet() {
 
   // --- Grey-out & validation ---
 
-  // Per-column ineligibility map: which teams can't jump on each OT column,
-  // scoped correctly so teams resolved out in round N aren't retroactively
-  // tossed-up on round N columns.
-  const otIneligibility = computed(() =>
-    computeOtIneligibility(
-      cells.value,
-      columns.value,
-      teams.value.map((t) => t.onTime),
-      noJumps.value,
-      rules.value,
-    ),
-  )
-
-  // Regulation-only eligibility for NotInOvertime validation — a team's OT
-  // answers are never invalid just because they were resolved out later.
-  const otEligibleTeams = computed(() =>
-    getOvertimeEligibleTeams(
-      cells.value,
-      columns.value,
-      teams.value.map((t) => t.onTime),
-      rules.value,
-    ),
-  )
-
-  const greyedOutResult = computed<GreyedOutResult>(() =>
-    computeGreyedOut(cells.value, columns.value, otIneligibility.value, quiz.value.bonusRule),
-  )
-
-  const orphanedColumns = computed(() =>
-    computeOrphanedColumns(
-      cells.value,
-      columns.value,
-      noJumps.value,
-      visibleOtRounds.value,
-      rules.value,
-      greyedOutResult.value.colStatuses,
-    ),
-  )
-
   /** Set of "teamIdx:seatIdx" keys for quizzers with empty/blank names */
-  const emptySeats = computed(() => {
+  const emptySeats = computed((previous?: Set<string>) => {
     const set = new Set<string>()
     teams.value.forEach((team, teamIdx) => {
       const qzrs = store.quizzersByTeam(team.id)
@@ -252,21 +212,31 @@ export function useScoresheet() {
         if (store.isQuizzerUnnamed(qzr.id)) set.add(`${teamIdx}:${seatIdx}`)
       })
     })
-    return set
+    // Keep the previous set while it's unchanged, so typing a name doesn't re-run the assessment
+    const same = previous?.size === set.size && [...set].every((key) => previous.has(key))
+    return same ? previous : set
   })
 
-  const validationErrors = computed(() =>
-    validateCells(
-      cells.value,
-      columns.value,
-      greyedOutResult.value,
-      rules.value,
-      noJumps.value,
-      otEligibleTeams.value,
-      orphanedColumns.value,
-      emptySeats.value,
-    ),
+  // Validation, overtime and placement come from one shared assessment, so a stored quiz is placed
+  // exactly as the sheet shows it
+  const assessment = computed(() =>
+    assessQuiz({
+      cells: cells.value,
+      columns: columns.value,
+      rules: rules.value,
+      noJumps: noJumps.value,
+      onTimes: teams.value.map((t) => t.onTime),
+      overtime: quiz.value.overtime,
+      bonusRule: quiz.value.bonusRule,
+      placementFormula: quiz.value.placementFormula,
+      emptySeats: emptySeats.value,
+      timeouts: teams.value.map((t) => timeoutMap.value.get(t.id) ?? []),
+    }),
   )
+
+  const greyedOutResult = computed<GreyedOutResult>(() => assessment.value.greyedOut)
+
+  const validationErrors = computed(() => assessment.value.validationErrors)
 
   // Pre-grouped views of `validationErrors`. Folded once per validation change
   // so the per-quizzer / per-team template helpers are O(1) lookups instead of
@@ -301,49 +271,12 @@ export function useScoresheet() {
   })
 
   /** Column indices that have an invalid timeout (once error points begin) */
-  const timeoutValidationErrors = computed(() => {
-    const invalidCols = new Set<number>()
-    for (const timeouts of timeoutMap.value.values()) {
-      for (const t of timeouts) {
-        if (t.afterColumnKey !== null && !isTimeoutAllowed(t.afterColumnKey)) {
-          const colIdx = columns.value.findIndex((c) => c.key === t.afterColumnKey)
-          if (colIdx >= 0) invalidCols.add(colIdx)
-        }
-      }
-    }
-    return invalidCols
-  })
+  const timeoutValidationErrors = computed(() => assessment.value.timeoutErrorColumns)
 
   /** Team indices that have invalid timeouts, mapped to the offending column indices */
-  const timeoutErrorsByTeam = computed(() => {
-    const map = new Map<number, Set<number>>()
-    for (const [teamId, timeouts] of timeoutMap.value) {
-      const teamIdx = teams.value.findIndex((t) => t.id === teamId)
-      if (teamIdx < 0) continue
-      for (const t of timeouts) {
-        if (t.afterColumnKey !== null && !isTimeoutAllowed(t.afterColumnKey)) {
-          const colIdx = columns.value.findIndex((c) => c.key === t.afterColumnKey)
-          if (colIdx >= 0) {
-            if (!map.has(teamIdx)) map.set(teamIdx, new Set())
-            map.get(teamIdx)!.add(colIdx)
-          }
-        }
-      }
-    }
-    return map
-  })
 
   /** Team indices that have more than 2 timeouts */
-  const tooManyTimeoutsTeams = computed(() => {
-    const set = new Set<number>()
-    for (const [teamId, timeouts] of timeoutMap.value) {
-      if (timeouts.length > MAX_TIMEOUTS_PER_TEAM) {
-        const teamIdx = teams.value.findIndex((t) => t.id === teamId)
-        if (teamIdx >= 0) set.add(teamIdx)
-      }
-    }
-    return set
-  })
+  const tooManyTimeoutsTeams = computed(() => assessment.value.tooManyTimeoutsTeams)
 
   // --- Query helpers (business logic the template needs) ---
 
@@ -411,7 +344,7 @@ export function useScoresheet() {
   /** Get deduplicated validation messages for all cells in a team */
   function teamValidationMessages(teamIdx: number): string[] {
     const msgs = new Set<string>()
-    if (timeoutErrorsByTeam.value.has(teamIdx)) {
+    if (assessment.value.timeoutErrorsByTeam.has(teamIdx)) {
       msgs.add(validationMessage(ValidationCode.TimeoutAfterErrorPoints))
     }
     if (tooManyTimeoutsTeams.value.has(teamIdx)) {
@@ -442,17 +375,12 @@ export function useScoresheet() {
   }
 
   function teamHasErrors(teamIdx: number): boolean {
-    if (timeoutErrorsByTeam.value.has(teamIdx)) return true
+    if (assessment.value.timeoutErrorsByTeam.has(teamIdx)) return true
     if (tooManyTimeoutsTeams.value.has(teamIdx)) return true
     return errorsByTeam.value.has(teamIdx)
   }
 
-  const hasAnyErrors = computed(
-    () =>
-      validationErrors.value.size > 0 ||
-      timeoutValidationErrors.value.size > 0 ||
-      tooManyTimeoutsTeams.value.size > 0,
-  )
+  const hasAnyErrors = computed(() => assessment.value.hasErrors)
 
   /** Get the answer value for a column (first non-empty, non-foul value) */
   function colAnswerValue(colIdx: number): CellValue {
@@ -477,7 +405,7 @@ export function useScoresheet() {
   function noJumpHasConflict(colIdx: number): boolean {
     if (!noJumps.value[colIdx]) return false
     // No-jump on an orphaned column is itself invalid
-    if (orphanedColumns.value.has(colIdx)) return true
+    if (assessment.value.orphanedColumns.has(colIdx)) return true
     const col = validationErrors.value.get(colIdx)
     if (!col) return false
     for (const codes of col.values()) {
@@ -489,16 +417,7 @@ export function useScoresheet() {
   // --- Column visibility ---
 
   /** How many OT rounds should be visible (0 = none, 1 = the first round, etc.) */
-  const visibleOtRounds = computed(() => {
-    if (!quiz.value.overtime) return 0
-    return computeOvertimeRounds(
-      cells.value,
-      columns.value,
-      teams.value.map((t) => t.onTime),
-      noJumps.value,
-      rules.value,
-    )
-  })
+  const visibleOtRounds = computed(() => assessment.value.visibleOtRounds)
 
   /**
    * Grow-only: once we've allocated columns for round N we keep them. Shrinking
@@ -522,17 +441,6 @@ export function useScoresheet() {
     ),
   )
 
-  /** Whether every regulation question is fully filled out */
-  const regulationComplete = computed(() =>
-    questionsComplete(
-      cells.value,
-      columns.value,
-      noJumps.value,
-      1,
-      rules.value.regulationQuestions,
-    ),
-  )
-
   /** Whether all questions in the visible range have been jumped on or no-jumped */
   const allQuestionsComplete = computed(() =>
     quizJumpedComplete(
@@ -545,35 +453,10 @@ export function useScoresheet() {
   )
 
   /** Placement medals per team: PlaceKey (encoding rank + tie-width), or null if not yet placed */
-  const placements = computed(() => {
-    if (!regulationComplete.value || hasAnyErrors.value) {
-      return teams.value.map((): PlaceKey | null => null)
-    }
-    const onTimes = teams.value.map((t) => t.onTime)
-    const regScores = computeRegulationScores(cells.value, columns.value, onTimes, rules.value)
-    const checkpoints = computeOtCheckpointScores(
-      cells.value,
-      columns.value,
-      onTimes,
-      noJumps.value,
-      rules.value,
-    )
-    return computePlacements(regScores, checkpoints, true, visibleOtRounds.value > 0)
-  })
+  const placements = computed(() => assessment.value.placements)
 
-  /** Placement points per team (null if not yet placed), derived from placement + regulation score.
-   * Per rules §1.e.4: in case of a tie, placement points use the end-of-regulation score, not OT. */
-  const placementPoints = computed(() => {
-    const onTimes = teams.value.map((t) => t.onTime)
-    const regScores = computeRegulationScores(cells.value, columns.value, onTimes, rules.value)
-    return teams.value.map((_, teamIdx) =>
-      computePlacementPoints(
-        regScores[teamIdx] ?? 0,
-        placements.value[teamIdx] ?? null,
-        quiz.value.placementFormula,
-      ),
-    )
-  })
+  /** Placement points per team (null if not yet placed) */
+  const placementPoints = computed(() => assessment.value.placementPoints)
 
   function setTeamName(teamIdx: number, name: string) {
     const team = teams.value[teamIdx]
@@ -653,8 +536,7 @@ export function useScoresheet() {
 
   /** Timeouts can be called between questions until error points begin */
   function isTimeoutAllowed(columnKey: string): boolean {
-    const num = parseInt(columnKey, 10)
-    return !isNaN(num) && num <= lastTimeoutQuestion(rules.value)
+    return isTimeoutAllowedBy(columnKey, rules.value)
   }
 
   function addTimeout(teamId: number, afterColumnKey: string | null): void {

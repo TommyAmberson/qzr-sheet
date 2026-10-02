@@ -1,11 +1,11 @@
 import {
-  serializeStore,
-  parseQuizFile,
-  NewerFileVersionError,
   type DeserializeResult,
-} from './quizFile'
+  NewerFileVersionError,
+  parseQuizFile,
+  type Timeout,
+} from '@qzr/shared'
+import { serializeStore } from './quizFile'
 import type { QuizStore } from '../stores/quizStore'
-import type { Timeout } from '../types/scoresheet'
 
 const STORAGE_KEY = 'qzr-sheet:current'
 const KEPT_NEWER_PREFIX = 'qzr-sheet:newer-autosave:'

@@ -2,8 +2,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { resetAutoSave } from '../../persistence/__tests__/resetAutoSave'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../useScoresheet'
-import { CellValue, QuestionCategory, QuizFormat } from '../../types/scoresheet'
-import { toTeamIdx, toSeatIdx, toColIdx } from '../../types/indices'
+import {
+  CellValue,
+  QuestionCategory,
+  QuizFormat,
+  toColIdx,
+  toSeatIdx,
+  toTeamIdx,
+} from '@qzr/shared'
 
 const T = toTeamIdx
 const S = toSeatIdx

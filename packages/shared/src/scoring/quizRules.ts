@@ -1,4 +1,4 @@
-import { QuizFormat } from '@qzr/shared'
+import { QuizFormat } from '../quizFile'
 
 /**
  * The structural numbers that differ between quiz formats. Everything else about scoring

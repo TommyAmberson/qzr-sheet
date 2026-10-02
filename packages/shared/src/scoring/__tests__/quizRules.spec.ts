@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { QuizFormat } from '@qzr/shared'
+import { QuizFormat } from '../../quizFile'
 import {
   TWENTY_QUESTION_RULES,
   firstOvertimeQuestion,

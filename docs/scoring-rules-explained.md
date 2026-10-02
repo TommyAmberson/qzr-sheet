@@ -10,7 +10,7 @@
 | `b`   | Bonus (correct on a bonus question)          |
 | `mb`  | Missed bonus (incorrect on a bonus question) |
 
-In code these are the `CellValue` enum in `src/types/scoresheet.ts`.
+In code these are the `CellValue` enum in `packages/shared/src/quizFile.ts`.
 
 ## Scoresheet Layout
 
@@ -42,7 +42,7 @@ quiz; the 15-question quiz moves its final stretch five questions earlier:
 Everything else is the same in both: error-out and foul-out at 3, team foul and error deductions,
 the 3rd/4th/5th unique-quizzer bonuses, the on-time bonus, 2 timeouts per team, overtime rounds of
 3, and placement points from the end-of-regulation score. The numbers live in one table,
-`apps/scoresheet/src/scoring/quizRules.ts`. Column keys depend on the format: `16A` is a regulation
+`packages/shared/src/scoring/quizRules.ts`. Column keys depend on the format: `16A` is a regulation
 column in a 20-question quiz and the first overtime round in a 15-question one, so a saved file is
 always read under the format it records.
 
@@ -163,7 +163,7 @@ are eligible to answer overtime questions.
 Placement points are awarded once the quiz is complete, always based on the regulation score (end of
 Q20, or Q15 in a 15-question quiz) even when overtime was played — per rules §1.e.4.
 
-Two formula variants are available via `PlacementFormula` in `src/types/scoresheet.ts`. The
+Two formula variants are available via `PlacementFormula` in `packages/shared/src/quizFile.ts`. The
 **Rules** formula is the default and is shown in the UI; the **Legacy** formula is retained for
 reference but the toggle is hidden.
 

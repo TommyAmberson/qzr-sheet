@@ -1,4 +1,4 @@
-import { BonusRule, CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '@qzr/shared'
+import { BonusRule, CellValue, PlacementFormula, QuestionCategory, QuizFormat } from '../quizFile'
 
 export { BonusRule, CellValue, PlacementFormula, QuestionCategory, QuizFormat }
 

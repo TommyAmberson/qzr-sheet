@@ -1,18 +1,22 @@
 import { reactive } from 'vue'
 import {
+  type Answer,
+  answerKey,
   BonusRule,
-  QuizFormat,
+  buildCellGrid,
   CellValue,
+  type Column,
   PlacementFormula,
   QuestionCategory,
-  QUIZZERS_PER_TEAM,
-  type Column,
   type Quiz,
-  type Team,
+  QuizFormat,
   type Quizzer,
-  type Answer,
-} from '../types/scoresheet'
-import { type QuizzerId, type SeatIdx, toQuizzerId } from '../types/indices'
+  type QuizzerId,
+  QUIZZERS_PER_TEAM,
+  type SeatIdx,
+  type Team,
+  toQuizzerId,
+} from '@qzr/shared'
 
 let nextId = 1
 function genId(): number {
@@ -134,10 +138,6 @@ export function createQuizStore(): QuizStore {
     return quizzers.find((q) => q.id === quizzerId)?.teamId
   }
 
-  function answerKey(quizzerId: QuizzerId, columnKey: string): string {
-    return `${quizzerId}:${columnKey}`
-  }
-
   function getAnswer(quizzerId: QuizzerId, columnKey: string): CellValue {
     return answerMap.get(answerKey(quizzerId, columnKey))?.value ?? CellValue.Empty
   }
@@ -188,12 +188,7 @@ export function createQuizStore(): QuizStore {
   }
 
   function cellGrid(columns: Column[]): CellValue[][][] {
-    const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
-
-    return sortedTeams.map((team) => {
-      const teamQuizzers = quizzersByTeam(team.id)
-      return teamQuizzers.map((qzr) => columns.map((col) => getAnswer(qzr.id, col.key)))
-    })
+    return buildCellGrid(teams, quizzers, columns, getAnswer)
   }
 
   function loadState(state: {

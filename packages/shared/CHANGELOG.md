@@ -23,6 +23,23 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-02
+
+### Added
+
+* The scoresheet's scoring, moved here unchanged so the portal and API can score stored quiz files:
+  `scoreTeam`, grey-out, validation, overtime, placement and column visibility, the per-format
+  `quizRules`, the scoresheet's column and quiz types (`buildColumns`, `Column`, `Quiz`, …), and the
+  branded index types.
+* Quiz file reading and writing, moved from the scoresheet: `serialize`, `deserialize`,
+  `parseQuizFile`, `parseQuizFileAttempt`, `fileVersionFor` and `NewerFileVersionError`, so the API
+  can validate submitted files the way the scoresheet does.
+* `buildCellGrid`, which lays a quiz's answers out as the `cells[team][seat][col]` grid the scoring
+  functions read, with `inSeatOrder`, `answerKey` and `answerLookup` for the order and lookup it
+  uses.
+* `assessQuiz`, which validates a quiz and places it once it can be placed, taken out of the
+  scoresheet so a stored quiz is placed exactly as the sheet shows it, and `isTimeoutAllowed`.
+
 ## [1.0.0] - 2026-10-01
 
 ### Added

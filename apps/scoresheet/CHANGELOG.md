@@ -15,6 +15,17 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-02
+
+### Changed
+
+* Scoring and quiz file reading now come from `@qzr/shared`, so the portal can score submitted
+  quizzes the same way. No change to how quizzes are scored or files are read.
+
+### Bundled contract
+
+* `@qzr/shared@1.1.0` - bumped from 1.0.0
+
 ## [0.12.0] - 2026-10-01
 
 ### Added

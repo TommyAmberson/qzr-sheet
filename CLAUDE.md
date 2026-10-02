@@ -11,7 +11,7 @@ apps/
   scoresheet/   # Vue 3 + Tauri 2 — offline-first scoring tool
   web/          # Portal — coach roster mgmt, admin dashboard
 packages/
-  shared/       # QuizFile schema, role enums, shared API types
+  shared/       # QuizFile schema, scoring, role enums, shared API types
   ui/           # Workspace-internal Vue components
   api/          # Hono + D1 + Drizzle (Cloudflare Workers)
 specs/          # Spec Kit artefacts, one NNN-slug/ per feature (spec, plan, tasks)
@@ -147,7 +147,8 @@ Spec Kit gotchas:
 
 ## Key Conventions
 
-* Scoring functions are **pure** — `cells[teamIdx][seatIdx][colIdx]` in, result out. No Vue.
+* Scoring functions are **pure** — `cells[teamIdx][seatIdx][colIdx]` in, result out. No Vue. They
+  live in `packages/shared/src/scoring/`, so the scoresheet, portal and API score the same way.
 * Column keys depend on the quiz format. 20-question: `"1"`–`"15"`, `"16"`/`"16A"`/`"16B"` through
   `"20B"`, `"21"`+ for overtime. 15-question: `"1"`–`"10"`, `"11"`/`"11A"`/`"11B"` through `"15B"`,
   `"16"`+ for overtime.

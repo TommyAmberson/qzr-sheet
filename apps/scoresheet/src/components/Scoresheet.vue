@@ -1,31 +1,30 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
+  anyTeamHasAnswer,
   CellValue,
+  deserialize,
+  endsRound,
+  firstOvertimeQuestion,
+  lastQuestionThroughRound,
+  NewerFileVersionError,
+  parseQuizFile,
+  parseQuizFileAttempt,
   QuestionCategory,
   QuestionType,
   QuizFormat,
   QUIZZERS_PER_TEAM,
-} from '../types/scoresheet'
-import {
-  endsRound,
-  firstOvertimeQuestion,
-  lastQuestionThroughRound,
+  serialize,
   startsOtRound,
-} from '../scoring/quizRules'
+  ValidationCode,
+  validationMessage,
+} from '@qzr/shared'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
-import {
-  serializeStore,
-  parseQuizFile,
-  parseQuizFileAttempt,
-  NewerFileVersionError,
-  serialize,
-  deserialize,
-} from '../persistence/quizFile'
+import { serializeStore } from '../persistence/quizFile'
 import {
   saveQuizToFile,
   openAnyQuizFile,
@@ -35,8 +34,6 @@ import {
 } from '../persistence/fileIO'
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
-import { anyTeamHasAnswer } from '../scoring/helpers'
-import { ValidationCode, validationMessage } from '../scoring/validation'
 import type { ScheduledQuizSeat } from '../api'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
