@@ -34,6 +34,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * Quiz file reading and writing, moved from the scoresheet: `serialize`, `deserialize`,
   `parseQuizFile`, `parseQuizFileAttempt`, `fileVersionFor` and `NewerFileVersionError`, so the API
   can validate submitted files the way the scoresheet does.
+* `buildCellGrid`, which lays a quiz's answers out as the `cells[team][seat][col]` grid the scoring
+  functions read, with `inSeatOrder`, `answerKey` and `answerLookup` for the order and lookup it
+  uses.
 
 ## [1.0.0] - 2026-10-01
 

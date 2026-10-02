@@ -1,11 +1,16 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
-import { QuizFormat, buildColumns } from '@qzr/shared'
-import { computeOvertimeRounds } from '@qzr/shared'
-import { TWENTY_QUESTION_RULES } from '@qzr/shared'
+import {
+  QuizFormat,
+  TWENTY_QUESTION_RULES,
+  answerLookup,
+  buildCellGrid,
+  buildColumns,
+  computeOvertimeRounds,
+  deserialize,
+  inSeatOrder,
+  type QuizFile,
+} from '@qzr/shared'
 import { patchCell } from './odsXml'
-import type { QuizFile } from '@qzr/shared'
-import { deserialize } from '@qzr/shared'
-import type { CellValue } from '@qzr/shared'
 
 /**
  * Fill an OTS template with quiz data and return an ODS file as bytes.
@@ -45,30 +50,8 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   const overtimeRounds = quiz.overtime ? 6 : 0 // max 6 OT rounds = 18 OT questions
   const cols = buildColumns(TWENTY_QUESTION_RULES, overtimeRounds)
 
-  const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
-
-  // Build answer lookup: quizzerId:colKey → CellValue
-  const answerMap = new Map<string, CellValue>()
-  for (const a of answers) {
-    answerMap.set(`${a.quizzerId}:${a.columnKey}`, a.value)
-  }
-
-  // Build quizzers per team, sorted by seatOrder
-  const quizzersByTeam = new Map<number, typeof quizzers>()
-  for (const team of sortedTeams) {
-    quizzersByTeam.set(
-      team.id,
-      quizzers.filter((q) => q.teamId === team.id).sort((a, b) => a.seatOrder - b.seatOrder),
-    )
-  }
-
-  // Build cell grid for scoring: cells[teamIdx][seatIdx][colIdx]
-  const cellGrid: CellValue[][][] = sortedTeams.map((team) => {
-    const tQuizzers = quizzersByTeam.get(team.id) ?? []
-    return tQuizzers.map((qzr) =>
-      cols.map((col) => answerMap.get(`${qzr.id}:${col.key}`) ?? ('' as CellValue)),
-    )
-  })
+  const seated = inSeatOrder(teams, quizzers)
+  const cellGrid = buildCellGrid(teams, quizzers, cols, answerLookup(answers))
 
   // --- 4. Extract the Quiz sheet XML ---
   // The Quiz sheet is delimited by table:name="Quiz"
@@ -142,10 +125,9 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   const qtRow = 28
   const overtimeCell = 29 // row 29 col 2
 
-  for (let teamIdx = 0; teamIdx < sortedTeams.length; teamIdx++) {
-    const team = sortedTeams[teamIdx]!
+  for (let teamIdx = 0; teamIdx < seated.length; teamIdx++) {
+    const { team, quizzers: tQuizzers } = seated[teamIdx]!
     const { nameRow, quizzerStartRow, onTimeRow } = teamRows[teamIdx]!
-    const tQuizzers = quizzersByTeam.get(team.id) ?? []
     const teamCells = cellGrid[teamIdx]!
 
     // Team name
@@ -215,7 +197,7 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   // Only 'y' if OT rounds are actually shown (regulation complete + tie exists).
   // The app hides OT columns when there's no tie, even if OT is enabled.
   const noJumpFlags = cols.map((c) => !!noJumps.get(c.key))
-  const onTimes = sortedTeams.map((t) => t.onTime)
+  const onTimes = seated.map(({ team }) => team.onTime)
   const visibleOtRounds = quiz.overtime
     ? computeOvertimeRounds(cellGrid, cols, onTimes, noJumpFlags, TWENTY_QUESTION_RULES)
     : 0

@@ -12,7 +12,7 @@ import {
   type Quizzer,
   type Answer,
 } from '@qzr/shared'
-import { type QuizzerId, type SeatIdx, toQuizzerId } from '@qzr/shared'
+import { type QuizzerId, type SeatIdx, toQuizzerId, buildCellGrid, answerKey } from '@qzr/shared'
 
 let nextId = 1
 function genId(): number {
@@ -134,10 +134,6 @@ export function createQuizStore(): QuizStore {
     return quizzers.find((q) => q.id === quizzerId)?.teamId
   }
 
-  function answerKey(quizzerId: QuizzerId, columnKey: string): string {
-    return `${quizzerId}:${columnKey}`
-  }
-
   function getAnswer(quizzerId: QuizzerId, columnKey: string): CellValue {
     return answerMap.get(answerKey(quizzerId, columnKey))?.value ?? CellValue.Empty
   }
@@ -188,12 +184,7 @@ export function createQuizStore(): QuizStore {
   }
 
   function cellGrid(columns: Column[]): CellValue[][][] {
-    const sortedTeams = [...teams].sort((a, b) => a.seatOrder - b.seatOrder)
-
-    return sortedTeams.map((team) => {
-      const teamQuizzers = quizzersByTeam(team.id)
-      return teamQuizzers.map((qzr) => columns.map((col) => getAnswer(qzr.id, col.key)))
-    })
+    return buildCellGrid(teams, quizzers, columns, getAnswer)
   }
 
   function loadState(state: {
