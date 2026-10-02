@@ -90,7 +90,7 @@ Don't fold it silently into the current change: it muddies the diff, and the use
 
 Feature-sized work runs through the `speckit-*` skills (`/speckit-specify`, `/speckit-plan`,
 `/speckit-tasks`, `/speckit-implement`), writing into `specs/<NNN-slug>/`. `/speckit-clarify` before
-planning de-risks an ambiguous spec, and `/speckit-analyze` cross-checks the three artefacts before
+planning de-risks an ambiguous spec, and `/speckit-analyze` cross-checks the three artifacts before
 implementation starts. Run `/speckit-analyze` before every `/speckit-implement`, even when asked to
 just "continue", unless the user says it already ran or to skip it. Small fixes and one-commit
 changes skip the pipeline.
@@ -102,11 +102,12 @@ around it.
 
 Spec Kit is branch-agnostic: `create-new-feature.sh` invokes git nowhere, and its `NNN-slug` string
 names the `specs/` directory rather than a branch. Keep using `type/short-slug` branches. Commit
-each artefact as it lands (`docs: spec <feature>`, `docs: plan <feature>`,
-`docs: break <feature> into tasks`).
+each artifact as it lands (`docs: spec <feature>`, `docs: plan <feature>`,
+`docs: break <feature> into tasks`), and fold later refinements into that commit with `--fixup` (see
+CONTRIBUTING, "What to squash").
 
 `.specify/` is vendored by the Specify CLI, which rewrites `scripts/` and `templates/*.md` on every
-refresh. Customise through `.specify/templates/overrides/<name>.md` rather than editing them in
+refresh. Customize through `.specify/templates/overrides/<name>.md` rather than editing them in
 place.
 
 Spec Kit gotchas:
@@ -120,7 +121,7 @@ Spec Kit gotchas:
   tasks-template override are excluded.** `unorderedListKind: "asterisks"` turns `- [ ]` into
   `* [ ]`, and `/speckit-implement` and `/speckit-converge` read task state from the hyphen form.
   The rewrite is silent and still renders fine, so the damage only shows when a speckit command
-  finds no tasks. Prose artefacts in `specs/` carry no checkboxes and stay linted.
+  finds no tasks. Prose artifacts in `specs/` carry no checkboxes and stay linted.
 * **Vendored Spec Kit files are exempt from dprint and typos, narrowly.** `dprint` skips
   `.specify/templates/*.md` and `.claude/skills/speckit-*/`; `typos` skips `.specify/scripts/`,
   `.specify/templates/*.md`, and `.claude/skills/speckit-*`. The Specify CLI rewrites all of them on
@@ -133,6 +134,8 @@ Spec Kit gotchas:
 ## Code style
 
 * Slight preference for writing tests before features.
+* Write prose (docs, comments, commit messages) in Canadian spelling: colour, centre, -ize
+  (organize, memorize), labelled. Identifiers and wire names keep their spelling.
 * Comments are part of the code: update them when the surrounding code changes, since stale comments
   are bugs. Use correct grammar and spelling.
 * Comments explain **why**, sometimes **how at a high level**, never **how at a low level** (don't
