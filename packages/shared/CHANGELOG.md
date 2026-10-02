@@ -37,6 +37,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `buildCellGrid`, which lays a quiz's answers out as the `cells[team][seat][col]` grid the scoring
   functions read, with `inSeatOrder`, `answerKey` and `answerLookup` for the order and lookup it
   uses.
+* `assessQuiz`, which validates a quiz and places it once it can be placed, taken out of the
+  scoresheet so a stored quiz is placed exactly as the sheet shows it, and `isTimeoutAllowed`.
 
 ## [1.0.0] - 2026-10-01
 
