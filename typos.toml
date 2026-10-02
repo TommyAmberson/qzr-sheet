@@ -1,4 +1,6 @@
 [files]
+# typos skips dot-directories by default; check .specify/, .claude/, and .github/ too.
+ignore-hidden = false
 extend-exclude = [
     "dist/",
     "apps/*/dist/",
@@ -6,7 +8,7 @@ extend-exclude = [
     "apps/scoresheet/src-tauri/target/",
     "apps/scoresheet/src-tauri/gen/",
     ".specify/scripts/", # vendored by the Specify CLI; rewritten on every refresh
-    ".specify/templates/", # same, the CLI rewrites these on refresh
+    ".specify/templates/*.md", # same, the CLI rewrites these on refresh
     ".claude/skills/speckit-", # same, regenerated skills
 ]
 
