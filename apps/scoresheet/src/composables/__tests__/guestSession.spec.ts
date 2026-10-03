@@ -6,9 +6,9 @@ vi.mock('../../api', () => ({
 }))
 
 import { joinMeetGuest } from '../../api'
+// The guest session module lives in @qzr/ui; the scoresheet's wrappers pass it the join call
+import { initGuestSession, joinByCode } from '../useGuestSession'
 import {
-  initGuestSession,
-  joinByCode,
   setGuestState,
   setActiveSession,
   guestStateRef,
@@ -16,7 +16,7 @@ import {
   guestTokenFor,
   getActiveSession,
   STORAGE_KEY,
-} from '../guestSession'
+} from '@qzr/ui/src/guestSession'
 
 /**
  * `initGuestSession()` reads `window.location.search`, but jsdom's location is

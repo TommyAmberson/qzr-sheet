@@ -5,14 +5,12 @@ import {
   getScheduledQuiz,
   getTeamQuizzers,
   submitResult,
-  type ExistingQuiz,
   type MeetTeam,
-  type OnExisting,
   type ScheduledQuizDetails,
   type ScheduledQuizSeat,
 } from '../api'
 import { ApiError, MeetRole, QUIZZERS_PER_TEAM, type QuizFile } from '@qzr/shared'
-import { joinedSession } from './guestSession'
+import { existingQuizOf, joinedSession, type ExistingQuiz, type OnExisting } from '@qzr/ui'
 
 const STORAGE_KEY = 'qzr-meet-session'
 
@@ -154,8 +152,7 @@ export function useMeetSession() {
       )
       return { stored: true, created, revision, keptCurrent: keptCurrent ?? false }
     } catch (e) {
-      if (!(e instanceof ApiError) || e.status !== 409) throw e
-      const { existing } = (e.body ?? {}) as { existing?: ExistingQuiz }
+      const existing = existingQuizOf(e)
       if (!existing) throw e
       return { stored: false, existing }
     }

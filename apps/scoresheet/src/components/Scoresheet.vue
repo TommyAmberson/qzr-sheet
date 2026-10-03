@@ -10,6 +10,7 @@ import {
   NewerFileVersionError,
   parseQuizFile,
   parseQuizFileAttempt,
+  quizName,
   QuestionCategory,
   QuestionType,
   QuizFormat,
@@ -33,12 +34,12 @@ import {
 } from '../persistence/fileIO'
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
-import type { OnExisting, ScheduledQuizSeat } from '../api'
+import type { ScheduledQuizSeat } from '../api'
+import { ChoiceDialog, alreadySubmittedQuestion, type ExistingQuiz } from '@qzr/ui'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
 import MeetPickerDialog from './MeetPickerDialog.vue'
-import ChoiceDialog from './ChoiceDialog.vue'
 import SchedulePickerDialog from './SchedulePickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
 import TutorialOverlay from './TutorialOverlay.vue'
@@ -681,7 +682,7 @@ function closeMenus() {
 
 async function saveFile() {
   const json = serializeStore(store, noJumpMap.value, timeoutMap.value)
-  const filename = `D${quiz.value.division}${quiz.value.consolation ? 'c' : ''}Q${quiz.value.quizNumber}.json`
+  const filename = `${fileStem()}.json`
   const saved = await saveQuizToFile(json, filename)
   if (saved) markSaved()
 }
@@ -778,6 +779,17 @@ async function doExportOds() {
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
 
 /** Send the quiz to the meet; the sheet itself is untouched whether or not it arrives */
+/** A saved file's name: the quiz's name without its space, "D1Q3" or "D1cQ3" */
+function fileStem(): string {
+  return quizName(quiz.value).replace(' Q', 'Q')
+}
+
+/** Ask what to do with a quiz the meet already has: null when the user doesn't send it */
+async function askAlreadySubmitted(existing: ExistingQuiz) {
+  const question = alreadySubmittedQuestion(existing)
+  return (await choiceDialog.value?.ask(question.title, question.detail, question.choices)) ?? null
+}
+
 async function doSubmitToMeet() {
   closeMenus()
   if (hasAnyErrors.value) {
@@ -800,16 +812,7 @@ async function doSubmitToMeet() {
   try {
     let outcome = await meetSession.submitQuiz(quizFile, roomId)
     if (!outcome.stored) {
-      const { name, revision, savedBy } = outcome.existing
-      const choice = await choiceDialog.value?.ask<OnExisting>(
-        `${name} was already submitted`,
-        `Revision ${revision} is current${savedBy ? `, saved by ${savedBy.name}` : ''}.`,
-        [
-          { label: "Don't submit", value: null },
-          { label: `Save, keep revision ${revision} current`, value: 'keepCurrent' },
-          { label: 'Save as new revision', value: 'newRevision', primary: true },
-        ],
-      )
+      const choice = await askAlreadySubmitted(outcome.existing)
       if (!choice) return
       outcome = await meetSession.submitQuiz(quizFile, roomId, choice)
     }
@@ -856,7 +859,7 @@ async function exportOds() {
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
   try {
     const odsBytes = fillOts(otsBytes, quizFile)
-    const filename = `D${quiz.value.division}${quiz.value.consolation ? 'c' : ''}Q${quiz.value.quizNumber}.ods`
+    const filename = `${fileStem()}.ods`
     const saved = await exportOdsFile(odsBytes, filename)
     if (saved)
       alert('ODS exported.\n\nOpen in LibreOffice and press Ctrl+Shift+F9 to recalculate formulas.')

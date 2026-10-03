@@ -11,8 +11,8 @@ vi.mock('../../api', () => ({
   getMyMeets: vi.fn(),
 }))
 
-vi.mock('../guestSession', async () => ({
-  ...(await vi.importActual<typeof import('../guestSession')>('../guestSession')),
+vi.mock('@qzr/ui', async () => ({
+  ...(await vi.importActual<typeof import('@qzr/ui')>('@qzr/ui')),
   joinedSession: vi.fn(() => null),
 }))
 
@@ -23,7 +23,7 @@ import {
   getTeamQuizzers,
   submitResult,
 } from '../../api'
-import { joinedSession } from '../guestSession'
+import { joinedSession } from '@qzr/ui'
 import { useMeetSession } from '../useMeetSession'
 
 const mockTeams: MeetTeam[] = [

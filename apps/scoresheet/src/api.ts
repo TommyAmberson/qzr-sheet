@@ -1,4 +1,5 @@
 import { createApiClient, type QuizFile } from '@qzr/shared'
+import type { OnExisting } from '@qzr/ui'
 import { guestTokenFor } from './composables/useGuestSession'
 
 declare const __API_URL__: string
@@ -52,18 +53,6 @@ export interface MeetTeamQuizzer {
 export function getMyMeets(): Promise<{ memberships: MeetSummary[] }> {
   return request('/api/my-meets')
 }
-
-/** A quiz the meet already has under the submitted quiz's name */
-export interface ExistingQuiz {
-  id: number
-  name: string
-  revision: number
-  savedBy: { name: string } | null
-  savedAt: string | null
-}
-
-/** What to do with a submission whose name the meet already has */
-export type OnExisting = 'newRevision' | 'keepCurrent'
 
 /** Submit a quiz to the meet, which knows it by name. A guest official's room is in their token. */
 export function submitResult(
