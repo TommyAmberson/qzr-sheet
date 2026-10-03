@@ -120,9 +120,10 @@ rejected. Facts about the current code come from reading it on 2026-10-02 (maste
 
 * **Decision**: The portal links to the scoresheet with the meet and stored quiz in the query, as
   the schedule view already does for scheduled quizzes. The scoresheet fetches the current revision
-  with the admin's cookie (same origin), asks before replacing unsaved work, loads it, and offers
-  "Save to meet". Viewing an older revision in full opens that revision the same way; saving it
-  creates a new revision.
+  with the admin's cookie or the official's guest token (same origin), asks before replacing unsaved
+  work, loads it, and offers "Save to meet", which sends it by name like an official's submit, so
+  nothing about the opened quiz is remembered (R8). Viewing an older revision in full opens that
+  revision the same way; saving it creates a new revision.
 * **Rationale**: Reuses the existing deep link handling and the editor; the portal gets no answer
   editor (Story 4).
 
@@ -161,10 +162,24 @@ rejected. Facts about the current code come from reading it on 2026-10-02 (maste
 * **Rationale**: The constitution forbids the HTML5 drag API (it crashes Tauri on Linux/X11), and
   the portal's roster CSV import already uses the same hidden-input pattern.
 
+## R15. Officials in the portal
+
+* **Decision**: The portal keeps a guest session from "join with a code", as the scoresheet does,
+  through one guest session module moved into `packages/ui` and used by both apps. The token travels
+  on the portal's requests for that meet. Since portal and scoresheet share an origin, they share
+  the stored session, so a code joined in either app works in both. Both apps ask
+  `GET /results/sender` who the user is when sending (an admin with every room, or an official with
+  their rooms), so neither works it out for itself.
+* **Rationale**: Most practice-meet officials are guests with a room code. They need the portal for
+  their room's quizzes (FR-018), and the portal's own join flow already gets a token but drops it.
+* **Alternatives considered**: Portal access for signed-in officials only (leaves out most
+  officials); a second, portal-only session store (two owners of one token).
+
 ## R14. Delivery
 
 * **Decision**: Several pull requests in story order: the shared move; submission and the results
-  list (Story 1); standings (Story 2); upload, edits, history and restore (Stories 3 and 4); merge
-  and the team list (Stories 5 and 6). The user approves each PR before it is opened.
+  list (Story 1); standings (Story 2); uploads, with officials and guests in the portal (Story 3);
+  edits, history and restore, with officials' authority over their rooms (Story 4); merge and the
+  team list (Stories 5 and 6). The user approves each PR before it is opened.
 * **Rationale**: The move alone touches about 70 import sites and must be reviewed as a pure
   refactor; each later PR is one story's behaviour.

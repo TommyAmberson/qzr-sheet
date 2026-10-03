@@ -60,13 +60,14 @@ description: "Task list for practice meet results"
 
 ## Delivery
 
-Five pull requests, each opened only with the user's approval (research R14):
+Six pull requests, each opened only with the user's approval (research R14):
 
 1. Phases 1 and 2: scoring moves to `packages/shared` (no behaviour change)
 2. Phase 3: User Story 1
 3. Phase 4: User Story 2
-4. Phases 5 and 6: User Stories 3 and 4
-5. Phases 7, 8 and 9: User Stories 5 and 6, and polish
+4. Phase 5: User Story 3
+5. Phase 6: User Story 4
+6. Phases 7, 8 and 9: User Stories 5 and 6, and polish
 
 Each pull request rebases onto master first and carries its own release bumps.
 
@@ -149,13 +150,17 @@ Each pull request rebases onto master first and carries its own release bumps.
 
 ## Phase 5: User Story 3 - Upload saved quiz files (Priority: P2)
 
-**Goal**: Admins upload quiz files from rooms that couldn't submit
+**Goal**: Admins and officials upload quiz files from rooms that couldn't submit, from the scoresheet or the portal; officials reach the portal with their room code; admins submit from the scoresheet for any room
 
 **Independent Test**: Quickstart scenario 4
 
 ### Implementation for User Story 3
 
-- [ ] T023 [US3] Add uploading to the portal's results list: a file picker accepting several `.json` files (R13, the roster CSV import's hidden-input pattern in `QuizMeetView.vue`), each sent as an admin `POST /results` and reported on its own with the server's reason when refused. The admin path of `POST /results` is covered by T008; the per-file reporting gets a case in the results-list spec. A file whose name the meet already has gets the 409 "already submitted" reply; the view offers the admin, per file, the same three choices as the scoresheet (skip, `onExisting: "newRevision"`, or `"keepCurrent"`). First move the scoresheet's choice dialog and its "already submitted" question into `packages/ui`, beside `SignInForm`, so both apps ask it through one component; the scoresheet's dialog spec moves with it. The quiz's name ("D1 Q3") now comes from the shared `quizName` in the API and the portal; the scoresheet's two file-name stems in `Scoresheet.vue` still build their own, so use it there too, so the warning, the upload report and file names agree.
+- [ ] T038 [US3] Extend `POST /results` in `packages/api/src/routes/results.ts` as [contracts/results-api.md](./contracts/results-api.md) states: `upload: true` records the action `uploaded`; an admin may name any room of the meet (recorded as "Pat, Room 2", action `submitted`) or none (action `edited`, or `uploaded` with `upload`); the room it is sent for gets access to the stored quiz, whose rooms are those its revisions were saved for. `GET /results` lets an official list only the quizzes of the rooms they officiate. Covered by new cases in `packages/api/src/routes/__tests__/results.spec.ts`: an admin naming a room, another meet's room refused, `upload` labels, an official's list limited to quizzes with a revision saved for one of their rooms (a signed-in official of two rooms sees both, and saving another room's quiz name adds that quiz to their list), a viewer refused
+- [ ] T023 [US3] Move the scoresheet's guest session module (`apps/scoresheet/src/composables/guestSession.ts`, with its spec) and its choice dialog (`ChoiceDialog.vue`, with its spec) into `packages/ui`, beside `SignInForm`, and use them from the scoresheet unchanged. The "already submitted" question (title, detail and the three choices) moves beside the dialog, so both apps ask it the same way. The module takes its join call from the app, as `SignInForm` takes its auth client, since `packages/ui` can't import either app's API. The portal keeps the guest session from its "join with a code" flow (the `TODO` in `HomeView.vue`) and sends the token for that meet's requests (R15). The quiz's name in the scoresheet's two file-name stems in `Scoresheet.vue` comes from the shared `quizName`
+- [ ] T039 [US3] In the scoresheet: an "Upload file to meet" entry in the Save menu, for officials and admins of the linked meet, picks one or more saved `.json` files and sends each as `POST /results` with `upload: true`, without opening it. The room is chosen first: an official of several rooms picks one; an admin picks any room of the meet or "No room". Files go one at a time, in the order picked; each name the meet already has asks the three choices in turn, and skipping one moves on to the next; a report lists each file's result, with the server's reason when refused. An admin's Save to meet sends the sheet by name the same way as an official's Submit (R8), after the same room choice; loading or refreshing a meet works out whether the signed-in user administers it, from `GET /api/my-meets`, alongside the official check. Covered by new cases in the `useMeetSession` spec
+- [ ] T040 [US3] In the portal: the Results page gets an upload area for admins and officials (R13, the roster CSV import's hidden-input pattern in `QuizMeetView.vue`), with the same room choice, one-at-a-time sending, three choices per existing name, and per-file report as the scoresheet (T039), reusing the `packages/ui` dialog and question. Officials, signed in or by room code, reach the Results page for the meets they officiate and see the upload area and their rooms' quizzes, without counting or standings (FR-018): the router admits a guest session for that meet on the meet page and its Results page (today every `/:slug` route needs an account), and the meet page shows Open results to the meet's officials as well as its admins, through an official check beside `isAdminOrSuperuser` in `meetAccess.ts`. Covered by a case in the results-list spec for the per-file report
+- [ ] T041 [US3] Amend `docs/roles-and-access.md` (officials upload and list their rooms' quizzes; admins submit for any room) and `docs/auth.md` (the portal keeps a guest session too); release api, scoresheet and web MINOR, naming the bundled shared version
 
 **Checkpoint**: Quickstart scenario 4 passes
 
@@ -163,20 +168,20 @@ Each pull request rebases onto master first and carries its own release bumps.
 
 ## Phase 6: User Story 4 - Correct a quiz, with a paper trail (Priority: P2)
 
-**Goal**: Admins edit names and details, fix answers in the scoresheet, and see and restore history
+**Goal**: Admins, and officials for their rooms' quizzes, edit names and details, fix answers in the scoresheet, and see and restore history
 
 **Independent Test**: Quickstart scenarios 5 and 6
 
 ### Tests for User Story 4
 
-- [ ] T024 [US4] Write route specs in `packages/api/src/routes/__tests__/results.spec.ts` for `GET /results/:id/revisions`, `GET /results/:id/revisions/:revision` and `POST /results/:id/restore`: history lists saves and counting records newest first with who, when and how; restore adds a `restored` revision naming its source and keeps every newer one (FR-005a); admins only; viewing a restoring revision returns the file it restores, with `restoredFrom`; restoring a restoring revision points the new one at the revision with the file; restoring the content already current adds no revision and returns the current one
+- [ ] T024 [US4] Write route specs in `packages/api/src/routes/__tests__/results.spec.ts` for `GET /results/:id/revisions`, `GET /results/:id/revisions/:revision`, `POST /results/:id/restore`, and `PUT /results/:id` for officials: history lists saves and counting records newest first with who, when and how; restore adds a `restored` revision naming its source and keeps every newer one (FR-005a); viewing a restoring revision returns the file it restores, with `restoredFrom`; restoring a restoring revision points the new one at the revision with the file; restoring the content already current adds no revision and returns the current one; each route is for admins and the quiz's room officials only (any room a revision was saved for), so an official of a room that never saved it is refused; an official of several rooms editing or restoring is recorded for a room the quiz already has
 
 ### Implementation for User Story 4
 
-- [ ] T025 [US4] Implement the three routes in `packages/api/src/routes/results.ts`, adding restores through the same revision insert that Submit's keep-current uses, so a restore resolves to a revision with a file. Covered by T024
-- [ ] T026 [US4] Add the quick form to the portal's results list: change team names, quizzer names, division and quiz number of a stored quiz by editing its file (shared `deserialize` and `serialize`) and saving it with `PUT /results/:id`. This view is the one owner of name edits in stored files; merge (T031) reuses it. Covered by a spec of the file edit in `apps/web/src/__tests__/`. A rename onto another stored quiz's name is refused with 409; the form shows that reason and leaves the quiz unchanged.
-- [ ] T027 [US4] Add each quiz's history to the portal: its saves and counting records with who, when and how, each revision's teams and scores via the shared quiz outcome, Restore, and Open in scoresheet for the current or an earlier revision. A restoring revision shows as "restores revision N", with that revision's teams and scores. Show the date with each save, not only the time (the results list shows only the time, enough on the day of a one-day meet)
-- [ ] T028 [US4] Let the scoresheet open a stored quiz from the portal link, extending its existing URL-parameter handling in `apps/scoresheet/src/components/Scoresheet.vue` (R9): fetch the revision with the admin's session, ask before replacing unsaved work, load it through the shared parser, and start a meet session that holds the stored quiz's id, so Save to meet updates it with `PUT`. Save to meet is the admin's only way to save from the scoresheet. Covered by a new case in the component spec
+- [ ] T025 [US4] Implement the three routes in `packages/api/src/routes/results.ts`, adding restores through the same revision insert that Submit's keep-current uses, so a restore resolves to a revision with a file, and let the quiz's room officials `PUT` it, through one check beside the official-of-room check (plan: Reuse and Ownership). A room official's edit or restore is recorded for one of their rooms the quiz already has, the first by room order, so it never gives the quiz a new room. Covered by T024
+- [ ] T026 [US4] Add the quick form to the portal's results list, for admins and the quiz's room officials: change team names, quizzer names, division and quiz number of a stored quiz by editing its file (shared `deserialize` and `serialize`) and saving it with `PUT /results/:id`. This view is the one owner of name edits in stored files; merge (T031) reuses it. Covered by a spec of the file edit in `apps/web/src/__tests__/`. A rename onto another stored quiz's name is refused with 409; the form shows that reason and leaves the quiz unchanged.
+- [ ] T027 [US4] Add each quiz's history to the portal, for admins and the quiz's room officials: its saves and counting records with who, when and how, each revision's teams and scores via the shared quiz outcome, Restore, and Open in scoresheet for the current or an earlier revision. A restoring revision shows as "restores revision N", with that revision's teams and scores. Show the date with each save, not only the time (the results list shows only the time, enough on the day of a one-day meet)
+- [ ] T028 [US4] Let the scoresheet open a stored quiz from the portal link, extending its existing URL-parameter handling in `apps/scoresheet/src/components/Scoresheet.vue` (R9): fetch the revision with the admin's session or the official's guest token, ask before replacing unsaved work, load it through the shared parser, and link the sheet to the quiz's meet. Save to meet sends it by name (T039, R8): the stored quiz's name gets the "already submitted" choices, and a quiz renamed in the sheet becomes a new quiz rather than renaming the stored one. Renames belong to the portal's quick form (T026). Covered by a new case in the component spec
 - [ ] T029 [US4] Release api, scoresheet and web MINOR, naming the bundled shared version
 
 **Checkpoint**: Quickstart scenarios 5 and 6 pass
@@ -227,7 +232,8 @@ Each pull request rebases onto master first and carries its own release bumps.
 - **Setup (Phase 1)** and **Foundational (Phase 2)**: first, together, as the first pull request
 - **User Story 1**: after Phase 2
 - **User Story 2**: after User Story 1 (it counts stored quizzes)
-- **User Stories 3 and 4**: after User Story 1; Story 4's history shows counting records, so after Story 2 as well
+- **User Story 3**: after User Story 1
+- **User Story 4**: after User Story 3 (officials in the portal, the shared dialog); its history shows counting records, so after Story 2 as well
 - **User Story 5**: after Stories 2 (standings) and 4 (the quick-form edit path)
 - **User Story 6**: after User Story 1
 - **Polish**: last

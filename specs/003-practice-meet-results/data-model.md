@@ -8,13 +8,13 @@ tables, integer autoincrement ids, `*_at` timestamps, meet-scoped rows cascading
 
 One quiz of a meet, whatever its history.
 
-| Field      | Meaning                                                                                         |
-| ---------- | ----------------------------------------------------------------------------------------------- |
-| id         | identity                                                                                        |
-| meet       | the meet; deleted with it                                                                       |
-| room       | the room it was first submitted from; unread, since the first revision says where it came from  |
-| quiz key   | its name, division, consolation and quiz number, folded for case and spaces; unique in the meet |
-| created at | first save                                                                                      |
+| Field      | Meaning                                                                                           |
+| ---------- | ------------------------------------------------------------------------------------------------- |
+| id         | identity                                                                                          |
+| meet       | the meet; deleted with it                                                                         |
+| room       | the room it was first submitted from; unread, since a quiz's rooms come from its revisions (#107) |
+| quiz key   | its name, division, consolation and quiz number, folded for case and spaces; unique in the meet   |
+| created at | first save                                                                                        |
 
 Rules:
 
@@ -24,6 +24,9 @@ Rules:
 * A quiz not tied to the schedule is identified by its quiz key (FR-003): a submission or upload
   with a key the meet already has is reported, and on the submitter's choice adds to that quiz's
   revisions, whichever room sent it.
+* A quiz's rooms are those its revisions were saved for (`saved by room`), so a quiz can belong to
+  several; their officials may read and change it (FR-018). Schedule linkage (#16) will tie a quiz
+  to its slot's room instead.
 
 ## quiz version (`quiz_result_revisions`)
 
