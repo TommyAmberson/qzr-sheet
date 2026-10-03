@@ -34,7 +34,7 @@ import {
 } from '../persistence/fileIO'
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
-import type { ScheduledQuizSeat } from '../api'
+import { getMeetName, getRevision, type ScheduledQuizSeat } from '../api'
 import { ChoiceDialog, askAlreadySubmitted, chooseRoom, uploadPicked } from '@qzr/ui'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
@@ -223,17 +223,48 @@ function computeSeatChange(
 }
 
 /** Strip ?meet=&quiz= from the URL after the prefill — set by the
- *  portal's schedule view when the user clicks a quiz cell. Always
- *  strips the params so a refresh doesn't re-clobber edits. */
+ *  portal's schedule view when the user clicks a quiz cell — or
+ *  ?meet=&result=&revision=, set by the portal's quiz page to open a
+ *  stored quiz. Always strips the params so a refresh doesn't
+ *  re-clobber edits. */
 async function loadFromUrlParams() {
   const params = new URLSearchParams(window.location.search)
   const meetId = Number(params.get('meet'))
   const quizId = Number(params.get('quiz'))
-  if (!meetId || !quizId || Number.isNaN(meetId) || Number.isNaN(quizId)) return
+  const resultId = Number(params.get('result'))
+  const revision = Number(params.get('revision'))
+  const scheduled = quizId > 0 && Number.isInteger(quizId)
+  const stored =
+    resultId > 0 && Number.isInteger(resultId) && revision > 0 && Number.isInteger(revision)
+  if (!(meetId > 0 && Number.isInteger(meetId)) || !(scheduled || stored)) return
   try {
-    await loadScheduledQuiz(meetId, quizId)
+    if (scheduled) await loadScheduledQuiz(meetId, quizId)
+    else await loadStoredQuiz(meetId, resultId, revision)
   } finally {
     history.replaceState(null, '', window.location.pathname)
+  }
+}
+
+/**
+ * Open a revision of a stored quiz from the portal (R9), linked to its meet so Save to meet sends
+ * it back by name. Nothing about the stored quiz is remembered (R8).
+ */
+async function loadStoredQuiz(meetId: number, resultId: number, revision: number) {
+  if (
+    isDirty.value &&
+    !(await confirmAction('Open this quiz from the meet? Unsaved changes will be lost.'))
+  ) {
+    return
+  }
+  try {
+    const [{ quizFile }, { meet }] = await Promise.all([
+      getRevision(meetId, resultId, revision),
+      getMeetName(meetId),
+    ])
+    await meetSession.loadMeet(meetId, meet.name)
+    await openJsonQuiz(JSON.stringify(quizFile))
+  } catch (e) {
+    alert(`Could not open the quiz from the meet: ${(e as Error).message}`)
   }
 }
 

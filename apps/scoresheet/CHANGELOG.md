@@ -15,6 +15,18 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-02
+
+### Added
+
+* **Opening a stored quiz** - the portal's quiz page opens any revision of a stored quiz in the
+  scoresheet, asking first if the sheet has unsaved changes and linking it to the meet; Save to meet
+  sends it back by name, as a new revision
+
+### Bundled contract
+
+* `@qzr/shared@1.4.0` - bumped from 1.3.0
+
 ## [0.14.0] - 2026-10-02
 
 ### Added
