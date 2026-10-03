@@ -100,6 +100,10 @@ Decisions from the brainstorm:
 * Q: Do officials upload files from the scoresheet? → A: No, the scoresheet's "Upload file to meet"
   is dropped. Files are uploaded from the portal's results page; in the scoresheet, open the file
   and submit it (FR-007).
+* Q: Where does an official with no account enter a room code to submit? → A: Submit to meet is
+  always in the Save menu. On a sheet not linked to a meet they may send to, with other than one
+  meet to send to, it opens the meet picker, listing those meets with "Have a code?" to join one;
+  picking a meet submits there without linking the sheet (FR-001).
 * Q: Where does the scoresheet get a meet's team list, when it isn't linked to the meet? → A: From
   the meet it last submitted to, which it remembers; a linked meet's list comes first. The first
   quiz of the day gets names once something has been submitted (FR-017).
@@ -318,10 +322,9 @@ and pick teams from the list when setting up a quiz in that division.
 
 * **FR-001**: Officials MUST be able to submit a quiz from the scoresheet for one of the rooms they
   officiate, storing it as a quiz of that meet recorded with the room. Meet admins MUST be able to
-  submit from the scoresheet too, for any room of the meet or for none. The scoresheet MUST offer
-  Submit to anyone who is an admin or official of at least one meet, and MUST let them choose the
-  meet without linking the sheet to it or loading its teams; a sheet linked to such a meet submits
-  there.
+  submit from the scoresheet too, for any room of the meet or for none. The scoresheet MUST always
+  offer Submit, and MUST let the user choose the meet, or join one with a room code, without linking
+  the sheet to it or loading its teams; a sheet linked to a meet they may send to submits there.
 * **FR-002**: Submission from the scoresheet MUST be refused while the quiz has validation errors,
   with the reason.
 * **FR-003**: A quiz not tied to the schedule MUST be identified by its name: division, consolation
