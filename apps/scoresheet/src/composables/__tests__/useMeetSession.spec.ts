@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { ApiError, MeetRole, type QuizFile } from '@qzr/shared'
 import type { MeetTeam, ScheduledQuizDetails } from '../../api'
 
 // Mock the API module before importing useMeetSession
@@ -6,9 +7,23 @@ vi.mock('../../api', () => ({
   getMeetTeams: vi.fn(),
   getTeamQuizzers: vi.fn(),
   getScheduledQuiz: vi.fn(),
+  submitResult: vi.fn(),
+  getMyMeets: vi.fn(),
 }))
 
-import { getMeetTeams, getScheduledQuiz, getTeamQuizzers } from '../../api'
+vi.mock('../guestSession', async () => ({
+  ...(await vi.importActual<typeof import('../guestSession')>('../guestSession')),
+  joinedSession: vi.fn(() => null),
+}))
+
+import {
+  getMeetTeams,
+  getMyMeets,
+  getScheduledQuiz,
+  getTeamQuizzers,
+  submitResult,
+} from '../../api'
+import { joinedSession } from '../guestSession'
 import { useMeetSession } from '../useMeetSession'
 
 const mockTeams: MeetTeam[] = [
@@ -576,5 +591,133 @@ describe('useMeetSession — teamsForDivision', () => {
   it('returns empty list when no teams match', () => {
     const { teamsForDivision } = useMeetSession()
     expect(teamsForDivision('1', true)).toHaveLength(0)
+  })
+})
+
+describe('submitting to the meet', () => {
+  const file = { version: 2 } as unknown as QuizFile
+  const guestOfficial = (meetId: number) =>
+    vi.mocked(joinedSession).mockReturnValue({
+      token: 't',
+      meetId,
+      meetName: 'Practice',
+      role: MeetRole.Official,
+      code: 'c',
+    })
+  const signedOut = () =>
+    vi.mocked(getMyMeets).mockRejectedValue(new ApiError(401, 'Authentication required'))
+
+  beforeEach(() => {
+    useMeetSession().clearSession()
+    vi.mocked(getMeetTeams).mockResolvedValue({ teams: mockTeams, meetDivisions: ['1'] })
+    vi.mocked(getMyMeets).mockResolvedValue({ memberships: [] })
+    vi.mocked(joinedSession).mockReturnValue(null)
+    vi.mocked(submitResult).mockReset().mockResolvedValue({ id: 77, revision: 1, created: true })
+  })
+
+  it('is only offered to an official of the meet', async () => {
+    const meet = useMeetSession()
+    await meet.loadMeet(1, 'Practice')
+    expect(meet.canSubmit.value).toBe(false)
+    await expect(meet.submitQuiz(file, null)).rejects.toThrow()
+    expect(submitResult).not.toHaveBeenCalled()
+  })
+
+  it('submits a guest official by name, with no room of its own', async () => {
+    signedOut()
+    guestOfficial(1)
+    const meet = useMeetSession()
+    await meet.loadMeet(1, 'Practice')
+    expect(meet.canSubmit.value).toBe(true)
+    expect(meet.officialRooms.value).toEqual([])
+    expect(await meet.submitQuiz(file, null)).toEqual({
+      stored: true,
+      created: true,
+      revision: 1,
+      keptCurrent: false,
+    })
+    expect(submitResult).toHaveBeenCalledWith(1, file, null, undefined)
+  })
+
+  it("lists a signed-in official's rooms in the meet, ahead of any guest token", async () => {
+    guestOfficial(1)
+    vi.mocked(getMyMeets).mockResolvedValue({
+      memberships: [
+        { meetId: 1, meetName: 'Practice', role: MeetRole.Official, label: 'Room 1', roomId: 5 },
+        { meetId: 2, meetName: 'Other', role: MeetRole.Official, label: 'Room A', roomId: 8 },
+        { meetId: 1, meetName: 'Practice', role: MeetRole.Official, label: 'Room 2', roomId: 6 },
+      ],
+    })
+    const meet = useMeetSession()
+    await meet.loadMeet(1, 'Practice')
+    expect(meet.officialRooms.value).toEqual([
+      { id: 5, name: 'Room 1' },
+      { id: 6, name: 'Room 2' },
+    ])
+    await meet.submitQuiz(file, 6)
+    expect(submitResult).toHaveBeenCalledWith(1, file, 6, undefined)
+  })
+
+  it('reports a name the meet already has, and sends it again as the official chooses', async () => {
+    signedOut()
+    guestOfficial(1)
+    const existing = {
+      id: 77,
+      name: 'D1 Q3',
+      revision: 1,
+      savedBy: { name: 'Room 1' },
+      savedAt: '2026-10-02T10:00:00.000Z',
+    }
+    vi.mocked(submitResult).mockRejectedValueOnce(
+      new ApiError(409, 'D1 Q3 was already submitted', { existing }),
+    )
+    const meet = useMeetSession()
+    await meet.loadMeet(1, 'Practice')
+    expect(await meet.submitQuiz(file, null)).toEqual({ stored: false, existing })
+
+    vi.mocked(submitResult).mockResolvedValueOnce({
+      id: 77,
+      revision: 2,
+      created: false,
+      keptCurrent: true,
+    })
+    expect(await meet.submitQuiz(file, null, 'keepCurrent')).toEqual({
+      stored: true,
+      created: false,
+      revision: 2,
+      keptCurrent: true,
+    })
+    expect(submitResult).toHaveBeenLastCalledWith(1, file, null, 'keepCurrent')
+  })
+
+  it('passes other failures on', async () => {
+    signedOut()
+    guestOfficial(1)
+    vi.mocked(submitResult).mockRejectedValueOnce(new Error('offline'))
+    const meet = useMeetSession()
+    await meet.loadMeet(1, 'Practice')
+    await expect(meet.submitQuiz(file, null)).rejects.toThrow('offline')
+  })
+
+  it("keeps the official role when a refresh can't tell", async () => {
+    vi.mocked(getMyMeets).mockResolvedValue({
+      memberships: [{ meetId: 1, meetName: 'Practice', role: MeetRole.Official, roomId: 5 }],
+    })
+    const meet = useMeetSession()
+    await meet.loadMeet(1, 'Practice')
+    vi.mocked(getMyMeets).mockRejectedValue(new ApiError(500, 'Internal error'))
+    await meet.refresh()
+    expect(meet.canSubmit.value).toBe(true)
+  })
+
+  it('works out the official role again on refresh', async () => {
+    const meet = useMeetSession()
+    await meet.loadMeet(1, 'Practice')
+    expect(meet.canSubmit.value).toBe(false)
+    vi.mocked(getMyMeets).mockResolvedValue({
+      memberships: [{ meetId: 1, meetName: 'Practice', role: MeetRole.Official, roomId: 5 }],
+    })
+    await meet.refresh()
+    expect(meet.canSubmit.value).toBe(true)
   })
 })

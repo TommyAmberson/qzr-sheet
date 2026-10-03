@@ -1,5 +1,5 @@
-import { createApiClient } from '@qzr/shared'
-import { getGuestToken } from './composables/useGuestSession'
+import { createApiClient, type QuizFile } from '@qzr/shared'
+import { getGuestToken, joinedSession } from './composables/useGuestSession'
 
 declare const __API_URL__: string
 
@@ -10,8 +10,8 @@ const baseRequest = createApiClient(__API_URL__ || '')
  * the API's session middleware can recognize the caller. Cookie sessions take
  * precedence on the server, so signed-in users never need the header.
  */
-function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getGuestToken()
+function request<T>(path: string, init?: RequestInit, forMeet?: number): Promise<T> {
+  const token = forMeet === undefined ? getGuestToken() : (joinedSession(forMeet)?.token ?? null)
   if (!token) return baseRequest<T>(path, init)
   return baseRequest<T>(path, {
     ...init,
@@ -25,6 +25,10 @@ export interface MeetSummary {
   meetId: number
   meetName: string
   role: string
+  /** What the membership is for: an official's room name, a coach's church */
+  label?: string
+  /** A signed-in official's room in the meet */
+  roomId?: number
 }
 
 export interface MeetTeam {
@@ -46,6 +50,38 @@ export interface MeetTeamQuizzer {
 
 export function getMyMeets(): Promise<{ memberships: MeetSummary[] }> {
   return request('/api/my-meets')
+}
+
+/** A quiz the meet already has under the submitted quiz's name */
+export interface ExistingQuiz {
+  id: number
+  name: string
+  revision: number
+  savedBy: { name: string } | null
+  savedAt: string | null
+}
+
+/** What to do with a submission whose name the meet already has */
+export type OnExisting = 'newRevision' | 'keepCurrent'
+
+/**
+ * Submit a quiz to the meet, which knows it by name. A guest official's room comes from their
+ * token for this meet, whichever meet the guest session last picked.
+ */
+export function submitResult(
+  meetId: number,
+  quizFile: QuizFile,
+  roomId: number | null,
+  onExisting?: OnExisting,
+): Promise<{ id: number; revision: number; created: boolean; keptCurrent?: boolean }> {
+  return request(
+    `/api/meets/${meetId}/results`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ quizFile, roomId: roomId ?? undefined, onExisting }),
+    },
+    meetId,
+  )
 }
 
 export function getMeetTeams(

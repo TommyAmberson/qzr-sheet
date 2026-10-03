@@ -14,7 +14,6 @@ import {
   QuestionType,
   QuizFormat,
   QUIZZERS_PER_TEAM,
-  serialize,
   startsOtRound,
   ValidationCode,
   validationMessage,
@@ -24,7 +23,7 @@ import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
-import { serializeStore } from '../persistence/quizFile'
+import { serializeStore, storeToQuizFile } from '../persistence/quizFile'
 import {
   saveQuizToFile,
   openAnyQuizFile,
@@ -34,11 +33,12 @@ import {
 } from '../persistence/fileIO'
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
-import type { ScheduledQuizSeat } from '../api'
+import type { OnExisting, ScheduledQuizSeat } from '../api'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
 import MeetPickerDialog from './MeetPickerDialog.vue'
+import ChoiceDialog from './ChoiceDialog.vue'
 import SchedulePickerDialog from './SchedulePickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
 import TutorialOverlay from './TutorialOverlay.vue'
@@ -754,11 +754,15 @@ const FORMAT_LABELS: Record<QuizFormat, { badge: string; name: string }> = {
 }
 const QUIZ_FORMATS = Object.values(QuizFormat)
 
-/** With no format (Ctrl+N), repeat the current quiz's: practice meets run many in a row */
+/**
+ * Every way to start a new quiz (menu, Ctrl+N) comes here, so the meet forgets the last one's
+ * teams. With no format (Ctrl+N), repeat the current quiz's: practice meets run many in a row.
+ */
 async function newQuiz(format = quiz.value.format) {
   if (isDirty.value && !(await confirmAction('Start a new quiz? Unsaved changes will be lost.')))
     return
   resetStore(format)
+  meetSession.startNewQuiz()
 }
 
 async function doSaveFile() {
@@ -771,10 +775,59 @@ async function doExportOds() {
   await exportOds()
 }
 
+const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
+
+/** Send the quiz to the meet; the sheet itself is untouched whether or not it arrives */
+async function doSubmitToMeet() {
+  closeMenus()
+  if (hasAnyErrors.value) {
+    alert(`Fix these before submitting:\n${allValidationMessages.value.join('\n')}`)
+    return
+  }
+  const meet = meetSession.meetName.value
+  const rooms = meetSession.officialRooms.value
+  let roomId = rooms[0]?.id ?? null
+  if (rooms.length > 1) {
+    roomId =
+      (await choiceDialog.value?.ask(
+        'Submit for which room?',
+        `You officiate ${rooms.length} rooms of ${meet}.`,
+        rooms.map((room) => ({ label: room.name, value: room.id })),
+      )) ?? null
+    if (roomId === null) return
+  }
+  const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
+  try {
+    let outcome = await meetSession.submitQuiz(quizFile, roomId)
+    if (!outcome.stored) {
+      const { name, revision, savedBy } = outcome.existing
+      const choice = await choiceDialog.value?.ask<OnExisting>(
+        `${name} was already submitted`,
+        `Revision ${revision} is current${savedBy ? `, saved by ${savedBy.name}` : ''}.`,
+        [
+          { label: "Don't submit", value: null },
+          { label: `Save, keep revision ${revision} current`, value: 'keepCurrent' },
+          { label: 'Save as new revision', value: 'newRevision', primary: true },
+        ],
+      )
+      if (!choice) return
+      outcome = await meetSession.submitQuiz(quizFile, roomId, choice)
+    }
+    if (!outcome.stored) return
+    if (outcome.created) alert(`Submitted to ${meet}.`)
+    else if (outcome.keptCurrent) {
+      alert(`Saved to ${meet} as revision ${outcome.revision}; the earlier revision stays current.`)
+    } else alert(`Submitted to ${meet} as revision ${outcome.revision}.`)
+  } catch (e) {
+    alert(
+      `Not submitted: ${(e as Error).message}\nThe quiz is unchanged. Try again, or save it as a file.`,
+    )
+  }
+}
+
 async function doNewQuiz(format: QuizFormat) {
   closeMenus()
   await newQuiz(format)
-  meetSession.clearSession()
 }
 
 async function doClearAnswers() {
@@ -800,14 +853,7 @@ const canExportOds = computed(() => odsSupportsFormat(quiz.value.format))
 async function exportOds() {
   const otsBytes = await openOtsTemplate()
   if (!otsBytes) return
-  const quizFile = serialize({
-    quiz: store.quiz,
-    teams: store.teams,
-    quizzers: store.quizzers,
-    answers: store.answers,
-    noJumps: noJumpMap.value,
-    timeouts: timeoutMap.value,
-  })
+  const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
   try {
     const odsBytes = fillOts(otsBytes, quizFile)
     const filename = `D${quiz.value.division}${quiz.value.consolation ? 'c' : ''}Q${quiz.value.quizNumber}.ods`
@@ -1018,6 +1064,9 @@ const appVersion: string = __APP_VERSION__
                   <button title="Save / Export (Ctrl+S)" @click="toggleSaveMenu">⤓ Save ▾</button>
                   <div v-if="saveMenuOpen" class="file-menu__dropdown">
                     <button @click="doSaveFile">⤓ Save as JSON</button>
+                    <button v-if="meetSession.canSubmit.value" @click="doSubmitToMeet">
+                      ⇪ Submit to meet
+                    </button>
                     <button
                       :disabled="!canExportOds"
                       :title="canExportOds ? undefined : ODS_TWENTY_ONLY"
@@ -1653,6 +1702,7 @@ const appVersion: string = __APP_VERSION__
       <!-- Cell selector popup -->
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
+        <ChoiceDialog ref="choiceDialog" />
         <SchedulePickerDialog ref="schedulePickerRef" :on-pick="loadScheduledQuiz" />
         <div
           v-if="selector"
