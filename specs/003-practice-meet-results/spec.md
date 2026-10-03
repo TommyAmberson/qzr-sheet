@@ -376,8 +376,8 @@ from the list when setting up a quiz in that division.
 * **FR-018**: Meet admins (and superusers) MUST be able to view and change all of a meet's stored
   quizzes and their history, count them, and see the standings. An official MUST be able to view and
   change only the quizzes of the rooms they officiate (those with a revision saved for one of them),
-  with their history, and MUST NOT see the standings or change what counts. Officials MUST only be
-  able to submit or upload to the meet of the rooms they officiate.
+  with their history, and MAY see whether a quiz counts but MUST NOT change it or see the standings.
+  Officials MUST only be able to submit or upload to the meet of the rooms they officiate.
 * **FR-019**: Standings MUST always use the newest revision of each counted quiz, with no further
   action after a counted quiz is resubmitted or edited.
 

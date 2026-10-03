@@ -56,9 +56,11 @@ Body: `{ revision }`. Adds a `restored` revision restoring that one (FR-005a); n
 Restoring a revision that itself restores another points the new revision at the file it restores,
 so content is never more than one step away. Restoring the content that is already current adds
 nothing and answers with the current revision. A room official's restore is recorded for a room as
-an edit is (`PUT`).
+an edit is (`PUT`). The quiz takes the restored content's name again, as an edit would, so a
+restored name finds it.
 
-* 200 `{ id, revision }`. 404 if the revision doesn't exist.
+* 200 `{ id, revision }`. 404 if the revision doesn't exist. 409 if another quiz has since taken the
+  restored content's name.
 
 ### `GET /results` (admin, or official)
 
@@ -85,14 +87,20 @@ caller's own rooms for an official (a guest official's token room). 401 / 403 fo
 The quiz's history, newest first, interleaving saves and counting records:
 
 ```text
-[{ kind: 'revision', revision, action, restoredFrom?, savedBy: { name }, savedAt }
+[{ kind: 'revision', revision, action, restoredFrom?, savedBy: { name }, savedAt, current,
+   quizFile }
  | { kind: 'counting', counted, changedBy: { name }, changedAt }]
 ```
 
+Each save carries its file (a restoring revision's is the file it restores), so the history needs no
+further requests, and `current` marks the saves showing the quiz's current content. Times are to the
+millisecond; a count made in the same millisecond as a save is taken as the newer of the two, as
+counting a quiz follows saving it.
+
 ### `GET /results/:id/revisions/:revision` (admin, or the room official)
 
-`{ revision, quizFile, restoredFrom? }` for viewing or opening an earlier revision. A revision that
-restores another returns the file it restores, with `restoredFrom` naming that revision.
+`{ quizFile }`, for the scoresheet to open a revision. A revision that restores another gives the
+file it restores.
 
 ## Counting
 

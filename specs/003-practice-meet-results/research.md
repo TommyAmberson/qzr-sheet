@@ -118,12 +118,13 @@ rejected. Facts about the current code come from reading it on 2026-10-02 (maste
 
 ## R9. Opening a stored quiz in the scoresheet
 
-* **Decision**: The portal links to the scoresheet with the meet and stored quiz in the query, as
-  the schedule view already does for scheduled quizzes. The scoresheet fetches the current revision
-  with the admin's cookie or the official's guest token (same origin), asks before replacing unsaved
-  work, loads it, and offers "Save to meet", which sends it by name like an official's submit, so
-  nothing about the opened quiz is remembered (R8). Viewing an older revision in full opens that
-  revision the same way; saving it creates a new revision.
+* **Decision**: The portal links to the scoresheet with the meet and stored quiz in the query
+  (`?meet=&result=&revision=`), as the schedule view already does for scheduled quizzes. The
+  scoresheet fetches the current revision with the admin's cookie or the official's guest token
+  (same origin), asks before replacing unsaved work, loads it, and offers "Save to meet", which
+  sends it by name like an official's submit, so nothing about the opened quiz is remembered (R8).
+  Viewing an older revision in full opens that revision the same way; saving it creates a new
+  revision.
 * **Rationale**: Reuses the existing deep link handling and the editor; the portal gets no answer
   editor (Story 4).
 
