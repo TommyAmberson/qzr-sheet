@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { AccountRole } from '@qzr/shared'
+import { AccountRole, MeetRole } from '@qzr/shared'
 import { useAuth } from '../composables/useAuth'
+import { joinByCode } from '@qzr/ui'
 import { getMyMeets, joinMeet, joinMeetGuest, createMeet, type MeetMembership } from '../api'
 
 const scoresheetUrl = __SCORESHEET_URL__
@@ -55,10 +56,13 @@ async function handleCode() {
       const joined = memberships.value.find((m) => m.meetId === res.meet.id)
       router.push({ name: 'meet', params: { slug: joined?.viewerCode ?? res.meet.id } })
     } else {
-      const res = await joinMeetGuest(c)
+      // Kept with the scoresheet's guest sessions, so the code works in both apps
+      const joined = await joinByCode(c, joinMeetGuest)
+      if (!joined) throw new Error('That code did not open a meet')
       code.value = ''
-      // TODO: store the guest JWT (res.token) for API calls on the meet page
-      router.push({ name: 'meet', params: { slug: res.meet.id } })
+      // An official's room's quizzes are on the meet's results page
+      const name = joined.role === MeetRole.Official ? 'meet-results' : 'meet'
+      router.push({ name, params: { slug: joined.meetId } })
     }
   } catch (e) {
     codeError.value = (e as Error).message

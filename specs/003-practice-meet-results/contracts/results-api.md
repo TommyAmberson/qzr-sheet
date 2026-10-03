@@ -3,23 +3,29 @@
 HTTP routes under `/api/meets/:meetId`, JSON bodies, errors as `{ error: string }` like the existing
 routes. Every route authorises the caller for that meet (principle IV): **admin** means a meet admin
 membership or superuser; **official** means an official guest token for this meet carrying a room
-(R4), or a signed-in official membership for the named room.
+(R4), or a signed-in official membership for the named room. A stored quiz's **room official** is an
+official of any room a revision of it was saved for; an account may officiate several rooms, and
+saving a quiz's name for a room, after the 409, makes that room's officials its room officials too.
 
 Mounted so that guest tokens reach it (the schedule routers require an account session).
 
 ## Stored quizzes
 
-### `POST /results` (official, or admin uploading from the portal)
+### `POST /results` (official, or admin)
 
-Submit a quiz. Body: `{ quizFile, roomId?, onExisting? }`. `roomId` is required for a signed-in
-official, ignored for a guest (the token's room is used), and absent for an admin upload. The
-scoresheet only submits as an official; an admin saves from the scoresheet with `PUT`.
+Submit or upload a quiz. Body: `{ quizFile, roomId?, onExisting?, upload? }`. `roomId` is required
+for a signed-in official and must be one of their rooms; it is ignored for a guest (the token's room
+is used); an admin may name any room of the meet, or none. `upload: true` marks a file sent without
+being opened. The scoresheet's Submit and Save to meet send a quiz this way, by name, for officials
+and admins alike, so the scoresheet never needs to remember which stored quiz it opened (R8). The
+room it is sent for gets access to the stored quiz.
 
 A quiz not tied to the schedule is identified by its name: division, consolation and quiz number,
 folded for case and spaces.
 
 * 201 `{ id, revision: 1, created: true }` for a name the meet doesn't have yet. Action is
-  `submitted` for an official, `uploaded` for an admin.
+  `uploaded` with `upload`; otherwise `submitted` when sent for a room, and `edited` for an admin
+  sending it for no room. An admin sending for a room is saved as "Pat, Room 2".
 * 409
   `{ error: "D1 Q3 was already submitted", existing: { id, name, revision, savedBy: { name }, savedAt } }`
   for a name the meet already has, whichever room sent it.
@@ -32,27 +38,32 @@ folded for case and spaces.
 * 401 / 403 if the caller isn't an official or admin of this meet; 403 "Rejoin with your room code"
   for an official token without a room, or from a room code since rotated.
 
-### `PUT /results/:id` (admin)
+### `PUT /results/:id` (admin, or the room official)
 
-Edit a stored quiz: save a new revision of it. Officials resubmit by name through `POST`. Body:
+Edit a stored quiz in place: save a new revision of it. Only the portal's short form and merge use
+it, because they change a quiz's name or details; the scoresheet saves by name through `POST`. Body:
 `{ quizFile, action? }`. `action` may be `merged`, to label a merge (R10); otherwise it is `edited`.
+A room official's edit is recorded for one of their rooms the quiz already has, the first by room
+order, so an edit never gives the quiz a new room.
 
 * 200 `{ id, revision }`.
 * 400 / 422 as above. 409 if the edit renames it to another stored quiz's name. 404 if not in this
   meet.
 
-### `POST /results/:id/restore` (admin)
+### `POST /results/:id/restore` (admin, or the room official)
 
 Body: `{ revision }`. Adds a `restored` revision restoring that one (FR-005a); no file is copied.
 Restoring a revision that itself restores another points the new revision at the file it restores,
 so content is never more than one step away. Restoring the content that is already current adds
-nothing and answers with the current revision.
+nothing and answers with the current revision. A room official's restore is recorded for a room as
+an edit is (`PUT`).
 
 * 200 `{ id, revision }`. 404 if the revision doesn't exist.
 
-### `GET /results` (admin)
+### `GET /results` (admin, or official)
 
-Every stored quiz of the meet with its current content:
+Every stored quiz of the meet with its current content; for an official, only the quizzes with a
+revision saved for a room they officiate:
 
 ```text
 [{ id, origin: { action, name }, counted, revision, savedAt,
@@ -63,16 +74,22 @@ Every stored quiz of the meet with its current content:
 room is deleted. `counted` is the quiz's newest counting record, false when it has none. The portal
 groups by the file's division and derives names and scores from the file.
 
-### `GET /results/:id/revisions` (admin)
+### `GET /results/sender` (admin, or official)
+
+Who the caller is when sending to the meet, as the routes above decide it, so neither app works it
+out for itself: `{ admin, rooms: [{ id, name }] }`, with every room of the meet for an admin and the
+caller's own rooms for an official (a guest official's token room). 401 / 403 for anyone else.
+
+### `GET /results/:id/revisions` (admin, or the room official)
 
 The quiz's history, newest first, interleaving saves and counting records:
 
 ```text
 [{ kind: 'revision', revision, action, restoredFrom?, savedBy: { name }, savedAt }
- | { kind: 'counting', counted, changedBy, changedAt }]
+ | { kind: 'counting', counted, changedBy: { name }, changedAt }]
 ```
 
-### `GET /results/:id/revisions/:revision` (admin)
+### `GET /results/:id/revisions/:revision` (admin, or the room official)
 
 `{ revision, quizFile, restoredFrom? }` for viewing or opening an earlier revision. A revision that
 restores another returns the file it restores, with `restoredFrom` naming that revision.

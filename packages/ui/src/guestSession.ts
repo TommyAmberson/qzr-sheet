@@ -1,6 +1,5 @@
 import { ref } from 'vue'
 import { MeetRole } from '@qzr/shared'
-import { joinMeetGuest } from '../api'
 
 /**
  * Guest session state for visitors who don't have an account. Two entry points:
@@ -12,7 +11,9 @@ import { joinMeetGuest } from '../api'
  *    codes, the user is typing them in directly.
  *
  * The session keeps a list of every meet the user has joined this way and
- * tracks which one is currently active. The API client's `request()` wrapper
+ * tracks which one is currently active. The scoresheet and the portal share
+ * one origin, so they share the stored session: a code joined in either app
+ * works in both. Each app passes its own join call (`GuestJoin`). The API client's `request()` wrapper
  * reads a token via `guestTokenFor()`, the joined session of the request's
  * meet or else the active one, and attaches it as `Authorization: Bearer`.
  * This module is a non-`use*` module so the API client can read state
@@ -20,6 +21,11 @@ import { joinMeetGuest } from '../api'
  */
 
 export const STORAGE_KEY = 'qzr-guest-session'
+
+/** An app's call to POST /api/join/guest: the token and the meet a code opens, or null */
+export type GuestJoin = (
+  code: string,
+) => Promise<{ token: string; meet: { id: number; name: string }; role: string } | null>
 const URL_PARAM = 'meet'
 /** Skew applied to the JWT exp claim — refresh if less than this remaining. */
 const REFRESH_SKEW_MS = 5 * 60 * 1000
@@ -63,6 +69,24 @@ export function guestTokenFor(path: string, meetId?: number): string | null {
   const id = meetId ?? (pathMeetId === undefined ? undefined : Number(pathMeetId))
   if (id === undefined) return getGuestToken()
   return joinedSession(id)?.token ?? null
+}
+
+/**
+ * Wrap an app's API client so each request carries the guest token for its meet (see
+ * `guestTokenFor`); pass `meetId` when the path doesn't name the meet. A signed-in user's cookie
+ * takes precedence on the server, so they never need the header.
+ */
+export function withGuestToken(
+  baseRequest: <T>(path: string, init?: RequestInit) => Promise<T>,
+): <T>(path: string, init?: RequestInit, meetId?: number) => Promise<T> {
+  return <T>(path: string, init?: RequestInit, meetId?: number) => {
+    const token = guestTokenFor(path, meetId)
+    if (!token) return baseRequest<T>(path, init)
+    return baseRequest<T>(path, {
+      ...init,
+      headers: { ...init?.headers, Authorization: `Bearer ${token}` },
+    })
+  }
 }
 
 /** The joined guest session for a meet, whichever meet is active */
@@ -125,12 +149,12 @@ let initPromise: Promise<GuestSessionData | null> | null = null
  * with an official code. Safe and cheap to call multiple times — the first
  * call caches the in-flight promise and later calls await the same one.
  */
-export function initGuestSession(): Promise<GuestSessionData | null> {
-  if (!initPromise) initPromise = doInitGuestSession()
+export function initGuestSession(join: GuestJoin): Promise<GuestSessionData | null> {
+  if (!initPromise) initPromise = doInitGuestSession(join)
   return initPromise
 }
 
-async function doInitGuestSession(): Promise<GuestSessionData | null> {
+async function doInitGuestSession(join: GuestJoin): Promise<GuestSessionData | null> {
   if (typeof window === 'undefined') return null
   const params = new URLSearchParams(window.location.search)
   const slug = params.get(URL_PARAM)?.trim()
@@ -142,7 +166,7 @@ async function doInitGuestSession(): Promise<GuestSessionData | null> {
     return existing
   }
 
-  const res = await joinMeetGuest(slug)
+  const res = await join(slug)
   if (!res || res.role !== MeetRole.Viewer) return null
   const data: GuestSessionData = {
     token: res.token,
@@ -161,10 +185,10 @@ async function doInitGuestSession(): Promise<GuestSessionData | null> {
  * passing an official code is informed consent. Adds to the joined list but
  * does NOT switch the active session; the user picks the row to load it.
  */
-export async function joinByCode(code: string): Promise<GuestSessionData | null> {
+export async function joinByCode(code: string, join: GuestJoin): Promise<GuestSessionData | null> {
   const trimmed = code.trim()
   if (!trimmed) return null
-  const res = await joinMeetGuest(trimmed)
+  const res = await join(trimmed)
   if (!res) return null
   if (res.role !== MeetRole.Viewer && res.role !== MeetRole.Official) return null
   const data: GuestSessionData = {

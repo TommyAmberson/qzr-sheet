@@ -38,9 +38,12 @@ outcome, and results-route specs.
    select all, and open the standings. Totals, order, tie-break notes and the three finalists match
    a hand calculation. Uncount one: the standings drop it.
 4. **Upload (Story 3)**: Save two quizzes as files from the scoresheet, one not yet submitted and
-   one submitted in scenario 1, plus one file with its `version` edited to 99. Upload all three: the
-   new one is stored as uploaded, the submitted one is reported as already submitted, with the same
-   three choices, and the edited one is refused as too new.
+   one submitted in scenario 1, plus one file with its `version` edited to 99. Upload all three in
+   the portal as the admin: the new one is stored as uploaded, the submitted one is reported as
+   already submitted, with the same three choices, and the edited one is refused as too new. Then,
+   in a private window, join the portal with room 2's code and upload another saved quiz: it is
+   stored for room 2. From a scoresheet signed in as the admin, submit a quiz for room 2, and upload
+   a file for no room.
 5. **Edit and history (Story 4)**: Rename a team in the quick form; open the quiz in the scoresheet
    and fix an answer; then restore revision 1. The history lists every save with who, when and how,
    and nothing is lost.
@@ -52,5 +55,7 @@ outcome, and results-route specs.
 8. **Team list (Story 6)**: Enter team names for division `1`. In a scoresheet joined to a room,
    those names are offered for division `1`, and a typed name is still accepted.
 9. **Access**: With a viewer code, the results and standings routes refuse. An official of room 2
-   submitting room 1's quiz name is warned before adding a revision. Rotating room 1's code stops
-   its old token from submitting.
+   submitting room 1's quiz name is warned before adding a revision. In the portal, room 2's
+   official sees and edits only the quizzes room 2 has saved, including room 1's D1 Q1 once room 2
+   saved it, and no standings or counting. Rotating room 1's code stops its old token from
+   submitting.

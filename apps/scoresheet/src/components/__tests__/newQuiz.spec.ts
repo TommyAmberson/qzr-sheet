@@ -10,7 +10,7 @@ const linked: MeetSessionData = {
   teamList: [],
   meetDivisions: ['1'],
   quizId: 5,
-  official: { rooms: [] },
+  sender: { admin: false, rooms: [] },
 }
 
 beforeEach(() => {
@@ -24,6 +24,6 @@ describe('starting a new quiz in a linked meet', () => {
     // Ctrl+N reaches newQuiz directly, not through the New menu
     await wrapper.vm.newQuiz()
     const session = useMeetSession().snapshotSession()
-    expect(session).toMatchObject({ meetId: 3, official: { rooms: [] }, quizId: null })
+    expect(session).toMatchObject({ meetId: 3, sender: { admin: false, rooms: [] }, quizId: null })
   })
 })

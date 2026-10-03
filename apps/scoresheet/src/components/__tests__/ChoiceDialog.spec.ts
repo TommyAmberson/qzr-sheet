@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { mount } from '@vue/test-utils'
-import ChoiceDialog from '../ChoiceDialog.vue'
+import { ChoiceDialog } from '@qzr/ui'
 
 beforeAll(() => {
   // jsdom has no modal dialogs

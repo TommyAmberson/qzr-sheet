@@ -4,11 +4,24 @@ import {
   setGuestState,
   setActiveSession,
   getActiveSession,
+  initGuestSession as initWith,
+  joinByCode as joinWith,
   type GuestSessionData,
-} from './guestSession'
+} from '@qzr/ui'
+import { joinMeetGuest } from '../api'
 
-export { initGuestSession, guestTokenFor, joinByCode, joinedSession } from './guestSession'
-export type { GuestSessionData } from './guestSession'
+export { joinedSession } from '@qzr/ui'
+export type { GuestSessionData } from '@qzr/ui'
+
+/** Join from the page's `?meet=` link, once; see `initGuestSession` in `@qzr/ui` */
+export function initGuestSession() {
+  return initWith(joinMeetGuest)
+}
+
+/** Join a meet with a typed-in viewer or official code */
+export function joinByCode(code: string) {
+  return joinWith(code, joinMeetGuest)
+}
 
 export function useGuestSession() {
   const isActive = computed(() => guestStateRef.value.active !== null)

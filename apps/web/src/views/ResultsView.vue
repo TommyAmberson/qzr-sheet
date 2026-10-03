@@ -8,9 +8,16 @@ import {
   type TeamStanding,
   type TieBreak,
 } from '@qzr/shared'
-import { formatSlotTime } from '@qzr/ui'
+import { ChoiceDialog, formatSlotTime, uploadPicked, type FileReport, type Sender } from '@qzr/ui'
 
-import { getMeet, listResults, setResultsCounted, type MeetDetail } from '../api'
+import {
+  getMeet,
+  getSender,
+  listResults,
+  setResultsCounted,
+  uploadResult,
+  type MeetDetail,
+} from '../api'
 import { countedQuizzes, groupResults, type DivisionResults, type ResultRow } from '../results'
 
 const props = defineProps<{ slug: string }>()
@@ -22,6 +29,14 @@ const loading = ref(true)
 const error = ref('')
 const saving = ref(false)
 const countError = ref('')
+/** Who the user is in this meet: an admin counts quizzes and reads the standings; an official doesn't */
+const sender = ref<Sender | null>(null)
+const isAdmin = computed(() => sender.value?.admin ?? false)
+const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
+const uploadInput = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
+const uploadReports = ref<FileReport[]>([])
+const uploadError = ref('')
 
 /** Each division that has counted quizzes, with its standings */
 const standings = computed(() =>
@@ -38,14 +53,52 @@ async function load() {
   try {
     const { meet: detail } = await getMeet(props.slug)
     meet.value = detail
-    divisions.value = groupResults(await listResults(detail.id))
+    const [quizzes, who] = await Promise.all([listResults(detail.id), senderOf(detail.id)])
+    sender.value = who
+    divisions.value = groupResults(quizzes)
   } catch (e) {
     error.value =
-      e instanceof ApiError && e.status === 403
-        ? "Only the meet's admins can see its results."
-        : (e as Error).message
+      e instanceof ApiError && e.status === 401
+        ? 'Join the meet again with your room code to see its results.'
+        : e instanceof ApiError && e.status === 403
+          ? "Only the meet's admins and officials can see its results."
+          : (e as Error).message
   } finally {
     loading.value = false
+  }
+}
+
+/** Who the user is when sending to this meet, as the API works it out; null for anyone else */
+async function senderOf(meetId: number): Promise<Sender | null> {
+  try {
+    return await getSender(meetId)
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) return null
+    throw e
+  }
+}
+
+/** Upload the picked saved quiz files, report each, then show the list as it is now */
+async function onUploadFiles(event: Event) {
+  if (!meet.value) return
+  const meetId = meet.value.id
+  uploading.value = true
+  uploadError.value = ''
+  try {
+    const reports = await uploadPicked(
+      event,
+      choiceDialog.value,
+      sender.value,
+      meet.value.name,
+      (quizFile, roomId, onExisting) => uploadResult(meetId, quizFile, roomId, onExisting),
+    )
+    if (!reports) return
+    uploadReports.value = reports
+    divisions.value = groupResults(await listResults(meetId))
+  } catch (e) {
+    uploadError.value = (e as Error).message
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -114,9 +167,38 @@ onMounted(load)
 
     <template v-else-if="meet">
       <h2 class="page-title">Results: {{ meet.name }}</h2>
+
+      <div v-if="sender" class="upload">
+        <button
+          class="btn btn--secondary btn--sm"
+          :disabled="uploading"
+          @click="uploadInput?.click()"
+        >
+          {{ uploading ? 'Uploading…' : 'Upload saved quiz files' }}
+        </button>
+        <input
+          ref="uploadInput"
+          type="file"
+          accept=".json,application/json"
+          multiple
+          hidden
+          @change="onUploadFiles"
+        />
+        <p v-if="uploadError" class="state-msg state-msg--error">{{ uploadError }}</p>
+        <ul v-if="uploadReports.length > 0" class="upload-report">
+          <li
+            v-for="report in uploadReports"
+            :key="report.file"
+            :class="{ refused: !report.stored }"
+          >
+            {{ report.file }}: {{ report.message }}
+          </li>
+        </ul>
+      </div>
+
       <p v-if="divisions.length === 0" class="state-msg">No quizzes submitted yet.</p>
 
-      <template v-else>
+      <template v-else-if="isAdmin">
         <h3 class="section-title">Standings</h3>
         <p v-if="standings.length === 0" class="state-msg">
           Count quizzes below, normally the prelims, to see each division's standings.
@@ -154,10 +236,13 @@ onMounted(load)
             </li>
           </ul>
         </section>
+      </template>
 
+      <template v-if="divisions.length > 0">
         <div class="quizzes-header">
           <h3 class="section-title">Quizzes</h3>
           <button
+            v-if="isAdmin"
             class="btn btn--secondary btn--sm"
             :disabled="saving"
             @click="setCounted(allQuizzes, true)"
@@ -165,6 +250,7 @@ onMounted(load)
             Count all
           </button>
           <button
+            v-if="isAdmin"
             class="btn btn--secondary btn--sm"
             :disabled="saving"
             @click="setCounted(allQuizzes, false)"
@@ -185,7 +271,7 @@ onMounted(load)
               <th>From</th>
               <th>Revision</th>
               <th>Last saved</th>
-              <th>Counted</th>
+              <th v-if="isAdmin">Counted</th>
             </tr>
           </thead>
           <tbody>
@@ -203,7 +289,7 @@ onMounted(load)
               <td>{{ quiz.from }}</td>
               <td>{{ quiz.revision }}</td>
               <td>{{ quiz.savedBy }}, {{ quiz.action }}, {{ formatSlotTime(quiz.savedAt) }}</td>
-              <td>
+              <td v-if="isAdmin">
                 <input
                   type="checkbox"
                   :checked="quiz.counted"
@@ -217,6 +303,7 @@ onMounted(load)
         </table>
       </section>
     </template>
+    <ChoiceDialog ref="choiceDialog" />
   </div>
 </template>
 
@@ -346,6 +433,20 @@ onMounted(load)
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.upload {
+  margin-bottom: 1.5rem;
+}
+
+.upload-report {
+  margin-top: 0.5rem;
+  padding-left: 1.25rem;
+  font-size: 0.8rem;
+}
+
+.upload-report .refused {
+  color: var(--palette-error);
 }
 
 .finalist {

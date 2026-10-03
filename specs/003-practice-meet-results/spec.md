@@ -74,6 +74,21 @@ Decisions from the brainstorm:
   save it as the new current revision; or save it but keep the current revision. Keeping the current
   revision records the submitted copy in the history and then a revision restoring the earlier
   content, so the newest revision is always the current one (FR-003, FR-005).
+* Q: Can officials upload saved quiz files too? → A: Yes, for a room they officiate, from the
+  scoresheet ("Upload file to meet") and from the portal's results page. Uploading from the portal's
+  schedule view waits for schedule linkage (#16) (FR-007).
+* Q: What can an official do with their room's quizzes? → A: An official has authority over each
+  room they officiate; an account may officiate several, a guest official one. A room's quizzes are
+  those with a revision saved for it. The official can read them and their history and change them
+  (the short form, opening in the scoresheet, restoring), each change a new revision. Counting and
+  standings stay with admins (FR-018).
+* Q: Which rooms does a quiz not tied to the schedule belong to? → A: For now, every room a revision
+  of it was saved for, so it can be in several. Saving a name another room already has, after the
+  warning, gives your room access to that quiz and its history. Schedule linkage (#16) will tie a
+  quiz to its slot's room (FR-003, FR-018).
+* Q: How does an admin save from the scoresheet? → A: By name, like an official's submit, for any
+  room of the meet or for none. For a room it is recorded as submitted from that room by the admin;
+  for none, as the admin's own edit (FR-001, FR-009).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -149,54 +164,60 @@ standings, and check each division's order, totals, and finalists against a hand
 
 ### User Story 3 - Upload saved quiz files (Priority: P2)
 
-When a room can't submit, its official saves the quiz as a file, and the admin uploads one or more
-files into the meet. Uploaded quizzes join the list like submitted ones, ready to be counted.
+When a room can't submit, its official saves the quiz as a file, and later the official or the
+meet's admin uploads one or more files into the meet, from the scoresheet or the portal. Uploaded
+quizzes join the list like submitted ones, ready to be counted.
 
 **Why this priority**: The backup path for rooms without a connection. Without it, one offline room
 puts the meet back on paper.
 
-**Independent Test**: Save three quizzes as files, upload them together, and see them in the list,
-recorded as uploaded by the admin.
+**Independent Test**: Save three quizzes as files, upload two together as the admin and one as a
+room's official, and see them in the list, recorded as uploaded by the admin and for that room.
 
 **Acceptance Scenarios**:
 
-1. **Given** quiz files saved by the scoresheet, **When** the admin uploads them, **Then** each
-   becomes a quiz of the meet, recorded as uploaded by that admin.
+1. **Given** quiz files saved by the scoresheet, **When** the admin or a room's official uploads
+   them from the portal or the scoresheet, **Then** each becomes a quiz of the meet, recorded as
+   uploaded by that admin or for that official's room.
 2. **Given** a file that isn't a valid quiz file, **When** it is uploaded, **Then** it is rejected
    with the reason and the other files still upload.
 3. **Given** a file from a newer scoresheet than the meet's portal understands, **When** it is
    uploaded, **Then** it is rejected with that reason rather than read wrongly.
 4. **Given** an uploaded file whose division, consolation and quiz number the meet already has,
-   **When** it is uploaded, **Then** the admin is told it was already submitted, with its current
-   revision and who saved it, and gets the same three choices as an official.
+   **When** it is uploaded, **Then** the uploader is told it was already submitted, with its current
+   revision and who saved it, and gets the same three choices as a submission.
+5. **Given** an official of several rooms, **When** they upload, **Then** they choose the room the
+   files are for; an admin chooses any room of the meet, or none.
 
 ---
 
 ### User Story 4 - Correct a quiz, with a paper trail (Priority: P2)
 
-The admin fixes mistakes in a stored quiz: names, division, or quiz number through a short form, and
-answers by opening the quiz in the scoresheet. Every save keeps the previous revision, and the admin
-can see each quiz's history.
+The admin, or an official of the room a quiz came from, fixes mistakes in a stored quiz: names,
+division, or quiz number through a short form, and answers by opening the quiz in the scoresheet.
+Every save keeps the previous revision, and each quiz's history can be seen.
 
 **Why this priority**: Typed names and rushed scoring produce mistakes, and the standings are only
 as right as the quizzes. The paper trail makes every correction accountable.
 
 **Independent Test**: Rename a team and change a quiz number through the form, correct an answer
 through the scoresheet, and see three entries in the quiz's history with who made each change and
-when, and the standings updated.
+when, and the standings updated. Repeat a correction as the room's official.
 
 **Acceptance Scenarios**:
 
-1. **Given** a stored quiz, **When** the admin changes a team or quizzer name, the division, or the
-   quiz number and saves, **Then** the quiz shows the change and the standings reflect it.
-2. **Given** a stored quiz, **When** the admin opens it in the scoresheet, changes answers, and
-   saves, **Then** the stored quiz is updated from the scoresheet.
-3. **Given** any change to a quiz, by an official's resubmission or an admin's edit, **When** the
-   admin opens its history, **Then** each revision is listed with who saved it, when, and how
-   (submitted, uploaded, edited, merged, restored), and any earlier revision can be viewed or
-   restored.
-4. **Given** someone other than a meet admin, **When** they try to view or change the meet's
-   results, **Then** they are refused.
+1. **Given** a stored quiz, **When** the admin or an official of its room changes a team or quizzer
+   name, the division, or the quiz number and saves, **Then** the quiz shows the change and the
+   standings reflect it.
+2. **Given** a stored quiz, **When** the admin or an official of its room opens it in the
+   scoresheet, changes answers, and saves, **Then** the stored quiz is updated from the scoresheet.
+3. **Given** any change to a quiz, by an official's resubmission or an edit, **When** the admin or
+   an official of its room opens its history, **Then** each revision is listed with who saved it,
+   when, and how (submitted, uploaded, edited, merged, restored), and any earlier revision can be
+   viewed or restored.
+4. **Given** someone who is neither a meet admin nor an official of a quiz's room, **When** they try
+   to view or change that quiz, **Then** they are refused. An official sees and changes only their
+   rooms' quizzes, and never the standings or what counts.
 
 ---
 
@@ -270,8 +291,8 @@ from the list when setting up a quiz in that division.
   quiz itself computes them.
 * A counted quiz can't be placed, typically an uploaded file with unanswered questions or validation
   errors: it adds nothing to the standings, and a warning names it.
-* An admin scores a quiz in a room: they join with the room's code as an official, or save the file
-  and upload it.
+* An admin scores a quiz in a room: they submit it from the scoresheet for that room, or save the
+  file and upload it.
 * The scoresheet is not joined to a meet: submitting isn't offered, and the quiz works as today.
 * A quiz in a 20-question format is submitted to a practice meet: it is accepted and counted like
   any other.
@@ -281,37 +302,43 @@ from the list when setting up a quiz in that division.
 ### Functional Requirements
 
 * **FR-001**: Officials MUST be able to submit a quiz from a scoresheet joined to one of a meet's
-  rooms, storing it as a quiz of that meet recorded with the room.
+  rooms, storing it as a quiz of that meet recorded with the room. Meet admins MUST be able to
+  submit from the scoresheet too, for any room of the meet or for none.
 * **FR-002**: Submission from the scoresheet MUST be refused while the quiz has validation errors,
   with the reason.
 * **FR-003**: A quiz not tied to the schedule MUST be identified by its name: division, consolation
   and quiz number, ignoring case and spaces. Submitting or uploading a name the meet already has
   MUST warn with the stored quiz's current revision and who saved it, and offer three choices: not
   to submit, to save it as the new current revision, or to save it but keep the current revision.
-  Either save MUST add to that quiz's history rather than create another quiz.
+  Either save MUST add to that quiz's history rather than create another quiz, and gives the room it
+  is saved for access to the quiz (FR-018).
 * **FR-004**: A failed submission MUST say so, MUST leave the quiz on the device unchanged, and MUST
   NOT block scoring or saving to a file.
 * **FR-005**: Every save of a stored quiz (submission, upload, edit, merge, restore) MUST be kept as
   a revision recording who saved it, when, and how. Earlier revisions MUST remain viewable and MUST
   NOT be deleted by later saves. The newest revision is always the current one: keeping the current
   revision on a save records the submitted copy, then a revision restoring the earlier content.
-* **FR-005a**: Meet admins MUST be able to restore any earlier revision of a stored quiz in one
-  action. Restoring MUST add a new revision recorded as restored from that revision, with who and
-  when, and MUST keep every newer revision. Restoring content that is already current changes
-  nothing.
+* **FR-005a**: Meet admins, and officials for their rooms' quizzes, MUST be able to restore any
+  earlier revision of a stored quiz in one action. Restoring MUST add a new revision recorded as
+  restored from that revision, with who and when, and MUST keep every newer revision. Restoring
+  content that is already current changes nothing.
 * **FR-006**: Meet admins MUST be able to list the meet's stored quizzes grouped by division, with
   quiz name, where it came from (the submitting room or the uploader), team names, team scores,
   whether it is counted, its revision number, and who saved it last and when, so that a quiz changed
-  since an admin last looked stands out.
-* **FR-007**: Meet admins MUST be able to upload one or more scoresheet quiz files into the meet. A
-  valid file whose name the meet doesn't have becomes a stored quiz; one whose name it already has
-  is reported with that quiz's current revision and gets the same three choices (FR-003). Each
-  invalid or too-new file is rejected individually with its reason.
-* **FR-008**: Meet admins MUST be able to change a stored quiz's team names, quizzer names,
-  division, and quiz number. A change of division or quiz number that would give the quiz another
-  stored quiz's name MUST be refused with the reason.
-* **FR-009**: Meet admins MUST be able to open a stored quiz in the scoresheet and save the
-  corrected quiz back to the meet.
+  since an admin last looked stands out. An official MUST be able to list their rooms' quizzes the
+  same way, without counting them.
+* **FR-007**: Meet admins and officials MUST be able to upload one or more scoresheet quiz files
+  into the meet, from the portal's results page or the scoresheet: an official for one of their
+  rooms, chosen when they have several; an admin for any room of the meet or for none. A valid file
+  whose name the meet doesn't have becomes a stored quiz; one whose name it already has is reported
+  with that quiz's current revision and gets the same three choices (FR-003). Each invalid or
+  too-new file is rejected individually with its reason.
+* **FR-008**: Meet admins, and officials for their rooms' quizzes, MUST be able to change a stored
+  quiz's team names, quizzer names, division, and quiz number. A change of division or quiz number
+  that would give the quiz another stored quiz's name MUST be refused with the reason.
+* **FR-009**: Meet admins, and officials for their rooms' quizzes, MUST be able to open a stored
+  quiz in the scoresheet and save the corrected quiz back to the meet, by its name like a submission
+  (FR-003).
 * **FR-010**: Standings MUST group counted quizzes by the division written in each quiz, as given,
   so a division the meet doesn't list forms its own group. Standings MUST rank each division's teams
   by total placement points over the counted quizzes, each quiz's placement points being those the
@@ -346,9 +373,11 @@ from the list when setting up a quiz in that division.
   admins MUST be able to merge one into another across every quiz in that division in one action.
 * **FR-017**: Meet admins MUST be able to keep a list of team names per division for the meet, and a
   scoresheet joined to the meet's room MUST offer that list while still accepting typed names.
-* **FR-018**: Only the meet's admins (and superusers) MUST be able to view stored quizzes, their
-  history, and the standings, or change them. Officials MUST only be able to submit to the meet of
-  the room they joined.
+* **FR-018**: Meet admins (and superusers) MUST be able to view and change all of a meet's stored
+  quizzes and their history, count them, and see the standings. An official MUST be able to view and
+  change only the quizzes of the rooms they officiate (those with a revision saved for one of them),
+  with their history, and MUST NOT see the standings or change what counts. Officials MUST only be
+  able to submit or upload to the meet of the rooms they officiate.
 * **FR-019**: Standings MUST always use the newest revision of each counted quiz, with no further
   action after a counted quiz is resubmitted or edited.
 
@@ -358,7 +387,8 @@ from the list when setting up a quiz in that division.
   quizzers.
 * **Stored quiz**: one quiz of a meet, identified by its name (division, consolation and quiz
   number) when not tied to the schedule: its current content (as the scoresheet saves it), the room
-  it came from if submitted, and whether it is counted in the standings.
+  or rooms its revisions were saved for, whose officials may read and change it, and whether it is
+  counted in the standings.
 * **Quiz version** (a revision): one save of a stored quiz: its revision number, its content (a full
   quiz, or the earlier revision it restores), who saved it, when, and how (submitted, uploaded,
   edited, merged, restored).
@@ -386,8 +416,9 @@ from the list when setting up a quiz in that division.
 
 * Meets, divisions, rooms, room official codes, and admin access already exist and are reused; the
   admin creates the practice meet and its rooms as for any meet.
-* Officials join a scoresheet to a room with the room's code, without an account, as the access
-  design describes.
+* Officials join a scoresheet, or the portal, to a room with the room's code, without an account, as
+  the access design describes. The two apps share an origin, so a code joined in either works in
+  both.
 * Standings use the placement points each quiz computes under its own placement formula setting.
 * In a scheduled meet, quizzes linked to a schedule slot will be counted automatically. That arrives
   with schedule result linkage (#16) and is out of scope here.

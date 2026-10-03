@@ -1,18 +1,17 @@
 import { ref, computed } from 'vue'
 import {
   getMeetTeams,
-  getMyMeets,
   getScheduledQuiz,
   getTeamQuizzers,
+  getSender,
   submitResult,
-  type ExistingQuiz,
+  uploadResult,
   type MeetTeam,
-  type OnExisting,
   type ScheduledQuizDetails,
   type ScheduledQuizSeat,
 } from '../api'
-import { ApiError, MeetRole, QUIZZERS_PER_TEAM, type QuizFile } from '@qzr/shared'
-import { joinedSession } from './guestSession'
+import { ApiError, QUIZZERS_PER_TEAM, type QuizFile } from '@qzr/shared'
+import { existingQuizOf, type ExistingQuiz, type OnExisting, type Sender } from '@qzr/ui'
 
 const STORAGE_KEY = 'qzr-meet-session'
 
@@ -37,17 +36,8 @@ export interface MeetSessionData {
    *  (via loadFromQuiz). Stamped onto submitted results in the future
    *  Submit flow (#7) so they back-link to the schedule entry. */
   quizId: number | null
-  /**
-   * Set when the user officiates this meet and can submit to it. A signed-in official's rooms in
-   * the meet; none for a guest official, whose room is in their token.
-   */
-  official: { rooms: OfficialRoom[] } | null
-}
-
-/** A room of the meet a signed-in official officiates */
-export interface OfficialRoom {
-  id: number
-  name: string
+  /** Set when the user may send quizzes to this meet, and for which rooms */
+  sender: Sender | null
 }
 
 /** What happened to a submission: stored, or not, because the meet already has its name */
@@ -58,27 +48,17 @@ export type SubmitOutcome =
 const session = ref<MeetSessionData | null>(loadFromStorage())
 
 /**
- * Whether the user officiates the meet, and for a signed-in official their rooms. A signed-in
- * user is asked about first, because the API ignores a guest token whenever an account session is
- * present; a guest official's room is in their token. Asked whenever a meet is loaded or
- * refreshed, so every way into a meet can submit. Undefined when there's no telling (offline, or
- * the server failed), so a refresh keeps what it knew.
+ * Whether the user may send quizzes to the meet, and for which rooms, as the API works it out.
+ * Asked whenever a meet is loaded or refreshed, so every way into a meet can send. Undefined when
+ * there's no telling (offline, or the server failed), so a refresh keeps what it knew.
  */
-async function officialOf(meetId: number): Promise<MeetSessionData['official'] | undefined> {
+async function senderOf(meetId: number): Promise<Sender | null | undefined> {
   try {
-    const { memberships } = await getMyMeets()
-    const rooms = memberships.flatMap((m) =>
-      m.meetId === meetId && m.role === MeetRole.Official && m.roomId !== undefined
-        ? [{ id: m.roomId, name: m.label ?? `Room ${m.roomId}` }]
-        : [],
-    )
-    return rooms.length > 0 ? { rooms } : null
+    return await getSender(meetId)
   } catch (e) {
-    // Signed out: a guest official may still submit
-    if (!(e instanceof ApiError && e.status === 401)) return undefined
+    // Signed out with no code for this meet, or neither an admin nor an official of it
+    return e instanceof ApiError && (e.status === 401 || e.status === 403) ? null : undefined
   }
-  const guest = joinedSession(meetId)
-  return guest?.role === MeetRole.Official ? { rooms: [] } : null
 }
 
 export function useMeetSession() {
@@ -113,9 +93,9 @@ export function useMeetSession() {
 
   /** Load all teams for a meet and activate quizmeet mode */
   async function loadMeet(meetId: number, meetName: string): Promise<void> {
-    const [{ teams, meetDivisions }, official] = await Promise.all([
+    const [{ teams, meetDivisions }, sender] = await Promise.all([
       getMeetTeams(meetId),
-      officialOf(meetId),
+      senderOf(meetId),
     ])
     session.value = {
       meetId,
@@ -124,14 +104,14 @@ export function useMeetSession() {
       teamList: teams,
       meetDivisions,
       quizId: null,
-      official: official ?? null,
+      sender: sender ?? null,
     }
     persist()
   }
 
-  const canSubmit = computed(() => !!session.value?.official)
-  /** A signed-in official's rooms in the meet, to submit for one of them */
-  const officialRooms = computed(() => session.value?.official?.rooms ?? [])
+  const canSubmit = computed(() => !!session.value?.sender)
+  /** Who the user is when sending to the meet, and the rooms they may send for */
+  const sender = computed(() => session.value?.sender ?? null)
 
   /**
    * Send the quiz to the meet, which knows it by its name (division and quiz number), for one of a
@@ -144,7 +124,7 @@ export function useMeetSession() {
     onExisting?: OnExisting,
   ): Promise<SubmitOutcome> {
     const s = session.value
-    if (!s?.official) throw new Error('Only an official of this meet can submit to it')
+    if (!s?.sender) throw new Error('Only an admin or official of this meet can submit to it')
     try {
       const { created, revision, keptCurrent } = await submitResult(
         s.meetId,
@@ -154,11 +134,21 @@ export function useMeetSession() {
       )
       return { stored: true, created, revision, keptCurrent: keptCurrent ?? false }
     } catch (e) {
-      if (!(e instanceof ApiError) || e.status !== 409) throw e
-      const { existing } = (e.body ?? {}) as { existing?: ExistingQuiz }
+      const existing = existingQuizOf(e)
       if (!existing) throw e
       return { stored: false, existing }
     }
+  }
+
+  /**
+   * Send a saved quiz file to the meet without opening it, by name like a submission: a name the
+   * meet already has is refused with what's stored (see `existingQuizOf`), unless sent again saying
+   * what to do with it.
+   */
+  function uploadQuiz(quizFile: QuizFile, roomId: number | null, onExisting?: OnExisting) {
+    const s = session.value
+    if (!s?.sender) throw new Error('Only an admin or official of this meet can upload to it')
+    return uploadResult(s.meetId, quizFile, roomId, onExisting)
   }
 
   /**
@@ -305,16 +295,16 @@ export function useMeetSession() {
     // changed — otherwise we'd clobber meet B's teamList with A's.
     const capturedMeetId = session.value.meetId
     try {
-      const [{ teams, meetDivisions }, official] = await Promise.all([
+      const [{ teams, meetDivisions }, sender] = await Promise.all([
         getMeetTeams(capturedMeetId),
-        officialOf(capturedMeetId),
+        senderOf(capturedMeetId),
       ])
       if (!session.value || session.value.meetId !== capturedMeetId) return
       session.value = {
         ...session.value,
         teamList: teams,
         meetDivisions,
-        official: official === undefined ? session.value.official : official,
+        sender: sender === undefined ? session.value.sender : sender,
       }
       persist()
     } catch {
@@ -326,7 +316,8 @@ export function useMeetSession() {
     isActive,
     meetId,
     canSubmit,
-    officialRooms,
+    sender,
+    uploadQuiz,
     submitQuiz,
     meetName,
     teamList,
@@ -456,7 +447,7 @@ function loadFromStorage(): MeetSessionData | null {
     // Migrate fields added after old sessions were persisted.
     if (!data.meetDivisions) data.meetDivisions = []
     if (data.quizId === undefined) data.quizId = null
-    if (data.official === undefined) data.official = null
+    if (data.sender === undefined) data.sender = null
     return data
   } catch {
     return null

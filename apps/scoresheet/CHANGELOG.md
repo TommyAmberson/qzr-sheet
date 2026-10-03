@@ -15,6 +15,26 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-02
+
+### Added
+
+* **Upload file to meet** - officials and admins of a linked meet can upload saved quiz files from
+  the Save menu without opening them. Each is sent by name, one at a time; a name the meet already
+  has asks the same three choices as Submit, and a report says what became of each file
+* **Saving as an admin** - a meet admin can save the sheet to the meet too, for any of its rooms,
+  recorded as from that room, or for no room, recorded as their own edit
+
+### Changed
+
+* Guest sessions and the "already submitted" question now come from `@qzr/ui`, shared with the
+  portal, so a code joined in either app works in both. Saved file names come from the shared quiz
+  name, unchanged ("D1Q3.json")
+
+### Bundled contract
+
+* `@qzr/shared@1.3.0` - bumped from 1.2.0
+
 ## [0.13.1] - 2026-10-02
 
 ### Fixed

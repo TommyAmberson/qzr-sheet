@@ -1,24 +1,10 @@
 import { createApiClient, type QuizFile } from '@qzr/shared'
-import { guestTokenFor } from './composables/useGuestSession'
+import { withGuestToken, type OnExisting, type Sender, type Stored } from '@qzr/ui'
 
 declare const __API_URL__: string
 
-const baseRequest = createApiClient(__API_URL__ || '')
-
-/**
- * Attach `Authorization: Bearer <jwt>` with the guest token for the request's
- * meet (see `guestTokenFor`) so the API's session middleware can recognize the
- * caller. Pass `meetId` when the path doesn't name the meet. Cookie sessions
- * take precedence on the server, so signed-in users never need the header.
- */
-function request<T>(path: string, init?: RequestInit, meetId?: number): Promise<T> {
-  const token = guestTokenFor(path, meetId)
-  if (!token) return baseRequest<T>(path, init)
-  return baseRequest<T>(path, {
-    ...init,
-    headers: { ...init?.headers, Authorization: `Bearer ${token}` },
-  })
-}
+/** Requests carry the guest token of the meet they're for (see `withGuestToken`) */
+const request = withGuestToken(createApiClient(__API_URL__ || ''))
 
 // ---- Types ----
 
@@ -53,29 +39,35 @@ export function getMyMeets(): Promise<{ memberships: MeetSummary[] }> {
   return request('/api/my-meets')
 }
 
-/** A quiz the meet already has under the submitted quiz's name */
-export interface ExistingQuiz {
-  id: number
-  name: string
-  revision: number
-  savedBy: { name: string } | null
-  savedAt: string | null
-}
-
-/** What to do with a submission whose name the meet already has */
-export type OnExisting = 'newRevision' | 'keepCurrent'
-
-/** Submit a quiz to the meet, which knows it by name. A guest official's room is in their token. */
+/** Submit the sheet to the meet, which knows it by name, for a room or (an admin) none */
 export function submitResult(
   meetId: number,
   quizFile: QuizFile,
   roomId: number | null,
   onExisting?: OnExisting,
-): Promise<{ id: number; revision: number; created: boolean; keptCurrent?: boolean }> {
+): Promise<Stored> {
   return request(`/api/meets/${meetId}/results`, {
     method: 'POST',
     body: JSON.stringify({ quizFile, roomId: roomId ?? undefined, onExisting }),
   })
+}
+
+/** Upload a saved quiz file to the meet without opening it, by name, like a submission */
+export function uploadResult(
+  meetId: number,
+  quizFile: QuizFile,
+  roomId: number | null,
+  onExisting?: OnExisting,
+): Promise<Stored> {
+  return request(`/api/meets/${meetId}/results`, {
+    method: 'POST',
+    body: JSON.stringify({ quizFile, roomId: roomId ?? undefined, onExisting, upload: true }),
+  })
+}
+
+/** Who the user is when sending to the meet, as the API works it out; 401 or 403 when no one */
+export function getSender(meetId: number): Promise<Sender> {
+  return request(`/api/meets/${meetId}/results/sender`)
 }
 
 export function getMeetTeams(
