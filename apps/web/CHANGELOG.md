@@ -16,6 +16,19 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-04
+
+### Added
+
+* **Merging look-alike team names** - the standings flag two names in a division that look like one
+  team spelt two ways, such as "Calgary 1" and "Calgry 1", with a Merge button. The admin picks the
+  name to keep, and each of the division's quizzes using the other is saved with it as a `merged`
+  revision. A failure part-way says how many were merged; merging again finishes the rest
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - bumped from 1.4.1
+
 ## [0.17.2] - 2026-10-03
 
 ### Fixed

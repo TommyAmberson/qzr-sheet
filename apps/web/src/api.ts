@@ -644,15 +644,19 @@ export function restoreRevision(
   })
 }
 
-/** Save an edited stored quiz as a new revision; a rename onto another quiz's name is refused */
+/**
+ * Save an edited stored quiz as a new revision, labelled `merged` for a merge of team names (R10). A
+ * rename onto another quiz's name is refused.
+ */
 export function editResult(
   meetId: number,
   resultId: number,
   quizFile: QuizFile,
+  action?: 'merged',
 ): Promise<{ id: number; revision: number }> {
   return request(`/api/meets/${meetId}/results/${resultId}`, {
     method: 'PUT',
-    body: JSON.stringify({ quizFile }),
+    body: JSON.stringify({ quizFile, action }),
   })
 }
 

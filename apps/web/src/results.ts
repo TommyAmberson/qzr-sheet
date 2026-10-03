@@ -1,5 +1,6 @@
 import {
   deserialize,
+  foldName,
   quizName,
   quizOutcome,
   serialize,
@@ -69,14 +70,14 @@ export function countedQuizzes(division: DivisionResults): CountedQuiz[] {
     .map((quiz) => ({ name: quiz.name, outcome: { placed: quiz.placed, teams: quiz.teams } }))
 }
 
-/** The names the quick form can change in a stored quiz's file */
+/** The names the quick form can change in a stored quiz's file; what's left out stays as it is */
 export interface QuizEdit {
-  division: string
-  quizNumber: string
+  division?: string
+  quizNumber?: string
   /** By team id */
-  teamNames: Map<number, string>
+  teamNames?: Map<number, string>
   /** By quizzer id */
-  quizzerNames: Map<number, string>
+  quizzerNames?: Map<number, string>
 }
 
 /**
@@ -87,14 +88,39 @@ export function editQuizFile(file: QuizFile, edit: QuizEdit): QuizFile {
   const content = deserialize(file)
   return serialize({
     ...content,
-    quiz: { ...content.quiz, division: edit.division.trim(), quizNumber: edit.quizNumber.trim() },
+    quiz: {
+      ...content.quiz,
+      division: edit.division?.trim() ?? content.quiz.division,
+      quizNumber: edit.quizNumber?.trim() ?? content.quiz.quizNumber,
+    },
     teams: content.teams.map((team) => ({
       ...team,
-      name: edit.teamNames.get(team.id)?.trim() ?? team.name,
+      name: edit.teamNames?.get(team.id)?.trim() ?? team.name,
     })),
     quizzers: content.quizzers.map((quizzer) => ({
       ...quizzer,
-      name: edit.quizzerNames.get(quizzer.id)?.trim() ?? quizzer.name,
+      name: edit.quizzerNames?.get(quizzer.id)?.trim() ?? quizzer.name,
     })),
+  })
+}
+
+/**
+ * The edits merging one team name into another across a division (R10): each stored quiz of the
+ * division, as written, with a team named `from` once folded for case and spaces, that team renamed
+ * `into`. Every other name, and every other quiz, is left as it is.
+ */
+export function mergeEdits(
+  stored: StoredQuiz[],
+  division: string,
+  from: string,
+  into: string,
+): { id: number; quizFile: QuizFile }[] {
+  const merged = foldName(from)
+  return stored.flatMap(({ id, quizFile }) => {
+    if (quizFile.quiz.division !== division) return []
+    const renamed = quizFile.teams.filter((team) => foldName(team.name) === merged)
+    if (renamed.length === 0) return []
+    const teamNames = new Map(renamed.map((team) => [team.id, into]))
+    return [{ id, quizFile: editQuizFile(quizFile, { teamNames }) }]
   })
 }
