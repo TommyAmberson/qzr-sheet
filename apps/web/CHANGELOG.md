@@ -16,6 +16,21 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-10-02
+
+### Fixed
+
+* The Results page fits a phone: each quiz becomes a card, with its name and Counted box, its teams,
+  where it came from, its revision and when it was last saved, each labelled. Teams are listed one
+  per line at every width, with a team's place set apart from its score ("200 1st, 20 pts"), and a
+  quiz page's history keeps each team's score beside its name
+* A division whose counted quizzes can't be placed shows only its warning, not an empty standings
+  table
+
+### Bundled contract
+
+* `@qzr/shared@1.4.0` - unchanged
+
 ## [0.17.0] - 2026-10-02
 
 ### Added

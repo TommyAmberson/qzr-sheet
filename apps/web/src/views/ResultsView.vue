@@ -205,12 +205,12 @@ onMounted(load)
         </p>
         <section v-for="division in standings" :key="division.division" class="division">
           <h4 class="division-title">Division {{ division.division }}</h4>
-          <table class="results-table">
+          <table v-if="division.teams.length > 0" class="results-table">
             <thead>
               <tr>
                 <th>Rank</th>
                 <th>Team</th>
-                <th>Placement points</th>
+                <th title="Placement points">Points</th>
                 <th>Quizzes</th>
                 <th>Tie-break</th>
               </tr>
@@ -263,7 +263,7 @@ onMounted(load)
 
       <section v-for="group in divisions" :key="group.division" class="division">
         <h3 class="division-title">Division {{ group.division }}</h3>
-        <table class="results-table">
+        <table class="results-table quiz-table">
           <thead>
             <tr>
               <th>Quiz</th>
@@ -276,24 +276,28 @@ onMounted(load)
           </thead>
           <tbody>
             <tr v-for="quiz in group.quizzes" :key="quiz.id">
-              <td>
+              <td class="cell-quiz">
                 <router-link :to="{ name: 'meet-result', params: { slug, resultId: quiz.id } }">
                   {{ quiz.name }}
                 </router-link>
               </td>
-              <td>
-                <span v-for="(team, seat) in quiz.teams" :key="seat" class="team">
-                  {{ team.name }} <strong>{{ team.score }}</strong>
-                  <span v-if="team.place !== null" class="note">
-                    {{ placeLabel(team.place) }}, {{ team.placementPoints }} pts
-                  </span>
-                </span>
-                <span v-if="!quiz.placed" class="note">not placed yet</span>
+              <td class="cell-teams">
+                <ul class="teams">
+                  <li v-for="(team, seat) in quiz.teams" :key="seat">
+                    {{ team.name }} <strong>{{ team.score }}</strong>
+                    <span v-if="team.place !== null" class="note">
+                      {{ placeLabel(team.place) }}, {{ team.placementPoints }} pts
+                    </span>
+                  </li>
+                  <li v-if="!quiz.placed" class="note">not placed yet</li>
+                </ul>
               </td>
-              <td>{{ quiz.from }}</td>
-              <td>{{ quiz.revision }}</td>
-              <td>{{ quiz.savedBy }}, {{ quiz.action }}, {{ formatSlotTime(quiz.savedAt) }}</td>
-              <td v-if="isAdmin">
+              <td class="cell-from" data-label="From">{{ quiz.from }}</td>
+              <td class="cell-revision" data-label="Revision">{{ quiz.revision }}</td>
+              <td class="cell-saved" data-label="Last saved">
+                {{ quiz.savedBy }}, {{ quiz.action }}, {{ formatSlotTime(quiz.savedAt) }}
+              </td>
+              <td v-if="isAdmin" class="cell-counted" data-label="Counted">
                 <input
                   type="checkbox"
                   :checked="quiz.counted"
@@ -379,8 +383,74 @@ onMounted(load)
   font-weight: 600;
 }
 
-.team {
-  margin-right: 0.75rem;
+.teams {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Vue drops the line break between a team's score and its place, so space them here */
+.teams li > .note {
+  margin-left: 0.3rem;
+}
+
+/* On a phone each quiz is a card: its name and Counted box, its teams, then the rest, labelled */
+@media (max-width: 640px) {
+  .quiz-table thead {
+    display: none;
+  }
+
+  .quiz-table tbody {
+    display: block;
+  }
+
+  .quiz-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'quiz counted'
+      'teams teams'
+      'from from'
+      'revision revision'
+      'saved saved';
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .quiz-table tbody td {
+    border: none;
+    padding: 0.15rem 0;
+  }
+
+  .quiz-table td[data-label]::before {
+    content: attr(data-label) ' ';
+    color: var(--color-text-faint);
+  }
+
+  .cell-quiz {
+    grid-area: quiz;
+    font-weight: 600;
+  }
+
+  .cell-counted {
+    grid-area: counted;
+  }
+
+  .cell-teams {
+    grid-area: teams;
+  }
+
+  .cell-from {
+    grid-area: from;
+  }
+
+  .cell-revision {
+    grid-area: revision;
+  }
+
+  .cell-saved {
+    grid-area: saved;
+  }
 }
 
 .section-title {
