@@ -362,6 +362,8 @@ onMounted(load)
 
 .team {
   margin-right: 0.75rem;
+  /* A team's name and score stay together when the row wraps */
+  white-space: nowrap;
 }
 
 .note {
