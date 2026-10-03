@@ -44,10 +44,13 @@ Superusers have implicit full access to all meets — no membership rows needed.
   scoresheet or the portal's results page. A quiz name the meet already has, from any room, is
   reported first and added as a new revision on confirmation. The guest token names the room and is
   tied to its current code, so rotating the code revokes it
-* Can see the quizzes their rooms have saved in the portal, but not the standings or what counts.
-  For now a quiz not tied to the schedule belongs to every room a revision of it was saved for, so
-  saving another room's quiz name gives this room access to it. An account may officiate several
-  rooms, and sees all of theirs
+* Can see the quizzes their rooms have saved in the portal, and whether each counts, but not change
+  what counts or see the standings. For now a quiz not tied to the schedule belongs to every room a
+  revision of it was saved for, so saving another room's quiz name gives this room access to it. An
+  account may officiate several rooms, and sees all of theirs
+* Can read those quizzes' history, correct them (the portal's quick form, or opening them in the
+  scoresheet and saving to the meet) and restore earlier revisions. Each change is recorded for one
+  of their rooms the quiz already has
 * Cannot manage teams or rosters
 * **No account required** — a code or join link issues a short-lived guest JWT; see
   [auth.md § Guest JWTs](./auth.md#guest-jwts-officials-and-viewers-without-accounts)
