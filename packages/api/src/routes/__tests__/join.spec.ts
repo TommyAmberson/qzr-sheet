@@ -292,7 +292,7 @@ describe('POST /api/join/guest', () => {
   describe('official guest session', () => {
     it('returns a guest JWT for an official code', async () => {
       const { meet } = await seedMeet(db)
-      const { code } = await seedOfficialCode(db, meet.id, 'Room B')
+      const { officialCode, code } = await seedOfficialCode(db, meet.id, 'Room B')
 
       const res = await app.request('/api/join/guest', post({ code }), env)
       expect(res.status).toBe(200)
@@ -308,6 +308,9 @@ describe('POST /api/join/guest', () => {
       expect(payload!.meetId).toBe(meet.id)
       expect(payload!.role).toBe(MeetRole.Official)
       expect(payload!.label).toBe('Room B')
+      // Results are saved per room, so the token names it
+      expect(payload!.roomId).toBe(officialCode.id)
+      expect(payload!.codeTag).toBeTypeOf('string')
     })
   })
 })

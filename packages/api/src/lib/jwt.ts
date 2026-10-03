@@ -5,6 +5,10 @@ export interface GuestPayload extends JWTPayload {
   meetId: number
   role: MeetRole.Official | MeetRole.Viewer
   label?: string
+  /** The room an official's code belongs to; absent on viewer tokens and older official ones */
+  roomId?: number
+  /** Ties an official token to the room's current code, so rotating the code revokes it */
+  codeTag?: string
 }
 
 const GUEST_ISSUER = 'qzr-guest'
@@ -15,7 +19,13 @@ const DEFAULT_EXPIRY = '24h'
  * Sign a short-lived guest JWT for officials/viewers without accounts.
  */
 export async function signGuestJwt(
-  payload: { meetId: number; role: MeetRole.Official | MeetRole.Viewer; label?: string },
+  payload: {
+    meetId: number
+    role: MeetRole.Official | MeetRole.Viewer
+    label?: string
+    roomId?: number
+    codeTag?: string
+  },
   secret: string,
 ): Promise<string> {
   const key = await importKey(secret)
@@ -23,6 +33,8 @@ export async function signGuestJwt(
     meetId: payload.meetId,
     role: payload.role,
     ...(payload.label ? { label: payload.label } : {}),
+    ...(payload.roomId !== undefined ? { roomId: payload.roomId } : {}),
+    ...(payload.codeTag ? { codeTag: payload.codeTag } : {}),
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -48,6 +60,19 @@ export async function verifyGuestJwt(token: string, secret: string): Promise<Gue
   } catch {
     return null
   }
+}
+
+/**
+ * A tag for a room code's hash, keyed with the server secret so it reveals nothing about the code.
+ * An official token carries it, and stops working once the room's code changes.
+ */
+export async function roomCodeTag(codeHash: string, secret: string): Promise<string> {
+  const key = await importKey(secret)
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`room:${codeHash}`))
+  return [...new Uint8Array(mac)]
+    .slice(0, 12)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 async function importKey(secret: string): Promise<CryptoKey> {

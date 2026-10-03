@@ -1,5 +1,6 @@
-import { integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
-import { AccountRole, MEET_PHASES, DIVISION_STATES } from '@qzr/shared'
+import { sql } from 'drizzle-orm'
+import { check, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { AccountRole, MEET_PHASES, DIVISION_STATES, RESULT_ACTIONS } from '@qzr/shared'
 
 // ---- Better Auth core tables ----
 
@@ -295,6 +296,61 @@ export const seedResolutions = sqliteTable(
   (t) => [unique().on(t.meetId, t.seedRef)],
 )
 
+// ---- Results ----
+
+// One quiz of a meet, whatever its history. Its content is its newest revision.
+export const quizResults = sqliteTable(
+  'quiz_results',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    // The room it was first submitted from; null for uploads
+    roomId: integer('room_id').references(() => meetRooms.id, { onDelete: 'set null' }),
+    // The quiz's name (division, consolation, quiz number), folded for case and spaces; a quiz not
+    // tied to the schedule is identified by it
+    quizKey: text('quiz_key').notNull(),
+    // Counts in the standings only once an admin selects it
+    counted: integer('counted', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [unique().on(t.meetId, t.quizKey)],
+)
+
+// Append-only: one row per save, never updated or deleted while the meet exists
+export const quizResultRevisions = sqliteTable(
+  'quiz_result_revisions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    resultId: integer('result_id')
+      .notNull()
+      .references(() => quizResults.id, { onDelete: 'cascade' }),
+    revision: integer('revision').notNull(),
+    // A revision either carries a quiz file (JSON, validated before storing) or selects an earlier
+    // revision of the same quiz that does, which makes that content current again
+    quizFile: text('quiz_file'),
+    restoredFrom: integer('restored_from'),
+    action: text('action', { enum: RESULT_ACTIONS }).notNull(),
+    savedByAccountId: text('saved_by_account_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    savedByRoomId: integer('saved_by_room_id').references(() => meetRooms.id, {
+      onDelete: 'set null',
+    }),
+    // Who saved it, as named at the time, so the trail survives a renamed or deleted room or account
+    savedByName: text('saved_by_name').notNull(),
+    savedAt: integer('saved_at', { mode: 'timestamp' }).notNull(),
+  },
+  (t) => [
+    unique().on(t.resultId, t.revision),
+    check(
+      'quiz_result_revisions_one_source',
+      sql`(${t.quizFile} IS NULL) <> (${t.restoredFrom} IS NULL)`,
+    ),
+  ],
+)
+
 // ---- Inferred types ----
 
 export type User = typeof user.$inferSelect
@@ -315,3 +371,5 @@ export type ScheduledQuiz = typeof scheduledQuizzes.$inferSelect
 export type ScheduledQuizSeat = typeof scheduledQuizSeats.$inferSelect
 export type PrelimAssignment = typeof prelimAssignments.$inferSelect
 export type SeedResolution = typeof seedResolutions.$inferSelect
+export type QuizResult = typeof quizResults.$inferSelect
+export type QuizResultRevision = typeof quizResultRevisions.$inferSelect

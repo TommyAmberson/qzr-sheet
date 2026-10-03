@@ -51,7 +51,13 @@ async function seedChurch(db: Db, meetId: number) {
 }
 
 type MembershipBody = {
-  memberships: { meetId: number; meetName: string; role: string; label?: string }[]
+  memberships: {
+    meetId: number
+    meetName: string
+    role: string
+    label?: string
+    roomId?: number
+  }[]
 }
 
 describe('GET /api/my-meets', () => {
@@ -111,6 +117,7 @@ describe('GET /api/my-meets', () => {
     expect(body.memberships).toHaveLength(1)
     expect(body.memberships[0].role).toBe(MeetRole.Official)
     expect(body.memberships[0].label).toBe('Room A')
+    expect(body.memberships[0].roomId).toBe(code!.id)
   })
 
   it('returns viewer memberships', async () => {
