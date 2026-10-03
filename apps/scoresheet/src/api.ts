@@ -52,19 +52,6 @@ export function submitResult(
   })
 }
 
-/** Upload a saved quiz file to the meet without opening it, by name, like a submission */
-export function uploadResult(
-  meetId: number,
-  quizFile: QuizFile,
-  roomId: number | null,
-  onExisting?: OnExisting,
-): Promise<Stored> {
-  return request(`/api/meets/${meetId}/results`, {
-    method: 'POST',
-    body: JSON.stringify({ quizFile, roomId: roomId ?? undefined, onExisting, upload: true }),
-  })
-}
-
 /** One revision of a stored quiz's file; a restoring revision gives the file it restores */
 export function getRevision(
   meetId: number,

@@ -3,15 +3,13 @@ import {
   getMeetTeams,
   getScheduledQuiz,
   getTeamQuizzers,
-  getSender,
-  submitResult,
-  uploadResult,
   type MeetTeam,
   type ScheduledQuizDetails,
   type ScheduledQuizSeat,
 } from '../api'
-import { ApiError, QUIZZERS_PER_TEAM, type QuizFile } from '@qzr/shared'
-import { existingQuizOf, type ExistingQuiz, type OnExisting, type Sender } from '@qzr/ui'
+import { QUIZZERS_PER_TEAM } from '@qzr/shared'
+import type { Sender } from '@qzr/ui'
+import { senderOf } from './useSubmitToMeet'
 
 const STORAGE_KEY = 'qzr-meet-session'
 
@@ -40,26 +38,7 @@ export interface MeetSessionData {
   sender: Sender | null
 }
 
-/** What happened to a submission: stored, or not, because the meet already has its name */
-export type SubmitOutcome =
-  | { stored: true; created: boolean; revision: number; keptCurrent: boolean }
-  | { stored: false; existing: ExistingQuiz }
-
 const session = ref<MeetSessionData | null>(loadFromStorage())
-
-/**
- * Whether the user may send quizzes to the meet, and for which rooms, as the API works it out.
- * Asked whenever a meet is loaded or refreshed, so every way into a meet can send. Undefined when
- * there's no telling (offline, or the server failed), so a refresh keeps what it knew.
- */
-async function senderOf(meetId: number): Promise<Sender | null | undefined> {
-  try {
-    return await getSender(meetId)
-  } catch (e) {
-    // Signed out with no code for this meet, or neither an admin nor an official of it
-    return e instanceof ApiError && (e.status === 401 || e.status === 403) ? null : undefined
-  }
-}
 
 export function useMeetSession() {
   const isActive = computed(() => session.value !== null)
@@ -112,44 +91,6 @@ export function useMeetSession() {
   const canSubmit = computed(() => !!session.value?.sender)
   /** Who the user is when sending to the meet, and the rooms they may send for */
   const sender = computed(() => session.value?.sender ?? null)
-
-  /**
-   * Send the quiz to the meet, which knows it by its name (division and quiz number), for one of a
-   * signed-in official's rooms or a guest official's own (null). A name the meet already has comes
-   * back with what's stored, unless sent again saying what to do with it.
-   */
-  async function submitQuiz(
-    quizFile: QuizFile,
-    roomId: number | null,
-    onExisting?: OnExisting,
-  ): Promise<SubmitOutcome> {
-    const s = session.value
-    if (!s?.sender) throw new Error('Only an admin or official of this meet can submit to it')
-    try {
-      const { created, revision, keptCurrent } = await submitResult(
-        s.meetId,
-        quizFile,
-        roomId,
-        onExisting,
-      )
-      return { stored: true, created, revision, keptCurrent: keptCurrent ?? false }
-    } catch (e) {
-      const existing = existingQuizOf(e)
-      if (!existing) throw e
-      return { stored: false, existing }
-    }
-  }
-
-  /**
-   * Send a saved quiz file to the meet without opening it, by name like a submission: a name the
-   * meet already has is refused with what's stored (see `existingQuizOf`), unless sent again saying
-   * what to do with it.
-   */
-  function uploadQuiz(quizFile: QuizFile, roomId: number | null, onExisting?: OnExisting) {
-    const s = session.value
-    if (!s?.sender) throw new Error('Only an admin or official of this meet can upload to it')
-    return uploadResult(s.meetId, quizFile, roomId, onExisting)
-  }
 
   /**
    * Fetch a scheduled quiz's resolved seats. If the active session
@@ -317,8 +258,6 @@ export function useMeetSession() {
     meetId,
     canSubmit,
     sender,
-    uploadQuiz,
-    submitQuiz,
     meetName,
     teamList,
     quizId,
