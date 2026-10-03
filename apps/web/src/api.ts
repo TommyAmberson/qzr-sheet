@@ -578,7 +578,8 @@ export function syncSchedule(
 /** A quiz stored for a meet, with its newest revision */
 export interface StoredQuiz {
   id: number
-  roomName: string | null
+  /** The first revision's saver and how it was saved: where the quiz came from */
+  origin: { action: ResultAction; name: string }
   counted: boolean
   revision: number
   /** How the newest revision was saved */
@@ -590,4 +591,16 @@ export interface StoredQuiz {
 
 export function listResults(meetId: number): Promise<StoredQuiz[]> {
   return request(`/api/meets/${meetId}/results`)
+}
+
+/** Count or uncount quizzes of a meet; answers with the ones whose value changed */
+export function setResultsCounted(
+  meetId: number,
+  ids: number[],
+  counted: boolean,
+): Promise<{ changed: number[] }> {
+  return request(`/api/meets/${meetId}/results/counted`, {
+    method: 'PATCH',
+    body: JSON.stringify({ ids, counted }),
+  })
 }
