@@ -24,13 +24,17 @@ export async function inChunks<TIn, TOut>(
   paramsPerRow: number,
   runChunk: (chunk: TIn[]) => Promise<TOut[]>,
 ): Promise<TOut[]> {
-  if (rows.length === 0) return []
-  const chunkSize = Math.max(1, Math.floor(D1_MAX_PARAMS / paramsPerRow))
   const out: TOut[] = []
-  for (let i = 0; i < rows.length; i += chunkSize) {
-    out.push(...(await runChunk(rows.slice(i, i + chunkSize))))
-  }
+  for (const chunk of chunksOf(rows, paramsPerRow)) out.push(...(await runChunk(chunk)))
   return out
+}
+
+/** `rows` split into chunks whose statements each fit D1's parameter cap, as `inChunks` runs them */
+export function chunksOf<T>(rows: T[], paramsPerRow: number): T[][] {
+  const chunkSize = Math.max(1, Math.floor(D1_MAX_PARAMS / paramsPerRow))
+  const chunks: T[][] = []
+  for (let i = 0; i < rows.length; i += chunkSize) chunks.push(rows.slice(i, i + chunkSize))
+  return chunks
 }
 
 /**

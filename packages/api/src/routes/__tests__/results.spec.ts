@@ -779,3 +779,96 @@ describe('history and restore', () => {
     expect((await restore(9)).status).toBe(404)
   })
 })
+
+describe('team names', () => {
+  const viewer: GuestPayload = { meetId: 0, role: MeetRole.Viewer, label: 'Viewer' }
+
+  function put(body: unknown, user: SessionUser | null = testSuperuser, forMeet = meetId) {
+    return createApp(db, user).request(
+      `/api/meets/${forMeet}/team-names`,
+      jsonRequest('PUT', body),
+      env,
+    )
+  }
+
+  function get(user: SessionUser | null, guest: GuestPayload | null = null) {
+    return createApp(db, user, guest).request(`/api/meets/${meetId}/team-names`, {}, env)
+  }
+
+  it('saves the lists, tidied, and gives them back in the order given', async () => {
+    const res = await put([
+      { division: '2', names: ['Regina 1', '  Calgary   2 ', ''] },
+      { division: ' 1 ', names: ['Calgary 1'] },
+    ])
+    expect(res.status).toBe(200)
+    const saved = [
+      { division: '2', names: ['Regina 1', 'Calgary 2'] },
+      { division: '1', names: ['Calgary 1'] },
+    ]
+    expect(await jsonOf(res)).toEqual(saved)
+    expect(await jsonOf(await get(testSuperuser))).toEqual(saved)
+  })
+
+  it('replaces the whole list, and keeps each meet its own', async () => {
+    await put([{ division: '1', names: ['Calgary 1', 'Regina 1'] }])
+    await put([{ division: 'x', names: ['Elsewhere'] }], testSuperuser, otherMeetId)
+    await put([{ division: '1', names: ['Edmonton 1'] }])
+    expect(await jsonOf(await get(testSuperuser))).toEqual([
+      { division: '1', names: ['Edmonton 1'] },
+    ])
+  })
+
+  it('stores a list longer than one statement can hold', async () => {
+    const names = Array.from({ length: 45 }, (_, i) => `Team ${i + 1}`)
+    expect(await jsonOf(await put([{ division: '1', names }]))).toEqual([{ division: '1', names }])
+  })
+
+  it('refuses a name listed twice in a division, ignoring case and spaces, and keeps the old list', async () => {
+    await put([{ division: '1', names: ['Calgary 1'] }])
+    const res = await put([{ division: '1', names: ['Regina 1', 'regina  1'] }])
+    expect(res.status).toBe(400)
+    expect(await jsonOf(res)).toMatchObject({ error: 'regina 1 is listed twice in division 1' })
+    expect(await jsonOf(await get(testSuperuser))).toEqual([
+      { division: '1', names: ['Calgary 1'] },
+    ])
+  })
+
+  it('refuses a division listed twice, or a malformed list', async () => {
+    for (const body of [
+      [
+        { division: '1', names: [] },
+        { division: ' 1', names: [] },
+      ],
+      { division: '1', names: [] },
+      [{ division: '1', names: [3] }],
+      [{ division: '', names: [] }],
+    ]) {
+      expect((await put(body)).status).toBe(400)
+    }
+  })
+
+  it('lets only an admin change the list', async () => {
+    expect((await put([], testUser)).status).toBe(403)
+    const res = await createApp(db, null, official(room1)).request(
+      `/api/meets/${meetId}/team-names`,
+      jsonRequest('PUT', []),
+      env,
+    )
+    expect(res.status).toBe(403)
+  })
+
+  it("is read by the meet's officials and viewers, but not by others", async () => {
+    await put([{ division: '1', names: ['Calgary 1'] }])
+    expect((await get(null, official(room1))).status).toBe(200)
+    expect((await get(null, { ...viewer, meetId })).status).toBe(200)
+    expect(
+      (
+        await get(
+          null,
+          official(room1, () => otherMeetId),
+        )
+      ).status,
+    ).toBe(403)
+    expect((await get(testUser)).status).toBe(403)
+  })
+})

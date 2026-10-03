@@ -8,13 +8,20 @@ import {
   isQuizFile,
   parseQuizFile,
   quizName,
+  tidyName,
+  type DivisionTeamNames,
   type QuizFile,
 } from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import type { SessionUser, SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
-import { asOne, createDb, inChunks, type Db } from '../lib/db'
-import { isAdminOrSuperuser, isOfficialOfRoom, officialRoomsOf } from '../lib/permissions'
+import { asOne, chunksOf, createDb, inChunks, type Db } from '../lib/db'
+import {
+  isAdminOrSuperuser,
+  isOfficialOfRoom,
+  isViewerOf,
+  officialRoomsOf,
+} from '../lib/permissions'
 import * as schema from '../db/schema'
 
 interface ResultsVariables extends SessionVariables {
@@ -30,7 +37,7 @@ type Env = { Bindings: Bindings; Variables: ResultsVariables }
  */
 export const results = new Hono<Env>()
 
-for (const path of ['/:id/results', '/:id/results/*']) {
+for (const path of ['/:id/results', '/:id/results/*', '/:id/team-names']) {
   results.use(path, requireAuthOrGuest())
   results.use(path, async (c, next) => {
     if (!c.get('db')) c.set('db', createDb(c.env.DB) as unknown as Db)
@@ -732,4 +739,91 @@ results.get('/:id/results', async (c) => {
       quizFile: JSON.parse(quizFile),
     })),
   )
+})
+
+/** The meet's team names, division by division, in the order they were given */
+async function teamNamesOf(db: Db, meetId: number): Promise<DivisionTeamNames[]> {
+  const rows = await db
+    .select({ division: schema.meetTeamNames.division, name: schema.meetTeamNames.name })
+    .from(schema.meetTeamNames)
+    .where(eq(schema.meetTeamNames.meetId, meetId))
+    .orderBy(asc(schema.meetTeamNames.sortOrder))
+  const divisions = new Map<string, string[]>()
+  for (const { division, name } of rows) {
+    const names = divisions.get(division) ?? []
+    names.push(name)
+    divisions.set(division, names)
+  }
+  return [...divisions].map(([division, names]) => ({ division, names }))
+}
+
+/**
+ * The team names a PUT sends, tidied, with blank names dropped; or why they can't be stored. A
+ * division may be listed once, and a name once in its division, ignoring case and spaces.
+ */
+function teamNamesFrom(body: unknown): DivisionTeamNames[] | string {
+  const shape = 'Expected [{ division: string, names: string[] }]'
+  if (!Array.isArray(body)) return shape
+  const divisions = new Set<string>()
+  const lists: DivisionTeamNames[] = []
+  for (const entry of body as { division?: unknown; names?: unknown }[]) {
+    const { division: given, names } = entry ?? {}
+    if (typeof given !== 'string' || !Array.isArray(names)) return shape
+    if (!names.every((name): name is string => typeof name === 'string')) return shape
+    const division = tidyName(given)
+    if (division === '') return 'Each list needs its division'
+    const divisionKey = foldName(division)
+    if (divisions.has(divisionKey)) return `Division ${division} is listed twice`
+    divisions.add(divisionKey)
+    const keys = new Set<string>()
+    const tidied = names.map(tidyName).filter((name) => name !== '')
+    for (const name of tidied) {
+      const key = foldName(name)
+      if (keys.has(key)) return `${name} is listed twice in division ${division}`
+      keys.add(key)
+    }
+    lists.push({ division, names: tidied })
+  }
+  return lists
+}
+
+/** The meet's team names, for anyone who may view the meet: officials' scoresheets offer them */
+results.get('/:id/team-names', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Meet not found' }, 404)
+  const db = c.get('db')
+  if (!(await isViewerOf(c, db, meetId))) return c.json({ error: 'Forbidden' }, 403)
+  return c.json(await teamNamesOf(db, meetId))
+})
+
+/** Replace the meet's team names, as one change */
+results.put('/:id/team-names', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Meet not found' }, 404)
+  if (!(await isAdmin(c, meetId))) return c.json({ error: 'Admin access required' }, 403)
+  const lists = teamNamesFrom(await jsonBody<unknown>(c))
+  if (typeof lists === 'string') return c.json({ error: lists }, 400)
+
+  const db = c.get('db')
+  const [meet] = await db
+    .select({ id: schema.quizMeets.id })
+    .from(schema.quizMeets)
+    .where(eq(schema.quizMeets.id, meetId))
+  if (!meet) return c.json({ error: 'Meet not found' }, 404)
+
+  const rows = lists
+    .flatMap(({ division, names }) => names.map((name) => ({ division, name })))
+    .map(({ division, name }, sortOrder) => ({
+      meetId,
+      division,
+      name,
+      nameKey: foldName(name),
+      sortOrder,
+    }))
+  await asOne(db, [
+    db.delete(schema.meetTeamNames).where(eq(schema.meetTeamNames.meetId, meetId)),
+    ...chunksOf(rows, 5).map((chunk) => db.insert(schema.meetTeamNames).values(chunk)),
+  ])
+  // As stored, which a division left with no names drops out of
+  return c.json(lists.filter(({ names }) => names.length > 0))
 })

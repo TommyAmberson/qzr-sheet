@@ -139,6 +139,15 @@ QuizResultCountChange  -- append-only: one row per count or uncount; a quiz coun
   changedByAccountId   -- FK → User (set null if deleted)
   changedByName        -- who changed it, as named then
   changedAt
+
+MeetTeamName           -- optional team names per division, which the meet's scoresheets offer;
+                          independent of churches and Team, for meets that have neither
+  id
+  meetId               -- FK → QuizMeet (cascade delete)
+  division             -- as quizzes write it
+  name
+  nameKey              -- the name folded for case and spaces; UNIQUE(meetId, division, nameKey)
+  sortOrder            -- display order across the meet's list
 ```
 
 ## Notes

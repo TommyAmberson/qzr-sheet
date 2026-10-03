@@ -232,6 +232,16 @@ export async function createTestDb(): Promise<Db> {
       changed_at INTEGER NOT NULL
     );
     CREATE INDEX quiz_result_count_changes_result_id_idx ON quiz_result_count_changes(result_id);
+
+    CREATE TABLE meet_team_names (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,
+      division TEXT NOT NULL,
+      name TEXT NOT NULL,
+      name_key TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      UNIQUE (meet_id, division, name_key)
+    );
   `)
 
   // Seed test users so FK constraints on membership tables are satisfied
