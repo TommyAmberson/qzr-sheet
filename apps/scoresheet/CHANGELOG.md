@@ -15,6 +15,25 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-03
+
+### Changed
+
+* **Submit to meet** - the Save menu offers it to anyone who is an admin or official of a meet,
+  signed in or joined with a room code, not only once the sheet is linked through "Load teams from
+  meet". A sheet linked to such a meet submits there; otherwise it asks which meet, the last one
+  used preselected, without linking the sheet or loading teams, so a practice meet with no teams
+  takes quizzes too. An admin's "Save to meet" is now "Submit to meet" as well
+
+### Removed
+
+* **Upload file to meet** - upload saved quiz files from the portal's results page instead, or open
+  a file and submit it
+
+### Bundled contract
+
+* `@qzr/shared@1.4.0` - unchanged
+
 ## [0.15.0] - 2026-10-02
 
 ### Added

@@ -94,8 +94,8 @@ rejected. Facts about the current code come from reading it on 2026-10-02 (maste
   `edited` (or `uploaded`, `merged`, `restored` from those actions), an official's is `submitted`,
   recorded with the room.
 * **Rationale**: One owner for the paper trail's "who and how", and the client can't misreport it.
-  Admins don't submit new quizzes from the scoresheet; they upload, so `uploaded` always means a
-  file from the portal.
+  Files are uploaded only from the portal, so `uploaded` always means a file sent without being
+  opened.
 
 ## R8. Which stored quiz a submission belongs to
 
@@ -121,7 +121,7 @@ rejected. Facts about the current code come from reading it on 2026-10-02 (maste
 * **Decision**: The portal links to the scoresheet with the meet and stored quiz in the query
   (`?meet=&result=&revision=`), as the schedule view already does for scheduled quizzes. The
   scoresheet fetches the current revision with the admin's cookie or the official's guest token
-  (same origin), asks before replacing unsaved work, loads it, and offers "Save to meet", which
+  (same origin), asks before replacing unsaved work, loads it, and offers "Submit to meet", which
   sends it by name like an official's submit, so nothing about the opened quiz is remembered (R8).
   Viewing an older revision in full opens that revision the same way; saving it creates a new
   revision.

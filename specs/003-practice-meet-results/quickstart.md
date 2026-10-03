@@ -42,8 +42,8 @@ outcome, and results-route specs.
    the portal as the admin: the new one is stored as uploaded, the submitted one is reported as
    already submitted, with the same three choices, and the edited one is refused as too new. Then,
    in a private window, join the portal with room 2's code and upload another saved quiz: it is
-   stored for room 2. From a scoresheet signed in as the admin, submit a quiz for room 2, and upload
-   a file for no room.
+   stored for room 2. From a scoresheet signed in as the admin and not linked to the meet, submit a
+   quiz for room 2: it asks which meet, then which room. Submit another for no room.
 5. **Edit and history (Story 4)**: Rename a team in the quick form; open the quiz in the scoresheet
    and fix an answer; then restore revision 1. The history lists every save with who, when and how,
    and nothing is lost.

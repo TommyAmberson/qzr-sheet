@@ -75,8 +75,8 @@ Decisions from the brainstorm:
   revision records the submitted copy in the history and then a revision restoring the earlier
   content, so the newest revision is always the current one (FR-003, FR-005).
 * Q: Can officials upload saved quiz files too? → A: Yes, for a room they officiate, from the
-  scoresheet ("Upload file to meet") and from the portal's results page. Uploading from the portal's
-  schedule view waits for schedule linkage (#16) (FR-007).
+  portal's results page. Uploading from the portal's schedule view waits for schedule linkage (#16)
+  (FR-007).
 * Q: What can an official do with their room's quizzes? → A: An official has authority over each
   room they officiate; an account may officiate several, a guest official one. A room's quizzes are
   those with a revision saved for it. The official can read them and their history and change them
@@ -89,6 +89,17 @@ Decisions from the brainstorm:
 * Q: How does an admin save from the scoresheet? → A: By name, like an official's submit, for any
   room of the meet or for none. For a room it is recorded as submitted from that room by the admin;
   for none, as the admin's own edit (FR-001, FR-009).
+
+### Session 2026-10-03
+
+* Q: How does the scoresheet send a quiz to a meet it isn't linked to, such as a practice meet with
+  no teams? → A: A "Submit to meet" entry in the Save menu, shown to anyone who is an admin or
+  official of at least one meet, signed in or joined with a room code. A sheet linked to one of
+  those meets submits there; otherwise it asks which meet, without linking the sheet or loading
+  teams (FR-001).
+* Q: Do officials upload files from the scoresheet? → A: No, the scoresheet's "Upload file to meet"
+  is dropped. Files are uploaded from the portal's results page; in the scoresheet, open the file
+  and submit it (FR-007).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -165,8 +176,8 @@ standings, and check each division's order, totals, and finalists against a hand
 ### User Story 3 - Upload saved quiz files (Priority: P2)
 
 When a room can't submit, its official saves the quiz as a file, and later the official or the
-meet's admin uploads one or more files into the meet, from the scoresheet or the portal. Uploaded
-quizzes join the list like submitted ones, ready to be counted.
+meet's admin uploads one or more files into the meet from the portal. Uploaded quizzes join the list
+like submitted ones, ready to be counted.
 
 **Why this priority**: The backup path for rooms without a connection. Without it, one offline room
 puts the meet back on paper.
@@ -177,8 +188,8 @@ room's official, and see them in the list, recorded as uploaded by the admin and
 **Acceptance Scenarios**:
 
 1. **Given** quiz files saved by the scoresheet, **When** the admin or a room's official uploads
-   them from the portal or the scoresheet, **Then** each becomes a quiz of the meet, recorded as
-   uploaded by that admin or for that official's room.
+   them from the portal, **Then** each becomes a quiz of the meet, recorded as uploaded by that
+   admin or for that official's room.
 2. **Given** a file that isn't a valid quiz file, **When** it is uploaded, **Then** it is rejected
    with the reason and the other files still upload.
 3. **Given** a file from a newer scoresheet than the meet's portal understands, **When** it is
@@ -301,9 +312,12 @@ from the list when setting up a quiz in that division.
 
 ### Functional Requirements
 
-* **FR-001**: Officials MUST be able to submit a quiz from a scoresheet joined to one of a meet's
-  rooms, storing it as a quiz of that meet recorded with the room. Meet admins MUST be able to
-  submit from the scoresheet too, for any room of the meet or for none.
+* **FR-001**: Officials MUST be able to submit a quiz from the scoresheet for one of the rooms they
+  officiate, storing it as a quiz of that meet recorded with the room. Meet admins MUST be able to
+  submit from the scoresheet too, for any room of the meet or for none. The scoresheet MUST offer
+  Submit to anyone who is an admin or official of at least one meet, and MUST let them choose the
+  meet without linking the sheet to it or loading its teams; a sheet linked to such a meet submits
+  there.
 * **FR-002**: Submission from the scoresheet MUST be refused while the quiz has validation errors,
   with the reason.
 * **FR-003**: A quiz not tied to the schedule MUST be identified by its name: division, consolation
@@ -328,11 +342,11 @@ from the list when setting up a quiz in that division.
   since an admin last looked stands out. An official MUST be able to list their rooms' quizzes the
   same way, without counting them.
 * **FR-007**: Meet admins and officials MUST be able to upload one or more scoresheet quiz files
-  into the meet, from the portal's results page or the scoresheet: an official for one of their
-  rooms, chosen when they have several; an admin for any room of the meet or for none. A valid file
-  whose name the meet doesn't have becomes a stored quiz; one whose name it already has is reported
-  with that quiz's current revision and gets the same three choices (FR-003). Each invalid or
-  too-new file is rejected individually with its reason.
+  into the meet, from the portal's results page: an official for one of their rooms, chosen when
+  they have several; an admin for any room of the meet or for none. A valid file whose name the meet
+  doesn't have becomes a stored quiz; one whose name it already has is reported with that quiz's
+  current revision and gets the same three choices (FR-003). Each invalid or too-new file is
+  rejected individually with its reason.
 * **FR-008**: Meet admins, and officials for their rooms' quizzes, MUST be able to change a stored
   quiz's team names, quizzer names, division, and quiz number. A change of division or quiz number
   that would give the quiz another stored quiz's name MUST be refused with the reason.
