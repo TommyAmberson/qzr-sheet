@@ -8,42 +8,53 @@ tables, integer autoincrement ids, `*_at` timestamps, meet-scoped rows cascading
 
 One quiz of a meet, whatever its history.
 
-| Field            | Meaning                                                                                 |
-| ---------------- | --------------------------------------------------------------------------------------- |
-| id               | identity                                                                                |
-| meet             | the meet; deleted with it                                                               |
-| room             | the room it was first submitted from; empty for uploads; cleared if the room is deleted |
-| current revision | number of the newest revision                                                           |
-| counted          | whether it counts in the standings; starts false                                        |
-| created at       | first save                                                                              |
+| Field      | Meaning                                                                                         |
+| ---------- | ----------------------------------------------------------------------------------------------- |
+| id         | identity                                                                                        |
+| meet       | the meet; deleted with it                                                                       |
+| room       | the room it was first submitted from; empty for uploads; cleared if the room is deleted         |
+| quiz key   | its name, division, consolation and quiz number, folded for case and spaces; unique in the meet |
+| counted    | whether it counts in the standings; starts false                                                |
+| created at | first save                                                                                      |
 
 Rules:
 
 * `counted` starts false for every quiz (FR-013): nothing in this feature links a quiz to a schedule
   slot, so nothing is counted automatically.
-* An official may save only a stored quiz whose room is theirs (R7).
+* A quiz not tied to the schedule is identified by its quiz key (FR-003): a submission or upload
+  with a key the meet already has is reported, and on the submitter's choice adds to that quiz's
+  revisions, whichever room sent it.
 
 ## quiz version (`quiz_result_revisions`)
 
 Append-only: one row per save; rows are never updated or deleted while the meet exists.
 
-| Field         | Meaning                                                                      |
-| ------------- | ---------------------------------------------------------------------------- |
-| stored quiz   | the stored quiz; deleted with it                                             |
-| revision      | 1, 2, 3, … per stored quiz; unique within it                                 |
-| quiz file     | the full quiz file as the scoresheet saves it, validated before storing (R6) |
-| action        | submitted, uploaded, edited, merged, or restored                             |
-| restored from | for `restored`, the revision copied                                          |
-| saved by      | the account, when signed in                                                  |
-| saved by room | the room, when an official saved it                                          |
-| saved at      | when                                                                         |
+| Field         | Meaning                                                                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| stored quiz   | the stored quiz; deleted with it                                                                                                        |
+| revision      | 1, 2, 3, … per stored quiz; unique within it                                                                                            |
+| quiz file     | the full quiz file as the scoresheet saves it, validated before storing (R6); empty when the revision restores another                  |
+| action        | submitted, uploaded, edited, merged, or restored                                                                                        |
+| restored from | for a revision with no file, the earlier revision whose file it makes current; always one that carries a file                           |
+| saved by      | the account, when signed in                                                                                                             |
+| saved by room | the room, when an official saved it                                                                                                     |
+| saved by name | who saved it as named then ("Room 1", "Alice, Room 1", or the admin's name), so the trail survives a renamed or deleted room or account |
+| saved at      | when                                                                                                                                    |
 
 Rules:
 
-* The newest revision is the stored quiz's content; its number equals `current revision`.
-* Restoring copies an earlier revision's file into a new revision (FR-005a); newer rows stay.
-* Two saves racing for the same number: the second fails the uniqueness check and is retried by the
-  API with the next number, so newest wins (spec edge cases) and neither is lost.
+* Each revision has exactly one of a quiz file or `restored from` (a `CHECK` constraint). The newest
+  revision is the stored quiz's current one, and its content is its own file or the file of the
+  revision it restores. Its number is read from the revisions themselves, so no second row can fall
+  out of step with them.
+* Restoring adds a revision restoring the chosen one, pointing past any restoring revision to the
+  file it restores (FR-005a); newer rows stay, and no file is copied. Restoring what is already
+  current adds no row.
+* Keeping the current revision on a resubmission adds two revisions in one statement: the submitted
+  file, then one restoring what was current before it.
+* A revision takes the next number in the same statement that stores it. Two saves racing for the
+  same number: the second fails the uniqueness check and is retried by the API with the next number,
+  so newest wins (spec edge cases) and neither is lost.
 * Who and how come from the caller, never the request body (R7).
 
 ## counting record (`quiz_result_count_changes`)
@@ -82,5 +93,6 @@ Unique on meet, division and folded name.
 
 ## Guest token claim
 
-Official guest tokens gain the room's id (R4). `docs/auth.md` and `docs/roles-and-access.md` are
-amended. Viewer tokens are unchanged.
+Official guest tokens gain the room's id and a tag of the room's current code (R4), so rotating the
+code or deleting the room revokes them. `docs/auth.md` and `docs/roles-and-access.md` are amended.
+Viewer tokens are unchanged.

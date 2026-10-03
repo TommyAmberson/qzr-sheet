@@ -17,6 +17,31 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-02
+
+### Added
+
+* **Meet results** - `POST /api/meets/:id/results` stores a quiz an official submits from their
+  room, or a quiz file an admin uploads. A quiz is known by its name (division, consolation and quiz
+  number, ignoring case and spaces): a name the meet already has gets 409 with the stored quiz's
+  current revision, and when sent again with `onExisting` is saved as the new current revision
+  (`newRevision`) or saved while keeping the current one (`keepCurrent`, which adds a revision
+  restoring it). A revision carries a quiz file or restores an earlier one, so nothing is copied and
+  the newest revision is always current. `PUT /api/meets/:id/results/:resultId` lets admins edit a
+  stored quiz, refusing a rename onto another quiz's name; `GET /api/meets/:id/results` lists the
+  meet's quizzes for its admins. Every save is kept as a revision with who saved it, when and how.
+  Files are checked as the scoresheet reads them, with no loose values, and a file from a newer
+  scoresheet is refused with 422
+* **Room on official guest tokens** - an official's guest token now names its room, so a submission
+  is recorded against it, and is tied to the room's current code, so rotating the code or deleting
+  the room revokes it. Officials holding a token from before this change are asked to rejoin
+* **Official's room in `GET /api/my-meets`** - official memberships now include `roomId`, so a
+  signed-in official's scoresheet can submit for its room
+
+### Bundled contract
+
+* `@qzr/shared@1.2.0` - bumped from 1.1.0
+
 ## [0.13.0] - 2026-10-02
 
 Switch day: verse-vault takes the root of www.versevault.ca.

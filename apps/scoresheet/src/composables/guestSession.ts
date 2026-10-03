@@ -50,6 +50,11 @@ export function getGuestToken(): string | null {
   return s.joined.find((j) => j.meetId === s.active)?.token ?? null
 }
 
+/** The joined guest session for a meet, whichever meet is active */
+export function joinedSession(meetId: number): GuestSessionData | null {
+  return guestStateRef.value.joined.find((j) => j.meetId === meetId) ?? null
+}
+
 /** Active session (whose token would be attached to outgoing requests). */
 export function getActiveSession(): GuestSessionData | null {
   const s = guestStateRef.value

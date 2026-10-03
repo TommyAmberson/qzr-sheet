@@ -1,5 +1,5 @@
 import { createApiClient, MeetRole } from '@qzr/shared'
-import type { MeetPhase, DivisionStateValue } from '@qzr/shared'
+import type { MeetPhase, DivisionStateValue, QuizFile, ResultAction } from '@qzr/shared'
 
 export type { MeetPhase, DivisionStateValue }
 
@@ -571,4 +571,23 @@ export function syncSchedule(
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+// ---- Results ----
+
+/** A quiz stored for a meet, with its newest revision */
+export interface StoredQuiz {
+  id: number
+  roomName: string | null
+  counted: boolean
+  revision: number
+  /** How the newest revision was saved */
+  action: ResultAction
+  savedAt: string
+  savedBy: { name: string }
+  quizFile: QuizFile
+}
+
+export function listResults(meetId: number): Promise<StoredQuiz[]> {
+  return request(`/api/meets/${meetId}/results`)
 }

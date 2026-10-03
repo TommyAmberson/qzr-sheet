@@ -100,6 +100,34 @@ TeamRoster             -- a quizzer's participation in a specific meet
   quizzerId            -- FK → QuizzerIdentity
   name                 -- display name for this meet
   UNIQUE(teamId, quizzerId)
+
+# ---- Results ----
+
+QuizResult             -- one quiz of a meet; its content is its newest revision
+  id
+  meetId               -- FK → QuizMeet (cascade delete)
+  roomId               -- FK → Room the quiz was first submitted from; null for uploads
+                          (set null if the room is deleted)
+  quizKey              -- division, consolation and quiz number, folded for case and spaces;
+                          identifies a quiz not tied to the schedule; UNIQUE(meetId, quizKey)
+  counted              -- whether it counts in the standings; false until an admin counts it
+  createdAt
+
+QuizResultRevision     -- append-only: one row per save, never updated or deleted
+  id
+  resultId             -- FK → QuizResult (cascade delete)
+  revision             -- 1, 2, 3, … per result
+  quizFile             -- the full QuizFile JSON, validated before storing; null when the
+                          revision restores another
+  action               -- submitted | uploaded | edited | merged | restored
+  restoredFrom         -- for a revision with no file, the revision whose file it makes
+                          current (always one with a file); exactly one of quizFile and
+                          restoredFrom is set. The newest revision is the current one
+  savedByAccountId     -- FK → User when signed in (set null if deleted)
+  savedByRoomId        -- FK → Room when an official saved it (set null if deleted)
+  savedByName          -- who saved it, as named then, so the trail outlives renames and deletions
+  savedAt
+  UNIQUE(resultId, revision)
 ```
 
 ## Notes

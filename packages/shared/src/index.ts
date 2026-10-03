@@ -1,6 +1,8 @@
 export { AccountRole, MeetRole } from './roles'
 export { MEET_PHASES, DIVISION_STATES } from './phases'
 export type { MeetPhase, DivisionStateValue } from './phases'
+export { RESULT_ACTIONS } from './results'
+export type { ResultAction } from './results'
 export {
   QuizFileSchema,
   FILE_VERSION,
@@ -29,3 +31,4 @@ export * from './scoring/columnVisibility'
 export * from './quizFileCodec'
 export * from './scoring/cellGrid'
 export * from './scoring/assessQuiz'
+export * from './scoring/quizOutcome'

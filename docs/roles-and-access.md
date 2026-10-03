@@ -24,6 +24,7 @@ Superusers have implicit full access to all meets — no membership rows needed.
 * Granted by entering a meet's `admin_code`
 * Can create and manage churches and rooms for that meet, including generating and rotating codes
 * Can view and manage all rosters within the meet
+* Can see the meet's submitted quizzes, and upload quiz files to it
 * Cannot access other meets unless separately joined
 * A superuser can revoke by deleting the `AdminMembership` record
 
@@ -37,7 +38,9 @@ Superusers have implicit full access to all meets — no membership rows needed.
 ### official
 
 * Granted by entering a room's `official_code`
-* Can submit `QuizFile` results for that room
+* Can submit `QuizFile` results for that room. A quiz name the meet already has, from any room, is
+  reported first and added as a new revision on confirmation. The guest token names the room and is
+  tied to its current code, so rotating the code revokes it
 * Cannot manage teams or rosters
 * **No account required** — a code or join link issues a short-lived guest JWT; see
   [auth.md § Guest JWTs](./auth.md#guest-jwts-officials-and-viewers-without-accounts)

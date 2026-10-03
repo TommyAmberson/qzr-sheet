@@ -36,6 +36,8 @@ interface MeetMembership {
   role: MeetRole
   label?: string
   churchId?: number
+  /** An official's room */
+  roomId?: number
 }
 
 /**
@@ -114,6 +116,7 @@ memberships.get('/', async (c) => {
       meetName: schema.quizMeets.name,
       viewerCode: schema.quizMeets.viewerCode,
       label: schema.meetRooms.name,
+      roomId: schema.meetRooms.id,
     })
     .from(schema.officialMemberships)
     .innerJoin(schema.quizMeets, eq(schema.officialMemberships.meetId, schema.quizMeets.id))
@@ -127,6 +130,7 @@ memberships.get('/', async (c) => {
       viewerCode: row.viewerCode,
       role: MeetRole.Official,
       label: row.label,
+      roomId: row.roomId,
     })
   }
 

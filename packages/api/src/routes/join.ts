@@ -5,7 +5,7 @@ import type { SessionVariables } from '../middleware/session'
 import { requireAuth, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { hashCode } from '../lib/codes'
-import { signGuestJwt } from '../lib/jwt'
+import { roomCodeTag, signGuestJwt } from '../lib/jwt'
 import * as schema from '../db/schema'
 import { MeetRole } from '@qzr/shared'
 
@@ -216,6 +216,7 @@ join.post('/guest', async (c) => {
       codeId: schema.meetRooms.id,
       meetId: schema.meetRooms.meetId,
       label: schema.meetRooms.name,
+      codeHash: schema.meetRooms.codeHash,
     })
     .from(schema.meetRooms)
     .where(eq(schema.meetRooms.codeHash, codeHash))
@@ -228,7 +229,13 @@ join.post('/guest', async (c) => {
 
     if (meet) {
       const token = await signGuestJwt(
-        { meetId: meet.id, role: MeetRole.Official, label: officialMatch.label },
+        {
+          meetId: meet.id,
+          role: MeetRole.Official,
+          label: officialMatch.label,
+          roomId: officialMatch.codeId,
+          codeTag: await roomCodeTag(officialMatch.codeHash!, secret),
+        },
         secret,
       )
       return c.json({

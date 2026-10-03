@@ -134,9 +134,18 @@ URL) to get a new token. Stored in `localStorage`.
 calls. `sessionMiddleware` checks the Better Auth cookie session first; if present, the cookie wins
 and the Bearer header is ignored, so signed-in users never produce ambiguity.
 
+**Claims:** `meetId`, `role` (official or viewer), and for an official the room's name as `label`
+and its id as `roomId`, which results are recorded against, and `codeTag`, an HMAC of the room's
+current code hash under the server secret. Rotating the room's code or deleting the room makes the
+tag stop matching, revoking the token at once. An official token from before `roomId` existed can't
+submit; its holder rejoins with the room code.
+
 **Server-side gate:** the per-route helper `isViewerOf(c, db, meetId)` admits superusers, members of
-the meet (any role), and guests whose JWT `meetId` matches. Mutation routes still require a real
-signed-in user via `requireAuth()`; reads use the lighter `requireAuthOrGuest()`.
+the meet (any role), and guests whose JWT `meetId` matches.
+`isOfficialOfRoom(c, db, meetId, roomId)` admits a guest whose official token names that room, or a
+signed-in official of it. Mutation routes still require a real signed-in user via `requireAuth()`,
+except the results routes, where officials submit with their guest token; reads use the lighter
+`requireAuthOrGuest()`.
 
 **URL-shareable viewer access (scoresheet):** the scoresheet auto-joins as a guest viewer when
 opened with `?meet=<viewerCode>`:
@@ -152,10 +161,10 @@ reloads as long as its decoded `exp` claim has more than 5 min remaining; otherw
 
 **Roadmap:** today only `?meet=<viewerCode>` is wired (viewer role only). The same pattern can be
 extended to `?official=<code>` for room-scoped officials and any other code-bearing roles — the
-server-side guest JWT issuance already handles official codes; only the client URL handler and a
-permission helper analogous to `isViewerOf` are missing. Putting official codes in URLs leaks them
-into browser history / referrers / logs, so admins should treat shared official URLs as one-shot and
-rotate the code afterward.
+server-side guest JWT issuance already handles official codes and `isOfficialOfRoom` checks them;
+only the client URL handler is missing. Putting official codes in URLs leaks them into browser
+history / referrers / logs, so admins should treat shared official URLs as one-shot and rotate the
+code afterward.
 
 ### Password hashing
 

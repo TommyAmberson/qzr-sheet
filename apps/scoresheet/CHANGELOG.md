@@ -15,6 +15,28 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-02
+
+### Added
+
+* **Submit to meet** - an official whose sheet is linked to a meet (Load teams from meet, then their
+  room code) can send the quiz to the meet from the Save menu. The meet knows each quiz by its
+  division and quiz number: submitting one it already has says which revision is current and who
+  saved it, and offers to skip it, save it as the new current revision, or save it while keeping the
+  current revision. A signed-in official of several rooms in the meet picks the room. New quiz now
+  keeps the sheet linked to its meet, so the next quiz can be submitted too. A quiz with validation
+  errors isn't sent, and a failed submission leaves the quiz as it was, ready to try again or save
+  as a file
+
+### Changed
+
+* Overtime columns for a loaded quiz, and which seats count as empty, come from `@qzr/shared`, the
+  same rules the portal uses to score submitted quizzes. No change to how quizzes are scored.
+
+### Bundled contract
+
+* `@qzr/shared@1.2.0` - bumped from 1.1.0
+
 ## [0.12.1] - 2026-10-02
 
 ### Changed

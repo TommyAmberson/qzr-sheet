@@ -9,7 +9,6 @@ import {
   buildColumns,
   CellValue,
   type Column,
-  computeOvertimeRounds,
   computeVisibleColumns,
   type DeserializeResult,
   type GreyedOutResult,
@@ -33,6 +32,9 @@ import {
   toTeamIdx,
   ValidationCode,
   validationMessage,
+  answerLookup,
+  emptySeatKeys,
+  overtimeRoundsNeeded,
 } from '@qzr/shared'
 import { createQuizStore } from '../stores/quizStore'
 import {
@@ -83,28 +85,15 @@ export function useScoresheet() {
   /** Timeouts per team — 0 to MAX_TIMEOUTS_PER_TEAM entries per team */
   const timeoutMap = ref(new Map<number, Timeout[]>())
 
-  /**
-   * Recover the OT-rounds count from a freshly loaded quiz: with regulation-only
-   * columns we ask the scorer how many OT rounds the saved answers actually need.
-   */
-  function computeInitialOtRounds(
-    loadedQuiz: { overtime: boolean; format: QuizFormat },
-    loadedTeams: { onTime: boolean }[],
-    loadedNoJumps: Map<string, boolean>,
-  ): number {
-    if (!loadedQuiz.overtime) return 1
-    // The loaded quiz's rules, not whatever quiz was open before
-    const loadedRules = quizRules(loadedQuiz.format)
-    const cols = buildColumns(loadedRules, 20)
-    return Math.max(
-      1,
-      computeOvertimeRounds(
-        store.cellGrid(cols),
-        cols,
-        loadedTeams.map((t) => t.onTime),
-        cols.map((c) => loadedNoJumps.get(c.key) ?? false),
-        loadedRules,
-      ),
+  /** OT rounds to allocate for a freshly loaded quiz: as many as its saved answers reach */
+  function computeInitialOtRounds(loaded: DeserializeResult): number {
+    if (!loaded.quiz.overtime) return 1
+    return overtimeRoundsNeeded(
+      loaded.quiz,
+      loaded.teams,
+      loaded.quizzers,
+      answerLookup(loaded.answers),
+      loaded.noJumps,
     )
   }
 
@@ -114,7 +103,7 @@ export function useScoresheet() {
     store.loadState(restored)
     noJumpMap.value = restored.noJumps
     timeoutMap.value = restored.timeouts
-    internalOtRounds.value = computeInitialOtRounds(restored.quiz, restored.teams, restored.noJumps)
+    internalOtRounds.value = computeInitialOtRounds(restored)
     if (restored.answers.length > 0 || restored.quizzers.some((q) => q.name.trim())) {
       history.push({ undo: () => {}, redo: () => {} })
     }
@@ -205,13 +194,7 @@ export function useScoresheet() {
 
   /** Set of "teamIdx:seatIdx" keys for quizzers with empty/blank names */
   const emptySeats = computed((previous?: Set<string>) => {
-    const set = new Set<string>()
-    teams.value.forEach((team, teamIdx) => {
-      const qzrs = store.quizzersByTeam(team.id)
-      qzrs.forEach((qzr, seatIdx) => {
-        if (store.isQuizzerUnnamed(qzr.id)) set.add(`${teamIdx}:${seatIdx}`)
-      })
-    })
+    const set = emptySeatKeys(teams.value.map((team) => store.quizzersByTeam(team.id)))
     // Keep the previous set while it's unchanged, so typing a name doesn't re-run the assessment
     const same = previous?.size === set.size && [...set].every((key) => previous.has(key))
     return same ? previous : set
@@ -643,7 +626,7 @@ export function useScoresheet() {
     store.loadState(data)
     noJumpMap.value = data.noJumps
     timeoutMap.value = data.timeouts
-    internalOtRounds.value = computeInitialOtRounds(data.quiz, data.teams, data.noJumps)
+    internalOtRounds.value = computeInitialOtRounds(data)
     history.clear()
     saveToStorage(store, data.noJumps, data.timeouts)
   }

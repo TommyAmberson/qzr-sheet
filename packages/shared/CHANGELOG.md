@@ -23,6 +23,18 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-02
+
+### Added
+
+* `quizOutcome`, which scores and places a stored quiz from its file exactly as the scoresheet shows
+  it: each team's score, place, placement points and error count, or that it can't be placed yet.
+  With it, `overtimeRoundsNeeded` and `emptySeatKeys`, which the scoresheet now uses too.
+* `isQuizFile`, which checks a value is exactly a quiz file without converting loose values, so the
+  API stores only files that read back as they were checked.
+* `ApiError.body`, the whole body of an error response, for errors that carry more than a message.
+* `RESULT_ACTIONS`, how a revision of a stored quiz was saved, for the API's table and the portal.
+
 ## [1.1.0] - 2026-10-02
 
 ### Added

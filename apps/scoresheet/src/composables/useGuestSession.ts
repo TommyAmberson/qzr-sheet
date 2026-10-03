@@ -7,7 +7,7 @@ import {
   type GuestSessionData,
 } from './guestSession'
 
-export { initGuestSession, getGuestToken, joinByCode } from './guestSession'
+export { initGuestSession, getGuestToken, joinByCode, joinedSession } from './guestSession'
 export type { GuestSessionData } from './guestSession'
 
 export function useGuestSession() {

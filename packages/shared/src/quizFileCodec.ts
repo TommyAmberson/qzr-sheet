@@ -180,6 +180,11 @@ function assertKnownFormat(raw: unknown): void {
   }
 }
 
+/** Whether a value is exactly a quiz file, every field already its proper type */
+export function isQuizFile(value: unknown): value is QuizFile {
+  return Value.Check(QuizFileSchema, value)
+}
+
 /**
  * Parse and validate a JSON string, returning a DeserializeResult or throwing on invalid input.
  * Throws `NewerFileVersionError` for files from a newer scoresheet.
