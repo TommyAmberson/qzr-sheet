@@ -142,6 +142,8 @@ function warningText(warning: StandingsWarning, teams: TeamStanding[]): string {
       return `${warning.quiz} can't be placed (questions unanswered or validation errors), so it adds nothing.`
     case 'finalTie':
       return `${warning.teams.join(', ')} are tied for the last places in the final. Settle it away from the app.`
+    case 'lookAlike':
+      return `${warning.teams[0]} and ${warning.teams[1]} look like one team spelt two ways.`
   }
 }
 
