@@ -42,6 +42,8 @@ const error = ref('')
 const role = computed(() => membership.value?.role ?? null)
 const isSuperuser = computed(() => role.value === MeetRole.Superuser)
 const isAdmin = computed(() => role.value === MeetRole.Admin || role.value === MeetRole.Superuser)
+/** An official sees their rooms' quizzes on the results page */
+const isOfficial = computed(() => role.value === MeetRole.Official)
 
 const myCoachChurchIds = ref<Set<number>>(new Set())
 
@@ -749,7 +751,7 @@ onMounted(load)
       </div>
 
       <!-- Results -->
-      <div v-if="isAdmin" class="section">
+      <div v-if="isAdmin || isOfficial" class="section">
         <div class="section-header">
           <h3 class="section-title">Results</h3>
           <div class="section-actions">

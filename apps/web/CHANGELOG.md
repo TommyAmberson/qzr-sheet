@@ -16,6 +16,25 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-02
+
+### Added
+
+* **Uploading quizzes** - the Results page has an upload area for a meet's admins and officials:
+  saved quiz files are sent one at a time, by name, for a room (an admin may pick none), asking
+  about any name the meet already has, with a report of what became of each
+* **Results for officials** - officials, signed in or by room code, see the quizzes their rooms have
+  saved, without counting or standings; the meet page links signed-in officials to them
+
+### Fixed
+
+* Joining a meet with a code while signed out now keeps the session, so the portal can use it; an
+  official is taken to the meet's results
+
+### Bundled contract
+
+* `@qzr/shared@1.3.0` - unchanged
+
 ## [0.15.0] - 2026-10-02
 
 ### Added

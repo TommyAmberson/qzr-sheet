@@ -5,7 +5,6 @@ export type { ExistingQuiz, FileReport, OnExisting, Sender, Stored } from './sen
 export {
   getActiveSession,
   guestStateRef,
-  guestTokenFor,
   initGuestSession,
   joinByCode,
   joinedSession,

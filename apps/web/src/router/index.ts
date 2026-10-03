@@ -36,6 +36,8 @@ const router = createRouter({
         {
           path: 'results',
           name: 'meet-results',
+          // A guest official who joined with a code may open it
+          meta: { guestAccess: true },
           component: () => import('../views/ResultsView.vue'),
           props: (route) => ({ slug: route.params.slug as string }),
         },
@@ -60,8 +62,9 @@ router.beforeEach(async (to) => {
 
   const { data } = await authClient.getSession()
   if (data?.user) return true
-  // A guest who joined this meet with a code may open its results (`slug` is the meet's id then)
-  if (to.name === 'meet-results' && joinedSession(Number(to.params.slug))) return true
+  // A guest who joined this meet with a code may open its guest pages (`slug` is the meet's id then)
+  if (to.matched.some((r) => r.meta.guestAccess) && joinedSession(Number(to.params.slug)))
+    return true
   return { name: 'home' }
 })
 

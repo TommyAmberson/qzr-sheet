@@ -1,25 +1,13 @@
 import { createApiClient, MeetRole } from '@qzr/shared'
 import type { MeetPhase, DivisionStateValue, QuizFile, ResultAction } from '@qzr/shared'
-import { guestTokenFor } from '@qzr/ui'
+import { withGuestToken, type OnExisting, type Sender, type Stored } from '@qzr/ui'
 
 export type { MeetPhase, DivisionStateValue }
 
 declare const __API_URL__: string
 
-const baseRequest = createApiClient(__API_URL__ || '')
-
-/**
- * Send a request, with the guest token for the meet it names when the user joined that meet with a
- * code (see `guestTokenFor`). A signed-in user's cookie takes precedence on the server.
- */
-function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = guestTokenFor(path)
-  if (!token) return baseRequest<T>(path, init)
-  return baseRequest<T>(path, {
-    ...init,
-    headers: { ...init?.headers, Authorization: `Bearer ${token}` },
-  })
-}
+/** Requests carry the guest token of the meet they're for (see `withGuestToken`) */
+const request = withGuestToken(createApiClient(__API_URL__ || ''))
 
 // ---- Types ----
 
@@ -59,6 +47,8 @@ export interface MeetMembership {
   role: MeetRole
   label?: string
   churchId?: number
+  /** An official's room */
+  roomId?: number
 }
 
 // ---- Meet CRUD (superuser) ----
@@ -605,6 +595,24 @@ export interface StoredQuiz {
 
 export function listResults(meetId: number): Promise<StoredQuiz[]> {
   return request(`/api/meets/${meetId}/results`)
+}
+
+/** Upload a saved quiz file to a meet, by name, for a room or (an admin) none */
+export function uploadResult(
+  meetId: number,
+  quizFile: QuizFile,
+  roomId: number | null,
+  onExisting?: OnExisting,
+): Promise<Stored> {
+  return request(`/api/meets/${meetId}/results`, {
+    method: 'POST',
+    body: JSON.stringify({ quizFile, roomId: roomId ?? undefined, onExisting, upload: true }),
+  })
+}
+
+/** Who the user is when sending to a meet, as the API works it out; 401 or 403 when no one */
+export function getSender(meetId: number): Promise<Sender> {
+  return request(`/api/meets/${meetId}/results/sender`)
 }
 
 /** Count or uncount quizzes of a meet; answers with the ones whose value changed */
