@@ -1,4 +1,4 @@
-import { CellValue, QuizFormat } from '../../../quizFile'
+import { CellValue, PlacementFormula, QuizFormat, type QuizFile } from '../../../quizFile'
 import { buildColumns } from '../../../types/scoresheet'
 import { quizRules } from '../../quizRules'
 
@@ -64,4 +64,37 @@ export function buildCells(): CellValue[][][] {
     cells[team]![seat]![colIdx] = value
   }
   return cells
+}
+
+/** The same quiz as a saved quiz file: teams A, B, C (ids 1-3), quizzer id `team * 10 + seat` */
+export function fifteenQuestionQuizFile(): QuizFile {
+  const names = ['A', 'B', 'C']
+  return {
+    version: 3,
+    quiz: {
+      division: '1',
+      quizNumber: '1',
+      overtime: false,
+      placementFormula: PlacementFormula.Rules,
+      format: QuizFormat.FifteenQuestion,
+      questionTypes: [],
+    },
+    teams: names.map((name, team) => ({
+      id: team + 1,
+      name: `Team ${name}`,
+      onTime: true,
+      seatOrder: team,
+      quizzers: [0, 1, 2, 3, 4].map((seat) => ({
+        id: (team + 1) * 10 + seat,
+        name: `${name}${seat}`,
+        seatOrder: seat,
+      })),
+    })),
+    answers: ANSWERS.map(([team, seat, columnKey, value]) => ({
+      quizzerId: (team + 1) * 10 + seat,
+      columnKey,
+      value,
+    })),
+    noJumps: [],
+  }
 }

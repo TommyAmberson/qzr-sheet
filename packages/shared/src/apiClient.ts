@@ -2,6 +2,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** The error response's whole body, for errors that carry more than a message */
+    public body: unknown = undefined,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -17,7 +19,7 @@ export function createApiClient(baseUrl: string) {
     })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      throw new ApiError(res.status, (body as { error?: string }).error ?? res.statusText)
+      throw new ApiError(res.status, (body as { error?: string }).error ?? res.statusText, body)
     }
     return res.json() as Promise<T>
   }
