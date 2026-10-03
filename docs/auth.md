@@ -145,7 +145,8 @@ the meet (any role), and guests whose JWT `meetId` matches.
 `isOfficialOfRoom(c, db, meetId, roomId)` admits a guest whose official token names that room, or a
 signed-in official of it. Mutation routes still require a real signed-in user via `requireAuth()`,
 except the results routes, where officials submit with their guest token; reads use the lighter
-`requireAuthOrGuest()`.
+`requireAuthOrGuest()`. `officialRoomsOf(c, db, meetId)` lists the rooms the caller officiates
+there: a guest official's room while their code is current, or a signed-in account's rooms.
 
 **URL-shareable viewer access (scoresheet):** the scoresheet auto-joins as a guest viewer when
 opened with `?meet=<viewerCode>`:
@@ -158,6 +159,13 @@ https://www.versevault.ca/qzr/scoresheet/?meet=fall-2025
 roster becomes selectable in "Load teams from meet" without sign-in. The token is reused across
 reloads as long as its decoded `exp` claim has more than 5 min remaining; otherwise a fresh
 `/api/join/guest` call refreshes it.
+
+**Guest sessions in both apps:** the guest session module lives in `packages/ui`, and each app
+passes it its own join call. Scoresheet and portal share an origin, so they share the stored
+sessions: a code joined in either works in both. Each request carries the token of the meet its path
+names (`guestTokenFor`). In the portal, "join with a code" keeps the session, an official is taken
+to the meet's results, and the router admits a guest session to that page only; other meet pages
+still need an account.
 
 **Roadmap:** today only `?meet=<viewerCode>` is wired (viewer role only). The same pattern can be
 extended to `?official=<code>` for room-scoped officials and any other code-bearing roles — the
