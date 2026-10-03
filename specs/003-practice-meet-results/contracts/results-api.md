@@ -16,9 +16,9 @@ Mounted so that guest tokens reach it (the schedule routers require an account s
 Submit or upload a quiz. Body: `{ quizFile, roomId?, onExisting?, upload? }`. `roomId` is required
 for a signed-in official and must be one of their rooms; it is ignored for a guest (the token's room
 is used); an admin may name any room of the meet, or none. `upload: true` marks a file sent without
-being opened. The scoresheet's Submit and Save to meet send a quiz this way, by name, for officials
-and admins alike, so the scoresheet never needs to remember which stored quiz it opened (R8). The
-room it is sent for gets access to the stored quiz.
+being opened. The scoresheet's Submit to meet sends a quiz this way, by name, for officials and
+admins alike, so the scoresheet never needs to remember which stored quiz it opened (R8). The room
+it is sent for gets access to the stored quiz.
 
 A quiz not tied to the schedule is identified by its name: division, consolation and quiz number,
 folded for case and spaces.
