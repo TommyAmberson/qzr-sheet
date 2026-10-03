@@ -100,6 +100,9 @@ Decisions from the brainstorm:
 * Q: Do officials upload files from the scoresheet? → A: No, the scoresheet's "Upload file to meet"
   is dropped. Files are uploaded from the portal's results page; in the scoresheet, open the file
   and submit it (FR-007).
+* Q: Where does the scoresheet get a meet's team list, when it isn't linked to the meet? → A: From
+  the meet it last submitted to, which it remembers; a linked meet's list comes first. The first
+  quiz of the day gets names once something has been submitted (FR-017).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -111,15 +114,15 @@ meet's admin sees it arrive in a list of the meet's quizzes, grouped by division
 **Why this priority**: Every other story needs the quizzes in one place. On its own it already
 replaces carrying paper between rooms.
 
-**Independent Test**: Join a scoresheet to a room of a meet, score a quiz with typed names, submit
-it, and see it in the admin's list with its division, quiz number, teams, and scores, marked as not
+**Independent Test**: Join a meet as a room's official, score a quiz with typed names, submit it,
+and see it in the admin's list with its division, quiz number, teams, and scores, marked as not
 counted.
 
 **Acceptance Scenarios**:
 
-1. **Given** a scoresheet joined to a room of a meet and a quiz with no validation errors, **When**
-   the official submits, **Then** the quiz is stored for that meet, recorded as submitted by that
-   room, and the official sees a confirmation.
+1. **Given** an official of a room of a meet and a quiz with no validation errors, **When** the
+   official submits, **Then** the quiz is stored for that meet, recorded as submitted by that room,
+   and the official sees a confirmation.
 2. **Given** a submitted quiz, **When** an official of any room submits a quiz with the same
    division, consolation and quiz number, **Then** they are warned that it was already submitted,
    with its revision number and who saved it, and choose not to submit, to save it as the new
@@ -259,22 +262,22 @@ each quiz that changed.
 ### User Story 6 - Team list for the meet (Priority: P3)
 
 The admin may enter each division's team names for the meet, without churches or quizzers. A
-scoresheet joined to one of the meet's rooms then offers those names to choose from, so officials
-rarely type them.
+scoresheet working with the meet, linked to it or last submitted to it, then offers those names to
+choose from, so officials rarely type them.
 
 **Why this priority**: Prevents most name mismatches at the source, but costs setup time that some
 practice meets will skip, and Stories 4 and 5 fix mismatches anyway.
 
-**Independent Test**: Enter team names for a division, join a scoresheet to a room, and pick teams
-from the list when setting up a quiz in that division.
+**Independent Test**: Enter team names for a division, submit a quiz to the meet from a scoresheet,
+and pick teams from the list when setting up a quiz in that division.
 
 **Acceptance Scenarios**:
 
 1. **Given** a meet admin, **When** they add, rename, or remove team names for a division, **Then**
    the list is saved for the meet.
-2. **Given** a meet with a team list and a scoresheet joined to one of its rooms, **When** the
-   official sets a team's name, **Then** the division's team names are offered, and typing a name
-   not on the list is still allowed.
+2. **Given** a meet with a team list and a scoresheet linked to it or last submitted to it, **When**
+   the official sets a team's name, **Then** the division's team names are offered, and typing a
+   name not on the list is still allowed.
 3. **Given** a meet with no team list, **When** officials set up quizzes, **Then** they type names
    as they do today.
 
@@ -304,7 +307,8 @@ from the list when setting up a quiz in that division.
   errors: it adds nothing to the standings, and a warning names it.
 * An admin scores a quiz in a room: they submit it from the scoresheet for that room, or save the
   file and upload it.
-* The scoresheet is not joined to a meet: submitting isn't offered, and the quiz works as today.
+* The user is neither an admin nor an official of any meet: submitting isn't offered, and the quiz
+  works as today.
 * A quiz in a 20-question format is submitted to a practice meet: it is accepted and counted like
   any other.
 
@@ -386,7 +390,8 @@ from the list when setting up a quiz in that division.
 * **FR-016**: Standings MUST flag team names in a division that differ only slightly, and meet
   admins MUST be able to merge one into another across every quiz in that division in one action.
 * **FR-017**: Meet admins MUST be able to keep a list of team names per division for the meet, and a
-  scoresheet joined to the meet's room MUST offer that list while still accepting typed names.
+  scoresheet linked to the meet, or last submitted to it, MUST offer that list while still accepting
+  typed names.
 * **FR-018**: Meet admins (and superusers) MUST be able to view and change all of a meet's stored
   quizzes and their history, count them, and see the standings. An official MUST be able to view and
   change only the quizzes of the rooms they officiate (those with a revision saved for one of them),

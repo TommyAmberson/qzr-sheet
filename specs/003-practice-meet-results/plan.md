@@ -30,7 +30,7 @@ The technical approach (see [research.md](./research.md)):
 `jose` for guest tokens.
 
 **Storage**: Cloudflare D1 (four new tables, [data-model.md](./data-model.md)); scoresheet
-`localStorage` (the existing meet session only).
+`localStorage` (the existing meet session, and the meet last submitted to).
 
 **Testing**: Vitest in each package; shared gains a vitest setup (R3); the API's in-memory D1
 (`src/test-db.ts`) needs the new tables' DDL by hand.
