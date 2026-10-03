@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, PlacementFormula, type QuizFile } from '@qzr/shared'
 import type { StoredQuiz } from '../api'
-import { countedQuizzes, groupResults } from '../results'
+import { countedQuizzes, editQuizFile, groupResults } from '../results'
 
 function stored(
   id: number,
@@ -110,5 +110,21 @@ describe('countedQuizzes', () => {
       placed: division!.quizzes[0]!.placed,
       teams: division!.quizzes[0]!.teams,
     })
+  })
+})
+
+describe('editQuizFile', () => {
+  it('changes names, division and quiz number, and keeps the answers', () => {
+    const { quizFile } = stored(1, '1', '3')
+    const edited = editQuizFile(quizFile, {
+      division: ' 2 ',
+      quizNumber: '4',
+      teamNames: new Map([[1, 'Calgary 2']]),
+      quizzerNames: new Map([[21, 'Bea']]),
+    })
+    expect(edited.quiz).toMatchObject({ division: '2', quizNumber: '4' })
+    expect(edited.teams.map((t) => t.name)).toEqual(['Calgary 2', 'Regina 1'])
+    expect(edited.teams[1]!.quizzers.map((q) => q.name)).toEqual(['Bea'])
+    expect(edited.answers).toEqual(quizFile.answers)
   })
 })

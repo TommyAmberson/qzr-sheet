@@ -1,4 +1,12 @@
-import { deserialize, quizName, quizOutcome, type CountedQuiz, type TeamOutcome } from '@qzr/shared'
+import {
+  deserialize,
+  quizName,
+  quizOutcome,
+  serialize,
+  type CountedQuiz,
+  type QuizFile,
+  type TeamOutcome,
+} from '@qzr/shared'
 import type { StoredQuiz } from './api'
 
 export interface ResultRow {
@@ -59,4 +67,34 @@ export function countedQuizzes(division: DivisionResults): CountedQuiz[] {
   return division.quizzes
     .filter((quiz) => quiz.counted)
     .map((quiz) => ({ name: quiz.name, outcome: { placed: quiz.placed, teams: quiz.teams } }))
+}
+
+/** The names the quick form can change in a stored quiz's file */
+export interface QuizEdit {
+  division: string
+  quizNumber: string
+  /** By team id */
+  teamNames: Map<number, string>
+  /** By quizzer id */
+  quizzerNames: Map<number, string>
+}
+
+/**
+ * A stored quiz's file with its names changed, read and written through the shared codec so the
+ * result is a file the scoresheet saves. The one place names in stored files are edited.
+ */
+export function editQuizFile(file: QuizFile, edit: QuizEdit): QuizFile {
+  const content = deserialize(file)
+  return serialize({
+    ...content,
+    quiz: { ...content.quiz, division: edit.division.trim(), quizNumber: edit.quizNumber.trim() },
+    teams: content.teams.map((team) => ({
+      ...team,
+      name: edit.teamNames.get(team.id)?.trim() ?? team.name,
+    })),
+    quizzers: content.quizzers.map((quizzer) => ({
+      ...quizzer,
+      name: edit.quizzerNames.get(quizzer.id)?.trim() ?? quizzer.name,
+    })),
+  })
 }

@@ -610,6 +610,52 @@ export function uploadResult(
   })
 }
 
+/** One entry of a stored quiz's history: a save, or a count or uncount */
+export type HistoryEntry =
+  | {
+      kind: 'revision'
+      revision: number
+      action: ResultAction
+      /** For a revision that restores another, the revision whose file it restores */
+      restoredFrom?: number
+      savedBy: { name: string }
+      savedAt: string
+      /** Whether its file is the quiz's current content */
+      current: boolean
+      /** Its file; a restoring revision's is the file it restores */
+      quizFile: QuizFile
+    }
+  | { kind: 'counting'; counted: boolean; changedBy: { name: string }; changedAt: string }
+
+/** A stored quiz's saves and counting records, newest first */
+export function getHistory(meetId: number, resultId: number): Promise<HistoryEntry[]> {
+  return request(`/api/meets/${meetId}/results/${resultId}/revisions`)
+}
+
+/** Make an earlier revision current again; nothing is added when it already is */
+export function restoreRevision(
+  meetId: number,
+  resultId: number,
+  revision: number,
+): Promise<{ id: number; revision: number }> {
+  return request(`/api/meets/${meetId}/results/${resultId}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({ revision }),
+  })
+}
+
+/** Save an edited stored quiz as a new revision; a rename onto another quiz's name is refused */
+export function editResult(
+  meetId: number,
+  resultId: number,
+  quizFile: QuizFile,
+): Promise<{ id: number; revision: number }> {
+  return request(`/api/meets/${meetId}/results/${resultId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ quizFile }),
+  })
+}
+
 /** Who the user is when sending to a meet, as the API works it out; 401 or 403 when no one */
 export function getSender(meetId: number): Promise<Sender> {
   return request(`/api/meets/${meetId}/results/sender`)
