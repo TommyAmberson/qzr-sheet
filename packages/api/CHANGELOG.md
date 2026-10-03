@@ -17,6 +17,31 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-02
+
+### Added
+
+* **Counting quizzes** - `PATCH /api/meets/:id/results/counted` lets a meet's admins count or
+  uncount several of its quizzes at once, for the standings. Each change is recorded with who made
+  it and when; a quiz whose value doesn't change gets no record, and an id outside the meet changes
+  nothing (404)
+
+### Changed
+
+* Whether a stored quiz counts is now its newest counting record rather than a column of its own
+  (migration `0005` drops `quiz_results.counted` and indexes the records by quiz), so a quiz and its
+  record can't disagree. Large changes are written in chunks that fit D1's parameter limit. Nothing
+  was counted before this release
+* Quiz names are folded with `@qzr/shared`'s `foldName`, the rule the standings use for team names,
+  and named with its `quizName`
+* `GET /api/meets/:id/results` gives each quiz's `origin`, its first revision's action and saver,
+  instead of `roomId` and `roomName`, so a quiz whose room was deleted still says where it came from
+  (#104)
+
+### Bundled contract
+
+* `@qzr/shared@1.3.0` - bumped from 1.2.0
+
 ## [0.14.0] - 2026-10-02
 
 ### Added

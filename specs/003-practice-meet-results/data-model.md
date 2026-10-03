@@ -12,15 +12,15 @@ One quiz of a meet, whatever its history.
 | ---------- | ----------------------------------------------------------------------------------------------- |
 | id         | identity                                                                                        |
 | meet       | the meet; deleted with it                                                                       |
-| room       | the room it was first submitted from; empty for uploads; cleared if the room is deleted         |
+| room       | the room it was first submitted from; unread, since the first revision says where it came from  |
 | quiz key   | its name, division, consolation and quiz number, folded for case and spaces; unique in the meet |
-| counted    | whether it counts in the standings; starts false                                                |
 | created at | first save                                                                                      |
 
 Rules:
 
-* `counted` starts false for every quiz (FR-013): nothing in this feature links a quiz to a schedule
-  slot, so nothing is counted automatically.
+* Whether a quiz counts is its newest counting record, and it doesn't count until an admin first
+  counts it (FR-013): nothing in this feature links a quiz to a schedule slot, so nothing is counted
+  automatically.
 * A quiz not tied to the schedule is identified by its quiz key (FR-003): a submission or upload
   with a key the meet already has is reported, and on the submitter's choice adds to that quiz's
   revisions, whichever room sent it.
@@ -61,14 +61,16 @@ Rules:
 
 Append-only: one row per count or uncount (FR-013).
 
-| Field       | Meaning             |
-| ----------- | ------------------- |
-| stored quiz | the stored quiz     |
-| counted     | the new value       |
-| changed by  | the admin's account |
-| changed at  | when                |
+| Field           | Meaning                                                                     |
+| --------------- | --------------------------------------------------------------------------- |
+| stored quiz     | the stored quiz                                                             |
+| counted         | the new value                                                               |
+| changed by      | the admin's account                                                         |
+| changed by name | the admin as named then, so the trail survives a renamed or deleted account |
+| changed at      | when                                                                        |
 
-A select all or deselect all writes one row for each quiz whose value actually changes.
+A select all or deselect all writes one row for each quiz whose value actually changes, in one
+statement. The newest row is the quiz's current value, so the value and its record can't disagree.
 
 ## team name (`meet_team_names`)
 
