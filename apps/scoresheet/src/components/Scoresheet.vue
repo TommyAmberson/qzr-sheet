@@ -35,7 +35,7 @@ import {
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import type { ScheduledQuizSeat } from '../api'
-import { ChoiceDialog, alreadySubmittedQuestion, type ExistingQuiz } from '@qzr/ui'
+import { ChoiceDialog, askAlreadySubmitted, chooseRoom, uploadPicked } from '@qzr/ui'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
@@ -778,18 +778,19 @@ async function doExportOds() {
 
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
 
-/** Send the quiz to the meet; the sheet itself is untouched whether or not it arrives */
 /** A saved file's name: the quiz's name without its space, "D1Q3" or "D1cQ3" */
 function fileStem(): string {
   return quizName(quiz.value).replace(' Q', 'Q')
 }
 
-/** Ask what to do with a quiz the meet already has: null when the user doesn't send it */
-async function askAlreadySubmitted(existing: ExistingQuiz) {
-  const question = alreadySubmittedQuestion(existing)
-  return (await choiceDialog.value?.ask(question.title, question.detail, question.choices)) ?? null
+/** The room to send for, asked when there's a choice; undefined when the user cancels */
+function chooseRoomTo(action: string) {
+  const sender = meetSession.sender.value
+  if (!sender) return undefined
+  return chooseRoom(choiceDialog.value, sender, meetSession.meetName.value ?? 'the meet', action)
 }
 
+/** Send the quiz to the meet; the sheet itself is untouched whether or not it arrives */
 async function doSubmitToMeet() {
   closeMenus()
   if (hasAnyErrors.value) {
@@ -797,22 +798,13 @@ async function doSubmitToMeet() {
     return
   }
   const meet = meetSession.meetName.value
-  const rooms = meetSession.officialRooms.value
-  let roomId = rooms[0]?.id ?? null
-  if (rooms.length > 1) {
-    roomId =
-      (await choiceDialog.value?.ask(
-        'Submit for which room?',
-        `You officiate ${rooms.length} rooms of ${meet}.`,
-        rooms.map((room) => ({ label: room.name, value: room.id })),
-      )) ?? null
-    if (roomId === null) return
-  }
+  const roomId = await chooseRoomTo('Submit')
+  if (roomId === undefined) return
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
   try {
     let outcome = await meetSession.submitQuiz(quizFile, roomId)
     if (!outcome.stored) {
-      const choice = await askAlreadySubmitted(outcome.existing)
+      const choice = await askAlreadySubmitted(choiceDialog.value, outcome.existing)
       if (!choice) return
       outcome = await meetSession.submitQuiz(quizFile, roomId, choice)
     }
@@ -825,6 +817,32 @@ async function doSubmitToMeet() {
     alert(
       `Not submitted: ${(e as Error).message}\nThe quiz is unchanged. Try again, or save it as a file.`,
     )
+  }
+}
+
+const uploadInput = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
+
+function doUploadToMeet() {
+  closeMenus()
+  uploadInput.value?.click()
+}
+
+/** Upload the picked saved quiz files to the meet, then say what became of each */
+async function onUploadFiles(event: Event) {
+  // One batch at a time: a second would share the dialog and dismiss the first one's questions
+  uploading.value = true
+  try {
+    const reports = await uploadPicked(
+      event,
+      choiceDialog.value,
+      meetSession.sender.value,
+      meetSession.meetName.value ?? 'the meet',
+      meetSession.uploadQuiz,
+    )
+    if (reports) alert(reports.map((report) => `${report.file}: ${report.message}`).join('\n'))
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -1068,7 +1086,14 @@ const appVersion: string = __APP_VERSION__
                   <div v-if="saveMenuOpen" class="file-menu__dropdown">
                     <button @click="doSaveFile">⤓ Save as JSON</button>
                     <button v-if="meetSession.canSubmit.value" @click="doSubmitToMeet">
-                      ⇪ Submit to meet
+                      ⇪ {{ meetSession.sender.value?.admin ? 'Save to meet' : 'Submit to meet' }}
+                    </button>
+                    <button
+                      v-if="meetSession.canSubmit.value"
+                      :disabled="uploading"
+                      @click="doUploadToMeet"
+                    >
+                      ⇪ Upload file to meet
                     </button>
                     <button
                       :disabled="!canExportOds"
@@ -1706,6 +1731,14 @@ const appVersion: string = __APP_VERSION__
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
         <ChoiceDialog ref="choiceDialog" />
+        <input
+          ref="uploadInput"
+          type="file"
+          accept=".json,application/json"
+          multiple
+          hidden
+          @change="onUploadFiles"
+        />
         <SchedulePickerDialog ref="schedulePickerRef" :on-pick="loadScheduledQuiz" />
         <div
           v-if="selector"

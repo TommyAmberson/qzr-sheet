@@ -10,7 +10,7 @@ import {
 } from '@qzr/ui'
 import { joinMeetGuest } from '../api'
 
-export { guestTokenFor, joinedSession } from '@qzr/ui'
+export { joinedSession } from '@qzr/ui'
 export type { GuestSessionData } from '@qzr/ui'
 
 /** Join from the page's `?meet=` link, once; see `initGuestSession` in `@qzr/ui` */

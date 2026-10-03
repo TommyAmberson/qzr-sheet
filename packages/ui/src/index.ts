@@ -1,7 +1,7 @@
 export { default as SignInForm } from './SignInForm.vue'
 export { default as ChoiceDialog } from './ChoiceDialog.vue'
-export { alreadySubmittedQuestion, existingQuizOf, sendQuizFiles } from './alreadySubmitted'
-export type { ExistingQuiz, FileReport, OnExisting, Stored } from './alreadySubmitted'
+export { askAlreadySubmitted, chooseRoom, existingQuizOf, uploadPicked } from './sendQuizzes'
+export type { ExistingQuiz, FileReport, OnExisting, Sender, Stored } from './sendQuizzes'
 export {
   getActiveSession,
   guestStateRef,
@@ -11,8 +11,9 @@ export {
   joinedSession,
   setActiveSession,
   setGuestState,
+  withGuestToken,
 } from './guestSession'
-export type { GuestJoin, GuestSessionData } from './guestSession'
+export type { GuestSessionData } from './guestSession'
 export { default as ScheduleGrid } from './ScheduleGrid.vue'
 export {
   STATS_BREAK_LABEL,

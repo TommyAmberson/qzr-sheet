@@ -71,6 +71,24 @@ export function guestTokenFor(path: string, meetId?: number): string | null {
   return joinedSession(id)?.token ?? null
 }
 
+/**
+ * Wrap an app's API client so each request carries the guest token for its meet (see
+ * `guestTokenFor`); pass `meetId` when the path doesn't name the meet. A signed-in user's cookie
+ * takes precedence on the server, so they never need the header.
+ */
+export function withGuestToken(
+  baseRequest: <T>(path: string, init?: RequestInit) => Promise<T>,
+): <T>(path: string, init?: RequestInit, meetId?: number) => Promise<T> {
+  return <T>(path: string, init?: RequestInit, meetId?: number) => {
+    const token = guestTokenFor(path, meetId)
+    if (!token) return baseRequest<T>(path, init)
+    return baseRequest<T>(path, {
+      ...init,
+      headers: { ...init?.headers, Authorization: `Bearer ${token}` },
+    })
+  }
+}
+
 /** The joined guest session for a meet, whichever meet is active */
 export function joinedSession(meetId: number): GuestSessionData | null {
   return guestStateRef.value.joined.find((j) => j.meetId === meetId) ?? null
