@@ -31,7 +31,7 @@ doc is the stable design reference those issues link back to.
 | Term                           | Meaning                                                                                                                                                                                                                                     |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Meet**                       | A named multi-day event. One `quiz_meets` row.                                                                                                                                                                                              |
-| **Phase**                      | Meet-wide lifecycle stage: `registration`, `build`, `live`, or `done`. Drives edit permissions and visibility. See §2.                                                                                                                      |
+| **Phase**                      | Meet-wide lifecycle stage: `registration`, `build`, `live`, `review`, or `done`. Drives edit permissions and visibility. See §2.                                                                                                            |
 | **Division state**             | Per-division sub-state inside the `live` phase: `prelim_running`, `stats_break`, `elim_running`, `division_done`. See §2.                                                                                                                   |
 | **Division**                   | A competitive tier inside the meet. Set once at meet creation and never changes for a team. Today: Divisions 1, 2, 3. Stored as JSON on `quiz_meets.divisions`; teams carry a `division` string.                                            |
 | **Team**                       | A church-owned roster for one meet + division. `teams` row. Has `consolation: boolean` (already in schema) — always `false` during prelims; set post-stats-break to route a team into the consolation elim bracket. Division never changes. |
@@ -53,19 +53,21 @@ doc is the stable design reference those issues link back to.
 
 ## 2. Meet phases
 
-A meet moves through four meet-wide phases. Each phase gates what coaches and admins can edit. The
-phase model is the source of truth for "is registration still open?", "can the admin edit this
-quiz?", "are coaches allowed to see the schedule yet?".
+A meet moves through five meet-wide phases. Each phase gates what coaches, officials, and admins can
+do. The phase model is the source of truth for "is registration still open?", "can the admin edit
+this quiz?", "are coaches allowed to see the schedule yet?".
 
 | Phase            | Trigger                                                                         | What's allowed                                                                                                         |
 | ---------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | **registration** | Default at meet creation.                                                       | Coaches edit their own rosters. Admin has all powers.                                                                  |
 | **build**        | Auto at `quiz_meets.registrationClosesAt` (admin-set), or admin manual advance. | Rosters read-only for coaches (changes go through admin via email). Admin builds schedule, manages rooms, rolls teams. |
 | **live**         | Auto at `quiz_meets.meetStartsAt` (admin-set), or admin manual advance.         | Coaches/viewers see the published schedule with team names. Admin can still edit, but completed quizzes are immutable. |
-| **done**         | Admin manual.                                                                   | Everything read-only. Final stats locked.                                                                              |
+| **review**       | Admin manual, suggested once every division is `division_done`.                 | Quizzing is over. Officials no longer submit. Admin keeps every power to correct results and settle disputes.          |
+| **done**         | Admin manual.                                                                   | Everything read-only, admins included. Final stats locked. A late correction moves the meet back to `review`.          |
 
-Phase order is `registration → build → live → done`. Reverse transitions are admin-only and flagged
-in the UI as unusual.
+Phase order is `registration → build → live → review → done`. Reverse transitions are admin-only and
+flagged in the UI as unusual. Who can see and do what in each phase is defined in
+[roles-and-access.md § Access by phase](./roles-and-access.md#access-by-phase).
 
 ### Per-division state inside `live`
 
@@ -84,7 +86,7 @@ State transitions are admin-manual.
 The schedule still has a draft / published toggle, independent of phase. The admin can stage edits
 in any phase; they're not visible to coaches/viewers until published. In `registration` and `build`
 even a published schedule is visible only to admin (no coach-facing schedule yet); in `live` a
-published schedule is visible to everyone.
+published schedule is visible to everyone, and stays visible in `review` and `done`.
 
 ## 3. How a meet actually runs
 
@@ -194,8 +196,8 @@ truth.
   behalf at any phase.
 * Schedule edits to a quiz are blocked once `scheduled_quizzes.completedAt` is set, regardless of
   phase. Completed quizzes are immutable so prior results stay coherent.
-* Phase advances (`registration → build → live → done`) are one-way by default. Admin-manual reverse
-  transitions are allowed but flagged in the UI.
+* Phase advances (`registration → build → live → review → done`) are one-way by default.
+  Admin-manual reverse transitions are allowed but flagged in the UI.
 * Per-division state advances (`prelim_running → stats_break → elim_running → division_done`) are
   admin-manual; reverses also allowed and flagged.
 
@@ -325,7 +327,7 @@ New tables and columns. Existing `quiz_meets` gains phase fields.
 
 ```ts
 // Existing quiz_meets table gains:
-//   phase: text enum ['registration', 'build', 'live', 'done'] (default 'registration')
+//   phase: text enum ['registration', 'build', 'live', 'review', 'done'] (default 'registration')
 //   registrationClosesAt: integer timestamp (nullable; auto-advance to 'build')
 //   meetStartsAt: integer timestamp (nullable; auto-advance to 'live')
 
@@ -470,8 +472,8 @@ is a quiz card with three seat chips. Before "Roll Teams" runs the chips show le
 `C`); after, they show team names.
 
 A **phase header bar** sits above the grid showing the current meet phase (`registration` / `build`
-/ `live` / `done`) with admin-only "Advance" and "Revert" controls. Inside the schedule, each
-division's row carries a state badge (e.g. "Div 2: prelim running") when the meet is `live`.
+/ `live` / `review` / `done`) with admin-only "Advance" and "Revert" controls. Inside the schedule,
+each division's row carries a state badge (e.g. "Div 2: prelim running") when the meet is `live`.
 
 **Direct manipulation (any time)**:
 
@@ -562,9 +564,12 @@ Elim running [div state: elim_running]
   20. Results flow in; seed refs resolve to teams.
   21. Final placements displayed → admin advances division to 'division_done'.
 
-Wrap-up [phase: done — admin manual]
-  22. When all divisions are 'division_done', admin advances meet to 'done'.
-      Schedule and stats become globally read-only.
+Review [phase: review, admin manual]
+  22. When all divisions are 'division_done', the UI suggests advancing to 'review'.
+      Officials stop submitting; admin corrects results and settles disputes.
+
+Wrap-up [phase: done, admin manual]
+  23. Admin advances meet to 'done'. Schedule and stats become read-only for everyone.
 ```
 
 ## 11. Open questions
