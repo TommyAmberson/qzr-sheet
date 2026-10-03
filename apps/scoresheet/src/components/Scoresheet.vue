@@ -39,6 +39,7 @@ import { ChoiceDialog, askAlreadySubmitted, chooseRoom, guestStateRef, type Send
 import { useAuth } from '../composables/useAuth'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { senderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
+import { useTeamNames } from '../composables/useTeamNames'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
 import MeetPickerDialog from './MeetPickerDialog.vue'
@@ -827,6 +828,29 @@ watch(
   { immediate: true },
 )
 
+const { refreshTeamNames, teamNamesFor } = useTeamNames()
+/** Whether the linked meet's roster has teams for the quiz's division, to pick from */
+const rosterHasTeams = computed(() => filteredTeamList.value.length > 0)
+/**
+ * A team is picked from the roster when it has teams for the division, or when the team is already
+ * picked, so a pick made in another division can still be seen and cleared; otherwise it's typed
+ */
+function picksTeam(teamIdx: number): boolean {
+  return rosterHasTeams.value || !!meetSession.getSlot(teamIdx)
+}
+/**
+ * The meet whose team names a typed name is offered: the linked one, else the one last submitted
+ * to. Not fetched while teams are picked from the roster instead.
+ */
+watch(
+  [() => meetSession.meetId.value ?? submitter.lastMeetId.value, rosterHasTeams],
+  ([meetId, fromRoster]) => {
+    if (!fromRoster) void refreshTeamNames(meetId)
+  },
+  { immediate: true },
+)
+const offeredTeamNames = computed(() => teamNamesFor(quiz.value.division ?? ''))
+
 /**
  * The meet to submit to, and who the user is there: the linked meet when they may send to it, else
  * one of their meets, asked when there's a choice, leaving the sheet unlinked. Undefined when the
@@ -840,7 +864,7 @@ async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender 
   }
   const meets = submitter.targets.value
   if (meets.length === 0) return undefined
-  const last = submitter.lastMeetId()
+  const last = submitter.lastMeetId.value
   const id =
     meets.length === 1
       ? meets[0]!.meetId
@@ -1271,7 +1295,7 @@ const appVersion: string = __APP_VERSION__
                 <td class="col--name sticky-col team-name" colspan="2">
                   <div class="name-cell-inner">
                     <span class="name-main">
-                      <template v-if="meetSession.isActive.value">
+                      <template v-if="picksTeam(teamIdx)">
                         <button
                           class="team-picker-trigger"
                           :class="{ 'is-open': openPickerSlot === teamIdx }"
@@ -1318,6 +1342,7 @@ const appVersion: string = __APP_VERSION__
                           <input
                             class="editable-name editable-name--team"
                             :data-tutorial="`team-name-${teamIdx}`"
+                            list="team-name-options"
                             :value="team.name"
                             @input="setTeamName(teamIdx, ($event.target as HTMLInputElement).value)"
                             @focus="($event.target as HTMLInputElement).select()"
@@ -1775,6 +1800,9 @@ const appVersion: string = __APP_VERSION__
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
         <ChoiceDialog ref="choiceDialog" />
+        <datalist id="team-name-options">
+          <option v-for="name in offeredTeamNames" :key="name" :value="name" />
+        </datalist>
         <SchedulePickerDialog ref="schedulePickerRef" :on-pick="loadScheduledQuiz" />
         <div
           v-if="selector"

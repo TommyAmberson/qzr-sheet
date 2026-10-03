@@ -97,8 +97,10 @@ async function submitQuiz(
   }
 }
 
-/** The meet last submitted to, offered first next time */
-function lastMeetId(): number | null {
+/** The meet last submitted to: offered first next time, and the source of team names (Story 6) */
+const lastMeetId = ref<number | null>(storedLastMeet())
+
+function storedLastMeet(): number | null {
   try {
     const stored = Number(localStorage.getItem(LAST_MEET_KEY))
     return stored > 0 ? stored : null
@@ -108,10 +110,11 @@ function lastMeetId(): number | null {
 }
 
 function rememberMeet(meetId: number): void {
+  lastMeetId.value = meetId
   try {
     localStorage.setItem(LAST_MEET_KEY, String(meetId))
   } catch {
-    // Storage unavailable: the meet just isn't preselected next time
+    // Storage unavailable: the meet is remembered until the page closes
   }
 }
 

@@ -93,9 +93,9 @@ describe('the meets the user may submit to', () => {
 describe('the meet last submitted to', () => {
   it('is remembered', () => {
     const { lastMeetId, rememberMeet } = useSubmitToMeet()
-    expect(lastMeetId()).toBeNull()
     rememberMeet(4)
-    expect(lastMeetId()).toBe(4)
+    expect(lastMeetId.value).toBe(4)
+    expect(localStorage.getItem('qzr-submit-meet')).toBe('4')
   })
 })
 
