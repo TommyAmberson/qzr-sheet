@@ -13,6 +13,7 @@ import {
   setActiveSession,
   guestStateRef,
   getGuestToken,
+  guestTokenFor,
   getActiveSession,
   STORAGE_KEY,
 } from '../guestSession'
@@ -240,5 +241,33 @@ describe('persistence', () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBeTruthy()
     setGuestState(null)
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+  })
+})
+
+describe('guestTokenFor', () => {
+  const session = (meetId: number, token: string) => ({
+    token,
+    meetId,
+    meetName: `Meet ${meetId}`,
+    role: MeetRole.Official as const,
+    code: `code-${meetId}`,
+  })
+
+  beforeEach(() => {
+    setGuestState({ active: 1, joined: [session(1, 'token-1'), session(2, 'token-2')] })
+  })
+
+  it("sends a meet's own token for its paths, whichever meet is active", () => {
+    expect(guestTokenFor('/api/meets/2/teams')).toBe('token-2')
+    expect(guestTokenFor('/api/meets/2')).toBe('token-2')
+    expect(guestTokenFor('/api/meets/1/results')).toBe('token-1')
+  })
+
+  it("sends no token to a meet the guest hasn't joined", () => {
+    expect(guestTokenFor('/api/meets/3/teams')).toBeNull()
+  })
+
+  it("sends the active session's token for paths outside a meet", () => {
+    expect(guestTokenFor('/api/teams/7/quizzers')).toBe('token-1')
   })
 })

@@ -13,8 +13,8 @@ import { joinMeetGuest } from '../api'
  *
  * The session keeps a list of every meet the user has joined this way and
  * tracks which one is currently active. The API client's `request()` wrapper
- * reads the active token via `getGuestToken()` and attaches it as
- * `Authorization: Bearer`. This module is a non-`use*` module so the API
+ * reads a token via `guestTokenFor()`, the joined session of the meet a path
+ * names or else the active one, and attaches it as `Authorization: Bearer`. This module is a non-`use*` module so the API
  * client can read state synchronously without going through Vue's composable
  * contract.
  */
@@ -48,6 +48,19 @@ export function getGuestToken(): string | null {
   const s = guestStateRef.value
   if (s.active === null) return null
   return s.joined.find((j) => j.meetId === s.active)?.token ?? null
+}
+
+const MEET_PATH = /^\/api\/meets\/(\d+)(?:[/?]|$)/
+
+/**
+ * The guest token to send with a request: for a path under one meet, that meet's joined session,
+ * whichever meet is active, so a guest who has joined several meets never sends one meet's token
+ * to another; for any other path, the active session's.
+ */
+export function guestTokenFor(path: string): string | null {
+  const meetId = MEET_PATH.exec(path)?.[1]
+  if (meetId === undefined) return getGuestToken()
+  return joinedSession(Number(meetId))?.token ?? null
 }
 
 /** The joined guest session for a meet, whichever meet is active */

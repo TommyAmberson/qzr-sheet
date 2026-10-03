@@ -1,17 +1,18 @@
 import { createApiClient, type QuizFile } from '@qzr/shared'
-import { getGuestToken, joinedSession } from './composables/useGuestSession'
+import { guestTokenFor } from './composables/useGuestSession'
 
 declare const __API_URL__: string
 
 const baseRequest = createApiClient(__API_URL__ || '')
 
 /**
- * Attach `Authorization: Bearer <jwt>` whenever a guest session is active so
- * the API's session middleware can recognize the caller. Cookie sessions take
- * precedence on the server, so signed-in users never need the header.
+ * Attach `Authorization: Bearer <jwt>` with the guest token for the request's
+ * meet (see `guestTokenFor`) so the API's session middleware can recognize the
+ * caller. Cookie sessions take precedence on the server, so signed-in users
+ * never need the header.
  */
-function request<T>(path: string, init?: RequestInit, forMeet?: number): Promise<T> {
-  const token = forMeet === undefined ? getGuestToken() : (joinedSession(forMeet)?.token ?? null)
+function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = guestTokenFor(path)
   if (!token) return baseRequest<T>(path, init)
   return baseRequest<T>(path, {
     ...init,
@@ -64,24 +65,17 @@ export interface ExistingQuiz {
 /** What to do with a submission whose name the meet already has */
 export type OnExisting = 'newRevision' | 'keepCurrent'
 
-/**
- * Submit a quiz to the meet, which knows it by name. A guest official's room comes from their
- * token for this meet, whichever meet the guest session last picked.
- */
+/** Submit a quiz to the meet, which knows it by name. A guest official's room is in their token. */
 export function submitResult(
   meetId: number,
   quizFile: QuizFile,
   roomId: number | null,
   onExisting?: OnExisting,
 ): Promise<{ id: number; revision: number; created: boolean; keptCurrent?: boolean }> {
-  return request(
-    `/api/meets/${meetId}/results`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ quizFile, roomId: roomId ?? undefined, onExisting }),
-    },
-    meetId,
-  )
+  return request(`/api/meets/${meetId}/results`, {
+    method: 'POST',
+    body: JSON.stringify({ quizFile, roomId: roomId ?? undefined, onExisting }),
+  })
 }
 
 export function getMeetTeams(
