@@ -1,10 +1,4 @@
-import {
-  deserialize,
-  quizName,
-  quizOutcome,
-  type CountedQuiz,
-  type TeamOutcome,
-} from '@qzr/shared'
+import { deserialize, quizName, quizOutcome, type CountedQuiz, type TeamOutcome } from '@qzr/shared'
 import type { StoredQuiz } from './api'
 
 export interface ResultRow {

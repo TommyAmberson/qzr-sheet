@@ -1,11 +1,25 @@
 import { createApiClient, MeetRole } from '@qzr/shared'
 import type { MeetPhase, DivisionStateValue, QuizFile, ResultAction } from '@qzr/shared'
+import { guestTokenFor } from '@qzr/ui'
 
 export type { MeetPhase, DivisionStateValue }
 
 declare const __API_URL__: string
 
-const request = createApiClient(__API_URL__ || '')
+const baseRequest = createApiClient(__API_URL__ || '')
+
+/**
+ * Send a request, with the guest token for the meet it names when the user joined that meet with a
+ * code (see `guestTokenFor`). A signed-in user's cookie takes precedence on the server.
+ */
+function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = guestTokenFor(path)
+  if (!token) return baseRequest<T>(path, init)
+  return baseRequest<T>(path, {
+    ...init,
+    headers: { ...init?.headers, Authorization: `Bearer ${token}` },
+  })
+}
 
 // ---- Types ----
 

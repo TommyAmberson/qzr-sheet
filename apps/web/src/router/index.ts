@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { authClient } from '../composables/useAuth'
+import { joinedSession } from '@qzr/ui'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -58,9 +59,10 @@ router.beforeEach(async (to) => {
   if (!to.matched.some((r) => r.meta.requiresAuth)) return true
 
   const { data } = await authClient.getSession()
-  if (!data?.user) return { name: 'home' }
-
-  return true
+  if (data?.user) return true
+  // A guest who joined this meet with a code may open its results (`slug` is the meet's id then)
+  if (to.name === 'meet-results' && joinedSession(Number(to.params.slug))) return true
+  return { name: 'home' }
 })
 
 export default router
