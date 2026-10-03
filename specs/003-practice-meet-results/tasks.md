@@ -196,8 +196,8 @@ Each pull request rebases onto master first and carries its own release bumps.
 
 **Independent Test**: Quickstart scenario 7
 
-- [ ] T030 [US5] Flag look-alike team names in a division as R11 defines them, in the shared standings (`packages/shared/src/scoring/`). Covered by new cases in the T017 standings spec: "Calgry 1" flagged against "Calgary 1", "Calgary 1" not flagged against "Calgary 2"
-- [ ] T031 [US5] Add Merge to each flagged pair in the portal's standings view: every quiz in that division using the merged name is edited through the T026 quick-form path and saved with action `merged` (R10). Covered by the T026 file-edit spec plus a case for choosing affected quizzes
+- [X] T030 [US5] Flag look-alike team names in a division as R11 defines them, in the shared standings (`packages/shared/src/scoring/`). Covered by new cases in the T017 standings spec: "Calgry 1" flagged against "Calgary 1", "Calgary 1" not flagged against "Calgary 2"
+- [X] T031 [US5] Add Merge to each flagged pair in the portal's standings view: every quiz in that division using the merged name is edited through the T026 quick-form path and saved with action `merged` (R10). Covered by the T026 file-edit spec plus a case for choosing affected quizzes
 
 **Checkpoint**: Quickstart scenario 7 passes
 
@@ -209,9 +209,9 @@ Each pull request rebases onto master first and carries its own release bumps.
 
 **Independent Test**: Quickstart scenario 8
 
-- [ ] T032 [US6] Add the team name table (`meet_team_names`, "Unique on meet, division and folded name") to `packages/api/src/db/schema.ts` via `db:generate` with DDL in `packages/api/src/test-db.ts`, add the table to `docs/data-model.md`, and implement `GET /team-names` and `PUT /team-names` in `packages/api/src/routes/results.ts` per the contract, with route specs in `results.spec.ts`
-- [ ] T033 [P] [US6] Add a team-names editor per division to the portal's meet admin area in `apps/web/src/views/`, with its calls in `apps/web/src/api.ts`
-- [ ] T034 [P] [US6] Offer the meet's team names for the quiz's division in the scoresheet's team picker, still accepting typed names. The meet is the linked one (`apps/scoresheet/src/composables/useMeetSession.ts`), else the one last submitted to (`useSubmitToMeet.ts`), so a practice meet's sheet needn't be linked. Covered by new cases in the specs of whichever composable owns the list
+- [X] T032 [US6] Add the team name table (`meet_team_names`, "Unique on meet, division and folded name") to `packages/api/src/db/schema.ts` via `db:generate` with DDL in `packages/api/src/test-db.ts`, add the table to `docs/data-model.md`, and implement `GET /team-names` and `PUT /team-names` in `packages/api/src/routes/results.ts` per the contract, with route specs in `results.spec.ts`
+- [X] T033 [P] [US6] Add a team-names editor per division to the portal's meet admin area in `apps/web/src/views/`, with its calls in `apps/web/src/api.ts`
+- [X] T034 [P] [US6] Offer the meet's team names for the quiz's division in the scoresheet's team picker, still accepting typed names. The meet is the linked one (`apps/scoresheet/src/composables/useMeetSession.ts`), else the one last submitted to (`useSubmitToMeet.ts`), so a practice meet's sheet needn't be linked. Covered by new cases in the specs of whichever composable owns the list
 
 **Checkpoint**: Quickstart scenario 8 passes
 
@@ -221,9 +221,9 @@ Each pull request rebases onto master first and carries its own release bumps.
 
 **Purpose**: Finish the last pull request
 
-- [ ] T035 [P] Move practice meet results to "Available now" in `apps/web/src/views/RoadmapView.vue` and record it in `ROADMAP.md` against #7
-- [ ] T036 Release shared, api, scoresheet and web MINOR for Stories 5 and 6, naming the bundled shared version
-- [ ] T037 Run every [quickstart.md](./quickstart.md) scenario, including scenario 9 (access)
+- [X] T035 [P] Move practice meet results to "Available now" in `apps/web/src/views/RoadmapView.vue` and record it in `ROADMAP.md` against #7
+- [X] T036 Release shared, api, scoresheet and web MINOR for Stories 5 and 6, naming the bundled shared version
+- [X] T037 Run every [quickstart.md](./quickstart.md) scenario, including scenario 9 (access)
 
 ---
 
