@@ -550,22 +550,22 @@ describe('scoreTeam — 15-question quiz', () => {
     expect(result.quizoutBonusCols.size).toBe(0)
   })
 
-  it('values a bonus at 20 on Q11 and 10 from Q12', () => {
-    const q11 = blank()
-    q11[0]![at('11B')] = B
-    expect(score(q11).total).toBe(20)
+  it('values a bonus at 20 on Q12 and 10 from Q13', () => {
     const q12 = blank()
     q12[0]![at('12B')] = B
-    expect(score(q12).total).toBe(10)
+    expect(score(q12).total).toBe(20)
+    const q13 = blank()
+    q13[0]![at('13B')] = B
+    expect(score(q13).total).toBe(10)
   })
 
-  it("frees a quizzer's first error on Q11 but deducts it from Q12", () => {
-    const q11 = blank()
-    q11[0]![at('11')] = E
-    expect(score(q11).total).toBe(0)
+  it("frees a quizzer's first error on Q12 but deducts it from Q13", () => {
     const q12 = blank()
     q12[0]![at('12')] = E
-    expect(score(q12).total).toBe(-10)
+    expect(score(q12).total).toBe(0)
+    const q13 = blank()
+    q13[0]![at('13')] = E
+    expect(score(q13).total).toBe(-10)
   })
 
   it('keeps the unique-quizzer and on-time bonuses', () => {

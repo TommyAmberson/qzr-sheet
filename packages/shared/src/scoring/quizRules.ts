@@ -26,13 +26,14 @@ export const TWENTY_QUESTION_RULES: QuizRules = Object.freeze({
 })
 
 /**
- * Three-team practice-meet quiz: the 20-question structure moved five questions earlier, with the
- * two-team tie-breaker's quiz-out of 3. Not in the rulebook; see docs/scoring-rules-explained.md.
+ * Three-team practice-meet quiz: the 20-question structure's A/B questions and error points moved
+ * four questions earlier, with the two-team tie-breaker's quiz-out of 3. Not in the rulebook; see
+ * docs/scoring-rules-explained.md.
  */
 const FIFTEEN_QUESTION_RULES: QuizRules = Object.freeze({
   regulationQuestions: 15,
-  firstAbQuestion: 11,
-  firstErrorPointsQuestion: 12,
+  firstAbQuestion: 12,
+  firstErrorPointsQuestion: 13,
   quizOutCorrect: 3,
   overtimeRoundSize: 3,
 })

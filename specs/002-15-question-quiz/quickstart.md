@@ -16,13 +16,13 @@ Expected: all pass, and the existing 20-question specs pass unmodified apart fro
 ## Manual, in the scoresheet (`pnpm dev`, then open the printed URL)
 
 1. **Start**: New menu, "New 15-question quiz". The header badge reads "15 Q"; columns run 1 to 10,
-   then 11 to 15 with A/B; nothing past 15 while Overtime is off.
+   then 12 to 15 with A/B; nothing past 15 while Overtime is off.
 2. **Quiz-out**: give one quizzer 3 correct, no errors. They grey out for toss-ups; the team gets
    the quiz-out bonus.
 3. **Bonus values**: team 1 errs on Q9, team 2 errs on the Q10 toss-up, team 3 answers the Q11
-   bonus: +20. Then an error on Q12, an error on 12A, and 12B answered: +10.
-4. **Error points**: a quizzer's first error on Q12 costs 10; a first error on Q5 costs nothing.
-5. **Timeouts**: a timeout after Q11 is accepted; after Q12 the sheet refuses it with "Timeouts
+   bonus: +20. Then an error on Q13, an error on 13A, and 13B answered: +10.
+4. **Error points**: a quizzer's first error on Q13 costs 10; a first error on Q5 costs nothing.
+5. **Timeouts**: a timeout after Q12 is accepted; after Q13 the sheet refuses it with "Timeouts
    can't be called once error points begin".
 6. **Overtime**: score all three teams level through Q15, switch Overtime on: Q16 to 18 appear for
    the tied teams only.

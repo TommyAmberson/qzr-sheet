@@ -444,7 +444,7 @@ describe('useScoresheet — 15-question quiz', () => {
     s.resetStore(QuizFormat.FifteenQuestion)
     expect(s.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
     // 10 plain questions + 5 questions with A/B
-    expect(s.columns.value).toHaveLength(25)
+    expect(s.columns.value).toHaveLength(23)
     expect(s.columns.value[s.columns.value.length - 1]!.key).toBe('15B')
   })
 
@@ -456,11 +456,11 @@ describe('useScoresheet — 15-question quiz', () => {
     expect(s.columns.value).toHaveLength(30)
   })
 
-  it('allows timeouts through 11B and refuses them from 12', () => {
+  it('allows timeouts through 12B and refuses them from 13', () => {
     const s = useScoresheet()
     s.resetStore(QuizFormat.FifteenQuestion)
-    for (const key of ['10', '11', '11A', '11B']) expect(s.isTimeoutAllowed(key)).toBe(true)
-    for (const key of ['12', '12A', '15']) expect(s.isTimeoutAllowed(key)).toBe(false)
+    for (const key of ['10', '11', '12', '12A', '12B']) expect(s.isTimeoutAllowed(key)).toBe(true)
+    for (const key of ['13', '13A', '15']) expect(s.isTimeoutAllowed(key)).toBe(false)
   })
 
   it('sizes overtime from the rules of the loaded quiz', () => {
@@ -521,7 +521,7 @@ describe('useScoresheet — keeping a 15-question quiz', () => {
     const restored = useScoresheet()
     expect(restored.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
     expect(restored.cells.value[0]![0]![0]).toBe(CellValue.Correct)
-    expect(restored.columns.value).toHaveLength(25)
+    expect(restored.columns.value).toHaveLength(23)
   })
 
   it('clears the opened-from-newer-file flag when another quiz replaces it', () => {

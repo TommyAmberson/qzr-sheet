@@ -21,13 +21,13 @@ const { Correct: C, Error: E, Foul: F, Bonus: B } = CellValue
 // | 8   | A2 c     | +30     |         |         | 3rd unique quizzer                           |
 // | 9   | B1 f, C1 c |       | 0       | +20     | first team foul: no deduction                |
 // | 10  | C1 c     |         |         | +20     |                                              |
-// | 11  | B2 e     |         | 0       |         | B's 2nd team error, B2's 1st: free           |
-// | 11A | A3 e     | 0       |         |         | toss-up error, A's 1st: free                 |
-// | 11B | C3 b     |         |         | +20     | bonus on Q11 is still worth 20               |
-// | 12  | C1 c     |         |         | +30     | C1's 3rd correct, no errors: quiz-out bonus  |
+// | 11  | C1 c     |         |         | +30     | C1's 3rd correct, no errors: quiz-out bonus  |
+// | 12  | B2 e     |         | 0       |         | B's 2nd team error, B2's 1st: free           |
+// | 12A | A3 e     | 0       |         |         | toss-up error, A's 1st: free                 |
+// | 12B | C3 b     |         |         | +20     | bonus on Q12 is still worth 20               |
 // | 13  | B0 e     |         | -10     |         | error points                                 |
 // | 13A | C2 e     |         |         | -10     | error points                                 |
-// | 13B | A2 b     | +10     |         |         | bonus from Q12 on is worth 10                |
+// | 13B | A2 b     | +10     |         |         | bonus from Q13 on is worth 10                |
 // | 14  | A4 c     | +30     |         |         | 4th unique quizzer                           |
 // | 15  | B3 c     |         | +20     |         |                                              |
 // |     | total    | 200     | 30      | 100     |                                              |
@@ -43,10 +43,10 @@ export const ANSWERS: [team: number, seat: number, key: string, value: CellValue
   [1, 1, '9', F],
   [2, 1, '9', C],
   [2, 1, '10', C],
-  [1, 2, '11', E],
-  [0, 3, '11A', E],
-  [2, 3, '11B', B],
-  [2, 1, '12', C],
+  [2, 1, '11', C],
+  [1, 2, '12', E],
+  [0, 3, '12A', E],
+  [2, 3, '12B', B],
   [1, 0, '13', E],
   [2, 2, '13A', E],
   [0, 2, '13B', B],

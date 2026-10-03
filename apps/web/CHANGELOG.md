@@ -16,6 +16,17 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-10-03
+
+### Fixed
+
+* **Standings and quiz pages** - 15-question quizzes have A/B questions from 12 and score error
+  points and 10-point bonuses from 13, so placement points for those quizzes are recomputed
+
+### Bundled contract
+
+* `@qzr/shared@1.4.1` - bumped from 1.4.0
+
 ## [0.17.1] - 2026-10-02
 
 ### Fixed
