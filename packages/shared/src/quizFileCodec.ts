@@ -38,9 +38,10 @@ export class NewerFileVersionError extends Error {
 
 // ---- Serialize ----
 
+/** What a quiz file is written from; a deserialized file is one, so a file can be read and rewritten */
 export interface SerializeInput {
-  quiz: Quiz
-  teams: Team[]
+  quiz: Omit<Quiz, 'id'>
+  teams: Omit<Team, 'quizId'>[]
   quizzers: Quizzer[]
   answers: Answer[]
   noJumps: Map<string, boolean>

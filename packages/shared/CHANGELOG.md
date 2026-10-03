@@ -23,6 +23,13 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-02
+
+### Changed
+
+* `serialize` takes what `deserialize` returns, quizzes without an `id` and teams without a
+  `quizId`, which it never used, so a stored quiz file can be read, edited and written back.
+
 ## [1.3.0] - 2026-10-02
 
 ### Added
