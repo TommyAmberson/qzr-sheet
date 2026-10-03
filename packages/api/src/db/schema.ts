@@ -341,7 +341,7 @@ export const quizResultRevisions = sqliteTable(
     }),
     // Who saved it, as named at the time, so the trail survives a renamed or deleted room or account
     savedByName: text('saved_by_name').notNull(),
-    savedAt: integer('saved_at', { mode: 'timestamp' }).notNull(),
+    savedAt: integer('saved_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     unique().on(t.resultId, t.revision),
@@ -367,7 +367,7 @@ export const quizResultCountChanges = sqliteTable(
     }),
     // Who changed it, as named at the time, so the trail survives a renamed or deleted account
     changedByName: text('changed_by_name').notNull(),
-    changedAt: integer('changed_at', { mode: 'timestamp' }).notNull(),
+    changedAt: integer('changed_at', { mode: 'timestamp_ms' }).notNull(),
   },
   // A quiz's newest record is read for every quiz listed
   (t) => [index('quiz_result_count_changes_result_id_idx').on(t.resultId)],

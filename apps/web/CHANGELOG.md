@@ -16,6 +16,19 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-02
+
+### Added
+
+* **A quiz's page** - each quiz on the Results page links to a page of its own, open to the meet's
+  admins and the quiz's room officials: a quick form to change team and quizzer names, division and
+  quiz number; the quiz's history, each save with who, when and how, its teams and scores, and
+  counting changes; Restore for an earlier revision; and Open in scoresheet for any revision
+
+### Bundled contract
+
+* `@qzr/shared@1.4.0` - bumped from 1.3.0
+
 ## [0.16.0] - 2026-10-02
 
 ### Added

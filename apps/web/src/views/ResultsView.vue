@@ -276,9 +276,13 @@ onMounted(load)
           </thead>
           <tbody>
             <tr v-for="quiz in group.quizzes" :key="quiz.id">
-              <td>{{ quiz.name }}</td>
               <td>
-                <span v-for="team in quiz.teams" :key="team.name" class="team">
+                <router-link :to="{ name: 'meet-result', params: { slug, resultId: quiz.id } }">
+                  {{ quiz.name }}
+                </router-link>
+              </td>
+              <td>
+                <span v-for="(team, seat) in quiz.teams" :key="seat" class="team">
                   {{ team.name }} <strong>{{ team.score }}</strong>
                   <span v-if="team.place !== null" class="note">
                     {{ placeLabel(team.place) }}, {{ team.placementPoints }} pts

@@ -65,6 +65,20 @@ export function uploadResult(
   })
 }
 
+/** One revision of a stored quiz's file; a restoring revision gives the file it restores */
+export function getRevision(
+  meetId: number,
+  resultId: number,
+  revision: number,
+): Promise<{ quizFile: QuizFile }> {
+  return request(`/api/meets/${meetId}/results/${resultId}/revisions/${revision}`)
+}
+
+/** A meet's name, for linking the sheet to it */
+export function getMeetName(meetId: number): Promise<{ meet: { name: string } }> {
+  return request(`/api/meets/${meetId}`)
+}
+
 /** Who the user is when sending to the meet, as the API works it out; 401 or 403 when no one */
 export function getSender(meetId: number): Promise<Sender> {
   return request(`/api/meets/${meetId}/results/sender`)

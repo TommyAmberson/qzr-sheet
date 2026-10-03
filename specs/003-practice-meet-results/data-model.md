@@ -42,7 +42,7 @@ Append-only: one row per save; rows are never updated or deleted while the meet 
 | saved by      | the account, when signed in                                                                                                             |
 | saved by room | the room, when an official saved it                                                                                                     |
 | saved by name | who saved it as named then ("Room 1", "Alice, Room 1", or the admin's name), so the trail survives a renamed or deleted room or account |
-| saved at      | when                                                                                                                                    |
+| saved at      | when, to the millisecond                                                                                                                |
 
 Rules:
 
@@ -52,7 +52,8 @@ Rules:
   out of step with them.
 * Restoring adds a revision restoring the chosen one, pointing past any restoring revision to the
   file it restores (FR-005a); newer rows stay, and no file is copied. Restoring what is already
-  current adds no row.
+  current adds no row. The quiz takes the restored content's name again, as an edit would; a name
+  another quiz has since taken is refused.
 * Keeping the current revision on a resubmission adds two revisions in one statement: the submitted
   file, then one restoring what was current before it.
 * A revision takes the next number in the same statement that stores it. Two saves racing for the
@@ -70,7 +71,7 @@ Append-only: one row per count or uncount (FR-013).
 | counted         | the new value                                                               |
 | changed by      | the admin's account                                                         |
 | changed by name | the admin as named then, so the trail survives a renamed or deleted account |
-| changed at      | when                                                                        |
+| changed at      | when, to the millisecond                                                    |
 
 A select all or deselect all writes one row for each quiz whose value actually changes, in as few
 statements as D1's parameter limit allows. The newest row is the quiz's current value, so a quiz and

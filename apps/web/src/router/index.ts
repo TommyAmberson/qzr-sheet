@@ -42,6 +42,17 @@ const router = createRouter({
           props: (route) => ({ slug: route.params.slug as string }),
         },
         {
+          path: 'results/:resultId',
+          name: 'meet-result',
+          // The quiz's room officials, guests among them, correct it here
+          meta: { guestAccess: true },
+          component: () => import('../views/ResultView.vue'),
+          props: (route) => ({
+            slug: route.params.slug as string,
+            resultId: route.params.resultId as string,
+          }),
+        },
+        {
           path: 'schedule/edit',
           name: 'meet-schedule-edit',
           component: () => import('../views/ScheduleEditView.vue'),

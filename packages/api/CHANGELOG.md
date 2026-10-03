@@ -17,6 +17,31 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-02
+
+### Added
+
+* **History and restore** - `GET /api/meets/:id/results/:resultId/revisions` lists a stored quiz's
+  saves, each with its file and whether it shows the current content, and its counting records,
+  newest first, with who, when and how; `GET .../revisions/:revision` gives one revision's file for
+  the scoresheet, a restoring revision giving the file it restores; `POST .../restore` makes an
+  earlier revision current again by adding a revision that restores it, moving the quiz back to that
+  content's name, and adds nothing when that content is already current
+* **Officials' corrections** - an official of a room a quiz already has may read its history, edit
+  it with `PUT`, and restore it, each change recorded for one of their rooms the quiz already has
+
+### Changed
+
+* Revision and counting times are kept to the millisecond (migration `0006` converts older rows), so
+  a quiz's history orders changes made close together
+* `PUT` changes a quiz's name and adds its revision together, in one D1 batch, so a failed save
+  can't leave a quiz renamed but unchanged; a name taken by another quiz in the meantime is a 409,
+  not a 500
+
+### Bundled contract
+
+* `@qzr/shared@1.4.0` - bumped from 1.3.0
+
 ## [0.16.0] - 2026-10-02
 
 ### Added
