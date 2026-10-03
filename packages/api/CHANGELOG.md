@@ -17,6 +17,23 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-02
+
+### Added
+
+* **Uploads and rooms** - `POST /api/meets/:id/results` takes `upload: true` for a saved file sent
+  without being opened, recorded as `uploaded`. A meet admin may send a quiz for any room of the
+  meet, recorded as from that room ("Pat, Room 2"), or for none, recorded as their own edit
+* **Officials' quizzes** - `GET /api/meets/:id/results` lets an official list the quizzes their
+  rooms have saved; a quiz belongs to every room a revision of it was saved for, so saving another
+  room's quiz name adds it. A signed-in official of several rooms sees all of theirs
+* **Who may send** - `GET /api/meets/:id/results/sender` tells the caller whether they're an admin
+  and which rooms they may send for, so the scoresheet and portal don't work it out themselves
+
+### Bundled contract
+
+* `@qzr/shared@1.3.0` - unchanged
+
 ## [0.15.0] - 2026-10-02
 
 ### Added

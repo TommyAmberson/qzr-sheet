@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import {
   MeetRole,
@@ -14,7 +14,7 @@ import type { Bindings } from '../bindings'
 import type { SessionUser, SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
 import { createDb, inChunks, type Db } from '../lib/db'
-import { isAdminOrSuperuser, isOfficialOfRoom } from '../lib/permissions'
+import { isAdminOrSuperuser, isOfficialOfRoom, officialRoomsOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 
 interface ResultsVariables extends SessionVariables {
@@ -68,32 +68,41 @@ async function isAdmin(c: Context<Env>, meetId: number): Promise<boolean> {
   return !!user && (await isAdminOrSuperuser(c.get('db'), user.id, user.role, meetId))
 }
 
-/** The room an official saves from, or the response refusing them */
-async function officialSaver(
+/** The response refusing someone who isn't an official of the room they send for, if they aren't */
+async function officialRefusal(
   c: Context<Env>,
   meetId: number,
-  roomId: number | null | undefined,
-): Promise<Saver | Response> {
+  roomId: number | null,
+): Promise<Response | null> {
+  if (roomId !== null && (await isOfficialOfRoom(c, c.get('db'), meetId, roomId))) return null
+  // An official token from before rooms were on it, or from a since-rotated code, needs a new one
   const guest = c.get('guest')
-  const db = c.get('db')
-  if (typeof roomId !== 'number' || !(await isOfficialOfRoom(c, db, meetId, roomId))) {
-    // An official token from before rooms were on it, or from a since-rotated code, needs a new one
-    const rejoin = guest?.role === MeetRole.Official && guest.meetId === meetId
-    return c.json(
-      { error: rejoin ? 'Rejoin with your room code' : 'Not an official of this room' },
-      403,
-    )
-  }
+  const rejoin = guest?.role === MeetRole.Official && guest.meetId === meetId
+  return c.json(
+    { error: rejoin ? 'Rejoin with your room code' : 'Not an official of this room' },
+    403,
+  )
+}
+
+/**
+ * A save for a room of the meet, by a signed-in account ("Pat, Room 2") or the room's guest
+ * official ("Room 2"); undefined when the meet has no such room
+ */
+async function roomSaver(
+  db: Db,
+  meetId: number,
+  roomId: number,
+  user: SessionUser | null | undefined,
+): Promise<Saver | undefined> {
   const [room] = await db
     .select({ name: schema.meetRooms.name })
     .from(schema.meetRooms)
-    .where(eq(schema.meetRooms.id, roomId))
-  const roomName = room?.name ?? `Room ${roomId}`
-  const user = c.get('user')
+    .where(and(eq(schema.meetRooms.id, roomId), eq(schema.meetRooms.meetId, meetId)))
+  if (!room) return undefined
   return {
     savedByAccountId: user?.id ?? null,
     savedByRoomId: roomId,
-    savedByName: user ? `${user.name}, ${roomName}` : roomName,
+    savedByName: user ? `${user.name}, ${room.name}` : room.name,
   }
 }
 
@@ -135,6 +144,9 @@ const source = alias(schema.quizResultRevisions, 'source')
 
 /** A stored quiz's first revision: who sent it and how, which outlives a deleted room */
 const first = alias(schema.quizResultRevisions, 'first')
+
+/** Any revision of a stored quiz saved for one of an official's rooms, which gives them the quiz */
+const savedForRoom = alias(schema.quizResultRevisions, 'saved_for_room')
 
 function isUniqueViolation(e: unknown): boolean {
   const text = e instanceof Error ? `${e.message} ${String(e.cause ?? '')}` : String(e)
@@ -228,35 +240,35 @@ async function alreadySubmitted(c: Context<Env>, resultId: number, file: QuizFil
 results.post('/:id/results', async (c) => {
   const meetId = meetIdOf(c)
   if (meetId === null) return c.json({ error: 'Meet not found' }, 404)
-  const body = await jsonBody<{ quizFile?: unknown; roomId?: unknown; onExisting?: unknown }>(c)
+  const body = await jsonBody<{
+    quizFile?: unknown
+    roomId?: unknown
+    onExisting?: unknown
+    upload?: unknown
+  }>(c)
   if (!body) return c.json({ error: 'Body must be JSON' }, 400)
   const guest = c.get('guest')
   const user = c.get('user')
+  const roomId =
+    (guest ? guest.roomId : typeof body.roomId === 'number' ? body.roomId : null) ?? null
 
-  // A guest, or anyone naming a room, is an official submitting; otherwise an admin uploading
-  const asOfficial = !!guest || body.roomId !== undefined
-  let saver: Saver
-  if (asOfficial) {
-    const roomId = guest ? guest.roomId : typeof body.roomId === 'number' ? body.roomId : null
-    const official = await officialSaver(c, meetId, roomId)
-    if (official instanceof Response) return official
-    saver = official
-  } else {
-    if (!user || !(await isAdmin(c, meetId))) {
-      return c.json({ error: 'Admin or official access required' }, 403)
-    }
-    saver = adminSaver(user)
+  // An admin sends for any room of the meet, or none; anyone else is an official of the room
+  if (!user || !(await isAdmin(c, meetId))) {
+    const refused = await officialRefusal(c, meetId, roomId)
+    if (refused) return refused
   }
+  // Only an admin gets here with no room: an official always sends for one
+  const saver =
+    roomId === null ? adminSaver(user!) : await roomSaver(c.get('db'), meetId, roomId, user)
+  if (!saver) return c.json({ error: 'Room not found' }, 404)
 
   const json = validFile(c, body.quizFile)
   if (json instanceof Response) return json
   const file = body.quizFile as QuizFile
   const key = quizKey(file)
-  const revisionValues = {
-    ...saver,
-    quizFile: json,
-    action: asOfficial ? ('submitted' as const) : ('uploaded' as const),
-  }
+  const action =
+    body.upload === true ? 'uploaded' : saver.savedByRoomId === null ? 'edited' : 'submitted'
+  const revisionValues = { ...saver, quizFile: json, action } as const
 
   // A name the meet already has is the same quiz: say so, or add a revision when asked to
   const db = c.get('db')
@@ -395,13 +407,39 @@ results.patch('/:id/results/counted', async (c) => {
   return c.json({ changed })
 })
 
+/** Who the caller is when sending to the meet: an admin, for any of its rooms; an official, for theirs */
+results.get('/:id/results/sender', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Meet not found' }, 404)
+  const db = c.get('db')
+  const admin = await isAdmin(c, meetId)
+  const roomIds = admin ? null : await officialRoomsOf(c, db, meetId)
+  if (roomIds?.length === 0) return c.json({ error: 'Admin or official access required' }, 403)
+  const rooms = await db
+    .select({ id: schema.meetRooms.id, name: schema.meetRooms.name })
+    .from(schema.meetRooms)
+    .where(
+      and(
+        eq(schema.meetRooms.meetId, meetId),
+        roomIds === null ? undefined : inArray(schema.meetRooms.id, roomIds),
+      ),
+    )
+    .orderBy(asc(schema.meetRooms.sortOrder), asc(schema.meetRooms.id))
+  return c.json({ admin, rooms })
+})
+
 results.get('/:id/results', async (c) => {
   const meetId = meetIdOf(c)
   if (meetId === null) return c.json({ error: 'Meet not found' }, 404)
-  if (!(await isAdmin(c, meetId))) return c.json({ error: 'Admin access required' }, 403)
+  const db = c.get('db')
+  // An admin sees every quiz; an official, the quizzes their rooms have saved
+  let rooms: number[] | null = null
+  if (!(await isAdmin(c, meetId))) {
+    rooms = await officialRoomsOf(c, db, meetId)
+    if (rooms.length === 0) return c.json({ error: 'Admin or official access required' }, 403)
+  }
 
-  const rows = await c
-    .get('db')
+  const rows = await db
     .select({
       id: schema.quizResults.id,
       originAction: first.action,
@@ -429,7 +467,24 @@ results.get('/:id/results', async (c) => {
       ),
     )
     .innerJoin(first, and(eq(first.resultId, schema.quizResults.id), eq(first.revision, 1)))
-    .where(eq(schema.quizResults.meetId, meetId))
+    .where(
+      and(
+        eq(schema.quizResults.meetId, meetId),
+        rooms === null
+          ? undefined
+          : exists(
+              db
+                .select({ id: savedForRoom.id })
+                .from(savedForRoom)
+                .where(
+                  and(
+                    eq(savedForRoom.resultId, schema.quizResults.id),
+                    inArray(savedForRoom.savedByRoomId, rooms),
+                  ),
+                ),
+            ),
+      ),
+    )
 
   return c.json(
     rows.map(({ originAction, originName, savedByName, quizFile, ...row }) => ({

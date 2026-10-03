@@ -105,6 +105,14 @@ async function submit(guest: GuestPayload, body: Record<string, unknown> = {}) {
   )
 }
 
+function asAdmin(body: Record<string, unknown> = {}) {
+  return createApp(db, testSuperuser).request(
+    `/api/meets/${meetId}/results`,
+    jsonRequest('POST', { quizFile: quizFile(), ...body }),
+    env,
+  )
+}
+
 async function list() {
   const res = await createApp(db, testSuperuser).request(`/api/meets/${meetId}/results`, {}, env)
   expect(res.status).toBe(200)
@@ -128,18 +136,44 @@ describe('POST /api/meets/:id/results', () => {
     expect(stored!.quizFile.teams[0]!.name).toBe('Calgary 1')
   })
 
-  it("stores an admin's quiz as uploaded, with no room", async () => {
-    const res = await createApp(db, testSuperuser).request(
-      `/api/meets/${meetId}/results`,
-      jsonRequest('POST', { quizFile: quizFile() }),
-      env,
-    )
+  it("stores an admin's upload with no room as uploaded", async () => {
+    const res = await asAdmin({ upload: true })
     expect(res.status).toBe(201)
     const [stored] = await list()
     expect(stored).toMatchObject({
       origin: { action: 'uploaded', name: 'Test Admin' },
       action: 'uploaded',
       savedBy: { name: 'Test Admin' },
+    })
+  })
+
+  it("records an admin's save for no room as their edit", async () => {
+    expect((await asAdmin()).status).toBe(201)
+    expect((await list())[0]).toMatchObject({ action: 'edited', savedBy: { name: 'Test Admin' } })
+  })
+
+  it('lets an admin submit for any room of the meet, recorded as from that room', async () => {
+    expect((await asAdmin({ roomId: room2 })).status).toBe(201)
+    expect((await list())[0]).toMatchObject({
+      origin: { action: 'submitted', name: 'Test Admin, Room 2' },
+      savedBy: { name: 'Test Admin, Room 2' },
+    })
+  })
+
+  it('refuses an admin naming a room of another meet', async () => {
+    const [elsewhere] = await db
+      .insert(schema.meetRooms)
+      .values({ meetId: otherMeetId, name: 'Room X', codeHash: 'hash-x' })
+      .returning()
+    expect((await asAdmin({ roomId: elsewhere!.id })).status).toBe(404)
+    expect(await list()).toEqual([])
+  })
+
+  it("labels an official's upload as uploaded, for their room", async () => {
+    expect((await submit(official(room1), { upload: true })).status).toBe(201)
+    expect((await list())[0]).toMatchObject({
+      origin: { action: 'uploaded', name: 'Room 1' },
+      savedBy: { name: 'Room 1' },
     })
   })
 
@@ -328,16 +362,49 @@ describe('PUT /api/meets/:id/results/:resultId', () => {
 })
 
 describe('GET /api/meets/:id/results', () => {
-  it('is for admins only', async () => {
-    await submit(official(room1))
-    const asOfficial = await createApp(db, null, official(room1)).request(
-      `/api/meets/${meetId}/results`,
-      {},
-      env,
-    )
-    expect(asOfficial.status).toBe(403)
-    const asUser = await createApp(db, testUser).request(`/api/meets/${meetId}/results`, {}, env)
-    expect(asUser.status).toBe(403)
+  async function listAs(user: SessionUser | null, guest: GuestPayload | null = null) {
+    const res = await createApp(db, user, guest).request(`/api/meets/${meetId}/results`, {}, env)
+    return {
+      status: res.status,
+      names: res.ok ? (await jsonOf<ListedResult[]>(res)).map(nameOf) : [],
+    }
+  }
+  const nameOf = (r: ListedResult) => r.quizFile.quiz.quizNumber
+
+  beforeEach(async () => {
+    await submit(official(room1), { quizFile: quizFile({ quizNumber: '1' }) })
+    await submit(official(room2), { quizFile: quizFile({ quizNumber: '2' }) })
+    await asAdmin({ quizFile: quizFile({ quizNumber: '3' }), upload: true })
+  })
+
+  it('lists every quiz for an admin', async () => {
+    expect((await listAs(testSuperuser)).names.toSorted()).toEqual(['1', '2', '3'])
+  })
+
+  it('lists an official only the quizzes their room has saved', async () => {
+    expect(await listAs(null, official(room1))).toEqual({ status: 200, names: ['1'] })
+  })
+
+  it("adds another room's quiz once the official saves its name", async () => {
+    await submit(official(room1), {
+      quizFile: quizFile({ quizNumber: '2' }),
+      onExisting: 'newRevision',
+    })
+    expect((await listAs(null, official(room1))).names.toSorted()).toEqual(['1', '2'])
+  })
+
+  it("lists a signed-in official of two rooms both rooms' quizzes", async () => {
+    await db.insert(schema.officialMemberships).values([
+      { accountId: testUser.id, meetId, roomId: room1 },
+      { accountId: testUser.id, meetId, roomId: room2 },
+    ])
+    expect((await listAs(testUser)).names.toSorted()).toEqual(['1', '2'])
+  })
+
+  it('refuses anyone who is neither an admin nor an official', async () => {
+    expect((await listAs(testUser)).status).toBe(403)
+    const viewer: GuestPayload = { meetId, role: MeetRole.Viewer, label: 'Viewer' }
+    expect((await listAs(null, viewer)).status).toBe(403)
   })
 })
 
@@ -485,5 +552,56 @@ describe('PATCH /api/meets/:id/results/counted', () => {
       env,
     )
     expect(res.status).toBe(400)
+  })
+})
+
+describe('GET /api/meets/:id/results/sender', () => {
+  async function senderAs(user: SessionUser | null, guest: GuestPayload | null = null) {
+    const res = await createApp(db, user, guest).request(
+      `/api/meets/${meetId}/results/sender`,
+      {},
+      env,
+    )
+    return { status: res.status, body: res.ok ? await jsonOf(res) : null }
+  }
+
+  it('gives an admin every room of the meet', async () => {
+    expect(await senderAs(testSuperuser)).toEqual({
+      status: 200,
+      body: {
+        admin: true,
+        rooms: [
+          { id: room1, name: 'Room 1' },
+          { id: room2, name: 'Room 2' },
+        ],
+      },
+    })
+  })
+
+  it("gives a guest official their token's room", async () => {
+    expect((await senderAs(null, official(room2))).body).toEqual({
+      admin: false,
+      rooms: [{ id: room2, name: 'Room 2' }],
+    })
+  })
+
+  it('gives a signed-in official their rooms of this meet', async () => {
+    await db.insert(schema.officialMemberships).values([
+      { accountId: testUser.id, meetId, roomId: room1 },
+      { accountId: testUser.id, meetId, roomId: room2 },
+    ])
+    expect((await senderAs(testUser)).body).toEqual({
+      admin: false,
+      rooms: [
+        { id: room1, name: 'Room 1' },
+        { id: room2, name: 'Room 2' },
+      ],
+    })
+  })
+
+  it('refuses anyone who may not send to the meet', async () => {
+    expect((await senderAs(testUser)).status).toBe(403)
+    const viewer: GuestPayload = { meetId, role: MeetRole.Viewer, label: 'Viewer' }
+    expect((await senderAs(null, viewer)).status).toBe(403)
   })
 })

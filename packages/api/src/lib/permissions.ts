@@ -101,3 +101,29 @@ export async function isOfficialOfRoom<
     )
   return !!row
 }
+
+/**
+ * The rooms of the meet the requester officiates: a guest official's room while their token's code
+ * is current, or every room a signed-in account officiates there. Empty for anyone else.
+ */
+export async function officialRoomsOf<
+  E extends { Bindings: Bindings; Variables: SessionVariables },
+>(c: Context<E>, db: Db, meetId: number): Promise<number[]> {
+  const guest = c.get('guest')
+  if (guest) {
+    const { roomId } = guest
+    return roomId !== undefined && (await isOfficialOfRoom(c, db, meetId, roomId)) ? [roomId] : []
+  }
+  const user = c.get('user')
+  if (!user) return []
+  const rows = await db
+    .select({ roomId: schema.officialMemberships.roomId })
+    .from(schema.officialMemberships)
+    .where(
+      and(
+        eq(schema.officialMemberships.accountId, user.id),
+        eq(schema.officialMemberships.meetId, meetId),
+      ),
+    )
+  return rows.map((row) => row.roomId)
+}
