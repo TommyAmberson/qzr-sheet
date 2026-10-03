@@ -23,6 +23,19 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-02
+
+### Added
+
+* `divisionStandings`, which ranks a division's teams by placement points over its counted quizzes,
+  breaking ties by head-to-head, then total points, then fewest errors, and marks the finalists,
+  with warnings for unequal quiz counts, quizzes that can't be placed, and a tie at the finalist
+  cutoff.
+* `foldName`, which folds a name for case and spaces, so the standings and the API's quiz names
+  match names the same way.
+* `quizName`, a quiz's name as officials know it ("D1 Q3", or "D1c Q3" in consolation), moved from
+  the API so the portal names quizzes the same way.
+
 ## [1.2.0] - 2026-10-02
 
 ### Added
