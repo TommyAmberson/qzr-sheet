@@ -37,10 +37,10 @@ describe('assessQuiz', () => {
   })
 
   it('places nobody while a timeout follows the start of error points', () => {
-    const result = assessQuiz(input({ timeouts: [[], [{ afterColumnKey: '12' }], []] }))
+    const result = assessQuiz(input({ timeouts: [[], [{ afterColumnKey: '13' }], []] }))
     expect(result.hasErrors).toBe(true)
     expect(result.timeoutErrorsByTeam.get(1)).toEqual(
-      new Set([cols.findIndex((c) => c.key === '12')]),
+      new Set([cols.findIndex((c) => c.key === '13')]),
     )
     expect(result.placements).toEqual([null, null, null])
   })
@@ -54,9 +54,9 @@ describe('assessQuiz', () => {
 })
 
 describe('isTimeoutAllowed', () => {
-  it('allows timeouts through the first A/B question and not after', () => {
-    expect(isTimeoutAllowed('11', RULES)).toBe(true)
-    expect(isTimeoutAllowed('12', RULES)).toBe(false)
-    expect(isTimeoutAllowed('11A', RULES)).toBe(true)
+  it('allows timeouts until error points begin and not after', () => {
+    expect(isTimeoutAllowed('12', RULES)).toBe(true)
+    expect(isTimeoutAllowed('13', RULES)).toBe(false)
+    expect(isTimeoutAllowed('12A', RULES)).toBe(true)
   })
 })

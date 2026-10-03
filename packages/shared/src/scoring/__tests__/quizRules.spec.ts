@@ -42,17 +42,17 @@ describe('quizRules', () => {
   it('gives the 15-question quiz its shifted rules', () => {
     expect(quizRules(QuizFormat.FifteenQuestion)).toEqual({
       regulationQuestions: 15,
-      firstAbQuestion: 11,
-      firstErrorPointsQuestion: 12,
+      firstAbQuestion: 12,
+      firstErrorPointsQuestion: 13,
       quizOutCorrect: 3,
       overtimeRoundSize: 3,
     })
   })
 
-  it('starts 15-question overtime at 16 and allows timeouts through 11', () => {
+  it('starts 15-question overtime at 16 and allows timeouts through 12', () => {
     const rules = quizRules(QuizFormat.FifteenQuestion)
     expect(firstOvertimeQuestion(rules)).toBe(16)
-    expect(lastTimeoutQuestion(rules)).toBe(11)
+    expect(lastTimeoutQuestion(rules)).toBe(12)
   })
 
   it('gives the 20-question quiz the 20-question rules', () => {
