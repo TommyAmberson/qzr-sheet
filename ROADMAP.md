@@ -8,7 +8,10 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
 ## Suggested order
 
 1. [#7 Results submission](https://github.com/TommyAmberson/qzr-sheet/issues/7) — officials submit
-   completed scoresheets to the server; standalone, foundational for stats and schedule linkage
+   completed scoresheets to the server; standalone, foundational for stats and schedule linkage.
+   Practice meet results have shipped (specs/003-practice-meet-results): submitting and uploading,
+   standings, corrections with history, merging names, and team lists. Scheduled meets' results
+   follow with #16
 2. [#9 Schedule — generation, management, and views](https://github.com/TommyAmberson/qzr-sheet/issues/9)
    — admin-driven schedule builder per [docs/scheduling.md](./docs/scheduling.md), broken into
    sub-issues:

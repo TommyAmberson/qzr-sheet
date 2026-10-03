@@ -27,6 +27,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * **Team names** - the meet page has a Team names section for admins: one list per division, one
   team per line, which the meet's scoresheets offer when officials name teams
 
+### Changed
+
+* The roadmap lists practice meet results as available now
+
 ### Bundled contract
 
 * `@qzr/shared@1.5.0` - bumped from 1.4.1

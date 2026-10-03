@@ -26,6 +26,14 @@
             </dd>
           </div>
           <div class="feature-item">
+            <dt class="feature-name">Practice meet results</dt>
+            <dd class="feature-desc">
+              Officials submit quizzes to the meet from the scoresheet, or upload saved files.
+              Admins choose which quizzes count and see each division's standings, with tie-breakers
+              and finalists. Every correction is kept in the quiz's history.
+            </dd>
+          </div>
+          <div class="feature-item">
             <dt class="feature-name">Division support</dt>
             <dd class="feature-desc">
               Prelim and consolation divisions tracked per team. The scoresheet's division dropdown
@@ -38,13 +46,6 @@
       <section class="section">
         <h2 class="section-title">Coming soon</h2>
         <dl class="feature-list">
-          <div class="feature-item">
-            <dt class="feature-name">Results submission</dt>
-            <dd class="feature-desc">
-              Officials submit completed scoresheets directly to the meet. No more emailing
-              spreadsheets.
-            </dd>
-          </div>
           <div class="feature-item">
             <dt class="feature-name">Stats</dt>
             <dd class="feature-desc">
