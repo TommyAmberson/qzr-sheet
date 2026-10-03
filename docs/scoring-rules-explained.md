@@ -233,6 +233,26 @@ meets also run short three-team quizzes, which the rulebook does not cover. The 
 | Unique-quizzer and on-time bonuses            | Unchanged; practice-meet convention                                                            |
 | Placement points from the end-of-Q15 score    | The existing formulas, unchanged (§1.e.4 uses the end of regulation); practice-meet convention |
 
+### Practice meet standings
+
+The rulebook ranks prelim teams by placement points and, for ties at positions 7 to 14, breaks them
+by head-to-head, then total points, then least errors (Rules for Tournament, Elimination Round
+§2.b). A practice meet's standings (the portal's Results page, from `divisionStandings` in
+`packages/shared`) apply those tie-breakers more widely and pin down what the rulebook leaves open.
+
+| Rule                                                                                                                                                    | Based on                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Every tie on placement points is broken, at any position                                                                                                | The tie-breakers for positions 7 to 14 (§2.b), applied to all         |
+| Only quizzes an admin counts are used; nothing counts by default                                                                                        | Practice-meet convention: the admin counts the prelims, not the final |
+| Head-to-head counts the counted quizzes where the tied teams met; a team ranks ahead if it finished above each of the others more often than below them | "Head-to-head competition in previous quizzes" (§2.b.i), made exact   |
+| Teams that never met, or are level, go on to total points                                                                                               | §2.b.ii                                                               |
+| Whenever a tie-breaker separates some of the tied teams, those still tied start again from head-to-head among themselves                                | Common league practice; the rulebook doesn't say                      |
+| "Least number of errors" counts every error a team made in counted quizzes, whether or not it cost points, and no fouls                                 | §2.b.iii, which doesn't define errors                                 |
+| Teams still tied after every tie-breaker share a rank; a tie across the top three is flagged for the admin to settle                                    | §2.b's tie-breaker quiz, held away from the app                       |
+| The top three teams of each division are finalists, or every team when a division has fewer                                                             | Practice-meet convention                                              |
+| A counted quiz that can't be placed adds nothing, isn't one of its teams' quizzes, and is named in a warning                                            | The scoresheet's own placement gate                                   |
+| Team names that differ only in case and spaces are one team                                                                                             | Officials type names by hand at practice meets                        |
+
 ### Other departures
 
 * The **Legacy** placement formula and the **Team** bonus rule, described above, are opt-in variants
