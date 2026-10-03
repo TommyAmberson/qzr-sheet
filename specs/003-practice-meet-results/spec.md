@@ -337,9 +337,10 @@ from the list when setting up a quiz in that division.
   uncount MUST be recorded with who did it and when.
 * **FR-014**: Standings MUST warn when a division's teams have different numbers of counted quizzes,
   and when a counted quiz can't be placed (questions unanswered or validation errors), which then
-  adds no placement points.
+  adds no placement points and doesn't count as one of its teams' quizzes.
 * **FR-015**: Standings MUST treat team names that differ only in letter case or surrounding and
-  repeated spaces as the same team.
+  repeated spaces as the same team, shown under its most-used spelling, a tie going to the spelling
+  seen first.
 * **FR-016**: Standings MUST flag team names in a division that differ only slightly, and meet
   admins MUST be able to merge one into another across every quiz in that division in one action.
 * **FR-017**: Meet admins MUST be able to keep a list of team names per division for the meet, and a

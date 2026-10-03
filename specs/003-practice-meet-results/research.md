@@ -148,8 +148,9 @@ rejected. Facts about the current code come from reading it on 2026-10-02 (maste
 ## R12. Quizzes that can't be placed
 
 * **Decision**: A counted quiz the shared placement gate won't place (questions unanswered, or
-  validation errors, typically from an uploaded file) adds no placement points and produces a
-  warning naming it.
+  validation errors, typically from an uploaded file) adds no placement points, doesn't count as one
+  of its teams' quizzes, and produces a warning naming it, so one problem gives one warning rather
+  than also an unequal-counts warning.
 * **Rationale**: Submission already refuses validation errors (FR-002), but uploads and stale copies
   can still carry them. The standings must not guess.
 
