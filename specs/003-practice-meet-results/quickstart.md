@@ -25,13 +25,13 @@ outcome, and results-route specs.
 
 ## Scenarios
 
-1. **Submit (Story 1)**: In a private window, open the scoresheet, join with room 1's code without
-   picking the meet, set division `1`, type three team names, score a quiz, and choose Submit. The
-   portal's results list shows it as revision 1, submitted by room 1, not counted. Change an answer
-   and submit again: warned that D1 Q1 was already submitted; save as new revision and it is still
-   one quiz, now revision 2. Submit once more choosing to keep the current revision: revision 3
-   holds the submission, revision 4 restores revision 2, and the list still shows revision 2's
-   scores. Choose New quiz, set quiz number 2 and submit: a second quiz.
+1. **Submit (Story 1)**: In a private window, open the scoresheet, set division `1`, type three team
+   names, score a quiz, and choose Submit: join with room 1's code in the meet picker and pick the
+   meet. The portal's results list shows it as revision 1, submitted by room 1, not counted. Change
+   an answer and submit again: warned that D1 Q1 was already submitted; save as new revision and it
+   is still one quiz, now revision 2. Submit once more choosing to keep the current revision:
+   revision 3 holds the submission, revision 4 restores revision 2, and the list still shows
+   revision 2's scores. Choose New quiz, set quiz number 2 and submit: a second quiz.
 2. **Offline submit**: Stop the API and submit. The scoresheet says it wasn't sent; the quiz is
    unchanged and Save as JSON still works.
 3. **Standings (Story 2)**: Submit four quizzes in division `1` from both rooms, count them with

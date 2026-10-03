@@ -93,10 +93,9 @@ Decisions from the brainstorm:
 ### Session 2026-10-03
 
 * Q: How does the scoresheet send a quiz to a meet it isn't linked to, such as a practice meet with
-  no teams? → A: A "Submit to meet" entry in the Save menu, shown to anyone who is an admin or
-  official of at least one meet, signed in or joined with a room code. A sheet linked to one of
-  those meets submits there; otherwise it asks which meet, without linking the sheet or loading
-  teams (FR-001).
+  no teams? → A: A "Submit to meet" entry in the Save menu (always shown since; see below). A sheet
+  linked to a meet the user may send to submits there; otherwise it asks which meet, without linking
+  the sheet or loading teams (FR-001).
 * Q: Do officials upload files from the scoresheet? → A: No, the scoresheet's "Upload file to meet"
   is dropped. Files are uploaded from the portal's results page; in the scoresheet, open the file
   and submit it (FR-007).
@@ -311,8 +310,8 @@ and pick teams from the list when setting up a quiz in that division.
   errors: it adds nothing to the standings, and a warning names it.
 * An admin scores a quiz in a room: they submit it from the scoresheet for that room, or save the
   file and upload it.
-* The user is neither an admin nor an official of any meet: submitting isn't offered, and the quiz
-  works as today.
+* The user is neither an admin nor an official of any meet: Submit opens the meet picker, which
+  offers only joining with a room code, and the quiz works as today.
 * A quiz in a 20-question format is submitted to a practice meet: it is accepted and counted like
   any other.
 

@@ -122,7 +122,9 @@ dropdown.
 
 Body: `[{ division, names: string[] }]`. Replaces the meet's list.
 
-* 200 with the saved list. 400 if a division repeats a name after case and space folding.
+* 200 with the saved list: names tidied (trimmed, runs of spaces made one), blank names dropped, and
+  a division left with no names omitted. 400 if a division repeats a name after case and space
+  folding.
 
 ## Guest join
 
