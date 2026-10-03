@@ -88,7 +88,6 @@ export function useMeetSession() {
     persist()
   }
 
-  const canSubmit = computed(() => !!session.value?.sender)
   /** Who the user is when sending to the meet, and the rooms they may send for */
   const sender = computed(() => session.value?.sender ?? null)
 
@@ -256,7 +255,6 @@ export function useMeetSession() {
   return {
     isActive,
     meetId,
-    canSubmit,
     sender,
     meetName,
     teamList,

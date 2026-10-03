@@ -595,7 +595,7 @@ describe('who may submit to the linked meet', () => {
   it('is no one but an admin or official of the meet', async () => {
     const meet = useMeetSession()
     await meet.loadMeet(1, 'Practice')
-    expect(meet.canSubmit.value).toBe(false)
+    expect(meet.sender.value).toBeNull()
     expect(meet.sender.value).toBeNull()
   })
 
@@ -603,7 +603,7 @@ describe('who may submit to the linked meet', () => {
     vi.mocked(getSender).mockRejectedValue(new ApiError(401, 'Authentication required'))
     const meet = useMeetSession()
     await meet.loadMeet(1, 'Practice')
-    expect(meet.canSubmit.value).toBe(false)
+    expect(meet.sender.value).toBeNull()
   })
 
   it('takes an official and their rooms from the API', async () => {
@@ -611,7 +611,7 @@ describe('who may submit to the linked meet', () => {
     const meet = useMeetSession()
     await meet.loadMeet(1, 'Practice')
     expect(getSender).toHaveBeenCalledWith(1)
-    expect(meet.canSubmit.value).toBe(true)
+    expect(meet.sender.value).not.toBeNull()
     expect(meet.sender.value).toEqual({ admin: false, rooms: [{ id: 5, name: 'Room 1' }] })
   })
 
@@ -626,7 +626,7 @@ describe('who may submit to the linked meet', () => {
     sendsAs(admin)
     const meet = useMeetSession()
     await meet.loadMeet(1, 'Practice')
-    expect(meet.canSubmit.value).toBe(true)
+    expect(meet.sender.value).not.toBeNull()
     expect(meet.sender.value).toEqual(admin)
   })
 
@@ -636,15 +636,15 @@ describe('who may submit to the linked meet', () => {
     await meet.loadMeet(1, 'Practice')
     vi.mocked(getSender).mockRejectedValue(new ApiError(500, 'Internal error'))
     await meet.refresh()
-    expect(meet.canSubmit.value).toBe(true)
+    expect(meet.sender.value).not.toBeNull()
   })
 
   it('works out who the user is again on refresh', async () => {
     const meet = useMeetSession()
     await meet.loadMeet(1, 'Practice')
-    expect(meet.canSubmit.value).toBe(false)
+    expect(meet.sender.value).toBeNull()
     guestOfficial()
     await meet.refresh()
-    expect(meet.canSubmit.value).toBe(true)
+    expect(meet.sender.value).not.toBeNull()
   })
 })

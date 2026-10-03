@@ -22,6 +22,11 @@ export type SubmitOutcome =
 
 /** The meet roles that may send quizzes to a meet */
 const SENDING_ROLES: string[] = [MeetRole.Admin, MeetRole.Official, MeetRole.Superuser]
+
+/** Whether a meet role may send quizzes to its meet; the API still decides on each submission */
+export function maySend(role: string): boolean {
+  return SENDING_ROLES.includes(role)
+}
 const LAST_MEET_KEY = 'qzr-submit-meet'
 
 const targets = ref<SubmitTarget[]>([])
@@ -53,7 +58,7 @@ async function refreshTargets(): Promise<void> {
   try {
     const { memberships } = await getMyMeets()
     account = memberships
-      .filter(({ role }) => SENDING_ROLES.includes(role))
+      .filter(({ role }) => maySend(role))
       .map(({ meetId, meetName }) => ({ meetId, meetName }))
   } catch (e) {
     // Signed out, there are none; otherwise there's no telling, so keep what's known

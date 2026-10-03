@@ -26,6 +26,10 @@ portal/API/infra work shipped on that tag.
 
 ### Changed
 
+* **Submit to meet** is always in the Save menu. When the sheet isn't linked to a meet you may send
+  to, and you may send to other than exactly one meet, it opens the meet picker: the meets you may
+  send to, the last one used marked, and "Have a code?" to join one with your room code. Picking a
+  meet submits there without linking the sheet
 * A sheet linked to a meet with no teams in the quiz's division names its teams by typing, as an
   unlinked sheet does, rather than offering an empty team picker; a team already picked keeps its
   picker, so it can still be cleared

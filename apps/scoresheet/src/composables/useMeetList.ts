@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { ApiError } from '@qzr/shared'
 
 import { getMyMeets, joinMeet, type MeetSummary } from '../api'
+import { maySend } from './useSubmitToMeet'
 import { initGuestSession, joinByCode, useGuestSession } from './useGuestSession'
 
 /**
@@ -21,34 +22,35 @@ export function useMeetList() {
   const joinCode = ref('')
   const joinError = ref('')
   const joining = ref(false)
-  const signedIn = ref(false)
+  /** Whether the last fetch found a signed-in session; null until one answers */
+  const signedIn = ref<boolean | null>(null)
 
   async function fetchMeets() {
     loading.value = true
     error.value = ''
-    const seen = new Set<number>()
-    const list: MeetSummary[] = []
+    // One row per meet. Of several memberships, one that may send quizzes wins, so a coach who
+    // also officiates, or a viewer-code guest who is also an admin, can still submit to the meet
+    const byMeet = new Map<number, MeetSummary>()
+    const add = (meet: MeetSummary) => {
+      const kept = byMeet.get(meet.meetId)
+      if (!kept || (!maySend(kept.role) && maySend(meet.role))) byMeet.set(meet.meetId, meet)
+    }
     for (const j of guest.joinedMeets.value) {
-      list.push({ meetId: j.meetId, meetName: j.meetName, role: j.role })
-      seen.add(j.meetId)
+      add({ meetId: j.meetId, meetName: j.meetName, role: j.role })
     }
     try {
       const res = await getMyMeets()
       signedIn.value = true
-      for (const m of res.memberships) {
-        if (seen.has(m.meetId)) continue
-        seen.add(m.meetId)
-        list.push(m)
-      }
+      for (const m of res.memberships) add(m)
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         signedIn.value = false
-        if (list.length === 0) error.value = 'Not signed in.'
+        if (byMeet.size === 0) error.value = 'Not signed in.'
       } else {
         error.value = (e as Error).message
       }
     } finally {
-      meets.value = list
+      meets.value = [...byMeet.values()]
       loading.value = false
     }
   }
@@ -95,6 +97,7 @@ export function useMeetList() {
     joinCode,
     joinError,
     joining,
+    signedIn,
     init,
     fetchMeets,
     handleJoinCode,

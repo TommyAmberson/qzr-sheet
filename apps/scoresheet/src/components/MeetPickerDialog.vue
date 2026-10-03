@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { type MeetSummary } from '../api'
 import { useMeetList } from '../composables/useMeetList'
 import { useMeetSession } from '../composables/useMeetSession'
+import { maySend } from '../composables/useSubmitToMeet'
 
 const emit = defineEmits<{ loaded: [] }>()
 
@@ -15,6 +16,7 @@ const {
   joinCode,
   joinError,
   joining,
+  signedIn,
   init,
   handleJoinCode,
   setActiveGuest,
@@ -22,8 +24,25 @@ const {
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
 const submitting = ref(false)
+/** Loading a meet's teams links the sheet to it; choosing where to submit leaves the sheet as it is */
+const purpose = ref<'load' | 'submit'>('load')
+/** When submitting, the meet last submitted to, marked in the list */
+const lastMeetId = ref<number | null>(null)
+let settle: ((meet: MeetSummary | null) => void) | null = null
+
+/** The meets to offer: all of the user's for loading teams, only those they may send to otherwise */
+const listed = computed(() =>
+  purpose.value === 'submit' ? meets.value.filter((meet) => maySend(meet.role)) : meets.value,
+)
 
 async function selectMeet(meet: MeetSummary) {
+  if (purpose.value === 'submit') {
+    const chosen = settle
+    settle = null
+    dialogRef.value?.close()
+    chosen?.(meet)
+    return
+  }
   submitting.value = true
   error.value = ''
   try {
@@ -42,31 +61,72 @@ function close() {
   dialogRef.value?.close()
 }
 
+/** However the dialog closes without a choice, a pending submit gets none */
+function onClosed() {
+  settle?.(null)
+  settle = null
+}
+
+/** Load a meet's teams into the sheet, linking it to the meet */
 async function open() {
+  purpose.value = 'load'
   dialogRef.value?.showModal()
   await init()
 }
 
-defineExpose({ open })
+/**
+ * Choose a meet to submit to, from those the user may send to, joining one with a code if need be.
+ * Resolves to the meet, or null when the dialog is closed; the sheet isn't linked either way.
+ */
+async function chooseForSubmit(last: number | null): Promise<MeetSummary | null> {
+  onClosed()
+  purpose.value = 'submit'
+  lastMeetId.value = last
+  const chosen = new Promise<MeetSummary | null>((resolve) => (settle = resolve))
+  dialogRef.value?.showModal()
+  await init()
+  return chosen
+}
+
+defineExpose({ open, chooseForSubmit })
 </script>
 
 <template>
-  <dialog ref="dialogRef" class="meet-picker-dialog" @click.self="close">
+  <dialog ref="dialogRef" class="meet-picker-dialog" @click.self="close" @close="onClosed">
     <div class="meet-picker-inner">
       <div class="meet-picker-header">
-        <span class="meet-picker-title">Load teams from meet</span>
+        <span class="meet-picker-title">{{
+          purpose === 'submit' ? 'Submit to which meet?' : 'Load teams from meet'
+        }}</span>
         <button class="meet-picker-close" @click="close">×</button>
       </div>
 
       <p v-if="loading" class="meet-picker-state">Loading…</p>
+      <p
+        v-else-if="purpose === 'submit' && listed.length === 0 && (!error || signedIn === false)"
+        class="meet-picker-state"
+      >
+        {{
+          signedIn
+            ? "You aren't an admin or official of a meet yet. Join one with your room code."
+            : 'Sign in, or join a meet with your room code.'
+        }}
+      </p>
       <p v-else-if="error" class="meet-picker-state meet-picker-state--error">{{ error }}</p>
-      <p v-else-if="meets.length === 0" class="meet-picker-state">No meets found.</p>
+      <p v-else-if="listed.length === 0" class="meet-picker-state">No meets found.</p>
 
       <ul v-else class="meet-list">
-        <li v-for="meet in meets" :key="meet.meetId">
-          <button class="meet-row" :disabled="submitting" @click="selectMeet(meet)">
+        <li v-for="meet in listed" :key="meet.meetId">
+          <button
+            class="meet-row"
+            :class="{ 'meet-row--last': purpose === 'submit' && meet.meetId === lastMeetId }"
+            :disabled="submitting"
+            @click="selectMeet(meet)"
+          >
             <span class="meet-row-name">{{ meet.meetName }}</span>
-            <span class="meet-row-role">{{ meet.role }}</span>
+            <span class="meet-row-role">{{
+              purpose === 'submit' && meet.meetId === lastMeetId ? 'last used' : meet.role
+            }}</span>
           </button>
         </li>
       </ul>
@@ -186,6 +246,10 @@ defineExpose({ open })
 
 .meet-row:hover:not(:disabled) {
   background: var(--color-border-alt);
+  border-color: var(--color-accent);
+}
+
+.meet-row--last {
   border-color: var(--color-accent);
 }
 
