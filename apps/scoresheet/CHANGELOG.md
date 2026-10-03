@@ -15,6 +15,18 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-10-02
+
+### Fixed
+
+* A guest who has joined several meets by code now sends each meet's own code with its requests.
+  Before, loading a meet's teams, a scheduled quiz, or a team's quizzers sent whichever meet was
+  picked last, so the request could be refused and the sheet kept stale teams (#103).
+
+### Bundled contract
+
+* `@qzr/shared@1.2.0` - unchanged
+
 ## [0.13.0] - 2026-10-02
 
 ### Added

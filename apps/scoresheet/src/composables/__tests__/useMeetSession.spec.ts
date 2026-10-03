@@ -145,11 +145,11 @@ describe('useMeetSession — assignTeam', () => {
     expect(slot!.quizzers[2]!.dbName).toBe('') // seats beyond the DB roster are empty
   })
 
-  it('calls getTeamQuizzers with the given teamId', async () => {
+  it("calls getTeamQuizzers with the session's meet and the given teamId", async () => {
     const { loadMeet, assignTeam } = useMeetSession()
     await loadMeet(42, 'Finals')
     await assignTeam(1, 2, emptyNames)
-    expect(getTeamQuizzers).toHaveBeenCalledWith(2)
+    expect(getTeamQuizzers).toHaveBeenCalledWith(42, 2)
   })
 
   it('does nothing when no session is active', async () => {
