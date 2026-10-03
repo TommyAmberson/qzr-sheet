@@ -33,6 +33,12 @@ const router = createRouter({
           props: (route) => ({ slug: route.params.slug as string }),
         },
         {
+          path: 'results',
+          name: 'meet-results',
+          component: () => import('../views/ResultsView.vue'),
+          props: (route) => ({ slug: route.params.slug as string }),
+        },
+        {
           path: 'schedule/edit',
           name: 'meet-schedule-edit',
           component: () => import('../views/ScheduleEditView.vue'),

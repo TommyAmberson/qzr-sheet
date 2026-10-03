@@ -748,6 +748,21 @@ onMounted(load)
         </div>
       </div>
 
+      <!-- Results -->
+      <div v-if="isAdmin" class="section">
+        <div class="section-header">
+          <h3 class="section-title">Results</h3>
+          <div class="section-actions">
+            <button
+              class="btn btn--secondary btn--sm"
+              @click="router.push({ name: 'meet-results', params: { slug } })"
+            >
+              Open results →
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Churches -->
       <div id="churches" class="section">
         <div class="section-header">

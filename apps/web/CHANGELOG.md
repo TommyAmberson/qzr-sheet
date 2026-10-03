@@ -16,6 +16,19 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-02
+
+### Added
+
+* **Meet results** - a meet's admins get a Results page listing the quizzes officials submit, by
+  division as each quiz records it, with the teams' scores (and, once placed, their places and
+  placement points), the room, the revision number, who saved it last, how and when, and whether it
+  counts in the standings
+
+### Bundled contract
+
+* `@qzr/shared@1.2.0` - bumped from 1.1.0
+
 ## [0.13.0] - 2026-10-02
 
 Switch day: verse-vault takes the root of www.versevault.ca, and qzr's old addresses move to
