@@ -1,5 +1,11 @@
 import { createApiClient, MeetRole } from '@qzr/shared'
-import type { MeetPhase, DivisionStateValue, QuizFile, ResultAction } from '@qzr/shared'
+import type {
+  DivisionStateValue,
+  DivisionTeamNames,
+  MeetPhase,
+  QuizFile,
+  ResultAction,
+} from '@qzr/shared'
 import { withGuestToken, type OnExisting, type Sender, type Stored } from '@qzr/ui'
 
 export type { MeetPhase, DivisionStateValue }
@@ -591,6 +597,21 @@ export interface StoredQuiz {
   savedAt: string
   savedBy: { name: string }
   quizFile: QuizFile
+}
+
+export function getTeamNames(meetId: number): Promise<DivisionTeamNames[]> {
+  return request(`/api/meets/${meetId}/team-names`)
+}
+
+/** Replace the meet's team names; answers them as saved, tidied */
+export function setTeamNames(
+  meetId: number,
+  lists: DivisionTeamNames[],
+): Promise<DivisionTeamNames[]> {
+  return request(`/api/meets/${meetId}/team-names`, {
+    method: 'PUT',
+    body: JSON.stringify(lists),
+  })
 }
 
 export function listResults(meetId: number): Promise<StoredQuiz[]> {

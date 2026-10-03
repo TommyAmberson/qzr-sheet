@@ -24,6 +24,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   team spelt two ways, such as "Calgary 1" and "Calgry 1", with a Merge button. The admin picks the
   name to keep, and each of the division's quizzes using the other is saved with it as a `merged`
   revision. A failure part-way says how many were merged; merging again finishes the rest
+* **Team names** - the meet page has a Team names section for admins: one list per division, one
+  team per line, which the meet's scoresheets offer when officials name teams
 
 ### Bundled contract
 

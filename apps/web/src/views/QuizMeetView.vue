@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { MeetRole, MEET_PHASES, type MeetPhase } from '@qzr/shared'
+import { MeetRole, MEET_PHASES, type DivisionTeamNames, type MeetPhase } from '@qzr/shared'
 import {
   getMeet,
   getMyMeets,
+  getTeamNames,
+  setTeamNames,
   updateMeet,
   listChurches,
   rotateAdminCode,
@@ -174,6 +176,51 @@ function churchSummary(church: Church): string {
   const count = church.teamCount
   if (count === 0) return 'No teams'
   return count === 1 ? '1 team' : `${count} teams`
+}
+
+// ---- Team names (Story 6) ----
+
+/** Each division's team names as the admin edits them, one per line */
+const teamNameText = ref<Record<string, string>>({})
+const teamNamesOpen = ref(false)
+const teamNamesSaving = ref(false)
+const teamNamesError = ref('')
+/** The divisions to list names for: the meet's, then any others the saved list has */
+const teamNameDivisions = computed(() => [
+  ...new Set([...(detail.value?.meet.divisions ?? []), ...Object.keys(teamNameText.value)]),
+])
+
+function showTeamNames(lists: DivisionTeamNames[]) {
+  teamNameText.value = Object.fromEntries(lists.map((l) => [l.division, l.names.join('\n')]))
+}
+
+async function openTeamNames() {
+  if (meetId.value === null) return
+  teamNamesError.value = ''
+  try {
+    showTeamNames(await getTeamNames(meetId.value))
+    teamNamesOpen.value = true
+  } catch (e) {
+    teamNamesError.value = (e as Error).message
+  }
+}
+
+async function saveTeamNames() {
+  if (meetId.value === null) return
+  teamNamesSaving.value = true
+  teamNamesError.value = ''
+  try {
+    const lists = teamNameDivisions.value.map((division) => ({
+      division,
+      names: (teamNameText.value[division] ?? '').split('\n'),
+    }))
+    showTeamNames(await setTeamNames(meetId.value, lists))
+    teamNamesOpen.value = false
+  } catch (e) {
+    teamNamesError.value = (e as Error).message
+  } finally {
+    teamNamesSaving.value = false
+  }
 }
 
 // ---- Meet editing ----
@@ -763,6 +810,44 @@ onMounted(load)
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Team names -->
+      <div v-if="isAdmin" class="section">
+        <div class="section-header">
+          <h3 class="section-title">Team names</h3>
+          <div v-if="!teamNamesOpen" class="section-actions">
+            <button class="btn btn--secondary btn--sm" @click="openTeamNames">Edit</button>
+          </div>
+        </div>
+        <p v-if="!teamNamesOpen" class="state-msg">
+          Optional: each division's team names, offered in the scoresheet so officials rarely type
+          them.
+        </p>
+        <form v-else class="edit-card" @submit.prevent="saveTeamNames">
+          <p v-if="teamNameDivisions.length === 0" class="state-msg">
+            Add the meet's divisions first (Edit meet), then list each one's teams.
+          </p>
+          <label v-for="division in teamNameDivisions" :key="division" class="field-label">
+            Division {{ division }}
+            <span class="field-hint">One team per line</span>
+            <textarea v-model="teamNameText[division]" class="field-input" rows="5" />
+          </label>
+          <div class="edit-card-actions">
+            <button
+              type="button"
+              class="btn btn--secondary btn--sm"
+              :disabled="teamNamesSaving"
+              @click="teamNamesOpen = false"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn btn--primary btn--sm" :disabled="teamNamesSaving">
+              Save
+            </button>
+          </div>
+        </form>
+        <p v-if="teamNamesError" class="state-msg state-msg--error">{{ teamNamesError }}</p>
       </div>
 
       <!-- Churches -->
