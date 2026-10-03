@@ -16,6 +16,28 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-02
+
+### Added
+
+* **Standings** - a meet's Results page now ranks each division's teams over the quizzes its admins
+  count: placement points, quizzes played, the tie-break that decided a tie (head-to-head, total
+  points, then fewest errors), and the three finalists. Warnings name teams with different numbers
+  of counted quizzes, counted quizzes that can't be placed, and a tie for the last places in the
+  final
+* **Counting quizzes** - each quiz on the Results page has a Counted box, with Count all and Uncount
+  all, and every change is recorded with who made it and when
+
+### Fixed
+
+* The Results page names each quiz as officials know it ("D1c Q3" for consolation), and shows where
+  it came from, the room that first submitted it or who uploaded it, even once that room is deleted
+  (#104)
+
+### Bundled contract
+
+* `@qzr/shared@1.3.0` - bumped from 1.2.0
+
 ## [0.14.0] - 2026-10-02
 
 ### Added

@@ -204,7 +204,6 @@ export async function createTestDb(): Promise<Db> {
       meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,
       room_id INTEGER REFERENCES meet_rooms(id) ON DELETE SET NULL,
       quiz_key TEXT NOT NULL,
-      counted INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       UNIQUE(meet_id, quiz_key)
     );
@@ -223,6 +222,16 @@ export async function createTestDb(): Promise<Db> {
       UNIQUE(result_id, revision),
       CHECK ((quiz_file IS NULL) <> (restored_from IS NULL))
     );
+
+    CREATE TABLE quiz_result_count_changes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      result_id INTEGER NOT NULL REFERENCES quiz_results(id) ON DELETE CASCADE,
+      counted INTEGER NOT NULL,
+      changed_by_account_id TEXT REFERENCES user(id) ON DELETE SET NULL,
+      changed_by_name TEXT NOT NULL,
+      changed_at INTEGER NOT NULL
+    );
+    CREATE INDEX quiz_result_count_changes_result_id_idx ON quiz_result_count_changes(result_id);
   `)
 
   // Seed test users so FK constraints on membership tables are satisfied

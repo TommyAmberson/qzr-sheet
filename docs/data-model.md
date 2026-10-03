@@ -103,14 +103,16 @@ TeamRoster             -- a quizzer's participation in a specific meet
 
 # ---- Results ----
 
-QuizResult             -- one quiz of a meet; its content is its newest revision
+QuizResult             -- one quiz of a meet; its content is its newest revision, and whether
+                          it counts in the standings is its newest QuizResultCountChange
   id
   meetId               -- FK → QuizMeet (cascade delete)
   roomId               -- FK → Room the quiz was first submitted from; null for uploads
-                          (set null if the room is deleted)
+                          (set null if the room is deleted). Unread: the first revision's
+                          saver says where a quiz came from and outlives the room. Dropping
+                          it means a table rebuild, which on D1 would cascade to revisions
   quizKey              -- division, consolation and quiz number, folded for case and spaces;
                           identifies a quiz not tied to the schedule; UNIQUE(meetId, quizKey)
-  counted              -- whether it counts in the standings; false until an admin counts it
   createdAt
 
 QuizResultRevision     -- append-only: one row per save, never updated or deleted
@@ -128,6 +130,15 @@ QuizResultRevision     -- append-only: one row per save, never updated or delete
   savedByName          -- who saved it, as named then, so the trail outlives renames and deletions
   savedAt
   UNIQUE(resultId, revision)
+
+QuizResultCountChange  -- append-only: one row per count or uncount; a quiz counts when its
+                          newest row says so, and not until an admin first counts it
+  id
+  resultId             -- FK → QuizResult (cascade delete)
+  counted              -- the new value
+  changedByAccountId   -- FK → User (set null if deleted)
+  changedByName        -- who changed it, as named then
+  changedAt
 ```
 
 ## Notes

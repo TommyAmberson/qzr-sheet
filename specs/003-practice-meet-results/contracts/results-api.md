@@ -55,11 +55,13 @@ nothing and answers with the current revision.
 Every stored quiz of the meet with its current content:
 
 ```text
-[{ id, roomName, counted, revision, savedAt, savedBy: { name },
-   action, quizFile }]
+[{ id, origin: { action, name }, counted, revision, savedAt,
+   savedBy: { name }, action, quizFile }]
 ```
 
-The portal groups by the file's division and derives names and scores from the file.
+`origin` is the first revision's action and saver, so a quiz still says where it came from after its
+room is deleted. `counted` is the quiz's newest counting record, false when it has none. The portal
+groups by the file's division and derives names and scores from the file.
 
 ### `GET /results/:id/revisions` (admin)
 

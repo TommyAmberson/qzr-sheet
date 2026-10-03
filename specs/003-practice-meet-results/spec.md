@@ -106,8 +106,8 @@ counted.
 5. **Given** a quiz with validation errors, **When** the official tries to submit, **Then**
    submission is refused with the reason.
 6. **Given** a meet admin, **When** they open the meet's results, **Then** they see every submitted
-   quiz grouped by division, with quiz number, room, team names, team scores, its revision number,
-   who saved it last and when, and whether it is counted in the standings.
+   quiz grouped by division, with quiz name, where it came from, team names, team scores, its
+   revision number, who saved it last and when, and whether it is counted in the standings.
 
 ---
 
@@ -300,8 +300,9 @@ from the list when setting up a quiz in that division.
   when, and MUST keep every newer revision. Restoring content that is already current changes
   nothing.
 * **FR-006**: Meet admins MUST be able to list the meet's stored quizzes grouped by division, with
-  quiz number, room, team names, team scores, whether it is counted, its revision number, and who
-  saved it last and when, so that a quiz changed since an admin last looked stands out.
+  quiz name, where it came from (the submitting room or the uploader), team names, team scores,
+  whether it is counted, its revision number, and who saved it last and when, so that a quiz changed
+  since an admin last looked stands out.
 * **FR-007**: Meet admins MUST be able to upload one or more scoresheet quiz files into the meet. A
   valid file whose name the meet doesn't have becomes a stored quiz; one whose name it already has
   is reported with that quiz's current revision and gets the same three choices (FR-003). Each
@@ -337,9 +338,10 @@ from the list when setting up a quiz in that division.
   uncount MUST be recorded with who did it and when.
 * **FR-014**: Standings MUST warn when a division's teams have different numbers of counted quizzes,
   and when a counted quiz can't be placed (questions unanswered or validation errors), which then
-  adds no placement points.
+  adds no placement points and doesn't count as one of its teams' quizzes.
 * **FR-015**: Standings MUST treat team names that differ only in letter case or surrounding and
-  repeated spaces as the same team.
+  repeated spaces as the same team, shown under its most-used spelling, a tie going to the spelling
+  seen first.
 * **FR-016**: Standings MUST flag team names in a division that differ only slightly, and meet
   admins MUST be able to merge one into another across every quiz in that division in one action.
 * **FR-017**: Meet admins MUST be able to keep a list of team names per division for the meet, and a

@@ -1,10 +1,18 @@
-import { deserialize, quizOutcome, type TeamOutcome } from '@qzr/shared'
+import {
+  deserialize,
+  quizName,
+  quizOutcome,
+  type CountedQuiz,
+  type TeamOutcome,
+} from '@qzr/shared'
 import type { StoredQuiz } from './api'
 
 export interface ResultRow {
   id: number
-  quizNumber: string
-  room: string | null
+  /** "D1 Q3", or "D1c Q3" in consolation */
+  name: string
+  /** The room that first submitted the quiz, as named then, or who uploaded it */
+  from: string
   /** In seat order, with each team's score and, once placed, its place and placement points */
   teams: TeamOutcome[]
   placed: boolean
@@ -30,8 +38,8 @@ export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
     const outcome = quizOutcome(content)
     const row: ResultRow = {
       id: s.id,
-      quizNumber: content.quiz.quizNumber,
-      room: s.roomName,
+      name: quizName(content.quiz),
+      from: s.origin.action === 'uploaded' ? `Uploaded by ${s.origin.name}` : s.origin.name,
       teams: outcome.teams,
       placed: outcome.placed,
       counted: s.counted,
@@ -48,6 +56,13 @@ export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
     .sort(([a], [b]) => byNumber.compare(a, b))
     .map(([division, quizzes]) => ({
       division,
-      quizzes: quizzes.sort((a, b) => byNumber.compare(a.quizNumber, b.quizNumber)),
+      quizzes: quizzes.sort((a, b) => byNumber.compare(a.name, b.name)),
     }))
+}
+
+/** A division's counted quizzes, as its standings take them */
+export function countedQuizzes(division: DivisionResults): CountedQuiz[] {
+  return division.quizzes
+    .filter((quiz) => quiz.counted)
+    .map((quiz) => ({ name: quiz.name, outcome: { placed: quiz.placed, teams: quiz.teams } }))
 }

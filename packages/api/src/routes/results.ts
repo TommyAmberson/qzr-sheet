@@ -1,17 +1,19 @@
 import { Hono, type Context } from 'hono'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import {
   MeetRole,
   NewerFileVersionError,
+  foldName,
   isQuizFile,
   parseQuizFile,
+  quizName,
   type QuizFile,
 } from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import type { SessionUser, SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
-import { createDb, type Db } from '../lib/db'
+import { createDb, inChunks, type Db } from '../lib/db'
 import { isAdminOrSuperuser, isOfficialOfRoom } from '../lib/permissions'
 import * as schema from '../db/schema'
 
@@ -109,14 +111,30 @@ function validFile(c: Context<Env>, quizFile: unknown): string | Response {
   return json
 }
 
+/**
+ * The enclosing query's stored quiz, for a subquery. Always qualified: drizzle leaves a column
+ * unqualified in a one-table select, where inside a subquery it would name the subquery's own.
+ */
+const storedQuizId = sql`${schema.quizResults}.${sql.identifier('id')}`
+
 /** The newest revision of the stored quiz in the enclosing query, which is its current one */
 const latestRevision = sql<number>`(
   SELECT MAX(latest.revision) FROM quiz_result_revisions latest
-  WHERE latest.result_id = ${schema.quizResults.id}
+  WHERE latest.result_id = ${storedQuizId}
 )`
+
+/** Whether the stored quiz in the enclosing query counts: its newest counting record says so */
+const isCounted = sql`COALESCE((
+  SELECT newest.counted FROM quiz_result_count_changes newest
+  WHERE newest.result_id = ${storedQuizId}
+  ORDER BY newest.id DESC LIMIT 1
+), 0)`.mapWith(Boolean)
 
 /** The revision a selecting revision points at, for its quiz file */
 const source = alias(schema.quizResultRevisions, 'source')
+
+/** A stored quiz's first revision: who sent it and how, which outlives a deleted room */
+const first = alias(schema.quizResultRevisions, 'first')
 
 function isUniqueViolation(e: unknown): boolean {
   const text = e instanceof Error ? `${e.message} ${String(e.cause ?? '')}` : String(e)
@@ -180,18 +198,12 @@ async function addRevisions(
   }
 }
 
-/** A quiz's name, as officials know it: "D1 Q3", or "D1c Q3" in consolation */
-function quizName(file: QuizFile): string {
-  return `D${file.quiz.division}${file.quiz.consolation ? 'c' : ''} Q${file.quiz.quizNumber}`
-}
-
 /** The name folded for case and spaces: the identity of a quiz not tied to the schedule */
 function quizKey(file: QuizFile): string {
-  const fold = (text: string) => text.trim().replace(/\s+/g, ' ').toLowerCase()
   return [
-    fold(file.quiz.division),
+    foldName(file.quiz.division),
     file.quiz.consolation ? 'c' : '',
-    fold(file.quiz.quizNumber),
+    foldName(file.quiz.quizNumber),
   ].join('|')
 }
 
@@ -200,10 +212,10 @@ async function alreadySubmitted(c: Context<Env>, resultId: number, file: QuizFil
   const latest = await newestRevision(c.get('db'), resultId)
   return c.json(
     {
-      error: `${quizName(file)} was already submitted`,
+      error: `${quizName(file.quiz)} was already submitted`,
       existing: {
         id: resultId,
-        name: quizName(file),
+        name: quizName(file.quiz),
         revision: latest?.revision ?? 0,
         savedBy: latest ? { name: latest.savedByName } : null,
         savedAt: latest?.savedAt ?? null,
@@ -327,7 +339,7 @@ results.put('/:id/results/:resultId', async (c) => {
         .where(eq(schema.quizResults.id, resultId))
     } catch (e) {
       if (!isUniqueViolation(e)) throw e
-      return c.json({ error: `Another quiz is already named ${quizName(file)}` }, 409)
+      return c.json({ error: `Another quiz is already named ${quizName(file.quiz)}` }, 409)
     }
   }
 
@@ -335,6 +347,52 @@ results.put('/:id/results/:resultId', async (c) => {
     { ...adminSaver(user), quizFile: json, action: body.action === 'merged' ? 'merged' : 'edited' },
   ])
   return c.json({ id: resultId, revision })
+})
+
+/**
+ * Count or uncount quizzes of the meet. Each quiz whose value changes gets a counting record, and
+ * its newest record is its value, so a quiz and its record always agree, even if a large change is
+ * cut short between the chunks D1's parameter limit needs.
+ */
+results.patch('/:id/results/counted', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Meet not found' }, 404)
+  const user = c.get('user')
+  if (!user || !(await isAdmin(c, meetId))) return c.json({ error: 'Admin access required' }, 403)
+
+  const body = await jsonBody<{ ids?: unknown; counted?: unknown }>(c)
+  const ids = body?.ids
+  const counted = body?.counted
+  if (!Array.isArray(ids) || !ids.every(Number.isInteger) || typeof counted !== 'boolean') {
+    return c.json({ error: 'Expected { ids: number[], counted: boolean }' }, 400)
+  }
+
+  const db = c.get('db')
+  const requested = [...new Set(ids as number[])]
+  const stored = await inChunks(requested, 1, (chunk) =>
+    db
+      .select({ id: schema.quizResults.id, counted: isCounted })
+      .from(schema.quizResults)
+      .where(and(eq(schema.quizResults.meetId, meetId), inArray(schema.quizResults.id, chunk))),
+  )
+  if (stored.length !== requested.length) return c.json({ error: 'Quiz not found' }, 404)
+
+  const changed = stored.filter((quiz) => quiz.counted !== counted).map((quiz) => quiz.id)
+  const changedAt = new Date()
+  const records = changed.map((resultId) => ({
+    resultId,
+    counted,
+    changedByAccountId: user.id,
+    changedByName: user.name,
+    changedAt,
+  }))
+  await inChunks(records, 5, (chunk) =>
+    db
+      .insert(schema.quizResultCountChanges)
+      .values(chunk)
+      .returning({ id: schema.quizResultCountChanges.id }),
+  )
+  return c.json({ changed })
 })
 
 results.get('/:id/results', async (c) => {
@@ -346,8 +404,9 @@ results.get('/:id/results', async (c) => {
     .get('db')
     .select({
       id: schema.quizResults.id,
-      roomName: schema.meetRooms.name,
-      counted: schema.quizResults.counted,
+      originAction: first.action,
+      originName: first.savedByName,
+      counted: isCounted,
       revision: schema.quizResultRevisions.revision,
       savedAt: schema.quizResultRevisions.savedAt,
       savedByName: schema.quizResultRevisions.savedByName,
@@ -369,12 +428,13 @@ results.get('/:id/results', async (c) => {
         eq(source.revision, schema.quizResultRevisions.restoredFrom),
       ),
     )
-    .leftJoin(schema.meetRooms, eq(schema.meetRooms.id, schema.quizResults.roomId))
+    .innerJoin(first, and(eq(first.resultId, schema.quizResults.id), eq(first.revision, 1)))
     .where(eq(schema.quizResults.meetId, meetId))
 
   return c.json(
-    rows.map(({ savedByName, quizFile, ...row }) => ({
+    rows.map(({ originAction, originName, savedByName, quizFile, ...row }) => ({
       ...row,
+      origin: { action: originAction, name: originName },
       savedBy: { name: savedByName },
       quizFile: JSON.parse(quizFile),
     })),

@@ -57,7 +57,7 @@ function quizFile(overrides: Partial<QuizFile['quiz']> = {}): QuizFile {
 
 interface ListedResult {
   id: number
-  roomName: string | null
+  origin: { action: string; name: string }
   counted: boolean
   revision: number
   action: string
@@ -119,7 +119,7 @@ describe('POST /api/meets/:id/results', () => {
 
     const [stored] = await list()
     expect(stored).toMatchObject({
-      roomName: 'Room 1',
+      origin: { action: 'submitted', name: 'Room 1' },
       counted: false,
       revision: 1,
       action: 'submitted',
@@ -137,7 +137,7 @@ describe('POST /api/meets/:id/results', () => {
     expect(res.status).toBe(201)
     const [stored] = await list()
     expect(stored).toMatchObject({
-      roomName: null,
+      origin: { action: 'uploaded', name: 'Test Admin' },
       action: 'uploaded',
       savedBy: { name: 'Test Admin' },
     })
@@ -159,7 +159,10 @@ describe('POST /api/meets/:id/results', () => {
     expect((await post({ roomId: room2 })).status).toBe(403)
     expect((await post({})).status).toBe(403)
     const [stored] = await list()
-    expect(stored).toMatchObject({ roomName: 'Room 1', savedBy: { name: 'Test User, Room 1' } })
+    expect(stored).toMatchObject({
+      origin: { action: 'submitted', name: 'Test User, Room 1' },
+      savedBy: { name: 'Test User, Room 1' },
+    })
   })
 
   it('refuses an invalid quiz file with the reason', async () => {
@@ -225,7 +228,10 @@ describe('submitting a name the meet already has', () => {
       created: false,
       keptCurrent: false,
     })
-    expect((await list())[0]).toMatchObject({ roomName: 'Room 1', savedBy: { name: 'Room 2' } })
+    expect((await list())[0]).toMatchObject({
+      origin: { action: 'submitted', name: 'Room 1' },
+      savedBy: { name: 'Room 2' },
+    })
   })
 
   it('stores the submission and keeps the current revision when asked', async () => {
@@ -366,6 +372,12 @@ describe('revoking official tokens', () => {
     expect(await jsonOf(res)).toEqual({ error: 'Rejoin with your room code' })
   })
 
+  it('keeps where a quiz came from once its room is deleted', async () => {
+    await submit(official(room1))
+    await db.delete(schema.meetRooms).where(eq(schema.meetRooms.id, room1))
+    expect((await list())[0]!.origin).toEqual({ action: 'submitted', name: 'Room 1' })
+  })
+
   it('refuses an official of a deleted room', async () => {
     await db.delete(schema.meetRooms).where(eq(schema.meetRooms.id, room1))
     expect((await submit(official(room1))).status).toBe(403)
@@ -377,6 +389,101 @@ describe('stored files', () => {
     const loose = quizFile() as unknown as { teams: { onTime: unknown }[] }
     loose.teams[0]!.onTime = 'false'
     const res = await submit(official(room1), { quizFile: loose })
+    expect(res.status).toBe(400)
+  })
+})
+
+describe('PATCH /api/meets/:id/results/counted', () => {
+  function setCounted(
+    ids: number[],
+    counted: boolean,
+    user: SessionUser | null = testSuperuser,
+    guest: GuestPayload | null = null,
+  ) {
+    return createApp(db, user, guest).request(
+      `/api/meets/${meetId}/results/counted`,
+      jsonRequest('PATCH', { ids, counted }),
+      env,
+    )
+  }
+
+  async function storeQuizzes(...quizNumbers: string[]): Promise<number[]> {
+    const ids: number[] = []
+    for (const quizNumber of quizNumbers) {
+      const res = await submit(official(room1), { quizFile: quizFile({ quizNumber }) })
+      ids.push((await jsonOf<{ id: number }>(res)).id)
+    }
+    return ids
+  }
+
+  const countRecords = async () =>
+    (await db.select().from(schema.quizResultCountChanges)).map((r) => [
+      r.resultId,
+      r.counted,
+      r.changedByName,
+    ])
+
+  const countedOf = async (id: number) => (await list()).find((r) => r.id === id)!.counted
+
+  it('counts and uncounts quizzes for an admin, recording each change', async () => {
+    const [q1, q2] = (await storeQuizzes('1', '2')) as [number, number]
+    expect(await countedOf(q1)).toBe(false)
+
+    const res = await setCounted([q1, q2], true)
+    expect(res.status).toBe(200)
+    expect(await jsonOf(res)).toEqual({ changed: [q1, q2] })
+    expect([await countedOf(q1), await countedOf(q2)]).toEqual([true, true])
+
+    expect(await jsonOf(await setCounted([q1], false))).toEqual({ changed: [q1] })
+    expect([await countedOf(q1), await countedOf(q2)]).toEqual([false, true])
+    expect(await countRecords()).toEqual([
+      [q1, true, 'Test Admin'],
+      [q2, true, 'Test Admin'],
+      [q1, false, 'Test Admin'],
+    ])
+  })
+
+  it('records only the quizzes whose value changes', async () => {
+    const [q1, q2] = (await storeQuizzes('1', '2')) as [number, number]
+    await setCounted([q1], true)
+    expect(await jsonOf(await setCounted([q1, q2], true))).toEqual({ changed: [q2] })
+    expect(await countRecords()).toHaveLength(2)
+  })
+
+  it('counts more quizzes than one D1 statement can bind', async () => {
+    const ids = await storeQuizzes(...Array.from({ length: 95 }, (_, i) => String(i + 1)))
+    const { changed } = await jsonOf<{ changed: number[] }>(await setCounted(ids, true))
+    expect(changed.toSorted((a, b) => a - b)).toEqual(ids)
+    expect((await list()).every((r) => r.counted)).toBe(true)
+    expect(await countRecords()).toHaveLength(95)
+  })
+
+  it('is for admins only', async () => {
+    const [q1] = (await storeQuizzes('1')) as [number]
+    expect((await setCounted([q1], true, testUser)).status).toBe(403)
+    expect((await setCounted([q1], true, null, official(room1))).status).toBe(403)
+    expect(await countRecords()).toEqual([])
+  })
+
+  it('changes nothing when an id is not a quiz of this meet', async () => {
+    const [q1] = (await storeQuizzes('1')) as [number]
+    const other = await createApp(db, testSuperuser).request(
+      `/api/meets/${otherMeetId}/results`,
+      jsonRequest('POST', { quizFile: quizFile() }),
+      env,
+    )
+    const otherId = (await jsonOf<{ id: number }>(other)).id
+    expect((await setCounted([q1, otherId], true)).status).toBe(404)
+    expect(await countRecords()).toEqual([])
+    expect(await countedOf(q1)).toBe(false)
+  })
+
+  it('refuses a malformed body', async () => {
+    const res = await createApp(db, testSuperuser).request(
+      `/api/meets/${meetId}/results/counted`,
+      jsonRequest('PATCH', { ids: ['1'], counted: 'yes' }),
+      env,
+    )
     expect(res.status).toBe(400)
   })
 })

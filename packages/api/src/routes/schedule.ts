@@ -3,7 +3,7 @@ import { eq, and, asc, inArray, sql } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, getUser } from '../middleware/session'
-import { createDb, type Db } from '../lib/db'
+import { createDb, inChunks, type Db } from '../lib/db'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 
@@ -25,29 +25,6 @@ schedule.use('*', async (c, next) => {
 
 function getDb(c: { get(key: 'db'): Db }): Db {
   return c.get('db')
-}
-
-/**
- * D1 caps bound parameters at 100 per statement
- * (https://developers.cloudflare.com/d1/platform/limits/). A full-meet
- * Populate generates ~80–100 scheduled quizzes and ~250 seats — well
- * past the cap. We chunk inserts so each statement fits, leaving a few
- * params of headroom for any implicit binds Drizzle might add.
- */
-const D1_MAX_PARAMS = 90
-
-async function chunkedInsert<TIn, TOut>(
-  rows: TIn[],
-  colsPerRow: number,
-  insertChunk: (chunk: TIn[]) => Promise<TOut[]>,
-): Promise<TOut[]> {
-  if (rows.length === 0) return []
-  const chunkSize = Math.max(1, Math.floor(D1_MAX_PARAMS / colsPerRow))
-  const out: TOut[] = []
-  for (let i = 0; i < rows.length; i += chunkSize) {
-    out.push(...(await insertChunk(rows.slice(i, i + chunkSize))))
-  }
-  return out
 }
 
 async function requireAdmin(c: Context<Env>, meetId: number) {
@@ -685,8 +662,8 @@ schedule.post('/:id/schedule/sync', async (c) => {
         bracketLabel: q.bracketLabel ?? null,
       })
     }
-    // 8 cols per row — see chunkedInsert / D1_MAX_PARAMS at top of file.
-    const inserted = await chunkedInsert(rows, 8, (chunk) =>
+    // 8 cols per row — see inChunks in lib/db.ts.
+    const inserted = await inChunks(rows, 8, (chunk) =>
       db.insert(schema.scheduledQuizzes).values(chunk).returning(),
     )
     newQuizzes.forEach((q, i) => quizTempIdMap.set(q.id, inserted[i]!.id))
@@ -758,8 +735,8 @@ schedule.post('/:id/schedule/sync', async (c) => {
     }
   }
   if (seatRows.length > 0) {
-    // 4 cols per row — see chunkedInsert / D1_MAX_PARAMS at top of file.
-    await chunkedInsert(seatRows, 4, async (chunk) => {
+    // 4 cols per row — see inChunks in lib/db.ts.
+    await inChunks(seatRows, 4, async (chunk) => {
       await db.insert(schema.scheduledQuizSeats).values(chunk)
       return []
     })
@@ -842,7 +819,7 @@ schedule.post('/:id/schedule/sync', async (c) => {
       // 5 cols per row — a division with ~20+ letters trips D1's
       // 100-param cap even though the for-loop only inserts one
       // division at a time.
-      await chunkedInsert(div.mapping, 5, async (chunk) => {
+      await inChunks(div.mapping, 5, async (chunk) => {
         await db.insert(schema.prelimAssignments).values(
           chunk.map((m) => ({
             meetId,

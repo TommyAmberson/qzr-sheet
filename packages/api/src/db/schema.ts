@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { check, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 import { AccountRole, MEET_PHASES, DIVISION_STATES, RESULT_ACTIONS } from '@qzr/shared'
 
 // ---- Better Auth core tables ----
@@ -298,7 +298,8 @@ export const seedResolutions = sqliteTable(
 
 // ---- Results ----
 
-// One quiz of a meet, whatever its history. Its content is its newest revision.
+// One quiz of a meet, whatever its history. Its content is its newest revision, and whether it
+// counts in the standings is its newest counting record.
 export const quizResults = sqliteTable(
   'quiz_results',
   {
@@ -306,13 +307,13 @@ export const quizResults = sqliteTable(
     meetId: integer('meet_id')
       .notNull()
       .references(() => quizMeets.id, { onDelete: 'cascade' }),
-    // The room it was first submitted from; null for uploads
+    // The room it was first submitted from; null for uploads. Unread: the first revision says where
+    // a quiz came from, and survives the room's deletion. Dropping the column means rebuilding the
+    // table, which on D1 would cascade-delete its revisions, so it waits for a safe migration.
     roomId: integer('room_id').references(() => meetRooms.id, { onDelete: 'set null' }),
     // The quiz's name (division, consolation, quiz number), folded for case and spaces; a quiz not
     // tied to the schedule is identified by it
     quizKey: text('quiz_key').notNull(),
-    // Counts in the standings only once an admin selects it
-    counted: integer('counted', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   },
   (t) => [unique().on(t.meetId, t.quizKey)],
@@ -349,6 +350,27 @@ export const quizResultRevisions = sqliteTable(
       sql`(${t.quizFile} IS NULL) <> (${t.restoredFrom} IS NULL)`,
     ),
   ],
+)
+
+// Append-only: one row per count or uncount. A quiz counts when its newest row says so, and not
+// until an admin first counts it.
+export const quizResultCountChanges = sqliteTable(
+  'quiz_result_count_changes',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    resultId: integer('result_id')
+      .notNull()
+      .references(() => quizResults.id, { onDelete: 'cascade' }),
+    counted: integer('counted', { mode: 'boolean' }).notNull(),
+    changedByAccountId: text('changed_by_account_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    // Who changed it, as named at the time, so the trail survives a renamed or deleted account
+    changedByName: text('changed_by_name').notNull(),
+    changedAt: integer('changed_at', { mode: 'timestamp' }).notNull(),
+  },
+  // A quiz's newest record is read for every quiz listed
+  (t) => [index('quiz_result_count_changes_result_id_idx').on(t.resultId)],
 )
 
 // ---- Inferred types ----
