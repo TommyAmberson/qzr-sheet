@@ -15,6 +15,18 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-10-03
+
+### Fixed
+
+* **15-question quizzes** - A/B questions begin at 12, not 11, and error points and 10-point bonuses
+  at 13, not 12: a quizzer's first error on Q12 is free, a Q12 bonus is worth 20, and timeouts are
+  allowed through Q12. A stored quiz with answers on 11A or 11B flags them as orphaned
+
+### Bundled contract
+
+* `@qzr/shared@1.4.1` - bumped from 1.4.0
+
 ## [0.16.0] - 2026-10-03
 
 ### Changed
