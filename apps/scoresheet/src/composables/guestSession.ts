@@ -13,10 +13,10 @@ import { joinMeetGuest } from '../api'
  *
  * The session keeps a list of every meet the user has joined this way and
  * tracks which one is currently active. The API client's `request()` wrapper
- * reads a token via `guestTokenFor()`, the joined session of the meet a path
- * names or else the active one, and attaches it as `Authorization: Bearer`. This module is a non-`use*` module so the API
- * client can read state synchronously without going through Vue's composable
- * contract.
+ * reads a token via `guestTokenFor()`, the joined session of the request's
+ * meet or else the active one, and attaches it as `Authorization: Bearer`.
+ * This module is a non-`use*` module so the API client can read state
+ * synchronously without going through Vue's composable contract.
  */
 
 export const STORAGE_KEY = 'qzr-guest-session'
@@ -53,14 +53,16 @@ export function getGuestToken(): string | null {
 const MEET_PATH = /^\/api\/meets\/(\d+)(?:[/?]|$)/
 
 /**
- * The guest token to send with a request: for a path under one meet, that meet's joined session,
- * whichever meet is active, so a guest who has joined several meets never sends one meet's token
- * to another; for any other path, the active session's.
+ * The guest token to send with a request: for a request about one meet, that meet's joined
+ * session, whichever meet is active, so a guest who has joined several meets never sends one
+ * meet's token to another; for any other request, the active session's. The meet is `meetId` when
+ * given, else the one the path names, so callers whose path doesn't name the meet pass it.
  */
-export function guestTokenFor(path: string): string | null {
-  const meetId = MEET_PATH.exec(path)?.[1]
-  if (meetId === undefined) return getGuestToken()
-  return joinedSession(Number(meetId))?.token ?? null
+export function guestTokenFor(path: string, meetId?: number): string | null {
+  const pathMeetId = MEET_PATH.exec(path)?.[1]
+  const id = meetId ?? (pathMeetId === undefined ? undefined : Number(pathMeetId))
+  if (id === undefined) return getGuestToken()
+  return joinedSession(id)?.token ?? null
 }
 
 /** The joined guest session for a meet, whichever meet is active */

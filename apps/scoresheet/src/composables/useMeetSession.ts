@@ -211,7 +211,7 @@ export function useMeetSession() {
     const team = session.value.teamList.find((t) => t.id === teamId)
     if (!team) return
 
-    const { quizzers } = await getTeamQuizzers(teamId)
+    const { quizzers } = await getTeamQuizzers(session.value.meetId, teamId)
 
     session.value.slots[slotIdx] = {
       teamId,

@@ -8,11 +8,11 @@ const baseRequest = createApiClient(__API_URL__ || '')
 /**
  * Attach `Authorization: Bearer <jwt>` with the guest token for the request's
  * meet (see `guestTokenFor`) so the API's session middleware can recognize the
- * caller. Cookie sessions take precedence on the server, so signed-in users
- * never need the header.
+ * caller. Pass `meetId` when the path doesn't name the meet. Cookie sessions
+ * take precedence on the server, so signed-in users never need the header.
  */
-function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = guestTokenFor(path)
+function request<T>(path: string, init?: RequestInit, meetId?: number): Promise<T> {
+  const token = guestTokenFor(path, meetId)
   if (!token) return baseRequest<T>(path, init)
   return baseRequest<T>(path, {
     ...init,
@@ -84,8 +84,11 @@ export function getMeetTeams(
   return request(`/api/meets/${meetId}/teams`)
 }
 
-export function getTeamQuizzers(teamId: number): Promise<{ quizzers: MeetTeamQuizzer[] }> {
-  return request(`/api/teams/${teamId}/quizzers`)
+export function getTeamQuizzers(
+  meetId: number,
+  teamId: number,
+): Promise<{ quizzers: MeetTeamQuizzer[] }> {
+  return request(`/api/teams/${teamId}/quizzers`, undefined, meetId)
 }
 
 export interface ScheduledQuizSummary {

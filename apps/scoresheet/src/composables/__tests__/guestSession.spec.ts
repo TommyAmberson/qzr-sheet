@@ -270,4 +270,9 @@ describe('guestTokenFor', () => {
   it("sends the active session's token for paths outside a meet", () => {
     expect(guestTokenFor('/api/teams/7/quizzers')).toBe('token-1')
   })
+
+  it("sends a given meet's token for a path that doesn't name it", () => {
+    expect(guestTokenFor('/api/teams/7/quizzers', 2)).toBe('token-2')
+    expect(guestTokenFor('/api/teams/7/quizzers', 3)).toBeNull()
+  })
 })

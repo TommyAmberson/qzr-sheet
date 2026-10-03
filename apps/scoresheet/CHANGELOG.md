@@ -20,8 +20,8 @@ portal/API/infra work shipped on that tag.
 ### Fixed
 
 * A guest who has joined several meets by code now sends each meet's own code with its requests.
-  Before, loading a meet's teams or a scheduled quiz sent whichever meet was picked last, so the
-  request could be refused and the sheet kept stale teams (#103).
+  Before, loading a meet's teams, a scheduled quiz, or a team's quizzers sent whichever meet was
+  picked last, so the request could be refused and the sheet kept stale teams (#103).
 
 ### Bundled contract
 
