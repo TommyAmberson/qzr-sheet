@@ -142,10 +142,11 @@ rejected. Facts about the current code come from reading it on 2026-10-02 (maste
 
 * **Decision**: After case and space folding (FR-015), two names in a division are flagged when
   their edit distance is at most 1, or at most 2 when both are at least 6 characters long, unless
-  they differ only in their trailing number.
+  they end in different numbers or letters.
 * **Rationale**: Catches single typos ("Calgry 1") and transpositions in longer names. The
   trailing-number exception keeps "Calgary 1" and "Calgary 2", two real teams from one church, from
-  being flagged.
+  being flagged, and "Calgry 2" from being flagged against "Calgary 1" as well as "Calgary 2". A
+  trailing letter marks one church's teams the same way ("Regina A", "Regina B").
 
 ## R12. Quizzes that can't be placed
 
