@@ -32,3 +32,16 @@ export async function inChunks<TIn, TOut>(
   }
   return out
 }
+
+/**
+ * Run statements as one: in production a D1 batch, which is a transaction, so they all happen or
+ * none do; on the test database, which has no batch, in turn. Answers each statement's result.
+ */
+export async function asOne(db: Db, statements: PromiseLike<unknown>[]): Promise<unknown[]> {
+  const batch = (db as unknown as { batch?: (s: PromiseLike<unknown>[]) => Promise<unknown[]> })
+    .batch
+  if (batch) return batch.call(db, statements)
+  const results: unknown[] = []
+  for (const statement of statements) results.push(await statement)
+  return results
+}

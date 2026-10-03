@@ -336,9 +336,27 @@ describe('PUT /api/meets/:id/results/:resultId', () => {
     expect((await list())[0]).toMatchObject({ revision: 3, action: 'merged' })
   })
 
-  it('is for admins; officials resubmit by name', async () => {
+  it("lets the quiz's room official edit it, recorded for their room", async () => {
     const id = await submitted()
-    expect((await put(createApp(db, null, official(room1)), id)).status).toBe(403)
+    expect((await put(createApp(db, null, official(room1)), id)).status).toBe(200)
+    expect((await list())[0]).toMatchObject({ action: 'edited', savedBy: { name: 'Room 1' } })
+  })
+
+  it('records an official of several rooms for a room the quiz already has', async () => {
+    await db.insert(schema.officialMemberships).values([
+      { accountId: testUser.id, meetId, roomId: room1 },
+      { accountId: testUser.id, meetId, roomId: room2 },
+    ])
+    const res = await submit(official(room2))
+    const id = (await jsonOf<{ id: number }>(res)).id
+    expect((await put(createApp(db, testUser), id)).status).toBe(200)
+    expect((await list())[0]).toMatchObject({ savedBy: { name: 'Test User, Room 2' } })
+  })
+
+  it('refuses an official of a room that never saved the quiz', async () => {
+    const id = await submitted()
+    expect((await put(createApp(db, null, official(room2)), id)).status).toBe(403)
+    expect((await put(createApp(db, testUser), id)).status).toBe(403)
   })
 
   it("refuses renaming a quiz to another quiz's name", async () => {
@@ -603,5 +621,161 @@ describe('GET /api/meets/:id/results/sender', () => {
     expect((await senderAs(testUser)).status).toBe(403)
     const viewer: GuestPayload = { meetId, role: MeetRole.Viewer, label: 'Viewer' }
     expect((await senderAs(null, viewer)).status).toBe(403)
+  })
+})
+
+describe('history and restore', () => {
+  type HistoryEntry =
+    | {
+        kind: 'revision'
+        revision: number
+        action: string
+        restoredFrom?: number
+        savedBy: { name: string }
+        current: boolean
+        quizFile: QuizFile
+      }
+    | { kind: 'counting'; counted: boolean; changedBy: { name: string } }
+
+  let id: number
+
+  /** Submitted by room 1 as D1 Q3, then edited by the admin into division 2 */
+  beforeEach(async () => {
+    const res = await submit(official(room1))
+    id = (await jsonOf<{ id: number }>(res)).id
+    await createApp(db, testSuperuser).request(
+      `/api/meets/${meetId}/results/${id}`,
+      jsonRequest('PUT', { quizFile: quizFile({ division: '2' }) }),
+      env,
+    )
+  })
+
+  const as = (user: SessionUser | null, guest: GuestPayload | null = null) =>
+    createApp(db, user, guest)
+  const history = async (app = as(testSuperuser)) => {
+    const res = await app.request(`/api/meets/${meetId}/results/${id}/revisions`, {}, env)
+    return { status: res.status, entries: res.ok ? await jsonOf<HistoryEntry[]>(res) : [] }
+  }
+  const revisionOf = async (revision: number, app = as(testSuperuser)) => {
+    const res = await app.request(
+      `/api/meets/${meetId}/results/${id}/revisions/${revision}`,
+      {},
+      env,
+    )
+    return {
+      status: res.status,
+      body: res.ok ? await jsonOf<{ quizFile: QuizFile }>(res) : null,
+    }
+  }
+  const restore = (revision: number, app = as(testSuperuser)) =>
+    app.request(
+      `/api/meets/${meetId}/results/${id}/restore`,
+      jsonRequest('POST', { revision }),
+      env,
+    )
+
+  it('lists saves and counting records, newest first, with who and how', async () => {
+    await as(testSuperuser).request(
+      `/api/meets/${meetId}/results/counted`,
+      jsonRequest('PATCH', { ids: [id], counted: true }),
+      env,
+    )
+    const { entries } = await history()
+    expect(entries).toMatchObject([
+      { kind: 'counting', counted: true, changedBy: { name: 'Test Admin' } },
+      { kind: 'revision', revision: 2, action: 'edited', savedBy: { name: 'Test Admin' } },
+      { kind: 'revision', revision: 1, action: 'submitted', savedBy: { name: 'Room 1' } },
+    ])
+  })
+
+  it("gives any revision's file", async () => {
+    const { body } = await revisionOf(1)
+    expect(body!.quizFile.quiz.division).toBe('1')
+    expect((await revisionOf(9)).status).toBe(404)
+  })
+
+  it('restores an earlier revision as a new one, keeping every newer one (FR-005a)', async () => {
+    const res = await restore(1)
+    expect(res.status).toBe(200)
+    expect(await jsonOf(res)).toEqual({ id, revision: 3 })
+    const [stored] = await list()
+    expect(stored).toMatchObject({ revision: 3, action: 'restored' })
+    expect(stored!.quizFile.quiz.division).toBe('1')
+    expect((await history()).entries.map((e) => (e.kind === 'revision' ? e.revision : 0))).toEqual([
+      3, 2, 1,
+    ])
+  })
+
+  it('shows a restoring revision as the file it restores, naming it', async () => {
+    await restore(1)
+    expect((await revisionOf(3)).body!.quizFile.quiz.division).toBe('1')
+    const [newest] = (await history()).entries
+    expect(newest).toMatchObject({ revision: 3, restoredFrom: 1 })
+    expect(newest!.kind === 'revision' && newest.quizFile.quiz.division).toBe('1')
+  })
+
+  it('gives each save its file, and marks those showing the current content', async () => {
+    await restore(1)
+    const saves = (await history()).entries.filter((e) => e.kind === 'revision')
+    expect(saves.map((e) => [e.revision, e.current, e.quizFile.quiz.division])).toEqual([
+      [3, true, '1'],
+      [2, false, '2'],
+      [1, true, '1'],
+    ])
+  })
+
+  it('points a restore of a restoring revision at the revision with the file', async () => {
+    await restore(1)
+    await restore(2)
+    await restore(3)
+    expect((await history()).entries[0]).toMatchObject({ revision: 5, restoredFrom: 1 })
+  })
+
+  it('adds nothing when restoring the content already current', async () => {
+    const res = await restore(2)
+    expect(await jsonOf(res)).toEqual({ id, revision: 2 })
+    await restore(1)
+    expect(await jsonOf(await restore(1))).toEqual({ id, revision: 3 })
+    expect((await list())[0]!.revision).toBe(3)
+  })
+
+  it("moves the quiz's name with a restore, so the restored name finds it", async () => {
+    // Revision 1 is D1 Q3; the beforeEach edit made revision 2 D2 Q3
+    await restore(1)
+    const res = await submit(official(room1))
+    expect(res.status).toBe(409)
+    expect((await jsonOf<{ existing: { id: number } }>(res)).existing.id).toBe(id)
+    expect(await list()).toHaveLength(1)
+  })
+
+  it('refuses a restore onto a name another quiz has taken since', async () => {
+    await submit(official(room2))
+    const res = await restore(1)
+    expect(res.status).toBe(409)
+    expect(await jsonOf(res)).toEqual({ error: 'Another quiz is already named D1 Q3' })
+    expect((await history()).entries[0]).toMatchObject({ revision: 2 })
+  })
+
+  it("lets the quiz's room officials read and restore it, recorded for their room", async () => {
+    const officialApp = as(null, official(room1))
+    expect((await history(officialApp)).status).toBe(200)
+    expect((await revisionOf(1, officialApp)).status).toBe(200)
+    expect((await restore(1, officialApp)).status).toBe(200)
+    expect((await list())[0]).toMatchObject({ action: 'restored', savedBy: { name: 'Room 1' } })
+  })
+
+  it('refuses everyone else, and quizzes of another meet', async () => {
+    const otherRoom = as(null, official(room2))
+    expect((await history(otherRoom)).status).toBe(403)
+    expect((await revisionOf(1, otherRoom)).status).toBe(403)
+    expect((await restore(1, otherRoom)).status).toBe(403)
+    expect((await history(as(testUser))).status).toBe(403)
+    const elsewhere = await as(testSuperuser).request(
+      `/api/meets/${otherMeetId}/results/${id}/revisions`,
+      {},
+      env,
+    )
+    expect(elsewhere.status).toBe(404)
+    expect((await restore(9)).status).toBe(404)
   })
 })

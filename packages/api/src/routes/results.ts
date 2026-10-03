@@ -13,7 +13,7 @@ import {
 import type { Bindings } from '../bindings'
 import type { SessionUser, SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
-import { createDb, inChunks, type Db } from '../lib/db'
+import { asOne, createDb, inChunks, type Db } from '../lib/db'
 import { isAdminOrSuperuser, isOfficialOfRoom, officialRoomsOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 
@@ -95,15 +95,76 @@ async function roomSaver(
   user: SessionUser | null | undefined,
 ): Promise<Saver | undefined> {
   const [room] = await db
-    .select({ name: schema.meetRooms.name })
+    .select({ id: schema.meetRooms.id, name: schema.meetRooms.name })
     .from(schema.meetRooms)
     .where(and(eq(schema.meetRooms.id, roomId), eq(schema.meetRooms.meetId, meetId)))
-  if (!room) return undefined
+  return room && roomSaverFor(room, user)
+}
+
+/** A save for a room, named as it is now: "Pat, Room 2" for an account, "Room 2" for a guest */
+function roomSaverFor(
+  room: { id: number; name: string },
+  user: SessionUser | null | undefined,
+): Saver {
   return {
     savedByAccountId: user?.id ?? null,
-    savedByRoomId: roomId,
+    savedByRoomId: room.id,
     savedByName: user ? `${user.name}, ${room.name}` : room.name,
   }
+}
+
+/** The stored quiz id in the path, or null when it isn't one */
+function resultIdOf(c: Context<Env>): number | null {
+  const id = Number(c.req.param('resultId'))
+  return Number.isInteger(id) ? id : null
+}
+
+/**
+ * Who may read and change a stored quiz of the meet, as the saver of a change: an admin, or an
+ * official of a room the quiz already has, recorded for the first such room by room order so a
+ * change never gives the quiz a new room. Otherwise the response refusing the caller: 404 when the
+ * quiz isn't the meet's, 403 when the caller may not touch it.
+ */
+async function quizAccess(
+  c: Context<Env>,
+  meetId: number,
+  resultId: number,
+): Promise<{ saver: Saver; quizKey: string } | Response> {
+  const db = c.get('db')
+  const [result] = await db
+    .select({ quizKey: schema.quizResults.quizKey })
+    .from(schema.quizResults)
+    .where(and(eq(schema.quizResults.id, resultId), eq(schema.quizResults.meetId, meetId)))
+  if (!result) return c.json({ error: 'Quiz not found' }, 404)
+  const user = c.get('user')
+  if (user && (await isAdmin(c, meetId)))
+    return { saver: adminSaver(user), quizKey: result.quizKey }
+
+  const mine = await officialRoomsOf(c, db, meetId)
+  const [shared] =
+    mine.length === 0
+      ? []
+      : await db
+          .selectDistinct({
+            id: schema.meetRooms.id,
+            name: schema.meetRooms.name,
+            sortOrder: schema.meetRooms.sortOrder,
+          })
+          .from(schema.quizResultRevisions)
+          .innerJoin(
+            schema.meetRooms,
+            eq(schema.meetRooms.id, schema.quizResultRevisions.savedByRoomId),
+          )
+          .where(
+            and(
+              eq(schema.quizResultRevisions.resultId, resultId),
+              inArray(schema.quizResultRevisions.savedByRoomId, mine),
+            ),
+          )
+          .orderBy(asc(schema.meetRooms.sortOrder), asc(schema.meetRooms.id))
+          .limit(1)
+  if (!shared) return c.json({ error: "Not an admin, or an official of this quiz's rooms" }, 403)
+  return { saver: roomSaverFor(shared, user), quizKey: result.quizKey }
 }
 
 /** The validated file to store, or the response refusing it */
@@ -142,6 +203,20 @@ const isCounted = sql`COALESCE((
 /** The revision a selecting revision points at, for its quiz file */
 const source = alias(schema.quizResultRevisions, 'source')
 
+/** Joins `source` to the revision a restoring revision restores */
+const restoredSource = and(
+  eq(source.resultId, schema.quizResultRevisions.resultId),
+  eq(source.revision, schema.quizResultRevisions.restoredFrom),
+)
+
+/** A revision's quiz file: its own, or the file of the revision it restores (with `restoredSource`) */
+const revisionFile = sql<string>`COALESCE(${schema.quizResultRevisions.quizFile}, ${source.quizFile})`
+
+/** The revision whose file a revision shows: its own, or the one it restores */
+function contentOf(revision: { revision: number; restoredFrom: number | null }): number {
+  return revision.restoredFrom ?? revision.revision
+}
+
 /** A stored quiz's first revision: who sent it and how, which outlives a deleted room */
 const first = alias(schema.quizResultRevisions, 'first')
 
@@ -149,8 +224,46 @@ const first = alias(schema.quizResultRevisions, 'first')
 const savedForRoom = alias(schema.quizResultRevisions, 'saved_for_room')
 
 function isUniqueViolation(e: unknown): boolean {
-  const text = e instanceof Error ? `${e.message} ${String(e.cause ?? '')}` : String(e)
-  return text.includes('UNIQUE constraint failed')
+  return errorText(e).includes('UNIQUE constraint failed')
+}
+
+/** A unique violation on a revision number: the race `addRevisions` retries, unlike a name clash */
+function isRevisionClash(e: unknown): boolean {
+  return isUniqueViolation(e) && errorText(e).includes('quiz_result_revisions')
+}
+
+function errorText(e: unknown): string {
+  return e instanceof Error ? `${e.message} ${String(e.cause ?? '')}` : String(e)
+}
+
+/** The refusal of a change that would give a quiz another stored quiz's name */
+function nameTaken(c: Context<Env>, file: QuizFile) {
+  return c.json({ error: `Another quiz is already named ${quizName(file.quiz)}` }, 409)
+}
+
+/**
+ * The statements moving a stored quiz to the name its new content has, for `addRevisions` to run
+ * with the revision, so the name and the content change together; the 409 when another quiz of the
+ * meet already has that name. A name taken in the moment between is caught as a unique violation.
+ */
+async function nameMove(
+  c: Context<Env>,
+  meetId: number,
+  resultId: number,
+  currentKey: string,
+  file: QuizFile,
+): Promise<(() => PromiseLike<unknown>[]) | Response> {
+  const key = quizKey(file)
+  if (key === currentKey) return () => []
+  const db = c.get('db')
+  const [clash] = await db
+    .select({ id: schema.quizResults.id })
+    .from(schema.quizResults)
+    .where(and(eq(schema.quizResults.meetId, meetId), eq(schema.quizResults.quizKey, key)))
+  if (clash) return nameTaken(c, file)
+  return () => [
+    db.update(schema.quizResults).set({ quizKey: key }).where(eq(schema.quizResults.id, resultId)),
+  ]
 }
 
 type RevisionRow = Saver &
@@ -182,15 +295,17 @@ async function addRevisions(
   db: Db,
   resultId: number,
   rows: (Omit<RevisionRow, 'restoredFrom'> & { restoredFrom?: number | 'current' })[],
+  /** Statements that must happen with the insert or not at all, built afresh for each try */
+  together: () => PromiseLike<unknown>[] = () => [],
 ): Promise<number[]> {
   for (let attempt = 0; ; attempt++) {
     const newest = await newestRevision(db, resultId)
     const base = newest?.revision ?? 0
     // A selection always points at a revision with a file, never at another selection
-    const currentContent = newest?.restoredFrom ?? base
+    const currentContent = newest ? contentOf(newest) : base
     const savedAt = new Date()
     try {
-      const inserted = await db
+      const insert = db
         .insert(schema.quizResultRevisions)
         .values(
           rows.map((row, i) => ({
@@ -202,9 +317,10 @@ async function addRevisions(
           })),
         )
         .returning({ revision: schema.quizResultRevisions.revision })
-      return inserted.map((r) => r.revision)
+      const results = await asOne(db, [...together(), insert])
+      return (results.at(-1) as { revision: number }[]).map((r) => r.revision)
     } catch (e) {
-      if (attempt < 3 && isUniqueViolation(e)) continue
+      if (attempt < 3 && isRevisionClash(e)) continue
       throw e
     }
   }
@@ -318,47 +434,175 @@ results.post('/:id/results', async (c) => {
 
 results.put('/:id/results/:resultId', async (c) => {
   const meetId = meetIdOf(c)
-  const resultId = Number(c.req.param('resultId'))
-  if (meetId === null || !Number.isInteger(resultId)) {
-    return c.json({ error: 'Quiz not found' }, 404)
-  }
-  // Officials resubmit by name through POST; editing a stored quiz is for admins
-  const user = c.get('user')
-  if (!user || !(await isAdmin(c, meetId))) {
-    return c.json({ error: 'Admin access required' }, 403)
-  }
+  const resultId = resultIdOf(c)
+  if (meetId === null || resultId === null) return c.json({ error: 'Quiz not found' }, 404)
+  const access = await quizAccess(c, meetId, resultId)
+  if (access instanceof Response) return access
   const body = await jsonBody<{ quizFile?: unknown; action?: unknown }>(c)
   if (!body) return c.json({ error: 'Body must be JSON' }, 400)
   const db = c.get('db')
-
-  const [result] = await db
-    .select()
-    .from(schema.quizResults)
-    .where(and(eq(schema.quizResults.id, resultId), eq(schema.quizResults.meetId, meetId)))
-  if (!result) return c.json({ error: 'Quiz not found' }, 404)
 
   const json = validFile(c, body.quizFile)
   if (json instanceof Response) return json
   const file = body.quizFile as QuizFile
 
-  // A changed name must stay unique in the meet
-  const key = quizKey(file)
-  if (key !== result.quizKey) {
-    try {
-      await db
-        .update(schema.quizResults)
-        .set({ quizKey: key })
-        .where(eq(schema.quizResults.id, resultId))
-    } catch (e) {
-      if (!isUniqueViolation(e)) throw e
-      return c.json({ error: `Another quiz is already named ${quizName(file.quiz)}` }, 409)
-    }
+  // A changed name must stay unique in the meet, and changes with the revision or not at all
+  const move = await nameMove(c, meetId, resultId, access.quizKey, file)
+  if (move instanceof Response) return move
+  try {
+    const [revision] = await addRevisions(
+      db,
+      resultId,
+      [{ ...access.saver, quizFile: json, action: body.action === 'merged' ? 'merged' : 'edited' }],
+      move,
+    )
+    return c.json({ id: resultId, revision })
+  } catch (e) {
+    if (isUniqueViolation(e) && !isRevisionClash(e)) return nameTaken(c, file)
+    throw e
   }
+})
 
-  const [revision] = await addRevisions(db, resultId, [
-    { ...adminSaver(user), quizFile: json, action: body.action === 'merged' ? 'merged' : 'edited' },
-  ])
-  return c.json({ id: resultId, revision })
+/** A stored quiz's history, newest first: its saves and its counting records */
+results.get('/:id/results/:resultId/revisions', async (c) => {
+  const meetId = meetIdOf(c)
+  const resultId = resultIdOf(c)
+  if (meetId === null || resultId === null) return c.json({ error: 'Quiz not found' }, 404)
+  const access = await quizAccess(c, meetId, resultId)
+  if (access instanceof Response) return access
+  const db = c.get('db')
+
+  const rows = await db
+    .select({
+      revision: schema.quizResultRevisions.revision,
+      action: schema.quizResultRevisions.action,
+      restoredFrom: schema.quizResultRevisions.restoredFrom,
+      savedByName: schema.quizResultRevisions.savedByName,
+      savedAt: schema.quizResultRevisions.savedAt,
+      quizFile: revisionFile,
+    })
+    .from(schema.quizResultRevisions)
+    .leftJoin(source, restoredSource)
+    .where(eq(schema.quizResultRevisions.resultId, resultId))
+    .orderBy(desc(schema.quizResultRevisions.revision))
+  // The newest save is current; every save showing the same file shows the current content
+  const current = rows[0] && contentOf(rows[0])
+  const saves = rows.map(({ restoredFrom, savedByName, quizFile, ...save }) => ({
+    kind: 'revision' as const,
+    ...save,
+    ...(restoredFrom === null ? {} : { restoredFrom }),
+    savedBy: { name: savedByName },
+    current: contentOf({ ...save, restoredFrom }) === current,
+    quizFile: JSON.parse(quizFile) as QuizFile,
+  }))
+  const counts = (
+    await db
+      .select({
+        counted: schema.quizResultCountChanges.counted,
+        changedByName: schema.quizResultCountChanges.changedByName,
+        changedAt: schema.quizResultCountChanges.changedAt,
+      })
+      .from(schema.quizResultCountChanges)
+      .where(eq(schema.quizResultCountChanges.resultId, resultId))
+      .orderBy(desc(schema.quizResultCountChanges.id))
+  ).map(({ changedByName, ...count }) => ({
+    kind: 'counting' as const,
+    ...count,
+    changedBy: { name: changedByName },
+  }))
+
+  // Both lists are newest first; a count saved in the same millisecond as
+  // a save is taken to follow it, as counting a quiz follows saving it
+  const history: ((typeof saves)[number] | (typeof counts)[number])[] = []
+  while (saves.length > 0 || counts.length > 0) {
+    const takeCount =
+      counts.length > 0 &&
+      (saves.length === 0 || counts[0]!.changedAt.getTime() >= saves[0]!.savedAt.getTime())
+    history.push(takeCount ? counts.shift()! : saves.shift()!)
+  }
+  return c.json(history)
+})
+
+/** One revision's file, for the scoresheet to open; a restoring revision gives the file it restores */
+results.get('/:id/results/:resultId/revisions/:revision', async (c) => {
+  const meetId = meetIdOf(c)
+  const resultId = resultIdOf(c)
+  const revision = Number(c.req.param('revision'))
+  if (meetId === null || resultId === null || !Number.isInteger(revision)) {
+    return c.json({ error: 'Revision not found' }, 404)
+  }
+  const access = await quizAccess(c, meetId, resultId)
+  if (access instanceof Response) return access
+
+  const [row] = await c
+    .get('db')
+    .select({ quizFile: revisionFile })
+    .from(schema.quizResultRevisions)
+    .leftJoin(source, restoredSource)
+    .where(
+      and(
+        eq(schema.quizResultRevisions.resultId, resultId),
+        eq(schema.quizResultRevisions.revision, revision),
+      ),
+    )
+  if (!row) return c.json({ error: 'Revision not found' }, 404)
+  return c.json({ quizFile: JSON.parse(row.quizFile) })
+})
+
+/**
+ * Make an earlier revision current again by adding a revision that restores it (FR-005a). It
+ * points at the revision with the file, so content is never more than one step away, and adds
+ * nothing when that content is already current.
+ */
+results.post('/:id/results/:resultId/restore', async (c) => {
+  const meetId = meetIdOf(c)
+  const resultId = resultIdOf(c)
+  if (meetId === null || resultId === null) return c.json({ error: 'Quiz not found' }, 404)
+  const access = await quizAccess(c, meetId, resultId)
+  if (access instanceof Response) return access
+  const body = await jsonBody<{ revision?: unknown }>(c)
+  if (!body || !Number.isInteger(body.revision)) {
+    return c.json({ error: 'Expected { revision: number }' }, 400)
+  }
+  const db = c.get('db')
+
+  const [target] = await db
+    .select({
+      revision: schema.quizResultRevisions.revision,
+      restoredFrom: schema.quizResultRevisions.restoredFrom,
+      quizFile: revisionFile,
+    })
+    .from(schema.quizResultRevisions)
+    .leftJoin(source, restoredSource)
+    .where(
+      and(
+        eq(schema.quizResultRevisions.resultId, resultId),
+        eq(schema.quizResultRevisions.revision, body.revision as number),
+      ),
+    )
+  if (!target) return c.json({ error: 'Revision not found' }, 404)
+
+  const content = contentOf(target)
+  const newest = (await newestRevision(db, resultId))!
+  if (content === contentOf(newest)) {
+    return c.json({ id: resultId, revision: newest.revision })
+  }
+  // The restored content's name becomes the quiz's again, as an edit's would
+  const file = JSON.parse(target.quizFile) as QuizFile
+  const move = await nameMove(c, meetId, resultId, access.quizKey, file)
+  if (move instanceof Response) return move
+  try {
+    const [revision] = await addRevisions(
+      db,
+      resultId,
+      [{ ...access.saver, action: 'restored', restoredFrom: content }],
+      move,
+    )
+    return c.json({ id: resultId, revision })
+  } catch (e) {
+    if (isUniqueViolation(e) && !isRevisionClash(e)) return nameTaken(c, file)
+    throw e
+  }
 })
 
 /**
@@ -449,7 +693,7 @@ results.get('/:id/results', async (c) => {
       savedAt: schema.quizResultRevisions.savedAt,
       savedByName: schema.quizResultRevisions.savedByName,
       action: schema.quizResultRevisions.action,
-      quizFile: sql<string>`COALESCE(${schema.quizResultRevisions.quizFile}, ${source.quizFile})`,
+      quizFile: revisionFile,
     })
     .from(schema.quizResults)
     .innerJoin(
@@ -459,13 +703,7 @@ results.get('/:id/results', async (c) => {
         eq(schema.quizResultRevisions.revision, latestRevision),
       ),
     )
-    .leftJoin(
-      source,
-      and(
-        eq(source.resultId, schema.quizResultRevisions.resultId),
-        eq(source.revision, schema.quizResultRevisions.restoredFrom),
-      ),
-    )
+    .leftJoin(source, restoredSource)
     .innerJoin(first, and(eq(first.resultId, schema.quizResults.id), eq(first.revision, 1)))
     .where(
       and(
