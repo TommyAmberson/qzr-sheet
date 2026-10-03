@@ -69,8 +69,9 @@ Append-only: one row per count or uncount (FR-013).
 | changed by name | the admin as named then, so the trail survives a renamed or deleted account |
 | changed at      | when                                                                        |
 
-A select all or deselect all writes one row for each quiz whose value actually changes, in one
-statement. The newest row is the quiz's current value, so the value and its record can't disagree.
+A select all or deselect all writes one row for each quiz whose value actually changes, in as few
+statements as D1's parameter limit allows. The newest row is the quiz's current value, so a quiz and
+its record agree even if a large change is cut short.
 
 ## team name (`meet_team_names`)
 

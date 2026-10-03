@@ -106,8 +106,8 @@ counted.
 5. **Given** a quiz with validation errors, **When** the official tries to submit, **Then**
    submission is refused with the reason.
 6. **Given** a meet admin, **When** they open the meet's results, **Then** they see every submitted
-   quiz grouped by division, with quiz number, room, team names, team scores, its revision number,
-   who saved it last and when, and whether it is counted in the standings.
+   quiz grouped by division, with quiz name, where it came from, team names, team scores, its
+   revision number, who saved it last and when, and whether it is counted in the standings.
 
 ---
 
@@ -300,8 +300,9 @@ from the list when setting up a quiz in that division.
   when, and MUST keep every newer revision. Restoring content that is already current changes
   nothing.
 * **FR-006**: Meet admins MUST be able to list the meet's stored quizzes grouped by division, with
-  quiz number, room, team names, team scores, whether it is counted, its revision number, and who
-  saved it last and when, so that a quiz changed since an admin last looked stands out.
+  quiz name, where it came from (the submitting room or the uploader), team names, team scores,
+  whether it is counted, its revision number, and who saved it last and when, so that a quiz changed
+  since an admin last looked stands out.
 * **FR-007**: Meet admins MUST be able to upload one or more scoresheet quiz files into the meet. A
   valid file whose name the meet doesn't have becomes a stored quiz; one whose name it already has
   is reported with that quiz's current revision and gets the same three choices (FR-003). Each
