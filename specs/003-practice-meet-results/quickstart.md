@@ -28,14 +28,19 @@ outcome, and results-route specs.
 1. **Submit (Story 1)**: In a private window, open the scoresheet, join with room 1's code, pick the
    meet, set division `1`, type three team names, score a quiz, and choose Submit. The portal's
    results list shows it as revision 1, submitted by room 1, not counted. Change an answer and
-   submit again: still one quiz, now revision 2. Choose New quiz and submit another: a second quiz.
+   submit again: warned that D1 Q1 was already submitted; save as new revision and it is still one
+   quiz, now revision 2. Submit once more choosing to keep the current revision: revision 3 holds
+   the submission, revision 4 restores revision 2, and the list still shows revision 2's scores.
+   Choose New quiz, set quiz number 2 and submit: a second quiz.
 2. **Offline submit**: Stop the API and submit. The scoresheet says it wasn't sent; the quiz is
    unchanged and Save as JSON still works.
 3. **Standings (Story 2)**: Submit four quizzes in division `1` from both rooms, count them with
    select all, and open the standings. Totals, order, tie-break notes and the three finalists match
    a hand calculation. Uncount one: the standings drop it.
-4. **Upload (Story 3)**: Save two quizzes as files from the scoresheet, plus one file with its
-   `version` edited to 99. Upload all three: two stored as uploaded, one refused as too new.
+4. **Upload (Story 3)**: Save two quizzes as files from the scoresheet, one not yet submitted and
+   one submitted in scenario 1, plus one file with its `version` edited to 99. Upload all three: the
+   new one is stored as uploaded, the submitted one is reported as already submitted, with the same
+   three choices, and the edited one is refused as too new.
 5. **Edit and history (Story 4)**: Rename a team in the quick form; open the quiz in the scoresheet
    and fix an answer; then restore revision 1. The history lists every save with who, when and how,
    and nothing is lost.
@@ -47,4 +52,5 @@ outcome, and results-route specs.
 8. **Team list (Story 6)**: Enter team names for division `1`. In a scoresheet joined to a room,
    those names are offered for division `1`, and a typed name is still accepted.
 9. **Access**: With a viewer code, the results and standings routes refuse. An official of room 2
-   can't save a quiz first submitted from room 1.
+   submitting room 1's quiz name is warned before adding a revision. Rotating room 1's code stops
+   its old token from submitting.

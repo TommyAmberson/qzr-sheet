@@ -63,9 +63,17 @@ Decisions from the brainstorm:
   never counted automatically (FR-010, FR-013).
 * Q: Can an admin make an earlier version of a quiz current again in one action? → A: Yes. Restoring
   adds a new revision, recorded as restored from revision N with who and when; newer revisions are
-  kept, never discarded (FR-005a).
+  kept, never discarded. Restoring content that is already current changes nothing (FR-005a).
 * Q: How does an admin count quizzes? → A: In the list of quizzes, each quiz has a counted toggle,
   with select all and deselect all for the quizzes shown (FR-013).
+* Q: How does the meet know which stored quiz a submission belongs to? → A: A quiz not tied to the
+  schedule is known by its name: division, consolation and quiz number, ignoring case and spaces.
+  Submitting a name the meet already has, from the same room or another, warns with the stored
+  revision and who saved it, and on confirmation adds a new revision (FR-003).
+* Q: What can an official do with a quiz the meet already has? → A: Three choices: don't submit;
+  save it as the new current revision; or save it but keep the current revision. Keeping the current
+  revision records the submitted copy in the history and then a revision restoring the earlier
+  content, so the newest revision is always the current one (FR-003, FR-005).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -86,11 +94,13 @@ counted.
 1. **Given** a scoresheet joined to a room of a meet and a quiz with no validation errors, **When**
    the official submits, **Then** the quiz is stored for that meet, recorded as submitted by that
    room, and the official sees a confirmation.
-2. **Given** a quiz already submitted from this scoresheet, **When** the official changes it and
-   submits again, **Then** the stored quiz is updated and the earlier revision is kept in its
-   history, not listed as a second quiz.
-3. **Given** a submitted quiz, **When** the official starts a new quiz, **Then** the next submission
-   is stored as a separate quiz.
+2. **Given** a submitted quiz, **When** an official of any room submits a quiz with the same
+   division, consolation and quiz number, **Then** they are warned that it was already submitted,
+   with its revision number and who saved it, and choose not to submit, to save it as the new
+   current revision, or to save it but keep the current revision; either save adds to that quiz's
+   history, not a second quiz.
+3. **Given** a submitted quiz, **When** the official submits a quiz with a different division,
+   consolation or quiz number, **Then** it is stored as a separate quiz.
 4. **Given** no connection, **When** the official submits, **Then** they are told it was not sent,
    the quiz stays on the device unchanged, and they can retry or save it as a file.
 5. **Given** a quiz with validation errors, **When** the official tries to submit, **Then**
@@ -134,8 +144,6 @@ standings, and check each division's order, totals, and finalists against a hand
    change is recorded with who made it and when.
 8. **Given** teams in a division with different numbers of counted quizzes, **When** the standings
    are shown, **Then** a warning names the teams and counts.
-9. **Given** two counted quizzes in one division with the same quiz number, **When** the standings
-   are shown, **Then** a warning names them as possible duplicates.
 
 ---
 
@@ -158,6 +166,9 @@ recorded as uploaded by the admin.
    with the reason and the other files still upload.
 3. **Given** a file from a newer scoresheet than the meet's portal understands, **When** it is
    uploaded, **Then** it is rejected with that reason rather than read wrongly.
+4. **Given** an uploaded file whose division, consolation and quiz number the meet already has,
+   **When** it is uploaded, **Then** the admin is told it was already submitted, with its current
+   revision and who saved it, and gets the same three choices as an official.
 
 ---
 
@@ -239,11 +250,14 @@ from the list when setting up a quiz in that division.
 
 ### Edge Cases
 
-* An official resubmits after an admin corrected the same quiz: the official's copy becomes current
-  and the correction stays in the history. The list shows the new revision number and the official
-  as last saver, so the admin can see it and restore the correction.
+* An official resubmits after an admin corrected the same quiz: after the warning, saving it as the
+  new current revision makes the official's copy current and keeps the correction in the history.
+  The list shows the new revision number and the official as last saver, so the admin can see it and
+  restore the correction. Saving it but keeping the current revision leaves the correction current.
 * A quiz is submitted with the wrong division: the admin corrects it in the form, and it moves
   between divisions in the standings.
+* An admin changes a quiz's division or quiz number to one another stored quiz already has: the
+  change is refused, naming the clash, and the quiz keeps its old name.
 * A division has fewer than three teams: all of its teams are marked as finalists.
 * A counted quiz is resubmitted or edited: the standings use its newest revision, and it stays
   counted.
@@ -270,24 +284,31 @@ from the list when setting up a quiz in that division.
   rooms, storing it as a quiz of that meet recorded with the room.
 * **FR-002**: Submission from the scoresheet MUST be refused while the quiz has validation errors,
   with the reason.
-* **FR-003**: Resubmitting a quiz from the same scoresheet, until a new quiz is started there, MUST
-  update the stored quiz rather than add another.
+* **FR-003**: A quiz not tied to the schedule MUST be identified by its name: division, consolation
+  and quiz number, ignoring case and spaces. Submitting or uploading a name the meet already has
+  MUST warn with the stored quiz's current revision and who saved it, and offer three choices: not
+  to submit, to save it as the new current revision, or to save it but keep the current revision.
+  Either save MUST add to that quiz's history rather than create another quiz.
 * **FR-004**: A failed submission MUST say so, MUST leave the quiz on the device unchanged, and MUST
   NOT block scoring or saving to a file.
 * **FR-005**: Every save of a stored quiz (submission, upload, edit, merge, restore) MUST be kept as
   a revision recording who saved it, when, and how. Earlier revisions MUST remain viewable and MUST
-  NOT be deleted by later saves.
+  NOT be deleted by later saves. The newest revision is always the current one: keeping the current
+  revision on a save records the submitted copy, then a revision restoring the earlier content.
 * **FR-005a**: Meet admins MUST be able to restore any earlier revision of a stored quiz in one
   action. Restoring MUST add a new revision recorded as restored from that revision, with who and
-  when, and MUST keep every newer revision.
+  when, and MUST keep every newer revision. Restoring content that is already current changes
+  nothing.
 * **FR-006**: Meet admins MUST be able to list the meet's stored quizzes grouped by division, with
   quiz number, room, team names, team scores, whether it is counted, its revision number, and who
   saved it last and when, so that a quiz changed since an admin last looked stands out.
-* **FR-007**: Meet admins MUST be able to upload one or more scoresheet quiz files into the meet;
-  each valid file becomes a stored quiz, and each invalid or too-new file is rejected individually
-  with its reason.
+* **FR-007**: Meet admins MUST be able to upload one or more scoresheet quiz files into the meet. A
+  valid file whose name the meet doesn't have becomes a stored quiz; one whose name it already has
+  is reported with that quiz's current revision and gets the same three choices (FR-003). Each
+  invalid or too-new file is rejected individually with its reason.
 * **FR-008**: Meet admins MUST be able to change a stored quiz's team names, quizzer names,
-  division, and quiz number.
+  division, and quiz number. A change of division or quiz number that would give the quiz another
+  stored quiz's name MUST be refused with the reason.
 * **FR-009**: Meet admins MUST be able to open a stored quiz in the scoresheet and save the
   corrected quiz back to the meet.
 * **FR-010**: Standings MUST group counted quizzes by the division written in each quiz, as given,
@@ -315,8 +336,8 @@ from the list when setting up a quiz in that division.
   schedule linkage exists. The list MUST show which quizzes are not counted, and each count or
   uncount MUST be recorded with who did it and when.
 * **FR-014**: Standings MUST warn when a division's teams have different numbers of counted quizzes,
-  when two counted quizzes in a division share a quiz number, and when a counted quiz can't be
-  placed (questions unanswered or validation errors), which then adds no placement points.
+  and when a counted quiz can't be placed (questions unanswered or validation errors), which then
+  adds no placement points.
 * **FR-015**: Standings MUST treat team names that differ only in letter case or surrounding and
   repeated spaces as the same team.
 * **FR-016**: Standings MUST flag team names in a division that differ only slightly, and meet
@@ -333,10 +354,12 @@ from the list when setting up a quiz in that division.
 
 * **Meet**: an existing meet, with divisions and rooms. A practice meet needs no churches, teams, or
   quizzers.
-* **Stored quiz**: one quiz of a meet: its current content (as the scoresheet saves it), the room it
-  came from if submitted, and whether it is counted in the standings.
-* **Quiz version** (a revision): one save of a stored quiz: its revision number, full content, who
-  saved it, when, and how (submitted, uploaded, edited, merged, restored).
+* **Stored quiz**: one quiz of a meet, identified by its name (division, consolation and quiz
+  number) when not tied to the schedule: its current content (as the scoresheet saves it), the room
+  it came from if submitted, and whether it is counted in the standings.
+* **Quiz version** (a revision): one save of a stored quiz: its revision number, its content (a full
+  quiz, or the earlier revision it restores), who saved it, when, and how (submitted, uploaded,
+  edited, merged, restored).
 * **Counting record**: who counted or uncounted a stored quiz, and when.
 * **Division standings**: derived, never stored: each team's prelim totals, rank, tie-break detail,
   finalist marking, and warnings.

@@ -63,21 +63,28 @@ rejected. Facts about the current code come from reading it on 2026-10-02 (maste
 ## R5. Storage shape
 
 * **Decision**: Three new tables and one optional list (see [data-model.md](./data-model.md)): a
-  stored quiz per result, an append-only revision per save holding the full quiz file, an
-  append-only counting record per count or uncount, and the meet's team names. The stored quiz keeps
-  its current revision number and counted flag so the list needs no aggregation.
+  stored quiz per result, an append-only revision per save holding either the full quiz file or a
+  reference to the earlier revision it restores, an append-only counting record per count or
+  uncount, and the meet's team names. The stored quiz keeps its counted flag; its current revision
+  is the newest revision row, so nothing can fall out of step with the revisions.
 * **Rationale**: FR-005 and FR-013 require every save and every count change kept with who and when.
   Append-only rows make "never discarded" structural. Files are 10 to 50 KB of JSON, one bound
   parameter each, well inside D1's statement limits.
 * **Alternatives considered**: One table with a JSON history array (rewrites grow, no per-version
-  rows to restore from); storing diffs (a diff view is a follow-up, and full copies make restore
-  trivial).
+  rows to restore from); storing diffs (a diff view is a follow-up); copying a file forward to
+  restore it (duplicates content); a selected-revision field on the stored quiz (restoring would
+  then leave no revision behind, needing a second log beside the history, and the current revision
+  would stop being the newest) or a "held back" flag on revisions (the same split between current
+  and newest).
 
 ## R6. Validating quiz files on the server
 
 * **Decision**: The API validates every submitted, edited or uploaded file with the shared parser:
   schema, known format, and not newer than the bundled `FILE_VERSION`. A newer file is refused with
-  the scoresheet's own "saved by a newer version" message.
+  the scoresheet's own "saved by a newer version" message. A file is stored only if it needs no
+  conversion to read: `Value.Parse` converts loosely typed values (a number sent as a string), so
+  storing also checks the parsed file strictly, and the stored file is exactly what the scoresheet
+  reads.
 * **Rationale**: Stored files must be ones the portal can score (Story 3, scenario 3). The API has
   no validator today; the shared parser already does this for the scoresheet.
 
@@ -85,20 +92,27 @@ rejected. Facts about the current code come from reading it on 2026-10-02 (maste
 
 * **Decision**: The API derives both from the caller, never from the request: an admin's save is
   `edited` (or `uploaded`, `merged`, `restored` from those actions), an official's is `submitted`,
-  recorded with the room. Officials may only save quizzes first submitted from their room.
+  recorded with the room.
 * **Rationale**: One owner for the paper trail's "who and how", and the client can't misreport it.
   Admins don't submit new quizzes from the scoresheet; they upload, so `uploaded` always means a
   file from the portal.
 
-## R8. Resubmitting from the same scoresheet
+## R8. Which stored quiz a submission belongs to
 
-* **Decision**: The scoresheet's meet session remembers the stored quiz's id, in a field of its own,
-  after the first submit; later submits update it. Starting a new quiz already clears the meet
-  session, which clears the id with it. An admin opening a stored quiz from the portal loads it into
-  a meet session holding that id, so saving updates the same quiz.
-* **Rationale**: The meet session already exists and is cleared by "New quiz", so the reference goes
-  and comes with it. Its existing `quizId` is a different thing, the scheduled quiz the session was
-  loaded from, which schedule linkage (#16) will stamp onto results, so it keeps that meaning.
+* **Decision**: A quiz not tied to the schedule is identified by its name: division, consolation and
+  quiz number, folded for case and spaces, unique within the meet. Submitting a name the meet
+  already has, from any room, is answered with that quiz's current revision; the scoresheet asks the
+  official whether to skip it, save it as the new current revision, or save it but keep the current
+  revision, and sends it again with that choice. New quiz keeps the meet link and clears only the
+  quiz's teams; Unlink meet still disconnects.
+* **Rationale**: Officials know a quiz by its name ("D1 Q3"), and the name travels with the quiz
+  into every copy of it, so New quiz, Ctrl+N, opening a file, loading from the schedule, retrying a
+  lost response and uploading a backup all land on the right stored quiz with nothing for the
+  scoresheet to remember. An earlier design had the scoresheet remember the stored quiz's id; every
+  way of replacing the sheet then had to forget it, and review found several that didn't, each
+  saving one quiz over another. New quiz used to clear the whole session, which unlinked the meet
+  after every quiz. The session's `quizId` is a different thing, the scheduled quiz it was loaded
+  from, which schedule linkage (#16) will use to identify scheduled quizzes.
 * **Deferred**: Storing that scheduled quiz id on a stored quiz belongs to #16; practice meets have
   no schedule, so this feature stores none.
 
