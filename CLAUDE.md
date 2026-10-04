@@ -150,7 +150,7 @@ Spec Kit gotchas:
 * Scoring functions are **pure** — `cells[teamIdx][seatIdx][colIdx]` in, result out. No Vue. They
   live in `packages/shared/src/scoring/`, so the scoresheet, portal and API score the same way.
 * Column keys depend on the quiz format. 20-question: `"1"`–`"15"`, `"16"`/`"16A"`/`"16B"` through
-  `"20B"`, `"21"`+ for overtime. 15-question: `"1"`–`"10"`, `"11"`/`"11A"`/`"11B"` through `"15B"`,
+  `"20B"`, `"21"`+ for overtime. 15-question: `"1"`–`"11"`, `"12"`/`"12A"`/`"12B"` through `"15B"`,
   `"16"`+ for overtime.
 * Tests live in `__tests__/` subdirectories next to the code they test.
 
@@ -159,8 +159,8 @@ Spec Kit gotchas:
 * `createQuizStore()` is a factory — no singleton. Call it fresh per test.
 * `buildColumns(rules, n)` takes the format's `QuizRules` and an overtime round count; `n=0` means
   no OT columns at all. Scoring functions take `rules` as a required parameter; don't default it.
-* `isErrorPoints` starts at the format's first error-points question (Q17, or Q12 in a 15-question
-  quiz) and covers all OT columns, but **not** the first A/B question (Q16, or Q11).
+* `isErrorPoints` starts at the format's first error-points question (Q17, or Q13 in a 15-question
+  quiz) and covers all OT columns, but **not** the first A/B question (Q16, or Q12).
 * Foul deduction does not stack: 3rd-team-foul + foul-out on the same foul = only −10.
 * Drag reorder uses pointer events only (no HTML5 drag API — crashes on Linux/X11).
 * **Vue 3 template compiler bug:** multi-statement `@click` handlers without semicolons are rejected

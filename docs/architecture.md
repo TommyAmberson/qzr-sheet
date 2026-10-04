@@ -151,7 +151,7 @@ useScoresheet  ──serialize()──▶  fileIO  ──▶  .json / .ods file
 
 `buildColumns(rules, overtimeRounds)` builds the columns for a quiz format. Column keys for a
 20-question quiz: `"1"`–`"15"` (normal), `"16"`/`"16A"`/`"16B"` through `"20B"` (A/B), `"21"`+
-(overtime). For a 15-question quiz: `"1"`–`"10"`, `"11"`/`"11A"`/`"11B"` through `"15B"`, `"16"`+
+(overtime). For a 15-question quiz: `"1"`–`"11"`, `"12"`/`"12A"`/`"12B"` through `"15B"`, `"16"`+
 (overtime). The same key can mean different things in the two formats.
 
 ## Store (`src/stores/quizStore.ts`)

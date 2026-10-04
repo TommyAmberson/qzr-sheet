@@ -24,15 +24,15 @@ Meets also run shorter, 15-question quizzes in two situations:
   tie-breaker quiz.
 
 The rulebook does not define a three-team 15-question quiz. The format this spec adopts for it is
-the 20-question structure with its final stretch moved five questions earlier, and the two-team
-tie-breaker's quiz-out of 3 correct:
+the 20-question structure with its A/B questions and error points moved four questions earlier, and
+the two-team tie-breaker's quiz-out of 3 correct:
 
 | Rule                                 | 20-question quiz | 15-question quiz |
 | ------------------------------------ | ---------------- | ---------------- |
 | Regulation questions                 | 1 to 20          | 1 to 15          |
-| Questions with A/B sub-questions     | 16 to 20         | 11 to 15         |
-| Error points (and 10-point bonuses)  | from 17          | from 12          |
-| Timeouts allowed until error points  | before 17        | before 12        |
+| Questions with A/B sub-questions     | 16 to 20         | 12 to 15         |
+| Error points (and 10-point bonuses)  | from 17          | from 13          |
+| Timeouts allowed until error points  | before 17        | before 13        |
 | Quiz-out, and the quiz-out bonus     | 4 correct        | 3 correct        |
 | First overtime question              | 21               | 16               |
 | Error-out, foul-out                  | 3, 3             | 3, 3             |
@@ -48,18 +48,24 @@ which also needs a two-team scoresheet, is a later feature.
 ### Session 2026-10-01
 
 * Q: In a 15-question quiz, when is the last point a team may call a timeout? → A: No timeouts after
-  error points are announced, so the cutoff follows the start of error points (before question 12 in
+  error points are announced, so the cutoff follows the start of error points (before question 13 in
   a 15-question quiz, before 17 in a 20-question quiz).
 * Q: How many timeouts does each team get in a 15-question quiz? → A: 2 per team, as in a
   20-question quiz. Rules like this one, which the rulebook does not state for this format, get
   their own section in the scoring rules reference.
+
+### Session 2026-10-03
+
+* Q: Where do A/B questions and error points start in a 15-question quiz? → A: A/B from 12 and error
+  points (and 10-point bonuses) from 13, as practice meets run them, not 11 and 12 as first built.
+  The table above, the timeout cutoff and the column keys follow (#113).
 
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Score a three-team 15-question quiz (Priority: P1)
 
 An official at a practice meet starts a new 15-question quiz, enters the three teams, and scores it
-question by question. The sheet shows 15 questions, offers A and B sub-questions on 11 to 15, and
+question by question. The sheet shows 15 questions, offers A and B sub-questions on 12 to 15, and
 computes scores, quiz-outs, error-outs, foul-outs, and the running totals under the 15-question
 rules.
 
@@ -291,8 +297,9 @@ export works as before.
 
 ## Assumptions
 
-* Three-team 15-question rules are the user's stated practice-meet format: the 20-question structure
-  shifted five questions earlier, with quiz-out (and its bonus) at 3 correct.
+* Three-team 15-question rules are the user's stated practice-meet format: the 20-question
+  structure's A/B questions and error points moved four questions earlier, with quiz-out (and its
+  bonus) at 3 correct.
 * Placement points apply the existing formulas unchanged to the end-of-regulation score, even though
   practice-meet stats don't count; a 15-question quiz simply scores lower.
 * The quiz format is chosen per quiz on the scoresheet. Meets and schedules do not yet record a
