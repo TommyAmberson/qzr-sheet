@@ -46,3 +46,4 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
 * [#5 Auto-updater for desktop app](https://github.com/TommyAmberson/qzr-sheet/issues/5)
 * [#52 Mass results importer for backfilling real meets](https://github.com/TommyAmberson/qzr-sheet/issues/52)
   — blocked by API portion of #7
+* [#114 Two-team 15-question tie-breaker quiz](https://github.com/TommyAmberson/qzr-sheet/issues/114)
