@@ -17,6 +17,28 @@ export function foldName(name: string): string {
   return tidyName(name).toLowerCase()
 }
 
+/** One division's team names, which a meet's admin lists for its scoresheets to offer (Story 6) */
+export interface DivisionTeamNames {
+  division: string
+  names: string[]
+}
+
+/** How many single-character insertions, deletions or substitutions turn one string into another */
+export function editDistance(a: string, b: string): number {
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j++) {
+      current[j] =
+        a[i - 1] === b[j - 1]
+          ? previous[j - 1]!
+          : 1 + Math.min(previous[j]!, current[j - 1]!, previous[j - 1]!)
+    }
+    previous = current
+  }
+  return previous[b.length]!
+}
+
 /** A quiz's name, as officials know it: "D1 Q3", or "D1c Q3" in consolation */
 export function quizName(
   quiz: Pick<QuizFile['quiz'], 'division' | 'consolation' | 'quizNumber'>,

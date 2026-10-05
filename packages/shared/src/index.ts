@@ -1,8 +1,8 @@
 export { AccountRole, MeetRole } from './roles'
 export { MEET_PHASES, DIVISION_STATES } from './phases'
 export type { MeetPhase, DivisionStateValue } from './phases'
-export { RESULT_ACTIONS, foldName, quizName } from './results'
-export type { ResultAction } from './results'
+export { RESULT_ACTIONS, editDistance, foldName, quizName, tidyName } from './results'
+export type { DivisionTeamNames, ResultAction } from './results'
 export {
   QuizFileSchema,
   FILE_VERSION,

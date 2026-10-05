@@ -239,15 +239,15 @@ describe('divisionStandings', () => {
   it('warns when teams have played different numbers of counted quizzes (FR-014)', () => {
     const standings = divisionStandings([
       quiz('Q1', [
-        ['A', 1, 20],
-        ['B', 2, 10],
+        ['Airdrie', 1, 20],
+        ['Banff', 2, 10],
       ]),
-      quiz('Q2', [['A', 1, 20]]),
+      quiz('Q2', [['Airdrie', 1, 20]]),
     ])
     expect(standings.warnings).toEqual([{ kind: 'unequalQuizCounts' }])
     expect(standings.teams.map((t) => [t.name, t.quizzes])).toEqual([
-      ['A', 2],
-      ['B', 1],
+      ['Airdrie', 2],
+      ['Banff', 1],
     ])
   })
 
@@ -256,21 +256,52 @@ describe('divisionStandings', () => {
       name: 'Q2',
       outcome: {
         placed: false,
-        teams: [{ name: 'B', score: 50, place: null, placementPoints: null, errors: 0 }],
+        teams: [{ name: 'Banff', score: 50, place: null, placementPoints: null, errors: 0 }],
       },
     }
     const standings = divisionStandings([
       quiz('Q1', [
-        ['A', 1, 20],
-        ['B', 2, 10],
+        ['Airdrie', 1, 20],
+        ['Banff', 2, 10],
       ]),
       unplaced,
     ])
     expect(standings.teams.map((t) => [t.name, t.placementPoints, t.quizzes])).toEqual([
-      ['A', 20, 1],
-      ['B', 10, 1],
+      ['Airdrie', 20, 1],
+      ['Banff', 10, 1],
     ])
     expect(standings.warnings).toEqual([{ kind: 'unplaced', quiz: 'Q2' }])
+  })
+
+  describe('look-alike names (FR-016, R11)', () => {
+    const flaggedPairs = (names: string[]) =>
+      divisionStandings(
+        names.map((name, i) => quiz(`Q${i + 1}`, [[name, 1, 20 - i]])),
+      ).warnings.filter((w) => w.kind === 'lookAlike')
+
+    it('flags a name one typo away from another, the higher ranked first', () => {
+      expect(flaggedPairs(['Calgary 1', 'Calgry 1'])).toEqual([
+        { kind: 'lookAlike', teams: ['Calgary 1', 'Calgry 1'] },
+      ])
+    })
+
+    it('allows two edits between longer names, but one between short ones', () => {
+      expect(flaggedPairs(['Calgary 1', 'Calgray 1'])).toHaveLength(1)
+      expect(flaggedPairs(['Calgary', 'Calgary 1'])).toHaveLength(1)
+      expect(flaggedPairs(['Abc', 'Abx'])).toHaveLength(1)
+      expect(flaggedPairs(['Abc', 'Xyc'])).toHaveLength(0)
+    })
+
+    it("doesn't flag teams with different numbers or letters, as one church's teams have", () => {
+      expect(flaggedPairs(['Calgary 1', 'Calgary 2'])).toEqual([])
+      expect(flaggedPairs(['Calgary 1', 'Calgry 2'])).toEqual([])
+      expect(flaggedPairs(['Regina A', 'Regina B', 'Regina C'])).toEqual([])
+      expect(flaggedPairs(['Regina A', 'Regnia A'])).toHaveLength(1)
+    })
+
+    it("doesn't flag names that only differ in case and spaces, which are one team already", () => {
+      expect(flaggedPairs(['Calgary 1', 'calgary  1'])).toEqual([])
+    })
   })
 
   it('counts names differing only in case and spaces as one team, under its most-used spelling (FR-015)', () => {

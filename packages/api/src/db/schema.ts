@@ -395,3 +395,22 @@ export type PrelimAssignment = typeof prelimAssignments.$inferSelect
 export type SeedResolution = typeof seedResolutions.$inferSelect
 export type QuizResult = typeof quizResults.$inferSelect
 export type QuizResultRevision = typeof quizResultRevisions.$inferSelect
+
+// Optional, per meet and division (Story 6): the team names the meet's scoresheets offer.
+// Independent of churches and the teams table, for meets that have neither.
+export const meetTeamNames = sqliteTable(
+  'meet_team_names',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    division: text('division').notNull(),
+    name: text('name').notNull(),
+    // The name folded for case and spaces, so a division can't list one team twice
+    nameKey: text('name_key').notNull(),
+    // Display order across the meet's list: divisions in the order given, each one's names in turn
+    sortOrder: integer('sort_order').notNull(),
+  },
+  (t) => [unique().on(t.meetId, t.division, t.nameKey)],
+)

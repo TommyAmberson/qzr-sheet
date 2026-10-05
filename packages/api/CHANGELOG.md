@@ -17,6 +17,20 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-04
+
+### Added
+
+* **Team names** - a meet may keep team names per division (migration `0007`, table
+  `meet_team_names`) for its scoresheets to offer. `GET /api/meets/:id/team-names` gives them, in
+  the order given, to anyone who may view the meet; `PUT` replaces them, for admins, as one change.
+  Names are tidied and blank ones dropped; a division listed twice, or a name listed twice in its
+  division ignoring case and spaces, is a 400
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - bumped from 1.4.0
+
 ## [0.17.0] - 2026-10-02
 
 ### Added

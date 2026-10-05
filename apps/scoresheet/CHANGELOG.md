@@ -15,6 +15,29 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-04
+
+### Added
+
+* **Team names from the meet** - when a meet's admin lists team names for a division, the team name
+  field offers them for a quiz in that division, and a typed name is still accepted. They come from
+  the linked meet, or else the meet last submitted to, so a practice meet's sheet needn't be linked,
+  and they stay on the device for when it goes offline
+
+### Changed
+
+* **Submit to meet** is always in the Save menu. When the sheet isn't linked to a meet you may send
+  to, and you may send to other than exactly one meet, it opens the meet picker: the meets you may
+  send to, the last one used marked, and "Have a code?" to join one with your room code. Picking a
+  meet submits there without linking the sheet
+* A sheet linked to a meet with no teams in the quiz's division names its teams by typing, as an
+  unlinked sheet does, rather than offering an empty team picker; a team already picked keeps its
+  picker, so it can still be cleared
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - bumped from 1.4.1
+
 ## [0.16.1] - 2026-10-03
 
 ### Fixed

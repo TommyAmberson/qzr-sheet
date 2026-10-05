@@ -23,6 +23,19 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-04
+
+### Added
+
+* `divisionStandings` warns of look-alike team names (`lookAlike`): two names in the division within
+  one edit of each other once folded for case and spaces, or two edits when both are at least six
+  characters long. Names ending in different numbers or letters, such as "Calgary 1" and "Calgary
+  2", or "Regina A" and "Regina B", are never flagged
+* `editDistance`, the number of single-character edits between two strings, which the standings and
+  the scoresheet's quizzer matching share
+* `tidyName` is exported, so the API stores team names as the standings show them
+* `DivisionTeamNames`, the shape of a meet's team names list on the wire
+
 ## [1.4.1] - 2026-10-03
 
 ### Fixed

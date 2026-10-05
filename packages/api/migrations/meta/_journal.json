@@ -50,6 +50,13 @@
       "when": 1791005592339,
       "tag": "0006_result_times_in_ms",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1791038072005,
+      "tag": "0007_meet_team_names",
+      "breakpoints": true
     }
   ]
 }

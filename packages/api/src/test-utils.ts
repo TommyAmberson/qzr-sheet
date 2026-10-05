@@ -61,7 +61,7 @@ export const testBindings = {
 } as unknown as Bindings
 
 /** Build a JSON-bodied request init for use with `app.request(...)`. */
-export function jsonRequest(method: string, body: Record<string, unknown>) {
+export function jsonRequest(method: string, body: unknown) {
   return {
     method,
     headers: { 'Content-Type': 'application/json' },

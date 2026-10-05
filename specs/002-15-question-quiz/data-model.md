@@ -29,8 +29,8 @@ loading teams from a meet or schedule keep it. Nothing else writes it.
 | Field                      | 20-question | 15-question | Used by                                       |
 | -------------------------- | ----------- | ----------- | --------------------------------------------- |
 | `regulationQuestions`      | 20          | 15          | `buildColumns`, overtime, completeness checks |
-| `firstAbQuestion`          | 16          | 11          | `buildColumns` (`isAB`)                       |
-| `firstErrorPointsQuestion` | 17          | 12          | `buildColumns` (`isErrorPoints`), timeouts    |
+| `firstAbQuestion`          | 16          | 12          | `buildColumns` (`isAB`)                       |
+| `firstErrorPointsQuestion` | 17          | 13          | `buildColumns` (`isErrorPoints`), timeouts    |
 | `quizOutCorrect`           | 4           | 3           | `scoreTeam`, `validateCells`                  |
 | `overtimeRoundSize`        | 3           | 3           | overtime, column visibility, round styling    |
 
@@ -45,7 +45,7 @@ Invariants (unit-tested): `firstAbQuestion < firstErrorPointsQuestion <= regulat
 | Format      | Plain   | With A/B          | Overtime (rounds of 3, with A/B) |
 | ----------- | ------- | ----------------- | -------------------------------- |
 | 20-question | 1 to 15 | 16/16A/16B to 20B | 21, 21A, 21B, ...                |
-| 15-question | 1 to 10 | 11/11A/11B to 15B | 16, 16A, 16B, ...                |
+| 15-question | 1 to 11 | 12/12A/12B to 15B | 16, 16A, 16B, ...                |
 
 The same key can mean different things in the two formats (`16A` is regulation in one, overtime in
 the other), so a file's answers are always interpreted under the format the file records.

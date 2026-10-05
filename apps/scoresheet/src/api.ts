@@ -1,4 +1,4 @@
-import { createApiClient, type QuizFile } from '@qzr/shared'
+import { createApiClient, type DivisionTeamNames, type QuizFile } from '@qzr/shared'
 import { withGuestToken, type OnExisting, type Sender, type Stored } from '@qzr/ui'
 
 declare const __API_URL__: string
@@ -59,6 +59,10 @@ export function getRevision(
   revision: number,
 ): Promise<{ quizFile: QuizFile }> {
   return request(`/api/meets/${meetId}/results/${resultId}/revisions/${revision}`)
+}
+
+export function getTeamNames(meetId: number): Promise<DivisionTeamNames[]> {
+  return request(`/api/meets/${meetId}/team-names`)
 }
 
 /** A meet's name, for linking the sheet to it */

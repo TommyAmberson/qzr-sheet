@@ -1,4 +1,4 @@
-import { foldName, tidyName } from '../results'
+import { editDistance, foldName, tidyName } from '../results'
 import type { QuizOutcome, TeamOutcome } from './quizOutcome'
 
 /** A counted quiz of the division, as the standings take it */
@@ -29,6 +29,8 @@ export type StandingsWarning =
   | { kind: 'unplaced'; quiz: string }
   /** Teams tied across the finalist cutoff, which the admin settles away from the app */
   | { kind: 'finalTie'; teams: string[] }
+  /** Two names that look like one team misspelt (R11), the higher ranked first */
+  | { kind: 'lookAlike'; teams: [string, string] }
 
 export interface DivisionStandings {
   teams: TeamStanding[]
@@ -111,7 +113,29 @@ export function divisionStandings(quizzes: CountedQuiz[]): DivisionStandings {
   }
 
   if (new Set(teams.map((t) => t.quizzes)).size > 1) warnings.push({ kind: 'unequalQuizCounts' })
+  teams.forEach((team, i) => {
+    for (const other of teams.slice(i + 1)) {
+      if (looksAlike(team.name, other.name)) {
+        warnings.push({ kind: 'lookAlike', teams: [team.name, other.name] })
+      }
+    }
+  })
   return { teams, warnings }
+}
+
+/** A name's last word when it tells one church's teams apart: a number or a letter ("Calgary 2", "Regina B") */
+const TEAM_MARK = /(?:^|\s)(\d+|[a-z])$/
+
+/**
+ * Whether two teams' names look like one team misspelt (R11): within one edit of each other once
+ * folded, or two when both are at least six characters long. Names ending in different numbers or
+ * letters are different teams, as one church's "Calgary 1" and "Calgary 2" are.
+ */
+function looksAlike(name: string, other: string): boolean {
+  const [a, b] = [foldName(name), foldName(other)]
+  const [markA, markB] = [TEAM_MARK.exec(a)?.[1], TEAM_MARK.exec(b)?.[1]]
+  if (markA !== undefined && markB !== undefined && markA !== markB) return false
+  return editDistance(a, b) <= (Math.min(a.length, b.length) >= 6 ? 2 : 1)
 }
 
 function tallyOf(tallies: Map<string, Tally>, name: string): Tally {

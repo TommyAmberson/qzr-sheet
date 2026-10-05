@@ -7,7 +7,7 @@ import {
   type ScheduledQuizDetails,
   type ScheduledQuizSeat,
 } from '../api'
-import { QUIZZERS_PER_TEAM } from '@qzr/shared'
+import { QUIZZERS_PER_TEAM, editDistance } from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 import { senderOf } from './useSubmitToMeet'
 
@@ -88,7 +88,6 @@ export function useMeetSession() {
     persist()
   }
 
-  const canSubmit = computed(() => !!session.value?.sender)
   /** Who the user is when sending to the meet, and the rooms they may send for */
   const sender = computed(() => session.value?.sender ?? null)
 
@@ -256,7 +255,6 @@ export function useMeetSession() {
   return {
     isActive,
     meetId,
-    canSubmit,
     sender,
     meetName,
     teamList,
@@ -321,9 +319,9 @@ function matchQuizzers(
     if (!storeNames[i]?.trim()) continue
     if (pool.length === 0) break
     let best = 0
-    let bestDist = levenshtein(storeNames[i]!.toLowerCase(), pool[0]!.name.toLowerCase())
+    let bestDist = editDistance(storeNames[i]!.toLowerCase(), pool[0]!.name.toLowerCase())
     for (let k = 1; k < pool.length; k++) {
-      const d = levenshtein(storeNames[i]!.toLowerCase(), pool[k]!.name.toLowerCase())
+      const d = editDistance(storeNames[i]!.toLowerCase(), pool[k]!.name.toLowerCase())
       if (d < bestDist) {
         bestDist = d
         best = k
@@ -353,21 +351,6 @@ function matchQuizzers(
   }
 
   return result as { quizzerId: number; dbName: string }[]
-}
-
-function levenshtein(a: string, b: string): number {
-  const m = a.length
-  const n = b.length
-  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
-    Array.from({ length: n + 1 }, (_, j) => i || j),
-  )
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
-      dp[i]![j] =
-        a[i - 1] === b[j - 1]
-          ? dp[i - 1]![j - 1]!
-          : 1 + Math.min(dp[i - 1]![j]!, dp[i]![j - 1]!, dp[i - 1]![j - 1]!)
-  return dp[m]![n]!
 }
 
 function persist() {

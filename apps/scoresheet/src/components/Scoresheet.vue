@@ -39,6 +39,7 @@ import { ChoiceDialog, askAlreadySubmitted, chooseRoom, guestStateRef, type Send
 import { useAuth } from '../composables/useAuth'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { senderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
+import { useTeamNames } from '../composables/useTeamNames'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
 import MeetPickerDialog from './MeetPickerDialog.vue'
@@ -818,8 +819,6 @@ function fileStem(): string {
 
 const submitter = useSubmitToMeet()
 const { session: authSession } = useAuth()
-/** Submit is offered when the user may send to the linked meet, or to any meet of theirs */
-const canSubmit = computed(() => meetSession.canSubmit.value || submitter.targets.value.length > 0)
 // Signing in or out, or joining with a code, changes the meets the user may submit to
 watch(
   [() => authSession.value.data?.user.id, guestStateRef],
@@ -827,10 +826,33 @@ watch(
   { immediate: true },
 )
 
+const { refreshTeamNames, teamNamesFor } = useTeamNames()
+/** Whether the linked meet's roster has teams for the quiz's division, to pick from */
+const rosterHasTeams = computed(() => filteredTeamList.value.length > 0)
+/**
+ * A team is picked from the roster when it has teams for the division, or when the team is already
+ * picked, so a pick made in another division can still be seen and cleared; otherwise it's typed
+ */
+function picksTeam(teamIdx: number): boolean {
+  return rosterHasTeams.value || !!meetSession.getSlot(teamIdx)
+}
+/**
+ * The meet whose team names a typed name is offered: the linked one, else the one last submitted
+ * to. Not fetched while teams are picked from the roster instead.
+ */
+watch(
+  [() => meetSession.meetId.value ?? submitter.lastMeetId.value, rosterHasTeams],
+  ([meetId, fromRoster]) => {
+    if (!fromRoster) void refreshTeamNames(meetId)
+  },
+  { immediate: true },
+)
+const offeredTeamNames = computed(() => teamNamesFor(quiz.value.division ?? ''))
+
 /**
  * The meet to submit to, and who the user is there: the linked meet when they may send to it, else
- * one of their meets, asked when there's a choice, leaving the sheet unlinked. Undefined when the
- * user cancels or may not send to the meet.
+ * the one meet they may send to, or the one chosen in the meet picker, where a code can be joined.
+ * The sheet stays unlinked. Undefined when the user cancels or may not send to the meet.
  */
 async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender } | undefined> {
   const linked = meetSession.sender.value
@@ -838,22 +860,14 @@ async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender 
   if (linked && linkedId !== null) {
     return { id: linkedId, name: meetSession.meetName.value ?? 'the meet', sender: linked }
   }
-  const meets = submitter.targets.value
-  if (meets.length === 0) return undefined
-  const last = submitter.lastMeetId()
-  const id =
-    meets.length === 1
-      ? meets[0]!.meetId
-      : await choiceDialog.value?.ask('Submit to which meet?', 'The sheet stays as it is.', [
-          { label: 'Cancel', value: null },
-          ...meets.map((meet) => ({
-            label: meet.meetName,
-            value: meet.meetId,
-            primary: meet.meetId === last,
-          })),
-        ])
-  const name = meets.find((meet) => meet.meetId === id)?.meetName
-  if (id == null || name === undefined) return undefined
+  // One meet the user may send to takes it; otherwise the meet picker asks, offering a code join
+  const [only, ...others] = submitter.targets.value
+  const meet =
+    only && others.length === 0
+      ? only
+      : await meetPickerRef.value?.chooseForSubmit(submitter.lastMeetId.value)
+  if (!meet) return undefined
+  const { meetId: id, meetName: name } = meet
   const sender = await senderOf(id)
   if (!sender) {
     alert(
@@ -1138,7 +1152,7 @@ const appVersion: string = __APP_VERSION__
                   <button title="Save / Export (Ctrl+S)" @click="toggleSaveMenu">⤓ Save ▾</button>
                   <div v-if="saveMenuOpen" class="file-menu__dropdown">
                     <button @click="doSaveFile">⤓ Save as JSON</button>
-                    <button v-if="canSubmit" @click="doSubmitToMeet">⇪ Submit to meet</button>
+                    <button @click="doSubmitToMeet">⇪ Submit to meet</button>
                     <button
                       :disabled="!canExportOds"
                       :title="canExportOds ? undefined : ODS_TWENTY_ONLY"
@@ -1271,7 +1285,7 @@ const appVersion: string = __APP_VERSION__
                 <td class="col--name sticky-col team-name" colspan="2">
                   <div class="name-cell-inner">
                     <span class="name-main">
-                      <template v-if="meetSession.isActive.value">
+                      <template v-if="picksTeam(teamIdx)">
                         <button
                           class="team-picker-trigger"
                           :class="{ 'is-open': openPickerSlot === teamIdx }"
@@ -1318,6 +1332,7 @@ const appVersion: string = __APP_VERSION__
                           <input
                             class="editable-name editable-name--team"
                             :data-tutorial="`team-name-${teamIdx}`"
+                            list="team-name-options"
                             :value="team.name"
                             @input="setTeamName(teamIdx, ($event.target as HTMLInputElement).value)"
                             @focus="($event.target as HTMLInputElement).select()"
@@ -1775,6 +1790,9 @@ const appVersion: string = __APP_VERSION__
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
         <ChoiceDialog ref="choiceDialog" />
+        <datalist id="team-name-options">
+          <option v-for="name in offeredTeamNames" :key="name" :value="name" />
+        </datalist>
         <SchedulePickerDialog ref="schedulePickerRef" :on-pick="loadScheduledQuiz" />
         <div
           v-if="selector"

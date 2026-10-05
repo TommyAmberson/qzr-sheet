@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ApiError,
@@ -11,20 +11,24 @@ import {
 import { ChoiceDialog, formatSlotTime, uploadPicked, type FileReport, type Sender } from '@qzr/ui'
 
 import {
+  editResult,
   getMeet,
   getSender,
   listResults,
   setResultsCounted,
   uploadResult,
   type MeetDetail,
+  type StoredQuiz,
 } from '../api'
-import { countedQuizzes, groupResults, type DivisionResults, type ResultRow } from '../results'
+import { countedQuizzes, groupResults, mergeEdits, type ResultRow } from '../results'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
 
 const meet = ref<MeetDetail['meet'] | null>(null)
-const divisions = ref<DivisionResults[]>([])
+/** The meet's stored quizzes as listed: replaced whole, never changed in place */
+const stored = shallowRef<StoredQuiz[]>([])
+const divisions = computed(() => groupResults(stored.value))
 const loading = ref(true)
 const error = ref('')
 const saving = ref(false)
@@ -37,6 +41,8 @@ const uploadInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 const uploadReports = ref<FileReport[]>([])
 const uploadError = ref('')
+const merging = ref(false)
+const mergeError = ref('')
 
 /** Each division that has counted quizzes, with its standings */
 const standings = computed(() =>
@@ -55,7 +61,7 @@ async function load() {
     meet.value = detail
     const [quizzes, who] = await Promise.all([listResults(detail.id), senderOf(detail.id)])
     sender.value = who
-    divisions.value = groupResults(quizzes)
+    stored.value = quizzes
   } catch (e) {
     error.value =
       e instanceof ApiError && e.status === 401
@@ -94,7 +100,7 @@ async function onUploadFiles(event: Event) {
     )
     if (!reports) return
     uploadReports.value = reports
-    divisions.value = groupResults(await listResults(meetId))
+    stored.value = await listResults(meetId)
   } catch (e) {
     uploadError.value = (e as Error).message
   } finally {
@@ -108,21 +114,59 @@ async function onUploadFiles(event: Event) {
  */
 async function setCounted(quizzes: ResultRow[], counted: boolean) {
   if (!meet.value || quizzes.length === 0) return
-  const before = quizzes.map((quiz) => quiz.counted)
-  for (const quiz of quizzes) quiz.counted = counted
+  const before = stored.value
+  const ids = new Set(quizzes.map((quiz) => quiz.id))
+  stored.value = before.map((quiz) => (ids.has(quiz.id) ? { ...quiz, counted } : quiz))
   saving.value = true
   countError.value = ''
   try {
-    await setResultsCounted(
-      meet.value.id,
-      quizzes.map((quiz) => quiz.id),
-      counted,
-    )
+    await setResultsCounted(meet.value.id, [...ids], counted)
   } catch (e) {
-    quizzes.forEach((quiz, i) => (quiz.counted = before[i]!))
+    stored.value = before
     countError.value = (e as Error).message
   } finally {
     saving.value = false
+  }
+}
+
+/**
+ * Merge two look-alike team names in a division, keeping the one the admin picks: each quiz of the
+ * division using the other is saved with the kept name as a `merged` revision, one at a time (R10).
+ * A failure part-way leaves the rest unmerged and still flagged, so merging again finishes it.
+ */
+async function mergeNames(division: string, names: [string, string], teams: TeamStanding[]) {
+  if (!meet.value) return
+  const meetId = meet.value.id
+  const quizzesOf = (name: string) => teams.find((team) => team.name === name)?.quizzes ?? 0
+  const [first, second] = names
+  const into = await choiceDialog.value?.ask(
+    `Merge ${first} and ${second}?`,
+    `Every quiz in division ${division} using one name is saved with the other, as a new revision.`,
+    [
+      { label: 'Cancel', value: null },
+      { label: `Keep ${first}`, value: first, primary: quizzesOf(first) >= quizzesOf(second) },
+      { label: `Keep ${second}`, value: second, primary: quizzesOf(second) > quizzesOf(first) },
+    ],
+  )
+  if (!into) return
+  const edits = mergeEdits(stored.value, division, into === first ? second : first, into)
+  merging.value = true
+  mergeError.value = ''
+  let done = 0
+  try {
+    for (const { id, quizFile } of edits) {
+      await editResult(meetId, id, quizFile, 'merged')
+      done += 1
+    }
+  } catch (e) {
+    mergeError.value = `Merged ${done} of ${edits.length} quizzes: ${(e as Error).message} Merge again to finish.`
+  } finally {
+    try {
+      stored.value = await listResults(meetId)
+    } catch (e) {
+      mergeError.value ||= (e as Error).message
+    }
+    merging.value = false
   }
 }
 
@@ -142,6 +186,8 @@ function warningText(warning: StandingsWarning, teams: TeamStanding[]): string {
       return `${warning.quiz} can't be placed (questions unanswered or validation errors), so it adds nothing.`
     case 'finalTie':
       return `${warning.teams.join(', ')} are tied for the last places in the final. Settle it away from the app.`
+    case 'lookAlike':
+      return `${warning.teams[0]} and ${warning.teams[1]} look like one team spelt two ways.`
   }
 }
 
@@ -200,6 +246,7 @@ onMounted(load)
 
       <template v-else-if="isAdmin">
         <h3 class="section-title">Standings</h3>
+        <p v-if="mergeError" class="state-msg state-msg--error">{{ mergeError }}</p>
         <p v-if="standings.length === 0" class="state-msg">
           Count quizzes below, normally the prelims, to see each division's standings.
         </p>
@@ -233,6 +280,14 @@ onMounted(load)
           <ul v-if="division.warnings.length > 0" class="warnings">
             <li v-for="(warning, i) in division.warnings" :key="i">
               {{ warningText(warning, division.teams) }}
+              <button
+                v-if="warning.kind === 'lookAlike'"
+                class="btn btn--secondary btn--sm"
+                :disabled="merging"
+                @click="mergeNames(division.division, warning.teams, division.teams)"
+              >
+                Merge
+              </button>
             </li>
           </ul>
         </section>
@@ -535,6 +590,10 @@ onMounted(load)
   padding-left: 1.25rem;
   font-size: 0.8rem;
   color: var(--palette-error);
+}
+
+.warnings button {
+  margin-left: 0.5rem;
 }
 
 .note {

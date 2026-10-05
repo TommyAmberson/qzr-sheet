@@ -81,12 +81,12 @@ its record agree even if a large change is cut short.
 
 Optional, per meet and division (Story 6). Independent of churches and the `teams` table.
 
-| Field      | Meaning                          |
-| ---------- | -------------------------------- |
-| meet       | the meet; deleted with it        |
-| division   | division text, as quizzes use it |
-| name       | the team name                    |
-| sort order | display order in the division    |
+| Field      | Meaning                              |
+| ---------- | ------------------------------------ |
+| meet       | the meet; deleted with it            |
+| division   | division text, as quizzes use it     |
+| name       | the team name                        |
+| sort order | display order across the meet's list |
 
 Unique on meet, division and folded name.
 

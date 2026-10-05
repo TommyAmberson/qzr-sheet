@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, PlacementFormula, type QuizFile } from '@qzr/shared'
 import type { StoredQuiz } from '../api'
-import { countedQuizzes, editQuizFile, groupResults } from '../results'
+import { countedQuizzes, editQuizFile, groupResults, mergeEdits } from '../results'
 
 function stored(
   id: number,
@@ -126,5 +126,32 @@ describe('editQuizFile', () => {
     expect(edited.teams.map((t) => t.name)).toEqual(['Calgary 2', 'Regina 1'])
     expect(edited.teams[1]!.quizzers.map((q) => q.name)).toEqual(['Bea'])
     expect(edited.answers).toEqual(quizFile.answers)
+  })
+})
+
+describe('mergeEdits', () => {
+  /** A stored quiz with its first team renamed */
+  function named(id: number, division: string, name: string): StoredQuiz {
+    const quiz = stored(id, division, String(id))
+    const teams = quiz.quizFile.teams.map((team, i) => (i === 0 ? { ...team, name } : team))
+    return { ...quiz, quizFile: { ...quiz.quizFile, teams } }
+  }
+
+  it("renames the merged name in each of the division's quizzes using it, however it is cased", () => {
+    const quizzes = [
+      named(1, '1', 'Calgry 1'),
+      named(2, '1', ' calgry  1'),
+      named(3, '1', 'Calgary 1'),
+    ]
+    const edits = mergeEdits(quizzes, '1', 'Calgry 1', 'Calgary 1')
+    expect(edits.map((edit) => edit.id)).toEqual([1, 2])
+    for (const { quizFile } of edits) {
+      expect(quizFile.teams.map((t) => t.name)).toEqual(['Calgary 1', 'Regina 1'])
+      expect(quizFile.quiz).toMatchObject({ division: '1' })
+    }
+  })
+
+  it("leaves other divisions' quizzes alone", () => {
+    expect(mergeEdits([named(1, '2', 'Calgry 1')], '1', 'Calgry 1', 'Calgary 1')).toEqual([])
   })
 })
