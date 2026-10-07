@@ -115,64 +115,78 @@ the finished session cookie — OAuth client secrets never leave the server.
 
 ### Join codes
 
-* **Admin and coach codes** are secrets. Stored hashed (SHA-256) so a database leak does not expose
-  valid codes. Codes are 16 random characters — brute force is impractical.
-* **Official codes** are also hashed.
-* **Viewer codes** are semi-public plain slugs (meant to be shared verbally).
+What each code grants, and who may redeem it, is defined in
+[roles-and-access.md](./roles-and-access.md#codes). How they are kept:
+
+* **Admin, coach, and room codes** are secrets: 16 random characters, stored hashed (SHA-256) so a
+  database leak does not expose valid codes. Brute force is impractical. Each is shown to the admin
+  once, when created or rotated.
+* **Viewer codes** are public slugs the admin chooses: letters, digits, and hyphens, never all
+  digits, stored as is and unique across meets. The API takes a value of digits only as a meet id
+  and anything else as a viewer code, so the two can't be confused.
 * **Rate-limit** the join endpoint. Cloudflare's built-in rate limiting can be applied per-route to
   prevent brute-forcing even short codes.
-* **Rotation** invalidates the old code and all previously shared join links immediately. Optionally
-  also clears existing memberships — see [roles-and-access.md](./roles-and-access.md).
+* **Rotation** invalidates the old code immediately. Optionally it also clears memberships; see
+  [roles-and-access.md § Code Rotation](./roles-and-access.md#code-rotation).
 
-### Guest JWTs (officials and viewers without accounts)
+### Credential lifecycle
 
-Short-lived signed JWTs issued server-side by `POST /api/join/guest`. Scoped to a single meet,
-expire after 24 hours or when the meet ends. No refresh endpoint — re-enter the code (or revisit the
-URL) to get a new token. Stored in `localStorage`.
+| Credential  | Issued                                     | Renewed                  | Revoked                                                                      | Ends                            |
+| ----------- | ------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------- | ------------------------------- |
+| Session     | signing in                                 | by Better Auth           | n/a                                                                          | signing out, Better Auth expiry |
+| Admin code  | creating the meet                          | n/a                      | rotation                                                                     | deleting the meet               |
+| Coach code  | creating the church                        | n/a                      | rotation                                                                     | deleting the church             |
+| Room code   | creating the room                          | n/a                      | rotation                                                                     | deleting the room               |
+| Viewer code | creating the meet; the admin may change it | n/a                      | changing it                                                                  | deleting the meet               |
+| Membership  | redeeming a code while signed in           | n/a (it lasts)           | removed by an admin; rotate-and-clear                                        | deleting its church, room, meet |
+| Guest token | redeeming a viewer or room code            | redeeming the code again | official: loses its room once the room's code is rotated or the room deleted | 24 hours after issue            |
 
-**Wire format:** the client attaches the token as `Authorization: Bearer <jwt>` to outgoing API
-calls. `sessionMiddleware` checks the Better Auth cookie session first; if present, the cookie wins
-and the Bearer header is ignored, so signed-in users never produce ambiguity.
+A viewer code keeps working after the meet is `done`, so viewers can come back for results and
+stats; tokens do not end with the meet.
 
-**Claims:** `meetId`, `role` (official or viewer), and for an official the room's name as `label`
-and its id as `roomId`, which results are recorded against, and `codeTag`, an HMAC of the room's
+### Guest tokens (officials and viewers without accounts)
+
+Short-lived signed JWTs issued by `POST /api/join/guest` for a viewer or room code. Each is scoped
+to one meet and one role, and lasts 24 hours. There is no refresh endpoint: the holder redeems the
+code again. The scoresheet keeps them in `localStorage`.
+
+**Format:** HS256, issuer `qzr-guest`, audience `qzr-api`, signed with the server secret
+(`packages/api/src/lib/jwt.ts`). Claims: `meetId`, `role` (`viewer` or `official`), and for an
+official the room's name as `label`, its id as `roomId`, and `codeTag`, an HMAC of the room's
 current code hash under the server secret. Rotating the room's code or deleting the room makes the
-tag stop matching, revoking the token at once. An official token from before `roomId` existed can't
-submit; its holder rejoins with the room code.
+tag stop matching, revoking the token. An official token from before `roomId` existed can't submit;
+its holder redeems the room code again.
 
-**Server-side gate:** the per-route helper `isViewerOf(c, db, meetId)` admits superusers, members of
-the meet (any role), and guests whose JWT `meetId` matches.
-`isOfficialOfRoom(c, db, meetId, roomId)` admits a guest whose official token names that room, or a
-signed-in official of it. Mutation routes still require a real signed-in user via `requireAuth()`,
-except the results routes, where officials submit with their guest token; reads use the lighter
-`requireAuthOrGuest()`. `officialRoomsOf(c, db, meetId)` lists the rooms the caller officiates
-there: a guest official's room while their code is current, or a signed-in account's rooms.
+**Wire format:** the client attaches the token as `Authorization: Bearer <jwt>`. `sessionMiddleware`
+checks the Better Auth session first; if one is present the account is the principal and the bearer
+token is ignored.
 
-**URL-shareable viewer access (scoresheet):** the scoresheet auto-joins as a guest viewer when
-opened with `?meet=<viewerCode>`:
+**Checks:** `isViewerOf(c, db, meetId)` admits superusers, members of the meet (any role), and
+guests whose token is for that meet. `isOfficialOfRoom(c, db, meetId, roomId)` admits a guest whose
+official token names that room and still matches its code, or a signed-in official of it.
+`officialRoomsOf(c, db, meetId)` lists the rooms the caller officiates there: a guest official's
+room while its code is current, or a signed-in account's rooms. Writes require an account
+(`requireAuth()`), except submitting results, where officials use their guest token; reads use
+`requireAuthOrGuest()`. Every check also applies the meet's phase
+([roles-and-access.md § Access by phase](./roles-and-access.md#access-by-phase)).
+
+**In both apps:** the guest session module lives in `packages/ui`, and each app passes it its own
+join call. The scoresheet and the portal share an origin, so they share the stored sessions: a code
+joined in either works in both. There is one guest session per meet, and each request carries the
+token of the meet its path names (`guestTokenFor`). In the portal, "join with a code" keeps the
+session, an official is taken to the meet's results, and the router admits a guest session to the
+results pages only; other meet pages still need an account.
+
+**URL-shareable viewer access (scoresheet):** opening the scoresheet with `?meet=<viewer code>`
+joins as a guest viewer:
 
 ```
 https://www.versevault.ca/qzr/scoresheet/?meet=fall-2025
 ```
 
-`useGuestSession` parses the slug, posts to `/qzr/api/join/guest`, stashes the JWT, and the meet's
-roster becomes selectable in "Load teams from meet" without sign-in. The token is reused across
-reloads as long as its decoded `exp` claim has more than 5 min remaining; otherwise a fresh
-`/api/join/guest` call refreshes it.
-
-**Guest sessions in both apps:** the guest session module lives in `packages/ui`, and each app
-passes it its own join call. Scoresheet and portal share an origin, so they share the stored
-sessions: a code joined in either works in both. Each request carries the token of the meet its path
-names (`guestTokenFor`). In the portal, "join with a code" keeps the session, an official is taken
-to the meet's results, and the router admits a guest session to that page only; other meet pages
-still need an account.
-
-**Roadmap:** today only `?meet=<viewerCode>` is wired (viewer role only). The same pattern can be
-extended to `?official=<code>` for room-scoped officials and any other code-bearing roles — the
-server-side guest JWT issuance already handles official codes and `isOfficialOfRoom` checks them;
-only the client URL handler is missing. Putting official codes in URLs leaks them into browser
-history / referrers / logs, so admins should treat shared official URLs as one-shot and rotate the
-code afterward.
+The scoresheet redeems the code at `/qzr/api/join/guest` and keeps the session. The meet's teams
+become selectable in "Load teams from meet" without signing in. Room codes are never put in links: a
+link ends up in browser history, logs, and screenshots.
 
 ### Password hashing
 

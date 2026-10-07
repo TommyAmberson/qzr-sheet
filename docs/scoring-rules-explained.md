@@ -27,8 +27,8 @@ In code these are the `CellValue` enum in `packages/shared/src/quizFile.ts`.
 
 Each quiz has a `QuizFormat` (`packages/shared/src/quizFile.ts`), chosen when it starts from the New
 menu and fixed for the life of the quiz. The rest of this document describes the default 20-question
-quiz; the 15-question quiz moves its A/B questions and error points four questions earlier
-(practice-meet convention):
+quiz; the 15-question quiz puts its A/B questions on 12 to 15 and starts error points at 13, as the
+rulebook's two-team tie-breaker does:
 
 | Rule                                | 20-question quiz | 15-question quiz |
 | ----------------------------------- | ---------------- | ---------------- |
@@ -219,20 +219,20 @@ The rulebook's only 15-question quiz is the two-team tie-breaker ("Types of Quiz
 meets also run short three-team quizzes, which the rulebook does not cover. The scoresheet's
 15-question format is that three-team quiz; the two-team tie-breaker is not supported yet.
 
-| Rule                                          | Based on                                                                                        |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Three teams                                   | Practice-meet convention                                                                        |
-| 15 regulation questions                       | The tie-breaker's length (§2.b)                                                                 |
-| A/B sub-questions on 12 to 15                 | Practice-meet convention; the 20-question quiz's 16 to 20 (§1.h–i) moved four questions earlier |
-| Error points and 10-point bonuses from 13     | Practice-meet convention; the 20-question quiz's from 17 (§1.j–k) moved four questions earlier  |
-| Free first errors and 20-point bonuses to 12  | Follows from error points beginning at 13                                                       |
-| No timeouts once error points begin (from 13) | "No timeout can be called after question 17 is introduced" (§8.a), moved                        |
-| Quiz-out, and its bonus, at 3 correct         | The tie-breaker's three correct answers (§2.b.vi)                                               |
-| Overtime from 16, in rounds of 3              | The 20-question quiz's overtime units of three (§1.d), after question 15                        |
-| Error-out and foul-out at 3                   | Unchanged; the same in every rulebook quiz                                                      |
-| 2 timeouts per team                           | Unchanged from §8.a; practice-meet convention                                                   |
-| Unique-quizzer and on-time bonuses            | Unchanged; practice-meet convention                                                             |
-| Placement points from the end-of-Q15 score    | The existing formulas, unchanged (§1.e.4 uses the end of regulation); practice-meet convention  |
+| Rule                                          | Based on                                                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Three teams                                   | Practice-meet convention                                                                                           |
+| 15 regulation questions                       | The tie-breaker's length (§2.b)                                                                                    |
+| A/B sub-questions on 12 to 15                 | The tie-breaker: an erred 12 to 15 keeps its bonus on the same number (§2.b.ii), up to 12B at 20 points (§2.b.iii) |
+| Error points and 10-point bonuses from 13     | The tie-breaker: "Error points begin at question 13" (§2.b.v), bonuses from 13 worth 10 (§2.b.iv)                  |
+| Free first errors and 20-point bonuses to 12  | Follows from error points beginning at 13                                                                          |
+| No timeouts once error points begin (from 13) | "No timeout can be called after question 17 is introduced" (§8.a), moved                                           |
+| Quiz-out, and its bonus, at 3 correct         | The tie-breaker's three correct answers (§2.b.vi)                                                                  |
+| Overtime from 16, in rounds of 3              | The 20-question quiz's overtime units of three (§1.d), after question 15                                           |
+| Error-out and foul-out at 3                   | Unchanged; the same in every rulebook quiz                                                                         |
+| 2 timeouts per team                           | Unchanged from §8.a; practice-meet convention                                                                      |
+| Unique-quizzer and on-time bonuses            | Unchanged; practice-meet convention                                                                                |
+| Placement points from the end-of-Q15 score    | The existing formulas, unchanged (§1.e.4 uses the end of regulation); practice-meet convention                     |
 
 ### Practice meet standings
 
