@@ -249,7 +249,9 @@ join.post('/guest', async (c) => {
         token,
         meet: { id: meet.id, name: meet.name },
         role: MeetRole.Official,
+        // `label` stays for released apps; `room` lets the apps keep and show the official's room
         label: officialMatch.label,
+        room: { id: officialMatch.codeId, name: officialMatch.label },
       })
     }
   }
