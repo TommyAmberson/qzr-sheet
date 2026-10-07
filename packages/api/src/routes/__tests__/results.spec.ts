@@ -136,6 +136,22 @@ describe('POST /api/meets/:id/results', () => {
     expect(stored!.quizFile.teams[0]!.name).toBe('Calgary 1')
   })
 
+  it("takes a guest official's room from their token when the send names none, as released apps do", async () => {
+    expect((await submit(official(room1))).status).toBe(201)
+    expect((await list())[0]!.origin).toEqual({ action: 'submitted', name: 'Room 1' })
+  })
+
+  it('accepts a guest official naming their own room', async () => {
+    expect((await submit(official(room1), { roomId: room1 })).status).toBe(201)
+  })
+
+  it('refuses a guest official naming another room', async () => {
+    const res = await submit(official(room1), { roomId: room2 })
+    expect(res.status).toBe(403)
+    expect(await jsonOf(res)).toEqual({ error: 'Not an official of this room' })
+    expect(await list()).toHaveLength(0)
+  })
+
   it("stores an admin's upload with no room as uploaded", async () => {
     const res = await asAdmin({ upload: true })
     expect(res.status).toBe(201)

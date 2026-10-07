@@ -74,16 +74,6 @@ async function isAdmin(c: Context<Env>, meetId: number): Promise<boolean> {
   return !!user && (await isAdminOrSuperuser(c.get('db'), user.id, user.role, meetId))
 }
 
-/** The response refusing someone who isn't an official of the room they send for, if they aren't */
-async function officialRefusal(
-  c: Context<Env>,
-  meetId: number,
-  roomId: number | null,
-): Promise<Response | null> {
-  if (roomId !== null && (await isOfficialOfRoom(c, c.get('db'), meetId, roomId))) return null
-  return c.json({ error: 'Not an official of this room' }, 403)
-}
-
 /**
  * A save for a room of the meet, by a signed-in account ("Pat, Room 2") or the room's guest
  * official ("Room 2"); undefined when the meet has no such room
@@ -363,15 +353,16 @@ results.post('/:id/results', async (c) => {
     upload?: unknown
   }>(c)
   if (!body) return c.json({ error: 'Body must be JSON' }, 400)
-  const guest = c.get('guest')
   const user = c.get('user')
+  // A guest whose send names no room (as released apps send it) sends for their token's room
   const roomId =
-    (guest ? guest.roomId : typeof body.roomId === 'number' ? body.roomId : null) ?? null
+    (typeof body.roomId === 'number' ? body.roomId : null) ?? c.get('guest')?.roomId ?? null
 
   // An admin sends for any room of the meet, or none; anyone else is an official of the room
   if (!user || !(await isAdmin(c, meetId))) {
-    const refused = await officialRefusal(c, meetId, roomId)
-    if (refused) return refused
+    if (roomId === null || !(await isOfficialOfRoom(c, c.get('db'), meetId, roomId))) {
+      return c.json({ error: 'Not an official of this room' }, 403)
+    }
   }
   // Only an admin gets here with no room: an official always sends for one
   const saver =
