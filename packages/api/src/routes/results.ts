@@ -2,7 +2,6 @@ import { Hono, type Context } from 'hono'
 import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import {
-  MeetRole,
   NewerFileVersionError,
   foldName,
   isQuizFile,
@@ -82,13 +81,7 @@ async function officialRefusal(
   roomId: number | null,
 ): Promise<Response | null> {
   if (roomId !== null && (await isOfficialOfRoom(c, c.get('db'), meetId, roomId))) return null
-  // An official token from before rooms were on it, or from a since-rotated code, needs a new one
-  const guest = c.get('guest')
-  const rejoin = guest?.role === MeetRole.Official && guest.meetId === meetId
-  return c.json(
-    { error: rejoin ? 'Rejoin with your room code' : 'Not an official of this room' },
-    403,
-  )
+  return c.json({ error: 'Not an official of this room' }, 403)
 }
 
 /**

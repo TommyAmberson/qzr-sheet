@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import type { Bindings } from '../../bindings'
 import type { SessionVariables } from '../../middleware/session'
@@ -9,13 +9,20 @@ import { churches } from '../churches'
 import { join } from '../join'
 import { memberships } from '../memberships'
 import { results } from '../results'
-import { mockSession, mockDb, jsonOf, seedMeet } from '../../test-utils'
+import { mockSession, mockDb, jsonOf, jsonRequest, seedMeet } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import { generateCode, hashCode } from '../../lib/codes'
 import * as schema from '../../db/schema'
 import { MeetRole, PlacementFormula } from '@qzr/shared'
-import { roomCodeTag, type GuestPayload } from '../../lib/jwt'
+import { codeTagFor, signGuestJwt, type GuestPayload } from '../../lib/jwt'
+import { sessionMiddleware } from '../../middleware/session'
+import { eq } from 'drizzle-orm'
+
+// No account session in these tests; guests come from a Bearer token through the real middleware
+vi.mock('../../lib/auth', () => ({
+  createAuth: () => ({ api: { getSession: async () => null } }),
+}))
 
 /**
  * Regression guard for the route mount order in `index.ts`.
@@ -36,10 +43,11 @@ const env = {
   BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
 } as unknown as Bindings
 
-function mountRoutes(db: Db, guest: GuestPayload | null) {
+/** `guest` is injected as the session middleware would set it, or `'bearer'` runs the real one */
+function mountRoutes(db: Db, guest: GuestPayload | null | 'bearer') {
   const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
-  app.use('*', mockSession(null, guest))
   app.use('*', mockDb(db))
+  app.use('*', guest === 'bearer' ? sessionMiddleware() : mockSession(null, guest))
   // Must mirror packages/api/src/index.ts mount order.
   app.route('/api/meets', meets)
   app.route('/api/join', join)
@@ -111,7 +119,7 @@ describe('route mount order — a guest official can submit results', () => {
       meetId: meet.id,
       role: MeetRole.Official,
       roomId: room!.id,
-      codeTag: await roomCodeTag('hash-1', env.BETTER_AUTH_SECRET),
+      codeTag: await codeTagFor('room', 'hash-1', env.BETTER_AUTH_SECRET),
     })
     const quizFile = {
       version: 2,
@@ -136,5 +144,77 @@ describe('route mount order — a guest official can submit results', () => {
       env,
     )
     expect(res.status).toBe(201)
+  })
+})
+
+describe('a guest token is checked by the session middleware', () => {
+  let db: Db
+  let meet: Awaited<ReturnType<typeof seedMeetWithTeam>>
+  let roomId: number
+  beforeEach(async () => {
+    db = await createTestDb()
+    meet = await seedMeetWithTeam(db)
+    const [room] = await db
+      .insert(schema.meetRooms)
+      .values({ meetId: meet.id, name: 'Room 1', codeHash: 'hash-1' })
+      .returning()
+    roomId = room!.id
+  })
+
+  const bearer = (token: string) => ({ Authorization: `Bearer ${token}` })
+  const officialToken = async () =>
+    signGuestJwt(
+      {
+        meetId: meet.id,
+        role: MeetRole.Official,
+        roomId,
+        codeTag: await codeTagFor('room', 'hash-1', env.BETTER_AUTH_SECRET),
+      },
+      env.BETTER_AUTH_SECRET,
+    )
+  const rotateRoomCode = () =>
+    db
+      .update(schema.meetRooms)
+      .set({ codeHash: 'hash-rotated' })
+      .where(eq(schema.meetRooms.id, roomId))
+
+  it('admits a current token', async () => {
+    const token = await signGuestJwt(
+      {
+        meetId: meet.id,
+        role: MeetRole.Viewer,
+        codeTag: await codeTagFor('viewer', meet.viewerCode, env.BETTER_AUTH_SECRET),
+      },
+      env.BETTER_AUTH_SECRET,
+    )
+    const res = await mountRoutes(db, 'bearer').request(
+      `/api/meets/${meet.id}/teams`,
+      { headers: bearer(token) },
+      env,
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('treats a token for a rotated room code as absent, for reads', async () => {
+    const token = await officialToken()
+    await rotateRoomCode()
+    const res = await mountRoutes(db, 'bearer').request(
+      `/api/meets/${meet.id}/teams`,
+      { headers: bearer(token) },
+      env,
+    )
+    expect(res.status).toBe(401)
+  })
+
+  it('treats a token for a rotated room code as absent, for sends', async () => {
+    const token = await officialToken()
+    await rotateRoomCode()
+    const request = jsonRequest('POST', { quizFile: {} })
+    const res = await mountRoutes(db, 'bearer').request(
+      `/api/meets/${meet.id}/results`,
+      { ...request, headers: { ...request.headers, ...bearer(token) } },
+      env,
+    )
+    expect(res.status).toBe(401)
   })
 })

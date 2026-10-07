@@ -5,7 +5,7 @@ import type { SessionVariables } from '../middleware/session'
 import { requireAuth, getUser } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { hashCode } from '../lib/codes'
-import { roomCodeTag, signGuestJwt } from '../lib/jwt'
+import { codeTagFor, signGuestJwt } from '../lib/jwt'
 import * as schema from '../db/schema'
 import { MeetRole } from '@qzr/shared'
 
@@ -200,7 +200,14 @@ join.post('/guest', async (c) => {
     .where(eq(schema.quizMeets.viewerCode, code))
 
   if (viewerMatch) {
-    const token = await signGuestJwt({ meetId: viewerMatch.id, role: MeetRole.Viewer }, secret)
+    const token = await signGuestJwt(
+      {
+        meetId: viewerMatch.id,
+        role: MeetRole.Viewer,
+        codeTag: await codeTagFor('viewer', code, secret),
+      },
+      secret,
+    )
     return c.json({
       token,
       meet: { id: viewerMatch.id, name: viewerMatch.name },
@@ -234,7 +241,7 @@ join.post('/guest', async (c) => {
           role: MeetRole.Official,
           label: officialMatch.label,
           roomId: officialMatch.codeId,
-          codeTag: await roomCodeTag(officialMatch.codeHash!, secret),
+          codeTag: await codeTagFor('room', officialMatch.codeHash!, secret),
         },
         secret,
       )
