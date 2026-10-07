@@ -139,7 +139,7 @@ What each code grants, and who may redeem it, is defined in
 | Room code   | creating the room                          | n/a                      | rotation                                                                     | deleting the room               |
 | Viewer code | creating the meet; the admin may change it | n/a                      | changing it                                                                  | deleting the meet               |
 | Membership  | redeeming a code while signed in           | n/a (it lasts)           | removed by an admin; rotate-and-clear                                        | deleting its church, room, meet |
-| Guest token | redeeming a viewer or room code            | redeeming the code again | official: loses its room once the room's code is rotated or the room deleted | 24 hours after issue            |
+| Guest token | redeeming a viewer or room code            | redeeming the code again | its code changes (room rotated, viewer code changed), or its room is deleted | 24 hours after issue            |
 
 A viewer code keeps working after the meet is `done`, so viewers can come back for results and
 stats; tokens do not end with the meet.
@@ -151,23 +151,30 @@ to one meet and one role, and lasts 24 hours. There is no refresh endpoint: the 
 code again. The scoresheet keeps them in `localStorage`.
 
 **Format:** HS256, issuer `qzr-guest`, audience `qzr-api`, signed with the server secret
-(`packages/api/src/lib/jwt.ts`). Claims: `meetId`, `role` (`viewer` or `official`), and for an
-official the room's name as `label`, its id as `roomId`, and `codeTag`, an HMAC of the room's
-current code hash under the server secret. Rotating the room's code or deleting the room makes the
-tag stop matching, revoking the token. An official token from before `roomId` existed can't submit;
-its holder redeems the room code again.
+(`packages/api/src/lib/jwt.ts`). Claims: `meetId`, `role` (`viewer` or `official`), `codeTag`, and
+for an official the room's name as `label` and its id as `roomId`. `codeTag` is an HMAC under the
+server secret of the code the token was issued for: the room's code hash for an official, the meet's
+viewer code for a viewer, each kind with its own prefix. The join answer for a room code also
+carries `room: { id, name }`.
 
 **Wire format:** the client attaches the token as `Authorization: Bearer <jwt>`. `sessionMiddleware`
 checks the Better Auth session first; if one is present the account is the principal and the bearer
 token is ignored.
 
+**Current:** `sessionMiddleware` admits a token only through `currentGuest`
+(`packages/api/src/lib/jwt.ts`), which, after verifying the signature, issuer, audience, and expiry,
+checks that the token's `codeTag` still matches its code: the meet's viewer code, or the room's code
+hash with the room in the token's meet. A token that doesn't, or has no tag, is treated as absent,
+so changing a code or deleting a room revokes its tokens on every route at once.
+
 **Checks:** `isViewerOf(c, db, meetId)` admits superusers, members of the meet (any role), and
 guests whose token is for that meet. `isOfficialOfRoom(c, db, meetId, roomId)` admits a guest whose
-official token names that room and still matches its code, or a signed-in official of it.
-`officialRoomsOf(c, db, meetId)` lists the rooms the caller officiates there: a guest official's
-room while its code is current, or a signed-in account's rooms. Writes require an account
-(`requireAuth()`), except submitting results, where officials use their guest token; reads use
-`requireAuthOrGuest()`. Every check also applies the meet's phase
+official token names that room, or a signed-in official of it. `officialRoomsOf(c, db, meetId)`
+lists the rooms the caller officiates there: a guest official's room, or a signed-in account's
+rooms. A guest official's send is stored for their token's room; one that names another room is
+refused, and one that names none uses the token's room. Writes require an account (`requireAuth()`),
+except submitting results, where officials use their guest token; reads use `requireAuthOrGuest()`.
+Every check also applies the meet's phase
 ([roles-and-access.md § Access by phase](./roles-and-access.md#access-by-phase)).
 
 **In both apps:** the guest session module lives in `packages/ui`, and each app passes it its own
