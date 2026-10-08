@@ -12,10 +12,12 @@ import {
   type MeetDetail,
 } from '../api'
 import { editQuizFile } from '../results'
+import { useRoomCode } from '../composables/useRoomCode'
 
 const props = defineProps<{ slug: string; resultId: string }>()
 const router = useRouter()
 const resultId = Number(props.resultId)
+const { renew } = useRoomCode()
 
 const meet = ref<MeetDetail['meet'] | null>(null)
 const history = ref<HistoryEntry[]>([])
@@ -66,9 +68,17 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { meet: detail } = await getMeet(props.slug)
-    meet.value = detail
-    history.value = await getHistory(detail.id, resultId)
+    // A guest official's slug is the meet's id; their ended session is renewed on opening the page
+    const loaded = await renew(Number(props.slug), async () => {
+      const { meet: detail } = await getMeet(props.slug)
+      return { detail, history: await getHistory(detail.id, resultId) }
+    })
+    if (!loaded) {
+      error.value = 'Join the meet again with your room code to see this quiz.'
+      return
+    }
+    meet.value = loaded.detail
+    history.value = loaded.history
     if (currentFile.value) fillForm(currentFile.value)
   } catch (e) {
     error.value =
@@ -96,7 +106,8 @@ async function saveForm() {
         form.value.teams.flatMap((team) => team.quizzers.map((q) => [q.id, q.name] as const)),
       ),
     })
-    await editResult(meet.value.id, resultId, edited)
+    const meetId = meet.value.id
+    if (!(await renew(meetId, () => editResult(meetId, resultId, edited)))) return
     await load()
   } catch (e) {
     saveError.value = (e as Error).message
@@ -110,7 +121,8 @@ async function restore(revision: number) {
   saving.value = true
   saveError.value = ''
   try {
-    await restoreRevision(meet.value.id, resultId, revision)
+    const meetId = meet.value.id
+    if (!(await renew(meetId, () => restoreRevision(meetId, resultId, revision)))) return
     await load()
   } catch (e) {
     saveError.value = (e as Error).message

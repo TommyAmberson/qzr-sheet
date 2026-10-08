@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
+import { GuestNotice, RoomCodeDialog } from '@qzr/ui'
+import { roomCodeDialog } from './composables/useRoomCode'
 </script>
 
 <template>
@@ -10,6 +12,8 @@ import AppFooter from './components/AppFooter.vue'
       <RouterView />
     </main>
     <AppFooter />
+    <GuestNotice />
+    <RoomCodeDialog ref="roomCodeDialog" />
   </div>
 </template>
 
