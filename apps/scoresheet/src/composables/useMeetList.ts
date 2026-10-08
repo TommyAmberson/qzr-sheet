@@ -36,7 +36,7 @@ export function useMeetList() {
       if (!kept || (!maySend(kept.role) && maySend(meet.role))) byMeet.set(meet.meetId, meet)
     }
     for (const j of guest.joinedMeets.value) {
-      add({ meetId: j.meetId, meetName: j.meetName, role: j.role })
+      add({ meetId: j.meetId, meetName: j.meetName, role: j.role, label: j.room?.name })
     }
     try {
       const res = await getMyMeets()

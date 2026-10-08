@@ -88,6 +88,11 @@ async function chooseForSubmit(last: number | null): Promise<MeetSummary | null>
   return chosen
 }
 
+/** A meet's role, with an official's room or a coach's church when known */
+function roleOf(meet: MeetSummary): string {
+  return meet.label ? `${meet.role}, ${meet.label}` : meet.role
+}
+
 defineExpose({ open, chooseForSubmit })
 </script>
 
@@ -125,7 +130,7 @@ defineExpose({ open, chooseForSubmit })
           >
             <span class="meet-row-name">{{ meet.meetName }}</span>
             <span class="meet-row-role">{{
-              purpose === 'submit' && meet.meetId === lastMeetId ? 'last used' : meet.role
+              purpose === 'submit' && meet.meetId === lastMeetId ? 'last used' : roleOf(meet)
             }}</span>
           </button>
         </li>

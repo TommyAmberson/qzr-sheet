@@ -946,10 +946,15 @@ async function doSubmitToMeet() {
       outcome = await send(choice)
     }
     if (!outcome?.stored) return
-    if (outcome.created) alert(`Submitted to ${meet}.`)
+    // Name the room too, even when it was the only one and wasn't asked about
+    const room = target.sender.rooms.find((r) => r.id === roomId)?.name
+    const where = room ? `${meet}, ${room}` : meet
+    if (outcome.created) alert(`Submitted to ${where}.`)
     else if (outcome.keptCurrent) {
-      alert(`Saved to ${meet} as revision ${outcome.revision}; the earlier revision stays current.`)
-    } else alert(`Submitted to ${meet} as revision ${outcome.revision}.`)
+      alert(
+        `Saved to ${where} as revision ${outcome.revision}; the earlier revision stays current.`,
+      )
+    } else alert(`Submitted to ${where} as revision ${outcome.revision}.`)
   } catch (e) {
     alert(
       `Not submitted: ${(e as Error).message}\nThe quiz is unchanged. Try again, or save it as a file.`,
