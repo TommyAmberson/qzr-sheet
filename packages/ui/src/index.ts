@@ -1,6 +1,7 @@
 export { default as SignInForm } from './SignInForm.vue'
 export { default as ChoiceDialog } from './ChoiceDialog.vue'
 export { default as RoomCodeDialog } from './RoomCodeDialog.vue'
+export { default as GuestNotice } from './GuestNotice.vue'
 export { askAlreadySubmitted, chooseRoom, existingQuizOf, uploadPicked } from './sendQuizzes'
 export type { ExistingQuiz, FileReport, OnExisting, Sender, Stored } from './sendQuizzes'
 export {
@@ -17,9 +18,8 @@ export {
 } from './guestSession'
 export type {
   GuestJoinAnswer,
-  GuestRoom,
   GuestSessionData,
-  RoomCodeAsker,
+  RoomCodeOptions,
   RoomCodeRequest,
 } from './guestSession'
 export { default as ScheduleGrid } from './ScheduleGrid.vue'

@@ -3,8 +3,10 @@ import { ApiError, MeetRole, type QuizFile } from '@qzr/shared'
 import {
   existingQuizOf,
   guestStateRef,
+  withRoomCode,
   type ExistingQuiz,
   type OnExisting,
+  type RoomCodeOptions,
   type Sender,
 } from '@qzr/ui'
 import { getMyMeets, getSender, submitResult } from '../api'
@@ -37,11 +39,21 @@ let refreshes = 0
 /**
  * Whether the user may send quizzes to the meet, and for which rooms, as the API works it out.
  * Null when they may not (signed out with no code for it, or neither an admin nor an official of
- * it); undefined when there's no telling (offline, or the server failed).
+ * it); undefined when there's no telling (offline, or the server failed). With `renew`, a guest
+ * official whose session has ended is asked for the room code first; false when they cancel.
  */
-export async function senderOf(meetId: number): Promise<Sender | null | undefined> {
+export async function senderOf(meetId: number): Promise<Sender | null | undefined>
+export async function senderOf(
+  meetId: number,
+  renew: RoomCodeOptions,
+): Promise<Sender | null | undefined | false>
+export async function senderOf(
+  meetId: number,
+  renew?: RoomCodeOptions,
+): Promise<Sender | null | undefined | false> {
   try {
-    return await getSender(meetId)
+    if (!renew) return await getSender(meetId)
+    return (await withRoomCode(meetId, () => getSender(meetId), renew)) ?? false
   } catch (e) {
     return e instanceof ApiError && (e.status === 401 || e.status === 403) ? null : undefined
   }

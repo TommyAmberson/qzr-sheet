@@ -7,6 +7,7 @@ import {
   endsRound,
   firstOvertimeQuestion,
   lastQuestionThroughRound,
+  MeetRole,
   NewerFileVersionError,
   parseQuizFile,
   parseQuizFileAttempt,
@@ -34,8 +35,18 @@ import {
 } from '../persistence/fileIO'
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
-import { getMeetName, getRevision, type ScheduledQuizSeat } from '../api'
-import { ChoiceDialog, askAlreadySubmitted, chooseRoom, guestStateRef, type Sender } from '@qzr/ui'
+import { getMeetName, getRevision, joinMeetGuest, type ScheduledQuizSeat } from '../api'
+import {
+  ChoiceDialog,
+  RoomCodeDialog,
+  askAlreadySubmitted,
+  chooseRoom,
+  guestStateRef,
+  withRoomCode,
+  type OnExisting,
+  type RoomCodeOptions,
+  type Sender,
+} from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { senderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
@@ -811,6 +822,7 @@ async function doExportOds() {
 }
 
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
+const roomCodeDialog = ref<InstanceType<typeof RoomCodeDialog> | null>(null)
 
 /** A saved file's name: the quiz's name without its space, "D1Q3" or "D1cQ3" */
 function fileStem(): string {
@@ -819,9 +831,24 @@ function fileStem(): string {
 
 const submitter = useSubmitToMeet()
 const { session: authSession } = useAuth()
-// Signing in or out, or joining with a code, changes the meets the user may submit to
+/** How a guest official's ended session is renewed: through the room-code dialog, unless signed in */
+function roomCodeOptions(): RoomCodeOptions {
+  return {
+    join: joinMeetGuest,
+    dialog: roomCodeDialog.value,
+    signedIn: !!authSession.value.data?.user,
+  }
+}
+// Signing in or out, or joining or leaving a room with a code, changes the meets the user may submit to
 watch(
-  [() => authSession.value.data?.user.id, guestStateRef],
+  [
+    () => authSession.value.data?.user.id,
+    () =>
+      guestStateRef.value.joined
+        .filter((j) => j.role === MeetRole.Official)
+        .map((j) => j.meetId)
+        .join(),
+  ],
   () => void submitter.refreshTargets(),
   { immediate: true },
 )
@@ -868,7 +895,9 @@ async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender 
       : await meetPickerRef.value?.chooseForSubmit(submitter.lastMeetId.value)
   if (!meet) return undefined
   const { meetId: id, meetName: name } = meet
-  const sender = await senderOf(id)
+  const sender = await senderOf(id, roomCodeOptions())
+  // The official cancelled the room-code dialog
+  if (sender === false) return undefined
   if (!sender) {
     alert(
       sender === null
@@ -894,14 +923,22 @@ async function doSubmitToMeet() {
   const roomId = await chooseRoom(choiceDialog.value, target.sender, meet, 'Submit')
   if (roomId === undefined) return
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
+  // A guest official whose session ends on the way is asked for the room code, and the send retried
+  const send = (onExisting?: OnExisting) =>
+    withRoomCode(
+      target.id,
+      () => submitter.submitQuiz(target.id, quizFile, roomId, onExisting),
+      roomCodeOptions(),
+    )
   try {
-    let outcome = await submitter.submitQuiz(target.id, quizFile, roomId)
+    let outcome = await send()
+    if (!outcome) return
     if (!outcome.stored) {
       const choice = await askAlreadySubmitted(choiceDialog.value, outcome.existing)
       if (!choice) return
-      outcome = await submitter.submitQuiz(target.id, quizFile, roomId, choice)
+      outcome = await send(choice)
     }
-    if (!outcome.stored) return
+    if (!outcome?.stored) return
     if (outcome.created) alert(`Submitted to ${meet}.`)
     else if (outcome.keptCurrent) {
       alert(`Saved to ${meet} as revision ${outcome.revision}; the earlier revision stays current.`)
@@ -1790,6 +1827,7 @@ const appVersion: string = __APP_VERSION__
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
         <ChoiceDialog ref="choiceDialog" />
+        <RoomCodeDialog ref="roomCodeDialog" />
         <datalist id="team-name-options">
           <option v-for="name in offeredTeamNames" :key="name" :value="name" />
         </datalist>

@@ -207,8 +207,16 @@ export interface RoomCodeRequest {
 }
 
 /** The room-code dialog (`RoomCodeDialog`): true when every row's code was accepted */
-export interface RoomCodeAsker {
+interface RoomCodeAsker {
   ask(request: RoomCodeRequest): Promise<boolean>
+}
+
+/** What renewing an official session needs from the app */
+export interface RoomCodeOptions {
+  join: GuestJoin
+  dialog: RoomCodeAsker | null | undefined
+  /** An account decides while signed in, so nothing is asked */
+  signedIn: boolean
 }
 
 /**
@@ -221,7 +229,7 @@ export interface RoomCodeAsker {
 export async function withRoomCode<T>(
   meetId: number,
   action: () => Promise<T>,
-  opts: { join: GuestJoin; dialog: RoomCodeAsker | null | undefined; signedIn: boolean },
+  opts: RoomCodeOptions,
 ): Promise<T | undefined> {
   const session = joinedSession(meetId)
   if (opts.signedIn || session?.role !== MeetRole.Official) return action()
@@ -237,10 +245,7 @@ export async function withRoomCode<T>(
 }
 
 /** Ask for the room code of an official session and re-join with it; false when cancelled */
-async function askRoomCode(
-  session: GuestSessionData,
-  opts: { join: GuestJoin; dialog: RoomCodeAsker | null | undefined },
-): Promise<boolean> {
+async function askRoomCode(session: GuestSessionData, opts: RoomCodeOptions): Promise<boolean> {
   const room = session.room?.name
   return (
     (await opts.dialog?.ask({
