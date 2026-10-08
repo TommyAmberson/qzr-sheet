@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { defineComponent } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
 import { ApiError, MeetRole } from '@qzr/shared'
 
 vi.mock('../../api', () => ({
@@ -18,6 +20,8 @@ import {
   joinedSession,
   STORAGE_KEY,
   withGuestToken,
+  upgradeGuestAccount,
+  upgradeOnSignIn,
   withRoomCode,
   type RoomCodeRequest,
 } from '@qzr/ui/src/guestSession'
@@ -670,5 +674,191 @@ describe('withRoomCode: renewing an official session around an action', () => {
       withRoomCode(4, action, { join: vi.fn(), dialog, signedIn: false }),
     ).rejects.toThrow('Failed to fetch')
     expect(dialog.ask).not.toHaveBeenCalled()
+  })
+})
+
+describe('upgradeGuestAccount: signing in upgrades the account with the codes', () => {
+  const viewer = (meetId: number, code: string) => ({
+    token: tokenExpiring(3600),
+    meetId,
+    meetName: `Meet ${meetId}`,
+    role: MeetRole.Viewer as const,
+    code,
+  })
+  const official = (meetId: number, room: string) => ({
+    token: tokenExpiring(3600),
+    meetId,
+    meetName: `Meet ${meetId}`,
+    role: MeetRole.Official as const,
+    room: { id: meetId * 10, name: room },
+  })
+  /** The signed-in join, answering each code for the meet and role given */
+  const joinAnswering = (answers: Record<string, [number, MeetRole]>) =>
+    vi.fn(async (code: string) => {
+      const [id, role] = answers[code]!
+      return { meet: { id, name: `Meet ${id}` }, role }
+    })
+
+  it('redeems viewer sessions with their kept code, without asking, and removes them', async () => {
+    setGuestState({ active: 1, joined: [viewer(1, 'slug-one'), viewer(2, 'slug-two')] })
+    const joinMeet = joinAnswering({
+      'slug-one': [1, MeetRole.Viewer],
+      'slug-two': [2, MeetRole.Viewer],
+    })
+    const dialog = dialogAnswering({})
+    await upgradeGuestAccount({ joinMeet, dialog })
+    expect(joinMeet.mock.calls).toEqual([['slug-one'], ['slug-two']])
+    expect(dialog.ask).not.toHaveBeenCalled()
+    expect(guestStateRef.value.joined).toEqual([])
+  })
+
+  it('asks for every room in one dialog, redeeming entered codes and removing skipped rooms', async () => {
+    setGuestState({ active: 3, joined: [official(3, 'Room 1'), official(4, 'Room 2')] })
+    const joinMeet = joinAnswering({ 'ROOM-ONE': [3, MeetRole.Official] })
+    const dialog = dialogAnswering({ 'Meet 3, Room 1': 'ROOM-ONE' })
+    await upgradeGuestAccount({ joinMeet, dialog })
+    expect(dialog.ask).toHaveBeenCalledTimes(1)
+    expect(dialog.ask.mock.calls[0]![0].rows.map((r) => r.label)).toEqual([
+      'Meet 3, Room 1',
+      'Meet 4, Room 2',
+    ])
+    expect(joinMeet.mock.calls).toEqual([['ROOM-ONE']])
+    expect(guestStateRef.value.joined).toEqual([])
+  })
+
+  it('reports a wrong code on its row', async () => {
+    setGuestState({ active: 3, joined: [official(3, 'Room 1')] })
+    const joinMeet = vi.fn().mockRejectedValue(new ApiError(404, 'Invalid code'))
+    const dialog = dialogAnswering({ 'Meet 3, Room 1': 'WRONG' })
+    await upgradeGuestAccount({ joinMeet, dialog })
+    expect(dialog.told['Meet 3, Room 1']).toBeTruthy()
+  })
+
+  it.each([
+    ['a code for another meet', [4, MeetRole.Official] as const, 'another meet'],
+    ['a viewer code', [3, MeetRole.Viewer] as const, "isn't a room code"],
+  ])("refuses %s on the row, so it isn't marked added", async (_, [id, role], message) => {
+    setGuestState({ active: 3, joined: [official(3, 'Room 1')] })
+    const dialog = dialogAnswering({ 'Meet 3, Room 1': 'OTHER' })
+    await upgradeGuestAccount({ joinMeet: joinAnswering({ OTHER: [id, role] }), dialog })
+    expect(dialog.told['Meet 3, Room 1']).toContain(message)
+  })
+
+  it('removes a viewer session whose code now opens another meet, saying it was added', async () => {
+    setGuestState({ active: 1, joined: [viewer(1, 'reused-slug')] })
+    const joinMeet = joinAnswering({ 'reused-slug': [9, MeetRole.Viewer] })
+    await upgradeGuestAccount({ joinMeet, dialog: dialogAnswering({}) })
+    expect(guestStateRef.value.joined).toEqual([])
+    expect(guestNotice.value).toBe(
+      'The code for Meet 1 now opens Meet 9; Meet 9 was added to your account.',
+    )
+  })
+
+  it("keeps a room whose code couldn't reach the server when the dialog is closed", async () => {
+    const room = official(3, 'Room 1')
+    setGuestState({ active: 3, joined: [room, official(4, 'Room 2')] })
+    const joinMeet = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
+    const dialog = dialogAnswering({ 'Meet 3, Room 1': 'ROOM-ONE' })
+    await upgradeGuestAccount({ joinMeet, dialog })
+    expect(dialog.told['Meet 3, Room 1']).toMatch(/reach/)
+    expect(guestStateRef.value.joined).toEqual([room])
+  })
+
+  it('asks once when a room is kept for later and another skipped', async () => {
+    setGuestState({ active: 3, joined: [official(3, 'Room 1'), official(4, 'Room 2')] })
+    const joinMeet = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
+    const dialog = dialogAnswering({ 'Meet 3, Room 1': 'ROOM-ONE' })
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          upgradeOnSignIn(
+            () => 'user-1',
+            () => ({ joinMeet, dialog }),
+          )
+          return () => null
+        },
+      }),
+    )
+    await flushPromises()
+    expect(dialog.ask).toHaveBeenCalledTimes(1)
+    expect(guestStateRef.value.joined.map((j) => j.meetId)).toEqual([3])
+    wrapper.unmount()
+  })
+
+  it('keeps every session for later when the server cannot be reached', async () => {
+    const sessions = [viewer(1, 'slug-one'), official(3, 'Room 1')]
+    setGuestState({ active: 1, joined: sessions })
+    const joinMeet = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
+    const dialog = dialogAnswering({})
+    await upgradeGuestAccount({ joinMeet, dialog })
+    expect(guestStateRef.value.joined).toEqual(sessions)
+    expect(dialog.ask).not.toHaveBeenCalled()
+  })
+
+  it('removes a viewer session whose code no longer works, and says so', async () => {
+    setGuestState({ active: 1, joined: [viewer(1, 'old-slug')] })
+    const joinMeet = vi.fn().mockRejectedValue(new ApiError(404, 'Invalid code'))
+    await upgradeGuestAccount({ joinMeet, dialog: dialogAnswering({}) })
+    expect(guestStateRef.value.joined).toEqual([])
+    expect(guestNotice.value).toContain('Meet 1')
+  })
+
+  it('keeps a viewer session when the server fails on its code', async () => {
+    const session = viewer(1, 'slug-one')
+    setGuestState({ active: 1, joined: [session] })
+    const joinMeet = vi.fn().mockRejectedValue(new ApiError(500, 'Internal Server Error'))
+    await upgradeGuestAccount({ joinMeet, dialog: dialogAnswering({}) })
+    expect(guestStateRef.value.joined).toEqual([session])
+    expect(guestNotice.value).toBeNull()
+  })
+
+  it('upgrades a meet joined while an upgrade was running', async () => {
+    setGuestState({ active: 3, joined: [official(3, 'Room 1')] })
+    const joinMeet = joinAnswering({ 'slug-one': [1, MeetRole.Viewer] })
+    // A meet link's join finishes while the rooms dialog is open
+    const dialog = {
+      ask: vi.fn(async () => {
+        setGuestState({
+          active: 3,
+          joined: [...guestStateRef.value.joined, viewer(1, 'slug-one')],
+        })
+        return false
+      }),
+    }
+    await upgradeGuestAccount({ joinMeet, dialog })
+    expect(joinMeet).toHaveBeenCalledWith('slug-one')
+    expect(guestStateRef.value.joined).toEqual([])
+  })
+
+  it('upgrades a meet joined while signed in, as a link joining after start', async () => {
+    const joinMeet = joinAnswering({ 'slug-one': [1, MeetRole.Viewer] })
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          upgradeOnSignIn(
+            () => 'user-1',
+            () => ({ joinMeet, dialog: dialogAnswering({}) }),
+          )
+          return () => null
+        },
+      }),
+    )
+    await flushPromises()
+    expect(joinMeet).not.toHaveBeenCalled()
+    setGuestState({ active: 1, joined: [viewer(1, 'slug-one')] })
+    await flushPromises()
+    expect(joinMeet).toHaveBeenCalledWith('slug-one')
+    expect(guestStateRef.value.joined).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('never sends a guest token as a code', async () => {
+    setGuestState({ active: 1, joined: [viewer(1, 'slug-one'), official(3, 'Room 1')] })
+    const tokens = guestStateRef.value.joined.map((j) => j.token)
+    const joinMeet = joinAnswering({ 'slug-one': [1, MeetRole.Viewer] })
+    await upgradeGuestAccount({ joinMeet, dialog: dialogAnswering({}) })
+    const sent = joinMeet.mock.calls.map(([code]) => code)
+    for (const token of tokens) expect(sent).not.toContain(token)
+    expect(sent).toEqual(['slug-one'])
   })
 })

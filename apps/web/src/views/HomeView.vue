@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { AccountRole, MeetRole } from '@qzr/shared'
 import { useAuth } from '../composables/useAuth'
-import { joinByCode } from '@qzr/ui'
+import { guestStateRef, joinByCode } from '@qzr/ui'
 import { getMyMeets, joinMeet, joinMeetGuest, createMeet, type MeetMembership } from '../api'
 
 const scoresheetUrl = __SCORESHEET_URL__
@@ -41,6 +41,9 @@ async function loadMeets() {
     loadingMeets.value = false
   }
 }
+
+// Upgrading the account at sign-in turns guest sessions into memberships, so list them again
+watch(() => guestStateRef.value.joined.length, loadMeets)
 
 async function handleCode() {
   codeError.value = ''
