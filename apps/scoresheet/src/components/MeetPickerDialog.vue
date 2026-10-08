@@ -20,6 +20,8 @@ const {
   init,
   handleJoinCode,
   setActiveGuest,
+  isGuestMeet,
+  leaveMeet,
 } = useMeetList()
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
@@ -133,6 +135,14 @@ defineExpose({ open, chooseForSubmit })
               purpose === 'submit' && meet.meetId === lastMeetId ? 'last used' : roleOf(meet)
             }}</span>
           </button>
+          <button
+            v-if="isGuestMeet(meet.meetId)"
+            class="meet-row-leave"
+            :disabled="submitting"
+            @click="leaveMeet(meet.meetId)"
+          >
+            Leave
+          </button>
         </li>
       </ul>
 
@@ -227,6 +237,23 @@ defineExpose({ open, chooseForSubmit })
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.meet-list li {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.meet-row-leave {
+  padding: 0 0.7rem;
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .meet-row {

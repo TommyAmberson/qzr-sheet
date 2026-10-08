@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { socialSignInError, withoutErrorParam } from '@qzr/shared'
-import { SignInForm } from '@qzr/ui'
+import { SignInForm, clearGuestData } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 import { useMeetSession } from '../composables/useMeetSession'
+import { useSubmitToMeet } from '../composables/useSubmitToMeet'
+import { useTeamNames } from '../composables/useTeamNames'
 
 const { session, signInSocial, signInEmail, signUpEmail, signOut } = useAuth()
 const { clearSession } = useMeetSession()
+const { lastMeetId } = useSubmitToMeet()
+const { refreshTeamNames } = useTeamNames()
 
 const open = ref(false)
 const menuPos = ref({ top: 0, right: 0 })
@@ -44,6 +48,10 @@ function toggle() {
 
 async function doSignOut() {
   clearSession()
+  // Signing out ends the guest account too, and the meet data kept for it, on this device
+  clearGuestData()
+  void refreshTeamNames(null)
+  lastMeetId.value = null
   await signOut()
   open.value = false
 }

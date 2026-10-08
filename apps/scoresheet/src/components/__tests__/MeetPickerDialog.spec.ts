@@ -123,6 +123,27 @@ describe('choosing a meet to submit to', () => {
     wrapper.unmount()
   })
 
+  it('lets a guest leave a meet joined with a code, keeping the others', async () => {
+    const guestMeet = (meetId: number) => ({
+      token: 't',
+      meetId,
+      meetName: `Guest ${meetId}`,
+      role: MeetRole.Official as const,
+    })
+    setGuestState({ active: null, joined: [guestMeet(7), guestMeet(8)] })
+    const { wrapper } = await choosing()
+    const leave = wrapper.findAll('button').filter((b) => b.text() === 'Leave')
+    // Only meets joined with a code can be left here
+    expect(leave).toHaveLength(2)
+    await leave[0]!.trigger('click')
+    await flushPromises()
+    const names = wrapper.findAll('.meet-row-name').map((n) => n.text())
+    expect(names).not.toContain('Guest 7')
+    expect(names).toContain('Guest 8')
+    setGuestState(null)
+    wrapper.unmount()
+  })
+
   it('offers a code join to someone with no meet to send to', async () => {
     vi.mocked(getMyMeets).mockRejectedValue(new ApiError(401, 'Not signed in'))
     const { wrapper } = await choosing()

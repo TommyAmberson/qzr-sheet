@@ -23,6 +23,10 @@ import {
   upgradeGuestAccount,
   upgradeOnSignIn,
   withRoomCode,
+  clearGuestData,
+  leaveGuestMeet,
+  SUBMIT_MEET_KEY,
+  TEAM_NAMES_KEY,
   type RoomCodeRequest,
 } from '@qzr/ui/src/guestSession'
 
@@ -254,6 +258,38 @@ describe('setActiveSession', () => {
   })
 })
 
+describe('ending guest sessions', () => {
+  const session = (meetId: number) => ({
+    token: `t${meetId}`,
+    meetId,
+    meetName: `Meet ${meetId}`,
+    role: MeetRole.Viewer as const,
+    code: `c${meetId}`,
+  })
+
+  it('clears every guest session and the meet data kept for guest use, and nothing else', () => {
+    setGuestState({ active: 1, joined: [session(1), session(2)] })
+    localStorage.setItem(TEAM_NAMES_KEY, '{"meetId":1,"lists":[]}')
+    localStorage.setItem(SUBMIT_MEET_KEY, '1')
+    localStorage.setItem('qzr-theme', 'dark')
+    clearGuestData()
+    expect(guestStateRef.value).toEqual({ active: null, joined: [] })
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(TEAM_NAMES_KEY)).toBeNull()
+    expect(localStorage.getItem(SUBMIT_MEET_KEY)).toBeNull()
+    expect(localStorage.getItem('qzr-theme')).toBe('dark')
+  })
+
+  it('leaves one meet, keeping the others', () => {
+    setGuestState({ active: 1, joined: [session(1), session(2)] })
+    leaveGuestMeet(1)
+    expect(guestStateRef.value.joined.map((j) => j.meetId)).toEqual([2])
+    expect(guestStateRef.value.active).toBeNull()
+    leaveGuestMeet(2)
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+  })
+})
+
 describe('persistence', () => {
   it("drops an official session's code saved by an earlier release, and saves the cleaned state", async () => {
     localStorage.setItem(
@@ -295,6 +331,22 @@ describe('persistence', () => {
     expect(fresh.guestStateRef.value.joined).toEqual([
       { token: 'tok', meetId: 4, meetName: 'M', role: MeetRole.Official },
     ])
+  })
+
+  it('signs out of guest sessions when storage is blocked', () => {
+    setGuestState({
+      active: 1,
+      joined: [{ token: 't', meetId: 1, meetName: 'M', role: MeetRole.Viewer, code: 'c' }],
+    })
+    const blocked = () => {
+      throw new DOMException('Blocked', 'SecurityError')
+    }
+    const remove = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(blocked)
+    const write = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked)
+    expect(() => clearGuestData()).not.toThrow()
+    remove.mockRestore()
+    write.mockRestore()
+    expect(guestStateRef.value.joined).toEqual([])
   })
 
   it('removes the storage key entirely once cleared', () => {
