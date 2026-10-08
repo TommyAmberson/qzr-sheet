@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { ApiError, MeetRole } from '@qzr/shared'
+import { setGuestState } from '@qzr/ui'
 
 vi.mock('../../api', () => ({
   getMyMeets: vi.fn(),
@@ -95,6 +96,30 @@ describe('choosing a meet to submit to', () => {
     const { wrapper } = await choosing()
     expect(wrapper.text()).toContain('Failed to fetch')
     expect(wrapper.text()).not.toContain('room code.')
+    wrapper.unmount()
+  })
+
+  it("names a guest official's room, and a membership's label", async () => {
+    vi.mocked(getMyMeets).mockResolvedValue({
+      memberships: [{ ...membership(1, MeetRole.Official), label: 'Room 2' }],
+    })
+    setGuestState({
+      active: null,
+      joined: [
+        {
+          token: 't',
+          meetId: 7,
+          meetName: 'Guest Meet',
+          role: MeetRole.Official,
+          room: { id: 70, name: 'Room 3' },
+        },
+      ],
+    })
+    const { wrapper } = await choosing()
+    const rows = wrapper.findAll('.meet-row').map((row) => row.text())
+    expect(rows.find((text) => text.includes('Guest Meet'))).toContain('Room 3')
+    expect(rows.find((text) => text.includes('Meet 1'))).toContain('Room 2')
+    setGuestState(null)
     wrapper.unmount()
   })
 
