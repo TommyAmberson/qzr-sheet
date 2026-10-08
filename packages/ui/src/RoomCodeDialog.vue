@@ -1,25 +1,9 @@
 <script setup lang="ts">
 import { ref, shallowRef } from 'vue'
+import type { RoomCodeRequest, RoomCodeRow } from './guestSession'
 
-/** A row of the dialog: one guest room, named for the user */
-interface RoomCodeRow {
-  key: string | number
-  label: string
-}
-
-interface Request {
-  title: string
-  detail: string
-  rows: RoomCodeRow[]
-  /** Check a code entered for a row: null accepts it, a message refuses it and is shown on the row */
-  onCode: (row: RoomCodeRow, code: string) => Promise<string | null>
-  submitLabel: string
-  closeLabel: string
-  /** Whether each row can be skipped */
-  skip: boolean
-}
-
-interface RowState {
+interface Entry {
+  row: RoomCodeRow
   code: string
   message: string
   busy: boolean
@@ -27,55 +11,56 @@ interface RowState {
 }
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
-const request = shallowRef<Request | null>(null)
-const states = ref<RowState[]>([])
+const request = shallowRef<RoomCodeRequest | null>(null)
+const entries = ref<Entry[]>([])
 let settle: ((allAccepted: boolean) => void) | null = null
 
 /**
  * Ask for a room code on each row: a renewal asks for one, the sign-in upgrade for one per room.
  * Resolves when every row is handled or the dialog is closed: true when every row was accepted.
  */
-function ask(req: Request): Promise<boolean> {
+function ask(req: RoomCodeRequest): Promise<boolean> {
   // A request made over an unanswered one closes it, so no caller waits forever
   settle?.(false)
   request.value = req
-  states.value = req.rows.map(() => ({ code: '', message: '', busy: false, state: 'open' }))
+  entries.value = req.rows.map((row) => ({
+    row,
+    code: '',
+    message: '',
+    busy: false,
+    state: 'open',
+  }))
   dialogRef.value?.showModal()
   return new Promise((resolve) => (settle = resolve))
 }
 
 function finish() {
   dialogRef.value?.close()
-  settle?.(states.value.every((s) => s.state === 'accepted'))
+  settle?.(entries.value.every((e) => e.state === 'accepted'))
   settle = null
 }
 
 function finishIfHandled() {
-  if (states.value.every((s) => s.state !== 'open')) finish()
+  if (entries.value.every((e) => e.state !== 'open')) finish()
 }
 
-async function submit(index: number) {
-  const req = request.value
-  const row = states.value[index]
-  if (!req || !row || row.busy) return
-  const code = row.code.trim()
-  if (!code) return
-  row.busy = true
-  row.message = ''
+async function submit(entry: Entry) {
+  const code = entry.code.trim()
+  if (!request.value || entry.busy || !code) return
+  entry.busy = true
+  entry.message = ''
   try {
-    const refusal = await req.onCode(req.rows[index]!, code)
-    if (refusal === null) row.state = 'accepted'
-    else row.message = refusal
+    const refusal = await request.value.onCode(entry.row, code)
+    if (refusal === null) entry.state = 'accepted'
+    else entry.message = refusal
   } finally {
-    row.busy = false
+    entry.busy = false
   }
   finishIfHandled()
 }
 
-function skipRow(index: number) {
-  const row = states.value[index]
-  if (!row) return
-  row.state = 'skipped'
+function skip(entry: Entry) {
+  entry.state = 'skipped'
   finishIfHandled()
 }
 
@@ -88,25 +73,25 @@ defineExpose({ ask })
       <p class="room-code-dialog__title">{{ request.title }}</p>
       <p class="room-code-dialog__detail">{{ request.detail }}</p>
       <form
-        v-for="(row, index) in request.rows"
-        :key="row.key"
+        v-for="entry in entries"
+        :key="entry.row.meetId"
         class="room-code-dialog__row"
-        @submit.prevent="submit(index)"
+        @submit.prevent="submit(entry)"
       >
-        <span class="room-code-dialog__label">{{ row.label }}</span>
-        <template v-if="states[index]?.state === 'open'">
+        <span class="room-code-dialog__label">{{ entry.row.label }}</span>
+        <template v-if="entry.state === 'open'">
           <div class="room-code-dialog__entry">
             <input
-              v-model="states[index]!.code"
+              v-model="entry.code"
               class="room-code-dialog__input"
               placeholder="Room code"
               autocomplete="off"
-              :disabled="states[index]!.busy"
+              :disabled="entry.busy"
             />
             <button
               type="submit"
               class="room-code-dialog__btn room-code-dialog__btn--primary"
-              :disabled="states[index]!.busy || !states[index]!.code.trim()"
+              :disabled="entry.busy || !entry.code.trim()"
             >
               {{ request.submitLabel }}
             </button>
@@ -114,17 +99,15 @@ defineExpose({ ask })
               v-if="request.skip"
               type="button"
               class="room-code-dialog__btn"
-              @click="skipRow(index)"
+              @click="skip(entry)"
             >
               Skip
             </button>
           </div>
-          <p v-if="states[index]!.message" class="room-code-dialog__message">
-            {{ states[index]!.message }}
-          </p>
+          <p v-if="entry.message" class="room-code-dialog__message">{{ entry.message }}</p>
         </template>
         <span v-else class="room-code-dialog__done">
-          {{ states[index]?.state === 'accepted' ? 'Added' : 'Skipped' }}
+          {{ entry.state === 'accepted' ? 'Added' : 'Skipped' }}
         </span>
       </form>
       <div class="room-code-dialog__actions">

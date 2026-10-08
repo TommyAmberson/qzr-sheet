@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { MeetRole } from '@qzr/shared'
+import { ApiError, MeetRole } from '@qzr/shared'
 
 vi.mock('../../api', () => ({
   joinMeetGuest: vi.fn(),
@@ -9,13 +9,17 @@ import { joinMeetGuest } from '../../api'
 // The guest session module lives in @qzr/ui; the scoresheet's wrappers pass it the join call
 import { initGuestSession, joinByCode } from '../useGuestSession'
 import {
+  addJoinedSession,
   setGuestState,
   setActiveSession,
   guestStateRef,
-  getGuestToken,
-  guestTokenFor,
   getActiveSession,
+  guestNotice,
+  joinedSession,
   STORAGE_KEY,
+  withGuestToken,
+  withRoomCode,
+  type RoomCodeRequest,
 } from '@qzr/ui/src/guestSession'
 
 /**
@@ -33,6 +37,7 @@ function setSearch(search: string): void {
 beforeEach(() => {
   localStorage.clear()
   setGuestState(null)
+  guestNotice.value = null
   vi.clearAllMocks()
   setSearch('')
 })
@@ -68,7 +73,7 @@ describe('initGuestSession — URL parsing', () => {
       code: 'fall-2025',
     })
     expect(getActiveSession()?.meetId).toBe(7)
-    expect(getGuestToken()).toBe('tok-abc')
+    expect(getActiveSession()?.token ?? null).toBe('tok-abc')
   })
 
   it('rejects non-viewer roles via URL (security: shareable links → viewers only)', async () => {
@@ -119,7 +124,7 @@ describe('initGuestSession — idempotency / race', () => {
 
   it('returns null when the join request fails', async () => {
     setSearch('?meet=does-not-exist')
-    vi.mocked(joinMeetGuest).mockResolvedValue(null)
+    vi.mocked(joinMeetGuest).mockRejectedValue(new ApiError(404, 'Invalid code'))
     const result = await initGuestSession()
     expect(result).toBeNull()
     expect(guestStateRef.value.joined).toEqual([])
@@ -150,7 +155,7 @@ describe('joinByCode — typed-in form', () => {
     expect(result?.meetId).toBe(8)
     expect(guestStateRef.value.joined).toHaveLength(2)
     expect(guestStateRef.value.active).toBe(7)
-    expect(getGuestToken()).toBe('old')
+    expect(getActiveSession()?.token ?? null).toBe('old')
   })
 
   it('accepts an official-code session, keeping its room and not its code', async () => {
@@ -178,10 +183,9 @@ describe('joinByCode — typed-in form', () => {
     expect(guestStateRef.value.joined[0]).toMatchObject({ code: 'viewer-slug' })
   })
 
-  it('returns null on invalid code (404 path)', async () => {
-    vi.mocked(joinMeetGuest).mockResolvedValue(null)
-    const result = await joinByCode('nope')
-    expect(result).toBeNull()
+  it("passes on the server's refusal of an invalid code", async () => {
+    vi.mocked(joinMeetGuest).mockRejectedValue(new ApiError(404, 'Invalid code'))
+    await expect(joinByCode('nope')).rejects.toThrow('Invalid code')
     expect(guestStateRef.value.joined).toEqual([])
   })
 
@@ -222,9 +226,9 @@ describe('setActiveSession', () => {
         { token: 't2', meetId: 2, meetName: 'B', role: MeetRole.Viewer, code: 'b' },
       ],
     })
-    expect(getGuestToken()).toBe('t1')
+    expect(getActiveSession()?.token ?? null).toBe('t1')
     setActiveSession(2)
-    expect(getGuestToken()).toBe('t2')
+    expect(getActiveSession()?.token ?? null).toBe('t2')
   })
 
   it('is a no-op when meetId is not in the joined list', () => {
@@ -242,7 +246,7 @@ describe('setActiveSession', () => {
       joined: [{ token: 't1', meetId: 1, meetName: 'A', role: MeetRole.Viewer, code: 'a' }],
     })
     setActiveSession(null)
-    expect(getGuestToken()).toBeNull()
+    expect(getActiveSession()?.token ?? null).toBeNull()
   })
 })
 
@@ -300,35 +304,342 @@ describe('persistence', () => {
   })
 })
 
-describe('guestTokenFor', () => {
+describe('withGuestToken: which token a request carries', () => {
   const session = (meetId: number, token: string) => ({
     token,
     meetId,
     meetName: `Meet ${meetId}`,
     role: MeetRole.Official as const,
-    code: `code-${meetId}`,
   })
+  /** The token a request for `path` carries, or null */
+  async function tokenSentFor(path: string, meetId?: number): Promise<string | null> {
+    const base = vi.fn(async (_path: string, init?: RequestInit) => init)
+    const init = (await withGuestToken(asBase(base), vi.fn())(path, undefined, meetId)) as
+      | { headers?: { Authorization?: string } }
+      | undefined
+    return init?.headers?.Authorization?.replace('Bearer ', '') ?? null
+  }
 
   beforeEach(() => {
-    setGuestState({ active: 1, joined: [session(1, 'token-1'), session(2, 'token-2')] })
+    setGuestState({
+      active: 1,
+      joined: [session(1, tokenExpiring(3600, 'one')), session(2, tokenExpiring(3600, 'two'))],
+    })
   })
 
-  it("sends a meet's own token for its paths, whichever meet is active", () => {
-    expect(guestTokenFor('/api/meets/2/teams')).toBe('token-2')
-    expect(guestTokenFor('/api/meets/2')).toBe('token-2')
-    expect(guestTokenFor('/api/meets/1/results')).toBe('token-1')
+  it("sends a meet's own token for its paths, whichever meet is active", async () => {
+    expect(await tokenSentFor('/api/meets/2/teams')).toBe(joinedSession(2)!.token)
+    expect(await tokenSentFor('/api/meets/2')).toBe(joinedSession(2)!.token)
+    expect(await tokenSentFor('/api/meets/1/results')).toBe(joinedSession(1)!.token)
   })
 
-  it("sends no token to a meet the guest hasn't joined", () => {
-    expect(guestTokenFor('/api/meets/3/teams')).toBeNull()
+  it("sends no token to a meet the guest hasn't joined", async () => {
+    expect(await tokenSentFor('/api/meets/3/teams')).toBeNull()
   })
 
-  it("sends the active session's token for paths outside a meet", () => {
-    expect(guestTokenFor('/api/teams/7/quizzers')).toBe('token-1')
+  it("sends the active session's token for paths outside a meet", async () => {
+    expect(await tokenSentFor('/api/teams/7/quizzers')).toBe(joinedSession(1)!.token)
   })
 
-  it("sends a given meet's token for a path that doesn't name it", () => {
-    expect(guestTokenFor('/api/teams/7/quizzers', 2)).toBe('token-2')
-    expect(guestTokenFor('/api/teams/7/quizzers', 3)).toBeNull()
+  it("sends a given meet's token for a path that doesn't name it", async () => {
+    expect(await tokenSentFor('/api/teams/7/quizzers', 2)).toBe(joinedSession(2)!.token)
+    expect(await tokenSentFor('/api/teams/7/quizzers', 3)).toBeNull()
+  })
+})
+
+/** A mock API client, typed as the generic one `withGuestToken` wraps */
+const asBase = (fn: unknown) => fn as Parameters<typeof withGuestToken>[0]
+
+/** A JWT whose payload expires `secondsFromNow` from now; the signature is never checked here */
+function tokenExpiring(secondsFromNow: number, id = 'x'): string {
+  const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + secondsFromNow, id }))
+  return `h.${payload.replace(/=+$/, '')}.s`
+}
+
+describe('withGuestToken: renewing a viewer session', () => {
+  const viewer = (token: string) => ({
+    token,
+    meetId: 7,
+    meetName: 'Fall Meet',
+    role: MeetRole.Viewer as const,
+    code: 'fall-2025',
+  })
+  const fresh = tokenExpiring(3600, 'fresh')
+  const answer = { token: fresh, meet: { id: 7, name: 'Fall Meet' }, role: MeetRole.Viewer }
+
+  it('re-joins from the kept code before a request when the token is known to have expired', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(-60))] })
+    const join = vi.fn(async () => answer)
+    const base = vi.fn(async () => 'ok')
+    const request = withGuestToken(asBase(base), join)
+    expect(await request('/api/meets/7/teams')).toBe('ok')
+    expect(join).toHaveBeenCalledWith('fall-2025')
+    expect(base).toHaveBeenCalledWith('/api/meets/7/teams', {
+      headers: { Authorization: `Bearer ${fresh}` },
+    })
+  })
+
+  it('re-joins and retries once when a request carrying a viewer token is refused with 401', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(3600, 'old'))] })
+    const join = vi.fn(async () => answer)
+    const base = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError(401, 'Authentication required'))
+      .mockResolvedValueOnce('ok')
+    expect(await withGuestToken(asBase(base), join)('/api/meets/7/teams')).toBe('ok')
+    expect(base).toHaveBeenCalledTimes(2)
+    expect(joinedSession(7)?.token).toBe(fresh)
+  })
+
+  it('renews once for requests sent together', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(-60))] })
+    const join = vi.fn(async () => answer)
+    const base = vi.fn(async () => 'ok')
+    const request = withGuestToken(asBase(base), join)
+    await Promise.all([request('/api/meets/7/teams'), request('/api/meets/7/rooms')])
+    expect(join).toHaveBeenCalledTimes(1)
+    expect(base).toHaveBeenCalledTimes(2)
+  })
+
+  it('removes the session and reports it when the server rejects the re-join', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(3600))] })
+    const join = vi.fn().mockRejectedValue(new ApiError(404, 'Invalid code'))
+    const base = vi.fn().mockRejectedValue(new ApiError(401, 'Authentication required'))
+    await expect(withGuestToken(asBase(base), join)('/api/meets/7/teams')).rejects.toThrow()
+    expect(joinedSession(7)).toBeNull()
+    expect(guestNotice.value).toContain('Fall Meet')
+  })
+
+  it('removes the session when the kept code now opens a different meet', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(-60))] })
+    const join = vi.fn(async () => ({ ...answer, meet: { id: 9, name: 'Other Meet' } }))
+    const base = vi.fn(async () => 'ok')
+    await withGuestToken(asBase(base), join)('/api/meets/7/teams')
+    expect(joinedSession(7)).toBeNull()
+    expect(joinedSession(9)).toBeNull()
+  })
+
+  it('never treats a network failure as a refusal', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(3600))] })
+    const join = vi.fn()
+    const base = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
+    await expect(withGuestToken(asBase(base), join)('/api/meets/7/teams')).rejects.toThrow(
+      'Failed to fetch',
+    )
+    expect(join).not.toHaveBeenCalled()
+    expect(joinedSession(7)).not.toBeNull()
+  })
+
+  it.each([
+    ['a server error', new ApiError(503, 'Service Unavailable')],
+    ['a rate limit', new ApiError(429, 'Too many requests')],
+  ])('keeps the session, and sends with its token, when the re-join meets %s', async (_, error) => {
+    const old = tokenExpiring(60, 'old')
+    setGuestState({ active: 7, joined: [viewer(old)] })
+    const join = vi.fn().mockRejectedValue(error)
+    const base = vi.fn(async () => 'ok')
+    expect(await withGuestToken(asBase(base), join)('/api/meets/7/teams')).toBe('ok')
+    expect(base).toHaveBeenCalledWith('/api/meets/7/teams', {
+      headers: { Authorization: `Bearer ${old}` },
+    })
+    expect(joinedSession(7)?.token).toBe(old)
+    expect(guestNotice.value).toBeNull()
+  })
+
+  it('throws the 401 it had when the re-join after it fails', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(3600))] })
+    const refused = new ApiError(401, 'Authentication required')
+    const join = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
+    const base = vi.fn().mockRejectedValue(refused)
+    await expect(withGuestToken(asBase(base), join)('/api/meets/7/teams')).rejects.toBe(refused)
+    expect(joinedSession(7)).not.toBeNull()
+  })
+
+  it('brings back no session ended while it was renewing', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(-60))] })
+    let answerJoin!: (a: typeof answer) => void
+    const join = vi.fn(() => new Promise<typeof answer>((resolve) => (answerJoin = resolve)))
+    const sent = withGuestToken(asBase(vi.fn(async () => 'ok')), join)('/api/meets/7/teams')
+    await vi.waitFor(() => expect(join).toHaveBeenCalled())
+    // Signed out meanwhile
+    setGuestState(null)
+    answerJoin(answer)
+    await sent
+    expect(joinedSession(7)).toBeNull()
+    expect(guestNotice.value).toBeNull()
+  })
+
+  it('keeps a session joined while it was renewing', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(-60))] })
+    let answerJoin!: (a: typeof answer) => void
+    const join = vi.fn(() => new Promise<typeof answer>((resolve) => (answerJoin = resolve)))
+    const base = vi.fn(async () => 'ok')
+    const sent = withGuestToken(asBase(base), join)('/api/meets/7/teams')
+    await vi.waitFor(() => expect(join).toHaveBeenCalled())
+    // Joined again with a room code meanwhile
+    const official = {
+      token: 'official-token',
+      meetId: 7,
+      meetName: 'Fall Meet',
+      role: MeetRole.Official as const,
+      room: { id: 3, name: 'Room 1' },
+    }
+    addJoinedSession(official, true)
+    answerJoin(answer)
+    await sent
+    expect(joinedSession(7)).toEqual(official)
+    expect(base).toHaveBeenCalledWith('/api/meets/7/teams', {
+      headers: { Authorization: 'Bearer official-token' },
+    })
+  })
+
+  it('never renews after a 401 to a request about no meet', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(3600))] })
+    const join = vi.fn(async () => answer)
+    const base = vi.fn().mockRejectedValue(new ApiError(401, 'Authentication required'))
+    await expect(withGuestToken(asBase(base), join)('/api/my-meets')).rejects.toThrow()
+    expect(join).not.toHaveBeenCalled()
+    expect(base).toHaveBeenCalledTimes(1)
+  })
+})
+
+/** The room-code dialog, answering each row from `codes` by its label; a missing one is skipped */
+function dialogAnswering(codes: Record<string, string>) {
+  const told: Record<string, string | null> = {}
+  return {
+    told,
+    ask: vi.fn(async (req: RoomCodeRequest) => {
+      let all = true
+      for (const row of req.rows) {
+        const code = codes[row.label]
+        if (code === undefined) {
+          all = false
+          continue
+        }
+        told[row.label] = await req.onCode(row, code)
+        if (told[row.label] !== null) all = false
+      }
+      return all
+    }),
+  }
+}
+
+describe('withRoomCode: renewing an official session around an action', () => {
+  const official = (token: string) => ({
+    token,
+    meetId: 4,
+    meetName: 'Spring Meet',
+    role: MeetRole.Official as const,
+    room: { id: 12, name: 'Room 3' },
+  })
+  const newToken = tokenExpiring(3600, 'renewed')
+  const officialAnswer = {
+    token: newToken,
+    meet: { id: 4, name: 'Spring Meet' },
+    role: MeetRole.Official,
+    room: { id: 12, name: 'Room 3' },
+  }
+  /** A dialog that types `code` into the room's row, or is cancelled when `code` is null */
+  const dialogTyping = (code: string | null) =>
+    dialogAnswering(code === null ? {} : { 'Spring Meet, Room 3': code })
+
+  it('asks for the code before running when the session is known to have expired', async () => {
+    setGuestState({ active: 4, joined: [official(tokenExpiring(-60))] })
+    const dialog = dialogTyping('NEW-CODE')
+    const action = vi.fn(async () => 'stored')
+    const join = vi.fn(async () => officialAnswer)
+    expect(await withRoomCode(4, action, { join, dialog, signedIn: false })).toBe('stored')
+    expect(dialog.ask).toHaveBeenCalledTimes(1)
+    expect(join).toHaveBeenCalledWith('NEW-CODE')
+    expect(joinedSession(4)).toMatchObject({ token: newToken, room: { id: 12, name: 'Room 3' } })
+    expect(joinedSession(4)).not.toHaveProperty('code')
+  })
+
+  it('asks, re-joins, and runs the action once more when it is refused with 401', async () => {
+    setGuestState({ active: 4, joined: [official(tokenExpiring(3600))] })
+    const dialog = dialogTyping('NEW-CODE')
+    const action = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError(401, 'Authentication required'))
+      .mockResolvedValueOnce('stored')
+    const join = vi.fn(async () => officialAnswer)
+    expect(await withRoomCode(4, action, { join, dialog, signedIn: false })).toBe('stored')
+    expect(action).toHaveBeenCalledTimes(2)
+  })
+
+  it('leaves the action unrun when the dialog is cancelled', async () => {
+    setGuestState({ active: 4, joined: [official(tokenExpiring(-60))] })
+    const action = vi.fn()
+    const result = await withRoomCode(4, action, {
+      join: vi.fn(),
+      dialog: dialogTyping(null),
+      signedIn: false,
+    })
+    expect(result).toBeUndefined()
+    expect(action).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'a code that opens nothing',
+      () => Promise.reject(new ApiError(404, 'Invalid code')),
+      "isn't a room code",
+    ],
+    [
+      'a code for another meet',
+      async () => ({ ...officialAnswer, meet: { id: 9, name: 'Other' } }),
+      'another meet',
+    ],
+    ['a viewer code', async () => ({ ...officialAnswer, role: MeetRole.Viewer }), 'room code'],
+    [
+      "another room's code",
+      async () => ({ ...officialAnswer, room: { id: 15, name: 'Room 5' } }),
+      "Room 5; enter Room 3's code",
+    ],
+  ])('refuses %s on the row, storing and replacing nothing', async (_, join, message) => {
+    const old = official(tokenExpiring(-60, 'old'))
+    setGuestState({ active: 4, joined: [old] })
+    const dialog = dialogTyping('WRONG')
+    const action = vi.fn()
+    await withRoomCode(4, action, { join, dialog, signedIn: false })
+    expect(dialog.told['Spring Meet, Room 3']).toContain(message)
+    expect(action).not.toHaveBeenCalled()
+    expect(guestStateRef.value.joined).toEqual([old])
+  })
+
+  it('asks nothing in the minutes before the token runs out', async () => {
+    setGuestState({ active: 4, joined: [official(tokenExpiring(60))] })
+    const dialog = dialogTyping('NEW-CODE')
+    const action = vi.fn(async () => 'stored')
+    expect(await withRoomCode(4, action, { join: vi.fn(), dialog, signedIn: false })).toBe('stored')
+    expect(dialog.ask).not.toHaveBeenCalled()
+  })
+
+  it('never takes a server error on the code for a refusal', async () => {
+    setGuestState({ active: 4, joined: [official(tokenExpiring(-60))] })
+    const dialog = dialogTyping('NEW-CODE')
+    const join = vi.fn().mockRejectedValue(new ApiError(503, 'Service Unavailable'))
+    await withRoomCode(4, vi.fn(), { join, dialog, signedIn: false })
+    expect(dialog.told['Spring Meet, Room 3']).toMatch(/reach/)
+  })
+
+  it('asks for nothing while an account is signed in', async () => {
+    setGuestState({ active: 4, joined: [official(tokenExpiring(-60))] })
+    const dialog = dialogTyping('NEW-CODE')
+    const action = vi.fn().mockRejectedValue(new ApiError(401, 'Authentication required'))
+    await expect(
+      withRoomCode(4, action, { join: vi.fn(), dialog, signedIn: true }),
+    ).rejects.toThrow()
+    expect(dialog.ask).not.toHaveBeenCalled()
+  })
+
+  it('never treats a network failure as a refusal', async () => {
+    setGuestState({ active: 4, joined: [official(tokenExpiring(3600))] })
+    const dialog = dialogTyping('NEW-CODE')
+    const action = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
+    await expect(
+      withRoomCode(4, action, { join: vi.fn(), dialog, signedIn: false }),
+    ).rejects.toThrow('Failed to fetch')
+    expect(dialog.ask).not.toHaveBeenCalled()
   })
 })
