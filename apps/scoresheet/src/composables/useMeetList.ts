@@ -4,7 +4,8 @@ import { ApiError } from '@qzr/shared'
 
 import { getMyMeets, joinMeet, type MeetSummary } from '../api'
 import { maySend } from './useSubmitToMeet'
-import { initGuestSession, joinByCode, useGuestSession } from './useGuestSession'
+import { leaveGuestMeet } from '@qzr/ui'
+import { initGuestSession, joinByCode, joinedSession, useGuestSession } from './useGuestSession'
 
 /**
  * Shared logic for the "pick a meet" step used by both
@@ -84,6 +85,17 @@ export function useMeetList() {
     }
   }
 
+  /** Whether the meet was joined with a code, so the user can leave it here */
+  function isGuestMeet(meetId: number): boolean {
+    return joinedSession(meetId) !== null
+  }
+
+  /** Leave a meet joined with a code, then list the meets again */
+  async function leaveMeet(meetId: number) {
+    leaveGuestMeet(meetId)
+    await fetchMeets()
+  }
+
   /** Switches the active guest session (no-op for signed-in memberships)
    *  so subsequent API requests target the picked meet's JWT. */
   function setActiveGuest(meetId: number) {
@@ -102,5 +114,7 @@ export function useMeetList() {
     fetchMeets,
     handleJoinCode,
     setActiveGuest,
+    isGuestMeet,
+    leaveMeet,
   }
 }

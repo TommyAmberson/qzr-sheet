@@ -21,6 +21,26 @@ import { ApiError, MeetRole } from '@qzr/shared'
  */
 
 export const STORAGE_KEY = 'qzr-guest-session'
+/** The scoresheet's team-name lists for a meet, kept for guest use */
+export const TEAM_NAMES_KEY = 'qzr-team-names'
+/** The meet the scoresheet last submitted to */
+export const SUBMIT_MEET_KEY = 'qzr-submit-meet'
+
+/**
+ * End the guest account on this device, as signing out does in either app: every guest session,
+ * and the meet data the scoresheet keeps for guest use. The apps share storage, so both clear the
+ * same keys.
+ */
+export function clearGuestData(): void {
+  setGuestState(null)
+  for (const key of [TEAM_NAMES_KEY, SUBMIT_MEET_KEY]) {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      // Storage unavailable: nothing was kept
+    }
+  }
+}
 
 /** A room of a meet, as a guest official's session keeps it */
 export interface GuestRoom {
@@ -178,7 +198,7 @@ async function doRenewViewer(
     addJoinedSession(renewed, guestStateRef.value.active === session.meetId)
     return renewed
   }
-  removeSessions([session.meetId])
+  leaveGuestMeet(session.meetId)
   noticeCodeEnded(session)
   return null
 }
@@ -397,7 +417,7 @@ async function doUpgrade(opts: UpgradeOptions): Promise<void> {
     }
     return true
   })
-  removeSessions(redeemed.map((s) => s.meetId))
+  leaveGuestMeets(redeemed.map((s) => s.meetId))
   if (redeemed.length < viewers.length) return
   const officials = joined.filter((j) => j.role === MeetRole.Official)
   if (officials.length === 0 || !opts.dialog) return
@@ -424,7 +444,7 @@ async function doUpgrade(opts: UpgradeOptions): Promise<void> {
       // The room is dropped once accepted, so only its own meet's room code may stand for it
       if (res.meet.id !== row.meetId) return 'That code is for another meet.'
       if (res.role !== MeetRole.Official) return "That isn't a room code."
-      removeSessions([row.meetId])
+      leaveGuestMeet(row.meetId)
       return null
     },
     submitLabel: 'Add',
@@ -432,11 +452,15 @@ async function doUpgrade(opts: UpgradeOptions): Promise<void> {
     skip: true,
   })
   // A skipped room is dropped: while signed in, the account decides
-  removeSessions(officials.map((s) => s.meetId).filter((id) => !unreached.has(id)))
+  leaveGuestMeets(officials.map((s) => s.meetId).filter((id) => !unreached.has(id)))
 }
 
-/** Remove meets' guest sessions, clearing the active marker if it pointed at one */
-function removeSessions(meetIds: number[]): void {
+/** Leave one meet joined with a code: its guest session goes, the others stay */
+export function leaveGuestMeet(meetId: number): void {
+  leaveGuestMeets([meetId])
+}
+
+function leaveGuestMeets(meetIds: number[]): void {
   const state = guestStateRef.value
   if (!state.joined.some((j) => meetIds.includes(j.meetId))) return
   guestStateRef.value = {
@@ -544,10 +568,11 @@ function tokenTimeLeftMs(token: string): number {
 
 function persist(): void {
   const s = guestStateRef.value
-  if (s.active === null && s.joined.length === 0) {
-    localStorage.removeItem(STORAGE_KEY)
-  } else {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+  try {
+    if (s.active === null && s.joined.length === 0) localStorage.removeItem(STORAGE_KEY)
+    else localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+  } catch {
+    // Storage blocked or full: the state lasts until the page closes, and signing out still works
   }
 }
 

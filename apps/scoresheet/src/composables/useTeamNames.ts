@@ -1,8 +1,7 @@
 import { ref } from 'vue'
 import { foldName, type DivisionTeamNames } from '@qzr/shared'
+import { TEAM_NAMES_KEY } from '@qzr/ui'
 import { getTeamNames } from '../api'
-
-const STORAGE_KEY = 'qzr-team-names'
 
 /** A meet's team names, as last fetched */
 interface KnownNames {
@@ -38,8 +37,8 @@ function teamNamesFor(division: string): string[] {
 function keep(names: KnownNames | null) {
   known.value = names
   try {
-    if (names) localStorage.setItem(STORAGE_KEY, JSON.stringify(names))
-    else localStorage.removeItem(STORAGE_KEY)
+    if (names) localStorage.setItem(TEAM_NAMES_KEY, JSON.stringify(names))
+    else localStorage.removeItem(TEAM_NAMES_KEY)
   } catch {
     // Storage unavailable: the names last until the page closes
   }
@@ -47,7 +46,7 @@ function keep(names: KnownNames | null) {
 
 function loadFromStorage(): KnownNames | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(TEAM_NAMES_KEY)
     return raw ? (JSON.parse(raw) as KnownNames) : null
   } catch {
     return null
