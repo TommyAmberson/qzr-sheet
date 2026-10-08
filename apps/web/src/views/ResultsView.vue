@@ -4,11 +4,19 @@ import { useRouter } from 'vue-router'
 import {
   ApiError,
   divisionStandings,
+  MeetRole,
   type StandingsWarning,
   type TeamStanding,
   type TieBreak,
 } from '@qzr/shared'
-import { ChoiceDialog, formatSlotTime, uploadPicked, type FileReport, type Sender } from '@qzr/ui'
+import {
+  ChoiceDialog,
+  formatSlotTime,
+  joinedSession,
+  uploadPicked,
+  type FileReport,
+  type Sender,
+} from '@qzr/ui'
 
 import {
   editResult,
@@ -21,6 +29,7 @@ import {
   type StoredQuiz,
 } from '../api'
 import { countedQuizzes, groupResults, mergeEdits, type ResultRow } from '../results'
+import { useRoomCode } from '../composables/useRoomCode'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
@@ -37,6 +46,7 @@ const countError = ref('')
 const sender = ref<Sender | null>(null)
 const isAdmin = computed(() => sender.value?.admin ?? false)
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
+const { renew } = useRoomCode()
 const uploadInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
 const uploadReports = ref<FileReport[]>([])
@@ -57,11 +67,19 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { meet: detail } = await getMeet(props.slug)
-    meet.value = detail
-    const [quizzes, who] = await Promise.all([listResults(detail.id), senderOf(detail.id)])
-    sender.value = who
-    stored.value = quizzes
+    // A guest official's slug is the meet's id; their ended session is renewed on opening the page
+    const loaded = await renew(Number(props.slug), async () => {
+      const { meet: detail } = await getMeet(props.slug)
+      const [quizzes, who] = await Promise.all([listResults(detail.id), senderOf(detail.id)])
+      return { detail, quizzes, who }
+    })
+    if (!loaded) {
+      error.value = 'Join the meet again with your room code to see its results.'
+      return
+    }
+    meet.value = loaded.detail
+    sender.value = loaded.who
+    stored.value = loaded.quizzes
   } catch (e) {
     error.value =
       e instanceof ApiError && e.status === 401
@@ -91,6 +109,13 @@ async function onUploadFiles(event: Event) {
   uploading.value = true
   uploadError.value = ''
   try {
+    // Renew a guest official's ended session before sending, rather than fail each file; anyone
+    // else's sender is the one the page loaded
+    if (joinedSession(meetId)?.role === MeetRole.Official) {
+      const who = await renew(meetId, () => getSender(meetId))
+      if (!who) return
+      sender.value = who
+    }
     const reports = await uploadPicked(
       event,
       choiceDialog.value,
@@ -104,6 +129,8 @@ async function onUploadFiles(event: Event) {
   } catch (e) {
     uploadError.value = (e as Error).message
   } finally {
+    // Cleared however it ended, so picking the same files again fires a change
+    ;(event.target as HTMLInputElement).value = ''
     uploading.value = false
   }
 }
@@ -155,8 +182,11 @@ async function mergeNames(division: string, names: [string, string], teams: Team
   let done = 0
   try {
     for (const { id, quizFile } of edits) {
-      await editResult(meetId, id, quizFile, 'merged')
+      if (!(await renew(meetId, () => editResult(meetId, id, quizFile, 'merged')))) break
       done += 1
+    }
+    if (done < edits.length && !mergeError.value) {
+      mergeError.value = `Merged ${done} of ${edits.length} quizzes. Merge again to finish.`
     }
   } catch (e) {
     mergeError.value = `Merged ${done} of ${edits.length} quizzes: ${(e as Error).message} Merge again to finish.`
