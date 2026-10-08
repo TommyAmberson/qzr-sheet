@@ -77,7 +77,13 @@ async function seedOfficialCode(db: Db, meetId: number, label: string) {
   return { officialCode: row!, code }
 }
 
-type JoinBody = { meet: { id: number; name: string }; role: string; label?: string; token?: string }
+type JoinBody = {
+  meet: { id: number; name: string }
+  role: string
+  label?: string
+  token?: string
+  room?: { id: number; name: string }
+}
 
 describe('POST /api/join', () => {
   let db: Db
@@ -286,6 +292,9 @@ describe('POST /api/join/guest', () => {
       expect(payload).not.toBeNull()
       expect(payload!.meetId).toBe(meet.id)
       expect(payload!.role).toBe(MeetRole.Viewer)
+      // Changing the viewer code ends the token, so it names the code it was issued for
+      expect(payload!.codeTag).toBeTypeOf('string')
+      expect(body.room).toBeUndefined()
     })
   })
 
@@ -302,6 +311,7 @@ describe('POST /api/join/guest', () => {
       expect(body.meet.id).toBe(meet.id)
       expect(body.role).toBe(MeetRole.Official)
       expect(body.label).toBe('Room B')
+      expect(body.room).toEqual({ id: officialCode.id, name: 'Room B' })
 
       const payload = await verifyGuestJwt(body.token!, 'test-secret-at-least-32-characters-long')
       expect(payload).not.toBeNull()

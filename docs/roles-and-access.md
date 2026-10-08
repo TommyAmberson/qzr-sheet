@@ -155,6 +155,8 @@ Every route keeps these, and a new route must too. The first two restate constit
 * **Codes are redeemed, not presented.** Admin, coach, and room codes appear only in the body of a
   join request. The viewer code also names its meet in a `?meet=` link.
 * **Precedence.** A session outranks a guest token on the same request.
+* **Revoked is revoked.** A guest token whose code has changed, or whose room is gone, grants
+  nothing, reads included: the request is treated as having no token.
 * **Missing looks like forbidden.** A route answers the same for an object that doesn't exist as for
   one the principal may not see, so ids reveal nothing about other meets.
 * **No codes below admin.** A response never gives a code or code hash to a principal below admin,
@@ -197,7 +199,8 @@ link.
 Joining is idempotent: entering a code you already hold returns the existing membership.
 
 **Without an account**, `POST /api/join/guest { code }` accepts a viewer or room code and returns a
-guest token. Coach and admin codes need an account.
+guest token, plus for a room code the room (`room: { id, name }`). Coach and admin codes need an
+account.
 
 ### Meet links
 
@@ -214,10 +217,10 @@ Admin, coach, and room codes support two rotation modes:
 | Rotate only    | Generates a new code. Existing memberships **keep** their access.           |
 | Rotate + clear | Generates a new code. Every membership the old code granted is **deleted**. |
 
-Either mode takes the room away from the guest tokens issued for its old code, at once.
+Either mode revokes the guest tokens issued for a room's old code, at once.
 
 The viewer code is a slug the admin sets. It has no rotation modes: changing it leaves viewer
-memberships in place.
+memberships in place and revokes the viewer guest tokens issued for the old code.
 
 ### Who can rotate
 
@@ -232,6 +235,6 @@ Superusers can do anything an admin can.
 
 * **A membership** ends when an admin removes it (an admin membership: a superuser), when its code
   is rotated and cleared, or when its church, room, or meet is deleted.
-* **A guest token** ends 24 hours after it was issued. An official's token loses its room at once
-  when the room's code is rotated or the room is deleted.
+* **A guest token** ends 24 hours after it was issued, or at once when the code it was issued for
+  changes (the room's code, or the meet's viewer code) or its room is deleted.
 * **A session** ends when the user signs out.

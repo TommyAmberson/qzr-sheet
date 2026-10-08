@@ -4,8 +4,6 @@ import { AccountRole, MeetRole } from '@qzr/shared'
 import * as schema from '../db/schema'
 import type { Db } from './db'
 import type { SessionVariables } from '../middleware/session'
-import type { Bindings } from '../bindings'
-import { roomCodeTag } from './jwt'
 
 /** True if the user is a superuser or has an admin membership for the given meet. */
 export async function isAdminOrSuperuser(
@@ -69,23 +67,19 @@ export async function isViewerOf<E extends { Variables: SessionVariables }>(
 }
 
 /**
- * True if the requester officiates the given room of the meet: a guest whose official token was
- * issued for that room's current code, or a signed-in official with a membership for it. Analogous
- * to `isViewerOf`. Rotating the room's code, or deleting the room, revokes guest tokens at once.
+ * True if the requester officiates the given room of the meet: a guest whose official token names
+ * that room, or a signed-in official with a membership for it. Analogous to `isViewerOf`. A guest
+ * token whose room code has changed never gets this far (`currentGuest` in `lib/jwt.ts`).
  */
-export async function isOfficialOfRoom<
-  E extends { Bindings: Bindings; Variables: SessionVariables },
->(c: Context<E>, db: Db, meetId: number, roomId: number): Promise<boolean> {
+export async function isOfficialOfRoom<E extends { Variables: SessionVariables }>(
+  c: Context<E>,
+  db: Db,
+  meetId: number,
+  roomId: number,
+): Promise<boolean> {
   const guest = c.get('guest')
   if (guest) {
-    if (guest.meetId !== meetId || guest.role !== MeetRole.Official) return false
-    if (guest.roomId !== roomId || !guest.codeTag) return false
-    const [room] = await db
-      .select({ codeHash: schema.meetRooms.codeHash })
-      .from(schema.meetRooms)
-      .where(and(eq(schema.meetRooms.id, roomId), eq(schema.meetRooms.meetId, meetId)))
-    if (!room?.codeHash) return false
-    return guest.codeTag === (await roomCodeTag(room.codeHash, c.env.BETTER_AUTH_SECRET))
+    return guest.meetId === meetId && guest.role === MeetRole.Official && guest.roomId === roomId
   }
   const user = c.get('user')
   if (!user) return false
@@ -103,16 +97,18 @@ export async function isOfficialOfRoom<
 }
 
 /**
- * The rooms of the meet the requester officiates: a guest official's room while their token's code
- * is current, or every room a signed-in account officiates there. Empty for anyone else.
+ * The rooms of the meet the requester officiates: a guest official's room, or every room a
+ * signed-in account officiates there. Empty for anyone else.
  */
-export async function officialRoomsOf<
-  E extends { Bindings: Bindings; Variables: SessionVariables },
->(c: Context<E>, db: Db, meetId: number): Promise<number[]> {
+export async function officialRoomsOf<E extends { Variables: SessionVariables }>(
+  c: Context<E>,
+  db: Db,
+  meetId: number,
+): Promise<number[]> {
   const guest = c.get('guest')
   if (guest) {
-    const { roomId } = guest
-    return roomId !== undefined && (await isOfficialOfRoom(c, db, meetId, roomId)) ? [roomId] : []
+    const official = guest.meetId === meetId && guest.role === MeetRole.Official
+    return official && guest.roomId !== undefined ? [guest.roomId] : []
   }
   const user = c.get('user')
   if (!user) return []

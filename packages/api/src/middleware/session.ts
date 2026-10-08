@@ -1,7 +1,8 @@
 import type { Context, MiddlewareHandler } from 'hono'
 import type { Bindings } from '../bindings'
 import { createAuth } from '../lib/auth'
-import { verifyGuestJwt, type GuestPayload } from '../lib/jwt'
+import { currentGuest, type GuestPayload } from '../lib/jwt'
+import { createDb, type Db } from '../lib/db'
 import { AccountRole } from '@qzr/shared'
 
 export interface SessionUser {
@@ -14,12 +15,15 @@ export interface SessionUser {
 export interface SessionVariables {
   user: SessionUser | null
   guest: GuestPayload | null
+  /** Set by whichever runs first: a test's `mockDb`, this middleware for a guest, or a router */
+  db: Db
 }
 
 /**
  * Read the Better Auth session from request cookies and/or a guest JWT from
  * the `Authorization: Bearer` header. Sets `c.var.user` and `c.var.guest` —
- * both nullable. Always calls next.
+ * both nullable; a guest token that isn't current leaves `guest` null. Always
+ * calls next.
  *
  * A signed-in cookie session takes precedence: when both are present, `user`
  * is set and `guest` is left null so downstream code doesn't double-count.
@@ -49,7 +53,14 @@ export function sessionMiddleware(): MiddlewareHandler<{
     const token = authHeader?.startsWith('Bearer ')
       ? authHeader.slice('Bearer '.length).trim()
       : null
-    c.set('guest', token ? await verifyGuestJwt(token, c.env.BETTER_AUTH_SECRET) : null)
+    if (!token) {
+      c.set('guest', null)
+      await next()
+      return
+    }
+    // Shared with the routes, which reuse a DB already set
+    if (!c.get('db')) c.set('db', createDb(c.env.DB) as unknown as Db)
+    c.set('guest', await currentGuest(c.get('db'), token, c.env.BETTER_AUTH_SECRET))
     await next()
   }
 }

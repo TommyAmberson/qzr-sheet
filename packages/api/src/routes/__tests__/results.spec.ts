@@ -4,7 +4,7 @@ import { CellValue, MeetRole, PlacementFormula, type QuizFile } from '@qzr/share
 import { eq } from 'drizzle-orm'
 import type { Bindings } from '../../bindings'
 import type { SessionUser, SessionVariables } from '../../middleware/session'
-import { roomCodeTag, type GuestPayload } from '../../lib/jwt'
+import { codeTagFor, type GuestPayload } from '../../lib/jwt'
 import { results } from '../results'
 import * as schema from '../../db/schema'
 import {
@@ -92,7 +92,7 @@ beforeEach(async () => {
       { meetId, name: 'Room 2', codeHash: 'hash-2' },
     ])
     .returning()
-  for (const room of rooms) codeTags.set(room.id, await roomCodeTag(room.codeHash!, SECRET))
+  for (const room of rooms) codeTags.set(room.id, await codeTagFor('room', room.codeHash!, SECRET))
   room1 = rooms[0]!.id
   room2 = rooms[1]!.id
 })
@@ -134,6 +134,22 @@ describe('POST /api/meets/:id/results', () => {
       savedBy: { name: 'Room 1' },
     })
     expect(stored!.quizFile.teams[0]!.name).toBe('Calgary 1')
+  })
+
+  it("takes a guest official's room from their token when the send names none, as released apps do", async () => {
+    expect((await submit(official(room1))).status).toBe(201)
+    expect((await list())[0]!.origin).toEqual({ action: 'submitted', name: 'Room 1' })
+  })
+
+  it('accepts a guest official naming their own room', async () => {
+    expect((await submit(official(room1), { roomId: room1 })).status).toBe(201)
+  })
+
+  it('refuses a guest official naming another room', async () => {
+    const res = await submit(official(room1), { roomId: room2 })
+    expect(res.status).toBe(403)
+    expect(await jsonOf(res)).toEqual({ error: 'Not an official of this room' })
+    expect(await list()).toHaveLength(0)
   })
 
   it("stores an admin's upload with no room as uploaded", async () => {
@@ -213,10 +229,11 @@ describe('POST /api/meets/:id/results', () => {
     })
   })
 
-  it('asks an official whose token names no room to rejoin', async () => {
+  // Such a token isn't current, so the session middleware never lets it this far; the route still refuses it
+  it('refuses an official whose token names no room', async () => {
     const res = await submit(official(undefined))
     expect(res.status).toBe(403)
-    expect(await jsonOf(res)).toEqual({ error: 'Rejoin with your room code' })
+    expect(await jsonOf(res)).toEqual({ error: 'Not an official of this room' })
   })
 
   it('refuses viewers and officials of another meet', async () => {
@@ -446,26 +463,11 @@ describe('malformed requests', () => {
   })
 })
 
-describe('revoking official tokens', () => {
-  it('asks an official to rejoin once their room code is rotated', async () => {
-    await db
-      .update(schema.meetRooms)
-      .set({ codeHash: 'hash-rotated' })
-      .where(eq(schema.meetRooms.id, room1))
-    const res = await submit(official(room1))
-    expect(res.status).toBe(403)
-    expect(await jsonOf(res)).toEqual({ error: 'Rejoin with your room code' })
-  })
-
+describe('deleting a room', () => {
   it('keeps where a quiz came from once its room is deleted', async () => {
     await submit(official(room1))
     await db.delete(schema.meetRooms).where(eq(schema.meetRooms.id, room1))
     expect((await list())[0]!.origin).toEqual({ action: 'submitted', name: 'Room 1' })
-  })
-
-  it('refuses an official of a deleted room', async () => {
-    await db.delete(schema.meetRooms).where(eq(schema.meetRooms.id, room1))
-    expect((await submit(official(room1))).status).toBe(403)
   })
 })
 

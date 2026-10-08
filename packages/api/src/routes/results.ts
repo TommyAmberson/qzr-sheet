@@ -2,7 +2,6 @@ import { Hono, type Context } from 'hono'
 import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import {
-  MeetRole,
   NewerFileVersionError,
   foldName,
   isQuizFile,
@@ -73,22 +72,6 @@ function adminSaver(user: SessionUser): Saver {
 async function isAdmin(c: Context<Env>, meetId: number): Promise<boolean> {
   const user = c.get('user')
   return !!user && (await isAdminOrSuperuser(c.get('db'), user.id, user.role, meetId))
-}
-
-/** The response refusing someone who isn't an official of the room they send for, if they aren't */
-async function officialRefusal(
-  c: Context<Env>,
-  meetId: number,
-  roomId: number | null,
-): Promise<Response | null> {
-  if (roomId !== null && (await isOfficialOfRoom(c, c.get('db'), meetId, roomId))) return null
-  // An official token from before rooms were on it, or from a since-rotated code, needs a new one
-  const guest = c.get('guest')
-  const rejoin = guest?.role === MeetRole.Official && guest.meetId === meetId
-  return c.json(
-    { error: rejoin ? 'Rejoin with your room code' : 'Not an official of this room' },
-    403,
-  )
 }
 
 /**
@@ -370,15 +353,16 @@ results.post('/:id/results', async (c) => {
     upload?: unknown
   }>(c)
   if (!body) return c.json({ error: 'Body must be JSON' }, 400)
-  const guest = c.get('guest')
   const user = c.get('user')
+  // A guest whose send names no room (as released apps send it) sends for their token's room
   const roomId =
-    (guest ? guest.roomId : typeof body.roomId === 'number' ? body.roomId : null) ?? null
+    (typeof body.roomId === 'number' ? body.roomId : null) ?? c.get('guest')?.roomId ?? null
 
   // An admin sends for any room of the meet, or none; anyone else is an official of the room
   if (!user || !(await isAdmin(c, meetId))) {
-    const refused = await officialRefusal(c, meetId, roomId)
-    if (refused) return refused
+    if (roomId === null || !(await isOfficialOfRoom(c, c.get('db'), meetId, roomId))) {
+      return c.json({ error: 'Not an official of this room' }, 403)
+    }
   }
   // Only an admin gets here with no room: an official always sends for one
   const saver =

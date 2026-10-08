@@ -17,6 +17,31 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-07
+
+### Added
+
+* **Viewer token tag** - viewer guest tokens carry `codeTag`, a tag of the meet's viewer code, like
+  official tokens carry one of their room's code
+* **The room in a guest join** - joining with a room code (`POST /api/join/guest`) also answers
+  `room: { id, name }`; `label` stays
+
+### Changed
+
+* **Guest tokens are checked against their code** - the session middleware treats a guest token as
+  absent unless its `codeTag` matches the current code it was issued for: the meet's viewer code, or
+  the room's code with the room in the token's meet. Changing a viewer code, rotating a room code,
+  or deleting a room revokes its tokens on every route at once. A token without a tag, including a
+  viewer token issued before this release, is no longer accepted; its holder joins again with the
+  code
+* **A guest official's send names their room** - a send naming a room other than the token's is
+  refused with 403; one naming none uses the token's room, as before. An official token without a
+  room gets 401 rather than 403 "Rejoin with your room code"
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - unchanged
+
 ## [0.18.0] - 2026-10-04
 
 ### Added
