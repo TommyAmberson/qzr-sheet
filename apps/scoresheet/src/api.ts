@@ -10,7 +10,8 @@ import {
 declare const __API_URL__: string
 
 /** Requests carry the guest token of the meet they're for (see `withGuestToken`) */
-const request = withGuestToken(createApiClient(__API_URL__ || ''))
+const baseRequest = createApiClient(__API_URL__ || '')
+const request = withGuestToken(baseRequest, joinMeetGuest)
 
 // ---- Types ----
 
@@ -202,16 +203,9 @@ export function joinMeet(
 }
 
 /**
- * Unauthenticated guest join — does NOT use the request wrapper because the
- * wrapper attaches a Bearer token we don't have yet. Returns a 24h JWT plus
- * the resolved meet identity.
+ * Guest join: a 24h JWT plus the resolved meet identity. Without a guest token, since renewing a
+ * session joins through here.
  */
-export async function joinMeetGuest(code: string): Promise<GuestJoinAnswer | null> {
-  const res = await fetch(`${__API_URL__ || ''}/api/join/guest`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code }),
-  })
-  if (!res.ok) return null
-  return (await res.json()) as GuestJoinAnswer
+export function joinMeetGuest(code: string): Promise<GuestJoinAnswer> {
+  return baseRequest('/api/join/guest', { method: 'POST', body: JSON.stringify({ code }) })
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { RoomCodeDialog } from '@qzr/ui'
+import { RoomCodeDialog, type RoomCodeRequest } from '@qzr/ui'
 
 beforeAll(() => {
   // jsdom has no modal dialogs
@@ -13,12 +13,12 @@ beforeAll(() => {
 })
 
 const rows = [
-  { key: 1, label: 'Fall Meet, Room 1' },
-  { key: 2, label: 'Spring Meet, Room 3' },
+  { meetId: 1, label: 'Fall Meet, Room 1' },
+  { meetId: 2, label: 'Spring Meet, Room 3' },
 ]
 
 function open(
-  onCode: (row: { key: string | number; label: string }, code: string) => Promise<string | null>,
+  onCode: RoomCodeRequest['onCode'],
   opts: { rows?: typeof rows; skip?: boolean } = {},
 ) {
   const wrapper = mount(RoomCodeDialog, { attachTo: document.body })

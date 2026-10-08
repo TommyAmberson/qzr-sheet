@@ -11,9 +11,17 @@ export {
   joinedSession,
   setActiveSession,
   setGuestState,
+  guestNotice,
   withGuestToken,
+  withRoomCode,
 } from './guestSession'
-export type { GuestJoinAnswer, GuestRoom, GuestSessionData } from './guestSession'
+export type {
+  GuestJoinAnswer,
+  GuestRoom,
+  GuestSessionData,
+  RoomCodeAsker,
+  RoomCodeRequest,
+} from './guestSession'
 export { default as ScheduleGrid } from './ScheduleGrid.vue'
 export {
   STATS_BREAK_LABEL,

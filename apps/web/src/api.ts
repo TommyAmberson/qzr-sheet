@@ -19,7 +19,8 @@ export type { MeetPhase, DivisionStateValue }
 declare const __API_URL__: string
 
 /** Requests carry the guest token of the meet they're for (see `withGuestToken`) */
-const request = withGuestToken(createApiClient(__API_URL__ || ''))
+const baseRequest = createApiClient(__API_URL__ || '')
+const request = withGuestToken(baseRequest, joinMeetGuest)
 
 // ---- Types ----
 
@@ -184,7 +185,8 @@ export function joinMeet(
 export function joinMeetGuest(
   code: string,
 ): Promise<GuestJoinAnswer & { role: MeetRole; label?: string }> {
-  return request('/api/join/guest', {
+  // Without a guest token: renewing a session joins through here
+  return baseRequest('/api/join/guest', {
     method: 'POST',
     body: JSON.stringify({ code }),
   })
