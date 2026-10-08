@@ -35,13 +35,14 @@ import {
 } from '../persistence/fileIO'
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
-import { getMeetName, getRevision, joinMeetGuest, type ScheduledQuizSeat } from '../api'
+import { getMeetName, getRevision, joinMeet, joinMeetGuest, type ScheduledQuizSeat } from '../api'
 import {
   ChoiceDialog,
   RoomCodeDialog,
   askAlreadySubmitted,
   chooseRoom,
   guestStateRef,
+  upgradeOnSignIn,
   withRoomCode,
   type OnExisting,
   type RoomCodeOptions,
@@ -831,6 +832,12 @@ function fileStem(): string {
 
 const submitter = useSubmitToMeet()
 const { session: authSession } = useAuth()
+// Signing in, or starting signed in, upgrades the account with the guest sessions' codes
+upgradeOnSignIn(
+  () => authSession.value.data?.user.id,
+  () => ({ joinMeet, dialog: roomCodeDialog.value }),
+)
+
 /** How a guest official's ended session is renewed: through the room-code dialog, unless signed in */
 function roomCodeOptions(): RoomCodeOptions {
   return {

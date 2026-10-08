@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
-import { GuestNotice, RoomCodeDialog } from '@qzr/ui'
+import { GuestNotice, RoomCodeDialog, upgradeOnSignIn } from '@qzr/ui'
+import { joinMeet } from './api'
+import { useAuth } from './composables/useAuth'
 import { roomCodeDialog } from './composables/useRoomCode'
+
+const { session } = useAuth()
+// Signing in, or starting signed in, upgrades the account with the guest sessions' codes
+upgradeOnSignIn(
+  () => session.value?.data?.user.id,
+  () => ({ joinMeet, dialog: roomCodeDialog.value }),
+)
 </script>
 
 <template>

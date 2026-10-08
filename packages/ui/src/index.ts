@@ -13,6 +13,7 @@ export {
   setActiveSession,
   setGuestState,
   guestNotice,
+  upgradeOnSignIn,
   withGuestToken,
   withRoomCode,
 } from './guestSession'

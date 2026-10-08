@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { ApiError, MeetRole } from '@qzr/shared'
 
 /**
@@ -174,7 +174,7 @@ async function doRenewViewer(
     addJoinedSession(renewed, guestStateRef.value.active === session.meetId)
     return renewed
   }
-  removeSession(session.meetId)
+  removeSessions([session.meetId])
   noticeCodeEnded(session)
   return null
 }
@@ -247,9 +247,7 @@ async function askRoomCode(session: GuestSessionData, opts: RoomCodeOptions): Pr
     (await opts.dialog?.ask({
       title: 'Room code needed',
       detail: `Your session for ${session.meetName} has ended. Enter ${room ? `${room}'s` : 'your room'} code to keep going.`,
-      rows: [
-        { meetId: session.meetId, label: room ? `${session.meetName}, ${room}` : session.meetName },
-      ],
+      rows: [{ meetId: session.meetId, label: sessionLabel(session) }],
       onCode: async (_, code) => {
         let res
         try {
@@ -318,12 +316,128 @@ export function addJoinedSession(data: GuestSessionData, makeActive: boolean): v
   persist()
 }
 
-/** Remove one meet's guest session, clearing the active marker if it pointed there */
-function removeSession(meetId: number): void {
+/** How a guest session is named to the user: the meet, and an official's room when known */
+function sessionLabel(session: GuestSessionData): string {
+  return session.room ? `${session.meetName}, ${session.room.name}` : session.meetName
+}
+
+let upgrading: Promise<void> | null = null
+
+/**
+ * Upgrade the account whenever the user signs in, or starts signed in, while holding guest sessions,
+ * and when a meet is joined with a code while signed in, as a meet link's join finishing after
+ * start. Call from a component's setup.
+ */
+export function upgradeOnSignIn(
+  userId: () => string | undefined,
+  opts: () => UpgradeOptions,
+): void {
+  const run = () => {
+    if (userId() && guestStateRef.value.joined.length > 0) void upgradeGuestAccount(opts())
+  }
+  watch(userId, run)
+  // Only a meet joined runs it again, not one leaving or a session renewing its token, so closing
+  // the dialog with a room kept for later doesn't reopen it
+  watch(
+    () => guestStateRef.value.joined.map((j) => j.meetId),
+    (now, before) => {
+      if (now.some((id) => !before.includes(id))) run()
+    },
+  )
+  onMounted(run)
+}
+
+/**
+ * Upgrade a signed-in account with the guest sessions' codes, the way joining with each code while
+ * signed in would: viewer sessions with their kept code, without asking; official sessions through
+ * one room-code dialog listing each room, since their codes are never kept. Each session is removed
+ * once redeemed, or skipped; a guest token is never sent in place of a code. When the server can't
+ * be reached, everything is kept for the next run. Runs once at a time.
+ */
+export function upgradeGuestAccount(opts: UpgradeOptions): Promise<void> {
+  upgrading ??= upgradeUntilSettled(opts).finally(() => (upgrading = null))
+  return upgrading
+}
+
+/** Upgrade again while meets were joined during the last run, as a meet link's join finishing */
+async function upgradeUntilSettled(opts: UpgradeOptions): Promise<void> {
+  let before: number[]
+  do {
+    before = guestStateRef.value.joined.map((j) => j.meetId)
+    await doUpgrade(opts)
+  } while (guestStateRef.value.joined.some((j) => !before.includes(j.meetId)))
+}
+
+/** What the sign-in upgrade needs from the app */
+export interface UpgradeOptions {
+  /** The app's signed-in join, `POST /api/join` */
+  joinMeet: (code: string) => Promise<{ meet: { id: number; name: string }; role: string }>
+  dialog: RoomCodeAsker | null | undefined
+}
+
+async function doUpgrade(opts: UpgradeOptions): Promise<void> {
+  const joined = guestStateRef.value.joined
+  const viewers = joined.filter((j) => j.role === MeetRole.Viewer)
+  const results = await Promise.allSettled(viewers.map((s) => opts.joinMeet(s.code ?? '')))
+  // A session the server couldn't answer for (offline, or it failed) is kept for the next run; a
+  // code refused, or now opening another meet, has ended
+  const redeemed = viewers.filter((s, i) => {
+    const result = results[i]!
+    if (result.status === 'rejected') {
+      if (!isRefusal(result.reason)) return false
+      noticeCodeEnded(s)
+    } else if (result.value.meet.id !== s.meetId) {
+      // The join has added the meet the code now opens, so say that rather than that it failed
+      const now = result.value.meet.name
+      guestNotice.value = `The code for ${s.meetName} now opens ${now}; ${now} was added to your account.`
+    }
+    return true
+  })
+  removeSessions(redeemed.map((s) => s.meetId))
+  if (redeemed.length < viewers.length) return
+  const officials = joined.filter((j) => j.role === MeetRole.Official)
+  if (officials.length === 0 || !opts.dialog) return
+  // Rooms whose last code couldn't reach the server are kept for the next run, as viewers are
+  const unreached = new Set<number>()
+  await opts.dialog.ask({
+    title: 'Add your rooms to your account',
+    detail:
+      'You joined these rooms with a code before signing in. Enter each room code to keep it on your account, or skip it.',
+    rows: officials.map((session) => ({ meetId: session.meetId, label: sessionLabel(session) })),
+    onCode: async (row, code) => {
+      let res
+      try {
+        res = await opts.joinMeet(code)
+      } catch (e) {
+        if (isRefusal(e)) {
+          unreached.delete(row.meetId)
+          return "That isn't a valid code."
+        }
+        unreached.add(row.meetId)
+        return "Couldn't reach the meet. Try again."
+      }
+      unreached.delete(row.meetId)
+      // The room is dropped once accepted, so only its own meet's room code may stand for it
+      if (res.meet.id !== row.meetId) return 'That code is for another meet.'
+      if (res.role !== MeetRole.Official) return "That isn't a room code."
+      removeSessions([row.meetId])
+      return null
+    },
+    submitLabel: 'Add',
+    closeLabel: 'Done',
+    skip: true,
+  })
+  // A skipped room is dropped: while signed in, the account decides
+  removeSessions(officials.map((s) => s.meetId).filter((id) => !unreached.has(id)))
+}
+
+/** Remove meets' guest sessions, clearing the active marker if it pointed at one */
+function removeSessions(meetIds: number[]): void {
   const state = guestStateRef.value
+  if (!state.joined.some((j) => meetIds.includes(j.meetId))) return
   guestStateRef.value = {
-    active: state.active === meetId ? null : state.active,
-    joined: state.joined.filter((j) => j.meetId !== meetId),
+    active: state.active !== null && meetIds.includes(state.active) ? null : state.active,
+    joined: state.joined.filter((j) => !meetIds.includes(j.meetId)),
   }
   persist()
 }
