@@ -12,7 +12,7 @@ export {
   setGuestState,
   withGuestToken,
 } from './guestSession'
-export type { GuestSessionData } from './guestSession'
+export type { GuestJoinAnswer, GuestRoom, GuestSessionData } from './guestSession'
 export { default as ScheduleGrid } from './ScheduleGrid.vue'
 export {
   STATS_BREAK_LABEL,

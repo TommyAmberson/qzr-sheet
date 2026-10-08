@@ -153,15 +153,29 @@ describe('joinByCode — typed-in form', () => {
     expect(getGuestToken()).toBe('old')
   })
 
-  it('accepts an official-code session', async () => {
+  it('accepts an official-code session, keeping its room and not its code', async () => {
     vi.mocked(joinMeetGuest).mockResolvedValue({
       token: 'tok-off',
-      meet: { id: 5, name: 'Room 1' },
+      meet: { id: 5, name: 'Meet 5' },
       role: MeetRole.Official,
+      room: { id: 12, name: 'Room 3' },
     })
     const result = await joinByCode('OFFICIAL-CODE-123')
     expect(result?.role).toBe(MeetRole.Official)
-    expect(guestStateRef.value.joined[0]?.role).toBe(MeetRole.Official)
+    const stored = guestStateRef.value.joined[0]!
+    expect(stored).toMatchObject({ role: MeetRole.Official, room: { id: 12, name: 'Room 3' } })
+    expect(stored).not.toHaveProperty('code')
+    expect(localStorage.getItem(STORAGE_KEY)).not.toContain('OFFICIAL-CODE-123')
+  })
+
+  it('keeps the code of a viewer session', async () => {
+    vi.mocked(joinMeetGuest).mockResolvedValue({
+      token: 'tok-v',
+      meet: { id: 6, name: 'Meet 6' },
+      role: MeetRole.Viewer,
+    })
+    await joinByCode('viewer-slug')
+    expect(guestStateRef.value.joined[0]).toMatchObject({ code: 'viewer-slug' })
   })
 
   it('returns null on invalid code (404 path)', async () => {
@@ -233,6 +247,48 @@ describe('setActiveSession', () => {
 })
 
 describe('persistence', () => {
+  it("drops an official session's code saved by an earlier release, and saves the cleaned state", async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        active: 4,
+        joined: [
+          { token: 'tok', meetId: 4, meetName: 'M', role: MeetRole.Official, code: 'ROOM-CODE' },
+          { token: 'tv', meetId: 5, meetName: 'V', role: MeetRole.Viewer, code: 'view-slug' },
+        ],
+      }),
+    )
+    vi.resetModules()
+    const fresh = await import('@qzr/ui/src/guestSession')
+    const [official, viewer] = fresh.guestStateRef.value.joined
+    expect(official).toMatchObject({ token: 'tok', meetId: 4, role: MeetRole.Official })
+    expect(official).not.toHaveProperty('code')
+    expect(viewer).toMatchObject({ code: 'view-slug' })
+    expect(localStorage.getItem(STORAGE_KEY)).not.toContain('ROOM-CODE')
+    expect(localStorage.getItem(STORAGE_KEY)).toContain('view-slug')
+  })
+
+  it('keeps the sessions it read when the cleaned state cannot be saved', async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        active: 4,
+        joined: [
+          { token: 'tok', meetId: 4, meetName: 'M', role: MeetRole.Official, code: 'ROOM-CODE' },
+        ],
+      }),
+    )
+    const write = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError')
+    })
+    vi.resetModules()
+    const fresh = await import('@qzr/ui/src/guestSession')
+    write.mockRestore()
+    expect(fresh.guestStateRef.value.joined).toEqual([
+      { token: 'tok', meetId: 4, meetName: 'M', role: MeetRole.Official },
+    ])
+  })
+
   it('removes the storage key entirely once cleared', () => {
     setGuestState({
       active: 1,

@@ -6,7 +6,13 @@ import type {
   QuizFile,
   ResultAction,
 } from '@qzr/shared'
-import { withGuestToken, type OnExisting, type Sender, type Stored } from '@qzr/ui'
+import {
+  withGuestToken,
+  type GuestJoinAnswer,
+  type OnExisting,
+  type Sender,
+  type Stored,
+} from '@qzr/ui'
 
 export type { MeetPhase, DivisionStateValue }
 
@@ -177,7 +183,7 @@ export function joinMeet(
 
 export function joinMeetGuest(
   code: string,
-): Promise<{ token: string; meet: { id: number; name: string }; role: MeetRole; label?: string }> {
+): Promise<GuestJoinAnswer & { role: MeetRole; label?: string }> {
   return request('/api/join/guest', {
     method: 'POST',
     body: JSON.stringify({ code }),

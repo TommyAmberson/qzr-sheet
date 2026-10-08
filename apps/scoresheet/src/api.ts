@@ -1,5 +1,11 @@
 import { createApiClient, type DivisionTeamNames, type QuizFile } from '@qzr/shared'
-import { withGuestToken, type OnExisting, type Sender, type Stored } from '@qzr/ui'
+import {
+  withGuestToken,
+  type GuestJoinAnswer,
+  type OnExisting,
+  type Sender,
+  type Stored,
+} from '@qzr/ui'
 
 declare const __API_URL__: string
 
@@ -200,14 +206,12 @@ export function joinMeet(
  * wrapper attaches a Bearer token we don't have yet. Returns a 24h JWT plus
  * the resolved meet identity.
  */
-export async function joinMeetGuest(
-  code: string,
-): Promise<{ token: string; meet: { id: number; name: string }; role: string } | null> {
+export async function joinMeetGuest(code: string): Promise<GuestJoinAnswer | null> {
   const res = await fetch(`${__API_URL__ || ''}/api/join/guest`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code }),
   })
   if (!res.ok) return null
-  return (await res.json()) as { token: string; meet: { id: number; name: string }; role: string }
+  return (await res.json()) as GuestJoinAnswer
 }

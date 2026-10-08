@@ -22,10 +22,23 @@ import { MeetRole } from '@qzr/shared'
 
 export const STORAGE_KEY = 'qzr-guest-session'
 
-/** An app's call to POST /api/join/guest: the token and the meet a code opens, or null */
-export type GuestJoin = (
-  code: string,
-) => Promise<{ token: string; meet: { id: number; name: string }; role: string } | null>
+/** A room of a meet, as a guest official's session keeps it */
+export interface GuestRoom {
+  id: number
+  name: string
+}
+
+/** What POST /api/join/guest answers for a code */
+export interface GuestJoinAnswer {
+  token: string
+  meet: { id: number; name: string }
+  role: string
+  /** The room a room code belongs to */
+  room?: GuestRoom
+}
+
+/** An app's call to POST /api/join/guest: the answer for a code, or null */
+export type GuestJoin = (code: string) => Promise<GuestJoinAnswer | null>
 const URL_PARAM = 'meet'
 /** Skew applied to the JWT exp claim — refresh if less than this remaining. */
 const REFRESH_SKEW_MS = 5 * 60 * 1000
@@ -35,8 +48,10 @@ export interface GuestSessionData {
   meetId: number
   meetName: string
   role: MeetRole.Viewer | MeetRole.Official
-  /** Code used to obtain this token (URL slug or typed-in code). */
-  code: string
+  /** A viewer's code (URL slug or typed in), kept to renew the session; never kept for an official */
+  code?: string
+  /** An official's room, from the join; absent on sessions saved by earlier releases */
+  room?: GuestRoom
 }
 
 interface GuestState {
@@ -168,13 +183,7 @@ async function doInitGuestSession(join: GuestJoin): Promise<GuestSessionData | n
 
   const res = await join(slug)
   if (!res || res.role !== MeetRole.Viewer) return null
-  const data: GuestSessionData = {
-    token: res.token,
-    meetId: res.meet.id,
-    meetName: res.meet.name,
-    role: MeetRole.Viewer,
-    code: slug,
-  }
+  const data = sessionFrom(res, slug)!
   addJoinedSession(data, true)
   return data
 }
@@ -189,17 +198,21 @@ export async function joinByCode(code: string, join: GuestJoin): Promise<GuestSe
   const trimmed = code.trim()
   if (!trimmed) return null
   const res = await join(trimmed)
-  if (!res) return null
-  if (res.role !== MeetRole.Viewer && res.role !== MeetRole.Official) return null
-  const data: GuestSessionData = {
-    token: res.token,
-    meetId: res.meet.id,
-    meetName: res.meet.name,
-    role: res.role,
-    code: trimmed,
-  }
+  const data = res && sessionFrom(res, trimmed)
+  if (!data) return null
   addJoinedSession(data, false)
   return data
+}
+
+/**
+ * The session a join answer gives: a viewer's keeps the code it was joined with, an official's keeps
+ * the room instead and never the code. Null for any other role.
+ */
+function sessionFrom(res: GuestJoinAnswer, code: string): GuestSessionData | null {
+  const base = { token: res.token, meetId: res.meet.id, meetName: res.meet.name }
+  if (res.role === MeetRole.Viewer) return { ...base, role: MeetRole.Viewer, code }
+  if (res.role !== MeetRole.Official) return null
+  return { ...base, role: MeetRole.Official, ...(res.room ? { room: res.room } : {}) }
 }
 
 /**
@@ -235,15 +248,30 @@ function persist(): void {
 function loadFromStorage(): GuestState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { active: null, joined: [] }
+    if (!raw) return EMPTY_STATE
     const data = JSON.parse(raw) as unknown
-    if (!data || typeof data !== 'object') return { active: null, joined: [] }
+    if (!data || typeof data !== 'object') return EMPTY_STATE
 
     // New shape: { active, joined[] }
     if ('joined' in data && Array.isArray((data as GuestState).joined)) {
       const s = data as GuestState
-      const joined = s.joined.filter(isValidSession)
+      let droppedCode = false
+      const joined = s.joined.filter(isValidSession).map((j) => {
+        if (j.role !== MeetRole.Official || j.code === undefined) return j
+        // Earlier releases kept an official's room code; it isn't needed after joining
+        droppedCode = true
+        const { code: _code, ...rest } = j
+        return rest
+      })
       const active = s.active && joined.some((j) => j.meetId === s.active) ? s.active : null
+      // A room code an earlier release saved leaves storage at once, not at the next change
+      if (droppedCode) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ active, joined }))
+        } catch {
+          // Storage can't be written: the sessions just read are kept, and saved at the next change
+        }
+      }
       return { active, joined }
     }
 
@@ -264,9 +292,9 @@ function loadFromStorage(): GuestState {
         ],
       }
     }
-    return { active: null, joined: [] }
+    return EMPTY_STATE
   } catch {
-    return { active: null, joined: [] }
+    return EMPTY_STATE
   }
 }
 
