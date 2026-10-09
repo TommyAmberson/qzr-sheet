@@ -490,19 +490,36 @@ async function doInitGuestSession(join: GuestJoin): Promise<GuestSessionData | n
   if (typeof window === 'undefined') return null
   const params = new URLSearchParams(window.location.search)
   const slug = params.get(URL_PARAM)?.trim()
-  if (!slug) return null
+  // Quiz links name a meet by id; a value of digits only is a meet id, never a viewer code
+  if (!slug || params.has('quiz') || params.has('result') || /^\d+$/.test(slug)) return null
 
   const existing = guestStateRef.value.joined.find((j) => j.code === slug)
   if (existing && tokenIsFresh(existing.token)) {
     setActiveSession(existing.meetId)
+    dropLinkCode(params)
     return existing
   }
 
-  const res = await rejoin(join, slug)
-  if (!res || res.role !== MeetRole.Viewer) return null
-  const data = sessionFrom(res, slug)!
+  // A network failure keeps the code in the address, so a reload once online tries again
+  const res = await rejoin(join, slug).catch(() => undefined)
+  if (res === undefined) return null
+  dropLinkCode(params)
+  const data = res?.role === MeetRole.Viewer ? sessionFrom(res, slug) : null
+  if (!data) {
+    // A session kept for the link's code has ended with it
+    if (existing) leaveGuestMeet(existing.meetId)
+    guestNotice.value = "This meet link isn't valid. Ask the meet's admin for a new one."
+    return null
+  }
   addJoinedSession(data, true)
   return data
+}
+
+/** Take a meet link's viewer code out of the address bar, keeping anything else, without a reload */
+function dropLinkCode(params: URLSearchParams): void {
+  params.delete(URL_PARAM)
+  const query = params.toString()
+  history.replaceState(history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
 }
 
 /**

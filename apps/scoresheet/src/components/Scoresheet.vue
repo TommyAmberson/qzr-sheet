@@ -237,14 +237,15 @@ function computeSeatChange(
   }
 }
 
-/** Strip ?meet=&quiz= from the URL after the prefill — set by the
+/** Strip ?meetId=&quiz= from the URL after the prefill — set by the
  *  portal's schedule view when the user clicks a quiz cell — or
- *  ?meet=&result=&revision=, set by the portal's quiz page to open a
- *  stored quiz. Always strips the params so a refresh doesn't
+ *  ?meetId=&result=&revision=, set by the portal's quiz page to open a
+ *  stored quiz (`meet` in links shared before). Always strips the params so a refresh doesn't
  *  re-clobber edits. */
 async function loadFromUrlParams() {
   const params = new URLSearchParams(window.location.search)
-  const meetId = Number(params.get('meet'))
+  // Portal links name the meet in `meetId`; links shared before that used `meet`
+  const meetId = Number(params.get('meetId') ?? params.get('meet'))
   const quizId = Number(params.get('quiz'))
   const resultId = Number(params.get('result'))
   const revision = Number(params.get('revision'))

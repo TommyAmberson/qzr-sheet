@@ -84,6 +84,67 @@ describe('initGuestSession — URL parsing', () => {
     expect(getActiveSession()?.token ?? null).toBe('tok-abc')
   })
 
+  it.each([
+    ['a meet id', '?meet=42'],
+    ['a scheduled quiz link', '?meet=fall-2025&quiz=3'],
+    ['a stored quiz link', '?meet=fall-2025&result=7&revision=2'],
+  ])('never takes %s for a viewer code', async (_, search) => {
+    setSearch(search)
+    expect(await initGuestSession()).toBeNull()
+    expect(joinMeetGuest).not.toHaveBeenCalled()
+  })
+
+  it('removes the viewer code from the address once the join succeeds', async () => {
+    setSearch('?meet=fall-2025')
+    const replace = vi.spyOn(window.history, 'replaceState')
+    vi.mocked(joinMeetGuest).mockResolvedValue({
+      token: tokenExpiring(3600),
+      meet: { id: 7, name: 'Fall 2025' },
+      role: MeetRole.Viewer,
+    })
+    await initGuestSession()
+    expect(replace.mock.calls[0]?.[2]).not.toContain('meet=')
+    replace.mockRestore()
+  })
+
+  it("removes a rejected link's code from the address and says the link isn't valid", async () => {
+    setSearch('?meet=not-a-code')
+    const replace = vi.spyOn(window.history, 'replaceState')
+    vi.mocked(joinMeetGuest).mockRejectedValue(new ApiError(404, 'Invalid code'))
+    expect(await initGuestSession()).toBeNull()
+    expect(replace.mock.calls[0]?.[2]).not.toContain('meet=')
+    expect(guestNotice.value).toMatch(/link/)
+    replace.mockRestore()
+  })
+
+  it("removes the session kept for a rejected link's code", async () => {
+    setSearch('?meet=old-slug')
+    setGuestState({
+      active: 7,
+      joined: [
+        {
+          token: 'expired',
+          meetId: 7,
+          meetName: 'Fall Meet',
+          role: MeetRole.Viewer,
+          code: 'old-slug',
+        },
+      ],
+    })
+    vi.mocked(joinMeetGuest).mockRejectedValue(new ApiError(404, 'Invalid code'))
+    expect(await initGuestSession()).toBeNull()
+    expect(guestStateRef.value.joined).toEqual([])
+  })
+
+  it('keeps the code in the address when the server cannot be reached', async () => {
+    setSearch('?meet=fall-2025')
+    const replace = vi.spyOn(window.history, 'replaceState')
+    vi.mocked(joinMeetGuest).mockRejectedValue(new TypeError('Failed to fetch'))
+    expect(await initGuestSession()).toBeNull()
+    expect(replace).not.toHaveBeenCalled()
+    replace.mockRestore()
+  })
+
   it('rejects non-viewer roles via URL (security: shareable links → viewers only)', async () => {
     setSearch('?meet=room-code')
     vi.mocked(joinMeetGuest).mockResolvedValue({
