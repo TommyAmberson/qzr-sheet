@@ -45,18 +45,24 @@ beforeEach(() => {
 })
 
 describe('opening a stored quiz from the portal', () => {
-  it('loads the revision, links the meet, and clears the link from the address', async () => {
-    window.history.replaceState(null, '', '/?meet=3&result=7&revision=2')
-    const wrapper = mount(Scoresheet)
-    await flushPromises()
+  it.each([
+    ['naming the meet by id', '/?meetId=3&result=7&revision=2'],
+    ['in the form links were shared in before', '/?meet=3&result=7&revision=2'],
+  ])(
+    'loads the revision from a link %s, links the meet, and clears the address',
+    async (_, link) => {
+      window.history.replaceState(null, '', link)
+      const wrapper = mount(Scoresheet)
+      await flushPromises()
 
-    expect(getRevision).toHaveBeenCalledWith(3, 7, 2)
-    expect(useMeetSession().snapshotSession()).toMatchObject({ meetId: 3, meetName: 'Practice' })
-    const values = wrapper
-      .findAll<HTMLInputElement>('input[type="text"]')
-      .map((input) => input.element.value)
-    expect(values).toContain('17')
-    expect(window.location.search).toBe('')
-    wrapper.unmount()
-  })
+      expect(getRevision).toHaveBeenCalledWith(3, 7, 2)
+      expect(useMeetSession().snapshotSession()).toMatchObject({ meetId: 3, meetName: 'Practice' })
+      const values = wrapper
+        .findAll<HTMLInputElement>('input[type="text"]')
+        .map((input) => input.element.value)
+      expect(values).toContain('17')
+      expect(window.location.search).toBe('')
+      wrapper.unmount()
+    },
+  )
 })
