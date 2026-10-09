@@ -80,22 +80,26 @@ The app asks for the code, and after the new code is entered the quiz is stored.
 1. **Given** a guest official whose session the meet no longer accepts, **When** they submit,
    upload, or correct a quiz, **Then** the app asks for the room code, naming the meet and room, and
    does not show a bare error.
-2. **Given** that prompt, **When** the official enters a valid code for the same meet, **Then** the
-   app re-joins, replaces the old session, and retries the action without the official starting it
-   again.
+2. **Given** that prompt, **When** the official enters a valid code for the same meet, and for the
+   same room when the action is about a quiz stored for it, **Then** the app re-joins, replaces the
+   old session, and retries the action without the official starting it again.
 3. **Given** that prompt, **When** the official cancels, **Then** nothing is sent, the quiz is
    unchanged, and the action remains available to try again.
-4. **Given** that prompt, **When** the official enters a code that is wrong or belongs to another
-   meet, **Then** the app says so, nothing is sent, and the prompt stays open.
-5. **Given** a guest official whose session is known to have expired, **When** they submit, **Then**
+4. **Given** that prompt, **When** the official enters a code that is wrong, or belongs to another
+   meet or room where it can't stand in, **Then** the app says so, nothing is sent, and the prompt
+   stays open.
+5. **Given** that prompt before sending from the scoresheet, **When** the official enters another
+   meet's room code, **Then** the prompt offers to submit to that meet instead, and taking the offer
+   sends it there and links a linked sheet to that meet.
+6. **Given** a guest official whose session is known to have expired, **When** they submit, **Then**
    the app asks for the code before sending the quiz rather than after a refusal.
-6. **Given** a guest viewer whose session expired, **When** the app next talks to that meet,
+7. **Given** a guest viewer whose session expired, **When** the app next talks to that meet,
    **Then** it renews the session from the viewer code without asking.
-7. **Given** an admin rotated a room's code, **When** a guest holding a token for the old code asks
+8. **Given** an admin rotated a room's code, **When** a guest holding a token for the old code asks
    for any of the meet's data, **Then** the meet refuses it as it would a stranger's request; a
    background read shows its error as today, and the official's next send or correction asks for the
    room code.
-8. **Given** an admin changed the viewer code, **When** a guest viewer holding a token for the old
+9. **Given** an admin changed the viewer code, **When** a guest viewer holding a token for the old
    code asks for the meet's data, **Then** the meet refuses it, and the app removes the session and
    says the code is no longer valid.
 
@@ -242,12 +246,24 @@ meet has loaded; open a stored quiz from the portal and check that no join is at
 * The official is offline when they send. Nothing is refused, so no code is asked for; the send
   fails as a network error, the quiz stays saved, and it can be tried again later.
 * The official enters a code for a different room of the same meet at the prompt. The new room
-  becomes the session's room, the Submit step shows it, and the quiz is sent for that room.
+  becomes the session's room, the Submit step shows it, and the quiz is sent for that room. The
+  scoresheet asks for the code before the room is confirmed, a sheet linked to the meet included, so
+  the confirmation names the new room. Correcting, restoring, or merging a quiz stored for the old
+  room still needs the old room's code.
+* The official enters another meet's room code at the prompt before sending from the scoresheet. The
+  prompt offers to submit to that meet instead and, for a sheet linked to a meet, says the sheet
+  will use that meet's team names; taking the offer joins that meet and links the sheet to it. The
+  portal's pages are about one meet, so there the code is refused, naming the meet.
 * The official enters a viewer code at the prompt. It is refused for sending: the prompt says a room
   code is needed.
 * An official joined before rooms were on tokens has a session without a known room. The server
   refuses its sends (spec 003); it is handled like any other refused session.
-* A signed-in official is never asked for a room code to send; their account decides.
+* A signed-in official is never asked for a room code to send; their account decides. A page that
+  loads just after a social sign-in, before the session has, counts as signed in.
+* An official's session is a few minutes from expiring. Nothing is asked until it has expired or the
+  meet refuses it.
+* The device's storage is blocked or full. Guest sessions last until the page closes; signing out
+  and starting the app still work.
 * The user signs in on a device with guest sessions while offline. The upgrade waits until the app
   can reach the server; nothing is dropped meanwhile.
 * An account that already holds the membership a guest session would add: the upgrade changes
@@ -269,19 +285,27 @@ meet has loaded; open a stored quiz from the portal and check that no join is at
   no longer accepted (expired, from a rotated code, for a deleted room, or without a room), the app
   MUST ask for the room's code instead of showing the refusal as an error. The prompt MUST name the
   meet and, when known, the room. This applies in both apps.
-* **FR-002**: When the official's session is known to have expired before sending, the app MUST ask
-  for the code before sending.
+* **FR-002**: When the official's session is known to have expired before sending (its expiry time
+  has passed), the app MUST ask for the code before sending. It MUST NOT ask while the session is
+  still current, even close to expiring.
 * **FR-003**: A valid room code for the same meet entered at the prompt MUST re-join, replace the
   old session, and retry the action once, with the same choice about an existing quiz the official
   had already made (spec 003, FR-003).
-* **FR-004**: A code that is invalid, for another meet, or not a room code MUST be refused at the
-  prompt with a message saying which, without sending.
+* **FR-004**: A code that is invalid or not a room code MUST be refused at the prompt with a message
+  saying which, without sending. A code for another meet MUST be refused naming that meet, except
+  before sending from the scoresheet, where the prompt MUST offer to submit to that meet instead. A
+  code for another room of the same meet MUST be taken when the room is chosen afterwards, and
+  refused naming that room when the action is for a quiz already stored for the old room.
 * **FR-005**: Cancelling the prompt MUST leave the quiz unchanged and the action available.
 * **FR-006**: A viewer session that has expired MUST be renewed from its kept viewer code without
   asking. If the code is no longer valid, the session MUST be removed and the app MUST say why.
 * **FR-007**: A session that has been replaced or removed MUST NOT stay in the list of joined meets.
+  A renewal that finishes after its session was left, signed out of, upgraded, or joined again MUST
+  change nothing: the newest session stands.
 * **FR-008**: None of this MAY block entering, auto-saving, or saving a quiz to a file (constitution
-  principle I). A network failure MUST NOT be treated as a refused session.
+  principle I). Only the meet refusing a code ends a session: a network failure, a server error, a
+  timeout, or a rate limit MUST NOT be treated as a refused session. When a viewer renewal can't get
+  an answer, the request MUST still go with the current token, or report the refusal it had.
 
 **Revocation**
 
@@ -294,11 +318,14 @@ meet has loaded; open a stored quiz from the portal and check that no join is at
 
 * **FR-011**: When a user signs in, or an app starts already signed in, each guest viewer session on
   the device MUST be redeemed into the account with its kept viewer code, as a normal join, and then
-  removed.
+  removed. The same MUST happen for a meet joined with a code while signed in, such as a meet link's
+  join finishing after start or during an upgrade. A viewer code that now opens another meet adds
+  that meet, and the app MUST say so rather than that the code failed.
 * **FR-012**: Guest official sessions MUST lead to one dialog right after sign-in, listing each
   guest room by meet and room name with a code field and Skip per row, and Done. A code entered for
   a row MUST be redeemed into the account as a normal join and that session removed; a skipped row
-  MUST remove its session. A wrong code MUST be reported on its row without closing the dialog.
+  MUST remove its session. A wrong code MUST be reported on its row without closing the dialog; a
+  code for another meet joins that meet and is reported on the row as added, and the row stays open.
 * **FR-013**: A guest token MUST NOT be accepted in place of a code for adding a membership.
 * **FR-014**: An upgrade that can't reach the server MUST wait and try again later, without dropping
   the session.
@@ -308,7 +335,7 @@ meet has loaded; open a stored quiz from the portal and check that no join is at
 * **FR-015**: Neither app MAY keep a room code on the device once joining has finished, whether it
   succeeded or failed.
 * **FR-016**: On start, both apps MUST remove any room code saved by an earlier release, keeping the
-  rest of that session.
+  rest of that session, and keeping every session even when the device can't save the cleaned list.
 * **FR-017**: Viewer codes MAY be kept with their session.
 * **FR-018**: Joining with a room code MUST return the room it belongs to (id and name), and the
   guest session MUST keep it.
@@ -322,7 +349,8 @@ meet has loaded; open a stored quiz from the portal and check that no join is at
 **Ending a session**
 
 * **FR-022**: Signing out in either app MUST remove every guest session on the device, and the meet
-  data kept for guest use: the team-name lists and the remembered meet to submit to.
+  data kept for guest use: the team-name lists and the remembered meet to submit to. Signing out
+  MUST complete even when the device's storage is blocked.
 * **FR-023**: The portal home MUST list a guest's meets (name, role, and room for an official), as
   it lists a signed-in account's meets. A guest official's meet MUST link to its results; a guest
   viewer's meet is listed without a portal link until the portal has pages for guest viewers (#79,
@@ -336,7 +364,8 @@ meet has loaded; open a stored quiz from the portal and check that no join is at
 * **FR-025**: After a `?meet=` link's join succeeds or is rejected by the server, the scoresheet
   MUST remove the code from the address bar without reloading. When the server can't be reached, the
   code MUST stay.
-* **FR-026**: A rejected `?meet=` link MUST produce a message saying the link isn't valid.
+* **FR-026**: A rejected `?meet=` link MUST produce a message saying the link isn't valid, and MUST
+  remove any session kept for its code.
 * **FR-027**: Links from the portal to a stored or scheduled quiz MUST name the meet by id in a
   parameter other than `meet`, and the scoresheet MUST NOT treat a meet id as a viewer code. Links
   in the old form already shared MUST keep opening their quiz.
@@ -365,7 +394,7 @@ meet has loaded; open a stored quiz from the portal and check that no join is at
 ### Measurable Outcomes
 
 * **SC-001**: A guest official whose room code was rotated gets their quiz stored by entering the
-  new code once, with no other steps, in under 30 seconds.
+  new code once and confirming the room, with no other steps, in under 30 seconds.
 * **SC-002**: In no case covered by this spec does a quiz's content change or disappear because a
   session was refused, renewed, upgraded, or removed.
 * **SC-003**: After joining with a room code, no copy of the code is found anywhere either app saves

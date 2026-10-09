@@ -39,6 +39,8 @@ owned in `packages/ui` so both apps clear the same set.
 One component from `packages/ui`, the same in both apps, used two ways:
 
 * **Room code needed**: names the meet and, when known, the room; a code field, Cancel, and a
-  message on a wrong code or a code for another meet (FR-001 to FR-005).
+  message on a wrong code, or on another meet's or another room's code where it can't stand in.
+  Before sending from the scoresheet, another meet's code shows an offer to submit there instead,
+  with "Enter another code" (FR-001 to FR-005).
 * **Add your rooms to your account**: after sign-in, one row per guest official session (meet and
   room), each with a code field and Skip, and Done (FR-012).

@@ -33,11 +33,16 @@ official renewal around an action); and the scoresheet's link parameters.
 1. **Renew after rotation (Story 1)**: As the guest, join with room 1's code in the scoresheet and
    submit a quiz. As the admin, rotate room 1's code. As the guest, submit again: the app asks for
    room 1's code, naming the meet and room. Enter the old code: refused on the dialog. Enter the new
-   code: the quiz is stored without pressing Submit again. Repeat with Cancel: nothing sent, the
-   quiz unchanged.
+   code: "Submit for Room 1?" follows, and confirming stores the quiz without pressing Submit again.
+   Repeat with Cancel: nothing sent, the quiz unchanged. Rotate again and enter room 2's code
+   instead: the confirmation names Room 2 and the quiz is stored for it. Rotate again and enter a
+   room code of a second meet: the dialog offers to submit to that meet, adding for a sheet linked
+   to a meet that it will use that meet's team names; taking it stores the quiz there, and a linked
+   sheet is linked to that meet.
 2. **Renew in the portal**: As the guest, open the meet's results in the portal (from the portal
    home's list), rotate the code as admin, then correct a quiz with the quick form: the same dialog,
-   then the correction is saved.
+   then the correction is saved. Rotate again and enter room 2's code for a room 1 quiz: refused on
+   the dialog, naming Room 2; another meet's code: refused, naming that meet.
 3. **Revoked means nothing**: With a token from before a rotation, request the meet's teams
    (`GET /api/meets/:id/teams` with the old Bearer token): 401. Change the meet's viewer code as
    admin; a guest viewer's next request is refused, the app removes the session and says the code is
