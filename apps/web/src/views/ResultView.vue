@@ -135,7 +135,7 @@ async function restore(revision: number) {
 function scoresheetHref(revision: number): string {
   if (!meet.value) return '#'
   const query = new URLSearchParams({
-    meet: String(meet.value.id),
+    meetId: String(meet.value.id),
     result: String(resultId),
     revision: String(revision),
   })
