@@ -16,6 +16,29 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-09
+
+### Added
+
+* **Your meets, without signing in** - the home page lists the meets you joined with a code, with
+  your role and room, and lets you leave each one; an official's opens its results
+* **Room code needed** - a guest official whose session has ended is asked for the room code on
+  opening the results, and before an upload, a correction, a restore, or a merge, which then goes
+  ahead
+* **Signing in keeps your meets** - signing in adds the meets joined with a code to the account: a
+  viewer's straight away, and each official's room once its code is entered in one dialog
+
+### Changed
+
+* Signing out also ends the meets joined with a code on this device
+* An upload by an official of one room names the room and asks to confirm it first
+* A guest viewer who joins from the home page stays there with the meet listed
+* Links to the scoresheet name the meet as `meetId`
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - unchanged
+
 ## [0.18.0] - 2026-10-04
 
 ### Added
