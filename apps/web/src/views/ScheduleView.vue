@@ -28,7 +28,7 @@ const {
  *  scoresheet's base URL, with a trailing slash, as __SCORESHEET_URL__. */
 function scoresheetHref(quizId: number): string {
   if (!meet.value) return '#'
-  return `${__SCORESHEET_URL__}?meet=${meet.value.id}&quiz=${quizId}`
+  return `${__SCORESHEET_URL__}?meetId=${meet.value.id}&quiz=${quizId}`
 }
 
 onMounted(load)
