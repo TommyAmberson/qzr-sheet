@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { useSocialSignInError } from '../composables/useSocialSignInError'
+import { clearGuestData } from '@qzr/ui'
 import SignInMenu from './SignInMenu.vue'
 
 const scoresheetUrl = __SCORESHEET_URL__
@@ -29,6 +30,8 @@ function toggleMenu() {
 }
 
 function handleSignOut() {
+  // Signing out ends the guest account too, and the meet data kept for it, on this device
+  clearGuestData()
   signOut()
   closeMenu()
 }
@@ -54,7 +57,7 @@ function handleSignOut() {
         >
         <template v-if="session.data">
           <span class="nav-user">{{ session.data.user.email ?? 'signed in' }}</span>
-          <button class="nav-link nav-btn" @click="signOut">Sign out</button>
+          <button class="nav-link nav-btn" @click="handleSignOut">Sign out</button>
         </template>
         <SignInMenu
           v-else
