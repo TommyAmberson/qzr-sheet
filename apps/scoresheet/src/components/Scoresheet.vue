@@ -947,7 +947,7 @@ async function doSubmitToMeet() {
       outcome = await send(choice)
     }
     if (!outcome?.stored) return
-    // Name the room too, even when it was the only one and wasn't asked about
+    // Name the room it was stored for
     const room = target.sender.rooms.find((r) => r.id === roomId)?.name
     const where = room ? `${meet}, ${room}` : meet
     if (outcome.created) alert(`Submitted to ${where}.`)
