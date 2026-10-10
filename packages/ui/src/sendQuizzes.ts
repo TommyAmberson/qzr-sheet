@@ -74,7 +74,7 @@ export async function askAlreadySubmitted(
 }
 
 /**
- * The room to send for. An official of one room isn't asked; an official of several rooms picks
+ * The room to send for. An official of one room confirms it; an official of several rooms picks
  * one, and an admin any room of the meet or "No room" (null). Undefined when the user cancels.
  */
 export async function chooseRoom(
@@ -83,7 +83,20 @@ export async function chooseRoom(
   meetName: string,
   action: string,
 ): Promise<number | null | undefined> {
-  if (!sender.admin && sender.rooms.length <= 1) return sender.rooms[0]?.id ?? null
+  if (!sender.admin && sender.rooms.length <= 1) {
+    const [room] = sender.rooms
+    if (!room) return null
+    // Named before sending, so an official who typed a room's code can see it was the right one
+    const answer = await dialog?.ask(
+      `${action} for ${room.name}?`,
+      `You officiate ${room.name} of ${meetName}.`,
+      [
+        { label: 'Cancel', value: null },
+        { label: action, value: room.id, primary: true },
+      ],
+    )
+    return answer ?? undefined
+  }
   if (sender.admin && sender.rooms.length === 0) return null
   const choices: { label: string; value: number | 'none' }[] = sender.rooms.map((room) => ({
     label: room.name,
