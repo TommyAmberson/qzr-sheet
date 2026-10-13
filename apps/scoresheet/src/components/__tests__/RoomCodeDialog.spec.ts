@@ -75,6 +75,29 @@ describe('RoomCodeDialog', () => {
     wrapper.unmount()
   })
 
+  it('shows an offer in place of the code field, taken or set aside for another code', async () => {
+    const take = vi.fn()
+    const onCode = vi.fn(async () => ({
+      message: 'That code is for Fall Meet. Submit to Fall Meet instead?',
+      accept: 'Submit to Fall Meet',
+      take,
+    }))
+    const { wrapper, answer } = open(onCode)
+    await wrapper.vm.$nextTick()
+    await wrapper.find('input').setValue('FALL')
+    await button(wrapper, 'Join').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Submit to Fall Meet instead?')
+    await button(wrapper, 'Enter another code').trigger('click')
+    expect(wrapper.find('input').exists()).toBe(true)
+    await button(wrapper, 'Join').trigger('click')
+    await flushPromises()
+    await button(wrapper, 'Submit to Fall Meet').trigger('click')
+    expect(take).toHaveBeenCalledTimes(1)
+    expect(await answer).toBe(true)
+    wrapper.unmount()
+  })
+
   it('lets each row be skipped, and closes once every row is handled', async () => {
     const onCode = vi.fn(async () => null)
     const { wrapper, answer } = open(onCode, { rows, skip: true })

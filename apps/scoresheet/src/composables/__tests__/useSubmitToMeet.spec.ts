@@ -9,7 +9,7 @@ vi.mock('../../api', () => ({
 }))
 
 import { getMyMeets, getSender, submitResult } from '../../api'
-import { senderOf, useSubmitToMeet } from '../useSubmitToMeet'
+import { renewedSenderOf, senderOf, useSubmitToMeet } from '../useSubmitToMeet'
 
 const file = { version: 2 } as unknown as QuizFile
 
@@ -144,7 +144,10 @@ describe('who the user is at a meet, once their room code changed', () => {
       .mockResolvedValueOnce(sender)
     const dialog = dialogTyping('NEW-CODE')
     const join = vi.fn(async () => renewed)
-    expect(await senderOf(4, { join, dialog, signedIn: false })).toEqual(sender)
+    expect(await renewedSenderOf(4, { join, dialog, signedIn: false })).toEqual({
+      meetId: 4,
+      sender,
+    })
     expect(dialog.ask).toHaveBeenCalledTimes(1)
     expect(getSender).toHaveBeenCalledTimes(2)
   })
@@ -152,9 +155,29 @@ describe('who the user is at a meet, once their room code changed', () => {
   it('tells a cancelled dialog apart from "may not send"', async () => {
     setGuestState({ active: 4, joined: [{ ...joined(4, MeetRole.Official), code: undefined }] })
     vi.mocked(getSender).mockRejectedValue(new ApiError(401, 'Authentication required'))
-    expect(await senderOf(4, { join: vi.fn(), dialog: dialogTyping(null), signedIn: false })).toBe(
-      false,
-    )
+    expect(
+      await renewedSenderOf(4, { join: vi.fn(), dialog: dialogTyping(null), signedIn: false }),
+    ).toBe(false)
+  })
+
+  it('answers for another meet when the official takes the offer to send there', async () => {
+    setGuestState({ active: 4, joined: [{ ...joined(4, MeetRole.Official), code: undefined }] })
+    vi.mocked(getSender).mockResolvedValue(sender)
+    const join = vi.fn(async () => ({ ...renewed, meet: { id: 9, name: 'Fall Meet' } }))
+    const dialog = {
+      ask: vi.fn(async (req: RoomCodeRequest) => {
+        const answer = await req.onCode(req.rows[0]!, 'FALL')
+        if (typeof answer !== 'object' || answer === null) return false
+        answer.take()
+        return true
+      }),
+    }
+    const otherMeet = () => ({ message: 'Submit to Fall Meet instead?', accept: 'Submit' })
+    expect(await renewedSenderOf(4, { join, dialog, signedIn: false, otherMeet })).toEqual({
+      meetId: 9,
+      sender,
+    })
+    expect(getSender).toHaveBeenCalledWith(9)
   })
 })
 

@@ -107,7 +107,8 @@ async function saveForm() {
       ),
     })
     const meetId = meet.value.id
-    if (!(await renew(meetId, () => editResult(meetId, resultId, edited)))) return
+    if (!(await renew(meetId, () => editResult(meetId, resultId, edited), { sameRoom: true })))
+      return
     await load()
   } catch (e) {
     saveError.value = (e as Error).message
@@ -122,7 +123,12 @@ async function restore(revision: number) {
   saveError.value = ''
   try {
     const meetId = meet.value.id
-    if (!(await renew(meetId, () => restoreRevision(meetId, resultId, revision)))) return
+    if (
+      !(await renew(meetId, () => restoreRevision(meetId, resultId, revision), {
+        sameRoom: true,
+      }))
+    )
+      return
     await load()
   } catch (e) {
     saveError.value = (e as Error).message

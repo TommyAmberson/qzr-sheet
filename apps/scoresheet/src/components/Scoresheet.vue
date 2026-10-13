@@ -42,6 +42,7 @@ import {
   askAlreadySubmitted,
   chooseRoom,
   guestStateRef,
+  joinedSession,
   upgradeOnSignIn,
   withRoomCode,
   type OnExisting,
@@ -50,7 +51,7 @@ import {
 } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
-import { senderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
+import { renewedSenderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
 import { useTeamNames } from '../composables/useTeamNames'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
@@ -887,25 +888,35 @@ const offeredTeamNames = computed(() => teamNamesFor(quiz.value.division ?? ''))
 /**
  * The meet to submit to, and who the user is there: the linked meet when they may send to it, else
  * the one meet they may send to, or the one chosen in the meet picker, where a code can be joined.
- * The sheet stays unlinked. Undefined when the user cancels or may not send to the meet.
+ * It's checked again here, so a guest official whose session has ended is asked for the room code
+ * before the room is confirmed. Another meet's room code entered then offers to send there instead,
+ * and a linked sheet is linked to that meet. Undefined when the user cancels or may not send.
  */
 async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender } | undefined> {
-  const linked = meetSession.sender.value
-  const linkedId = meetSession.meetId.value
-  if (linked && linkedId !== null) {
-    return { id: linkedId, name: meetSession.meetName.value ?? 'the meet', sender: linked }
-  }
+  const linkedId = meetSession.sender.value ? meetSession.meetId.value : null
+  const linked = linkedId !== null
   // One meet the user may send to takes it; otherwise the meet picker asks, offering a code join
   const [only, ...others] = submitter.targets.value
-  const meet =
-    only && others.length === 0
+  const picked = linked
+    ? { meetId: linkedId, meetName: meetSession.meetName.value ?? 'the meet' }
+    : only && others.length === 0
       ? only
       : await meetPickerRef.value?.chooseForSubmit(submitter.lastMeetId.value)
-  if (!meet) return undefined
-  const { meetId: id, meetName: name } = meet
-  const sender = await senderOf(id, roomCodeOptions())
+  if (!picked) return undefined
+  const answer = await renewedSenderOf(picked.meetId, {
+    ...roomCodeOptions(),
+    otherMeet: (session) => ({
+      message:
+        `That code is for ${session.room ? `${session.meetName}, ${session.room.name}` : session.meetName}. ` +
+        `Submit to ${session.meetName} instead?` +
+        (linked ? ` The sheet will use ${session.meetName}'s team names from now on.` : ''),
+      accept: `Submit to ${session.meetName}`,
+    }),
+  })
   // The official cancelled the room-code dialog
-  if (sender === false) return undefined
+  if (answer === false) return undefined
+  const { meetId: id, sender } = answer
+  const name = id === picked.meetId ? picked.meetName : (joinedSession(id)?.meetName ?? 'the meet')
   if (!sender) {
     alert(
       sender === null
@@ -914,7 +925,15 @@ async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender 
     )
     return undefined
   }
-  submitter.rememberMeet(id)
+  if (linked && id !== picked.meetId) {
+    try {
+      await meetSession.loadMeet(id, name)
+    } catch {
+      alert(`Couldn't reach ${name}. Try again, or save the quiz as a file.`)
+      return undefined
+    }
+  }
+  if (!linked) submitter.rememberMeet(id)
   return { id, name, sender }
 }
 
@@ -931,13 +950,13 @@ async function doSubmitToMeet() {
   const roomId = await chooseRoom(choiceDialog.value, target.sender, meet, 'Submit')
   if (roomId === undefined) return
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
-  // A guest official whose session ends on the way is asked for the room code, and the send retried
+  // A guest official whose session ends on the way is asked for the room code, and the send
+  // retried; the room is confirmed by now, so only its code will do
   const send = (onExisting?: OnExisting) =>
-    withRoomCode(
-      target.id,
-      () => submitter.submitQuiz(target.id, quizFile, roomId, onExisting),
-      roomCodeOptions(),
-    )
+    withRoomCode(target.id, () => submitter.submitQuiz(target.id, quizFile, roomId, onExisting), {
+      ...roomCodeOptions(),
+      sameRoom: true,
+    })
   try {
     let outcome = await send()
     if (!outcome) return

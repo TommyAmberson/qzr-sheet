@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, shallowRef } from 'vue'
-import type { RoomCodeRequest, RoomCodeRow } from './guestSession'
+import type { RoomCodeOffer, RoomCodeRequest, RoomCodeRow } from './guestSession'
 
 interface Entry {
   row: RoomCodeRow
   code: string
   message: string
+  /** An offer to carry on somewhere else, shown until it's taken or another code is entered */
+  offer: RoomCodeOffer | null
   busy: boolean
   state: 'open' | 'accepted' | 'skipped'
 }
@@ -27,6 +29,7 @@ function ask(req: RoomCodeRequest): Promise<boolean> {
     row,
     code: '',
     message: '',
+    offer: null,
     busy: false,
     state: 'open',
   }))
@@ -50,12 +53,19 @@ async function submit(entry: Entry) {
   entry.busy = true
   entry.message = ''
   try {
-    const refusal = await request.value.onCode(entry.row, code)
-    if (refusal === null) entry.state = 'accepted'
-    else entry.message = refusal
+    const answer = await request.value.onCode(entry.row, code)
+    if (answer === null) entry.state = 'accepted'
+    else if (typeof answer === 'string') entry.message = answer
+    else entry.offer = answer
   } finally {
     entry.busy = false
   }
+  finishIfHandled()
+}
+
+function takeOffer(entry: Entry) {
+  entry.offer?.take()
+  entry.state = 'accepted'
   finishIfHandled()
 }
 
@@ -79,7 +89,22 @@ defineExpose({ ask })
         @submit.prevent="submit(entry)"
       >
         <span class="room-code-dialog__label">{{ entry.row.label }}</span>
-        <template v-if="entry.state === 'open'">
+        <template v-if="entry.state === 'open' && entry.offer">
+          <p class="room-code-dialog__offer">{{ entry.offer.message }}</p>
+          <div class="room-code-dialog__entry">
+            <button
+              type="button"
+              class="room-code-dialog__btn room-code-dialog__btn--primary"
+              @click="takeOffer(entry)"
+            >
+              {{ entry.offer.accept }}
+            </button>
+            <button type="button" class="room-code-dialog__btn" @click="entry.offer = null">
+              Enter another code
+            </button>
+          </div>
+        </template>
+        <template v-else-if="entry.state === 'open'">
           <div class="room-code-dialog__entry">
             <input
               v-model="entry.code"
@@ -185,6 +210,11 @@ defineExpose({ ask })
   margin: 0;
   color: var(--color-error);
   font-size: 0.85rem;
+}
+
+.room-code-dialog__offer {
+  margin: 0;
+  font-size: 0.9rem;
 }
 
 .room-code-dialog__done {

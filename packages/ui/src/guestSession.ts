@@ -209,13 +209,24 @@ export interface RoomCodeRow {
   label: string
 }
 
+/** An offer to carry on somewhere else, shown on a row in place of its code field */
+export interface RoomCodeOffer {
+  message: string
+  /** The button that takes the offer */
+  accept: string
+  take: () => void
+}
+
 /** What `withRoomCode` and the sign-in upgrade ask of the room-code dialog */
 export interface RoomCodeRequest {
   title: string
   detail: string
   rows: RoomCodeRow[]
-  /** Check a code entered for a row: null accepts it, a message refuses it and is shown on the row */
-  onCode: (row: RoomCodeRow, code: string) => Promise<string | null>
+  /**
+   * Check a code entered for a row: null accepts it, a message refuses it and is shown on the row,
+   * and an offer asks whether to carry on somewhere else
+   */
+  onCode: (row: RoomCodeRow, code: string) => Promise<string | RoomCodeOffer | null>
   submitLabel: string
   closeLabel: string
   /** Whether each row can be skipped */
@@ -233,62 +244,88 @@ export interface RoomCodeOptions {
   dialog: RoomCodeAsker | null | undefined
   /** An account decides while signed in, so nothing is asked */
   signedIn: boolean
+  /**
+   * The action is for the session's room, such as a quiz already stored for it, so only that room's
+   * code will do. Otherwise any room of the meet is taken, since the room is chosen afterwards.
+   */
+  sameRoom?: boolean
+  /** Offer to carry on with another meet whose room code was entered; without it, it's refused */
+  otherMeet?: (session: GuestSessionData) => { message: string; accept: string }
 }
 
 /**
- * Run an action that needs a guest official's room (sending or correcting a quiz). When the
- * official's session is known to have expired, ask for the room code first; when the action is
- * refused because the session isn't accepted (401), ask, re-join, and run it once more. Undefined
+ * Run an action that needs a guest official's room (sending or correcting a quiz) for the meet it's
+ * given. When the official's session is known to have expired, ask for the room code first; when
+ * the action is refused because the session isn't accepted (401), ask, re-join, and run it once
+ * more. The action is run for another meet when the official takes `otherMeet`'s offer. Undefined
  * when the official cancels. Nothing is asked for a meet joined as a viewer or not at all, or while
  * an account is signed in, since the account decides then.
  */
 export async function withRoomCode<T>(
   meetId: number,
-  action: () => Promise<T>,
+  action: (meetId: number) => Promise<T>,
   opts: RoomCodeOptions,
 ): Promise<T | undefined> {
-  const session = joinedSession(meetId)
-  if (opts.signedIn || session?.role !== MeetRole.Official) return action()
+  let session = joinedSession(meetId)
+  if (opts.signedIn || session?.role !== MeetRole.Official) return action(meetId)
   // Only once it has expired: asking early would send an official for a code they don't yet need
-  if (tokenHasExpired(session.token) && !(await askRoomCode(session, opts))) return undefined
+  if (tokenHasExpired(session.token)) {
+    session = await askRoomCode(session, opts)
+    if (!session) return undefined
+  }
   try {
-    return await action()
+    return await action(session.meetId)
   } catch (e) {
     if (!isUnauthorized(e)) throw e
-    if (!(await askRoomCode(session, opts))) return undefined
-    return action()
+    const renewed = await askRoomCode(session, opts)
+    if (!renewed) return undefined
+    return action(renewed.meetId)
   }
 }
 
-/** Ask for the room code of an official session and re-join with it; false when cancelled */
-async function askRoomCode(session: GuestSessionData, opts: RoomCodeOptions): Promise<boolean> {
+/**
+ * Ask for the room code of an official session and re-join with it: the session joined, which is
+ * another meet's when the official took that offer; null when cancelled
+ */
+async function askRoomCode(
+  session: GuestSessionData,
+  opts: RoomCodeOptions,
+): Promise<GuestSessionData | null> {
   const room = session.room?.name
-  return (
-    (await opts.dialog?.ask({
-      title: 'Room code needed',
-      detail: `Your session for ${session.meetName} has ended. Enter ${room ? `${room}'s` : 'your room'} code to keep going.`,
-      rows: [{ meetId: session.meetId, label: sessionLabel(session) }],
-      onCode: async (_, code) => {
-        let res
-        try {
-          res = await opts.join(code)
-        } catch (e) {
-          return isRefusal(e) ? "That isn't a room code." : "Couldn't reach the meet. Try again."
-        }
-        if (res.meet.id !== session.meetId) return 'That code is for another meet.'
-        if (res.role !== MeetRole.Official) return "That's a viewer code; enter the room code."
-        // The action is rerun for the room it was about, so another room's code can't stand in
-        if (session.room && res.room?.id !== session.room.id) {
-          return `That code is for ${res.room?.name ?? 'another room'}; enter ${session.room.name}'s code.`
-        }
-        addJoinedSession(sessionFrom(res, code)!, guestStateRef.value.active === session.meetId)
-        return null
-      },
-      submitLabel: 'Join',
-      closeLabel: 'Cancel',
-      skip: false,
-    })) ?? false
-  )
+  let joined: GuestSessionData | null = null
+  const keep = (renewed: GuestSessionData) => {
+    addJoinedSession(renewed, guestStateRef.value.active === session.meetId)
+    joined = renewed
+  }
+  const accepted = await opts.dialog?.ask({
+    title: 'Room code needed',
+    detail: `Your session for ${session.meetName} has ended. Enter ${room ? `${room}'s` : 'your room'} code to keep going.`,
+    rows: [{ meetId: session.meetId, label: sessionLabel(session) }],
+    onCode: async (_, code) => {
+      let res
+      try {
+        res = await opts.join(code)
+      } catch (e) {
+        return isRefusal(e) ? "That isn't a room code." : "Couldn't reach the meet. Try again."
+      }
+      const renewed = sessionFrom(res, code)
+      if (renewed?.role !== MeetRole.Official) return "That's a viewer code; enter the room code."
+      if (renewed.meetId !== session.meetId) {
+        const offer = opts.otherMeet?.(renewed)
+        if (!offer) return `That code is for ${renewed.meetName}; enter ${session.meetName}'s code.`
+        return { ...offer, take: () => keep(renewed) }
+      }
+      if (opts.sameRoom && session.room && renewed.room?.id !== session.room.id) {
+        return `That code is for ${renewed.room?.name ?? 'another room'}; enter ${session.room.name}'s code.`
+      }
+      keep(renewed)
+      return null
+    },
+    submitLabel: 'Join',
+    closeLabel: 'Cancel',
+    skip: false,
+  })
+  return accepted ? joined : null
 }
 
 /** The joined guest session for a meet, whichever meet is active */
@@ -391,7 +428,9 @@ async function upgradeUntilSettled(opts: UpgradeOptions): Promise<void> {
 /** What the sign-in upgrade needs from the app */
 export interface UpgradeOptions {
   /** The app's signed-in join, `POST /api/join` */
-  joinMeet: (code: string) => Promise<{ meet: { id: number; name: string }; role: string }>
+  joinMeet: (
+    code: string,
+  ) => Promise<{ meet: { id: number; name: string }; role: string; label?: string }>
   dialog: RoomCodeAsker | null | undefined
 }
 
@@ -438,7 +477,10 @@ async function doUpgrade(opts: UpgradeOptions): Promise<void> {
       }
       unreached.delete(row.meetId)
       // The room is dropped once accepted, so only its own meet's room code may stand for it
-      if (res.meet.id !== row.meetId) return 'That code is for another meet.'
+      if (res.meet.id !== row.meetId) {
+        const where = res.label ? `${res.meet.name}, ${res.label}` : res.meet.name
+        return `That code is for ${where}; it was added to your account. Enter this room's code, or skip it.`
+      }
       if (res.role !== MeetRole.Official) return "That isn't a room code."
       leaveGuestMeet(row.meetId)
       return null
