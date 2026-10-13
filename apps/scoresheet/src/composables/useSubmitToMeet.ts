@@ -39,23 +39,39 @@ let refreshes = 0
 /**
  * Whether the user may send quizzes to the meet, and for which rooms, as the API works it out.
  * Null when they may not (signed out with no code for it, or neither an admin nor an official of
- * it); undefined when there's no telling (offline, or the server failed). With `renew`, a guest
- * official whose session has ended is asked for the room code first; false when they cancel.
+ * it); undefined when there's no telling (offline, or the server failed).
  */
-export async function senderOf(meetId: number): Promise<Sender | null | undefined>
-export async function senderOf(
-  meetId: number,
-  renew: RoomCodeOptions,
-): Promise<Sender | null | undefined | false>
-export async function senderOf(
-  meetId: number,
-  renew?: RoomCodeOptions,
-): Promise<Sender | null | undefined | false> {
+export async function senderOf(meetId: number): Promise<Sender | null | undefined> {
   try {
-    if (!renew) return await getSender(meetId)
-    return (await withRoomCode(meetId, () => getSender(meetId), renew)) ?? false
+    return await getSender(meetId)
   } catch (e) {
     return e instanceof ApiError && (e.status === 401 || e.status === 403) ? null : undefined
+  }
+}
+
+/**
+ * `senderOf`, asking a guest official whose session has ended for the room code first. The answer
+ * is for another meet when the official entered its code and took the offer to send there; false
+ * when they cancel.
+ */
+export async function renewedSenderOf(
+  meetId: number,
+  renew: RoomCodeOptions,
+): Promise<{ meetId: number; sender: Sender | null | undefined } | false> {
+  let askedFor = meetId
+  try {
+    const answer = await withRoomCode(
+      meetId,
+      async (id) => {
+        askedFor = id
+        return { meetId: id, sender: await getSender(id) }
+      },
+      renew,
+    )
+    return answer ?? false
+  } catch (e) {
+    const refused = e instanceof ApiError && (e.status === 401 || e.status === 403)
+    return { meetId: askedFor, sender: refused ? null : undefined }
   }
 }
 

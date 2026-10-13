@@ -182,7 +182,10 @@ async function mergeNames(division: string, names: [string, string], teams: Team
   let done = 0
   try {
     for (const { id, quizFile } of edits) {
-      if (!(await renew(meetId, () => editResult(meetId, id, quizFile, 'merged')))) break
+      if (
+        !(await renew(meetId, () => editResult(meetId, id, quizFile, 'merged'), { sameRoom: true }))
+      )
+        break
       done += 1
     }
     if (done < edits.length && !mergeError.value) {

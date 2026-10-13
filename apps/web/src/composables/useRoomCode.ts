@@ -9,13 +9,20 @@ export const roomCodeDialog = ref<InstanceType<typeof RoomCodeDialog> | null>(nu
 /**
  * Renewing a guest official's ended session on the portal's results pages: the page runs its loads
  * and saves through `renew`, which asks for the room code when the session has ended and runs the
- * action once more.
+ * action once more. Another meet's code is refused, since the page is about its meet.
  */
 export function useRoomCode() {
   const { session } = useAuth()
 
-  /** Run an action for a meet, renewing a guest official's session; undefined when they cancel */
-  async function renew<T>(meetId: number, action: () => Promise<T>): Promise<T | undefined> {
+  /**
+   * Run an action for a meet, renewing a guest official's session; undefined when they cancel. With
+   * `sameRoom`, for a quiz already stored for the session's room, only that room's code will do.
+   */
+  async function renew<T>(
+    meetId: number,
+    action: () => Promise<T>,
+    { sameRoom = false } = {},
+  ): Promise<T | undefined> {
     // A page loading just after sign-in can run before the session has; an account decides then
     const signedIn = session.value?.isPending
       ? !!(await authClient.getSession()).data?.user
@@ -24,6 +31,7 @@ export function useRoomCode() {
       join: joinMeetGuest,
       dialog: roomCodeDialog.value,
       signedIn,
+      sameRoom,
     })
   }
 

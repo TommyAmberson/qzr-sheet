@@ -198,7 +198,7 @@ export function listPrelimAssignments(
 
 export function joinMeet(
   code: string,
-): Promise<{ meet: { id: number; name: string }; role: string }> {
+): Promise<{ meet: { id: number; name: string }; role: string; label?: string }> {
   return request('/api/join', { method: 'POST', body: JSON.stringify({ code }) })
 }
 

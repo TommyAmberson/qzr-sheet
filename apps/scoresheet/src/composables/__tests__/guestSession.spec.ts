@@ -27,6 +27,7 @@ import {
   leaveGuestMeet,
   SUBMIT_MEET_KEY,
   TEAM_NAMES_KEY,
+  type GuestSessionData,
   type RoomCodeRequest,
 } from '@qzr/ui/src/guestSession'
 
@@ -649,8 +650,11 @@ describe('withGuestToken: renewing a viewer session', () => {
   })
 })
 
-/** The room-code dialog, answering each row from `codes` by its label; a missing one is skipped */
-function dialogAnswering(codes: Record<string, string>) {
+/**
+ * The room-code dialog, answering each row from `codes` by its label; a missing one is skipped. An
+ * offer to carry on elsewhere is taken with `takeOffers`, and otherwise left.
+ */
+function dialogAnswering(codes: Record<string, string>, { takeOffers = false } = {}) {
   const told: Record<string, string | null> = {}
   return {
     told,
@@ -662,8 +666,11 @@ function dialogAnswering(codes: Record<string, string>) {
           all = false
           continue
         }
-        told[row.label] = await req.onCode(row, code)
-        if (told[row.label] !== null) all = false
+        const answer = await req.onCode(row, code)
+        const offer = typeof answer === 'object' ? answer : null
+        told[row.label] = offer ? offer.message : (answer as string | null)
+        if (offer && takeOffers) offer.take()
+        else if (answer !== null) all = false
       }
       return all
     }),
@@ -734,11 +741,11 @@ describe('withRoomCode: renewing an official session around an action', () => {
     [
       'a code for another meet',
       async () => ({ ...officialAnswer, meet: { id: 9, name: 'Other' } }),
-      'another meet',
+      "Other; enter Spring Meet's code",
     ],
     ['a viewer code', async () => ({ ...officialAnswer, role: MeetRole.Viewer }), 'room code'],
     [
-      "another room's code",
+      "another room's code, for a quiz stored for the room",
       async () => ({ ...officialAnswer, room: { id: 15, name: 'Room 5' } }),
       "Room 5; enter Room 3's code",
     ],
@@ -747,7 +754,7 @@ describe('withRoomCode: renewing an official session around an action', () => {
     setGuestState({ active: 4, joined: [old] })
     const dialog = dialogTyping('WRONG')
     const action = vi.fn()
-    await withRoomCode(4, action, { join, dialog, signedIn: false })
+    await withRoomCode(4, action, { join, dialog, signedIn: false, sameRoom: true })
     expect(dialog.told['Spring Meet, Room 3']).toContain(message)
     expect(action).not.toHaveBeenCalled()
     expect(guestStateRef.value.joined).toEqual([old])
@@ -759,6 +766,46 @@ describe('withRoomCode: renewing an official session around an action', () => {
     const action = vi.fn(async () => 'stored')
     expect(await withRoomCode(4, action, { join: vi.fn(), dialog, signedIn: false })).toBe('stored')
     expect(dialog.ask).not.toHaveBeenCalled()
+  })
+
+  it("takes another room's code when the room is chosen afterwards", async () => {
+    setGuestState({ active: 4, joined: [official(tokenExpiring(-60))] })
+    const join = vi.fn(async () => ({ ...officialAnswer, room: { id: 15, name: 'Room 5' } }))
+    const action = vi.fn(async () => 'stored')
+    const dialog = dialogTyping('ROOM-5')
+    expect(await withRoomCode(4, action, { join, dialog, signedIn: false })).toBe('stored')
+    expect(joinedSession(4)?.room).toEqual({ id: 15, name: 'Room 5' })
+  })
+
+  it('offers another meet whose room code was entered, and runs the action for it', async () => {
+    const old = official(tokenExpiring(-60))
+    setGuestState({ active: 4, joined: [old] })
+    const join = vi.fn(async () => ({ ...officialAnswer, meet: { id: 9, name: 'Fall Meet' } }))
+    const action = vi.fn(async (meetId: number) => meetId)
+    const dialog = dialogAnswering({ 'Spring Meet, Room 3': 'FALL' }, { takeOffers: true })
+    const otherMeet = (s: GuestSessionData) => ({
+      message: `Submit to ${s.meetName} instead?`,
+      accept: 'Submit',
+    })
+    expect(await withRoomCode(4, action, { join, dialog, signedIn: false, otherMeet })).toBe(9)
+    expect(dialog.told['Spring Meet, Room 3']).toBe('Submit to Fall Meet instead?')
+    expect(joinedSession(9)).toMatchObject({ meetName: 'Fall Meet', room: { id: 12 } })
+    expect(joinedSession(4)).toEqual(old)
+  })
+
+  it('leaves the action unrun when the offer of another meet is not taken', async () => {
+    setGuestState({ active: 4, joined: [official(tokenExpiring(-60))] })
+    const join = vi.fn(async () => ({ ...officialAnswer, meet: { id: 9, name: 'Fall Meet' } }))
+    const action = vi.fn()
+    const otherMeet = () => ({ message: 'Instead?', accept: 'Submit' })
+    await withRoomCode(4, action, {
+      join,
+      dialog: dialogTyping('FALL'),
+      signedIn: false,
+      otherMeet,
+    })
+    expect(action).not.toHaveBeenCalled()
+    expect(joinedSession(9)).toBeNull()
   })
 
   it('never takes a server error on the code for a refusal', async () => {
@@ -809,7 +856,7 @@ describe('upgradeGuestAccount: signing in upgrades the account with the codes', 
   const joinAnswering = (answers: Record<string, [number, MeetRole]>) =>
     vi.fn(async (code: string) => {
       const [id, role] = answers[code]!
-      return { meet: { id, name: `Meet ${id}` }, role }
+      return { meet: { id, name: `Meet ${id}` }, role, label: 'Room 2' }
     })
 
   it('redeems viewer sessions with their kept code, without asking, and removes them', async () => {
@@ -848,7 +895,11 @@ describe('upgradeGuestAccount: signing in upgrades the account with the codes', 
   })
 
   it.each([
-    ['a code for another meet', [4, MeetRole.Official] as const, 'another meet'],
+    [
+      'a code for another meet',
+      [4, MeetRole.Official] as const,
+      'Meet 4, Room 2; it was added to your account',
+    ],
     ['a viewer code', [3, MeetRole.Viewer] as const, "isn't a room code"],
   ])("refuses %s on the row, so it isn't marked added", async (_, [id, role], message) => {
     setGuestState({ active: 3, joined: [official(3, 'Room 1')] })

@@ -17,6 +17,7 @@ export {
   clearGuestData,
   guestNotice,
   leaveGuestMeet,
+  sessionLabel,
   upgradeOnSignIn,
   withGuestToken,
   withRoomCode,
