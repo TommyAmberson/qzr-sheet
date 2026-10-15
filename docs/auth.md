@@ -180,9 +180,23 @@ Every check also applies the meet's phase
 **In both apps:** the guest session module lives in `packages/ui`, and each app passes it its own
 join call. The scoresheet and the portal share an origin, so they share the stored sessions: a code
 joined in either works in both. There is one guest session per meet, and each request carries the
-token of the meet its path names (`guestTokenFor`). In the portal, "join with a code" keeps the
+token of the meet it is about (`withGuestToken`). In the portal, "join with a code" keeps the
 session, an official is taken to the meet's results, and the router admits a guest session to the
-results pages only; other meet pages still need an account.
+results pages only; other meet pages still need an account. A guest's meets are listed on the
+portal's home page and in the scoresheet's meet picker, each with Leave.
+
+**Keeping and renewing a guest session:** a viewer's session keeps its viewer code; an official's
+keeps the room the join answered with, and never the room code. A viewer's session renews itself
+from its code inside `withGuestToken`, before a request once its token has expired and once after a
+401 to a request about its meet. An official's is renewed around the actions that need its room
+(sending, uploading, correcting, restoring) by `withRoomCode`, which asks for the room code in a
+dialog and runs the action again. Another room's code is taken unless the action is for a quiz
+stored for the old room; another meet's code is refused, except that the scoresheet's Submit offers
+to send to that meet instead (`otherMeet`). A renewal the server refuses (a 4xx answer other than
+401, 408, and 429) removes the session and says so; a network failure, server error, or rate limit
+keeps it. Signing in upgrades the account with the guest account's codes (`upgradeOnSignIn`);
+signing out in either app removes every guest session and the meet data kept for them
+(`clearGuestData`).
 
 **URL-shareable viewer access (scoresheet):** opening the scoresheet with `?meet=<viewer code>`
 joins as a guest viewer:
@@ -191,9 +205,11 @@ joins as a guest viewer:
 https://www.versevault.ca/qzr/scoresheet/?meet=fall-2025
 ```
 
-The scoresheet redeems the code at `/qzr/api/join/guest` and keeps the session. The meet's teams
-become selectable in "Load teams from meet" without signing in. Room codes are never put in links: a
-link ends up in browser history, logs, and screenshots.
+The scoresheet redeems the code at `/qzr/api/join/guest`, keeps the session, and removes the code
+from the address bar (a rejected link says so; when the server can't be reached the code stays for a
+reload). A value of digits only, or one beside a quiz link, is a meet id and never joined. The
+meet's teams become selectable in "Load teams from meet" without signing in. Room codes are never
+put in links: a link ends up in browser history, logs, and screenshots.
 
 ### Password hashing
 

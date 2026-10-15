@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { AccountRole, MeetRole } from '@qzr/shared'
 import { useAuth } from '../composables/useAuth'
-import { joinByCode } from '@qzr/ui'
+import { guestStateRef, joinByCode, leaveGuestMeet } from '@qzr/ui'
 import { getMyMeets, joinMeet, joinMeetGuest, createMeet, type MeetMembership } from '../api'
 
 const scoresheetUrl = __SCORESHEET_URL__
@@ -42,6 +42,9 @@ async function loadMeets() {
   }
 }
 
+// Upgrading the account at sign-in turns guest sessions into memberships, so list them again
+watch(() => guestStateRef.value.joined.length, loadMeets)
+
 async function handleCode() {
   codeError.value = ''
   submitting.value = true
@@ -60,9 +63,11 @@ async function handleCode() {
       const joined = await joinByCode(c, joinMeetGuest)
       if (!joined) throw new Error('That code did not open a meet')
       code.value = ''
-      // An official's room's quizzes are on the meet's results page
-      const name = joined.role === MeetRole.Official ? 'meet-results' : 'meet'
-      router.push({ name, params: { slug: joined.meetId } })
+      // An official's room's quizzes are on the meet's results page; a viewer's meet is listed
+      // here, since no other page admits guest viewers yet
+      if (joined.role === MeetRole.Official) {
+        router.push({ name: 'meet-results', params: { slug: joined.meetId } })
+      }
     }
   } catch (e) {
     codeError.value = (e as Error).message
@@ -141,6 +146,22 @@ watch(
             </li>
           </ul>
         </template>
+
+        <!-- Meets joined with a code (not signed in): the guest account -->
+        <ul v-else-if="guestStateRef.joined.length" class="qm-list">
+          <li v-for="g in guestStateRef.joined" :key="g.meetId" class="qm-row">
+            <button
+              v-if="g.role === MeetRole.Official"
+              class="qm-name"
+              @click="router.push({ name: 'meet-results', params: { slug: g.meetId } })"
+            >
+              {{ g.meetName }}
+            </button>
+            <span v-else class="qm-name qm-name--plain">{{ g.meetName }}</span>
+            <span class="qm-role">{{ g.room ? `${g.role}, ${g.room.name}` : g.role }}</span>
+            <button class="qm-leave" @click="leaveGuestMeet(g.meetId)">Leave</button>
+          </li>
+        </ul>
 
         <!-- Create meet (superuser) -->
         <template v-if="isSuperuser">
@@ -315,6 +336,21 @@ watch(
   font-size: 0.75rem;
   color: var(--color-text-faint);
   text-transform: capitalize;
+}
+
+.qm-name--plain {
+  cursor: default;
+}
+
+.qm-leave {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
 }
 
 /* Code entry */

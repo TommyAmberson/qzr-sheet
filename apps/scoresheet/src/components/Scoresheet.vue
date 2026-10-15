@@ -7,6 +7,7 @@ import {
   endsRound,
   firstOvertimeQuestion,
   lastQuestionThroughRound,
+  MeetRole,
   NewerFileVersionError,
   parseQuizFile,
   parseQuizFileAttempt,
@@ -34,11 +35,23 @@ import {
 } from '../persistence/fileIO'
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
-import { getMeetName, getRevision, type ScheduledQuizSeat } from '../api'
-import { ChoiceDialog, askAlreadySubmitted, chooseRoom, guestStateRef, type Sender } from '@qzr/ui'
+import { getMeetName, getRevision, joinMeet, joinMeetGuest, type ScheduledQuizSeat } from '../api'
+import {
+  ChoiceDialog,
+  RoomCodeDialog,
+  askAlreadySubmitted,
+  chooseRoom,
+  guestStateRef,
+  joinedSession,
+  upgradeOnSignIn,
+  withRoomCode,
+  type OnExisting,
+  type RoomCodeOptions,
+  type Sender,
+} from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
-import { senderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
+import { renewedSenderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
 import { useTeamNames } from '../composables/useTeamNames'
 import { useTutorial } from '../composables/useTutorial'
 import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
@@ -225,14 +238,15 @@ function computeSeatChange(
   }
 }
 
-/** Strip ?meet=&quiz= from the URL after the prefill — set by the
+/** Strip ?meetId=&quiz= from the URL after the prefill — set by the
  *  portal's schedule view when the user clicks a quiz cell — or
- *  ?meet=&result=&revision=, set by the portal's quiz page to open a
- *  stored quiz. Always strips the params so a refresh doesn't
+ *  ?meetId=&result=&revision=, set by the portal's quiz page to open a
+ *  stored quiz (`meet` in links shared before). Always strips the params so a refresh doesn't
  *  re-clobber edits. */
 async function loadFromUrlParams() {
   const params = new URLSearchParams(window.location.search)
-  const meetId = Number(params.get('meet'))
+  // Portal links name the meet in `meetId`; links shared before that used `meet`
+  const meetId = Number(params.get('meetId') ?? params.get('meet'))
   const quizId = Number(params.get('quiz'))
   const resultId = Number(params.get('result'))
   const revision = Number(params.get('revision'))
@@ -811,6 +825,7 @@ async function doExportOds() {
 }
 
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
+const roomCodeDialog = ref<InstanceType<typeof RoomCodeDialog> | null>(null)
 
 /** A saved file's name: the quiz's name without its space, "D1Q3" or "D1cQ3" */
 function fileStem(): string {
@@ -819,9 +834,30 @@ function fileStem(): string {
 
 const submitter = useSubmitToMeet()
 const { session: authSession } = useAuth()
-// Signing in or out, or joining with a code, changes the meets the user may submit to
+// Signing in, or starting signed in, upgrades the account with the guest sessions' codes
+upgradeOnSignIn(
+  () => authSession.value.data?.user.id,
+  () => ({ joinMeet, dialog: roomCodeDialog.value }),
+)
+
+/** How a guest official's ended session is renewed: through the room-code dialog, unless signed in */
+function roomCodeOptions(): RoomCodeOptions {
+  return {
+    join: joinMeetGuest,
+    dialog: roomCodeDialog.value,
+    signedIn: !!authSession.value.data?.user,
+  }
+}
+// Signing in or out, or joining or leaving a room with a code, changes the meets the user may submit to
 watch(
-  [() => authSession.value.data?.user.id, guestStateRef],
+  [
+    () => authSession.value.data?.user.id,
+    () =>
+      guestStateRef.value.joined
+        .filter((j) => j.role === MeetRole.Official)
+        .map((j) => j.meetId)
+        .join(),
+  ],
   () => void submitter.refreshTargets(),
   { immediate: true },
 )
@@ -852,23 +888,35 @@ const offeredTeamNames = computed(() => teamNamesFor(quiz.value.division ?? ''))
 /**
  * The meet to submit to, and who the user is there: the linked meet when they may send to it, else
  * the one meet they may send to, or the one chosen in the meet picker, where a code can be joined.
- * The sheet stays unlinked. Undefined when the user cancels or may not send to the meet.
+ * It's checked again here, so a guest official whose session has ended is asked for the room code
+ * before the room is confirmed. Another meet's room code entered then offers to send there instead,
+ * and a linked sheet is linked to that meet. Undefined when the user cancels or may not send.
  */
 async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender } | undefined> {
-  const linked = meetSession.sender.value
-  const linkedId = meetSession.meetId.value
-  if (linked && linkedId !== null) {
-    return { id: linkedId, name: meetSession.meetName.value ?? 'the meet', sender: linked }
-  }
+  const linkedId = meetSession.sender.value ? meetSession.meetId.value : null
+  const linked = linkedId !== null
   // One meet the user may send to takes it; otherwise the meet picker asks, offering a code join
   const [only, ...others] = submitter.targets.value
-  const meet =
-    only && others.length === 0
+  const picked = linked
+    ? { meetId: linkedId, meetName: meetSession.meetName.value ?? 'the meet' }
+    : only && others.length === 0
       ? only
       : await meetPickerRef.value?.chooseForSubmit(submitter.lastMeetId.value)
-  if (!meet) return undefined
-  const { meetId: id, meetName: name } = meet
-  const sender = await senderOf(id)
+  if (!picked) return undefined
+  const answer = await renewedSenderOf(picked.meetId, {
+    ...roomCodeOptions(),
+    otherMeet: (session) => ({
+      message:
+        `That code is for ${session.room ? `${session.meetName}, ${session.room.name}` : session.meetName}. ` +
+        `Submit to ${session.meetName} instead?` +
+        (linked ? ` The sheet will use ${session.meetName}'s team names from now on.` : ''),
+      accept: `Submit to ${session.meetName}`,
+    }),
+  })
+  // The official cancelled the room-code dialog
+  if (answer === false) return undefined
+  const { meetId: id, sender } = answer
+  const name = id === picked.meetId ? picked.meetName : (joinedSession(id)?.meetName ?? 'the meet')
   if (!sender) {
     alert(
       sender === null
@@ -877,7 +925,15 @@ async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender 
     )
     return undefined
   }
-  submitter.rememberMeet(id)
+  if (linked && id !== picked.meetId) {
+    try {
+      await meetSession.loadMeet(id, name)
+    } catch {
+      alert(`Couldn't reach ${name}. Try again, or save the quiz as a file.`)
+      return undefined
+    }
+  }
+  if (!linked) submitter.rememberMeet(id)
   return { id, name, sender }
 }
 
@@ -894,18 +950,31 @@ async function doSubmitToMeet() {
   const roomId = await chooseRoom(choiceDialog.value, target.sender, meet, 'Submit')
   if (roomId === undefined) return
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
+  // A guest official whose session ends on the way is asked for the room code, and the send
+  // retried; the room is confirmed by now, so only its code will do
+  const send = (onExisting?: OnExisting) =>
+    withRoomCode(target.id, () => submitter.submitQuiz(target.id, quizFile, roomId, onExisting), {
+      ...roomCodeOptions(),
+      sameRoom: true,
+    })
   try {
-    let outcome = await submitter.submitQuiz(target.id, quizFile, roomId)
+    let outcome = await send()
+    if (!outcome) return
     if (!outcome.stored) {
       const choice = await askAlreadySubmitted(choiceDialog.value, outcome.existing)
       if (!choice) return
-      outcome = await submitter.submitQuiz(target.id, quizFile, roomId, choice)
+      outcome = await send(choice)
     }
-    if (!outcome.stored) return
-    if (outcome.created) alert(`Submitted to ${meet}.`)
+    if (!outcome?.stored) return
+    // Name the room it was stored for
+    const room = target.sender.rooms.find((r) => r.id === roomId)?.name
+    const where = room ? `${meet}, ${room}` : meet
+    if (outcome.created) alert(`Submitted to ${where}.`)
     else if (outcome.keptCurrent) {
-      alert(`Saved to ${meet} as revision ${outcome.revision}; the earlier revision stays current.`)
-    } else alert(`Submitted to ${meet} as revision ${outcome.revision}.`)
+      alert(
+        `Saved to ${where} as revision ${outcome.revision}; the earlier revision stays current.`,
+      )
+    } else alert(`Submitted to ${where} as revision ${outcome.revision}.`)
   } catch (e) {
     alert(
       `Not submitted: ${(e as Error).message}\nThe quiz is unchanged. Try again, or save it as a file.`,
@@ -1790,6 +1859,7 @@ const appVersion: string = __APP_VERSION__
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
         <ChoiceDialog ref="choiceDialog" />
+        <RoomCodeDialog ref="roomCodeDialog" />
         <datalist id="team-name-options">
           <option v-for="name in offeredTeamNames" :key="name" :value="name" />
         </datalist>
