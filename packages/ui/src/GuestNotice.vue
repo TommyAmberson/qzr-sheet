@@ -4,12 +4,16 @@ import { guestNotice } from './guestSession'
 
 <template>
   <div v-if="guestNotice" class="guest-notice" role="status">
-    <span>{{ guestNotice }}</span>
+    <span class="guest-notice__text">{{ guestNotice }}</span>
     <button type="button" class="guest-notice__dismiss" @click="guestNotice = null">Dismiss</button>
   </div>
 </template>
 
 <style scoped>
+.guest-notice__text {
+  white-space: pre-line;
+}
+
 .guest-notice {
   position: fixed;
   left: 50%;

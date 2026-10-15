@@ -89,6 +89,11 @@ const MEET_PATH = /^\/api\/meets\/(\d+)(?:[/?]|$)/
 /** What the apps tell the user about a guest session that ended on its own: shown, then dismissed */
 export const guestNotice = ref<string | null>(null)
 
+/** Tell the user something through the guest notice, after anything it already says */
+function notify(message: string): void {
+  guestNotice.value = guestNotice.value ? `${guestNotice.value}\n${message}` : message
+}
+
 /**
  * Wrap an app's API client so each request carries the guest token for its meet (see
  * `requestMeetId`); pass `meetId` when the path doesn't name the meet. A signed-in user's cookie
@@ -200,7 +205,7 @@ async function doRenewViewer(
 }
 
 function noticeCodeEnded(session: GuestSessionData): void {
-  guestNotice.value = `The code for ${session.meetName} is no longer valid. Join again with the new code.`
+  notify(`The code for ${session.meetName} is no longer valid. Join again with the new code.`)
 }
 
 /** A room the room-code dialog asks about */
@@ -448,7 +453,7 @@ async function doUpgrade(opts: UpgradeOptions): Promise<void> {
     } else if (result.value.meet.id !== s.meetId) {
       // The join has added the meet the code now opens, so say that rather than that it failed
       const now = result.value.meet.name
-      guestNotice.value = `The code for ${s.meetName} now opens ${now}; ${now} was added to your account.`
+      notify(`The code for ${s.meetName} now opens ${now}; ${now} was added to your account.`)
     }
     return true
   })
@@ -550,7 +555,7 @@ async function doInitGuestSession(join: GuestJoin): Promise<GuestSessionData | n
   if (!data) {
     // A session kept for the link's code has ended with it
     if (existing) leaveGuestMeet(existing.meetId)
-    guestNotice.value = "This meet link isn't valid. Ask the meet's admin for a new one."
+    notify("This meet link isn't valid. Ask the meet's admin for a new one.")
     return null
   }
   addJoinedSession(data, true)

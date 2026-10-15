@@ -938,6 +938,14 @@ describe('upgradeGuestAccount: signing in upgrades the account with the codes', 
     expect(guestNotice.value).toContain('Meet 1')
   })
 
+  it('names every viewer session whose code no longer works', async () => {
+    setGuestState({ active: 1, joined: [viewer(1, 'old-one'), viewer(2, 'old-two')] })
+    const joinMeet = vi.fn().mockRejectedValue(new ApiError(404, 'Invalid code'))
+    await upgradeGuestAccount({ joinMeet, dialog: dialogAnswering({}) })
+    expect(guestNotice.value).toContain('Meet 1')
+    expect(guestNotice.value).toContain('Meet 2')
+  })
+
   it('keeps a viewer session when the server fails on its code', async () => {
     const session = viewer(1, 'slug-one')
     setGuestState({ active: 1, joined: [session] })
