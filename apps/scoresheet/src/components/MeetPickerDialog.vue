@@ -20,6 +20,8 @@ const {
   init,
   handleJoinCode,
   setActiveGuest,
+  isGuestMeet,
+  leaveMeet,
 } = useMeetList()
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
@@ -88,6 +90,11 @@ async function chooseForSubmit(last: number | null): Promise<MeetSummary | null>
   return chosen
 }
 
+/** A meet's role, with an official's room or a coach's church when known */
+function roleOf(meet: MeetSummary): string {
+  return meet.label ? `${meet.role}, ${meet.label}` : meet.role
+}
+
 defineExpose({ open, chooseForSubmit })
 </script>
 
@@ -125,8 +132,16 @@ defineExpose({ open, chooseForSubmit })
           >
             <span class="meet-row-name">{{ meet.meetName }}</span>
             <span class="meet-row-role">{{
-              purpose === 'submit' && meet.meetId === lastMeetId ? 'last used' : meet.role
+              purpose === 'submit' && meet.meetId === lastMeetId ? 'last used' : roleOf(meet)
             }}</span>
+          </button>
+          <button
+            v-if="isGuestMeet(meet.meetId)"
+            class="meet-row-leave"
+            :disabled="submitting"
+            @click="leaveMeet(meet.meetId)"
+          >
+            Leave
           </button>
         </li>
       </ul>
@@ -222,6 +237,23 @@ defineExpose({ open, chooseForSubmit })
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.meet-list li {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.meet-row-leave {
+  padding: 0 0.7rem;
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 .meet-row {

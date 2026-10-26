@@ -59,10 +59,11 @@ Decisions behind [plan.md](./plan.md), from the code at master `ad02dd9` and the
 
 * **Decision**: two owners, by what renewal needs.
   * **Viewers** renew inside `withGuestToken`, the request wrapper both apps already use: before a
-    request, a viewer session whose token is known to have expired is re-joined from its kept code;
-    a request refused with 401 while carrying a viewer token is re-joined and retried once. A
-    re-join the server rejects, or one that answers for a different meet, removes the session and
-    reports it (FR-006).
+    request about its meet, a viewer session whose token is known to have expired is re-joined from
+    its kept code; a request about its meet refused with 401 while carrying a viewer token is
+    re-joined and retried once (a 401 to a request about no meet, such as the account's own meets,
+    says nothing about the token). A re-join the server rejects, or one that answers for a different
+    meet, removes the session and reports it (FR-006).
   * **Officials** renew around the actions that need the room: submitting from the scoresheet, and
     uploading, correcting, restoring, and merging in the portal. One shared helper runs the action;
     if the official's session is known to have expired it asks for the code first (FR-002), and if
@@ -70,16 +71,28 @@ Decisions behind [plan.md](./plan.md), from the code at master `ad02dd9` and the
     access for a meet the guest joined as an official) it asks for the code, re-joins, and runs the
     action once more (FR-001, FR-003). The dialog is one component in `packages/ui`, used by both
     apps, and reused with several rows by the sign-in upgrade (R6). A re-join stores the answer only
-    when it is an official session for the same meet; a viewer code or another meet's code is
-    reported on the dialog and changes nothing. Renewal isn't asked for while an account is signed
-    in, since the account decides. A rejected viewer renewal is reported through one guest notice
-    the module keeps and each app shows.
+    when it is an official session; a viewer code is reported on the dialog and changes nothing.
+    Another room of the same meet is taken when the room is chosen afterwards, and refused when the
+    action is for a quiz already stored for the old room (correcting, restoring, merging, and the
+    scoresheet's send once its room is confirmed). The scoresheet asks before the room is confirmed,
+    rechecking a linked meet's sender on Submit, so the confirmation names the new room. Another
+    meet's code is refused, naming the meet, except before sending from the scoresheet, where the
+    dialog offers to submit to that meet instead and links a linked sheet to it. Renewal isn't asked
+    for while an account is signed in, since the account decides. A rejected viewer renewal is
+    reported through one guest notice the module keeps and each app shows.
 * **Rationale**: a viewer renewal needs no person, so it belongs where every request passes. An
   official renewal needs a dialog, which must not open from a background read (team names, a meet
   refresh) at app start. Tying it to the user's action keeps the prompt where the official expects
   it, and the retry keeps their choice about an existing quiz (FR-003), since the action is rerun
   with the same arguments.
-* **Network failures** throw before any status, so neither path treats them as refusals (FR-008).
+* **Refusals**: the join calls throw `ApiError` on any answer that isn't ok. Only a 4xx answer other
+  than 401, 408, and 429 is a refused code. A network failure, a server error, a timeout, or a rate
+  limit is not, so neither path removes a session for it, and a viewer renewal that fails that way
+  lets the request go with the current token, or rethrows the 401 it had (FR-008). An official is
+  asked only once the token's expiry has passed, not within the early-renewal margin viewers use
+  (FR-002). A renewal saves its answer only while the stored session still has the token it started
+  from, so leaving, signing out, upgrading, or joining again meanwhile wins (FR-007). The portal
+  waits for a session still loading before deciding that no account is signed in.
 * **Alternatives considered**: prompting from the request wrapper for every refused official request
   (dialogs at startup and on background refreshes); marking the session refused and letting each
   call site check (the same decision copied into every action).
@@ -90,9 +103,13 @@ Decisions behind [plan.md](./plan.md), from the code at master `ad02dd9` and the
   a signed-in account and guest sessions together: after sign-in, and on start when already signed
   in. Viewer sessions are redeemed with the app's existing `POST /api/join` call and their kept
   code, then removed. Official sessions are collected into the one dialog the clarification chose
-  (FR-012); each code entered is redeemed the same way, a skipped row removes its session. A network
-  failure leaves the session for the next run (FR-014). A guest token is never sent to
-  `POST /api/join` (FR-013).
+  (FR-012); each code entered is redeemed the same way, a skipped row removes its session. A code
+  that opens another meet, or isn't a room code, is reported on its row; another meet's code has
+  joined that meet by then, so the row says it was added. A viewer code that now opens another meet
+  has added that meet, so its session is removed with a notice saying so. The upgrade also runs when
+  a meet is joined while signed in, and runs again when one was joined during a run (FR-011). A code
+  the server doesn't refuse (a network failure, a server error, a rate limit) leaves the session for
+  the next run (FR-014). A guest token is never sent to `POST /api/join` (FR-013).
 * **Rationale**: no new API route: `POST /api/join` already turns a code into a membership for a
   signed-in caller, and is idempotent (an existing membership is returned, so the edge case "already
   a member" needs nothing). Social sign-in returns through a page load, so "on start when already
@@ -107,7 +124,8 @@ Decisions behind [plan.md](./plan.md), from the code at master `ad02dd9` and the
   the scoresheet's cached team-name lists, and its remembered meet to submit to. Both apps call it
   when the user signs out (FR-022). The storage keys of those two caches move to `packages/ui`, so
   the portal can clear what the scoresheet keeps on the same origin; the scoresheet's composables
-  read the keys from there.
+  read the keys from there. Writes to storage never throw, so signing out completes, and start-up
+  keeps the sessions it read, even when storage is blocked or full.
 * **Rationale**: the two apps share `localStorage`, so signing out of either must clear both apps'
   guest data, and only one place should know what that data is.
 
@@ -130,11 +148,10 @@ Decisions behind [plan.md](./plan.md), from the code at master `ad02dd9` and the
   `meet` together with `quiz` or `result` so links already shared keep working (FR-027). The guest
   join from a link reads `meet` only when neither `quiz` nor `result` is present and the value isn't
   digits only (#120's rule), so a meet id is never posted as a viewer code.
-* **Address bar** (FR-025, FR-026): after the link's join succeeds, or the server rejects the code
-  (the join call returns null), the scoresheet removes `meet` from the address with
-  `history.replaceState`, as it already does for quiz links. A thrown network error leaves it, so a
-  reload tries again. A rejected link is reported through the same guest notice as a rejected viewer
-  renewal (R5).
+* **Address bar** (FR-025, FR-026): after the link's join succeeds, or the server refuses the code
+  (R5's refusals), the scoresheet removes `meet` from the address with `history.replaceState`, as it
+  already does for quiz links. Any other failure leaves it, so a reload tries again. A rejected link
+  is reported through the same guest notice as a rejected viewer renewal (R5).
 
 ## R10. Docs
 

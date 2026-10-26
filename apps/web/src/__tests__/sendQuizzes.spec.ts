@@ -43,7 +43,7 @@ describe('uploadPicked', () => {
           : { created: false, revision: 3, keptCurrent: true },
       )
     const { event, input } = picked(quizFileNamed('1'), quizFileNamed('2'))
-    const reports = await uploadPicked(event, answering(), official, 'Practice', send)
+    const reports = await uploadPicked(event, answering(5), official, 'Practice', send)
     expect(send.mock.calls.map((call) => call[1])).toEqual([5, 5])
     expect(input.value).toBe('')
     expect(reports).toEqual([
@@ -63,11 +63,15 @@ describe('uploadPicked', () => {
       .mockRejectedValueOnce(conflict)
       .mockResolvedValueOnce({ created: false, revision: 3 })
       .mockRejectedValueOnce(conflict)
-    const dialog = answering('newRevision', null)
+    const dialog = answering(5, 'newRevision', null)
     const { event } = picked(quizFileNamed('3'), quizFileNamed('3'))
     const reports = await uploadPicked(event, dialog, official, 'Practice', send)
     expect(send.mock.calls[1]![2]).toBe('newRevision')
-    expect(dialog.asked).toEqual(['D1 Q3 was already submitted', 'D1 Q3 was already submitted'])
+    expect(dialog.asked).toEqual([
+      'Upload for Room 1?',
+      'D1 Q3 was already submitted',
+      'D1 Q3 was already submitted',
+    ])
     expect(reports!.map((r) => [r.stored, r.message])).toEqual([
       [true, 'Saved as revision 3'],
       [false, 'Skipped: D1 Q3 was already submitted'],
@@ -84,7 +88,7 @@ describe('uploadPicked', () => {
       quizFileNamed('8'),
       quizFileNamed('9'),
     )
-    const reports = await uploadPicked(event, answering(), official, 'Practice', send)
+    const reports = await uploadPicked(event, answering(5), official, 'Practice', send)
     expect(reports!.map((r) => [r.file, r.stored, r.message])).toEqual([
       ['notes.txt', false, 'Not a quiz file'],
       ['D1Q8.json', false, 'This file was saved by a newer version'],
@@ -108,6 +112,7 @@ describe('uploadPicked', () => {
     const admin = { admin: true, rooms: official.rooms }
     const { event } = picked(quizFileNamed('1'))
     expect(await uploadPicked(event, answering(null), admin, 'Practice', send)).toBe(undefined)
+    expect(await uploadPicked(event, answering(null), official, 'Practice', send)).toBe(undefined)
     expect(send).not.toHaveBeenCalled()
   })
 })
@@ -118,9 +123,16 @@ describe('chooseRoom', () => {
     { id: 6, name: 'Room 2' },
   ]
 
-  it("doesn't ask an official of one room", async () => {
-    const dialog = answering()
+  it('names the room to an official of one room before sending', async () => {
+    const dialog = answering(5)
     expect(await chooseRoom(dialog, official, 'Practice', 'Upload')).toBe(5)
+    expect(dialog.asked).toEqual(['Upload for Room 1?'])
+    expect(await chooseRoom(answering(null), official, 'Practice', 'Upload')).toBe(undefined)
+  })
+
+  it('sends for no room, without asking, when an official has no room on record', async () => {
+    const dialog = answering()
+    expect(await chooseRoom(dialog, { admin: false, rooms: [] }, 'Practice', 'Submit')).toBeNull()
     expect(dialog.asked).toEqual([])
   })
 

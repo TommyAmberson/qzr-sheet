@@ -15,6 +15,38 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-09
+
+### Added
+
+* **Room code needed** - when a guest official's session has ended (it ran out, or the room's code
+  was changed), Submit to meet asks for the room code in a dialog and carries on with the submit,
+  keeping any choice already made about a quiz the meet has. Cancelling stops without sending.
+  Another room's code switches to that room, and another meet's code offers to submit there instead,
+  linking the sheet to it
+* **Signing in keeps your meets** - signing in, or opening the scoresheet signed in, adds the meets
+  joined with a code to the account: a viewer's straight away, and each official's room once its
+  code is entered in one dialog
+* **Leave** - the meet picker lets you leave a meet joined with a code
+
+### Changed
+
+* A guest official's room is kept and shown in the meet picker. Submit to meet names the room before
+  sending, asking an official of one room to confirm it, and again in the confirmation after. The
+  room code itself isn't kept on the device any more; one saved by an earlier version is removed
+  when the scoresheet starts
+* A viewer's session renews itself from the meet's viewer code; when that code no longer works, the
+  meet is removed and a notice says so
+* Signing out also ends the meets joined with a code on this device, and the team names and last
+  submitted meet kept for them
+* A `?meet=` link's code is removed from the address bar once it has been used, and a link the meet
+  doesn't recognize says so. Links from the portal to a quiz name the meet as `meetId`; older links
+  keep working
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - unchanged
+
 ## [0.17.0] - 2026-10-04
 
 ### Added

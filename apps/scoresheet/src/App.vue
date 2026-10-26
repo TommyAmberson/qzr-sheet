@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { GuestNotice } from '@qzr/ui'
 import Scoresheet from './components/Scoresheet.vue'
 import { initGuestSession } from './composables/useGuestSession'
 
@@ -42,6 +43,7 @@ onUnmounted(() => document.removeEventListener('keydown', onFileShortcut, { capt
 <template>
   <div class="app">
     <Scoresheet ref="scoresheetRef" />
+    <GuestNotice />
   </div>
 </template>
 

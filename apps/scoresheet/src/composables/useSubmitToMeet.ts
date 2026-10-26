@@ -1,10 +1,13 @@
 import { ref } from 'vue'
 import { ApiError, MeetRole, type QuizFile } from '@qzr/shared'
 import {
+  SUBMIT_MEET_KEY,
   existingQuizOf,
   guestStateRef,
+  withRoomCode,
   type ExistingQuiz,
   type OnExisting,
+  type RoomCodeOptions,
   type Sender,
 } from '@qzr/ui'
 import { getMyMeets, getSender, submitResult } from '../api'
@@ -27,7 +30,6 @@ const SENDING_ROLES: string[] = [MeetRole.Admin, MeetRole.Official, MeetRole.Sup
 export function maySend(role: string): boolean {
   return SENDING_ROLES.includes(role)
 }
-const LAST_MEET_KEY = 'qzr-submit-meet'
 
 const targets = ref<SubmitTarget[]>([])
 /** The signed-in account's meets, as last known */
@@ -44,6 +46,32 @@ export async function senderOf(meetId: number): Promise<Sender | null | undefine
     return await getSender(meetId)
   } catch (e) {
     return e instanceof ApiError && (e.status === 401 || e.status === 403) ? null : undefined
+  }
+}
+
+/**
+ * `senderOf`, asking a guest official whose session has ended for the room code first. The answer
+ * is for another meet when the official entered its code and took the offer to send there; false
+ * when they cancel.
+ */
+export async function renewedSenderOf(
+  meetId: number,
+  renew: RoomCodeOptions,
+): Promise<{ meetId: number; sender: Sender | null | undefined } | false> {
+  let askedFor = meetId
+  try {
+    const answer = await withRoomCode(
+      meetId,
+      async (id) => {
+        askedFor = id
+        return { meetId: id, sender: await getSender(id) }
+      },
+      renew,
+    )
+    return answer ?? false
+  } catch (e) {
+    const refused = e instanceof ApiError && (e.status === 401 || e.status === 403)
+    return { meetId: askedFor, sender: refused ? null : undefined }
   }
 }
 
@@ -107,7 +135,7 @@ const lastMeetId = ref<number | null>(storedLastMeet())
 
 function storedLastMeet(): number | null {
   try {
-    const stored = Number(localStorage.getItem(LAST_MEET_KEY))
+    const stored = Number(localStorage.getItem(SUBMIT_MEET_KEY))
     return stored > 0 ? stored : null
   } catch {
     return null
@@ -117,7 +145,7 @@ function storedLastMeet(): number | null {
 function rememberMeet(meetId: number): void {
   lastMeetId.value = meetId
   try {
-    localStorage.setItem(LAST_MEET_KEY, String(meetId))
+    localStorage.setItem(SUBMIT_MEET_KEY, String(meetId))
   } catch {
     // Storage unavailable: the meet is remembered until the page closes
   }

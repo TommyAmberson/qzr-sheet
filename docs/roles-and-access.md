@@ -49,6 +49,9 @@ Superusers have implicit full access to all meets; no membership rows are needed
 * **Phase**: where the meet is in its lifecycle: `registration`, `build`, `live`, `review`, or
   `done`. A grant says who; the phase says when. Access is decided by role, action, and phase
   together. Grants never change with the phase.
+* **Guest account**: the guest tokens one device holds, taken together. It acts as a temporary
+  account waiting for an upgrade: signing in upgrades the real account with the codes behind it, and
+  signing out ends it.
 
 ## Roles
 
@@ -159,6 +162,9 @@ Every route keeps these, and a new route must too. The first two restate constit
   nothing, reads included: the request is treated as having no token.
 * **Missing looks like forbidden.** A route answers the same for an object that doesn't exist as for
   one the principal may not see, so ids reveal nothing about other meets.
+* **No stored secrets on clients.** A client keeps its session cookie and guest tokens. It doesn't
+  keep admin, coach, or room codes once they are redeemed; viewer codes may be kept, since they
+  renew a viewer's token.
 * **No codes below admin.** A response never gives a code or code hash to a principal below admin,
   except the viewer code to viewers.
 * **Phase is checked on the server.** Every read and write the table above limits by phase is
@@ -202,11 +208,18 @@ Joining is idempotent: entering a code you already hold returns the existing mem
 guest token, plus for a room code the room (`room: { id, name }`). Coach and admin codes need an
 account.
 
+**Signing in with a guest account** upgrades the account with its codes, as joining with each code
+while signed in would. A viewer's token is upgraded with the viewer code the device kept, without
+asking. Room codes aren't kept, so one dialog lists each room the device joined as a guest official
+and asks for its code; a skipped room is dropped. A guest token is never accepted in place of a
+code.
+
 ### Meet links
 
 The scoresheet accepts `?meet=<viewer code>`, which joins as a guest viewer
-([auth.md § Guest tokens](./auth.md#guest-tokens-officials-and-viewers-without-accounts)). No other
-code is ever put in a link.
+([auth.md § Guest tokens](./auth.md#guest-tokens-officials-and-viewers-without-accounts)) and is
+then removed from the address bar. No other code is ever put in a link. The portal's links to a
+scheduled or stored quiz name the meet by id as `meetId`.
 
 ## Code Rotation
 
@@ -237,4 +250,6 @@ Superusers can do anything an admin can.
   is rotated and cleared, or when its church, room, or meet is deleted.
 * **A guest token** ends 24 hours after it was issued, or at once when the code it was issued for
   changes (the room's code, or the meet's viewer code) or its room is deleted.
-* **A session** ends when the user signs out.
+* **A session** ends when the user signs out, which also ends the guest account on that device.
+* **A guest's own meet** can be left from the scoresheet's meet picker or the portal's home page,
+  which removes that meet's guest token from the device.
