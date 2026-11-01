@@ -15,7 +15,7 @@ export {
 export type { QuizFile } from './quizFile'
 export { ApiError, createApiClient } from './apiClient'
 export { createAppAuthClient } from './authClient'
-export type { SocialProvider } from './authClient'
+export type { AccountError, PendingProviderStep, SocialProvider } from './authClient'
 export { codeErrorMessage, providersDisconnectedBy } from './authCodes'
 export { ERROR_PARAMS, socialSignInError, withoutErrorParam } from './socialSignInError'
 export type { SocialSignInError } from './socialSignInError'

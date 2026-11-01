@@ -15,6 +15,13 @@ const router = createRouter({
       meta: { requiresAuth: true },
       component: () => import('../views/AccountView.vue'),
     },
+    // Where a GitHub or Google sign-in lands when it needs the code step or
+    // the choice; signed out, since that is how most arrive.
+    {
+      path: '/account/provider',
+      name: 'account-provider',
+      component: () => import('../views/AccountProviderView.vue'),
+    },
     {
       path: '/:slug',
       meta: { requiresAuth: true },

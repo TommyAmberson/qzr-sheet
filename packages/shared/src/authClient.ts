@@ -4,6 +4,20 @@ import { withoutErrorParam } from './socialSignInError'
 
 export type SocialProvider = 'github' | 'google'
 
+export interface AccountError {
+  status: number
+  code?: string
+  message: string
+}
+
+/** Where a pending GitHub or Google sign-in is: proving the inbox with a
+ *  code, or choosing "That's me" or "That's not me". */
+export interface PendingProviderStep {
+  step: 'code' | 'choice'
+  provider: SocialProvider
+  email: string
+}
+
 export function createAppAuthClient(baseURL: string) {
   const authClient = createAuthClient({ baseURL, plugins: [emailOTPClient()] })
 
@@ -87,19 +101,35 @@ export function createAppAuthClient(baseURL: string) {
     }
 
     /** Disconnects GitHub or Google with the account's password; every other
-     *  session ends. Errors come back in Better Auth's result shape. */
+     *  session ends. */
     async function disconnectProvider(provider: SocialProvider, password: string) {
-      const res = await fetch(accountURL('disconnect'), {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, password }),
-      })
-      if (res.ok) return { error: null }
-      const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string }
-      return {
-        error: { status: res.status, code: body.code, message: body.error ?? res.statusText },
-      }
+      return accountRequest('disconnect', { provider, password })
+    }
+
+    /** The step a pending GitHub or Google sign-in is on, held by a cookie
+     *  set when the provider sent the browser back. */
+    async function pendingProvider() {
+      return accountRequest<PendingProviderStep>('provider')
+    }
+
+    /** The code step: the code emailed to the account's address. */
+    async function confirmProviderCode(code: string) {
+      return accountRequest<{ step: 'choice' }>('provider/confirm', { code })
+    }
+
+    async function resendProviderCode() {
+      return accountRequest<{ step: PendingProviderStep['step'] }>('provider/resend', {})
+    }
+
+    /** "That's me", once signed in with the account's password. */
+    async function claimProvider() {
+      return accountRequest('provider/claim', {})
+    }
+
+    /** "That's not me": the account becomes the person's, and they are
+     *  signed in. */
+    async function takeOverAccount() {
+      return accountRequest('provider/takeover', {})
     }
 
     return {
@@ -115,6 +145,37 @@ export function createAppAuthClient(baseURL: string) {
       connectedProviders,
       connectProvider,
       disconnectProvider,
+      pendingProvider,
+      confirmProviderCode,
+      resendProviderCode,
+      claimProvider,
+      takeOverAccount,
+    }
+  }
+
+  /** Calls one of the account routes: GET without a body, POST with one.
+   *  Results come back in Better Auth's shape, so the forms handle both
+   *  alike. */
+  async function accountRequest<T = { ok: true }>(
+    path: string,
+    body?: unknown,
+  ): Promise<{ data: T; error: null } | { data: null; error: AccountError }> {
+    const res = await fetch(accountURL(path), {
+      method: body === undefined ? 'GET' : 'POST',
+      credentials: 'include',
+      ...(body === undefined
+        ? {}
+        : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+    })
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    if (res.ok) return { data: json as T, error: null }
+    return {
+      data: null,
+      error: {
+        status: res.status,
+        code: typeof json.code === 'string' ? json.code : undefined,
+        message: typeof json.error === 'string' ? json.error : res.statusText,
+      },
     }
   }
 

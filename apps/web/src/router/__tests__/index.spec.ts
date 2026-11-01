@@ -31,6 +31,12 @@ describe('router guard', () => {
     expect(router.currentRoute.value.name).toBe('account')
   })
 
+  it('opens the provider step signed out, not a meet', async () => {
+    mockGetSession.mockResolvedValue({ data: null })
+    await router.push('/account/provider')
+    expect(router.currentRoute.value.name).toBe('account-provider')
+  })
+
   it('allows navigation to public routes without auth', async () => {
     await router.push('/')
     expect(router.currentRoute.value.name).toBe('home')

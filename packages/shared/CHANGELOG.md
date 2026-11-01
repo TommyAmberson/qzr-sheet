@@ -34,6 +34,10 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   and `providersDisconnectedBy` reads the GitHub and Google sign-ins a password reset disconnected.
 * `connectedProviders`, `connectProvider` and `disconnectProvider` in the auth client, for account
   settings, and `socialSignInError` explains why connecting GitHub or Google failed.
+* `pendingProvider`, `confirmProviderCode`, `resendProviderCode`, `claimProvider` and
+  `takeOverAccount` in the auth client, for the code step and the "That's me" or "That's not me"
+  choice after a GitHub or Google sign-in onto an unverified account, with the `PendingProviderStep`
+  and `AccountError` types.
 
 ### Changed
 
