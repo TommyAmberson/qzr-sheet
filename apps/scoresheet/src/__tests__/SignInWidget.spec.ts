@@ -5,6 +5,7 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import SignInWidget from '../components/SignInWidget.vue'
 
 vi.mock('../composables/useAuth', () => ({
+  IS_TAURI: false,
   useAuth: () => ({
     session: ref({ data: null }),
     signInSocial: vi.fn(),

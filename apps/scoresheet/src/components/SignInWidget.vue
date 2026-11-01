@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { socialSignInError, withoutErrorParam } from '@qzr/shared'
 import { SignInForm, clearGuestData } from '@qzr/ui'
-import { useAuth } from '../composables/useAuth'
+import { IS_TAURI, useAuth } from '../composables/useAuth'
 import { useMeetSession } from '../composables/useMeetSession'
 import { useSubmitToMeet } from '../composables/useSubmitToMeet'
 import { useTeamNames } from '../composables/useTeamNames'
@@ -100,6 +100,7 @@ async function doSignOut() {
           :verify-email="verifyEmail"
           :sign-up-email="signUpEmail"
           :oauth-error="oauthError"
+          :without-providers="IS_TAURI"
           @success="close"
           @hold="signInHeld = $event"
         />

@@ -4,7 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { socialSignInError, type SocialSignInError } from '@qzr/shared'
 import { SignInForm } from '@qzr/ui'
 
-function mountForm(oauthError: SocialSignInError | null = null) {
+function mountForm(oauthError: SocialSignInError | null = null, withoutProviders = false) {
   return mount(SignInForm, {
     props: {
       signInSocial: vi.fn(),
@@ -15,9 +15,19 @@ function mountForm(oauthError: SocialSignInError | null = null) {
       sendVerificationCode: vi.fn(),
       verifyEmail: vi.fn(),
       oauthError,
+      withoutProviders,
     },
   })
 }
+
+describe('SignInForm in the desktop app', () => {
+  it('offers email only', () => {
+    const wrapper = mountForm(null, true)
+    expect(wrapper.text()).not.toContain('GitHub')
+    expect(wrapper.text()).not.toContain('Google')
+    expect(wrapper.text()).toContain('Sign in with email')
+  })
+})
 
 describe('SignInForm with a social sign-in error', () => {
   it('opens email sign-in and explains a refused link', () => {

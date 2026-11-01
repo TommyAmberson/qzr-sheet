@@ -141,7 +141,7 @@ description: "Task list for email verification and password reset"
 
 ## Phase 7: User Story 5 - Do the same from the scoresheet, online or not (Priority: P3)
 
-- [ ] T022 [US5] The scoresheet uses the updated `@qzr/ui` sign-in form (`apps/scoresheet`), its provider sign-ins in the web build land on the portal's `/account/provider` when a step is needed, and offline scoring and saving are untouched (FR-022, principle I). In the desktop build the shared form doesn't offer GitHub or Google, through one switch in `packages/ui/src/SignInForm.vue` that the scoresheet sets when running under Tauri (FR-024). Check `apps/scoresheet`'s existing tests still pass; add one only if the sign-in wiring changes.
+- [X] T022 [US5] The scoresheet uses the updated `@qzr/ui` sign-in form (`apps/scoresheet`), its provider sign-ins in the web build land on the portal's `/account/provider` when a step is needed, and offline scoring and saving are untouched (FR-022, principle I). In the desktop build the shared form doesn't offer GitHub or Google, through one switch in `packages/ui/src/SignInForm.vue` that the scoresheet sets when running under Tauri (FR-024). Check `apps/scoresheet`'s existing tests still pass; add one only if the sign-in wiring changes.
 
 ---
 
