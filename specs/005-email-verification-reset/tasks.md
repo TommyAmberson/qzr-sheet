@@ -101,7 +101,7 @@ description: "Task list for email verification and password reset"
 **Independent Test**: spec User Story 2's scenarios.
 
 - [X] T010 [US2] Tests first: a password sign-up sends a verification code unless the client's daily limit is reached, and the account works unverified (FR-006, FR-008); a verification code verifies only for a session on that account and signs no one in (FR-007). Then the plugin's sign-up send and a before hook on its verify route in `packages/api/src/lib/auth.ts` that refuses a code without that account's session.
-- [ ] T011 [US2] After sign-up in `packages/ui/src/SignInForm.vue`: the code step with "Skip for now".
+- [X] T011 [US2] After sign-up in `packages/ui/src/SignInForm.vue`: the code step with "Skip for now".
 - [ ] T012 [US2] Account settings at `/account` in the portal (`apps/web/src/router/index.ts`, before the `/:slug` meet route; `account` refused as a viewer code by `viewerCodeProblem` in `packages/api/src/routes/meets.ts`, with a test in `packages/api/src/routes/__tests__/meets.spec.ts`; a new view in `apps/web/src/views/`), reached from `apps/web/src/components/SignInMenu.vue`: the address, verified or not, the warning next to an unverified one (FR-009), and "Send verification code" with the code field (research D13).
 
 **Checkpoint**: addresses can be verified at sign-up or later.

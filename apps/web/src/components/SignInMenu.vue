@@ -9,9 +9,23 @@ const props = defineProps<{
    *  copy the user can see, which then opens straight away. */
   oauthError?: SocialSignInError | null
 }>()
-const emit = defineEmits<{ (e: 'dismissed'): void; (e: 'signedIn'): void }>()
+// `hold`: the form asks to stay shown though a session now exists (the code
+// step after sign-up), so the header keeps this menu rather than swapping it.
+const emit = defineEmits<{
+  (e: 'dismissed'): void
+  (e: 'signedIn'): void
+  (e: 'hold', held: boolean): void
+}>()
 
-const { signInSocial, signInEmail, signUpEmail, requestPasswordReset, resetPassword } = useAuth()
+const {
+  signInSocial,
+  signInEmail,
+  signUpEmail,
+  requestPasswordReset,
+  resetPassword,
+  sendVerificationCode,
+  verifyEmail,
+} = useAuth()
 
 const open = ref(props.oauthError != null)
 
@@ -44,7 +58,10 @@ function toggle() {
         :sign-up-email="signUpEmail"
         :request-password-reset="requestPasswordReset"
         :reset-password="resetPassword"
+        :send-verification-code="sendVerificationCode"
+        :verify-email="verifyEmail"
         :oauth-error="oauthError"
+        @hold="emit('hold', $event)"
         @success="onSignedIn"
       />
     </div>

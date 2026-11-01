@@ -20,14 +20,18 @@ const props = defineProps<{
   signUpEmail: (email: string, password: string) => Promise<AuthResult>
   requestPasswordReset: (email: string) => Promise<AuthResult>
   resetPassword: (email: string, code: string, password: string) => Promise<AuthResult>
+  sendVerificationCode: (email: string) => Promise<AuthResult>
+  verifyEmail: (email: string, code: string) => Promise<AuthResult>
   /** A social sign-in that came back with `?error=`, read by the host app
    *  (which also strips it from the URL). Read once at mount. */
   oauthError?: SocialSignInError | null
 }>()
 
-const emit = defineEmits<{ (e: 'success'): void }>()
+// `hold` asks the host to keep the form mounted though a session now exists:
+// sign-up signs in, then asks for the verification code here.
+const emit = defineEmits<{ (e: 'success'): void; (e: 'hold', held: boolean): void }>()
 
-const mode = ref<'pick' | 'signin' | 'signup' | 'forgot' | 'resetDone'>(
+const mode = ref<'pick' | 'signin' | 'signup' | 'forgot' | 'resetDone' | 'verify'>(
   props.oauthError?.passwordAccount ? 'signin' : 'pick',
 )
 const email = ref('')
@@ -68,40 +72,46 @@ async function sendResetCode() {
   }
 }
 
-/** Sets the new password with the code, then signs in with it as usual. */
+/** Sets the new password with the code, then signs in with it as usual;
+ *  when the reset disconnected a provider, says so first, since signing in
+ *  can make the host replace this form. */
 async function submitReset() {
   error.value = ''
   pending.value = true
   try {
-    let result: AuthResult
-    try {
-      result = await props.resetPassword(email.value, code.value, password.value)
-    } catch {
-      error.value = 'Something went wrong. Try again.'
-      return
-    }
+    const result = await props.resetPassword(email.value, code.value, password.value)
     error.value = codeErrorMessage(result?.error) ?? ''
     if (error.value) return
     disconnected.value = providersDisconnectedBy(result?.data)
-    // The password has changed and the code is spent, so anything failing
-    // from here sends the person to sign in with the new password.
-    try {
-      const signedIn = await props.signInEmail(email.value, password.value)
-      if (!signedIn?.error) {
-        if (disconnected.value.length > 0) mode.value = 'resetDone'
-        else emit('success')
-        return
-      }
-    } catch {
-      // Fall through to the sign-in form.
-    }
-    mode.value = 'signin'
-    // After the mode watcher, which clears the error.
-    await nextTick()
-    error.value = 'Password changed. Sign in with it.' + disconnectedNote()
+  } catch {
+    error.value = 'Something went wrong. Try again.'
+    return
   } finally {
     pending.value = false
   }
+  if (disconnected.value.length > 0) mode.value = 'resetDone'
+  else await signInAfterReset()
+}
+
+/** The password has changed and the code is spent, so a failure here sends
+ *  the person to sign in with the new password. */
+async function signInAfterReset() {
+  pending.value = true
+  try {
+    const signedIn = await props.signInEmail(email.value, password.value)
+    if (!signedIn?.error) {
+      emit('success')
+      return
+    }
+  } catch {
+    // Fall through to the sign-in form.
+  } finally {
+    pending.value = false
+  }
+  mode.value = 'signin'
+  // After the mode watcher, which clears the error.
+  await nextTick()
+  error.value = 'Password changed. Sign in with it.' + disconnectedNote()
 }
 
 function disconnectedNote(): string {
@@ -117,14 +127,58 @@ function disconnectedNote(): string {
 async function submitEmail() {
   error.value = ''
   pending.value = true
-  const fn = mode.value === 'signup' ? props.signUpEmail : props.signInEmail
-  const result = await fn(email.value, password.value)
-  pending.value = false
+  const signingUp = mode.value === 'signup'
+  // Sign-up ends on the code step here, so keep the form once signed in.
+  if (signingUp) emit('hold', true)
+  const fn = signingUp ? props.signUpEmail : props.signInEmail
+  let result: AuthResult
+  try {
+    result = await fn(email.value, password.value)
+  } catch {
+    result = { error: { message: 'Something went wrong. Try again.' } }
+  } finally {
+    pending.value = false
+  }
   if (result?.error) {
     error.value = result.error.message ?? 'Something went wrong'
+    if (signingUp) emit('hold', false)
+  } else if (signingUp) {
+    // Sign-up sent a verification code; offer to enter it (FR-006).
+    code.value = ''
+    mode.value = 'verify'
   } else {
     emit('success')
   }
+}
+
+async function submitVerify() {
+  error.value = ''
+  pending.value = true
+  try {
+    const result = await props.verifyEmail(email.value, code.value)
+    error.value = codeErrorMessage(result?.error) ?? ''
+  } catch {
+    error.value = 'Something went wrong. Try again.'
+  } finally {
+    pending.value = false
+  }
+  if (!error.value) leaveVerify()
+}
+
+async function resendVerification() {
+  error.value = ''
+  try {
+    const result = await props.sendVerificationCode(email.value)
+    error.value = codeErrorMessage(result?.error) ?? ''
+  } catch {
+    error.value = 'Something went wrong. Try again.'
+  }
+}
+
+/** Done with the code step, verified or skipped: release the form. */
+function leaveVerify() {
+  emit('hold', false)
+  emit('success')
 }
 </script>
 
@@ -220,7 +274,33 @@ async function submitEmail() {
         yours, connect it again in account settings.
       </template>
     </p>
-    <button class="submit-btn" @click="emit('success')">Continue</button>
+    <button class="submit-btn" :disabled="pending" @click="signInAfterReset">Continue</button>
+  </template>
+
+  <template v-else-if="mode === 'verify'">
+    <p class="form-title">Account created</p>
+    <p class="hint">
+      Enter the code we sent to {{ email }} to verify it, or skip and verify later from account
+      settings.
+    </p>
+    <form @submit.prevent="submitVerify">
+      <input
+        v-model="code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        pattern="[0-9]{6}"
+        maxlength="6"
+        placeholder="6-digit code"
+        required
+        class="field"
+      />
+      <p v-if="error" class="error-msg">{{ error }}</p>
+      <button type="submit" class="submit-btn" :disabled="pending">
+        {{ pending ? 'Please wait…' : 'Verify' }}
+      </button>
+    </form>
+    <button class="email-toggle" @click="resendVerification">Send a new code</button>
+    <button class="email-toggle" @click="leaveVerify">Skip for now</button>
   </template>
 
   <template v-else>

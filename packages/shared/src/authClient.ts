@@ -58,6 +58,16 @@ export function createAppAuthClient(baseURL: string) {
       return authClient.emailOtp.resetPassword({ email, otp: code, password })
     }
 
+    /** Emails a new verification code to the signed-in account's address. */
+    async function sendVerificationCode(email: string) {
+      return authClient.emailOtp.sendVerificationOtp({ email, type: 'email-verification' })
+    }
+
+    /** Verifies the signed-in account's address with its emailed code. */
+    async function verifyEmail(email: string, code: string) {
+      return authClient.emailOtp.verifyEmail({ email, otp: code })
+    }
+
     return {
       session,
       signInSocial,
@@ -66,6 +76,8 @@ export function createAppAuthClient(baseURL: string) {
       signOut,
       requestPasswordReset,
       resetPassword,
+      sendVerificationCode,
+      verifyEmail,
     }
   }
 

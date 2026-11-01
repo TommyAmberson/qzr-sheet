@@ -28,7 +28,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 ### Added
 
 * The auth client gains the email-code plugin, with `requestPasswordReset` and `resetPassword` for
-  "Forgot password?" (spec 005).
+  "Forgot password?", and `sendVerificationCode` and `verifyEmail` for the address check after
+  sign-up and in account settings (spec 005).
 * `codeErrorMessage` turns a failed code request into a message for the person, never a raw error,
   and `providersDisconnectedBy` reads the GitHub and Google sign-ins a password reset disconnected.
 

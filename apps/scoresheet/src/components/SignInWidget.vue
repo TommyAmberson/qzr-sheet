@@ -15,7 +15,12 @@ const {
   signOut,
   requestPasswordReset,
   resetPassword,
+  sendVerificationCode,
+  verifyEmail,
 } = useAuth()
+// The sign-in form's code step after sign-up runs signed in; keep the form up
+// until it's done.
+const signInHeld = ref(false)
 const { clearSession } = useMeetSession()
 const { lastMeetId } = useSubmitToMeet()
 const { refreshTeamNames } = useTeamNames()
@@ -80,7 +85,7 @@ async function doSignOut() {
         class="sign-in-menu"
         :style="{ top: menuPos.top + 'px', right: menuPos.right + 'px' }"
       >
-        <template v-if="session.data">
+        <template v-if="session.data && !signInHeld">
           <p class="menu-email">{{ session.data.user.email }}</p>
           <button class="sign-out-btn" @click="doSignOut">Sign out</button>
         </template>
@@ -91,9 +96,12 @@ async function doSignOut() {
           :sign-in-email="signInEmail"
           :request-password-reset="requestPasswordReset"
           :reset-password="resetPassword"
+          :send-verification-code="sendVerificationCode"
+          :verify-email="verifyEmail"
           :sign-up-email="signUpEmail"
           :oauth-error="oauthError"
           @success="close"
+          @hold="signInHeld = $event"
         />
       </div>
     </Teleport>

@@ -8,6 +8,9 @@ import SignInMenu from './SignInMenu.vue'
 
 const scoresheetUrl = __SCORESHEET_URL__
 const { session, signOut } = useAuth()
+// The sign-in form's code step after sign-up runs signed in; keep the sign-in
+// menu up until it's done.
+const signInHeld = ref(false)
 
 // After a failed social sign-in, open the sign-in menu the user can see: the
 // nav's on desktop, the sidebar's on mobile (opening the sidebar too). Keep
@@ -55,7 +58,7 @@ function handleSignOut() {
           class="nav-link"
           >GitHub</a
         >
-        <template v-if="session.data">
+        <template v-if="session.data && !signInHeld">
           <span class="nav-user">{{ session.data.user.email ?? 'signed in' }}</span>
           <button class="nav-link nav-btn" @click="handleSignOut">Sign out</button>
         </template>
@@ -64,6 +67,7 @@ function handleSignOut() {
           :oauth-error="mobile ? null : oauthError"
           @dismissed="clearOauthError"
           @signed-in="clearOauthError"
+          @hold="signInHeld = $event"
         />
       </nav>
 
@@ -90,7 +94,7 @@ function handleSignOut() {
           >GitHub</a
         >
         <hr class="sidebar-divider" />
-        <template v-if="session.data">
+        <template v-if="session.data && !signInHeld">
           <span class="sidebar-user">{{ session.data.user.email ?? 'signed in' }}</span>
           <button class="sidebar-link" @click="handleSignOut">Sign out</button>
         </template>
@@ -102,6 +106,7 @@ function handleSignOut() {
             :oauth-error="mobile ? oauthError : null"
             @dismissed="clearOauthError"
             @signed-in="closeMenu"
+            @hold="signInHeld = $event"
           />
         </template>
       </nav>

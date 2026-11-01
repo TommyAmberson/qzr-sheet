@@ -12,6 +12,8 @@ function mountForm(oauthError: SocialSignInError | null = null) {
       signUpEmail: vi.fn(),
       requestPasswordReset: vi.fn(),
       resetPassword: vi.fn(),
+      sendVerificationCode: vi.fn(),
+      verifyEmail: vi.fn(),
       oauthError,
     },
   })
@@ -55,6 +57,8 @@ describe('SignInForm forgot password', () => {
         signUpEmail: vi.fn(),
         requestPasswordReset: vi.fn(async () => ({ data: { success: true }, error: null })),
         resetPassword: vi.fn(async () => ({ data: { success: true }, error: null })),
+        sendVerificationCode: vi.fn(),
+        verifyEmail: vi.fn(),
         ...overrides,
       },
     })
@@ -92,19 +96,22 @@ describe('SignInForm forgot password', () => {
     expect(wrapper.emitted('success')).toHaveLength(1)
   })
 
-  it('says a provider was disconnected before leaving', async () => {
+  it('says a provider was disconnected before signing in', async () => {
     const resetPassword = vi.fn(async () => ({
       data: { success: true, providersDisconnected: ['github'] },
       error: null,
     }))
-    const wrapper = await openReset({ resetPassword })
+    const signInEmail = vi.fn(async () => ({ data: {}, error: null }))
+    const wrapper = await openReset({ resetPassword, signInEmail })
 
     expect(wrapper.text()).toMatch(/GitHub was disconnected/)
-    expect(wrapper.emitted('success')).toBeUndefined()
+    expect(signInEmail).not.toHaveBeenCalled()
     await wrapper
       .findAll('button')
       .find((b) => b.text() === 'Continue')!
       .trigger('click')
+    await flushPromises()
+    expect(signInEmail).toHaveBeenCalledOnce()
     expect(wrapper.emitted('success')).toHaveLength(1)
   })
 
@@ -116,5 +123,57 @@ describe('SignInForm forgot password', () => {
     const wrapper = await openReset({ resetPassword })
 
     expect(wrapper.find('.error-msg').text()).toMatch(/isn't valid/)
+  })
+})
+
+describe('SignInForm after sign-up', () => {
+  async function signUp(overrides: Record<string, unknown> = {}) {
+    const wrapper = mount(SignInForm, {
+      props: {
+        signInSocial: vi.fn(),
+        signInEmail: vi.fn(),
+        signUpEmail: vi.fn(async () => ({ data: {}, error: null })),
+        requestPasswordReset: vi.fn(),
+        resetPassword: vi.fn(),
+        sendVerificationCode: vi.fn(async () => ({ data: {}, error: null })),
+        verifyEmail: vi.fn(async () => ({ data: {}, error: null })),
+        ...overrides,
+      },
+    })
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Create account')!
+      .trigger('click')
+    await wrapper.find('input[type="email"]').setValue('new@example.com')
+    await wrapper.find('input[type="password"]').setValue('correct-horse-battery')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    return wrapper
+  }
+
+  it('asks for the code while holding the form, then verifies and lets go', async () => {
+    const verifyEmail = vi.fn(async () => ({ data: {}, error: null }))
+    const wrapper = await signUp({ verifyEmail })
+
+    expect(wrapper.emitted('hold')).toEqual([[true]])
+    expect(wrapper.emitted('success')).toBeUndefined()
+    await wrapper.find('input[autocomplete="one-time-code"]').setValue('123456')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(verifyEmail).toHaveBeenCalledWith('new@example.com', '123456')
+    expect(wrapper.emitted('hold')).toEqual([[true], [false]])
+    expect(wrapper.emitted('success')).toHaveLength(1)
+  })
+
+  it('can skip the code for now', async () => {
+    const wrapper = await signUp()
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Skip for now')!
+      .trigger('click')
+
+    expect(wrapper.emitted('hold')).toEqual([[true], [false]])
+    expect(wrapper.emitted('success')).toHaveLength(1)
   })
 })
