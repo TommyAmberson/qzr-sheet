@@ -7,7 +7,14 @@ import type { Db } from './db'
 import { AccountRole } from '@qzr/shared'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { emailOTP } from 'better-auth/plugins'
-import { resetCodeEmail, verificationCodeEmail, type SendEmail } from './email'
+import {
+  passwordResetEmail,
+  resetCodeEmail,
+  verificationCodeEmail,
+  type ProviderName,
+  type SendEmail,
+} from './email'
+import { and, eq, inArray, like, sql } from 'drizzle-orm'
 import { PER_ADDRESS, PER_CLIENT, addressKey, clientKey, takeEmailSend } from './emailLimits'
 
 // Better Auth defaults to pure-JS scrypt (@noble/hashes) which takes ~5s of CPU —
@@ -67,6 +74,14 @@ const CODE_TTL_S = 10 * 60
 /** An address longer than this matches no account, so it isn't counted. */
 const MAX_EMAIL_LENGTH = 254
 
+/** Verification rows for a pending GitHub or Google sign-in (research D6). */
+export const PENDING_PROVIDER_PREFIX = 'pending-provider:'
+
+const PROVIDERS: ProviderName[] = ['github', 'google']
+
+/** The providers a reset just disconnected, by request, for its response. */
+const disconnectedByReset = new WeakMap<Request, ProviderName[]>()
+
 const tooMany = (what: string) =>
   new APIError('TOO_MANY_REQUESTS', { message: `Too many requests ${what}. Try again later.` })
 
@@ -102,6 +117,13 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           throw tooMany('from this network')
         }
       }),
+      // A reset that disconnected providers says so, so the form can point to
+      // connecting them again (FR-025).
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/email-otp/reset-password' || !ctx.request) return
+        const disconnected = disconnectedByReset.get(ctx.request)
+        if (disconnected) return ctx.json({ success: true, providersDisconnected: disconnected })
+      }),
     },
     // Local Vite origins only outside production, matching the CORS
     // allowlist in index.ts; production trusts only the web origin and Tauri.
@@ -127,8 +149,52 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
       enabled: true,
       password: { hash: hashPassword, verify: verifyPassword },
       // A reset by code ends every session; the plugin also verifies the
-      // address, since the code proves the inbox (FR-005).
+      // address, since the code proves the inbox (FR-005). Better Auth's
+      // revoke runs after onPasswordReset, a backstop if its own fails.
       revokeSessionsOnPasswordReset: true,
+      // A completed reset disconnects every GitHub and Google sign-in: one
+      // added by whoever held the address before (a lapsed domain, say) must
+      // not outlive the real owner's reset (FR-025, research D9). Sessions go
+      // first, so a provider connection landing now finds the session that
+      // started it gone. Each step is guarded: the password has already
+      // changed, so a failure is logged rather than failing the reset.
+      onPasswordReset: async ({ user }, request) => {
+        let disconnected: ProviderName[] = []
+        let stillConnected: ProviderName[] = []
+        try {
+          await db.delete(schema.session).where(eq(schema.session.userId, user.id))
+          const removed = await db
+            .delete(schema.account)
+            .where(
+              and(
+                eq(schema.account.userId, user.id),
+                inArray(schema.account.providerId, PROVIDERS),
+              ),
+            )
+            .returning({ providerId: schema.account.providerId })
+          disconnected = removed.map((r) => r.providerId as ProviderName)
+        } catch (err) {
+          console.error('[auth] disconnecting providers on reset failed:', err)
+          stillConnected = await providersLeft(db, user.id)
+        }
+        try {
+          // Recovery invalidates outstanding codes (OWASP): pending provider
+          // sign-ins for the account go too (FR-029).
+          await db
+            .delete(schema.verification)
+            .where(
+              and(
+                like(schema.verification.identifier, `${PENDING_PROVIDER_PREFIX}%`),
+                sql`json_extract(${schema.verification.value}, '$.userId') = ${user.id}`,
+              ),
+            )
+        } catch (err) {
+          console.error('[auth] cancelling pending provider sign-ins on reset failed:', err)
+        }
+        if (request && disconnected.length > 0) disconnectedByReset.set(request, disconnected)
+        // Tell the owner, whatever the reset did to their providers (FR-028).
+        sendEmail(passwordResetEmail(user.email, { disconnected, stillConnected }))
+      },
     },
     emailVerification: {
       // The email-code plugin sends this as a code (FR-006).
@@ -209,4 +275,18 @@ function clientIp(request: Request): string | null {
 /** A request's path under Better Auth's mount, as `ctx.path` names it. */
 function authPath(request: Request): string {
   return new URL(request.url).pathname.replace(/^.*?\/api\/auth/, '')
+}
+
+/** After a failed disconnect, the providers still on the account; if even
+ *  that can't be read, both, so the notice tells the owner to check. */
+async function providersLeft(db: Db, userId: string): Promise<ProviderName[]> {
+  try {
+    const rows = await db
+      .select({ providerId: schema.account.providerId })
+      .from(schema.account)
+      .where(and(eq(schema.account.userId, userId), inArray(schema.account.providerId, PROVIDERS)))
+    return rows.map((r) => r.providerId as ProviderName)
+  } catch {
+    return PROVIDERS
+  }
 }

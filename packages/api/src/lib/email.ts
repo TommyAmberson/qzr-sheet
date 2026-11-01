@@ -77,6 +77,40 @@ export function verificationCodeEmail(to: string, code: string, ttlMinutes: numb
   })
 }
 
+export type ProviderName = 'github' | 'google'
+
+const PROVIDER_LABEL: Record<ProviderName, string> = { github: 'GitHub', google: 'Google' }
+
+/** Sent after every completed password reset (OWASP Forgot Password Cheat
+ *  Sheet), saying what the reset did to the account's GitHub and Google
+ *  sign-ins (FR-028). */
+export function passwordResetEmail(
+  to: string,
+  providers: { disconnected: ProviderName[]; stillConnected: ProviderName[] },
+): EmailMessage {
+  const lines = [
+    'The password for your qzr account was just reset, and every session was signed out.',
+    ...providers.disconnected.map(
+      (p) =>
+        `${PROVIDER_LABEL[p]} was disconnected from your account, in case someone else had added ` +
+        'it. If it was yours, connect it again in account settings.',
+    ),
+    ...providers.stillConnected.map(
+      (p) =>
+        `We couldn't disconnect ${PROVIDER_LABEL[p]} from your account. If you didn't add it, ` +
+        'disconnect it in account settings.',
+    ),
+    'If this wasn\'t you, reset your password again from the sign-in form ("Forgot password?"), ' +
+      'and check who can read this inbox.',
+  ]
+  return {
+    to,
+    subject: 'Your qzr password was reset',
+    text: lines.join('\n\n'),
+    html: lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('\n'),
+  }
+}
+
 interface CodeEmailParts {
   subject: string
   reason: string
