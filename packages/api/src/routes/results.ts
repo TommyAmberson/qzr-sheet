@@ -14,7 +14,7 @@ import {
 import type { Bindings } from '../bindings'
 import type { SessionUser, SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
-import { asOne, chunksOf, createDb, inChunks, type Db } from '../lib/db'
+import { asOne, chunksOf, createDb, inChunks, isUniqueViolation, type Db } from '../lib/db'
 import {
   isAdminOrSuperuser,
   isOfficialOfRoom,
@@ -213,17 +213,9 @@ const first = alias(schema.quizResultRevisions, 'first')
 /** Any revision of a stored quiz saved for one of an official's rooms, which gives them the quiz */
 const savedForRoom = alias(schema.quizResultRevisions, 'saved_for_room')
 
-function isUniqueViolation(e: unknown): boolean {
-  return errorText(e).includes('UNIQUE constraint failed')
-}
-
 /** A unique violation on a revision number: the race `addRevisions` retries, unlike a name clash */
 function isRevisionClash(e: unknown): boolean {
-  return isUniqueViolation(e) && errorText(e).includes('quiz_result_revisions')
-}
-
-function errorText(e: unknown): string {
-  return e instanceof Error ? `${e.message} ${String(e.cause ?? '')}` : String(e)
+  return isUniqueViolation(e, 'quiz_result_revisions')
 }
 
 /** The refusal of a change that would give a quiz another stored quiz's name */
