@@ -545,7 +545,10 @@ async function doInitGuestSession(join: GuestJoin): Promise<GuestSessionData | n
   // Quiz links name a meet by id; a value of digits only is a meet id, never a viewer code
   if (!slug || params.has('quiz') || params.has('result') || /^\d+$/.test(slug)) return null
 
-  const existing = guestStateRef.value.joined.find((j) => j.code === slug)
+  // The server matches viewer codes ignoring case
+  const existing = guestStateRef.value.joined.find(
+    (j) => j.code?.toLowerCase() === slug.toLowerCase(),
+  )
   if (existing && tokenIsFresh(existing.token)) {
     setActiveSession(existing.meetId)
     dropLinkCode(params)

@@ -137,6 +137,25 @@ describe('initGuestSession — URL parsing', () => {
     expect(guestStateRef.value.joined).toEqual([])
   })
 
+  it("finds the session kept for a link's code in any case", async () => {
+    setSearch('?meet=OLD-SLUG')
+    setGuestState({
+      active: 7,
+      joined: [
+        {
+          token: 'expired',
+          meetId: 7,
+          meetName: 'Fall Meet',
+          role: MeetRole.Viewer,
+          code: 'old-slug',
+        },
+      ],
+    })
+    vi.mocked(joinMeetGuest).mockRejectedValue(new ApiError(404, 'Invalid code'))
+    expect(await initGuestSession()).toBeNull()
+    expect(guestStateRef.value.joined).toEqual([])
+  })
+
   it('keeps the code in the address when the server cannot be reached', async () => {
     setSearch('?meet=fall-2025')
     const replace = vi.spyOn(window.history, 'replaceState')
