@@ -16,6 +16,21 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-01
+
+### Added
+
+* **Rotate and clear room codes** - a room's access dialog offers "Generate + remove all members",
+  as the admin and coach code dialogs do
+
+### Changed
+
+* "Generate + remove all members" asks before removing anyone, for admin, coach and room codes
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - unchanged
+
 ## [0.19.1] - 2026-10-31
 
 ### Changed
