@@ -5,7 +5,7 @@ import type { Bindings } from '../bindings'
 import * as schema from '../db/schema'
 import type { Db } from './db'
 import { AccountRole } from '@qzr/shared'
-import { APIError, createAuthMiddleware } from 'better-auth/api'
+import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import { emailOTP } from 'better-auth/plugins'
 import {
   passwordResetEmail,
@@ -103,6 +103,22 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
         if (ctx.request && ctx.path === '/email-otp/send-verification-otp') {
           const type = (ctx.body as { type?: unknown } | undefined)?.type
           if (typeof type !== 'string' || !SENDABLE_TYPES.has(type)) throw new APIError('NOT_FOUND')
+        }
+        // Verifying needs a session on that account (FR-007), checked before
+        // the plugin compares the code: otherwise a signed-out guess would
+        // spend a try and learn whether the code was right, and a code could
+        // verify an address someone else registered.
+        if (ctx.request && ctx.path === '/email-otp/verify-email') {
+          const email = (ctx.body as { email?: unknown } | undefined)?.email
+          const session = await getSessionFromCtx(ctx)
+          if (
+            typeof email !== 'string' ||
+            session?.user.email.toLowerCase() !== email.trim().toLowerCase()
+          ) {
+            throw new APIError('FORBIDDEN', {
+              message: 'Sign in to this account to verify its email.',
+            })
+          }
         }
         if (!ctx.request || !EMAILING_PATHS.has(ctx.path)) return
         const email = (ctx.body as { email?: unknown } | undefined)?.email
