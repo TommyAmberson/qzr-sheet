@@ -69,4 +69,18 @@ describe('email verification', () => {
     expect(res.status).toBe(200)
     expect(codeFor(test, 'later@example.com')).not.toBe(first)
   })
+
+  it('sends a verification code only for a session on that account', async () => {
+    const test = await createAuthTestApp()
+    await signUpWithPassword(test, 'owner@example.com')
+    const other = await signUpWithPassword(test, 'other@example.com')
+    const sent = test.emails.length
+    const body = { email: 'owner@example.com', type: 'email-verification' }
+
+    const signedOut = await postAuth(test, 'email-otp/send-verification-otp', body)
+    const otherAccount = await postAuth(test, 'email-otp/send-verification-otp', body, other.cookie)
+
+    expect([signedOut.status, otherAccount.status]).toEqual([403, 403])
+    expect(test.emails.length).toBe(sent)
+  })
 })

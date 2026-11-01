@@ -141,12 +141,23 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
         if (!ctx.request) return
         const body = (ctx.body ?? {}) as { email?: unknown; type?: unknown }
         switch (ctx.path) {
-          // The send route's types for refused flows.
-          case '/email-otp/send-verification-otp':
+          // The send route's types for refused flows. A verification code is
+          // sent only for a session on that account (FR-009), so a stranger
+          // can't have codes mailed to any address; sign-up's own send isn't
+          // a request to this route.
+          case '/email-otp/send-verification-otp': {
             if (typeof body.type !== 'string' || !SENDABLE_TYPES.has(body.type)) {
               throw new APIError('NOT_FOUND')
             }
+            if (body.type === 'email-verification' && authPath(ctx.request) === ctx.path) {
+              await requireSessionFor(
+                ctx,
+                body.email,
+                'Sign in to this account to verify its email.',
+              )
+            }
             break
+          }
           // Connecting a provider asks for a sign-in within the last day
           // (FR-018), and remembers which session started it: the link lands
           // only while that session lasts, so signing out or a password reset
@@ -171,18 +182,9 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           // the plugin compares the code: otherwise a signed-out guess would
           // spend a try and learn whether the code was right, and a code could
           // verify an address someone else registered.
-          case '/email-otp/verify-email': {
-            const session = await getSessionFromCtx(ctx)
-            if (
-              typeof body.email !== 'string' ||
-              session?.user.email.toLowerCase() !== body.email.trim().toLowerCase()
-            ) {
-              throw new APIError('FORBIDDEN', {
-                message: 'Sign in to this account to verify its email.',
-              })
-            }
+          case '/email-otp/verify-email':
+            await requireSessionFor(ctx, body.email, 'Sign in to this account to verify its email.')
             return
-          }
         }
         if (!EMAILING_PATHS.has(ctx.path)) return
         if (typeof body.email !== 'string' || body.email.length > MAX_EMAIL_LENGTH) return
@@ -480,6 +482,22 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
 }
 
 export type Auth = ReturnType<typeof createAuth>
+
+/** Refuses the request unless it comes with a session on the account for
+ *  `email`. */
+async function requireSessionFor(
+  ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0],
+  email: unknown,
+  message: string,
+) {
+  const session = await getSessionFromCtx(ctx)
+  if (
+    typeof email !== 'string' ||
+    session?.user.email.toLowerCase() !== email.trim().toLowerCase()
+  ) {
+    throw new APIError('FORBIDDEN', { message })
+  }
+}
 
 /** A request's path under Better Auth's mount, as `ctx.path` names it. */
 function authPath(request: Request): string {
