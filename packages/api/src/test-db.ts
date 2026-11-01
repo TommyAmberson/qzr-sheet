@@ -60,6 +60,13 @@ export async function createTestDb(): Promise<Db> {
       PRIMARY KEY (key, window_start)
     );
 
+    CREATE TABLE rate_limit (
+      id TEXT PRIMARY KEY NOT NULL,
+      key TEXT NOT NULL UNIQUE,
+      count INTEGER NOT NULL,
+      last_request INTEGER NOT NULL
+    );
+
     CREATE TABLE verification (
       id TEXT PRIMARY KEY NOT NULL,
       identifier TEXT NOT NULL,

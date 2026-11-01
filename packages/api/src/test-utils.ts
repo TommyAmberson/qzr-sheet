@@ -87,7 +87,7 @@ export interface AuthTestApp {
  * email, for tests that drive sign-up, codes, provider sign-ins and the
  * account routes end to end.
  */
-export async function createAuthTestApp(): Promise<AuthTestApp> {
+export async function createAuthTestApp(overrides: Partial<Bindings> = {}): Promise<AuthTestApp> {
   const db = await createTestDb()
   const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
   const emails: EmailMessage[] = []
@@ -100,7 +100,7 @@ export async function createAuthTestApp(): Promise<AuthTestApp> {
   const request = app.request.bind(app)
   // Every request carries the auth bindings, as the Worker's would.
   app.request = ((input: RequestInfo | URL, init?: RequestInit) =>
-    request(input, init, authTestBindings)) as typeof app.request
+    request(input, init, { ...authTestBindings, ...overrides })) as typeof app.request
   return { app, db, emails }
 }
 

@@ -457,6 +457,15 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
         },
       }),
     ],
+    // Better Auth turns its limiter on only when NODE_ENV is production, and
+    // keeps counts in memory, which each isolate has its own of; so on
+    // explicitly, in D1 (FR-030, research D16). Password
+    // guessing gets a tighter rule than Better Auth's sign-in default.
+    rateLimit: {
+      enabled: env.ENVIRONMENT === 'production',
+      storage: 'database',
+      customRules: { '/sign-in/email': { window: 60, max: 5 } },
+    },
     advanced: {
       // Workers see the client's address in CF-Connecting-IP.
       ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },

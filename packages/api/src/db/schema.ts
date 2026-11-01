@@ -91,6 +91,15 @@ export const emailSends = sqliteTable(
   (t) => [primaryKey({ columns: [t.key, t.windowStart] })],
 )
 
+/** Better Auth's rate-limit counters, kept in D1 so they hold across Worker
+ *  isolates (FR-030); Better Auth prunes old rows itself. */
+export const rateLimit = sqliteTable('rate_limit', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull().unique(),
+  count: integer('count').notNull(),
+  lastRequest: integer('last_request').notNull(),
+})
+
 // ---- Quiz meets ----
 
 export const VIEWER_CODE_INDEX = 'quiz_meets_viewer_code_unique'
