@@ -62,7 +62,7 @@ description: "Task list for email verification and password reset"
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `RESEND_API_KEY` to `packages/api/src/bindings.ts` and as an optional secret in `packages/api/wrangler.toml`'s docs and `README.md`'s deploy notes (it is already set on `qzr-api`); with no key the API logs messages instead of sending (research D1, FR-021).
+- [X] T001 Add `RESEND_API_KEY` to `packages/api/src/bindings.ts` and as an optional secret in `packages/api/wrangler.toml`'s docs and `README.md`'s deploy notes (it is already set on `qzr-api`); with no key the API logs messages instead of sending (research D1, FR-021).
 
 ---
 

@@ -10,4 +10,7 @@ export interface Bindings {
   GOOGLE_CLIENT_ID: string
   GOOGLE_CLIENT_SECRET: string
   BETTER_AUTH_SECRET: string
+  // Resend, for reset and verification codes. Unset, the API logs each email
+  // instead of sending it (local dev).
+  RESEND_API_KEY?: string
 }
