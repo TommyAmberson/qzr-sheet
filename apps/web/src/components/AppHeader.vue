@@ -59,7 +59,9 @@ function handleSignOut() {
           >GitHub</a
         >
         <template v-if="session.data && !signInHeld">
-          <span class="nav-user">{{ session.data.user.email ?? 'signed in' }}</span>
+          <RouterLink to="/account" class="nav-user">{{
+            session.data.user.email ?? 'signed in'
+          }}</RouterLink>
           <button class="nav-link nav-btn" @click="handleSignOut">Sign out</button>
         </template>
         <SignInMenu
@@ -95,7 +97,9 @@ function handleSignOut() {
         >
         <hr class="sidebar-divider" />
         <template v-if="session.data && !signInHeld">
-          <span class="sidebar-user">{{ session.data.user.email ?? 'signed in' }}</span>
+          <RouterLink to="/account" class="sidebar-user" @click="closeMenu">{{
+            session.data.user.email ?? 'signed in'
+          }}</RouterLink>
           <button class="sidebar-link" @click="handleSignOut">Sign out</button>
         </template>
         <template v-else>

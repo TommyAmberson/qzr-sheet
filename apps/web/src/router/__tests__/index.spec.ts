@@ -12,6 +12,7 @@ vi.mock('../../views/HomeView.vue', () => ({ default: { template: '<div />' } })
 vi.mock('../../views/QuizMeetView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/MeetTeamsView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../../views/AccountView.vue', () => ({ default: { template: '<div />' } }))
 
 let router: Router
 
@@ -24,6 +25,12 @@ beforeEach(async () => {
 })
 
 describe('router guard', () => {
+  it('opens account settings, not a meet, for a signed-in user', async () => {
+    mockGetSession.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    await router.push('/account')
+    expect(router.currentRoute.value.name).toBe('account')
+  })
+
   it('allows navigation to public routes without auth', async () => {
     await router.push('/')
     expect(router.currentRoute.value.name).toBe('home')

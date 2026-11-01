@@ -38,6 +38,9 @@ function getDb(c: { get(key: 'db'): Db }): Db {
 /** A path parameter made only of digits names a meet by id; anything else is a viewer code */
 const MEET_ID = /^\d+$/
 
+/** Top-level portal paths a meet's viewer code can't take. */
+const RESERVED_VIEWER_CODES = new Set(['account', 'roadmap'])
+
 /**
  * Why a viewer code is refused, or null. Codes are slugs, and never all digits so a `?meet=` link
  * can't be read as a meet id.
@@ -45,6 +48,8 @@ const MEET_ID = /^\d+$/
 function viewerCodeProblem(code: string): string | null {
   if (!/^[A-Za-z0-9-]+$/.test(code)) return 'Viewer code may use only letters, digits, and hyphens'
   if (MEET_ID.test(code)) return "Viewer code can't be only digits; add a letter"
+  // The portal's own pages sit beside meets at the top level.
+  if (RESERVED_VIEWER_CODES.has(code.toLowerCase())) return 'That viewer code is reserved'
   return null
 }
 

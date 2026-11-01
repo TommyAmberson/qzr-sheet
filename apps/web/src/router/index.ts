@@ -8,6 +8,13 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: HomeView },
     { path: '/roadmap', name: 'roadmap', component: () => import('../views/RoadmapView.vue') },
+    // Before the meet route: `account` is refused as a viewer code.
+    {
+      path: '/account',
+      name: 'account',
+      meta: { requiresAuth: true },
+      component: () => import('../views/AccountView.vue'),
+    },
     {
       path: '/:slug',
       meta: { requiresAuth: true },
