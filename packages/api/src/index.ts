@@ -16,6 +16,7 @@ import { schedule } from './routes/schedule'
 import { results } from './routes/results'
 import { createAuth } from './lib/auth'
 import { createDb } from './lib/db'
+import { pruneEmailSends } from './lib/emailLimits'
 import { autoAdvancePhases } from './scheduler'
 
 type Env = { Bindings: Bindings; Variables: SessionVariables }
@@ -90,5 +91,7 @@ export default {
         }
       }),
     )
+    // Email-limit windows that have ended (FR-011).
+    ctx.waitUntil(pruneEmailSends(createDb(env.DB)))
   },
 }

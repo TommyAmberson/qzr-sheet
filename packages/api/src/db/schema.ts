@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  primaryKey,
   sqliteTable,
   text,
   unique,
@@ -64,6 +65,19 @@ export const verification = sqliteTable('verification', {
   createdAt: integer('created_at', { mode: 'timestamp' }),
   updatedAt: integer('updated_at', { mode: 'timestamp' }),
 })
+
+// Emails sent per window, for the limits on requests that send email (FR-011):
+// `key` is `address:<lowercased email>` or `client:<IP>`, and `windowStart` the
+// start of its hour or day, in seconds. The cron deletes past windows.
+export const emailSends = sqliteTable(
+  'email_sends',
+  {
+    key: text('key').notNull(),
+    windowStart: integer('window_start').notNull(),
+    count: integer('count').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.windowStart] })],
+)
 
 // ---- Quiz meets ----
 

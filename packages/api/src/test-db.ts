@@ -53,6 +53,13 @@ export async function createTestDb(): Promise<Db> {
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE email_sends (
+      key TEXT NOT NULL,
+      window_start INTEGER NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (key, window_start)
+    );
+
     CREATE TABLE verification (
       id TEXT PRIMARY KEY NOT NULL,
       identifier TEXT NOT NULL,
