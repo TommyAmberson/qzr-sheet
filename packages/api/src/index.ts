@@ -54,7 +54,7 @@ api.route('/health', health)
 // Better Auth's base path is the mount that matched (`/qzr/api/auth/*` -> `/qzr/api/auth`).
 // Mounting leaves `c.req.raw` untouched, so Better Auth matches it against the real path.
 api.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) =>
-  createAuth(c.env, routePath(c).replace(/\/\*$/, '')).handler(c.req.raw),
+  createAuth(c.env, createDb(c.env.DB), routePath(c).replace(/\/\*$/, '')).handler(c.req.raw),
 )
 
 // Session middleware for all /api/* routes (except auth, handled above)

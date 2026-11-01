@@ -1,9 +1,9 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { drizzle } from 'drizzle-orm/d1'
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Bindings } from '../bindings'
 import * as schema from '../db/schema'
+import type { Db } from './db'
 import { AccountRole } from '@qzr/shared'
 
 // Better Auth defaults to pure-JS scrypt (@noble/hashes) which takes ~5s of CPU —
@@ -33,9 +33,8 @@ async function verifyPassword({
 
 // `basePath` is the entrance the request came in on (`/api/auth` or
 // `/qzr/api/auth`): OAuth callbacks are built from it, so they return there.
-export function createAuth(env: Bindings, basePath = '/api/auth') {
-  const db = drizzle(env.DB, { schema })
-
+// The database is passed in, D1 in production and sql.js in tests.
+export function createAuth(env: Bindings, db: Db, basePath = '/api/auth') {
   return betterAuth({
     // Bare origin: Better Auth appends `basePath`, and ignores it if baseURL has a path.
     baseURL: env.API_BASE_URL,

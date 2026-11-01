@@ -1,6 +1,9 @@
-import type { MiddlewareHandler } from 'hono'
+import { Hono, type MiddlewareHandler } from 'hono'
+import { vi } from 'vitest'
 import type { Bindings } from './bindings'
-import type { SessionUser, SessionVariables } from './middleware/session'
+import { sessionMiddleware, type SessionUser, type SessionVariables } from './middleware/session'
+import { createAuth } from './lib/auth'
+import { createTestDb } from './test-db'
 import type { GuestPayload } from './lib/jwt'
 import type { Db } from './lib/db'
 import { AccountRole } from '@qzr/shared'
@@ -59,6 +62,157 @@ export const testBindings = {
   BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
   DB: {} as D1Database,
 } as unknown as Bindings
+
+/** Bindings for the auth flow tests: placeholder OAuth apps whose provider
+ *  endpoints the tests stub. */
+export const authTestBindings = {
+  ...testBindings,
+  GITHUB_CLIENT_ID: 'test-github-id',
+  GITHUB_CLIENT_SECRET: 'test-github-secret',
+  GOOGLE_CLIENT_ID: 'test-google-id',
+  GOOGLE_CLIENT_SECRET: 'test-google-secret',
+} as unknown as Bindings
+
+export interface AuthTestApp {
+  app: Hono<{ Bindings: Bindings; Variables: SessionVariables }>
+  db: Db
+}
+
+/**
+ * An app that serves Better Auth's routes over a fresh sql.js database, with
+ * the session middleware in front of `/api/*`, for tests that drive sign-up,
+ * codes and provider sign-ins end to end.
+ */
+export async function createAuthTestApp(): Promise<AuthTestApp> {
+  const db = await createTestDb()
+  const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
+  app.use('*', mockDb(db))
+  app.on(['GET', 'POST'], '/api/auth/*', (c) => createAuth(c.env, db).handler(c.req.raw))
+  app.use('/api/*', sessionMiddleware())
+  const request = app.request.bind(app)
+  // Every request carries the auth bindings, as the Worker's would.
+  app.request = ((input: RequestInfo | URL, init?: RequestInit) =>
+    request(input, init, authTestBindings)) as typeof app.request
+  return { app, db }
+}
+
+/** POST a JSON body to a Better Auth route, `path` relative to `/api/auth/`. */
+export function postAuth(test: AuthTestApp, path: string, body: unknown, cookie?: string) {
+  return test.app.request(`/api/auth/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(cookie ? { cookie } : {}) },
+    body: JSON.stringify(body),
+  })
+}
+
+/** The cookies a response set, as one `Cookie` header for the next request. */
+export function cookiesFrom(res: Response): string {
+  return res.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ')
+}
+
+/** Signs up with a password; returns the session cookie and the user id. */
+export async function signUpWithPassword(
+  test: AuthTestApp,
+  email: string,
+  password = 'correct-horse-battery',
+) {
+  const res = await postAuth(test, 'sign-up/email', { email, password, name: email })
+  if (res.status !== 200) throw new Error(`sign-up failed: ${res.status} ${await res.text()}`)
+  const { user } = (await res.json()) as { user: { id: string } }
+  return { cookie: cookiesFrom(res), userId: user.id }
+}
+
+export type Provider = 'github' | 'google'
+
+/** What the stubbed provider says about the account signing in. */
+export interface ProviderProfile {
+  id: string
+  email: string
+  verified: boolean
+  /** Google only: the Workspace domain, for a Workspace account. */
+  hd?: string
+}
+
+/**
+ * Runs a GitHub or Google sign-in through Better Auth's real callback with the
+ * provider's endpoints stubbed: Google's token endpoint answers with an
+ * unsigned ID token (Better Auth decodes it without verifying); GitHub's token,
+ * `/user` and `/user/emails` answer for `profile`, the address as its primary.
+ * `start` is the response of `/sign-in/social` or `/link-social`.
+ */
+export async function providerCallback(
+  test: AuthTestApp,
+  provider: Provider,
+  start: Response,
+  profile: ProviderProfile,
+): Promise<Response> {
+  if (start.status !== 200) throw new Error(`sign-in start failed: ${start.status}`)
+  const { url } = (await start.json()) as { url: string }
+  const state = new URL(url).searchParams.get('state')!
+  const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  const idToken = `${encode({ alg: 'none', typ: 'JWT' })}.${encode({
+    sub: profile.id,
+    email: profile.email,
+    email_verified: profile.verified,
+    name: profile.email,
+    ...(profile.hd ? { hd: profile.hd } : {}),
+  })}.`
+  const realFetch = globalThis.fetch
+  const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const href = input instanceof Request ? input.url : String(input)
+    if (href.startsWith('https://oauth2.googleapis.com/token')) {
+      return Response.json({
+        access_token: 'test-token',
+        id_token: idToken,
+        token_type: 'Bearer',
+        expires_in: 3600,
+      })
+    }
+    if (href.startsWith('https://github.com/login/oauth/access_token')) {
+      return Response.json({
+        access_token: 'test-token',
+        token_type: 'bearer',
+        scope: 'user:email',
+      })
+    }
+    if (href === 'https://api.github.com/user') {
+      return Response.json({
+        id: Number(profile.id) || 1,
+        login: 'tester',
+        name: null,
+        email: null,
+      })
+    }
+    if (href === 'https://api.github.com/user/emails') {
+      return Response.json([{ email: profile.email, primary: true, verified: profile.verified }])
+    }
+    return realFetch(input, init)
+  })
+  try {
+    return await test.app.request(`/api/auth/callback/${provider}?code=test-code&state=${state}`, {
+      headers: { cookie: cookiesFrom(start) },
+    })
+  } finally {
+    spy.mockRestore()
+  }
+}
+
+/** A signed-out GitHub or Google sign-in; returns the callback's response. */
+export async function providerSignIn(
+  test: AuthTestApp,
+  provider: Provider,
+  profile: ProviderProfile,
+): Promise<Response> {
+  const start = await postAuth(test, 'sign-in/social', {
+    provider,
+    callbackURL: 'http://localhost:5174/qzr/',
+    errorCallbackURL: 'http://localhost:5174/qzr/',
+  })
+  return providerCallback(test, provider, start, profile)
+}
 
 /** Build a JSON-bodied request init for use with `app.request(...)`. */
 export function jsonRequest(method: string, body: unknown) {
