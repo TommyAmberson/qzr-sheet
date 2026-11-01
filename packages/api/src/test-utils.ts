@@ -1,4 +1,5 @@
 import { Hono, type MiddlewareHandler } from 'hono'
+import { createHash } from 'node:crypto'
 import { vi } from 'vitest'
 import type { Bindings } from './bindings'
 import type { SessionUser, SessionVariables } from './middleware/session'
@@ -9,6 +10,19 @@ import type { GuestPayload } from './lib/jwt'
 import type { Db } from './lib/db'
 import { eq } from 'drizzle-orm'
 import { AccountRole, type SocialProvider } from '@qzr/shared'
+
+/** The one password the stubbed Pwned Passwords service reports breached. */
+export const BREACHED_PASSWORD = 'breached-password-1'
+
+// Pwned Passwords answers from here, so no test reaches the network: a range
+// lists only BREACHED_PASSWORD's hash.
+const networkFetch = globalThis.fetch
+globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  const href = input instanceof Request ? input.url : String(input)
+  if (!href.startsWith('https://api.pwnedpasswords.com/range/')) return networkFetch(input, init)
+  const hash = createHash('sha1').update(BREACHED_PASSWORD).digest('hex').toUpperCase()
+  return new Response(href.endsWith(`/${hash.slice(0, 5)}`) ? `${hash.slice(5)}:42\n` : '')
+}) as typeof fetch
 
 /**
  * Test-only middleware that injects user and/or guest directly into context,

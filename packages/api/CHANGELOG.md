@@ -38,6 +38,11 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 * **Disconnect** - `POST /api/account/disconnect` with the password, from a sign-in within the last
   day, while a password remains; ends every other session
 * **Notices** - the address is emailed when GitHub or Google joins or leaves an account
+* **Breached passwords refused** - a new password at sign-up or reset that appears in a data breach
+  is refused with `PASSWORD_COMPROMISED`, checked against Pwned Passwords before a reset spends its
+  code
+* **Sign-in rate limit** - Better Auth's limiter, is on in production with its counts in the new
+  `rate_limit` table: 5 password sign-ins per client per minute
 
 ### Changed
 
@@ -47,6 +52,9 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   `provider_email_unverified`. GitHub uses only the primary address
 * **Connecting from settings** - `/link-social` needs a sign-in within the last day and lands only
   while the session that started it lasts
+* **Account routes refuse cross-origin forms** - a form-like request to `/api/account/*` from an
+  origin Better Auth doesn't trust gets 403
+* **Sending a verification code needs a session on that account**
 * **Superuser only on a verified address** - the role counts as normal until the address is verified
 * **Unique indexes** on `verification.identifier` and `account(provider_id, account_id)`
 * Better Auth's link-based reset and verification routes, unused email-code routes and

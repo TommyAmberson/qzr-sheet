@@ -13,9 +13,10 @@ Base: `/qzr/api` in production, the root locally. Added to `docs/auth.md`.
 | `POST /api/auth/link-social`                      | `{ provider, callbackURL }`             | Better Auth's; needs a sign-in within the last day                                                             |
 
 Sign-up with a password sends a verification code (FR-006). A new password found in a list of
-breached passwords is refused with `PASSWORD_COMPROMISED` (FR-032). Sign-in, reset and code entry
-past their rate limits answer 429 (FR-030). Code errors return the plugin's codes, which the shared
-error module maps to messages (FR-010).
+breached passwords, at sign-up, reset or `/change-password`, is refused with `PASSWORD_COMPROMISED`,
+or 503 when the check can't be made (FR-032). Sign-in, reset and code entry past their rate limits
+answer 429 (FR-030). Code errors return the plugin's codes, which the shared error module maps to
+messages (FR-010).
 
 ## Provider callback outcomes
 

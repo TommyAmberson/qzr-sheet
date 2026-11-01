@@ -57,6 +57,19 @@ memory, and the cron deletes past windows. The sign-up email counts against the 
 request over a limit answers 429 with a message to try later; a reset request for an unknown address
 counts the same as one for a real account.
 
+Better Auth's own rate limiter covers its routes: password sign-in allows 5 attempts per client per
+minute, the other routes Better Auth's defaults. It is on in production explicitly, since Better
+Auth would otherwise enable it only when `NODE_ENV` is `production`, and it keeps its counts in D1's
+`rate_limit` table rather than in memory, which each isolate has its own of.
+
+### Breached passwords
+
+A new password at sign-up, reset or change is refused when it appears in a data breach (NIST SP
+800-63B-4), checked in the before hook (`packages/api/src/lib/breachedPasswords.ts`) so a refused
+reset keeps its code. Only the first 5 characters of its SHA-1 go to the Pwned Passwords range API.
+If that service can't be reached, the sign-up or reset fails and asks to try later, rather than
+accepting the password unchecked. The minimum length stays 8.
+
 ### Password reset
 
 "Forgot password?" on the sign-in form: the address, then the emailed code with a new password, then
@@ -280,6 +293,13 @@ from the address bar (a rejected link says so; when the server can't be reached 
 reload). A value of digits only, or one beside a quiz link, is a meet id and never joined. The
 meet's teams become selectable in "Load teams from meet" without signing in. Room codes are never
 put in links: a link ends up in browser history, logs, and screenshots.
+
+### Cross-site requests
+
+Better Auth checks the `Origin` of requests to its own routes. The account routes (`/api/account/*`)
+refuse a form-like request (`text/plain`, form-encoded or multipart, or no content type) unless its
+`Origin` is one Better Auth trusts: SameSite=Lax cookies stop other sites, but not another page on
+`versevault.ca`. A JSON request from another origin already fails CORS.
 
 ### Password hashing
 

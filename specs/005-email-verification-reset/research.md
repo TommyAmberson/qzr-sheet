@@ -170,14 +170,17 @@ depth).
 
 ## D18. Breached passwords (security review, 2026-11-01)
 
-**Decision**: Better Auth's `haveIBeenPwned` plugin on sign-up and reset; the minimum length stays 8
-(clarified 2026-11-01). It sends only the first 5 characters of the password's SHA-1 to the Pwned
-Passwords range API, and when the service can't be reached the request fails rather than accepting
-the password unchecked.
+**Decision**: check new passwords (sign-up, reset and change) against the Pwned Passwords range API
+in the before hook, before Better Auth handles the request; the minimum length stays 8 (clarified
+2026-11-01). Only the first 5 characters of the password's SHA-1 are sent, and when the service
+can't be reached the request fails rather than accepting the password unchecked.
 
-**Rationale**: NIST SP 800-63B-4 requires checking new passwords against compromised lists. The
-plugin is the library's own (principle VII); failing closed is its behaviour, and an outage only
-delays a sign-up or reset.
+**Rationale**: NIST SP 800-63B-4 requires checking new passwords against compromised lists. An
+outage only delays a sign-up or reset.
+
+**Alternatives considered**: Better Auth's `haveIBeenPwned` plugin, which principle VII would
+prefer, checks while hashing; a reset by code has spent its code by then, so a refused password
+would cost the person a new code and one of their 3 emails an hour. The check is a dozen lines.
 
 ## D15. Known limits, accepted
 

@@ -21,6 +21,7 @@ import {
 } from 'better-auth/api'
 import { defineRequestState } from '@better-auth/core/context'
 import { emailOTP } from 'better-auth/plugins'
+import { isBreachedPassword } from './breachedPasswords'
 import {
   passwordResetEmail,
   providerConnectedEmail,
@@ -139,7 +140,7 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
       before: createAuthMiddleware(async (ctx) => {
         // Only requests from outside; Better Auth's own calls pass.
         if (!ctx.request) return
-        const body = (ctx.body ?? {}) as { email?: unknown; type?: unknown }
+        const body = (ctx.body ?? {}) as { email?: unknown; type?: unknown; password?: unknown }
         switch (ctx.path) {
           // The send route's types for refused flows. A verification code is
           // sent only for a session on that account (FR-009), so a stranger
@@ -184,6 +185,17 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           // verify an address someone else registered.
           case '/email-otp/verify-email':
             await requireSessionFor(ctx, body.email, 'Sign in to this account to verify its email.')
+            return
+          // A new password, however it's set, that appears in a breach is
+          // refused (FR-032), here rather than through Better Auth's
+          // haveIBeenPwned plugin, which checks while hashing: by then a reset
+          // has spent its code.
+          case '/sign-up/email':
+          case '/email-otp/reset-password':
+            await refuseBreachedPassword(body.password)
+            return
+          case '/change-password':
+            await refuseBreachedPassword((ctx.body as { newPassword?: unknown }).newPassword)
             return
         }
         if (!EMAILING_PATHS.has(ctx.path)) return
@@ -482,6 +494,25 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
 }
 
 export type Auth = ReturnType<typeof createAuth>
+
+/** Refuses a new password found in a breach, or any when the check can't be
+ *  made, rather than accepting it unchecked (research D18). */
+async function refuseBreachedPassword(password: unknown) {
+  // One Better Auth refuses for its length (8 to 128) needs no outside call.
+  if (typeof password !== 'string' || password.length < 8 || password.length > 128) return
+  const breached = await isBreachedPassword(password).catch((err) => {
+    console.error('[auth] breached-password check failed:', err)
+    throw new APIError('SERVICE_UNAVAILABLE', {
+      message: "Couldn't check the password. Try again later.",
+    })
+  })
+  if (breached) {
+    throw new APIError('BAD_REQUEST', {
+      message: 'This password has appeared in a data breach. Choose a different one.',
+      code: 'PASSWORD_COMPROMISED',
+    })
+  }
+}
 
 /** Refuses the request unless it comes with a session on the account for
  *  `email`. */

@@ -152,7 +152,7 @@ description: "Task list for email verification and password reset"
 - [X] T026 Tests first: password sign-in past its limit is refused with 429, and limits hold across Better Auth instances (they live in the database). Then Better Auth's rate limiter on in production with database storage and a tighter rule for password sign-in, the table through `db:generate` (FR-030, research D16).
 - [X] T027 Tests first: a POST to the account routes from another origin, or without one in a form-like request, is refused and changes nothing. Then the origin check on the account routes in `packages/api/src/routes/account.ts`, against Better Auth's trusted origins (FR-031, research D17).
 - [X] T028 Tests first: asking to send a verification code needs a session on that account, while sign-up still sends its own (FR-009). Then the check in the before hook in `packages/api/src/lib/auth.ts`.
-- [ ] T029 Tests first: sign-up and reset with a breached password are refused with its message, and the tests never reach the network. Then Better Auth's `haveIBeenPwned` plugin, the message in the shared sign-in form, and `docs/auth.md` for T026 to T029 (FR-032, research D18).
+- [X] T029 Tests first: sign-up and reset with a breached password are refused with its message, and the tests never reach the network. Then the check against Pwned Passwords (research D18), the message in the shared sign-in form, and `docs/auth.md` for T026 to T029 (FR-032, research D18).
 - [ ] T025 Run quickstart.md: the automated checks, then the local walkthrough (user-side for the provider steps with real credentials) and the production checks after deploy.
 
 ---
