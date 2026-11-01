@@ -1,3 +1,5 @@
+import type { HonoRequest } from 'hono'
+
 const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 const DEFAULT_CODE_LENGTH = 16
 
@@ -13,4 +15,19 @@ export async function hashCode(code: string): Promise<string> {
   const data = new TextEncoder().encode(code)
   const buf = await crypto.subtle.digest('SHA-256', data)
   return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Whether a code rotation asks to clear the memberships the old code granted. Only an explicit
+ * `{ "clearMembers": true }` does: no body, one that isn't a JSON object, or any other value
+ * rotates only.
+ */
+export async function wantsClearMembers(req: HonoRequest): Promise<boolean> {
+  const body = await req.json<unknown>().catch(() => null)
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'clearMembers' in body &&
+    body.clearMembers === true
+  )
 }

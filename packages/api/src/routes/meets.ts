@@ -4,7 +4,7 @@ import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireAuthOrGuest, requireSuperuser, getUser } from '../middleware/session'
 import { createDb, isUniqueViolation, viewerCodeIs, type Db } from '../lib/db'
-import { generateCode, hashCode } from '../lib/codes'
+import { generateCode, hashCode, wantsClearMembers } from '../lib/codes'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { AccountRole, MeetRole } from '@qzr/shared'
@@ -217,15 +217,13 @@ meets.post('/:id/rotate-admin-code', requireAuth(), async (c) => {
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const user = getUser(c)
-  const body = await c.req
-    .json<{ clearMembers?: boolean }>()
-    .catch((): { clearMembers?: boolean } => ({}))
+  const clearMembers = await wantsClearMembers(c.req)
   const db = getDb(c)
 
   if (!(await isAdminOrSuperuser(db, user.id, user.role, id))) {
     return c.json({ error: 'Admin or superuser access required' }, 403)
   }
-  if (body.clearMembers && user.role !== AccountRole.Superuser) {
+  if (clearMembers && user.role !== AccountRole.Superuser) {
     return c.json({ error: 'Only superusers can clear admin memberships' }, 403)
   }
 
@@ -240,7 +238,7 @@ meets.post('/:id/rotate-admin-code', requireAuth(), async (c) => {
 
   if (!updated) return c.json({ error: 'Meet not found' }, 404)
 
-  if (body.clearMembers) {
+  if (clearMembers) {
     await db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.meetId, id))
   }
 
