@@ -15,6 +15,20 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-10-31
+
+### Added
+
+* "Forgot password?" on the sign-in form, and the verification code step after creating an account
+
+### Changed
+
+* The desktop app offers email sign-in only; GitHub and Google there never worked
+
+### Bundled contract
+
+* `@qzr/shared@1.6.0` - adds the email-code and account calls to the auth client
+
 ## [0.18.1] - 2026-10-31
 
 ### Fixed
