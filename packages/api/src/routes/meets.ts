@@ -120,13 +120,10 @@ meets.get('/:id', async (c) => {
     .from(schema.meetRooms)
     .where(eq(schema.meetRooms.meetId, id))
 
-  // Guests get a redacted view: no viewerCode (they could re-share it) and no
-  // official-code list. Signed-in members get the full payload.
+  // Every viewer gets the viewer code, guests included, so they can share the meet's link; guests
+  // don't get the room list
   const isGuest = !!c.get('guest')
-  return c.json({
-    meet: formatMeet(meet, { redactSensitive: isGuest }),
-    officialCodes: isGuest ? [] : codes,
-  })
+  return c.json({ meet: formatMeet(meet), officialCodes: isGuest ? [] : codes })
 })
 
 meets.patch('/:id', requireAuth(), async (c) => {
@@ -503,13 +500,13 @@ meets.delete('/:id/members/:userId', requireAuth(), async (c) => {
 
 // ---- Helpers ----
 
-function formatMeet(meet: schema.QuizMeet, opts: { redactSensitive?: boolean } = {}) {
+function formatMeet(meet: schema.QuizMeet) {
   return {
     id: meet.id,
     name: meet.name,
     dateFrom: meet.dateFrom,
     dateTo: meet.dateTo,
-    viewerCode: opts.redactSensitive ? null : meet.viewerCode,
+    viewerCode: meet.viewerCode,
     divisions: JSON.parse(meet.divisions) as string[],
     createdAt: meet.createdAt,
     phase: meet.phase,
