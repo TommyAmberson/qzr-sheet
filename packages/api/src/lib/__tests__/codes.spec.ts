@@ -1,5 +1,6 @@
+import { Hono } from 'hono'
 import { describe, it, expect } from 'vitest'
-import { generateCode, hashCode } from '../codes'
+import { generateCode, hashCode, wantsClearMembers } from '../codes'
 
 describe('generateCode', () => {
   it('returns a string of the requested length', () => {
@@ -45,5 +46,32 @@ describe('hashCode', () => {
     // echo -n "test" | sha256sum
     const hash = await hashCode('test')
     expect(hash).toBe('9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08')
+  })
+})
+
+describe('wantsClearMembers', () => {
+  const app = new Hono().post('/', async (c) => c.json({ clear: await wantsClearMembers(c.req) }))
+  const asks = async (body?: string) => {
+    const res = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    })
+    return ((await res.json()) as { clear: boolean }).clear
+  }
+
+  it('is true only for an explicit true', async () => {
+    expect(await asks('{"clearMembers":true}')).toBe(true)
+  })
+
+  it.each([
+    undefined,
+    'null',
+    'not json',
+    '{}',
+    '{"clearMembers":false}',
+    '{"clearMembers":"true"}',
+  ])('rotates only for a body of %s', async (body) => {
+    expect(await asks(body)).toBe(false)
   })
 })

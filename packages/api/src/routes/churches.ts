@@ -3,8 +3,8 @@ import { eq, and, inArray, sql } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireAuthOrGuest, requireSuperuser, getUser } from '../middleware/session'
-import { createDb, type Db } from '../lib/db'
-import { generateCode, hashCode } from '../lib/codes'
+import { asOne, createDb, type Db } from '../lib/db'
+import { generateCode, hashCode, wantsClearMembers } from '../lib/codes'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { AccountRole } from '@qzr/shared'
@@ -190,7 +190,8 @@ churches.delete('/churches/:churchId', requireAuth(), async (c) => {
 /**
  * POST /api/churches/:churchId/rotate-coach-code
  *
- * Rotates the coach code for a church. Accepts { clearMembers: boolean }.
+ * Rotates the coach code for a church. With `{ clearMembers: true }` it also removes the church's
+ * coach memberships; any other body rotates only.
  * Requires admin or superuser.
  */
 churches.post('/churches/:churchId/rotate-coach-code', requireAuth(), async (c) => {
@@ -207,18 +208,20 @@ churches.post('/churches/:churchId/rotate-coach-code', requireAuth(), async (c) 
     return c.json({ error: 'Admin or superuser access required' }, 403)
   }
 
-  const body = await c.req
-    .json<{ clearMembers?: boolean }>()
-    .catch((): { clearMembers?: boolean } => ({}))
+  const clearMembers = await wantsClearMembers(c.req)
 
   const coachCode = generateCode()
   const coachCodeHash = await hashCode(coachCode)
 
-  await db.update(schema.churches).set({ coachCodeHash }).where(eq(schema.churches.id, churchId))
-
-  if (body.clearMembers) {
-    await db.delete(schema.coachMemberships).where(eq(schema.coachMemberships.churchId, churchId))
-  }
+  const rotate = db
+    .update(schema.churches)
+    .set({ coachCodeHash })
+    .where(eq(schema.churches.id, churchId))
+  // Rotate and clear removes the old code's coaches in the same batch, so neither happens alone
+  const clear = db
+    .delete(schema.coachMemberships)
+    .where(eq(schema.coachMemberships.churchId, churchId))
+  await asOne(db, clearMembers ? [rotate, clear] : [rotate])
 
   return c.json({ coachCode })
 })

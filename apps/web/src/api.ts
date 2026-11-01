@@ -140,8 +140,12 @@ export function deleteOfficialCode(meetId: number, codeId: number): Promise<{ de
 export function rotateOfficialCode(
   meetId: number,
   codeId: number,
+  clearMembers = false,
 ): Promise<{ officialCode: OfficialCode; code: string }> {
-  return request(`/api/meets/${meetId}/official-codes/${codeId}/rotate`, { method: 'POST' })
+  return request(`/api/meets/${meetId}/official-codes/${codeId}/rotate`, {
+    method: 'POST',
+    body: JSON.stringify({ clearMembers }),
+  })
 }
 
 // ---- Phase / division state ----

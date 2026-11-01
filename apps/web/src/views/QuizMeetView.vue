@@ -143,13 +143,14 @@ interface AccessDialog {
   id?: number
   title: string
   description: string
-  hasClearOption: boolean
   revealedCode: string | null
   busy: boolean
   members: MeetMember[]
   membersLoading: boolean
 }
 const accessDialog = ref<AccessDialog | null>(null)
+// Only a superuser removes admins, whether one at a time or by clearing on rotate
+const canRemoveMembers = computed(() => accessDialog.value?.kind !== 'admin' || isSuperuser.value)
 const dialogRef = ref<HTMLDialogElement | null>(null)
 
 async function load() {
@@ -278,18 +279,7 @@ async function handleAddChurch() {
     churches.value.push({ ...res.church, teamCount: 0 })
     newChurchForm.value = { name: '', shortName: '' }
     showAddChurch.value = false
-    openAccessDialog({
-      kind: 'church',
-      id: res.church.id,
-      title: `Coach Access — ${res.church.shortName}`,
-      description:
-        'Share this code with the head coach. They can join the meet and manage their roster.',
-      hasClearOption: true,
-      revealedCode: res.coachCode,
-      busy: false,
-      members: [],
-      membersLoading: false,
-    })
+    openChurchCodeDialog(res.church, res.coachCode)
   } catch (e) {
     addChurchError.value = (e as Error).message
   } finally {
@@ -349,17 +339,7 @@ async function handleAddRoom() {
     detail.value!.officialCodes.push(res.officialCode)
     newRoomLabel.value = ''
     showAddRoom.value = false
-    openAccessDialog({
-      kind: 'official',
-      id: res.officialCode.id,
-      title: `Room Access — ${res.officialCode.label}`,
-      description: 'Share this code with the quizmaster or official for this room.',
-      hasClearOption: false,
-      revealedCode: res.code,
-      busy: false,
-      members: [],
-      membersLoading: false,
-    })
+    openRoomCodeDialog(res.officialCode, res.code)
   } catch (e) {
     addRoomError.value = (e as Error).message
   } finally {
@@ -379,9 +359,10 @@ async function handleDeleteRoom(codeId: number) {
 
 // ---- Access dialog ----
 
-function openAccessDialog(d: AccessDialog) {
-  accessDialog.value = d
+function openAccessDialog(d: Omit<AccessDialog, 'busy' | 'members' | 'membersLoading'>) {
+  accessDialog.value = { ...d, busy: false, members: [], membersLoading: false }
   nextTick(() => dialogRef.value?.showModal())
+  // A code just created has no members yet
   if (!d.revealedCode) loadDialogMembers()
 }
 
@@ -390,8 +371,7 @@ function closeAccessDialog() {
   accessDialog.value = null
 }
 
-async function loadDialogMembers() {
-  const d = accessDialog.value
+async function loadDialogMembers(d = accessDialog.value) {
   if (!d) return
   d.membersLoading = true
   const res = await listMembers(meetId.value!).catch(() => null)
@@ -412,46 +392,38 @@ function openAdminCodeDialog() {
     title: 'Admin Access',
     description:
       'Share this code with other admins. Anyone who joins with it gets full management access to this meet.',
-    hasClearOption: isSuperuser.value,
     revealedCode: null,
-    busy: false,
-    members: [],
-    membersLoading: false,
   })
 }
 
-function openChurchCodeDialog(ch: Church) {
+function openChurchCodeDialog(
+  ch: Pick<Church, 'id' | 'shortName'>,
+  revealedCode: string | null = null,
+) {
   openAccessDialog({
     kind: 'church',
     id: ch.id,
     title: `Coach Access — ${ch.shortName}`,
     description:
       'Share this code with the head coach. They can join the meet and manage their roster.',
-    hasClearOption: true,
-    revealedCode: null,
-    busy: false,
-    members: [],
-    membersLoading: false,
+    revealedCode,
   })
 }
 
-function openRoomCodeDialog(oc: OfficialCode) {
+function openRoomCodeDialog(oc: OfficialCode, revealedCode: string | null = null) {
   openAccessDialog({
     kind: 'official',
     id: oc.id,
     title: `Room Access — ${oc.label}`,
     description: 'Share this code with the quizmaster or official for this room.',
-    hasClearOption: false,
-    revealedCode: null,
-    busy: false,
-    members: [],
-    membersLoading: false,
+    revealedCode,
   })
 }
 
 async function handleGenerateCode(clearMembers: boolean) {
   const d = accessDialog.value
   if (!d) return
+  if (clearMembers && !confirm('Generate a new code and remove all current members?')) return
   d.busy = true
   d.revealedCode = null
   try {
@@ -462,11 +434,13 @@ async function handleGenerateCode(clearMembers: boolean) {
       const res = await rotateChurchCoachCode(d.id, clearMembers)
       d.revealedCode = res.coachCode
     } else if (d.kind === 'official' && d.id) {
-      const res = await rotateOfficialCode(meetId.value!, d.id)
+      const res = await rotateOfficialCode(meetId.value!, d.id, clearMembers)
       d.revealedCode = res.code
     }
+    // Emptied at once, then read back from the server, which shows what the rotation actually
+    // removed (an API not yet updated rotates only); a failed read keeps it empty
     if (clearMembers) d.members = []
-    else await loadDialogMembers()
+    await loadDialogMembers(d)
   } catch (e) {
     alert((e as Error).message)
   } finally {
@@ -478,6 +452,7 @@ async function handleRevokeMember(member: MeetMember) {
   const d = accessDialog.value
   if (!d) return
   if (!confirm(`Remove ${member.name} (${member.email})?`)) return
+  d.busy = true
   try {
     await revokeMember(meetId.value!, member.userId, {
       role: member.role,
@@ -487,6 +462,8 @@ async function handleRevokeMember(member: MeetMember) {
     d.members = d.members.filter((m) => m.userId !== member.userId)
   } catch (e) {
     alert((e as Error).message)
+  } finally {
+    d.busy = false
   }
 }
 
@@ -1070,7 +1047,7 @@ onMounted(load)
               {{ accessDialog.busy ? '…' : 'Generate new code' }}
             </button>
             <button
-              v-if="accessDialog.hasClearOption"
+              v-if="canRemoveMembers"
               class="btn btn--danger"
               :disabled="accessDialog.busy"
               @click="handleGenerateCode(true)"
@@ -1089,8 +1066,9 @@ onMounted(load)
                 <span class="member-name">{{ m.name }}</span>
                 <span class="member-email">{{ m.email }}</span>
                 <button
-                  v-if="accessDialog.kind !== 'admin' || isSuperuser"
+                  v-if="canRemoveMembers"
                   class="row-btn row-btn--danger"
+                  :disabled="accessDialog.busy || accessDialog.membersLoading"
                   @click="handleRevokeMember(m)"
                 >
                   Revoke
