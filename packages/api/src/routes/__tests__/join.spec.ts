@@ -8,7 +8,7 @@ import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import { generateCode, hashCode } from '../../lib/codes'
-import { verifyGuestJwt } from '../../lib/jwt'
+import { codeTagFor, verifyGuestJwt } from '../../lib/jwt'
 import * as schema from '../../db/schema'
 import { MeetRole } from '@qzr/shared'
 
@@ -33,6 +33,9 @@ function post(body: Record<string, unknown>) {
   }
 }
 
+// Viewer codes are unique, so meets seeded without one each get their own
+let seededMeets = 0
+
 async function seedMeet(
   db: Db,
   opts: { name?: string; viewerCode?: string; adminCode?: string } = {},
@@ -46,7 +49,7 @@ async function seedMeet(
       name: opts.name ?? 'Test Meet',
       dateFrom: '2025-06-01',
       dateTo: '2025-06-02',
-      viewerCode: opts.viewerCode ?? 'test-viewer',
+      viewerCode: opts.viewerCode ?? `test-viewer-${++seededMeets}`,
       adminCodeHash: adminHash,
       createdAt: new Date(),
     })
@@ -295,6 +298,19 @@ describe('POST /api/join/guest', () => {
       // Changing the viewer code ends the token, so it names the code it was issued for
       expect(payload!.codeTag).toBeTypeOf('string')
       expect(body.room).toBeUndefined()
+    })
+
+    it('matches the code in any case and tags the stored code', async () => {
+      const { meet } = await seedMeet(db, { viewerCode: 'Fall-2025' })
+
+      const res = await app.request('/api/join/guest', post({ code: 'FALL-2025' }), env)
+      expect(res.status).toBe(200)
+      const body = await jsonOf<JoinBody>(res)
+      expect(body.meet.id).toBe(meet.id)
+      const payload = await verifyGuestJwt(body.token!, 'test-secret-at-least-32-characters-long')
+      expect(payload!.codeTag).toBe(
+        await codeTagFor('viewer', 'Fall-2025', 'test-secret-at-least-32-characters-long'),
+      )
     })
   })
 

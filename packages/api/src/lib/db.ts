@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import type { D1Database } from '@cloudflare/workers-types'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
@@ -63,4 +64,9 @@ export function isUniqueViolation(e: unknown, target?: string): boolean {
   if (!target) return true
   // A column constraint names `table.column`s, comma-separated; an expression index `index 'name'`
   return detail.startsWith(`index '${target}'`) || new RegExp(`(^|, )${target}\\.`).test(detail)
+}
+
+/** Matches the meet whose viewer code is `code`, ignoring case as its unique index does */
+export function viewerCodeIs(code: string) {
+  return sql`lower(${schema.quizMeets.viewerCode}) = lower(${code})`
 }

@@ -76,6 +76,9 @@ export function jsonRequest(method: string, body: unknown) {
  */
 import * as schema from './db/schema'
 import type { MeetPhase } from '@qzr/shared'
+// Viewer codes are unique, so each seeded meet gets its own even when names repeat
+let seededMeets = 0
+
 export async function seedMeet(
   db: Db,
   name = 'Test Meet',
@@ -87,7 +90,7 @@ export async function seedMeet(
       name,
       dateFrom: '2026-01-01',
       adminCodeHash: 'x',
-      viewerCode: name.toLowerCase().replace(/\s+/g, '-'),
+      viewerCode: `${name.toLowerCase().replace(/\s+/g, '-')}-${++seededMeets}`,
       createdAt: new Date(),
       phase: opts.phase ?? 'registration',
       registrationClosesAt: opts.registrationClosesAt ?? null,

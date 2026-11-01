@@ -1,5 +1,13 @@
 import { sql } from 'drizzle-orm'
-import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import {
+  check,
+  index,
+  integer,
+  sqliteTable,
+  text,
+  unique,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core'
 import { AccountRole, MEET_PHASES, DIVISION_STATES, RESULT_ACTIONS } from '@qzr/shared'
 
 // ---- Better Auth core tables ----
@@ -59,19 +67,26 @@ export const verification = sqliteTable('verification', {
 
 // ---- Quiz meets ----
 
-export const quizMeets = sqliteTable('quiz_meets', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull(),
-  dateFrom: text('date_from').notNull(), // ISO 8601 date string
-  dateTo: text('date_to'), // ISO 8601 date string; null = single-day meet
-  adminCodeHash: text('admin_code_hash').notNull(),
-  viewerCode: text('viewer_code').notNull(), // admin-set human-readable slug
-  divisions: text('divisions').notNull().default('[]'), // JSON string[]
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  phase: text('phase', { enum: MEET_PHASES }).notNull().default('registration'),
-  registrationClosesAt: integer('registration_closes_at', { mode: 'timestamp' }),
-  meetStartsAt: integer('meet_starts_at', { mode: 'timestamp' }),
-})
+export const VIEWER_CODE_INDEX = 'quiz_meets_viewer_code_unique'
+
+export const quizMeets = sqliteTable(
+  'quiz_meets',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull(),
+    dateFrom: text('date_from').notNull(), // ISO 8601 date string
+    dateTo: text('date_to'), // ISO 8601 date string; null = single-day meet
+    adminCodeHash: text('admin_code_hash').notNull(),
+    viewerCode: text('viewer_code').notNull(), // admin-set human-readable slug
+    divisions: text('divisions').notNull().default('[]'), // JSON string[]
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    phase: text('phase', { enum: MEET_PHASES }).notNull().default('registration'),
+    registrationClosesAt: integer('registration_closes_at', { mode: 'timestamp' }),
+    meetStartsAt: integer('meet_starts_at', { mode: 'timestamp' }),
+  },
+  // Viewer codes are kept as typed but unique and matched regardless of case
+  (t) => [uniqueIndex(VIEWER_CODE_INDEX).on(sql`lower(${t.viewerCode})`)],
+)
 
 // A named physical location within a meet (renamed from `official_codes`).
 // codeHash is nullable so admins can create rooms in 'build' before issuing codes.

@@ -174,12 +174,12 @@ Every route keeps these, and a new route must too. The first two restate constit
 
 Each scope carries exactly one code at a time.
 
-| Scope  | Code        | Grants   | Created by | Form                                                                                      |
-| ------ | ----------- | -------- | ---------- | ----------------------------------------------------------------------------------------- |
-| Meet   | admin code  | admin    | superuser  | random, stored hashed                                                                     |
-| Church | coach code  | coach    | admin      | random, stored hashed                                                                     |
-| Room   | room code   | official | admin      | random, stored hashed                                                                     |
-| Meet   | viewer code | viewer   | admin      | slug set by the admin: letters, digits, and hyphens, not all digits; stored as is, unique |
+| Scope  | Code        | Grants   | Created by | Form                                                                                                                |
+| ------ | ----------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| Meet   | admin code  | admin    | superuser  | random, stored hashed                                                                                               |
+| Church | coach code  | coach    | admin      | random, stored hashed                                                                                               |
+| Room   | room code   | official | admin      | random, stored hashed                                                                                               |
+| Meet   | viewer code | viewer   | admin      | slug set by the admin: letters, digits, and hyphens, not all digits; stored as is, unique and matched ignoring case |
 
 A room's code is `official_code` in older text and in the API's `official-codes` routes.
 
@@ -191,7 +191,7 @@ link.
 **With an account**, `POST /api/join { code }` creates a membership:
 
 ```
-1. Check the viewer code (plain slug match)
+1. Check the viewer code (plain slug match, ignoring case)
    → insert ViewerMembership, return { meet, role: viewer }
 
 2. Hash the code, then check:

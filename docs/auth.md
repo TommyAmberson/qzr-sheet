@@ -122,8 +122,9 @@ What each code grants, and who may redeem it, is defined in
   database leak does not expose valid codes. Brute force is impractical. Each is shown to the admin
   once, when created or rotated.
 * **Viewer codes** are public slugs the admin chooses: letters, digits, and hyphens, never all
-  digits, stored as is and unique across meets. The API takes a value of digits only as a meet id
-  and anything else as a viewer code, so the two can't be confused.
+  digits, stored as is, and unique across meets ignoring case, as joining matches them. The API
+  takes a value of digits only as a meet id and anything else as a viewer code, so the two can't be
+  confused.
 * **Rate-limit** the join endpoint. Cloudflare's built-in rate limiting can be applied per-route to
   prevent brute-forcing even short codes.
 * **Rotation** invalidates the old code immediately. Optionally it also clears memberships; see

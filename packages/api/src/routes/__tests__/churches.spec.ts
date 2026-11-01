@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import type { Bindings } from '../../bindings'
 import type { ChurchesVariables } from '../churches'
 import { churches } from '../churches'
-import { mockSession, mockDb, testSuperuser, testUser, jsonOf } from '../../test-utils'
+import { mockSession, mockDb, testSuperuser, testUser, jsonOf, seedMeet } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import * as schema from '../../db/schema'
@@ -37,22 +37,6 @@ function patch(body: Record<string, unknown>) {
 }
 
 // ---- Seed helpers ----
-
-async function seedMeet(db: Db) {
-  const hash = await hashCode(generateCode())
-  const [meet] = await db
-    .insert(schema.quizMeets)
-    .values({
-      name: 'Test Meet',
-      dateFrom: '2025-06-01',
-      dateTo: null,
-      viewerCode: 'test-viewer',
-      adminCodeHash: hash,
-      createdAt: new Date(),
-    })
-    .returning()
-  return meet!
-}
 
 async function seedAdminMembership(db: Db, userId: string, meetId: number) {
   await db.insert(schema.adminMemberships).values({ accountId: userId, meetId })
