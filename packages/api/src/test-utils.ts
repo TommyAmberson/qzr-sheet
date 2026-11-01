@@ -214,6 +214,27 @@ export async function providerCallback(
   }
 }
 
+/** Connects a provider from settings for the account `cookie` is signed in
+ *  to: starts `/link-social`, then completes the callback (unless `between`
+ *  is given, which runs first, to change things mid-connection). */
+export async function providerLink(
+  test: AuthTestApp,
+  cookie: string,
+  provider: Provider,
+  profile: ProviderProfile,
+  between?: () => unknown,
+): Promise<Response> {
+  const start = await postAuth(
+    test,
+    'link-social',
+    { provider, callbackURL: 'http://localhost:5174/qzr/account' },
+    cookie,
+  )
+  if (start.status !== 200) return start
+  await between?.()
+  return providerCallback(test, provider, start, profile)
+}
+
 /** A signed-out GitHub or Google sign-in; returns the callback's response. */
 export async function providerSignIn(
   test: AuthTestApp,

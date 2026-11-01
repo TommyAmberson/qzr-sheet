@@ -5,7 +5,8 @@ import type { Bindings } from '../bindings'
 import * as schema from '../db/schema'
 import type { Db } from './db'
 import { AccountRole } from '@qzr/shared'
-import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
+import { APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx } from 'better-auth/api'
+import { defineRequestState } from '@better-auth/core/context'
 import { emailOTP } from 'better-auth/plugins'
 import {
   passwordResetEmail,
@@ -14,7 +15,7 @@ import {
   type ProviderName,
   type SendEmail,
 } from './email'
-import { and, eq, inArray, like, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, like, sql } from 'drizzle-orm'
 import { PER_ADDRESS, PER_CLIENT, addressKey, clientKey, takeEmailSend } from './emailLimits'
 
 // Better Auth defaults to pure-JS scrypt (@noble/hashes) which takes ~5s of CPU —
@@ -79,6 +80,20 @@ export const PENDING_PROVIDER_PREFIX = 'pending-provider:'
 
 const PROVIDERS: ProviderName[] = ['github', 'google']
 
+/** Better Auth's default for "a recent sign-in": linking needs one (FR-018). */
+const FRESH_SESSION_MS = 24 * 60 * 60 * 1000
+
+/** What the current provider callback learned: the provider's own claim that
+ *  the address is verified, and whether that proves the inbox (research D5).
+ *  Better Auth hands the after hook only a redirect, so it's kept here. */
+const providerProfile = defineRequestState<{
+  provider: ProviderName
+  id: string
+  email: string
+  verified: boolean
+  proves: boolean
+} | null>(() => null)
+
 /** The providers a reset just disconnected, by request, for its response. */
 const disconnectedByReset = new WeakMap<Request, ProviderName[]>()
 
@@ -103,6 +118,24 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
         if (ctx.request && ctx.path === '/email-otp/send-verification-otp') {
           const type = (ctx.body as { type?: unknown } | undefined)?.type
           if (typeof type !== 'string' || !SENDABLE_TYPES.has(type)) throw new APIError('NOT_FOUND')
+        }
+        // Connecting a provider asks for a sign-in within the last day
+        // (FR-018), and remembers which session started it: the link lands
+        // only while that session lasts, so signing out or a password reset
+        // cancels a connection started before it (FR-025).
+        if (ctx.request && ctx.path === '/link-social') {
+          const session = await getSessionFromCtx(ctx)
+          const age = session ? Date.now() - new Date(session.session.createdAt).getTime() : 0
+          if (age > FRESH_SESSION_MS) {
+            throw new APIError('FORBIDDEN', {
+              message: 'Sign in again to connect it.',
+              code: 'SESSION_NOT_FRESH',
+            })
+          }
+          if (session && ctx.body && typeof ctx.body === 'object') {
+            const body = ctx.body as { additionalData?: Record<string, unknown> }
+            body.additionalData = { ...body.additionalData, linkSession: session.session.id }
+          }
         }
         // Verifying needs a session on that account (FR-007), checked before
         // the plugin compares the code: otherwise a signed-out guess would
@@ -136,9 +169,12 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
       // A reset that disconnected providers says so, so the form can point to
       // connecting them again (FR-025).
       after: createAuthMiddleware(async (ctx) => {
-        if (ctx.path !== '/email-otp/reset-password' || !ctx.request) return
-        const disconnected = disconnectedByReset.get(ctx.request)
-        if (disconnected) return ctx.json({ success: true, providersDisconnected: disconnected })
+        if (ctx.path === '/email-otp/reset-password' && ctx.request) {
+          const disconnected = disconnectedByReset.get(ctx.request)
+          if (disconnected) return ctx.json({ success: true, providersDisconnected: disconnected })
+          return
+        }
+        if (ctx.path === '/callback/:id') await afterProviderCallback(ctx)
       }),
     },
     // Local Vite origins only outside production, matching the CORS
@@ -155,10 +191,67 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
       github: {
         clientId: env.GITHUB_CLIENT_ID,
         clientSecret: env.GITHUB_CLIENT_SECRET,
+        // Only the primary address, with GitHub's own verified flag: Better
+        // Auth's default would fall back to any listed address (FR-026).
+        // GitHub never proves the inbox here, so the user it describes is
+        // unverified either way (FR-014).
+        getUserInfo: async (token) => {
+          const headers = { Authorization: `Bearer ${token.accessToken}`, 'User-Agent': 'qzr' }
+          const profileRes = await fetch('https://api.github.com/user', { headers })
+          const emailsRes = await fetch('https://api.github.com/user/emails', { headers })
+          if (!profileRes.ok || !emailsRes.ok) return null
+          const profile = (await profileRes.json()) as {
+            id: number
+            login: string
+            name: string | null
+            avatar_url?: string
+          }
+          const emails = (await emailsRes.json()) as {
+            email: string
+            primary: boolean
+            verified: boolean
+          }[]
+          const primary = emails.find((e) => e.primary)
+          if (!primary) return null
+          await providerProfile.set({
+            provider: 'github',
+            id: String(profile.id),
+            email: primary.email,
+            verified: primary.verified,
+            proves: false,
+          })
+          return {
+            user: {
+              id: String(profile.id),
+              name: profile.name || profile.login,
+              email: primary.email,
+              image: profile.avatar_url,
+              emailVerified: false,
+            },
+            data: profile,
+          }
+        },
       },
       google: {
         clientId: env.GOOGLE_CLIENT_ID,
         clientSecret: env.GOOGLE_CLIENT_SECRET,
+        // Google speaks for an address only when it hosts the mail: Gmail,
+        // or a Workspace account (an `hd` claim). For any other address
+        // `email_verified` records a check made when the Google account was
+        // created, and the address may since have changed hands (research D5).
+        mapProfileToUser: async (profile) => {
+          const proves =
+            profile.email_verified &&
+            (/@(gmail|googlemail)\.com$/i.test(profile.email) || Boolean(profile.hd))
+          await providerProfile.set({
+            provider: 'google',
+            id: profile.sub,
+            email: profile.email,
+            verified: profile.email_verified,
+            proves,
+          })
+          return { emailVerified: proves }
+        },
       },
     },
     emailAndPassword: {
@@ -228,14 +321,40 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
     },
     account: {
       accountLinking: {
+        // A provider sign-in joins an existing account only when both sides
+        // have proven the address (FR-013): Better Auth checks the local side
+        // (`requireLocalEmailVerified`, default true), which stops someone
+        // pre-registering another person's address (GHSA-g38m-r43w-p2q7), and
+        // with no trusted providers it checks the provider side too, which
+        // the provider settings above narrow to a Google-hosted address.
         enabled: true,
-        // Trusting GitHub/Google skips only the provider-side email check.
-        // better-auth >= 1.6.11 still refuses to auto-link onto a local
-        // account whose own email is unverified (`requireLocalEmailVerified`,
-        // default true), which blocks pre-registering a victim's email with a
-        // password (GHSA-g38m-r43w-p2q7). Email/password accounts are never
-        // verified here, so they don't auto-link; don't turn that off.
-        trustedProviders: ['github', 'google'],
+      },
+    },
+    databaseHooks: {
+      account: {
+        create: {
+          // A connection from settings lands only while the session that
+          // started it lasts; see the `/link-social` before hook.
+          before: async (account) => {
+            if (!PROVIDERS.includes(account.providerId as ProviderName)) return
+            // Outside an OAuth callback there's no state, and no connection.
+            const state = await getOAuthState().catch(() => null)
+            if (!state?.link) return
+            const started = (state as { linkSession?: unknown }).linkSession
+            if (typeof started !== 'string') return false
+            const live = await db
+              .select({ id: schema.session.id })
+              .from(schema.session)
+              .where(
+                and(
+                  eq(schema.session.id, started),
+                  eq(schema.session.userId, state.link.userId),
+                  gt(schema.session.expiresAt, new Date()),
+                ),
+              )
+            if (live.length === 0) return false
+          },
+        },
       },
     },
     plugins: [
@@ -304,5 +423,57 @@ async function providersLeft(db: Db, userId: string): Promise<ProviderName[]> {
     return rows.map((r) => r.providerId as ProviderName)
   } catch {
     return PROVIDERS
+  }
+}
+
+/**
+ * After a provider callback, for connecting from settings (FR-018): Better
+ * Auth refuses a link the provider doesn't prove the inbox for. A verified
+ * account has proven it already, so link it; an unverified one proves it
+ * first. A link Better Auth made where the provider proves the inbox verifies
+ * the address.
+ */
+async function afterProviderCallback(
+  ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0],
+) {
+  const location = ctx.context.responseHeaders?.get('location')
+  const profile = await providerProfile.get()
+  if (!location || !profile) return
+  const redirect = new URL(location)
+  const error = redirect.searchParams.get('error')
+  const internal = ctx.context.internalAdapter
+  const found = await internal.findUserByEmail(profile.email, { includeAccounts: true })
+  if (!found) return
+
+  if (error === 'unable_to_link_account') {
+    const state = await getOAuthState()
+    if (!state?.link || state.link.userId !== found.user.id) return
+    if (!found.user.emailVerified) {
+      redirect.searchParams.set('error', 'verify_email_first')
+      throw ctx.redirect(redirect.toString())
+    }
+    const owner = await internal.findAccountByProviderId(profile.id, profile.provider)
+    if (owner?.userId === found.user.id) throw ctx.redirect(state.callbackURL)
+    if (owner) {
+      redirect.searchParams.set('error', 'account_already_linked_to_different_user')
+      throw ctx.redirect(redirect.toString())
+    }
+    // A refusing create hook (the session ended) returns null, and the unique
+    // index refuses a link racing another: Better Auth's refusal then stands.
+    const linked = await internal
+      .linkAccount({ providerId: profile.provider, accountId: profile.id, userId: found.user.id })
+      .then(
+        (created) => Boolean(created),
+        () => false,
+      )
+    if (!linked) return
+    throw ctx.redirect(state.callbackURL)
+  }
+
+  if (!error && profile.proves && !found.user.emailVerified) {
+    const linked = found.accounts.some(
+      (a) => a.providerId === profile.provider && a.accountId === profile.id,
+    )
+    if (linked) await internal.updateUser(found.user.id, { emailVerified: true })
   }
 }
