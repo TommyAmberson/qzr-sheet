@@ -217,12 +217,12 @@ meets.post('/:id/rotate-admin-code', requireAuth(), async (c) => {
   if (Number.isNaN(id)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const user = getUser(c)
-  const clearMembers = await wantsClearMembers(c.req)
   const db = getDb(c)
 
   if (!(await isAdminOrSuperuser(db, user.id, user.role, id))) {
     return c.json({ error: 'Admin or superuser access required' }, 403)
   }
+  const clearMembers = await wantsClearMembers(c.req)
   if (clearMembers && user.role !== AccountRole.Superuser) {
     return c.json({ error: 'Only superusers can clear admin memberships' }, 403)
   }
@@ -230,18 +230,17 @@ meets.post('/:id/rotate-admin-code', requireAuth(), async (c) => {
   const adminCode = generateCode()
   const adminHash = await hashCode(adminCode)
 
-  const [updated] = await db
+  const rotate = db
     .update(schema.quizMeets)
     .set({ adminCodeHash: adminHash })
     .where(eq(schema.quizMeets.id, id))
     .returning({ id: schema.quizMeets.id })
+  // Rotate and clear removes the old code's admins in the same batch, so neither happens alone
+  const clear = db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.meetId, id))
+  const [rotated] = await asOne(db, clearMembers ? [rotate, clear] : [rotate])
+  const [updated] = rotated as Awaited<typeof rotate>
 
   if (!updated) return c.json({ error: 'Meet not found' }, 404)
-
-  if (clearMembers) {
-    await db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.meetId, id))
-  }
-
   return c.json({ adminCode })
 })
 
@@ -352,19 +351,15 @@ meets.post('/:id/official-codes/:codeId/rotate', requireAuth(), async (c) => {
     .returning({ id: schema.meetRooms.id, label: schema.meetRooms.name })
   // Rotate and clear removes the room's officials in the same batch, so neither happens alone. Both
   // are scoped to this meet, so another meet's room is left alone.
-  const [rotated] = clearMembers
-    ? await asOne(db, [
-        rotate,
-        db
-          .delete(schema.officialMemberships)
-          .where(
-            and(
-              eq(schema.officialMemberships.roomId, codeId),
-              eq(schema.officialMemberships.meetId, meetId),
-            ),
-          ),
-      ])
-    : [await rotate]
+  const clear = db
+    .delete(schema.officialMemberships)
+    .where(
+      and(
+        eq(schema.officialMemberships.roomId, codeId),
+        eq(schema.officialMemberships.meetId, meetId),
+      ),
+    )
+  const [rotated] = await asOne(db, clearMembers ? [rotate, clear] : [rotate])
   const [updated] = rotated as Awaited<typeof rotate>
 
   if (!updated) return c.json({ error: 'Official code not found' }, 404)
