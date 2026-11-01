@@ -11,6 +11,12 @@ describe('socialSignInError', () => {
     const result = socialSignInError('?error=account_not_linked')
     expect(result?.passwordAccount).toBe(true)
     expect(result?.message).toMatch(/already has an account/)
+    expect(result?.message).toMatch(/account settings/)
+  })
+
+  it("explains an address the provider doesn't report verified", () => {
+    const result = socialSignInError('?error=provider_email_unverified')
+    expect(result?.message).toMatch(/isn't verified/)
   })
 
   it('explains a failed connection from account settings', () => {

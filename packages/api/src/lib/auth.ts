@@ -335,6 +335,15 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
       },
     },
     databaseHooks: {
+      // A provider sign-in whose address the provider doesn't report
+      // verified creates no user and signs into none (FR-026); the callback's
+      // after hook says why.
+      user: {
+        create: { before: async () => ((await providerVerified()) ? undefined : false) },
+      },
+      session: {
+        create: { before: async () => ((await providerVerified()) ? undefined : false) },
+      },
       account: {
         create: {
           // A connection from settings lands only while the session that
@@ -455,6 +464,13 @@ function authPath(request: Request): string {
 
 /** After a failed disconnect, the providers still on the account; if even
  *  that can't be read, both, so the notice tells the owner to check. */
+/** False only inside a provider callback whose address the provider doesn't
+ *  report verified. */
+async function providerVerified(): Promise<boolean> {
+  const profile = await providerProfile.get().catch(() => null)
+  return profile?.verified !== false
+}
+
 async function ownerEmail(db: Db, userId: string): Promise<string | undefined> {
   const [owner] = await db
     .select({ email: schema.user.email })
@@ -490,6 +506,11 @@ async function afterProviderCallback(
   if (!location || !profile) return
   const redirect = new URL(location)
   const error = redirect.searchParams.get('error')
+  // The hooks below refused it, or Better Auth did: say why (FR-026).
+  if (error && !profile.verified) {
+    redirect.searchParams.set('error', 'provider_email_unverified')
+    throw ctx.redirect(redirect.toString())
+  }
   const internal = ctx.context.internalAdapter
   const found = await internal.findUserByEmail(profile.email, { includeAccounts: true })
   if (!found) return

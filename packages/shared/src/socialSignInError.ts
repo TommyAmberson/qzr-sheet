@@ -8,13 +8,17 @@ export interface SocialSignInError {
   passwordAccount: boolean
 }
 
-/** Since better-auth 1.6.11, a GitHub or Google sign-in refuses to merge into an
- *  existing account whose email is unverified. Our password accounts never
- *  are; a social account can be too, if its provider's email wasn't. */
+/** The address already has an account a provider sign-in can't join without
+ *  proof of the inbox (FR-013). */
 const ACCOUNT_NOT_LINKED = 'account_not_linked'
 
-/** Why connecting GitHub or Google from account settings failed. */
-const CONNECT_ERRORS: Record<string, string> = {
+/** Why a GitHub or Google sign-in, or connecting one from account settings,
+ *  failed. */
+const PROVIDER_ERRORS: Record<string, string> = {
+  // FR-026
+  provider_email_unverified:
+    "That account's email address isn't verified. Confirm it with the provider, or sign up with " +
+    'email instead.',
   verify_email_first: 'Verify your email address first, then connect it.',
   account_already_linked_to_different_user:
     'That account is already connected to a different qzr account.',
@@ -28,11 +32,12 @@ export function socialSignInError(search: string): SocialSignInError | null {
   if (code === ACCOUNT_NOT_LINKED) {
     return {
       message:
-        "This email already has an account that can't be linked automatically. Sign in the way you created it, usually with your email and password.",
+        'This email already has an account. Sign in with its password, then connect GitHub or ' +
+        'Google from account settings.',
       passwordAccount: true,
     }
   }
-  const message = CONNECT_ERRORS[code]
+  const message = PROVIDER_ERRORS[code]
   if (message) return { message, passwordAccount: false }
   return { message: 'Sign-in failed. Please try again.', passwordAccount: false }
 }

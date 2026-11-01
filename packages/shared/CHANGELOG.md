@@ -35,6 +35,12 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `connectedProviders`, `connectProvider` and `disconnectProvider` in the auth client, for account
   settings, and `socialSignInError` explains why connecting GitHub or Google failed.
 
+### Changed
+
+* `socialSignInError` explains `provider_email_unverified`, a sign-in refused because the provider
+  doesn't report its address verified, and its `account_not_linked` message points to connecting
+  from account settings.
+
 ## [1.5.0] - 2026-10-04
 
 ### Added

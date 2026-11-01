@@ -106,4 +106,18 @@ describe('connecting a provider from settings', () => {
     expect(res.headers.get('location')).toContain('error=')
     expect(await providersOf(test, userId)).not.toContain('github')
   })
+
+  it("refuses an address the provider doesn't report verified", async () => {
+    const test = await createAuthTestApp()
+    const { cookie, userId } = await verifiedAccount(test, 'unverified@example.com')
+
+    const res = await providerLink(test, cookie, 'github', {
+      id: '15',
+      email: 'unverified@example.com',
+      verified: false,
+    })
+
+    expect(res.headers.get('location')).toContain('error=provider_email_unverified')
+    expect(await providersOf(test, userId)).not.toContain('github')
+  })
 })
