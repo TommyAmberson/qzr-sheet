@@ -144,3 +144,33 @@ describe("That's not me", () => {
     expect(await providersOf(test, userId)).toEqual(['credential'])
   })
 })
+
+describe('the account routes from another origin', () => {
+  it('refuse a form post, changing nothing', async () => {
+    const test = await createAuthTestApp()
+    const { pending, userId } = await atChoice(test, 'forged@gmail.com')
+
+    const res = await test.app.request('/api/account/provider/takeover', {
+      method: 'POST',
+      headers: { cookie: pending, 'Content-Type': 'text/plain', Origin: 'https://evil.example' },
+      body: '{}',
+    })
+
+    expect(res.status).toBe(403)
+    expect(await providersOf(test, userId)).toEqual(['credential'])
+    expect((await choose(test, 'takeover', pending)).status).toBe(200)
+  })
+
+  it('accept one from the app', async () => {
+    const test = await createAuthTestApp()
+    const { pending } = await atChoice(test, 'portal@gmail.com')
+
+    const res = await test.app.request('/api/account/provider/takeover', {
+      method: 'POST',
+      headers: { cookie: pending, 'Content-Type': 'text/plain', Origin: 'http://localhost:5174' },
+      body: '{}',
+    })
+
+    expect(res.status).toBe(200)
+  })
+})

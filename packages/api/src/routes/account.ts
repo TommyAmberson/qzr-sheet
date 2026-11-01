@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono'
+import { csrf } from 'hono/csrf'
 import { deleteCookie, getCookie, setCookie, setSignedCookie } from 'hono/cookie'
 import { getIp } from 'better-auth/api'
 import { isSocialProvider, tooManyRequestsMessage } from '@qzr/shared'
@@ -23,6 +24,15 @@ const account = new Hono<Env>()
 
 // Better Auth's context for this request, from the session middleware's instance.
 const authContext = (c: Context<Env>) => c.get('auth').$context
+
+// A form post from another origin, even one on the same site such as
+// verse-vault's, carries the cookies these routes act on, and the routes read
+// JSON whatever the content type: refuse it unless the origin is one Better
+// Auth trusts (FR-031). JSON from elsewhere already fails CORS.
+account.use(
+  '*',
+  csrf({ origin: async (origin, c) => (await authContext(c)).isTrustedOrigin(origin) }),
+)
 
 // Every bad pending cookie gets the same answer, used, expired or unknown,
 // so it reveals nothing about the account it might have named (FR-016).
