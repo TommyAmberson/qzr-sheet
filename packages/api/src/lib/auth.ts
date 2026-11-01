@@ -3,9 +3,22 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Bindings } from '../bindings'
 import * as schema from '../db/schema'
-import type { Db } from './db'
-import { AccountRole } from '@qzr/shared'
-import { APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx } from 'better-auth/api'
+import { isUniqueViolation, type Db } from './db'
+import {
+  AccountRole,
+  SOCIAL_PROVIDERS,
+  isSocialProvider,
+  tooManyRequestsMessage,
+  type EmailLimit,
+  type SocialProvider,
+} from '@qzr/shared'
+import {
+  APIError,
+  createAuthMiddleware,
+  getIp,
+  getOAuthState,
+  getSessionFromCtx,
+} from 'better-auth/api'
 import { defineRequestState } from '@better-auth/core/context'
 import { emailOTP } from 'better-auth/plugins'
 import {
@@ -14,7 +27,7 @@ import {
   providerDisconnectedEmail,
   resetCodeEmail,
   verificationCodeEmail,
-  type ProviderName,
+  type EmailMessage,
   type SendEmail,
 } from './email'
 import { and, eq, gt, inArray, like, ne, sql } from 'drizzle-orm'
@@ -25,7 +38,6 @@ import {
   PENDING_TTL_MS,
   createPending,
   pendingCookiePath,
-  readPending,
   sendPendingCode,
 } from './pendingProvider'
 
@@ -88,27 +100,28 @@ const CODE_TTL_S = 10 * 60
 /** An address longer than this matches no account, so it isn't counted. */
 const MAX_EMAIL_LENGTH = 254
 
-export const PROVIDERS: ProviderName[] = ['github', 'google']
-
-/** Better Auth's default for "a recent sign-in": linking needs one (FR-018). */
-export const FRESH_SESSION_MS = 24 * 60 * 60 * 1000
+/** Whether a session started within Better Auth's `freshAge` (seconds), "a
+ *  recent sign-in", which connecting and disconnecting need (FR-018). */
+export function isFreshSession(createdAt: Date | string, freshAgeS: number): boolean {
+  return Date.now() - new Date(createdAt).getTime() <= freshAgeS * 1000
+}
 
 /** What the current provider callback learned: the provider's own claim that
  *  the address is verified, and whether that proves the inbox (research D5).
  *  Better Auth hands the after hook only a redirect, so it's kept here. */
 const providerProfile = defineRequestState<{
-  provider: ProviderName
+  provider: SocialProvider
   id: string
   email: string
   verified: boolean
   proves: boolean
 } | null>(() => null)
 
-/** The providers a reset just disconnected, by request, for its response. */
-const disconnectedByReset = new WeakMap<Request, ProviderName[]>()
+/** The providers the current reset disconnected, for its response. */
+const disconnectedByReset = defineRequestState<SocialProvider[]>(() => [])
 
-const tooMany = (what: string) =>
-  new APIError('TOO_MANY_REQUESTS', { message: `Too many requests ${what}. Try again later.` })
+const tooMany = (limit: EmailLimit) =>
+  new APIError('TOO_MANY_REQUESTS', { message: tooManyRequestsMessage(limit) })
 
 // `basePath` is the entrance the request came in on (`/api/auth` or
 // `/qzr/api/auth`): OAuth callbacks are built from it, so they return there.
@@ -124,64 +137,73 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
     disabledPaths: REFUSED_PATHS,
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
-        // The send route's types for refused flows, from outside only.
-        if (ctx.request && ctx.path === '/email-otp/send-verification-otp') {
-          const type = (ctx.body as { type?: unknown } | undefined)?.type
-          if (typeof type !== 'string' || !SENDABLE_TYPES.has(type)) throw new APIError('NOT_FOUND')
-        }
-        // Connecting a provider asks for a sign-in within the last day
-        // (FR-018), and remembers which session started it: the link lands
-        // only while that session lasts, so signing out or a password reset
-        // cancels a connection started before it (FR-025).
-        if (ctx.request && ctx.path === '/link-social') {
-          const session = await getSessionFromCtx(ctx)
-          const age = session ? Date.now() - new Date(session.session.createdAt).getTime() : 0
-          if (age > FRESH_SESSION_MS) {
-            throw new APIError('FORBIDDEN', {
-              message: 'Sign in again to connect it.',
-              code: 'SESSION_NOT_FRESH',
-            })
+        // Only requests from outside; Better Auth's own calls pass.
+        if (!ctx.request) return
+        const body = (ctx.body ?? {}) as { email?: unknown; type?: unknown }
+        switch (ctx.path) {
+          // The send route's types for refused flows.
+          case '/email-otp/send-verification-otp':
+            if (typeof body.type !== 'string' || !SENDABLE_TYPES.has(body.type)) {
+              throw new APIError('NOT_FOUND')
+            }
+            break
+          // Connecting a provider asks for a sign-in within the last day
+          // (FR-018), and remembers which session started it: the link lands
+          // only while that session lasts, so signing out or a password reset
+          // cancels a connection started before it (FR-025).
+          case '/link-social': {
+            const session = await getSessionFromCtx(ctx)
+            if (!session) return
+            if (!isFreshSession(session.session.createdAt, ctx.context.sessionConfig.freshAge)) {
+              throw new APIError('FORBIDDEN', {
+                message: 'Sign in again to connect it.',
+                code: 'SESSION_NOT_FRESH',
+              })
+            }
+            const linkBody = ctx.body as { additionalData?: Record<string, unknown> }
+            linkBody.additionalData = {
+              ...linkBody.additionalData,
+              linkSession: session.session.id,
+            }
+            return
           }
-          if (session && ctx.body && typeof ctx.body === 'object') {
-            const body = ctx.body as { additionalData?: Record<string, unknown> }
-            body.additionalData = { ...body.additionalData, linkSession: session.session.id }
+          // Verifying needs a session on that account (FR-007), checked before
+          // the plugin compares the code: otherwise a signed-out guess would
+          // spend a try and learn whether the code was right, and a code could
+          // verify an address someone else registered.
+          case '/email-otp/verify-email': {
+            const session = await getSessionFromCtx(ctx)
+            if (
+              typeof body.email !== 'string' ||
+              session?.user.email.toLowerCase() !== body.email.trim().toLowerCase()
+            ) {
+              throw new APIError('FORBIDDEN', {
+                message: 'Sign in to this account to verify its email.',
+              })
+            }
+            return
           }
         }
-        // Verifying needs a session on that account (FR-007), checked before
-        // the plugin compares the code: otherwise a signed-out guess would
-        // spend a try and learn whether the code was right, and a code could
-        // verify an address someone else registered.
-        if (ctx.request && ctx.path === '/email-otp/verify-email') {
-          const email = (ctx.body as { email?: unknown } | undefined)?.email
-          const session = await getSessionFromCtx(ctx)
-          if (
-            typeof email !== 'string' ||
-            session?.user.email.toLowerCase() !== email.trim().toLowerCase()
-          ) {
-            throw new APIError('FORBIDDEN', {
-              message: 'Sign in to this account to verify its email.',
-            })
-          }
-        }
-        if (!ctx.request || !EMAILING_PATHS.has(ctx.path)) return
-        const email = (ctx.body as { email?: unknown } | undefined)?.email
-        if (typeof email !== 'string' || email.length > MAX_EMAIL_LENGTH) return
+        if (!EMAILING_PATHS.has(ctx.path)) return
+        if (typeof body.email !== 'string' || body.email.length > MAX_EMAIL_LENGTH) return
         // The address first, so requests it refuses don't use up the client's
         // allowance (FR-011).
-        if (!(await takeEmailSend(db, addressKey(email), PER_ADDRESS))) {
-          throw tooMany('for this address')
+        if (!(await takeEmailSend(db, addressKey(body.email), PER_ADDRESS))) {
+          throw tooMany('address')
         }
-        const ip = clientIp(ctx.request)
+        const ip = getIp(ctx.request, ctx.context.options)
         if (ip && !(await takeEmailSend(db, clientKey(ip), PER_CLIENT))) {
-          throw tooMany('from this network')
+          throw tooMany('network')
         }
       }),
       // A reset that disconnected providers says so, so the form can point to
       // connecting them again (FR-025).
       after: createAuthMiddleware(async (ctx) => {
-        if (ctx.path === '/email-otp/reset-password' && ctx.request) {
-          const disconnected = disconnectedByReset.get(ctx.request)
-          if (disconnected) return ctx.json({ success: true, providersDisconnected: disconnected })
+        if (ctx.path === '/email-otp/reset-password') {
+          const disconnected = await disconnectedByReset.get()
+          if (disconnected.length > 0) {
+            return ctx.json({ success: true, providersDisconnected: disconnected })
+          }
           return
         }
         if (ctx.path === '/callback/:id') {
@@ -214,8 +236,10 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
         // unverified either way (FR-014).
         getUserInfo: async (token) => {
           const headers = { Authorization: `Bearer ${token.accessToken}`, 'User-Agent': 'qzr' }
-          const profileRes = await fetch('https://api.github.com/user', { headers })
-          const emailsRes = await fetch('https://api.github.com/user/emails', { headers })
+          const [profileRes, emailsRes] = await Promise.all([
+            fetch('https://api.github.com/user', { headers }),
+            fetch('https://api.github.com/user/emails', { headers }),
+          ])
           if (!profileRes.ok || !emailsRes.ok) return null
           const profile = (await profileRes.json()) as {
             id: number
@@ -284,9 +308,9 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
       // first, so a provider connection landing now finds the session that
       // started it gone. Each step is guarded: the password has already
       // changed, so a failure is logged rather than failing the reset.
-      onPasswordReset: async ({ user }, request) => {
-        let disconnected: ProviderName[] = []
-        let stillConnected: ProviderName[] = []
+      onPasswordReset: async ({ user }) => {
+        let disconnected: SocialProvider[] = []
+        let stillConnected: SocialProvider[] = []
         try {
           await db.delete(schema.session).where(eq(schema.session.userId, user.id))
           const removed = await db
@@ -294,11 +318,11 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
             .where(
               and(
                 eq(schema.account.userId, user.id),
-                inArray(schema.account.providerId, PROVIDERS),
+                inArray(schema.account.providerId, [...SOCIAL_PROVIDERS]),
               ),
             )
             .returning({ providerId: schema.account.providerId })
-          disconnected = removed.map((r) => r.providerId as ProviderName)
+          disconnected = removed.map((r) => r.providerId as SocialProvider)
         } catch (err) {
           console.error('[auth] disconnecting providers on reset failed:', err)
           stillConnected = await providersLeft(db, user.id)
@@ -317,7 +341,7 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
         } catch (err) {
           console.error('[auth] cancelling pending provider sign-ins on reset failed:', err)
         }
-        if (request && disconnected.length > 0) disconnectedByReset.set(request, disconnected)
+        if (disconnected.length > 0) await disconnectedByReset.set(disconnected)
         // Tell the owner, whatever the reset did to their providers (FR-028).
         sendEmail(passwordResetEmail(user.email, { disconnected, stillConnected }))
       },
@@ -362,7 +386,7 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           // A connection from settings lands only while the session that
           // started it lasts; see the `/link-social` before hook.
           before: async (account) => {
-            if (!PROVIDERS.includes(account.providerId as ProviderName)) return
+            if (!isSocialProvider(account.providerId)) return
             // Outside an OAuth callback there's no state, and no connection.
             const state = await getOAuthState().catch(() => null)
             if (!state?.link) return
@@ -386,37 +410,19 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           // the rest first. A reset and a takeover write the tables directly,
           // so they pass no hook here.
           after: async (account) => {
-            if (!PROVIDERS.includes(account.providerId as ProviderName)) return
-            try {
-              const others = await db
-                .select({ id: schema.account.id })
-                .from(schema.account)
-                .where(
-                  and(eq(schema.account.userId, account.userId), ne(schema.account.id, account.id)),
-                )
-              if (others.length === 0) return
-              const owner = await ownerEmail(db, account.userId)
-              if (owner) {
-                sendEmail(providerConnectedEmail(owner, account.providerId as ProviderName))
-              }
-            } catch (err) {
-              console.error('[auth] connection notice failed:', err)
-            }
+            const others = await db
+              .select({ id: schema.account.id })
+              .from(schema.account)
+              .where(
+                and(eq(schema.account.userId, account.userId), ne(schema.account.id, account.id)),
+              )
+              .catch(() => [])
+            if (others.length > 0) await notifyOwner(db, sendEmail, account, providerConnectedEmail)
           },
         },
         delete: {
           // A provider disconnected while the account stays (FR-019).
-          after: async (account) => {
-            if (!PROVIDERS.includes(account.providerId as ProviderName)) return
-            try {
-              const owner = await ownerEmail(db, account.userId)
-              if (owner) {
-                sendEmail(providerDisconnectedEmail(owner, account.providerId as ProviderName))
-              }
-            } catch (err) {
-              console.error('[auth] disconnection notice failed:', err)
-            }
-          },
+          after: (account) => notifyOwner(db, sendEmail, account, providerDisconnectedEmail),
         },
       },
     },
@@ -440,8 +446,8 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           // code later from settings. Requests to send one were counted on
           // arrival.
           const request = ctx?.request
-          if (request && !EMAILING_PATHS.has(authPath(request))) {
-            const ip = clientIp(request)
+          if (ctx && request && !EMAILING_PATHS.has(authPath(request))) {
+            const ip = getIp(request, ctx.context.options)
             if (ip && !(await takeEmailSend(db, clientKey(ip), PER_CLIENT))) {
               console.warn(`[email] sign-up code skipped: daily limit reached for ${ip}`)
               return
@@ -466,17 +472,11 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
 
 export type Auth = ReturnType<typeof createAuth>
 
-function clientIp(request: Request): string | null {
-  return request.headers.get('cf-connecting-ip')
-}
-
 /** A request's path under Better Auth's mount, as `ctx.path` names it. */
 function authPath(request: Request): string {
   return new URL(request.url).pathname.replace(/^.*?\/api\/auth/, '')
 }
 
-/** After a failed disconnect, the providers still on the account; if even
- *  that can't be read, both, so the notice tells the owner to check. */
 /** False only inside a provider callback whose address the provider doesn't
  *  report verified. */
 async function providerVerified(): Promise<boolean> {
@@ -492,15 +492,46 @@ async function ownerEmail(db: Db, userId: string): Promise<string | undefined> {
   return owner?.email
 }
 
-async function providersLeft(db: Db, userId: string): Promise<ProviderName[]> {
+/** A link the unique index on account refused, because another link for
+ *  the same provider account landed first; any other failure is thrown. */
+export function refusedByUniqueIndex(e: unknown): null {
+  if (isUniqueViolation(e)) return null
+  throw e
+}
+
+/** Emails the account's owner a notice about a GitHub or Google account
+ *  joining or leaving it (FR-019). A failure is logged: the change stands. */
+async function notifyOwner(
+  db: Db,
+  sendEmail: SendEmail,
+  account: { userId: string; providerId: string },
+  notice: (to: string, provider: SocialProvider) => EmailMessage,
+) {
+  if (!isSocialProvider(account.providerId)) return
+  try {
+    const owner = await ownerEmail(db, account.userId)
+    if (owner) sendEmail(notice(owner, account.providerId))
+  } catch (err) {
+    console.error('[auth] provider notice failed:', err)
+  }
+}
+
+/** After a failed disconnect, the providers still on the account; if even
+ *  that can't be read, both, so the notice tells the owner to check. */
+async function providersLeft(db: Db, userId: string): Promise<SocialProvider[]> {
   try {
     const rows = await db
       .select({ providerId: schema.account.providerId })
       .from(schema.account)
-      .where(and(eq(schema.account.userId, userId), inArray(schema.account.providerId, PROVIDERS)))
-    return rows.map((r) => r.providerId as ProviderName)
+      .where(
+        and(
+          eq(schema.account.userId, userId),
+          inArray(schema.account.providerId, [...SOCIAL_PROVIDERS]),
+        ),
+      )
+    return rows.map((r) => r.providerId as SocialProvider)
   } catch {
-    return PROVIDERS
+    return [...SOCIAL_PROVIDERS]
   }
 }
 
@@ -546,10 +577,7 @@ async function afterProviderCallback(
     // index refuses a link racing another: Better Auth's refusal then stands.
     const linked = await internal
       .linkAccount({ providerId: profile.provider, accountId: profile.id, userId: found.user.id })
-      .then(
-        (created) => Boolean(created),
-        () => false,
-      )
+      .catch(refusedByUniqueIndex)
     if (!linked) return
     throw ctx.redirect(state.callbackURL)
   }
@@ -561,7 +589,7 @@ async function afterProviderCallback(
   if (error === 'account_not_linked') {
     if (found.user.emailVerified) return
     if (!found.accounts.some((a) => a.providerId === 'credential')) return
-    const token = await createPending(deps.db, {
+    const { token, row } = await createPending(deps.db, {
       userId: found.user.id,
       provider: profile.provider,
       accountId: profile.id,
@@ -576,9 +604,8 @@ async function afterProviderCallback(
     // The portal's page, whichever client the sign-in started from.
     const page = new URL(`${deps.webBaseUrl}/qzr/account/provider`)
     if (!profile.proves) {
-      const row = await readPending(deps.db, token)
-      const ip = ctx.request ? clientIp(ctx.request) : null
-      const sent = row ? await sendPendingCode(deps.db, deps.sendEmail, row, ip) : 'gone'
+      const ip = ctx.request ? getIp(ctx.request, ctx.context.options) : null
+      const sent = await sendPendingCode(deps.db, deps.sendEmail, row, ip)
       // Over a limit no code went out; the page says which.
       if (sent === 'address' || sent === 'network') page.searchParams.set('limited', sent)
     }

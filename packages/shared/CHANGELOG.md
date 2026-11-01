@@ -38,6 +38,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   `takeOverAccount` in the auth client, for the code step and the "That's me" or "That's not me"
   choice after a GitHub or Google sign-in onto an unverified account, with the `PendingProviderStep`
   and `AccountError` types.
+* `SOCIAL_PROVIDERS`, `SOCIAL_PROVIDER_LABEL` and `isSocialProvider`, the one list of GitHub and
+  Google with their labels, and `tooManyRequestsMessage` for an email limit's message.
 
 ### Changed
 

@@ -2,41 +2,26 @@ import { describe, it, expect } from 'vitest'
 import { eq } from 'drizzle-orm'
 import * as schema from '../../db/schema'
 import {
-  codeFor,
+  accountRequest,
+  ageSessions,
   createAuthTestApp,
   postAuth,
   providerLink,
-  signUpWithPassword,
+  providersOf,
+  TEST_PASSWORD as PASSWORD,
+  verifiedAccount,
   type AuthTestApp,
 } from '../../test-utils'
 
-const PASSWORD = 'correct-horse-battery'
-
 /** A verified password account with GitHub connected from settings. */
 async function withGitHub(test: AuthTestApp, email: string) {
-  const account = await signUpWithPassword(test, email, PASSWORD)
-  await postAuth(
-    test,
-    'email-otp/verify-email',
-    { email, otp: codeFor(test, email) },
-    account.cookie,
-  )
+  const account = await verifiedAccount(test, email)
   await providerLink(test, account.cookie, 'github', { id: '21', email, verified: true })
   return account
 }
 
-function disconnect(test: AuthTestApp, cookie: string, body: unknown) {
-  return test.app.request('/api/account/disconnect', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', cookie },
-    body: JSON.stringify(body),
-  })
-}
-
-const providersOf = async (test: AuthTestApp, userId: string) =>
-  (await test.db.select().from(schema.account).where(eq(schema.account.userId, userId))).map(
-    (a) => a.providerId,
-  )
+const disconnect = (test: AuthTestApp, cookie: string, body: unknown) =>
+  accountRequest(test, 'disconnect', cookie, body)
 
 const sessionsOf = async (test: AuthTestApp, userId: string) =>
   test.db.select().from(schema.session).where(eq(schema.session.userId, userId))
@@ -71,10 +56,7 @@ describe('disconnecting a provider from settings', () => {
   it('asks for a sign-in within the last day', async () => {
     const test = await createAuthTestApp()
     const { cookie, userId } = await withGitHub(test, 'stale@example.com')
-    await test.db
-      .update(schema.session)
-      .set({ createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) })
-      .where(eq(schema.session.userId, userId))
+    await ageSessions(test, userId)
 
     const res = await disconnect(test, cookie, { provider: 'github', password: PASSWORD })
 

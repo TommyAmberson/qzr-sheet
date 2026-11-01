@@ -1,30 +1,24 @@
 import { describe, it, expect } from 'vitest'
 import {
+  accountRequest,
   codeFor,
   createAuthTestApp,
   postAuth,
   providerLink,
   providerSignIn,
-  signUpWithPassword,
+  TEST_PASSWORD as PASSWORD,
+  verifiedAccount,
   type AuthTestApp,
 } from '../../test-utils'
 
-const PASSWORD = 'correct-horse-battery'
-
-const subjectsTo = (test: AuthTestApp, to: string) =>
-  test.emails.filter((e) => e.to === to).map((e) => e.subject)
-
 async function withGitHub(test: AuthTestApp, email: string) {
-  const account = await signUpWithPassword(test, email, PASSWORD)
-  await postAuth(
-    test,
-    'email-otp/verify-email',
-    { email, otp: codeFor(test, email) },
-    account.cookie,
-  )
+  const account = await verifiedAccount(test, email)
   await providerLink(test, account.cookie, 'github', { id: '31', email, verified: true })
   return account
 }
+
+const subjectsTo = (test: AuthTestApp, to: string) =>
+  test.emails.filter((e) => e.to === to).map((e) => e.subject)
 
 describe('connection notices', () => {
   it('tells the owner when a provider is connected', async () => {
@@ -40,11 +34,7 @@ describe('connection notices', () => {
     const test = await createAuthTestApp()
     const { cookie } = await withGitHub(test, 'gone@example.com')
 
-    await test.app.request('/api/account/disconnect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', cookie },
-      body: JSON.stringify({ provider: 'github', password: PASSWORD }),
-    })
+    await accountRequest(test, 'disconnect', cookie, { provider: 'github', password: PASSWORD })
 
     expect(subjectsTo(test, 'gone@example.com')).toContain(
       'GitHub was disconnected from your qzr account',

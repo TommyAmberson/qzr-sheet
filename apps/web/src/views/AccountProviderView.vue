@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { codeErrorMessage, type PendingProviderStep } from '@qzr/shared'
+import {
+  codeErrorMessage,
+  SOCIAL_PROVIDER_LABEL,
+  tooManyRequestsMessage,
+  type PendingProviderStep,
+} from '@qzr/shared'
 import { useAuth } from '../composables/useAuth'
 
 // A GitHub or Google sign-in for an address with an unverified password
@@ -22,7 +27,9 @@ const route = useRoute()
 type Stage = 'loading' | 'gone' | 'code' | 'choice' | 'mine' | 'notMine' | 'claimed' | 'takenOver'
 const stage = ref<Stage>('loading')
 const pending = ref<PendingProviderStep | null>(null)
-const providerLabel = computed(() => (pending.value?.provider === 'github' ? 'GitHub' : 'Google'))
+const providerLabel = computed(() =>
+  pending.value ? SOCIAL_PROVIDER_LABEL[pending.value.provider] : '',
+)
 
 const code = ref('')
 const password = ref('')
@@ -31,9 +38,7 @@ const error = ref('')
 
 // Over an email limit the callback sent no code, and says which limit.
 const limited = route.query.limited
-if (limited === 'address' || limited === 'network') {
-  error.value = `Too many requests ${limited === 'network' ? 'from this network' : 'for this address'}. Try again later.`
-}
+if (limited === 'address' || limited === 'network') error.value = tooManyRequestsMessage(limited)
 
 onMounted(async () => {
   const result = await pendingProvider().catch(() => null)

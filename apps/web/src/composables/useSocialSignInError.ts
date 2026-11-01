@@ -12,9 +12,8 @@ let pending: Ref<SocialSignInError | null> | null = null
  *  it until `clear()`. */
 export function useSocialSignInError(router: Router) {
   if (!pending) {
-    const state = ref(socialSignInError(window.location.search))
-    pending = state
-    if (state.value) {
+    pending = ref(socialSignInError(window.location.search))
+    if (pending.value) {
       void router.isReady().then(() => {
         const query = { ...router.currentRoute.value.query }
         for (const param of ERROR_PARAMS) delete query[param]

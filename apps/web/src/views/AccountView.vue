@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { codeErrorMessage, type SocialProvider } from '@qzr/shared'
+import {
+  codeErrorMessage,
+  SOCIAL_PROVIDERS,
+  SOCIAL_PROVIDER_LABEL,
+  type SocialProvider,
+} from '@qzr/shared'
 import { useAuth } from '../composables/useAuth'
 import { useSocialSignInError } from '../composables/useSocialSignInError'
 
@@ -40,10 +45,6 @@ async function sendCode() {
 
 // Connect or disconnect GitHub and Google (FR-018). A connection leaves for
 // the provider and comes back here, with `?error=` when it failed.
-const PROVIDERS: { id: SocialProvider; label: string }[] = [
-  { id: 'github', label: 'GitHub' },
-  { id: 'google', label: 'Google' },
-]
 const connected = ref<SocialProvider[]>([])
 const { error: connectError, clear: clearConnectError } = useSocialSignInError(useRouter())
 const providerError = ref(connectError.value?.message ?? '')
@@ -153,23 +154,23 @@ async function submitCode() {
       <section class="section">
         <h2 class="section-title">Sign-in methods</h2>
         <ul class="providers">
-          <li v-for="p in PROVIDERS" :key="p.id" class="provider">
-            <span class="provider-name">{{ p.label }}</span>
-            <template v-if="connected.includes(p.id)">
+          <li v-for="id in SOCIAL_PROVIDERS" :key="id" class="provider">
+            <span class="provider-name">{{ SOCIAL_PROVIDER_LABEL[id] }}</span>
+            <template v-if="connected.includes(id)">
               <span class="badge badge--ok">Connected</span>
               <button
-                v-if="disconnecting !== p.id"
+                v-if="disconnecting !== id"
                 class="link-btn"
                 :disabled="providerPending"
-                @click="askPassword(p.id)"
+                @click="askPassword(id)"
               >
                 Disconnect
               </button>
             </template>
-            <button v-else class="btn" :disabled="providerPending" @click="connect(p.id)">
-              Connect {{ p.label }}
+            <button v-else class="btn" :disabled="providerPending" @click="connect(id)">
+              Connect {{ SOCIAL_PROVIDER_LABEL[id] }}
             </button>
-            <form v-if="disconnecting === p.id" class="code-form" @submit.prevent="disconnect">
+            <form v-if="disconnecting === id" class="code-form" @submit.prevent="disconnect">
               <input
                 v-model="password"
                 type="password"

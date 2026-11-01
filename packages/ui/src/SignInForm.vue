@@ -3,6 +3,7 @@ import { nextTick, ref, watch } from 'vue'
 import {
   codeErrorMessage,
   providersDisconnectedBy,
+  SOCIAL_PROVIDER_LABEL,
   type SocialProvider,
   type SocialSignInError,
 } from '@qzr/shared'
@@ -52,7 +53,6 @@ const codeSent = ref(false)
 const code = ref('')
 // What a reset disconnected, for the note before leaving (FR-025).
 const disconnected = ref<string[]>([])
-const PROVIDER_LABEL: Record<string, string> = { github: 'GitHub', google: 'Google' }
 
 function openForgot() {
   mode.value = 'forgot'
@@ -121,8 +121,8 @@ function disconnectedNote(): string {
   return disconnected.value
     .map(
       (p) =>
-        ` ${PROVIDER_LABEL[p] ?? p} was disconnected in case someone else had added it; if it's ` +
-        'yours, connect it again in account settings.',
+        ` ${SOCIAL_PROVIDER_LABEL[p as SocialProvider] ?? p} was disconnected, in case someone ` +
+        "else had added it. If it's yours, connect it again in account settings.",
     )
     .join('')
 }
@@ -273,12 +273,7 @@ function leaveVerify() {
 
   <template v-else-if="mode === 'resetDone'">
     <p class="form-title">Password changed</p>
-    <p class="hint">
-      <template v-for="p in disconnected" :key="p">
-        {{ PROVIDER_LABEL[p] ?? p }} was disconnected, in case someone else had added it. If it's
-        yours, connect it again in account settings.
-      </template>
-    </p>
+    <p class="hint">{{ disconnectedNote().trim() }}</p>
     <button class="submit-btn" :disabled="pending" @click="signInAfterReset">Continue</button>
   </template>
 

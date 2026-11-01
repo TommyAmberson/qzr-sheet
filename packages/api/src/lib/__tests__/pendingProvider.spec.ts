@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { like } from 'drizzle-orm'
+import type { SocialProvider } from '@qzr/shared'
 import * as schema from '../../db/schema'
 import {
+  accountRequest,
   codeFor,
   cookiesFrom,
   createAuthTestApp,
@@ -9,7 +11,6 @@ import {
   providerSignIn,
   signUpWithPassword,
   type AuthTestApp,
-  type Provider,
   type ProviderProfile,
 } from '../../test-utils'
 
@@ -17,20 +18,16 @@ import {
  *  returns the callback's response and the pending cookie it set. */
 async function pendingSignIn(
   test: AuthTestApp,
-  provider: Provider,
+  provider: SocialProvider,
   profile: Partial<ProviderProfile> & { email: string },
 ) {
   const res = await providerSignIn(test, provider, { id: '51', verified: true, ...profile })
   return { res, cookie: cookiesFrom(res) }
 }
 
-function step(test: AuthTestApp, cookie: string, path = '', body?: unknown) {
-  return test.app.request(`/api/account/provider${path}`, {
-    method: path ? 'POST' : 'GET',
-    headers: { 'Content-Type': 'application/json', cookie },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-}
+/** The pending sign-in's step, or with a path a POST to it. */
+const step = (test: AuthTestApp, cookie: string, path = '', body?: unknown) =>
+  accountRequest(test, `provider${path}`, cookie, path ? (body ?? {}) : undefined)
 
 const codeStepEmails = (test: AuthTestApp, to: string) =>
   test.emails.filter((e) => e.to === to && e.subject.includes('to connect'))

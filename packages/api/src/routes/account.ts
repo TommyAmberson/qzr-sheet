@@ -1,9 +1,10 @@
 import { Hono, type Context } from 'hono'
 import { deleteCookie, getCookie, setCookie, setSignedCookie } from 'hono/cookie'
+import { getIp } from 'better-auth/api'
+import { isSocialProvider, tooManyRequestsMessage } from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import { requireAuth, getUser, type SessionVariables } from '../middleware/session'
-import { createAuth, FRESH_SESSION_MS, PROVIDERS } from '../lib/auth'
-import { createEmailSender, type ProviderName, type SendEmail } from '../lib/email'
+import { isFreshSession, refusedByUniqueIndex } from '../lib/auth'
 import {
   PENDING_PROVIDER_COOKIE,
   PENDING_TTL_MS,
@@ -16,29 +17,12 @@ import {
   type PendingRow,
 } from '../lib/pendingProvider'
 
-export interface AccountVariables extends SessionVariables {
-  /** Set by the tests' recording sender; otherwise Resend, from the bindings */
-  sendEmail: SendEmail
-}
-
-type Env = { Bindings: Bindings; Variables: AccountVariables }
+type Env = { Bindings: Bindings; Variables: SessionVariables }
 
 const account = new Hono<Env>()
 
-account.use('*', async (c, next) => {
-  if (!c.get('sendEmail')) {
-    c.set(
-      'sendEmail',
-      createEmailSender({
-        apiKey: c.env.RESEND_API_KEY,
-        waitUntil: (promise) => c.executionCtx.waitUntil(promise),
-      }),
-    )
-  }
-  await next()
-})
-
-const authFor = (c: Context<Env>) => createAuth(c.env, c.get('db'), c.get('sendEmail'))
+// Better Auth's context for this request, from the session middleware's instance.
+const authContext = (c: Context<Env>) => c.get('auth').$context
 
 // Every bad pending cookie gets the same answer, used, expired or unknown,
 // so it reveals nothing about the account it might have named (FR-016).
@@ -49,7 +33,7 @@ const invalidPending = (c: Context<Env>) =>
  *  mount the request came in on. */
 async function pendingCookie(c: Context<Env>) {
   const authBase = c.req.path.replace(/\/account\/provider(\/.*)?$/, '/auth')
-  const cookie = (await authFor(c).$context).createAuthCookie(PENDING_PROVIDER_COOKIE, {
+  const cookie = (await authContext(c)).createAuthCookie(PENDING_PROVIDER_COOKIE, {
     maxAge: PENDING_TTL_MS / 1000,
     path: pendingCookiePath(authBase),
   })
@@ -111,13 +95,12 @@ account.post('/provider/confirm', async (c) => {
 account.post('/provider/resend', async (c) => {
   const found = await pendingFor(c)
   if (!found) return invalidPending(c)
-  const ip = c.req.header('cf-connecting-ip') ?? null
+  const ip = getIp(c.req.raw, (await authContext(c)).options)
   const sent = await sendPendingCode(c.get('db'), c.get('sendEmail'), found.row, ip)
   if (sent === 'gone') return invalidPending(c)
   if (sent === 'proven') return c.json({ step: 'choice' })
   if (sent === 'address' || sent === 'network') {
-    const from = sent === 'network' ? 'from this network' : 'for this address'
-    return c.json({ error: `Too many requests ${from}. Try again later.` }, 429)
+    return c.json({ error: tooManyRequestsMessage(sent) }, 429)
   }
   await renewCookie(c, found.token)
   return c.json({ step: 'code' })
@@ -152,7 +135,7 @@ account.post('/provider/claim', requireAuth(), async (c) => {
   if (pending.userId !== getUser(c).id) {
     return c.json({ error: 'Signed in to a different account.' }, 403)
   }
-  const internal = (await authFor(c).$context).internalAdapter
+  const internal = (await authContext(c)).internalAdapter
   const owner = await internal.findAccountByProviderId(pending.accountId, pending.provider)
   if (owner && owner.userId !== pending.userId) return invalidPending(c)
   if (!(await consume(c, found.row))) return invalidPending(c)
@@ -165,7 +148,7 @@ account.post('/provider/claim', requireAuth(), async (c) => {
         accountId: pending.accountId,
         userId: pending.userId,
       })
-      .then(Boolean, () => false)
+      .catch(refusedByUniqueIndex)
     if (!linked) return invalidPending(c)
   }
   await internal.updateUser(pending.userId, { emailVerified: true })
@@ -182,8 +165,7 @@ account.post('/provider/takeover', async (c) => {
   const found = await provenFor(c)
   if (!found) return invalidPending(c)
   const { pending } = found.row
-  const auth = authFor(c)
-  const ctx = await auth.$context
+  const ctx = await authContext(c)
   const target = await ctx.internalAdapter.findUserById(pending.userId)
   // Verified meanwhile (the owner signed in and verified): nothing to take.
   if (!target || target.emailVerified) return invalidPending(c)
@@ -209,19 +191,17 @@ account.post('/provider/takeover', async (c) => {
  */
 account.post('/disconnect', requireAuth(), async (c) => {
   const user = getUser(c)
+  const current = c.get('session')!
   const body = await c.req.json<{ provider?: unknown; password?: unknown }>().catch(() => null)
-  const provider = body?.provider as ProviderName
+  const provider = body?.provider
   const password = body?.password
-  if (!PROVIDERS.includes(provider) || typeof password !== 'string') {
+  if (!isSocialProvider(provider) || typeof password !== 'string') {
     return c.json({ error: 'provider and password required' }, 400)
   }
-  const auth = authFor(c)
-  const current = await auth.api.getSession({ headers: c.req.raw.headers })
-  if (!current) return c.json({ error: 'Authentication required' }, 401)
-  if (Date.now() - new Date(current.session.createdAt).getTime() > FRESH_SESSION_MS) {
+  const ctx = await authContext(c)
+  if (!isFreshSession(current.createdAt, ctx.sessionConfig.freshAge)) {
     return c.json({ error: 'Sign in again to disconnect it.', code: 'SESSION_NOT_FRESH' }, 403)
   }
-  const ctx = await auth.$context
   const accounts = await ctx.internalAdapter.findAccounts(user.id)
   const credential = accounts.find((a) => a.providerId === 'credential' && a.password)
   if (!credential) {
@@ -233,14 +213,14 @@ account.post('/disconnect', requireAuth(), async (c) => {
   if (!(await ctx.password.verify({ hash: credential.password!, password }))) {
     return c.json({ error: 'Wrong password.', code: 'INVALID_PASSWORD' }, 403)
   }
+  // One at a time through the adapter, so each sends its notice.
   for (const a of accounts) {
     if (a.providerId === provider) await ctx.internalAdapter.deleteAccount(a.id)
   }
-  for (const session of await ctx.internalAdapter.listSessions(user.id)) {
-    if (session.token !== current.session.token) {
-      await ctx.internalAdapter.deleteSession(session.token)
-    }
-  }
+  const others = (await ctx.internalAdapter.listSessions(user.id))
+    .map((session) => session.token)
+    .filter((token) => token !== current.token)
+  if (others.length > 0) await ctx.internalAdapter.deleteSessions(others)
   return c.json({ ok: true })
 })
 

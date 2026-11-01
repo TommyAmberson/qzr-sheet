@@ -17,6 +17,14 @@ export function codeErrorMessage(
   }
 }
 
+/** Which email limit stopped a send (FR-011). */
+export type EmailLimit = 'address' | 'network'
+
+export function tooManyRequestsMessage(limit: EmailLimit): string {
+  const from = limit === 'network' ? 'from this network' : 'for this address'
+  return `Too many requests ${from}. Try again later.`
+}
+
 /** The GitHub and Google sign-ins a password reset disconnected, from its
  *  response (FR-025). */
 export function providersDisconnectedBy(data: unknown): string[] {

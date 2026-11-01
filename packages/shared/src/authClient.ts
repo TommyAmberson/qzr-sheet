@@ -2,7 +2,9 @@ import { createAuthClient } from 'better-auth/vue'
 import { emailOTPClient } from 'better-auth/client/plugins'
 import { withoutErrorParam } from './socialSignInError'
 
-export type SocialProvider = 'github' | 'google'
+import { isSocialProvider, type SocialProvider } from './socialProviders'
+
+export type { SocialProvider }
 
 export interface AccountError {
   status: number
@@ -85,9 +87,7 @@ export function createAppAuthClient(baseURL: string) {
     /** The account's GitHub and Google sign-ins, for account settings. */
     async function connectedProviders(): Promise<SocialProvider[]> {
       const { data } = await authClient.listAccounts()
-      return (data ?? [])
-        .map((a) => a.providerId)
-        .filter((p): p is SocialProvider => p === 'github' || p === 'google')
+      return (data ?? []).map((a) => a.providerId).filter(isSocialProvider)
     }
 
     /** Connects GitHub or Google from account settings; the provider sends

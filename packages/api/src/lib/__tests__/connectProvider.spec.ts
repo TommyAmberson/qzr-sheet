@@ -2,29 +2,15 @@ import { describe, it, expect } from 'vitest'
 import { eq } from 'drizzle-orm'
 import * as schema from '../../db/schema'
 import {
-  codeFor,
+  ageSessions,
+  providersOf,
+  verifiedAccount,
   createAuthTestApp,
   postAuth,
   providerLink,
   signUpWithPassword,
   type AuthTestApp,
 } from '../../test-utils'
-
-async function verifiedAccount(test: AuthTestApp, email: string) {
-  const account = await signUpWithPassword(test, email)
-  await postAuth(
-    test,
-    'email-otp/verify-email',
-    { email, otp: codeFor(test, email) },
-    account.cookie,
-  )
-  return account
-}
-
-const providersOf = async (test: AuthTestApp, userId: string) =>
-  (await test.db.select().from(schema.account).where(eq(schema.account.userId, userId))).map(
-    (a) => a.providerId,
-  )
 
 const isVerified = async (test: AuthTestApp, userId: string) =>
   (await test.db.select().from(schema.user).where(eq(schema.user.id, userId)))[0]!.emailVerified
@@ -47,10 +33,7 @@ describe('connecting a provider from settings', () => {
   it('asks for a sign-in within the last day', async () => {
     const test = await createAuthTestApp()
     const { cookie, userId } = await verifiedAccount(test, 'stale@example.com')
-    await test.db
-      .update(schema.session)
-      .set({ createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) })
-      .where(eq(schema.session.userId, userId))
+    await ageSessions(test, userId)
 
     const res = await providerLink(test, cookie, 'github', {
       id: '12',

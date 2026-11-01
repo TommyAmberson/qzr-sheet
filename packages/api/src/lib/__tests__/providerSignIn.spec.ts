@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { eq } from 'drizzle-orm'
 import * as schema from '../../db/schema'
 import {
-  codeFor,
+  providersOf,
+  verifiedAccount,
   createAuthTestApp,
   postAuth,
   providerSignIn,
@@ -10,27 +11,11 @@ import {
   type AuthTestApp,
 } from '../../test-utils'
 
-async function verifiedAccount(test: AuthTestApp, email: string) {
-  const account = await signUpWithPassword(test, email)
-  await postAuth(
-    test,
-    'email-otp/verify-email',
-    { email, otp: codeFor(test, email) },
-    account.cookie,
-  )
-  return account
-}
-
 const errorOf = (res: Response) =>
   new URL(res.headers.get('location') ?? 'http://x/').searchParams.get('error')
 
 const userByEmail = async (test: AuthTestApp, email: string) =>
   (await test.db.select().from(schema.user).where(eq(schema.user.email, email)))[0]
-
-const providersOf = async (test: AuthTestApp, userId: string) =>
-  (await test.db.select().from(schema.account).where(eq(schema.account.userId, userId))).map(
-    (a) => a.providerId,
-  )
 
 describe('provider sign-in onto an existing account', () => {
   it('lets Google sign into a verified Gmail account', async () => {

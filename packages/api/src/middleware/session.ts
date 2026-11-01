@@ -1,6 +1,7 @@
 import type { Context, MiddlewareHandler } from 'hono'
 import type { Bindings } from '../bindings'
-import { createAuth } from '../lib/auth'
+import { createAuth, type Auth } from '../lib/auth'
+import type { SendEmail } from '../lib/email'
 import { currentGuest, type GuestPayload } from '../lib/jwt'
 import { createDb, type Db } from '../lib/db'
 import { AccountRole } from '@qzr/shared'
@@ -15,8 +16,14 @@ export interface SessionUser {
 export interface SessionVariables {
   user: SessionUser | null
   guest: GuestPayload | null
-  /** Set by whichever runs first: a test's `mockDb`, this middleware for a guest, or a router */
+  /** Set by whichever runs first: a test's `mockDb`, the app's own, or this middleware */
   db: Db
+  /** Set by the app (Resend) or a test (a recording sender) */
+  sendEmail: SendEmail
+  /** Better Auth for this request, set by this middleware */
+  auth: Auth
+  /** The signed-in session, set by this middleware */
+  session: { token: string; createdAt: Date } | null
 }
 
 /**
@@ -35,9 +42,15 @@ export function sessionMiddleware(): MiddlewareHandler<{
   return async (c, next) => {
     // Shared with the routes, which reuse a DB already set
     if (!c.get('db')) c.set('db', createDb(c.env.DB) as unknown as Db)
-    // Reading the session sends no email.
-    const auth = createAuth(c.env, c.get('db'), () => {})
+    // One instance per request, which the routes reuse. Reading the session
+    // sends no email; a router without a sender doesn't send any.
+    const auth = createAuth(c.env, c.get('db'), c.get('sendEmail') ?? (() => {}))
+    c.set('auth', auth)
     const session = await auth.api.getSession({ headers: c.req.raw.headers })
+    c.set(
+      'session',
+      session ? { token: session.session.token, createdAt: session.session.createdAt } : null,
+    )
 
     if (session?.user) {
       c.set('user', {
@@ -70,10 +83,9 @@ export function sessionMiddleware(): MiddlewareHandler<{
  *  address may belong to whoever registered it first, so superuser counts
  *  only once the address is verified (FR-027). */
 function accountRole(user: { role?: string | null; emailVerified: boolean }): AccountRole {
-  if (user.role === AccountRole.Superuser) {
-    return user.emailVerified ? AccountRole.Superuser : AccountRole.Normal
-  }
-  return AccountRole.Normal
+  return user.role === AccountRole.Superuser && user.emailVerified
+    ? AccountRole.Superuser
+    : AccountRole.Normal
 }
 
 /**

@@ -1,14 +1,14 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { vi } from 'vitest'
 import type { Bindings } from './bindings'
-import { sessionMiddleware, type SessionUser, type SessionVariables } from './middleware/session'
-import { createAuth } from './lib/auth'
-import { account } from './routes/account'
+import type { SessionUser, SessionVariables } from './middleware/session'
+import { app as workerApp } from './index'
 import type { EmailMessage } from './lib/email'
 import { createTestDb } from './test-db'
 import type { GuestPayload } from './lib/jwt'
 import type { Db } from './lib/db'
-import { AccountRole } from '@qzr/shared'
+import { eq } from 'drizzle-orm'
+import { AccountRole, type SocialProvider } from '@qzr/shared'
 
 /**
  * Test-only middleware that injects user and/or guest directly into context,
@@ -83,24 +83,20 @@ export interface AuthTestApp {
 }
 
 /**
- * An app that serves Better Auth's routes over a fresh sql.js database, with
- * the session middleware in front of `/api/*` and the account routes, for
- * tests that drive sign-up, codes and provider sign-ins end to end.
+ * The real app over a fresh sql.js database, with a sender that records each
+ * email, for tests that drive sign-up, codes, provider sign-ins and the
+ * account routes end to end.
  */
 export async function createAuthTestApp(): Promise<AuthTestApp> {
   const db = await createTestDb()
   const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
-  app.use('*', mockDb(db))
   const emails: EmailMessage[] = []
-  app.on(['GET', 'POST'], '/api/auth/*', (c) =>
-    createAuth(c.env, db, (message) => emails.push(message)).handler(c.req.raw),
-  )
-  app.use('/api/*', sessionMiddleware())
-  app.use('/api/account/*', async (c, next) => {
-    c.set('sendEmail' as never, ((message: EmailMessage) => emails.push(message)) as never)
+  app.use('*', mockDb(db))
+  app.use('*', async (c, next) => {
+    c.set('sendEmail', (message) => emails.push(message))
     await next()
   })
-  app.route('/api/account', account)
+  app.route('/', workerApp)
   const request = app.request.bind(app)
   // Every request carries the auth bindings, as the Worker's would.
   app.request = ((input: RequestInfo | URL, init?: RequestInit) =>
@@ -145,7 +141,44 @@ export async function signUpWithPassword(
   return { cookie: cookiesFrom(res), userId: user.id }
 }
 
-export type Provider = 'github' | 'google'
+/** The password the auth test helpers sign up with. */
+export const TEST_PASSWORD = 'correct-horse-battery'
+
+/** A password account whose address is verified with its sign-up code. */
+export async function verifiedAccount(test: AuthTestApp, email: string, password = TEST_PASSWORD) {
+  const account = await signUpWithPassword(test, email, password)
+  await postAuth(
+    test,
+    'email-otp/verify-email',
+    { email, otp: codeFor(test, email) },
+    account.cookie,
+  )
+  return account
+}
+
+/** The account's sign-in methods, sorted. */
+export async function providersOf(test: AuthTestApp, userId: string): Promise<string[]> {
+  const rows = await test.db.select().from(schema.account).where(eq(schema.account.userId, userId))
+  return rows.map((a) => a.providerId).sort()
+}
+
+/** Makes the user's sessions older than a recent sign-in. */
+export async function ageSessions(test: AuthTestApp, userId: string) {
+  await test.db
+    .update(schema.session)
+    .set({ createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) })
+    .where(eq(schema.session.userId, userId))
+}
+
+/** Calls an account route, `path` relative to `/api/account/`: GET without a
+ *  body, POST with one. */
+export function accountRequest(test: AuthTestApp, path: string, cookie: string, body?: unknown) {
+  return test.app.request(`/api/account/${path}`, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: { 'Content-Type': 'application/json', cookie },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+}
 
 /** What the stubbed provider says about the account signing in. */
 export interface ProviderProfile {
@@ -165,7 +198,7 @@ export interface ProviderProfile {
  */
 export async function providerCallback(
   test: AuthTestApp,
-  provider: Provider,
+  provider: SocialProvider,
   start: Response,
   profile: ProviderProfile,
 ): Promise<Response> {
@@ -226,7 +259,7 @@ export async function providerCallback(
 export async function providerLink(
   test: AuthTestApp,
   cookie: string,
-  provider: Provider,
+  provider: SocialProvider,
   profile: ProviderProfile,
   between?: () => unknown,
 ): Promise<Response> {
@@ -244,7 +277,7 @@ export async function providerLink(
 /** A signed-out GitHub or Google sign-in; returns the callback's response. */
 export async function providerSignIn(
   test: AuthTestApp,
-  provider: Provider,
+  provider: SocialProvider,
   profile: ProviderProfile,
 ): Promise<Response> {
   const start = await postAuth(test, 'sign-in/social', {

@@ -3,16 +3,17 @@ import { eq } from 'drizzle-orm'
 import { AccountRole } from '@qzr/shared'
 import * as schema from '../../db/schema'
 import {
+  accountRequest,
   cookiesFrom,
   createAuthTestApp,
   postAuth,
   providerSignIn,
   seedMeet,
+  providersOf,
   signUpWithPassword,
+  TEST_PASSWORD as PASSWORD,
   type AuthTestApp,
 } from '../../test-utils'
-
-const PASSWORD = 'correct-horse-battery'
 
 /** A registrant's unverified password account for a Gmail address, and a
  *  Google sign-in for it, which Google proves, waiting at the choice. */
@@ -22,20 +23,11 @@ async function atChoice(test: AuthTestApp, email: string) {
   return { ...registrant, pending: cookiesFrom(res) }
 }
 
-function choose(test: AuthTestApp, path: 'claim' | 'takeover', cookie: string) {
-  return test.app.request(`/api/account/provider/${path}`, {
-    method: 'POST',
-    headers: { cookie },
-  })
-}
+const choose = (test: AuthTestApp, path: 'claim' | 'takeover', cookie: string) =>
+  accountRequest(test, `provider/${path}`, cookie, {})
 
 const userOf = async (test: AuthTestApp, userId: string) =>
   (await test.db.select().from(schema.user).where(eq(schema.user.id, userId)))[0]!
-
-const providersOf = async (test: AuthTestApp, userId: string) =>
-  (await test.db.select().from(schema.account).where(eq(schema.account.userId, userId)))
-    .map((a) => a.providerId)
-    .sort()
 
 describe("That's me", () => {
   it('connects the provider for a session on that account and verifies it', async () => {

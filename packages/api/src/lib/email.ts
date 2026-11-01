@@ -1,3 +1,5 @@
+import { SOCIAL_PROVIDER_LABEL, type SocialProvider } from '@qzr/shared'
+
 /** Transactional email through Resend's HTTPS API, from the same sender as
  *  verse-vault. */
 
@@ -69,19 +71,15 @@ export function resetCodeEmail(to: string, code: string, ttlMinutes: number): Em
   })
 }
 
-export type ProviderName = 'github' | 'google'
-
-const PROVIDER_LABEL: Record<ProviderName, string> = { github: 'GitHub', google: 'Google' }
-
 /** The code step for a GitHub or Google sign-in onto an unverified account
  *  (FR-015): says what the code is for, so its owner doesn't hand it over. */
 export function providerCodeEmail(
   to: string,
-  provider: ProviderName,
+  provider: SocialProvider,
   code: string,
   ttlMinutes: number,
 ): EmailMessage {
-  const label = PROVIDER_LABEL[provider]
+  const label = SOCIAL_PROVIDER_LABEL[provider]
   return codeEmail(to, ttlMinutes, {
     subject: `Your qzr code to connect ${label}`,
     reason:
@@ -104,18 +102,18 @@ export function verificationCodeEmail(to: string, code: string, ttlMinutes: numb
  *  sign-ins (FR-028). */
 export function passwordResetEmail(
   to: string,
-  providers: { disconnected: ProviderName[]; stillConnected: ProviderName[] },
+  providers: { disconnected: SocialProvider[]; stillConnected: SocialProvider[] },
 ): EmailMessage {
   const lines = [
     'The password for your qzr account was just reset, and every session was signed out.',
     ...providers.disconnected.map(
       (p) =>
-        `${PROVIDER_LABEL[p]} was disconnected from your account, in case someone else had added ` +
+        `${SOCIAL_PROVIDER_LABEL[p]} was disconnected from your account, in case someone else had added ` +
         'it. If it was yours, connect it again in account settings.',
     ),
     ...providers.stillConnected.map(
       (p) =>
-        `We couldn't disconnect ${PROVIDER_LABEL[p]} from your account. If you didn't add it, ` +
+        `We couldn't disconnect ${SOCIAL_PROVIDER_LABEL[p]} from your account. If you didn't add it, ` +
         'disconnect it in account settings.',
     ),
     'If this wasn\'t you, reset your password again from the sign-in form ("Forgot password?"), ' +
@@ -126,8 +124,8 @@ export function passwordResetEmail(
 
 /** Sent when GitHub or Google joins an account that already had another way
  *  to sign in, so the owner hears of a connection they didn't make (FR-019). */
-export function providerConnectedEmail(to: string, provider: ProviderName): EmailMessage {
-  const label = PROVIDER_LABEL[provider]
+export function providerConnectedEmail(to: string, provider: SocialProvider): EmailMessage {
+  const label = SOCIAL_PROVIDER_LABEL[provider]
   return noticeEmail(to, `${label} was connected to your qzr account`, [
     `A ${label} account was just connected to your qzr account, so it can now be used to sign in.`,
     "If this wasn't you, sign in with your password (reset it from the sign-in form with " +
@@ -136,8 +134,8 @@ export function providerConnectedEmail(to: string, provider: ProviderName): Emai
 }
 
 /** Sent when GitHub or Google is disconnected while the account stays. */
-export function providerDisconnectedEmail(to: string, provider: ProviderName): EmailMessage {
-  const label = PROVIDER_LABEL[provider]
+export function providerDisconnectedEmail(to: string, provider: SocialProvider): EmailMessage {
+  const label = SOCIAL_PROVIDER_LABEL[provider]
   return noticeEmail(to, `${label} was disconnected from your qzr account`, [
     `A ${label} account was just disconnected from your qzr account, and every other session ` +
       'was signed out.',

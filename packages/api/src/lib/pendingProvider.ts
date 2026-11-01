@@ -1,10 +1,10 @@
 import { and, eq, gt, ne } from 'drizzle-orm'
-import { AccountRole } from '@qzr/shared'
+import { AccountRole, type SocialProvider } from '@qzr/shared'
 import { generateRandomString } from 'better-auth/crypto'
 import * as schema from '../db/schema'
-import type { Db } from './db'
+import { asOne, isUniqueViolation, type Db } from './db'
 import { generateCode, hashCode } from './codes'
-import { providerCodeEmail, type ProviderName, type SendEmail } from './email'
+import { providerCodeEmail, type SendEmail } from './email'
 import { PER_ADDRESS, PER_CLIENT, addressKey, clientKey, takeEmailSend } from './emailLimits'
 
 /** Verification rows for a refused GitHub or Google sign-in onto an
@@ -29,7 +29,7 @@ const MAX_CODE_TRIES = 3
  *  in the email-code plugin's rows, so it works for this step only. */
 export interface PendingProvider {
   userId: string
-  provider: ProviderName
+  provider: SocialProvider
   accountId: string
   email: string
   proven: boolean
@@ -49,19 +49,24 @@ export interface PendingRow {
 export const pendingCookiePath = (authBasePath: string) =>
   authBasePath.replace(/\/auth$/, '/account/provider')
 
-/** Creates a pending row and returns its token. */
-export async function createPending(db: Db, pending: PendingProvider): Promise<string> {
+/** Creates a pending row; returns its token and the row as stored. */
+export async function createPending(
+  db: Db,
+  pending: PendingProvider,
+): Promise<{ token: string; row: PendingRow }> {
   const token = generateCode(32)
+  const identifier = `${PENDING_PROVIDER_PREFIX}${token}`
+  const value = JSON.stringify(pending)
   const now = new Date()
   await db.insert(schema.verification).values({
     id: crypto.randomUUID(),
-    identifier: `${PENDING_PROVIDER_PREFIX}${token}`,
-    value: JSON.stringify(pending),
+    identifier,
+    value,
     expiresAt: new Date(now.getTime() + PENDING_TTL_MS),
     createdAt: now,
     updatedAt: now,
   })
-  return token
+  return { token, row: { identifier, pending, value } }
 }
 
 /** The live pending row a token names, if any. */
@@ -176,35 +181,34 @@ export async function confirmPendingCode(
 export async function takeOver(db: Db, pending: PendingProvider): Promise<boolean> {
   const now = new Date()
   const linkId = crypto.randomUUID()
-  const linked = await db
-    .insert(schema.account)
-    .values({
+  const userId = pending.userId
+  try {
+    await db.insert(schema.account).values({
       id: linkId,
-      userId: pending.userId,
+      userId,
       providerId: pending.provider,
       accountId: pending.accountId,
       createdAt: now,
       updatedAt: now,
     })
-    .then(
-      () => true,
-      () => false,
-    )
-  if (!linked) return false
-  const userId = pending.userId
-  await db
-    .delete(schema.account)
-    .where(and(eq(schema.account.userId, userId), ne(schema.account.id, linkId)))
-  await db.delete(schema.session).where(eq(schema.session.userId, userId))
-  await db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.accountId, userId))
-  await db.delete(schema.coachMemberships).where(eq(schema.coachMemberships.accountId, userId))
-  await db
-    .delete(schema.officialMemberships)
-    .where(eq(schema.officialMemberships.accountId, userId))
-  await db.delete(schema.viewerMemberships).where(eq(schema.viewerMemberships.accountId, userId))
-  await db
-    .update(schema.user)
-    .set({ emailVerified: true, role: AccountRole.Normal, updatedAt: now })
-    .where(eq(schema.user.id, userId))
+  } catch (e) {
+    if (isUniqueViolation(e)) return false
+    throw e
+  }
+  // The rest at once, so a failure can't leave the account half taken over.
+  await asOne(db, [
+    db
+      .delete(schema.account)
+      .where(and(eq(schema.account.userId, userId), ne(schema.account.id, linkId))),
+    db.delete(schema.session).where(eq(schema.session.userId, userId)),
+    db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.accountId, userId)),
+    db.delete(schema.coachMemberships).where(eq(schema.coachMemberships.accountId, userId)),
+    db.delete(schema.officialMemberships).where(eq(schema.officialMemberships.accountId, userId)),
+    db.delete(schema.viewerMemberships).where(eq(schema.viewerMemberships.accountId, userId)),
+    db
+      .update(schema.user)
+      .set({ emailVerified: true, role: AccountRole.Normal, updatedAt: now })
+      .where(eq(schema.user.id, userId)),
+  ])
   return true
 }
