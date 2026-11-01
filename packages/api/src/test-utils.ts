@@ -3,6 +3,7 @@ import { vi } from 'vitest'
 import type { Bindings } from './bindings'
 import { sessionMiddleware, type SessionUser, type SessionVariables } from './middleware/session'
 import { createAuth } from './lib/auth'
+import { account } from './routes/account'
 import type { EmailMessage } from './lib/email'
 import { createTestDb } from './test-db'
 import type { GuestPayload } from './lib/jwt'
@@ -83,8 +84,8 @@ export interface AuthTestApp {
 
 /**
  * An app that serves Better Auth's routes over a fresh sql.js database, with
- * the session middleware in front of `/api/*`, for tests that drive sign-up,
- * codes and provider sign-ins end to end.
+ * the session middleware in front of `/api/*` and the account routes, for
+ * tests that drive sign-up, codes and provider sign-ins end to end.
  */
 export async function createAuthTestApp(): Promise<AuthTestApp> {
   const db = await createTestDb()
@@ -95,6 +96,11 @@ export async function createAuthTestApp(): Promise<AuthTestApp> {
     createAuth(c.env, db, (message) => emails.push(message)).handler(c.req.raw),
   )
   app.use('/api/*', sessionMiddleware())
+  app.use('/api/account/*', async (c, next) => {
+    c.set('sendEmail' as never, ((message: EmailMessage) => emails.push(message)) as never)
+    await next()
+  })
+  app.route('/api/account', account)
   const request = app.request.bind(app)
   // Every request carries the auth bindings, as the Worker's would.
   app.request = ((input: RequestInfo | URL, init?: RequestInit) =>

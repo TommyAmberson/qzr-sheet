@@ -14,6 +14,7 @@ import { churches } from './routes/churches'
 import { phase } from './routes/phase'
 import { schedule } from './routes/schedule'
 import { results } from './routes/results'
+import { account } from './routes/account'
 import { createAuth } from './lib/auth'
 import { createDb } from './lib/db'
 import { createEmailSender } from './lib/email'
@@ -77,6 +78,7 @@ api.route('/api/meets', meets)
 api.route('/api/join', join)
 api.route('/api/my-meets', memberships)
 api.route('/api', churches)
+api.route('/api/account', account)
 // Officials submit results with a guest token, so results mount ahead of the account-only routers
 api.route('/api/meets', results)
 api.route('/api/meets', phase)

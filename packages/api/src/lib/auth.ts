@@ -53,7 +53,8 @@ const EMAILING_PATHS = new Set([
 /** Routes this app doesn't use: the email-code plugin's sign-in by code,
  *  address change, deprecated reset alias and bare code check (which counts
  *  wrong guesses without spending the code), and the link-based reset and
- *  verification that codes replace (research D3). */
+ *  verification that codes replace (research D3), and the unlink route that
+ *  the account routes' disconnect replaces (research D8). */
 const REFUSED_PATHS = [
   '/sign-in/email-otp',
   '/email-otp/request-email-change',
@@ -64,6 +65,7 @@ const REFUSED_PATHS = [
   '/reset-password',
   '/verify-email',
   '/send-verification-email',
+  '/unlink-account',
 ]
 
 /** Code types the send route serves; the others belong to refused flows. */
@@ -78,10 +80,10 @@ const MAX_EMAIL_LENGTH = 254
 /** Verification rows for a pending GitHub or Google sign-in (research D6). */
 export const PENDING_PROVIDER_PREFIX = 'pending-provider:'
 
-const PROVIDERS: ProviderName[] = ['github', 'google']
+export const PROVIDERS: ProviderName[] = ['github', 'google']
 
 /** Better Auth's default for "a recent sign-in": linking needs one (FR-018). */
-const FRESH_SESSION_MS = 24 * 60 * 60 * 1000
+export const FRESH_SESSION_MS = 24 * 60 * 60 * 1000
 
 /** What the current provider callback learned: the provider's own claim that
  *  the address is verified, and whether that proves the inbox (research D5).
