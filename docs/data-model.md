@@ -37,7 +37,7 @@ QuizMeet
   dateFrom       -- ISO 8601 date
   dateTo         -- ISO 8601 date, null = single-day
   adminCodeHash  -- server-generated, hashed
-  viewerCode     -- plain slug, admin-set, semi-public
+  viewerCode     -- plain slug, admin-set, semi-public; unique ignoring case
   divisions      -- JSON string[] e.g. ["1","2","3"]
   createdAt
 

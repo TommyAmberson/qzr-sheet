@@ -73,9 +73,12 @@ router.beforeEach(async (to) => {
 
   const { data } = await authClient.getSession()
   if (data?.user) return true
-  // A guest who joined this meet with a code may open its guest pages (`slug` is the meet's id then)
-  if (to.matched.some((r) => r.meta.guestAccess) && joinedSession(Number(to.params.slug)))
-    return true
+  // A guest who joined this meet with a code may open its guest pages (`slug` is the meet's id then,
+  // and only a value of digits is one: Number() would also read a code like 1e3)
+  const slug = String(to.params.slug)
+  if (to.matched.some((r) => r.meta.guestAccess) && /^\d+$/.test(slug)) {
+    if (joinedSession(Number(slug))) return true
+  }
   return { name: 'home' }
 })
 

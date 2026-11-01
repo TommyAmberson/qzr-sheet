@@ -1,9 +1,9 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { eq, and, sql } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireAuthOrGuest, requireSuperuser, getUser } from '../middleware/session'
-import { createDb, type Db } from '../lib/db'
+import { createDb, isUniqueViolation, viewerCodeIs, type Db } from '../lib/db'
 import { generateCode, hashCode } from '../lib/codes'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
@@ -35,6 +35,23 @@ function getDb(c: { get(key: 'db'): Db }): Db {
 
 // ---- Meet CRUD ----
 
+/** A path parameter made only of digits names a meet by id; anything else is a viewer code */
+const MEET_ID = /^\d+$/
+
+/**
+ * Why a viewer code is refused, or null. Codes are slugs, and never all digits so a `?meet=` link
+ * can't be read as a meet id.
+ */
+function viewerCodeProblem(code: string): string | null {
+  if (!/^[A-Za-z0-9-]+$/.test(code)) return 'Viewer code may use only letters, digits, and hyphens'
+  if (MEET_ID.test(code)) return "Viewer code can't be only digits; add a letter"
+  return null
+}
+
+function viewerCodeTaken(c: Context<Env>) {
+  return c.json({ error: 'Another meet already uses that viewer code' }, 409)
+}
+
 meets.post('/', requireSuperuser(), async (c) => {
   const body = await c.req.json<{
     name: string
@@ -49,24 +66,31 @@ meets.post('/', requireSuperuser(), async (c) => {
   if (!Array.isArray(body.divisions) || body.divisions.length === 0) {
     return c.json({ error: 'divisions must be a non-empty array' }, 400)
   }
+  const viewerCode = body.viewerCode.trim()
+  const problem = viewerCodeProblem(viewerCode)
+  if (problem) return c.json({ error: problem }, 400)
 
   const adminCode = generateCode()
   const adminHash = await hashCode(adminCode)
 
-  const [meet] = await getDb(c)
-    .insert(schema.quizMeets)
-    .values({
-      name: body.name.trim(),
-      dateFrom: body.dateFrom.trim(),
-      dateTo: body.dateTo?.trim() ?? null,
-      viewerCode: body.viewerCode.trim(),
-      divisions: JSON.stringify(body.divisions.map((d) => d.trim()).filter(Boolean)),
-      adminCodeHash: adminHash,
-      createdAt: new Date(),
-    })
-    .returning()
-
-  return c.json({ meet: formatMeet(meet!), adminCode }, 201)
+  try {
+    const [meet] = await getDb(c)
+      .insert(schema.quizMeets)
+      .values({
+        name: body.name.trim(),
+        dateFrom: body.dateFrom.trim(),
+        dateTo: body.dateTo?.trim() ?? null,
+        viewerCode,
+        divisions: JSON.stringify(body.divisions.map((d) => d.trim()).filter(Boolean)),
+        adminCodeHash: adminHash,
+        createdAt: new Date(),
+      })
+      .returning()
+    return c.json({ meet: formatMeet(meet!), adminCode }, 201)
+  } catch (e) {
+    if (isUniqueViolation(e, schema.VIEWER_CODE_INDEX)) return viewerCodeTaken(c)
+    throw e
+  }
 })
 
 meets.get('/', requireSuperuser(), async (c) => {
@@ -76,13 +100,14 @@ meets.get('/', requireSuperuser(), async (c) => {
 
 meets.get('/:id', async (c) => {
   const param = c.req.param('id')
-  const numericId = Number(param)
-
   const db = getDb(c)
 
-  const [meet] = Number.isNaN(numericId)
-    ? await db.select().from(schema.quizMeets).where(eq(schema.quizMeets.viewerCode, param))
-    : await db.select().from(schema.quizMeets).where(eq(schema.quizMeets.id, numericId))
+  const [meet] = MEET_ID.test(param)
+    ? await db
+        .select()
+        .from(schema.quizMeets)
+        .where(eq(schema.quizMeets.id, Number(param)))
+    : await db.select().from(schema.quizMeets).where(viewerCodeIs(param))
 
   if (!meet) return c.json({ error: 'Meet not found' }, 404)
 
@@ -127,7 +152,12 @@ meets.patch('/:id', requireAuth(), async (c) => {
   if (body.name?.trim()) updates.name = body.name.trim()
   if (body.dateFrom?.trim()) updates.dateFrom = body.dateFrom.trim()
   if ('dateTo' in body) updates.dateTo = body.dateTo?.trim() ?? null
-  if (body.viewerCode?.trim()) updates.viewerCode = body.viewerCode.trim()
+  const viewerCode = body.viewerCode?.trim()
+  if (viewerCode) {
+    const problem = viewerCodeProblem(viewerCode)
+    if (problem) return c.json({ error: problem }, 400)
+    updates.viewerCode = viewerCode
+  }
   if (Array.isArray(body.divisions) && body.divisions.length > 0) {
     updates.divisions = JSON.stringify(body.divisions.map((d: string) => d.trim()).filter(Boolean))
   }
@@ -154,11 +184,17 @@ meets.patch('/:id', requireAuth(), async (c) => {
     return c.json({ error: 'No valid fields to update' }, 400)
   }
 
-  const [updated] = await db
-    .update(schema.quizMeets)
-    .set(updates)
-    .where(eq(schema.quizMeets.id, id))
-    .returning()
+  let updated: typeof schema.quizMeets.$inferSelect | undefined
+  try {
+    ;[updated] = await db
+      .update(schema.quizMeets)
+      .set(updates)
+      .where(eq(schema.quizMeets.id, id))
+      .returning()
+  } catch (e) {
+    if (isUniqueViolation(e, schema.VIEWER_CODE_INDEX)) return viewerCodeTaken(c)
+    throw e
+  }
 
   if (!updated) return c.json({ error: 'Meet not found' }, 404)
   return c.json({ meet: formatMeet(updated) })

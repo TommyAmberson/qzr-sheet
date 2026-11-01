@@ -59,6 +59,8 @@ type MeetDetailBody = { meet: MeetBody['meet']; officialCodes: { id: number; lab
 type OfficialCodeBody = { officialCode: { id: number; label: string }; code: string }
 type AdminCodeBody = { adminCode: string }
 
+const newMeet = { name: 'Meet', dateFrom: '2025-01-01', viewerCode: 'meet', divisions: ['A'] }
+
 describe('meet CRUD', () => {
   let db: Db
   let app: ReturnType<typeof createApp>
@@ -115,6 +117,21 @@ describe('meet CRUD', () => {
       expect(body.meet.dateFrom).toBe('2025-01-01')
       expect(body.meet.dateTo).toBe('2025-01-02')
       expect(body.meet.viewerCode).toBe('slug')
+    })
+
+    it.each([
+      ['2026', 'only digits'],
+      ['fall 2025', 'a space'],
+      ['fall_2025', 'an underscore'],
+    ])('refuses viewer code %j (%s) with 400', async (viewerCode) => {
+      const res = await app.request('/api/meets', json({ ...newMeet, viewerCode }), env)
+      expect(res.status).toBe(400)
+    })
+
+    it('refuses a viewer code another meet uses, in any case, with 409', async () => {
+      await app.request('/api/meets', json({ ...newMeet, viewerCode: 'Taken' }), env)
+      const res = await app.request('/api/meets', json({ ...newMeet, viewerCode: 'taken' }), env)
+      expect(res.status).toBe(409)
     })
   })
 
@@ -209,6 +226,20 @@ describe('meet CRUD', () => {
       const res = await app.request('/api/meets/no-such-slug', {}, env)
       expect(res.status).toBe(404)
     })
+
+    it('finds a meet by its viewer code in any case', async () => {
+      await app.request('/api/meets', json({ ...newMeet, viewerCode: 'Spring-25' }), env)
+      const res = await app.request('/api/meets/SPRING-25', {}, env)
+      expect(res.status).toBe(200)
+      expect((await jsonOf<MeetDetailBody>(res)).meet.viewerCode).toBe('Spring-25')
+    })
+
+    it('reads a code that only looks numeric as a viewer code', async () => {
+      await app.request('/api/meets', json({ ...newMeet, viewerCode: '1e3' }), env)
+      const res = await app.request('/api/meets/1e3', {}, env)
+      expect(res.status).toBe(200)
+      expect((await jsonOf<MeetDetailBody>(res)).meet.viewerCode).toBe('1e3')
+    })
   })
 
   describe('PATCH /api/meets/:id', () => {
@@ -241,6 +272,21 @@ describe('meet CRUD', () => {
     it('rejects empty update with 400', async () => {
       const res = await app.request('/api/meets/1', patch({}), env)
       expect(res.status).toBe(400)
+    })
+
+    it('refuses a digits-only viewer code with 400', async () => {
+      const created = await app.request('/api/meets', json(newMeet), env)
+      const { meet } = await jsonOf<MeetBody>(created)
+      const res = await app.request(`/api/meets/${meet.id}`, patch({ viewerCode: '2026' }), env)
+      expect(res.status).toBe(400)
+    })
+
+    it('refuses a viewer code another meet uses with 409', async () => {
+      await app.request('/api/meets', json({ ...newMeet, viewerCode: 'taken' }), env)
+      const created = await app.request('/api/meets', json(newMeet), env)
+      const { meet } = await jsonOf<MeetBody>(created)
+      const res = await app.request(`/api/meets/${meet.id}`, patch({ viewerCode: 'taken' }), env)
+      expect(res.status).toBe(409)
     })
   })
 

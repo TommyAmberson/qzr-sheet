@@ -75,6 +75,7 @@ export async function createTestDb(): Promise<Db> {
       registration_closes_at INTEGER,
       meet_starts_at INTEGER
     );
+    CREATE UNIQUE INDEX quiz_meets_viewer_code_unique ON quiz_meets (lower(viewer_code));
 
     CREATE TABLE meet_rooms (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

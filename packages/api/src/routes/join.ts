@@ -3,7 +3,7 @@ import { eq, and } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, getUser } from '../middleware/session'
-import { createDb, type Db } from '../lib/db'
+import { createDb, viewerCodeIs, type Db } from '../lib/db'
 import { hashCode } from '../lib/codes'
 import { codeTagFor, signGuestJwt } from '../lib/jwt'
 import * as schema from '../db/schema'
@@ -52,10 +52,7 @@ join.post('/', requireAuth(), async (c) => {
   const db = getDb(c)
 
   // 1. Try viewer code (plaintext slug match)
-  const [viewerMatch] = await db
-    .select()
-    .from(schema.quizMeets)
-    .where(eq(schema.quizMeets.viewerCode, code))
+  const [viewerMatch] = await db.select().from(schema.quizMeets).where(viewerCodeIs(code))
 
   if (viewerMatch) {
     const [existing] = await db
@@ -195,16 +192,22 @@ join.post('/guest', async (c) => {
 
   // 1. Try viewer code (plaintext slug match)
   const [viewerMatch] = await db
-    .select({ id: schema.quizMeets.id, name: schema.quizMeets.name })
+    .select({
+      id: schema.quizMeets.id,
+      name: schema.quizMeets.name,
+      viewerCode: schema.quizMeets.viewerCode,
+    })
     .from(schema.quizMeets)
-    .where(eq(schema.quizMeets.viewerCode, code))
+    .where(viewerCodeIs(code))
 
   if (viewerMatch) {
     const token = await signGuestJwt(
       {
         meetId: viewerMatch.id,
         role: MeetRole.Viewer,
-        codeTag: await codeTagFor('viewer', code, secret),
+        // The stored code, not the typed one, whose case may differ: the session check compares
+        // against the stored code, and tokens issued before codes matched ignoring case still pass
+        codeTag: await codeTagFor('viewer', viewerMatch.viewerCode, secret),
       },
       secret,
     )

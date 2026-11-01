@@ -16,6 +16,22 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-10-31
+
+### Changed
+
+* Creating or editing a meet explains the viewer code rule before sending: letters, digits, and
+  hyphens, not only digits
+
+### Fixed
+
+* A guest's meet pages read only a value of digits as a meet id, so a viewer code like `1e3` no
+  longer passes for meet 1000
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - unchanged
+
 ## [0.19.0] - 2026-10-09
 
 ### Added

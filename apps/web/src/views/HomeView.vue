@@ -180,10 +180,12 @@ watch(
               <input v-model="meetForm.dateTo" class="field-input" type="date" />
             </div>
             <input
-              v-model="meetForm.viewerCode"
+              v-model.trim="meetForm.viewerCode"
               class="field-input"
               placeholder="Viewer code (e.g. fall-2025)"
               required
+              pattern="\s*(?![0-9]+\s*$)[A-Za-z0-9\-]+\s*"
+              title="Letters, digits, and hyphens, not only digits"
             />
             <div class="divisions-edit">
               <span class="divisions-label">Divisions</span>

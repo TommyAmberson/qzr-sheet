@@ -709,7 +709,13 @@ onMounted(load)
 
           <label class="field-label">
             Viewer code
-            <input v-model="editForm.viewerCode" class="field-input" required />
+            <input
+              v-model.trim="editForm.viewerCode"
+              class="field-input"
+              required
+              pattern="\s*(?![0-9]+\s*$)[A-Za-z0-9\-]+\s*"
+              title="Letters, digits, and hyphens, not only digits"
+            />
             <span class="field-hint">Changing this updates the meet URL.</span>
           </label>
 

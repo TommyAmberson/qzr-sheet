@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import type { D1Database } from '@cloudflare/workers-types'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
@@ -48,4 +49,24 @@ export async function asOne(db: Db, statements: PromiseLike<unknown>[]): Promise
   const results: unknown[] = []
   for (const statement of statements) results.push(await statement)
   return results
+}
+
+/**
+ * Whether a statement failed on a unique constraint, optionally one on `target`: a table, or the
+ * name of a unique index on an expression. Only SQLite's own detail is matched, since the error
+ * also quotes the failed SQL and its values, which name its table whatever the constraint and can
+ * hold any text. The SQLite message can sit in `cause`, after the query, so the last detail wins.
+ */
+export function isUniqueViolation(e: unknown, target?: string): boolean {
+  const text = e instanceof Error ? `${e.message}\n${String(e.cause ?? '')}` : String(e)
+  const detail = [...text.matchAll(/UNIQUE constraint failed: ([^\n]*)/g)].at(-1)?.[1]
+  if (detail === undefined) return false
+  if (!target) return true
+  // A column constraint names `table.column`s, comma-separated; an expression index `index 'name'`
+  return detail.startsWith(`index '${target}'`) || new RegExp(`(^|, )${target}\\.`).test(detail)
+}
+
+/** Matches the meet whose viewer code is `code`, ignoring case as its unique index does */
+export function viewerCodeIs(code: string) {
+  return sql`lower(${schema.quizMeets.viewerCode}) = lower(${code})`
 }

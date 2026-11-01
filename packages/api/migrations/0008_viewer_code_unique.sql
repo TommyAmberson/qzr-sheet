@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `quiz_meets_viewer_code_unique` ON `quiz_meets` (lower("viewer_code"));

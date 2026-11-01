@@ -15,6 +15,17 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-10-31
+
+### Fixed
+
+* A `?meet=` link whose viewer code differs only in case from the one you joined with finds that
+  meet's session, as the server now matches codes ignoring case
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - unchanged
+
 ## [0.18.0] - 2026-10-09
 
 ### Added

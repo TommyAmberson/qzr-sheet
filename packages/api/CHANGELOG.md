@@ -17,6 +17,21 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-31
+
+### Changed
+
+* **Viewer codes are unique and never all digits** - creating a meet, or changing its viewer code,
+  refuses a code that isn't letters, digits, and hyphens or is only digits (400), and one another
+  meet uses, ignoring case (409). Joining and `GET /api/meets/:id` match a viewer code in any case.
+  A migration adds a unique index on `lower(viewer_code)`
+* **Meet id or viewer code** - `GET /api/meets/:id` reads only an all-digits value as a meet id;
+  values like `1e3` are now looked up as viewer codes
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - unchanged
+
 ## [0.19.0] - 2026-10-07
 
 ### Added
