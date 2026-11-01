@@ -68,6 +68,40 @@ export function createAppAuthClient(baseURL: string) {
       return authClient.emailOtp.verifyEmail({ email, otp: code })
     }
 
+    /** The account's GitHub and Google sign-ins, for account settings. */
+    async function connectedProviders(): Promise<SocialProvider[]> {
+      const { data } = await authClient.listAccounts()
+      return (data ?? [])
+        .map((a) => a.providerId)
+        .filter((p): p is SocialProvider => p === 'github' || p === 'google')
+    }
+
+    /** Connects GitHub or Google from account settings; the provider sends
+     *  the browser back here, with `?error=` if it couldn't connect. */
+    async function connectProvider(provider: SocialProvider) {
+      return authClient.linkSocial({
+        provider,
+        callbackURL: window.location.href,
+        errorCallbackURL: errorReturnURL(),
+      })
+    }
+
+    /** Disconnects GitHub or Google with the account's password; every other
+     *  session ends. Errors come back in Better Auth's result shape. */
+    async function disconnectProvider(provider: SocialProvider, password: string) {
+      const res = await fetch(accountURL('disconnect'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, password }),
+      })
+      if (res.ok) return { error: null }
+      const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string }
+      return {
+        error: { status: res.status, code: body.code, message: body.error ?? res.statusText },
+      }
+    }
+
     return {
       session,
       signInSocial,
@@ -78,7 +112,15 @@ export function createAppAuthClient(baseURL: string) {
       resetPassword,
       sendVerificationCode,
       verifyEmail,
+      connectedProviders,
+      connectProvider,
+      disconnectProvider,
     }
+  }
+
+  // The account routes sit beside Better Auth's: `.../api/auth` -> `.../api/account/<path>`.
+  function accountURL(path: string): string {
+    return `${baseURL.replace(/\/auth\/?$/, '')}/account/${path}`
   }
 
   return { authClient, useAuth }

@@ -1,9 +1,18 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { codeErrorMessage } from '@qzr/shared'
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { codeErrorMessage, type SocialProvider } from '@qzr/shared'
 import { useAuth } from '../composables/useAuth'
+import { useSocialSignInError } from '../composables/useSocialSignInError'
 
-const { session, sendVerificationCode, verifyEmail } = useAuth()
+const {
+  session,
+  sendVerificationCode,
+  verifyEmail,
+  connectedProviders,
+  connectProvider,
+  disconnectProvider,
+} = useAuth()
 
 const user = computed(() => session.value.data?.user ?? null)
 const verified = computed(() => user.value?.emailVerified === true)
@@ -26,6 +35,64 @@ async function sendCode() {
     error.value = 'Something went wrong. Try again.'
   } finally {
     pending.value = false
+  }
+}
+
+// Connect or disconnect GitHub and Google (FR-018). A connection leaves for
+// the provider and comes back here, with `?error=` when it failed.
+const PROVIDERS: { id: SocialProvider; label: string }[] = [
+  { id: 'github', label: 'GitHub' },
+  { id: 'google', label: 'Google' },
+]
+const connected = ref<SocialProvider[]>([])
+const { error: connectError, clear: clearConnectError } = useSocialSignInError(useRouter())
+const providerError = ref(connectError.value?.message ?? '')
+clearConnectError()
+const disconnecting = ref<SocialProvider | null>(null)
+const password = ref('')
+const providerPending = ref(false)
+
+async function loadProviders() {
+  connected.value = await connectedProviders().catch(() => connected.value)
+}
+onMounted(loadProviders)
+
+async function connect(provider: SocialProvider) {
+  providerError.value = ''
+  providerPending.value = true
+  try {
+    const result = await connectProvider(provider)
+    if (result?.error) providerError.value = result.error.message ?? 'Could not connect. Try again.'
+  } catch {
+    providerError.value = 'Something went wrong. Try again.'
+  } finally {
+    providerPending.value = false
+  }
+}
+
+function askPassword(provider: SocialProvider) {
+  providerError.value = ''
+  password.value = ''
+  disconnecting.value = provider
+}
+
+async function disconnect() {
+  if (!disconnecting.value) return
+  providerError.value = ''
+  providerPending.value = true
+  try {
+    const result = await disconnectProvider(disconnecting.value, password.value)
+    if (result.error) {
+      providerError.value = result.error.message
+      return
+    }
+    disconnecting.value = null
+    password.value = ''
+    await loadProviders()
+  } catch {
+    providerError.value = 'Something went wrong. Try again.'
+  } finally {
+    providerPending.value = false
   }
 }
 
@@ -81,6 +148,43 @@ async function submitCode() {
           </form>
           <p v-if="error" class="error-msg">{{ error }}</p>
         </template>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">Sign-in methods</h2>
+        <ul class="providers">
+          <li v-for="p in PROVIDERS" :key="p.id" class="provider">
+            <span class="provider-name">{{ p.label }}</span>
+            <template v-if="connected.includes(p.id)">
+              <span class="badge badge--ok">Connected</span>
+              <button
+                v-if="disconnecting !== p.id"
+                class="link-btn"
+                :disabled="providerPending"
+                @click="askPassword(p.id)"
+              >
+                Disconnect
+              </button>
+            </template>
+            <button v-else class="btn" :disabled="providerPending" @click="connect(p.id)">
+              Connect {{ p.label }}
+            </button>
+            <form v-if="disconnecting === p.id" class="code-form" @submit.prevent="disconnect">
+              <input
+                v-model="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Your password"
+                required
+                class="field field--wide"
+              />
+              <button type="submit" class="btn" :disabled="providerPending">Disconnect</button>
+              <button type="button" class="link-btn" @click="disconnecting = null">Cancel</button>
+            </form>
+          </li>
+        </ul>
+        <p class="hint">Disconnecting signs you out everywhere else.</p>
+        <p v-if="providerError" class="error-msg">{{ providerError }}</p>
       </section>
     </div>
   </div>
@@ -148,6 +252,37 @@ async function submitCode() {
 .field {
   padding: 0.4rem 0.6rem;
   width: 9rem;
+}
+
+.field--wide {
+  width: 14rem;
+}
+
+.providers {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.provider {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.provider-name {
+  min-width: 5rem;
+  color: var(--color-text);
+}
+
+.hint {
+  color: var(--color-text-faint);
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
 }
 
 .btn {

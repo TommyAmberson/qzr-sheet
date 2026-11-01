@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { useSocialSignInError } from '../composables/useSocialSignInError'
@@ -20,7 +20,16 @@ const { error: oauthError, clear: clearOauthError } = useSocialSignInError(useRo
 const mobile =
   typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches
 
-const menuOpen = ref(mobile && oauthError.value !== null)
+const menuOpen = ref(false)
+// Opened once the session is known: signed in, the error is a failed
+// connection, which account settings shows.
+watch(
+  () => session.value.isPending,
+  (loading) => {
+    if (!loading && mobile && oauthError.value && !session.value.data) menuOpen.value = true
+  },
+  { immediate: true },
+)
 
 function closeMenu() {
   menuOpen.value = false

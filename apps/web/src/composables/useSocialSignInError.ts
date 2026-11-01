@@ -1,27 +1,33 @@
-import { readonly, ref } from 'vue'
+import { readonly, ref, type Ref } from 'vue'
 import type { Router } from 'vue-router'
-import { ERROR_PARAMS, socialSignInError } from '@qzr/shared'
+import { ERROR_PARAMS, socialSignInError, type SocialSignInError } from '@qzr/shared'
 
-/** A failed GitHub/Google sign-in returns with `?error=`. Read it, strip it
- *  through the router (a raw replaceState is undone by its next push, and Back
- *  would bring the message back), and hold it until `clear()`. Call once per
- *  page, from the header that owns the sign-in menus. */
+// One per page load, shared by its callers: the header for a failed sign-in,
+// account settings for a failed connection.
+let pending: Ref<SocialSignInError | null> | null = null
+
+/** A failed GitHub/Google sign-in or connection returns with `?error=`. Read
+ *  it once per page load, strip it through the router (a raw replaceState is
+ *  undone by its next push, and Back would bring the message back), and hold
+ *  it until `clear()`. */
 export function useSocialSignInError(router: Router) {
-  const pending = ref(socialSignInError(window.location.search))
-
-  if (pending.value) {
-    void router.isReady().then(() => {
-      const query = { ...router.currentRoute.value.query }
-      for (const param of ERROR_PARAMS) delete query[param]
-      return router.replace({ query })
-    })
+  if (!pending) {
+    const state = ref(socialSignInError(window.location.search))
+    pending = state
+    if (state.value) {
+      void router.isReady().then(() => {
+        const query = { ...router.currentRoute.value.query }
+        for (const param of ERROR_PARAMS) delete query[param]
+        return router.replace({ query })
+      })
+    }
   }
-
+  const state = pending
   return {
-    error: readonly(pending),
+    error: readonly(state),
     /** Forget the error once dismissed, so a later sign-out doesn't repeat it. */
     clear: () => {
-      pending.value = null
+      state.value = null
     },
   }
 }

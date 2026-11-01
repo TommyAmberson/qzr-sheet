@@ -32,6 +32,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   sign-up and in account settings (spec 005).
 * `codeErrorMessage` turns a failed code request into a message for the person, never a raw error,
   and `providersDisconnectedBy` reads the GitHub and Google sign-ins a password reset disconnected.
+* `connectedProviders`, `connectProvider` and `disconnectProvider` in the auth client, for account
+  settings, and `socialSignInError` explains why connecting GitHub or Google failed.
 
 ## [1.5.0] - 2026-10-04
 

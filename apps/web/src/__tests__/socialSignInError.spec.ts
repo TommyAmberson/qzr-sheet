@@ -13,6 +13,12 @@ describe('socialSignInError', () => {
     expect(result?.message).toMatch(/already has an account/)
   })
 
+  it('explains a failed connection from account settings', () => {
+    const result = socialSignInError('?error=verify_email_first')
+    expect(result?.passwordAccount).toBe(false)
+    expect(result?.message).toMatch(/Verify your email address first/)
+  })
+
   it('reports other codes as a generic failure', () => {
     const result = socialSignInError('?error=invalid_code&error_description=bad')
     expect(result?.passwordAccount).toBe(false)

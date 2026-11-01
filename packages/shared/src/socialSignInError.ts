@@ -13,6 +13,15 @@ export interface SocialSignInError {
  *  are; a social account can be too, if its provider's email wasn't. */
 const ACCOUNT_NOT_LINKED = 'account_not_linked'
 
+/** Why connecting GitHub or Google from account settings failed. */
+const CONNECT_ERRORS: Record<string, string> = {
+  verify_email_first: 'Verify your email address first, then connect it.',
+  account_already_linked_to_different_user:
+    'That account is already connected to a different qzr account.',
+  "email_doesn't_match":
+    "That account uses a different email address. Connect one that uses this account's address.",
+}
+
 export function socialSignInError(search: string): SocialSignInError | null {
   const code = new URLSearchParams(search).get('error')
   if (!code) return null
@@ -23,6 +32,8 @@ export function socialSignInError(search: string): SocialSignInError | null {
       passwordAccount: true,
     }
   }
+  const message = CONNECT_ERRORS[code]
+  if (message) return { message, passwordAccount: false }
   return { message: 'Sign-in failed. Please try again.', passwordAccount: false }
 }
 

@@ -1,6 +1,12 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import { useSocialSignInError } from '../useSocialSignInError'
+
+// The error is read once per page load, so each test loads the module afresh.
+let useSocialSignInError: typeof import('../useSocialSignInError').useSocialSignInError
+beforeEach(async () => {
+  vi.resetModules()
+  ;({ useSocialSignInError } = await import('../useSocialSignInError'))
+})
 
 async function routerAt(search: string) {
   window.history.replaceState(null, '', `/meet${search}`)
@@ -30,6 +36,15 @@ describe('useSocialSignInError', () => {
     const { error } = useSocialSignInError(router)
     expect(error.value).toBeNull()
     expect(replace).not.toHaveBeenCalled()
+  })
+
+  it('shares one error between callers on the page', async () => {
+    const router = await routerAt('?error=verify_email_first')
+    const header = useSocialSignInError(router)
+    const page = useSocialSignInError(router)
+    expect(page.error.value?.message).toMatch(/Verify your email/)
+    page.clear()
+    expect(header.error.value).toBeNull()
   })
 
   it('forgets the error once cleared', async () => {
