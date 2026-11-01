@@ -2,10 +2,10 @@
 
 ## Account Types
 
-| Type        | Description                                                         |
-| ----------- | ------------------------------------------------------------------- |
-| `superuser` | Global. Creates and manages all quiz meets.                         |
-| `normal`    | Default after OAuth signup. No meet access until a code is entered. |
+| Type        | Description                                                        |
+| ----------- | ------------------------------------------------------------------ |
+| `superuser` | Global. Creates and manages all quiz meets.                        |
+| `normal`    | Default for a new account. No meet access until a code is entered. |
 
 Superusers are provisioned out-of-band (e.g. seeded in the DB). They have implicit full access to
 all meets — no membership rows are needed. The role counts only once the account's address is
@@ -34,11 +34,110 @@ client for user auth.
 First login (any method) creates a `user` row with `role: 'normal'`. The `role` field is an
 `additionalField` on the Better Auth `user` table — server-managed, not user-settable.
 
-### Account linking
+### Email
 
-Account linking is enabled for GitHub and Google. If an OAuth sign-in arrives with an email that
-matches an existing `user`, Better Auth automatically links the provider to the existing account.
-Both providers verify email addresses, making this safe.
+Emails go through Resend's HTTPS API from `VerseVault <no-reply@versevault.ca>`, with the key in the
+Worker secret `RESEND_API_KEY` (`packages/api/src/lib/email.ts`). Without a key, as in local dev,
+each message is logged instead, so the flows can still be walked through. A send never delays the
+response: it starts, goes to the Worker's `waitUntil`, and its failure is logged, so a known address
+answers like an unknown one.
+
+Every email carries a 6-digit code, never a link: a code typed where it was asked can't be opened by
+a mail scanner or on the wrong device. Codes come from Better Auth's `emailOTP` plugin: hashed at
+rest, 10 minutes, 3 tries, each for one purpose, and a resend replaces the old one. The plugin's
+routes this app doesn't use (sign-in by code, changing the address, the bare code check) are
+disabled, along with the link-based reset and verification routes and `/unlink-account`.
+
+### Limits
+
+Reset, verification and code-step emails count 3 per address per hour; every email a client's
+requests send counts 10 per client address per day (`CF-Connecting-IP`). The counts live in D1's
+`email_sends` table (`packages/api/src/lib/emailLimits.ts`), since a Worker's isolates share no
+memory, and the cron deletes past windows. The sign-up email counts against the client only. A
+request over a limit answers 429 with a message to try later; a reset request for an unknown address
+counts the same as one for a real account.
+
+### Password reset
+
+"Forgot password?" on the sign-in form: the address, then the emailed code with a new password, then
+a normal password sign-in. `request-password-reset` answers the same whether or not the address has
+an account. A completed reset (`emailAndPassword.onPasswordReset`):
+
+* ends every session;
+* disconnects every GitHub and Google account, in case someone else had added one; the owner
+  connects theirs again from settings, and the response lists what was disconnected so the form can
+  say so;
+* cancels the account's pending provider sign-ins;
+* emails a notice saying what it did.
+
+The code proves the inbox, so a reset also verifies the address.
+
+### Email verification
+
+Verification never blocks sign-in. A password sign-up emails a code, and the form asks for it with
+"Skip for now". An unverified account can verify later from account settings (`/account` in the
+portal), which warns that anyone with the inbox can take it over until then. Verifying needs a
+session on that account.
+
+### GitHub and Google sign-in
+
+A provider sign-in joins an existing account with the same address only with current proof of the
+inbox:
+
+* **Google** proves it only for an address Google hosts, a Gmail address or a Workspace account (an
+  `hd` claim), and only with `email_verified`. Such a sign-in signs into the matching account and
+  verifies it. A sign-up on such an address starts verified.
+* **GitHub** never proves it. Only the account's primary address is used.
+* A sign-in whose address the provider doesn't report verified creates no user and signs into none
+  (`provider_email_unverified`).
+* Onto a **verified** account without that proof, the sign-in is refused (`account_not_linked`):
+  sign in with the password and connect from settings.
+* Onto an **unverified password account**, the sign-in waits on a pending row and goes to the
+  portal's `/account/provider` page, below.
+
+### The code step and the choice
+
+The pending row lives in Better Auth's `verification` table (`pending-provider:<token>`, 10
+minutes), held by an HTTP-only cookie scoped to `/qzr/api/account/provider`, so a copied page
+address carries nothing (`packages/api/src/lib/pendingProvider.ts`). Unless Google hosts the
+address, a code-step code goes to it first; its email says a provider sign-in is waiting, and the
+code works for that step only. Then the person chooses:
+
+* **That's me:** sign in with the account's password, and the provider connects and the address is
+  verified.
+* **That's not me:** after a warning, the account becomes theirs: the password, every session, every
+  other GitHub or Google account, the meet memberships and roles all go, the role returns to normal,
+  the provider connects, the address is verified, and they are signed in. Meet access came from
+  codes the registrant entered, so they join their meets again with codes.
+
+A row's updates are compare-and-set on its stored value, so requests in different isolates can't
+both spend a try or use the row.
+
+| Route                                 | Needs                                                   | Result                                           |
+| ------------------------------------- | ------------------------------------------------------- | ------------------------------------------------ |
+| `GET /api/account/provider`           | pending cookie                                          | the step (`code` or `choice`), provider, address |
+| `POST /api/account/provider/confirm`  | pending cookie, `{ code }`                              | proves the inbox; then the choice                |
+| `POST /api/account/provider/resend`   | pending cookie                                          | a new code, under the limits                     |
+| `POST /api/account/provider/claim`    | pending cookie, a session on that account               | "That's me"                                      |
+| `POST /api/account/provider/takeover` | pending cookie, proven                                  | "That's not me", then signed in                  |
+| `POST /api/account/disconnect`        | a sign-in within the last day, `{ provider, password }` | disconnects; ends every other session            |
+
+A used, expired or unknown cookie gets the same answer on every route.
+
+### Connecting and disconnecting
+
+Account settings connect GitHub or Google through Better Auth's `linkSocial`, from a sign-in within
+the last day. The link lands only while the session that started it lasts, so signing out or a reset
+cancels a connection started before it. An unverified account needs the proof above first; a
+Google-hosted address gives it, and verifies the account. Disconnecting needs the password, a
+sign-in within the last day, and a password left; it removes the provider and ends every other
+session.
+
+### Notices
+
+The address is emailed when a provider joins an account that already had another way in, or leaves
+one, saying how to undo it. A new provider sign-up and a takeover send none, and a reset's own
+notice covers what it disconnected.
 
 ### Sessions
 
@@ -49,53 +148,20 @@ The cookies carry the `qzr` prefix (`__Secure-qzr.session_token`, ...) via `adva
 verse-vault runs Better Auth on the same host with the default `better-auth` prefix, and sharing the
 names let each app overwrite the other's session.
 
-## OAuth in Tauri
+## OAuth redirects
 
-OAuth sign-in works in both web and Tauri contexts, but the redirect mechanism differs.
-
-### Web (PWA in browser)
-
-Standard OAuth redirect. The provider sends the user back to Better Auth's callback,
+The provider sends the user back to Better Auth's callback,
 `https://www.versevault.ca/qzr/api/auth/callback/{github,google}`, which sets the session cookie and
 returns to the page sign-in started on. Both callback URLs must be registered with the providers.
 Local dev uses separate OAuth apps with `http://localhost:8787/api/auth/callback/...`.
 
-### Tauri (native desktop)
+### Desktop app
 
-The Tauri webview can't receive an `https://` redirect directly.
-[`tauri-plugin-oauth`](https://github.com/FabianLars/tauri-plugin-oauth) solves this by spinning up
-a temporary localhost server on a random port:
-
-```
-1. User clicks "Sign in"
-2. Plugin starts http://localhost:{port}, opens system browser to provider
-3. User consents in their real browser (with saved passwords, extensions, etc.)
-4. Provider redirects to http://localhost:{port}/callback?code=xyz
-5. Plugin captures the code, emits event to Tauri frontend, shuts down server
-6. Frontend sends code to the API to complete the auth flow
-```
-
-The user signs in in their **real browser**, not an in-app webview — better UX and avoids
-platform-specific webview restrictions.
-
-### Platform-aware auth client
-
-The scoresheet already uses this pattern — `fileIO.ts` detects Tauri via `__TAURI_INTERNALS__` and
-branches between native dialogs and web APIs. The auth client follows the same approach:
-
-```
-signIn()
-  ├── isTauri?  →  tauri-plugin-oauth (localhost redirect)
-  └── isWeb?    →  window.open() popup (standard OAuth)
-```
-
-The API's OAuth configuration must allow both redirect URIs: the production callback URL and
-`http://localhost` (Google and GitHub both support localhost redirects for native apps).
-
-### Token storage
-
-`localStorage` works identically in both contexts. For Tauri, `tauri-plugin-store` or the OS
-keychain can provide encrypted storage as a future security upgrade.
+The scoresheet's desktop app offers email and password only: the shared sign-in form hides GitHub
+and Google under Tauri. Provider sign-in there needs the system browser and a loopback redirect (RFC
+8252): a redirect to `http://127.0.0.1:{port}` with PKCE and `state`, the callback handled by the
+API in the browser, and a one-time token the app exchanges for its session. None of that is built
+yet.
 
 ## Security
 
@@ -136,7 +202,7 @@ What each code grants, and who may redeem it, is defined in
 
 | Credential  | Issued                                     | Renewed                  | Revoked                                                                      | Ends                            |
 | ----------- | ------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------- | ------------------------------- |
-| Session     | signing in                                 | by Better Auth           | n/a                                                                          | signing out, Better Auth expiry |
+| Session     | signing in                                 | by Better Auth           | a password reset, a takeover, a disconnect (other sessions)                  | signing out, Better Auth expiry |
 | Admin code  | creating the meet                          | n/a                      | rotation                                                                     | deleting the meet               |
 | Coach code  | creating the church                        | n/a                      | rotation                                                                     | deleting the church             |
 | Room code   | creating the room                          | n/a                      | rotation                                                                     | deleting the room               |
@@ -245,14 +311,3 @@ OAuth sign-ins (GitHub, Google) bypass password hashing entirely — no hash is 
 
 Drizzle uses parameterized queries by default. SQL injection requires deliberately concatenating
 user input into query strings.
-
-### Tauri localhost OAuth
-
-`tauri-plugin-oauth` spins up a temporary localhost server on a random port to capture the OAuth
-redirect. Any local process could theoretically hit that port during the brief window it is open —
-the same trade-off VS Code, Slack, and every Electron/Tauri app makes. Mitigations:
-
-* The authorization code is single-use — the provider rejects replays.
-* The localhost server shuts down immediately after capturing the code.
-* The code exchange requires the OAuth client secret, which is on the Worker — intercepting the
-  redirect code alone is not sufficient.

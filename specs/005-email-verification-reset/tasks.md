@@ -147,7 +147,7 @@ description: "Task list for email verification and password reset"
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T023 [P] `docs/auth.md`: the reset, verification, provider rules, code step, choice, takeover, connect, disconnect, notices and limits, matching contracts/auth-api.md (FR-023); account linking section rewritten (it still says linking is safe because providers verify addresses).
+- [X] T023 [P] `docs/auth.md`: the reset, verification, provider rules, code step, choice, takeover, connect, disconnect, notices and limits, matching contracts/auth-api.md (FR-023); account linking section rewritten (it still says linking is safe because providers verify addresses).
 - [ ] T024 Releases: api MINOR, web MINOR, scoresheet PATCH naming the bundled `@qzr/shared` version, with changelogs (`pnpm bump`; principle V).
 - [ ] T025 Run quickstart.md: the automated checks, then the local walkthrough (user-side for the provider steps with real credentials) and the production checks after deploy.
 
