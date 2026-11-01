@@ -105,6 +105,20 @@ describe('route mount order — guest can read /api/meets/:meetId/teams', () => 
     const res = await app.request(`/api/meets/${meet.id}/teams`, {}, env)
     expect(res.status).toBe(401)
   })
+
+  it.each([MeetRole.Viewer, MeetRole.Official] as const)(
+    "answers the meet's guest %s 403 on an account-only route, and 401 on the account's meets",
+    async (role) => {
+      const meet = await seedMeetWithTeam(db)
+      const app = mountRoutes(db, {
+        meetId: meet.id,
+        role,
+        roomId: role === MeetRole.Official ? 1 : undefined,
+      })
+      expect((await app.request(`/api/meets/${meet.id}/members`, {}, env)).status).toBe(403)
+      expect((await app.request('/api/my-meets', {}, env)).status).toBe(401)
+    },
+  )
 })
 
 describe('route mount order — a guest official can submit results', () => {

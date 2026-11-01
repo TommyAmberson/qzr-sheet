@@ -16,12 +16,18 @@ import { createTestDb } from '../../test-db'
 import * as schema from '../../db/schema'
 import { eq } from 'drizzle-orm'
 import type { Db } from '../../lib/db'
+import type { GuestPayload } from '../../lib/jwt'
+import { MeetRole } from '@qzr/shared'
 
 const env = { ENVIRONMENT: 'test' } as unknown as Bindings
 
-function createApp(user: typeof testSuperuser | typeof testUser | null, db: Db) {
+function createApp(
+  user: typeof testSuperuser | typeof testUser | null,
+  db: Db,
+  guest: GuestPayload | null = null,
+) {
   const app = new Hono<{ Bindings: Bindings; Variables: MeetsVariables }>()
-  app.use('*', mockSession(user))
+  app.use('*', mockSession(user, guest))
   app.use('*', mockDb(db))
   app.route('/api/meets', meets)
   return app
@@ -233,6 +239,25 @@ describe('meet CRUD', () => {
       expect(res.status).toBe(200)
       expect((await jsonOf<MeetDetailBody>(res)).meet.viewerCode).toBe('Spring-25')
     })
+
+    it.each([MeetRole.Viewer, MeetRole.Official] as const)(
+      'gives a guest %s the viewer code but not the room list',
+      async (role) => {
+        const meet = await seedMeet(db, 'Shared')
+        const [room] = await db
+          .insert(schema.meetRooms)
+          .values({ meetId: meet.id, name: 'Room 1' })
+          .returning()
+        // A viewer token has no room; an official token names one of the meet's rooms
+        const roomId = role === MeetRole.Official ? room!.id : undefined
+        const guest: GuestPayload = { meetId: meet.id, role, roomId, codeTag: 'tag' }
+        const res = await createApp(null, db, guest).request(`/api/meets/${meet.id}`, {}, env)
+        expect(res.status).toBe(200)
+        const body = await jsonOf<MeetDetailBody>(res)
+        expect(body.meet.viewerCode).toBe(meet.viewerCode)
+        expect(body.officialCodes).toEqual([])
+      },
+    )
 
     it('reads a code that only looks numeric as a viewer code', async () => {
       await app.request('/api/meets', json({ ...newMeet, viewerCode: '1e3' }), env)

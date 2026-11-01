@@ -166,7 +166,7 @@ Every route keeps these, and a new route must too. The first two restate constit
   keep admin, coach, or room codes once they are redeemed; viewer codes may be kept, since they
   renew a viewer's token.
 * **No codes below admin.** A response never gives a code or code hash to a principal below admin,
-  except the viewer code to viewers.
+  except the viewer code to viewers, guests included.
 * **Phase is checked on the server.** Every read and write the table above limits by phase is
   refused by the API in the other phases, not only hidden in the UI.
 
@@ -249,7 +249,10 @@ Superusers can do anything an admin can.
 * **A membership** ends when an admin removes it (an admin membership: a superuser), when its code
   is rotated and cleared, or when its church, room, or meet is deleted.
 * **A guest token** ends 24 hours after it was issued, or at once when the code it was issued for
-  changes (the room's code, or the meet's viewer code) or its room is deleted.
+  changes (the room's code, or the meet's viewer code) or its room is deleted. Ending a guest
+  official's token stops their scoring, not their watching: every viewer of a meet, guest officials
+  included, is given its viewer code, so they can rejoin as a viewer. Changing the viewer code is
+  what ends watching.
 * **A session** ends when the user signs out, which also ends the guest account on that device.
 * **A guest's own meet** can be left from the scoresheet's meet picker or the portal's home page,
   which removes that meet's guest token from the device.

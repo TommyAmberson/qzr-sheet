@@ -17,6 +17,21 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-31
+
+### Changed
+
+* **Guests get 403 on account-only meet routes** - a route under `/api/meets/:id` that needs an
+  account answers a guest whose accepted token is for that meet 403, not 401, so the apps' renewal
+  no longer rejoins for nothing. Routes about no meet, such as `/api/my-meets`, keep 401
+* **Guests see the viewer code** - `GET /api/meets/:id` returns the meet's viewer code to every
+  viewer, guest viewers and guest officials included, so they can share its link. Guests still get
+  no room list
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - unchanged
+
 ## [0.20.0] - 2026-10-31
 
 ### Changed
