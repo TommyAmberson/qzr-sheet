@@ -11,6 +11,7 @@ import {
   jsonOf,
   jsonRequest,
   seedMeet,
+  seedUser,
 } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import * as schema from '../../db/schema'
@@ -590,14 +591,7 @@ describe('members', () => {
         .insert(schema.churches)
         .values({ meetId: meetB.id, name: 'Church B', shortName: 'CB', coachCodeHash: 'x' })
         .returning()
-      await db.insert(schema.user).values({
-        id: 'coach-b',
-        name: 'Coach B',
-        email: 'coach-b@test.com',
-        emailVerified: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
+      await seedUser(db, 'coach-b')
       await db
         .insert(schema.coachMemberships)
         .values({ accountId: 'coach-b', churchId: churchB!.id, meetId: meetB.id })
@@ -724,6 +718,52 @@ describe('official codes', () => {
       expect(body.code).not.toBe(oldCode)
       expect(body.officialCode.label).toBe('Room A')
     })
+
+    describe('with members', () => {
+      let roomA: number
+      let roomB: number
+
+      async function officialsOf(roomId: number) {
+        const rows = await db
+          .select({ accountId: schema.officialMemberships.accountId })
+          .from(schema.officialMemberships)
+          .where(eq(schema.officialMemberships.roomId, roomId))
+        return rows.map((r) => r.accountId)
+      }
+
+      beforeEach(async () => {
+        const rooms = await db
+          .insert(schema.meetRooms)
+          .values([
+            { meetId, name: 'Room A', codeHash: 'a' },
+            { meetId, name: 'Room B', codeHash: 'b' },
+          ])
+          .returning()
+        roomA = rooms[0]!.id
+        roomB = rooms[1]!.id
+        await seedUser(db, 'official-a')
+        await seedUser(db, 'official-b')
+        await db.insert(schema.officialMemberships).values([
+          { accountId: 'official-a', meetId, roomId: roomA },
+          { accountId: 'official-b', meetId, roomId: roomB },
+        ])
+      })
+
+      const rotateA = () => `/api/meets/${meetId}/official-codes/${roomA}/rotate`
+
+      it("keeps the room's officials on rotate only, as the portal sends it", async () => {
+        const res = await app.request(rotateA(), json({ clearMembers: false }), env)
+        expect(res.status).toBe(200)
+        expect(await officialsOf(roomA)).toEqual(['official-a'])
+      })
+
+      it("removes the room's officials, and only theirs, on rotate and clear", async () => {
+        const res = await app.request(rotateA(), json({ clearMembers: true }), env)
+        expect(res.status).toBe(200)
+        expect(await officialsOf(roomA)).toEqual([])
+        expect(await officialsOf(roomB)).toEqual(['official-b'])
+      })
+    })
   })
 
   // An admin of this meet must not reach another meet's room by putting its
@@ -751,14 +791,28 @@ describe('official codes', () => {
       roomB = room!.id
     })
 
-    it("won't be rotated", async () => {
+    it("won't be rotated, or cleared", async () => {
+      const [room] = await db
+        .select({ meetId: schema.meetRooms.meetId })
+        .from(schema.meetRooms)
+        .where(eq(schema.meetRooms.id, roomB))
+      await seedUser(db, 'official-b')
+      await db
+        .insert(schema.officialMemberships)
+        .values({ accountId: 'official-b', meetId: room!.meetId, roomId: roomB })
+
       const res = await adminApp.request(
         `/api/meets/${meetId}/official-codes/${roomB}/rotate`,
-        { method: 'POST' },
+        json({ clearMembers: true }),
         env,
       )
       expect(res.status).toBe(404)
       expect(await roomCodeHash()).toBe('x')
+      const kept = await db
+        .select()
+        .from(schema.officialMemberships)
+        .where(eq(schema.officialMemberships.roomId, roomB))
+      expect(kept).toHaveLength(1)
     })
 
     it("won't be deleted", async () => {

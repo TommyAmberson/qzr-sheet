@@ -3,7 +3,7 @@ import { eq, and, sql } from 'drizzle-orm'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireAuthOrGuest, requireSuperuser, getUser } from '../middleware/session'
-import { createDb, isUniqueViolation, viewerCodeIs, type Db } from '../lib/db'
+import { asOne, createDb, isUniqueViolation, viewerCodeIs, type Db } from '../lib/db'
 import { generateCode, hashCode, wantsClearMembers } from '../lib/codes'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
@@ -322,6 +322,12 @@ meets.delete('/:id/official-codes/:codeId', requireAuth(), async (c) => {
   return c.json({ deleted: true })
 })
 
+/**
+ * POST /api/meets/:id/official-codes/:codeId/rotate
+ *
+ * Gives the room a new code. With `{ clearMembers: true }` it also removes the room's official
+ * memberships, which the old code granted.
+ */
 meets.post('/:id/official-codes/:codeId/rotate', requireAuth(), async (c) => {
   const meetId = Number(c.req.param('id'))
   const codeId = Number(c.req.param('codeId'))
@@ -335,14 +341,31 @@ meets.post('/:id/official-codes/:codeId/rotate', requireAuth(), async (c) => {
     return c.json({ error: 'Admin or superuser access required' }, 403)
   }
 
+  const clearMembers = await wantsClearMembers(c.req)
   const code = generateCode()
   const codeHash = await hashCode(code)
 
-  const [updated] = await db
+  const rotate = db
     .update(schema.meetRooms)
     .set({ codeHash })
     .where(and(eq(schema.meetRooms.id, codeId), eq(schema.meetRooms.meetId, meetId)))
     .returning({ id: schema.meetRooms.id, label: schema.meetRooms.name })
+  // Rotate and clear removes the room's officials in the same batch, so neither happens alone. Both
+  // are scoped to this meet, so another meet's room is left alone.
+  const [rotated] = clearMembers
+    ? await asOne(db, [
+        rotate,
+        db
+          .delete(schema.officialMemberships)
+          .where(
+            and(
+              eq(schema.officialMemberships.roomId, codeId),
+              eq(schema.officialMemberships.meetId, meetId),
+            ),
+          ),
+      ])
+    : [await rotate]
+  const [updated] = rotated as Awaited<typeof rotate>
 
   if (!updated) return c.json({ error: 'Official code not found' }, 404)
   return c.json({ officialCode: updated, code })

@@ -99,3 +99,16 @@ export async function seedMeet(
     .returning()
   return meet!
 }
+
+/** An account with the given id, for tests that need memberships to point at a real user */
+export async function seedUser(db: Db, id: string) {
+  const now = new Date()
+  await db.insert(schema.user).values({
+    id,
+    name: id,
+    email: `${id}@test.com`,
+    emailVerified: false,
+    createdAt: now,
+    updatedAt: now,
+  })
+}
