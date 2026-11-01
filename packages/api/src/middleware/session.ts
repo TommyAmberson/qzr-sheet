@@ -44,7 +44,7 @@ export function sessionMiddleware(): MiddlewareHandler<{
         id: session.user.id,
         email: session.user.email,
         name: session.user.name,
-        role: (session.user.role as AccountRole) ?? AccountRole.Normal,
+        role: accountRole(session.user),
       })
       c.set('guest', null)
       await next()
@@ -64,6 +64,16 @@ export function sessionMiddleware(): MiddlewareHandler<{
     c.set('guest', await currentGuest(c.get('db'), token, c.env.BETTER_AUTH_SECRET))
     await next()
   }
+}
+
+/** The account's role. Superusers are seeded by hand, and an unverified
+ *  address may belong to whoever registered it first, so superuser counts
+ *  only once the address is verified (FR-027). */
+function accountRole(user: { role?: string | null; emailVerified: boolean }): AccountRole {
+  if (user.role === AccountRole.Superuser) {
+    return user.emailVerified ? AccountRole.Superuser : AccountRole.Normal
+  }
+  return AccountRole.Normal
 }
 
 /**

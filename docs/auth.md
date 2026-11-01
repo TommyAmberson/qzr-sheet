@@ -8,7 +8,9 @@
 | `normal`    | Default after OAuth signup. No meet access until a code is entered. |
 
 Superusers are provisioned out-of-band (e.g. seeded in the DB). They have implicit full access to
-all meets — no membership rows are needed.
+all meets — no membership rows are needed. The role counts only once the account's address is
+verified, so verify it before granting the role: an unverified address may belong to whoever
+registered it first, and a takeover returns the role to normal.
 
 ## Implementation
 
