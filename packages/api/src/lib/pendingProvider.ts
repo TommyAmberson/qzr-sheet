@@ -1,0 +1,163 @@
+import { and, eq, gt } from 'drizzle-orm'
+import { generateRandomString } from 'better-auth/crypto'
+import * as schema from '../db/schema'
+import type { Db } from './db'
+import { generateCode, hashCode } from './codes'
+import { providerCodeEmail, type ProviderName, type SendEmail } from './email'
+import { PER_ADDRESS, PER_CLIENT, addressKey, clientKey, takeEmailSend } from './emailLimits'
+
+/** Verification rows for a refused GitHub or Google sign-in onto an
+ *  unverified password account: the code step, then "That's me" or "That's
+ *  not me" (research D6). */
+export const PENDING_PROVIDER_PREFIX = 'pending-provider:'
+
+/** The cookie holding a pending row's token. Set on the callback's response
+ *  and sent only to the account routes for it, so a copied page address
+ *  carries nothing that would let the inbox's owner finish someone else's
+ *  sign-in. */
+export const PENDING_PROVIDER_COOKIE = 'pending_provider'
+
+/** A pending row, its code, and each step after proof, last 10 minutes. */
+export const PENDING_TTL_MS = 10 * 60 * 1000
+
+const MAX_CODE_TRIES = 3
+
+/** What a pending row holds: the account the sign-in matched, the provider
+ *  identity to connect to it, and whether the inbox is proven yet, by Google
+ *  hosting the address or by an emailed code. The code lives here rather than
+ *  in the email-code plugin's rows, so it works for this step only. */
+export interface PendingProvider {
+  userId: string
+  provider: ProviderName
+  accountId: string
+  email: string
+  proven: boolean
+  codeHash?: string
+  tries?: number
+}
+
+export interface PendingRow {
+  identifier: string
+  pending: PendingProvider
+  /** The stored value, for `replacePending`. */
+  value: string
+}
+
+/** Where the account routes for a pending sign-in live, below the API's
+ *  mount: `/qzr/api/auth` gives `/qzr/api/account/provider`. */
+export const pendingCookiePath = (authBasePath: string) =>
+  authBasePath.replace(/\/auth$/, '/account/provider')
+
+/** Creates a pending row and returns its token. */
+export async function createPending(db: Db, pending: PendingProvider): Promise<string> {
+  const token = generateCode(32)
+  const now = new Date()
+  await db.insert(schema.verification).values({
+    id: crypto.randomUUID(),
+    identifier: `${PENDING_PROVIDER_PREFIX}${token}`,
+    value: JSON.stringify(pending),
+    expiresAt: new Date(now.getTime() + PENDING_TTL_MS),
+    createdAt: now,
+    updatedAt: now,
+  })
+  return token
+}
+
+/** The live pending row a token names, if any. */
+export async function readPending(db: Db, token: string): Promise<PendingRow | null> {
+  const identifier = `${PENDING_PROVIDER_PREFIX}${token}`
+  const [row] = await db
+    .select()
+    .from(schema.verification)
+    .where(
+      and(
+        eq(schema.verification.identifier, identifier),
+        gt(schema.verification.expiresAt, new Date()),
+      ),
+    )
+  if (!row) return null
+  return { identifier, pending: JSON.parse(row.value) as PendingProvider, value: row.value }
+}
+
+/** Replaces a row's value if nobody changed it since `row` was read, and
+ *  gives it another 10 minutes. Requests may run in different isolates, so
+ *  this compare-and-set is what keeps two of them from both spending a try
+ *  or a code. False when another request got there first. */
+export async function replacePending(
+  db: Db,
+  row: PendingRow,
+  next: PendingProvider,
+): Promise<boolean> {
+  const updated = await db
+    .update(schema.verification)
+    .set({
+      value: JSON.stringify(next),
+      expiresAt: new Date(Date.now() + PENDING_TTL_MS),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.verification.identifier, row.identifier),
+        eq(schema.verification.value, row.value),
+      ),
+    )
+    .returning({ id: schema.verification.id })
+  return updated.length > 0
+}
+
+/** Uses a row up. False when another request used it first. */
+export async function consumePending(db: Db, row: PendingRow): Promise<boolean> {
+  const deleted = await db
+    .delete(schema.verification)
+    .where(
+      and(
+        eq(schema.verification.identifier, row.identifier),
+        eq(schema.verification.value, row.value),
+      ),
+    )
+    .returning({ id: schema.verification.id })
+  return deleted.length > 0
+}
+
+export type SendOutcome = 'sent' | 'address' | 'network' | 'gone' | 'proven'
+
+/** Emails a new code-step code for the row, replacing any older one, under
+ *  both email limits (FR-011). `address` or `network` when that limit
+ *  stopped the send. */
+export async function sendPendingCode(
+  db: Db,
+  sendEmail: SendEmail,
+  row: PendingRow,
+  ip: string | null,
+): Promise<SendOutcome> {
+  if (row.pending.proven) return 'proven'
+  if (!(await takeEmailSend(db, addressKey(row.pending.email), PER_ADDRESS))) return 'address'
+  if (ip && !(await takeEmailSend(db, clientKey(ip), PER_CLIENT))) return 'network'
+  const code = generateRandomString(6, '0-9')
+  const next = { ...row.pending, codeHash: await hashCode(code), tries: 0 }
+  if (!(await replacePending(db, row, next))) return 'gone'
+  sendEmail(
+    providerCodeEmail(row.pending.email, row.pending.provider, code, PENDING_TTL_MS / 60000),
+  )
+  return 'sent'
+}
+
+export type ConfirmOutcome = 'proven' | 'wrong' | 'locked' | 'gone'
+
+/** Checks a code-step code. A right one proves the row and spends the code;
+ *  the third wrong one ends the row. */
+export async function confirmPendingCode(
+  db: Db,
+  row: PendingRow,
+  code: string,
+): Promise<ConfirmOutcome> {
+  if (row.pending.proven) return 'proven'
+  const { codeHash, tries = 0, ...rest } = row.pending
+  if (codeHash && (await hashCode(code)) === codeHash) {
+    return (await replacePending(db, row, { ...rest, proven: true })) ? 'proven' : 'gone'
+  }
+  if (tries + 1 >= MAX_CODE_TRIES) {
+    return (await consumePending(db, row)) ? 'locked' : 'gone'
+  }
+  return (await replacePending(db, row, { ...row.pending, tries: tries + 1 })) ? 'wrong' : 'gone'
+}

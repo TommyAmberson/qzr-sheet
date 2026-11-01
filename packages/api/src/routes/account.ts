@@ -1,8 +1,17 @@
 import { Hono, type Context } from 'hono'
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import type { Bindings } from '../bindings'
 import { requireAuth, getUser, type SessionVariables } from '../middleware/session'
 import { createAuth, FRESH_SESSION_MS, PROVIDERS } from '../lib/auth'
 import { createEmailSender, type ProviderName, type SendEmail } from '../lib/email'
+import {
+  PENDING_PROVIDER_COOKIE,
+  PENDING_TTL_MS,
+  confirmPendingCode,
+  pendingCookiePath,
+  readPending,
+  sendPendingCode,
+} from '../lib/pendingProvider'
 
 export interface AccountVariables extends SessionVariables {
   /** Set by the tests' recording sender; otherwise Resend, from the bindings */
@@ -27,6 +36,89 @@ account.use('*', async (c, next) => {
 })
 
 const authFor = (c: Context<Env>) => createAuth(c.env, c.get('db'), c.get('sendEmail'))
+
+// Every bad pending cookie gets the same answer, used, expired or unknown,
+// so it reveals nothing about the account it might have named (FR-016).
+const invalidPending = (c: Context<Env>) =>
+  c.json({ error: 'This sign-in has expired. Start it again.', code: 'PENDING_INVALID' }, 400)
+
+/** The pending cookie as Better Auth names it, scoped to these routes at the
+ *  mount the request came in on. */
+async function pendingCookie(c: Context<Env>) {
+  const authBase = c.req.path.replace(/\/account\/provider(\/.*)?$/, '/auth')
+  const cookie = (await authFor(c).$context).createAuthCookie(PENDING_PROVIDER_COOKIE, {
+    maxAge: PENDING_TTL_MS / 1000,
+    path: pendingCookiePath(authBase),
+  })
+  return { name: cookie.name, options: cookie.attributes as Parameters<typeof setCookie>[3] }
+}
+
+/** The live pending row this browser's cookie names, with its token. */
+async function pendingFor(c: Context<Env>) {
+  const { name } = await pendingCookie(c)
+  const token = getCookie(c, name)
+  const row = token ? await readPending(c.get('db'), token) : null
+  return row && token ? { token, row } : null
+}
+
+/** The row's steps each get 10 minutes, and so does the cookie. */
+async function renewCookie(c: Context<Env>, token: string) {
+  const { name, options } = await pendingCookie(c)
+  setCookie(c, name, token, options)
+}
+
+/**
+ * GET /api/account/provider
+ *
+ * Which step a pending GitHub or Google sign-in is on: `code` until the inbox
+ * is proven, then `choice`. The address is the one just signed in to the
+ * provider with, so it tells the person nothing new.
+ */
+account.get('/provider', async (c) => {
+  const found = await pendingFor(c)
+  if (!found) return invalidPending(c)
+  const { pending } = found.row
+  return c.json({
+    step: pending.proven ? 'choice' : 'code',
+    provider: pending.provider,
+    email: pending.email,
+  })
+})
+
+/** POST /api/account/provider/confirm `{ code }`: the code step (FR-015). */
+account.post('/provider/confirm', async (c) => {
+  const body = await c.req.json<{ code?: unknown }>().catch(() => null)
+  const found = await pendingFor(c)
+  if (!found) return invalidPending(c)
+  if (typeof body?.code !== 'string') return c.json({ error: 'code required' }, 400)
+  const outcome = await confirmPendingCode(c.get('db'), found.row, body.code.trim())
+  if (outcome === 'gone') return invalidPending(c)
+  if (outcome === 'locked') {
+    const { name, options } = await pendingCookie(c)
+    deleteCookie(c, name, options)
+    return c.json({ error: 'Too many wrong tries.', code: 'TOO_MANY_ATTEMPTS' }, 403)
+  }
+  if (outcome === 'wrong') return c.json({ error: 'Invalid code', code: 'INVALID_OTP' }, 400)
+  await renewCookie(c, found.token)
+  return c.json({ step: 'choice' })
+})
+
+/** POST /api/account/provider/resend: a new code-step code, under the email
+ *  limits (FR-011). */
+account.post('/provider/resend', async (c) => {
+  const found = await pendingFor(c)
+  if (!found) return invalidPending(c)
+  const ip = c.req.header('cf-connecting-ip') ?? null
+  const sent = await sendPendingCode(c.get('db'), c.get('sendEmail'), found.row, ip)
+  if (sent === 'gone') return invalidPending(c)
+  if (sent === 'proven') return c.json({ step: 'choice' })
+  if (sent === 'address' || sent === 'network') {
+    const from = sent === 'network' ? 'from this network' : 'for this address'
+    return c.json({ error: `Too many requests ${from}. Try again later.` }, 429)
+  }
+  await renewCookie(c, found.token)
+  return c.json({ step: 'code' })
+})
 
 /**
  * POST /api/account/disconnect `{ provider, password }`

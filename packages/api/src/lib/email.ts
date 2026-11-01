@@ -69,6 +69,28 @@ export function resetCodeEmail(to: string, code: string, ttlMinutes: number): Em
   })
 }
 
+export type ProviderName = 'github' | 'google'
+
+const PROVIDER_LABEL: Record<ProviderName, string> = { github: 'GitHub', google: 'Google' }
+
+/** The code step for a GitHub or Google sign-in onto an unverified account
+ *  (FR-015): says what the code is for, so its owner doesn't hand it over. */
+export function providerCodeEmail(
+  to: string,
+  provider: ProviderName,
+  code: string,
+  ttlMinutes: number,
+): EmailMessage {
+  const label = PROVIDER_LABEL[provider]
+  return codeEmail(to, ttlMinutes, {
+    subject: `Your qzr code to connect ${label}`,
+    reason:
+      `Someone is signing in to qzr with ${label} using this address. Enter this code only if ` +
+      'you just did that yourself; otherwise ignore this email, and your account stays as it is:',
+    code,
+  })
+}
+
 export function verificationCodeEmail(to: string, code: string, ttlMinutes: number): EmailMessage {
   return codeEmail(to, ttlMinutes, {
     subject: 'Your qzr code',
@@ -76,10 +98,6 @@ export function verificationCodeEmail(to: string, code: string, ttlMinutes: numb
     code,
   })
 }
-
-export type ProviderName = 'github' | 'google'
-
-const PROVIDER_LABEL: Record<ProviderName, string> = { github: 'GitHub', google: 'Google' }
 
 /** Sent after every completed password reset (OWASP Forgot Password Cheat
  *  Sheet), saying what the reset did to the account's GitHub and Google

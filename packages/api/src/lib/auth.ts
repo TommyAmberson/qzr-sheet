@@ -19,6 +19,15 @@ import {
 } from './email'
 import { and, eq, gt, inArray, like, ne, sql } from 'drizzle-orm'
 import { PER_ADDRESS, PER_CLIENT, addressKey, clientKey, takeEmailSend } from './emailLimits'
+import {
+  PENDING_PROVIDER_COOKIE,
+  PENDING_PROVIDER_PREFIX,
+  PENDING_TTL_MS,
+  createPending,
+  pendingCookiePath,
+  readPending,
+  sendPendingCode,
+} from './pendingProvider'
 
 // Better Auth defaults to pure-JS scrypt (@noble/hashes) which takes ~5s of CPU —
 // way over CF Workers' 10ms free-tier limit. Use native node:crypto scryptSync instead
@@ -78,9 +87,6 @@ const CODE_TTL_S = 10 * 60
 
 /** An address longer than this matches no account, so it isn't counted. */
 const MAX_EMAIL_LENGTH = 254
-
-/** Verification rows for a pending GitHub or Google sign-in (research D6). */
-export const PENDING_PROVIDER_PREFIX = 'pending-provider:'
 
 export const PROVIDERS: ProviderName[] = ['github', 'google']
 
@@ -178,7 +184,14 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           if (disconnected) return ctx.json({ success: true, providersDisconnected: disconnected })
           return
         }
-        if (ctx.path === '/callback/:id') await afterProviderCallback(ctx)
+        if (ctx.path === '/callback/:id') {
+          await afterProviderCallback(ctx, {
+            db,
+            sendEmail,
+            basePath,
+            webBaseUrl: env.WEB_BASE_URL,
+          })
+        }
       }),
     },
     // Local Vite origins only outside production, matching the CORS
@@ -500,6 +513,7 @@ async function providersLeft(db: Db, userId: string): Promise<ProviderName[]> {
  */
 async function afterProviderCallback(
   ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0],
+  deps: { db: Db; sendEmail: SendEmail; basePath: string; webBaseUrl: string },
 ) {
   const location = ctx.context.responseHeaders?.get('location')
   const profile = await providerProfile.get()
@@ -538,6 +552,37 @@ async function afterProviderCallback(
       )
     if (!linked) return
     throw ctx.redirect(state.callbackURL)
+  }
+
+  // A refused sign-in onto an unverified password account: prove the inbox
+  // (a Google-hosted address already has; otherwise a code-step code), then
+  // "That's me" or "That's not me", on the portal's page (FR-015). Onto a
+  // verified account, or one without a password, the refusal stands (FR-013).
+  if (error === 'account_not_linked') {
+    if (found.user.emailVerified) return
+    if (!found.accounts.some((a) => a.providerId === 'credential')) return
+    const token = await createPending(deps.db, {
+      userId: found.user.id,
+      provider: profile.provider,
+      accountId: profile.id,
+      email: found.user.email,
+      proven: profile.proves,
+    })
+    const cookie = ctx.context.createAuthCookie(PENDING_PROVIDER_COOKIE, {
+      maxAge: PENDING_TTL_MS / 1000,
+      path: pendingCookiePath(deps.basePath),
+    })
+    ctx.setCookie(cookie.name, token, cookie.attributes)
+    // The portal's page, whichever client the sign-in started from.
+    const page = new URL(`${deps.webBaseUrl}/qzr/account/provider`)
+    if (!profile.proves) {
+      const row = await readPending(deps.db, token)
+      const ip = ctx.request ? clientIp(ctx.request) : null
+      const sent = row ? await sendPendingCode(deps.db, deps.sendEmail, row, ip) : 'gone'
+      // Over a limit no code went out; the page says which.
+      if (sent === 'address' || sent === 'network') page.searchParams.set('limited', sent)
+    }
+    throw ctx.redirect(page.toString())
   }
 
   if (!error && profile.proves && !found.user.emailVerified) {
