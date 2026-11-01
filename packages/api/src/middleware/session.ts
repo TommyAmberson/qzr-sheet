@@ -65,16 +65,30 @@ export function sessionMiddleware(): MiddlewareHandler<{
   }
 }
 
-/** 401 if no signed-in user. Mutation routes that need a real account use this. */
+/**
+ * A path about one meet, as the apps read it when deciding to renew a guest session
+ * (`MEET_PATH` in packages/ui/src/guestSession.ts), allowing for the API's /qzr mount
+ */
+const MEET_PATH = /^(?:\/qzr)?\/api\/meets\/(\d+)(?:\/|$)/
+
+/**
+ * 401 if no signed-in user. Routes that need a real account use this. A guest whose accepted token
+ * is for the meet the path names gets 403 instead: the apps renew a guest session after a 401 to a
+ * request about its meet, which can't help here. Anywhere else, such as the account's own meets, a
+ * guest keeps the 401, which the apps (released ones too) read as not signed in.
+ */
 export function requireAuth(): MiddlewareHandler<{
   Bindings: Bindings
   Variables: SessionVariables
 }> {
   return async (c, next) => {
-    if (!c.get('user')) {
-      return c.json({ error: 'Authentication required' }, 401)
+    if (c.get('user')) return next()
+    const guest = c.get('guest')
+    const pathMeetId = guest ? MEET_PATH.exec(c.req.path)?.[1] : undefined
+    if (guest && pathMeetId !== undefined && guest.meetId === Number(pathMeetId)) {
+      return c.json({ error: 'Sign in to an account for this' }, 403)
     }
-    await next()
+    return c.json({ error: 'Authentication required' }, 401)
   }
 }
 

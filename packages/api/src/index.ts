@@ -59,12 +59,13 @@ api.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) =>
 
 // Session middleware for all /api/* routes (except auth, handled above)
 api.use('/api/*', sessionMiddleware())
-// Mount order matters: phase/schedule register `use('*', requireAuth())`
-// which short-circuits with 401 when a request lacks a signed-in user, even
-// for paths those sub-apps don't handle (Hono falls through sub-apps when a
-// handler doesn't match, but middleware still runs first). Mounting churches
-// (guest-friendly) and join/my-meets ahead of them lets `GET /api/meets/:id/
-// teams` reach its real handler in churches before phase eats the request.
+// Mount order matters: phase/schedule register `use('*', requireAuth())`, which
+// short-circuits with 401 (403 for a guest of that meet) when a request lacks a
+// signed-in user, even for paths those sub-apps don't handle (Hono falls through
+// sub-apps when a handler doesn't match, but middleware still runs first).
+// Mounting churches (guest-friendly) and join/my-meets ahead of them lets
+// `GET /api/meets/:id/teams` reach its real handler in churches before phase
+// eats the request.
 api.route('/api/meets', meets)
 api.route('/api/join', join)
 api.route('/api/my-meets', memberships)

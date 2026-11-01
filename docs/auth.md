@@ -189,15 +189,16 @@ portal's home page and in the scoresheet's meet picker, each with Leave.
 **Keeping and renewing a guest session:** a viewer's session keeps its viewer code; an official's
 keeps the room the join answered with, and never the room code. A viewer's session renews itself
 from its code inside `withGuestToken`, for a request about its meet: before it once its token has
-expired, and once after a 401. An official's is renewed around the actions that need its room
-(sending, uploading, correcting, restoring) by `withRoomCode`, which asks for the room code in a
-dialog and runs the action again. Another room's code is taken unless the action is for a quiz
-stored for the old room; another meet's code is refused, except that the scoresheet's Submit offers
-to send to that meet instead (`otherMeet`). A renewal the server refuses (a 4xx answer other than
-401, 408, and 429) removes the session and says so; a network failure, server error, or rate limit
-keeps it. Signing in upgrades the account with the guest account's codes (`upgradeOnSignIn`);
-signing out in either app removes every guest session and the meet data kept for them
-(`clearGuestData`).
+expired, and once after a 401. A route about a meet that needs an account answers a guest whose
+accepted token is for that meet with 403, since renewing wouldn't change that. An official's session
+is renewed around the actions that need its room (sending, uploading, correcting, restoring) by
+`withRoomCode`, which asks for the room code in a dialog and runs the action again. Another room's
+code is taken unless the action is for a quiz stored for the old room; another meet's code is
+refused, except that the scoresheet's Submit offers to send to that meet instead (`otherMeet`). A
+renewal the server refuses (a 4xx answer other than 401, 408, and 429) removes the session and says
+so; a network failure, server error, or rate limit keeps it. Signing in upgrades the account with
+the guest account's codes (`upgradeOnSignIn`); signing out in either app removes every guest session
+and the meet data kept for them (`clearGuestData`).
 
 **URL-shareable viewer access (scoresheet):** opening the scoresheet with `?meet=<viewer code>`
 joins as a guest viewer:
