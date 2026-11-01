@@ -17,6 +17,26 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-01
+
+### Added
+
+* **Rotate and clear room codes** - `POST /api/meets/:id/official-codes/:codeId/rotate` takes
+  `{ clearMembers: true }`, like the coach code route, and then removes the room's official
+  memberships. Other rooms keep theirs
+
+### Fixed
+
+* **Rotate routes clear only on an explicit true** - the admin and coach code rotate routes no
+  longer clear memberships for a truthy non-boolean `clearMembers` such as `"false"`, and a `null`
+  body rotates only instead of failing with 500
+* **Rotate and clear in one batch** - the admin and coach code routes update the code and remove the
+  old code's memberships together, so a failure no longer leaves a new code with the old members
+
+### Bundled contract
+
+* `@qzr/shared@1.5.0` - unchanged
+
 ## [0.21.0] - 2026-10-31
 
 ### Changed
