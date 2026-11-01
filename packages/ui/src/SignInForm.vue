@@ -1,13 +1,25 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import type { SocialProvider, SocialSignInError } from '@qzr/shared'
+import { nextTick, ref, watch } from 'vue'
+import {
+  codeErrorMessage,
+  providersDisconnectedBy,
+  type SocialProvider,
+  type SocialSignInError,
+} from '@qzr/shared'
 
-type SignInResult = { error?: { message?: string | null } | null } | undefined
+type AuthResult =
+  | {
+      data?: unknown
+      error?: { message?: string | null; code?: string; status?: number } | null
+    }
+  | undefined
 
 const props = defineProps<{
   signInSocial: (provider: SocialProvider) => void
-  signInEmail: (email: string, password: string) => Promise<SignInResult>
-  signUpEmail: (email: string, password: string) => Promise<SignInResult>
+  signInEmail: (email: string, password: string) => Promise<AuthResult>
+  signUpEmail: (email: string, password: string) => Promise<AuthResult>
+  requestPasswordReset: (email: string) => Promise<AuthResult>
+  resetPassword: (email: string, code: string, password: string) => Promise<AuthResult>
   /** A social sign-in that came back with `?error=`, read by the host app
    *  (which also strips it from the URL). Read once at mount. */
   oauthError?: SocialSignInError | null
@@ -15,7 +27,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: 'success'): void }>()
 
-const mode = ref<'pick' | 'signin' | 'signup'>(
+const mode = ref<'pick' | 'signin' | 'signup' | 'forgot' | 'resetDone'>(
   props.oauthError?.passwordAccount ? 'signin' : 'pick',
 )
 const email = ref('')
@@ -27,6 +39,80 @@ watch(mode, () => {
   error.value = ''
 })
 const pending = ref(false)
+// "Forgot password?": the code goes out first, then the code and a new
+// password come back with it (FR-001).
+const codeSent = ref(false)
+const code = ref('')
+// What a reset disconnected, for the note before leaving (FR-025).
+const disconnected = ref<string[]>([])
+const PROVIDER_LABEL: Record<string, string> = { github: 'GitHub', google: 'Google' }
+
+function openForgot() {
+  mode.value = 'forgot'
+  codeSent.value = false
+  code.value = ''
+  password.value = ''
+}
+
+async function sendResetCode() {
+  error.value = ''
+  pending.value = true
+  try {
+    const result = await props.requestPasswordReset(email.value)
+    error.value = codeErrorMessage(result?.error) ?? ''
+    if (!error.value) codeSent.value = true
+  } catch {
+    error.value = 'Something went wrong. Try again.'
+  } finally {
+    pending.value = false
+  }
+}
+
+/** Sets the new password with the code, then signs in with it as usual. */
+async function submitReset() {
+  error.value = ''
+  pending.value = true
+  try {
+    let result: AuthResult
+    try {
+      result = await props.resetPassword(email.value, code.value, password.value)
+    } catch {
+      error.value = 'Something went wrong. Try again.'
+      return
+    }
+    error.value = codeErrorMessage(result?.error) ?? ''
+    if (error.value) return
+    disconnected.value = providersDisconnectedBy(result?.data)
+    // The password has changed and the code is spent, so anything failing
+    // from here sends the person to sign in with the new password.
+    try {
+      const signedIn = await props.signInEmail(email.value, password.value)
+      if (!signedIn?.error) {
+        if (disconnected.value.length > 0) mode.value = 'resetDone'
+        else emit('success')
+        return
+      }
+    } catch {
+      // Fall through to the sign-in form.
+    }
+    mode.value = 'signin'
+    // After the mode watcher, which clears the error.
+    await nextTick()
+    error.value = 'Password changed. Sign in with it.' + disconnectedNote()
+  } finally {
+    pending.value = false
+  }
+}
+
+function disconnectedNote(): string {
+  return disconnected.value
+    .map(
+      (p) =>
+        ` ${PROVIDER_LABEL[p] ?? p} was disconnected in case someone else had added it; if it's ` +
+        'yours, connect it again in account settings.',
+    )
+    .join('')
+}
 
 async function submitEmail() {
   error.value = ''
@@ -79,6 +165,64 @@ async function submitEmail() {
     <button class="email-toggle" @click="mode = 'signup'">Create account</button>
   </template>
 
+  <template v-else-if="mode === 'forgot'">
+    <button class="back-btn" @click="mode = 'signin'">← Back</button>
+    <p class="form-title">Reset password</p>
+    <form v-if="!codeSent" @submit.prevent="sendResetCode">
+      <input
+        v-model="email"
+        type="email"
+        placeholder="Email"
+        autocomplete="email"
+        required
+        class="field"
+      />
+      <p v-if="error" class="error-msg">{{ error }}</p>
+      <button type="submit" class="submit-btn" :disabled="pending">
+        {{ pending ? 'Please wait…' : 'Email me a code' }}
+      </button>
+    </form>
+    <form v-else @submit.prevent="submitReset">
+      <p class="hint">If {{ email }} has an account, a code is on its way.</p>
+      <input
+        v-model="code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        pattern="[0-9]{6}"
+        maxlength="6"
+        placeholder="6-digit code"
+        required
+        class="field"
+      />
+      <input
+        v-model="password"
+        type="password"
+        placeholder="New password"
+        autocomplete="new-password"
+        required
+        class="field"
+      />
+      <p v-if="error" class="error-msg">{{ error }}</p>
+      <button type="submit" class="submit-btn" :disabled="pending">
+        {{ pending ? 'Please wait…' : 'Set password and sign in' }}
+      </button>
+      <button type="button" class="email-toggle" :disabled="pending" @click="sendResetCode">
+        Send a new code
+      </button>
+    </form>
+  </template>
+
+  <template v-else-if="mode === 'resetDone'">
+    <p class="form-title">Password changed</p>
+    <p class="hint">
+      <template v-for="p in disconnected" :key="p">
+        {{ PROVIDER_LABEL[p] ?? p }} was disconnected, in case someone else had added it. If it's
+        yours, connect it again in account settings.
+      </template>
+    </p>
+    <button class="submit-btn" @click="emit('success')">Continue</button>
+  </template>
+
   <template v-else>
     <button class="back-btn" @click="mode = 'pick'">← Back</button>
     <p class="form-title">{{ mode === 'signup' ? 'Create account' : 'Sign in' }}</p>
@@ -104,10 +248,18 @@ async function submitEmail() {
         {{ pending ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in' }}
       </button>
     </form>
+    <button v-if="mode === 'signin'" class="email-toggle" @click="openForgot">
+      Forgot password?
+    </button>
   </template>
 </template>
 
 <style scoped>
+.hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+}
+
 .provider-btn {
   display: flex;
   align-items: center;

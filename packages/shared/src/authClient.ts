@@ -1,10 +1,11 @@
 import { createAuthClient } from 'better-auth/vue'
+import { emailOTPClient } from 'better-auth/client/plugins'
 import { withoutErrorParam } from './socialSignInError'
 
 export type SocialProvider = 'github' | 'google'
 
 export function createAppAuthClient(baseURL: string) {
-  const authClient = createAuthClient({ baseURL })
+  const authClient = createAuthClient({ baseURL, plugins: [emailOTPClient()] })
 
   function useAuth() {
     const session = authClient.useSession()
@@ -45,7 +46,27 @@ export function createAppAuthClient(baseURL: string) {
       authClient.signOut()
     }
 
-    return { session, signInSocial, signInEmail, signUpEmail, signOut }
+    /** Emails a reset code; answers the same whether the address has an
+     *  account. */
+    async function requestPasswordReset(email: string) {
+      return authClient.emailOtp.requestPasswordReset({ email })
+    }
+
+    /** Sets a new password with the emailed code. Signing in afterwards is a
+     *  normal password sign-in. */
+    async function resetPassword(email: string, code: string, password: string) {
+      return authClient.emailOtp.resetPassword({ email, otp: code, password })
+    }
+
+    return {
+      session,
+      signInSocial,
+      signInEmail,
+      signUpEmail,
+      signOut,
+      requestPasswordReset,
+      resetPassword,
+    }
   }
 
   return { authClient, useAuth }

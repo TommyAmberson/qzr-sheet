@@ -7,7 +7,15 @@ import { useMeetSession } from '../composables/useMeetSession'
 import { useSubmitToMeet } from '../composables/useSubmitToMeet'
 import { useTeamNames } from '../composables/useTeamNames'
 
-const { session, signInSocial, signInEmail, signUpEmail, signOut } = useAuth()
+const {
+  session,
+  signInSocial,
+  signInEmail,
+  signUpEmail,
+  signOut,
+  requestPasswordReset,
+  resetPassword,
+} = useAuth()
 const { clearSession } = useMeetSession()
 const { lastMeetId } = useSubmitToMeet()
 const { refreshTeamNames } = useTeamNames()
@@ -81,6 +89,8 @@ async function doSignOut() {
           v-else
           :sign-in-social="signInSocial"
           :sign-in-email="signInEmail"
+          :request-password-reset="requestPasswordReset"
+          :reset-password="resetPassword"
           :sign-up-email="signUpEmail"
           :oauth-error="oauthError"
           @success="close"

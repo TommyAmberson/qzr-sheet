@@ -11,7 +11,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ (e: 'dismissed'): void; (e: 'signedIn'): void }>()
 
-const { signInSocial, signInEmail, signUpEmail } = useAuth()
+const { signInSocial, signInEmail, signUpEmail, requestPasswordReset, resetPassword } = useAuth()
 
 const open = ref(props.oauthError != null)
 
@@ -42,6 +42,8 @@ function toggle() {
         :sign-in-social="signInSocial"
         :sign-in-email="signInEmail"
         :sign-up-email="signUpEmail"
+        :request-password-reset="requestPasswordReset"
+        :reset-password="resetPassword"
         :oauth-error="oauthError"
         @success="onSignedIn"
       />

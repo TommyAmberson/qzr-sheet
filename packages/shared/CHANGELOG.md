@@ -23,6 +23,15 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-31
+
+### Added
+
+* The auth client gains the email-code plugin, with `requestPasswordReset` and `resetPassword` for
+  "Forgot password?" (spec 005).
+* `codeErrorMessage` turns a failed code request into a message for the person, never a raw error,
+  and `providersDisconnectedBy` reads the GitHub and Google sign-ins a password reset disconnected.
+
 ## [1.5.0] - 2026-10-04
 
 ### Added
