@@ -10,12 +10,14 @@ import { defineRequestState } from '@better-auth/core/context'
 import { emailOTP } from 'better-auth/plugins'
 import {
   passwordResetEmail,
+  providerConnectedEmail,
+  providerDisconnectedEmail,
   resetCodeEmail,
   verificationCodeEmail,
   type ProviderName,
   type SendEmail,
 } from './email'
-import { and, eq, gt, inArray, like, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, like, ne, sql } from 'drizzle-orm'
 import { PER_ADDRESS, PER_CLIENT, addressKey, clientKey, takeEmailSend } from './emailLimits'
 
 // Better Auth defaults to pure-JS scrypt (@noble/hashes) which takes ~5s of CPU —
@@ -356,6 +358,43 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
               )
             if (live.length === 0) return false
           },
+          // GitHub or Google joining an account that already has another way
+          // in, by any route: tell the owner (FR-019). Not for a new provider
+          // sign-up, which has nothing else, nor a takeover, which removes
+          // the rest first. A reset and a takeover write the tables directly,
+          // so they pass no hook here.
+          after: async (account) => {
+            if (!PROVIDERS.includes(account.providerId as ProviderName)) return
+            try {
+              const others = await db
+                .select({ id: schema.account.id })
+                .from(schema.account)
+                .where(
+                  and(eq(schema.account.userId, account.userId), ne(schema.account.id, account.id)),
+                )
+              if (others.length === 0) return
+              const owner = await ownerEmail(db, account.userId)
+              if (owner) {
+                sendEmail(providerConnectedEmail(owner, account.providerId as ProviderName))
+              }
+            } catch (err) {
+              console.error('[auth] connection notice failed:', err)
+            }
+          },
+        },
+        delete: {
+          // A provider disconnected while the account stays (FR-019).
+          after: async (account) => {
+            if (!PROVIDERS.includes(account.providerId as ProviderName)) return
+            try {
+              const owner = await ownerEmail(db, account.userId)
+              if (owner) {
+                sendEmail(providerDisconnectedEmail(owner, account.providerId as ProviderName))
+              }
+            } catch (err) {
+              console.error('[auth] disconnection notice failed:', err)
+            }
+          },
         },
       },
     },
@@ -416,6 +455,14 @@ function authPath(request: Request): string {
 
 /** After a failed disconnect, the providers still on the account; if even
  *  that can't be read, both, so the notice tells the owner to check. */
+async function ownerEmail(db: Db, userId: string): Promise<string | undefined> {
+  const [owner] = await db
+    .select({ email: schema.user.email })
+    .from(schema.user)
+    .where(eq(schema.user.id, userId))
+  return owner?.email
+}
+
 async function providersLeft(db: Db, userId: string): Promise<ProviderName[]> {
   try {
     const rows = await db

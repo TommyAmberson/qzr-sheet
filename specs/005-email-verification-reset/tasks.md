@@ -116,7 +116,7 @@ description: "Task list for email verification and password reset"
 
 - [X] T013 [US3] Tests first: connecting from settings needs a sign-in within the last day; the provider's address must match; an unverified account needs the inbox proof first (a code, or a Google-hosted address), which verifies it; a connection started and then outlived by its session (sign-out, reset) is refused with an error (FR-018, FR-025). Then in `packages/api/src/lib/auth.ts`: a before hook on `/link-social` checking the sign-in age and recording the starting session in the OAuth state, and an account create hook refusing a link whose session has ended (research D8).
 - [X] T014 [US3] Tests first: disconnecting needs the password, a sign-in within the last day, and a password left; it ends every other session. Then the disconnect route in the new account routes in `packages/api/src/routes/` mounted in `packages/api/src/index.ts`; Better Auth's `/unlink-account` disabled (research D8).
-- [ ] T015 [US3] Notices (FR-019, research D10): `databaseHooks.account` in `packages/api/src/lib/auth.ts` emails the address when a provider joins or leaves an account, except the person's own takeover, a new provider sign-up and a reset. Tests through the harness.
+- [X] T015 [US3] Notices (FR-019, research D10): `databaseHooks.account` in `packages/api/src/lib/auth.ts` emails the address when a provider joins or leaves an account, except the person's own takeover, a new provider sign-up and a reset. Tests through the harness.
 - [ ] T016 [US3] Connect and Disconnect for GitHub and Google in the `/account` view from T012, with the calls in `packages/shared/src/authClient.ts`.
 
 **Checkpoint**: providers can be added and removed safely.

@@ -103,9 +103,34 @@ export function passwordResetEmail(
     'If this wasn\'t you, reset your password again from the sign-in form ("Forgot password?"), ' +
       'and check who can read this inbox.',
   ]
+  return noticeEmail(to, 'Your qzr password was reset', lines)
+}
+
+/** Sent when GitHub or Google joins an account that already had another way
+ *  to sign in, so the owner hears of a connection they didn't make (FR-019). */
+export function providerConnectedEmail(to: string, provider: ProviderName): EmailMessage {
+  const label = PROVIDER_LABEL[provider]
+  return noticeEmail(to, `${label} was connected to your qzr account`, [
+    `A ${label} account was just connected to your qzr account, so it can now be used to sign in.`,
+    "If this wasn't you, sign in with your password (reset it from the sign-in form with " +
+      `"Forgot password?" if you need to), then disconnect ${label} in account settings.`,
+  ])
+}
+
+/** Sent when GitHub or Google is disconnected while the account stays. */
+export function providerDisconnectedEmail(to: string, provider: ProviderName): EmailMessage {
+  const label = PROVIDER_LABEL[provider]
+  return noticeEmail(to, `${label} was disconnected from your qzr account`, [
+    `A ${label} account was just disconnected from your qzr account, and every other session ` +
+      'was signed out.',
+    'If this wasn\'t you, reset your password from the sign-in form ("Forgot password?").',
+  ])
+}
+
+function noticeEmail(to: string, subject: string, lines: string[]): EmailMessage {
   return {
     to,
-    subject: 'Your qzr password was reset',
+    subject,
     text: lines.join('\n\n'),
     html: lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('\n'),
   }
