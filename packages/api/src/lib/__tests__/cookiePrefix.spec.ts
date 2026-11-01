@@ -8,7 +8,7 @@ import type { Db } from '../db'
 // their own prefix.
 describe('session cookie prefix', () => {
   it('names every auth cookie with the qzr prefix', async () => {
-    const { authCookies } = await createAuth(env, {} as Db).$context
+    const { authCookies } = await createAuth(env, {} as Db, () => {}).$context
     const names = Object.values(authCookies).map((cookie) => cookie.name)
     expect(names.length).toBeGreaterThan(0)
     for (const name of names) {

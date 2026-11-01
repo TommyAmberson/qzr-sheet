@@ -3,6 +3,7 @@ import { vi } from 'vitest'
 import type { Bindings } from './bindings'
 import { sessionMiddleware, type SessionUser, type SessionVariables } from './middleware/session'
 import { createAuth } from './lib/auth'
+import type { EmailMessage } from './lib/email'
 import { createTestDb } from './test-db'
 import type { GuestPayload } from './lib/jwt'
 import type { Db } from './lib/db'
@@ -76,6 +77,8 @@ export const authTestBindings = {
 export interface AuthTestApp {
   app: Hono<{ Bindings: Bindings; Variables: SessionVariables }>
   db: Db
+  /** Every email the app sent, oldest first. */
+  emails: EmailMessage[]
 }
 
 /**
@@ -87,13 +90,24 @@ export async function createAuthTestApp(): Promise<AuthTestApp> {
   const db = await createTestDb()
   const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables }>()
   app.use('*', mockDb(db))
-  app.on(['GET', 'POST'], '/api/auth/*', (c) => createAuth(c.env, db).handler(c.req.raw))
+  const emails: EmailMessage[] = []
+  app.on(['GET', 'POST'], '/api/auth/*', (c) =>
+    createAuth(c.env, db, (message) => emails.push(message)).handler(c.req.raw),
+  )
   app.use('/api/*', sessionMiddleware())
   const request = app.request.bind(app)
   // Every request carries the auth bindings, as the Worker's would.
   app.request = ((input: RequestInfo | URL, init?: RequestInit) =>
     request(input, init, authTestBindings)) as typeof app.request
-  return { app, db }
+  return { app, db, emails }
+}
+
+/** The code in the newest email to `to`. */
+export function codeFor(test: AuthTestApp, to: string): string {
+  const email = test.emails.findLast((e) => e.to === to)
+  const code = email && /\b(\d{6})\b/.exec(email.text)?.[1]
+  if (!code) throw new Error(`no code emailed to ${to}`)
+  return code
 }
 
 /** POST a JSON body to a Better Auth route, `path` relative to `/api/auth/`. */

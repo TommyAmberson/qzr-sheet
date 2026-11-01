@@ -35,7 +35,8 @@ export function sessionMiddleware(): MiddlewareHandler<{
   return async (c, next) => {
     // Shared with the routes, which reuse a DB already set
     if (!c.get('db')) c.set('db', createDb(c.env.DB) as unknown as Db)
-    const auth = createAuth(c.env, c.get('db'))
+    // Reading the session sends no email.
+    const auth = createAuth(c.env, c.get('db'), () => {})
     const session = await auth.api.getSession({ headers: c.req.raw.headers })
 
     if (session?.user) {

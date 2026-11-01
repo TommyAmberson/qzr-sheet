@@ -16,6 +16,7 @@ import { schedule } from './routes/schedule'
 import { results } from './routes/results'
 import { createAuth } from './lib/auth'
 import { createDb } from './lib/db'
+import { createEmailSender } from './lib/email'
 import { pruneEmailSends } from './lib/emailLimits'
 import { autoAdvancePhases } from './scheduler'
 
@@ -54,9 +55,14 @@ const api = new Hono<Env>()
 api.route('/health', health)
 // Better Auth's base path is the mount that matched (`/qzr/api/auth/*` -> `/qzr/api/auth`).
 // Mounting leaves `c.req.raw` untouched, so Better Auth matches it against the real path.
-api.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) =>
-  createAuth(c.env, createDb(c.env.DB), routePath(c).replace(/\/\*$/, '')).handler(c.req.raw),
-)
+api.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) => {
+  const sendEmail = createEmailSender({
+    apiKey: c.env.RESEND_API_KEY,
+    waitUntil: (promise) => c.executionCtx.waitUntil(promise),
+  })
+  const basePath = routePath(c).replace(/\/\*$/, '')
+  return createAuth(c.env, createDb(c.env.DB), sendEmail, basePath).handler(c.req.raw)
+})
 
 // Session middleware for all /api/* routes (except auth, handled above)
 api.use('/api/*', sessionMiddleware())
