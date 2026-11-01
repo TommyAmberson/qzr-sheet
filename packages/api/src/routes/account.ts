@@ -1,5 +1,5 @@
 import { Hono, type Context } from 'hono'
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
+import { deleteCookie, getCookie, setCookie, setSignedCookie } from 'hono/cookie'
 import type { Bindings } from '../bindings'
 import { requireAuth, getUser, type SessionVariables } from '../middleware/session'
 import { createAuth, FRESH_SESSION_MS, PROVIDERS } from '../lib/auth'
@@ -8,9 +8,12 @@ import {
   PENDING_PROVIDER_COOKIE,
   PENDING_TTL_MS,
   confirmPendingCode,
+  consumePending,
   pendingCookiePath,
   readPending,
   sendPendingCode,
+  takeOver,
+  type PendingRow,
 } from '../lib/pendingProvider'
 
 export interface AccountVariables extends SessionVariables {
@@ -118,6 +121,81 @@ account.post('/provider/resend', async (c) => {
   }
   await renewCookie(c, found.token)
   return c.json({ step: 'code' })
+})
+
+/** A proven pending row, the choice's proof that a provider sign-in for the
+ *  address just completed and the inbox is the person's. */
+async function provenFor(c: Context<Env>) {
+  const found = await pendingFor(c)
+  return found?.row.pending.proven ? found : null
+}
+
+/** Uses the row up and drops the cookie. False when another request used it
+ *  first. */
+async function consume(c: Context<Env>, row: PendingRow): Promise<boolean> {
+  if (!(await consumePending(c.get('db'), row))) return false
+  const { name, options } = await pendingCookie(c)
+  deleteCookie(c, name, options)
+  return true
+}
+
+/**
+ * POST /api/account/provider/claim
+ *
+ * "That's me": the person has just signed in to the account with its
+ * password, so the provider connects and the address is verified.
+ */
+account.post('/provider/claim', requireAuth(), async (c) => {
+  const found = await provenFor(c)
+  if (!found) return invalidPending(c)
+  const { pending } = found.row
+  if (pending.userId !== getUser(c).id) {
+    return c.json({ error: 'Signed in to a different account.' }, 403)
+  }
+  const internal = (await authFor(c).$context).internalAdapter
+  const owner = await internal.findAccountByProviderId(pending.accountId, pending.provider)
+  if (owner && owner.userId !== pending.userId) return invalidPending(c)
+  if (!(await consume(c, found.row))) return invalidPending(c)
+  if (!owner) {
+    // The unique index refuses a link that raced another for the same
+    // provider account; a refusing create hook returns null.
+    const linked = await internal
+      .linkAccount({
+        providerId: pending.provider,
+        accountId: pending.accountId,
+        userId: pending.userId,
+      })
+      .then(Boolean, () => false)
+    if (!linked) return invalidPending(c)
+  }
+  await internal.updateUser(pending.userId, { emailVerified: true })
+  return c.json({ ok: true })
+})
+
+/**
+ * POST /api/account/provider/takeover
+ *
+ * "That's not me": the person proved the inbox, so the account becomes
+ * theirs, with the provider as its only way in, and they are signed in.
+ */
+account.post('/provider/takeover', async (c) => {
+  const found = await provenFor(c)
+  if (!found) return invalidPending(c)
+  const { pending } = found.row
+  const auth = authFor(c)
+  const ctx = await auth.$context
+  const target = await ctx.internalAdapter.findUserById(pending.userId)
+  // Verified meanwhile (the owner signed in and verified): nothing to take.
+  if (!target || target.emailVerified) return invalidPending(c)
+  if (!(await consume(c, found.row))) return invalidPending(c)
+  if (!(await takeOver(c.get('db'), pending))) return invalidPending(c)
+  const session = await ctx.internalAdapter.createSession(pending.userId)
+  const cookie = ctx.authCookies.sessionToken
+  await setSignedCookie(c, cookie.name, session.token, ctx.secret, {
+    ...(cookie.attributes as Parameters<typeof setSignedCookie>[4]),
+    maxAge: ctx.sessionConfig.expiresIn,
+  })
+  return c.json({ ok: true })
 })
 
 /**

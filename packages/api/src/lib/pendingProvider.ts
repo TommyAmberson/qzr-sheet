@@ -1,4 +1,5 @@
-import { and, eq, gt } from 'drizzle-orm'
+import { and, eq, gt, ne } from 'drizzle-orm'
+import { AccountRole } from '@qzr/shared'
 import { generateRandomString } from 'better-auth/crypto'
 import * as schema from '../db/schema'
 import type { Db } from './db'
@@ -160,4 +161,50 @@ export async function confirmPendingCode(
     return (await consumePending(db, row)) ? 'locked' : 'gone'
   }
   return (await replacePending(db, row, { ...row.pending, tries: tries + 1 })) ? 'wrong' : 'gone'
+}
+
+/**
+ * "That's not me" (FR-015, research D7): the provider identity becomes the
+ * account's only way in. Connects it first, written directly so the unique
+ * index refuses one that raced another link for the same provider account,
+ * leaving everything else as it was; then removes the password, every other
+ * GitHub or Google account the registrant linked, every session, and the
+ * meet memberships and roles their codes earned, and returns the role to
+ * normal (FR-027). Direct writes send no notices: the person did this.
+ * False when the connection was refused.
+ */
+export async function takeOver(db: Db, pending: PendingProvider): Promise<boolean> {
+  const now = new Date()
+  const linkId = crypto.randomUUID()
+  const linked = await db
+    .insert(schema.account)
+    .values({
+      id: linkId,
+      userId: pending.userId,
+      providerId: pending.provider,
+      accountId: pending.accountId,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .then(
+      () => true,
+      () => false,
+    )
+  if (!linked) return false
+  const userId = pending.userId
+  await db
+    .delete(schema.account)
+    .where(and(eq(schema.account.userId, userId), ne(schema.account.id, linkId)))
+  await db.delete(schema.session).where(eq(schema.session.userId, userId))
+  await db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.accountId, userId))
+  await db.delete(schema.coachMemberships).where(eq(schema.coachMemberships.accountId, userId))
+  await db
+    .delete(schema.officialMemberships)
+    .where(eq(schema.officialMemberships.accountId, userId))
+  await db.delete(schema.viewerMemberships).where(eq(schema.viewerMemberships.accountId, userId))
+  await db
+    .update(schema.user)
+    .set({ emailVerified: true, role: AccountRole.Normal, updatedAt: now })
+    .where(eq(schema.user.id, userId))
+  return true
 }
