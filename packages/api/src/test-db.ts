@@ -68,6 +68,8 @@ export async function createTestDb(): Promise<Db> {
       created_at INTEGER,
       updated_at INTEGER
     );
+    CREATE UNIQUE INDEX account_provider_unique ON account (provider_id, account_id);
+    CREATE UNIQUE INDEX verification_identifier_unique ON verification (identifier);
 
     CREATE TABLE quiz_meets (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
