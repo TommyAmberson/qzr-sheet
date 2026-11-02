@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import {
   codeErrorMessage,
   providersDisconnectedBy,
+  signUpCodeSkipped,
   SOCIAL_PROVIDER_LABEL,
   type SocialProvider,
   type SocialSignInError,
@@ -60,6 +61,10 @@ const pending = ref(false)
 // "Forgot password?": the code goes out first, then the code and a new
 // password come back with it (FR-001).
 const codeSent = ref(false)
+// The code step after sign-up: whether a code went out, sign-up's own or a
+// new one (FR-006); sign-up skips its code over the network's daily limit.
+const verifyCodeSent = ref(true)
+const verifyResent = ref(false)
 const code = ref('')
 // What a reset disconnected, for the note before leaving (FR-025).
 const disconnected = ref<string[]>([])
@@ -157,6 +162,7 @@ async function submitEmail() {
     if (signingUp) hold(false)
   } else if (signingUp) {
     // Sign-up sent a verification code; offer to enter it (FR-006).
+    verifyCodeSent.value = !signUpCodeSkipped(result?.data)
     code.value = ''
     mode.value = 'verify'
   } else {
@@ -184,6 +190,10 @@ async function resendVerification() {
   try {
     const result = await props.sendVerificationCode(email.value)
     error.value = codeErrorMessage(result?.error) ?? ''
+    if (!error.value) {
+      verifyCodeSent.value = true
+      verifyResent.value = true
+    }
   } catch {
     error.value = 'Something went wrong. Try again.'
   } finally {
@@ -292,9 +302,14 @@ function leaveVerify() {
 
   <template v-else-if="mode === 'verify'">
     <p class="form-title">Account created</p>
-    <p class="hint">
+    <p v-if="verifyCodeSent" class="hint">
       Enter the code we sent to {{ email }} to verify it, or skip and verify later from account
       settings.
+    </p>
+    <p v-if="verifyResent" class="hint">A new code is on its way.</p>
+    <p v-else-if="!verifyCodeSent" class="hint">
+      We couldn't send a code to {{ email }} just now. Try sending a new one later, or skip and
+      verify from account settings.
     </p>
     <form @submit.prevent="submitVerify">
       <input

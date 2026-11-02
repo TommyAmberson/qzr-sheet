@@ -119,6 +119,9 @@ const providerProfile = defineRequestState<{
  *  arrival, so the send itself doesn't count it again. */
 const emailCounted = defineRequestState<boolean>(() => false)
 
+/** Set when sign-up skipped its code over the daily limit, for its response. */
+const signUpCodeSkipped = defineRequestState<boolean>(() => false)
+
 /** The providers the current reset disconnected, for its response. */
 const disconnectedByReset = defineRequestState<SocialProvider[]>(() => [])
 
@@ -214,6 +217,13 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
       // A reset that disconnected providers says so, so the form can point to
       // connecting them again (FR-025).
       after: createAuthMiddleware(async (ctx) => {
+        // A sign-up whose code was skipped says so, so the form doesn't wait
+        // for an email that isn't coming (FR-006).
+        if (ctx.path === '/sign-up/email') {
+          const returned = ctx.context.returned
+          if (!(await signUpCodeSkipped.get()) || !returned || returned instanceof Response) return
+          return ctx.json({ ...(returned as object), codeSkipped: true })
+        }
         if (ctx.path === '/email-otp/reset-password') {
           const disconnected = await disconnectedByReset.get()
           if (disconnected.length > 0) {
@@ -468,6 +478,7 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
             const ip = getIp(request, ctx.context.options)
             if (ip && !(await takeAllowance(db, clientKey(ip), PER_CLIENT))) {
               console.warn(`[email] sign-up code skipped: daily limit reached for ${ip}`)
+              await signUpCodeSkipped.set(true)
               return
             }
           }

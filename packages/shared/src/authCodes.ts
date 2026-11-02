@@ -32,3 +32,9 @@ export function providersDisconnectedBy(data: unknown): string[] {
     ?.providersDisconnected
   return Array.isArray(list) ? list.filter((p): p is string => typeof p === 'string') : []
 }
+
+/** Whether sign-up skipped its verification code, over the network's daily
+ *  email limit (FR-006). */
+export function signUpCodeSkipped(data: unknown): boolean {
+  return (data as { codeSkipped?: unknown } | null | undefined)?.codeSkipped === true
+}

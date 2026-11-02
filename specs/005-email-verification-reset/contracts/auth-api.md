@@ -12,19 +12,22 @@ Base: `/qzr/api` in production, the root locally. Added to `docs/auth.md`.
 | `POST /api/auth/email-otp/verify-email`           | `{ email, otp }`                        | verifies the address; only for a session on that account (FR-007)                                              |
 | `POST /api/auth/link-social`                      | `{ provider, callbackURL }`             | Better Auth's; needs a sign-in within the last day                                                             |
 
-Sign-up with a password sends a verification code (FR-006). A new password found in a list of
-breached passwords, at sign-up, reset or `/change-password`, is refused with `PASSWORD_COMPROMISED`,
-or 503 when the check can't be made (FR-032). Sign-in, reset and code entry past their rate limits
-answer 429 (FR-030). Code errors return the plugin's codes, which the shared error module maps to
-messages (FR-010).
+Sign-up with a password sends a verification code (FR-006); its response carries `codeSkipped: true`
+when the network's daily email limit skipped it. A new password found in a list of breached
+passwords, at sign-up, reset or `/change-password`, is refused with `PASSWORD_COMPROMISED`, or 503
+when the check can't be made (FR-032). Sign-in, reset and code entry past their rate limits answer
+429 (FR-030). Code errors return the plugin's codes, which the shared error module maps to messages
+(FR-010).
 
 ## Provider callback outcomes
 
 The callback redirects to the client's error URL with `error=`:
 
 * `provider_email_unverified`: the provider didn't report the address verified (FR-026).
-* `account_not_linked`: refused onto a verified account; sign in with the password and connect from
-  settings (FR-013).
+* `account_not_linked`: refused onto a verified password account; sign in with the password and
+  connect from settings (FR-013).
+* `sign_in_with_provider`: refused onto an account with no password; sign in with its provider, or
+  set a password through a reset (FR-013).
 * On an unverified password account: to the portal's `/account/provider` with a pending cookie
   instead (FR-015), with `?limited=address` or `?limited=network` when an email limit stopped the
   code-step email.

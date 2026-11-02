@@ -149,6 +149,10 @@ describe('email codes', () => {
       '10.8.8.8',
     )
     expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      codeSkipped: true,
+      user: { email: 'late@example.com' },
+    })
     expect(test.emails.some((e) => e.to === 'late@example.com')).toBe(false)
   })
 

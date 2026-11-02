@@ -196,6 +196,14 @@ describe('SignInForm after sign-up', () => {
     expect(onHold.mock.calls).toEqual([[true], [false]])
   })
 
+  it("says when sign-up couldn't send its code", async () => {
+    const wrapper = await signUp({
+      signUpEmail: vi.fn(async () => ({ data: { codeSkipped: true }, error: null })),
+    })
+    expect(wrapper.text()).toContain("couldn't send a code")
+    expect(wrapper.text()).not.toContain('Enter the code we sent')
+  })
+
   it('can skip the code for now', async () => {
     const wrapper = await signUp()
     await wrapper
