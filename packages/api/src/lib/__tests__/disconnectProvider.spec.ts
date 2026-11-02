@@ -106,4 +106,16 @@ describe('disconnecting a provider from settings', () => {
     expect(statuses[5]).toBe(429)
     expect(await providersOf(test, userId)).toContain('github')
   })
+
+  it("refuses a provider the account doesn't have, signing nobody out", async () => {
+    const test = await createAuthTestApp()
+    const { cookie, userId } = await withGitHub(test, 'stale@example.com')
+    await postAuth(test, 'sign-in/email', { email: 'stale@example.com', password: PASSWORD })
+
+    const res = await disconnect(test, cookie, { provider: 'google', password: PASSWORD })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ code: 'NOT_CONNECTED' })
+    expect(await sessionsOf(test, userId)).toHaveLength(2)
+  })
 })

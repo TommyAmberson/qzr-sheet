@@ -229,6 +229,11 @@ account.post('/disconnect', requireAuth(), async (c) => {
     return c.json({ error: 'Sign in again to disconnect it.', code: 'SESSION_NOT_FRESH' }, 403)
   }
   const accounts = await ctx.internalAdapter.findAccounts(user.id)
+  // Nothing to disconnect (a stale settings page): don't spend a password try
+  // or end other sessions for it.
+  if (!accounts.some((a) => a.providerId === provider)) {
+    return c.json({ error: 'Not connected.', code: 'NOT_CONNECTED' }, 400)
+  }
   const credential = accounts.find((a) => a.providerId === 'credential' && a.password)
   if (!credential) {
     return c.json(
