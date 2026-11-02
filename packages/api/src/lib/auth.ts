@@ -32,7 +32,7 @@ import {
   type SendEmail,
 } from './email'
 import { and, eq, gt, inArray, like, ne, sql } from 'drizzle-orm'
-import { PER_ADDRESS, PER_CLIENT, addressKey, clientKey, takeEmailSend } from './emailLimits'
+import { PER_CLIENT, clientKey, takeEmailSend, takeEmailSends } from './emailLimits'
 import {
   PENDING_PROVIDER_COOKIE,
   PENDING_PROVIDER_PREFIX,
@@ -97,9 +97,6 @@ const SENDABLE_TYPES = new Set(['email-verification', 'forget-password'])
 
 /** Codes last 10 minutes; the plugin's defaults give 6 digits and 3 tries. */
 const CODE_TTL_S = 10 * 60
-
-/** An address longer than this matches no account, so it isn't counted. */
-const MAX_EMAIL_LENGTH = 254
 
 /** Whether a session started within Better Auth's `freshAge` (seconds), "a
  *  recent sign-in", which connecting and disconnecting need (FR-018). */
@@ -199,16 +196,15 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
             return
         }
         if (!EMAILING_PATHS.has(ctx.path)) return
-        if (typeof body.email !== 'string' || body.email.length > MAX_EMAIL_LENGTH) return
-        // The address first, so requests it refuses don't use up the client's
-        // allowance (FR-011).
-        if (!(await takeEmailSend(db, addressKey(body.email), PER_ADDRESS))) {
-          throw tooMany('address')
-        }
-        const ip = getIp(ctx.request, ctx.context.options)
-        if (ip && !(await takeEmailSend(db, clientKey(ip), PER_CLIENT))) {
-          throw tooMany('network')
-        }
+        if (typeof body.email !== 'string') return
+        // Every address counts, an unknown or overlong one too, so no request
+        // can send without limit.
+        const refused = await takeEmailSends(
+          db,
+          body.email,
+          getIp(ctx.request, ctx.context.options),
+        )
+        if (refused) throw tooMany(refused)
       }),
       // A reset that disconnected providers says so, so the form can point to
       // connecting them again (FR-025).

@@ -1,5 +1,6 @@
 import { lt, sql } from 'drizzle-orm'
 import * as schema from '../db/schema'
+import type { EmailLimit } from '@qzr/shared'
 import type { Db } from './db'
 
 interface Limit {
@@ -45,4 +46,20 @@ export async function pruneEmailSends(db: Db, nowSecs = Math.floor(Date.now() / 
   await db
     .delete(schema.emailSends)
     .where(lt(schema.emailSends.windowStart, nowSecs - PER_CLIENT.windowSecs))
+}
+
+/**
+ * Counts one email to `email`, requested from `ip`, against both limits
+ * (FR-011), and says which refused it, if either. The client first: a client
+ * over its own limit must not go on using up an address's allowance, which
+ * would lock the address's owner out of resets.
+ */
+export async function takeEmailSends(
+  db: Db,
+  email: string,
+  ip: string | null,
+): Promise<EmailLimit | null> {
+  if (ip && !(await takeEmailSend(db, clientKey(ip), PER_CLIENT))) return 'network'
+  if (!(await takeEmailSend(db, addressKey(email), PER_ADDRESS))) return 'address'
+  return null
 }

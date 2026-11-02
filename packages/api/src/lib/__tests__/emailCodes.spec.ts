@@ -86,6 +86,52 @@ describe('email codes', () => {
     expect(statuses[10]).toBe(429)
   })
 
+  it("doesn't let a client over its limit use up an address's allowance", async () => {
+    const test = await createAuthTestApp()
+    await signUpWithPassword(test, 'victim@example.com')
+    for (let i = 0; i < 10; i++) {
+      await fromClient(
+        test,
+        'email-otp/request-password-reset',
+        { email: `x${i}@example.com` },
+        '1.1.1.1',
+      )
+    }
+    for (let i = 0; i < 3; i++) {
+      await fromClient(
+        test,
+        'email-otp/request-password-reset',
+        { email: 'victim@example.com' },
+        '1.1.1.1',
+      )
+    }
+
+    const owner = await fromClient(
+      test,
+      'email-otp/request-password-reset',
+      { email: 'victim@example.com' },
+      '2.2.2.2',
+    )
+
+    expect(owner.status).toBe(200)
+  })
+
+  it('counts an overlong address too', async () => {
+    const test = await createAuthTestApp()
+    const email = `${'a'.repeat(300)}@example.com`
+    const statuses: number[] = []
+    for (let i = 0; i < 4; i++) {
+      const res = await fromClient(
+        test,
+        'email-otp/request-password-reset',
+        { email },
+        `3.3.3.${i}`,
+      )
+      statuses.push(res.status)
+    }
+    expect(statuses[3]).toBe(429)
+  })
+
   it('still signs up past the daily limit, skipping the code', async () => {
     const test = await createAuthTestApp()
     for (let i = 0; i < 10; i++) {
