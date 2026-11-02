@@ -612,11 +612,16 @@ async function afterProviderCallback(
   }
   const internal = ctx.context.internalAdapter
   const found = await internal.findUserByEmail(profile.email, { includeAccounts: true })
-  if (!found) return
 
   if (error === 'unable_to_link_account') {
-    const state = await getOAuthState()
-    if (!state?.link || state.link.userId !== found.user.id) return
+    const state = await getOAuthState().catch(() => null)
+    if (!state?.link) return
+    // Connecting an account whose address isn't this account's: Better Auth
+    // refuses it before comparing addresses, so say which it was.
+    if (!found || found.user.id !== state.link.userId) {
+      redirect.searchParams.set('error', "email_doesn't_match")
+      throw ctx.redirect(redirect.toString())
+    }
     if (!found.user.emailVerified) {
       redirect.searchParams.set('error', 'verify_email_first')
       throw ctx.redirect(redirect.toString())
@@ -635,6 +640,7 @@ async function afterProviderCallback(
     if (!linked) return
     throw ctx.redirect(state.callbackURL)
   }
+  if (!found) return
 
   // A refused sign-in onto an unverified password account: prove the inbox
   // (a Google-hosted address already has; otherwise a code-step code), then
