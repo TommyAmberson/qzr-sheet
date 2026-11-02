@@ -39,8 +39,15 @@ const mode = ref<'pick' | 'signin' | 'signup' | 'forgot' | 'resetDone' | 'verify
   props.oauthError?.passwordAccount ? 'signin' : 'pick',
 )
 // A host that closes the form mid code step must not stay held.
+// From the moment sign-up starts until the code step is done; the host must
+// not stay held if it closes the form in between.
+let held = false
+function hold(value: boolean) {
+  held = value
+  emit('hold', value)
+}
 onBeforeUnmount(() => {
-  if (mode.value === 'verify') emit('hold', false)
+  if (held) emit('hold', false)
 })
 const email = ref('')
 const password = ref('')
@@ -136,7 +143,7 @@ async function submitEmail() {
   pending.value = true
   const signingUp = mode.value === 'signup'
   // Sign-up ends on the code step here, so keep the form once signed in.
-  if (signingUp) emit('hold', true)
+  if (signingUp) hold(true)
   const fn = signingUp ? props.signUpEmail : props.signInEmail
   let result: AuthResult
   try {
@@ -148,7 +155,7 @@ async function submitEmail() {
   }
   if (result?.error) {
     error.value = result.error.message ?? 'Something went wrong'
-    if (signingUp) emit('hold', false)
+    if (signingUp) hold(false)
   } else if (signingUp) {
     // Sign-up sent a verification code; offer to enter it (FR-006).
     code.value = ''
@@ -184,7 +191,7 @@ async function resendVerification() {
 
 /** Done with the code step, verified or skipped: release the form. */
 function leaveVerify() {
-  emit('hold', false)
+  hold(false)
   emit('success')
 }
 </script>
