@@ -456,6 +456,10 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           // code later from settings. Requests to send one were counted on
           // arrival.
           const request = ctx?.request
+          // A GitHub or Google sign-up has no step that asks for the code, so
+          // it gets none; settings can send one later (FR-006 covers
+          // password sign-up only).
+          if (request && authPath(request).startsWith('/callback/')) return
           if (ctx && request && !EMAILING_PATHS.has(authPath(request))) {
             const ip = getIp(request, ctx.context.options)
             if (ip && !(await takeAllowance(db, clientKey(ip), PER_CLIENT))) {

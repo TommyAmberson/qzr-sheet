@@ -131,6 +131,12 @@ describe('a provider sign-up', () => {
     expect((await userByEmail(test, 'new@gmail.com'))?.emailVerified).toBe(true)
   })
 
+  it('sends no verification code, since no step asks for one', async () => {
+    const test = await createAuthTestApp()
+    await providerSignIn(test, 'github', { id: '10', email: 'nocode@example.com', verified: true })
+    expect(test.emails.filter((e) => e.to === 'nocode@example.com')).toEqual([])
+  })
+
   it("starts unverified for GitHub and for an address Google doesn't host", async () => {
     const test = await createAuthTestApp()
     await providerSignIn(test, 'github', { id: '9', email: 'gh@example.com', verified: true })
