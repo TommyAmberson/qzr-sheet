@@ -43,10 +43,9 @@ const invalidPending = (c: Context<Env>) =>
 /** The pending cookie as Better Auth names it, scoped to these routes at the
  *  mount the request came in on. */
 async function pendingCookie(c: Context<Env>) {
-  const authBase = c.req.path.replace(/\/account\/provider(\/.*)?$/, '/auth')
   const cookie = (await authContext(c)).createAuthCookie(PENDING_PROVIDER_COOKIE, {
     maxAge: PENDING_TTL_MS / 1000,
-    path: pendingCookiePath(authBase),
+    path: pendingCookiePath(c.req.path),
   })
   return { name: cookie.name, options: cookie.attributes as Parameters<typeof setCookie>[3] }
 }

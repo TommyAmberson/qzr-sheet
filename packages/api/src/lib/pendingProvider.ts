@@ -44,10 +44,15 @@ export interface PendingRow {
   value: string
 }
 
-/** Where the account routes for a pending sign-in live, below the API's
- *  mount: `/qzr/api/auth` gives `/qzr/api/account/provider`. */
-export const pendingCookiePath = (authBasePath: string) =>
-  authBasePath.replace(/\/auth$/, '/account/provider')
+/** Where the account routes for a pending sign-in live below the API's
+ *  mount, as index.ts mounts them. */
+const PENDING_ROUTES = '/api/account/provider'
+
+/** The pending cookie's path, from any path under the API's mount the
+ *  request came in on (`/qzr/api/auth`, `/api/account/provider/confirm`):
+ *  `/qzr/api/account/provider` or `/api/account/provider`. */
+export const pendingCookiePath = (pathUnderApi: string) =>
+  `${pathUnderApi.slice(0, pathUnderApi.indexOf('/api/'))}${PENDING_ROUTES}`
 
 /** Creates a pending row; returns its token and the row as stored. */
 export async function createPending(
