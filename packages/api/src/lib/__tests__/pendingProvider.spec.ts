@@ -165,4 +165,22 @@ describe('a provider sign-in onto an unverified password account', () => {
 
     expect((await step(test, cookie)).status).toBe(400)
   })
+
+  it("doesn't extend a code's 10 minutes with wrong guesses", async () => {
+    const test = await createAuthTestApp()
+    await signUpWithPassword(test, 'ttl@example.com')
+    const { cookie } = await pendingSignIn(test, 'github', { id: '55', email: 'ttl@example.com' })
+    const [before] = await test.db
+      .select()
+      .from(schema.verification)
+      .where(like(schema.verification.identifier, 'pending-provider:%'))
+
+    await step(test, cookie, '/confirm', { code: '000000' })
+
+    const [after] = await test.db
+      .select()
+      .from(schema.verification)
+      .where(like(schema.verification.identifier, 'pending-provider:%'))
+    expect(after!.expiresAt.getTime()).toBe(before!.expiresAt.getTime())
+  })
 })

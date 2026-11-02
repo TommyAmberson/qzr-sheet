@@ -85,20 +85,22 @@ export async function readPending(db: Db, token: string): Promise<PendingRow | n
   return { identifier, pending: JSON.parse(row.value) as PendingProvider, value: row.value }
 }
 
-/** Replaces a row's value if nobody changed it since `row` was read, and
- *  gives it another 10 minutes. Requests may run in different isolates, so
+/** Replaces a row's value if nobody changed it since `row` was read; `renew`
+ *  gives it another 10 minutes, for a new code or the choice, never for a
+ *  wrong guess, so a code lasts the 10 minutes its email says. Requests may run in different isolates, so
  *  this compare-and-set is what keeps two of them from both spending a try
  *  or a code. False when another request got there first. */
 export async function replacePending(
   db: Db,
   row: PendingRow,
   next: PendingProvider,
+  renew = true,
 ): Promise<boolean> {
   const updated = await db
     .update(schema.verification)
     .set({
       value: JSON.stringify(next),
-      expiresAt: new Date(Date.now() + PENDING_TTL_MS),
+      ...(renew ? { expiresAt: new Date(Date.now() + PENDING_TTL_MS) } : {}),
       updatedAt: new Date(),
     })
     .where(
@@ -165,7 +167,8 @@ export async function confirmPendingCode(
   if (tries + 1 >= MAX_CODE_TRIES) {
     return (await consumePending(db, row)) ? 'locked' : 'gone'
   }
-  return (await replacePending(db, row, { ...row.pending, tries: tries + 1 })) ? 'wrong' : 'gone'
+  const counted = await replacePending(db, row, { ...row.pending, tries: tries + 1 }, false)
+  return counted ? 'wrong' : 'gone'
 }
 
 /**
