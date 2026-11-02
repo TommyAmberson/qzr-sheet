@@ -2,12 +2,25 @@
 import { onMounted, ref } from 'vue'
 import { socialSignInError, withoutErrorParam } from '@qzr/shared'
 import { SignInForm, clearGuestData } from '@qzr/ui'
-import { useAuth } from '../composables/useAuth'
+import { IS_TAURI, useAuth } from '../composables/useAuth'
 import { useMeetSession } from '../composables/useMeetSession'
 import { useSubmitToMeet } from '../composables/useSubmitToMeet'
 import { useTeamNames } from '../composables/useTeamNames'
 
-const { session, signInSocial, signInEmail, signUpEmail, signOut } = useAuth()
+const {
+  session,
+  signInSocial,
+  signInEmail,
+  signUpEmail,
+  signOut,
+  requestPasswordReset,
+  resetPassword,
+  sendVerificationCode,
+  verifyEmail,
+} = useAuth()
+// The sign-in form's code step after sign-up runs signed in; keep the form up
+// until it's done.
+const signInHeld = ref(false)
 const { clearSession } = useMeetSession()
 const { lastMeetId } = useSubmitToMeet()
 const { refreshTeamNames } = useTeamNames()
@@ -72,7 +85,7 @@ async function doSignOut() {
         class="sign-in-menu"
         :style="{ top: menuPos.top + 'px', right: menuPos.right + 'px' }"
       >
-        <template v-if="session.data">
+        <template v-if="session.data && !signInHeld">
           <p class="menu-email">{{ session.data.user.email }}</p>
           <button class="sign-out-btn" @click="doSignOut">Sign out</button>
         </template>
@@ -81,9 +94,15 @@ async function doSignOut() {
           v-else
           :sign-in-social="signInSocial"
           :sign-in-email="signInEmail"
+          :request-password-reset="requestPasswordReset"
+          :reset-password="resetPassword"
+          :send-verification-code="sendVerificationCode"
+          :verify-email="verifyEmail"
           :sign-up-email="signUpEmail"
           :oauth-error="oauthError"
+          :without-providers="IS_TAURI"
           @success="close"
+          @hold="signInHeld = $event"
         />
       </div>
     </Teleport>

@@ -8,21 +8,49 @@ export interface SocialSignInError {
   passwordAccount: boolean
 }
 
-/** Since better-auth 1.6.11, a GitHub or Google sign-in refuses to merge into an
- *  existing account whose email is unverified. Our password accounts never
- *  are; a social account can be too, if its provider's email wasn't. */
+/** The address already has an account a provider sign-in can't join without
+ *  proof of the inbox (FR-013). */
 const ACCOUNT_NOT_LINKED = 'account_not_linked'
+
+/** Why a GitHub or Google sign-in, or connecting one from account settings,
+ *  failed. */
+const PROVIDER_ERRORS: Record<string, string> = {
+  // FR-026
+  provider_email_unverified:
+    "That account's email address isn't verified. Confirm it with the provider, or sign up with " +
+    'email instead.',
+  verify_email_first: 'Verify your email address first, then connect it.',
+  account_already_linked_to_different_user:
+    'That account is already connected to a different qzr account.',
+  "email_doesn't_match":
+    "That account uses a different email address. Connect one that uses this account's address.",
+}
 
 export function socialSignInError(search: string): SocialSignInError | null {
   const code = new URLSearchParams(search).get('error')
   if (!code) return null
-  if (code === ACCOUNT_NOT_LINKED) {
+  // The account signs in only with GitHub or Google (FR-013). Whoever holds
+  // the inbox but not that sign-in can set a password with a reset, so the
+  // form opens where "Forgot password?" is.
+  if (code === 'sign_in_with_provider') {
     return {
       message:
-        "This email already has an account that can't be linked automatically. Sign in the way you created it, usually with your email and password.",
+        'This email already has an account that signs in with GitHub or Google. Sign in that ' +
+        'way and connect this one from account settings in the qzr portal, or use ' +
+        '"Forgot password?" to set a password.',
       passwordAccount: true,
     }
   }
+  if (code === ACCOUNT_NOT_LINKED) {
+    return {
+      message:
+        'This email already has an account. Sign in with its password, then connect GitHub or ' +
+        'Google from account settings in the qzr portal.',
+      passwordAccount: true,
+    }
+  }
+  const message = PROVIDER_ERRORS[code]
+  if (message) return { message, passwordAccount: false }
   return { message: 'Sign-in failed. Please try again.', passwordAccount: false }
 }
 

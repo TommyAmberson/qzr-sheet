@@ -1,23 +1,54 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import type { SocialProvider, SocialSignInError } from '@qzr/shared'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import {
+  codeErrorMessage,
+  providersDisconnectedBy,
+  signUpCodeSkipped,
+  SOCIAL_PROVIDER_LABEL,
+  type SocialProvider,
+  type SocialSignInError,
+} from '@qzr/shared'
 
-type SignInResult = { error?: { message?: string | null } | null } | undefined
+type AuthResult =
+  | {
+      data?: unknown
+      error?: { message?: string | null; code?: string; status?: number } | null
+    }
+  | undefined
 
 const props = defineProps<{
-  signInSocial: (provider: SocialProvider) => void
-  signInEmail: (email: string, password: string) => Promise<SignInResult>
-  signUpEmail: (email: string, password: string) => Promise<SignInResult>
+  signInSocial: (provider: SocialProvider) => Promise<AuthResult> | void
+  signInEmail: (email: string, password: string) => Promise<AuthResult>
+  signUpEmail: (email: string, password: string) => Promise<AuthResult>
+  requestPasswordReset: (email: string) => Promise<AuthResult>
+  resetPassword: (email: string, code: string, password: string) => Promise<AuthResult>
+  sendVerificationCode: (email: string) => Promise<AuthResult>
+  verifyEmail: (email: string, code: string) => Promise<AuthResult>
   /** A social sign-in that came back with `?error=`, read by the host app
    *  (which also strips it from the URL). Read once at mount. */
   oauthError?: SocialSignInError | null
+  /** No GitHub or Google: the desktop app has no provider sign-in yet
+   *  (FR-024). */
+  withoutProviders?: boolean
 }>()
 
-const emit = defineEmits<{ (e: 'success'): void }>()
+// `hold` asks the host to keep the form mounted though a session now exists:
+// sign-up signs in, then asks for the verification code here.
+const emit = defineEmits<{ (e: 'success'): void; (e: 'hold', held: boolean): void }>()
 
-const mode = ref<'pick' | 'signin' | 'signup'>(
+const mode = ref<'pick' | 'signin' | 'signup' | 'forgot' | 'resetDone' | 'verify'>(
   props.oauthError?.passwordAccount ? 'signin' : 'pick',
 )
+// From the moment sign-up starts until the code step is done; the host must
+// not stay held if it closes the form in between.
+let held = false
+function hold(value: boolean) {
+  held = value
+  emit('hold', value)
+}
+onBeforeUnmount(() => {
+  if (held) emit('hold', false)
+})
 const email = ref('')
 const password = ref('')
 const error = ref(props.oauthError?.message ?? '')
@@ -27,56 +58,291 @@ watch(mode, () => {
   error.value = ''
 })
 const pending = ref(false)
+// "Forgot password?": the code goes out first, then the code and a new
+// password come back with it (FR-001).
+const codeSent = ref(false)
+// The code step after sign-up: whether a code went out, sign-up's own or a
+// new one (FR-006); sign-up skips its code over the network's daily limit.
+const verifyCodeSent = ref(true)
+const verifyResent = ref(false)
+const code = ref('')
+// What a reset disconnected, for the note before leaving (FR-025).
+const disconnected = ref<string[]>([])
+
+function openForgot() {
+  mode.value = 'forgot'
+  codeSent.value = false
+  code.value = ''
+  password.value = ''
+}
+
+async function sendResetCode() {
+  error.value = ''
+  pending.value = true
+  try {
+    const result = await props.requestPasswordReset(email.value)
+    error.value = codeErrorMessage(result?.error) ?? ''
+    if (!error.value) codeSent.value = true
+  } catch {
+    error.value = 'Something went wrong. Try again.'
+  } finally {
+    pending.value = false
+  }
+}
+
+/** Sets the new password with the code, then signs in with it as usual;
+ *  when the reset disconnected a provider, says so first, since signing in
+ *  can make the host replace this form. */
+async function submitReset() {
+  error.value = ''
+  pending.value = true
+  try {
+    const result = await props.resetPassword(email.value, code.value, password.value)
+    error.value = codeErrorMessage(result?.error) ?? ''
+    if (error.value) return
+    disconnected.value = providersDisconnectedBy(result?.data)
+  } catch {
+    error.value = 'Something went wrong. Try again.'
+    return
+  } finally {
+    pending.value = false
+  }
+  if (disconnected.value.length > 0) mode.value = 'resetDone'
+  else await signInAfterReset()
+}
+
+/** The password has changed and the code is spent, so a failure here sends
+ *  the person to sign in with the new password. */
+async function signInAfterReset() {
+  pending.value = true
+  try {
+    const signedIn = await props.signInEmail(email.value, password.value)
+    if (!signedIn?.error) {
+      emit('success')
+      return
+    }
+  } catch {
+    // Fall through to the sign-in form.
+  } finally {
+    pending.value = false
+  }
+  mode.value = 'signin'
+  // After the mode watcher, which clears the error.
+  await nextTick()
+  error.value = 'Password changed. Sign in with it.' + disconnectedNote()
+}
+
+function disconnectedNote(): string {
+  return disconnected.value
+    .map(
+      (p) =>
+        ` ${SOCIAL_PROVIDER_LABEL[p as SocialProvider] ?? p} was disconnected, in case someone ` +
+        "else had added it. If it's yours, connect it again in account settings.",
+    )
+    .join('')
+}
 
 async function submitEmail() {
   error.value = ''
   pending.value = true
-  const fn = mode.value === 'signup' ? props.signUpEmail : props.signInEmail
-  const result = await fn(email.value, password.value)
-  pending.value = false
+  const signingUp = mode.value === 'signup'
+  // Sign-up ends on the code step here, so keep the form once signed in.
+  if (signingUp) hold(true)
+  const fn = signingUp ? props.signUpEmail : props.signInEmail
+  let result: AuthResult
+  try {
+    result = await fn(email.value, password.value)
+  } catch {
+    result = { error: { message: 'Something went wrong. Try again.' } }
+  } finally {
+    pending.value = false
+  }
   if (result?.error) {
     error.value = result.error.message ?? 'Something went wrong'
+    if (signingUp) hold(false)
+  } else if (signingUp) {
+    // Sign-up sent a verification code; offer to enter it (FR-006).
+    verifyCodeSent.value = !signUpCodeSkipped(result?.data)
+    code.value = ''
+    mode.value = 'verify'
   } else {
     emit('success')
   }
+}
+
+async function submitVerify() {
+  error.value = ''
+  pending.value = true
+  try {
+    const result = await props.verifyEmail(email.value, code.value)
+    error.value = codeErrorMessage(result?.error) ?? ''
+  } catch {
+    error.value = 'Something went wrong. Try again.'
+  } finally {
+    pending.value = false
+  }
+  if (!error.value) leaveVerify()
+}
+
+async function resendVerification() {
+  error.value = ''
+  pending.value = true
+  try {
+    const result = await props.sendVerificationCode(email.value)
+    error.value = codeErrorMessage(result?.error) ?? ''
+    if (!error.value) {
+      verifyCodeSent.value = true
+      verifyResent.value = true
+    }
+  } catch {
+    error.value = 'Something went wrong. Try again.'
+  } finally {
+    pending.value = false
+  }
+}
+
+/** A provider sign-in leaves the page; one refused before it could (a rate
+ *  limit, say) says why instead of doing nothing. */
+async function startSocial(provider: SocialProvider) {
+  error.value = ''
+  try {
+    const result = await props.signInSocial(provider)
+    if (result?.error) error.value = codeErrorMessage(result.error) ?? ''
+  } catch {
+    error.value = 'Something went wrong. Try again.'
+  }
+}
+
+/** Done with the code step, verified or skipped: release the form. */
+function leaveVerify() {
+  hold(false)
+  emit('success')
 }
 </script>
 
 <template>
   <template v-if="mode === 'pick'">
     <p v-if="error" class="error-msg">{{ error }}</p>
-    <button class="provider-btn" @click="signInSocial('github')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path
-          d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.868-.013-1.703-2.782.604-3.369-1.341-3.369-1.341-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.337 4.687-4.565 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"
-        />
-      </svg>
-      Continue with GitHub
-    </button>
-    <button class="provider-btn" @click="signInSocial('google')">
-      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-        <path
-          fill="#4285F4"
-          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-        />
-        <path
-          fill="#34A853"
-          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-        />
-        <path
-          fill="#FBBC05"
-          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-        />
-        <path
-          fill="#EA4335"
-          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-        />
-      </svg>
-      Continue with Google
-    </button>
-    <div class="divider"><span>or</span></div>
+    <template v-if="!withoutProviders">
+      <button class="provider-btn" @click="startSocial('github')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.868-.013-1.703-2.782.604-3.369-1.341-3.369-1.341-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.337 4.687-4.565 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"
+          />
+        </svg>
+        Continue with GitHub
+      </button>
+      <button class="provider-btn" @click="startSocial('google')">
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            fill="#4285F4"
+            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+          />
+          <path
+            fill="#34A853"
+            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+          />
+          <path
+            fill="#FBBC05"
+            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+          />
+          <path
+            fill="#EA4335"
+            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+          />
+        </svg>
+        Continue with Google
+      </button>
+      <div class="divider"><span>or</span></div>
+    </template>
     <button class="email-toggle" @click="mode = 'signin'">Sign in with email</button>
     <button class="email-toggle" @click="mode = 'signup'">Create account</button>
+  </template>
+
+  <template v-else-if="mode === 'forgot'">
+    <button class="back-btn" @click="mode = 'signin'">← Back</button>
+    <p class="form-title">Reset password</p>
+    <form v-if="!codeSent" @submit.prevent="sendResetCode">
+      <input
+        v-model="email"
+        type="email"
+        placeholder="Email"
+        autocomplete="email"
+        required
+        class="field"
+      />
+      <p v-if="error" class="error-msg">{{ error }}</p>
+      <button type="submit" class="submit-btn" :disabled="pending">
+        {{ pending ? 'Please wait…' : 'Email me a code' }}
+      </button>
+    </form>
+    <form v-else @submit.prevent="submitReset">
+      <p class="hint">If {{ email }} has an account, a code is on its way.</p>
+      <input
+        v-model="code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        pattern="[0-9]{6}"
+        maxlength="6"
+        placeholder="6-digit code"
+        required
+        class="field"
+      />
+      <input
+        v-model="password"
+        type="password"
+        placeholder="New password"
+        autocomplete="new-password"
+        required
+        class="field"
+      />
+      <p v-if="error" class="error-msg">{{ error }}</p>
+      <button type="submit" class="submit-btn" :disabled="pending">
+        {{ pending ? 'Please wait…' : 'Set password and sign in' }}
+      </button>
+      <button type="button" class="email-toggle" :disabled="pending" @click="sendResetCode">
+        Send a new code
+      </button>
+    </form>
+  </template>
+
+  <template v-else-if="mode === 'resetDone'">
+    <p class="form-title">Password changed</p>
+    <p class="hint">{{ disconnectedNote().trim() }}</p>
+    <button class="submit-btn" :disabled="pending" @click="signInAfterReset">Continue</button>
+  </template>
+
+  <template v-else-if="mode === 'verify'">
+    <p class="form-title">Account created</p>
+    <p v-if="verifyCodeSent" class="hint">
+      Enter the code we sent to {{ email }} to verify it, or skip and verify later from account
+      settings.
+    </p>
+    <p v-if="verifyResent" class="hint">A new code is on its way.</p>
+    <p v-else-if="!verifyCodeSent" class="hint">
+      We couldn't send a code to {{ email }} just now. Try sending a new one later, or skip and
+      verify from account settings.
+    </p>
+    <form @submit.prevent="submitVerify">
+      <input
+        v-model="code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        pattern="[0-9]{6}"
+        maxlength="6"
+        placeholder="6-digit code"
+        required
+        class="field"
+      />
+      <p v-if="error" class="error-msg">{{ error }}</p>
+      <button type="submit" class="submit-btn" :disabled="pending">
+        {{ pending ? 'Please wait…' : 'Verify' }}
+      </button>
+    </form>
+    <button class="email-toggle" :disabled="pending" @click="resendVerification">
+      Send a new code
+    </button>
+    <button class="email-toggle" @click="leaveVerify">Skip for now</button>
   </template>
 
   <template v-else>
@@ -104,10 +370,18 @@ async function submitEmail() {
         {{ pending ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in' }}
       </button>
     </form>
+    <button v-if="mode === 'signin'" class="email-toggle" @click="openForgot">
+      Forgot password?
+    </button>
   </template>
 </template>
 
 <style scoped>
+.hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+}
+
 .provider-btn {
   display: flex;
   align-items: center;

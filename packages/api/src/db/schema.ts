@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  primaryKey,
   sqliteTable,
   text,
   unique,
@@ -38,31 +39,68 @@ export const session = sqliteTable('session', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 })
 
-export const account = sqliteTable('account', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  accountId: text('account_id').notNull(),
-  providerId: text('provider_id').notNull(),
-  accessToken: text('access_token'),
-  refreshToken: text('refresh_token'),
-  accessTokenExpiresAt: integer('access_token_expires_at', { mode: 'timestamp' }),
-  refreshTokenExpiresAt: integer('refresh_token_expires_at', { mode: 'timestamp' }),
-  scope: text('scope'),
-  idToken: text('id_token'),
-  password: text('password'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-})
+export const account = sqliteTable(
+  'account',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    accountId: text('account_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    accessToken: text('access_token'),
+    refreshToken: text('refresh_token'),
+    accessTokenExpiresAt: integer('access_token_expires_at', { mode: 'timestamp' }),
+    refreshTokenExpiresAt: integer('refresh_token_expires_at', { mode: 'timestamp' }),
+    scope: text('scope'),
+    idToken: text('id_token'),
+    password: text('password'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  },
+  // One user per sign-in identity: two links racing for the same GitHub or
+  // Google account can't both attach it.
+  (t) => [uniqueIndex('account_provider_unique').on(t.providerId, t.accountId)],
+)
 
-export const verification = sqliteTable('verification', {
+export const verification = sqliteTable(
+  'verification',
+  {
+    id: text('id').primaryKey(),
+    identifier: text('identifier').notNull(),
+    value: text('value').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
+  },
+  // The email-code plugin replaces a code only when creating the new row
+  // fails on this, so a resend leaves only the newest code (research D14).
+  (t) => [uniqueIndex('verification_identifier_unique').on(t.identifier)],
+)
+
+// Requests counted per window: the email limits (FR-011), and the password
+// check on disconnect and code-step entry (FR-030), which Better Auth's
+// limiter doesn't cover. `key` is `address:<lowercased email>`, `client:<IP>`,
+// `signup:<IP>`, `password:<user id>` or `code:<IP>`, and `windowStart` the
+// start of its window, in seconds. The cron deletes past windows. Named for
+// its first use.
+export const emailSends = sqliteTable(
+  'email_sends',
+  {
+    key: text('key').notNull(),
+    windowStart: integer('window_start').notNull(),
+    count: integer('count').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.windowStart] })],
+)
+
+/** Better Auth's rate-limit counters, kept in D1 so they hold across Worker
+ *  isolates (FR-030); Better Auth prunes old rows itself. */
+export const rateLimit = sqliteTable('rate_limit', {
   id: text('id').primaryKey(),
-  identifier: text('identifier').notNull(),
-  value: text('value').notNull(),
-  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' }),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }),
+  key: text('key').notNull().unique(),
+  count: integer('count').notNull(),
+  lastRequest: integer('last_request').notNull(),
 })
 
 // ---- Quiz meets ----

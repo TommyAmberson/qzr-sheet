@@ -16,6 +16,28 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-01
+
+### Added
+
+* "Forgot password?" on the sign-in form: a code by email, then a new password
+* After sign-up the form asks for the verification code, with "Skip for now", or says when the code
+  couldn't be sent
+* Account settings at `/account`, from the signed-in address: whether the address is verified, a
+  verification code to send and enter, and Connect or Disconnect for GitHub and Google
+* `/account/provider`, where a GitHub or Google sign-in onto an unverified account goes: the code
+  step, then "That's me" or "That's not me"
+
+### Changed
+
+* Failed GitHub or Google sign-ins and connections explain why, including an address the provider
+  hasn't verified, and a failed connection no longer opens the sign-in menu
+* Superuser controls show only once the account's address is verified, as the API requires
+
+### Bundled contract
+
+* `@qzr/shared@1.6.0` - adds the email-code and account calls to the auth client
+
 ## [0.20.0] - 2026-11-01
 
 ### Added

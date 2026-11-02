@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { useSocialSignInError } from '../composables/useSocialSignInError'
@@ -8,6 +8,9 @@ import SignInMenu from './SignInMenu.vue'
 
 const scoresheetUrl = __SCORESHEET_URL__
 const { session, signOut } = useAuth()
+// The sign-in form's code step after sign-up runs signed in; keep the sign-in
+// menu up until it's done.
+const signInHeld = ref(false)
 
 // After a failed social sign-in, open the sign-in menu the user can see: the
 // nav's on desktop, the sidebar's on mobile (opening the sidebar too). Keep
@@ -17,7 +20,16 @@ const { error: oauthError, clear: clearOauthError } = useSocialSignInError(useRo
 const mobile =
   typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches
 
-const menuOpen = ref(mobile && oauthError.value !== null)
+const menuOpen = ref(false)
+// Opened once the session is known: signed in, the error is a failed
+// connection, which account settings shows.
+watch(
+  () => session.value.isPending,
+  (loading) => {
+    if (!loading && mobile && oauthError.value && !session.value.data) menuOpen.value = true
+  },
+  { immediate: true },
+)
 
 function closeMenu() {
   menuOpen.value = false
@@ -55,15 +67,20 @@ function handleSignOut() {
           class="nav-link"
           >GitHub</a
         >
-        <template v-if="session.data">
-          <span class="nav-user">{{ session.data.user.email ?? 'signed in' }}</span>
+        <template v-if="session.data && !signInHeld">
+          <RouterLink to="/account" class="nav-user">{{
+            session.data.user.email ?? 'signed in'
+          }}</RouterLink>
           <button class="nav-link nav-btn" @click="handleSignOut">Sign out</button>
         </template>
+        <!-- The error waits for the session: signed in, it's a failed
+             connection, which account settings shows. -->
         <SignInMenu
           v-else
-          :oauth-error="mobile ? null : oauthError"
+          :oauth-error="mobile || session.isPending ? null : oauthError"
           @dismissed="clearOauthError"
           @signed-in="clearOauthError"
+          @hold="signInHeld = $event"
         />
       </nav>
 
@@ -90,8 +107,10 @@ function handleSignOut() {
           >GitHub</a
         >
         <hr class="sidebar-divider" />
-        <template v-if="session.data">
-          <span class="sidebar-user">{{ session.data.user.email ?? 'signed in' }}</span>
+        <template v-if="session.data && !signInHeld">
+          <RouterLink to="/account" class="sidebar-user" @click="closeMenu">{{
+            session.data.user.email ?? 'signed in'
+          }}</RouterLink>
           <button class="sidebar-link" @click="handleSignOut">Sign out</button>
         </template>
         <template v-else>
@@ -102,6 +121,7 @@ function handleSignOut() {
             :oauth-error="mobile ? oauthError : null"
             @dismissed="clearOauthError"
             @signed-in="closeMenu"
+            @hold="signInHeld = $event"
           />
         </template>
       </nav>

@@ -45,6 +45,7 @@ const vFitName = {
 }
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
+import { effectiveAccountRole } from '@qzr/shared'
 import {
   getMeet,
   getMyMeets,
@@ -315,9 +316,7 @@ async function load() {
     }
 
     const sessionUser = session.value?.data?.user
-    const accountRole = (sessionUser as Record<string, unknown> | undefined)?.role as
-      | string
-      | undefined
+    const accountRole = sessionUser ? effectiveAccountRole(sessionUser) : undefined
     isSuperuserOrAdmin.value = deriveIsAdminOrSuperuser(myMeetsRes.memberships, id, accountRole)
 
     myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, id)

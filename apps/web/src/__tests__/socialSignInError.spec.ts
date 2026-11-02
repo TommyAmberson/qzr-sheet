@@ -11,6 +11,24 @@ describe('socialSignInError', () => {
     const result = socialSignInError('?error=account_not_linked')
     expect(result?.passwordAccount).toBe(true)
     expect(result?.message).toMatch(/already has an account/)
+    expect(result?.message).toMatch(/account settings/)
+  })
+
+  it('points an account with no password to its provider or a reset', () => {
+    const result = socialSignInError('?error=sign_in_with_provider')
+    expect(result?.passwordAccount).toBe(true)
+    expect(result?.message).toMatch(/Forgot password/)
+  })
+
+  it("explains an address the provider doesn't report verified", () => {
+    const result = socialSignInError('?error=provider_email_unverified')
+    expect(result?.message).toMatch(/isn't verified/)
+  })
+
+  it('explains a failed connection from account settings', () => {
+    const result = socialSignInError('?error=verify_email_first')
+    expect(result?.passwordAccount).toBe(false)
+    expect(result?.message).toMatch(/Verify your email address first/)
   })
 
   it('reports other codes as a generic failure', () => {

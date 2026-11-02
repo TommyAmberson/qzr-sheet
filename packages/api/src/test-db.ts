@@ -53,6 +53,20 @@ export async function createTestDb(): Promise<Db> {
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE email_sends (
+      key TEXT NOT NULL,
+      window_start INTEGER NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY (key, window_start)
+    );
+
+    CREATE TABLE rate_limit (
+      id TEXT PRIMARY KEY NOT NULL,
+      key TEXT NOT NULL UNIQUE,
+      count INTEGER NOT NULL,
+      last_request INTEGER NOT NULL
+    );
+
     CREATE TABLE verification (
       id TEXT PRIMARY KEY NOT NULL,
       identifier TEXT NOT NULL,
@@ -61,6 +75,8 @@ export async function createTestDb(): Promise<Db> {
       created_at INTEGER,
       updated_at INTEGER
     );
+    CREATE UNIQUE INDEX account_provider_unique ON account (provider_id, account_id);
+    CREATE UNIQUE INDEX verification_identifier_unique ON verification (identifier);
 
     CREATE TABLE quiz_meets (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

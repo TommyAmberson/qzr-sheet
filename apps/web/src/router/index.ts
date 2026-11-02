@@ -8,6 +8,20 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: HomeView },
     { path: '/roadmap', name: 'roadmap', component: () => import('../views/RoadmapView.vue') },
+    // Before the meet route: `account` is refused as a viewer code.
+    {
+      path: '/account',
+      name: 'account',
+      meta: { requiresAuth: true },
+      component: () => import('../views/AccountView.vue'),
+    },
+    // Where a GitHub or Google sign-in lands when it needs the code step or
+    // the choice; signed out, since that is how most arrive.
+    {
+      path: '/account/provider',
+      name: 'account-provider',
+      component: () => import('../views/AccountProviderView.vue'),
+    },
     {
       path: '/:slug',
       meta: { requiresAuth: true },

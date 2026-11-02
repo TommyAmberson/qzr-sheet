@@ -23,6 +23,35 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-31
+
+### Added
+
+* The auth client gains the email-code plugin, with `requestPasswordReset` and `resetPassword` for
+  "Forgot password?", and `sendVerificationCode` and `verifyEmail` for the address check after
+  sign-up and in account settings (spec 005).
+* `codeErrorMessage` turns a failed code request into a message for the person, never a raw error,
+  and `providersDisconnectedBy` reads the GitHub and Google sign-ins a password reset disconnected.
+* `connectedProviders`, `connectProvider` and `disconnectProvider` in the auth client, for account
+  settings, and `socialSignInError` explains why connecting GitHub or Google failed.
+* `pendingProvider`, `confirmProviderCode`, `resendProviderCode`, `claimProvider` and
+  `takeOverAccount` in the auth client, for the code step and the "That's me" or "That's not me"
+  choice after a GitHub or Google sign-in onto an unverified account, with the `PendingProviderStep`
+  and `AccountError` types.
+* `signInSocial` returns the result of a refused start (a rate limit, say) instead of nothing.
+* `signUpCodeSkipped` reads a sign-up response whose verification code the daily limit skipped.
+* `effectiveAccountRole`, an account's role as every check reads it: superuser only on a verified
+  address, shared by the API and the portal.
+* `SOCIAL_PROVIDERS`, `SOCIAL_PROVIDER_LABEL` and `isSocialProvider`, the one list of GitHub and
+  Google with their labels, and `tooManyRequestsMessage` for an email limit's message.
+
+### Changed
+
+* `socialSignInError` explains `sign_in_with_provider`, an account that signs in only with GitHub or
+  Google (opening the email form, where "Forgot password?" sets a password), and
+  `provider_email_unverified`, a sign-in refused because the provider doesn't report its address
+  verified, and its `account_not_linked` message points to connecting from account settings.
+
 ## [1.5.0] - 2026-10-04
 
 ### Added

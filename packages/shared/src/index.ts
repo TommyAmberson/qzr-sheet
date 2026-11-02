@@ -1,4 +1,4 @@
-export { AccountRole, MeetRole } from './roles'
+export { AccountRole, MeetRole, effectiveAccountRole } from './roles'
 export { MEET_PHASES, DIVISION_STATES } from './phases'
 export type { MeetPhase, DivisionStateValue } from './phases'
 export { RESULT_ACTIONS, editDistance, foldName, quizName, tidyName } from './results'
@@ -15,7 +15,20 @@ export {
 export type { QuizFile } from './quizFile'
 export { ApiError, createApiClient } from './apiClient'
 export { createAppAuthClient } from './authClient'
-export type { SocialProvider } from './authClient'
+export type { PendingProviderStep } from './authClient'
+export {
+  SOCIAL_PROVIDERS,
+  SOCIAL_PROVIDER_LABEL,
+  isSocialProvider,
+  type SocialProvider,
+} from './socialProviders'
+export {
+  codeErrorMessage,
+  providersDisconnectedBy,
+  signUpCodeSkipped,
+  tooManyRequestsMessage,
+  type EmailLimit,
+} from './authCodes'
 export { ERROR_PARAMS, socialSignInError, withoutErrorParam } from './socialSignInError'
 export type { SocialSignInError } from './socialSignInError'
 export * from './types/scoresheet'

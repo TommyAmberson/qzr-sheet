@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { SocialSignInError } from '@qzr/shared'
 import { SignInForm } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
@@ -9,11 +9,32 @@ const props = defineProps<{
    *  copy the user can see, which then opens straight away. */
   oauthError?: SocialSignInError | null
 }>()
-const emit = defineEmits<{ (e: 'dismissed'): void; (e: 'signedIn'): void }>()
+// `hold`: the form asks to stay shown though a session now exists (the code
+// step after sign-up), so the header keeps this menu rather than swapping it.
+const emit = defineEmits<{
+  (e: 'dismissed'): void
+  (e: 'signedIn'): void
+  (e: 'hold', held: boolean): void
+}>()
 
-const { signInSocial, signInEmail, signUpEmail } = useAuth()
+const {
+  signInSocial,
+  signInEmail,
+  signUpEmail,
+  requestPasswordReset,
+  resetPassword,
+  sendVerificationCode,
+  verifyEmail,
+} = useAuth()
 
 const open = ref(props.oauthError != null)
+// The header may pass the error only once the session is known.
+watch(
+  () => props.oauthError,
+  (error) => {
+    if (error) open.value = true
+  },
+)
 
 function close() {
   open.value = false
@@ -42,7 +63,12 @@ function toggle() {
         :sign-in-social="signInSocial"
         :sign-in-email="signInEmail"
         :sign-up-email="signUpEmail"
+        :request-password-reset="requestPasswordReset"
+        :reset-password="resetPassword"
+        :send-verification-code="sendVerificationCode"
+        :verify-email="verifyEmail"
         :oauth-error="oauthError"
+        @hold="emit('hold', $event)"
         @success="onSignedIn"
       />
     </div>

@@ -47,3 +47,5 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
 * [#52 Mass results importer for backfilling real meets](https://github.com/TommyAmberson/qzr-sheet/issues/52)
   — blocked by API portion of #7
 * [#114 Two-team 15-question tie-breaker quiz](https://github.com/TommyAmberson/qzr-sheet/issues/114)
+* Cloudflare Turnstile on the sign-up and reset forms, so scripted requests can't use up an
+  address's email allowance (also for verse-vault)

@@ -8,3 +8,7 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 BETTER_AUTH_SECRET=dev_secret_change_me_must_be_32_chars
 
+
+# Resend, for reset and verification codes. Leave unset locally: the API then
+# logs each email instead of sending it.
+# RESEND_API_KEY=

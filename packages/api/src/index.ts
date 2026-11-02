@@ -14,8 +14,11 @@ import { churches } from './routes/churches'
 import { phase } from './routes/phase'
 import { schedule } from './routes/schedule'
 import { results } from './routes/results'
+import { account } from './routes/account'
 import { createAuth } from './lib/auth'
 import { createDb } from './lib/db'
+import { createEmailSender } from './lib/email'
+import { pruneEmailSends } from './lib/emailLimits'
 import { autoAdvancePhases } from './scheduler'
 
 type Env = { Bindings: Bindings; Variables: SessionVariables }
@@ -50,12 +53,28 @@ app.use('*', logger())
 // to verse-vault); the root mount is what local dev and the tests call.
 const api = new Hono<Env>()
 
+// The database and email sender every route uses; a test sets its own first.
+api.use('*', async (c, next) => {
+  if (!c.get('db')) c.set('db', createDb(c.env.DB))
+  if (!c.get('sendEmail')) {
+    c.set(
+      'sendEmail',
+      createEmailSender({
+        apiKey: c.env.RESEND_API_KEY,
+        waitUntil: (promise) => c.executionCtx.waitUntil(promise),
+      }),
+    )
+  }
+  await next()
+})
+
 api.route('/health', health)
 // Better Auth's base path is the mount that matched (`/qzr/api/auth/*` -> `/qzr/api/auth`).
 // Mounting leaves `c.req.raw` untouched, so Better Auth matches it against the real path.
-api.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) =>
-  createAuth(c.env, routePath(c).replace(/\/\*$/, '')).handler(c.req.raw),
-)
+api.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) => {
+  const basePath = routePath(c).replace(/\/\*$/, '')
+  return createAuth(c.env, c.get('db'), c.get('sendEmail'), basePath).handler(c.req.raw)
+})
 
 // Session middleware for all /api/* routes (except auth, handled above)
 api.use('/api/*', sessionMiddleware())
@@ -69,6 +88,9 @@ api.use('/api/*', sessionMiddleware())
 api.route('/api/meets', meets)
 api.route('/api/join', join)
 api.route('/api/my-meets', memberships)
+// The account routes serve signed-out provider steps, so they go ahead of
+// churches, whose `/api` mount requires an account or guest for every path.
+api.route('/api/account', account)
 api.route('/api', churches)
 // Officials submit results with a guest token, so results mount ahead of the account-only routers
 api.route('/api/meets', results)
@@ -82,7 +104,7 @@ export { app }
 
 export default {
   fetch: app.fetch,
-  async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+  async scheduled(controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
     ctx.waitUntil(
       autoAdvancePhases(createDb(env.DB)).then((res) => {
         if (res.promotedToBuild > 0 || res.promotedToLive > 0) {
@@ -90,5 +112,11 @@ export default {
         }
       }),
     )
+    // Email-limit windows that have ended (FR-011).
+    // It deletes only windows that started a day ago or more, so the first
+    // run of each hour is enough.
+    if (new Date(controller.scheduledTime).getUTCMinutes() < 5) {
+      ctx.waitUntil(pruneEmailSends(createDb(env.DB)))
+    }
   },
 }

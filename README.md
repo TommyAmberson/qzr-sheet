@@ -111,8 +111,9 @@ locally. The API deploy applies pending D1 migrations before deploying the Worke
 [CONTRIBUTING.md](./CONTRIBUTING.md#releasing) for the full procedure and the contract rules.
 
 The Worker secrets (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`,
-`GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET`) must be set via `wrangler secret put` before the first
-deploy. They are not stored in source control — use `packages/api/.dev.vars.example` as a reference.
+`GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`) must be set via
+`wrangler secret put` before the first deploy. They are not stored in source control — use
+`packages/api/.dev.vars.example` as a reference.
 
 ### Local auth setup
 
@@ -124,8 +125,10 @@ deploy. They are not stored in source control — use `packages/api/.dev.vars.ex
    https://console.developers.google.com with callback URL
    `http://localhost:8787/api/auth/callback/google`
 4. `BETTER_AUTH_SECRET` can be any string ≥ 32 characters for local dev (the example value is fine)
-5. Run `pnpm --filter @qzr/api db:migrate:local` to apply migrations to the local D1 instance
-6. `pnpm dev:all` — API at `:8787`, portal at `:5174/qzr/`, scoresheet at `:5173/qzr/scoresheet/`
+5. Leave `RESEND_API_KEY` unset locally: the API then logs each email, codes included, instead of
+   sending it
+6. Run `pnpm --filter @qzr/api db:migrate:local` to apply migrations to the local D1 instance
+7. `pnpm dev:all` — API at `:8787`, portal at `:5174/qzr/`, scoresheet at `:5173/qzr/scoresheet/`
 
 ## Editor Setup
 
