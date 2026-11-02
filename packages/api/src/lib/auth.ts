@@ -32,7 +32,7 @@ import {
   type SendEmail,
 } from './email'
 import { and, eq, gt, inArray, like, ne, sql } from 'drizzle-orm'
-import { PER_CLIENT, clientKey, takeAllowance, takeEmailLimits } from './emailLimits'
+import { PER_CLIENT_SIGNUP, signUpKey, takeAllowance, takeEmailLimits } from './emailLimits'
 import {
   PENDING_PROVIDER_COOKIE,
   PENDING_PROVIDER_PREFIX,
@@ -459,14 +459,16 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           // it gets none; settings can send one later (FR-006 covers
           // password sign-up only).
           if (await providerProfile.get().catch(() => null)) return
-          // The code sent at sign-up counts towards its client's daily limit
-          // only, and over the limit it skips the email instead of refusing:
+          // The code sent at sign-up counts only towards its client's daily
+          // sign-up allowance, kept apart from the one resets and
+          // verification codes use, and over it skips the email instead of
+          // refusing:
           // a group signing up on one network still gets in, and can send a
           // code later from settings. Requests to send one counted on arrival.
           const request = ctx?.request
           if (ctx && request && !(await emailCounted.get().catch(() => false))) {
             const ip = getIp(request, ctx.context.options)
-            if (ip && !(await takeAllowance(db, clientKey(ip), PER_CLIENT))) {
+            if (ip && !(await takeAllowance(db, signUpKey(ip), PER_CLIENT_SIGNUP))) {
               console.warn(`[email] sign-up code skipped: daily limit reached for ${ip}`)
               await signUpCodeSkipped.set(true)
               return

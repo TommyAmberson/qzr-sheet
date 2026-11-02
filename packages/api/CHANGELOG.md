@@ -30,8 +30,8 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 * **Email verification by code** - sent at password sign-up (not provider sign-up, which has no step
   for it) and from account settings; verifying needs a session on the account; a sign-up whose code
   the daily limit skipped says `codeSkipped: true`
-* **Email limits** - 3 per address per hour and 10 per client per day, counted in the new
-  `email_sends` table; the cron deletes past windows
+* **Email limits** - 3 per address per hour and 30 per client per day, with sign-up codes counted
+  apart (30 per client per day), in the new `email_sends` table; the cron deletes past windows
 * **Pending provider sign-ins** - a GitHub or Google sign-in onto an unverified password account
   goes to the portal's `/account/provider` with an HTTP-only cookie; `/api/account/provider` reports
   the step, `confirm` and `resend` handle the code step, `claim` connects for the account's own

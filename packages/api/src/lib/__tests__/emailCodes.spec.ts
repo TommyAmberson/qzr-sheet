@@ -6,6 +6,7 @@ import {
   signUpWithPassword,
   type AuthTestApp,
 } from '../../test-utils'
+import { PER_CLIENT_SIGNUP, signUpKey, takeAllowance } from '../emailLimits'
 
 const fromClient = (test: AuthTestApp, path: string, body: unknown, ip: string) =>
   test.app.request(`/api/auth/${path}`, {
@@ -70,10 +71,10 @@ describe('email codes', () => {
     expect(statuses).toEqual([200, 200, 200, 429])
   })
 
-  it('limits requests to 10 per client per day', async () => {
+  it('limits requests to 30 per client per day', async () => {
     const test = await createAuthTestApp()
     const statuses = []
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 31; i++) {
       const res = await fromClient(
         test,
         'email-otp/request-password-reset',
@@ -82,14 +83,14 @@ describe('email codes', () => {
       )
       statuses.push(res.status)
     }
-    expect(statuses.slice(0, 10).every((s) => s === 200)).toBe(true)
-    expect(statuses[10]).toBe(429)
+    expect(statuses.slice(0, 30).every((s) => s === 200)).toBe(true)
+    expect(statuses[30]).toBe(429)
   })
 
   it("doesn't let a client over its limit use up an address's allowance", async () => {
     const test = await createAuthTestApp()
     await signUpWithPassword(test, 'victim@example.com')
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 30; i++) {
       await fromClient(
         test,
         'email-otp/request-password-reset',
@@ -132,15 +133,30 @@ describe('email codes', () => {
     expect(statuses[3]).toBe(429)
   })
 
-  it('still signs up past the daily limit, skipping the code', async () => {
+  it("doesn't let resets on a network stop its sign-up codes", async () => {
     const test = await createAuthTestApp()
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 30; i++) {
       await fromClient(
         test,
         'email-otp/request-password-reset',
-        { email: `q${i}@example.com` },
-        '10.8.8.8',
+        { email: `r${i}@example.com` },
+        '10.7.7.7',
       )
+    }
+    const res = await fromClient(
+      test,
+      'sign-up/email',
+      { email: 'venue@example.com', password: 'correct-horse-battery', name: 'Venue' },
+      '10.7.7.7',
+    )
+    expect(await res.json()).not.toHaveProperty('codeSkipped')
+    expect(test.emails.some((e) => e.to === 'venue@example.com')).toBe(true)
+  })
+
+  it('still signs up past the daily sign-up limit, skipping the code', async () => {
+    const test = await createAuthTestApp()
+    for (let i = 0; i < 30; i++) {
+      await takeAllowance(test.db, signUpKey('10.8.8.8'), PER_CLIENT_SIGNUP)
     }
     const res = await fromClient(
       test,

@@ -50,12 +50,13 @@ disabled, along with the link-based reset and verification routes and `/unlink-a
 
 ### Limits
 
-Reset, verification and code-step emails count 3 per address per hour; every email a client's
-requests send counts 10 per client address per day (`CF-Connecting-IP`). The counts live in D1's
-`email_sends` table (`packages/api/src/lib/emailLimits.ts`), since a Worker's isolates share no
-memory, and the cron deletes past windows. The sign-up email counts against the client only. A
-request over a limit answers 429 with a message to try later; a reset request for an unknown address
-counts the same as one for a real account.
+Reset, verification and code-step emails count 3 per address per hour and 30 per client address per
+day (`CF-Connecting-IP`); sign-up codes count apart, 30 per client per day, so a venue's sign-ups
+don't use up its people's resets. The counts live in D1's `email_sends` table
+(`packages/api/src/lib/emailLimits.ts`), since a Worker's isolates share no memory, and the cron
+deletes past windows. Over its own limit, a sign-up skips its code and says so. A request over a
+limit answers 429 with a message to try later; a reset request for an unknown address counts the
+same as one for a real account.
 
 Better Auth's own rate limiter covers its routes: password sign-in allows 5 attempts per client per
 minute, the other routes Better Auth's defaults. It is on in production explicitly, since Better

@@ -11,11 +11,16 @@ interface Limit {
 /** Reset, verification and provider code-step emails to one address (FR-011);
  *  the email sent at sign-up isn't counted. */
 export const PER_ADDRESS: Limit = { max: 3, windowSecs: 60 * 60 }
-/** Every email a client's requests send, sign-up included (FR-011). */
-export const PER_CLIENT: Limit = { max: 10, windowSecs: 24 * 60 * 60 }
+/** Reset, verification and code-step emails a client's requests send
+ *  (FR-011). */
+export const PER_CLIENT: Limit = { max: 30, windowSecs: 24 * 60 * 60 }
+/** Sign-up codes, counted apart so a venue full of sign-ups on one network
+ *  doesn't use up the allowance its people need for resets (FR-011). */
+export const PER_CLIENT_SIGNUP: Limit = { max: 30, windowSecs: 24 * 60 * 60 }
 
 export const addressKey = (email: string) => `address:${email.trim().toLowerCase()}`
 export const clientKey = (ip: string) => `client:${ip}`
+export const signUpKey = (ip: string) => `signup:${ip}`
 
 /** Password checks outside Better Auth's routes, per account (FR-030):
  *  disconnecting asks for the password. */

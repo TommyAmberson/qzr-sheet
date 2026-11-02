@@ -37,9 +37,11 @@ wrong device, and works in the desktop app, which has no deep links.
 ## D4. Email limits (Q2, qzr)
 
 **Decision**: 3 per address per hour (reset, verification and the provider code step combined; the
-sign-up email doesn't count here) and 10 per client per day (every email, sign-up included; over it,
-the sign-up email is skipped rather than the sign-up refused), kept in one D1 table of counters
-keyed by address or client address and window.
+sign-up email doesn't count here) and 30 per client per day for the same emails; sign-up codes count
+apart, 30 per client per day, and over that the code is skipped rather than the sign-up refused. All
+are kept in one D1 table of counters keyed by address or client address and window. The per-client
+limits started at verse-vault's 10 a day for everything; a quiz meet's sign-ups on one church
+network would use that up and leave nobody there able to reset (security review, 2026-11-01).
 
 **Rationale**: verse-vault keeps these in memory in one Node process; a Worker has many short-lived
 isolates, so the counts must live in D1. Better Auth's own rate limiter is per path and client, not
