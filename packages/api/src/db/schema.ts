@@ -78,9 +78,11 @@ export const verification = sqliteTable(
   (t) => [uniqueIndex('verification_identifier_unique').on(t.identifier)],
 )
 
-// Emails sent per window, for the limits on requests that send email (FR-011):
-// `key` is `address:<lowercased email>` or `client:<IP>`, and `windowStart` the
-// start of its hour or day, in seconds. The cron deletes past windows.
+// Requests counted per window, for the email limits (FR-011) and the password
+// check on disconnect (FR-030), which Better Auth's limiter doesn't cover:
+// `key` is `address:<lowercased email>`, `client:<IP>` or `password:<user id>`,
+// and `windowStart` the start of its window, in seconds. The cron deletes past
+// windows. Named for its first use.
 export const emailSends = sqliteTable(
   'email_sends',
   {

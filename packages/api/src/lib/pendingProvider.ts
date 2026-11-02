@@ -5,7 +5,7 @@ import * as schema from '../db/schema'
 import { asOne, isUniqueViolation, type Db } from './db'
 import { generateCode, hashCode } from './codes'
 import { providerCodeEmail, type SendEmail } from './email'
-import { takeEmailSends } from './emailLimits'
+import { takeEmailLimits } from './emailLimits'
 
 /** Verification rows for a refused GitHub or Google sign-in onto an
  *  unverified password account: the code step, then "That's me" or "That's
@@ -137,7 +137,7 @@ export async function sendPendingCode(
   ip: string | null,
 ): Promise<SendOutcome> {
   if (row.pending.proven) return 'proven'
-  const refused = await takeEmailSends(db, row.pending.email, ip)
+  const refused = await takeEmailLimits(db, row.pending.email, ip)
   if (refused) return refused
   const code = generateRandomString(6, '0-9')
   const next = { ...row.pending, codeHash: await hashCode(code), tries: 0 }

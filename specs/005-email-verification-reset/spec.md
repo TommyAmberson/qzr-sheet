@@ -312,8 +312,9 @@ a quiz with no sign-in prompt in the way.
 * **FR-023**: The design docs (`docs/auth.md`) MUST describe these flows and rules, updated with the
   behaviour.
 * **FR-030**: Password sign-in, password reset and code entry MUST be rate limited per client, with
-  limits that hold across every server instance; a limited request is told to try again later.
-  "That's me" and disconnecting rest on the password, so guessing it must not be free.
+  limits that hold across every server instance; a limited request is told to try again later. The
+  password check on disconnect MUST be limited per account too. "That's me" and disconnecting rest
+  on the password, so guessing it must not be free.
 * **FR-031**: The account routes (the code step, the choice and disconnect) MUST accept requests
   that change anything only from the app's own origins, so a page on another origin, even one on the
   same site, can't submit them with the person's cookies.

@@ -32,7 +32,7 @@ import {
   type SendEmail,
 } from './email'
 import { and, eq, gt, inArray, like, ne, sql } from 'drizzle-orm'
-import { PER_CLIENT, clientKey, takeEmailSend, takeEmailSends } from './emailLimits'
+import { PER_CLIENT, clientKey, takeAllowance, takeEmailLimits } from './emailLimits'
 import {
   PENDING_PROVIDER_COOKIE,
   PENDING_PROVIDER_PREFIX,
@@ -199,7 +199,7 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
         if (typeof body.email !== 'string') return
         // Every address counts, an unknown or overlong one too, so no request
         // can send without limit.
-        const refused = await takeEmailSends(
+        const refused = await takeEmailLimits(
           db,
           body.email,
           getIp(ctx.request, ctx.context.options),
@@ -458,7 +458,7 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           const request = ctx?.request
           if (ctx && request && !EMAILING_PATHS.has(authPath(request))) {
             const ip = getIp(request, ctx.context.options)
-            if (ip && !(await takeEmailSend(db, clientKey(ip), PER_CLIENT))) {
+            if (ip && !(await takeAllowance(db, clientKey(ip), PER_CLIENT))) {
               console.warn(`[email] sign-up code skipped: daily limit reached for ${ip}`)
               return
             }

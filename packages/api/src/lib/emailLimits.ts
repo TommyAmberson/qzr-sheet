@@ -17,12 +17,17 @@ export const PER_CLIENT: Limit = { max: 10, windowSecs: 24 * 60 * 60 }
 export const addressKey = (email: string) => `address:${email.trim().toLowerCase()}`
 export const clientKey = (ip: string) => `client:${ip}`
 
+/** Password checks outside Better Auth's routes, per account (FR-030):
+ *  disconnecting asks for the password. */
+export const PER_ACCOUNT_PASSWORD: Limit = { max: 5, windowSecs: 15 * 60 }
+export const passwordKey = (userId: string) => `password:${userId}`
+
 /**
- * Counts one email against `key` and says whether it is allowed. In one
+ * Counts one request against `key` and says whether it is allowed. In one
  * statement, so two requests at the same moment can't both slip under the
  * limit; past the limit nothing is counted.
  */
-export async function takeEmailSend(
+export async function takeAllowance(
   db: Db,
   key: string,
   limit: Limit,
@@ -54,12 +59,12 @@ export async function pruneEmailSends(db: Db, nowSecs = Math.floor(Date.now() / 
  * over its own limit must not go on using up an address's allowance, which
  * would lock the address's owner out of resets.
  */
-export async function takeEmailSends(
+export async function takeEmailLimits(
   db: Db,
   email: string,
   ip: string | null,
 ): Promise<EmailLimit | null> {
-  if (ip && !(await takeEmailSend(db, clientKey(ip), PER_CLIENT))) return 'network'
-  if (!(await takeEmailSend(db, addressKey(email), PER_ADDRESS))) return 'address'
+  if (ip && !(await takeAllowance(db, clientKey(ip), PER_CLIENT))) return 'network'
+  if (!(await takeAllowance(db, addressKey(email), PER_ADDRESS))) return 'address'
   return null
 }

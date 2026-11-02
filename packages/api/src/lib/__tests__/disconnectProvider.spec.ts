@@ -92,4 +92,18 @@ describe('disconnecting a provider from settings', () => {
     expect(res.status).toBe(404)
     expect(await providersOf(test, userId)).toContain('github')
   })
+
+  it('limits password guesses', async () => {
+    const test = await createAuthTestApp()
+    const { cookie, userId } = await withGitHub(test, 'guessed@example.com')
+    const statuses: number[] = []
+    for (let i = 0; i < 6; i++) {
+      const res = await disconnect(test, cookie, { provider: 'github', password: `guess-${i}` })
+      statuses.push(res.status)
+    }
+
+    expect(statuses.slice(0, 5)).toEqual([403, 403, 403, 403, 403])
+    expect(statuses[5]).toBe(429)
+    expect(await providersOf(test, userId)).toContain('github')
+  })
 })

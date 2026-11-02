@@ -6,6 +6,7 @@ import { isSocialProvider, tooManyRequestsMessage } from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import { requireAuth, getUser, type SessionVariables } from '../middleware/session'
 import { isFreshSession, refusedByUniqueIndex } from '../lib/auth'
+import { PER_ACCOUNT_PASSWORD, passwordKey, takeAllowance } from '../lib/emailLimits'
 import {
   PENDING_PROVIDER_COOKIE,
   PENDING_TTL_MS,
@@ -219,6 +220,11 @@ account.post('/disconnect', requireAuth(), async (c) => {
       { error: 'Set a password before disconnecting.', code: 'FAILED_TO_UNLINK_LAST_ACCOUNT' },
       400,
     )
+  }
+  // Better Auth's rate limiter covers only its own routes, so guesses here
+  // count in the email-limit table (FR-030).
+  if (!(await takeAllowance(c.get('db'), passwordKey(user.id), PER_ACCOUNT_PASSWORD))) {
+    return c.json({ error: 'Too many tries. Try again later.' }, 429)
   }
   if (!(await ctx.password.verify({ hash: credential.password!, password }))) {
     return c.json({ error: 'Wrong password.', code: 'INVALID_PASSWORD' }, 403)
