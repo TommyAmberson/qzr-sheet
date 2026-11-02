@@ -628,6 +628,8 @@ async function afterProviderCallback(
   // A plain sign-in or sign-up with a provider that doesn't prove the inbox
   // (every GitHub one) needs nothing below.
   if (!error && !profile.proves) return
+  // Signed in to an account already verified: nothing to verify either.
+  if (!error && ctx.context.newSession?.user.emailVerified) return
   const internal = ctx.context.internalAdapter
   const found = await internal.findUserByEmail(profile.email, { includeAccounts: true })
 
