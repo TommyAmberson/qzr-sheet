@@ -30,7 +30,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 ### Changed
 
 * Failed GitHub or Google sign-ins and connections explain why, including an address the provider
-  hasn't verified
+  hasn't verified, and a failed connection no longer opens the sign-in menu
+* Superuser controls show only once the account's address is verified, as the API requires
 
 ### Bundled contract
 

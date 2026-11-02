@@ -27,8 +27,8 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 * **Password reset by code** - `/api/auth/email-otp/request-password-reset` and `reset-password`. A
   reset ends every session, disconnects GitHub and Google (listed in its response as
   `providersDisconnected`), cancels pending provider sign-ins and emails a notice
-* **Email verification by code** - sent at password sign-up and from account settings; verifying
-  needs a session on the account
+* **Email verification by code** - sent at password sign-up (not provider sign-up, which has no step
+  for it) and from account settings; verifying needs a session on the account
 * **Email limits** - 3 per address per hour and 10 per client per day, counted in the new
   `email_sends` table; the cron deletes past windows
 * **Pending provider sign-ins** - a GitHub or Google sign-in onto an unverified password account
@@ -36,12 +36,13 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   the step, `confirm` and `resend` handle the code step, `claim` connects for the account's own
   session, and `takeover` hands the account to whoever proved the inbox and signs them in
 * **Disconnect** - `POST /api/account/disconnect` with the password, from a sign-in within the last
-  day, while a password remains; ends every other session
+  day, while a password remains; ends every other session; 5 password checks per account per 15
+  minutes, then 429
 * **Notices** - the address is emailed when GitHub or Google joins or leaves an account
 * **Breached passwords refused** - a new password at sign-up or reset that appears in a data breach
   is refused with `PASSWORD_COMPROMISED`, checked against Pwned Passwords before a reset spends its
-  code
-* **Sign-in rate limit** - Better Auth's limiter, is on in production with its counts in the new
+  code; a new password set through `/change-password` is checked too
+* **Sign-in rate limit** - Better Auth's limiter is on in production with its counts in the new
   `rate_limit` table: 5 password sign-ins per client per minute
 
 ### Changed
@@ -51,7 +52,8 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   `account_not_linked`. A sign-in whose address the provider doesn't report verified is refused with
   `provider_email_unverified`. GitHub uses only the primary address
 * **Connecting from settings** - `/link-social` needs a sign-in within the last day and lands only
-  while the session that started it lasts
+  while the session that started it lasts. Connecting an account whose address differs reports
+  `email_doesn't_match`
 * **Account routes refuse cross-origin forms** - a form-like request to `/api/account/*` from an
   origin Better Auth doesn't trust gets 403
 * **Sending a verification code needs a session on that account**

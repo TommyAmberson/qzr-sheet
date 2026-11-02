@@ -24,6 +24,7 @@ portal/API/infra work shipped on that tag.
 ### Changed
 
 * The desktop app offers email sign-in only; GitHub and Google there never worked
+* Closing the sign-in menu during the code step after sign-up shows you signed in, not "Sign in"
 
 ### Bundled contract
 
