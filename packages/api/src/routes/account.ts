@@ -180,8 +180,9 @@ account.post('/provider/takeover', async (c) => {
   const target = await ctx.internalAdapter.findUserById(pending.userId)
   // Verified meanwhile (the owner signed in and verified): nothing to take.
   if (!target || target.emailVerified) return invalidPending(c)
-  if (!(await consume(c, found.row))) return invalidPending(c)
+  // Taken over before the row is used up, so a failure leaves it for a retry.
   if (!(await takeOver(c.get('db'), pending))) return invalidPending(c)
+  await consume(c, found.row)
   const session = await ctx.internalAdapter.createSession(pending.userId)
   const cookie = ctx.authCookies.sessionToken
   await setSignedCookie(c, cookie.name, session.token, ctx.secret, {

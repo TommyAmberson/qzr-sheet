@@ -170,12 +170,10 @@ export async function confirmPendingCode(
 
 /**
  * "That's not me" (FR-015, research D7): the provider identity becomes the
- * account's only way in. Connects it first, written directly so the unique
- * index refuses one that raced another link for the same provider account,
- * leaving everything else as it was; then removes the password, every other
+ * account's only way in: connects it, removes the password, every other
  * GitHub or Google account the registrant linked, every session, and the
  * meet memberships and roles their codes earned, and returns the role to
- * normal (FR-027). Direct writes send no notices: the person did this.
+ * normal (FR-027), in one batch. Direct writes send no notices: the person did this.
  * False when the connection was refused.
  */
 export async function takeOver(db: Db, pending: PendingProvider): Promise<boolean> {
@@ -183,32 +181,34 @@ export async function takeOver(db: Db, pending: PendingProvider): Promise<boolea
   const linkId = crypto.randomUUID()
   const userId = pending.userId
   try {
-    await db.insert(schema.account).values({
-      id: linkId,
-      userId,
-      providerId: pending.provider,
-      accountId: pending.accountId,
-      createdAt: now,
-      updatedAt: now,
-    })
+    // All at once, the connection included, so a failure leaves the account
+    // as it was rather than half taken over. A connection the unique index
+    // refuses fails the whole batch.
+    await asOne(db, [
+      db.insert(schema.account).values({
+        id: linkId,
+        userId,
+        providerId: pending.provider,
+        accountId: pending.accountId,
+        createdAt: now,
+        updatedAt: now,
+      }),
+      db
+        .delete(schema.account)
+        .where(and(eq(schema.account.userId, userId), ne(schema.account.id, linkId))),
+      db.delete(schema.session).where(eq(schema.session.userId, userId)),
+      db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.accountId, userId)),
+      db.delete(schema.coachMemberships).where(eq(schema.coachMemberships.accountId, userId)),
+      db.delete(schema.officialMemberships).where(eq(schema.officialMemberships.accountId, userId)),
+      db.delete(schema.viewerMemberships).where(eq(schema.viewerMemberships.accountId, userId)),
+      db
+        .update(schema.user)
+        .set({ emailVerified: true, role: AccountRole.Normal, updatedAt: now })
+        .where(eq(schema.user.id, userId)),
+    ])
   } catch (e) {
     if (isUniqueViolation(e)) return false
     throw e
   }
-  // The rest at once, so a failure can't leave the account half taken over.
-  await asOne(db, [
-    db
-      .delete(schema.account)
-      .where(and(eq(schema.account.userId, userId), ne(schema.account.id, linkId))),
-    db.delete(schema.session).where(eq(schema.session.userId, userId)),
-    db.delete(schema.adminMemberships).where(eq(schema.adminMemberships.accountId, userId)),
-    db.delete(schema.coachMemberships).where(eq(schema.coachMemberships.accountId, userId)),
-    db.delete(schema.officialMemberships).where(eq(schema.officialMemberships.accountId, userId)),
-    db.delete(schema.viewerMemberships).where(eq(schema.viewerMemberships.accountId, userId)),
-    db
-      .update(schema.user)
-      .set({ emailVerified: true, role: AccountRole.Normal, updatedAt: now })
-      .where(eq(schema.user.id, userId)),
-  ])
   return true
 }

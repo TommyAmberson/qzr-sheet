@@ -73,11 +73,11 @@ classic-federated merge needs current control of both sides.
 
 ## D7. Takeover
 
-**Decision**: "That's not me" connects the provider first, so a link the unique index refuses
-(another link for that provider account won a race) leaves the account untouched; then, in one
-batch, removes the password, every session, every other provider account the registrant linked, the
-account's meet memberships and roles, returns its role to normal and verifies the address; then
-signs in (FR-015, FR-017). It writes the tables directly, so no notice goes out.
+**Decision**: "That's not me", in one batch, connects the provider, removes the password, every
+session, every other provider account the registrant linked, the account's meet memberships and
+roles, returns its role to normal and verifies the address; then signs in (FR-015, FR-017). A
+connection the unique index refuses (another link for that provider account won a race) fails the
+whole batch, leaving the account untouched. It writes the tables directly, so no notice goes out.
 
 **Rationale**: meet access came from codes the registrant entered; superuser must never transfer
 (FR-027).
