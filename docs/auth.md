@@ -301,8 +301,9 @@ put in links: a link ends up in browser history, logs, and screenshots.
 
 Better Auth checks the `Origin` of requests to its own routes. The account routes (`/api/account/*`)
 refuse a form-like request (`text/plain`, form-encoded or multipart, or no content type) unless its
-`Origin` is one Better Auth trusts: SameSite=Lax cookies stop other sites, but not another page on
-`versevault.ca`. A JSON request from another origin already fails CORS.
+`Origin` is one Better Auth trusts: SameSite=Lax cookies stop other sites, but not a page on another
+`versevault.ca` host. A JSON request from another origin already fails CORS. verse-vault shares
+qzr's origin, so neither check can tell its pages from qzr's.
 
 ### Password hashing
 

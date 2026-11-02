@@ -163,10 +163,11 @@ holds across isolates; Better Auth prunes old rows itself.
 **Decision**: the account routes refuse a state-changing request from an origin Better Auth doesn't
 trust, as Better Auth's own routes do.
 
-**Rationale**: takeover needs only the pending cookie. SameSite=Lax stops other sites but not
-another page on `versevault.ca`, which verse-vault shares, and the routes read JSON whatever the
-content type, so a form post would reach them (OWASP CSRF Cheat Sheet: SameSite is defence in
-depth).
+**Rationale**: takeover needs only the pending cookie. SameSite=Lax stops other sites but not a page
+on another `versevault.ca` host, and the routes read JSON whatever the content type, so a form post
+would reach them (OWASP CSRF Cheat Sheet: SameSite is defence in depth). verse-vault is served from
+the same origin as qzr, so no origin check can tell its pages apart; the two apps trust each other's
+pages by sharing the origin.
 
 ## D18. Breached passwords (security review, 2026-11-01)
 
