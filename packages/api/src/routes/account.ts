@@ -95,6 +95,11 @@ account.post('/provider/confirm', async (c) => {
   const found = await pendingFor(c)
   if (!found) return invalidPending(c)
   if (typeof body?.code !== 'string') return c.json({ error: 'code required' }, 400)
+  // No code went out (an email limit stopped it): nothing to try, and
+  // nothing spent.
+  if (!found.row.pending.proven && !found.row.pending.codeHash) {
+    return c.json({ error: 'No code was sent. Send a new one.', code: 'NO_CODE_SENT' }, 400)
+  }
   // Each row allows 3 tries, but a new sign-in brings a new row, so code
   // entry is limited per client too (FR-030).
   const ip = getIp(c.req.raw, (await authContext(c)).options)

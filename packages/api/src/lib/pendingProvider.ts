@@ -166,7 +166,9 @@ export async function confirmPendingCode(
 ): Promise<ConfirmOutcome> {
   if (row.pending.proven) return 'proven'
   const { codeHash, tries = 0, ...rest } = row.pending
-  if (codeHash && constantTimeEqual(await hashCode(code), codeHash)) {
+  // The route answers a row with no code before this.
+  if (!codeHash) return 'gone'
+  if (constantTimeEqual(await hashCode(code), codeHash)) {
     return (await replacePending(db, row, { ...rest, proven: true })) ? 'proven' : 'gone'
   }
   if (tries + 1 >= MAX_CODE_TRIES) {

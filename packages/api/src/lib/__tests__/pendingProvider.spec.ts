@@ -198,4 +198,27 @@ describe('a provider sign-in onto an unverified password account', () => {
     expect(statuses.slice(0, 10)).not.toContain(429)
     expect(statuses[10]).toBe(429)
   })
+
+  it("doesn't count tries when no code went out", async () => {
+    const test = await createAuthTestApp()
+    await signUpWithPassword(test, 'unsent@example.com')
+    // The address's 3 emails this hour are gone, so the code step sends none.
+    for (let i = 0; i < 3; i++) {
+      await postAuth(test, 'email-otp/request-password-reset', { email: 'unsent@example.com' })
+    }
+    const { res, cookie } = await pendingSignIn(test, 'github', { email: 'unsent@example.com' })
+    expect(res.headers.get('location')).toContain('limited=address')
+
+    for (let i = 0; i < 4; i++) {
+      const tryRes = await step(test, cookie, '/confirm', { code: '000000' })
+      expect(await tryRes.json()).toMatchObject({ code: 'NO_CODE_SENT' })
+    }
+    expect((await step(test, cookie)).status).toBe(200)
+    // Nor did they use up the network's code entries.
+    const counted = await test.db
+      .select()
+      .from(schema.emailSends)
+      .where(like(schema.emailSends.key, 'code:%'))
+    expect(counted).toEqual([])
+  })
 })
