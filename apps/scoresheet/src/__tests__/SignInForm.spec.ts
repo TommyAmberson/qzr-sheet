@@ -176,6 +176,16 @@ describe('SignInForm after sign-up', () => {
     expect(wrapper.emitted('success')).toHaveLength(1)
   })
 
+  it('lets go when the host closes it during the code step', async () => {
+    const onHold = vi.fn()
+    const wrapper = await signUp({ onHold })
+    expect(onHold.mock.calls).toEqual([[true]])
+
+    wrapper.unmount()
+
+    expect(onHold.mock.calls).toEqual([[true], [false]])
+  })
+
   it('can skip the code for now', async () => {
     const wrapper = await signUp()
     await wrapper

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { SocialSignInError } from '@qzr/shared'
 import { SignInForm } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
@@ -28,6 +28,13 @@ const {
 } = useAuth()
 
 const open = ref(props.oauthError != null)
+// The header may pass the error only once the session is known.
+watch(
+  () => props.oauthError,
+  (error) => {
+    if (error) open.value = true
+  },
+)
 
 function close() {
   open.value = false

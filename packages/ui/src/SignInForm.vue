@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import {
   codeErrorMessage,
   providersDisconnectedBy,
@@ -38,6 +38,10 @@ const emit = defineEmits<{ (e: 'success'): void; (e: 'hold', held: boolean): voi
 const mode = ref<'pick' | 'signin' | 'signup' | 'forgot' | 'resetDone' | 'verify'>(
   props.oauthError?.passwordAccount ? 'signin' : 'pick',
 )
+// A host that closes the form mid code step must not stay held.
+onBeforeUnmount(() => {
+  if (mode.value === 'verify') emit('hold', false)
+})
 const email = ref('')
 const password = ref('')
 const error = ref(props.oauthError?.message ?? '')

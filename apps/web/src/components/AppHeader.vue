@@ -73,9 +73,11 @@ function handleSignOut() {
           }}</RouterLink>
           <button class="nav-link nav-btn" @click="handleSignOut">Sign out</button>
         </template>
+        <!-- The error waits for the session: signed in, it's a failed
+             connection, which account settings shows. -->
         <SignInMenu
           v-else
-          :oauth-error="mobile ? null : oauthError"
+          :oauth-error="mobile || session.isPending ? null : oauthError"
           @dismissed="clearOauthError"
           @signed-in="clearOauthError"
           @hold="signInHeld = $event"
