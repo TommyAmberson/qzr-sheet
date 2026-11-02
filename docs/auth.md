@@ -58,10 +58,12 @@ deletes past windows. Over its own limit, a sign-up skips its code and says so. 
 limit answers 429 with a message to try later; a reset request for an unknown address counts the
 same as one for a real account.
 
-Better Auth's own rate limiter covers its routes: password sign-in allows 5 attempts per client per
-minute, the other routes Better Auth's defaults. It is on in production explicitly, since Better
-Auth would otherwise enable it only when `NODE_ENV` is `production`, and it keeps its counts in D1's
-`rate_limit` table rather than in memory, which each isolate has its own of.
+Better Auth's own rate limiter covers its routes, per client network: password sign-in, sign-up,
+verifying an address, and requesting, sending or using a code each allow 15 a minute, and starting a
+GitHub or Google sign-in 30, room for a venue's people on one network; reading the session isn't
+limited. It is on in production explicitly, since Better Auth would otherwise enable it only when
+`NODE_ENV` is `production`, and it keeps its counts in D1's `rate_limit` table rather than in
+memory, which each isolate has its own of.
 
 ### Breached passwords
 

@@ -46,7 +46,8 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   is refused with `PASSWORD_COMPROMISED`, checked against Pwned Passwords before a reset spends its
   code; a new password set through `/change-password` is checked too
 * **Sign-in rate limit** - Better Auth's limiter is on in production with its counts in the new
-  `rate_limit` table: 5 password sign-ins per client per minute
+  `rate_limit` table: 15 a minute per network for sign-in, sign-up and the email-code routes, 30 for
+  starting a provider sign-in
 
 ### Changed
 

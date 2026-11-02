@@ -8,7 +8,7 @@ describe('password sign-in rate limit', () => {
     await signUpWithPassword(test, 'coach@example.com')
 
     const statuses: number[] = []
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 16; i++) {
       const res = await postAuth(test, 'sign-in/email', {
         email: 'coach@example.com',
         password: 'not-the-password',
@@ -16,8 +16,8 @@ describe('password sign-in rate limit', () => {
       statuses.push(res.status)
     }
 
-    expect(statuses.slice(0, 5)).not.toContain(429)
-    expect(statuses[5]).toBe(429)
+    expect(statuses.slice(0, 15)).not.toContain(429)
+    expect(statuses[15]).toBe(429)
     // In D1, so every Worker isolate sees the same count.
     expect((await test.db.select().from(schema.rateLimit)).length).toBeGreaterThan(0)
   })

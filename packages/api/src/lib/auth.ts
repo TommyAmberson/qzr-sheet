@@ -480,13 +480,26 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
     ],
     // Better Auth turns its limiter on only when NODE_ENV is production, and
     // keeps counts in memory, which each isolate has its own of; so on
-    // explicitly, in D1 (FR-030, research D16). Password
-    // guessing gets a tighter rule than Better Auth's sign-in default.
+    // explicitly, in D1 (FR-030, research D16).
     rateLimit: {
       enabled: env.ENVIRONMENT === 'production',
       storage: 'database',
       // Reading the session guards nothing and runs on every page load.
-      customRules: { '/sign-in/email': { window: 60, max: 5 }, '/get-session': false },
+      // Per network: a venue's people share one address, so these leave room
+      // for a room full signing in at once while still slowing guessing.
+      // Better Auth's own defaults (3 per 10 seconds for sign-in and
+      // sign-up, 3 a minute for the email-code routes) would turn a room away.
+      // Emails are bounded by the email limits too.
+      customRules: {
+        '/sign-in/email': { window: 60, max: 15 },
+        '/sign-in/social': { window: 60, max: 30 },
+        '/sign-up/email': { window: 60, max: 15 },
+        '/email-otp/verify-email': { window: 60, max: 15 },
+        '/email-otp/reset-password': { window: 60, max: 15 },
+        '/email-otp/request-password-reset': { window: 60, max: 15 },
+        '/email-otp/send-verification-otp': { window: 60, max: 15 },
+        '/get-session': false,
+      },
     },
     advanced: {
       // Workers see the client's address in CF-Connecting-IP.

@@ -148,8 +148,11 @@ which they shouldn't today.
 
 ## D16. Rate limits on sign-in (security review, 2026-11-01)
 
-**Decision**: turn Better Auth's rate limiter on in production explicitly, with database storage,
-and a tighter rule for password sign-in than its defaults.
+**Decision**: turn Better Auth's rate limiter on in production explicitly, with database storage.
+Its defaults (3 per 10 seconds for sign-in and sign-up, 3 a minute for the email-code routes) count
+per network and would turn away a venue's people, who share one, so sign-in, sign-up and the
+email-code routes allow 15 a minute per network and starting a provider sign-in 30; the email limits
+still bound what is sent.
 
 **Rationale**: Better Auth enables its limiter only when `NODE_ENV` is `production`, which the
 Worker doesn't set, and its default memory storage is per isolate, so a Worker needs it set
