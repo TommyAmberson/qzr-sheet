@@ -1,6 +1,6 @@
 import { and, eq, gt, ne } from 'drizzle-orm'
 import { AccountRole, type SocialProvider } from '@qzr/shared'
-import { generateRandomString } from 'better-auth/crypto'
+import { constantTimeEqual, generateRandomString } from 'better-auth/crypto'
 import * as schema from '../db/schema'
 import { asOne, isUniqueViolation, type Db } from './db'
 import { generateCode, hashCode } from './codes'
@@ -159,7 +159,7 @@ export async function confirmPendingCode(
 ): Promise<ConfirmOutcome> {
   if (row.pending.proven) return 'proven'
   const { codeHash, tries = 0, ...rest } = row.pending
-  if (codeHash && (await hashCode(code)) === codeHash) {
+  if (codeHash && constantTimeEqual(await hashCode(code), codeHash)) {
     return (await replacePending(db, row, { ...rest, proven: true })) ? 'proven' : 'gone'
   }
   if (tries + 1 >= MAX_CODE_TRIES) {

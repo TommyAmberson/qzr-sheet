@@ -20,6 +20,7 @@ import {
   getSessionFromCtx,
 } from 'better-auth/api'
 import { defineRequestState } from '@better-auth/core/context'
+import { normalizePathname } from '@better-auth/core/utils/url'
 import { emailOTP } from 'better-auth/plugins'
 import { isBreachedPassword } from './breachedPasswords'
 import {
@@ -147,7 +148,10 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
             if (typeof body.type !== 'string' || !SENDABLE_TYPES.has(body.type)) {
               throw new APIError('NOT_FOUND')
             }
-            if (body.type === 'email-verification' && authPath(ctx.request) === ctx.path) {
+            if (
+              body.type === 'email-verification' &&
+              normalizePathname(ctx.request.url, basePath) === ctx.path
+            ) {
               await requireSessionFor(
                 ctx,
                 body.email,
@@ -456,11 +460,12 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           // code later from settings. Requests to send one were counted on
           // arrival.
           const request = ctx?.request
+          const path = request ? normalizePathname(request.url, basePath) : ''
           // A GitHub or Google sign-up has no step that asks for the code, so
           // it gets none; settings can send one later (FR-006 covers
           // password sign-up only).
-          if (request && authPath(request).startsWith('/callback/')) return
-          if (ctx && request && !EMAILING_PATHS.has(authPath(request))) {
+          if (path.startsWith('/callback/')) return
+          if (ctx && request && !EMAILING_PATHS.has(path)) {
             const ip = getIp(request, ctx.context.options)
             if (ip && !(await takeAllowance(db, clientKey(ip), PER_CLIENT))) {
               console.warn(`[email] sign-up code skipped: daily limit reached for ${ip}`)
@@ -478,7 +483,8 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
     rateLimit: {
       enabled: env.ENVIRONMENT === 'production',
       storage: 'database',
-      customRules: { '/sign-in/email': { window: 60, max: 5 } },
+      // Reading the session guards nothing and runs on every page load.
+      customRules: { '/sign-in/email': { window: 60, max: 5 }, '/get-session': false },
     },
     advanced: {
       // Workers see the client's address in CF-Connecting-IP.
@@ -528,11 +534,6 @@ async function requireSessionFor(
   ) {
     throw new APIError('FORBIDDEN', { message })
   }
-}
-
-/** A request's path under Better Auth's mount, as `ctx.path` names it. */
-function authPath(request: Request): string {
-  return new URL(request.url).pathname.replace(/^.*?\/api\/auth/, '')
 }
 
 /** False only inside a provider callback whose address the provider doesn't
@@ -607,7 +608,8 @@ async function afterProviderCallback(
   const location = ctx.context.responseHeaders?.get('location')
   const profile = await providerProfile.get()
   if (!location || !profile) return
-  const redirect = new URL(location)
+  // Relative when the client gave a relative callback URL.
+  const redirect = new URL(location, ctx.context.baseURL)
   const error = redirect.searchParams.get('error')
   // The hooks below refused it, or Better Auth did: say why (FR-026).
   if (error && !profile.verified) {
