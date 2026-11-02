@@ -159,12 +159,13 @@ account.post('/provider/claim', requireAuth(), async (c) => {
     return c.json({ error: 'Signed in to a different account.' }, 403)
   }
   const internal = (await authContext(c)).internalAdapter
-  const owner = await internal.findAccountByProviderId(pending.accountId, pending.provider)
-  if (owner && owner.userId !== pending.userId) return invalidPending(c)
-  if (!(await consume(c, found.row))) return invalidPending(c)
-  if (!owner) {
-    // The unique index refuses a link that raced another for the same
-    // provider account; a refusing create hook returns null.
+  const connectedHere = async () =>
+    (await internal.findAccountByProviderId(pending.accountId, pending.provider))?.userId ===
+    pending.userId
+  // Connected before the row is used up, so a refusal leaves it for a retry.
+  // The unique index refuses a link that raced another for the same provider
+  // account, which is fine when that one landed here too.
+  if (!(await connectedHere())) {
     const linked = await internal
       .linkAccount({
         providerId: pending.provider,
@@ -172,9 +173,10 @@ account.post('/provider/claim', requireAuth(), async (c) => {
         userId: pending.userId,
       })
       .catch(refusedByUniqueIndex)
-    if (!linked) return invalidPending(c)
+    if (!linked && !(await connectedHere())) return invalidPending(c)
   }
   await internal.updateUser(pending.userId, { emailVerified: true })
+  await consume(c, found.row)
   return c.json({ ok: true })
 })
 
