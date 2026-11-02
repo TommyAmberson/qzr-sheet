@@ -4,7 +4,7 @@ import { createAuth, type Auth } from '../lib/auth'
 import type { SendEmail } from '../lib/email'
 import { currentGuest, type GuestPayload } from '../lib/jwt'
 import { createDb, type Db } from '../lib/db'
-import { AccountRole } from '@qzr/shared'
+import { AccountRole, effectiveAccountRole } from '@qzr/shared'
 
 export interface SessionUser {
   id: string
@@ -57,7 +57,7 @@ export function sessionMiddleware(): MiddlewareHandler<{
         id: session.user.id,
         email: session.user.email,
         name: session.user.name,
-        role: accountRole(session.user),
+        role: effectiveAccountRole(session.user),
       })
       c.set('guest', null)
       await next()
@@ -77,15 +77,6 @@ export function sessionMiddleware(): MiddlewareHandler<{
     c.set('guest', await currentGuest(c.get('db'), token, c.env.BETTER_AUTH_SECRET))
     await next()
   }
-}
-
-/** The account's role. Superusers are seeded by hand, and an unverified
- *  address may belong to whoever registered it first, so superuser counts
- *  only once the address is verified (FR-027). */
-function accountRole(user: { role?: string | null; emailVerified: boolean }): AccountRole {
-  return user.role === AccountRole.Superuser && user.emailVerified
-    ? AccountRole.Superuser
-    : AccountRole.Normal
 }
 
 /**
