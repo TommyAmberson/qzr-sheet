@@ -38,7 +38,6 @@ const emit = defineEmits<{ (e: 'success'): void; (e: 'hold', held: boolean): voi
 const mode = ref<'pick' | 'signin' | 'signup' | 'forgot' | 'resetDone' | 'verify'>(
   props.oauthError?.passwordAccount ? 'signin' : 'pick',
 )
-// A host that closes the form mid code step must not stay held.
 // From the moment sign-up starts until the code step is done; the host must
 // not stay held if it closes the form in between.
 let held = false
@@ -181,11 +180,14 @@ async function submitVerify() {
 
 async function resendVerification() {
   error.value = ''
+  pending.value = true
   try {
     const result = await props.sendVerificationCode(email.value)
     error.value = codeErrorMessage(result?.error) ?? ''
   } catch {
     error.value = 'Something went wrong. Try again.'
+  } finally {
+    pending.value = false
   }
 }
 
@@ -310,7 +312,9 @@ function leaveVerify() {
         {{ pending ? 'Please wait…' : 'Verify' }}
       </button>
     </form>
-    <button class="email-toggle" @click="resendVerification">Send a new code</button>
+    <button class="email-toggle" :disabled="pending" @click="resendVerification">
+      Send a new code
+    </button>
     <button class="email-toggle" @click="leaveVerify">Skip for now</button>
   </template>
 
