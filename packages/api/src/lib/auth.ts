@@ -411,22 +411,7 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           // started it lasts; see the `/link-social` before hook.
           before: async (account) => {
             if (!isSocialProvider(account.providerId)) return
-            // Outside an OAuth callback there's no state, and no connection.
-            const state = await getOAuthState().catch(() => null)
-            if (!state?.link) return
-            const started = (state as { linkSession?: unknown }).linkSession
-            if (typeof started !== 'string') return false
-            const live = await db
-              .select({ id: schema.session.id })
-              .from(schema.session)
-              .where(
-                and(
-                  eq(schema.session.id, started),
-                  eq(schema.session.userId, state.link.userId),
-                  gt(schema.session.expiresAt, new Date()),
-                ),
-              )
-            if (live.length === 0) return false
+            if ((await linkSessionLive(db)) === false) return false
           },
           // GitHub or Google joining an account that already has another way
           // in, by any route: tell the owner (FR-019). Not for a new provider
@@ -434,6 +419,12 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           // the rest first. A reset and a takeover write the tables directly,
           // so they pass no hook here.
           after: async (account) => {
+            // A reset can end the session between the check above and the
+            // insert; the connection then goes, as the reset meant.
+            if (isSocialProvider(account.providerId) && (await linkSessionLive(db)) === false) {
+              await db.delete(schema.account).where(eq(schema.account.id, account.id))
+              return
+            }
             const others = await db
               .select({ id: schema.account.id })
               .from(schema.account)
@@ -509,6 +500,26 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
 }
 
 export type Auth = ReturnType<typeof createAuth>
+
+/** For a connection from settings, whether the session that started it
+ *  still lasts; null outside one (no OAuth state, or not a link). */
+async function linkSessionLive(db: Db): Promise<boolean | null> {
+  const state = await getOAuthState().catch(() => null)
+  if (!state?.link) return null
+  const started = (state as { linkSession?: unknown }).linkSession
+  if (typeof started !== 'string') return false
+  const live = await db
+    .select({ id: schema.session.id })
+    .from(schema.session)
+    .where(
+      and(
+        eq(schema.session.id, started),
+        eq(schema.session.userId, state.link.userId),
+        gt(schema.session.expiresAt, new Date()),
+      ),
+    )
+  return live.length > 0
+}
 
 /** Refuses a new password found in a breach, or any when the check can't be
  *  made, rather than accepting it unchecked (research D18). */
