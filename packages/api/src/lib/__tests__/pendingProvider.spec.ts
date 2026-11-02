@@ -143,13 +143,13 @@ describe('a provider sign-in onto an unverified password account', () => {
     expect(res.status).not.toBe(200)
   })
 
-  it('leaves an account without a password refused', async () => {
+  it('sends an account without a password to its provider', async () => {
     const test = await createAuthTestApp()
     await providerSignIn(test, 'github', { id: '52', email: 'gh@example.com', verified: true })
 
     const { res } = await pendingSignIn(test, 'google', { id: 'g-52', email: 'gh@example.com' })
 
-    expect(res.headers.get('location')).toContain('error=account_not_linked')
+    expect(res.headers.get('location')).toContain('error=sign_in_with_provider')
   })
 
   it('is cancelled by a password reset', async () => {

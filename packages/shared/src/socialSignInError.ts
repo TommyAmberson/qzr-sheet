@@ -29,11 +29,23 @@ const PROVIDER_ERRORS: Record<string, string> = {
 export function socialSignInError(search: string): SocialSignInError | null {
   const code = new URLSearchParams(search).get('error')
   if (!code) return null
+  // The account signs in only with GitHub or Google (FR-013). Whoever holds
+  // the inbox but not that sign-in can set a password with a reset, so the
+  // form opens where "Forgot password?" is.
+  if (code === 'sign_in_with_provider') {
+    return {
+      message:
+        'This email already has an account that signs in with GitHub or Google. Sign in that ' +
+        'way and connect this one from account settings in the qzr portal, or use ' +
+        '"Forgot password?" to set a password.',
+      passwordAccount: true,
+    }
+  }
   if (code === ACCOUNT_NOT_LINKED) {
     return {
       message:
         'This email already has an account. Sign in with its password, then connect GitHub or ' +
-        'Google from account settings.',
+        'Google from account settings in the qzr portal.',
       passwordAccount: true,
     }
   }

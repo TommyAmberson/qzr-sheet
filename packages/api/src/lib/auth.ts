@@ -615,6 +615,9 @@ async function afterProviderCallback(
     redirect.searchParams.set('error', 'provider_email_unverified')
     throw ctx.redirect(redirect.toString())
   }
+  // A plain sign-in or sign-up with a provider that doesn't prove the inbox
+  // (every GitHub one) needs nothing below.
+  if (!error && !profile.proves) return
   const internal = ctx.context.internalAdapter
   const found = await internal.findUserByEmail(profile.email, { includeAccounts: true })
 
@@ -650,10 +653,14 @@ async function afterProviderCallback(
   // A refused sign-in onto an unverified password account: prove the inbox
   // (a Google-hosted address already has; otherwise a code-step code), then
   // "That's me" or "That's not me", on the portal's page (FR-015). Onto a
-  // verified account, or one without a password, the refusal stands (FR-013).
+  // verified account the refusal stands (FR-013); onto one with no password,
+  // it says to sign in with the provider the account has, not a password.
   if (error === 'account_not_linked') {
+    if (!found.accounts.some((a) => a.providerId === 'credential')) {
+      redirect.searchParams.set('error', 'sign_in_with_provider')
+      throw ctx.redirect(redirect.toString())
+    }
     if (found.user.emailVerified) return
-    if (!found.accounts.some((a) => a.providerId === 'credential')) return
     const { token, row } = await createPending(deps.db, {
       userId: found.user.id,
       provider: profile.provider,

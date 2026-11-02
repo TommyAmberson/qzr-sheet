@@ -103,8 +103,11 @@ inbox:
 * **GitHub** never proves it. Only the account's primary address is used.
 * A sign-in whose address the provider doesn't report verified creates no user and signs into none
   (`provider_email_unverified`).
-* Onto a **verified** account without that proof, the sign-in is refused (`account_not_linked`):
-  sign in with the password and connect from settings.
+* Onto a **verified** password account without that proof, the sign-in is refused
+  (`account_not_linked`): sign in with the password and connect from settings.
+* Onto an account with **no password** (it signs in only with GitHub or Google), the sign-in is
+  refused (`sign_in_with_provider`): sign in with that provider and connect this one, or set a
+  password with "Forgot password?", since a reset by code adds one.
 * Onto an **unverified password account**, the sign-in waits on a pending row and goes to the
   portal's `/account/provider` page, below.
 

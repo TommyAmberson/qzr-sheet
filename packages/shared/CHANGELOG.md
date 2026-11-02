@@ -45,9 +45,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ### Changed
 
-* `socialSignInError` explains `provider_email_unverified`, a sign-in refused because the provider
-  doesn't report its address verified, and its `account_not_linked` message points to connecting
-  from account settings.
+* `socialSignInError` explains `sign_in_with_provider`, an account that signs in only with GitHub or
+  Google, and `provider_email_unverified`, a sign-in refused because the provider doesn't report its
+  address verified, and its `account_not_linked` message points to connecting from account settings.
 
 ## [1.5.0] - 2026-10-04
 

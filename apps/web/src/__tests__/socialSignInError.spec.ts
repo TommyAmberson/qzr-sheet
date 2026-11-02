@@ -14,6 +14,12 @@ describe('socialSignInError', () => {
     expect(result?.message).toMatch(/account settings/)
   })
 
+  it('points an account with no password to its provider or a reset', () => {
+    const result = socialSignInError('?error=sign_in_with_provider')
+    expect(result?.passwordAccount).toBe(true)
+    expect(result?.message).toMatch(/Forgot password/)
+  })
+
   it("explains an address the provider doesn't report verified", () => {
     const result = socialSignInError('?error=provider_email_unverified')
     expect(result?.message).toMatch(/isn't verified/)

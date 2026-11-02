@@ -76,6 +76,26 @@ describe('provider sign-in onto an existing account', () => {
   })
 })
 
+describe('provider sign-in onto an account with no password', () => {
+  for (const verified of [false, true]) {
+    it(`says to sign in with its provider (${verified ? 'verified' : 'unverified'})`, async () => {
+      const test = await createAuthTestApp()
+      await providerSignIn(test, 'github', { id: '71', email: 'gh-only@gmail.com', verified: true })
+      if (verified) {
+        await test.db.update(schema.user).set({ emailVerified: true })
+      }
+
+      const res = await providerSignIn(test, 'google', {
+        id: 'g-71',
+        email: 'gh-only@gmail.com',
+        verified: true,
+      })
+
+      expect(errorOf(res)).toBe(verified ? null : 'sign_in_with_provider')
+    })
+  }
+})
+
 describe('an address the provider reports unverified', () => {
   for (const provider of ['github', 'google'] as const) {
     it(`refuses a ${provider} sign-up and creates no user`, async () => {
