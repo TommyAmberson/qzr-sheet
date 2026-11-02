@@ -28,13 +28,15 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   reset ends every session, disconnects GitHub and Google (listed in its response as
   `providersDisconnected`), cancels pending provider sign-ins and emails a notice
 * **Email verification by code** - sent at password sign-up (not provider sign-up, which has no step
-  for it) and from account settings; verifying needs a session on the account
+  for it) and from account settings; verifying needs a session on the account; a sign-up whose code
+  the daily limit skipped says `codeSkipped: true`
 * **Email limits** - 3 per address per hour and 10 per client per day, counted in the new
   `email_sends` table; the cron deletes past windows
 * **Pending provider sign-ins** - a GitHub or Google sign-in onto an unverified password account
   goes to the portal's `/account/provider` with an HTTP-only cookie; `/api/account/provider` reports
   the step, `confirm` and `resend` handle the code step, `claim` connects for the account's own
-  session, and `takeover` hands the account to whoever proved the inbox and signs them in
+  session, and `takeover` hands the account to whoever proved the inbox and signs them in. A code
+  lasts 10 minutes from when it was sent; wrong guesses don't extend it
 * **Disconnect** - `POST /api/account/disconnect` with the password, from a sign-in within the last
   day, while a password remains; ends every other session; 5 password checks per account per 15
   minutes, then 429
@@ -49,8 +51,9 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 * **Provider sign-in rules** - a sign-in joins an existing account only when Google hosts the
   address (Gmail or Workspace); otherwise one onto a verified account is refused with
-  `account_not_linked`. A sign-in whose address the provider doesn't report verified is refused with
-  `provider_email_unverified`. GitHub uses only the primary address
+  `account_not_linked`, or onto an account with no password with `sign_in_with_provider`. A sign-in
+  whose address the provider doesn't report verified is refused with `provider_email_unverified`.
+  GitHub uses only the primary address
 * **Connecting from settings** - `/link-social` needs a sign-in within the last day and lands only
   while the session that started it lasts. Connecting an account whose address differs reports
   `email_doesn't_match`

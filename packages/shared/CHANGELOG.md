@@ -38,6 +38,7 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   `takeOverAccount` in the auth client, for the code step and the "That's me" or "That's not me"
   choice after a GitHub or Google sign-in onto an unverified account, with the `PendingProviderStep`
   and `AccountError` types.
+* `signUpCodeSkipped` reads a sign-up response whose verification code the daily limit skipped.
 * `effectiveAccountRole`, an account's role as every check reads it: superuser only on a verified
   address, shared by the API and the portal.
 * `SOCIAL_PROVIDERS`, `SOCIAL_PROVIDER_LABEL` and `isSocialProvider`, the one list of GitHub and
@@ -46,8 +47,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 ### Changed
 
 * `socialSignInError` explains `sign_in_with_provider`, an account that signs in only with GitHub or
-  Google, and `provider_email_unverified`, a sign-in refused because the provider doesn't report its
-  address verified, and its `account_not_linked` message points to connecting from account settings.
+  Google (opening the email form, where "Forgot password?" sets a password), and
+  `provider_email_unverified`, a sign-in refused because the provider doesn't report its address
+  verified, and its `account_not_linked` message points to connecting from account settings.
 
 ## [1.5.0] - 2026-10-04
 

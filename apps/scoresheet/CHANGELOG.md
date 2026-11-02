@@ -19,7 +19,8 @@ portal/API/infra work shipped on that tag.
 
 ### Added
 
-* "Forgot password?" on the sign-in form, and the verification code step after creating an account
+* "Forgot password?" on the sign-in form, and the verification code step after creating an account,
+  which says when the code couldn't be sent
 
 ### Changed
 

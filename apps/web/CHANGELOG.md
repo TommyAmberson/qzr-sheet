@@ -21,7 +21,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 ### Added
 
 * "Forgot password?" on the sign-in form: a code by email, then a new password
-* After sign-up the form asks for the verification code, with "Skip for now"
+* After sign-up the form asks for the verification code, with "Skip for now", or says when the code
+  couldn't be sent
 * Account settings at `/account`, from the signed-in address: whether the address is verified, a
   verification code to send and enter, and Connect or Disconnect for GitHub and Google
 * `/account/provider`, where a GitHub or Google sign-in onto an unverified account goes: the code
