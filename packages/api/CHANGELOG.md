@@ -36,7 +36,8 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   goes to the portal's `/account/provider` with an HTTP-only cookie; `/api/account/provider` reports
   the step, `confirm` and `resend` handle the code step, `claim` connects for the account's own
   session, and `takeover` hands the account to whoever proved the inbox and signs them in. A code
-  lasts 10 minutes from when it was sent; wrong guesses don't extend it
+  lasts 10 minutes from when it was sent; wrong guesses don't extend it, and a client may enter 10
+  codes per 15 minutes
 * **Disconnect** - `POST /api/account/disconnect` with the password, from a sign-in within the last
   day, while a password remains; ends every other session; 5 password checks per account per 15
   minutes, then 429

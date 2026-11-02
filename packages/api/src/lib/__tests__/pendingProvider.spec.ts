@@ -183,4 +183,19 @@ describe('a provider sign-in onto an unverified password account', () => {
       .where(like(schema.verification.identifier, 'pending-provider:%'))
     expect(after!.expiresAt.getTime()).toBe(before!.expiresAt.getTime())
   })
+
+  it('limits code entry per client across sign-ins', async () => {
+    const test = await createAuthTestApp()
+    const statuses: number[] = []
+    for (let i = 0; i < 4; i++) {
+      const email = `many${i}@example.com`
+      await signUpWithPassword(test, email)
+      const { cookie } = await pendingSignIn(test, 'github', { id: `6${i}`, email })
+      for (let t = 0; t < 3; t++) {
+        statuses.push((await step(test, cookie, '/confirm', { code: '000000' })).status)
+      }
+    }
+    expect(statuses.slice(0, 10)).not.toContain(429)
+    expect(statuses[10]).toBe(429)
+  })
 })

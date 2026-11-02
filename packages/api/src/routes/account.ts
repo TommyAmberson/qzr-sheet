@@ -6,7 +6,13 @@ import { isSocialProvider, tooManyRequestsMessage } from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import { requireAuth, getUser, type SessionVariables } from '../middleware/session'
 import { isFreshSession, refusedByUniqueIndex } from '../lib/auth'
-import { PER_ACCOUNT_PASSWORD, passwordKey, takeAllowance } from '../lib/emailLimits'
+import {
+  PER_ACCOUNT_PASSWORD,
+  PER_CLIENT_CODE_ENTRY,
+  codeEntryKey,
+  passwordKey,
+  takeAllowance,
+} from '../lib/emailLimits'
 import {
   PENDING_PROVIDER_COOKIE,
   PENDING_TTL_MS,
@@ -88,6 +94,12 @@ account.post('/provider/confirm', async (c) => {
   const found = await pendingFor(c)
   if (!found) return invalidPending(c)
   if (typeof body?.code !== 'string') return c.json({ error: 'code required' }, 400)
+  // Each row allows 3 tries, but a new sign-in brings a new row, so code
+  // entry is limited per client too (FR-030).
+  const ip = getIp(c.req.raw, (await authContext(c)).options)
+  if (ip && !(await takeAllowance(c.get('db'), codeEntryKey(ip), PER_CLIENT_CODE_ENTRY))) {
+    return c.json({ error: tooManyRequestsMessage('network') }, 429)
+  }
   const outcome = await confirmPendingCode(c.get('db'), found.row, body.code.trim())
   if (outcome === 'gone') return invalidPending(c)
   if (outcome === 'locked') {

@@ -22,6 +22,11 @@ export const clientKey = (ip: string) => `client:${ip}`
 export const PER_ACCOUNT_PASSWORD: Limit = { max: 5, windowSecs: 15 * 60 }
 export const passwordKey = (userId: string) => `password:${userId}`
 
+/** Code-step code entry per client (FR-030): each pending row allows 3 tries,
+ *  and this bounds the rows a client can work through. */
+export const PER_CLIENT_CODE_ENTRY: Limit = { max: 10, windowSecs: 15 * 60 }
+export const codeEntryKey = (ip: string) => `code:${ip}`
+
 /**
  * Counts one request against `key` and says whether it is allowed. In one
  * statement, so two requests at the same moment can't both slip under the

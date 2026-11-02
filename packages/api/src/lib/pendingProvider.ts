@@ -3,7 +3,7 @@ import { AccountRole, type SocialProvider } from '@qzr/shared'
 import { constantTimeEqual, generateRandomString } from 'better-auth/crypto'
 import * as schema from '../db/schema'
 import { asOne, isUniqueViolation, type Db } from './db'
-import { generateCode, hashCode } from './codes'
+import { hashCode } from './codes'
 import { providerCodeEmail, type SendEmail } from './email'
 import { takeEmailLimits } from './emailLimits'
 
@@ -59,7 +59,7 @@ export async function createPending(
   db: Db,
   pending: PendingProvider,
 ): Promise<{ token: string; row: PendingRow }> {
-  const token = generateCode(32)
+  const token = generateRandomString(32, 'a-z', 'A-Z', '0-9')
   const identifier = `${PENDING_PROVIDER_PREFIX}${token}`
   const value = JSON.stringify(pending)
   const now = new Date()
