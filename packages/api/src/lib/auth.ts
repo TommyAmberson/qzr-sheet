@@ -20,7 +20,6 @@ import {
   getSessionFromCtx,
 } from 'better-auth/api'
 import { defineRequestState } from '@better-auth/core/context'
-import { normalizePathname } from '@better-auth/core/utils/url'
 import { emailOTP } from 'better-auth/plugins'
 import { isBreachedPassword } from './breachedPasswords'
 import {
@@ -116,6 +115,10 @@ const providerProfile = defineRequestState<{
   proves: boolean
 } | null>(() => null)
 
+/** Set once the current request's email has counted against the limits on
+ *  arrival, so the send itself doesn't count it again. */
+const emailCounted = defineRequestState<boolean>(() => false)
+
 /** The providers the current reset disconnected, for its response. */
 const disconnectedByReset = defineRequestState<SocialProvider[]>(() => [])
 
@@ -142,16 +145,13 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
         switch (ctx.path) {
           // The send route's types for refused flows. A verification code is
           // sent only for a session on that account (FR-009), so a stranger
-          // can't have codes mailed to any address; sign-up's own send isn't
-          // a request to this route.
+          // can't have codes mailed to any address. Sign-up's own send calls
+          // the plugin directly, which runs no hooks.
           case '/email-otp/send-verification-otp': {
             if (typeof body.type !== 'string' || !SENDABLE_TYPES.has(body.type)) {
               throw new APIError('NOT_FOUND')
             }
-            if (
-              body.type === 'email-verification' &&
-              normalizePathname(ctx.request.url, basePath) === ctx.path
-            ) {
+            if (body.type === 'email-verification') {
               await requireSessionFor(
                 ctx,
                 body.email,
@@ -209,6 +209,7 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           getIp(ctx.request, ctx.context.options),
         )
         if (refused) throw tooMany(refused)
+        await emailCounted.set(true)
       }),
       // A reset that disconnected providers says so, so the form can point to
       // connecting them again (FR-025).
@@ -454,18 +455,16 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
             sendEmail(resetCodeEmail(email, otp, CODE_TTL_S / 60))
             return
           }
-          // The code sent at sign-up counts towards its client's daily limit
-          // only, and over the limit it skips the email instead of refusing:
-          // a group signing up on one network still gets in, and can send a
-          // code later from settings. Requests to send one were counted on
-          // arrival.
-          const request = ctx?.request
-          const path = request ? normalizePathname(request.url, basePath) : ''
           // A GitHub or Google sign-up has no step that asks for the code, so
           // it gets none; settings can send one later (FR-006 covers
           // password sign-up only).
-          if (path.startsWith('/callback/')) return
-          if (ctx && request && !EMAILING_PATHS.has(path)) {
+          if (await providerProfile.get().catch(() => null)) return
+          // The code sent at sign-up counts towards its client's daily limit
+          // only, and over the limit it skips the email instead of refusing:
+          // a group signing up on one network still gets in, and can send a
+          // code later from settings. Requests to send one counted on arrival.
+          const request = ctx?.request
+          if (ctx && request && !(await emailCounted.get().catch(() => false))) {
             const ip = getIp(request, ctx.context.options)
             if (ip && !(await takeAllowance(db, clientKey(ip), PER_CLIENT))) {
               console.warn(`[email] sign-up code skipped: daily limit reached for ${ip}`)
