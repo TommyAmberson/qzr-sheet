@@ -156,9 +156,8 @@ still bound what is sent.
 
 **Rationale**: Better Auth enables its limiter only when `NODE_ENV` is `production`, which the
 Worker doesn't set, and its default memory storage is per isolate, so a Worker needs it set
-explicitly and stored in the database.
-"That's me" and disconnect rest on the password (OWASP: limit authentication attempts). D1 storage
-holds across isolates; Better Auth prunes old rows itself.
+explicitly and stored in the database. "That's me" and disconnect rest on the password (OWASP: limit
+authentication attempts). D1 storage holds across isolates; Better Auth prunes old rows itself.
 
 **Alternatives considered**: Cloudflare rate-limiting rules (outside the repo, plan-dependent); KV
 (eventually consistent).
