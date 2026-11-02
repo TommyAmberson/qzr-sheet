@@ -104,7 +104,7 @@ export { app }
 
 export default {
   fetch: app.fetch,
-  async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+  async scheduled(controller: ScheduledController, env: Bindings, ctx: ExecutionContext) {
     ctx.waitUntil(
       autoAdvancePhases(createDb(env.DB)).then((res) => {
         if (res.promotedToBuild > 0 || res.promotedToLive > 0) {
@@ -113,6 +113,10 @@ export default {
       }),
     )
     // Email-limit windows that have ended (FR-011).
-    ctx.waitUntil(pruneEmailSends(createDb(env.DB)))
+    // It deletes only windows that started a day ago or more, so the first
+    // run of each hour is enough.
+    if (new Date(controller.scheduledTime).getUTCMinutes() < 5) {
+      ctx.waitUntil(pruneEmailSends(createDb(env.DB)))
+    }
   },
 }
