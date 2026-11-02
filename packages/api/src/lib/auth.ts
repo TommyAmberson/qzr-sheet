@@ -214,8 +214,9 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
         if (refused) throw tooMany(refused)
         await emailCounted.set(true)
       }),
-      // A reset that disconnected providers says so, so the form can point to
-      // connecting them again (FR-025).
+      // Adds what a response should say beyond Better Auth's own: a skipped
+      // sign-up code, the providers a reset disconnected; and handles the
+      // provider callback's refusals.
       after: createAuthMiddleware(async (ctx) => {
         // A sign-up whose code was skipped says so, so the form doesn't wait
         // for an email that isn't coming (FR-006).
@@ -224,6 +225,8 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           if (!(await signUpCodeSkipped.get()) || !returned || returned instanceof Response) return
           return ctx.json({ ...(returned as object), codeSkipped: true })
         }
+        // A reset that disconnected providers says so, so the form can point
+        // to connecting them again (FR-025).
         if (ctx.path === '/email-otp/reset-password') {
           const disconnected = await disconnectedByReset.get()
           if (disconnected.length > 0) {
