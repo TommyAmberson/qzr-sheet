@@ -38,6 +38,7 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   `takeOverAccount` in the auth client, for the code step and the "That's me" or "That's not me"
   choice after a GitHub or Google sign-in onto an unverified account, with the `PendingProviderStep`
   and `AccountError` types.
+* `signInSocial` returns the result of a refused start (a rate limit, say) instead of nothing.
 * `signUpCodeSkipped` reads a sign-up response whose verification code the daily limit skipped.
 * `effectiveAccountRole`, an account's role as every check reads it: superuser only on a verified
   address, shared by the API and the portal.

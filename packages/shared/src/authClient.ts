@@ -29,8 +29,11 @@ export function createAppAuthClient(baseURL: string) {
     // A failed round-trip (e.g. `account_not_linked`) comes back to this page
     // with `?error=`, where the sign-in UI explains it, instead of landing on
     // Better Auth's own error page on the API.
-    function signInSocial(provider: SocialProvider) {
-      authClient.signIn.social({
+    /** Starts a GitHub or Google sign-in; the browser leaves for the
+     *  provider, so a result comes back only when it was refused, such as
+     *  over a rate limit. */
+    async function signInSocial(provider: SocialProvider) {
+      return authClient.signIn.social({
         provider,
         callbackURL: window.location.href,
         errorCallbackURL: errorReturnURL(),

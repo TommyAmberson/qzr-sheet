@@ -20,6 +20,30 @@ function mountForm(oauthError: SocialSignInError | null = null, withoutProviders
   })
 }
 
+describe('SignInForm provider buttons', () => {
+  it('say why a sign-in was refused before it could leave', async () => {
+    const wrapper = mount(SignInForm, {
+      props: {
+        signInSocial: vi.fn(async () => ({
+          error: { status: 429, message: 'Too many requests. Please try again later.' },
+        })),
+        signInEmail: vi.fn(),
+        signUpEmail: vi.fn(),
+        requestPasswordReset: vi.fn(),
+        resetPassword: vi.fn(),
+        sendVerificationCode: vi.fn(),
+        verifyEmail: vi.fn(),
+      },
+    })
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('GitHub'))!
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Too many requests')
+  })
+})
+
 describe('SignInForm in the desktop app', () => {
   it('offers email only', () => {
     const wrapper = mountForm(null, true)
