@@ -355,14 +355,13 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
         try {
           // Recovery invalidates outstanding codes (OWASP): pending provider
           // sign-ins for the account go too (FR-029).
-          await db
-            .delete(schema.verification)
-            .where(
-              and(
-                like(schema.verification.identifier, `${PENDING_PROVIDER_PREFIX}%`),
-                sql`json_extract(${schema.verification.value}, '$.userId') = ${user.id}`,
-              ),
-            )
+          await db.delete(schema.verification).where(
+            and(
+              like(schema.verification.identifier, `${PENDING_PROVIDER_PREFIX}%`),
+              // Email-code rows aren't JSON; CASE keeps json_extract off them.
+              sql`case when json_valid(${schema.verification.value}) then json_extract(${schema.verification.value}, '$.userId') end = ${user.id}`,
+            ),
+          )
         } catch (err) {
           console.error('[auth] cancelling pending provider sign-ins on reset failed:', err)
         }
