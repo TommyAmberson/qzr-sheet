@@ -56,6 +56,6 @@ changes nothing (FR-031).
 Every route answers a used, expired or unknown pending cookie the same way, 400 with
 `code: 'PENDING_INVALID'`, revealing nothing about the account (FR-016). The code step answers a
 wrong code with `INVALID_OTP` and the third with `TOO_MANY_ATTEMPTS`, which ends the sign-in.
-Disconnect answers `SESSION_NOT_FRESH`, `INVALID_PASSWORD` or `FAILED_TO_UNLINK_LAST_ACCOUNT`, and
-429 after 5 password checks for the account in 15 minutes. Limited requests answer 429 with a
-message to try later (FR-011).
+Disconnect answers `NOT_CONNECTED`, `SESSION_NOT_FRESH`, `INVALID_PASSWORD` or
+`FAILED_TO_UNLINK_LAST_ACCOUNT`, and 429 after 5 password checks for the account in 15 minutes.
+Limited requests answer 429 with a message to try later (FR-011).

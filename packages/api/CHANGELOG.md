@@ -40,7 +40,7 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   codes per 15 minutes
 * **Disconnect** - `POST /api/account/disconnect` with the password, from a sign-in within the last
   day, while a password remains; ends every other session; 5 password checks per account per 15
-  minutes, then 429
+  minutes, then 429; `NOT_CONNECTED` for a provider the account doesn't have
 * **Notices** - the address is emailed when GitHub or Google joins or leaves an account
 * **Breached passwords refused** - a new password at sign-up or reset that appears in a data breach
   is refused with `PASSWORD_COMPROMISED`, checked against Pwned Passwords before a reset spends its
