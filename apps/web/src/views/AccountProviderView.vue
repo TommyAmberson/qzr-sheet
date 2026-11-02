@@ -31,6 +31,9 @@ const providerLabel = computed(() =>
   pending.value ? SOCIAL_PROVIDER_LABEL[pending.value.provider] : '',
 )
 
+// The pending sign-in ended: after a third wrong code, or for any other
+// reason (expired, already used, or no longer possible).
+const goneAfterTries = ref(false)
 const code = ref('')
 const password = ref('')
 const busy = ref(false)
@@ -57,7 +60,12 @@ async function run(step: () => Promise<{ error: unknown } | null>): Promise<bool
   try {
     const result = await step()
     const failed = result?.error as Parameters<typeof codeErrorMessage>[0]
-    if (failed?.code === 'PENDING_INVALID') stage.value = 'gone'
+    // Expired, used, or ended by a third wrong code: only a new sign-in helps.
+    if (failed?.code === 'PENDING_INVALID' || failed?.code === 'TOO_MANY_ATTEMPTS') {
+      goneAfterTries.value = failed.code === 'TOO_MANY_ATTEMPTS'
+      stage.value = 'gone'
+      return false
+    }
     error.value = codeErrorMessage(failed) ?? ''
     return !error.value
   } catch {
@@ -100,8 +108,14 @@ async function takeOver() {
       <p v-if="stage === 'loading'" class="muted">Loading…</p>
 
       <section v-else-if="stage === 'gone'">
-        <h2 class="title">This sign-in has expired</h2>
-        <p class="muted">Sign in again from the menu to start over.</p>
+        <h2 class="title">This sign-in has ended</h2>
+        <p class="muted">
+          {{
+            goneAfterTries
+              ? 'That was too many wrong codes. Start the sign-in again from the menu.'
+              : "It expired or can't continue. Start the sign-in again from the menu."
+          }}
+        </p>
         <RouterLink to="/" class="btn">Home</RouterLink>
       </section>
 
