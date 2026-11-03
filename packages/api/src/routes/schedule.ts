@@ -1254,8 +1254,9 @@ async function syncRooms(
   meetId: number,
   doc: ScheduleDocument,
 ): Promise<{ statements: PromiseLike<unknown>[]; unusedRooms: { id: number; name: string }[] }> {
-  // New rooms are added at once, for their ids; renames and removals are handed back to run with
-  // the publish, so a publish that fails leaves the meet's rooms as they were
+  // New rooms are added at once, for their ids; a publish that then fails leaves them unused, and
+  // the next publish takes them back by name. Renames and removals are handed back to run with the
+  // publish, so a publish that fails leaves the meet's existing rooms as they were
   const statements: PromiseLike<unknown>[] = []
   const current = await db
     .select()

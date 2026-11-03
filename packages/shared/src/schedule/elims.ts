@@ -260,3 +260,15 @@ function roundRobin(n: number, perTeam: number): number[][] {
 export function defaultAbove(quizzes: number): number {
   return [2, 3, 3, 4][quizzes - 1] ?? 3
 }
+
+/**
+ * A division's elims for a new team count (FR-030): the defaults follow the count, and elims the
+ * director has changed stay as they are
+ */
+export function elimsForCount(
+  division: DivisionSettings,
+  teams: number,
+): DivisionSettings['elims'] {
+  const isDefault = JSON.stringify(division.elims) === JSON.stringify(defaultElims(division.teams))
+  return isDefault ? defaultElims(teams) : division.elims
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { checkSchedule } from '../conflicts'
-import { buildElimQuizzes, defaultAbove, defaultElims } from '../elims'
+import { buildElimQuizzes, defaultAbove, defaultElims, elimsForCount } from '../elims'
 import { generateSchedule, reflowSchedule } from '../reflow'
 import {
   newScheduleDocument,
@@ -214,5 +214,15 @@ describe('elim settings (FR-027 to FR-034)', () => {
     const quizzes = buildElimQuizzes(div(13, { lanes: [lane(13)], lines: [] }))
     expect(quizzes.length).toBeGreaterThan(0)
     expect(quizzes.every((q) => q.seats.every((s) => s.kind === 'empty'))).toBe(true)
+  })
+})
+
+describe('elimsForCount', () => {
+  it('follows the count with the defaults, and keeps elims the director changed', () => {
+    const division = { id: '1', name: 'Div 1', teams: 9, elims: defaultElims(9) }
+    expect(elimsForCount(division, 12)).toEqual(defaultElims(12))
+    const lanes = division.elims.lanes.map((l, i) => (i === 0 ? { ...l, finals: !l.finals } : l))
+    const changed = { ...division, elims: { ...division.elims, lanes } }
+    expect(elimsForCount(changed, 12)).toBe(changed.elims)
   })
 })

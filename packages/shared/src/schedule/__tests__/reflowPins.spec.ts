@@ -190,3 +190,13 @@ describe('a pinned elim in the tray', () => {
     expect(fed.every((q) => q.cell !== null)).toBe(true)
   })
 })
+
+describe('every prelim pinned', () => {
+  it('still places the elims', () => {
+    const doc = meet([6, 17])
+    const placed = doc.quizzes.filter((q) => q.phase === 'elim' && q.cell).length
+    for (const q of doc.quizzes) if (q.phase === 'prelim') q.pinned = true
+    const after = reflowSchedule(doc)
+    expect(after.quizzes.filter((q) => q.phase === 'elim' && q.cell)).toHaveLength(placed)
+  })
+})

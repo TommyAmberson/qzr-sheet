@@ -37,6 +37,12 @@ describe('legacyFromDocument', () => {
     ])
   })
 
+  it('puts a first day before a start entered a day late on its own date', () => {
+    const view = legacyFromDocument(doc([]), { id: 1, dateFrom: '2026-03-08' }, at)
+    // Saturday 7 March, not the Saturday a week after the Sunday start
+    expect(view.slots[0]!.startAt).toBe('2026-03-07T09:00:00.000Z')
+  })
+
   it("keeps a quiz's number when quizzes are added before it", () => {
     const before = legacyFromDocument(doc(['b']), meet, at).quizzes[0]!.id
     const after = legacyFromDocument(doc(['a', 'b']), meet, at).quizzes.find(

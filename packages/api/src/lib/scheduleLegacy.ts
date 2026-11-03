@@ -140,7 +140,11 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
   if (old.rooms.length > 0) doc.settings.rooms = old.rooms.length
   doc.settings.divisions = divisions.map((d) => {
     const teams = Math.max(old.teams.filter((t) => t.division === d).length, lettersOf(d).size)
-    return { id: d, name: `Div ${d}`, teams, elims: defaultElims(teams) }
+    // A division whose elims the old editor built keeps those, pinned, as its elims: generating
+    // its default elims beside them would double them
+    const builtElims = old.quizzes.some((q) => q.division === d && q.phase === 'elim')
+    const elims = builtElims ? { lanes: [], lines: [] } : defaultElims(teams)
+    return { id: d, name: `Div ${d}`, teams, elims }
   })
   doc.applied = structuredClone(doc.settings)
 
@@ -271,10 +275,13 @@ function fnv1a(text: string): number {
 }
 
 /** The date a day row stands for: the first date from `from` on its weekday, or `from` itself */
-function dayDate(label: string, from: string): string {
+function dayDate(label: string, from: string, first: boolean): string {
   const weekday = WEEKDAYS.indexOf(label.trim())
   if (weekday < 0) return from
-  for (let i = 0; i < 7; i++) {
+  // The first day is the date nearest the meet's start with its weekday, which may come before a
+  // start entered a day late; each later one is the next date on its weekday
+  const steps = first ? [0, 1, -1, 2, -2, 3, -3] : [0, 1, 2, 3, 4, 5, 6]
+  for (const i of steps) {
     const date = addDays(from, i)
     if (new Date(`${date}T00:00:00Z`).getUTCDay() === weekday) return date
   }
@@ -343,7 +350,11 @@ export function legacyFromDocument(
   // Days follow on from the meet's first day, each on its weekday, so a gap between days holds
   let date: string | null = null
   for (const row of doc.frame) {
-    if (row.kind === 'day') date = dayDate(row.label, date ? addDays(date, 1) : meet.dateFrom)
+    if (row.kind === 'day') {
+      date = date
+        ? dayDate(row.label, addDays(date, 1), false)
+        : dayDate(row.label, meet.dateFrom, true)
+    }
     if (row.kind !== 'slot' && row.kind !== 'event') continue
     slots.push({
       id: slotIds.get(row.id)!,
