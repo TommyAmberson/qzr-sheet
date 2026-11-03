@@ -33,6 +33,7 @@ import {
   comparable,
   forgetLink,
   readLink,
+  teamName,
   startFromMeet,
   withMeetNames,
   writeLink,
@@ -156,13 +157,21 @@ function confirmLink() {
   for (const d of doc.settings.divisions) {
     const meetTeams = teams.value.filter((t) => t.division === d.id)
     const draw = (doc.draw[d.id] ??= { teams: [], stale: false })
-    draw.teams = meetTeams.map((t, i) => ({
-      late: draw.teams[i]?.late ?? t.lateness,
-      absent: draw.teams[i]?.absent ?? false,
-      teamId: t.id,
-      ...(draw.teams[i]?.letter ? { letter: draw.teams[i]!.letter } : {}),
-    }))
-    if (meetTeams.length !== d.teams) draw.stale = draw.teams.some((t) => t.letter)
+    // A kept team carries its letter and marks to the meet team of the same name, never by position
+    const fold = (name: string | undefined) => name?.trim().toLowerCase() ?? ''
+    const kept = new Map(draw.teams.filter((t) => t.name).map((t) => [fold(t.name), t]))
+    const wasDrawn = draw.teams.some((t) => t.letter)
+    draw.teams = meetTeams.map((t) => {
+      const match = kept.get(fold(teamName(t)))
+      return {
+        late: match?.late ?? t.lateness,
+        absent: match?.absent ?? false,
+        teamId: t.id,
+        ...(match?.letter ? { letter: match.letter } : {}),
+      }
+    })
+    // A draw that didn't carry over to every team needs redoing
+    if (wasDrawn && draw.teams.some((t) => !t.letter)) draw.stale = true
   }
   for (const room of doc.rooms) {
     const meetRoom = rooms.value.find((m) => m.name === room.name)

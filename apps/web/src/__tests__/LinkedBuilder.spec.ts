@@ -190,6 +190,32 @@ describe('a linked schedule in the builder (story 7)', () => {
     w.unmount()
   })
 
+  it("carries a kept draw to the meet's teams by name, never by position", async () => {
+    const { server } = fakeServer()
+    const base = newScheduleDocument('Named')
+    base.settings.divisions = [
+      { id: '1', name: 'Div 1', teams: 6, elims: { lanes: [], lines: [] } },
+    ]
+    const kept = generateSchedule(base)
+    kept.draw['1'] = {
+      stale: false,
+      teams: [
+        { name: 'Grace 2', letter: 'A', late: true, absent: false },
+        { name: 'Elsewhere 9', letter: 'B', late: false, absent: false },
+      ],
+    }
+    keepSchedule(kept)
+    const w = await openBuilder()
+    await w.find('[aria-label="Schedule to link"]').setValue(kept.id)
+    await button(w, 'Link this schedule')!.trigger('click')
+    await flushPromises()
+    const draw = server.draft!.draw['1']!
+    expect(draw.teams.find((t) => t.teamId === 101)).toMatchObject({ letter: 'A', late: true })
+    expect(draw.teams.filter((t) => t.letter)).toHaveLength(1)
+    expect(draw.stale).toBe(true)
+    w.unmount()
+  })
+
   it('unlinking leaves a schedule of its own in this browser (FR-048)', async () => {
     const { server } = fakeServer()
     serverDraft(server)

@@ -45,7 +45,8 @@ export function forgetLink(meetId: number) {
 /** The browser's time zone, which the meet's days are in */
 export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
-const teamName = (t: MeetTeamRow) =>
+/** A meet team's name as the builder shows it */
+export const teamName = (t: MeetTeamRow) =>
   teamDisplayName({ shortName: t.churchShortName, number: t.number })
 
 /**
