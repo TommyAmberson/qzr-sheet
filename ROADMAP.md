@@ -29,6 +29,15 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
      #14, #41
    * [#16 Schedule result linkage](https://github.com/TommyAmberson/qzr-sheet/issues/16) — blocked
      by #7, #12, #42
+
+   The builder itself has shipped (specs/005-schedule-redesign): generation from team counts with
+   pins, the draw, elim lanes, and linked publishing with versions. Follow-ups:
+   * Record a quiz's lane in the scoresheet's quiz file, so two consolation lanes that each restart
+     their letters at A can't save results under the same name (W-5 warns about it today). A
+     `FILE_VERSION` bump touching the scoresheet, results and the shared contract.
+   * Remove the old schedule tables (`meet_slots`, `scheduled_quizzes`, `scheduled_quiz_seats`,
+     `prelim_assignments`, `seed_resolutions`), `POST /schedule/sync`, the room `PATCH`, and the old
+     read routes, once every meet has been converted and no supported scoresheet release calls them.
 3. [#6 Load teams from schedule](https://github.com/TommyAmberson/qzr-sheet/issues/6) — blocked by
    #12
 4. [#8 Stats calculator](https://github.com/TommyAmberson/qzr-sheet/issues/8) — blocked by #7

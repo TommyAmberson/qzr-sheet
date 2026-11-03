@@ -34,6 +34,15 @@
             </dd>
           </div>
           <div class="feature-item">
+            <dt class="feature-name">Schedule builder</dt>
+            <dd class="feature-desc">
+              Build a meet's whole weekend from its team counts, then change anything by hand:
+              prelim draws, late teams, elim brackets and round robins, rooms and events. Works
+              without an account; linked to a meet, it publishes the schedule coaches, viewers and
+              officials see.
+            </dd>
+          </div>
+          <div class="feature-item">
             <dt class="feature-name">Division support</dt>
             <dd class="feature-desc">
               Prelim and consolation divisions tracked per team. The scoresheet's division dropdown
@@ -54,10 +63,10 @@
             </dd>
           </div>
           <div class="feature-item">
-            <dt class="feature-name">Schedule</dt>
+            <dt class="feature-name">Separate results for every consolation lane</dt>
             <dd class="feature-desc">
-              Round-robin schedule generation and publishing. Coaches and viewers see their quizzes
-              once the schedule is published.
+              The scoresheet records which lane a quiz belongs to, so lanes that each letter their
+              quizzes from A never mix up their results.
             </dd>
           </div>
           <div class="feature-item">
