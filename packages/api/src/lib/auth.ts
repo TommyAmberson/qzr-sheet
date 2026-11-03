@@ -198,8 +198,12 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
           case '/email-otp/reset-password':
             await refuseBreachedPassword(body.password)
             return
+          // Only for a signed-in request: Better Auth refuses the rest itself,
+          // and they shouldn't cost a call to Pwned Passwords.
           case '/change-password':
-            await refuseBreachedPassword((ctx.body as { newPassword?: unknown }).newPassword)
+            if (await getSessionFromCtx(ctx)) {
+              await refuseBreachedPassword((ctx.body as { newPassword?: unknown }).newPassword)
+            }
             return
         }
         if (!EMAILING_PATHS.has(ctx.path)) return
