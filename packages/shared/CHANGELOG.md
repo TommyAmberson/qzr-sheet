@@ -46,6 +46,10 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   division order, sized by its share of the quizzes, packed from its first slot with no team twice
   in a slot; a division that doesn't fit borrows only as many of other rooms' latest free cells as
   it needs, and what fits nowhere is left unplaced with the reason.
+* `defaultElims` and `buildElimQuizzes`: a division's elims by its size, as the org's meets ran them
+  (lanes stacked down the ranks, a rerank XY across the line below the main lane), built from the
+  bracket library for 5 to 12 and 14 teams, with consolation letters continuing the main lane's and
+  each lane's deciding quiz called a Finals or named as its next letter.
 
 ## [1.6.0] - 2026-10-31
 
