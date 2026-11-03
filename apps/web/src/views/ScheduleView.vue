@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
-import { ApiError, MeetRole, type ScheduleDocument } from '@qzr/shared'
+import { ApiError, type ScheduleDocument, type SheetView } from '@qzr/shared'
 import { ScheduleSheet } from '@qzr/ui'
 
 import { getMeet, getMyMeets, getPublishedSchedule, type QuizMeet } from '../api'
+import { useAuth } from '../composables/useAuth'
+import { isAdminOrSuperuser } from '../meetAccess'
 
 /**
  * A meet's published schedule (FR-050): letters or team names as the API says for the meet's phase
@@ -15,10 +17,12 @@ const router = useRouter()
 
 declare const __SCORESHEET_URL__: string
 
+const { session } = useAuth()
+
 const meet = ref<QuizMeet | null>(null)
 const isAdmin = ref(false)
 const doc = shallowRef<ScheduleDocument | null>(null)
-const view = ref<'letters' | 'teams'>('letters')
+const view = ref<SheetView>('letters')
 const loading = ref(true)
 const error = ref('')
 const unpublished = ref(false)
@@ -39,8 +43,8 @@ async function load() {
   try {
     const [detail, mine] = await Promise.all([getMeet(props.slug), getMyMeets()])
     meet.value = detail.meet
-    const role = mine.memberships.find((m) => m.meetId === detail.meet.id)?.role
-    isAdmin.value = role === MeetRole.Admin || role === MeetRole.Superuser
+    const accountRole = (session.value?.data?.user as { role?: string } | undefined)?.role
+    isAdmin.value = isAdminOrSuperuser(mine.memberships, detail.meet.id, accountRole)
     try {
       const published = await getPublishedSchedule(detail.meet.id)
       doc.value = published.document
