@@ -311,6 +311,21 @@ describe('publishing and history (FR-049, FR-049a)', () => {
     w.unmount()
   })
 
+  it("says why when it can't publish because the draft hasn't saved", async () => {
+    const { server } = fakeServer()
+    serverDraft(server)
+    const w = await openBuilder()
+    const name = w.find('[aria-label="Schedule name"]')
+    await name.setValue('Offline edit')
+    await name.trigger('change')
+    server.offline = true
+    await button(w, 'Publish')!.trigger('click')
+    await flushPromises()
+    expect(w.text()).toMatch(/Not published: not saved: offline/)
+    expect(server.versions).toHaveLength(0)
+    w.unmount()
+  })
+
   it('lists versions with when and by whom, and restores one as the draft (FR-049a)', async () => {
     const { server } = fakeServer()
     serverDraft(server)

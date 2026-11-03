@@ -9,7 +9,13 @@ import {
   useTemplateRef,
 } from 'vue'
 import { useRouter } from 'vue-router'
-import { ApiError, type Conflict, type ScheduleDocument } from '@qzr/shared'
+import {
+  ApiError,
+  defaultElims,
+  reflowSchedule,
+  type Conflict,
+  type ScheduleDocument,
+} from '@qzr/shared'
 import { ScheduleSheet, formatWhen } from '@qzr/ui'
 
 import {
@@ -128,17 +134,36 @@ function startNew() {
 const matching = computed(() => {
   const doc = linking.value
   if (!doc) return null
-  const divisions = doc.settings.divisions.map((d) => {
-    const meetCount = teams.value.filter((t) => t.division === d.id).length
-    const known = meet.value!.divisions.includes(d.id) || meetCount > 0
-    return { name: d.name, teams: d.teams, meetCount, ok: known && meetCount === d.teams }
-  })
+  const count = (id: string) => teams.value.filter((t) => t.division === id).length
+  const divisions = [
+    ...doc.settings.divisions.map((d) => {
+      const known = meet.value!.divisions.includes(d.id) || count(d.id) > 0
+      return {
+        name: d.name,
+        teams: d.teams,
+        meetCount: count(d.id),
+        ok: known && count(d.id) === d.teams,
+      }
+    }),
+    ...meetOnlyDivisions(doc).map((id) => ({
+      name: `Div ${id}`,
+      teams: 0,
+      meetCount: count(id),
+      ok: false,
+    })),
+  ]
   const roomRows = doc.rooms.map((r) => ({
     name: r.name,
     ok: rooms.value.some((m) => m.name === r.name),
   }))
   return { divisions, rooms: roomRows }
 })
+
+/** The meet's divisions with teams that the kept schedule doesn't have */
+function meetOnlyDivisions(doc: ScheduleDocument): string[] {
+  const have = new Set(doc.settings.divisions.map((d) => d.id))
+  return [...new Set(teams.value.map((t) => t.division))].filter((id) => !have.has(id))
+}
 
 function chooseKept(event: Event) {
   const id = (event.target as HTMLSelectElement).value
@@ -154,8 +179,18 @@ function confirmLink() {
     id: crypto.randomUUID(),
     link: { meetId: meetId.value, timeZone: browserTimeZone() },
   }
+  // The meet's teams decide each division's count, and divisions only the meet has are added
+  for (const id of meetOnlyDivisions(doc)) {
+    doc.settings.divisions.push({ id, name: `Div ${id}`, teams: 0, elims: defaultElims(0) })
+  }
+  let recount = false
   for (const d of doc.settings.divisions) {
     const meetTeams = teams.value.filter((t) => t.division === d.id)
+    if (d.teams !== meetTeams.length) {
+      d.teams = meetTeams.length
+      d.elims = defaultElims(d.teams)
+      recount = true
+    }
     const draw = (doc.draw[d.id] ??= { teams: [], stale: false })
     // A kept team carries its letter and marks to the meet team of the same name, never by position
     const fold = (name: string | undefined) => name?.trim().toLowerCase() ?? ''
@@ -178,7 +213,9 @@ function confirmLink() {
     if (meetRoom) room.meetRoomId = meetRoom.id
   }
   linking.value = null
-  open(withMeetNames(doc, teams.value), 0, true)
+  // New counts rebuild the grid around anything pinned, as a settings change would
+  const linked = recount ? { ...doc, ...reflowSchedule(doc) } : doc
+  open(withMeetNames(linked, teams.value), 0, true)
   void send()
 }
 
@@ -189,6 +226,8 @@ let retry: ReturnType<typeof setInterval> | undefined
 /** Changes made while a save was on its way, so that save doesn't mark them sent */
 let changedSinceSend = false
 let sending: Promise<void> | null = null
+/** While a publish is on its way, saves wait for it, so they don't race it for the next revision */
+let publishInFlight = false
 
 function onChanged(doc: ScheduleDocument) {
   if (doc.id !== docId.value) return
@@ -203,6 +242,7 @@ function onChanged(doc: ScheduleDocument) {
 
 /** Send the kept draft if it has unsent changes; resolves when this and any queued save are done */
 async function send(): Promise<void> {
+  if (publishInFlight) return
   if (sending) {
     await sending
     if (readLink(meetId.value)?.unsent && !conflict.value) return send()
@@ -308,16 +348,29 @@ async function publish(confirmConflicts = false) {
     clearTimeout(timer)
     await send()
     const link = readLink(meetId.value)
-    if (!link || link.unsent || conflict.value) return
-    const res = await publishSchedule(meetId.value, link.baseRevision, confirmConflicts)
+    if (!link || link.unsent || conflict.value) {
+      if (!conflict.value) publishNote.value = `Not published: ${saveText.value.toLowerCase()}.`
+      return
+    }
+    const sent = current.value!
+    let res
+    try {
+      publishInFlight = true
+      res = await publishSchedule(meetId.value, link.baseRevision, confirmConflicts)
+    } finally {
+      publishInFlight = false
+    }
     hardConflicts.value = null
-    writeLink(meetId.value, { ...link, baseRevision: res.draftRevision })
+    // Edits made while publishing stay unsent, now based on the revision the publish wrote
+    const now = readLink(meetId.value) ?? link
+    writeLink(meetId.value, { ...now, baseRevision: res.draftRevision })
+    if (now.unsent) void send()
     // Rooms the publish added now have their meet room; the draft on the server has them already
     const ids = new Map(res.rooms.map((r) => [r.id, r.meetRoomId]))
     const withIds = (d: ScheduleDocument) => {
       for (const r of d.rooms) r.meetRoomId = ids.get(r.id)
     }
-    const publishedDoc = structuredClone(current.value!)
+    const publishedDoc = structuredClone(sent)
     withIds(publishedDoc)
     published.value = publishedDoc
     if (current.value?.rooms.some((r) => r.meetRoomId !== ids.get(r.id))) {
@@ -326,7 +379,7 @@ async function publish(confirmConflicts = false) {
     version.value = res.version
     publishNote.value =
       res.unusedRooms.length > 0
-        ? `Published version ${res.version}. Kept ${res.unusedRooms.map((r) => r.name).join(', ')}, which the schedule doesn't use, because officials have a code for it.`
+        ? `Published version ${res.version}. Kept ${res.unusedRooms.map((r) => r.name).join(', ')}, which the schedule doesn't use, because officials or results still use it.`
         : `Published version ${res.version}.`
     if (history.value) await showHistory()
   } catch (e) {
@@ -361,10 +414,14 @@ async function restore(v: number) {
   await send()
   const link = readLink(meetId.value)
   if (!link || conflict.value) return
-  const saved = await restoreScheduleVersion(meetId.value, v, link.baseRevision)
-  const { document } = await getScheduleVersion(meetId.value, v)
-  viewing.value = null
-  open(withMeetNames(document, teams.value), saved.draftRevision, false)
+  try {
+    const saved = await restoreScheduleVersion(meetId.value, v, link.baseRevision)
+    const { document } = await getScheduleVersion(meetId.value, v)
+    viewing.value = null
+    open(withMeetNames(document, teams.value), saved.draftRevision, false)
+  } catch (e) {
+    publishNote.value = `Not restored: ${e instanceof Error ? e.message : String(e)}`
+  }
 }
 
 // ---- Unlinking (FR-048) ----
@@ -374,7 +431,13 @@ const confirmingUnlink = ref(false)
 async function unlink() {
   const doc = current.value
   if (!doc) return
-  await unlinkSchedule(meetId.value)
+  try {
+    await unlinkSchedule(meetId.value)
+  } catch (e) {
+    confirmingUnlink.value = false
+    publishNote.value = `Not unlinked: ${e instanceof Error ? e.message : String(e)}`
+    return
+  }
   const standalone = { ...structuredClone(doc), id: crypto.randomUUID() }
   delete standalone.link
   keepSchedule(standalone)
