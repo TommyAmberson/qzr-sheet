@@ -1,4 +1,4 @@
-import { lt, sql } from 'drizzle-orm'
+import { and, eq, gt, lt, sql } from 'drizzle-orm'
 import * as schema from '../db/schema'
 import type { EmailLimit } from '@qzr/shared'
 import type { Db } from './db'
@@ -74,7 +74,27 @@ export async function takeEmailLimits(
   email: string,
   ip: string | null,
 ): Promise<EmailLimit | null> {
-  if (ip && !(await takeAllowance(db, clientKey(ip), PER_CLIENT))) return 'network'
-  if (!(await takeAllowance(db, addressKey(email), PER_ADDRESS))) return 'address'
-  return null
+  // One time for every count, so a give-back lands in the window it took from.
+  const nowSecs = Math.floor(Date.now() / 1000)
+  if (ip && !(await takeAllowance(db, clientKey(ip), PER_CLIENT, nowSecs))) return 'network'
+  if (await takeAllowance(db, addressKey(email), PER_ADDRESS, nowSecs)) return null
+  // The address refused it, so nothing is sent, and the client's count goes
+  // back.
+  if (ip) await giveBackAllowance(db, clientKey(ip), PER_CLIENT, nowSecs)
+  return 'address'
+}
+
+/** Undoes one `takeAllowance` in the current window. */
+async function giveBackAllowance(db: Db, key: string, limit: Limit, nowSecs: number) {
+  const windowStart = nowSecs - (nowSecs % limit.windowSecs)
+  await db
+    .update(schema.emailSends)
+    .set({ count: sql`${schema.emailSends.count} - 1` })
+    .where(
+      and(
+        eq(schema.emailSends.key, key),
+        eq(schema.emailSends.windowStart, windowStart),
+        gt(schema.emailSends.count, 0),
+      ),
+    )
 }

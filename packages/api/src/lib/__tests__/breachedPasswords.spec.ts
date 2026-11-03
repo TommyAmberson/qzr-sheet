@@ -84,4 +84,17 @@ describe('breached passwords', () => {
     expect(res.status).toBe(400)
     expect(await res.json()).toMatchObject({ code: 'PASSWORD_COMPROMISED' })
   })
+
+  it("doesn't check a change without a session", async () => {
+    const test = await createAuthTestApp()
+    const spy = vi.spyOn(globalThis, 'fetch')
+    const res = await postAuth(test, 'change-password', {
+      currentPassword: 'whatever-it-is',
+      newPassword: 'a-fine-password-1',
+    })
+    const checked = spy.mock.calls.some(([input]) => String(input).includes('pwnedpasswords'))
+    spy.mockRestore()
+    expect(res.status).toBe(401)
+    expect(checked).toBe(false)
+  })
 })

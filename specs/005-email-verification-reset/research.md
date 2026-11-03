@@ -162,10 +162,10 @@ authentication attempts). D1 storage holds across isolates; Better Auth prunes o
 **Alternatives considered**: Cloudflare rate-limiting rules (outside the repo, plan-dependent); KV
 (eventually consistent).
 
-## D17. Origin check on the account routes (security review, 2026-11-01)
+## D17. Origin check on the API routes (security review, 2026-11-01)
 
-**Decision**: the account routes refuse a state-changing request from an origin Better Auth doesn't
-trust, as Better Auth's own routes do.
+**Decision**: every API route outside Better Auth's refuses a state-changing request from an origin
+Better Auth doesn't trust, as Better Auth's own routes do, checked once in the API router.
 
 **Rationale**: takeover needs only the pending cookie. SameSite=Lax stops other sites but not a page
 on another `versevault.ca` host, and the routes read JSON whatever the content type, so a form post

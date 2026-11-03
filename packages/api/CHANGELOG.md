@@ -17,6 +17,21 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-11-02
+
+### Changed
+
+* **Origin check in the API router** - the check on form posts from an origin Better Auth doesn't
+  trust runs once in the router, for every route outside Better Auth's
+* **Refused sends** - a request the per-address email limit refuses gives the client's daily count
+  back
+* **Password changes** - the breached-password check on `/change-password` runs only for a signed-in
+  request
+
+### Bundled contract
+
+* `@qzr/shared@1.6.0` - unchanged
+
 ## [0.23.0] - 2026-11-01
 
 ### Added

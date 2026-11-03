@@ -117,6 +117,35 @@ describe('email codes', () => {
     expect(owner.status).toBe(200)
   })
 
+  it("doesn't charge the network for requests the address limit refuses", async () => {
+    const test = await createAuthTestApp()
+    for (let i = 0; i < 10; i++) {
+      await fromClient(
+        test,
+        'email-otp/request-password-reset',
+        { email: 'impatient@example.com' },
+        '4.4.4.4',
+      )
+    }
+    // Only 3 of those counted for the network, so 27 more addresses fit.
+    for (let i = 0; i < 27; i++) {
+      const res = await fromClient(
+        test,
+        'email-otp/request-password-reset',
+        { email: `other${i}@example.com` },
+        '4.4.4.4',
+      )
+      expect(res.status).toBe(200)
+    }
+    const over = await fromClient(
+      test,
+      'email-otp/request-password-reset',
+      { email: 'one-too-many@example.com' },
+      '4.4.4.4',
+    )
+    expect(over.status).toBe(429)
+  })
+
   it('counts an overlong address too', async () => {
     const test = await createAuthTestApp()
     const email = `${'a'.repeat(300)}@example.com`
