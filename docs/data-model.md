@@ -148,7 +148,31 @@ MeetTeamName           -- optional team names per division, which the meet's sco
   name
   nameKey              -- the name folded for case and spaces; UNIQUE(meetId, division, nameKey)
   sortOrder            -- display order across the meet's list
+
+# ---- Schedules ----
+
+MeetSchedule           -- a meet's linked schedule: the draft the builder saves, one per meet
+  id
+  meetId               -- FK → QuizMeet (cascade delete); UNIQUE
+  draft                -- the schedule document, JSON, validated before storing
+  draftRevision        -- increments on every save; a save names the revision it read, and a
+                          stale one is refused with the newer draft
+  draftSavedAt
+
+MeetScheduleVersion    -- append-only: one row per publish, never updated or deleted while the
+                          meet exists, unlinking included; the newest is the published schedule
+  id
+  meetId               -- FK → QuizMeet (cascade delete)
+  version              -- 1, 2, 3, … per meet; UNIQUE(meetId, version)
+  document             -- the schedule document as published
+  publishedAt
+  publishedByAccountId -- FK → User (set null if deleted)
+  publishedByName      -- who published it, as named then
 ```
+
+The schedule document's shape is in `specs/005-schedule-redesign/data-model.md`. The old schedule
+tables (`meet_slots`, `scheduled_quizzes`, `scheduled_quiz_seats`, `prelim_assignments`,
+`seed_resolutions`) are no longer written; see `docs/scheduling.md` §8.
 
 ## Notes
 

@@ -120,9 +120,12 @@ The Winkler spreadsheet only ships 4–8 team lookups inline. The lookup functio
 TeamDraw column J) would let any larger field plug in if the table were filled in; the spreadsheet's
 authors composed the A-div 36-team prelims by hand instead.
 
-**For qzr**: ship `drawPrelims(teamCount)` with all 4–21 lookups baked in from day one (it's pure
-data; no judgment calls). The composition utility lives in
-`packages/shared/scheduling/prelimDraw.ts`. See `docs/scheduling.md` §5.1.
+CMQ's draw spreadsheet goes further: its tables cover every field from 4 to 90 teams, so no
+division's prelims are composed by hand.
+
+**For qzr**: `drawPrelims` in `packages/shared/src/schedule/prelimDraw.ts` offers two draw sources
+per division: the rule book's 4–21 team tables, and a rotating draw for any field up to 90 teams
+with no rematches from 7 teams up. See `docs/scheduling.md` §5.
 
 ## 5. The schedule structure
 
