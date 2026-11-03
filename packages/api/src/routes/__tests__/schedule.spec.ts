@@ -1113,6 +1113,18 @@ describe('linked schedule routes', () => {
     expect((await jsonOf<{ error: string }>(invalid)).error).toMatch(/Not a valid schedule/)
   })
 
+  it("refuses a draw naming another meet's team", async () => {
+    const { meet, doc } = await linkedMeet(db)
+    const other = await linkedMeet(db)
+    doc.draw['1']!.teams[0]!.teamId = other.teams[0]!.id
+    const res = await app.request(
+      `/api/meets/${meet.id}/schedule/draft`,
+      put({ document: doc, baseRevision: 0 }),
+      env,
+    )
+    expect(res.status).toBe(400)
+  })
+
   it('publishes past hard conflicts only when confirmed, adding a version each time', async () => {
     const { meet, doc } = await linkedMeet(db)
     // Two quizzes in one cell is a hard conflict
@@ -1466,6 +1478,18 @@ describe('meets built with the old editor (FR-053)', () => {
       await app.request(`/api/meets/${meet.id}/quizzes`, {}, env),
     )
     expect(quizzes.find((q) => q.id === old.id)!.bracketLabel).toBe('3')
+  })
+
+  it('shows readers a meet still on the old tables before anyone opens the builder', async () => {
+    const { meet, prelim } = await oldMeet()
+    const res = await guestApp(db, meet.id).request(
+      `/api/meets/${meet.id}/schedule/published?timeZone=UTC`,
+      {},
+      env,
+    )
+    const body = await jsonOf<{ document: ScheduleDocument }>(res)
+    expect(body.document.quizzes.some((q) => q.id === String(prelim.id))).toBe(true)
+    expect(await db.select().from(schema.meetScheduleVersions)).toEqual([])
   })
 
   it('does not convert again after unlinking', async () => {

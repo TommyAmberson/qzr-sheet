@@ -181,6 +181,24 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   const isPinned = (
     q: Pick<ScheduleQuiz, 'id' | 'division' | 'phase' | 'lane' | 'line' | 'label'>,
   ) => pinnedIds.has(q.id) || pinnedKeys.has(quizKey(q))
+  // A generated elim that is a quiz already in the schedule takes that quiz's id, pinned or not,
+  // and seats follow, so places keep naming the quizzes they did
+  const idByKey = new Map(doc.quizzes.map((q) => [quizKey(q), q.id]))
+  const standInFor = (quizzes: ScheduleQuiz[]) => {
+    const renamed = new Map<string, string>()
+    for (const q of quizzes) {
+      const id = idByKey.get(quizKey(q))
+      if (id !== undefined && id !== q.id) renamed.set(q.id, id)
+    }
+    if (renamed.size === 0) return quizzes
+    return quizzes.map((q) => ({
+      ...q,
+      id: renamed.get(q.id) ?? q.id,
+      seats: q.seats.map((s) =>
+        s.kind === 'place' && renamed.has(s.quiz) ? { ...s, quiz: renamed.get(s.quiz)! } : s,
+      ),
+    }))
+  }
   const prelimPinned = (d: DivisionSettings, n: number, id: string) =>
     isPinned({ id, division: d.id, phase: 'prelim', label: `${d.name} Quiz ${n + 1}` })
   const pinnedAt = (use: Use) =>
@@ -220,7 +238,7 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   }
 
   // Elims, each division in its own rooms, around pinned elims
-  const elims = divisions.map((d) => buildElimQuizzes(d))
+  const elims = divisions.map((d) => standInFor(buildElimQuizzes(d)))
   const fixedElims = new Map(pinnedAt('elim').map(({ q, k, room }) => [q.id, { round: k, room }]))
   const gapRounds = Math.ceil(settings.totallingMinutes / settings.slotMinutes)
   const scheduled = elimRounds(
@@ -237,9 +255,14 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   // Finals in the sequence's free places
   // Finals are placed by place, a finals slot times the Finals side by side plus the room
   const pinnedFinals = new Set(
-    pinnedAt('finals').map(
-      ({ k, room }) => k * settings.finals.sideBySide + Math.max(0, [...roomIds].indexOf(room)),
-    ),
+    pinnedAt('finals').flatMap(({ k, room }) => {
+      const side = settings.finals.sideBySide
+      const r = [...roomIds].indexOf(room)
+      // In a room the Finals don't use, it still runs then, so it takes the whole slot
+      return r >= 0 && r < side
+        ? [k * side + r]
+        : Array.from({ length: side }, (_, i) => k * side + i)
+    }),
   )
   const finals = finalsOrder(
     doc,
@@ -272,9 +295,11 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
       if (prelimPinned(d, n, q.id)) return
       const cell = placement.cells.get(q.id)
       const slot = cell ? slots.prelim[Number(cell.slot.slice(1))] : undefined
+      const label = `${d.name} Quiz ${n + 1}`
       quizzes.push({
-        id: q.id,
-        label: `${d.name} Quiz ${n + 1}`,
+        // The prelim already in the schedule keeps its id, so links to it still work
+        id: idByKey.get(quizKey({ division: d.id, phase: 'prelim', label })) ?? q.id,
+        label,
         division: d.id,
         phase: 'prelim',
         cell: cell && slot ? { slot, room: cell.room } : null,

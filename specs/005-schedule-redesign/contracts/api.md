@@ -23,7 +23,7 @@ Admins and superusers (FR-051).
 
 Admins and superusers.
 
-* Body: `{ document, baseRevision }`.
+* Body: `{ document, baseRevision }`. 400 when the draw names a team that isn't the meet's.
 * 200: `{ draftRevision, draftSavedAt }`.
 * 409 when `baseRevision` isn't the current revision: `{ error, draft, draftRevision }`, so the
   builder can show the newer draft in the page (FR-007).
@@ -76,6 +76,9 @@ Anyone with access to the meet: a membership, a guest token for the meet, or sup
   `review` and `done`. In letters view the draw keeps only its letters, in letter order: team names,
   team ids and late or absent marks are removed before it's sent. The old `/prelim-assignments` and
   `/quizzes/:quizId/teams` routes follow the same view. Admins get `teams` and may ask for either.
+* A meet still on the old schedule tables, which no admin has opened in the builder yet, is read as
+  the conversion would read it, in the time zone the reader passes as `?timeZone=`, and nothing is
+  stored.
 * 404 when nothing is published.
 * Replaces `GET /:id/slots`, `/:id/quizzes`, `/:id/prelim-assignments` and
   `/:id/quizzes/:quizId/teams` for the portal viewer and the scoresheet's picker (FR-050). The

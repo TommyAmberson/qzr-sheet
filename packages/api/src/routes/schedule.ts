@@ -422,7 +422,7 @@ async function quizWithTeams(
             })
             .from(schema.teams)
             .innerJoin(schema.churches, eq(schema.churches.id, schema.teams.churchId))
-            .where(inArray(schema.teams.id, teamIds)),
+            .where(and(eq(schema.teams.meetId, meetId), inArray(schema.teams.id, teamIds))),
           db
             .select({
               teamId: schema.teamRosters.teamId,
@@ -1145,6 +1145,29 @@ schedule.get('/:id/schedule', async (c) => {
   })
 })
 
+/**
+ * A team the draw names that isn't the meet's, or null. Readers are shown the draw's teams and
+ * rosters, so a team from another meet would show that meet's quizzers.
+ */
+async function foreignTeam(db: Db, meetId: number, doc: ScheduleDocument): Promise<number | null> {
+  const ids = [
+    ...new Set(
+      Object.values(doc.draw).flatMap((d) =>
+        d.teams.flatMap((t) => (t.teamId === undefined ? [] : [t.teamId])),
+      ),
+    ),
+  ]
+  if (ids.length === 0) return null
+  const own = await inChunks(ids, 2, (chunk) =>
+    db
+      .select({ id: schema.teams.id })
+      .from(schema.teams)
+      .where(and(eq(schema.teams.meetId, meetId), inArray(schema.teams.id, chunk))),
+  )
+  const owned = new Set(own.map((t) => t.id))
+  return ids.find((id) => !owned.has(id)) ?? null
+}
+
 /** The 409 for a save or publish based on an older draft, carrying the newer one (FR-048a) */
 function staleDraft(c: Context<Env>, row: schema.MeetSchedule | null) {
   return c.json(
@@ -1205,6 +1228,8 @@ schedule.put('/:id/schedule/draft', async (c) => {
   if (!body) return c.json({ error: 'Expected a JSON body' }, 400)
   const doc = documentOf(body.document, meetId)
   if (typeof doc === 'string') return c.json({ error: doc }, 400)
+  const foreign = await foreignTeam(getDb(c), meetId, doc)
+  if (foreign !== null) return c.json({ error: `Team ${foreign} is not in this meet` }, 400)
   return saveDraft(c, meetId, doc, body.baseRevision)
 })
 
@@ -1219,8 +1244,18 @@ async function syncRooms(db: Db, meetId: number, doc: ScheduleDocument) {
     .from(schema.meetRooms)
     .where(eq(schema.meetRooms.meetId, meetId))
   const byId = new Map(current.map((r) => [r.id, r]))
-  const claimed = new Set(doc.rooms.map((r) => r.meetRoomId).filter((id) => byId.has(id!)))
+  // Each meet room belongs to one schedule room; a second claim to it is treated as none
+  const owner = new Map<number, string>()
+  for (const r of doc.rooms) {
+    if (r.meetRoomId !== undefined && byId.has(r.meetRoomId) && !owner.has(r.meetRoomId)) {
+      owner.set(r.meetRoomId, r.id)
+    }
+  }
+  const claimed = new Set(owner.keys())
   for (const [i, room] of doc.rooms.entries()) {
+    if (room.meetRoomId !== undefined && owner.get(room.meetRoomId) !== room.id) {
+      delete room.meetRoomId
+    }
     // A room that lost its meet room (an undo, say) takes back an unclaimed one of the same name
     let existing = room.meetRoomId === undefined ? undefined : byId.get(room.meetRoomId)
     if (!existing) {
@@ -1422,8 +1457,19 @@ publishedSchedule.get('/:id/schedule/published', async (c) => {
   const db = getDb(c)
 
   const [row, view] = await Promise.all([newestVersion(db, meetId), readerView(c, db, meetId)])
-  if (!row) return c.json({ error: 'Nothing is published yet' }, 404)
-  const doc = JSON.parse(row.document) as ScheduleDocument
+  let doc: ScheduleDocument
+  let publishedAt: Date
+  if (row) {
+    doc = JSON.parse(row.document) as ScheduleDocument
+    publishedAt = row.publishedAt
+  } else {
+    // A meet still on the old tables, until an admin opens it in the builder: its schedule, read
+    // as the conversion would, in the reader's time zone, and stored by nobody
+    const legacy = await loadLegacy(db, meetId)
+    if (!legacy) return c.json({ error: 'Nothing is published yet' }, 404)
+    doc = documentFromLegacy(legacy, c.req.query('timeZone') || 'UTC')
+    publishedAt = new Date()
+  }
 
   if (view === 'letters') {
     for (const draw of Object.values(doc.draw)) {
@@ -1442,7 +1488,7 @@ publishedSchedule.get('/:id/schedule/published', async (c) => {
       }
     }
   }
-  return c.json({ document: doc, publishedAt: row.publishedAt, view })
+  return c.json({ document: doc, publishedAt, view })
 })
 
 /** Each team's name as the portal shows it */

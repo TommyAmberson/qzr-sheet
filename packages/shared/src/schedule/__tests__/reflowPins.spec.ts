@@ -153,3 +153,23 @@ describe('pinned Finals side by side', () => {
     expect(new Set(cells).size).toBe(cells.length)
   })
 })
+
+describe('a converted schedule re-flowed', () => {
+  it("names a pinned quiz in a regenerated seat by the pinned quiz's own id", () => {
+    const doc = meet([9])
+    const ids = new Map(doc.quizzes.map((q, i) => [q.id, String(500 + i)]))
+    doc.quizzes = doc.quizzes.map((q) => ({
+      ...q,
+      id: ids.get(q.id)!,
+      pinned: true,
+      seats: q.seats.map((s) => (s.kind === 'place' ? { ...s, quiz: ids.get(s.quiz)! } : s)),
+    }))
+    // Unpin one elim that takes a place from another quiz, as a director would
+    const taker = doc.quizzes.find((q) => q.seats.some((s) => s.kind === 'place'))!
+    taker.pinned = false
+    const after = reflowSchedule(doc)
+    const known = new Set(after.quizzes.map((q) => q.id))
+    for (const q of after.quizzes)
+      for (const s of q.seats) if (s.kind === 'place') expect(known.has(s.quiz)).toBe(true)
+  })
+})
