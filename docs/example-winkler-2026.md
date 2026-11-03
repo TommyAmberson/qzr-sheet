@@ -272,7 +272,10 @@ example:
 
 ## 8. Patterns that motivate new design work
 
-These are gaps in the current design exposed by the spreadsheet:
+These were gaps in the design when this example was written. The schedule redesign
+(`specs/005-schedule-redesign/`) answers 1 to 4 and 6: late marks drive the draw, brackets come from
+a library, intermediates take any size and rank range, a division's elims are lanes, and the grid
+scrolls with the time column fixed. Deciding quizzes can be called Finals.
 
 1. **Lateness bias in Roll Teams** — see §3.2. Add per-team `expectedLate: boolean` to
    `prelim_assignments` input; bias the permutation so late teams sort to higher letters.
@@ -294,7 +297,10 @@ These are gaps in the current design exposed by the spreadsheet:
 
 ## 9. What qzr would deliver in place of this spreadsheet
 
-If a meet director used qzr for Winkler 2026 instead of the .ods, here's the rough flow:
+If a meet director used qzr for Winkler 2026 instead of the .ods, here's the rough flow as first
+sketched. The builder that shipped generates the whole layout from team counts and holds the draw,
+late marks and elims in its schedule document (see `docs/scheduling.md` §5 and §9), so the "Roll
+Teams", `autoSlot` and `drawElims` steps below became the builder's Draw and generation.
 
 | Stage                  | Spreadsheet today                                                | qzr equivalent                                                                 |
 | ---------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |

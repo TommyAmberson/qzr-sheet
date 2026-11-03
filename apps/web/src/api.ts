@@ -245,9 +245,8 @@ export interface Team {
   division: string
   number: number
   consolation: boolean
-  /** Late teams sort to the bottom of Roll Teams's permutation, landing
-   *  in the highest-numbered letters (which appear later in the
-   *  rule-book prelim pattern). */
+  /** Read once, to seed the late marks when the meet's schedule is first made; the schedule's draw
+   *  owns lateness after that (research R6) */
   lateness: boolean
 }
 
@@ -299,8 +298,8 @@ export function listTeams(churchId: number): Promise<{ teams: Team[] }> {
 }
 
 /** Team row joined with its church label and the meet's division list,
- *  for any view that needs to render team names per division (Prelim
- *  setup roster, Roll Teams summary, etc.). */
+ *  for any view that needs to render team names per division (the
+ *  schedule builder's draw, say). */
 export interface MeetTeamRow {
   id: number
   churchId: number

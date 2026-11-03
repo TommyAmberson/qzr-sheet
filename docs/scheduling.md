@@ -296,11 +296,11 @@ above.
 
 ### Def vs resolution layering
 
-Elim quiz seats carry only the **def** — the seedRef. The **resolution** (which concrete team a
-given seedRef currently points to) lives in a separate table (`seed_resolutions`, see §8). This
-matters because the same seedRef appears in multiple seats (e.g. `place(quizB, 2)` could feed two
-downstream bracket quizzes), and a single resolution row keeps them consistent. The same pattern
-applies to prelim seats with their `letter` def → `prelim_assignments` resolution.
+A seat carries only the **def**: where its team comes from. The **resolution**, which team that
+currently is, is kept apart, because one source can feed several seats. Prelim letters resolve
+through the schedule document's draw. Resolving elim seats from results is still to come with
+[#16](https://github.com/TommyAmberson/qzr-sheet/issues/16); the old design's `seed_resolutions`
+table (§8) is no longer written.
 
 ## 8. Data model
 
