@@ -236,7 +236,7 @@ function confirmLink() {
   }
   linking.value = null
   // New counts rebuild the grid around anything pinned, as a settings change would
-  const linked = recount ? { ...doc, ...reflowSchedule(doc) } : doc
+  const linked = recount ? reflowSchedule(doc) : doc
   open(withMeetNames(linked, teams.value), 0, true)
   void send()
 }
@@ -250,6 +250,8 @@ let changedSinceSend = false
 let sending: Promise<void> | null = null
 /** While a publish is on its way, saves wait for it, so they don't race it for the next revision */
 let publishInFlight = false
+/** The next save replaces the server's draft whichever it is: the director chose to keep their own */
+let replaceNext = false
 
 function onChanged(doc: ScheduleDocument) {
   if (doc.id !== docId.value) return
@@ -278,7 +280,9 @@ async function send(): Promise<void> {
   saveState.value = 'saving'
   sending = (async () => {
     try {
-      const saved = await saveScheduleDraft(meetId.value, doc, link.baseRevision)
+      const replacing = replaceNext
+      replaceNext = false
+      const saved = await saveScheduleDraft(meetId.value, doc, link.baseRevision, replacing)
       writeLink(meetId.value, {
         docId: doc.id,
         baseRevision: saved.draftRevision,
@@ -327,6 +331,8 @@ function keepMine() {
   if (!c || !link) return
   conflict.value = null
   writeLink(meetId.value, { ...link, baseRevision: c.draftRevision, unsent: true })
+  // Keeping mine replaces the server's draft, even when it's a different one
+  replaceNext = true
   void send()
 }
 

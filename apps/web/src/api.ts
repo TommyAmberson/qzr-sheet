@@ -596,10 +596,12 @@ export function saveScheduleDraft(
   meetId: number,
   document: ScheduleDocument,
   baseRevision: number,
+  /** Replace the server's draft even when it's a different one ("keep mine") */
+  replace = false,
 ): Promise<DraftSaved> {
   return request(`/api/meets/${meetId}/schedule/draft`, {
     method: 'PUT',
-    body: JSON.stringify({ document, baseRevision }),
+    body: JSON.stringify({ document, baseRevision, replace }),
   })
 }
 

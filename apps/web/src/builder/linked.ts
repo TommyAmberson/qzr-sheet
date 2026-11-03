@@ -26,13 +26,16 @@ const linkKey = (meetId: number) => `qzr-schedule-link:${meetId}`
 const unkept = new Map<number, LinkState>()
 
 export function readLink(meetId: number): LinkState | null {
+  // The page's copy is newer than storage whenever storage refused the last write
+  const unsaved = unkept.get(meetId)
+  if (unsaved) return unsaved
   try {
     const raw = localStorage.getItem(linkKey(meetId))
     if (raw) return JSON.parse(raw) as LinkState
   } catch {
     // Unavailable: fall back to this page's copy
   }
-  return unkept.get(meetId) ?? null
+  return null
 }
 
 export function writeLink(meetId: number, state: LinkState) {
