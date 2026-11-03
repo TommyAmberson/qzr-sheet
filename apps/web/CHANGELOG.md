@@ -16,6 +16,11 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Added
+
+* The schedule builder page at `/builder`, open without an account: a left panel of settings
+  sections, one open at a time, beside the grid, with undo and redo for every change.
+
 ## [0.21.0] - 2026-11-01
 
 ### Added

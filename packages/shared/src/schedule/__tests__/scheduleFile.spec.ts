@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   NewerScheduleFileError,
+  newScheduleDocument,
   SCHEDULE_FILE_VERSION,
   parseScheduleFile,
   serializeSchedule,
@@ -142,5 +143,14 @@ describe('schedule file', () => {
 
   it('refuses something that is not JSON', () => {
     expect(() => parseScheduleFile('not json')).toThrow()
+  })
+})
+
+describe('newScheduleDocument', () => {
+  it('starts empty with Auto-apply on, and is a valid schedule', () => {
+    const doc = newScheduleDocument('New schedule')
+    expect(doc.settings.autoApply).toBe(true)
+    expect(doc.settings.divisions).toEqual([])
+    expect(parseScheduleFile(serializeSchedule(doc))).toEqual(doc)
   })
 })

@@ -205,3 +205,29 @@ export function parseScheduleFile(json: string): ScheduleDocument {
   const [first] = Value.Errors(ScheduleDocumentSchema, raw)
   throw new Error(`Not a valid schedule: ${first?.path || '/'} ${first?.message ?? ''}`.trim())
 }
+
+/** A new, empty schedule: no divisions yet, with the Weekend defaults (FR-015, FR-016, FR-012a) */
+export function newScheduleDocument(name: string): ScheduleDocument {
+  const settings: ScheduleSettings = {
+    framePreset: 'weekend',
+    slotMinutes: 25,
+    rooms: 'auto',
+    quizzesPerTeam: 3,
+    prelimDraw: 'ruleBook',
+    totallingMinutes: 15,
+    finals: { order: [], spacingMinutes: 30, sideBySide: 1 },
+    autoApply: true,
+    divisions: [],
+  }
+  return {
+    version: SCHEDULE_FILE_VERSION,
+    id: crypto.randomUUID(),
+    name,
+    settings,
+    applied: structuredClone(settings),
+    frame: [],
+    rooms: [],
+    quizzes: [],
+    draw: {},
+  }
+}

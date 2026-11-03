@@ -22,6 +22,8 @@ const router = createRouter({
       name: 'account-provider',
       component: () => import('../views/AccountProviderView.vue'),
     },
+    // The schedule builder needs no account; `builder` can't be a meet's slug, as `roadmap` can't
+    { path: '/builder', name: 'builder', component: () => import('../views/BuilderView.vue') },
     {
       path: '/:slug',
       meta: { requiresAuth: true },
