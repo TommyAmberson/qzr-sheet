@@ -66,6 +66,11 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `sheetRows`, `seatText`, `roomDivisions` and `formatClock`: a schedule laid out as the printed
   sheet, each seat's text in letters or drawn teams, and the divisions using each room.
 * `statsBreaks`: each division's stats break, from its last prelim to its first elim.
+* `drawDivision` and `clearDraw`: a division's draw, every team one letter, late teams given letters
+  that share quizzes and start as late as can be, the rest at random; the schedule never changes.
+* `sortPrelims`: prelims placed again with drawn late teams' quizzes in the latest cells, in any
+  room; across rooms, each division keeps a block of adjacent rooms whose edge moves at most once,
+  so no room switches division and back. Pinned quizzes stay unless included.
 * `basicRows`: the basic schedule, each run of quiz slots collapsed into one "Quizzing" row.
 
 ## [1.6.0] - 2026-10-31
