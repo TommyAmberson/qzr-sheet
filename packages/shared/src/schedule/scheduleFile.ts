@@ -16,6 +16,8 @@ const LaneSchema = Type.Object({
   /** How many prelim ranks the lane takes */
   size: Type.Integer({ minimum: 0 }),
   format: Type.Union([Type.Literal('bracket'), Type.Literal('roundRobin')]),
+  /** A bracket's library entry, when not the one for its size (the rule book's `ruleB`, say) */
+  bracket: Type.Optional(Type.String()),
   /** A round robin's quizzes per team */
   perTeam: Type.Optional(Type.Integer({ minimum: 1, maximum: 3 })),
   /** Whether the deciding quiz is called a Finals; for a round robin, whether it has one */

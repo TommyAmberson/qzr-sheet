@@ -111,4 +111,22 @@ export const BRACKET_LIBRARY: Record<string, BracketEntry> = {
     ],
     '1F 1J 1L',
   ),
+  // The rule book's 9-team brackets (docs/rules.md); the org plays no "win twice" series, so each
+  // ends at its first championship quiz
+  ruleA: bracket(['1 2 3', '4 5 6', '7 8 9', '2A 3A 1B', '2B 3B 1C', '2D 3D 1E'], '1A 1D 1F'),
+  ruleB: bracket(['1 4 9', '2 5 7', '3 6 8', ...NINE_LATER], '1D 1E 1H'),
+  ruleC: bracket(
+    [
+      '1 4 9',
+      '2 5 7',
+      '3 6 8',
+      '1A 1B 1C',
+      '2A 2B 2C',
+      '3A 3B 3C',
+      '2D 3D 1E',
+      '2E 3E 1F',
+      '2G 3G 1H',
+    ],
+    '1D 1G 1I',
+  ),
 }

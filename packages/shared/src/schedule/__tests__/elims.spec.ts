@@ -108,7 +108,7 @@ describe('buildElimQuizzes', () => {
         .flatMap((q) => q.seats)
         .filter((s) => /^\d+$/.test(s))
         .map(Number)
-      const n = Number(key.replace('b', ''))
+      const n = Number(key.replace(/\D/g, '')) || 9
       expect(new Set(seeds).size, key).toBe(seeds.length)
       entry.quizzes.forEach((q, i) => {
         for (const s of q.seats) {
