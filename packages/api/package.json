@@ -17,7 +17,7 @@
     "@qzr/shared": "workspace:*",
     "better-auth": "~1.6.33",
     "drizzle-orm": "^0.44.0",
-    "hono": "^4.7.0",
+    "hono": "^4.13.16",
     "jose": "^6.0.0"
   },
   "devDependencies": {
