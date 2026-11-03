@@ -1125,6 +1125,21 @@ describe('linked schedule routes', () => {
     expect(res.status).toBe(400)
   })
 
+  it('refuses a save over a different draft at the same revision, unless replacing', async () => {
+    const { meet, doc } = await linkedMeet(db)
+    const path = `/api/meets/${meet.id}/schedule/draft`
+    await app.request(path, put({ document: doc, baseRevision: 0 }), env)
+    const other = { ...doc, id: 'another-draft' }
+    const stale = await app.request(path, put({ document: other, baseRevision: 1 }), env)
+    expect(stale.status).toBe(409)
+    const replaced = await app.request(
+      path,
+      put({ document: other, baseRevision: 1, replace: true }),
+      env,
+    )
+    expect(replaced.status).toBe(200)
+  })
+
   it('publishes past hard conflicts only when confirmed, adding a version each time', async () => {
     const { meet, doc } = await linkedMeet(db)
     // Two quizzes in one cell is a hard conflict

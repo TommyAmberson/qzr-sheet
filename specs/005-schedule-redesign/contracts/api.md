@@ -23,7 +23,10 @@ Admins and superusers (FR-051).
 
 Admins and superusers.
 
-* Body: `{ document, baseRevision }`. 400 when the draw names a team that isn't the meet's.
+* Body: `{ document, baseRevision, replace }`. 400 when the draw names a team that isn't the meet's.
+  Revisions start again after an unlink, so a save over a different draft (another document id) is
+  refused with the 409 below even at a matching revision, unless `replace` is true, which the
+  builder sends when the director keeps their own draft.
 * 200: `{ draftRevision, draftSavedAt }`.
 * 409 when `baseRevision` isn't the current revision: `{ error, draft, draftRevision }`, so the
   builder can show the newer draft in the page (FR-007).

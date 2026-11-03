@@ -276,13 +276,19 @@ export function elimsForCount(
   // team; a lane left with none goes, with its line
   const lanes = division.elims.lanes.map((l) => ({ ...l }))
   let diff = teams - lanes.reduce((n, l) => n + l.size, 0)
+  const lines = division.elims.lines.map((l) => ({ ...l }))
   for (let i = lanes.length - 1; i >= 0 && diff !== 0; i--) {
     const size = Math.max(0, lanes[i]!.size + diff)
     diff -= size - lanes[i]!.size
+    if (size === lanes[i]!.size) continue
     lanes[i]!.size = size
+    // A bracket and an intermediate chosen for the old size no longer fit, so the lane's size
+    // picks them again
+    delete lanes[i]!.bracket
+    if (i > 0 && lines[i - 1]) delete lines[i - 1]!.intermediate
   }
   const kept = lanes.filter((l) => l.size > 0)
-  return { lanes: kept, lines: division.elims.lines.slice(0, Math.max(0, kept.length - 1)) }
+  return { lanes: kept, lines: lines.slice(0, Math.max(0, kept.length - 1)) }
 }
 
 /**

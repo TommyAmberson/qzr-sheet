@@ -1197,11 +1197,17 @@ async function saveDraft(
   meetId: number,
   doc: ScheduleDocument,
   baseRevision: unknown,
+  replace = false,
 ) {
   const db = getDb(c)
   const row = await draftRow(db, meetId)
   const current = row?.draftRevision ?? 0
   if (baseRevision !== current) return staleDraft(c, row)
+  // Revisions restart after an unlink, so a matching revision of a different draft is still stale,
+  // unless the director chose to replace it
+  if (row && !replace && (JSON.parse(row.draft) as ScheduleDocument).id !== doc.id) {
+    return staleDraft(c, row)
+  }
   const draftSavedAt = new Date()
   const draftRevision = current + 1
   if (row) {
@@ -1235,13 +1241,13 @@ schedule.put('/:id/schedule/draft', async (c) => {
   const denied = await requireAdmin(c, meetId)
   if (denied) return denied
 
-  const body = await jsonBody<{ document?: unknown; baseRevision?: unknown }>(c)
+  const body = await jsonBody<{ document?: unknown; baseRevision?: unknown; replace?: unknown }>(c)
   if (!body) return c.json({ error: 'Expected a JSON body' }, 400)
   const doc = documentOf(body.document, meetId)
   if (typeof doc === 'string') return c.json({ error: doc }, 400)
   const foreign = await foreignTeam(getDb(c), meetId, doc)
   if (foreign !== null) return c.json({ error: `Team ${foreign} is not in this meet` }, 400)
-  return saveDraft(c, meetId, doc, body.baseRevision)
+  return saveDraft(c, meetId, doc, body.baseRevision, body.replace === true)
 })
 
 /**
@@ -1460,7 +1466,8 @@ schedule.post('/:id/schedule/versions/:version/restore', async (c) => {
   if (!row) return c.json({ error: 'No such version' }, 404)
   const body = await jsonBody<{ baseRevision?: unknown }>(c)
   if (!body) return c.json({ error: 'Expected a JSON body' }, 400)
-  return saveDraft(c, meetId, JSON.parse(row.document) as ScheduleDocument, body.baseRevision)
+  // Restoring replaces the draft by choice, whichever draft it was
+  return saveDraft(c, meetId, JSON.parse(row.document) as ScheduleDocument, body.baseRevision, true)
 })
 
 /** Unlink (FR-048): the draft goes; published versions stay as the record of what was out */

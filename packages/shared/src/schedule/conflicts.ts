@@ -1,4 +1,5 @@
 import { foldName, resultKey } from '../results'
+import { eventCells } from './frame'
 import { indexOfLetter, letterOf } from './letters'
 import { quizNumber } from './names'
 import type { ScheduleDocument, ScheduleQuiz, Seat } from './scheduleFile'
@@ -121,14 +122,7 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
   }
 
   // H-3: a quiz over an event, or in a room a one-room event takes
-  let day = 0
-  const roomEvents: { day: number; start: number; end: number; room: string }[] = []
-  for (const row of doc.frame) {
-    if (row.kind === 'day') day++
-    if (row.kind === 'event' && row.room) {
-      roomEvents.push({ day, start: row.at, end: row.at + row.minutes, room: row.room })
-    }
-  }
+  const takenByEvents = eventCells(doc.frame)
   for (const q of doc.quizzes) {
     if (!q.cell) continue
     const t = times.get(q.cell.slot)
@@ -136,12 +130,7 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
       add('H-3', [q], 'Scheduled over an event')
       continue
     }
-    const room = q.cell.room
-    if (
-      roomEvents.some(
-        (e) => e.room === room && e.day === t.day && e.start < t.end && t.start < e.end,
-      )
-    ) {
+    if (takenByEvents.has(`${q.cell.slot}|${q.cell.room}`)) {
       add('H-3', [q], 'Its room has an event at this time')
     }
   }

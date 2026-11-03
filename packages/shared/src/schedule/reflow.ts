@@ -296,6 +296,13 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
         : Array.from({ length: side }, (_, i) => k * side + i)
     }),
   )
+  // A one-room event in a finals slot takes its room's place there too (H-3)
+  for (const e of eventTaken) {
+    const r = [...roomIds].indexOf(e.room)
+    if (e.use === 'finals' && r >= 0 && r < settings.finals.sideBySide) {
+      pinnedFinals.add(e.k * settings.finals.sideBySide + r)
+    }
+  }
   const finals = finalsOrder(
     doc,
     elims.flat().filter((q) => isFinals(q) && !isPinned(q)),

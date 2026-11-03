@@ -149,6 +149,10 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
   doc.applied = structuredClone(doc.settings)
 
   const slots = [...old.slots].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
+  const prelimSlotIds = new Set(
+    old.quizzes.filter((q) => q.phase === 'prelim').map((q) => q.slotId),
+  )
+  const lastPrelimSlot = slots.reduce((last, s, i) => (prelimSlotIds.has(s.id) ? i : last), -1)
   const frame: FrameRow[] = []
   let day = ''
   for (const slot of slots) {
@@ -170,8 +174,8 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
       })
       continue
     }
-    const inSlot = old.quizzes.filter((q) => q.slotId === slot.id)
-    const use = inSlot.some((q) => q.phase === 'prelim') ? 'prelim' : 'elim'
+    // Prelim slots run up to the last one holding a prelim, spare rounds among them included
+    const use = slots.indexOf(slot) <= lastPrelimSlot ? 'prelim' : 'elim'
     frame.push({
       kind: 'slot',
       id,
@@ -375,8 +379,9 @@ export function legacyFromDocument(
   const seedRef = (seat: Seat): string | null => {
     switch (seat.kind) {
       case 'rank':
-      case 'new':
         return `${ordinal(seat.rank)} place`
+      case 'new':
+        return `New ${seat.rank}`
       case 'place':
         return `${ordinal(seat.place)} Quiz ${label(seat.quiz)}`
       case 'points':
