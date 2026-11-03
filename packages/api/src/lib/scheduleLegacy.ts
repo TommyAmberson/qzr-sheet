@@ -221,11 +221,47 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
 
 // ---- A document in the old routes' shapes ----
 
-/** Numeric ids for the old routes: the old row id where the document kept one, else new ones above */
+/**
+ * Numeric ids for the old routes: the old row id where the document kept one, else a number from
+ * the id itself, well above old row ids, so a quiz keeps its number from one version to the next
+ * whatever is added or removed around it.
+ */
 function numericIds(ids: string[]): Map<string, number> {
-  const kept = ids.filter((id) => /^\d+$/.test(id)).map(Number)
-  let next = Math.max(0, ...kept) + 1
-  return new Map(ids.map((id) => [id, /^\d+$/.test(id) ? Number(id) : next++]))
+  const result = new Map<string, number>()
+  const taken = new Set<number>()
+  for (const id of ids.filter((x) => /^\d+$/.test(x))) {
+    result.set(id, Number(id))
+    taken.add(Number(id))
+  }
+  // Sorted, so a rare clash resolves the same way every time
+  for (const id of ids.filter((x) => !/^\d+$/.test(x)).sort()) {
+    let n = 1_000_000 + (fnv1a(id) % 1_000_000_000)
+    while (taken.has(n)) n++
+    result.set(id, n)
+    taken.add(n)
+  }
+  return result
+}
+
+/** A 32-bit FNV-1a hash of a string */
+function fnv1a(text: string): number {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return hash
+}
+
+/** The date a day row stands for: the first date from `from` on its weekday, or `from` itself */
+function dayDate(label: string, from: string): string {
+  const weekday = WEEKDAYS.indexOf(label.trim())
+  if (weekday < 0) return from
+  for (let i = 0; i < 7; i++) {
+    const date = addDays(from, i)
+    if (new Date(`${date}T00:00:00Z`).getUTCDay() === weekday) return date
+  }
+  return from
 }
 
 export interface LegacyView {
@@ -287,14 +323,15 @@ export function legacyFromDocument(
   const meetRoom = new Map(doc.rooms.map((r) => [r.id, r.meetRoomId]))
 
   const slots: LegacyView['slots'] = []
-  let dayIndex = -1
+  // Days follow on from the meet's first day, each on its weekday, so a gap between days holds
+  let date: string | null = null
   for (const row of doc.frame) {
-    if (row.kind === 'day') dayIndex++
+    if (row.kind === 'day') date = dayDate(row.label, date ? addDays(date, 1) : meet.dateFrom)
     if (row.kind !== 'slot' && row.kind !== 'event') continue
     slots.push({
       id: slotIds.get(row.id)!,
       meetId: meet.id,
-      startAt: instantOf(addDays(meet.dateFrom, Math.max(0, dayIndex)), row.at, tz).toISOString(),
+      startAt: instantOf(date ?? meet.dateFrom, row.at, tz).toISOString(),
       durationMinutes: row.minutes,
       kind: row.kind === 'slot' ? 'quiz' : 'event',
       eventLabel: row.kind === 'event' ? row.label : null,

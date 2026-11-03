@@ -13,8 +13,8 @@ Admins and superusers (FR-051).
   ([schedule-file.md](./schedule-file.md)); `published` is null before the first publish. `results`
   lists the result names (`quizKey`) that have submitted results, so the builder can protect them
   (H-20).
-* A meet with no `meet_schedules` row but with rows in the old schedule tables is converted first
-  (research R5): every quiz pinned, placeholder elim seats empty, stored as both draft and
+* A meet that never had a schedule document but has rows in the old schedule tables is converted
+  first (research R5): every quiz pinned, placeholder elim seats empty, stored as both draft and
   published. Quiz ids keep the old row ids, so links already shared still resolve. The builder
   passes its time zone as `?timeZone=`, which places the old slots' instants on the meet's days.
 * A meet with neither: 200 with `draft: null`; the builder starts a schedule from the meet.
@@ -44,8 +44,8 @@ Admins and superusers.
   in each room's `meetRoomId`, so the draft is saved with them and `rooms` carries them back.
 * Publishing makes the meet's rooms match the schedule's (FR-047): new rooms are added without an
   official code, renamed rooms are renamed, and a room the schedule no longer uses is removed unless
-  it has an official code, in which case it's kept and listed in the response as unused, so no
-  official is locked out mid-meet.
+  it has an official code, officials or results, in which case it's kept and listed in the response
+  as unused, so no official is locked out mid-meet.
 
 ## `GET /api/meets/:id/schedule/versions`
 
@@ -73,8 +73,9 @@ Anyone with access to the meet: a membership, a guest token for the meet, or sup
 
 * 200: `{ document, publishedAt, view }`, where `view` is `letters` or `teams`, set by the meet's
   phase for non-admins (FR-052): letters in `registration` and `build`, team names in `live`,
-  `review` and `done`. In letters view the draw's team names are removed from the document before
-  it's sent. Admins get `teams` and may ask for either.
+  `review` and `done`. In letters view the draw's team names and team ids are removed from the
+  document before it's sent, and its teams put in letter order. The old `/prelim-assignments` and
+  `/quizzes/:quizId/teams` routes follow the same view. Admins get `teams` and may ask for either.
 * 404 when nothing is published.
 * Replaces `GET /:id/slots`, `/:id/quizzes`, `/:id/prelim-assignments` and
   `/:id/quizzes/:quizId/teams` for the portal viewer and the scoresheet's picker (FR-050). The

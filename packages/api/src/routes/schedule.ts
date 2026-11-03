@@ -57,6 +57,23 @@ async function requireViewer(c: Context<Env>, meetId: number) {
   return null
 }
 
+/**
+ * What a reader may see of the published schedule (FR-052): letters while the meet is in
+ * registration or build, team names from live on; admins see teams and may ask for letters.
+ */
+async function readerView(c: Context<Env>, db: Db, meetId: number): Promise<SheetView> {
+  const user = c.get('user')
+  const [isAdmin, [meet]] = await Promise.all([
+    user ? isAdminOrSuperuser(db, user.id, user.role, meetId) : false,
+    db
+      .select({ phase: schema.quizMeets.phase })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, meetId)),
+  ])
+  if (isAdmin) return c.req.query('view') === 'letters' ? 'letters' : 'teams'
+  return meet && (meet.phase === 'registration' || meet.phase === 'build') ? 'letters' : 'teams'
+}
+
 /** The meet's newest published version, the one readers see */
 async function newestVersion(db: Db, meetId: number) {
   const [row] = await db
@@ -262,9 +279,10 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
       .select({ name: schema.meetRooms.name })
       .from(schema.meetRooms)
       .where(eq(schema.meetRooms.id, q.roomId))
+    const view = await readerView(c, db, meetId)
     const letters = new Map(
       published.assignments
-        .filter((a) => a.division === q.division)
+        .filter((a) => view === 'teams' && a.division === q.division)
         .map((a) => [a.letter, a.teamId]),
     )
     return quizWithTeams(
@@ -454,7 +472,11 @@ schedule.get('/:id/prelim-assignments', async (c) => {
 
   const db = getDb(c)
   const published = await publishedLegacy(db, meetId)
-  if (published) return c.json({ assignments: published.assignments })
+  if (published) {
+    // The old route would otherwise show the draw that the published view hides
+    const view = await readerView(c, db, meetId)
+    return c.json({ assignments: view === 'teams' ? published.assignments : [] })
+  }
   const rows = await db
     .select()
     .from(schema.prelimAssignments)
@@ -1006,12 +1028,13 @@ async function addVersion(
   doc: ScheduleDocument,
   by: { id: string | null; name: string },
 ) {
-  const newest = await newestVersion(db, meetId)
+  const v = schema.meetScheduleVersions
+  // Numbered in the insert itself, so two publishes at once can't take the same number
   const [row] = await db
-    .insert(schema.meetScheduleVersions)
+    .insert(v)
     .values({
       meetId,
-      version: (newest?.version ?? 0) + 1,
+      version: sql<number>`(SELECT COALESCE(MAX(${v.version}), 0) + 1 FROM ${v} WHERE ${v.meetId} = ${meetId})`,
       document: serializeSchedule(doc),
       publishedAt: new Date(),
       publishedByAccountId: by.id,
@@ -1088,17 +1111,20 @@ schedule.get('/:id/schedule', async (c) => {
   const db = getDb(c)
 
   let row = await draftRow(db, meetId)
-  if (!row) {
-    const legacy = await loadLegacy(db, meetId)
-    if (legacy) {
-      const doc = documentFromLegacy(legacy, c.req.query('timeZone') || 'UTC')
-      const now = new Date()
-      ;[row] = await db
-        .insert(schema.meetSchedules)
-        .values({ meetId, draft: serializeSchedule(doc), draftRevision: 1, draftSavedAt: now })
-        .returning()
+  // Only a meet that never had a document is converted: after unlinking, the old rows stay stale
+  const legacy = row || (await newestVersion(db, meetId)) ? null : await loadLegacy(db, meetId)
+  if (legacy) {
+    const doc = documentFromLegacy(legacy, c.req.query('timeZone') || 'UTC')
+    const inserted = await db
+      .insert(schema.meetSchedules)
+      .values({ meetId, draft: serializeSchedule(doc), draftRevision: 1, draftSavedAt: new Date() })
+      .onConflictDoNothing()
+      .returning({ id: schema.meetSchedules.id })
+    // Another admin opening at the same moment converted it already
+    if (inserted.length > 0) {
       await addVersion(db, meetId, doc, { id: null, name: 'Converted from the old schedule' })
     }
+    row = await draftRow(db, meetId)
   }
 
   const [published, results] = await Promise.all([
@@ -1181,7 +1207,7 @@ schedule.put('/:id/schedule/draft', async (c) => {
 /**
  * Make the meet's rooms match the schedule's (FR-047): add the rooms without a meet room, rename
  * and reorder the rest, and remove a room the schedule no longer uses unless it has an official
- * code, so nobody is locked out mid-meet. Fills in `meetRoomId` on the document.
+ * code, officials or results, so nobody is locked out mid-meet. Fills in `meetRoomId` on the document.
  */
 async function syncRooms(db: Db, meetId: number, doc: ScheduleDocument) {
   const current = await db
@@ -1217,11 +1243,27 @@ async function syncRooms(db: Db, meetId: number, doc: ScheduleDocument) {
   }
   const used = new Set(doc.rooms.map((r) => r.meetRoomId))
   const unused = current.filter((r) => !used.has(r.id))
-  const removable = unused.filter((r) => r.codeHash === null).map((r) => r.id)
+  if (unused.length === 0) return []
+  // Removing a room drops its officials' memberships and unlinks its results, so a room with
+  // either, or with a code, stays
+  const ids = unused.map((r) => r.id)
+  const [officials, results] = await Promise.all([
+    db
+      .select({ roomId: schema.officialMemberships.roomId })
+      .from(schema.officialMemberships)
+      .where(inArray(schema.officialMemberships.roomId, ids)),
+    db
+      .select({ roomId: schema.quizResults.roomId })
+      .from(schema.quizResults)
+      .where(inArray(schema.quizResults.roomId, ids)),
+  ])
+  const inUse = new Set([...officials, ...results].map((r) => r.roomId))
+  const kept = unused.filter((r) => r.codeHash !== null || inUse.has(r.id))
+  const removable = unused.filter((r) => !kept.includes(r)).map((r) => r.id)
   if (removable.length > 0) {
     await db.delete(schema.meetRooms).where(inArray(schema.meetRooms.id, removable))
   }
-  return unused.filter((r) => r.codeHash !== null).map((r) => ({ id: r.id, name: r.name }))
+  return kept.map((r) => ({ id: r.id, name: r.name }))
 }
 
 schedule.post('/:id/schedule/publish', async (c) => {
@@ -1242,14 +1284,32 @@ schedule.post('/:id/schedule/publish', async (c) => {
     return c.json({ error: 'The schedule has hard conflicts', conflicts }, 409)
   }
 
-  const unusedRooms = await syncRooms(db, meetId, doc)
-  // Rooms just added now have their meet room, so the draft takes it too
+  // Claim the next revision first, so a save landing meanwhile is refused as stale, not overwritten
   const draftSavedAt = new Date()
   const draftRevision = row.draftRevision + 1
+  const claimed = await db
+    .update(schema.meetSchedules)
+    .set({ draftRevision, draftSavedAt })
+    .where(
+      and(
+        eq(schema.meetSchedules.meetId, meetId),
+        eq(schema.meetSchedules.draftRevision, row.draftRevision),
+      ),
+    )
+    .returning({ id: schema.meetSchedules.id })
+  if (claimed.length === 0) return staleDraft(c, await draftRow(db, meetId))
+
+  const unusedRooms = await syncRooms(db, meetId, doc)
+  // Rooms just added now have their meet room, so the draft takes it too
   await db
     .update(schema.meetSchedules)
-    .set({ draft: serializeSchedule(doc), draftRevision, draftSavedAt })
-    .where(eq(schema.meetSchedules.meetId, meetId))
+    .set({ draft: serializeSchedule(doc) })
+    .where(
+      and(
+        eq(schema.meetSchedules.meetId, meetId),
+        eq(schema.meetSchedules.draftRevision, draftRevision),
+      ),
+    )
   const user = getUser(c)
   const version = await addVersion(db, meetId, doc, { id: user.id, name: user.name })
   return c.json({
@@ -1357,28 +1417,16 @@ publishedSchedule.get('/:id/schedule/published', async (c) => {
   if (denied) return denied
   const db = getDb(c)
 
-  const user = c.get('user')
-  const [row, isAdmin, [meet]] = await Promise.all([
-    newestVersion(db, meetId),
-    user ? isAdminOrSuperuser(db, user.id, user.role, meetId) : false,
-    db
-      .select({ phase: schema.quizMeets.phase })
-      .from(schema.quizMeets)
-      .where(eq(schema.quizMeets.id, meetId)),
-  ])
+  const [row, view] = await Promise.all([newestVersion(db, meetId), readerView(c, db, meetId)])
   if (!row) return c.json({ error: 'Nothing is published yet' }, 404)
   const doc = JSON.parse(row.document) as ScheduleDocument
 
-  let view: SheetView
-  if (isAdmin) {
-    view = c.req.query('view') === 'letters' ? 'letters' : 'teams'
-  } else {
-    view = meet && (meet.phase === 'registration' || meet.phase === 'build') ? 'letters' : 'teams'
-  }
-
   if (view === 'letters') {
     for (const draw of Object.values(doc.draw)) {
-      draw.teams = draw.teams.map(({ name: _name, teamId: _teamId, ...t }) => t)
+      // In letter order, so the order can't be paired with the meet's team list
+      draw.teams = draw.teams
+        .map(({ name: _name, teamId: _teamId, ...t }) => t)
+        .sort((x, y) => (x.letter ?? '').localeCompare(y.letter ?? ''))
     }
   } else {
     const names = await teamNames(db, meetId)

@@ -1208,6 +1208,20 @@ describe('linked schedule routes', () => {
     expect(res.rooms[0]!.meetRoomId).toBe(existing.id)
   })
 
+  it('keeps an unused room that has an official, even without a code', async () => {
+    const { meet, doc } = await linkedMeet(db)
+    const staffed = await seedRoom(db, meet.id, 'Chapel')
+    await db
+      .insert(schema.officialMemberships)
+      .values({ accountId: testUser.id, meetId: meet.id, roomId: staffed.id })
+    const base = `/api/meets/${meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: doc, baseRevision: 0 }), env)
+    const res = await jsonOf<{ unusedRooms: { name: string }[] }>(
+      await app.request(`${base}/publish`, post({ baseRevision: 1 }), env),
+    )
+    expect(res.unusedRooms.map((r) => r.name)).toEqual(['Chapel'])
+  })
+
   it('lists the result names that have results', async () => {
     const { meet } = await linkedMeet(db)
     await db
@@ -1260,6 +1274,36 @@ describe('GET /api/meets/:id/schedule/published', () => {
       expect(body.view).toBe('letters')
       expect(body.document.draw['1']!.teams.every((t) => !t.teamId && !t.name)).toBe(true)
     }
+  })
+
+  it('lists letters in letter order, so they cannot be paired with the meet team list', async () => {
+    const linked = await linkedMeet(db, 'build')
+    linked.doc.draw['1']!.teams.reverse()
+    const app = createApp(testSuperuser, db)
+    const base = `/api/meets/${linked.meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: linked.doc, baseRevision: 0 }), env)
+    await app.request(`${base}/publish`, post({ baseRevision: 1 }), env)
+    const res = await guestApp(db, linked.meet.id).request(`${base}/published`, {}, env)
+    const body = await jsonOf<Published>(res)
+    expect(body.document.draw['1']!.teams.map((t) => t.letter)).toEqual([
+      'A',
+      'B',
+      'C',
+      'D',
+      'E',
+      'F',
+    ])
+  })
+
+  it('keeps the draw from non-admins on the old routes too, before the meet is live', async () => {
+    const { meet } = await publish('build')
+    await db.insert(schema.viewerMemberships).values({ accountId: testUser.id, meetId: meet.id })
+    const res = await createApp(testUser, db).request(
+      `/api/meets/${meet.id}/prelim-assignments`,
+      {},
+      env,
+    )
+    expect(await jsonOf(res)).toEqual({ assignments: [] })
   })
 
   it('gives team names, read from the meet, from live on', async () => {
@@ -1383,6 +1427,17 @@ describe('meets built with the old editor (FR-053)', () => {
       await app.request(`/api/meets/${meet.id}/schedule/versions`, {}, env),
     )
     expect(versions).toHaveLength(1)
+  })
+
+  it('does not convert again after unlinking', async () => {
+    const { meet } = await oldMeet()
+    const base = `/api/meets/${meet.id}/schedule`
+    await app.request(`${base}?timeZone=UTC`, {}, env)
+    await app.request(base, { method: 'DELETE' }, env)
+    const again = await jsonOf<{ draft: unknown; version: number }>(
+      await app.request(`${base}?timeZone=UTC`, {}, env),
+    )
+    expect(again).toMatchObject({ draft: null, version: 1 })
   })
 
   it('answers the old read routes from the newest published version in their old shapes', async () => {

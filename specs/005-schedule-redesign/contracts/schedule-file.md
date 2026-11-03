@@ -18,10 +18,10 @@ what readers and writers promise each other.
   as strings.
 * **Linked rooms and times**: when linked, a room may name its meet room (`meetRoomId`); publishing
   adds a meet room for each room without one and fills it in. `link.timeZone`, the meet's time zone,
-  turns a day's times into the instants the meet's old read routes return. The first day is the
-  meet's `dateFrom`.
-* **Team names**: present only in the draw. A published document in letters view has them removed
-  (see [api.md](./api.md)).
+  turns a day's times into the instants the meet's old read routes return. Each day row is the first
+  date on its weekday from the meet's `dateFrom`, or from the day before it, on.
+* **Team names**: present only in the draw. A published document in letters view has them, and the
+  meet's team ids, removed, in letter order (see [api.md](./api.md)).
 * **Contract version**: the codec and validation live in `packages/shared`, so a change to the
   document's shape is a `@qzr/shared` contract change: additive is MINOR; one that an older builder
   can't read is MAJOR and raises `SCHEDULE_FILE_VERSION` (Principle V).
