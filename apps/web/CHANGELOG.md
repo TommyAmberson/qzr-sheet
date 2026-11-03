@@ -20,6 +20,9 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 * The schedule builder page at `/builder`, open without an account: a left panel of settings
   sections, one open at a time, beside the grid, with undo and redo for every change.
+* Building from team counts: set the number of divisions and each one's teams, and the whole weekend
+  appears on the grid, laid out like the printed schedules, with each room's divisions, every
+  conflict marked and counted, and quizzes that fit nowhere listed as unplaced.
 
 ## [0.21.0] - 2026-11-01
 

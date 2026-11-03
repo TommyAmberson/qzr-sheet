@@ -30,6 +30,7 @@ export type {
   RoomCodeRequest,
 } from './guestSession'
 export { default as ScheduleGrid } from './ScheduleGrid.vue'
+export { default as ScheduleSheet } from './ScheduleSheet.vue'
 export {
   STATS_BREAK_LABEL,
   buildGrid,

@@ -53,6 +53,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `generateSchedule`: a whole schedule from its settings: frame, rooms, prelims, each division's
   stats break, elims in its own rooms with time to total an intermediate, and Finals one at a time
   in Room 1, highest division first, each consolation's just before its division's.
+* `sheetRows`, `seatText`, `roomDivisions` and `formatClock`: a schedule laid out as the printed
+  sheet, each seat's text in letters or drawn teams, and the divisions using each room.
 
 ## [1.6.0] - 2026-10-31
 

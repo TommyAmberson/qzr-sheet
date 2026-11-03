@@ -1,0 +1,113 @@
+import type { FrameRow, ScheduleDocument, ScheduleQuiz, Seat } from './scheduleFile'
+
+/** Letters, or the drawn team's name where the division has a draw (FR-043) */
+export type SheetView = 'letters' | 'teams'
+
+const ORDINAL = ['th', 'st', 'nd', 'rd']
+const ordinal = (n: number) =>
+  `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (ORDINAL[n % 10] ?? 'th')}`
+
+/** "8:00 PM" for minutes after midnight */
+export function formatClock(minutes: number): string {
+  const h = Math.floor(minutes / 60) % 24
+  const m = minutes % 60
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
+
+/** What a seat shows: a letter or team, a rank, `New 10`, `2 of A`, `1st in pts` (FR-035) */
+export function seatText(
+  doc: ScheduleDocument,
+  quiz: ScheduleQuiz,
+  seat: Seat,
+  view: SheetView,
+): string {
+  switch (seat.kind) {
+    case 'letter': {
+      if (view === 'letters') return seat.letter
+      const team = doc.draw[quiz.division]?.teams.find((t) => t.letter === seat.letter)
+      return team?.name ?? seat.letter
+    }
+    case 'rank':
+      return String(seat.rank)
+    case 'new':
+      return `New ${seat.rank}`
+    case 'place': {
+      const source = doc.quizzes.find((q) => q.id === seat.quiz)
+      return `${seat.place} of ${source ? (source.label.split(' ').pop() ?? source.label) : '?'}`
+    }
+    case 'points':
+      return `${ordinal(seat.place)} in pts`
+    case 'empty':
+      return 'Choose…'
+  }
+}
+
+/** One row of the printed sheet */
+export type SheetRow =
+  | { kind: 'day'; row: Extract<FrameRow, { kind: 'day' }> }
+  | { kind: 'note'; row: Extract<FrameRow, { kind: 'note' }> }
+  | { kind: 'event'; row: Extract<FrameRow, { kind: 'event' }> }
+  | {
+      kind: 'slot'
+      row: Extract<FrameRow, { kind: 'slot' }>
+      /** Per room, in room order: its quiz, the one-room event taking it, or nothing */
+      cells: { room: string; quiz: ScheduleQuiz | null; event: string | null }[]
+    }
+
+/** The grid as rows, slots carrying a cell per room (H-3: a one-room event takes its room's cell) */
+export function sheetRows(doc: ScheduleDocument): SheetRow[] {
+  const byCell = new Map(
+    doc.quizzes.flatMap((q) => (q.cell ? [[`${q.cell.slot}|${q.cell.room}`, q] as const] : [])),
+  )
+  const rows: SheetRow[] = []
+  let day = 0
+  const roomEvents: { day: number; at: number; end: number; room: string; label: string }[] = []
+  for (const row of doc.frame) {
+    if (row.kind === 'day') day++
+    if (row.kind === 'event' && row.room) {
+      roomEvents.push({
+        day,
+        at: row.at,
+        end: row.at + row.minutes,
+        room: row.room,
+        label: row.label,
+      })
+    }
+  }
+  day = 0
+  for (const row of doc.frame) {
+    if (row.kind === 'day') {
+      day++
+      rows.push({ kind: 'day', row })
+    } else if (row.kind === 'note') rows.push({ kind: 'note', row })
+    else if (row.kind === 'event') {
+      // A one-room event shows in its slot's cell, not as a row of its own
+      if (!row.room) rows.push({ kind: 'event', row })
+    } else {
+      const end = row.at + row.minutes
+      rows.push({
+        kind: 'slot',
+        row,
+        cells: doc.rooms.map((room) => ({
+          room: room.id,
+          quiz: byCell.get(`${row.id}|${room.id}`) ?? null,
+          event:
+            roomEvents.find(
+              (e) => e.room === room.id && e.day === day && e.at < end && row.at < e.end,
+            )?.label ?? null,
+        })),
+      })
+    }
+  }
+  return rows
+}
+
+/** The divisions that use a room, Finals aside (FR-019) */
+export function roomDivisions(doc: ScheduleDocument, room: string): string[] {
+  const ids = new Set(
+    doc.quizzes
+      .filter((q) => q.cell?.room === room && !(q.deciding && q.label.endsWith('Finals')))
+      .map((q) => q.division),
+  )
+  return doc.settings.divisions.filter((d) => ids.has(d.id)).map((d) => d.name)
+}

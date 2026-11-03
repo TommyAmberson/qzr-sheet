@@ -1,5 +1,11 @@
 import { computed, shallowRef } from 'vue'
-import { checkSchedule, newScheduleDocument, type ScheduleDocument } from '@qzr/shared'
+import {
+  checkSchedule,
+  generateSchedule,
+  newScheduleDocument,
+  type Conflict,
+  type ScheduleDocument,
+} from '@qzr/shared'
 import { useHistory } from '@qzr/ui'
 
 /**
@@ -8,7 +14,8 @@ import { useHistory } from '@qzr/ui'
  * whole document are cheap at schedule sizes (research R7).
  */
 export function useScheduleBuilder(
-  initial: ScheduleDocument = newScheduleDocument('New schedule'),
+  // A new schedule starts as a minimal generated frame, ready for teams (FR-010)
+  initial: ScheduleDocument = generateSchedule(newScheduleDocument('New schedule')),
 ) {
   const doc = shallowRef<ScheduleDocument>(initial)
   const history = useHistory()
@@ -25,12 +32,29 @@ export function useScheduleBuilder(
     })
   }
 
+  /** A settings change: with Auto-apply on, the grid follows at once (FR-012a) */
+  function changeSettings(mutate: (draft: ScheduleDocument) => void) {
+    change((d) => {
+      mutate(d)
+      if (d.settings.autoApply) Object.assign(d, generateSchedule(d))
+    })
+  }
+
   const conflicts = computed(() => checkSchedule(doc.value))
+  /** Conflicts by quiz, for marking cells */
+  const issues = computed(() => {
+    const byQuiz = new Map<string, Conflict[]>()
+    for (const c of conflicts.value)
+      for (const id of c.quizzes) byQuiz.set(id, [...(byQuiz.get(id) ?? []), c])
+    return byQuiz
+  })
 
   return {
     doc,
     change,
+    changeSettings,
     conflicts,
+    issues,
     undo: history.undo,
     redo: history.redo,
     canUndo: history.canUndo,

@@ -1,9 +1,27 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ScheduleSheet } from '@qzr/ui'
 
+import TeamsSection from '../components/builder/TeamsSection.vue'
 import { useScheduleBuilder } from '../composables/useScheduleBuilder'
 
-const { doc, change, undo, redo, canUndo, canRedo } = useScheduleBuilder()
+const { doc, change, changeSettings, conflicts, issues, undo, redo, canUndo, canRedo } =
+  useScheduleBuilder()
+
+const problems = computed(() => conflicts.value.filter((c) => !c.warning).length)
+const warnings = computed(() => conflicts.value.filter((c) => c.warning).length)
+const tray = computed(() => doc.value.quizzes.filter((q) => !q.cell))
+
+/** Step through the flagged quizzes, one at a time (FR-037) */
+const flagged = computed(() => [...issues.value.keys()])
+const step = ref(-1)
+function nextIssue() {
+  if (flagged.value.length === 0) return
+  step.value = (step.value + 1) % flagged.value.length
+  document
+    .querySelector(`[data-quiz="${flagged.value[step.value]}"]`)
+    ?.scrollIntoView({ block: 'center', inline: 'center' })
+}
 
 const SECTIONS = [
   { key: 'teams', title: 'Teams' },
@@ -40,6 +58,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <header class="builder-bar">
       <input class="schedule-name" :value="doc.name" aria-label="Schedule name" @change="rename" />
       <span class="spacer" />
+      <button type="button" class="issue-count" :disabled="flagged.length === 0" @click="nextIssue">
+        {{ problems }} {{ problems === 1 ? 'problem' : 'problems' }}, {{ warnings }}
+        {{ warnings === 1 ? 'warning' : 'warnings' }}
+      </button>
       <button type="button" :disabled="!canUndo" aria-label="Undo" @click="undo">Undo</button>
       <button type="button" :disabled="!canRedo" aria-label="Redo" @click="redo">Redo</button>
     </header>
@@ -55,7 +77,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           >
             {{ s.title }}
           </button>
-          <div v-if="open === s.key" class="section-body" />
+          <div v-if="open === s.key" class="section-body">
+            <TeamsSection v-if="s.key === 'teams'" :doc="doc" @change="changeSettings" />
+          </div>
         </section>
       </aside>
 
@@ -63,6 +87,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <p v-if="doc.settings.divisions.length === 0" class="empty">
           Enter each division's team count in Teams to build the schedule.
         </p>
+        <ScheduleSheet v-if="doc.rooms.length > 0" :doc="doc" :issues="issues" />
+        <section v-if="tray.length > 0" class="tray" aria-label="Unplaced quizzes">
+          <h3>Unplaced</h3>
+          <ul>
+            <li v-for="q in tray" :key="q.id" :data-quiz="q.id">
+              {{ q.label }}:
+              {{ (issues.get(q.id) ?? []).map((c) => c.reason).join('; ') }}
+            </li>
+          </ul>
+        </section>
       </main>
     </div>
   </div>
@@ -131,6 +165,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .grid-area {
   overflow: auto;
   padding: 1rem;
+}
+
+.tray {
+  margin-top: 1rem;
 }
 
 .empty {
