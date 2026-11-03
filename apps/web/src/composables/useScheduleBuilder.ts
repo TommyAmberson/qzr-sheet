@@ -4,6 +4,8 @@ import {
   generateSchedule,
   newScheduleDocument,
   reflowSchedule,
+  unappliedSettings,
+  applyPreview,
   type Conflict,
   type ScheduleDocument,
 } from '@qzr/shared'
@@ -41,6 +43,22 @@ export function useScheduleBuilder(
     })
   }
 
+  /** Turning Auto-apply on applies whatever is waiting; it isn't itself a setting to apply */
+  function setAutoApply(on: boolean) {
+    change((d) => {
+      d.settings.autoApply = on
+      d.applied.autoApply = on
+      if (on) Object.assign(d, reflowSchedule(d))
+    })
+  }
+
+  /** Settings the grid wasn't built with, and how many quizzes applying them would move */
+  const unapplied = computed(() => unappliedSettings(doc.value))
+  const pendingMoves = () => applyPreview(doc.value).moves
+  function apply() {
+    change((d) => Object.assign(d, reflowSchedule(d)))
+  }
+
   const conflicts = computed(() => checkSchedule(doc.value))
   /** Conflicts by quiz, for marking cells */
   const issues = computed(() => {
@@ -54,6 +72,10 @@ export function useScheduleBuilder(
     doc,
     change,
     changeSettings,
+    setAutoApply,
+    unapplied,
+    pendingMoves,
+    apply,
     conflicts,
     issues,
     undo: history.undo,

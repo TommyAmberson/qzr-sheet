@@ -60,6 +60,7 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   frame rows can be pinned too.
 * `sheetRows`, `seatText`, `roomDivisions` and `formatClock`: a schedule laid out as the printed
   sheet, each seat's text in letters or drawn teams, and the divisions using each room.
+* `statsBreaks`: each division's stats break, from its last prelim to its first elim.
 
 ## [1.6.0] - 2026-10-31
 

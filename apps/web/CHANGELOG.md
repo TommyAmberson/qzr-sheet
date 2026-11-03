@@ -23,6 +23,11 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * Building from team counts: set the number of divisions and each one's teams, and the whole weekend
   appears on the grid, laid out like the printed schedules, with each room's divisions, every
   conflict marked and counted, and quizzes that fit nowhere listed as unplaced.
+* Time slots and rooms, and Prelim settings: the frame preset, slot length, rooms (a number or as
+  many as needed), each division's stats break, the Finals' order, spacing and how many run at once,
+  quizzes per team, and the prelim draw source with an (i) explaining it. Settings re-flow the grid
+  around anything moved by hand; with Auto-apply off they wait, each marked with the value the grid
+  uses, until Apply, which first says how many quizzes will move.
 
 ## [0.21.0] - 2026-11-01
 

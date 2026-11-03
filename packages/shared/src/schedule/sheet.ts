@@ -111,3 +111,27 @@ export function roomDivisions(doc: ScheduleDocument, room: string): string[] {
   )
   return doc.settings.divisions.filter((d) => ids.has(d.id)).map((d) => d.name)
 }
+
+/**
+ * Each division's stats break: from the end of its last prelim to the start of its first elim, in
+ * minutes after midnight, or null while it has no placed prelims or elims (FR-020)
+ */
+export function statsBreaks(
+  doc: ScheduleDocument,
+): { division: string; from: number; to: number }[] {
+  const slots = new Map(doc.frame.flatMap((r) => (r.kind === 'slot' ? [[r.id, r] as const] : [])))
+  const order = new Map([...slots.keys()].map((id, i) => [id, i]))
+  return doc.settings.divisions.flatMap((d) => {
+    const placed = (phase: 'prelim' | 'elim') =>
+      doc.quizzes
+        .filter((q) => q.division === d.id && q.phase === phase && q.cell && slots.has(q.cell.slot))
+        .map((q) => slots.get(q.cell!.slot)!)
+        .sort((a, b) => order.get(a.id)! - order.get(b.id)!)
+    const prelims = placed('prelim')
+    const elims = placed('elim')
+    const last = prelims[prelims.length - 1]
+    const first = elims[0]
+    if (!last || !first) return []
+    return [{ division: d.name, from: last.at + last.minutes, to: first.at }]
+  })
+}

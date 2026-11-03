@@ -1,12 +1,47 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ScheduleSheet } from '@qzr/ui'
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
+import { ChoiceDialog, ScheduleSheet } from '@qzr/ui'
 
+import FrameSection from '../components/builder/FrameSection.vue'
+import PrelimSection from '../components/builder/PrelimSection.vue'
 import TeamsSection from '../components/builder/TeamsSection.vue'
 import { useScheduleBuilder } from '../composables/useScheduleBuilder'
 
-const { doc, change, changeSettings, conflicts, issues, undo, redo, canUndo, canRedo } =
-  useScheduleBuilder()
+const {
+  doc,
+  change,
+  changeSettings,
+  setAutoApply,
+  unapplied,
+  pendingMoves,
+  apply,
+  conflicts,
+  issues,
+  undo,
+  redo,
+  canUndo,
+  canRedo,
+} = useScheduleBuilder()
+
+/** How many unapplied settings each section holds (FR-012a) */
+const unappliedIn = (key: string) => unapplied.value.filter((u) => u.section === key).length
+
+// In-page confirmations; the builder never uses a browser dialog (FR-007)
+const dialog = useTemplateRef<InstanceType<typeof ChoiceDialog>>('dialog')
+
+/** Apply waiting settings, first saying how many quizzes will move */
+async function confirmApply() {
+  const moves = pendingMoves()
+  const go = await dialog.value?.ask(
+    'Apply the changed settings?',
+    `${moves} ${moves === 1 ? 'quiz' : 'quizzes'} will move or change. Pinned quizzes stay.`,
+    [
+      { label: 'Cancel', value: false },
+      { label: 'Apply', value: true, primary: true },
+    ],
+  )
+  if (go) apply()
+}
 
 const problems = computed(() => conflicts.value.filter((c) => !c.warning).length)
 const warnings = computed(() => conflicts.value.filter((c) => c.warning).length)
@@ -68,6 +103,29 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
     <div class="builder-main">
       <aside class="panel">
+        <div class="auto-apply">
+          <label>
+            <input
+              type="checkbox"
+              role="switch"
+              :checked="doc.settings.autoApply"
+              aria-label="Auto-apply"
+              @change="setAutoApply(($event.target as HTMLInputElement).checked)"
+            />
+            Auto-apply
+          </label>
+          <span class="hint">
+            {{
+              doc.settings.autoApply
+                ? 'Changes apply to the grid as you make them.'
+                : 'Changes wait until you press Apply.'
+            }}
+          </span>
+          <div v-if="!doc.settings.autoApply && unapplied.length > 0" class="apply-bar">
+            {{ unapplied.length }} unapplied {{ unapplied.length === 1 ? 'change' : 'changes' }}
+            <button type="button" class="apply" @click="confirmApply">Apply</button>
+          </div>
+        </div>
         <section v-for="s in SECTIONS" :key="s.key" class="panel-section" :data-section="s.key">
           <button
             type="button"
@@ -76,9 +134,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             @click="toggle(s.key)"
           >
             {{ s.title }}
+            <span v-if="unappliedIn(s.key) > 0" class="count"
+              >{{ unappliedIn(s.key) }} unapplied</span
+            >
           </button>
           <div v-if="open === s.key" class="section-body">
             <TeamsSection v-if="s.key === 'teams'" :doc="doc" @change="changeSettings" />
+            <FrameSection
+              v-else-if="s.key === 'frame'"
+              :doc="doc"
+              :unapplied="unapplied"
+              @change="changeSettings"
+            />
+            <PrelimSection
+              v-else-if="s.key === 'prelims'"
+              :doc="doc"
+              :unapplied="unapplied"
+              @change="changeSettings"
+            />
           </div>
         </section>
       </aside>
@@ -99,6 +172,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </section>
       </main>
     </div>
+    <ChoiceDialog ref="dialog" />
   </div>
 </template>
 
@@ -165,6 +239,31 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .grid-area {
   overflow: auto;
   padding: 1rem;
+}
+
+.auto-apply {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border, #ddd);
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #666);
+}
+
+.apply-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.count {
+  float: right;
+  font-size: 0.75rem;
+  font-weight: normal;
+  color: var(--color-warn, #a60);
 }
 
 .tray {
