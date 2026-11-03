@@ -14,9 +14,11 @@ import {
 
 /** The schedules kept in this browser: open, rename, duplicate, delete, or start one (FR-002) */
 const router = useRouter()
-const schedules = ref(listSchedules())
+// A meet's linked draft is edited from its meet page, so it isn't listed here
+const standalone = () => listSchedules().filter((s) => !s.linked)
+const schedules = ref(standalone())
 const message = ref('')
-const refresh = () => (schedules.value = listSchedules())
+const refresh = () => (schedules.value = standalone())
 
 function open(id: string) {
   void router.push({ name: 'builder-schedule', params: { id } })

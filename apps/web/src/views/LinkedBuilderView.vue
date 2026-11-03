@@ -44,7 +44,7 @@ import {
   withMeetNames,
   writeLink,
 } from '../builder/linked'
-import { keepSchedule, listSchedules, loadSchedule } from '../builder/persistence'
+import { forgetSchedule, keepSchedule, listSchedules, loadSchedule } from '../builder/persistence'
 import BuilderView from './BuilderView.vue'
 
 /**
@@ -112,6 +112,9 @@ async function load() {
 
 /** Make `doc` the draft being edited, based on the server's `baseRevision` */
 function open(doc: ScheduleDocument, baseRevision: number, unsent: boolean) {
+  // One kept copy per linked meet: a draft replaced by another goes
+  const previous = readLink(meetId.value)?.docId
+  if (previous && previous !== doc.id) forgetSchedule(previous)
   keepSchedule(doc)
   writeLink(meetId.value, { docId: doc.id, baseRevision, unsent })
   docId.value = doc.id
@@ -122,7 +125,7 @@ function open(doc: ScheduleDocument, baseRevision: number, unsent: boolean) {
 
 // ---- Starting a linked schedule ----
 
-const keptSchedules = computed(() => listSchedules().filter((s) => !loadSchedule(s.id)?.link))
+const keptSchedules = computed(() => listSchedules().filter((s) => !s.linked))
 const linking = shallowRef<ScheduleDocument | null>(null)
 
 function startNew() {
@@ -249,7 +252,8 @@ async function send(): Promise<void> {
     return
   }
   const link = readLink(meetId.value)
-  const doc = link && loadSchedule(link.docId)
+  // The draft being edited is in memory; storage is only its copy for a reload
+  const doc = link && (current.value?.id === link.docId ? current.value : loadSchedule(link.docId))
   if (!link?.unsent || !doc || conflict.value) return
   changedSinceSend = false
   saveState.value = 'saving'
@@ -311,7 +315,14 @@ function takeTheirs() {
   const c = conflict.value
   if (!c) return
   conflict.value = null
-  if (c.draft) open(withMeetNames(c.draft, teams.value), c.draftRevision, false)
+  if (c.draft) {
+    open(withMeetNames(c.draft, teams.value), c.draftRevision, false)
+    return
+  }
+  // The meet's draft is gone (unlinked elsewhere): back to starting one
+  forgetLink(meetId.value)
+  docId.value = null
+  current.value = null
 }
 
 const saveText = computed(
@@ -359,12 +370,13 @@ async function publish(confirmConflicts = false) {
       res = await publishSchedule(meetId.value, link.baseRevision, confirmConflicts)
     } finally {
       publishInFlight = false
+      // Edits made while it was on its way waited for it, whatever its answer
+      if (readLink(meetId.value)?.unsent) setTimeout(() => void send())
     }
     hardConflicts.value = null
     // Edits made while publishing stay unsent, now based on the revision the publish wrote
     const now = readLink(meetId.value) ?? link
     writeLink(meetId.value, { ...now, baseRevision: res.draftRevision })
-    if (now.unsent) void send()
     // Rooms the publish added now have their meet room; the draft on the server has them already
     const ids = new Map(res.rooms.map((r) => [r.id, r.meetRoomId]))
     const withIds = (d: ScheduleDocument) => {

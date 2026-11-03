@@ -58,6 +58,18 @@ describe('keeping schedules in the browser (FR-002)', () => {
     w.unmount()
   })
 
+  it("doesn't list a meet's linked draft, which its meet page edits", () => {
+    const linked = { ...generateSchedule(newScheduleDocument('Fall Meet')), link: { meetId: 7 } }
+    keepSchedule(linked)
+    keepSchedule(generateSchedule(newScheduleDocument('Practice')))
+    const w = mount(BuilderListView, { global: { plugins: [router] } })
+    const names = w
+      .findAll('[aria-label="Schedule name"]')
+      .map((i) => (i.element as HTMLInputElement).value)
+    expect(names).toEqual(['Practice'])
+    w.unmount()
+  })
+
   it('lists, renames, duplicates and deletes schedules', async () => {
     const doc = generateSchedule(newScheduleDocument('FBC 2025'))
     keepSchedule(doc)

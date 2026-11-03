@@ -21,25 +21,36 @@ export interface LinkState {
 
 const linkKey = (meetId: number) => `qzr-schedule-link:${meetId}`
 
+/** Where the record lives when the browser can't keep it (storage full, or a private window) */
+const unkept = new Map<number, LinkState>()
+
 export function readLink(meetId: number): LinkState | null {
   try {
     const raw = localStorage.getItem(linkKey(meetId))
-    return raw ? (JSON.parse(raw) as LinkState) : null
+    if (raw) return JSON.parse(raw) as LinkState
   } catch {
-    return null
+    // Unavailable: fall back to this page's copy
   }
+  return unkept.get(meetId) ?? null
 }
 
 export function writeLink(meetId: number, state: LinkState) {
   try {
     localStorage.setItem(linkKey(meetId), JSON.stringify(state))
+    unkept.delete(meetId)
   } catch {
-    // Storage full or unavailable: the save still goes to the server
+    // Storage full or unavailable: this page keeps it, so the save still goes to the server
+    unkept.set(meetId, state)
   }
 }
 
 export function forgetLink(meetId: number) {
-  localStorage.removeItem(linkKey(meetId))
+  unkept.delete(meetId)
+  try {
+    localStorage.removeItem(linkKey(meetId))
+  } catch {
+    // Nothing kept to forget
+  }
 }
 
 /** The browser's time zone, which the meet's days are in */

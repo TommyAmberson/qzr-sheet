@@ -13,6 +13,8 @@ export interface KeptSchedule {
   id: string
   name: string
   savedAt: string
+  /** A meet's linked draft, which its meet page edits, kept here only for reloads */
+  linked?: boolean
 }
 
 function readIndex(): KeptSchedule[] {
@@ -38,7 +40,12 @@ export function keepSchedule(doc: ScheduleDocument): boolean {
   try {
     localStorage.setItem(scheduleKey(doc.id), serializeSchedule(doc))
     const index = readIndex().filter((s) => s.id !== doc.id)
-    index.push({ id: doc.id, name: doc.name, savedAt: new Date().toISOString() })
+    index.push({
+      id: doc.id,
+      name: doc.name,
+      savedAt: new Date().toISOString(),
+      ...(doc.link ? { linked: true } : {}),
+    })
     writeIndex(index)
     return true
   } catch {
