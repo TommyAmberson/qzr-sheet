@@ -39,7 +39,7 @@ describe('getScheduledQuiz (research R10)', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {
-        if (url.endsWith('/schedule/published')) {
+        if (url.includes('/schedule/published')) {
           return reply({ document: doc, publishedAt: '2026-11-02', view: 'teams' })
         }
         if (url.endsWith('/api/meets/4/teams')) {

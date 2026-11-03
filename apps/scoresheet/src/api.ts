@@ -131,7 +131,9 @@ export interface ScheduledQuizDetails {
 
 /** The meet's newest published schedule; a 404 `ApiError` when nothing is published */
 export function getPublishedSchedule(meetId: number): Promise<PublishedSchedule> {
-  return request(`/api/meets/${meetId}/schedule/published`)
+  // The time zone places a schedule still in the old tables on the meet's days
+  const timeZone = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
+  return request(`/api/meets/${meetId}/schedule/published?timeZone=${timeZone}`)
 }
 
 /**

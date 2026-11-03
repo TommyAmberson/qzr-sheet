@@ -319,7 +319,8 @@ function takeTheirs() {
     open(withMeetNames(c.draft, teams.value), c.draftRevision, false)
     return
   }
-  // The meet's draft is gone (unlinked elsewhere): back to starting one
+  // The meet's draft is gone (unlinked elsewhere): back to starting one, keeping no stale copy
+  if (docId.value) forgetSchedule(docId.value)
   forgetLink(meetId.value)
   docId.value = null
   current.value = null
@@ -453,6 +454,8 @@ async function unlink() {
   const standalone = { ...structuredClone(doc), id: crypto.randomUUID() }
   delete standalone.link
   keepSchedule(standalone)
+  // The linked copy goes; the schedule lives on as the standalone one
+  forgetSchedule(doc.id)
   forgetLink(meetId.value)
   await router.push({ name: 'builder-schedule', params: { id: standalone.id } })
 }
@@ -512,6 +515,7 @@ async function unlink() {
       :id="docId"
       ref="builder"
       :key="key"
+      :initial="current ?? undefined"
       :results="results"
       @changed="onChanged"
     >

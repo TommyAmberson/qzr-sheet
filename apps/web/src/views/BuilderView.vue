@@ -18,9 +18,10 @@ import { useScheduleBuilder } from '../composables/useScheduleBuilder'
  * A schedule kept in this browser, by id; without one, a new schedule. A linked schedule's page
  * passes the result names that have results, to protect their quizzes (H-20).
  */
-const props = defineProps<{ id?: string; results?: string[] }>()
+const props = defineProps<{ id?: string; results?: string[]; initial?: ScheduleDocument }>()
 const emit = defineEmits<{ changed: [doc: ScheduleDocument] }>()
-const kept = props.id ? loadSchedule(props.id) : null
+// A linked schedule's page hands over the draft it holds, so it opens even when storage can't keep it
+const kept = props.initial ?? (props.id ? loadSchedule(props.id) : null)
 const missing = props.id !== undefined && kept === null
 
 const {
