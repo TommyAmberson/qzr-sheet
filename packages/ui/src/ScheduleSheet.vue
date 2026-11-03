@@ -230,9 +230,22 @@ button {
   text-align: center;
 }
 
+/* One or more pages per day, the time column and room headers on each, no quiz split (FR-044) */
 @media print {
   button {
     cursor: default;
+  }
+
+  .day:not(:first-child) {
+    break-before: page;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  .empty-cell {
+    display: none;
   }
 }
 </style>

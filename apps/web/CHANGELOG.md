@@ -40,6 +40,12 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   each lane as a bracket (the 9-team one in either order, or the rule book's A to C) or a round
   robin of 1 to 3 each, whether its deciding quiz is called a Finals, its label and its lettering,
   and the totalling gap with an (i). Anything that won't fit says why in the page.
+* Schedules are kept in this browser as they change: `/builder` lists them to open, rename,
+  duplicate or delete, and starts new ones. A schedule saves to and opens from a `.qzrschedule.json`
+  file; a newer or invalid file says why and changes nothing. Editing needs no network once the page
+  is open.
+* Printing: the room grid a page or more per day, a one-room list in time order, or the basic
+  schedule of events and "Quizzing" blocks; and a Letters / Teams switch once a division has a draw.
 
 ## [0.21.0] - 2026-11-01
 

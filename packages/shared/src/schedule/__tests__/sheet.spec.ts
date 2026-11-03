@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatClock, roomDivisions, seatText, sheetRows, statsBreaks } from '../sheet'
+import { basicRows, formatClock, roomDivisions, seatText, sheetRows, statsBreaks } from '../sheet'
 import { at, doc, quiz, seats } from './fixtures'
 
 describe('the printed sheet', () => {
@@ -80,5 +80,18 @@ describe('statsBreaks', () => {
       ],
     })
     expect(statsBreaks(d)).toEqual([{ division: 'Div 1', from: 20 * 60 + 25, to: 20 * 60 + 50 }])
+  })
+})
+
+describe('basicRows', () => {
+  it('collapses each run of slots into one Quizzing row between the events (FR-044)', () => {
+    const d = doc()
+    d.frame.splice(4, 0, { kind: 'event', id: 'snack', at: 21 * 60, minutes: 15, label: 'Snack' })
+    expect(basicRows(d).map((r) => `${r.kind} ${r.label}`)).toEqual([
+      'day Friday',
+      'quizzing Quizzing',
+      'event Snack',
+      'quizzing Quizzing',
+    ])
   })
 })

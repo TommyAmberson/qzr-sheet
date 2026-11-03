@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
-import { ChoiceDialog, ScheduleSheet } from '@qzr/ui'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { ChoiceDialog, ScheduleBasic, ScheduleList, ScheduleSheet } from '@qzr/ui'
+import type { SheetView } from '@qzr/shared'
 
 import { addRoom, moveQuiz, swapSeats } from '../builder/edits'
+import { keepSchedule, loadSchedule, saveScheduleFile } from '../builder/persistence'
 import ElimSection from '../components/builder/ElimSection.vue'
 import FrameSection from '../components/builder/FrameSection.vue'
 import PrelimSection from '../components/builder/PrelimSection.vue'
@@ -11,6 +13,11 @@ import RoomMenu from '../components/builder/RoomMenu.vue'
 import RowMenu from '../components/builder/RowMenu.vue'
 import TeamsSection from '../components/builder/TeamsSection.vue'
 import { useScheduleBuilder } from '../composables/useScheduleBuilder'
+
+/** A schedule kept in this browser, by id; without one, a new schedule */
+const props = defineProps<{ id?: string }>()
+const kept = props.id ? loadSchedule(props.id) : null
+const missing = props.id !== undefined && kept === null
 
 const {
   doc,
@@ -26,7 +33,7 @@ const {
   redo,
   canUndo,
   canRedo,
-} = useScheduleBuilder()
+} = useScheduleBuilder(kept ?? undefined)
 
 /** The popup open on the grid, if any: one at a time (FR-005c) */
 type Popup =
@@ -143,6 +150,24 @@ function swallowAfterDrag(event: Event) {
 /** On a phone the settings open as a sheet over the grid (FR-005b) */
 const panelOpen = ref(false)
 
+// Every change is kept in this browser at once (FR-002)
+const keepFailed = ref(false)
+watch(doc, (d) => (keepFailed.value = !missing && !keepSchedule(d)), { immediate: true })
+
+/** Letters, or drawn teams once a division has a draw (FR-043) */
+const view = ref<SheetView>('letters')
+const anyDrawn = computed(() =>
+  Object.values(doc.value.draw).some((d) => d.teams.some((t) => t.letter)),
+)
+
+/** Print the grid, a one-room list, or the basic schedule (FR-044) */
+const printing = ref<'grid' | 'list' | 'basic'>('grid')
+async function print(kind: 'grid' | 'list' | 'basic') {
+  printing.value = kind
+  await nextTick()
+  window.print()
+}
+
 /** How many unapplied settings each section holds (FR-012a) */
 const unappliedIn = (key: string) => unapplied.value.filter((u) => u.section === key).length
 
@@ -225,6 +250,34 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         {{ problems }} {{ problems === 1 ? 'problem' : 'problems' }}, {{ warnings }}
         {{ warnings === 1 ? 'warning' : 'warnings' }}
       </button>
+      <div class="view-toggle" role="group" aria-label="Show">
+        <button type="button" :aria-pressed="view === 'letters'" @click="view = 'letters'">
+          Letters
+        </button>
+        <button
+          type="button"
+          :aria-pressed="view === 'teams'"
+          :disabled="!anyDrawn"
+          @click="view = 'teams'"
+        >
+          Teams
+        </button>
+      </div>
+      <select
+        class="print"
+        aria-label="Print"
+        value=""
+        @change="
+          (print(($event.target as HTMLSelectElement).value as 'grid' | 'list' | 'basic'),
+          (($event.target as HTMLSelectElement).value = ''))
+        "
+      >
+        <option value="" disabled>Print…</option>
+        <option value="grid">Room grid</option>
+        <option value="list">One-room list</option>
+        <option value="basic">Basic schedule</option>
+      </select>
+      <button type="button" class="save-file" @click="saveScheduleFile(doc)">Save to file</button>
       <button type="button" :disabled="!canUndo" aria-label="Undo" @click="undo">Undo</button>
       <button type="button" :disabled="!canRedo" aria-label="Redo" @click="redo">Redo</button>
     </header>
@@ -291,6 +344,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </aside>
 
       <main class="grid-area">
+        <p v-if="missing" class="message" role="status">
+          This schedule isn't in this browser any more; its stored data may have been cleared. Open
+          it from a file if you saved one.
+        </p>
+        <p v-if="keepFailed" class="message" role="status">
+          This browser couldn't keep the schedule. Save it to a file so nothing is lost.
+        </p>
         <p v-if="doc.settings.divisions.length === 0" class="empty">
           Enter each division's team count in Teams to build the schedule.
         </p>
@@ -314,7 +374,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         >
           <ScheduleSheet
             v-if="doc.rooms.length > 0"
+            :class="{ 'print-hidden': printing !== 'grid' }"
             :doc="doc"
+            :view="view"
             :issues="issues"
             :selected="pending?.kind === 'move' ? pending.id : null"
             @quiz="onQuiz"
@@ -341,6 +403,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </ul>
         </section>
       </main>
+    </div>
+    <div class="print-only">
+      <h2>{{ doc.name }}</h2>
+      <ScheduleList v-if="printing === 'list'" :doc="doc" :view="view" />
+      <ScheduleBasic v-else-if="printing === 'basic'" :doc="doc" />
     </div>
     <QuizMenu
       v-if="popup?.kind === 'quiz'"
@@ -499,6 +566,39 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   .panel.open {
     display: block;
   }
+}
+
+.print-only {
+  display: none;
+}
+
+/* Only the chosen view prints */
+@media print {
+  .builder-bar,
+  .panel,
+  .tray,
+  .add-room,
+  .pending,
+  .message,
+  .print-hidden {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  .builder-main {
+    display: block;
+  }
+}
+
+.view-toggle button[aria-pressed='true'] {
+  font-weight: 600;
+}
+
+.message {
+  color: var(--color-warn, #a60);
 }
 
 .tray {

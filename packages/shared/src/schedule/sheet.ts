@@ -135,3 +135,26 @@ export function statsBreaks(
     return [{ division: d.name, from: last.at + last.minutes, to: first.at }]
   })
 }
+
+/**
+ * The basic schedule: events as they are, and each run of quiz slots collapsed into one "Quizzing"
+ * row from its first start to its last end (FR-044)
+ */
+export function basicRows(
+  doc: ScheduleDocument,
+): { kind: 'day' | 'event' | 'quizzing'; label: string; from?: number; to?: number }[] {
+  const rows: { kind: 'day' | 'event' | 'quizzing'; label: string; from?: number; to?: number }[] =
+    []
+  for (const row of doc.frame) {
+    if (row.kind === 'day') rows.push({ kind: 'day', label: row.label })
+    else if (row.kind === 'event' && !row.room) {
+      rows.push({ kind: 'event', label: row.label, from: row.at, to: row.at + row.minutes })
+    } else if (row.kind === 'slot') {
+      const last = rows[rows.length - 1]
+      if (last?.kind === 'quizzing') last.to = row.at + row.minutes
+      else
+        rows.push({ kind: 'quizzing', label: 'Quizzing', from: row.at, to: row.at + row.minutes })
+    }
+  }
+  return rows
+}

@@ -31,6 +31,8 @@ export type {
 } from './guestSession'
 export { default as ScheduleGrid } from './ScheduleGrid.vue'
 export { default as ScheduleSheet } from './ScheduleSheet.vue'
+export { default as ScheduleList } from './ScheduleList.vue'
+export { default as ScheduleBasic } from './ScheduleBasic.vue'
 export {
   STATS_BREAK_LABEL,
   buildGrid,
