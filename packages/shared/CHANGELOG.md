@@ -40,6 +40,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `drawPrelims`: a division's prelim quizzes as letters from either draw source, the rule book's
   tables for 4 to 21 teams or the rotating draw (no rematches from 7 teams up, any size to 90 and
   beyond), with 6 quizzes per team as two rounds that avoid repeating pairings.
+* `buildFrame` and `defaultRoomCount`: the Weekend and One day frame presets with as many slots as a
+  schedule needs, and the fewest rooms (at least 3) that fit its prelims.
 
 ## [1.6.0] - 2026-10-31
 
