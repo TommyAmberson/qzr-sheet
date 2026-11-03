@@ -22,6 +22,8 @@ export interface PlacementInput {
 
 export interface PlacementResult {
   cells: Map<string, Cell>
+  /** Each division's own block of rooms, in division order; its elims keep to them (P-3) */
+  blocks: string[][]
   /** Quizzes that fit nowhere without breaking a hard rule, and why (FR-013) */
   unplaced: { id: string; reason: string }[]
 }
@@ -142,7 +144,7 @@ export function placePrelims(input: PlacementInput): PlacementResult {
     }
   }
 
-  return { cells, unplaced }
+  return { cells, blocks, unplaced }
 }
 
 type Quiz = { id: string; letters: string[] }

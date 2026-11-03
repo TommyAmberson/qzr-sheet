@@ -50,6 +50,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   (lanes stacked down the ranks, a rerank XY across the line below the main lane), built from the
   bracket library for 5 to 12 and 14 teams, with consolation letters continuing the main lane's and
   each lane's deciding quiz called a Finals or named as its next letter.
+* `generateSchedule`: a whole schedule from its settings: frame, rooms, prelims, each division's
+  stats break, elims in its own rooms with time to total an intermediate, and Finals one at a time
+  in Room 1, highest division first, each consolation's just before its division's.
 
 ## [1.6.0] - 2026-10-31
 

@@ -216,6 +216,15 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
       for (const q of quizzes)
         for (const s of q.seats) if (s.kind === 'rank') rerankRange.set(s.rank, Number(line))
     }
+    // The quizzes a New n waits for: its line's whole intermediate, or, for an intermediate inside a
+    // bracket (the 10-team bracket's X), the quiz that seats rank n
+    const feedersOf = (rank: number, users: ScheduleQuiz[]): ScheduleQuiz[] => {
+      const line = rerankRange.get(rank)
+      if (line !== undefined) return lineQuizzes.get(String(line)) ?? []
+      return elims.filter(
+        (x) => !users.includes(x) && x.seats.some((s) => s.kind === 'rank' && s.rank === rank),
+      )
+    }
 
     for (const q of elims) {
       const t = timeOf(q)
@@ -237,9 +246,7 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
         }
         // H-12 and W-3: a New seat after every quiz of its intermediate, with time to total
         if (s.kind === 'new' && t) {
-          const line = rerankRange.get(s.rank)
-          if (line === undefined) continue
-          const inter = (lineQuizzes.get(String(line)) ?? [])
+          const inter = feedersOf(s.rank, [q])
             .map(timeOf)
             .filter((x): x is SlotTime => !!x)
           if (inter.length === 0) continue
@@ -293,7 +300,7 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
         for (const s of q.seats)
           if (s.kind === 'new') uses.set(s.rank, [...(uses.get(s.rank) ?? []), q])
       for (const [rank, quizzes] of uses) {
-        if (!rerankRange.has(rank))
+        if (feedersOf(rank, quizzes).length === 0)
           add('H-16', quizzes, `New ${rank} isn't in any intermediate's range`)
         else if (quizzes.length > 1) add('H-16', quizzes, `New ${rank} is used more than once`)
       }
