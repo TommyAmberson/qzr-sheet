@@ -65,8 +65,12 @@ export function loadSchedule(id: string): ScheduleDocument | null {
 }
 
 export function forgetSchedule(id: string) {
-  localStorage.removeItem(scheduleKey(id))
-  writeIndex(readIndex().filter((s) => s.id !== id))
+  try {
+    localStorage.removeItem(scheduleKey(id))
+    writeIndex(readIndex().filter((s) => s.id !== id))
+  } catch {
+    // Storage unavailable: there's nothing kept to forget
+  }
 }
 
 export function renameSchedule(id: string, name: string) {

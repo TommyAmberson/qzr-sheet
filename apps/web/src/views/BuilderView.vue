@@ -45,7 +45,7 @@ const {
   kept ?? undefined,
   computed(() => new Set(props.results ?? [])),
 )
-defineExpose({ change, setAutoApply })
+defineExpose({ change, changeSettings, setAutoApply })
 
 const heldLabels = computed(() =>
   (held.value?.quizzes ?? []).map((id) => doc.value.quizzes.find((q) => q.id === id)?.label ?? id),
@@ -171,7 +171,9 @@ const keepFailed = ref(false)
 watch(
   doc,
   (d, before) => {
-    // A schedule opened in place of a missing one is a new one, and is kept like any other
+    // A schedule opened in place of a missing one is new: kept from its first change, so
+    // revisiting a stale link doesn't leave an empty schedule behind each time
+    if (missing && !before) return
     keepFailed.value = !keepSchedule(d)
     // The document the builder opened with isn't a change
     if (before) emit('changed', d)

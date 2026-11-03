@@ -123,13 +123,22 @@ function open(doc: ScheduleDocument, baseRevision: number, unsent: boolean) {
   current.value = doc
   saveState.value = unsent ? 'unsent' : 'saved'
   key.value++
+  void followMeetTeams()
 }
 
-/** The server's draft, its draw brought up to the meet's teams; a change to it is then sent */
+/**
+ * Bring the opened draft up to the meet's teams through the builder, so the change can be undone,
+ * holds quizzes with results (H-20), waits for Apply when Auto-apply is off, and is then saved
+ */
+async function followMeetTeams() {
+  await nextTick()
+  if (!current.value || !reconcileTeams(structuredClone(current.value), teams.value)) return
+  builder.value?.changeSettings((d) => reconcileTeams(d, teams.value))
+}
+
+/** The server's draft, with the meet's team names */
 function openFromServer(draft: ScheduleDocument, revision: number) {
-  const { doc, changed } = reconcileTeams(draft, teams.value)
-  open(withMeetNames(doc, teams.value), revision, changed)
-  if (changed) void send()
+  open(withMeetNames(draft, teams.value), revision, false)
 }
 
 // ---- Starting a linked schedule ----
@@ -401,7 +410,7 @@ async function publish(confirmConflicts = false) {
     version.value = res.version
     publishNote.value =
       res.unusedRooms.length > 0
-        ? `Published version ${res.version}. Kept ${res.unusedRooms.map((r) => r.name).join(', ')}, which the schedule doesn't use, because officials or results still use it.`
+        ? `Published version ${res.version}. Kept ${res.unusedRooms.map((r) => r.name).join(', ')}, which the schedule doesn't use, because it has a room code, officials or results.`
         : `Published version ${res.version}.`
     if (history.value) await showHistory()
   } catch (e) {
@@ -456,6 +465,15 @@ async function unlink() {
   // A save still on its way would write the link back after it's forgotten
   clearTimeout(timer)
   await sending
+  // The schedule lives on in this browser, so it must be kept there before the meet lets it go
+  const standalone = { ...structuredClone(doc), id: crypto.randomUUID() }
+  delete standalone.link
+  if (!keepSchedule(standalone)) {
+    confirmingUnlink.value = false
+    publishNote.value =
+      "Not unlinked: this browser can't keep the schedule. Save it to a file first, then unlink."
+    return
+  }
   try {
     await unlinkSchedule(meetId.value)
   } catch (e) {
@@ -463,9 +481,6 @@ async function unlink() {
     publishNote.value = `Not unlinked: ${e instanceof Error ? e.message : String(e)}`
     return
   }
-  const standalone = { ...structuredClone(doc), id: crypto.randomUUID() }
-  delete standalone.link
-  keepSchedule(standalone)
   // The linked copy goes; the schedule lives on as the standalone one
   forgetSchedule(doc.id)
   forgetLink(meetId.value)

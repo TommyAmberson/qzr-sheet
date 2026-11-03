@@ -2,7 +2,6 @@ import {
   defaultElims,
   generateSchedule,
   newScheduleDocument,
-  reflowSchedule,
   teamDisplayName,
   type ScheduleDocument,
 } from '@qzr/shared'
@@ -99,31 +98,29 @@ export function startFromMeet(
 
 /**
  * The schedule brought up to the meet's teams, which registration owns (FR-047): a team that left
- * is dropped from the draw and one that joined is added, each division's count follows, and a
- * division the meet gained is added. A drawn division whose teams changed needs its draw redone.
- * The document, re-flowed when a count changed, and whether anything changed, to save it.
+ * is dropped from the draw and one that joined is added, a division's count follows the teams the
+ * meet has registered in it, and a division the meet gained is added. A drawn division whose teams
+ * changed needs its draw redone. A settings change: the builder applies it like any other, so it
+ * waits for Apply when Auto-apply is off. Whether anything changed.
  */
-export function reconcileTeams(
-  doc: ScheduleDocument,
-  teams: MeetTeamRow[],
-): { doc: ScheduleDocument; changed: boolean } {
+export function reconcileTeams(doc: ScheduleDocument, teams: MeetTeamRow[]): boolean {
   let changed = false
-  let recount = false
-  for (const id of new Set(teams.map((t) => t.division))) {
+  const registered = new Set(teams.map((t) => t.division))
+  for (const id of registered) {
     if (doc.settings.divisions.some((d) => d.id === id)) continue
     doc.settings.divisions.push({ id, name: `Div ${id}`, teams: 0, elims: defaultElims(0) })
+    changed = true
   }
   for (const division of doc.settings.divisions) {
-    const count = teams.filter((t) => t.division === division.id).length
-    if (division.teams !== count) {
-      division.teams = count
-      division.elims = defaultElims(count)
-      recount = true
+    // A division with nothing registered yet keeps the count it was built with
+    if (!registered.has(division.id)) continue
+    const meetTeams = teams.filter((t) => t.division === division.id)
+    if (division.teams !== meetTeams.length) {
+      division.teams = meetTeams.length
+      division.elims = defaultElims(meetTeams.length)
+      changed = true
     }
-    doc.draw[division.id] ??= { teams: [], stale: false }
-  }
-  for (const [division, draw] of Object.entries(doc.draw)) {
-    const meetTeams = teams.filter((t) => t.division === division)
+    const draw = (doc.draw[division.id] ??= { teams: [], stale: false })
     const ids = new Set(meetTeams.map((t) => t.id))
     const kept = draw.teams.filter((t) => t.teamId === undefined || ids.has(t.teamId))
     const have = new Set(kept.map((t) => t.teamId))
@@ -135,10 +132,7 @@ export function reconcileTeams(
     if (draw.teams.some((t) => t.letter)) draw.stale = true
     draw.teams = [...kept, ...joined]
   }
-  // New counts rebuild the grid around anything pinned, as a settings change would
-  return recount
-    ? { doc: { ...doc, ...reflowSchedule(doc) }, changed: true }
-    : { doc, changed: changed || recount }
+  return changed
 }
 
 /** The draw's team names from the meet, which owns them when linked (FR-047) */

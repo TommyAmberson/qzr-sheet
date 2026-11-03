@@ -229,6 +229,7 @@ describe('a linked schedule in the builder (story 7)', () => {
       })),
     }
     const w = await openBuilder()
+    await sleep(900)
     await flushPromises()
     const draw = server.draft!.draw['1']!
     expect(draw.teams.map((t) => t.teamId)).toEqual([100, 101, 102, 103, 104, 105])
@@ -240,11 +241,14 @@ describe('a linked schedule in the builder (story 7)', () => {
     const { server } = fakeServer()
     const doc = serverDraft(server)
     doc.settings.divisions[0]!.teams = 5
+    doc.settings.autoApply = true
+    doc.applied.autoApply = true
     doc.draw['1'] = {
       stale: false,
       teams: [100, 101, 102, 103, 104].map((teamId) => ({ teamId, late: false, absent: false })),
     }
     const w = await openBuilder()
+    await sleep(900)
     await flushPromises()
     expect(server.draft!.settings.divisions[0]!.teams).toBe(6)
     expect(server.draft!.draw['1']!.teams).toHaveLength(6)
@@ -298,6 +302,7 @@ describe('saving a linked draft (FR-048a)', () => {
 
     server.offline = false
     window.dispatchEvent(new Event('online'))
+    await sleep(900)
     await flushPromises()
     expect(server.draft!.name).toBe('Fall Meet 2026')
     expect(again.find('.save-state').text()).toBe('Saved')

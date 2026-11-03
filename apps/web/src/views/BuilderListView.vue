@@ -8,6 +8,7 @@ import {
   forgetSchedule,
   keepSchedule,
   listSchedules,
+  loadSchedule,
   readScheduleFile,
   renameSchedule,
 } from '../builder/persistence'
@@ -59,6 +60,11 @@ async function openFile(event: Event) {
     if (doc.link) {
       doc = { ...doc, id: crypto.randomUUID() }
       delete doc.link
+    }
+    // A schedule kept here already isn't replaced by its file: the file opens beside it
+    const kept = loadSchedule(doc.id)
+    if (kept && JSON.stringify(kept) !== JSON.stringify(doc)) {
+      doc = { ...doc, id: crypto.randomUUID(), name: `${doc.name} (from file)` }
     }
     keepSchedule(doc)
     open(doc.id)

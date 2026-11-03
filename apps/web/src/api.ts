@@ -608,7 +608,7 @@ export interface Published extends DraftSaved {
   publishedAt: string
   /** The schedule's rooms, each with its meet room */
   rooms: ScheduleDocument['rooms']
-  /** Meet rooms the schedule doesn't use, kept because they have an official code */
+  /** Meet rooms the schedule doesn't use, kept because they have a room code, officials or results */
   unusedRooms: { id: number; name: string }[]
 }
 
