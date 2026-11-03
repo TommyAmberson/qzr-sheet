@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { clearDraw, drawDivision, sortPrelims, type ScheduleDocument } from '@qzr/shared'
+import {
+  clearDraw,
+  drawDivision,
+  setTeamCount,
+  sortPrelims,
+  type ScheduleDocument,
+} from '@qzr/shared'
 
 /**
  * Late teams, absent teams, the draw and Sort, together in Prelim settings (FR-040 to FR-042b).
@@ -59,12 +65,8 @@ function lowerCount() {
   emit('change', (d) => {
     const division = d.settings.divisions.find((x) => x.id === drop.id)
     if (!division) return
-    division.teams--
-    const draw = d.draw[drop.id]
-    if (draw) {
-      draw.teams.splice(drop.i, 1)
-      if (draw.teams.some((t) => t.letter)) draw.stale = true
-    }
+    d.draw[drop.id]?.teams.splice(drop.i, 1)
+    setTeamCount(d, drop.id, division.teams - 1)
   })
   droppingOut.value = null
 }

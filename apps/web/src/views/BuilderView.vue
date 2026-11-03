@@ -168,6 +168,17 @@ const panelOpen = ref(false)
 
 // Every change is kept in this browser at once (FR-002)
 const keepFailed = ref(false)
+
+/** A save to file that failed says why, since the director is relying on that copy */
+const fileError = ref('')
+async function saveFile() {
+  fileError.value = ''
+  try {
+    await saveScheduleFile(doc.value)
+  } catch (e) {
+    fileError.value = e instanceof Error ? e.message : String(e)
+  }
+}
 watch(
   doc,
   (d, before) => {
@@ -305,7 +316,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <option value="list">One-room list</option>
         <option value="basic">Basic schedule</option>
       </select>
-      <button type="button" class="save-file" @click="saveScheduleFile(doc)">Save to file</button>
+      <button type="button" class="save-file" @click="saveFile">Save to file</button>
       <button type="button" :disabled="!canUndo" aria-label="Undo" @click="undo">Undo</button>
       <button type="button" :disabled="!canRedo" aria-label="Redo" @click="redo">Redo</button>
     </header>
@@ -377,6 +388,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           This schedule isn't in this browser any more; its stored data may have been cleared. Open
           it from a file if you saved one.
         </p>
+        <p v-if="fileError" class="message" role="alert">The file wasn't saved: {{ fileError }}</p>
         <p v-if="keepFailed" class="message" role="status">
           This browser couldn't keep the schedule. Save it to a file so nothing is lost.
         </p>

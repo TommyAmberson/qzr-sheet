@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defaultElims, elimsForCount, type ScheduleDocument } from '@qzr/shared'
+import { defaultElims, setTeamCount, type ScheduleDocument } from '@qzr/shared'
 
 const props = defineProps<{ doc: ScheduleDocument }>()
 const emit = defineEmits<{ change: [mutate: (d: ScheduleDocument) => void] }>()
@@ -35,15 +35,7 @@ function setName(id: string, event: Event) {
 function setTeams(id: string, event: Event) {
   const teams = Math.max(0, Math.floor(Number((event.target as HTMLInputElement).value)))
   if (!Number.isFinite(teams)) return
-  emit('change', (d) => {
-    const division = d.settings.divisions.find((x) => x.id === id)
-    if (!division || division.teams === teams) return
-    division.elims = elimsForCount(division, teams)
-    division.teams = teams
-    // A changed count means a drawn division needs drawing again (FR-042)
-    const draw = d.draw[id]
-    if (draw?.teams.some((t) => t.letter)) draw.stale = true
-  })
+  emit('change', (d) => setTeamCount(d, id, teams))
 }
 
 /** A team's name, typed when standalone (FR-021); the draw's list grows with it */

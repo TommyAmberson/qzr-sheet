@@ -1,6 +1,6 @@
 import {
   defaultElims,
-  elimsForCount,
+  setTeamCount,
   generateSchedule,
   newScheduleDocument,
   teamDisplayName,
@@ -116,11 +116,7 @@ export function reconcileTeams(doc: ScheduleDocument, teams: MeetTeamRow[]): boo
     // A division with nothing registered yet keeps the count it was built with
     if (!registered.has(division.id)) continue
     const meetTeams = teams.filter((t) => t.division === division.id)
-    if (division.teams !== meetTeams.length) {
-      division.elims = elimsForCount(division, meetTeams.length)
-      division.teams = meetTeams.length
-      changed = true
-    }
+    if (setTeamCount(doc, division.id, meetTeams.length)) changed = true
     const draw = (doc.draw[division.id] ??= { teams: [], stale: false })
     const ids = new Set(meetTeams.map((t) => t.id))
     const kept = draw.teams.filter((t) => t.teamId === undefined || ids.has(t.teamId))

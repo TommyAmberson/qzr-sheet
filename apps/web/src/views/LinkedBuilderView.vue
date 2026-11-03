@@ -12,7 +12,7 @@ import { useRouter } from 'vue-router'
 import {
   ApiError,
   defaultElims,
-  elimsForCount,
+  setTeamCount,
   foldName,
   reflowSchedule,
   type Conflict,
@@ -103,7 +103,10 @@ async function load() {
       // Edits made here that never reached the server: send them, unless someone saved meanwhile
       open(local, link.baseRevision, true)
       // The same revision of a different draft (after an unlink and a new one) is still a conflict
-      if (state.draftRevision !== link.baseRevision || state.draft?.id !== link.docId) {
+      if (
+        state.draftRevision !== link.baseRevision ||
+        (state.draft !== null && state.draft.id !== link.docId)
+      ) {
         conflict.value = { draft: state.draft, draftRevision: state.draftRevision }
       } else void send()
       return
@@ -209,11 +212,7 @@ function confirmLink() {
   let recount = false
   for (const d of doc.settings.divisions) {
     const meetTeams = teams.value.filter((t) => t.division === d.id)
-    if (d.teams !== meetTeams.length) {
-      d.elims = elimsForCount(d, meetTeams.length)
-      d.teams = meetTeams.length
-      recount = true
-    }
+    if (setTeamCount(doc, d.id, meetTeams.length)) recount = true
     const draw = (doc.draw[d.id] ??= { teams: [], stale: false })
     // A kept team carries its letter and marks to the meet team of the same name, never by position
     const fold = (name: string | undefined) => foldName(name ?? '')
@@ -470,7 +469,7 @@ async function unlink() {
   if (!doc) return
   // A save still on its way would write the link back after it's forgotten
   clearTimeout(timer)
-  await sending
+  while (sending) await sending
   // The schedule lives on in this browser, so it must be kept there before the meet lets it go
   const standalone = { ...structuredClone(doc), id: crypto.randomUUID() }
   delete standalone.link

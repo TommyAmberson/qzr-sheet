@@ -110,8 +110,10 @@ export async function saveScheduleFile(doc: ScheduleDocument): Promise<void> {
       const writable = await handle.createWritable()
       await writable.write(json)
       await writable.close()
-    } catch {
-      // Cancelled
+    } catch (e) {
+      // Cancelling the picker isn't an error; a write that failed is
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      throw e
     }
     return
   }
