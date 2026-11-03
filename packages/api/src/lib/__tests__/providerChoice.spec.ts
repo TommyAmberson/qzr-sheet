@@ -173,4 +173,17 @@ describe('the account routes from another origin', () => {
 
     expect(res.status).toBe(200)
   })
+
+  it('refuse a form post to any other route too', async () => {
+    const test = await createAuthTestApp()
+    const { cookie } = await signUpWithPassword(test, 'meets@example.com', PASSWORD)
+
+    const res = await test.app.request('/api/join', {
+      method: 'POST',
+      headers: { cookie, 'Content-Type': 'text/plain', Origin: 'https://evil.example' },
+      body: JSON.stringify({ code: 'anything' }),
+    })
+
+    expect(res.status).toBe(403)
+  })
 })

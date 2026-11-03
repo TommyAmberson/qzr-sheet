@@ -317,9 +317,9 @@ a quiz with no sign-in prompt in the way.
   limits that hold across every server instance; a limited request is told to try again later. The
   password check on disconnect MUST be limited per account too. "That's me" and disconnecting rest
   on the password, so guessing it must not be free.
-* **FR-031**: The account routes (the code step, the choice and disconnect) MUST accept requests
-  that change anything only from the app's own origins, so a page on another origin, even one on the
-  same site, can't submit them with the person's cookies.
+* **FR-031**: Every API route outside Better Auth's, the account routes included, MUST accept
+  requests that change anything only from the app's own origins, so a page on another origin, even
+  one on the same site, can't submit them with the person's cookies.
 * **FR-032**: A new password, at sign-up, reset or change, MUST be refused when it appears in a list
   of breached passwords, with a message to choose another; the check MUST NOT send the password or
   its full hash anywhere. The minimum length stays 8.

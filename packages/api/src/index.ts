@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { routePath } from 'hono/route'
 import { cors } from 'hono/cors'
+import { csrf } from 'hono/csrf'
 import { logger } from 'hono/logger'
 import type { ScheduledController, ExecutionContext } from '@cloudflare/workers-types'
 import type { Bindings } from './bindings'
@@ -78,6 +79,15 @@ api.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) => {
 
 // Session middleware for all /api/* routes (except auth, handled above)
 api.use('/api/*', sessionMiddleware())
+// A form post from another origin, even one on the same site, carries the
+// session cookie, and the routes read JSON whatever the content type: refuse
+// it unless the origin is one Better Auth trusts (FR-031). Better Auth checks
+// its own routes, handled above; JSON from elsewhere already fails CORS.
+// verse-vault shares this origin, so this can't tell its pages from ours.
+api.use(
+  '/api/*',
+  csrf({ origin: async (origin, c) => (await c.get('auth').$context).isTrustedOrigin(origin) }),
+)
 // Mount order matters: phase/schedule register `use('*', requireAuth())`, which
 // short-circuits with 401 (403 for a guest of that meet) when a request lacks a
 // signed-in user, even for paths those sub-apps don't handle (Hono falls through

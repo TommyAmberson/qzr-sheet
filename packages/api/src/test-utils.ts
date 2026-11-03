@@ -113,8 +113,13 @@ export async function createAuthTestApp(overrides: Partial<Bindings> = {}): Prom
   app.route('/', workerApp)
   const request = app.request.bind(app)
   // Every request carries the auth bindings, as the Worker's would.
-  app.request = ((input: RequestInfo | URL, init?: RequestInit) =>
-    request(input, init, { ...authTestBindings, ...overrides })) as typeof app.request
+  // Requests carry the portal's Origin, as a browser's do; a test that needs
+  // another passes its own.
+  app.request = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers)
+    if (!headers.has('origin')) headers.set('origin', 'http://localhost:5174')
+    return request(input, { ...init, headers }, { ...authTestBindings, ...overrides })
+  }) as typeof app.request
   return { app, db, emails }
 }
 
