@@ -77,7 +77,7 @@ const router = createRouter({
         {
           path: 'schedule/edit',
           name: 'meet-schedule-edit',
-          component: () => import('../views/ScheduleEditView.vue'),
+          component: () => import('../views/LinkedBuilderView.vue'),
           props: (route) => ({ slug: route.params.slug as string }),
         },
       ],

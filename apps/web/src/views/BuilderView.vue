@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { ChoiceDialog, ScheduleBasic, ScheduleList, ScheduleSheet } from '@qzr/ui'
-import type { SheetView } from '@qzr/shared'
+import type { ScheduleDocument, SheetView } from '@qzr/shared'
 
 import { addRoom, moveQuiz, swapSeats } from '../builder/edits'
 import { keepSchedule, loadSchedule, saveScheduleFile } from '../builder/persistence'
@@ -14,8 +14,12 @@ import RowMenu from '../components/builder/RowMenu.vue'
 import TeamsSection from '../components/builder/TeamsSection.vue'
 import { useScheduleBuilder } from '../composables/useScheduleBuilder'
 
-/** A schedule kept in this browser, by id; without one, a new schedule */
-const props = defineProps<{ id?: string }>()
+/**
+ * A schedule kept in this browser, by id; without one, a new schedule. A linked schedule's page
+ * passes the result names that have results, to protect their quizzes (H-20).
+ */
+const props = defineProps<{ id?: string; results?: string[] }>()
+const emit = defineEmits<{ changed: [doc: ScheduleDocument] }>()
 const kept = props.id ? loadSchedule(props.id) : null
 const missing = props.id !== undefined && kept === null
 
@@ -33,7 +37,18 @@ const {
   redo,
   canUndo,
   canRedo,
-} = useScheduleBuilder(kept ?? undefined)
+  held,
+  confirmHeld,
+  dropHeld,
+} = useScheduleBuilder(
+  kept ?? undefined,
+  computed(() => new Set(props.results ?? [])),
+)
+defineExpose({ change, setAutoApply })
+
+const heldLabels = computed(() =>
+  (held.value?.quizzes ?? []).map((id) => doc.value.quizzes.find((q) => q.id === id)?.label ?? id),
+)
 
 /** The popup open on the grid, if any: one at a time (FR-005c) */
 type Popup =
@@ -152,7 +167,14 @@ const panelOpen = ref(false)
 
 // Every change is kept in this browser at once (FR-002)
 const keepFailed = ref(false)
-watch(doc, (d) => (keepFailed.value = !missing && !keepSchedule(d)), { immediate: true })
+watch(
+  doc,
+  (d) => {
+    keepFailed.value = !missing && !keepSchedule(d)
+    emit('changed', d)
+  },
+  { immediate: true },
+)
 
 /** Letters, or drawn teams once a division has a draw (FR-043) */
 const view = ref<SheetView>('letters')
@@ -245,6 +267,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       >
         Settings
       </button>
+      <slot name="bar" :doc="doc" />
       <span class="spacer" />
       <button type="button" class="issue-count" :disabled="flagged.length === 0" @click="nextIssue">
         {{ problems }} {{ problems === 1 ? 'problem' : 'problems' }}, {{ warnings }}
@@ -352,6 +375,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <p v-if="keepFailed" class="message" role="status">
           This browser couldn't keep the schedule. Save it to a file so nothing is lost.
         </p>
+        <div v-if="held" class="message held" role="alert">
+          <p>
+            {{ heldLabels.join(', ') }} {{ heldLabels.length === 1 ? 'has' : 'have' }} results
+            already. Change {{ heldLabels.length === 1 ? 'it' : 'them' }} anyway? The schedule will
+            mark {{ heldLabels.length === 1 ? 'it' : 'them' }} as changed after results.
+          </p>
+          <button type="button" @click="confirmHeld">Change anyway</button>
+          <button type="button" @click="dropHeld">Cancel</button>
+        </div>
+        <slot name="notices" />
         <p v-if="doc.settings.divisions.length === 0" class="empty">
           Enter each division's team count in Teams to build the schedule.
         </p>

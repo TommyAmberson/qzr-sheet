@@ -5,6 +5,7 @@ import type {
   MeetPhase,
   QuizFile,
   ResultAction,
+  ScheduleDocument,
 } from '@qzr/shared'
 import {
   withGuestToken,
@@ -708,4 +709,98 @@ export function setResultsCounted(
     method: 'PATCH',
     body: JSON.stringify({ ids, counted }),
   })
+}
+
+// ---- Linked schedules (specs/005-schedule-redesign/contracts/api.md) ----
+
+export interface LinkedScheduleState {
+  draft: ScheduleDocument | null
+  draftRevision: number
+  draftSavedAt: string | null
+  published: ScheduleDocument | null
+  publishedAt: string | null
+  version: number | null
+  /** Result names with submitted results, protected in the builder (H-20) */
+  results: string[]
+}
+
+/** The meet's draft and newest version; a meet built with the old editor is converted first */
+export function getLinkedSchedule(meetId: number, timeZone: string): Promise<LinkedScheduleState> {
+  return request(`/api/meets/${meetId}/schedule?timeZone=${encodeURIComponent(timeZone)}`)
+}
+
+export interface DraftSaved {
+  draftRevision: number
+  draftSavedAt: string
+}
+
+/** Throws a 409 `ApiError` whose body has the newer `draft` and `draftRevision` when stale */
+export function saveScheduleDraft(
+  meetId: number,
+  document: ScheduleDocument,
+  baseRevision: number,
+): Promise<DraftSaved> {
+  return request(`/api/meets/${meetId}/schedule/draft`, {
+    method: 'PUT',
+    body: JSON.stringify({ document, baseRevision }),
+  })
+}
+
+export interface Published extends DraftSaved {
+  version: number
+  publishedAt: string
+  /** The schedule's rooms, each with its meet room */
+  rooms: ScheduleDocument['rooms']
+  /** Meet rooms the schedule doesn't use, kept because they have an official code */
+  unusedRooms: { id: number; name: string }[]
+}
+
+/** Throws a 409 `ApiError` whose body has `conflicts` when there are hard conflicts unconfirmed */
+export function publishSchedule(
+  meetId: number,
+  baseRevision: number,
+  confirmConflicts: boolean,
+): Promise<Published> {
+  return request(`/api/meets/${meetId}/schedule/publish`, {
+    method: 'POST',
+    body: JSON.stringify({ baseRevision, confirmConflicts }),
+  })
+}
+
+export interface ScheduleVersion {
+  version: number
+  publishedAt: string
+  publishedBy: string
+}
+
+export function listScheduleVersions(meetId: number): Promise<ScheduleVersion[]> {
+  return request(`/api/meets/${meetId}/schedule/versions`)
+}
+
+export function getScheduleVersion(
+  meetId: number,
+  version: number,
+): Promise<ScheduleVersion & { document: ScheduleDocument }> {
+  return request(`/api/meets/${meetId}/schedule/versions/${version}`)
+}
+
+export function restoreScheduleVersion(
+  meetId: number,
+  version: number,
+  baseRevision: number,
+): Promise<DraftSaved> {
+  return request(`/api/meets/${meetId}/schedule/versions/${version}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({ baseRevision }),
+  })
+}
+
+export function unlinkSchedule(meetId: number): Promise<{ ok: true }> {
+  return request(`/api/meets/${meetId}/schedule`, { method: 'DELETE' })
+}
+
+export function getPublishedSchedule(
+  meetId: number,
+): Promise<{ document: ScheduleDocument; publishedAt: string; view: 'letters' | 'teams' }> {
+  return request(`/api/meets/${meetId}/schedule/published`)
 }

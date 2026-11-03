@@ -51,6 +51,15 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   collapsed row, get letters that play late. A team that drops out can lower the count or be marked
   absent. Sort moves the prelims so late teams play late, within each division's rooms or across
   rooms, saying first how many quizzes will move. In Teams view a seat's letter is picked by team.
+* A meet's schedule in the builder, at the meet's Schedule edit page in place of the old editor: it
+  starts from the meet's divisions, teams and rooms, or links a schedule kept in this browser after
+  showing where it differs from the meet. The draft is kept in this browser and sent shortly after
+  each change; edits made offline are sent when the connection is back, even after a reload, and a
+  draft another admin saved meanwhile is shown so you keep yours or take theirs. Publish lists hard
+  conflicts and asks before publishing past them, then turns Auto-apply off; the history lists every
+  version with when and by whom, to view or restore as the draft. A quiz with results changes only
+  after confirming, and is then marked changed after results. Unlinking leaves a schedule of its own
+  in this browser.
 
 ## [0.21.0] - 2026-11-01
 
