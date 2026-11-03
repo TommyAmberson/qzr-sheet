@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { checkSchedule, type Conflict } from '../conflicts'
+import { checkSchedule, resultName, type Conflict } from '../conflicts'
+import { generateSchedule } from '../reflow'
+import { newScheduleDocument } from '../scheduleFile'
 import type { ScheduleDocument, ScheduleQuiz } from '../scheduleFile'
 import { at, doc, quiz, seats } from './fixtures'
 
@@ -357,5 +359,35 @@ describe('checkSchedule', () => {
       }),
     ]
     expect(flagged(checkSchedule(d), 'W-5')).toEqual(['a', 'b'])
+  })
+})
+
+describe('H-9 and result names', () => {
+  it('flags a team that plays no prelims at all', () => {
+    const doc = generateSchedule(
+      Object.assign(newScheduleDocument('x'), {
+        settings: {
+          ...newScheduleDocument('x').settings,
+          divisions: [{ id: '1', name: 'Div 1', teams: 6, elims: { lanes: [], lines: [] } }],
+        },
+      }),
+    )
+    for (const q of doc.quizzes)
+      q.seats = q.seats.map((s) =>
+        s.kind === 'letter' && s.letter === 'F' ? { kind: 'empty' } : s,
+      )
+    expect(checkSchedule(doc).find((c) => c.rule === 'H-9')?.reason).toMatch(/\bF\b/)
+  })
+
+  it('names results as the meet stores them', () => {
+    const doc = generateSchedule(newScheduleDocument('x'))
+    const q = {
+      ...doc.quizzes[0]!,
+      division: '2',
+      lane: 1,
+      label: 'Div 2 Quiz A',
+      phase: 'elim' as const,
+    }
+    expect(resultName(q)).toBe('2|c|a')
   })
 })

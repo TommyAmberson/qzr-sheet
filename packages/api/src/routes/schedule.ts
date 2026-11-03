@@ -1099,7 +1099,7 @@ async function loadLegacy(db: Db, meetId: number): Promise<LegacySchedule | null
 }
 
 /**
- * GET /api/meets/:id/schedule — the draft and the newest published version, for the builder.
+ * GET /api/meets/:id/schedule: the draft and the newest published version, for the builder.
  * A meet built with the old editor is converted on first open (research R5); `timeZone`, the
  * builder's, places the old slots' instants on the meet's days.
  */
@@ -1184,9 +1184,13 @@ async function saveDraft(
       .returning({ id: schema.meetSchedules.id })
     if (updated.length === 0) return saveDraft(c, meetId, doc, -1)
   } else {
-    await db
+    // Two first saves at once: the second finds the first's draft, as a stale save would
+    const inserted = await db
       .insert(schema.meetSchedules)
       .values({ meetId, draft: serializeSchedule(doc), draftRevision, draftSavedAt })
+      .onConflictDoNothing()
+      .returning({ id: schema.meetSchedules.id })
+    if (inserted.length === 0) return staleDraft(c, await draftRow(db, meetId))
   }
   return c.json({ draftRevision, draftSavedAt })
 }
@@ -1406,7 +1410,7 @@ publishedSchedule.use('/:id/schedule/published', async (c, next) => {
 })
 
 /**
- * GET /api/meets/:id/schedule/published — the newest version for anyone with access to the meet.
+ * GET /api/meets/:id/schedule/published: the newest version for anyone with access to the meet.
  * Letters while the meet is in registration or build, with the draw's teams removed; team names,
  * read from the meet, from live on (FR-052). Admins see teams and may ask for either.
  */

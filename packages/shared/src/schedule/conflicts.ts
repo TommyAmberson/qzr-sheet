@@ -1,5 +1,5 @@
-import { foldName, quizName } from '../results'
-import { indexOfLetter } from './letters'
+import { foldName, resultKey } from '../results'
+import { indexOfLetter, letterOf } from './letters'
 import { quizNumber } from './names'
 import type { ScheduleDocument, ScheduleQuiz, Seat } from './scheduleFile'
 
@@ -66,9 +66,9 @@ export function scheduleQuizMeta(q: ScheduleQuiz): {
   return { division: q.division, consolation: (q.lane ?? 0) > 0, quizNumber: quizNumber(q) }
 }
 
-/** The name the scoresheet saves this quiz's results under (research R10) */
+/** The key the meet stores this quiz's results under, as the scoresheet names them (research R10) */
 export function resultName(q: ScheduleQuiz): string {
-  return foldName(quizName(scheduleQuizMeta(q)))
+  return resultKey(scheduleQuizMeta(q))
 }
 
 function groupBy<T>(items: T[], key: (item: T) => string | null): Map<string, T[]> {
@@ -172,7 +172,10 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
 
     // H-9: every team plays the set number of prelims
     if (prelims.length > 0) {
-      const counts = new Map<string, number>()
+      // Every team counts, so one left out of every prelim is caught too
+      const counts = new Map(
+        Array.from({ length: division.teams }, (_, i) => [letterOf(i), 0] as [string, number]),
+      )
       for (const q of prelims) {
         for (const s of q.seats)
           if (s.kind === 'letter') counts.set(s.letter, (counts.get(s.letter) ?? 0) + 1)

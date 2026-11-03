@@ -110,3 +110,28 @@ describe('Auto-apply off (FR-012a)', () => {
     expect(preview.doc.rooms).toHaveLength(6)
   })
 })
+
+describe('re-flow with rooms and quizzes from elsewhere', () => {
+  it("keeps each room's id, name and meet room", () => {
+    const doc = meet([6])
+    doc.rooms = doc.rooms.map((r, i) => ({
+      id: String(40 + i),
+      name: `Hall ${i}`,
+      meetRoomId: 40 + i,
+    }))
+    for (const q of doc.quizzes)
+      if (q.cell) q.cell = { ...q.cell, room: String(40 + Number(q.cell.room.slice(5)) - 1) }
+    doc.settings.slotMinutes = 30
+    const after = reflowSchedule(doc)
+    expect(after.rooms.slice(0, doc.rooms.length)).toEqual(doc.rooms)
+  })
+
+  it('a pinned quiz under another id stands in for the generated quiz it is, so nothing doubles', () => {
+    const doc = meet([6])
+    // As a schedule converted from the old editor: the old row ids, every quiz pinned
+    doc.quizzes = doc.quizzes.map((q, i) => ({ ...q, id: String(100 + i), pinned: true }))
+    doc.frame = doc.frame.map((r) => ({ ...r, pinned: true }))
+    const after = reflowSchedule(doc)
+    expect(after.quizzes).toHaveLength(doc.quizzes.length)
+  })
+})

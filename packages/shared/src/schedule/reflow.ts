@@ -2,7 +2,9 @@ import { buildElimQuizzes } from './elims'
 import { buildFrame, DEFAULT_SHAPE, defaultRoomCount } from './frame'
 import { placePrelims, type PrelimDivision } from './placement'
 import { drawPrelims } from './prelimDraw'
+import { quizNumber } from './names'
 import type {
+  DivisionSettings,
   FrameRow,
   ScheduleDocument,
   ScheduleQuiz,
@@ -156,10 +158,15 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
       : settings.rooms === 'auto'
         ? defaultRoomCount(totalPrelims, base)
         : settings.rooms
-  const oldNames = new Map(doc.rooms.map((r) => [r.id, r.name]))
+  // The rooms there are stay as they are, names and meet rooms included; any more are added
+  const taken = new Set(doc.rooms.map((r) => r.id))
   const rooms = Array.from({ length: roomCount }, (_, i) => {
-    const id = `room-${i + 1}`
-    return { id, name: oldNames.get(id) ?? `Room ${i + 1}` }
+    const kept = doc.rooms[i]
+    if (kept) return kept
+    let n = i + 1
+    while (taken.has(`room-${n}`)) n++
+    taken.add(`room-${n}`)
+    return { id: `room-${n}`, name: `Room ${i + 1}` }
   })
   const roomIds = new Set(rooms.map((r) => r.id))
 
@@ -167,7 +174,15 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   const pinned = doc.quizzes
     .filter((q) => q.pinned)
     .map((q) => (q.cell && !roomIds.has(q.cell.room) ? { ...q, cell: null } : q))
+  // A pinned quiz stands in for the generated quiz it is, by id or, for a schedule converted from
+  // the old editor whose quizzes kept their old ids, by division, lane and number
   const pinnedIds = new Set(pinned.map((q) => q.id))
+  const pinnedKeys = new Set(pinned.map(quizKey))
+  const isPinned = (
+    q: Pick<ScheduleQuiz, 'id' | 'division' | 'phase' | 'lane' | 'line' | 'label'>,
+  ) => pinnedIds.has(q.id) || pinnedKeys.has(quizKey(q))
+  const prelimPinned = (d: DivisionSettings, n: number, id: string) =>
+    isPinned({ id, division: d.id, phase: 'prelim', label: `${d.name} Quiz ${n + 1}` })
   const pinnedAt = (use: Use) =>
     pinned.flatMap((q) => {
       const pos = q.cell ? positionOf.get(q.cell.slot) : undefined
@@ -181,9 +196,9 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
     division: q.phase === 'prelim' ? q.division : undefined,
     letters: q.seats.flatMap((s) => (s.kind === 'letter' ? [s.letter] : [])),
   }))
-  const toPlace = prelims.map((d) => ({
+  const toPlace = prelims.map((d, i) => ({
     ...d,
-    quizzes: d.quizzes.filter((q) => !pinnedIds.has(q.id)),
+    quizzes: d.quizzes.filter((q, n) => !prelimPinned(divisions[i]!, n, q.id)),
   }))
   const slotNames = (n: number) => Array.from({ length: n }, (_, i) => `p${i}`)
   const minPrelims = Math.max(0, ...fixedPrelims.map((f) => Number(f.slot.slice(1)) + 1))
@@ -210,7 +225,7 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   const gapRounds = Math.ceil(settings.totallingMinutes / settings.slotMinutes)
   const scheduled = elimRounds(
     elims.map((quizzes, d) => ({
-      quizzes: quizzes.filter((q) => !isFinals(q) && !pinnedIds.has(q.id)),
+      quizzes: quizzes.filter((q) => !isFinals(q) && !isPinned(q)),
       all: quizzes,
       rooms: placement.blocks[d] ?? [],
     })),
@@ -223,7 +238,7 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   const pinnedFinals = new Set(pinnedAt('finals').map(({ k }) => k))
   const finals = finalsOrder(
     doc,
-    elims.flat().filter((q) => isFinals(q) && !pinnedIds.has(q.id)),
+    elims.flat().filter((q) => isFinals(q) && !isPinned(q)),
   )
   const finalsPlaces: number[] = []
   for (let k = 0; finalsPlaces.length < finals.length; k++)
@@ -249,7 +264,7 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   const quizzes: ScheduleQuiz[] = [...pinned]
   divisions.forEach((d, i) => {
     prelims[i]!.quizzes.forEach((q, n) => {
-      if (pinnedIds.has(q.id)) return
+      if (prelimPinned(d, n, q.id)) return
       const cell = placement.cells.get(q.id)
       const slot = cell ? slots.prelim[Number(cell.slot.slice(1))] : undefined
       quizzes.push({
@@ -263,7 +278,7 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
       })
     })
     for (const q of elims[i]!) {
-      if (pinnedIds.has(q.id)) continue
+      if (isPinned(q)) continue
       const round = scheduled.round.get(q.id)
       const room = scheduled.room.get(q.id)
       const f = finals.indexOf(q)
@@ -348,4 +363,10 @@ export function applyPreview(doc: ScheduleDocument): { doc: ScheduleDocument; mo
     doc: next,
     moves: moves + doc.quizzes.filter((q) => !next.quizzes.some((n) => n.id === q.id)).length,
   }
+}
+
+/** Which generated quiz a quiz is: its division, phase, lane or line, and number */
+function quizKey(q: Pick<ScheduleQuiz, 'division' | 'phase' | 'lane' | 'line' | 'label'>): string {
+  const place = q.phase === 'prelim' ? '' : q.line !== undefined ? `l${q.line}` : `${q.lane ?? 0}`
+  return [q.division, q.phase, place, quizNumber(q)].join('|')
 }

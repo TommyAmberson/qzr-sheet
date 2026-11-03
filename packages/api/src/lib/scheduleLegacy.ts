@@ -118,6 +118,8 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
       }),
     )
   doc.settings.autoApply = false
+  // The meet's rooms, as many as it had, so re-flow keeps them
+  if (old.rooms.length > 0) doc.settings.rooms = old.rooms.length
   doc.settings.divisions = divisions.map((d) => {
     const teams = Math.max(old.teams.filter((t) => t.division === d).length, lettersOf(d).size)
     return { id: d, name: `Div ${d}`, teams, elims: defaultElims(teams) }

@@ -40,6 +40,16 @@ export function editDistance(a: string, b: string): number {
 }
 
 /** A quiz's name, as officials know it: "D1 Q3", or "D1c Q3" in consolation */
+/**
+ * The key a meet stores a quiz's results under: division, consolation and quiz number, folded for
+ * case and spaces, so `Div 2c Quiz A` and `div 2C quiz a` are one quiz
+ */
+export function resultKey(
+  quiz: Pick<QuizFile['quiz'], 'division' | 'consolation' | 'quizNumber'>,
+): string {
+  return [foldName(quiz.division), quiz.consolation ? 'c' : '', foldName(quiz.quizNumber)].join('|')
+}
+
 export function quizName(
   quiz: Pick<QuizFile['quiz'], 'division' | 'consolation' | 'quizNumber'>,
 ): string {

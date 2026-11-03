@@ -4,6 +4,7 @@ import { alias } from 'drizzle-orm/sqlite-core'
 import {
   NewerFileVersionError,
   foldName,
+  resultKey,
   isQuizFile,
   parseQuizFile,
   quizName,
@@ -294,13 +295,9 @@ async function addRevisions(
   }
 }
 
-/** The name folded for case and spaces: the identity of a quiz not tied to the schedule */
+/** The name folded for case and spaces: the identity of a quiz, which a schedule quiz shares */
 function quizKey(file: QuizFile): string {
-  return [
-    foldName(file.quiz.division),
-    file.quiz.consolation ? 'c' : '',
-    foldName(file.quiz.quizNumber),
-  ].join('|')
+  return resultKey(file.quiz)
 }
 
 /** The 409 for a name the meet already has, with its current revision so the caller can decide */
