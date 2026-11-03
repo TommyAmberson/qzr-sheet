@@ -146,3 +146,39 @@ describe('sortPrelims', () => {
     expect(moved.quizzes.find((x) => x.id === q.id)!.pinned).toBe(false)
   })
 })
+
+/** Cases carried over from the old editor's scenarios (research R3) */
+describe("the old editor's scenarios", () => {
+  it.each([
+    [[4, 5], 3],
+    [[9, 15, 20], 5],
+  ])('%j teams in %i rooms: every quiz placed, no hard conflicts', (counts, rooms) => {
+    const doc = meet(counts, rooms)
+    expect(doc.quizzes.filter((q) => q.phase === 'prelim' && !q.cell)).toEqual([])
+    expect(checkSchedule(doc).filter((c) => !c.warning)).toEqual([])
+  })
+
+  it("late teams in every division sit out their division's first prelim slot after Sort", () => {
+    const doc = meet([9, 15, 20], 5)
+    const late: Record<string, number[]> = { d1: [8], d2: [9, 10, 11, 12, 13, 14], d3: [18, 19] }
+    for (const [d, teams] of Object.entries(late)) {
+      for (const t of teams) doc.draw[d]!.teams[t]!.late = true
+      doc.draw[d] = drawDivision(doc, d, seeded(11))
+    }
+    const sorted = sortPrelims(doc, { includePinned: false, acrossRooms: false })
+    const order = slotOrder(sorted)
+    for (const d of Object.keys(late)) {
+      const letters = new Set(sorted.draw[d]!.teams.filter((t) => t.late).map((t) => t.letter!))
+      const prelims = sorted.quizzes.filter((q) => q.division === d && q.phase === 'prelim')
+      const first = Math.min(...prelims.map((q) => order.get(q.cell!.slot)!))
+      const opening = prelims.filter((q) => order.get(q.cell!.slot) === first)
+      for (const q of opening) {
+        for (const s of q.seats) {
+          if (s.kind === 'letter')
+            expect(letters.has(s.letter), `${q.label} ${s.letter}`).toBe(false)
+        }
+      }
+    }
+    expect(checkSchedule(sorted).filter((c) => !c.warning)).toEqual([])
+  })
+})

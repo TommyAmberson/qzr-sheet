@@ -29,30 +29,7 @@ export type {
   RoomCodeOptions,
   RoomCodeRequest,
 } from './guestSession'
-export { default as ScheduleGrid } from './ScheduleGrid.vue'
 export { default as ScheduleSheet } from './ScheduleSheet.vue'
+export { formatSlotTime } from './formatTime'
 export { default as ScheduleList } from './ScheduleList.vue'
 export { default as ScheduleBasic } from './ScheduleBasic.vue'
-export {
-  STATS_BREAK_LABEL,
-  buildGrid,
-  bySortOrder,
-  formatSlotTime,
-  groupRowsByDay,
-  hasAnyQuiz,
-  isStatsBreak,
-  seatRef,
-  seatTeam,
-  sortedSeats,
-} from './scheduleGrid'
-export type {
-  DayGroup,
-  Grid,
-  GridRow,
-  MeetTeamRow,
-  PrelimAssignmentRow,
-  ScheduleRoom,
-  ScheduleSlot,
-  ScheduledQuiz,
-  ScheduledSeat,
-} from './scheduleGrid'

@@ -64,6 +64,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   and team names after, each quiz linking to the scoresheet. Before anything is published it says
   so.
 
+### Removed
+
+* The old schedule editor, which the builder replaces.
+
 ## [0.21.0] - 2026-11-01
 
 ### Added

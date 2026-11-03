@@ -438,13 +438,7 @@ export function exportRoster(meetId: number): Promise<{ entries: RosterExportEnt
   return request(`/api/meets/${meetId}/roster/export`)
 }
 
-// ---- Division team counts ----
-
-export function getMeetTeamCounts(meetId: number): Promise<{ counts: Record<string, number> }> {
-  return request(`/api/meets/${meetId}/team-counts`)
-}
-
-// ---- Schedule ----
+// ---- Rooms ----
 
 export interface MeetRoom {
   id: number
@@ -453,147 +447,8 @@ export interface MeetRoom {
   hasCode: boolean
 }
 
-export interface MeetSlot {
-  id: number
-  meetId: number
-  startAt: string
-  durationMinutes: number
-  kind: 'quiz' | 'event'
-  eventLabel: string | null
-  sortOrder: number
-}
-
-export interface ScheduledQuizSeat {
-  id: number
-  quizId: number
-  seatNumber: number
-  letter: string | null
-  seedRef: string | null
-}
-
-export interface ScheduledQuiz {
-  id: number
-  meetId: number
-  slotId: number
-  roomId: number
-  division: string
-  phase: 'prelim' | 'elim'
-  lane: 'main' | 'consolation' | 'intermediate' | null
-  label: string
-  bracketLabel: string | null
-  publishedAt: string | null
-  completedAt: string | null
-  seats: ScheduledQuizSeat[]
-}
-
 export function listMeetRooms(meetId: number): Promise<{ rooms: MeetRoom[] }> {
   return request(`/api/meets/${meetId}/rooms`)
-}
-
-export function listMeetSlots(meetId: number): Promise<{ slots: MeetSlot[] }> {
-  return request(`/api/meets/${meetId}/slots`)
-}
-
-export function listScheduledQuizzes(meetId: number): Promise<{ quizzes: ScheduledQuiz[] }> {
-  return request(`/api/meets/${meetId}/quizzes`)
-}
-
-// ---- Schedule editor ----
-//
-// Every editable mutation flows through `syncSchedule` (defined below)
-// — there are no per-row create/update/delete helpers. Only GETs and
-// the bulk sync endpoint live in this section.
-
-export interface SeatInput {
-  seatNumber: number
-  letter?: string | null
-  seedRef?: string | null
-}
-
-export interface PrelimAssignment {
-  id: number
-  meetId: number
-  division: string
-  letter: string
-  teamId: number
-  assignedAt: string | number
-}
-
-export function listPrelimAssignments(
-  meetId: number,
-): Promise<{ assignments: PrelimAssignment[] }> {
-  return request(`/api/meets/${meetId}/prelim-assignments`)
-}
-
-// ---- Schedule sync (draft → server commit) ----
-
-export interface ScheduleSyncSlot {
-  /** Negative id signals a new slot; positive id targets an existing row. */
-  id: number
-  startAt: string | number
-  durationMinutes: number
-  kind: 'quiz' | 'event'
-  eventLabel: string | null
-  sortOrder: number
-}
-
-export interface ScheduleSyncQuiz {
-  /** Negative id signals a new quiz; positive id targets an existing row. */
-  id: number
-  /** May reference a negative slot id from the same payload. */
-  slotId: number
-  roomId: number
-  division: string
-  phase: 'prelim' | 'elim'
-  label: string
-  bracketLabel: string | null
-  seats: SeatInput[]
-}
-
-export interface ScheduleSyncPrelimDivision {
-  division: string
-  mapping: { letter: string; teamId: number }[]
-}
-
-export interface ScheduleSyncTeamLateness {
-  teamId: number
-  lateness: boolean
-}
-
-export interface ScheduleSyncPayload {
-  slots: ScheduleSyncSlot[]
-  quizzes: ScheduleSyncQuiz[]
-  /** Full-replace per division listed; divisions omitted are left as-is. */
-  prelimAssignments: ScheduleSyncPrelimDivision[]
-  /** Per-team lateness diff; teams omitted are left as-is. */
-  teamLateness: ScheduleSyncTeamLateness[]
-}
-
-export interface ScheduleSyncTeam {
-  id: number
-  meetId: number
-  churchId: number
-  division: string
-  number: number
-  consolation: boolean
-  lateness: boolean
-}
-
-export interface ScheduleSyncResult {
-  slots: MeetSlot[]
-  quizzes: ScheduledQuiz[]
-  prelimAssignments: PrelimAssignment[]
-  teams: ScheduleSyncTeam[]
-}
-
-export function syncSchedule(
-  meetId: number,
-  payload: ScheduleSyncPayload,
-): Promise<ScheduleSyncResult> {
-  return request(`/api/meets/${meetId}/schedule/sync`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
 }
 
 // ---- Results ----
