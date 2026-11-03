@@ -2,8 +2,13 @@
 import { ref } from 'vue'
 import type { ScheduleDocument, UnappliedSetting } from '@qzr/shared'
 
+import DrawControls from './DrawControls.vue'
+
 const props = defineProps<{ doc: ScheduleDocument; unapplied: UnappliedSetting[] }>()
-const emit = defineEmits<{ change: [mutate: (d: ScheduleDocument) => void] }>()
+const emit = defineEmits<{
+  change: [mutate: (d: ScheduleDocument) => void]
+  edit: [mutate: (d: ScheduleDocument) => void]
+}>()
 
 const was = (key: string) => props.unapplied.find((u) => u.key === key)?.applied
 const showInfo = ref(false)
@@ -77,6 +82,7 @@ const SOURCE_NAMES: Record<string, string> = { ruleBook: 'Rule book', noRematche
       teams, so no two teams meet twice. The draw gives teams their letters at random, so neither
       favours a team.
     </p>
+    <DrawControls :doc="doc" @change="(m) => emit('change', m)" @edit="(m) => emit('edit', m)" />
   </div>
 </template>
 

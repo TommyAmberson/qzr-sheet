@@ -40,6 +40,19 @@ function setTeams(id: string, event: Event) {
     if (!division || division.teams === teams) return
     division.teams = teams
     division.elims = defaultElims(teams)
+    // A changed count means a drawn division needs drawing again (FR-042)
+    const draw = d.draw[id]
+    if (draw?.teams.some((t) => t.letter)) draw.stale = true
+  })
+}
+
+/** A team's name, typed when standalone (FR-021); the draw's list grows with it */
+function setTeamName(id: string, index: number, event: Event) {
+  const name = (event.target as HTMLInputElement).value.trim()
+  emit('change', (d) => {
+    const draw = (d.draw[id] ??= { teams: [], stale: false })
+    while (draw.teams.length <= index) draw.teams.push({ late: false, absent: false })
+    draw.teams[index]!.name = name || undefined
   })
 }
 </script>
@@ -68,6 +81,17 @@ function setTeams(id: string, event: Event) {
           @change="setTeams(d.id, $event)"
         />
       </label>
+      <details v-if="d.teams > 0" class="names">
+        <summary>Team names</summary>
+        <input
+          v-for="i in d.teams"
+          :key="i"
+          :value="doc.draw[d.id]?.teams[i - 1]?.name ?? ''"
+          :placeholder="`Team ${i}`"
+          :aria-label="`${d.name} team ${i} name`"
+          @change="setTeamName(d.id, i - 1, $event)"
+        />
+      </details>
     </div>
   </div>
 </template>
@@ -87,6 +111,16 @@ function setTeams(id: string, event: Event) {
 
 .field input {
   width: 5rem;
+}
+
+.names {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.names input {
+  display: block;
+  width: 100%;
 }
 
 .division {

@@ -46,6 +46,11 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   is open.
 * Printing: the room grid a page or more per day, a one-room list in time order, or the basic
   schedule of events and "Quizzing" blocks; and a Letters / Teams switch once a division has a draw.
+* The draw: team names in Teams, then per division (or all at once) Draw, Redraw and Clear, which
+  only decide which team holds which letter and never move a quiz. Teams marked late, behind a
+  collapsed row, get letters that play late. A team that drops out can lower the count or be marked
+  absent. Sort moves the prelims so late teams play late, within each division's rooms or across
+  rooms, saying first how many quizzes will move. In Teams view a seat's letter is picked by team.
 
 ## [0.21.0] - 2026-11-01
 

@@ -338,6 +338,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               :doc="doc"
               :unapplied="unapplied"
               @change="changeSettings"
+              @edit="change"
             />
           </div>
         </section>
@@ -416,6 +417,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       :quiz-id="popup.id"
       :anchor="popup.anchor"
       :seat="popup.seat ?? null"
+      :view="view"
       @change="change"
       @close="popup = null"
       @move="startMove"

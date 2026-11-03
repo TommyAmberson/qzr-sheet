@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { seatText, type ScheduleDocument, type Seat } from '@qzr/shared'
+import { seatText, type ScheduleDocument, type Seat, type SheetView } from '@qzr/shared'
 
 import { deleteQuiz, moveQuiz, renameQuiz, setPinned, setSeat } from '../../builder/edits'
 import BuilderPopover from './BuilderPopover.vue'
@@ -15,6 +15,7 @@ const props = defineProps<{
   anchor: HTMLElement
   /** Open straight on a seat's editor */
   seat?: number | null
+  view?: SheetView
 }>()
 const emit = defineEmits<{
   change: [mutate: (d: ScheduleDocument) => void]
@@ -27,6 +28,17 @@ const emit = defineEmits<{
 
 const q = computed(() => props.doc.quizzes.find((x) => x.id === props.quizId)!)
 const editing = ref<number | null>(props.seat ?? null)
+
+/** In Teams view, a drawn division's letters are picked by team (FR-043) */
+const drawnLetters = computed(() => {
+  if (props.view !== 'teams') return null
+  const teams = props.doc.draw[q.value.division]?.teams ?? []
+  const named = teams
+    .map((t, i) => ({ letter: t.letter, name: t.name ?? `Team ${i + 1}` }))
+    .filter((t): t is { letter: string; name: string } => !!t.letter)
+    .sort((a, b) => a.letter.localeCompare(b.letter))
+  return named.length > 0 ? named : null
+})
 
 const SEAT_KINDS: { kind: Seat['kind']; label: string }[] = [
   { kind: 'letter', label: 'Prelim letter' },
@@ -142,13 +154,23 @@ const current = (key: 'letter' | 'number' | 'quiz') => {
     <form v-else class="seat-editor" @submit.prevent="saveSeat">
       <button type="button" class="back" @click="editing = null">‹ Back</button>
       <p class="now">
-        Seat {{ editing + 1 }} · now {{ seatText(doc, q, editingSeat!, 'letters') }}
+        Seat {{ editing + 1 }} · now {{ seatText(doc, q, editingSeat!, view ?? 'letters') }}
       </p>
       <select v-model="kind" aria-label="Seat kind">
         <option v-for="k in SEAT_KINDS" :key="k.kind" :value="k.kind">{{ k.label }}</option>
       </select>
+      <select
+        v-if="kind === 'letter' && drawnLetters"
+        name="letter"
+        :value="current('letter')"
+        aria-label="Letter"
+      >
+        <option v-for="t in drawnLetters" :key="t.letter" :value="t.letter">
+          {{ t.letter }} · {{ t.name }}
+        </option>
+      </select>
       <input
-        v-if="kind === 'letter'"
+        v-else-if="kind === 'letter'"
         name="letter"
         :value="current('letter')"
         aria-label="Letter"
