@@ -23,6 +23,14 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-04
+
+### Added
+
+* `schedule/`: the schedule builder's pure logic, starting with the rule book's prelim draw tables
+  for 4 to 21 teams (`PRELIM_DRAW_PATTERNS`, `getPrelimDraw`), moved here from the portal so the
+  builder, the API and the readers share them.
+
 ## [1.6.0] - 2026-10-31
 
 ### Added

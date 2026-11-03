@@ -69,8 +69,8 @@ of each story.
 **Purpose**: Move the code the plan reuses to where every consumer can reach it, and open the
 contract bump.
 
-- [ ] T001 Bump `packages/shared` MINOR with a dated changelog section in `packages/shared/CHANGELOG.md` that later commits in this branch extend (Principle V); `tools/check-contract-versions.sh` must pass
-- [ ] T002 [P] Move the rule-book prelim tables (4 to 21 teams) from `apps/web/src/prelimDraw.ts` into `packages/shared/src/schedule/`, owner "the prelim draw", carrying the cases of `apps/web/src/__tests__/prelimDraw.spec.ts` to `packages/shared/src/schedule/__tests__/`; the old editor keeps importing them from `@qzr/shared` until it's removed (T052)
+- [X] T001 Bump `packages/shared` MINOR with a dated changelog section in `packages/shared/CHANGELOG.md` that later commits in this branch extend (Principle V); `tools/check-contract-versions.sh` must pass
+- [X] T002 [P] Move the rule-book prelim tables (4 to 21 teams) from `apps/web/src/prelimDraw.ts` into `packages/shared/src/schedule/`, owner "the prelim draw", carrying the cases of `apps/web/src/__tests__/prelimDraw.spec.ts` to `packages/shared/src/schedule/__tests__/`; the old editor keeps importing them from `@qzr/shared` until it's removed (T052)
 - [ ] T003 [P] Move `useHistory` from `apps/scoresheet/src/composables/useHistory.ts` to `packages/ui/src/` with its tests, and point the scoresheet's imports at `@qzr/ui`; behaviour unchanged, covered by the moved tests
 
 ---

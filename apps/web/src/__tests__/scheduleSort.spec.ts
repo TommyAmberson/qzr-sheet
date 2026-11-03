@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
 import { countLate, supportedKValues, type Row } from '../scheduleSort'
-import { PRELIM_DRAW_PATTERNS } from '../prelimDraw'
+import { PRELIM_DRAW_PATTERNS } from '@qzr/shared'
 
 describe('countLate', () => {
   it('returns 0 when the lateness set is empty', () => {

@@ -5,8 +5,8 @@
  * exactly 3 letters drawn from A through the Nth letter, and every
  * letter appears in exactly 3 quizzes (each team plays 3 prelims).
  *
- * The rule-book table is the canonical source; consumers (Populate)
- * should not generate their own patterns.
+ * The rule-book table is the canonical source for 4 to 21 teams; the
+ * schedule builder uses it for the "Rule book" draw source.
  */
 export const PRELIM_DRAW_PATTERNS: Record<
   number,
