@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { useHistory } from '../useHistory'
+import { useHistory } from '@qzr/ui'
 
 describe('useHistory', () => {
   it('canUndo is false initially', () => {

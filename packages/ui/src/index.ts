@@ -2,6 +2,7 @@ export { default as SignInForm } from './SignInForm.vue'
 export { default as ChoiceDialog } from './ChoiceDialog.vue'
 export { default as RoomCodeDialog } from './RoomCodeDialog.vue'
 export { default as GuestNotice } from './GuestNotice.vue'
+export { useHistory } from './useHistory'
 export { askAlreadySubmitted, chooseRoom, existingQuizOf, uploadPicked } from './sendQuizzes'
 export type { ExistingQuiz, FileReport, OnExisting, Sender, Stored } from './sendQuizzes'
 export {
