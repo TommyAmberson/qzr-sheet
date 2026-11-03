@@ -12,6 +12,7 @@ import { useRouter } from 'vue-router'
 import {
   ApiError,
   defaultElims,
+  foldName,
   reflowSchedule,
   type Conflict,
   type ScheduleDocument,
@@ -39,6 +40,7 @@ import {
   comparable,
   forgetLink,
   readLink,
+  reconcileTeams,
   teamName,
   startFromMeet,
   withMeetNames,
@@ -104,7 +106,7 @@ async function load() {
       } else void send()
       return
     }
-    if (state.draft) open(withMeetNames(state.draft, teams.value), state.draftRevision, false)
+    if (state.draft) openFromServer(state.draft, state.draftRevision)
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e)
   }
@@ -121,6 +123,13 @@ function open(doc: ScheduleDocument, baseRevision: number, unsent: boolean) {
   current.value = doc
   saveState.value = unsent ? 'unsent' : 'saved'
   key.value++
+}
+
+/** The server's draft, its draw brought up to the meet's teams; a change to it is then sent */
+function openFromServer(draft: ScheduleDocument, revision: number) {
+  const changed = reconcileTeams(draft, teams.value)
+  open(withMeetNames(draft, teams.value), revision, changed)
+  if (changed) void send()
 }
 
 // ---- Starting a linked schedule ----
@@ -196,7 +205,7 @@ function confirmLink() {
     }
     const draw = (doc.draw[d.id] ??= { teams: [], stale: false })
     // A kept team carries its letter and marks to the meet team of the same name, never by position
-    const fold = (name: string | undefined) => name?.trim().toLowerCase() ?? ''
+    const fold = (name: string | undefined) => foldName(name ?? '')
     const kept = new Map(draw.teams.filter((t) => t.name).map((t) => [fold(t.name), t]))
     const wasDrawn = draw.teams.some((t) => t.letter)
     draw.teams = meetTeams.map((t) => {
@@ -316,7 +325,7 @@ function takeTheirs() {
   if (!c) return
   conflict.value = null
   if (c.draft) {
-    open(withMeetNames(c.draft, teams.value), c.draftRevision, false)
+    openFromServer(c.draft, c.draftRevision)
     return
   }
   // The meet's draft is gone (unlinked elsewhere): back to starting one, keeping no stale copy
@@ -431,7 +440,7 @@ async function restore(v: number) {
     const saved = await restoreScheduleVersion(meetId.value, v, link.baseRevision)
     const { document } = await getScheduleVersion(meetId.value, v)
     viewing.value = null
-    open(withMeetNames(document, teams.value), saved.draftRevision, false)
+    openFromServer(document, saved.draftRevision)
   } catch (e) {
     publishNote.value = `Not restored: ${e instanceof Error ? e.message : String(e)}`
   }
@@ -444,6 +453,9 @@ const confirmingUnlink = ref(false)
 async function unlink() {
   const doc = current.value
   if (!doc) return
+  // A save still on its way would write the link back after it's forgotten
+  clearTimeout(timer)
+  await sending
   try {
     await unlinkSchedule(meetId.value)
   } catch (e) {

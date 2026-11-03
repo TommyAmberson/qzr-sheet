@@ -96,6 +96,29 @@ export function startFromMeet(
   return generated
 }
 
+/**
+ * The draw brought up to the meet's teams, which registration owns (FR-047): a team that left is
+ * dropped and one that joined is added, at the end of its division. A drawn division whose teams
+ * changed needs its draw redone. Whether anything changed, so the draft can be saved.
+ */
+export function reconcileTeams(doc: ScheduleDocument, teams: MeetTeamRow[]): boolean {
+  let changed = false
+  for (const [division, draw] of Object.entries(doc.draw)) {
+    const meetTeams = teams.filter((t) => t.division === division)
+    const ids = new Set(meetTeams.map((t) => t.id))
+    const kept = draw.teams.filter((t) => t.teamId === undefined || ids.has(t.teamId))
+    const have = new Set(kept.map((t) => t.teamId))
+    const joined = meetTeams
+      .filter((t) => !have.has(t.id))
+      .map((t) => ({ teamId: t.id, late: t.lateness, absent: false }))
+    if (kept.length === draw.teams.length && joined.length === 0) continue
+    changed = true
+    if (draw.teams.some((t) => t.letter)) draw.stale = true
+    draw.teams = [...kept, ...joined]
+  }
+  return changed
+}
+
 /** The draw's team names from the meet, which owns them when linked (FR-047) */
 export function withMeetNames(doc: ScheduleDocument, teams: MeetTeamRow[]): ScheduleDocument {
   const byId = new Map(teams.map((t) => [t.id, t]))

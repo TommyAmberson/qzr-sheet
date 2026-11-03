@@ -216,6 +216,26 @@ describe('a linked schedule in the builder (story 7)', () => {
     w.unmount()
   })
 
+  it("brings the draw up to the meet's teams, dropping one that left and adding one that joined", async () => {
+    const { server } = fakeServer()
+    const doc = serverDraft(server)
+    doc.draw['1'] = {
+      stale: false,
+      teams: [100, 101, 102, 103, 104, 999].map((teamId, i) => ({
+        teamId,
+        letter: 'ABCDEF'[i],
+        late: false,
+        absent: false,
+      })),
+    }
+    const w = await openBuilder()
+    await flushPromises()
+    const draw = server.draft!.draw['1']!
+    expect(draw.teams.map((t) => t.teamId)).toEqual([100, 101, 102, 103, 104, 105])
+    expect(draw.stale).toBe(true)
+    w.unmount()
+  })
+
   it('unlinking leaves a schedule of its own in this browser (FR-048)', async () => {
     const { server } = fakeServer()
     serverDraft(server)

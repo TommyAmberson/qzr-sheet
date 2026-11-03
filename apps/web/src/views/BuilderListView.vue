@@ -54,7 +54,12 @@ async function openFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
   try {
-    const doc = await readScheduleFile(file)
+    let doc = await readScheduleFile(file)
+    // A file saved from a meet's schedule opens as a schedule of its own, apart from the meet's draft
+    if (doc.link) {
+      doc = { ...doc, id: crypto.randomUUID() }
+      delete doc.link
+    }
     keepSchedule(doc)
     open(doc.id)
   } catch (e) {

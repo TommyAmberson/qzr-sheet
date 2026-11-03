@@ -16,6 +16,8 @@ import {
   type Stored,
 } from '@qzr/ui'
 
+import { browserTimeZone } from './builder/linked'
+
 export type { MeetPhase, DivisionStateValue }
 
 declare const __API_URL__: string
@@ -656,6 +658,7 @@ export function unlinkSchedule(meetId: number): Promise<{ ok: true }> {
 
 export function getPublishedSchedule(meetId: number): Promise<PublishedSchedule> {
   // The time zone places a schedule still in the old tables on the meet's days
-  const timeZone = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
-  return request(`/api/meets/${meetId}/schedule/published?timeZone=${timeZone}`)
+  return request(
+    `/api/meets/${meetId}/schedule/published?timeZone=${encodeURIComponent(browserTimeZone())}`,
+  )
 }
