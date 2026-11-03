@@ -79,6 +79,15 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 
 // ---- Old tables to a document ----
 
+/**
+ * An old quiz's number as the old scoresheet recorded it: its bracket label, or what follows the
+ * last `Q` of a `D1-Q3` label, or its label's last word. Converted quizzes are labelled
+ * `Div 1 Quiz 3` with it, so their result names match the results already saved.
+ */
+function oldNumber(q: schema.ScheduledQuiz): string {
+  return q.bracketLabel ?? /Q([^\s]+)$/.exec(q.label)?.[1] ?? quizNumber(q)
+}
+
 export interface LegacySchedule {
   meet: { id: number; name: string; divisions: string[] }
   rooms: { id: number; name: string }[]
@@ -174,10 +183,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
     const place = /^(\d+)(?:st|nd|rd|th) (?:Quiz )?(\S+)$/i.exec(ref)
     if (place) {
       const source = quizzes.find(
-        (x) =>
-          x.division === q.division &&
-          x.id !== q.id &&
-          (x.bracketLabel ?? quizNumber(x)) === place[2],
+        (x) => x.division === q.division && x.id !== q.id && oldNumber(x) === place[2],
       )
       if (source) return { kind: 'place', quiz: String(source.id), place: Number(place[1]) }
     }
@@ -186,7 +192,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
   doc.quizzes = quizzes.map((q): ScheduleQuiz => {
     const quiz: ScheduleQuiz = {
       id: String(q.id),
-      label: q.label,
+      label: `Div ${q.division} Quiz ${oldNumber(q)}`,
       division: q.division,
       phase: q.phase,
       cell: { slot: String(q.slotId), room: String(q.roomId) },
@@ -382,7 +388,8 @@ export function legacyFromDocument(
               ? 'consolation'
               : 'main',
       label: q.label,
-      bracketLabel: q.phase === 'elim' ? quizNumber(q) : null,
+      // Installed scoresheets take the quiz number from here first, so prelims carry it too
+      bracketLabel: quizNumber(q),
       publishedAt: publishedAt.toISOString(),
       completedAt: null,
       seats: q.seats.map((s, i) => ({

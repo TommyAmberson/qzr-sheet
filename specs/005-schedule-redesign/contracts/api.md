@@ -73,8 +73,8 @@ Anyone with access to the meet: a membership, a guest token for the meet, or sup
 
 * 200: `{ document, publishedAt, view }`, where `view` is `letters` or `teams`, set by the meet's
   phase for non-admins (FR-052): letters in `registration` and `build`, team names in `live`,
-  `review` and `done`. In letters view the draw's team names and team ids are removed from the
-  document before it's sent, and its teams put in letter order. The old `/prelim-assignments` and
+  `review` and `done`. In letters view the draw keeps only its letters, in letter order: team names,
+  team ids and late or absent marks are removed before it's sent. The old `/prelim-assignments` and
   `/quizzes/:quizId/teams` routes follow the same view. Admins get `teams` and may ask for either.
 * 404 when nothing is published.
 * Replaces `GET /:id/slots`, `/:id/quizzes`, `/:id/prelim-assignments` and

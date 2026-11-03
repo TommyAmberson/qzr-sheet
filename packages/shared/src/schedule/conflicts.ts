@@ -53,7 +53,6 @@ function teamKey(q: ScheduleQuiz, seat: Seat): string | null {
   }
 }
 
-/** The quiz's number or letter, as the scoresheet records it: the label's last word */
 /**
  * The scoresheet's division, consolation flag and quiz number for a schedule quiz, which name its
  * results (research R10)

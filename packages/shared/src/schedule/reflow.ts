@@ -235,7 +235,12 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   )
 
   // Finals in the sequence's free places
-  const pinnedFinals = new Set(pinnedAt('finals').map(({ k }) => k))
+  // Finals are placed by place, a finals slot times the Finals side by side plus the room
+  const pinnedFinals = new Set(
+    pinnedAt('finals').map(
+      ({ k, room }) => k * settings.finals.sideBySide + Math.max(0, [...roomIds].indexOf(room)),
+    ),
+  )
   const finals = finalsOrder(
     doc,
     elims.flat().filter((q) => isFinals(q) && !isPinned(q)),

@@ -21,6 +21,7 @@ import {
   defaultElims,
   generateSchedule,
   newScheduleDocument,
+  resultName,
   type MeetPhase,
   type ScheduleDocument,
 } from '@qzr/shared'
@@ -1295,6 +1296,19 @@ describe('GET /api/meets/:id/schedule/published', () => {
     ])
   })
 
+  it('shows no late or absent marks in letters, which could name a team', async () => {
+    const linked = await linkedMeet(db, 'build')
+    linked.doc.draw['1']!.teams[2]!.late = true
+    const app = createApp(testSuperuser, db)
+    const base = `/api/meets/${linked.meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: linked.doc, baseRevision: 0 }), env)
+    await app.request(`${base}/publish`, post({ baseRevision: 1 }), env)
+    const body = await jsonOf<Published>(
+      await guestApp(db, linked.meet.id).request(`${base}/published`, {}, env),
+    )
+    expect(body.document.draw['1']!.teams.some((t) => t.late)).toBe(false)
+  })
+
   it('keeps the draw from non-admins on the old routes too, before the meet is live', async () => {
     const { meet } = await publish('build')
     await db.insert(schema.viewerMemberships).values({ accountId: testUser.id, meetId: meet.id })
@@ -1427,6 +1441,31 @@ describe('meets built with the old editor (FR-053)', () => {
       await app.request(`/api/meets/${meet.id}/schedule/versions`, {}, env),
     )
     expect(versions).toHaveLength(1)
+  })
+
+  it("relabels the old editor's quizzes so their result names match results already saved", async () => {
+    const { meet, slot, room } = await oldMeet()
+    const old = await seedQuizWithSeats(
+      db,
+      meet.id,
+      slot.id,
+      room.id,
+      [{ seatNumber: 1, letter: 'A' }],
+      {
+        label: 'D1-Q3',
+      },
+    )
+    const { draft } = await jsonOf<{ draft: ScheduleDocument }>(
+      await app.request(`/api/meets/${meet.id}/schedule?timeZone=UTC`, {}, env),
+    )
+    const quiz = draft.quizzes.find((q) => q.id === String(old.id))!
+    expect(quiz.label).toBe('Div 1 Quiz 3')
+    expect(resultName(quiz)).toBe('1||3')
+
+    const { quizzes } = await jsonOf<{ quizzes: { id: number; bracketLabel: string }[] }>(
+      await app.request(`/api/meets/${meet.id}/quizzes`, {}, env),
+    )
+    expect(quizzes.find((q) => q.id === old.id)!.bracketLabel).toBe('3')
   })
 
   it('does not convert again after unlinking', async () => {

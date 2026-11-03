@@ -1427,9 +1427,10 @@ publishedSchedule.get('/:id/schedule/published', async (c) => {
 
   if (view === 'letters') {
     for (const draw of Object.values(doc.draw)) {
-      // In letter order, so the order can't be paired with the meet's team list
+      // Letters only, in letter order: names, team ids, and late or absent marks a reader could
+      // match to a known team would all give the draw away
       draw.teams = draw.teams
-        .map(({ name: _name, teamId: _teamId, ...t }) => t)
+        .map((t) => ({ letter: t.letter, late: false, absent: false }))
         .sort((x, y) => (x.letter ?? '').localeCompare(y.letter ?? ''))
     }
   } else {

@@ -135,3 +135,21 @@ describe('re-flow with rooms and quizzes from elsewhere', () => {
     expect(after.quizzes).toHaveLength(doc.quizzes.length)
   })
 })
+
+describe('pinned Finals side by side', () => {
+  it('keeps its cell to itself when two Finals run at once', () => {
+    const doc = meet([6, 6, 6])
+    doc.settings.finals.sideBySide = 2
+    doc.applied.finals.sideBySide = 2
+    const flowed = reflowSchedule(doc)
+    const finalsSlots = flowed.frame.filter((r) => r.kind === 'slot' && r.use === 'finals')
+    const deciding = flowed.quizzes.filter((q) => q.deciding && q.cell)
+    // Pin one Final in the second finals slot's first room
+    const pinned = deciding[0]!
+    pinned.cell = { slot: finalsSlots[1]!.id, room: flowed.rooms[0]!.id }
+    pinned.pinned = true
+    const after = reflowSchedule(flowed)
+    const cells = after.quizzes.filter((q) => q.cell).map((q) => `${q.cell!.slot}/${q.cell!.room}`)
+    expect(new Set(cells).size).toBe(cells.length)
+  })
+})
