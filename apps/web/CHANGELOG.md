@@ -35,6 +35,11 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   every room or one, or a note; rooms can be added, renamed and removed. Everything done by hand is
   pinned, nothing is refused, and every popup closes with its × or a click elsewhere. On a phone the
   settings open as a sheet over the grid.
+* Elim settings, lanes first: how many ranks each lane takes, splitting and merging lanes, an
+  intermediate of one to four quizzes on any line (rerank or play-in, its window sliding with ▲▼),
+  each lane as a bracket (the 9-team one in either order, or the rule book's A to C) or a round
+  robin of 1 to 3 each, whether its deciding quiz is called a Finals, its label and its lettering,
+  and the totalling gap with an (i). Anything that won't fit says why in the page.
 
 ## [0.21.0] - 2026-11-01
 

@@ -231,3 +231,53 @@ describe('on a phone (FR-005b)', () => {
     expect(cellOf(w, 'Div 1 Quiz 3')).toBe(target)
   })
 })
+
+describe('Elim settings (story 4)', () => {
+  it('turning a consolation lane into a round robin rebuilds its quizzes', async () => {
+    wrapper = mount(BuilderView, { attachTo: document.body })
+    const w = wrapper
+    const count = w.find('[aria-label="Number of divisions"]')
+    await count.setValue('1')
+    await count.trigger('change')
+    const teams = w.find('[aria-label$="team count"]')
+    await teams.setValue('17')
+    await teams.trigger('change')
+    expect(w.findAll('.quiz-title').some((t) => t.text() === 'Div 1C Finals')).toBe(true)
+
+    await w
+      .findAll('.section-head')
+      .find((h) => h.text().startsWith('Elim settings'))!
+      .trigger('click')
+    const format = w.find('[aria-label="Div 1C format"]')
+    await format.setValue('roundRobin')
+    const consolation = w
+      .findAll('.quiz')
+      .filter((q) => q.find('.quiz-title').text().startsWith('Div 1C'))
+    // 8 teams, 2 each: 6 quizzes seated by rank, and no Finals until one is asked for
+    expect(consolation).toHaveLength(6)
+    expect(
+      consolation
+        .flatMap((q) => q.findAll('.seat').map((s) => s.text()))
+        .every((t) => /^(New )?\d+$/.test(t)),
+    ).toBe(true)
+  })
+
+  it("refuses an intermediate that doesn't fit, saying why in the page", async () => {
+    wrapper = mount(BuilderView, { attachTo: document.body })
+    const w = wrapper
+    const count = w.find('[aria-label="Number of divisions"]')
+    await count.setValue('1')
+    await count.trigger('change')
+    const teams = w.find('[aria-label$="team count"]')
+    await teams.setValue('12')
+    await teams.trigger('change')
+    await w
+      .findAll('.section-head')
+      .find((h) => h.text().startsWith('Elim settings'))!
+      .trigger('click')
+    await w.find('.elim-section .link:last-of-type').trigger('click')
+    const line = w.find('[aria-label="Intermediate after Div 1"]')
+    await line.setValue('4')
+    expect(w.find('.message').text()).toMatch(/Make those lanes bigger/)
+  })
+})

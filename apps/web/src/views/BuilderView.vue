@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 import { ChoiceDialog, ScheduleSheet } from '@qzr/ui'
 
 import { addRoom, moveQuiz, swapSeats } from '../builder/edits'
+import ElimSection from '../components/builder/ElimSection.vue'
 import FrameSection from '../components/builder/FrameSection.vue'
 import PrelimSection from '../components/builder/PrelimSection.vue'
 import QuizMenu from '../components/builder/QuizMenu.vue'
@@ -269,6 +270,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <TeamsSection v-if="s.key === 'teams'" :doc="doc" @change="changeSettings" />
             <FrameSection
               v-else-if="s.key === 'frame'"
+              :doc="doc"
+              :unapplied="unapplied"
+              @change="changeSettings"
+            />
+            <ElimSection
+              v-else-if="s.key === 'elims'"
               :doc="doc"
               :unapplied="unapplied"
               @change="changeSettings"
