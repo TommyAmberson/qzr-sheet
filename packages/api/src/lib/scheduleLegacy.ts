@@ -24,8 +24,17 @@ const formatters = new Map<string, Intl.DateTimeFormat>()
 function formatterFor(tz: string): Intl.DateTimeFormat {
   let f = formatters.get(tz)
   if (!f) {
+    // A zone this runtime doesn't know (a typo in a request, say) reads as UTC rather than failing
+    const known = (() => {
+      try {
+        new Intl.DateTimeFormat('en-CA', { timeZone: tz })
+        return tz
+      } catch {
+        return 'UTC'
+      }
+    })()
     f = new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
+      timeZone: known,
       hourCycle: 'h23',
       year: 'numeric',
       month: '2-digit',

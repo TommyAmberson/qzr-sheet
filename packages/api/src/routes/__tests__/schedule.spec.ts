@@ -1492,6 +1492,16 @@ describe('meets built with the old editor (FR-053)', () => {
     expect(await db.select().from(schema.meetScheduleVersions)).toEqual([])
   })
 
+  it('reads a time zone it does not know as UTC rather than failing', async () => {
+    const { meet } = await oldMeet()
+    const res = await guestApp(db, meet.id).request(
+      `/api/meets/${meet.id}/schedule/published?timeZone=Nowhere/Atlantis`,
+      {},
+      env,
+    )
+    expect(res.status).toBe(200)
+  })
+
   it('does not convert again after unlinking', async () => {
     const { meet } = await oldMeet()
     const base = `/api/meets/${meet.id}/schedule`

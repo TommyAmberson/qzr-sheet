@@ -1338,19 +1338,35 @@ schedule.post('/:id/schedule/publish', async (c) => {
     .returning({ id: schema.meetSchedules.id })
   if (claimed.length === 0) return staleDraft(c, await draftRow(db, meetId))
 
-  const unusedRooms = await syncRooms(db, meetId, doc)
-  // Rooms just added now have their meet room, so the draft takes it too
-  await db
-    .update(schema.meetSchedules)
-    .set({ draft: serializeSchedule(doc) })
-    .where(
-      and(
-        eq(schema.meetSchedules.meetId, meetId),
-        eq(schema.meetSchedules.draftRevision, draftRevision),
-      ),
-    )
-  const user = getUser(c)
-  const version = await addVersion(db, meetId, doc, { id: user.id, name: user.name })
+  let unusedRooms: Awaited<ReturnType<typeof syncRooms>>
+  let version: schema.MeetScheduleVersion
+  try {
+    unusedRooms = await syncRooms(db, meetId, doc)
+    // Rooms just added now have their meet room, so the draft takes it too
+    await db
+      .update(schema.meetSchedules)
+      .set({ draft: serializeSchedule(doc) })
+      .where(
+        and(
+          eq(schema.meetSchedules.meetId, meetId),
+          eq(schema.meetSchedules.draftRevision, draftRevision),
+        ),
+      )
+    const user = getUser(c)
+    version = await addVersion(db, meetId, doc, { id: user.id, name: user.name })
+  } catch (e) {
+    // Nothing was published, so the claimed revision goes back and the director's next save fits
+    await db
+      .update(schema.meetSchedules)
+      .set({ draftRevision: row.draftRevision })
+      .where(
+        and(
+          eq(schema.meetSchedules.meetId, meetId),
+          eq(schema.meetSchedules.draftRevision, draftRevision),
+        ),
+      )
+    throw e
+  }
   return c.json({
     version: version.version,
     publishedAt: version.publishedAt,
