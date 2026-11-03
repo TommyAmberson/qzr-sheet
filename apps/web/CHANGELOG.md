@@ -28,6 +28,13 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   quizzes per team, and the prelim draw source with an (i) explaining it. Settings re-flow the grid
   around anything moved by hand; with Auto-apply off they wait, each marked with the value the grid
   uses, until Apply, which first says how many quizzes will move.
+* Editing on the grid: a quiz's menu renames it (seats that refer to it follow), sets any seat to
+  any kind of source, moves it, sends it to the unplaced tray, pins or unpins it, or deletes it.
+  Quizzes and seats move and swap by dragging or by choosing Move and then the target. Times and
+  events open a menu to retime, set a slot's length, rename, delete, or insert a slot, an event in
+  every room or one, or a note; rooms can be added, renamed and removed. Everything done by hand is
+  pinned, nothing is refused, and every popup closes with its × or a click elsewhere. On a phone the
+  settings open as a sheet over the grid.
 
 ## [0.21.0] - 2026-11-01
 
