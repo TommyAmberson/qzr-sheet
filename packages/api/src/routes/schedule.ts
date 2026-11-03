@@ -12,7 +12,7 @@ import {
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireAuthOrGuest, getUser } from '../middleware/session'
-import { createDb, inChunks, type Db } from '../lib/db'
+import { asOne, createDb, inChunks, type Db } from '../lib/db'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { jsonBody, meetIdOf } from '../lib/request'
@@ -1029,9 +1029,20 @@ async function addVersion(
   doc: ScheduleDocument,
   by: { id: string | null; name: string },
 ) {
+  const [row] = await versionInsert(db, meetId, doc, by)
+  return row!
+}
+
+/** The insert that adds a version, to run alone or in a batch */
+function versionInsert(
+  db: Db,
+  meetId: number,
+  doc: ScheduleDocument,
+  by: { id: string | null; name: string },
+) {
   const v = schema.meetScheduleVersions
   // Numbered in the insert itself, so two publishes at once can't take the same number
-  const [row] = await db
+  return db
     .insert(v)
     .values({
       meetId,
@@ -1042,7 +1053,6 @@ async function addVersion(
       publishedByName: by.name,
     })
     .returning()
-  return row!
 }
 
 /** The meet's old schedule rows, or null when it has none to convert */
@@ -1239,7 +1249,14 @@ schedule.put('/:id/schedule/draft', async (c) => {
  * and reorder the rest, and remove a room the schedule no longer uses unless it has an official
  * code, officials or results, so nobody is locked out mid-meet. Fills in `meetRoomId` on the document.
  */
-async function syncRooms(db: Db, meetId: number, doc: ScheduleDocument) {
+async function syncRooms(
+  db: Db,
+  meetId: number,
+  doc: ScheduleDocument,
+): Promise<{ statements: PromiseLike<unknown>[]; unusedRooms: { id: number; name: string }[] }> {
+  // New rooms are added at once, for their ids; renames and removals are handed back to run with
+  // the publish, so a publish that fails leaves the meet's rooms as they were
+  const statements: PromiseLike<unknown>[] = []
   const current = await db
     .select()
     .from(schema.meetRooms)
@@ -1275,15 +1292,17 @@ async function syncRooms(db: Db, meetId: number, doc: ScheduleDocument) {
       continue
     }
     if (existing.name !== room.name || existing.sortOrder !== i) {
-      await db
-        .update(schema.meetRooms)
-        .set({ name: room.name, sortOrder: i })
-        .where(eq(schema.meetRooms.id, existing.id))
+      statements.push(
+        db
+          .update(schema.meetRooms)
+          .set({ name: room.name, sortOrder: i })
+          .where(eq(schema.meetRooms.id, existing.id)),
+      )
     }
   }
   const used = new Set(doc.rooms.map((r) => r.meetRoomId))
   const unused = current.filter((r) => !used.has(r.id))
-  if (unused.length === 0) return []
+  if (unused.length === 0) return { statements, unusedRooms: [] }
   // Removing a room drops its officials' memberships and unlinks its results, so a room with
   // either, or with a code, stays
   const ids = unused.map((r) => r.id)
@@ -1301,9 +1320,9 @@ async function syncRooms(db: Db, meetId: number, doc: ScheduleDocument) {
   const kept = unused.filter((r) => r.codeHash !== null || inUse.has(r.id))
   const removable = unused.filter((r) => !kept.includes(r)).map((r) => r.id)
   if (removable.length > 0) {
-    await db.delete(schema.meetRooms).where(inArray(schema.meetRooms.id, removable))
+    statements.push(db.delete(schema.meetRooms).where(inArray(schema.meetRooms.id, removable)))
   }
-  return kept.map((r) => ({ id: r.id, name: r.name }))
+  return { statements, unusedRooms: kept.map((r) => ({ id: r.id, name: r.name })) }
 }
 
 schedule.post('/:id/schedule/publish', async (c) => {
@@ -1339,22 +1358,27 @@ schedule.post('/:id/schedule/publish', async (c) => {
     .returning({ id: schema.meetSchedules.id })
   if (claimed.length === 0) return staleDraft(c, await draftRow(db, meetId))
 
-  let unusedRooms: Awaited<ReturnType<typeof syncRooms>>
+  let unusedRooms: { id: number; name: string }[]
   let version: schema.MeetScheduleVersion
   try {
-    unusedRooms = await syncRooms(db, meetId, doc)
-    // Rooms just added now have their meet room, so the draft takes it too
-    await db
-      .update(schema.meetSchedules)
-      .set({ draft: serializeSchedule(doc) })
-      .where(
-        and(
-          eq(schema.meetSchedules.meetId, meetId),
-          eq(schema.meetSchedules.draftRevision, draftRevision),
-        ),
-      )
+    const rooms = await syncRooms(db, meetId, doc)
+    unusedRooms = rooms.unusedRooms
     const user = getUser(c)
-    version = await addVersion(db, meetId, doc, { id: user.id, name: user.name })
+    // One batch: the rooms, the draft with its meet rooms, and the version, all or none
+    const results = await asOne(db, [
+      ...rooms.statements,
+      db
+        .update(schema.meetSchedules)
+        .set({ draft: serializeSchedule(doc) })
+        .where(
+          and(
+            eq(schema.meetSchedules.meetId, meetId),
+            eq(schema.meetSchedules.draftRevision, draftRevision),
+          ),
+        ),
+      versionInsert(db, meetId, doc, { id: user.id, name: user.name }),
+    ])
+    version = (results[results.length - 1] as schema.MeetScheduleVersion[])[0]!
   } catch (e) {
     // Nothing was published, so the claimed revision goes back and the director's next save fits
     await db
