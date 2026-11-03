@@ -21,8 +21,8 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ### Changed
 
-* **Request log** - one line per request with the method, path, status and time, without the
-  query string; replaces hono's logger
+* **Request log** - one line per request with the method, path, status and time, without the query
+  string; replaces hono's logger
 * **hono 4.13** - up from 4.12, matching verse-vault
 
 ### Bundled contract
