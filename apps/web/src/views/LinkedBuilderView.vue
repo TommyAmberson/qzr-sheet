@@ -12,6 +12,7 @@ import { useRouter } from 'vue-router'
 import {
   ApiError,
   defaultElims,
+  elimsForCount,
   foldName,
   reflowSchedule,
   type Conflict,
@@ -101,7 +102,8 @@ async function load() {
     if (link && local && link.unsent) {
       // Edits made here that never reached the server: send them, unless someone saved meanwhile
       open(local, link.baseRevision, true)
-      if (state.draftRevision !== link.baseRevision) {
+      // The same revision of a different draft (after an unlink and a new one) is still a conflict
+      if (state.draftRevision !== link.baseRevision || state.draft?.id !== link.docId) {
         conflict.value = { draft: state.draft, draftRevision: state.draftRevision }
       } else void send()
       return
@@ -208,8 +210,8 @@ function confirmLink() {
   for (const d of doc.settings.divisions) {
     const meetTeams = teams.value.filter((t) => t.division === d.id)
     if (d.teams !== meetTeams.length) {
+      d.elims = elimsForCount(d, meetTeams.length)
       d.teams = meetTeams.length
-      d.elims = defaultElims(d.teams)
       recount = true
     }
     const draw = (doc.draw[d.id] ??= { teams: [], stale: false })
@@ -420,6 +422,10 @@ async function publish(confirmConflicts = false) {
       (e.body as { conflicts?: Conflict[] }).conflicts
     ) {
       hardConflicts.value = (e.body as { conflicts: Conflict[] }).conflicts
+    } else if (e instanceof ApiError && e.status === 409) {
+      // Another admin saved meanwhile: the same choice a save offers
+      const body = e.body as { draft: ScheduleDocument | null; draftRevision: number }
+      conflict.value = { draft: body.draft, draftRevision: body.draftRevision }
     } else {
       publishNote.value = e instanceof Error ? `Not published: ${e.message}` : 'Not published'
     }

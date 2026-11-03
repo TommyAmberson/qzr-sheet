@@ -1,5 +1,6 @@
 import {
   defaultElims,
+  elimsForCount,
   generateSchedule,
   newScheduleDocument,
   teamDisplayName,
@@ -116,8 +117,8 @@ export function reconcileTeams(doc: ScheduleDocument, teams: MeetTeamRow[]): boo
     if (!registered.has(division.id)) continue
     const meetTeams = teams.filter((t) => t.division === division.id)
     if (division.teams !== meetTeams.length) {
+      division.elims = elimsForCount(division, meetTeams.length)
       division.teams = meetTeams.length
-      division.elims = defaultElims(meetTeams.length)
       changed = true
     }
     const draw = (doc.draw[division.id] ??= { teams: [], stale: false })
@@ -126,7 +127,7 @@ export function reconcileTeams(doc: ScheduleDocument, teams: MeetTeamRow[]): boo
     const have = new Set(kept.map((t) => t.teamId))
     const joined = meetTeams
       .filter((t) => !have.has(t.id))
-      .map((t) => ({ teamId: t.id, late: t.lateness, absent: false }))
+      .map((t) => ({ teamId: t.id, name: teamName(t), late: t.lateness, absent: false }))
     if (kept.length === draw.teams.length && joined.length === 0) continue
     changed = true
     if (draw.teams.some((t) => t.letter)) draw.stale = true

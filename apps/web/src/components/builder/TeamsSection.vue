@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defaultElims, type ScheduleDocument } from '@qzr/shared'
+import { defaultElims, elimsForCount, type ScheduleDocument } from '@qzr/shared'
 
 const props = defineProps<{ doc: ScheduleDocument }>()
 const emit = defineEmits<{ change: [mutate: (d: ScheduleDocument) => void] }>()
@@ -38,8 +38,8 @@ function setTeams(id: string, event: Event) {
   emit('change', (d) => {
     const division = d.settings.divisions.find((x) => x.id === id)
     if (!division || division.teams === teams) return
+    division.elims = elimsForCount(division, teams)
     division.teams = teams
-    division.elims = defaultElims(teams)
     // A changed count means a drawn division needs drawing again (FR-042)
     const draw = d.draw[id]
     if (draw?.teams.some((t) => t.letter)) draw.stale = true
