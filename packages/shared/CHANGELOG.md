@@ -30,6 +30,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `schedule/`: the schedule builder's pure logic, starting with the rule book's prelim draw tables
   for 4 to 21 teams (`PRELIM_DRAW_PATTERNS`, `getPrelimDraw`), moved here from the portal so the
   builder, the API and the readers share them.
+* The schedule document (`ScheduleDocumentSchema`, `SCHEDULE_FILE_VERSION` 1) and its file codec
+  (`serializeSchedule`, `parseScheduleFile`, `NewerScheduleFileError`): settings, frame rows, rooms,
+  quizzes with their seats and pins, and the draw, in one versioned JSON document.
 
 ## [1.6.0] - 2026-10-31
 
