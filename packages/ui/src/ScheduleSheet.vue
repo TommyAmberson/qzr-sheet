@@ -103,13 +103,16 @@ const target = (e: Event) => e.currentTarget as HTMLElement
               :data-quiz="c.quiz.id"
               :title="issueText(c.quiz.id) || undefined"
             >
-              <button
-                type="button"
-                class="quiz-title"
-                @click="emit('quiz', c.quiz!.id, target($event))"
-              >
-                {{ c.quiz.label }}
-              </button>
+              <!-- A reader's page can make the title a link instead, the portal's to the scoresheet -->
+              <slot name="quiz-title" :quiz="c.quiz">
+                <button
+                  type="button"
+                  class="quiz-title"
+                  @click="emit('quiz', c.quiz!.id, target($event))"
+                >
+                  {{ c.quiz.label }}
+                </button>
+              </slot>
               <button
                 v-for="(seat, i) in c.quiz.seats"
                 :key="i"

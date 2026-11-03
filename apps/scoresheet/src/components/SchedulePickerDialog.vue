@@ -1,21 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef } from 'vue'
 
-import { ScheduleGrid } from '@qzr/ui'
+import { ApiError } from '@qzr/shared'
+import { ScheduleSheet } from '@qzr/ui'
 
-import {
-  type MeetRoomSummary,
-  type MeetSlotSummary,
-  type MeetSummary,
-  type MeetTeam,
-  type PrelimAssignmentRow,
-  type ScheduledQuizSummaryRow,
-  getMeetTeams,
-  listMeetRooms,
-  listMeetSlots,
-  listPrelimAssignments,
-  listScheduledQuizzes,
-} from '../api'
+import { type MeetSummary, type PublishedSchedule, getPublishedSchedule } from '../api'
 import { initGuestSession } from '../composables/useGuestSession'
 import { useMeetList } from '../composables/useMeetList'
 import { useMeetSession } from '../composables/useMeetSession'
@@ -24,7 +13,7 @@ const props = defineProps<{
   /** Parent-controlled commit: returns true when the quiz has been
    *  loaded and the dialog should close. Returning false (e.g. user
    *  cancelled an overwrite confirm) keeps the dialog open. */
-  onPick: (meetId: number, quizId: number) => Promise<boolean>
+  onPick: (meetId: number, quizId: string) => Promise<boolean>
 }>()
 
 const meetSession = useMeetSession()
@@ -48,11 +37,8 @@ const activeMeetId = ref<number | null>(null)
 const headerMeetName = computed(() => meetSession.meetName.value ?? '')
 const submitting = ref(false)
 
-const quizzes = shallowRef<ScheduledQuizSummaryRow[]>([])
-const rooms = shallowRef<MeetRoomSummary[]>([])
-const slots = shallowRef<MeetSlotSummary[]>([])
-const prelimAssignments = shallowRef<PrelimAssignmentRow[]>([])
-const teams = shallowRef<MeetTeam[]>([])
+/** The meet's published schedule (FR-050); null when nothing is published yet */
+const schedule = shallowRef<PublishedSchedule | null>(null)
 const quizLoading = ref(false)
 const quizError = ref('')
 
@@ -60,20 +46,10 @@ async function loadQuizzesForMeet(meetId: number) {
   quizLoading.value = true
   quizError.value = ''
   try {
-    const [q, r, s, p, t] = await Promise.all([
-      listScheduledQuizzes(meetId),
-      listMeetRooms(meetId),
-      listMeetSlots(meetId),
-      listPrelimAssignments(meetId),
-      getMeetTeams(meetId),
-    ])
-    quizzes.value = q.quizzes
-    rooms.value = r.rooms
-    slots.value = s.slots
-    prelimAssignments.value = p.assignments
-    teams.value = t.teams
+    schedule.value = await getPublishedSchedule(meetId)
   } catch (e) {
-    quizError.value = (e as Error).message
+    schedule.value = null
+    if (!(e instanceof ApiError && e.status === 404)) quizError.value = (e as Error).message
   } finally {
     quizLoading.value = false
   }
@@ -94,7 +70,7 @@ async function selectMeet(meet: MeetSummary) {
   }
 }
 
-async function pickQuiz(quizId: number) {
+async function pickQuiz(quizId: string) {
   if (activeMeetId.value === null) return
   submitting.value = true
   quizError.value = ''
@@ -111,11 +87,7 @@ async function pickQuiz(quizId: number) {
 function backToMeetStep() {
   step.value = 'meet'
   activeMeetId.value = null
-  quizzes.value = []
-  rooms.value = []
-  slots.value = []
-  prelimAssignments.value = []
-  teams.value = []
+  schedule.value = null
 }
 
 function close() {
@@ -192,16 +164,11 @@ defineExpose({ open })
         <p v-else-if="quizError" class="schedule-picker-state schedule-picker-state--error">
           {{ quizError }}
         </p>
-        <ScheduleGrid
-          v-else
-          :rooms="rooms"
-          :slots="slots"
-          :quizzes="quizzes"
-          :prelim-assignments="prelimAssignments"
-          :meet-teams="teams"
-          empty-message="This meet has no scheduled quizzes yet."
-        >
-          <template #quiz-label="{ quiz }">
+        <p v-else-if="!schedule" class="schedule-picker-state">
+          This meet's schedule hasn't been published yet.
+        </p>
+        <ScheduleSheet v-else :doc="schedule.document" :view="schedule.view">
+          <template #quiz-title="{ quiz }">
             <button
               type="button"
               class="picker-quiz-btn"
@@ -212,7 +179,7 @@ defineExpose({ open })
               {{ quiz.label }}
             </button>
           </template>
-        </ScheduleGrid>
+        </ScheduleSheet>
 
         <div class="schedule-picker-actions">
           <button

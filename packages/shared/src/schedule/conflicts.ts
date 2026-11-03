@@ -57,11 +57,21 @@ function quizNumber(q: ScheduleQuiz): string {
   return q.label.trim().split(/\s+/).pop() ?? ''
 }
 
+/**
+ * The scoresheet's division, consolation flag and quiz number for a schedule quiz, which name its
+ * results (research R10)
+ */
+export function scheduleQuizMeta(q: ScheduleQuiz): {
+  division: string
+  consolation: boolean
+  quizNumber: string
+} {
+  return { division: q.division, consolation: (q.lane ?? 0) > 0, quizNumber: quizNumber(q) }
+}
+
 /** The name the scoresheet saves this quiz's results under (research R10) */
 export function resultName(q: ScheduleQuiz): string {
-  return foldName(
-    quizName({ division: q.division, consolation: (q.lane ?? 0) > 0, quizNumber: quizNumber(q) }),
-  )
+  return foldName(quizName(scheduleQuizMeta(q)))
 }
 
 function groupBy<T>(items: T[], key: (item: T) => string | null): Map<string, T[]> {

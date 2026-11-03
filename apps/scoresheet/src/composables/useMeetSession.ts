@@ -33,7 +33,8 @@ export interface MeetSessionData {
   /** Set when this session was loaded from a specific scheduled quiz
    *  (via loadFromQuiz). Stamped onto submitted results in the future
    *  Submit flow (#7) so they back-link to the schedule entry. */
-  quizId: number | null
+  /** The schedule quiz loaded, by its id in the published schedule */
+  quizId: string | null
   /** Set when the user may send quizzes to this meet, and for which rooms */
   sender: Sender | null
 }
@@ -98,7 +99,7 @@ export function useMeetSession() {
    * builds the slot data via `buildSlotFromSeat`, and commits it
    * all atomically through `applyLoadedQuiz`.
    */
-  async function loadFromQuiz(meetId: number, quizId: number): Promise<ScheduledQuizDetails> {
+  async function loadFromQuiz(meetId: number, quizId: string): Promise<ScheduledQuizDetails> {
     const details = await getScheduledQuiz(meetId, quizId)
     if (!session.value || session.value.meetId !== meetId) {
       await loadMeet(meetId, details.quiz.meetName)
@@ -129,7 +130,7 @@ export function useMeetSession() {
    * and stamp `quizId`. One reactivity tick, one `localStorage`
    * write — vs. one per slot if callers used per-slot setters.
    */
-  function applyLoadedQuiz(slots: (SlotSession | undefined)[], quizId: number): void {
+  function applyLoadedQuiz(slots: (SlotSession | undefined)[], quizId: string): void {
     if (!session.value) return
     session.value = { ...session.value, slots, quizId }
     persist()
@@ -369,6 +370,8 @@ function loadFromStorage(): MeetSessionData | null {
     // Migrate fields added after old sessions were persisted.
     if (!data.meetDivisions) data.meetDivisions = []
     if (data.quizId === undefined) data.quizId = null
+    // Quiz ids were numbers before schedules became documents; converted meets kept them as strings
+    if (typeof data.quizId === 'number') data.quizId = String(data.quizId)
     if (data.sender === undefined) data.sender = null
     return data
   } catch {

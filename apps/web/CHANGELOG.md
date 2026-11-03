@@ -60,6 +60,9 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   version with when and by whom, to view or restore as the draft. A quiz with results changes only
   after confirming, and is then marked changed after results. Unlinking leaves a schedule of its own
   in this browser.
+* The meet's schedule page shows the newest published schedule, in letters until the meet goes live
+  and team names after, each quiz linking to the scoresheet. Before anything is published it says
+  so.
 
 ## [0.21.0] - 2026-11-01
 

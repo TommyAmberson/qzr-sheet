@@ -15,6 +15,13 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Changed
+
+* Load from schedule shows the meet's published schedule, drawn the way the portal and builder draw
+  it, and loading a quiz fills its division, consolation flag and number so its results are saved
+  under the name the schedule gives it. A meet with nothing published says so. Links from the portal
+  name the quiz by its id in the schedule.
+
 ## [0.18.2] - 2026-10-31
 
 ### Added
