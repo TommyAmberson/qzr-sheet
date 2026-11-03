@@ -42,6 +42,10 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   beyond), with 6 quizzes per team as two rounds that avoid repeating pairings.
 * `buildFrame` and `defaultRoomCount`: the Weekend and One day frame presets with as many slots as a
   schedule needs, and the fewest rooms (at least 3) that fit its prelims.
+* `placePrelims`: where each prelim quiz goes. Each division takes a block of adjacent rooms in
+  division order, sized by its share of the quizzes, packed from its first slot with no team twice
+  in a slot; a division that doesn't fit borrows only as many of other rooms' latest free cells as
+  it needs, and what fits nowhere is left unplaced with the reason.
 
 ## [1.6.0] - 2026-10-31
 
