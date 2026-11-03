@@ -5,6 +5,8 @@ import {
   parseScheduleFile,
   serializeSchedule,
   type ScheduleDocument,
+  teamDisplayName,
+  type SheetView,
 } from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
@@ -12,6 +14,7 @@ import { requireAuth, requireAuthOrGuest, getUser } from '../middleware/session'
 import { createDb, inChunks, type Db } from '../lib/db'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
+import { jsonBody, meetIdOf } from '../lib/request'
 import { documentFromLegacy, legacyFromDocument, type LegacySchedule } from '../lib/scheduleLegacy'
 
 interface ScheduleVariables extends SessionVariables {
@@ -22,13 +25,7 @@ type Env = { Bindings: Bindings; Variables: ScheduleVariables }
 
 export const schedule = new Hono<Env>()
 
-// The published schedule is also open to a guest token for the meet (contracts/api.md); every other
-// route needs an account
-const accountRequired = requireAuth()
-const accountOrGuest = requireAuthOrGuest()
-schedule.use('*', (c, next) =>
-  c.req.path.endsWith('/schedule/published') ? accountOrGuest(c, next) : accountRequired(c, next),
-)
+schedule.use('*', requireAuth())
 schedule.use('*', async (c, next) => {
   if (!c.get('db')) {
     c.set('db', createDb(c.env.DB) as unknown as Db)
@@ -60,27 +57,34 @@ async function requireViewer(c: Context<Env>, meetId: number) {
   return null
 }
 
-/**
- * The newest published version in the old routes' shapes, or null for a meet still on the old
- * tables. Installed scoresheets call the old routes for their picker (research R5).
- */
-async function publishedLegacy(db: Db, meetId: number) {
+/** The meet's newest published version, the one readers see */
+async function newestVersion(db: Db, meetId: number) {
   const [row] = await db
     .select()
     .from(schema.meetScheduleVersions)
     .where(eq(schema.meetScheduleVersions.meetId, meetId))
     .orderBy(desc(schema.meetScheduleVersions.version))
     .limit(1)
-  if (!row) return null
-  const [meet] = await db
-    .select({
-      id: schema.quizMeets.id,
-      name: schema.quizMeets.name,
-      dateFrom: schema.quizMeets.dateFrom,
-    })
-    .from(schema.quizMeets)
-    .where(eq(schema.quizMeets.id, meetId))
-  if (!meet) return null
+  return row ?? null
+}
+
+/**
+ * The newest published version in the old routes' shapes, or null for a meet still on the old
+ * tables. Installed scoresheets call the old routes for their picker (research R5).
+ */
+async function publishedLegacy(db: Db, meetId: number) {
+  const [row, [meet]] = await Promise.all([
+    newestVersion(db, meetId),
+    db
+      .select({
+        id: schema.quizMeets.id,
+        name: schema.quizMeets.name,
+        dateFrom: schema.quizMeets.dateFrom,
+      })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, meetId)),
+  ])
+  if (!row || !meet) return null
   const doc = JSON.parse(row.document) as ScheduleDocument
   return { meet, ...legacyFromDocument(doc, meet, row.publishedAt) }
 }
@@ -977,11 +981,6 @@ schedule.post('/:id/schedule/sync', async (c) => {
 
 // ---- Linked schedules (specs/005-schedule-redesign/contracts/api.md) ----
 
-function meetIdOf(c: Context<Env>): number | null {
-  const id = Number(c.req.param('id'))
-  return Number.isInteger(id) ? id : null
-}
-
 /** A document from a request body, or the reason it isn't one */
 function documentOf(raw: unknown, meetId: number): ScheduleDocument | string {
   try {
@@ -998,16 +997,6 @@ async function draftRow(db: Db, meetId: number) {
     .select()
     .from(schema.meetSchedules)
     .where(eq(schema.meetSchedules.meetId, meetId))
-  return row ?? null
-}
-
-async function newestVersion(db: Db, meetId: number) {
-  const [row] = await db
-    .select()
-    .from(schema.meetScheduleVersions)
-    .where(eq(schema.meetScheduleVersions.meetId, meetId))
-    .orderBy(desc(schema.meetScheduleVersions.version))
-    .limit(1)
   return row ?? null
 }
 
@@ -1130,6 +1119,18 @@ schedule.get('/:id/schedule', async (c) => {
   })
 })
 
+/** The 409 for a save or publish based on an older draft, carrying the newer one (FR-048a) */
+function staleDraft(c: Context<Env>, row: schema.MeetSchedule | null) {
+  return c.json(
+    {
+      error: 'The draft was changed since you opened it',
+      draft: row ? JSON.parse(row.draft) : null,
+      draftRevision: row?.draftRevision ?? 0,
+    },
+    409,
+  )
+}
+
 /** Write the draft if `baseRevision` is the current one; otherwise the 409 with the newer draft */
 async function saveDraft(
   c: Context<Env>,
@@ -1140,16 +1141,7 @@ async function saveDraft(
   const db = getDb(c)
   const row = await draftRow(db, meetId)
   const current = row?.draftRevision ?? 0
-  if (baseRevision !== current) {
-    return c.json(
-      {
-        error: 'The draft was changed since you opened it',
-        draft: row ? JSON.parse(row.draft) : null,
-        draftRevision: current,
-      },
-      409,
-    )
-  }
+  if (baseRevision !== current) return staleDraft(c, row)
   const draftSavedAt = new Date()
   const draftRevision = current + 1
   if (row) {
@@ -1179,7 +1171,8 @@ schedule.put('/:id/schedule/draft', async (c) => {
   const denied = await requireAdmin(c, meetId)
   if (denied) return denied
 
-  const body = await c.req.json<{ document?: unknown; baseRevision?: unknown }>()
+  const body = await jsonBody<{ document?: unknown; baseRevision?: unknown }>(c)
+  if (!body) return c.json({ error: 'Expected a JSON body' }, 400)
   const doc = documentOf(body.document, meetId)
   if (typeof doc === 'string') return c.json({ error: doc }, 400)
   return saveDraft(c, meetId, doc, body.baseRevision)
@@ -1238,19 +1231,11 @@ schedule.post('/:id/schedule/publish', async (c) => {
   if (denied) return denied
   const db = getDb(c)
 
-  const body = await c.req.json<{ baseRevision?: unknown; confirmConflicts?: unknown }>()
+  const body = await jsonBody<{ baseRevision?: unknown; confirmConflicts?: unknown }>(c)
+  if (!body) return c.json({ error: 'Expected a JSON body' }, 400)
   const row = await draftRow(db, meetId)
   if (!row) return c.json({ error: 'There is no draft to publish' }, 404)
-  if (body.baseRevision !== row.draftRevision) {
-    return c.json(
-      {
-        error: 'The draft was changed since you opened it',
-        draft: JSON.parse(row.draft),
-        draftRevision: row.draftRevision,
-      },
-      409,
-    )
-  }
+  if (body.baseRevision !== row.draftRevision) return staleDraft(c, row)
   const doc = JSON.parse(row.draft) as ScheduleDocument
   const conflicts = checkSchedule(doc).filter((x) => !x.warning)
   if (conflicts.length > 0 && body.confirmConflicts !== true) {
@@ -1332,7 +1317,8 @@ schedule.post('/:id/schedule/versions/:version/restore', async (c) => {
 
   const row = await versionRow(getDb(c), meetId, Number(c.req.param('version')))
   if (!row) return c.json({ error: 'No such version' }, 404)
-  const body = await c.req.json<{ baseRevision?: unknown }>()
+  const body = await jsonBody<{ baseRevision?: unknown }>(c)
+  if (!body) return c.json({ error: 'Expected a JSON body' }, 400)
   return saveDraft(c, meetId, JSON.parse(row.document) as ScheduleDocument, body.baseRevision)
 })
 
@@ -1348,31 +1334,45 @@ schedule.delete('/:id/schedule', async (c) => {
 })
 
 /**
+ * The published schedule, open to a guest token for the meet as well as an account
+ * (contracts/api.md). Its own router, with middleware scoped to its path like `results`, so it
+ * can mount ahead of the account-only routers.
+ */
+export const publishedSchedule = new Hono<Env>()
+publishedSchedule.use('/:id/schedule/published', requireAuthOrGuest())
+publishedSchedule.use('/:id/schedule/published', async (c, next) => {
+  if (!c.get('db')) c.set('db', createDb(c.env.DB) as unknown as Db)
+  await next()
+})
+
+/**
  * GET /api/meets/:id/schedule/published — the newest version for anyone with access to the meet.
  * Letters while the meet is in registration or build, with the draw's teams removed; team names,
  * read from the meet, from live on (FR-052). Admins see teams and may ask for either.
  */
-schedule.get('/:id/schedule/published', async (c) => {
+publishedSchedule.get('/:id/schedule/published', async (c) => {
   const meetId = meetIdOf(c)
   if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
   const denied = await requireViewer(c, meetId)
   if (denied) return denied
   const db = getDb(c)
 
-  const row = await newestVersion(db, meetId)
+  const user = c.get('user')
+  const [row, isAdmin, [meet]] = await Promise.all([
+    newestVersion(db, meetId),
+    user ? isAdminOrSuperuser(db, user.id, user.role, meetId) : false,
+    db
+      .select({ phase: schema.quizMeets.phase })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, meetId)),
+  ])
   if (!row) return c.json({ error: 'Nothing is published yet' }, 404)
   const doc = JSON.parse(row.document) as ScheduleDocument
 
-  const user = c.get('user')
-  const isAdmin = user ? await isAdminOrSuperuser(db, user.id, user.role, meetId) : false
-  let view: 'letters' | 'teams'
+  let view: SheetView
   if (isAdmin) {
     view = c.req.query('view') === 'letters' ? 'letters' : 'teams'
   } else {
-    const [meet] = await db
-      .select({ phase: schema.quizMeets.phase })
-      .from(schema.quizMeets)
-      .where(eq(schema.quizMeets.id, meetId))
     view = meet && (meet.phase === 'registration' || meet.phase === 'build') ? 'letters' : 'teams'
   }
 
@@ -1392,7 +1392,7 @@ schedule.get('/:id/schedule/published', async (c) => {
   return c.json({ document: doc, publishedAt: row.publishedAt, view })
 })
 
-/** Each team's name as the portal shows it: the church's short name and the team's number */
+/** Each team's name as the portal shows it */
 async function teamNames(db: Db, meetId: number) {
   const rows = await db
     .select({
@@ -1403,5 +1403,5 @@ async function teamNames(db: Db, meetId: number) {
     .from(schema.teams)
     .innerJoin(schema.churches, eq(schema.churches.id, schema.teams.churchId))
     .where(eq(schema.teams.meetId, meetId))
-  return new Map(rows.map((r) => [r.id, `${r.shortName} ${r.number}`]))
+  return new Map(rows.map((r) => [r.id, teamDisplayName(r)]))
 }

@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import type { Bindings } from '../../bindings'
 import type { SessionVariables } from '../../middleware/session'
-import { schedule } from '../schedule'
+import { publishedSchedule, schedule } from '../schedule'
 import * as schema from '../../db/schema'
 import {
   mockSession,
@@ -1028,7 +1028,7 @@ function guestApp(db: Db, meetId: number) {
   const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables & { db: Db } }>()
   app.use('*', mockSession(null, { meetId, role: MeetRole.Viewer }))
   app.use('*', mockDb(db))
-  app.route('/api/meets', schedule)
+  app.route('/api/meets', publishedSchedule)
   return app
 }
 

@@ -4,7 +4,7 @@ import type { Bindings } from '../../bindings'
 import type { SessionVariables } from '../../middleware/session'
 import { meets } from '../meets'
 import { phase } from '../phase'
-import { schedule } from '../schedule'
+import { publishedSchedule, schedule } from '../schedule'
 import { churches } from '../churches'
 import { join } from '../join'
 import { memberships } from '../memberships'
@@ -14,7 +14,7 @@ import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import { generateCode, hashCode } from '../../lib/codes'
 import * as schema from '../../db/schema'
-import { MeetRole, PlacementFormula } from '@qzr/shared'
+import { MeetRole, PlacementFormula, newScheduleDocument } from '@qzr/shared'
 import { codeTagFor, signGuestJwt, type GuestPayload } from '../../lib/jwt'
 import { sessionMiddleware } from '../../middleware/session'
 import { eq } from 'drizzle-orm'
@@ -54,6 +54,7 @@ function mountRoutes(db: Db, guest: GuestPayload | null | 'bearer') {
   app.route('/api/my-meets', memberships)
   app.route('/api', churches)
   app.route('/api/meets', results)
+  app.route('/api/meets', publishedSchedule)
   app.route('/api/meets', phase)
   app.route('/api/meets', schedule)
   return app
@@ -119,6 +120,24 @@ describe('route mount order — guest can read /api/meets/:meetId/teams', () => 
       expect((await app.request('/api/my-meets', {}, env)).status).toBe(401)
     },
   )
+})
+
+describe('route mount order: a guest reads the published schedule', () => {
+  it('reaches the published schedule ahead of the account-only routers', async () => {
+    const db = await createTestDb()
+    const meet = await seedMeet(db, 'Schedule Meet')
+    const document = { ...newScheduleDocument('Schedule Meet'), link: { meetId: meet.id } }
+    await db.insert(schema.meetScheduleVersions).values({
+      meetId: meet.id,
+      version: 1,
+      document: JSON.stringify(document),
+      publishedAt: new Date(),
+      publishedByName: 'Admin',
+    })
+    const app = mountRoutes(db, { meetId: meet.id, role: MeetRole.Viewer })
+    const res = await app.request(`/api/meets/${meet.id}/schedule/published`, {}, env)
+    expect(res.status).toBe(200)
+  })
 })
 
 describe('route mount order — a guest official can submit results', () => {

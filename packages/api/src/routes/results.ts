@@ -22,6 +22,7 @@ import {
   officialRoomsOf,
 } from '../lib/permissions'
 import * as schema from '../db/schema'
+import { jsonBody, meetIdOf } from '../lib/request'
 
 interface ResultsVariables extends SessionVariables {
   db: Db
@@ -42,21 +43,6 @@ for (const path of ['/:id/results', '/:id/results/*', '/:id/team-names']) {
     if (!c.get('db')) c.set('db', createDb(c.env.DB) as unknown as Db)
     await next()
   })
-}
-
-/** The meet id in the path, or null when it isn't one */
-function meetIdOf(c: Context<Env>): number | null {
-  const id = Number(c.req.param('id'))
-  return Number.isInteger(id) ? id : null
-}
-
-/** The request body, or null when it isn't JSON */
-async function jsonBody<T>(c: Context<Env>): Promise<T | null> {
-  try {
-    return await c.req.json<T>()
-  } catch {
-    return null
-  }
 }
 
 /** Who saved a revision, in the revision's own columns */
