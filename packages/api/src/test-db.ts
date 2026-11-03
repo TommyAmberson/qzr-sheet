@@ -250,6 +250,25 @@ export async function createTestDb(): Promise<Db> {
     );
     CREATE INDEX quiz_result_count_changes_result_id_idx ON quiz_result_count_changes(result_id);
 
+    CREATE TABLE meet_schedules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      meet_id INTEGER NOT NULL UNIQUE REFERENCES quiz_meets(id) ON DELETE CASCADE,
+      draft TEXT NOT NULL,
+      draft_revision INTEGER NOT NULL,
+      draft_saved_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE meet_schedule_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,
+      version INTEGER NOT NULL,
+      document TEXT NOT NULL,
+      published_at INTEGER NOT NULL,
+      published_by_account_id TEXT REFERENCES user(id) ON DELETE SET NULL,
+      published_by_name TEXT NOT NULL,
+      UNIQUE (meet_id, version)
+    );
+
     CREATE TABLE meet_team_names (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,

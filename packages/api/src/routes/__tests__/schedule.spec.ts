@@ -16,6 +16,14 @@ import {
 } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
+import {
+  MeetRole,
+  defaultElims,
+  generateSchedule,
+  newScheduleDocument,
+  type MeetPhase,
+  type ScheduleDocument,
+} from '@qzr/shared'
 
 const env = { ENVIRONMENT: 'test' } as unknown as Bindings
 
@@ -1011,5 +1019,405 @@ describe('GET schedule reads: per-meet membership gate', () => {
   it('quiz teams: 403s before revealing whether the quiz exists', async () => {
     const res = await userApp.request(`/api/meets/${meetId}/quizzes/99999/teams`, {}, env)
     expect(res.status).toBe(403)
+  })
+})
+
+// ---- Linked schedules (specs/005-schedule-redesign/contracts/api.md) ----
+
+function guestApp(db: Db, meetId: number) {
+  const app = new Hono<{ Bindings: Bindings; Variables: SessionVariables & { db: Db } }>()
+  app.use('*', mockSession(null, { meetId, role: MeetRole.Viewer }))
+  app.use('*', mockDb(db))
+  app.route('/api/meets', schedule)
+  return app
+}
+
+/** A meet with six Div 1 teams, two rooms, and a generated schedule linked to it */
+async function linkedMeet(db: Db, phase: MeetPhase = 'registration') {
+  const meet = await seedMeet(db, 'Linked Meet', { phase })
+  const [church] = await db
+    .insert(schema.churches)
+    .values({ meetId: meet.id, name: 'Grace Church', shortName: 'Grace', coachCodeHash: 'x' })
+    .returning()
+  const teams = await db
+    .insert(schema.teams)
+    .values(
+      Array.from({ length: 6 }, (_, i) => ({
+        meetId: meet.id,
+        churchId: church!.id,
+        division: '1',
+        number: i + 1,
+      })),
+    )
+    .returning()
+  const base = newScheduleDocument('Linked Meet')
+  base.settings.divisions = [{ id: '1', name: 'Div 1', teams: 6, elims: defaultElims(6) }]
+  const doc = generateSchedule(base)
+  doc.link = { meetId: meet.id, timeZone: 'America/Winnipeg' }
+  doc.draw['1'] = {
+    stale: false,
+    teams: teams.map((t, i) => ({ teamId: t.id, late: false, absent: false, letter: 'ABCDEF'[i] })),
+  }
+  return { meet, teams, doc }
+}
+
+const put = (body: unknown) => jsonRequest('PUT', body)
+const post = (body: unknown) => jsonRequest('POST', body)
+
+describe('linked schedule routes', () => {
+  let db: Db
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    app = createApp(testSuperuser, db)
+  })
+
+  it('admits only admins and superusers to the draft, publish, versions, restore and unlink routes', async () => {
+    const { meet } = await linkedMeet(db)
+    await db.insert(schema.viewerMemberships).values({ accountId: testUser.id, meetId: meet.id })
+    const userApp = createApp(testUser, db)
+    const base = `/api/meets/${meet.id}/schedule`
+    const calls: [string, RequestInit][] = [
+      [base, {}],
+      [`${base}/draft`, put({ document: {}, baseRevision: 0 })],
+      [`${base}/publish`, post({ baseRevision: 0 })],
+      [`${base}/versions`, {}],
+      [`${base}/versions/1`, {}],
+      [`${base}/versions/1/restore`, post({ baseRevision: 0 })],
+      [base, { method: 'DELETE' }],
+    ]
+    for (const [path, init] of calls) {
+      const res = await userApp.request(path, init, env)
+      expect(res.status, `${init.method ?? 'GET'} ${path}`).toBe(403)
+    }
+  })
+
+  it('refuses a stale draft save with the newer draft, and an invalid one saying why', async () => {
+    const { meet, doc } = await linkedMeet(db)
+    const path = `/api/meets/${meet.id}/schedule/draft`
+    const first = await app.request(path, put({ document: doc, baseRevision: 0 }), env)
+    expect(await jsonOf(first)).toMatchObject({ draftRevision: 1 })
+
+    const stale = await app.request(path, put({ document: doc, baseRevision: 0 }), env)
+    expect(stale.status).toBe(409)
+    expect(await jsonOf(stale)).toMatchObject({ draftRevision: 1, draft: { id: doc.id } })
+
+    const invalid = await app.request(
+      path,
+      put({ document: { ...doc, rooms: 'x' }, baseRevision: 1 }),
+      env,
+    )
+    expect(invalid.status).toBe(400)
+    expect((await jsonOf<{ error: string }>(invalid)).error).toMatch(/Not a valid schedule/)
+  })
+
+  it('publishes past hard conflicts only when confirmed, adding a version each time', async () => {
+    const { meet, doc } = await linkedMeet(db)
+    // Two quizzes in one cell is a hard conflict
+    doc.quizzes[1]!.cell = doc.quizzes[0]!.cell
+    const base = `/api/meets/${meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: doc, baseRevision: 0 }), env)
+
+    const refused = await app.request(`${base}/publish`, post({ baseRevision: 1 }), env)
+    expect(refused.status).toBe(409)
+    expect((await jsonOf<{ conflicts: unknown[] }>(refused)).conflicts.length).toBeGreaterThan(0)
+
+    const published = await app.request(
+      `${base}/publish`,
+      post({ baseRevision: 1, confirmConflicts: true }),
+      env,
+    )
+    expect(await jsonOf(published)).toMatchObject({ version: 1, draftRevision: 2 })
+    await app.request(`${base}/publish`, post({ baseRevision: 2, confirmConflicts: true }), env)
+
+    const versions = await jsonOf<{ version: number; publishedBy: string }[]>(
+      await app.request(`${base}/versions`, {}, env),
+    )
+    expect(versions).toEqual([
+      expect.objectContaining({ version: 2, publishedBy: 'Test Admin' }),
+      expect.objectContaining({ version: 1, publishedBy: 'Test Admin' }),
+    ])
+  })
+
+  it('keeps every version when unlinking, and relinking continues the numbering', async () => {
+    const { meet, doc } = await linkedMeet(db)
+    const base = `/api/meets/${meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: doc, baseRevision: 0 }), env)
+    await app.request(`${base}/publish`, post({ baseRevision: 1 }), env)
+    await app.request(base, { method: 'DELETE' }, env)
+    expect((await jsonOf<{ draft: unknown }>(await app.request(base, {}, env))).draft).toBeNull()
+
+    await app.request(`${base}/draft`, put({ document: doc, baseRevision: 0 }), env)
+    const again = await app.request(`${base}/publish`, post({ baseRevision: 1 }), env)
+    expect(await jsonOf(again)).toMatchObject({ version: 2 })
+  })
+
+  it('restores a version into the draft and publishes nothing', async () => {
+    const { meet, doc } = await linkedMeet(db)
+    const base = `/api/meets/${meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: doc, baseRevision: 0 }), env)
+    await app.request(`${base}/publish`, post({ baseRevision: 1 }), env)
+    await app.request(
+      `${base}/draft`,
+      put({ document: { ...doc, name: 'Changed' }, baseRevision: 2 }),
+      env,
+    )
+
+    const restored = await app.request(`${base}/versions/1/restore`, post({ baseRevision: 3 }), env)
+    expect(await jsonOf(restored)).toMatchObject({ draftRevision: 4 })
+    const state = await jsonOf<{ draft: { name: string }; version: number }>(
+      await app.request(base, {}, env),
+    )
+    expect(state).toMatchObject({ draft: { name: 'Linked Meet' }, version: 1 })
+  })
+
+  it("makes the meet's rooms match: adds, renames, and keeps an unused room with an official code", async () => {
+    const { meet, doc } = await linkedMeet(db)
+    const kept = await seedRoom(db, meet.id, 'Gym')
+    await db.update(schema.meetRooms).set({ codeHash: 'h' }).where(eq(schema.meetRooms.id, kept.id))
+    const gone = await seedRoom(db, meet.id, 'Chapel')
+    const renamed = await seedRoom(db, meet.id, 'Room 1')
+    doc.rooms[0] = { ...doc.rooms[0]!, name: 'Sanctuary', meetRoomId: renamed.id }
+    const base = `/api/meets/${meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: doc, baseRevision: 0 }), env)
+
+    const res = await jsonOf<{ unusedRooms: { name: string }[]; rooms: { meetRoomId: number }[] }>(
+      await app.request(`${base}/publish`, post({ baseRevision: 1 }), env),
+    )
+    expect(res.unusedRooms.map((r) => r.name)).toEqual(['Gym'])
+    const rooms = await db
+      .select()
+      .from(schema.meetRooms)
+      .where(eq(schema.meetRooms.meetId, meet.id))
+    expect(rooms.map((r) => r.name).sort()).toEqual(
+      ['Gym', 'Sanctuary', ...doc.rooms.slice(1).map((r) => r.name)].sort(),
+    )
+    expect(rooms.some((r) => r.id === gone.id)).toBe(false)
+    expect(res.rooms.every((r) => typeof r.meetRoomId === 'number')).toBe(true)
+  })
+
+  it('takes back a meet room of the same name rather than adding a second', async () => {
+    const { meet, doc } = await linkedMeet(db)
+    const existing = await seedRoom(db, meet.id, doc.rooms[0]!.name)
+    const base = `/api/meets/${meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: doc, baseRevision: 0 }), env)
+    const res = await jsonOf<{ rooms: { meetRoomId: number }[] }>(
+      await app.request(`${base}/publish`, post({ baseRevision: 1 }), env),
+    )
+    expect(res.rooms[0]!.meetRoomId).toBe(existing.id)
+  })
+
+  it('lists the result names that have results', async () => {
+    const { meet } = await linkedMeet(db)
+    await db
+      .insert(schema.quizResults)
+      .values({ meetId: meet.id, quizKey: 'div 1 quiz 1', createdAt: new Date() })
+    const body = await jsonOf<{ results: string[] }>(
+      await app.request(`/api/meets/${meet.id}/schedule`, {}, env),
+    )
+    expect(body.results).toEqual(['div 1 quiz 1'])
+  })
+})
+
+describe('GET /api/meets/:id/schedule/published', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  async function publish(phase: MeetPhase) {
+    const linked = await linkedMeet(db, phase)
+    const app = createApp(testSuperuser, db)
+    const base = `/api/meets/${linked.meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: linked.doc, baseRevision: 0 }), env)
+    await app.request(`${base}/publish`, post({ baseRevision: 1 }), env)
+    return linked
+  }
+
+  type Published = { view: string; document: ScheduleDocument }
+
+  it('404s before anything is published', async () => {
+    const { meet } = await linkedMeet(db)
+    const res = await guestApp(db, meet.id).request(
+      `/api/meets/${meet.id}/schedule/published`,
+      {},
+      env,
+    )
+    expect(res.status).toBe(404)
+  })
+
+  it('gives a guest letters in registration and build, with the teams removed (FR-052)', async () => {
+    for (const phase of ['registration', 'build'] as const) {
+      const { meet } = await publish(phase)
+      const res = await guestApp(db, meet.id).request(
+        `/api/meets/${meet.id}/schedule/published`,
+        {},
+        env,
+      )
+      const body = await jsonOf<Published>(res)
+      expect(body.view).toBe('letters')
+      expect(body.document.draw['1']!.teams.every((t) => !t.teamId && !t.name)).toBe(true)
+    }
+  })
+
+  it('gives team names, read from the meet, from live on', async () => {
+    for (const phase of ['live', 'done'] as const) {
+      const { meet } = await publish(phase)
+      const res = await guestApp(db, meet.id).request(
+        `/api/meets/${meet.id}/schedule/published`,
+        {},
+        env,
+      )
+      const body = await jsonOf<Published>(res)
+      expect(body.view).toBe('teams')
+      expect(body.document.draw['1']!.teams[0]!.name).toBe('Grace 1')
+    }
+  })
+
+  it('403s for a guest of another meet', async () => {
+    const { meet } = await publish('live')
+    const res = await guestApp(db, meet.id + 100).request(
+      `/api/meets/${meet.id}/schedule/published`,
+      {},
+      env,
+    )
+    expect(res.status).toBe(403)
+  })
+})
+
+describe('meets built with the old editor (FR-053)', () => {
+  let db: Db
+  let app: ReturnType<typeof createApp>
+
+  beforeEach(async () => {
+    db = await createTestDb()
+    app = createApp(testSuperuser, db)
+  })
+
+  /** Two prelims and an elim whose seats name a prelim rank and a quiz's place, like seed-schedule.sql */
+  async function oldMeet() {
+    const meet = await seedMeet(db)
+    const [church] = await db
+      .insert(schema.churches)
+      .values({ meetId: meet.id, name: 'Grace Church', shortName: 'Grace', coachCodeHash: 'x' })
+      .returning()
+    const teams = await db
+      .insert(schema.teams)
+      .values(
+        [false, true, false].map((lateness, i) => ({
+          meetId: meet.id,
+          churchId: church!.id,
+          division: '1',
+          number: i + 1,
+          lateness,
+        })),
+      )
+      .returning()
+    await db.insert(schema.prelimAssignments).values(
+      teams.map((t, i) => ({
+        meetId: meet.id,
+        division: '1',
+        letter: 'ABC'[i]!,
+        teamId: t.id,
+        assignedAt: new Date(),
+      })),
+    )
+    const room = await seedRoom(db, meet.id, 'Room A')
+    const slot = await seedSlot(db, meet.id)
+    const prelim = await seedQuizWithSeats(
+      db,
+      meet.id,
+      slot.id,
+      room.id,
+      [
+        { seatNumber: 1, letter: 'A' },
+        { seatNumber: 2, letter: 'B' },
+        { seatNumber: 3, letter: 'C' },
+      ],
+      { label: 'Div 1 Quiz 1' },
+    )
+    const later = await seedSlot(db, meet.id, 1)
+    const x = await seedQuizWithSeats(
+      db,
+      meet.id,
+      later.id,
+      room.id,
+      [
+        { seatNumber: 1, seedRef: '1st of prelims' },
+        { seatNumber: 2, seedRef: '1st Quiz 1' },
+        { seatNumber: 3, seedRef: 'winner of the raffle' },
+      ],
+      { phase: 'elim', lane: 'main', label: 'Div 1 Quiz X', bracketLabel: 'X' },
+    )
+    return { meet, teams, room, slot, prelim, x }
+  }
+
+  it('converts on first open: pinned, old ids, late marks, unknown seats empty, draft and version 1', async () => {
+    const { meet, teams, slot, prelim, x } = await oldMeet()
+    const res = await app.request(`/api/meets/${meet.id}/schedule?timeZone=UTC`, {}, env)
+    const body = await jsonOf<{ draft: ScheduleDocument; version: number }>(res)
+    expect(body.version).toBe(1)
+    const doc = body.draft
+    expect(doc.quizzes.every((q) => q.pinned)).toBe(true)
+    expect(doc.quizzes.map((q) => q.id).sort()).toEqual([String(prelim.id), String(x.id)].sort())
+    expect(doc.quizzes.find((q) => q.id === String(prelim.id))!.cell).toEqual({
+      slot: String(slot.id),
+      room: expect.any(String),
+    })
+    expect(doc.quizzes.find((q) => q.id === String(x.id))!.seats).toEqual([
+      { kind: 'rank', rank: 1 },
+      { kind: 'place', quiz: String(prelim.id), place: 1 },
+      { kind: 'empty' },
+    ])
+    expect(doc.draw['1']!.teams).toEqual(
+      teams.map((t, i) => ({ teamId: t.id, late: i === 1, absent: false, letter: 'ABC'[i] })),
+    )
+    const frame = doc.frame.filter((r) => r.kind === 'slot')
+    expect(frame[0]).toMatchObject({ at: 20 * 60, minutes: 25 })
+
+    // Opening again converts nothing more
+    await app.request(`/api/meets/${meet.id}/schedule`, {}, env)
+    const versions = await jsonOf<unknown[]>(
+      await app.request(`/api/meets/${meet.id}/schedule/versions`, {}, env),
+    )
+    expect(versions).toHaveLength(1)
+  })
+
+  it('answers the old read routes from the newest published version in their old shapes', async () => {
+    const { meet, room, slot, prelim, teams } = await oldMeet()
+    await app.request(`/api/meets/${meet.id}/schedule?timeZone=UTC`, {}, env)
+    // Change the old rows; the routes no longer read them
+    await db.delete(schema.scheduledQuizzes).where(eq(schema.scheduledQuizzes.meetId, meet.id))
+
+    const slots = await jsonOf<{ slots: { id: number; startAt: string }[] }>(
+      await app.request(`/api/meets/${meet.id}/slots`, {}, env),
+    )
+    expect(slots.slots[0]).toMatchObject({ id: slot.id, startAt: '2026-01-01T20:00:00.000Z' })
+
+    const quizzes = await jsonOf<{
+      quizzes: {
+        id: number
+        roomId: number
+        seats: { letter: string | null; seedRef: string | null }[]
+      }[]
+    }>(await app.request(`/api/meets/${meet.id}/quizzes`, {}, env))
+    expect(quizzes.quizzes.find((q) => q.id === prelim.id)).toMatchObject({
+      roomId: room.id,
+      seats: [{ letter: 'A' }, { letter: 'B' }, { letter: 'C' }],
+    })
+    expect(quizzes.quizzes.find((q) => q.id !== prelim.id)!.seats.map((s) => s.seedRef)).toEqual([
+      '1st place',
+      '1st Quiz 1',
+      null,
+    ])
+
+    const quiz = await jsonOf<{
+      quiz: { label: string }
+      seats: { team: { id: number } | null }[]
+    }>(await app.request(`/api/meets/${meet.id}/quizzes/${prelim.id}/teams`, {}, env))
+    expect(quiz.quiz.label).toBe('Div 1 Quiz 1')
+    expect(quiz.seats.map((s) => s.team?.id)).toEqual(teams.map((t) => t.id))
   })
 })

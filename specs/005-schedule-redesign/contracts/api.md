@@ -15,7 +15,8 @@ Admins and superusers (FR-051).
   (H-20).
 * A meet with no `meet_schedules` row but with rows in the old schedule tables is converted first
   (research R5): every quiz pinned, placeholder elim seats empty, stored as both draft and
-  published. Quiz ids keep the old row ids, so links already shared still resolve.
+  published. Quiz ids keep the old row ids, so links already shared still resolve. The builder
+  passes its time zone as `?timeZone=`, which places the old slots' instants on the meet's days.
 * A meet with neither: 200 with `draft: null`; the builder starts a schedule from the meet.
 
 ## `PUT /api/meets/:id/schedule/draft`
@@ -39,7 +40,8 @@ Admins and superusers.
 * Adds the draft as the next version (FR-049a). With hard conflicts and `confirmConflicts` not true:
   409 `{ conflicts }`, so the builder can list them and ask in the page (FR-049); with it true, or
   with only warnings, it publishes. Never refused for conflicts alone.
-* 200: `{ version, publishedAt }`.
+* 200: `{ version, publishedAt, draftRevision, draftSavedAt, rooms, unusedRooms }`. Publishing fills
+  in each room's `meetRoomId`, so the draft is saved with them and `rooms` carries them back.
 * Publishing makes the meet's rooms match the schedule's (FR-047): new rooms are added without an
   official code, renamed rooms are renamed, and a room the schedule no longer uses is removed unless
   it has an official code, in which case it's kept and listed in the response as unused, so no
@@ -83,6 +85,7 @@ Anyone with access to the meet: a membership, a guest token for the meet, or sup
 * `POST /api/meets/:id/schedule/sync` and the old editor's room `PATCH` stop being called once the
   builder ships, and are removed with the old tables after every meet has been converted (research
   R5).
-* `GET /:id/rooms`, `/:id/slots`, `/:id/quizzes` and `/:id/quizzes/:quizId/teams` stay, answering
-  from the newest published version in their current shapes, because installed scoresheets call them
-  for their picker. They go once no supported scoresheet release calls them.
+* `GET /:id/rooms`, `/:id/slots`, `/:id/quizzes`, `/:id/quizzes/:quizId/teams` and
+  `/:id/prelim-assignments` stay, answering from the newest published version in their current
+  shapes (a meet not yet converted still reads the old tables), because installed scoresheets call
+  them for their picker. They go once no supported scoresheet release calls them.

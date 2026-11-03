@@ -170,10 +170,23 @@ export const ScheduleDocumentSchema = Type.Object({
   settings: SettingsSchema,
   applied: SettingsSchema,
   frame: Type.Array(FrameRowSchema),
-  rooms: Type.Array(Type.Object({ id: Type.String(), name: Type.String() })),
+  rooms: Type.Array(
+    Type.Object({
+      id: Type.String(),
+      name: Type.String(),
+      /** When linked, the meet's room; publishing adds the rooms that have none yet */
+      meetRoomId: Type.Optional(Type.Integer()),
+    }),
+  ),
   quizzes: Type.Array(QuizSchema),
   draw: Type.Record(Type.String(), DivisionDrawSchema),
-  link: Type.Optional(Type.Object({ meetId: Type.Integer() })),
+  link: Type.Optional(
+    Type.Object({
+      meetId: Type.Integer(),
+      /** The meet's time zone, which turns a day's times into instants for the meet's old routes */
+      timeZone: Type.Optional(Type.String()),
+    }),
+  ),
 })
 
 export type ScheduleDocument = Static<typeof ScheduleDocumentSchema>

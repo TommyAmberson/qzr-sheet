@@ -16,6 +16,10 @@ what readers and writers promise each other.
 * **Ids**: quiz, slot, room and division ids are strings and stable for the document's life. A
   seat's "place in another quiz" names the quiz by id. Ids from converted meets are the old row ids
   as strings.
+* **Linked rooms and times**: when linked, a room may name its meet room (`meetRoomId`); publishing
+  adds a meet room for each room without one and fills it in. `link.timeZone`, the meet's time zone,
+  turns a day's times into the instants the meet's old read routes return. The first day is the
+  meet's `dateFrom`.
 * **Team names**: present only in the draw. A published document in letters view has them removed
   (see [api.md](./api.md)).
 * **Contract version**: the codec and validation live in `packages/shared`, so a change to the

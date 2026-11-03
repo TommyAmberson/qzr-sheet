@@ -33,7 +33,7 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * The schedule document (`ScheduleDocumentSchema`, `SCHEDULE_FILE_VERSION` 1) and its file codec
   (`serializeSchedule`, `parseScheduleFile`, `NewerScheduleFileError`, `newScheduleDocument`):
   settings, frame rows, rooms, quizzes with their seats and pins, and the draw, in one versioned
-  JSON document.
+  JSON document. When linked to a meet it names the meet, its time zone, and each room's meet room.
 * The schedule conflict check (`checkSchedule`): every hard rule and warning of
   `docs/schedule-invariants.md` that a schedule breaks, by rule ID with the quizzes involved and a
   reason; and `resultName`, the name a schedule quiz's results are saved under (W-5).

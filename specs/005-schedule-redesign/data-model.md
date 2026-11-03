@@ -14,10 +14,10 @@ Field names here are the document's; their spelling in code follows them.
 | `settings` | What the grid is built from (below)                                                          |
 | `applied`  | The settings the grid was last built with; differs from `settings` while Auto-apply is off   |
 | `frame`    | Ordered rows of the grid (below)                                                             |
-| `rooms`    | Ordered rooms: id and name                                                                   |
+| `rooms`    | Ordered rooms: id, name, and when linked the meet's room id                                  |
 | `quizzes`  | Every quiz, placed or in the unplaced tray (below)                                           |
 | `draw`     | Per division: team names, late and absent marks, letter per team (below)                     |
-| `link`     | Absent when standalone; the meet id when linked (FR-045)                                     |
+| `link`     | Absent when standalone; the meet id and its time zone when linked                            |
 
 Validation: a document that fails validation doesn't load (FR-003); one that loads may still break
 hard rules, which the conflict check reports and never repairs on its own (FR-037).
@@ -132,13 +132,13 @@ One row per meet in a new `meet_schedules` table (research R5):
 
 Every publish adds a row to a new, append-only `meet_schedule_versions` table (FR-049a):
 
-| Column        | Meaning                                   |
-| ------------- | ----------------------------------------- |
-| `meetId`      | The meet                                  |
-| `version`     | 1, 2, 3, … per meet; unique with `meetId` |
-| `document`    | The document as published                 |
-| `publishedAt` | When                                      |
-| `publishedBy` | The admin's user id                       |
+| Column        | Meaning                                            |
+| ------------- | -------------------------------------------------- |
+| `meetId`      | The meet                                           |
+| `version`     | 1, 2, 3, … per meet; unique with `meetId`          |
+| `document`    | The document as published                          |
+| `publishedAt` | When                                               |
+| `publishedBy` | The admin's account, and their name as it was then |
 
 The newest version is the published schedule; there's no separate published column. Rows are never
 updated or deleted while the meet exists, unlinking included, so relinking continues the numbering.

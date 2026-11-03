@@ -17,6 +17,22 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+### Added
+
+* **Linked schedules** - a meet's schedule is kept as one schedule document: a draft the builder
+  saves (`GET /api/meets/:id/schedule`, `PUT .../schedule/draft`, refused with the newer draft when
+  stale), published as numbered versions that are never changed or deleted
+  (`POST .../schedule/publish`, `GET .../schedule/versions` and `.../versions/:version`,
+  `POST .../versions/:version/restore`), and unlinked with `DELETE .../schedule`. Publishing past
+  hard conflicts needs confirming, and makes the meet's rooms match the schedule's, keeping an
+  unused room that has an official code. `GET .../schedule/published` gives anyone with access to
+  the meet, guests included, the newest version: letters before the meet goes live, team names
+  after.
+* A meet built with the old editor is converted on first open, every quiz pinned and its ids kept,
+  as the draft and version 1. The old read routes (`/rooms`, `/slots`, `/quizzes`,
+  `/quizzes/:quizId/teams`, `/prelim-assignments`) answer from the newest published version in their
+  old shapes, so installed scoresheets keep working.
+
 ## [0.23.2] - 2026-11-03
 
 ### Changed

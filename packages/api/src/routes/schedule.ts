@@ -1,11 +1,18 @@
 import { Hono, type Context } from 'hono'
-import { eq, and, asc, inArray, sql } from 'drizzle-orm'
+import { eq, and, asc, desc, inArray, sql } from 'drizzle-orm'
+import {
+  checkSchedule,
+  parseScheduleFile,
+  serializeSchedule,
+  type ScheduleDocument,
+} from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
-import { requireAuth, getUser } from '../middleware/session'
+import { requireAuth, requireAuthOrGuest, getUser } from '../middleware/session'
 import { createDb, inChunks, type Db } from '../lib/db'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
+import { documentFromLegacy, legacyFromDocument, type LegacySchedule } from '../lib/scheduleLegacy'
 
 interface ScheduleVariables extends SessionVariables {
   db: Db
@@ -15,7 +22,13 @@ type Env = { Bindings: Bindings; Variables: ScheduleVariables }
 
 export const schedule = new Hono<Env>()
 
-schedule.use('*', requireAuth())
+// The published schedule is also open to a guest token for the meet (contracts/api.md); every other
+// route needs an account
+const accountRequired = requireAuth()
+const accountOrGuest = requireAuthOrGuest()
+schedule.use('*', (c, next) =>
+  c.req.path.endsWith('/schedule/published') ? accountOrGuest(c, next) : accountRequired(c, next),
+)
 schedule.use('*', async (c, next) => {
   if (!c.get('db')) {
     c.set('db', createDb(c.env.DB) as unknown as Db)
@@ -45,6 +58,31 @@ async function requireViewer(c: Context<Env>, meetId: number) {
     return c.json({ error: 'Forbidden' }, 403)
   }
   return null
+}
+
+/**
+ * The newest published version in the old routes' shapes, or null for a meet still on the old
+ * tables. Installed scoresheets call the old routes for their picker (research R5).
+ */
+async function publishedLegacy(db: Db, meetId: number) {
+  const [row] = await db
+    .select()
+    .from(schema.meetScheduleVersions)
+    .where(eq(schema.meetScheduleVersions.meetId, meetId))
+    .orderBy(desc(schema.meetScheduleVersions.version))
+    .limit(1)
+  if (!row) return null
+  const [meet] = await db
+    .select({
+      id: schema.quizMeets.id,
+      name: schema.quizMeets.name,
+      dateFrom: schema.quizMeets.dateFrom,
+    })
+    .from(schema.quizMeets)
+    .where(eq(schema.quizMeets.id, meetId))
+  if (!meet) return null
+  const doc = JSON.parse(row.document) as ScheduleDocument
+  return { meet, ...legacyFromDocument(doc, meet, row.publishedAt) }
 }
 
 // ---- Rooms ----
@@ -129,6 +167,8 @@ schedule.get('/:id/slots', async (c) => {
   if (denied) return denied
 
   const db = getDb(c)
+  const published = await publishedLegacy(db, meetId)
+  if (published) return c.json({ slots: published.slots })
   const slots = await db
     .select()
     .from(schema.meetSlots)
@@ -154,6 +194,8 @@ schedule.get('/:id/quizzes', async (c) => {
   if (denied) return denied
 
   const db = getDb(c)
+  const published = await publishedLegacy(db, meetId)
+  if (published) return c.json({ quizzes: published.quizzes })
   const quizzes = await db
     .select()
     .from(schema.scheduledQuizzes)
@@ -207,6 +249,41 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
   if (denied) return denied
 
   const db = getDb(c)
+  const published = await publishedLegacy(db, meetId)
+  if (published) {
+    const q = published.quizzes.find((x) => x.id === quizId)
+    if (!q) return c.json({ error: 'Quiz not found' }, 404)
+    const slot = published.slots.find((x) => x.id === q.slotId)
+    const [room] = await db
+      .select({ name: schema.meetRooms.name })
+      .from(schema.meetRooms)
+      .where(eq(schema.meetRooms.id, q.roomId))
+    const letters = new Map(
+      published.assignments
+        .filter((a) => a.division === q.division)
+        .map((a) => [a.letter, a.teamId]),
+    )
+    return quizWithTeams(
+      c,
+      meetId,
+      {
+        id: q.id,
+        meetId,
+        meetName: published.meet.name,
+        slotId: q.slotId,
+        roomId: q.roomId,
+        division: q.division,
+        phase: q.phase,
+        lane: q.lane,
+        label: q.label,
+        bracketLabel: q.bracketLabel,
+        slotStartAt: slot?.startAt ?? null,
+        roomName: room?.name ?? '',
+      },
+      q.seats,
+      letters,
+    )
+  }
 
   // Phase 1: quiz row + seats in parallel — seats only depend on quizId
   // (a route param), so they can race with the join. If quiz is missing
@@ -243,17 +320,13 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
   const quizRow = quizRows[0]
   if (!quizRow) return c.json({ error: 'Quiz not found' }, 404)
 
-  // Phase 2: prelim + elim seat resolutions in parallel — both only need
-  // the seats from phase 1.
   const prelimLetters = seats
     .map((s) => s.letter)
     .filter((l): l is string => l !== null && l !== '')
-  const elimRefs = seats.map((s) => s.seedRef).filter((r): r is string => r !== null && r !== '')
-
-  const [prelimRows, elimRows] = await Promise.all([
+  const prelimRows =
     prelimLetters.length === 0
-      ? Promise.resolve([] as { letter: string; teamId: number }[])
-      : db
+      ? []
+      : await db
           .select({
             letter: schema.prelimAssignments.letter,
             teamId: schema.prelimAssignments.teamId,
@@ -265,10 +338,33 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
               eq(schema.prelimAssignments.division, quizRow.division),
               inArray(schema.prelimAssignments.letter, prelimLetters),
             ),
-          ),
+          )
+  return quizWithTeams(
+    c,
+    meetId,
+    quizRow,
+    seats,
+    new Map(prelimRows.map((r) => [r.letter, r.teamId])),
+  )
+})
+
+/**
+ * A quiz with its seats resolved to teams and rosters: prelim letters through `letters`, elim
+ * seats through `seed_resolutions`. Unresolved seats get `team: null` and no quizzers.
+ */
+async function quizWithTeams(
+  c: Context<Env>,
+  meetId: number,
+  quiz: Record<string, unknown> & { division: string },
+  seats: { seatNumber: number; letter: string | null; seedRef: string | null }[],
+  letters: Map<string, number>,
+) {
+  const db = getDb(c)
+  const elimRefs = seats.map((s) => s.seedRef).filter((r): r is string => r !== null && r !== '')
+  const elimRows =
     elimRefs.length === 0
-      ? Promise.resolve([] as { seedRef: string; teamId: number }[])
-      : db
+      ? []
+      : await db
           .select({
             seedRef: schema.seedResolutions.seedRef,
             teamId: schema.seedResolutions.teamId,
@@ -279,17 +375,14 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
               eq(schema.seedResolutions.meetId, meetId),
               inArray(schema.seedResolutions.seedRef, elimRefs),
             ),
-          ),
-  ])
-  const prelimMap = new Map(prelimRows.map((r) => [r.letter, r.teamId]))
+          )
   const elimMap = new Map(elimRows.map((r) => [r.seedRef, r.teamId]))
 
   const seatTeamIds = seats.map((s) => {
-    if (s.letter) return prelimMap.get(s.letter) ?? null
+    if (s.letter) return letters.get(s.letter) ?? null
     if (s.seedRef) return elimMap.get(s.seedRef) ?? null
     return null
   })
-
   const teamIds = Array.from(new Set(seatTeamIds.filter((t): t is number => t !== null)))
   const [teamRows, rosterRows] =
     teamIds.length === 0
@@ -327,20 +420,7 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
   }
 
   return c.json({
-    quiz: {
-      id: quizRow.id,
-      meetId: quizRow.meetId,
-      meetName: quizRow.meetName,
-      slotId: quizRow.slotId,
-      roomId: quizRow.roomId,
-      division: quizRow.division,
-      phase: quizRow.phase,
-      lane: quizRow.lane,
-      label: quizRow.label,
-      bracketLabel: quizRow.bracketLabel,
-      slotStartAt: quizRow.slotStartAt,
-      roomName: quizRow.roomName,
-    },
+    quiz,
     seats: seats.map((s, i) => {
       const tid = seatTeamIds[i]
       const team = tid !== null && tid !== undefined ? (teamById.get(tid) ?? null) : null
@@ -353,7 +433,7 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
       }
     }),
   })
-})
+}
 
 /**
  * GET /api/meets/:id/prelim-assignments
@@ -369,6 +449,8 @@ schedule.get('/:id/prelim-assignments', async (c) => {
   if (denied) return denied
 
   const db = getDb(c)
+  const published = await publishedLegacy(db, meetId)
+  if (published) return c.json({ assignments: published.assignments })
   const rows = await db
     .select()
     .from(schema.prelimAssignments)
@@ -892,3 +974,434 @@ schedule.post('/:id/schedule/sync', async (c) => {
     teams: responseTeams,
   })
 })
+
+// ---- Linked schedules (specs/005-schedule-redesign/contracts/api.md) ----
+
+function meetIdOf(c: Context<Env>): number | null {
+  const id = Number(c.req.param('id'))
+  return Number.isInteger(id) ? id : null
+}
+
+/** A document from a request body, or the reason it isn't one */
+function documentOf(raw: unknown, meetId: number): ScheduleDocument | string {
+  try {
+    const doc = parseScheduleFile(JSON.stringify(raw))
+    doc.link = { ...doc.link, meetId }
+    return doc
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Not a valid schedule'
+  }
+}
+
+async function draftRow(db: Db, meetId: number) {
+  const [row] = await db
+    .select()
+    .from(schema.meetSchedules)
+    .where(eq(schema.meetSchedules.meetId, meetId))
+  return row ?? null
+}
+
+async function newestVersion(db: Db, meetId: number) {
+  const [row] = await db
+    .select()
+    .from(schema.meetScheduleVersions)
+    .where(eq(schema.meetScheduleVersions.meetId, meetId))
+    .orderBy(desc(schema.meetScheduleVersions.version))
+    .limit(1)
+  return row ?? null
+}
+
+async function addVersion(
+  db: Db,
+  meetId: number,
+  doc: ScheduleDocument,
+  by: { id: string | null; name: string },
+) {
+  const newest = await newestVersion(db, meetId)
+  const [row] = await db
+    .insert(schema.meetScheduleVersions)
+    .values({
+      meetId,
+      version: (newest?.version ?? 0) + 1,
+      document: serializeSchedule(doc),
+      publishedAt: new Date(),
+      publishedByAccountId: by.id,
+      publishedByName: by.name,
+    })
+    .returning()
+  return row!
+}
+
+/** The meet's old schedule rows, or null when it has none to convert */
+async function loadLegacy(db: Db, meetId: number): Promise<LegacySchedule | null> {
+  const [meet] = await db.select().from(schema.quizMeets).where(eq(schema.quizMeets.id, meetId))
+  if (!meet) return null
+  const [slots, quizzes, rooms, assignments, teams] = await Promise.all([
+    db.select().from(schema.meetSlots).where(eq(schema.meetSlots.meetId, meetId)),
+    db.select().from(schema.scheduledQuizzes).where(eq(schema.scheduledQuizzes.meetId, meetId)),
+    db
+      .select({ id: schema.meetRooms.id, name: schema.meetRooms.name })
+      .from(schema.meetRooms)
+      .where(eq(schema.meetRooms.meetId, meetId))
+      .orderBy(asc(schema.meetRooms.sortOrder), asc(schema.meetRooms.id)),
+    db
+      .select({
+        division: schema.prelimAssignments.division,
+        letter: schema.prelimAssignments.letter,
+        teamId: schema.prelimAssignments.teamId,
+      })
+      .from(schema.prelimAssignments)
+      .where(eq(schema.prelimAssignments.meetId, meetId)),
+    db
+      .select({
+        id: schema.teams.id,
+        division: schema.teams.division,
+        lateness: schema.teams.lateness,
+      })
+      .from(schema.teams)
+      .where(eq(schema.teams.meetId, meetId)),
+  ])
+  if (slots.length === 0 && quizzes.length === 0) return null
+  const seats =
+    quizzes.length === 0
+      ? []
+      : await db
+          .select()
+          .from(schema.scheduledQuizSeats)
+          .where(
+            inArray(
+              schema.scheduledQuizSeats.quizId,
+              quizzes.map((q) => q.id),
+            ),
+          )
+  const divisions = JSON.parse(meet.divisions) as string[]
+  return {
+    meet: { id: meet.id, name: meet.name, divisions },
+    rooms,
+    slots,
+    quizzes,
+    seats,
+    assignments,
+    teams,
+  }
+}
+
+/**
+ * GET /api/meets/:id/schedule — the draft and the newest published version, for the builder.
+ * A meet built with the old editor is converted on first open (research R5); `timeZone`, the
+ * builder's, places the old slots' instants on the meet's days.
+ */
+schedule.get('/:id/schedule', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+  const db = getDb(c)
+
+  let row = await draftRow(db, meetId)
+  if (!row) {
+    const legacy = await loadLegacy(db, meetId)
+    if (legacy) {
+      const doc = documentFromLegacy(legacy, c.req.query('timeZone') || 'UTC')
+      const now = new Date()
+      ;[row] = await db
+        .insert(schema.meetSchedules)
+        .values({ meetId, draft: serializeSchedule(doc), draftRevision: 1, draftSavedAt: now })
+        .returning()
+      await addVersion(db, meetId, doc, { id: null, name: 'Converted from the old schedule' })
+    }
+  }
+
+  const [published, results] = await Promise.all([
+    newestVersion(db, meetId),
+    db
+      .select({ quizKey: schema.quizResults.quizKey })
+      .from(schema.quizResults)
+      .where(eq(schema.quizResults.meetId, meetId)),
+  ])
+  return c.json({
+    draft: row ? JSON.parse(row.draft) : null,
+    draftRevision: row?.draftRevision ?? 0,
+    draftSavedAt: row?.draftSavedAt ?? null,
+    published: published ? JSON.parse(published.document) : null,
+    publishedAt: published?.publishedAt ?? null,
+    version: published?.version ?? null,
+    results: results.map((r) => r.quizKey),
+  })
+})
+
+/** Write the draft if `baseRevision` is the current one; otherwise the 409 with the newer draft */
+async function saveDraft(
+  c: Context<Env>,
+  meetId: number,
+  doc: ScheduleDocument,
+  baseRevision: unknown,
+) {
+  const db = getDb(c)
+  const row = await draftRow(db, meetId)
+  const current = row?.draftRevision ?? 0
+  if (baseRevision !== current) {
+    return c.json(
+      {
+        error: 'The draft was changed since you opened it',
+        draft: row ? JSON.parse(row.draft) : null,
+        draftRevision: current,
+      },
+      409,
+    )
+  }
+  const draftSavedAt = new Date()
+  const draftRevision = current + 1
+  if (row) {
+    // The revision in the WHERE makes a save that raced another one change nothing
+    const updated = await db
+      .update(schema.meetSchedules)
+      .set({ draft: serializeSchedule(doc), draftRevision, draftSavedAt })
+      .where(
+        and(
+          eq(schema.meetSchedules.meetId, meetId),
+          eq(schema.meetSchedules.draftRevision, current),
+        ),
+      )
+      .returning({ id: schema.meetSchedules.id })
+    if (updated.length === 0) return saveDraft(c, meetId, doc, -1)
+  } else {
+    await db
+      .insert(schema.meetSchedules)
+      .values({ meetId, draft: serializeSchedule(doc), draftRevision, draftSavedAt })
+  }
+  return c.json({ draftRevision, draftSavedAt })
+}
+
+schedule.put('/:id/schedule/draft', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const body = await c.req.json<{ document?: unknown; baseRevision?: unknown }>()
+  const doc = documentOf(body.document, meetId)
+  if (typeof doc === 'string') return c.json({ error: doc }, 400)
+  return saveDraft(c, meetId, doc, body.baseRevision)
+})
+
+/**
+ * Make the meet's rooms match the schedule's (FR-047): add the rooms without a meet room, rename
+ * and reorder the rest, and remove a room the schedule no longer uses unless it has an official
+ * code, so nobody is locked out mid-meet. Fills in `meetRoomId` on the document.
+ */
+async function syncRooms(db: Db, meetId: number, doc: ScheduleDocument) {
+  const current = await db
+    .select()
+    .from(schema.meetRooms)
+    .where(eq(schema.meetRooms.meetId, meetId))
+  const byId = new Map(current.map((r) => [r.id, r]))
+  const claimed = new Set(doc.rooms.map((r) => r.meetRoomId).filter((id) => byId.has(id!)))
+  for (const [i, room] of doc.rooms.entries()) {
+    // A room that lost its meet room (an undo, say) takes back an unclaimed one of the same name
+    let existing = room.meetRoomId === undefined ? undefined : byId.get(room.meetRoomId)
+    if (!existing) {
+      existing = current.find((r) => r.name === room.name && !claimed.has(r.id))
+      if (existing) {
+        room.meetRoomId = existing.id
+        claimed.add(existing.id)
+      }
+    }
+    if (!existing) {
+      const [added] = await db
+        .insert(schema.meetRooms)
+        .values({ meetId, name: room.name, sortOrder: i })
+        .returning({ id: schema.meetRooms.id })
+      room.meetRoomId = added!.id
+      continue
+    }
+    if (existing.name !== room.name || existing.sortOrder !== i) {
+      await db
+        .update(schema.meetRooms)
+        .set({ name: room.name, sortOrder: i })
+        .where(eq(schema.meetRooms.id, existing.id))
+    }
+  }
+  const used = new Set(doc.rooms.map((r) => r.meetRoomId))
+  const unused = current.filter((r) => !used.has(r.id))
+  const removable = unused.filter((r) => r.codeHash === null).map((r) => r.id)
+  if (removable.length > 0) {
+    await db.delete(schema.meetRooms).where(inArray(schema.meetRooms.id, removable))
+  }
+  return unused.filter((r) => r.codeHash !== null).map((r) => ({ id: r.id, name: r.name }))
+}
+
+schedule.post('/:id/schedule/publish', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+  const db = getDb(c)
+
+  const body = await c.req.json<{ baseRevision?: unknown; confirmConflicts?: unknown }>()
+  const row = await draftRow(db, meetId)
+  if (!row) return c.json({ error: 'There is no draft to publish' }, 404)
+  if (body.baseRevision !== row.draftRevision) {
+    return c.json(
+      {
+        error: 'The draft was changed since you opened it',
+        draft: JSON.parse(row.draft),
+        draftRevision: row.draftRevision,
+      },
+      409,
+    )
+  }
+  const doc = JSON.parse(row.draft) as ScheduleDocument
+  const conflicts = checkSchedule(doc).filter((x) => !x.warning)
+  if (conflicts.length > 0 && body.confirmConflicts !== true) {
+    return c.json({ error: 'The schedule has hard conflicts', conflicts }, 409)
+  }
+
+  const unusedRooms = await syncRooms(db, meetId, doc)
+  // Rooms just added now have their meet room, so the draft takes it too
+  const draftSavedAt = new Date()
+  const draftRevision = row.draftRevision + 1
+  await db
+    .update(schema.meetSchedules)
+    .set({ draft: serializeSchedule(doc), draftRevision, draftSavedAt })
+    .where(eq(schema.meetSchedules.meetId, meetId))
+  const user = getUser(c)
+  const version = await addVersion(db, meetId, doc, { id: user.id, name: user.name })
+  return c.json({
+    version: version.version,
+    publishedAt: version.publishedAt,
+    draftRevision,
+    draftSavedAt,
+    rooms: doc.rooms,
+    unusedRooms,
+  })
+})
+
+schedule.get('/:id/schedule/versions', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const rows = await getDb(c)
+    .select({
+      version: schema.meetScheduleVersions.version,
+      publishedAt: schema.meetScheduleVersions.publishedAt,
+      publishedBy: schema.meetScheduleVersions.publishedByName,
+    })
+    .from(schema.meetScheduleVersions)
+    .where(eq(schema.meetScheduleVersions.meetId, meetId))
+    .orderBy(desc(schema.meetScheduleVersions.version))
+  return c.json(rows)
+})
+
+async function versionRow(db: Db, meetId: number, version: number) {
+  const [row] = await db
+    .select()
+    .from(schema.meetScheduleVersions)
+    .where(
+      and(
+        eq(schema.meetScheduleVersions.meetId, meetId),
+        eq(schema.meetScheduleVersions.version, version),
+      ),
+    )
+  return row ?? null
+}
+
+schedule.get('/:id/schedule/versions/:version', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const row = await versionRow(getDb(c), meetId, Number(c.req.param('version')))
+  if (!row) return c.json({ error: 'No such version' }, 404)
+  return c.json({
+    version: row.version,
+    publishedAt: row.publishedAt,
+    publishedBy: row.publishedByName,
+    document: JSON.parse(row.document),
+  })
+})
+
+schedule.post('/:id/schedule/versions/:version/restore', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const row = await versionRow(getDb(c), meetId, Number(c.req.param('version')))
+  if (!row) return c.json({ error: 'No such version' }, 404)
+  const body = await c.req.json<{ baseRevision?: unknown }>()
+  return saveDraft(c, meetId, JSON.parse(row.document) as ScheduleDocument, body.baseRevision)
+})
+
+/** Unlink (FR-048): the draft goes; published versions stay as the record of what was out */
+schedule.delete('/:id/schedule', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  await getDb(c).delete(schema.meetSchedules).where(eq(schema.meetSchedules.meetId, meetId))
+  return c.json({ ok: true })
+})
+
+/**
+ * GET /api/meets/:id/schedule/published — the newest version for anyone with access to the meet.
+ * Letters while the meet is in registration or build, with the draw's teams removed; team names,
+ * read from the meet, from live on (FR-052). Admins see teams and may ask for either.
+ */
+schedule.get('/:id/schedule/published', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireViewer(c, meetId)
+  if (denied) return denied
+  const db = getDb(c)
+
+  const row = await newestVersion(db, meetId)
+  if (!row) return c.json({ error: 'Nothing is published yet' }, 404)
+  const doc = JSON.parse(row.document) as ScheduleDocument
+
+  const user = c.get('user')
+  const isAdmin = user ? await isAdminOrSuperuser(db, user.id, user.role, meetId) : false
+  let view: 'letters' | 'teams'
+  if (isAdmin) {
+    view = c.req.query('view') === 'letters' ? 'letters' : 'teams'
+  } else {
+    const [meet] = await db
+      .select({ phase: schema.quizMeets.phase })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, meetId))
+    view = meet && (meet.phase === 'registration' || meet.phase === 'build') ? 'letters' : 'teams'
+  }
+
+  if (view === 'letters') {
+    for (const draw of Object.values(doc.draw)) {
+      draw.teams = draw.teams.map(({ name: _name, teamId: _teamId, ...t }) => t)
+    }
+  } else {
+    const names = await teamNames(db, meetId)
+    for (const draw of Object.values(doc.draw)) {
+      for (const t of draw.teams) {
+        const name = t.teamId === undefined ? undefined : names.get(t.teamId)
+        if (name) t.name = name
+      }
+    }
+  }
+  return c.json({ document: doc, publishedAt: row.publishedAt, view })
+})
+
+/** Each team's name as the portal shows it: the church's short name and the team's number */
+async function teamNames(db: Db, meetId: number) {
+  const rows = await db
+    .select({
+      id: schema.teams.id,
+      shortName: schema.churches.shortName,
+      number: schema.teams.number,
+    })
+    .from(schema.teams)
+    .innerJoin(schema.churches, eq(schema.churches.id, schema.teams.churchId))
+    .where(eq(schema.teams.meetId, meetId))
+  return new Map(rows.map((r) => [r.id, `${r.shortName} ${r.number}`]))
+}

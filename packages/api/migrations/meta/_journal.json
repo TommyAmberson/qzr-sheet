@@ -85,6 +85,13 @@
       "when": 1793551427728,
       "tag": "0011_rate_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793772058316,
+      "tag": "0012_meet_schedules",
+      "breakpoints": true
     }
   ]
 }
