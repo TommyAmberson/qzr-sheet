@@ -1,3 +1,4 @@
+import { quizNumber } from './names'
 import type { ScheduleDocument, ScheduleQuiz } from './scheduleFile'
 
 /** A division's prelim quizzes, in draw order, with their letters */
@@ -238,7 +239,7 @@ interface SortCell {
   room: string
 }
 
-const quizNumber = (q: ScheduleQuiz) => Number(q.label.trim().split(/\s+/).pop()) || 0
+const prelimNumber = (q: ScheduleQuiz) => Number(quizNumber(q)) || 0
 
 /**
  * Prelims placed again in quiz order, with drawn late teams' quizzes in the latest cells
@@ -337,7 +338,7 @@ export function sortPrelims(doc: ScheduleDocument, options: SortOptions): Schedu
       // Late teams' quizzes first, from the latest slot back, in any room, own rooms first
       const lateQs = qs
         .filter((q) => lateness(q, late) > 0)
-        .sort((a, b) => lateness(b, late) - lateness(a, late) || quizNumber(b) - quizNumber(a))
+        .sort((a, b) => lateness(b, late) - lateness(a, late) || prelimNumber(b) - prelimNumber(a))
       for (let t = slots.length - 1; t >= 0; t--) {
         for (const room of anyRoom) {
           const i = lateQs.findIndex((q) => fits(q, { t, room }))
@@ -346,7 +347,7 @@ export function sortPrelims(doc: ScheduleDocument, options: SortOptions): Schedu
       }
       // Then the rest from the first slot in quiz order, in its own rooms, borrowing what's left
       const onTime = [...qs.filter((q) => lateness(q, late) === 0), ...lateQs].sort(
-        (a, b) => quizNumber(a) - quizNumber(b),
+        (a, b) => prelimNumber(a) - prelimNumber(b),
       )
       const plan = packDivision(
         onTime.map((q) => ({ id: q.id, letters: letters(q) })),
@@ -416,10 +417,10 @@ export function sortPrelims(doc: ScheduleDocument, options: SortOptions): Schedu
     }
     const lateQs = pool
       .filter((q) => lateness(q, late) > 0)
-      .sort((a, b) => lateness(b, late) - lateness(a, late) || quizNumber(b) - quizNumber(a))
+      .sort((a, b) => lateness(b, late) - lateness(a, late) || prelimNumber(b) - prelimNumber(a))
     const rest = pool
       .filter((q) => lateness(q, late) === 0)
-      .sort((a, b) => quizNumber(a) - quizNumber(b))
+      .sort((a, b) => prelimNumber(a) - prelimNumber(b))
     const take = (list: ScheduleQuiz[], t: number) => {
       const i = list.findIndex((q) => ok(q, t))
       return i < 0 ? null : list.splice(i, 1)[0]!

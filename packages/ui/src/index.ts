@@ -30,6 +30,6 @@ export type {
   RoomCodeRequest,
 } from './guestSession'
 export { default as ScheduleSheet } from './ScheduleSheet.vue'
-export { formatSlotTime } from './formatTime'
+export { formatSlotTime, formatWhen } from './formatTime'
 export { default as ScheduleList } from './ScheduleList.vue'
 export { default as ScheduleBasic } from './ScheduleBasic.vue'

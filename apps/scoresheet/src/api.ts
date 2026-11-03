@@ -3,9 +3,11 @@ import {
   scheduleQuizMeta,
   seatText,
   type DivisionTeamNames,
+  type PublishedSchedule,
   type QuizFile,
-  type ScheduleDocument,
 } from '@qzr/shared'
+
+export type { PublishedSchedule }
 import {
   withGuestToken,
   type GuestJoinAnswer,
@@ -125,12 +127,6 @@ export interface ScheduledQuizSeat {
 export interface ScheduledQuizDetails {
   quiz: ScheduledQuizSummary
   seats: ScheduledQuizSeat[]
-}
-
-export interface PublishedSchedule {
-  document: ScheduleDocument
-  publishedAt: string
-  view: 'letters' | 'teams'
 }
 
 /** The meet's newest published schedule; a 404 `ApiError` when nothing is published */

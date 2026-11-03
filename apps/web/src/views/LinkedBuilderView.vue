@@ -10,7 +10,7 @@ import {
 } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError, type Conflict, type ScheduleDocument } from '@qzr/shared'
-import { ScheduleSheet } from '@qzr/ui'
+import { ScheduleSheet, formatWhen } from '@qzr/ui'
 
 import {
   getLinkedSchedule,
@@ -30,7 +30,7 @@ import {
 } from '../api'
 import {
   browserTimeZone,
-  differsFromPublished,
+  comparable,
   forgetLink,
   readLink,
   startFromMeet,
@@ -183,10 +183,7 @@ let sending: Promise<void> | null = null
 
 function onChanged(doc: ScheduleDocument) {
   if (doc.id !== docId.value) return
-  // The builder reports the draft it opened with, which isn't a change
-  const same = current.value && JSON.stringify(doc) === JSON.stringify(current.value)
   current.value = doc
-  if (same) return
   const link = readLink(meetId.value)
   writeLink(meetId.value, { docId: doc.id, baseRevision: link?.baseRevision ?? 0, unsent: true })
   changedSinceSend = true
@@ -281,8 +278,10 @@ const saveText = computed(
 
 // ---- Publishing and history (FR-049, FR-049a) ----
 
+// The published side only changes on load and publish, so it's compared in its own computed
+const publishedForm = computed(() => published.value && comparable(published.value))
 const unpublished = computed(
-  () => !!current.value && differsFromPublished(current.value, published.value),
+  () => !!current.value && comparable(current.value) !== publishedForm.value,
 )
 const publishing = ref(false)
 const hardConflicts = shallowRef<Conflict[] | null>(null)
@@ -373,9 +372,6 @@ async function unlink() {
   forgetLink(meetId.value)
   await router.push({ name: 'builder-schedule', params: { id: standalone.id } })
 }
-
-const formatWhen = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 </script>
 
 <template>

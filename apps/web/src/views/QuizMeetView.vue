@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { MeetRole, MEET_PHASES, type DivisionTeamNames, type MeetPhase } from '@qzr/shared'
+import {
+  MeetRole,
+  MEET_PHASES,
+  teamDisplayName,
+  type DivisionTeamNames,
+  type MeetPhase,
+} from '@qzr/shared'
 import {
   getMeet,
   getMyMeets,
@@ -536,7 +542,7 @@ async function handleExportRoster() {
   const res = await exportRoster(meetId.value!)
   const entries: RosterEntry[] = res.entries.map((e) => ({
     division: e.division,
-    teamName: `${e.churchShortName} ${e.teamNumber}`,
+    teamName: teamDisplayName({ shortName: e.churchShortName, number: e.teamNumber }),
     quizzerName: e.quizzerName,
     church: e.churchShortName,
   }))

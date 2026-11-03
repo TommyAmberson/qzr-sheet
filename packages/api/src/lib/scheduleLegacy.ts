@@ -1,6 +1,8 @@
 import {
   defaultElims,
   newScheduleDocument,
+  ordinal,
+  quizNumber,
   type FrameRow,
   type ScheduleDocument,
   type ScheduleQuiz,
@@ -16,18 +18,30 @@ import type * as schema from '../db/schema'
 
 // ---- Time ----
 
+// Building a formatter is costly, and a conversion needs one per slot, so each zone keeps its own
+const formatters = new Map<string, Intl.DateTimeFormat>()
+
+function formatterFor(tz: string): Intl.DateTimeFormat {
+  let f = formatters.get(tz)
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+    formatters.set(tz, f)
+  }
+  return f
+}
+
 /** How far `tz`'s wall clock is ahead of UTC at `instant`, in milliseconds */
 function zoneOffset(instant: number, tz: string): number {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(new Date(instant))
+  const parts = formatterFor(tz).formatToParts(new Date(instant))
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value)
   const wall = Date.UTC(
     get('year'),
@@ -63,12 +77,6 @@ function addDays(date: string, days: number): string {
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-const ordinal = (n: number) =>
-  `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`
-
-/** A quiz's own name within its division: `A` of `Div 2 Quiz A` */
-const shortName = (label: string) => label.trim().split(/\s+/).pop() ?? label
-
 // ---- Old tables to a document ----
 
 export interface LegacySchedule {
@@ -97,10 +105,15 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
       ...old.teams.map((t) => t.division),
     ]),
   ]
+  const quizById = new Map(old.quizzes.map((q) => [q.id, q]))
+  const seatsByQuiz = new Map<number, schema.ScheduledQuizSeat[]>()
+  for (const seat of old.seats) {
+    seatsByQuiz.set(seat.quizId, [...(seatsByQuiz.get(seat.quizId) ?? []), seat])
+  }
   const lettersOf = (division: string) =>
     new Set(
       old.seats.flatMap((s) => {
-        const q = old.quizzes.find((x) => x.id === s.quizId)
+        const q = quizById.get(s.quizId)
         return q?.division === division && q.phase === 'prelim' && s.letter ? [s.letter] : []
       }),
     )
@@ -148,7 +161,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
   doc.rooms = old.rooms.map((r) => ({ id: String(r.id), name: r.name, meetRoomId: r.id }))
 
   const seatsOf = (quizId: number) =>
-    old.seats.filter((s) => s.quizId === quizId).sort((a, b) => a.seatNumber - b.seatNumber)
+    (seatsByQuiz.get(quizId) ?? []).sort((a, b) => a.seatNumber - b.seatNumber)
   const quizzes = old.quizzes
   /** An old seat's source: `7th place`, `1st of prelims`, `1st Quiz X`; anything else is empty */
   function seatOf(q: schema.ScheduledQuiz, s: schema.ScheduledQuizSeat): Seat {
@@ -162,7 +175,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
         (x) =>
           x.division === q.division &&
           x.id !== q.id &&
-          (x.bracketLabel ?? shortName(x.label)) === place[2],
+          (x.bracketLabel ?? quizNumber(x)) === place[2],
       )
       if (source) return { kind: 'place', quiz: String(source.id), place: Number(place[1]) }
     }
@@ -289,9 +302,10 @@ export function legacyFromDocument(
     })
   }
 
+  const quizById = new Map(doc.quizzes.map((q) => [q.id, q]))
   const label = (id: string) => {
-    const q = doc.quizzes.find((x) => x.id === id)
-    return q ? shortName(q.label) : '?'
+    const q = quizById.get(id)
+    return q ? quizNumber(q) : '?'
   }
   const seedRef = (seat: Seat): string | null => {
     switch (seat.kind) {
@@ -329,7 +343,7 @@ export function legacyFromDocument(
               ? 'consolation'
               : 'main',
       label: q.label,
-      bracketLabel: q.phase === 'elim' ? shortName(q.label) : null,
+      bracketLabel: q.phase === 'elim' ? quizNumber(q) : null,
       publishedAt: publishedAt.toISOString(),
       completedAt: null,
       seats: q.seats.map((s, i) => ({

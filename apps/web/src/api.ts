@@ -3,6 +3,7 @@ import type {
   DivisionStateValue,
   DivisionTeamNames,
   MeetPhase,
+  PublishedSchedule,
   QuizFile,
   ResultAction,
   ScheduleDocument,
@@ -654,8 +655,6 @@ export function unlinkSchedule(meetId: number): Promise<{ ok: true }> {
   return request(`/api/meets/${meetId}/schedule`, { method: 'DELETE' })
 }
 
-export function getPublishedSchedule(
-  meetId: number,
-): Promise<{ document: ScheduleDocument; publishedAt: string; view: 'letters' | 'teams' }> {
+export function getPublishedSchedule(meetId: number): Promise<PublishedSchedule> {
   return request(`/api/meets/${meetId}/schedule/published`)
 }

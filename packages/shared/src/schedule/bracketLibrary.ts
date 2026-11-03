@@ -1,3 +1,5 @@
+import { letterOf } from './letters'
+
 /**
  * The bracket library (FR-029), transcribed from specs/005-schedule-redesign/bracket-library.md.
  * Each bracket is written for a lane of `n` teams: a number is a seed, the lane's `n`th best team;
@@ -15,7 +17,7 @@ function bracket(quizzes: Written, deciding: string): BracketEntry {
   let letter = 0
   return {
     quizzes: quizzes.map((q) => {
-      const [name, seats] = typeof q === 'string' ? [String.fromCharCode(65 + letter++), q] : q
+      const [name, seats] = typeof q === 'string' ? [letterOf(letter++), q] : q
       return { name, seats: seats.split(/\s+/) }
     }),
     deciding: deciding.split(/\s+/),

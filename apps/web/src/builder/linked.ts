@@ -2,6 +2,7 @@ import {
   defaultElims,
   generateSchedule,
   newScheduleDocument,
+  teamDisplayName,
   type ScheduleDocument,
 } from '@qzr/shared'
 
@@ -44,7 +45,8 @@ export function forgetLink(meetId: number) {
 /** The browser's time zone, which the meet's days are in */
 export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
-const teamName = (t: MeetTeamRow) => `${t.churchShortName} ${t.number}`
+const teamName = (t: MeetTeamRow) =>
+  teamDisplayName({ shortName: t.churchShortName, number: t.number })
 
 /**
  * A new schedule from the meet (story 7 scenario 1, FR-047): its divisions and team counts, a draw
@@ -94,22 +96,18 @@ export function withMeetNames(doc: ScheduleDocument, teams: MeetTeamRow[]): Sche
   return doc
 }
 
-/** Whether the draft differs from the newest published version ("unpublished changes") */
-export function differsFromPublished(
-  draft: ScheduleDocument,
-  published: ScheduleDocument | null,
-): boolean {
-  if (!published) return true
-  // Team names are filled from the meet on load, so they don't count as a change
-  const strip = (d: ScheduleDocument) =>
-    JSON.stringify({
-      ...d,
-      draw: Object.fromEntries(
-        Object.entries(d.draw).map(([k, v]) => [
-          k,
-          { ...v, teams: v.teams.map(({ name: _name, ...t }) => t) },
-        ]),
-      ),
-    })
-  return strip(draft) !== strip(published)
+/**
+ * A document in a form to compare a draft with the newest published version ("unpublished
+ * changes"). Team names are filled from the meet on load, so they don't count as a change.
+ */
+export function comparable(d: ScheduleDocument): string {
+  return JSON.stringify({
+    ...d,
+    draw: Object.fromEntries(
+      Object.entries(d.draw).map(([k, v]) => [
+        k,
+        { ...v, teams: v.teams.map(({ name: _name, ...t }) => t) },
+      ]),
+    ),
+  })
 }

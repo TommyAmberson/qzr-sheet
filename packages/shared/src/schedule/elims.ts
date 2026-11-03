@@ -193,7 +193,7 @@ export function buildElimQuizzes(division: DivisionSettings): ScheduleQuiz[] {
       const entry = BRACKET_LIBRARY[settings.bracket ?? String(settings.size)]
       if (entry) {
         const letterFor = (quizName: string) =>
-          /^[A-Z]$/.test(quizName) ? letterOf(offset + quizName.charCodeAt(0) - 65) : quizName
+          /^[A-Z]$/.test(quizName) ? letterOf(offset + indexOfLetter(quizName)) : quizName
         const seat = (token: string): Seat => {
           if (/^\d+$/.test(token)) return sourceOf(from + Number(token) - 1)
           if (token.startsWith('N')) return { kind: 'new', rank: from + Number(token.slice(1)) - 1 }

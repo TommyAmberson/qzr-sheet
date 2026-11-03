@@ -4,3 +4,10 @@ export function formatSlotTime(startAt: string): string {
   if (Number.isNaN(d.getTime())) return ''
   return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
+
+/** "Nov 2, 2026, 8:00 PM": an ISO instant as a local date and time, or nothing when it isn't one */
+export function formatWhen(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}

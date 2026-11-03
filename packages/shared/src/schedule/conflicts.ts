@@ -1,5 +1,6 @@
 import { foldName, quizName } from '../results'
 import { indexOfLetter } from './letters'
+import { quizNumber } from './names'
 import type { ScheduleDocument, ScheduleQuiz, Seat } from './scheduleFile'
 
 /**
@@ -53,10 +54,6 @@ function teamKey(q: ScheduleQuiz, seat: Seat): string | null {
 }
 
 /** The quiz's number or letter, as the scoresheet records it: the label's last word */
-function quizNumber(q: ScheduleQuiz): string {
-  return q.label.trim().split(/\s+/).pop() ?? ''
-}
-
 /**
  * The scoresheet's division, consolation flag and quiz number for a schedule quiz, which name its
  * results (research R10)

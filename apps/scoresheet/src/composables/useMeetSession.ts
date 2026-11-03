@@ -7,7 +7,7 @@ import {
   type ScheduledQuizDetails,
   type ScheduledQuizSeat,
 } from '../api'
-import { QUIZZERS_PER_TEAM, editDistance } from '@qzr/shared'
+import { QUIZZERS_PER_TEAM, editDistance, teamDisplayName } from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 import { senderOf } from './useSubmitToMeet'
 
@@ -63,7 +63,7 @@ export function useMeetSession() {
 
   /** Short label for dropdowns: "{shortName} {number}" */
   function teamLabel(team: MeetTeam): string {
-    return `${team.churchShortName} ${team.number}`
+    return teamDisplayName({ shortName: team.churchShortName, number: team.number })
   }
 
   /** Full label for display: "{churchName} {number}" */

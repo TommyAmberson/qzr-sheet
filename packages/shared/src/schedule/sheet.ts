@@ -1,11 +1,8 @@
+import { ordinal, quizNumber } from './names'
 import type { FrameRow, ScheduleDocument, ScheduleQuiz, Seat } from './scheduleFile'
 
 /** Letters, or the drawn team's name where the division has a draw (FR-043) */
 export type SheetView = 'letters' | 'teams'
-
-const ORDINAL = ['th', 'st', 'nd', 'rd']
-const ordinal = (n: number) =>
-  `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (ORDINAL[n % 10] ?? 'th')}`
 
 /** "8:00 PM" for minutes after midnight */
 export function formatClock(minutes: number): string {
@@ -33,7 +30,7 @@ export function seatText(
       return `New ${seat.rank}`
     case 'place': {
       const source = doc.quizzes.find((q) => q.id === seat.quiz)
-      return `${seat.place} of ${source ? (source.label.split(' ').pop() ?? source.label) : '?'}`
+      return `${seat.place} of ${source ? quizNumber(source) : '?'}`
     }
     case 'points':
       return `${ordinal(seat.place)} in pts`

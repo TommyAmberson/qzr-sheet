@@ -1,6 +1,8 @@
 import { Type, type Static } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 
+import type { SheetView } from './sheet'
+
 /**
  * The schedule document: everything the builder needs, the same whether it is kept in the
  * browser, saved to a file, or stored as a meet's draft or published version. See
@@ -198,6 +200,13 @@ export type FrameRow = Static<typeof FrameRowSchema>
 export type ScheduleQuiz = Static<typeof QuizSchema>
 export type Seat = Static<typeof SeatSchema>
 export type DivisionDraw = Static<typeof DivisionDrawSchema>
+
+/** `GET /api/meets/:id/schedule/published`: the newest version, in the view the reader gets */
+export interface PublishedSchedule {
+  document: ScheduleDocument
+  publishedAt: string
+  view: SheetView
+}
 
 // ---- Codec ----
 

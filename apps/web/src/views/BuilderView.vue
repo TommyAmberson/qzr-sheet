@@ -169,9 +169,10 @@ const panelOpen = ref(false)
 const keepFailed = ref(false)
 watch(
   doc,
-  (d) => {
+  (d, before) => {
     keepFailed.value = !missing && !keepSchedule(d)
-    emit('changed', d)
+    // The document the builder opened with isn't a change
+    if (before) emit('changed', d)
   },
   { immediate: true },
 )
