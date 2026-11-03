@@ -41,7 +41,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * Name helpers: `ordinal`, `quizNumber` (a quiz's own name, its label's last word) and
   `teamDisplayName` (`Grace 2`), and the `PublishedSchedule` response type.
 * `resultKey`: the key a meet stores a quiz's results under, which `resultName` now returns too.
-* `elimsForCount`: a division's elims for a new team count, keeping elims the director changed.
+* `elimsForCount` and `setTeamCount`: a division's elims for a new team count, keeping elims the
+  director changed with the last lane taking the difference, and the one way to change a count.
+* `eventCells`: the cells one-room events take.
 * `drawPrelims`: a division's prelim quizzes as letters from either draw source, the rule book's
   tables for 4 to 21 teams or the rotating draw (no rematches from 7 teams up, any size to 90 and
   beyond), with 6 quizzes per team as two rounds that avoid repeating pairings.

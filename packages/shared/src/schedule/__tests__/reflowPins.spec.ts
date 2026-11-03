@@ -200,3 +200,23 @@ describe('every prelim pinned', () => {
     expect(after.quizzes.filter((q) => q.phase === 'elim' && q.cell)).toHaveLength(placed)
   })
 })
+
+describe('one-room events', () => {
+  it('keep re-flow out of their room while they run', () => {
+    const doc = meet([6, 17])
+    const slot = doc.frame.find((r) => r.kind === 'slot' && r.use === 'prelim')!
+    if (slot.kind !== 'slot') throw new Error('no slot')
+    const at = doc.frame.indexOf(slot)
+    doc.frame.splice(at, 0, {
+      kind: 'event',
+      id: 'chapel',
+      at: slot.at,
+      minutes: slot.minutes,
+      label: 'Chapel',
+      room: doc.rooms[0]!.id,
+      pinned: true,
+    })
+    const after = reflowSchedule(doc)
+    expect(checkSchedule(after).filter((c) => c.rule === 'H-3')).toEqual([])
+  })
+})

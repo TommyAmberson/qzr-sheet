@@ -114,3 +114,31 @@ export function buildFrame(
 export function defaultRoomCount(prelimQuizzes: number, prelimSlots: number): number {
   return Math.max(3, Math.ceil(prelimQuizzes / Math.max(1, prelimSlots)))
 }
+
+/**
+ * The cells one-room events take (H-3), as `slot|room`: each slot on the event's own day whose
+ * time overlaps it, in the event's room
+ */
+export function eventCells(frame: FrameRow[]): Set<string> {
+  const cells = new Set<string>()
+  const dayOf = new Map<string, number>()
+  let day = 0
+  for (const row of frame) {
+    if (row.kind === 'day') day++
+    dayOf.set(row.id, day)
+  }
+  for (const row of frame) {
+    if (row.kind !== 'event' || !row.room) continue
+    for (const s of frame) {
+      if (
+        s.kind === 'slot' &&
+        dayOf.get(s.id) === dayOf.get(row.id) &&
+        row.at < s.at + s.minutes &&
+        s.at < row.at + row.minutes
+      ) {
+        cells.add(`${s.id}|${row.room}`)
+      }
+    }
+  }
+  return cells
+}

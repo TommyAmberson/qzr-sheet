@@ -218,11 +218,14 @@ describe('elim settings (FR-027 to FR-034)', () => {
 })
 
 describe('elimsForCount', () => {
-  it('follows the count with the defaults, and keeps elims the director changed', () => {
+  it('follows the count with the defaults, and keeps elims the director changed, resized', () => {
     const division = { id: '1', name: 'Div 1', teams: 9, elims: defaultElims(9) }
     expect(elimsForCount(division, 12)).toEqual(defaultElims(12))
     const lanes = division.elims.lanes.map((l, i) => (i === 0 ? { ...l, finals: !l.finals } : l))
     const changed = { ...division, elims: { ...division.elims, lanes } }
-    expect(elimsForCount(changed, 12)).toBe(changed.elims)
+    const after = elimsForCount(changed, 12)
+    // The director's change stays, and the lanes still hold every team
+    expect(after.lanes[0]!.finals).toBe(lanes[0]!.finals)
+    expect(after.lanes.reduce((n, l) => n + l.size, 0)).toBe(12)
   })
 })

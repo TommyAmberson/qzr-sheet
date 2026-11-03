@@ -1216,7 +1216,7 @@ async function saveDraft(
         ),
       )
       .returning({ id: schema.meetSchedules.id })
-    if (updated.length === 0) return saveDraft(c, meetId, doc, -1)
+    if (updated.length === 0) return staleDraft(c, await draftRow(db, meetId))
   } else {
     // Two first saves at once: the second finds the first's draft, as a stale save would
     const inserted = await db

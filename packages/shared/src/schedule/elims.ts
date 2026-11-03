@@ -5,6 +5,7 @@ import type {
   DivisionSettings,
   LaneSettings,
   LineSettings,
+  ScheduleDocument,
   ScheduleQuiz,
   Seat,
 } from './scheduleFile'
@@ -270,5 +271,30 @@ export function elimsForCount(
   teams: number,
 ): DivisionSettings['elims'] {
   const isDefault = JSON.stringify(division.elims) === JSON.stringify(defaultElims(division.teams))
-  return isDefault ? defaultElims(teams) : division.elims
+  if (isDefault) return defaultElims(teams)
+  // The director's lanes stay, the last one taking the difference so the lanes still hold every
+  // team; a lane left with none goes, with its line
+  const lanes = division.elims.lanes.map((l) => ({ ...l }))
+  let diff = teams - lanes.reduce((n, l) => n + l.size, 0)
+  for (let i = lanes.length - 1; i >= 0 && diff !== 0; i--) {
+    const size = Math.max(0, lanes[i]!.size + diff)
+    diff -= size - lanes[i]!.size
+    lanes[i]!.size = size
+  }
+  const kept = lanes.filter((l) => l.size > 0)
+  return { lanes: kept, lines: division.elims.lines.slice(0, Math.max(0, kept.length - 1)) }
+}
+
+/**
+ * Change a division's team count: its elims follow (elimsForCount), and a drawn division needs
+ * drawing again (FR-042). Every count change goes through here.
+ */
+export function setTeamCount(doc: ScheduleDocument, divisionId: string, teams: number): boolean {
+  const division = doc.settings.divisions.find((d) => d.id === divisionId)
+  if (!division || division.teams === teams) return false
+  division.elims = elimsForCount(division, teams)
+  division.teams = teams
+  const draw = doc.draw[divisionId]
+  if (draw?.teams.some((t) => t.letter)) draw.stale = true
+  return true
 }

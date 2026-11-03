@@ -1,4 +1,5 @@
 import { quizNumber } from './names'
+import { eventCells } from './frame'
 import type { ScheduleDocument, ScheduleQuiz } from './scheduleFile'
 
 /** A division's prelim quizzes, in draw order, with their letters */
@@ -294,20 +295,8 @@ export function sortPrelims(doc: ScheduleDocument, options: SortOptions): Schedu
   const taken = new Set(
     next.quizzes.flatMap((q) => (q.cell ? [`${q.cell.slot}|${q.cell.room}`] : [])),
   )
-  for (const row of next.frame) {
-    if (row.kind === 'event' && row.room) {
-      for (const s of next.frame) {
-        if (
-          s.kind === 'slot' &&
-          slotIndex.has(s.id) &&
-          row.at < s.at + s.minutes &&
-          s.at < row.at + row.minutes
-        ) {
-          taken.add(`${s.id}|${row.room}`)
-        }
-      }
-    }
-  }
+  // One-room events take their room's cells on their own day (H-3)
+  for (const cell of eventCells(next.frame)) taken.add(cell)
   const busy = new Map<string, Set<string>>()
   const busyAt = (t: number, division: string) => {
     const key = `${t}|${division}`

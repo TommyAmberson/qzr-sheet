@@ -1,5 +1,5 @@
 import { buildElimQuizzes } from './elims'
-import { buildFrame, DEFAULT_SHAPE, defaultRoomCount } from './frame'
+import { buildFrame, DEFAULT_SHAPE, defaultRoomCount, eventCells } from './frame'
 import { placePrelims, type PrelimDivision } from './placement'
 import { drawPrelims } from './prelimDraw'
 import { quizNumber } from './names'
@@ -208,12 +208,23 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
     })
 
   // Prelims, around pinned quizzes' cells and letters
-  const fixedPrelims = [...pinnedAt('prelim')].map(({ q, k, room }) => ({
-    slot: `p${k}`,
-    room,
-    division: q.phase === 'prelim' ? q.division : undefined,
-    letters: q.seats.flatMap((s) => (s.kind === 'letter' ? [s.letter] : [])),
-  }))
+  // Cells one-room events take (H-3), by use and position; only a kept frame has events
+  const eventTaken = keepFrame
+    ? [...eventCells(doc.frame)].flatMap((cell) => {
+        const [slot, room] = cell.split('|') as [string, string]
+        const pos = positionOf.get(slot)
+        return pos && roomIds.has(room) ? [{ ...pos, room }] : []
+      })
+    : []
+  const fixedPrelims = [
+    ...[...pinnedAt('prelim')].map(({ q, k, room }) => ({
+      slot: `p${k}`,
+      room,
+      division: q.phase === 'prelim' ? q.division : undefined,
+      letters: q.seats.flatMap((s) => (s.kind === 'letter' ? [s.letter] : [])),
+    })),
+    ...eventTaken.filter((e) => e.use === 'prelim').map((e) => ({ slot: `p${e.k}`, room: e.room })),
+  ]
   const toPlace = prelims.map((d, i) => ({
     ...d,
     quizzes: d.quizzes.filter((q, n) => !prelimPinned(divisions[i]!, n, q.id)),
@@ -240,6 +251,9 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   // Elims, each division in its own rooms, around pinned elims
   const elims = divisions.map((d) => standInFor(buildElimQuizzes(d)))
   const fixedElims = new Map(pinnedAt('elim').map(({ q, k, room }) => [q.id, { round: k, room }]))
+  for (const e of eventTaken) {
+    if (e.use === 'elim') fixedElims.set(`event:${e.k}|${e.room}`, { round: e.k, room: e.room })
+  }
   // A pinned elim outside the elim slots (the tray, say) holds no cell but counts as decided, so
   // the quizzes it feeds still get placed
   for (const q of pinned) {
