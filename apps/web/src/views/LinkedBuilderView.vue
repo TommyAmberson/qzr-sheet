@@ -127,8 +127,8 @@ function open(doc: ScheduleDocument, baseRevision: number, unsent: boolean) {
 
 /** The server's draft, its draw brought up to the meet's teams; a change to it is then sent */
 function openFromServer(draft: ScheduleDocument, revision: number) {
-  const changed = reconcileTeams(draft, teams.value)
-  open(withMeetNames(draft, teams.value), revision, changed)
+  const { doc, changed } = reconcileTeams(draft, teams.value)
+  open(withMeetNames(doc, teams.value), revision, changed)
   if (changed) void send()
 }
 

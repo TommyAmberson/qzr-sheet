@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { seatText, type ScheduleDocument, type Seat, type SheetView } from '@qzr/shared'
+import {
+  indexOfLetter,
+  seatText,
+  type ScheduleDocument,
+  type Seat,
+  type SheetView,
+} from '@qzr/shared'
 
 import { deleteQuiz, moveQuiz, renameQuiz, setPinned, setSeat } from '../../builder/edits'
 import BuilderPopover from './BuilderPopover.vue'
@@ -36,7 +42,7 @@ const drawnLetters = computed(() => {
   const named = teams
     .map((t, i) => ({ letter: t.letter, name: t.name ?? `Team ${i + 1}` }))
     .filter((t): t is { letter: string; name: string } => !!t.letter)
-    .sort((a, b) => a.letter.localeCompare(b.letter))
+    .sort((a, b) => indexOfLetter(a.letter) - indexOfLetter(b.letter))
   return named.length > 0 ? named : null
 })
 

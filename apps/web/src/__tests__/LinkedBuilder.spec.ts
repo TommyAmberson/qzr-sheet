@@ -236,6 +236,27 @@ describe('a linked schedule in the builder (story 7)', () => {
     w.unmount()
   })
 
+  it("takes each division's team count from the meet, and the grid follows", async () => {
+    const { server } = fakeServer()
+    const doc = serverDraft(server)
+    doc.settings.divisions[0]!.teams = 5
+    doc.draw['1'] = {
+      stale: false,
+      teams: [100, 101, 102, 103, 104].map((teamId) => ({ teamId, late: false, absent: false })),
+    }
+    const w = await openBuilder()
+    await flushPromises()
+    expect(server.draft!.settings.divisions[0]!.teams).toBe(6)
+    expect(server.draft!.draw['1']!.teams).toHaveLength(6)
+    const letters = new Set(
+      server.draft!.quizzes.flatMap((q) =>
+        q.seats.flatMap((s) => (s.kind === 'letter' ? [s.letter] : [])),
+      ),
+    )
+    expect(letters.has('F')).toBe(true)
+    w.unmount()
+  })
+
   it('unlinking leaves a schedule of its own in this browser (FR-048)', async () => {
     const { server } = fakeServer()
     serverDraft(server)

@@ -69,7 +69,12 @@ function insert(kind: 'slot' | 'event' | 'note', room?: string) {
           :value="row.minutes"
           aria-label="Length"
           @change="
-            patch({ minutes: Math.max(1, Number(($event.target as HTMLInputElement).value)) })
+            patch({
+              minutes: Math.max(
+                1,
+                Math.round(Number(($event.target as HTMLInputElement).value)) || 1,
+              ),
+            })
           "
         />
       </label>

@@ -100,6 +100,8 @@ export function renameRoom(d: ScheduleDocument, id: string, name: string) {
 
 /** Remove a room; its quizzes go to the unplaced tray */
 export function removeRoom(d: ScheduleDocument, id: string) {
+  // A schedule keeps at least one room
+  if (d.rooms.length <= 1) return
   d.rooms = d.rooms.filter((r) => r.id !== id)
   for (const q of d.quizzes) if (q.cell?.room === id) q.cell = null
   setRoomCount(d)
