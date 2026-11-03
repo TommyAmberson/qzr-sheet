@@ -17,6 +17,8 @@ extend-exclude = [
 extend-ignore-re = [
     # Rulebook draw tables pair team letters (`2. BCK`, `13. ABL`)
     "\\d+\\. ?[A-P]{3}\\b",
+    # The same tables as strings of letter triples in the schedule mockup (`"ABJ BCK CDA"`)
+    "\"(?:[A-U]{3} )+[A-U]{3}\"",
 ]
 
 [default.extend-words]

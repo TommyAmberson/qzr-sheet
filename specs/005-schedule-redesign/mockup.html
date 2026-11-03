@@ -1,0 +1,1885 @@
+<title>Schedule Builder Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a settings rail on the left and the schedule as a board of quiz cards on the right; on phones the rail becomes a bottom sheet. */
+:root {
+  --bg: #fbfaf8; --surface: #ffffff; --surface-2: #f6f3ee; --canvas: #f1ede6;
+  --line: #e9e4db; --line-strong: #d8d0c3;
+  --text: #23201c; --muted: #6a645b; --faint: #948d80; --heading: #1c1a17;
+  --accent: #3b5bdb; --accent-ink: #2b45b8; --accent-soft: #e9eeff; --on-accent: #ffffff;
+  --danger: #c0352b; --danger-soft: #fdecea; --warn: #b26a00; --warn-soft: #fff3dc; --ok: #1f7a4d; --ok-soft: #e3f4ea;
+  --d1: #1f9d6a; --d1-soft: #e5f5ee; --d2: #0e8a8c; --d2-soft: #e0f3f3; --d3: #c27c0e; --d3-soft: #fbf0dc; --d4: #7a5af5; --d4-soft: #efebfe;
+  --event: #f5efe6; --event-line: #e4d9c7;
+  --shadow-sm: 0 1px 2px rgba(35,32,28,.07), 0 1px 1px rgba(35,32,28,.04);
+  --shadow-md: 0 10px 30px rgba(35,32,28,.14), 0 2px 6px rgba(35,32,28,.06);
+  --shadow-lg: 0 20px 50px rgba(35,32,28,.22);
+  --font: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r-sm: 6px; --r: 10px; --r-lg: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1a1917; --surface: #23211e; --surface-2: #2b2925; --canvas: #141311;
+    --line: #34312c; --line-strong: #47433b;
+    --text: #ece8e1; --muted: #b0a99d; --faint: #8a8377; --heading: #f6f3ee;
+    --accent: #8ea2ff; --accent-ink: #b6c2ff; --accent-soft: #252c4a; --on-accent: #14172a;
+    --danger: #ff8a7d; --danger-soft: #3b2220; --warn: #f0b452; --warn-soft: #3a2f1c; --ok: #6fd39b; --ok-soft: #1c3125;
+    --d1: #4fd1a0; --d1-soft: #1b2f27; --d2: #4cc3c5; --d2-soft: #1a2d2e; --d3: #f0b452; --d3-soft: #352b1b; --d4: #a996ff; --d4-soft: #2a2540;
+    --event: #24211c; --event-line: #3a352d;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4); --shadow-md: 0 10px 30px rgba(0,0,0,.5); --shadow-lg: 0 20px 50px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1a1917; --surface: #23211e; --surface-2: #2b2925; --canvas: #141311;
+  --line: #34312c; --line-strong: #47433b;
+  --text: #ece8e1; --muted: #b0a99d; --faint: #8a8377; --heading: #f6f3ee;
+  --accent: #8ea2ff; --accent-ink: #b6c2ff; --accent-soft: #252c4a; --on-accent: #14172a;
+  --danger: #ff8a7d; --danger-soft: #3b2220; --warn: #f0b452; --warn-soft: #3a2f1c; --ok: #6fd39b; --ok-soft: #1c3125;
+  --d1: #4fd1a0; --d1-soft: #1b2f27; --d2: #4cc3c5; --d2-soft: #1a2d2e; --d3: #f0b452; --d3-soft: #352b1b; --d4: #a996ff; --d4-soft: #2a2540;
+  --event: #24211c; --event-line: #3a352d;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4); --shadow-md: 0 10px 30px rgba(0,0,0,.5); --shadow-lg: 0 20px 50px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.app { height: 100%; display: flex; flex-direction: column; }
+.topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--surface); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.brand h1 { font-size: 15px; margin: 0; color: var(--heading); font-weight: 650; letter-spacing: -.01em; white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--muted); background: var(--surface-2); border: 1px solid transparent; white-space: nowrap; }
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip.ok { color: var(--ok); background: var(--ok-soft); }
+.chip.err { color: var(--danger); background: var(--danger-soft); }
+.chip.warn { color: var(--warn); background: var(--warn-soft); }
+button.chip:hover { border-color: currentColor; }
+.spacer { flex: 1; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 0 12px; font-weight: 500; transition: background .12s, border-color .12s, box-shadow .12s; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: var(--shadow-sm); }
+.btn.primary:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
+.btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.ghost:hover { background: var(--surface-2); }
+.btn.sm { height: 28px; padding: 0 10px; font-size: 12.5px; border-radius: 7px; }
+.btn.icon { width: 32px; padding: 0; }
+.btn:disabled { opacity: .4; cursor: default; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-2); border-radius: 9px; }
+.seg button { border: 0; background: transparent; padding: 0 12px; height: 26px; border-radius: 7px; font-weight: 500; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--heading); box-shadow: var(--shadow-sm); }
+.seg button:disabled { opacity: .45; cursor: default; }
+
+.main { flex: 1; min-height: 0; display: grid; grid-template-columns: 340px minmax(0, 1fr); }
+.panel { border-right: 1px solid var(--line); overflow-y: auto; background: var(--surface); }
+.panel-head { position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px); padding: 14px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+.switch-row { display: flex; align-items: center; gap: 10px; }
+.switch-row strong { font-weight: 600; }
+.switch { position: relative; width: 40px; height: 24px; border-radius: 999px; border: 0; background: var(--line-strong); padding: 0; transition: background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .15s; }
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"]::after { left: 19px; }
+.apply-bar { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: var(--r); background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 500; }
+.apply-bar .btn { margin-left: auto; }
+.hint { font-size: 12px; color: var(--faint); margin: 0; line-height: 1.45; }
+
+details.sec { border-bottom: 1px solid var(--line); }
+details.sec > summary { list-style: none; cursor: pointer; padding: 12px 16px; display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--heading); }
+details.sec > summary::-webkit-details-marker { display: none; }
+details.sec > summary .sico { width: 28px; height: 28px; border-radius: 8px; background: var(--surface-2); color: var(--muted); display: grid; place-items: center; }
+details.sec[open] > summary .sico { background: var(--accent-soft); color: var(--accent); }
+details.sec > summary .chev { margin-left: auto; color: var(--faint); transition: transform .15s; }
+details.sec[open] > summary .chev { transform: rotate(90deg); }
+details.sec > summary:hover { background: var(--surface-2); }
+.count { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+.sec-body { padding: 4px 16px 18px; display: grid; gap: 12px; }
+.field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; }
+.field > label { color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.unapplied { grid-column: 1 / -1; justify-self: start; font-size: 11px; font-weight: 500; color: var(--warn); background: var(--warn-soft); padding: 2px 7px; border-radius: 999px; }
+.stepper { display: inline-flex; align-items: center; background: var(--surface-2); border-radius: 8px; padding: 2px; }
+.stepper button { border: 0; background: transparent; width: 26px; height: 26px; border-radius: 6px; color: var(--muted); font-size: 15px; }
+.stepper button:hover { background: var(--surface); color: var(--heading); }
+.stepper output { min-width: 30px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+select.sel, input.txt { height: 30px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 0 8px; background: var(--surface); min-width: 0; }
+.subhead { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); margin-top: 2px; }
+.div-tag { display: inline-block; width: 8px; height: 8px; border-radius: 3px; flex: none; }
+.divrow { display: grid; grid-template-columns: 1fr auto auto; gap: 6px 8px; align-items: center; }
+.divrow label { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.icon-btn { display: grid; place-items: center; border: 0; background: transparent; border-radius: 7px; width: 28px; height: 28px; padding: 0; color: var(--faint); }
+.icon-btn:hover { background: var(--danger-soft); color: var(--danger); }
+.info { display: inline-grid; place-items: center; border: 0; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; font-weight: 700; padding: 0; color: var(--muted); background: var(--surface-2); }
+.info:hover { background: var(--accent-soft); color: var(--accent); }
+.info-box { grid-column: 1 / -1; font-size: 12.5px; line-height: 1.5; background: var(--surface-2); border-radius: var(--r); padding: 10px 12px; color: var(--muted); }
+.ecard { display: grid; gap: 10px; border: 1px solid var(--line); border-radius: var(--r-lg); padding: 12px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.ehead { display: flex; align-items: center; gap: 8px; }
+.ehead .unapplied { margin-left: auto; }
+.lane { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; padding: 10px; border-radius: var(--r); background: var(--surface-2); font-size: 12.5px; }
+.lane.main { background: transparent; border: 1px dashed var(--line-strong); }
+.lane .lname { font-weight: 650; color: var(--heading); }
+.lane .lane-ctl { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lane .lnote { grid-column: 1 / -1; color: var(--faint); font-size: 12px; }
+.seg.sm { padding: 2px; }
+.seg.sm button { height: 24px; padding: 0 8px; font-size: 12px; }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.chk input { accent-color: var(--accent); width: 15px; height: 15px; }
+.teams { display: grid; gap: 2px; max-height: 190px; overflow-y: auto; border-radius: var(--r); background: var(--surface-2); padding: 6px; }
+.teams label { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 3px 4px; border-radius: 6px; }
+.teams label:hover { background: var(--surface); }
+.teams input { accent-color: var(--accent); }
+.teams .letter { font-family: var(--mono); color: var(--faint); width: 16px; font-size: 12px; }
+
+.gridwrap { overflow: auto; min-width: 0; position: relative; background: var(--canvas); }
+.toolbar { position: sticky; left: 0; top: 0; z-index: 6; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 8px 14px; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); min-height: 48px; box-sizing: border-box; }
+.sel-bar { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.sel-bar strong { color: var(--accent); }
+table.grid { border-collapse: separate; border-spacing: 6px; min-width: 100%; padding: 0 8px 8px 0; }
+.grid th, .grid td { padding: 0; vertical-align: top; }
+.grid thead th { position: sticky; top: 54px; z-index: 4; min-width: 168px; text-align: left; }
+.grid thead th button.roomhead { width: 100%; display: flex; align-items: center; gap: 8px; text-align: left; border: 0; border-radius: var(--r); background: var(--surface); box-shadow: var(--shadow-sm); padding: 8px 10px; font-weight: 600; color: var(--heading); }
+.grid thead th button.roomhead:hover { box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-sm); }
+.grid thead th .blk { margin-left: auto; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.grid thead th.addroom { min-width: 96px; }
+.grid th.time, .grid td.time { position: sticky; left: 0; z-index: 3; min-width: 78px; width: 78px; font-variant-numeric: tabular-nums; }
+.grid thead th.time { z-index: 5; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); padding: 10px 8px; background: var(--canvas); border-radius: var(--r); }
+.grid td.time { background: var(--canvas); }
+.grid td.time button { width: 100%; height: 100%; min-height: 36px; text-align: left; border: 0; border-radius: var(--r); background: transparent; padding: 6px 8px; display: grid; gap: 1px; }
+.grid td.time button .t { font-weight: 600; color: var(--heading); font-size: 13px; }
+.grid td.time button .d { font-size: 11px; color: var(--faint); }
+.grid td.time button:hover { background: var(--surface); box-shadow: var(--shadow-sm); }
+.grid tr.day td { padding: 14px 4px 2px; }
+.grid tr.day td.time { background: var(--canvas); }
+.grid tr.day .dayname { font-size: 18px; font-weight: 700; color: var(--heading); letter-spacing: -.02em; }
+.grid tr.event td.ev { border-radius: var(--r); background: repeating-linear-gradient(-45deg, var(--event), var(--event) 8px, color-mix(in srgb, var(--event) 70%, var(--canvas)) 8px, color-mix(in srgb, var(--event) 70%, var(--canvas)) 16px); border: 1px solid var(--event-line); color: var(--muted); font-weight: 500; padding: 9px 12px; }
+.grid tr.event td.ev span { display: inline-flex; align-items: center; gap: 8px; }
+.grid td.cell { height: 96px; border-radius: var(--r); transition: background .12s, box-shadow .12s; }
+.grid td.cell.empty { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line-strong) 50%, transparent); }
+.grid td.cell.empty:hover { background: var(--surface); cursor: pointer; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.grid td.cell.empty:hover:empty::after { content: "+ Add quiz"; display: grid; place-items: center; height: 100%; color: var(--faint); font-size: 12px; font-weight: 500; }
+.grid td.cell.target, .grid td.cell.drop-hover { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); cursor: pointer; }
+.grid td.cell.target:empty::after, .grid td.cell.drop-hover:empty::after { content: "Move here"; display: grid; place-items: center; height: 100%; color: var(--accent); font-size: 12px; font-weight: 600; }
+.grid td.cell.single-event { background: var(--event); box-shadow: inset 0 0 0 1px var(--event-line); }
+.grid td.cell.single-event button { width: 100%; height: 100%; border: 0; background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 500; padding: 8px; text-align: left; }
+
+.quiz { position: relative; height: 100%; box-sizing: border-box; border-radius: var(--r); background: var(--surface); box-shadow: var(--shadow-sm); padding: 8px 8px 6px; cursor: grab; display: grid; align-content: start; gap: 2px; min-height: 92px; transition: box-shadow .12s, transform .12s; }
+.quiz:hover { box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-sm); }
+.quiz .ql { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; color: var(--heading); margin-bottom: 2px; }
+.quiz .ql .ddot { width: 8px; height: 8px; border-radius: 3px; background: var(--qc); flex: none; }
+.quiz .ql .ttl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quiz .ql .tags { margin-left: auto; display: flex; gap: 4px; align-items: center; color: var(--faint); }
+.quiz .ql .tags svg.i { width: 13px; height: 13px; }
+.quiz .ql .tags .pin { color: var(--accent); }
+.quiz .ql .tags .res { color: var(--ok); }
+.quiz .ql .tags .res.changed { color: var(--warn); }
+.badge { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 999px; background: var(--danger); color: #fff; }
+.badge.w { background: var(--warn); }
+.seat { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; border: 0; background: transparent; padding: 2px 3px; border-radius: 6px; font-size: 12.5px; line-height: 1.3; color: var(--text); cursor: pointer; }
+.seat:hover { background: var(--surface-2); }
+.seat .lb { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; box-sizing: border-box; border-radius: 6px; background: var(--qs); color: var(--qc); font-family: var(--mono); font-size: 11.5px; font-weight: 600; }
+.seat .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seat.empty-seat .nm { color: var(--faint); font-style: italic; }
+.seat.empty-seat .lb { background: var(--surface-2); color: var(--faint); }
+.seat.bad .lb { background: var(--danger); color: #fff; }
+.seat.bad .nm { color: var(--danger); }
+.seat.drop-hover { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.quiz.selected { box-shadow: 0 0 0 2px var(--accent), var(--shadow-md); }
+.quiz.swap { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.quiz.drop-hover { box-shadow: 0 0 0 2px var(--accent), var(--shadow-md); transform: scale(1.02); }
+.quiz.swap::after, .quiz.drop-hover::after { content: "Swap"; position: absolute; right: 8px; bottom: 6px; font-size: 11px; color: var(--accent); font-weight: 650; }
+.quiz.conflict { box-shadow: 0 0 0 2px var(--danger), var(--shadow-sm); }
+.quiz.warning { box-shadow: 0 0 0 2px var(--warn), var(--shadow-sm); }
+.quiz.selected.conflict { box-shadow: 0 0 0 2px var(--danger), 0 0 0 5px color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow-md); }
+.quiz.dragging-src { opacity: .35; }
+.flags { display: none; position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 7; background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow-md); padding: 8px 10px; gap: 4px; }
+.quiz.selected .flags, .quiz:hover .flags, .quiz:focus-visible .flags { display: grid; }
+.flag { font-size: 11.5px; color: var(--danger); line-height: 1.35; }
+.flag.w { color: var(--warn); }
+.flag b { font-family: var(--mono); font-weight: 600; margin-right: 4px; }
+.d1 { --qc: var(--d1); --qs: var(--d1-soft); }
+.d2 { --qc: var(--d2); --qs: var(--d2-soft); }
+.d3 { --qc: var(--d3); --qs: var(--d3-soft); }
+.d4 { --qc: var(--d4); --qs: var(--d4-soft); }
+.drag-ghost { position: fixed; z-index: 70; pointer-events: none; width: 168px; transform: rotate(-2deg); box-shadow: var(--shadow-lg) !important; opacity: .95; }
+body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select: none; }
+@media (pointer: fine) { .quiz, .seat { touch-action: none; } }
+
+.tray { margin: 0 14px 24px; padding: 12px; display: grid; gap: 8px; border-radius: var(--r-lg); border: 1.5px dashed var(--line-strong); }
+.tray.drop-hover { border-color: var(--accent); background: var(--accent-soft); }
+.tray-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.tray-list .quiz { width: 168px; }
+.issues { display: none; position: absolute; z-index: 20; right: 14px; top: 56px; width: min(380px, calc(100% - 28px)); background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-lg); padding: 10px; max-height: 60vh; overflow-y: auto; }
+.issues.open { display: grid; gap: 6px; }
+.issues button.item { text-align: left; border: 0; background: var(--surface-2); border-radius: var(--r); padding: 8px 10px; font-size: 12.5px; line-height: 1.4; }
+.issues button.item:hover { background: var(--accent-soft); }
+.issues button.item b { font-family: var(--mono); color: var(--danger); margin-right: 4px; }
+
+.pop { position: fixed; z-index: 40; width: min(360px, calc(100vw - 32px)); background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-lg); border: 1px solid var(--line); padding: 14px; display: grid; gap: 12px; max-height: calc(100vh - 32px); overflow-y: auto; animation: popin .14s ease-out; }
+@keyframes popin { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.pop h3 { margin: 0; font-size: 14px; font-weight: 650; color: var(--heading); }
+.pop .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pop label.f { display: grid; gap: 4px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.pop-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pop-head h3 { margin-right: auto; }
+.seg.tabs { display: grid; grid-template-columns: repeat(4, 1fr); }
+.seg.tabs button { padding: 0 4px; font-size: 12.5px; }
+.choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); gap: 6px; max-height: 220px; overflow-y: auto; }
+.choices.wide { grid-template-columns: 1fr 1fr; }
+.choices button, .src-row button { border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 7px; font-size: 12.5px; font-weight: 600; text-align: left; transition: background .1s, border-color .1s; }
+.choices button:hover, .src-row button:hover { border-color: var(--accent); }
+.choices button small, .src-row button small { display: block; color: var(--faint); font-size: 11px; font-weight: 500; }
+.choices button.on, .src-row button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+.choices button.warnopt, .src-row button.warnopt { border-color: color-mix(in srgb, var(--warn) 60%, transparent); }
+.choices button.warnopt small, .src-row button.warnopt small { color: var(--warn); }
+.src-list { display: grid; gap: 6px; max-height: 280px; overflow-y: auto; }
+.src-row { display: grid; grid-template-columns: 1fr repeat(3, 58px); gap: 6px; align-items: center; font-size: 12.5px; }
+.src-row > span { display: grid; font-weight: 600; color: var(--heading); }
+.src-row > span small { color: var(--faint); font-size: 11px; font-weight: 500; }
+.src-row button { display: grid; text-align: center; }
+details.later summary { cursor: pointer; font-size: 12px; color: var(--faint); padding: 4px 0; }
+details.later .src-row { opacity: .65; margin-top: 6px; }
+.mini-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; padding: 6px 6px 6px 10px; border-radius: var(--r); background: var(--event); }
+.ins-grid { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.danger-zone { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
+.danger-zone .hint { flex-basis: 100%; }
+.acts { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.modal-back { position: fixed; inset: 0; z-index: 50; background: rgba(20,18,15,.45); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; animation: fade .15s; }
+@keyframes fade { from { opacity: 0; } }
+.modal { width: min(460px, 100%); background: var(--surface); border-radius: 16px; padding: 20px; display: grid; gap: 14px; box-shadow: var(--shadow-lg); }
+.modal h2 { margin: 0; font-size: 17px; font-weight: 650; color: var(--heading); letter-spacing: -.01em; }
+.modal p { margin: 0; color: var(--muted); line-height: 1.5; }
+.modal ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; display: grid; gap: 4px; }
+
+.toast { position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--heading); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 500; box-shadow: var(--shadow-lg); max-width: calc(100vw - 32px); animation: popin .15s ease-out; }
+
+
+/* The grid reads like the printed schedules: a white sheet, a column per room, thin rules between rows,
+   heavier rules between division blocks, and each quiz as a centred title over three underlined seats. */
+.gridwrap { background: var(--canvas); }
+.sheet { margin: 12px 14px 0; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); display: inline-block; min-width: calc(100% - 28px); }
+table.grid { border-collapse: collapse; border-spacing: 0; padding: 0; min-width: 100%; }
+.grid th, .grid td { border-bottom: 1px solid var(--line); }
+.grid td.blk-start, .grid th.blk-start { border-left: 2px solid var(--line-strong); }
+.grid thead th { top: 48px; background: var(--surface); min-width: 176px; border-bottom: 1.5px solid var(--heading); }
+.grid thead th button.roomhead { box-shadow: none; border-radius: 0; background: transparent; padding: 10px; justify-content: center; }
+.grid thead th button.roomhead:hover { background: var(--surface-2); box-shadow: none; }
+.grid thead th .blk { margin-left: 6px; }
+.grid thead th.time { background: var(--surface); border-radius: 0; text-align: left; }
+.grid td.time, .grid tr.day td.time { background: var(--surface); border-right: 1px solid var(--line); }
+.grid td.time button { border-radius: 0; }
+.grid td.time button:hover { box-shadow: none; background: var(--surface-2); }
+.grid tr.day td { padding: 16px 10px 6px; border-bottom: 1.5px solid var(--heading); }
+.grid tr.day .dayname { font-size: 15px; }
+.grid tr.event td.ev { border-radius: 0; background: transparent; border: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; color: var(--heading); font-style: normal; font-weight: 600; }
+.grid td.cell { height: auto; border-radius: 0; padding: 6px 8px; }
+.grid td.cell.empty { box-shadow: none; }
+.grid td.cell.empty:hover { background: var(--surface-2); box-shadow: none; }
+.grid td.cell.empty:hover:empty::after { min-height: 84px; }
+.grid td.cell.target, .grid td.cell.drop-hover { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-soft); }
+.grid td.cell.target:empty::after, .grid td.cell.drop-hover:empty::after { min-height: 84px; }
+.grid td.cell.single-event { background: var(--surface-2); box-shadow: none; }
+.grid td.filler { border-bottom: 1px solid var(--line); }
+.quiz { background: transparent; box-shadow: none; border-radius: 8px; padding: 2px 4px 4px; min-height: 84px; gap: 1px; }
+.quiz:hover { box-shadow: 0 0 0 1px var(--line-strong); }
+.quiz .ql { justify-content: center; font-size: 12.5px; font-weight: 650; margin-bottom: 3px; }
+.quiz .ql .ddot { width: 6px; height: 6px; border-radius: 50%; }
+.quiz .ql .tags { position: absolute; right: 4px; top: 3px; margin: 0; }
+.seat { display: grid; grid-template-columns: 52px 1fr; gap: 6px; padding: 0 2px; border-radius: 4px; align-items: end; }
+.seat .src { text-align: right; font-size: 11.5px; color: var(--muted); white-space: nowrap; padding-bottom: 1px; }
+.seat .line { border-bottom: 1px solid var(--text); min-height: 18px; padding: 0 2px; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.seat .line.mono { font-family: var(--mono); font-weight: 600; color: var(--qc); }
+.seat.empty-seat .line { border-bottom-style: dashed; color: var(--faint); font-style: italic; }
+.seat.bad .line, .seat.bad .src { color: var(--danger); border-bottom-color: var(--danger); }
+.quiz.selected { box-shadow: 0 0 0 2px var(--accent); background: var(--accent-soft); }
+.quiz.swap { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.quiz.drop-hover { box-shadow: 0 0 0 2px var(--accent); background: var(--accent-soft); transform: none; }
+.quiz.conflict { box-shadow: 0 0 0 2px var(--danger); background: var(--danger-soft); }
+.quiz.warning { box-shadow: 0 0 0 2px var(--warn); background: var(--warn-soft); }
+.quiz.selected.conflict { box-shadow: 0 0 0 2px var(--danger), 0 0 0 5px color-mix(in srgb, var(--accent) 40%, transparent); }
+.drag-ghost { background: var(--surface) !important; border-radius: 10px; padding: 6px; height: auto; min-height: 0; }
+.tray-list .quiz { background: var(--surface); box-shadow: var(--shadow-sm); width: 176px; }
+.drag-ghost.seat-ghost { width: auto; min-width: 44px; transform: translate(-50%, -50%); padding: 4px 12px; border-radius: 999px; background: var(--qs) !important; color: var(--qc); font: 600 13px var(--font); text-align: center; box-shadow: 0 0 0 1.5px var(--qc), var(--shadow-lg) !important; }
+.disclose { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 6px; padding: 8px 4px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--text); font: 600 12.5px var(--font); cursor: pointer; text-align: left; }
+.disclose .chev { width: 14px; height: 14px; transition: transform .15s; color: var(--muted); }
+.disclose[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.disclose .sum { margin-left: auto; font-weight: 500; color: var(--muted); max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.disclose:hover { color: var(--accent); }
+.drag-ghost.seat-ghost.mono { font-family: var(--mono); }
+.seat.dragging-seat .line { color: var(--faint); border-bottom-style: dashed; }
+.seat.drop-hover { border-radius: 6px; background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); }
+.seat.drop-hover .line { border-bottom-color: transparent; color: var(--accent); }
+
+
+/* Round 5 refinements. */
+.info-box { margin-top: -4px; }
+.ediv { display: grid; gap: 10px; padding: 14px 0 6px; border-top: 1px solid var(--line); }
+.ehead { display: flex; align-items: center; gap: 8px; }
+.ehead .unapplied { margin-left: auto; grid-column: auto; }
+.ladder { display: flex; gap: 2px; height: 38px; border-radius: 9px; overflow: hidden; }
+.ladder span { min-width: 0; display: grid; align-content: center; justify-items: center; padding: 0 4px; line-height: 1.1; }
+.ladder b { font-size: 11px; font-weight: 650; white-space: nowrap; overflow: hidden; max-width: 100%; text-overflow: ellipsis; }
+.ladder small { font-size: 10.5px; opacity: .8; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ladder .seg-main { background: var(--qc); color: var(--surface); }
+.ladder .seg-inter { background: repeating-linear-gradient(-45deg, var(--qs), var(--qs) 5px, color-mix(in srgb, var(--qc) 25%, var(--qs)) 5px, color-mix(in srgb, var(--qc) 25%, var(--qs)) 10px); color: var(--qc); }
+.ladder .seg-l0 { background: color-mix(in srgb, var(--qc) 55%, var(--surface)); color: var(--heading); }
+.ladder .seg-l1 { background: color-mix(in srgb, var(--qc) 30%, var(--surface)); color: var(--heading); }
+.ladder .seg-l2 { background: var(--qs); color: var(--heading); }
+.ladder .seg-gap { background: var(--danger-soft); color: var(--danger); }
+.erow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.erow label.f { display: grid; gap: 4px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.lrow { display: grid; gap: 6px; padding: 8px 0; border-top: 1px dashed var(--line); }
+.lrow.main { border-top: 0; padding-top: 0; }
+.lhead { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lhead .hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lhead .icon-btn { margin-left: auto; }
+.ldot { width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--qc); }
+.ldot.l0 { background: color-mix(in srgb, var(--qc) 55%, var(--surface)); }
+.ldot.l1 { background: color-mix(in srgb, var(--qc) 30%, var(--surface)); }
+.ldot.l2 { background: var(--qs); box-shadow: inset 0 0 0 1px var(--qc); }
+.lctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding-left: 18px; }
+.lrow > .hint { padding-left: 18px; }
+.lto { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.addlane { justify-self: start; }
+.teams { max-height: none; overflow: visible; grid-template-columns: 1fr 1fr; background: transparent; padding: 0; gap: 2px 8px; }
+.teams label { padding: 4px 6px; }
+.teams label.late { background: var(--warn-soft); }
+.teams label.late .tn::after { content: " · late"; color: var(--warn); font-size: 11px; }
+.teams .tn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.legend { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--faint); }
+.legend .lg-pin { color: var(--accent); display: inline-grid; }
+.quiz .ql .tags button.pin { border: 0; background: transparent; padding: 2px; border-radius: 5px; color: var(--accent); display: grid; cursor: pointer; }
+.quiz .ql .tags button.pin:hover { background: var(--accent-soft); }
+/* Centre each quiz as one block in its cell, and the room headers. */
+.quiz { justify-items: center; }
+.quiz .ql { max-width: 100%; }
+.seat { width: auto; min-width: 150px; max-width: 100%; grid-template-columns: 48px 108px; }
+.grid thead th button.roomhead { justify-content: center; }
+.grid thead th.time { text-align: left; }
+/* Sticky header and time column keep their rules while scrolling. */
+table.grid { border-collapse: separate; }
+.grid th, .grid td { border-bottom: 0; box-shadow: inset 0 -1px 0 var(--line); }
+.grid td.blk-start, .grid th.blk-start { border-left: 0; box-shadow: inset 2px 0 0 var(--line-strong), inset 0 -1px 0 var(--line); }
+.grid thead th { box-shadow: inset 0 -1.5px 0 var(--heading); }
+.grid thead th.blk-start { box-shadow: inset 2px 0 0 var(--line-strong), inset 0 -1.5px 0 var(--heading); }
+.gridwrap.scrolled .grid thead th { box-shadow: inset 0 -1.5px 0 var(--heading), 0 6px 10px -6px rgba(0,0,0,.25); }
+.gridwrap.scrolled .grid thead th.blk-start { box-shadow: inset 2px 0 0 var(--line-strong), inset 0 -1.5px 0 var(--heading), 0 6px 10px -6px rgba(0,0,0,.25); }
+.grid td.time, .grid th.time { box-shadow: inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line); }
+.grid tr.day td { border-bottom: 0; box-shadow: inset 0 -1.5px 0 var(--heading); }
+.grid tr.event td.ev { border-bottom: 0; text-align: center; }
+.grid tr.event td.ev, .grid td.filler { box-shadow: inset 0 -1px 0 var(--line); }
+
+/* Keep everything in the settings panel inside its width. */
+.sec-body { grid-template-columns: minmax(0, 1fr); }
+.sec-body > *, .ediv > *, .lrow > *, .erow > * { min-width: 0; }
+.ediv, .lrow { grid-template-columns: minmax(0, 1fr); }
+.lhead { flex-wrap: wrap; row-gap: 2px; }
+.lhead strong { white-space: nowrap; }
+.lhead .hint { white-space: normal; flex: 1 1 140px; overflow: visible; }
+.lrow.main .lhead .hint { flex-basis: 100%; padding-left: 18px; }
+.ladder { width: 100%; }
+.erow select.sel { width: 100%; }
+
+.quiz .ql .tags button.ren { border: 0; background: transparent; padding: 2px; border-radius: 5px; color: var(--muted); display: none; cursor: pointer; }
+.quiz:hover .ql .tags button.ren, .quiz.selected .ql .tags button.ren, .quiz:focus-within .ql .tags button.ren { display: grid; }
+.quiz .ql .tags button.ren:hover { background: var(--surface-2); color: var(--heading); }
+@media (hover: none) { .quiz.selected .ql .tags button.ren { display: grid; } }
+
+/* Rank ladder with draggable split handles. */
+.ladder2 { position: relative; height: 44px; margin: 4px 6px 18px; }
+.ladder2 .lseg { position: absolute; top: 0; height: 34px; display: grid; align-content: center; justify-items: center; overflow: hidden; line-height: 1.1; border-radius: 6px; box-sizing: border-box; border: 1px solid var(--surface); }
+.ladder2 .lseg b { font-size: 11px; font-weight: 650; white-space: nowrap; }
+.ladder2 .lseg small { font-size: 10px; opacity: .8; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ladder2 .lseg.l0 { background: var(--qc); color: var(--surface); }
+.ladder2 .lseg.l1 { background: color-mix(in srgb, var(--qc) 55%, var(--surface)); color: var(--heading); }
+.ladder2 .lseg.l2 { background: color-mix(in srgb, var(--qc) 32%, var(--surface)); color: var(--heading); }
+.ladder2 .lseg.l3 { background: var(--qs); color: var(--heading); }
+.ladder2 .lseg.inter { background: repeating-linear-gradient(-45deg, var(--qs), var(--qs) 4px, color-mix(in srgb, var(--qc) 30%, var(--qs)) 4px, color-mix(in srgb, var(--qc) 30%, var(--qs)) 8px); color: var(--qc); z-index: 1; }
+.ladder2 .handle { position: absolute; top: -4px; z-index: 3; width: 22px; height: 42px; margin-left: -11px; border: 0; padding: 0; background: transparent; cursor: ew-resize; touch-action: none; display: grid; justify-items: center; }
+.ladder2 .handle::before { content: ""; width: 3px; height: 42px; border-radius: 2px; background: var(--heading); box-shadow: 0 0 0 2px var(--surface); }
+.ladder2 .handle span { position: absolute; top: 44px; font-size: 10.5px; font-weight: 700; color: var(--surface); background: var(--heading); border-radius: 999px; padding: 0 5px; line-height: 15px; }
+.ladder2 .handle:hover::before, .ladder2 .handle:focus-visible::before { background: var(--accent); }
+.ladder2 .handle:hover span, .ladder2 .handle:focus-visible span { background: var(--accent); }
+.ladder2 .ticks { position: absolute; left: 0; right: 0; top: 36px; height: 6px; }
+.ladder2 .ticks i { position: absolute; width: 1px; height: 5px; background: var(--line-strong); }
+.ladder2 .ticks i.minor { height: 3px; background: var(--line); }
+.ladder2 .ticks em { position: absolute; top: 6px; transform: translateX(-50%); font-size: 9.5px; font-style: normal; color: var(--faint); }
+.seg.tabs3 { display: grid; grid-template-columns: repeat(3, 1fr); }
+.lhead .btn.sm { margin-left: auto; height: 24px; }
+
+/* Quiz name centred over the team lines, not over the seed column. */
+.quiz { grid-template-columns: 48px 112px; column-gap: 6px; justify-content: center; justify-items: stretch; }
+.quiz .ql { grid-column: 2; justify-content: center; text-align: center; margin-bottom: 4px; }
+.quiz .seat { grid-column: 1 / -1; grid-template-columns: 48px 112px; min-width: 0; width: 100%; }
+.quiz .flags { grid-column: 1 / -1; }
+.quiz .ql .tags { position: absolute; right: 4px; top: 3px; }
+
+/* Elim steps: rank ranges top-down. */
+.ediv .strip { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; }
+.strip .l0 { background: var(--qc); } .strip .l1 { background: color-mix(in srgb, var(--qc) 55%, var(--surface)); }
+.strip .l2 { background: color-mix(in srgb, var(--qc) 32%, var(--surface)); } .strip .l3 { background: var(--qs); }
+.strip .inter { background: repeating-linear-gradient(-45deg, var(--qs), var(--qs) 3px, var(--qc) 3px, var(--qc) 5px); }
+.steps { display: grid; border-radius: var(--r); border: 1px solid var(--line); overflow: hidden; }
+.step { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 8px 8px 10px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.step:first-child { border-top: 0; }
+.step .rk { font-variant-numeric: tabular-nums; font-weight: 650; color: var(--heading); }
+.step .say { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--muted); }
+.step .stepctl { display: flex; align-items: center; gap: 4px; }
+.step.playoff { background: repeating-linear-gradient(-45deg, var(--surface), var(--surface) 6px, var(--surface-2) 6px, var(--surface-2) 12px); }
+.step.gapstep { grid-template-columns: 1fr; padding: 2px 6px; background: var(--surface-2); }
+.step.gapstep .btn { justify-self: center; color: var(--muted); font-size: 12px; height: 26px; }
+.lanechip { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.lanechip.l0 { background: var(--qc); color: var(--surface); }
+.lanechip.l1 { background: color-mix(in srgb, var(--qc) 55%, var(--surface)); color: var(--heading); }
+.lanechip.l2 { background: color-mix(in srgb, var(--qc) 32%, var(--surface)); color: var(--heading); }
+.lanechip.l3 { background: var(--qs); color: var(--heading); box-shadow: inset 0 0 0 1px var(--qc); }
+.lrow2 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.lrow2:first-of-type { border-top: 0; }
+.lrow2 .hint { flex: 1 1 120px; }
+.lctl2 { display: flex; align-items: center; gap: 10px; flex-basis: 100%; }
+
+.slide { display: inline-grid; grid-auto-flow: row; gap: 1px; }
+.slide button { border: 0; background: var(--surface-2); color: var(--muted); width: 22px; height: 13px; font-size: 8px; line-height: 13px; padding: 0; border-radius: 4px; }
+.slide button:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+.slide button:disabled { opacity: .35; cursor: default; }
+
+.drawhead { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.drawhead .chip { height: 20px; font-size: 11px; }
+
+/* Lines centred in the card: an empty column on the right balances the seed column on the left. */
+.quiz { grid-template-columns: 48px 112px 48px; }
+.quiz .ql { grid-column: 2; }
+.quiz .seat { grid-column: 1 / span 2; }
+.quiz .flags { grid-column: 1 / -1; }
+/* Cards in the Unplaced tray keep the same states as on the grid. */
+.tray-list .quiz.selected { box-shadow: 0 0 0 2px var(--accent); background: var(--accent-soft); }
+.tray-list .quiz.swap { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.tray-list .quiz.drop-hover { box-shadow: 0 0 0 2px var(--accent); background: var(--accent-soft); }
+.tray-list .quiz.conflict { box-shadow: 0 0 0 2px var(--danger); background: var(--danger-soft); }
+.tray-list .quiz.warning { box-shadow: 0 0 0 2px var(--warn); background: var(--warn-soft); }
+.tray.target { border-color: var(--accent); background: var(--accent-soft); cursor: pointer; }
+.tray.target .subhead::after, .tray.target > .hint::after { content: " · Tap here to move the selected quiz to Unplaced"; color: var(--accent); text-transform: none; letter-spacing: 0; font-weight: 600; }
+
+.grid tr.event td.ev { padding: 0; }
+.grid tr.event .evbtn { width: 100%; border: 0; background: transparent; padding: 9px 12px; font: inherit; font-weight: 600; color: var(--heading); text-align: center; cursor: pointer; }
+.grid tr.event .evbtn:hover { background: var(--surface-2); }
+
+.pop { padding-top: 14px; }
+.pop .pop-body { display: grid; gap: 12px; }
+.pop-x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--faint); z-index: 1; }
+.pop-x:hover { background: var(--surface-2); color: var(--heading); }
+.pop .pop-head { padding-right: 30px; }
+.pop .pop-head .back { height: 26px; padding: 0 8px 0 4px; }
+.pop .pop-body > h3:first-child { padding-right: 30px; }
+
+.latelist { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.latelist .lname { font-weight: 600; font-size: 12.5px; margin-right: 4px; }
+.tchip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 8px; font-size: 12px; color: var(--muted); }
+.tchip b { font-family: var(--mono); color: var(--faint); font-weight: 600; }
+.tchip:hover { border-color: var(--line-strong); }
+.tchip.on { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); font-weight: 600; }
+
+.rename-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.qp-seats { display: grid; gap: 4px; }
+.qp-seat { display: grid; grid-template-columns: 56px 1fr auto; gap: 8px; align-items: center; text-align: left; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 6px 8px; font-size: 12.5px; }
+.qp-seat:hover { border-color: var(--accent); }
+.qp-seat .src { color: var(--muted); font-size: 11.5px; text-align: right; }
+.qp-seat svg { color: var(--faint); }
+.qp-issues { display: grid; gap: 4px; padding: 8px 10px; border-radius: var(--r); background: var(--danger-soft); }
+.qp-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+details.names > summary { cursor: pointer; font-size: 12px; color: var(--muted); padding: 2px 0 2px 18px; }
+details.names .namelist { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 6px 0 4px; }
+details.names .namelist input { height: 28px; font-size: 12.5px; }
+
+.grid thead th .blks { display: inline-flex; gap: 4px; margin-left: 6px; flex-wrap: wrap; }
+.grid thead th .blks .blk { margin-left: 0; }
+
+.sheet-toggle { display: none; }
+@media (max-width: 760px) {
+  .main { grid-template-columns: minmax(0, 1fr); }
+  .panel { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; max-height: 75vh; border-right: 0; border-radius: 18px 18px 0 0; box-shadow: var(--shadow-lg); transform: translateY(105%); transition: transform .22s ease; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .panel.open { transform: none; }
+  .panel::before { content: ""; display: block; width: 36px; height: 4px; border-radius: 2px; background: var(--line-strong); margin: 8px auto 0; }
+  .sheet-toggle { display: inline-flex; }
+  .grid thead th { min-width: 140px; }
+  .hide-phone { display: none; }
+  .brand h1 { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true">Q</span><h1>FBC Spring Meet</h1></div>
+    <span class="chip" id="linkChip">Standalone</span>
+    <span class="chip" id="pubChip">Draft</span>
+    <button class="chip" id="issueChip" type="button"></button>
+    <span class="spacer"></span>
+    <button class="btn sheet-toggle" id="sheetBtn" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg>Settings</button>
+    <div class="seg" role="group" aria-label="Show seats as">
+      <button type="button" id="viewLetters" aria-pressed="true">Letters</button>
+      <button type="button" id="viewTeams" aria-pressed="false">Teams</button>
+    </div>
+    <button class="btn icon ghost" id="undoBtn" type="button" aria-label="Undo" title="Undo (Ctrl+Z)"><svg class="i" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+    <button class="btn icon ghost" id="redoBtn" type="button" aria-label="Redo" title="Redo (Ctrl+Shift+Z)"><svg class="i" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+    <button class="btn primary" id="publishBtn" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Publish</button>
+  </header>
+
+  <div class="main">
+    <aside class="panel" id="panel" aria-label="Schedule settings">
+      <div class="panel-head">
+        <div class="switch-row">
+          <button class="switch" id="autoSwitch" role="switch" aria-checked="true" aria-labelledby="autoLabel" type="button"></button>
+          <strong id="autoLabel">Auto-apply</strong>
+          <button class="info" type="button" data-info="auto" aria-label="About Auto-apply">i</button>
+        </div>
+        <div class="info-box" id="info-auto" hidden>When on, changes here re-flow the schedule straight away. When off, they wait until you press Apply. Publishing turns it off, so nothing people have already seen moves without you choosing to. Quizzes you've moved or edited by hand (pinned) never move either way. Edits on the grid always apply at once.</div>
+        <div class="apply-bar" id="applyBar" hidden>
+          <span id="applyText"></span>
+          <button class="btn primary" id="applyBtn" type="button">Apply</button>
+        </div>
+        <p class="hint" id="autoHint"></p>
+      </div>
+      <div id="sections"></div>
+    </aside>
+
+    <section class="gridwrap" id="gridwrap" aria-label="Schedule grid">
+      <div class="toolbar" id="toolbar"></div>
+      <div class="sheet"><table class="grid" id="grid"></table></div>
+      <div class="tray" id="tray"></div>
+      <div class="issues" id="issues"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+const RULE_BOOK = {
+  4: "ABC DAB CDA BCD", 5: "ABC DEA BCD EAB CDE", 6: "ACF BDA CEB DFC EAD FBE", 7: "ACG BDA CEB DFC EGD FAE GBF",
+  8: "ABC DEF GHA GCE ADF BEH FHC GBD", 9: "ABC DEF GHI ADG BEH CDH AEI BFG CFI",
+  10: "ABC DEF GHI JBF ADG BEH CFI JEG CDH IJA", 11: "ABJ BCK CDA DEB EFC FGD GHE HIF IJG JKH KAI",
+  12: "ABK CFE GIJ EDB FHI AJL EGH ACD KJH LCB DFG ILK", 13: "CFG IHE GJK LIM BKA DMC BEF HGD FJI KLH AJM CBL DAE",
+  14: "ADE CFG EHI ILM GJK KNA BMC LKH FIJ DHG BEF JMN ABL NCD", 15: "BEF GJK EDA DCO NBC ALO CFG FIJ IML HGD MJN LKH ABM IHE ONK",
+  16: "CFG ADE DGH LOP EBF KON PDC HEI HKL BCO FIJ NAB ILM GJK JMN MPA",
+  17: "CDL EGO HFM KIP NJQ FAL BMG DOI HCN EKQ JPB MNO DEF ABC GHI JLK PQA",
+  18: "AJR BPK FIM DGN CLQ EOH GMA JDP HBN ICO KEQ LRF BAC DFE GHI JKL MNO PQR",
+  19: "IOS HFN LCP EGM AJQ KRD CIN BMH FLQ JDO EPK RSB GHI DEF ABC JKL MNO PQR SAG",
+  20: "HSO TGP CJM NFQ BIR ELS KDT HCN JPB FAL DOI EQK RMG ABC DEF GHI JKL MNO PRQ STA",
+  21: "DAG JMP BHE KNQ LRO CFI SPA HUR TLQ MDI SCJ FKU ETN OGB PQR TSU DEF ABC GIH KJL MON",
+};
+const TEAMS = {
+  1: ["Northside 1","Lakeview 1","Prairie 1","Lakeview 2","Riverbend 1","Grace 1","Hillcrest 3","Pinewood 3"],
+  2: ["Riverbend 2","Lakeview 3","Westgate 1","Westgate 2","Westgate 3","Westgate 4","Westgate 5","Cedar Park 1","Cedar Park 2","Grace 2","Grace 3","Grace 4","Grace 5","Grace 6","Eastbrook 1","Eastbrook 2","Eastbrook 3","Hillcrest 4","Maple Road 2","Valley 3","Pinewood 4"],
+  3: ["Prairie 2","Lakeview 4","Lakeview 5","Hillcrest 1","Hillcrest 2","Cedar Park 3","Maple Road 1","Pinewood 1","Pinewood 2","Valley 1","Valley 2","Westgate 6","Westgate 7","Eastbrook 4","Northside 2","Grace 7","Grace 8","Lakeview 6","Riverbend 3","Eastbrook 5","Hillcrest 5"],
+};
+// Prelim letters: A to Z, then AA, AB, … so any division size has a letter per team.
+const letterOf = i => i < 26 ? String.fromCharCode(65 + i) : String.fromCharCode(64 + Math.floor(i / 26)) + String.fromCharCode(65 + (i % 26));
+const indexOf = v => v.length === 1 ? v.charCodeAt(0) - 65 : (v.charCodeAt(0) - 64) * 26 + (v.charCodeAt(1) - 65);
+// Rotating draw for n teams: quiz i gets (i, i+k+1, i+2k) counted round, with the step k chosen so
+// that as few pairs as possible meet twice.
+function rotatingDraw(n) {
+  let best = null;
+  for (let k = 1; k < n; k++) {
+    const quizzes = Array.from({ length: n }, (_, i) => [i, (i + k + 1) % n, (i + 2 * k) % n]);
+    if (quizzes.some(q => new Set(q).size < 3)) continue;
+    const seen = new Map(); let repeats = 0;
+    for (const q of quizzes) for (const [a, b] of [[q[0], q[1]], [q[0], q[2]], [q[1], q[2]]]) { const key = Math.min(a, b) + ":" + Math.max(a, b); if (seen.has(key)) repeats++; seen.set(key, 1); }
+    const score = repeats * 1000 + Math.abs(k - Math.floor(n / 3));
+    if (!best || score < best.score) best = { score, quizzes };
+  }
+  return best ? best.quizzes.map(q => q.map(letterOf)) : [];
+}
+// The draw: which team each letter stands for. Late teams get letters that put them in as few
+// quizzes as possible, preferring letters whose quizzes start latest; the rest are random.
+const teamOfLetter = (div, letter) => state.drawMap?.[div]?.[letter] ?? indexOf(letter);
+const letterOfTeam = (div, i) => { const m = state.drawMap?.[div]; if (m) for (const [l, t] of Object.entries(m)) if (t === i) return l; return letterOf(i); };
+function drawDivision(st, d) {
+  const letters = Array.from({ length: d.count }, (_, i) => letterOf(i));
+  const prelims = st.quizzes.filter(q => q.div === d.id && q.phase === "p" && q.slot);
+  const idx = id => st.frame.filter(r => r.slot).findIndex(r => r.id === id);
+  const quizzesOf = l => prelims.filter(q => q.seats.some(x => x.k === "L" && x.v === l));
+  const start = l => Math.min(...quizzesOf(l).map(q => idx(q.slot)), Infinity);
+  const late = st.late[d.id] || [];
+  const chosen = [];
+  while (chosen.length < late.length) {
+    // Next letter: the fewest new quizzes added to the late teams' set, then the latest start.
+    const used = new Set(chosen.flatMap(quizzesOf));
+    const best = letters.filter(l => !chosen.includes(l))
+      .map(l => ({ l, added: quizzesOf(l).filter(q => !used.has(q)).length, start: start(l), r: Math.random() }))
+      .sort((a, b) => a.added - b.added || b.start - a.start || a.r - b.r)[0];
+    chosen.push(best.l);
+  }
+  const shuffle = arr => arr.map(v => [Math.random(), v]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  const map = {};
+  shuffle(late).forEach((t, k) => { map[chosen[k]] = t; });
+  const restLetters = shuffle(letters.filter(l => !chosen.includes(l)));
+  const restTeams = Array.from({ length: d.count }, (_, i) => i).filter(i => !late.includes(i));
+  restTeams.forEach((t, k) => { map[restLetters[k]] = t; });
+  (st.drawMap ||= {})[d.id] = map;
+  st.drawn[d.id] = true;
+}
+const isDrawn = div => !!state.drawn[div];
+const anyDrawn = () => Object.values(state.drawn).some(Boolean);
+const teamName = (div, i) => state.names?.[div]?.[i] || baseTeamName(div, i);
+const baseTeamName = (div, i) => (TEAMS[div] || [])[i] || `Team ${div}-${i + 1}`;
+const t = (h, m) => h * 60 + m;
+let nextId = 1;
+const rid = p => `${p}${nextId++}`;
+
+// The frame: day headers, quiz slots and events (all rooms, or one room). Minutes from midnight.
+const day = name => ({ id: rid("r"), day: name });
+const ev = (label, at, len = 30) => ({ id: rid("r"), ev: label, at, len });
+const slot = (at, phase, extra = {}) => ({ id: rid("s"), slot: true, at, phase, ...extra });
+const FRAME0 = [
+  day("Friday"), ev("Registration", t(19,0)), ev("Assembly", t(19,30)),
+  slot(t(20,0),"p"), slot(t(20,25),"p"), slot(t(20,50),"p"), slot(t(21,15),"p"), slot(t(21,40),"p"),
+  day("Saturday"), ev("Breakfast", t(8,0), 60),
+  slot(t(9,0),"p"), slot(t(9,25),"p"), slot(t(9,50),"p"),
+  ev("Stats break", t(10,15), 25),
+  slot(t(10,40),"e"), slot(t(11,25),"e"), slot(t(11,50),"e"),
+  ev("Lunch", t(12,15), 30),
+  slot(t(12,45),"e", { roomEvent: { room: 2, label: "Coaches meeting" } }),
+  slot(t(13,15),"e"), slot(t(13,40),"e"), slot(t(14,5),"e"), slot(t(14,30),"e"), slot(t(14,55),"e"), slot(t(15,20),"e"),
+  slot(t(15,45),"e"), slot(t(16,10),"e"), slot(t(16,35),"e"),
+  ev("Supper", t(17,0), 60), ev("Social activities", t(18,0), 105), ev("Worship and awards", t(20,0), 60),
+  day("Sunday"), ev("Worship service", t(11,0), 60),
+];
+const E = FRAME0.filter(r => r.slot && r.phase === "e").map(r => r.id); // elim slot ids, in order
+
+const L = v => ({ k: "L", v }), R = v => ({ k: "R", v }), N = v => ({ k: "N", v }), P = (p, q) => ({ k: "P", p, q }), X = () => ({ k: "E" });
+// A round robin's Finals takes the top three in points across the round robin.
+const T = v => ({ k: "T", v });
+const ordinal = n => n + (["th", "st", "nd", "rd"][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10] || "th");
+
+function elimQuiz(div, lane, short, si, room, seats, final = false) {
+  const name = `Div ${div}${lane}`;
+  return { id: rid("q"), div, phase: "e", lane, short, final, label: final ? `${name} Finals` : `${name} Quiz ${short}`, slot: E[si], room, seats };
+}
+function buildElims() {
+  const q = [];
+  const d1 = [["A",0,[R(1),R(4),R(5)]],["B",1,[R(2),R(3),R(6)]],["C",2,[P(2,"A"),P(2,"B"),P(3,"A")]],["D",4,[P(1,"A"),P(1,"B"),P(1,"C")]],
+    ["E",5,[P(2,"C"),P(3,"C"),P(3,"B")]],["F",6,[P(1,"E"),P(2,"D"),P(3,"D")]],["G",7,[P(2,"F"),P(3,"F"),P(2,"E")]]];
+  d1.forEach(([s, i, seats]) => q.push(elimQuiz(1, "", s, i, 1, seats)));
+  q.push(elimQuiz(1, "", "Finals", 12, 1, [P(1,"D"),P(1,"F"),P(1,"G")], true));
+  for (const [d, main, cons] of [[2, 2, 3], [3, 4, 5]]) {
+    q.push(elimQuiz(d, "", "X", 0, main, [R(7),R(10),R(12)]), elimQuiz(d, "", "Y", 0, cons, [R(8),R(9),R(11)]));
+    [["A",1,[R(1),R(6),N(7)]],["B",2,[R(2),R(5),N(8)]],["C",4,[R(3),R(4),N(9)]],["D",5,[P(1,"A"),P(1,"C"),P(2,"B")]],
+     ["E",6,[P(1,"B"),P(2,"A"),P(2,"C")]],["F",7,[P(3,"A"),P(3,"B"),P(3,"C")]],["G",8,[P(3,"D"),P(3,"E"),P(1,"F")]],["H",9,[P(2,"D"),P(2,"E"),P(1,"G")]]]
+      .forEach(([s, i, seats]) => q.push(elimQuiz(d, "", s, i, main, seats)));
+    q.push(elimQuiz(d, "", "Finals", d === 2 ? 11 : 10, 1, [P(1,"D"),P(1,"E"),P(1,"H")], true));
+    const lane = d === 2
+      ? [["I",1,[N(10),R(13),R(17)]],["J",2,[N(11),R(14),R(16)]],["K",4,[N(12),R(15),P(3,"I")]],["L",5,[P(1,"I"),P(1,"K"),P(2,"J")]],["M",6,[P(1,"J"),P(2,"I"),P(2,"K")]],["N",7,[P(3,"J"),P(3,"K"),P(3,"L")]],["O",8,[P(1,"N"),P(3,"M"),P(2,"N")]],["P",9,[P(2,"L"),P(2,"M"),P(1,"O")]]]
+      : [["I",1,[N(10),R(14),R(16)]],["J",2,[N(11),R(13),R(15)]],["K",4,[N(12),P(2,"I"),P(2,"J")]],["L",5,[P(1,"J"),P(1,"I"),P(1,"K")]],["M",6,[P(3,"I"),P(3,"J"),P(3,"K")]],["N",7,[P(2,"K"),P(2,"M"),P(3,"M")]],["O",8,[P(1,"M"),P(2,"L"),P(3,"L")]],["P",9,[P(1,"N"),P(2,"O"),P(3,"O")]]];
+    lane.forEach(([s, i, seats]) => q.push(elimQuiz(d, "c", s, i, cons, seats)));
+    q.push(elimQuiz(d, "c", "Finals", 10, cons, d === 2 ? [P(1,"L"),P(1,"M"),P(1,"P")] : [P(1,"O"),P(1,"L"),P(1,"P")], true));
+  }
+  return q;
+}
+
+const deep = o => JSON.parse(JSON.stringify(o));
+const DIVS0 = [{ id: 1, count: 6, rooms: [1] }, { id: 2, count: 17, rooms: [2, 3] }, { id: 3, count: 16, rooms: [4, 5] }];
+const SETTINGS0 = { rooms: 5, slotLen: 25, perTeam: 3, draw: "rule", xyGap: 15, divs: deep(DIVS0),
+  // Per division: how many go straight to the main bracket, the intermediate, and the lanes below it.
+  // Each lane covers ranks down to `to`; the next lane starts where the previous one ends.
+  elim: {
+    1: { lanes: [{ name: "", format: "bracket", finals: true }], splits: [] },
+    2: { lanes: [{ name: "", format: "bracket", finals: true }, { name: "c", format: "bracket", finals: true }], splits: [{ at: 9, inter: "XY" }] },
+    3: { lanes: [{ name: "", format: "bracket", finals: true }, { name: "c", format: "bracket", finals: true }], splits: [{ at: 9, inter: "XY" }] },
+  } };
+let state = {
+  settings: deep(SETTINGS0), applied: deep(SETTINGS0), autoApply: true, published: false, linked: false,
+  view: "letters", drawn: {}, late: { 2: [5] }, frame: FRAME0, roomNames: ["Room 1","Room 2","Room 3","Room 4","Room 5"],
+  quizzes: [],
+};
+const slots = () => state.frame.filter(r => r.slot);
+const slotIdx = id => slots().findIndex(s => s.id === id);
+const slotOf = id => state.frame.find(r => r.id === id);
+const slotLen = s => s.len || state.applied.slotLen;
+const divCls = id => `d${((id - 1) % 4) + 1}`;
+const divName = id => `Div ${id}`;
+
+// Prelims: the rule book's table for the count, placed in the division's room block in quiz order,
+// skipping a quiz whose letters clash in a slot; leftovers borrow any free room, else wait in the tray.
+function genPrelims(div, st, borrow = true) {
+  const useRule = st.applied.draw === "norematch" ? div.count < 7 : div.count <= 21;
+  const table = useRule ? (RULE_BOOK[div.count] || "").split(" ").filter(Boolean).map(r => [...r]) : rotatingDraw(div.count);
+  const pinned = new Set(st.quizzes.filter(q => q.div === div.id && q.phase === "p" && q.pinned).map(q => q.label));
+  st.quizzes = st.quizzes.filter(q => !(q.div === div.id && q.phase === "p" && !q.pinned));
+  const fresh = table.map((r, i) => ({ id: rid("q"), div: div.id, phase: "p", label: `${divName(div.id)} Quiz ${i + 1}`, seats: r.map(L), slot: null, room: null }))
+    .filter(q => !pinned.has(q.label));
+  st.quizzes.push(...fresh);
+  const pSlots = st.frame.filter(r => r.slot && r.phase === "p");
+  const busy = (s, room) => st.quizzes.some(q => q.slot === s.id && q.room === room) || (s.roomEvent && s.roomEvent.room === room);
+  const clash = (s, q) => st.quizzes.some(x => x.slot === s.id && x.div === q.div && x.seats.some(a => q.seats.some(b => a.k === "L" && a.v === b.v)));
+  placePrelims(fresh, div, st, pSlots, busy, clash, borrow);
+  if (!table.length) st.quizzes.push({ id: rid("q"), div: div.id, phase: "p", label: `${divName(div.id)} placeholder`, seats: [X(), X(), X()], slot: null, room: null });
+}
+// Place a division's prelims. First, slot by slot through its own room block, it fills each slot with
+// a group of quizzes that share no team, taking quizzes in number order and backing up when the rest
+// can't be fitted; this finds a clash-free layout whenever the block allows one. Quizzes still left
+// over then borrow any free room.
+function placePrelims(fresh, div, st, pSlots, busy, clash, borrow = true) {
+  const letters = q => q.seats.filter(x => x.k === "L").map(x => x.v);
+  const disjoint = (a, b) => !letters(a).some(v => letters(b).includes(v));
+  // Each slot's cells: the division's own free rooms first, then (when borrowing) other free rooms.
+  const own = pSlots.map(sl => div.rooms.filter(r => !busy(sl, r)));
+  const caps = pSlots.map((sl, k) => borrow ? [...own[k], ...Array.from({ length: st.applied.rooms }, (_, i) => i + 1).filter(r => !div.rooms.includes(r) && !busy(sl, r))] : own[k]);
+  let steps = 0, lead = 1;
+  const dfs = (k, left) => {
+    if (!left.length) return [];
+    if (k >= pSlots.length || ++steps > 50000) return null;
+    const rooms = caps[k], room = rooms.length, total = caps.slice(k).reduce((n, c) => n + c.length, 0);
+    if (total < left.length) return null;
+    if (!room) return dfs(k + 1, left);
+    // Choose this slot's group: one of the first `lead` remaining quizzes plus up to room-1 others,
+    // fullest first. lead starts at 1 (strict order) and widens if that order can't be completed.
+    for (let f = 0; f < Math.min(lead, left.length); f++) {
+    const first = left[f], rest = left.filter((_, j) => j !== f);
+    // A quiz can't join a slot where one of its letters already plays (quizzes placed earlier).
+    if (clash(pSlots[k], first)) continue;
+    const pick = (start, group, size) => {
+      if (group.length === size) {
+        const next = left.filter(q => !group.includes(q)), sub = dfs(k + 1, next);
+        return sub ? [{ k, group }, ...sub] : null;
+      }
+      for (let i = start; i < rest.length; i++) if (group.every(g => disjoint(g, rest[i])) && !clash(pSlots[k], rest[i])) { const r = pick(i + 1, [...group, rest[i]], size); if (r) return r; }
+      return null;
+    };
+    // Fill the division's own rooms first; use borrowed rooms only when that can't work.
+    const ownN = own[k].length, sizes = [];
+    for (let z = Math.min(ownN, left.length); z >= 1; z--) sizes.push(z);
+    for (let z = ownN + 1; z <= Math.min(room, left.length); z++) sizes.push(z);
+    for (const size of sizes) { const r = pick(0, [first], size); if (r) return r; }
+    }
+    return dfs(k + 1, left);
+  };
+  const todo = fresh.filter(q => !q.slot);
+  // More quizzes than cells: set aside the overflow (latest-numbered first) to borrow other rooms,
+  // trying a few different choices if the rest can't be laid out.
+  const capTotal = caps.reduce((n, c) => n + c.length, 0), extra = Math.max(0, todo.length - capTotal);
+  let plan = null;
+  for (let shift = 0; shift <= Math.min(8, todo.length - extra) && !plan; shift++) {
+    const aside = new Set(todo.slice(todo.length - extra - shift, todo.length - shift));
+    const rest = todo.filter(q => !aside.has(q));
+    for (lead = 1; lead <= 4 && !plan; lead++) { steps = 0; plan = dfs(0, rest); }
+  }
+  plan = plan || [];
+  for (const { k, group } of plan) group.forEach((q, j) => { q.slot = pSlots[k].id; q.room = caps[k][j]; });
+  if (borrow) borrowRooms(fresh, st, pSlots, busy, clash);
+}
+// Borrowing fills the latest free cells first, so a division's overflow lands in its last round.
+function borrowRooms(fresh, st, pSlots, busy, clash) {
+  for (const sl of [...pSlots].reverse()) for (let room = 1; room <= st.applied.rooms; room++) {
+    if (busy(sl, room)) continue;
+    const q = fresh.find(q => !q.slot && !clash(sl, q));
+    if (q) { q.slot = sl.id; q.room = room; }
+  }
+}
+
+state.quizzes = buildElims();
+for (const d of state.applied.divs) genPrelims(d, state, false);
+{
+  const pSlots = state.frame.filter(r => r.slot && r.phase === "p");
+  const busy = (sl, room) => state.quizzes.some(q => q.slot === sl.id && q.room === room) || (sl.roomEvent && sl.roomEvent.room === room);
+  const clash = (sl, q) => state.quizzes.some(x => x.slot === sl.id && x.div === q.div && x.seats.some(a => q.seats.some(b => a.k === "L" && a.v === b.v)));
+  borrowRooms(state.quizzes.filter(q => q.phase === "p"), state, pSlots, busy, clash);
+}
+state.quizzes.forEach(q => q.pinned = false);
+state.quizzes.find(q => q.label === "Div 1 Quiz 1").results = true;
+
+let lastTap = null, popQuiz = null;
+let ui = { selected: null, open: "teams", issuesOpen: false, info: {} };
+const undoStack = [], redoStack = [];
+function commit(mutator, msg) {
+  undoStack.push(deep(state)); redoStack.length = 0;
+  mutator(state);
+  if (msg) toast(msg);
+  render();
+}
+
+// ---- Applying settings ----
+function applySettings(st) {
+  const before = st.applied, after = deep(st.settings);
+  st.applied = after;
+  // Rooms: grow or shrink the room list; quizzes in removed rooms go to the tray.
+  while (st.roomNames.length < after.rooms) st.roomNames.push(`Room ${st.roomNames.length + 1}`);
+  if (st.roomNames.length > after.rooms) { st.roomNames.length = after.rooms; st.quizzes.forEach(q => { if (q.room > after.rooms) { q.slot = null; q.room = null; } }); }
+  // Divisions: removed ones lose their quizzes; new or resized ones get fresh prelims.
+  const ids = new Set(after.divs.map(d => d.id));
+  st.quizzes = st.quizzes.filter(q => ids.has(q.div));
+  for (const d of after.divs) {
+    const old = before.divs.find(x => x.id === d.id);
+    if (!old || old.count !== d.count || before.perTeam !== after.perTeam || before.draw !== after.draw) genPrelims(d, st);
+  }
+  // Lanes: one whose format, quizzes each or Finals changed is rebuilt, and a round robin also when
+  // its ranks move. Quizzes of lanes that no longer exist go, unless pinned.
+  for (const d of after.divs) {
+    const eb = before.elim[d.id], ea = after.elim[d.id];
+    if (!ea) continue;
+    const names = new Set(ea.lanes.map(l => l.name));
+    st.quizzes = st.quizzes.filter(q => q.div !== d.id || q.phase !== "e" || names.has(q.lane || "") || q.pinned || q.results);
+    const ranksMoved = JSON.stringify(eb?.splits) !== JSON.stringify(ea.splits) || before.divs.find(x => x.id === d.id)?.count !== d.count;
+    ea.lanes.forEach((ln, i) => {
+      const was = eb?.lanes.find(l => l.name === ln.name);
+      const same = was && was.format === ln.format && was.finals === ln.finals && (was.per || 2) === (ln.per || 2);
+      if (!same || (ln.format === "rr" && ranksMoved)) rebuildLane(st, d, ea, i);
+    });
+  }
+}
+// A round robin gives each team in the lane `per` quizzes, seeded by rank only, so nobody advances.
+// Passes walk the ranks in order; every other pass interleaves the two halves (22, 25, 23 / 26, 24,
+// 27, Feb 2023) so the same three don't meet again. Three each uses the rotating draw instead.
+function roundRobin(d, e, i) {
+  const l = elimPlan(d.count, e).lanes[i], sp = e.splits[i - 1], range = sp && playoffRange(sp);
+  const src = k => (range && k >= range[0] && k <= range[1] ? N(k) : R(k));
+  const n = l.size, per = e.lanes[i].per || 2;
+  if (n < 3) return [];
+  let order = per === 3 ? rotatingDraw(n).flat().map(indexOf) : [];
+  if (!order.length) {
+    const half = Math.ceil(n / 2);
+    for (let pass = 0; pass < per; pass++) order.push(...Array.from({ length: n }, (_, j) => (pass % 2 === 0 ? j : j % 2 === 0 ? j / 2 : half + (j - 1) / 2)));
+  }
+  const groups = [];
+  for (let j = 0; j < order.length; j += 3) groups.push(order.slice(j, j + 3));
+  // A short last quiz is topped up with teams from the start of the list.
+  const last = groups[groups.length - 1];
+  for (let j = 0; last.length < 3; j++) if (!last.includes(j)) last.push(j);
+  return groups.map(g => g.map(k => src(l.from + k)));
+}
+function rebuildLane(st, d, e, i) {
+  const ln = e.lanes[i], lane = ln.name;
+  const mine = q => q.div === d.id && q.phase === "e" && (q.lane || "") === lane;
+  const old = st.quizzes.filter(mine), kept = old.filter(q => q.pinned || q.results);
+  const freed = old.filter(q => !kept.includes(q) && q.slot);
+  const rooms = [...new Set(old.map(q => q.room).filter(Boolean))];
+  st.quizzes = st.quizzes.filter(q => !mine(q) || kept.includes(q));
+  const keptShort = new Set(kept.map(q => q.short));
+  // Letters continue from where the lane's quizzes started, or after the division's last letter.
+  const shorts = st.quizzes.filter(q => q.div === d.id && q.phase === "e" && /^[A-W]$/.test(q.short)).map(q => q.short).sort();
+  const start = old.filter(q => /^[A-W]$/.test(q.short)).map(q => q.short).sort()[0] || letterOf(shorts.length ? indexOf(shorts[shorts.length - 1]) + 1 : 0);
+  let fresh;
+  if (ln.format === "bracket") {
+    // The bracket comes back from the library, in its usual cells.
+    fresh = buildElims().filter(q => q.div === d.id && (q.lane || "") === lane);
+  } else {
+    fresh = roundRobin(d, e, i).map((seats, j) => elimQuiz(d.id, lane, letterOf(indexOf(start) + j), 0, null, seats));
+    fresh.forEach(q => { q.slot = null; });
+    if (ln.finals) { const f = elimQuiz(d.id, lane, "Finals", 0, null, [T(1), T(2), T(3)], true); f.slot = null; fresh.push(f); }
+  }
+  // A bracket always has its deciding quiz; without "Finals" it is just the lane's next letter. A
+  // round robin's Finals is an extra quiz, so without it there is none.
+  if (!ln.finals && ln.format === "rr") fresh = fresh.filter(q => !q.final);
+  if (!ln.finals) for (const q of fresh.filter(q => q.final)) {
+    const last = fresh.filter(x => !x.final && /^[A-W]$/.test(x.short)).map(x => x.short).sort().pop();
+    q.short = letterOf(last ? indexOf(last) + 1 : 0); q.label = `Div ${d.id}${lane} Quiz ${q.short}`;
+  }
+  fresh = fresh.filter(q => !keptShort.has(q.short));
+  const elimSlots = st.frame.filter(r => r.slot && r.phase === "e");
+  const busy = (slot, room) => st.quizzes.some(q => q.slot === slot && q.room === room) || elimSlots.find(r => r.id === slot)?.roomEvent?.room === room;
+  const shares = (slot, q) => st.quizzes.some(x => x.slot === slot && x.div === q.div && x.seats.some(a => q.seats.some(b => a.k !== "E" && a.k === b.k && a.v === b.v)));
+  for (const q of fresh) {
+    if (q.slot && !busy(q.slot, q.room)) { st.quizzes.push(q); continue; }
+    // Otherwise the lane's own freed cells first, then free cells in its rooms, in time order; a
+    // Finals comes after the lane's other quizzes.
+    const after = q.final ? Math.max(-1, ...st.quizzes.filter(x => mine(x) && x.slot).map(x => slotIdx(x.slot))) : -1;
+    const cells = [...freed.map(x => ({ slot: x.slot, room: x.room })), ...elimSlots.flatMap(r => rooms.map(room => ({ slot: r.id, room })))]
+      .filter(c => slotIdx(c.slot) > after && !busy(c.slot, c.room) && !shares(c.slot, q))
+      .sort((a, b) => slotIdx(a.slot) - slotIdx(b.slot) || a.room - b.room);
+    q.slot = cells[0]?.slot ?? null; q.room = cells[0]?.room ?? null;
+    st.quizzes.push(q);
+  }
+}
+function changeSetting(mut, what) {
+  commit(st => { mut(st.settings); if (st.autoApply) applySettings(st); });
+  if (state.autoApply && what) toast(`${what} applied`);
+}
+
+// ---- Conflict check (IDs from docs/schedule-invariants.md) ----
+const srcKey = (q, s) => s.k === "L" ? `L${s.v}` : s.k === "R" ? `R${s.v}` : s.k === "N" ? `N${s.v}` : s.k === "P" ? `P${s.p}${s.q}${q.lane || ""}` : s.k === "T" ? `T${s.v}${q.lane || ""}` : `E${Math.random()}`;
+const findQuiz = (div, lane, short) => state.quizzes.find(x => x.div === div && x.phase === "e" && x.short === short && (x.lane || "") === (lane || ""))
+  || state.quizzes.find(x => x.div === div && x.phase === "e" && x.short === short);
+const countOf = div => (state.applied.divs.find(d => d.id === div) || {}).count || 0;
+function checkAll() {
+  const issues = new Map();
+  const add = (q, id, msg, warn = false) => { if (!issues.has(q.id)) issues.set(q.id, []); issues.get(q.id).push({ id, msg, warn }); };
+  const bySlot = {};
+  for (const q of state.quizzes.filter(q => q.slot)) (bySlot[q.slot] ||= []).push(q);
+  for (const qs of Object.values(bySlot)) {
+    const seen = {};
+    for (const q of qs) for (const s of q.seats) {
+      if (s.k === "E") continue;
+      const k = `${q.div}:${srcKey(q, s)}`;
+      if (seen[k] && seen[k] !== q) { add(q, "H-1", `${label(q, s)} is also in ${seen[k].label} at this time`); add(seen[k], "H-1", `${label(q, s)} is also in ${q.label} at this time`); }
+      seen[k] = q;
+    }
+  }
+  for (const q of state.quizzes) if (!q.slot) add(q, "W-4", "Not on the schedule yet", true);
+  const byLabel = {};
+  for (const q of state.quizzes) (byLabel[q.label] ||= []).push(q);
+  for (const list of Object.values(byLabel)) if (list.length > 1) list.forEach(q => add(q, "H-7", `Another quiz is also called ${q.label}`));
+  const used = {};
+  for (const q of state.quizzes) {
+    const keys = q.seats.filter(s => s.k !== "E").map(s => srcKey(q, s));
+    if (new Set(keys).size < keys.length) add(q, "H-4", "The same team fills two seats");
+    if (q.seats.some(s => s.k === "E")) add(q, "H-5", "A seat is empty");
+    const sl = q.slot && slotOf(q.slot);
+    if (sl && !sl.slot) add(q, "H-3", "Scheduled over an event");
+    for (const s of q.seats) {
+      if (s.k === "L" && indexOf(s.v) + 1 > countOf(q.div)) add(q, "H-10", `Letter ${s.v} is outside ${divName(q.div)}'s ${countOf(q.div)} teams`);
+      if (s.k === "P" && q.slot) {
+        const src = findQuiz(q.div, q.lane, s.q);
+        if (src && src.slot && slotIdx(src.slot) >= slotIdx(q.slot)) add(q, "H-12", `Takes a team from ${src.label}, which isn't earlier`);
+        const k = `${q.div}${q.lane || ""}:${s.p}${s.q}`;
+        if (used[k]) add(q, "H-15", `${["", "1st", "2nd", "3rd"][s.p]} of ${s.q} is already sent to ${used[k].label}`);
+        used[k] = q;
+      }
+      if (s.k === "N" && q.slot) {
+        for (const x of state.quizzes.filter(x => x.div === q.div && (x.short === "X" || x.short === "Y") && x.slot)) {
+          const xs = slotOf(x.slot), gap = slotOf(q.slot).at - (xs.at + slotLen(xs));
+          if (gap < 0) add(q, "H-12", `Uses ${x.label}'s results before it ends`);
+          else if (gap < state.applied.xyGap) add(q, "W-3", `Starts ${gap} min after XY ends; totalling needs ${state.applied.xyGap}`, true);
+        }
+      }
+    }
+    // Each division's stats break is worked out from its own quizzes: every prelim before every elim.
+    if (q.slot && sl.slot) {
+      const other = state.quizzes.filter(x => x.div === q.div && x.slot && x.phase !== q.phase);
+      if (q.phase === "p" && other.some(x => slotIdx(x.slot) <= slotIdx(q.slot))) add(q, "H-11", "Prelim at or after one of this division's elims");
+      if (q.phase === "e" && other.some(x => slotIdx(x.slot) >= slotIdx(q.slot))) add(q, "H-11", "Elim at or before one of this division's prelims");
+    }
+  }
+  for (const [div, idxs] of Object.entries(state.late)) if (isDrawn(+div)) for (const i of idxs) {
+    const letter = letterOfTeam(+div, i);
+    const first = state.quizzes.filter(q => q.div == div && q.phase === "p" && q.slot).sort((a, b) => slotIdx(a.slot) - slotIdx(b.slot))[0];
+    if (first && first.seats.some(s => s.v === letter)) add(first, "W-2", `${teamName(+div, i)} is marked late but plays first`, true);
+  }
+  return issues;
+}
+function label(q, s) {
+  if (s.k === "L") return state.view === "teams" && isDrawn(q.div) ? teamName(q.div, teamOfLetter(q.div, s.v)) : s.v;
+  if (s.k === "R") return `${s.v}`;
+  if (s.k === "N") return `New ${s.v}`;
+  if (s.k === "P") return `${s.p} of ${s.q}`;
+  if (s.k === "T") return `${ordinal(s.v)} in pts`;
+  return "Choose…";
+}
+
+// ---- Rendering ----
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = m => { const h = Math.floor(m / 60) % 24, mm = m % 60; return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+const hhmm = m => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+function unappliedList() {
+  const s = state.settings, a = state.applied, out = [];
+  const cmp = (sec, key, cur, was) => { if (JSON.stringify(cur) !== JSON.stringify(was)) out.push({ sec, key, was }); };
+  cmp("frame", "rooms", s.rooms, a.rooms);
+  cmp("frame", "slotLen", s.slotLen, a.slotLen);
+  cmp("prelim", "perTeam", s.perTeam, a.perTeam);
+  cmp("prelim", "draw", s.draw, a.draw);
+  cmp("elim", "xyGap", s.xyGap, a.xyGap);
+  for (const d of s.divs) {
+    const old = a.divs.find(x => x.id === d.id);
+    if (!old) out.push({ sec: "teams", key: `div${d.id}`, was: "new" });
+    else cmp("teams", `count${d.id}`, d.count, old.count);
+    cmp("elim", `elim${d.id}`, s.elim[d.id], a.elim[d.id]);
+  }
+  for (const d of a.divs) if (!s.divs.find(x => x.id === d.id)) out.push({ sec: "teams", key: `gone${d.id}`, was: d });
+  return out;
+}
+
+// How a division's elim settings divide its ranks: main bracket, intermediate, then lanes in order.
+const LIBRARY = [5, 6, 7, 8, 9, 12];
+const bracketNote = n => LIBRARY.includes(n) ? `${n}-team bracket` : `No ${n}-team bracket in the library, so placeholders`;
+// A division's elims: lanes stacked down the ranks. Each line between two lanes sits after rank `at`,
+// so the lane above holds ranks down to `at`. An intermediate can straddle a line: XY is the 3 ranks above
+// and 3 below it, X the 2 above and 1 below. They play, are reranked, and the line is settled.
+const SPAN = { none: 0, X: 3, XY: 6 }, ABOVE = { none: 0, X: 2, XY: 3 };
+// `shift` slides the intermediate's window across the line, keeping at least one rank on each side.
+// Intermediate names follow the rule book: the second intermediate down doubles the letters (XX, XXYY).
+const playoffName = (inter, nth) => inter === "none" ? "" : (inter === "X" ? ["X"] : ["X", "Y"]).map(c => c.repeat(nth + 1)).join("");
+const aboveOf = sp => Math.max(1, Math.min(SPAN[sp.inter] - 1, ABOVE[sp.inter] + (sp.shift || 0)));
+const playoffRange = sp => sp.inter === "none" ? null : [sp.at - aboveOf(sp) + 1, sp.at - aboveOf(sp) + SPAN[sp.inter]];
+function elimPlan(count, e) {
+  const lanes = e.lanes.map((l, i) => {
+    const from = e.splits[i - 1] ? e.splits[i - 1].at + 1 : 1, to = e.splits[i] ? e.splits[i].at : count;
+    return { from, to, size: Math.max(0, to - from + 1) };
+  });
+  // An intermediate must stay inside the two lanes it settles.
+  const bad = e.splits.some((sp, i) => { const r = playoffRange(sp); return r && (r[0] < lanes[i].from || r[1] > lanes[i + 1].to); }) || lanes.some(l => l.size < 1);
+  return { lanes, bad };
+}
+
+function renderPanel() {
+  const s = state.settings, un = unappliedList();
+  const unOf = key => un.find(u => u.key === key);
+  const mark = (key, f = v => v) => { const u = unOf(key); return u ? `<span class="unapplied">${u.was === "new" ? "New, not applied yet" : `Unapplied · grid uses ${esc(f(u.was))}`}</span>` : ""; };
+  const count = sec => { const n = un.filter(u => u.sec === sec).length; return n ? `<span class="count">${n} unapplied</span>` : ""; };
+  const stepper = (id, v, step = 1) => `<span class="stepper"><button type="button" data-step="${id}" data-d="-${step}" aria-label="Decrease">−</button><output>${v}</output><button type="button" data-step="${id}" data-d="${step}" aria-label="Increase">+</button></span>`;
+  const INFO = {
+    draw: "Every team plays 3 prelim quizzes against 6 different opponents, whichever you pick.<br><br><strong>Rule book</strong> uses the official pairing tables for 4 to 21 teams, the tables your meets have used. The rule book has no tables above 21 teams, so larger divisions use a rotating draw. The rule book's 8-team table has one pair meeting twice.<br><br><strong>No rematches</strong> uses the rotating draw for 7 or more teams, so no two teams meet twice.<br><br>Letters are assigned to teams at random in the draw, so neither option favours any team.",
+    gap: "Time between the end of the XY quizzes and the first quiz with a New seat, so prelim and XY points can be added up and the six teams reranked.",
+  };
+  const info = k => `<button class="info" type="button" data-info="${k}" aria-label="More about this" aria-expanded="${!!ui.info[k]}">i</button>`;
+  const infoBox = k => ui.info[k] ? `<div class="info-box">${INFO[k]}</div>` : "";
+  const tagStyle = id => `background:var(--d${((id - 1) % 4) + 1})`;
+  const SICO = { teams: '<path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9" cy="7" r="3.5"/><path d="M22 19v-1a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>', frame: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>', prelim: '<path d="M4 6h16M4 12h16M4 18h10"/>', elim: '<path d="M4 4h5v5H4zM4 15h5v5H4zM9 6.5h4v11H9M13 12h7"/>', draw: '<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>' };
+  const sec = (key, title, body) => `<details class="sec" name="sections" data-sec="${key}" ${ui.open === key ? "open" : ""}><summary><span class="sico"><svg class="i" viewBox="0 0 24 24">${SICO[key]}</svg></span>${title} ${count(key)}<svg class="i chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></summary><div class="sec-body">${body}</div></details>`;
+
+  $("#autoSwitch").setAttribute("aria-checked", String(state.autoApply));
+  $("#autoHint").textContent = state.autoApply ? "Changes apply to the grid as you make them." : "Changes wait until you press Apply.";
+  $("#info-auto").hidden = !ui.info.auto;
+  $("#applyBar").hidden = state.autoApply || !un.length;
+  $("#applyText").textContent = `${un.length} unapplied ${un.length === 1 ? "change" : "changes"}`;
+
+  const gone = un.filter(u => u.key.startsWith("gone"));
+  const teams = s.divs.map(d => `<div class="divrow"><label><span class="div-tag" style="${tagStyle(d.id)}"></span>${divName(d.id)} teams</label>${stepper("count" + d.id, d.count)}<button class="icon-btn" type="button" data-rmdiv="${d.id}" aria-label="Remove ${divName(d.id)}" title="Remove division">✕</button>${mark("count" + d.id)}${mark("div" + d.id)}</div>
+      <details class="names"><summary>Team names</summary><div class="namelist">${Array.from({ length: d.count }, (_, i) => `<input class="txt" data-name="${d.id}:${i}" value="${esc(teamName(d.id, i))}" aria-label="${divName(d.id)} team ${i + 1}">`).join("")}</div></details>`).join("")
+    + gone.map(u => `<p class="unapplied">${divName(u.was.id)} removed, not applied yet</p>`).join("")
+    + `<button class="btn sm" type="button" id="addDiv">+ Add division</button><p class="hint">The schedule only needs team counts. Names are optional until the draw; a linked meet supplies them.</p>`;
+
+  const rooms = `<div class="field"><label>Rooms</label>${stepper("rooms", s.rooms)}${mark("rooms")}</div>
+    <div class="field"><label>Default slot length (min)</label>${stepper("slotLen", s.slotLen, 5)}${mark("slotLen")}</div>
+    <p class="hint">Stats breaks are automatic: each division's falls after its last prelim. ${state.applied.divs.map(d => { const ps = state.quizzes.filter(q => q.div === d.id && q.phase === "p" && q.slot); if (!ps.length) return ""; const last = ps.reduce((a, q) => slotIdx(q.slot) > slotIdx(a.slot) ? q : a); const sl = slotOf(last.slot); return `${divName(d.id)} after ${fmt(sl.at + slotLen(sl))}`; }).filter(Boolean).join(" · ")}.</p>
+    <p class="hint">Room blocks: ${state.applied.divs.map(d => `${divName(d.id)} ${d.rooms.length ? "Room " + d.rooms.join("–") : "none yet"}`).join(" · ")}</p>
+    <p class="hint">Tap any time on the grid to change it, insert a slot or event, or delete it. Tap a room's name to rename or remove it.</p>`;
+
+  const prelim = `<div class="field"><label>Quizzes per team</label>${stepper("perTeam", s.perTeam, 3)}${mark("perTeam")}</div>
+    <div class="field"><label for="draw">Prelim draw ${info("draw")}</label>
+      <select class="sel" id="draw" data-set="draw"><option value="rule" ${s.draw === "rule" ? "selected" : ""}>Rule book</option><option value="norematch" ${s.draw === "norematch" ? "selected" : ""}>No rematches</option></select>${mark("draw", v => v === "rule" ? "Rule book" : "No rematches")}</div>
+    ${infoBox("draw")}
+    ${(() => { const names = state.applied.divs.flatMap(d => (state.late[d.id] || []).map(i => teamName(d.id, i))); return `<button type="button" class="disclose" data-latetoggle aria-expanded="${!!ui.lateOpen}"><svg class="i chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg><span>Late teams</span><span class="sum">${names.length ? esc(names.length > 2 ? `${names.length} teams` : names.join(", ")) : "None"}</span></button>`; })()}
+    ${!ui.lateOpen ? "" : `<p class="hint">Mark teams expected to arrive late. The draw gives them letters that play late, so nothing moves. If you learn after the draw, Sort moves their quizzes instead.</p>
+    ${state.applied.divs.map(d => `<div class="latelist"><span class="div-tag" style="${tagStyle(d.id)}"></span><span class="lname">${divName(d.id)}</span>
+      ${Array.from({ length: d.count }, (_, i) => `<button type="button" class="tchip ${state.late[d.id]?.includes(i) ? "on" : ""}" data-late="${d.id}:${i}" aria-pressed="${!!state.late[d.id]?.includes(i)}">${isDrawn(d.id) ? `<b>${letterOfTeam(d.id, i)}</b> ` : ""}${esc(teamName(d.id, i))}</button>`).join("")}</div>`).join("")}`}
+    <div class="subhead">Draw</div>
+    <p class="hint">Decides which team is which letter. It never moves a quiz.</p>
+    ${state.applied.divs.map(d => `<div class="drawhead"><span class="div-tag" style="${tagStyle(d.id)}"></span><strong>${divName(d.id)}</strong>
+        <span class="chip ${isDrawn(d.id) ? "ok" : ""}">${isDrawn(d.id) ? "Drawn" : "Not drawn"}</span><span class="spacer"></span>
+        <button class="btn sm ${isDrawn(d.id) ? "" : "primary"}" type="button" data-draw="${d.id}">${isDrawn(d.id) ? "Redraw" : "Draw"}</button>
+        ${isDrawn(d.id) ? `<button class="btn sm ghost" type="button" data-cleardraw="${d.id}">Clear</button>` : ""}</div>`).join("")}
+    <div class="acts" style="justify-content:flex-start"><button class="btn sm" type="button" id="drawBtn">${anyDrawn() ? "Redraw all" : "Draw all"}</button>${anyDrawn() ? `<button class="btn sm ghost" type="button" id="clearAllBtn">Clear all</button>` : ""}</div>
+    <div class="subhead">Sort prelims</div>
+    <div class="acts" style="justify-content:flex-start"><button class="btn sm" type="button" data-resort="all">Sort all prelims</button>${state.applied.divs.map(d => `<button class="btn sm ghost" type="button" data-resort="${d.id}">${divName(d.id)}</button>`).join("")}</div>
+    <p class="hint">Places prelims again in quiz order, filling rounds, with drawn late teams' quizzes moved later. It shows what will move first, and pinned quizzes stay unless you include them.</p>`;
+
+  // Each division reads top-down by prelim rank: "Top 9 → Div 2", "7–12 play XY to settle the line",
+  // "The rest → Div 2c". Then each lane's format.
+  const elimDiv = d => {
+    const e = s.elim[d.id], plan = elimPlan(d.count, e), dn = divName(d.id), cls = divCls(d.id), N = d.count;
+    const range = (a, b) => a > b ? "—" : a === b ? `${a}` : `${a}–${b}`;
+    const laneName = i => `${dn}${e.lanes[i].name}`;
+    const chip = i => `<span class="lanechip l${Math.min(i, 3)}">${esc(laneName(i))}</span>`;
+    const last = e.lanes.length - 1;
+    const strip = plan.lanes.map((l, i) => `<span class="l${Math.min(i, 3)}" style="flex:${l.size}"></span>`).join("");
+    let steps = "";
+    plan.lanes.forEach((l, i) => {
+      const what = last === 0 ? "Everyone" : i === 0 ? `Top ${l.size}` : i === last ? "The rest" : `Next ${l.size}`;
+      steps += `<div class="step">
+        <span class="rk">${range(l.from, l.to)}</span>
+        <span class="say">${what} → ${chip(i)}</span>
+        <span class="stepctl">${i !== last ? `<span class="stepper"><button type="button" data-elim-btn="${d.id}:size:${i}:-1" aria-label="One fewer team in ${esc(laneName(i))}">−</button><output>${l.size}</output><button type="button" data-elim-btn="${d.id}:size:${i}:1" aria-label="One more team in ${esc(laneName(i))}">+</button></span>` : ""}
+          ${i > 0 ? `<button class="icon-btn" type="button" data-elim-btn="${d.id}:merge:${i}" title="Merge into ${esc(laneName(i - 1))}" aria-label="Merge ${esc(laneName(i))} into the lane above"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>` : ""}</span>
+      </div>`;
+      const sp = e.splits[i];
+      if (!sp) return;
+      const r = playoffRange(sp), nth = e.splits.slice(0, i).filter(x => x.inter !== "none").length;
+      steps += r
+        ? `<div class="step playoff">
+            <span class="rk">${range(...r)}</span>
+            <span class="say">${sp.inter === "XY" ? "Six" : "Three"} around the line (${aboveOf(sp)} above, ${SPAN[sp.inter] - aboveOf(sp)} below) play <span class="seg sm" role="group" aria-label="Intermediate">${["X", "XY"].map(v => `<button type="button" data-elim-btn="${d.id}:inter:${i}:${v}" aria-pressed="${sp.inter === v}">${playoffName(v, nth)}</button>`).join("")}</span> to settle the line between ${chip(i)} and ${chip(i + 1)}</span>
+            <span class="stepctl"><span class="slide" title="Slide the intermediate across the line"><button type="button" data-elim-btn="${d.id}:slide:${i}:1" aria-label="Move the intermediate up a rank" ${aboveOf(sp) >= SPAN[sp.inter] - 1 ? "disabled" : ""}>▲</button><button type="button" data-elim-btn="${d.id}:slide:${i}:-1" aria-label="Move the intermediate down a rank" ${aboveOf(sp) <= 1 ? "disabled" : ""}>▼</button></span><button class="icon-btn" type="button" data-elim-btn="${d.id}:inter:${i}:none" title="No intermediate" aria-label="Remove the intermediate"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></span>
+          </div>`
+        : `<div class="step gapstep"><button class="btn sm ghost" type="button" data-elim-btn="${d.id}:inter:${i}:XY"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add an intermediate across this line</button></div>`;
+    });
+    const lanes = plan.lanes.map((l, i) => `<div class="lrow2">
+        ${chip(i)}<span class="hint">${l.size} teams · ${e.lanes[i].format === "rr" ? `round robin, ${e.lanes[i].per || 2} ${(e.lanes[i].per || 2) === 1 ? "quiz" : "quizzes"} each` : bracketNote(l.size)}</span>
+        <span class="lctl2"><span class="seg sm" role="group" aria-label="Format"><button type="button" data-elim-btn="${d.id}:format:${i}:bracket" aria-pressed="${e.lanes[i].format === "bracket"}">Bracket</button><button type="button" data-elim-btn="${d.id}:format:${i}:rr" aria-pressed="${e.lanes[i].format === "rr"}">Round robin</button></span>
+        ${e.lanes[i].format === "rr" ? `<span class="stepper" title="Quizzes each"><button type="button" data-elim-btn="${d.id}:per:${i}:-1" aria-label="Fewer quizzes each">−</button><output>${e.lanes[i].per || 2}</output><button type="button" data-elim-btn="${d.id}:per:${i}:1" aria-label="More quizzes each">+</button></span>` : ""}
+        <label class="chk" title="${e.lanes[i].format === "rr" ? "Add a Finals: the top 3 in points across the round robin" : "Call the deciding quiz Finals; off, it is named as the lane\u2019s next letter"}"><input type="checkbox" data-elim="${d.id}:finals:${i}" ${e.lanes[i].finals ? "checked" : ""}>Finals</label></span>
+      </div>`).join("");
+    return `<div class="ediv ${cls}">
+      <div class="ehead"><span class="div-tag" style="${tagStyle(d.id)}"></span><strong>${dn}</strong><span class="hint">${N} teams, by prelim rank</span>${unOf("elim" + d.id) ? '<span class="unapplied">Unapplied</span>' : ""}</div>
+      <div class="strip">${strip}</div>
+      <div class="steps">${steps}</div>
+      <button class="btn sm ghost addlane" type="button" data-elim-btn="${d.id}:addlane" ${plan.lanes[last].size < 2 ? "disabled" : ""}><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Split ${esc(laneName(last))} into two lanes</button>
+      <div class="subhead">Lanes</div>
+      ${lanes}
+    </div>`;
+  };
+  const elim = `<div class="field"><label>Totalling gap after XY (min) ${info("gap")}</label>${stepper("xyGap", s.xyGap, 5)}${mark("xyGap")}</div>
+    ${infoBox("gap")}
+    ${s.divs.map(elimDiv).join("")}
+    <p class="hint">In this mockup, elim settings show their effect here only; the grid keeps its example elims.</p>`;
+
+
+  $("#sections").innerHTML = sec("teams", "Teams", teams) + sec("frame", "Time slots and rooms", rooms) + sec("prelim", "Prelim settings", prelim) + sec("elim", "Elim settings", elim);
+}
+
+function renderToolbar() {
+  const sel = ui.selected && state.quizzes.find(q => q.id === ui.selected);
+  const pinIcon = '<svg class="i" viewBox="0 0 24 24"><path d="M12 17v5M9 3h6l-1 7 4 3v2H6v-2l4-3z"/></svg>';
+  $("#toolbar").innerHTML = sel
+    ? `<span class="sel-bar"><strong>Moving ${esc(sel.label)}</strong>: tap an empty cell to move it there, another quiz to swap${sel.slot ? ", or Unplaced" : ""}.</span><span class="spacer"></span>
+       <button class="btn sm primary" type="button" data-qact="cancel">Cancel</button>`
+    : `<span class="sel-bar">Tap a quiz for its options, or drag it to move or swap. Tap a seat to change it.</span><span class="spacer"></span>
+       <span class="legend hide-phone"><span class="lg-pin">${pinIcon}</span>Pinned: placed by hand, so settings changes won't move it.</span>`;
+}
+
+function renderGrid() {
+  const issues = checkAll(), rooms = state.applied.rooms, sel = ui.selected && state.quizzes.find(q => q.id === ui.selected);
+  const blockOf = r => state.applied.divs.find(d => d.rooms.includes(r));
+  const blkStart = r => r > 1 && blockOf(r) !== blockOf(r - 1) ? "blk-start" : "";
+  let html = `<thead><tr><th class="time">Time</th>${state.roomNames.slice(0, rooms).map((n, i) => {
+    // Every division with a quiz in this room (Finals aside), in order of first use; the block owner if none.
+    const inRoom = state.quizzes.filter(q => q.room === i + 1 && q.slot && !q.final).sort((a, b) => slotIdx(a.slot) - slotIdx(b.slot));
+    const divs = [...new Set(inRoom.map(q => q.div))];
+    if (!divs.length && blockOf(i + 1)) divs.push(blockOf(i + 1).id);
+    return `<th class="${blkStart(i + 1)}"><button class="roomhead" type="button" data-room="${i + 1}">${esc(n)}<span class="blks">${divs.map(id => `<span class="blk ${divCls(id)}" style="color:var(--qc);background:var(--qs)">${divName(id)}</span>`).join("")}</span></button></th>`; }).join("")}<th class="addroom"><button class="btn sm ghost" type="button" id="addRoom"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Room</button></th></tr></thead><tbody>`;
+  for (const r of state.frame) {
+    if (r.day) { html += `<tr class="day"><td class="time" colspan="${rooms + 2}"><span class="dayname">${esc(r.day)}</span></td></tr>`; continue; }
+    const timeBtn = `<td class="time"><button type="button" data-row="${r.id}"><span class="t">${fmt(r.at)}</span><span class="d">${r.slot ? slotLen(r) : r.len} min</span></button></td>`;
+    if (r.ev) { html += `<tr class="event">${timeBtn}<td class="ev" colspan="${rooms + 1}"><button type="button" class="evbtn" data-row="${r.id}" title="Edit this event">${esc(r.ev)}</button></td></tr>`; continue; }
+    html += `<tr>${timeBtn}`;
+    for (let room = 1; room <= rooms; room++) {
+      if (r.roomEvent && r.roomEvent.room === room) { html += `<td class="cell single-event ${blkStart(room)}"><button type="button" data-row="${r.id}">${esc(r.roomEvent.label)}</button></td>`; continue; }
+      const q = state.quizzes.find(x => x.slot === r.id && x.room === room);
+      html += `<td class="cell ${blkStart(room)} ${!q ? (sel ? "target" : "empty") : ""}" data-slot="${r.id}" data-cell-room="${room}">${q ? quizCard(q, issues.get(q.id), sel) : ""}</td>`;
+    }
+    html += `<td class="filler"></td></tr>`;
+  }
+  $("#grid").innerHTML = html + `</tbody>`;
+  const tray = state.quizzes.filter(q => !q.slot);
+  $("#tray").classList.toggle("target", !!(sel && sel.slot));
+  $("#tray").innerHTML = tray.length ? `<div class="subhead">Unplaced (${tray.length})</div><div class="tray-list">${tray.map(q => quizCard(q, issues.get(q.id), sel)).join("")}</div>` : `<p class="hint">Unplaced: drop a quiz here to take it off the grid.</p>`;
+  const all = [...issues.values()].flat(), hard = all.filter(i => !i.warn).length, warn = all.length - hard;
+  const chip = $("#issueChip");
+  chip.className = "chip " + (hard ? "err" : warn ? "warn" : "ok");
+  chip.innerHTML = `<span class="dot"></span>${hard || warn ? `${hard} conflict${hard === 1 ? "" : "s"} · ${warn} warning${warn === 1 ? "" : "s"}` : "No conflicts"}`;
+  $("#issues").className = "issues" + (ui.issuesOpen ? " open" : "");
+  $("#issues").innerHTML = all.length ? [...issues.entries()].map(([id, list]) => list.map(i => `<button class="item" type="button" data-goto="${id}"><b>${i.id}</b>${esc(state.quizzes.find(q => q.id === id).label)}: ${esc(i.msg)}</button>`).join("")).join("") : `<p class="hint">Nothing to fix.</p>`;
+  renderToolbar();
+}
+
+const ICON = {
+  pin: '<svg class="i" viewBox="0 0 24 24"><path d="M12 17v5M9 3h6l-1 7 4 3v2H6v-2l4-3z"/></svg>',
+  check: '<svg class="i" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>',
+};
+// A seat as on the printouts: its seed on the left (rank, New n, place), and the team or letter on the line.
+function seatParts(q, s) {
+  const teams = state.view === "teams" && isDrawn(q.div);
+  if (s.k === "L") return { src: teams ? s.v : "", line: teams ? teamName(q.div, teamOfLetter(q.div, s.v)) : s.v, mono: !teams };
+  if (s.k === "E") return { src: "", line: "Choose…" };
+  return { src: label(q, s), line: "" };
+}
+function quizCard(q, list = [], sel) {
+  const hard = list.some(i => !i.warn), warn = list.some(i => i.warn);
+  const bad = s => list.some(i => !i.warn && i.msg.includes(label(q, s)));
+  const nHard = list.filter(i => !i.warn).length, nWarn = list.length - nHard;
+  return `<div class="quiz ${divCls(q.div)} ${sel && sel.id === q.id ? "selected" : ""} ${sel && sel.id !== q.id ? "swap" : ""} ${hard ? "conflict" : warn ? "warning" : ""}" data-quiz="${q.id}" tabindex="0" role="button" aria-label="${esc(q.label)}">
+    <div class="ql"><span class="ddot"></span><span class="ttl">${esc(q.label)}</span>
+      <span class="tags">${nHard ? `<span class="badge">${nHard}</span>` : ""}${nWarn ? `<span class="badge w">${nWarn}</span>` : ""}${q.results ? `<span class="res ${q.changedAfterResults ? "changed" : ""}" title="${q.changedAfterResults ? "Changed after results" : "Has results"}">${ICON.check}</span>` : ""}${q.pinned ? `<button type="button" class="pin" data-unpin="${q.id}" title="Pinned: you placed or edited this by hand, so settings changes won't move it. Click to unpin." aria-label="Unpin ${esc(q.label)}">${ICON.pin}</button>` : ""}</span></div>
+    ${q.seats.map((s, i) => { const p = seatParts(q, s); return `<button type="button" class="seat ${s.k === "E" ? "empty-seat" : ""} ${s.k !== "E" && bad(s) ? "bad" : ""}" data-seat="${q.id}:${i}"><span class="src">${esc(p.src)}</span><span class="line ${p.mono ? "mono" : ""}">${esc(p.line)}</span></button>`; }).join("")}
+    ${list.length ? `<div class="flags">${list.map(i => `<div class="flag ${i.warn ? "w" : ""}"><b>${i.id}</b>${esc(i.msg)}</div>`).join("")}</div>` : ""}</div>`;
+}
+
+function render() {
+  renderPanel(); renderGrid();
+  $("#pubChip").textContent = state.published ? "Published" : "Draft";
+  $("#pubChip").className = "chip" + (state.published ? " ok" : "");
+  $("#linkChip").textContent = state.linked ? "Linked to meet" : "Standalone";
+  $("#viewLetters").setAttribute("aria-pressed", String(state.view === "letters"));
+  $("#viewTeams").setAttribute("aria-pressed", String(state.view === "teams"));
+  $("#viewTeams").disabled = !anyDrawn();
+  $("#viewTeams").title = anyDrawn() ? "" : "Run the draw first";
+  $("#undoBtn").disabled = !undoStack.length; $("#redoBtn").disabled = !redoStack.length;
+}
+
+// ---- Popovers ----
+let pop = null;
+// Close the open popover, returning to the one it was opened from (if any).
+function closeOrBack() { const back = pop?.back; closePop(); back?.(); }
+function closePop() { if (pop) { pop.remove(); pop = null; } popQuiz = null; }
+function openPop(anchor, html, onClick, back = null) {
+  closePop();
+  // Every popover has a close button; editors re-render only the body, so it stays put.
+  pop = document.createElement("div"); pop.className = "pop"; pop.setAttribute("role", "dialog");
+  pop.innerHTML = `<button type="button" class="pop-x" data-close aria-label="Close"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button><div class="pop-body"></div>`;
+  const body = pop.querySelector(".pop-body");
+  body.innerHTML = html; document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = Math.max(16, Math.min(window.innerWidth - w - 16, r.left)) + "px";
+  pop.style.top = Math.max(16, Math.min(window.innerHeight - h - 16, r.bottom + 6)) + "px";
+  pop.back = back;
+  pop.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; if (b.dataset.close !== undefined || b.dataset.back !== undefined) return closeOrBack(); onClick(b, body); });
+  body.querySelector("input,select,button")?.focus();
+}
+
+function seatEditor(qid, idx, anchor, back = null) {
+  const q = state.quizzes.find(x => x.id === qid), n = countOf(q.div), cur = q.seats[idx];
+  let kind = cur.k === "E" ? (q.phase === "p" ? "L" : "P") : cur.k;
+  const sameDiv = state.quizzes.filter(x => x.div === q.div && x.id !== q.id);
+  const at = x => x.slot ? slotOf(x.slot).at : Infinity;
+  const short = x => x.label.replace(divName(q.div), "").replace("Quiz ", "").trim();
+  // Where each source is already used, so the editor can say so.
+  const usedBy = key => sameDiv.find(x => x.seats.some(s => srcKey(x, s) === key));
+  const isCur = (k, v, p) => cur.k === k && (k === "P" ? cur.p === p && cur.q === v : cur.v === v);
+  const opt = (pick, text, sub, on, warn) => `<button type="button" data-pick="${pick}" class="${on ? "on" : ""} ${warn ? "warnopt" : ""}" aria-pressed="${on}">${text}${sub ? `<small>${sub}</small>` : ""}</button>`;
+  const body = () => {
+    let list = "";
+    if (kind === "L") {
+      const busy = new Set(sameDiv.filter(x => x.slot && x.slot === q.slot).flatMap(x => x.seats.filter(s => s.k === "L").map(s => s.v)));
+      list = `<div class="choices ${state.view === "teams" && isDrawn(q.div) ? "wide" : ""}">${Array.from({ length: n }, (_, i) => { const c = letterOf(i);
+        const plays = state.quizzes.filter(x => x.div === q.div && x.phase === "p" && x.seats.some(s => s.k === "L" && s.v === c)).length;
+        const sub = [state.view === "teams" && isDrawn(q.div) ? esc(teamName(q.div, teamOfLetter(q.div, c))) : "", busy.has(c) ? "busy now" : `${plays} quiz${plays === 1 ? "" : "zes"}`].filter(Boolean).join(" · ");
+        return opt(`L:${c}`, c, sub, isCur("L", c), busy.has(c)); }).join("")}</div>`;
+    } else if (kind === "R" || kind === "N") {
+      const vals = kind === "R" ? Array.from({ length: n }, (_, i) => i + 1) : Array.from({ length: Math.max(0, n - 6) }, (_, i) => i + 7);
+      list = `<div class="choices">${vals.map(v => { const u = usedBy(`${kind}${v}`); return opt(`${kind}:${v}`, kind === "N" ? `New ${v}` : `${v}`, u ? `in ${esc(short(u))}` : "", isCur(kind, v), !!u); }).join("")}</div>`;
+    } else {
+      const elims = sameDiv.filter(x => x.phase === "e" && !x.final).sort((a, b) => at(a) - at(b));
+      const earlier = elims.filter(x => at(x) < at(q)), later = elims.filter(x => at(x) >= at(q));
+      const row = x => `<div class="src-row"><span>${esc(short(x))}<small>${x.slot ? fmt(at(x)) : "Unplaced"}</small></span>${[1, 2, 3].map(p => {
+        const u = sameDiv.find(y => y.seats.some(s => s.k === "P" && s.p === p && s.q === x.short && (y.lane || "") === (x.lane || "")));
+        return `<button type="button" data-pq="${p}:${x.short}" class="${isCur("P", x.short, p) ? "on" : ""} ${u ? "warnopt" : ""}">${["", "1st", "2nd", "3rd"][p]}${u ? `<small>→ ${esc(short(u))}</small>` : ""}</button>`; }).join("")}</div>`;
+      list = `<div class="src-list">${earlier.map(row).join("") || '<p class="hint">No earlier quizzes in this division.</p>'}
+        ${later.length ? `<details class="later"><summary>Later quizzes (${later.length}) · would break H-12</summary>${later.map(row).join("")}</details>` : ""}</div>`;
+    }
+    return `<div class="pop-head">${back ? `<button class="btn sm ghost back" type="button" data-back aria-label="Back to ${esc(q.label)}"><svg class="i" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg>Back</button>` : ""}<h3>${esc(q.label)} · seat ${idx + 1}</h3><span class="chip">Now: ${esc(label(q, cur))}</span></div>
+      ${q.results ? `<p class="flag w">This quiz has submitted results. A change will be marked here and on the results page.</p>` : ""}
+      <div class="seg tabs" role="tablist" aria-label="Seat comes from">${[["L", "Letter"], ["R", "Rank"], ["N", "New n"], ["P", "From quiz"]].map(([k, t]) => `<button type="button" role="tab" data-kind="${k}" aria-pressed="${kind === k}">${t}</button>`).join("")}</div>
+      ${list}
+      <p class="hint">Tap to set the seat. Anything is allowed; amber means it's already used, and the quiz is marked if it breaks a rule.</p>
+      <div class="acts"><button class="btn sm" type="button" data-clear>Clear seat</button><span class="spacer"></span><button class="btn sm" type="button" data-close>Close</button></div>`;
+  };
+  openPop(anchor, body(), (b, p) => {
+    if (b.dataset.kind) { kind = b.dataset.kind; p.innerHTML = body(); return; }
+    const set = seat => { commit(st => { const qq = st.quizzes.find(x => x.id === qid); qq.seats[idx] = seat; qq.pinned = true; if (qq.results) qq.changedAfterResults = true; }, "Seat changed. Quiz pinned."); closePop(); back?.(); };
+    if (b.dataset.clear !== undefined) return set(X());
+    if (b.dataset.pick) { const [k, v] = b.dataset.pick.split(":"); set(k === "L" ? L(v) : k === "R" ? R(+v) : N(+v)); }
+    if (b.dataset.pq) { const [pl, sh] = b.dataset.pq.split(":"); set(P(+pl, sh)); }
+  }, back);
+}
+
+function rowEditor(rowId, anchor) {
+  const r = state.frame.find(x => x.id === rowId), isSlot = !!r.slot, occupied = state.quizzes.filter(q => q.slot === rowId);
+  const len0 = isSlot ? slotLen(r) : r.len;
+  let adding = false;
+  const body = () => `<div class="pop-head"><h3>${fmt(r.at)}–${fmt(r.at + len0)}</h3><span class="chip">${isSlot ? `Quiz slot · ${occupied.length} quiz${occupied.length === 1 ? "" : "zes"}` : "Event"}</span></div>
+    ${isSlot ? "" : `<label class="f">Event<input class="txt" id="rowLabel" value="${esc(r.ev)}"></label>`}
+    <div class="row">
+      <label class="f">Start<input class="txt" type="time" id="rowAt" value="${hhmm(r.at)}"></label>
+      <label class="f">Length (min)<input class="txt" type="number" id="rowLen" min="5" max="240" step="5" value="${len0}"></label>
+    </div>
+    <label class="chk"><input type="checkbox" id="rowShift" checked>Move later times that day by the same amount</label>
+    ${isSlot ? `<div class="subhead">Events in one room</div>
+      ${r.roomEvent ? `<div class="mini-row"><span>${esc(r.roomEvent.label)} · ${esc(state.roomNames[r.roomEvent.room - 1])}</span><button class="icon-btn" type="button" data-act="rmRoomEv" aria-label="Remove">✕</button></div>` : ""}
+      ${adding ? `<div class="row"><select class="sel" id="rowEvRoom">${state.roomNames.slice(0, state.applied.rooms).map((n, i) => `<option value="${i + 1}">${esc(n)}</option>`).join("")}</select><input class="txt" id="rowEvLabel" placeholder="Coaches meeting"></div>
+        <div class="acts"><button class="btn sm primary" type="button" data-act="addRoomEv">Add</button></div>`
+        : r.roomEvent ? "" : `<button class="btn sm" type="button" data-act="showAdd">+ Event in one room</button>`}` : ""}
+    <div class="acts"><button class="btn primary" type="button" data-act="save">${isSlot ? "Save time" : "Save"}</button></div>
+    <div class="subhead">Insert</div>
+    <div class="ins-grid"><span>Above</span><button class="btn sm" type="button" data-act="slotAbove">Quiz slot</button><button class="btn sm" type="button" data-act="evAbove">Event</button>
+      <span>Below</span><button class="btn sm" type="button" data-act="slotBelow">Quiz slot</button><button class="btn sm" type="button" data-act="evBelow">Event</button></div>
+    <div class="danger-zone">
+      ${isSlot ? `<button class="btn sm" type="button" data-act="toEvent">Turn into event</button>` : `<button class="btn sm" type="button" data-act="toSlot">Turn into quiz slot</button>`}
+      <button class="btn sm danger" type="button" data-act="delete">Delete row</button>
+      ${isSlot && occupied.length ? `<p class="hint">Either sends its ${occupied.length} quizzes to Unplaced.</p>` : ""}
+    </div>`;
+  openPop(anchor, body(), (b, p) => {
+    const act = b.dataset.act; if (!act) return;
+    if (act === "showAdd") { adding = true; p.innerHTML = body(); return; }
+    const parse = () => { const [h, m] = p.querySelector("#rowAt").value.split(":").map(Number); return h * 60 + m; };
+    const newAt = parse(), newLen = +p.querySelector("#rowLen").value || len0, shift = p.querySelector("#rowShift").checked;
+    const roomEvRoom = +(p.querySelector("#rowEvRoom")?.value || 0), roomEvLabel = p.querySelector("#rowEvLabel")?.value.trim() || "Coaches meeting";
+    commit(st => {
+      const i = st.frame.findIndex(x => x.id === rowId), row = st.frame[i];
+      const toTray = () => st.quizzes.forEach(q => { if (q.slot === rowId) { q.slot = null; q.room = null; } });
+      const phase = row.phase || (st.frame.slice(0, i).reverse().find(x => x.slot)?.phase) || "p";
+      // Later rows on the same day, for "move later times".
+      const sameDayAfter = () => { const out = []; for (let j = i + 1; j < st.frame.length && !st.frame[j].day; j++) out.push(st.frame[j]); return out; };
+      if (act === "save") {
+        const delta = (newAt + newLen) - (row.at + len0);
+        row.at = newAt;
+        if (row.slot) row.len = newLen === st.applied.slotLen ? undefined : newLen; else { row.len = newLen; row.ev = p.querySelector("#rowLabel").value.trim() || "Event"; }
+        if (shift && delta) sameDayAfter().forEach(x => x.at += delta);
+      }
+      if (act === "rmRoomEv") delete row.roomEvent;
+      if (act === "addRoomEv") { row.roomEvent = { room: roomEvRoom, label: roomEvLabel }; st.quizzes.forEach(q => { if (q.slot === rowId && q.room === roomEvRoom) { q.slot = null; q.room = null; } }); }
+      const insLen = act.startsWith("slot") ? st.applied.slotLen : 30;
+      if (act === "slotAbove" || act === "evAbove") { st.frame.splice(i, 0, act === "slotAbove" ? slot(row.at, phase) : ev("New event", row.at, 30)); if (shift) [row, ...sameDayAfter().slice(1)].forEach(x => x.at += insLen); }
+      if (act === "slotBelow" || act === "evBelow") { const after = sameDayAfter(); st.frame.splice(i + 1, 0, act === "slotBelow" ? slot(row.at + len0, phase) : ev("New event", row.at + len0, 30)); if (shift) after.forEach(x => x.at += insLen); }
+      if (act === "toEvent") { toTray(); st.frame[i] = ev(row.roomEvent?.label || "Event", row.at, slotLen(row)); st.frame[i].id = rowId; }
+      if (act === "toSlot") { st.frame[i] = slot(row.at, phase); st.frame[i].id = rowId; }
+      if (act === "delete") { toTray(); st.frame.splice(i, 1); }
+    }, { save: "Time saved", rmRoomEv: "Event removed", addRoomEv: "Event added; that room is now busy", slotAbove: "Slot inserted", slotBelow: "Slot inserted", evAbove: "Event inserted", evBelow: "Event inserted", toEvent: "Now an event", toSlot: "Now a quiz slot", delete: "Row deleted" }[act]);
+    closePop();
+  });
+}
+
+function roomEditor(room, anchor) {
+  const inRoom = state.quizzes.filter(q => q.room === room && q.slot).length;
+  openPop(anchor, `<h3>${esc(state.roomNames[room - 1])}</h3>
+    <label class="f">Name<input class="txt" id="roomName" value="${esc(state.roomNames[room - 1])}"></label>
+    <div class="acts"><button class="btn primary" type="button" data-act="save">Save</button></div>
+    <div class="acts" style="justify-content:flex-start">
+      <button class="btn sm" type="button" data-act="insert">Insert room after</button>
+      <button class="btn sm danger" type="button" data-act="remove">Remove room</button>
+      <button class="btn sm" type="button" data-close>Cancel</button>
+    </div>
+    ${inRoom ? `<p class="hint">Removing it moves its ${inRoom} quizzes to Unplaced.</p>` : ""}`,
+  b => {
+    const act = b.dataset.act; if (!act) return;
+    const name = pop.querySelector("#roomName").value.trim();
+    commit(st => {
+      if (act === "save") st.roomNames[room - 1] = name || st.roomNames[room - 1];
+      const shift = (from, by) => { st.quizzes.forEach(q => { if (q.room >= from) q.room += by; }); st.frame.forEach(r => { if (r.roomEvent && r.roomEvent.room >= from) r.roomEvent.room += by; }); st.applied.divs.concat(st.settings.divs).forEach(d => d.rooms = d.rooms.map(x => x >= from ? x + by : x)); };
+      if (act === "insert") { shift(room + 1, 1); st.roomNames.splice(room, 0, `Room ${st.roomNames.length + 1}`); }
+      if (act === "remove") { st.quizzes.forEach(q => { if (q.room === room) { q.slot = null; q.room = null; } }); st.applied.divs.concat(st.settings.divs).forEach(d => d.rooms = d.rooms.filter(x => x !== room)); st.roomNames.splice(room - 1, 1); shift(room + 1, -1); st.frame.forEach(r => { if (r.roomEvent && r.roomEvent.room === room) delete r.roomEvent; }); }
+      if (act !== "save") { st.applied.rooms = st.settings.rooms = st.roomNames.length; }
+    }, { save: "Renamed", insert: "Room inserted", remove: "Room removed" }[act]);
+    closePop();
+  });
+}
+
+function addQuizEditor(slotId, room, anchor) {
+  const r = slotOf(slotId);
+  openPop(anchor, `<h3>Add a quiz</h3>
+    <div class="row">
+      <label class="f">Division<select class="sel" id="aqDiv">${state.applied.divs.map(d => `<option value="${d.id}" ${d.rooms.includes(room) ? "selected" : ""}>${divName(d.id)}</option>`).join("")}</select></label>
+      <label class="f">Phase<select class="sel" id="aqPhase"><option value="p" ${r.phase === "p" ? "selected" : ""}>Prelim</option><option value="e" ${r.phase === "e" ? "selected" : ""}>Elim</option></select></label>
+    </div>
+    <label class="f">Label<input class="txt" id="aqLabel" placeholder="Left blank, it's numbered for you"></label>
+    <p class="hint">${esc(state.roomNames[room - 1])} at ${fmt(r.at)}. Seats start empty; tap each to fill it.</p>
+    <div class="acts"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" type="button" data-act="add">Add quiz</button></div>`,
+  b => {
+    if (b.dataset.act !== "add") return;
+    const div = +pop.querySelector("#aqDiv").value, phase = pop.querySelector("#aqPhase").value;
+    const n = state.quizzes.filter(q => q.div === div && q.phase === phase).length + 1;
+    const lbl = pop.querySelector("#aqLabel").value.trim() || (phase === "p" ? `${divName(div)} Quiz ${n}` : `${divName(div)} Quiz ${String.fromCharCode(64 + Math.min(26, n))}`);
+    commit(st => st.quizzes.push({ id: rid("q"), div, phase, label: lbl, short: lbl.split(" ").pop(), slot: slotId, room, seats: [X(), X(), X()], pinned: true }), "Quiz added. Fill its seats.");
+    closePop();
+  });
+}
+
+function confirmModal(title, body, okText, onOk) {
+  const back = document.createElement("div"); back.className = "modal-back";
+  back.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h2>${esc(title)}</h2>${body}<div class="acts"><button class="btn" type="button" data-no>Cancel</button><button class="btn primary" type="button" data-yes>${esc(okText)}</button></div></div>`;
+  document.body.appendChild(back);
+  back.querySelector("[data-yes]").focus();
+  back.addEventListener("click", e => { if (e.target.closest("[data-yes]")) { onOk(); back.remove(); } else if (e.target.closest("[data-no]") || e.target === back) back.remove(); });
+}
+let toastTimer;
+function toast(msg) {
+  let el = $(".toast"); if (!el) { el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.remove(), 2600);
+}
+
+// ---- Events ----
+document.addEventListener("click", e => {
+  const b = e.target;
+  const path = e.composedPath();
+  if (path.some(n => n.classList?.contains("pop"))) return;
+  if (pop) { closePop(); return; }
+  if (path.some(n => n.classList?.contains("modal-back"))) return;
+  const lt = b.closest("[data-late]");
+  if (b.closest("[data-latetoggle]")) { ui.lateOpen = !ui.lateOpen; renderPanel(); return; }
+  if (lt) { const [dv, ti] = lt.dataset.late.split(":").map(Number); commit(st => { const list = st.late[dv] ||= []; const at = list.indexOf(ti); at >= 0 ? list.splice(at, 1) : list.push(ti); }); return; }
+  const rs = b.closest("[data-resort]");
+  if (rs) {
+    const which = rs.dataset.resort, divs = state.applied.divs.filter(d => which === "all" || d.id === +which);
+    const ids = new Set(divs.map(d => d.id));
+    const unpinned = state.quizzes.filter(q => ids.has(q.div) && q.phase === "p" && !q.pinned).length, pinned = state.quizzes.filter(q => ids.has(q.div) && q.phase === "p" && q.pinned).length;
+    confirmModal(`Sort ${which === "all" ? "all prelims" : divName(+which) + " prelims"}?`, `<p>${unpinned} unpinned prelim quiz${unpinned === 1 ? "" : "zes"} will be placed again.</p>${pinned ? `<label class="chk"><input type="checkbox" id="resortPinned">Also sort the ${pinned} pinned quiz${pinned === 1 ? "" : "zes"} (unpins them)</label>` : ""}
+      <p class="hint">Late teams' quizzes always take the latest free cells, in any room.</p>
+      <label class="chk"><input type="checkbox" id="resortRooms">Sort across rooms</label>
+      <p class="hint">Also lets the other quizzes move between rooms. Late teams playing late counts slightly more than keeping a room on one division.</p>`, "Sort", () => {
+      const all = document.querySelector("#resortPinned")?.checked, anyRoom = document.querySelector("#resortRooms")?.checked;
+      commit(st => {
+        const pSlots = st.frame.filter(r => r.slot && r.phase === "p");
+        const busy = (sl, room) => st.quizzes.some(q => q.slot === sl.id && q.room === room) || (sl.roomEvent && sl.roomEvent.room === room);
+        const clash = (sl, q) => st.quizzes.some(x => x.slot === sl.id && x.div === q.div && x.seats.some(a => q.seats.some(b2 => a.k === "L" && a.v === b2.v)));
+        const num = q => +q.label.split(" ").pop();
+        const lateOf = d => new Set(st.drawn[d.id] ? (st.late[d.id] || []).map(i => letterOfTeam(d.id, i)) : []);
+        const divsToSort = st.applied.divs.filter(d => ids.has(d.id));
+        const take = d => { const qs = st.quizzes.filter(q => q.div === d.id && q.phase === "p" && (all || !q.pinned)); qs.forEach(q => { q.slot = null; q.room = null; q.pinned = false; }); return qs; };
+        if (!anyRoom) {
+          for (const d of divsToSort) {
+            const qs = take(d), late = lateOf(d), lateness = q => q.seats.filter(x => x.k === "L" && late.has(x.v)).length;
+            // Late teams' quizzes go first, from the latest slot backwards, so spare cells end up
+            // early; the rest then fill from the start in quiz order.
+            const lateQs = qs.filter(q => lateness(q)).sort((a, b2) => lateness(b2) - lateness(a) || num(b2) - num(a));
+            const onTime = qs.filter(q => !lateness(q)).sort((a, b2) => num(a) - num(b2));
+            const anyRoomDiv = { ...d, rooms: [...d.rooms, ...Array.from({ length: st.applied.rooms }, (_, i) => i + 1).filter(r => !d.rooms.includes(r))] };
+            if (lateQs.length) placePrelims(lateQs, anyRoomDiv, st, [...pSlots].reverse(), busy, clash, false);
+            placePrelims([...onTime, ...lateQs.filter(q => !q.slot)], d, st, pSlots, busy, clash);
+          }
+          return;
+        }
+        // Across all rooms: each division keeps a block of adjacent rooms, lower divisions in lower
+        // rooms (P-2). The edge between two blocks may move once, at one slot, so a room changes
+        // hands at most once per edge and never flips back (P-3). Of all such layouts, take the one
+        // that places every quiz, then lets late teams start latest (P-1), then moves the fewest
+        // rooms, then stays closest to the divisions' own rooms.
+        const R = st.applied.rooms, T = pSlots.length, allDivs = st.applied.divs;
+        const letters = q => q.seats.filter(x => x.k === "L").map(x => x.v);
+        const own = allDivs.map((d, k) => Math.min(R, Math.max(0, ...allDivs.slice(0, k + 1).flatMap(x => x.rooms))));
+        const pools = new Map(divsToSort.map(d => [d.id, { qs: take(d), late: lateOf(d) }]));
+        const free = pSlots.map(sl => Array.from({ length: R + 1 }, (_, r) => r > 0 && !busy(sl, r)));
+        // An edge is [rooms before, rooms from slot c on, c].
+        const edgeAt = ([s, e, c], t) => (t < c ? s : e);
+        const edgeOpts = s => [[s, s, T], ...Array.from({ length: R + 1 }, (_, e) => e).filter(e => e !== s).flatMap(e => Array.from({ length: T - 1 }, (_, c) => [s, e, c + 1]))];
+        const fillBlock = (pool, cells) => {
+          const lateness = q => letters(q).filter(l => pool.late.has(l)).length;
+          const late = pool.qs.filter(q => lateness(q)).sort((a, b2) => lateness(b2) - lateness(a) || num(b2) - num(a));
+          const rest = pool.qs.filter(q => !lateness(q)).sort((a, b2) => num(a) - num(b2));
+          const cellQ = cells.map(() => null), used = new Map();
+          const fits = (q, t) => !letters(q).some(l => used.get(t)?.has(l));
+          const put = (q, i) => { cellQ[i] = q; const s = used.get(cells[i].t) || new Set(); letters(q).forEach(l => s.add(l)); used.set(cells[i].t, s); };
+          const lift = i => { letters(cellQ[i]).forEach(l => used.get(cells[i].t).delete(l)); cellQ[i] = null; };
+          const pick = (list, t) => { const j = list.findIndex(q => fits(q, t)); return j < 0 ? null : list.splice(j, 1)[0]; };
+          // Late quizzes take the latest cells, the rest fill from the start in quiz order.
+          for (let i = cells.length - 1; i >= 0 && late.length; i--) { const q = pick(late, cells[i].t); if (q) put(q, i); }
+          for (let i = 0; i < cells.length && rest.length; i++) if (!cellQ[i]) { const q = pick(rest, cells[i].t); if (q) put(q, i); }
+          // A leftover takes an empty cell where it fits, or swaps with a quiz y whose slot it would fit,
+          // with y moving to an empty cell in another slot.
+          const left = [...late, ...rest].filter(q => {
+            const i = cellQ.findIndex((x, n) => !x && fits(q, cells[n].t));
+            if (i >= 0) { put(q, i); return false; }
+            // Swap with the latest quiz that works, so the early slots keep their order.
+            for (let j = cells.length - 1; j >= 0; j--) {
+              const y = cellQ[j];
+              if (!y) continue;
+              lift(j);
+              const k = fits(q, cells[j].t) ? cellQ.findIndex((x, n) => !x && n !== j && cells[n].t !== cells[j].t && fits(y, cells[n].t)) : -1;
+              if (k >= 0) { put(q, j); put(y, k); return false; }
+              put(y, j);
+            }
+            return true;
+          });
+          const first = l => Math.min(T, ...cellQ.flatMap((q, i) => (q && letters(q).includes(l) ? [cells[i].t] : [])));
+          // Close up gaps: an empty cell takes the quiz from the latest cell after it that fits, as
+          // long as no late team starts any earlier, so the spare cells end up last.
+          for (let i = 0; i < cells.length; i++) {
+            if (cellQ[i]) continue;
+            for (let j = cells.length - 1; j > i; j--) {
+              const q = cellQ[j];
+              if (!q || cells[j].t === cells[i].t || !fits(q, cells[i].t)) continue;
+              if (letters(q).some(l => pool.late.has(l) && cells[i].t < first(l))) continue;
+              lift(j); put(q, i); break;
+            }
+          }
+          return { cells, cellQ, left, start: [...pool.late].reduce((sum, l) => sum + first(l), 0) };
+        };
+        const memo = new Map();
+        const blockOf = (k, lo, hi) => {
+          const pool = pools.get(allDivs[k].id);
+          if (!pool) return { left: [], start: 0 };
+          const key = `${k}|${lo}|${hi}`;
+          if (!memo.has(key)) memo.set(key, fillBlock(pool, pSlots.flatMap((_, t) => Array.from({ length: R }, (_, i) => i + 1).filter(r => r > edgeAt(lo, t) && r <= edgeAt(hi, t) && free[t][r]).map(r => ({ t, r })))));
+          return memo.get(key);
+        };
+        const better = (a, b2) => !b2 || (a.left - b2.left || b2.start - a.start || a.moves - b2.moves || a.dist - b2.dist) < 0;
+        let best = null;
+        const edges = [[0, 0, T]];
+        const search = (k, acc) => {
+          if (best && acc.left > best.left) return;
+          const last = k === allDivs.length - 1;
+          for (const hi of last ? [[R, R, T]] : edgeOpts(own[k])) {
+            if (pSlots.some((_, t) => edgeAt(hi, t) < edgeAt(edges[k], t))) continue;
+            const res = blockOf(k, edges[k], hi);
+            const next = { left: acc.left + res.left.length, start: acc.start + res.start, moves: acc.moves + Math.abs(hi[0] - hi[1]), dist: acc.dist + (last ? 0 : pSlots.reduce((s, _, t) => s + Math.abs(edgeAt(hi, t) - own[k]), 0)), blocks: [...acc.blocks, res] };
+            if (last) { if (better(next, best)) best = next; continue; }
+            edges.push(hi); search(k + 1, next); edges.pop();
+          }
+        };
+        search(0, { left: 0, start: 0, moves: 0, dist: 0, blocks: [] });
+        for (const b of best.blocks) (b.cellQ || []).forEach((q, i) => { if (q) { q.slot = pSlots[b.cells[i].t].id; q.room = b.cells[i].r; } });
+        // Repair: a leftover quiz takes a free cell where one quiz is in its way, if that quiz can move
+        // to another free cell where it fits.
+        const freeCells = () => pSlots.flatMap(sl => Array.from({ length: st.applied.rooms }, (_, i) => i + 1).filter(r => !busy(sl, r)).map(r => ({ sl, r })));
+        for (const q of best.blocks.flatMap(b => b.left)) {
+          let done = false;
+          // First try a swap: q takes a placed quiz y's cell, and y moves to a free cell where it fits.
+          for (const y of st.quizzes.filter(y => y.div === q.div && y.phase === "p" && y.slot && !y.pinned)) {
+            if (done) break;
+            const ys = slotOf(y.slot), yr = y.room;
+            const qFits = !st.quizzes.some(x => x !== y && x.slot === y.slot && x.div === q.div && letters(x).some(l => letters(q).includes(l)));
+            if (!qFits) continue;
+            for (const c2 of freeCells()) {
+              if (c2.sl.id === y.slot) continue;
+              const old = y.slot; y.slot = null;
+              if (!clash(c2.sl, y)) { y.slot = c2.sl.id; y.room = c2.r; q.slot = ys.id; q.room = yr; done = true; break; }
+              y.slot = old;
+            }
+          }
+          for (const c of freeCells()) {
+            if (done) break;
+            const blockers = st.quizzes.filter(x => x.slot === c.sl.id && x.div === q.div && letters(x).some(l => letters(q).includes(l)));
+            if (blockers.length === 0) { q.slot = c.sl.id; q.room = c.r; done = true; break; }
+            if (blockers.length !== 1) continue;
+            const x = blockers[0];
+            for (const c2 of freeCells()) {
+              if (c2.sl.id === c.sl.id) continue;
+              const old = [x.slot, x.room]; x.slot = null;
+              if (!clash(c2.sl, x)) { x.slot = c2.sl.id; x.room = c2.r; q.slot = c.sl.id; q.room = c.r; done = true; break; }
+              [x.slot, x.room] = old;
+            }
+          }
+        }
+      }, "Prelims sorted");
+    });
+    return;
+  }
+  const up = b.closest("[data-unpin]");
+  if (up) { commit(st => { st.quizzes.find(q => q.id === up.dataset.unpin).pinned = false; }, "Unpinned. Settings changes can move it again."); return; }
+  const seat = b.closest("[data-seat]");
+  if (seat && !ui.selected) { e.stopPropagation(); const [qid, i] = seat.dataset.seat.split(":"); seatEditor(qid, +i, seat); return; }
+  const rowBtn = b.closest("[data-row]");
+  if (rowBtn) { rowEditor(rowBtn.dataset.row, rowBtn); return; }
+  const roomBtn = b.closest("button.roomhead");
+  if (roomBtn) { roomEditor(+roomBtn.dataset.room, roomBtn); return; }
+  if (b.closest("#addRoom")) { commit(st => { st.roomNames.push(`Room ${st.roomNames.length + 1}`); st.applied.rooms = st.settings.rooms = st.roomNames.length; }, "Room added"); return; }
+  const ren = b.closest("[data-rename]");
+  if (ren) { ui.selected = null; lastTap = null; renderGrid(); renameQuiz(ren.dataset.rename, document.querySelector(`[data-quiz="${ren.dataset.rename}"] .ttl`) || ren); return; }
+  const quiz = b.closest("[data-quiz]");
+  if (quiz) {
+    const id = quiz.dataset.quiz;
+    if (!ui.selected) { quizPopover(id, quiz); return; }
+    if (ui.selected === id) { ui.selected = null; renderGrid(); return; }
+    const a = ui.selected; ui.selected = null;
+    commit(st => { const qa = st.quizzes.find(q => q.id === a), qb = st.quizzes.find(q => q.id === id); [qa.slot, qb.slot] = [qb.slot, qa.slot]; [qa.room, qb.room] = [qb.room, qa.room]; qa.pinned = qb.pinned = true; }, "Swapped. Both quizzes pinned.");
+    return;
+  }
+  if (ui.selected && b.closest("#tray.target") && !b.closest("[data-quiz]")) {
+    const a = ui.selected; ui.selected = null;
+    commit(st => { const q = st.quizzes.find(x => x.id === a); q.slot = null; q.room = null; q.pinned = true; }, "Moved to Unplaced");
+    return;
+  }
+  const cell = b.closest("td.cell");
+  if (cell && ui.selected && cell.classList.contains("target")) {
+    const a = ui.selected; ui.selected = null;
+    commit(st => { const q = st.quizzes.find(x => x.id === a); q.slot = cell.dataset.slot; q.room = +cell.dataset.cellRoom; q.pinned = true; }, "Moved. Quiz pinned.");
+    return;
+  }
+  if (cell && !ui.selected && cell.classList.contains("empty")) { addQuizEditor(cell.dataset.slot, +cell.dataset.cellRoom, cell); return; }
+  const qact = b.closest("[data-qact]");
+  if (qact) {
+    const id = ui.selected, act = qact.dataset.qact;
+    if (act === "cancel") { ui.selected = null; renderGrid(); return; }
+    if (act === "rename") { renameQuiz(id, qact); return; }
+    ui.selected = null;
+    commit(st => {
+      const i = st.quizzes.findIndex(q => q.id === id), q = st.quizzes[i];
+      if (act === "tray") { q.slot = null; q.room = null; q.pinned = true; }
+      if (act === "unpin") q.pinned = false;
+      if (act === "delete") st.quizzes.splice(i, 1);
+    }, { tray: "Moved to Unplaced", unpin: "Unpinned. Settings changes can move it again.", delete: "Quiz deleted" }[act]);
+    return;
+  }
+  const step = b.closest("[data-step]");
+  if (step) {
+    const k = step.dataset.step, d = +step.dataset.d;
+    changeSetting(s => {
+      if (k.startsWith("count")) { const dv = s.divs.find(x => x.id === +k.slice(5)); dv.count = Math.max(3, Math.min(60, dv.count + d)); }
+      else if (k === "rooms") s.rooms = Math.max(1, Math.min(8, s.rooms + d));
+      else if (k === "slotLen") s.slotLen = Math.max(15, Math.min(30, s.slotLen + d));
+      else if (k === "perTeam") { const v = s.perTeam + d; if (v === 3 || v === 6) s.perTeam = v; }
+      else if (k === "xyGap") s.xyGap = Math.max(0, Math.min(30, s.xyGap + d));
+    }, step.closest(".field, .divrow").querySelector("label").textContent.trim());
+    return;
+  }
+  if (b.closest("#addDiv")) {
+    changeSetting(s => { const id = Math.max(0, ...s.divs.map(d => d.id), ...state.applied.divs.map(d => d.id)) + 1; s.divs.push({ id, count: 6, rooms: [] }); s.elim[id] = { lanes: [{ name: "", format: "bracket", finals: true }], splits: [] }; }, "New division");
+    if (state.autoApply) toast("Division added. Its quizzes went where rooms were free, the rest to Unplaced.");
+    return;
+  }
+  const eb = b.closest("[data-elim-btn]");
+  if (eb) {
+    const [divS, act, iS, val] = eb.dataset.elimBtn.split(":"), div = +divS, i = +iS;
+    const cnt = state.settings.divs.find(x => x.id === div).count;
+    const next = deep(state.settings.elim[div]), e = next;
+    const rename = () => e.lanes.forEach((ln, k) => { ln.name = "c".repeat(k); });
+    if (act === "format") { e.lanes[i].format = val; e.lanes[i].finals = val === "bracket"; }
+    if (act === "per") e.lanes[i].per = Math.max(1, Math.min(3, (e.lanes[i].per || 2) + +val));
+    if (act === "size") e.splits.slice(i).forEach(sp => { sp.at += +val; });
+    if (act === "inter") { e.splits[i].inter = val; e.splits[i].shift = 0; }
+    if (act === "slide") e.splits[i].shift = aboveOf({ ...e.splits[i], shift: (e.splits[i].shift || 0) + +val }) - ABOVE[e.splits[i].inter];
+    if (act === "merge") { e.splits.splice(i - 1, 1); e.lanes.splice(i, 1); rename(); }
+    if (act === "addlane") {
+      const l = elimPlan(cnt, e).lanes[e.lanes.length - 1];
+      e.splits.push({ at: l.from + Math.ceil(l.size / 2) - 1, inter: "none" });
+      e.lanes.push({ name: "", format: "rr", finals: false }); rename();
+    }
+    const p2 = elimPlan(cnt, e);
+    if (p2.bad || e.splits.some(sp => sp.at < 1 || sp.at >= cnt)) {
+      toast(act === "inter" ? `${val} needs ${ABOVE[val]} teams above the line and ${SPAN[val] - ABOVE[val]} below. Make those lanes bigger first.` : "There isn't room for that.");
+      return;
+    }
+    changeSetting(st => { st.elim[div] = next; }, `${divName(div)} elims`);
+    return;
+  }
+  const hd = b.closest("[data-handle]");
+  if (hd) {
+    const [div, i] = hd.dataset.handle.split(":").map(Number), e0 = state.settings.elim[div], sp = e0.splits[i], cnt = state.settings.divs.find(x => x.id === div).count;
+    const fits = v => sp.at <= splitBounds(cnt, e0, i, v).max;
+    openPop(hd, `<h3>Split after rank ${sp.at}</h3>
+      <div class="seg tabs3" role="group" aria-label="Intermediate">${[["none", "None"], ["X", "X · 3 teams"], ["XY", "XY · 6 teams"]].map(([v, t]) => `<button type="button" data-inter="${v}" aria-pressed="${sp.inter === v}" ${fits(v) ? "" : "disabled"}>${t}</button>`).join("")}</div>
+      ${["X", "XY"].some(v => !fits(v)) ? `<p class="hint">${["X", "XY"].filter(v => !fits(v)).join(" and ")} need${["X", "XY"].filter(v => !fits(v)).length === 1 ? "s" : ""} more teams below this split. Move it up first.</p>` : ""}
+      <p class="hint">An intermediate puts the teams around the split in their own quizzes first: the top of them join the lane above, the rest the lane below.</p>
+      <div class="acts"><button class="btn sm danger" type="button" data-merge>Merge the two lanes</button><span class="spacer"></span><button class="btn sm" type="button" data-close>Close</button></div>`,
+    bb => {
+      if (bb.disabled) return;
+      if (bb.dataset.inter) { changeSetting(s => { s.elim[div].splits[i].inter = bb.dataset.inter; }, `${divName(div)} elims`); closePop(); }
+      if (bb.dataset.merge !== undefined) { changeSetting(s => { const e = s.elim[div]; e.splits.splice(i, 1); e.lanes.splice(i + 1, 1); e.lanes.forEach((ln, k) => { ln.name = "c".repeat(k); }); }, `${divName(div)} elims`); closePop(); }
+    });
+    return;
+  }
+  const rm = b.closest("[data-rmdiv]");
+  if (rm) { const id = +rm.dataset.rmdiv; changeSetting(s => { s.divs = s.divs.filter(d => d.id !== id); }, `Div ${id} removal`); return; }
+  const info = b.closest("[data-info]");
+  if (info) { ui.info[info.dataset.info] = !ui.info[info.dataset.info]; renderPanel(); return; }
+  const go = b.closest("[data-goto]");
+  if (go) { ui.issuesOpen = false; renderGrid(); const el = document.querySelector(`[data-quiz="${go.dataset.goto}"]`); el?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" }); el?.focus(); return; }
+  if (b.closest("#issueChip")) { ui.issuesOpen = !ui.issuesOpen; renderGrid(); return; }
+  if (b.closest("#drawBtn")) { const again = anyDrawn(); commit(st => { st.applied.divs.forEach(d => drawDivision(st, d)); st.view = "teams"; }, again ? "Every division redrawn" : "Drawn. Late teams got the letters that play latest."); return; }
+  if (b.closest("#clearAllBtn")) { commit(st => { st.drawn = {}; st.drawMap = {}; st.view = "letters"; }, "Draw cleared. Seats show letters."); return; }
+  const dr = b.closest("[data-draw]");
+  if (dr) { const id = +dr.dataset.draw, again = isDrawn(id); commit(st => { drawDivision(st, st.applied.divs.find(d => d.id === id)); st.view = "teams"; }, `${divName(id)} ${again ? "redrawn" : "drawn"}`); return; }
+  const cd = b.closest("[data-cleardraw]");
+  if (cd) { const id = +cd.dataset.cleardraw; commit(st => { delete st.drawn[id]; if (st.drawMap) delete st.drawMap[id]; if (!Object.keys(st.drawn).length) st.view = "letters"; }, `${divName(id)} draw cleared`); return; }
+  if (b.closest("#autoSwitch")) { commit(st => { st.autoApply = !st.autoApply; if (st.autoApply) applySettings(st); }); return; }
+  if (b.closest("#applyBtn")) {
+    const n = unappliedList().length;
+    confirmModal("Apply changes?", `<p>${n} ${n === 1 ? "change" : "changes"} will re-flow the schedule. Pinned quizzes stay where they are; the rest may move.</p>`, "Apply", () => commit(st => applySettings(st), "Applied"));
+    return;
+  }
+  if (b.closest("#publishBtn")) {
+    const hard = [...checkAll().values()].flat().filter(i => !i.warn);
+    const body = hard.length ? `<p>This schedule has ${hard.length} conflict${hard.length === 1 ? "" : "s"}. You can still publish it, for example when it shows what's really happening on the day.</p><ul>${hard.slice(0, 6).map(i => `<li>${i.id}: ${esc(i.msg)}</li>`).join("")}</ul>` : `<p>Everyone with access to the meet will see this version: letters until the meet goes live, then team names.</p>`;
+    confirmModal(hard.length ? "Publish with conflicts?" : "Publish schedule?", body + `<p class="hint">Publishing turns Auto-apply off.</p>`, hard.length ? "Publish anyway" : "Publish", () => commit(st => { st.published = true; st.autoApply = false; st.linked = true; }, "Published. Auto-apply is off."));
+    return;
+  }
+  if (b.closest("#viewLetters")) { state.view = "letters"; render(); return; }
+  if (b.closest("#viewTeams")) { if (anyDrawn()) { state.view = "teams"; render(); } return; }
+  if (b.closest("#undoBtn") && undoStack.length) { redoStack.push(deep(state)); state = undoStack.pop(); render(); toast("Undone"); return; }
+  if (b.closest("#redoBtn") && redoStack.length) { undoStack.push(deep(state)); state = redoStack.pop(); render(); toast("Redone"); return; }
+  if (b.closest("#sheetBtn")) { $("#panel").classList.toggle("open"); return; }
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.closest(".pop")) return;
+
+  if (el.dataset.name) {
+    const [dv, ti] = el.dataset.name.split(":").map(Number), v = el.value.trim();
+    commit(st => { st.names ||= {}; (st.names[dv] ||= {})[ti] = v || undefined; });
+    return;
+  }
+  if (el.dataset.elim) {
+    const [div, field, i] = el.dataset.elim.split(":");
+    changeSetting(s => { if (field === "finals") s.elim[div].lanes[+i].finals = el.checked; }, `${divName(+div)} elims`);
+    return;
+  }
+  const k = el.dataset.set; if (!k) return;
+  changeSetting(s => { s[k] = el.value; }, el.closest(".field").querySelector("label").textContent.trim());
+});
+// One section open at a time.
+document.addEventListener("toggle", e => {
+  const d = e.target;
+  if (!d.matches?.("details.sec")) return;
+  if (d.open) { ui.open = d.dataset.sec; document.querySelectorAll("details.sec[open]").forEach(o => { if (o !== d) o.open = false; }); }
+  else if (ui.open === d.dataset.sec) ui.open = null;
+}, true);
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeOrBack(); if (ui.selected) { ui.selected = null; renderGrid(); } }
+  // Delete or Backspace removes the selected quiz (undo brings it back).
+  if ((e.key === "Delete" || e.key === "Backspace") && (popQuiz || (ui.selected && !pop)) && !e.target.closest?.("input, textarea, select")) {
+    e.preventDefault(); const id = popQuiz || ui.selected; ui.selected = null; closePop();
+    commit(st => { st.quizzes = st.quizzes.filter(q => q.id !== id); }, "Quiz deleted. Undo brings it back.");
+  }
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("[data-quiz]")) { e.preventDefault(); e.target.click(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.target.closest?.("input")) { e.preventDefault(); (e.shiftKey ? $("#redoBtn") : $("#undoBtn")).click(); }
+});
+
+// A quiz's popover: rename, seats, conflicts, and actions. "Move" enters move mode on the grid.
+function quizPopover(id, anchor) {
+  const q = state.quizzes.find(x => x.id === id), issues = checkAll().get(id) || [];
+  const where = q.slot ? `${esc(state.roomNames[q.room - 1])} · ${fmt(slotOf(q.slot).at)}` : "Unplaced";
+  const pinIcon = '<svg class="i" viewBox="0 0 24 24"><path d="M12 17v5M9 3h6l-1 7 4 3v2H6v-2l4-3z"/></svg>';
+  openPop(anchor, `<div class="pop-head"><h3>${esc(q.label)}</h3></div>
+    <p class="hint">${divName(q.div)} · ${q.phase === "p" ? "Prelim" : "Elim"} · ${where}${q.pinned ? " · Pinned" : ""}${q.results ? (q.changedAfterResults ? " · Changed after results" : " · Has results") : ""}</p>
+    <div class="rename-row"><input class="txt" id="qpName" value="${esc(q.label)}" aria-label="Quiz name"><button class="btn sm" type="button" data-act="rename">Rename</button></div>
+    <div class="subhead">Seats</div>
+    <div class="qp-seats">${q.seats.map((s, i) => { const p = seatParts(q, s); return `<button type="button" class="qp-seat" data-act="seat:${i}"><span class="src">${esc(p.src) || "&nbsp;"}</span><span>${esc(p.line) || "&nbsp;"}</span><svg class="i" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>`; }).join("")}</div>
+    ${issues.length ? `<div class="qp-issues">${issues.map(i => `<div class="flag ${i.warn ? "w" : ""}"><b>${i.id}</b>${esc(i.msg)}</div>`).join("")}</div>` : ""}
+    <div class="qp-acts">
+      <button class="btn primary" type="button" data-act="move"><svg class="i" viewBox="0 0 24 24"><path d="M5 9 2 12l3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>Move</button>
+      ${q.slot ? `<button class="btn" type="button" data-act="tray">Move to Unplaced</button>` : ""}
+      <button class="btn" type="button" data-act="pin">${pinIcon}${q.pinned ? "Unpin" : "Pin"}</button>
+      <button class="btn danger" type="button" data-act="delete">Delete</button>
+    </div>`,
+  (b, body) => {
+    const act = b.dataset.act; if (!act) return;
+    if (act === "move") { closePop(); ui.selected = id; renderGrid(); return; }
+    if (act.startsWith("seat:")) {
+      const i = +act.split(":")[1]; closePop();
+      const backToQuiz = () => { const el = document.querySelector(`[data-quiz="${id}"]`); if (el) quizPopover(id, el); };
+      seatEditor(id, i, document.querySelector(`[data-seat="${id}:${i}"]`) || anchor, backToQuiz); return;
+    }
+    if (act === "rename") {
+      const v = body.querySelector("#qpName").value.trim(); closePop(); if (!v || v === q.label) return;
+      applyRename(id, v); return;
+    }
+    closePop();
+    commit(st => {
+      const i = st.quizzes.findIndex(x => x.id === id), qq = st.quizzes[i];
+      if (act === "tray") { qq.slot = null; qq.room = null; qq.pinned = true; }
+      if (act === "pin") qq.pinned = !qq.pinned;
+      if (act === "delete") st.quizzes.splice(i, 1);
+    }, { tray: "Moved to Unplaced", pin: q.pinned ? "Unpinned. Settings changes can move it again." : "Pinned. Settings changes won't move it.", delete: "Quiz deleted. Undo brings it back." }[act]);
+  });
+  popQuiz = id;
+  setTimeout(() => pop?.querySelector("#qpName")?.addEventListener("keydown", e => { if (e.key === "Enter") pop.querySelector('[data-act="rename"]').click(); }));
+}
+
+// Renaming a quiz updates every seat that refers to it ("2 of C" becomes "2 of C2"):
+// a seat points at the quiz itself, not at its name.
+function applyRename(id, v) {
+  const q = state.quizzes.find(x => x.id === id);
+  const newShort = v.replace(/^Div \S+\s*/, "").replace(/^Quiz\s+/, "") || v;
+  let n = 0;
+  commit(st => {
+    const qq = st.quizzes.find(x => x.id === id), oldShort = qq.short;
+    qq.label = v; qq.pinned = true;
+    if (oldShort) for (const x of st.quizzes) if (x.div === qq.div && (x.lane || "") === (qq.lane || "")) x.seats.forEach(s => { if (s.k === "P" && s.q === oldShort) { s.q = newShort; n++; } });
+    qq.short = newShort;
+  });
+  toast(n ? `Renamed. ${n} seat${n === 1 ? "" : "s"} updated.` : "Renamed");
+}
+function renameQuiz(id, anchor) {
+  const q = state.quizzes.find(x => x.id === id);
+  openPop(anchor, `<h3>Rename quiz</h3><input class="txt" id="qName" value="${esc(q.label)}">
+    <p class="hint">Seats that take a team from this quiz are updated to the new name.</p>
+    <div class="acts"><button class="btn sm" type="button" data-close>Cancel</button><button class="btn sm primary" type="button" data-act="ok">Save</button></div>`,
+  b => {
+    if (!b.dataset.act) return;
+    const v = pop.querySelector("#qName").value.trim(); if (!v || v === q.label) return closePop();
+    applyRename(id, v);
+    closePop();
+  });
+  setTimeout(() => { const i = pop?.querySelector("#qName"); i?.select(); i?.addEventListener("keydown", e => { if (e.key === "Enter") pop.querySelector('[data-act="ok"]').click(); }); });
+}
+
+// Split handles: drag along the ladder to move the split; arrow keys nudge it by one rank.
+let hdrag = null;
+document.addEventListener("pointerdown", e => {
+  const h = e.target.closest("[data-handle]"); if (!h || e.button !== 0) return;
+  const lad = h.closest("[data-ladder]");
+  const [dv, ix] = h.dataset.handle.split(":").map(Number);
+  hdrag = { h, key: h.dataset.handle, rect: lad.getBoundingClientRect(), n: +lad.dataset.n, x: e.clientX, moved: false, b: splitBounds(+lad.dataset.n, state.settings.elim[dv], ix) };
+  h.setPointerCapture?.(e.pointerId);
+});
+document.addEventListener("pointermove", e => {
+  if (!hdrag) return;
+  if (!hdrag.moved && Math.abs(e.clientX - hdrag.x) < 4) return;
+  hdrag.moved = true;
+  const r = Math.max(hdrag.b.min, Math.min(hdrag.b.max, Math.round(((e.clientX - hdrag.rect.left) / hdrag.rect.width) * hdrag.n)));
+  hdrag.h.style.left = (r / hdrag.n) * 100 + "%"; hdrag.h.querySelector("span").textContent = r; hdrag.at = r;
+});
+document.addEventListener("pointerup", () => {
+  if (!hdrag) return;
+  const d = hdrag; hdrag = null;
+  if (!d.moved || d.at == null) return;
+  suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+  const [div, i] = d.key.split(":").map(Number);
+  changeSetting(s => { s.elim[div].splits[i].at = d.at; }, `${divName(div)} elims`);
+});
+document.addEventListener("keydown", e => {
+  const h = e.target.closest?.("[data-handle]"); if (!h || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+  e.preventDefault();
+  const [div, i] = h.dataset.handle.split(":").map(Number), key = h.dataset.handle;
+  changeSetting(s => { const e2 = s.elim[div], sp = e2.splits[i], b = splitBounds(s.divs.find(x => x.id === div).count, e2, i); sp.at = Math.max(b.min, Math.min(b.max, sp.at + (e.key === "ArrowLeft" ? -1 : 1))); }, null);
+  document.querySelector(`[data-handle="${key}"]`)?.focus();
+});
+
+// ---- Drag with pointer events (the HTML5 drag API crashes Tauri on Linux) ----
+// Drag a quiz onto an empty cell to move it, onto another quiz to swap, or onto Unplaced.
+// Drag a seat onto another seat to swap the two seats. Taps still use select-then-choose.
+let drag = null, suppressClick = false;
+document.addEventListener("click", e => { if (suppressClick) { suppressClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+document.addEventListener("pointerdown", e => {
+  if (e.button !== 0 || e.pointerType === "touch") return;
+  const seatEl = e.target.closest("[data-seat]"), quizEl = e.target.closest("[data-quiz]");
+  if (!quizEl || e.target.closest("[data-unpin], [data-rename]")) return;
+  drag = { kind: seatEl ? "seat" : "quiz", el: seatEl || quizEl, id: quizEl.dataset.quiz, seat: seatEl?.dataset.seat, x: e.clientX, y: e.clientY, on: false, over: null };
+});
+document.addEventListener("pointermove", e => {
+  if (!drag) return;
+  if (!drag.on) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+    drag.on = true; closePop(); ui.selected = null; renderToolbar();
+    const src = document.querySelector(drag.kind === "seat" ? `[data-seat="${drag.seat}"]` : `[data-quiz="${drag.id}"]`);
+    if (drag.kind === "seat") {
+      // A seat drags as a small chip of its own text, so the target seats stay visible.
+      const line = src.querySelector(".line");
+      drag.ghost = document.createElement("div");
+      drag.ghost.className = `drag-ghost seat-ghost ${[...src.closest(".quiz").classList].find(c => /^d\d$/.test(c)) || ""} ${line.classList.contains("mono") ? "mono" : ""}`;
+      drag.ghost.textContent = line.textContent || "Empty";
+      src.classList.add("dragging-seat");
+    } else {
+      drag.ghost = src.cloneNode(true);
+      // Keep the card's own size; in the grid it stretches to its cell.
+      drag.ghost.style.width = src.offsetWidth + "px"; drag.ghost.style.height = src.offsetHeight + "px";
+      drag.ghost.classList.add("drag-ghost"); drag.ghost.classList.remove("selected", "swap");
+      src.classList.add("dragging-src");
+    }
+    document.body.appendChild(drag.ghost);
+    document.body.classList.add("is-dragging");
+  }
+  const off = drag.kind === "seat" ? 0 : 10;
+  drag.ghost.style.left = e.clientX + off + "px"; drag.ghost.style.top = e.clientY + off + "px";
+  const hit = document.elementFromPoint(e.clientX, e.clientY);
+  let over = null;
+  if (drag.kind === "seat") { const t = hit?.closest("[data-seat]"); if (t && t.dataset.seat !== drag.seat) over = t; }
+  else {
+    const q = hit?.closest("[data-quiz]"), cell = hit?.closest("td.cell"), tray = hit?.closest("#tray");
+    if (q && q.dataset.quiz !== drag.id && !q.closest("#tray")) over = q;
+    else if (cell && !cell.querySelector("[data-quiz]") && !cell.classList.contains("single-event")) over = cell;
+    else if (tray) over = $("#tray");
+  }
+  if (over !== drag.over) { drag.over?.classList.remove("drop-hover"); over?.classList.add("drop-hover"); drag.over = over; }
+});
+function endDrag(drop) {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (!d.on) return;
+  suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+  d.ghost.remove(); document.body.classList.remove("is-dragging");
+  d.over?.classList.remove("drop-hover");
+  if (!drop || !d.over) { renderGrid(); return; }
+  const o = d.over;
+  if (d.kind === "seat") {
+    const [qa, ia] = d.seat.split(":"), [qb, ib] = o.dataset.seat.split(":");
+    commit(st => { const A = st.quizzes.find(q => q.id === qa), B = st.quizzes.find(q => q.id === qb); [A.seats[+ia], B.seats[+ib]] = [B.seats[+ib], A.seats[+ia]]; A.pinned = B.pinned = true; [A, B].forEach(q => { if (q.results) q.changedAfterResults = true; }); }, "Seats swapped. Both quizzes pinned.");
+  } else if (o.dataset.quiz) {
+    commit(st => { const A = st.quizzes.find(q => q.id === d.id), B = st.quizzes.find(q => q.id === o.dataset.quiz); [A.slot, B.slot] = [B.slot, A.slot]; [A.room, B.room] = [B.room, A.room]; A.pinned = B.pinned = true; }, "Swapped. Both quizzes pinned.");
+  } else if (o.id === "tray") {
+    commit(st => { const A = st.quizzes.find(q => q.id === d.id); A.slot = null; A.room = null; A.pinned = true; }, "Moved to Unplaced");
+  } else {
+    commit(st => { const A = st.quizzes.find(q => q.id === d.id); A.slot = o.dataset.slot; A.room = +o.dataset.cellRoom; A.pinned = true; }, "Moved. Quiz pinned.");
+  }
+}
+document.addEventListener("pointerup", () => endDrag(true));
+document.addEventListener("pointercancel", () => endDrag(false));
+
+$("#gridwrap").addEventListener("scroll", e => e.currentTarget.classList.toggle("scrolled", e.currentTarget.scrollTop > 4), { passive: true });
+render();
+})();
+</script>

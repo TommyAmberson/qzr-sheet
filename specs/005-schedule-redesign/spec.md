@@ -51,6 +51,10 @@ from settings on the left or by hand on the grid on the right. Anything the dire
 is **pinned**: later settings changes re-flow everything else around it. The rules a schedule must
 satisfy are numbered in [schedule-invariants.md](../../docs/schedule-invariants.md).
 
+A clickable mockup, [mockup.html](./mockup.html), shows the agreed layout and behaviour; open it in
+a browser. It fakes what this spec leaves to the implementation (elims come from fixed brackets,
+nothing is saved), and where it and this spec differ, the spec wins.
+
 The builder is **a tool of its own**, a page of the portal. It needs no meet and no account, and
 once open it edits without the network. Linking a schedule to a meet is a later, optional step that
 takes nothing away from it.
