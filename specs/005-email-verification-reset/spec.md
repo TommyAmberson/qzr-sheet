@@ -177,6 +177,11 @@ a quiz with no sign-in prompt in the way.
 
 ### Edge Cases
 
+* **The address already has an account here (accepted).** Signing up with a taken address says so,
+  and a GitHub or Google sign-in that matches an account lands on the matching step, so both reveal
+  that an account exists. OWASP prefers generic answers at sign-up too; that would need a
+  confirmation email before every new account, which this spec doesn't take on, as verse-vault's
+  spec 006 doesn't. Reset requests stay generic (FR-002).
 * **Codes cross purposes.** A code sent for verification can't reset a password, and neither passes
   the provider code step; each email says what its code is for.
 * **A resend replaces the old code.** Only the newest code for a purpose works.

@@ -17,6 +17,18 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-11-03
+
+### Changed
+
+* **Request log** - one line per request with the method, path, status and time, without the query
+  string; replaces hono's logger
+* **hono 4.13** - up from 4.12, matching verse-vault
+
+### Bundled contract
+
+* `@qzr/shared@1.6.0` - unchanged
+
 ## [0.23.1] - 2026-11-02
 
 ### Changed
