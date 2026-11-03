@@ -57,6 +57,7 @@ describe('loading a quiz from the published schedule (FR-050)', () => {
       document: doc,
       publishedAt: '2026-11-02',
       view: 'letters',
+      meetName: 'Fall Meet',
     })
     const { wrapper, onPick } = await openOnMeet()
     const quiz = doc.quizzes.find((q) => q.cell)!

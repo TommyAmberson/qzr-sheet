@@ -206,6 +206,8 @@ export interface PublishedSchedule {
   document: ScheduleDocument
   publishedAt: string
   view: SheetView
+  /** The meet's own name, which the schedule's may not be */
+  meetName: string
 }
 
 // ---- Codec ----

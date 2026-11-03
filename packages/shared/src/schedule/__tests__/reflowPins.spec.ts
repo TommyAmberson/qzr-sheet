@@ -173,3 +173,20 @@ describe('a converted schedule re-flowed', () => {
       for (const s of q.seats) if (s.kind === 'place') expect(known.has(s.quiz)).toBe(true)
   })
 })
+
+describe('a pinned elim in the tray', () => {
+  it('still lets the quizzes it feeds be placed', () => {
+    const doc = meet([9])
+    const source = doc.quizzes.find((q) =>
+      doc.quizzes.some((x) => x.seats.some((s) => s.kind === 'place' && s.quiz === q.id)),
+    )!
+    source.cell = null
+    source.pinned = true
+    const after = reflowSchedule(doc)
+    const fed = after.quizzes.filter((x) =>
+      x.seats.some((s) => s.kind === 'place' && s.quiz === source.id),
+    )
+    expect(fed.length).toBeGreaterThan(0)
+    expect(fed.every((q) => q.cell !== null)).toBe(true)
+  })
+})

@@ -11,14 +11,15 @@ const items = computed(() => {
   const roomName = new Map(props.doc.rooms.map((r) => [r.id, r.name]))
   const multiRoom = props.doc.rooms.length > 1
   return props.doc.frame.flatMap((row) => {
-    if (row.kind === 'day') return [{ key: row.id, kind: 'day', text: row.label }]
-    if (row.kind === 'note') return [{ key: row.id, kind: 'note', text: row.text }]
+    if (row.kind === 'day') return [{ key: `row:${row.id}`, kind: 'day', text: row.label }]
+    if (row.kind === 'note') return [{ key: `row:${row.id}`, kind: 'note', text: row.text }]
     if (row.kind === 'event')
-      return [{ key: row.id, kind: 'event', text: `${formatClock(row.at)} ${row.label}` }]
+      return [{ key: `row:${row.id}`, kind: 'event', text: `${formatClock(row.at)} ${row.label}` }]
     return props.doc.quizzes
       .filter((q) => q.cell?.slot === row.id)
       .map((q) => ({
-        key: q.id,
+        // Rows and quizzes from the old editor can share a number, so keys say which they are
+        key: `quiz:${q.id}`,
         kind: 'quiz',
         text: `${formatClock(row.at)} ${q.label}${multiRoom ? ` · ${roomName.get(q.cell!.room) ?? ''}` : ''}: ${q.seats
           .map((s) => seatText(props.doc, q, s, props.view))

@@ -71,8 +71,8 @@ the record of what was out isn't lost; the builder keeps its copy as a standalon
 
 Anyone with access to the meet: a membership, a guest token for the meet, or superuser.
 
-* 200: `{ document, publishedAt, view }`, where `view` is `letters` or `teams`, set by the meet's
-  phase for non-admins (FR-052): letters in `registration` and `build`, team names in `live`,
+* 200: `{ document, publishedAt, view, meetName }`, where `view` is `letters` or `teams`, set by the
+  meet's phase for non-admins (FR-052): letters in `registration` and `build`, team names in `live`,
   `review` and `done`. In letters view the draw keeps only its letters, in letter order: team names,
   team ids and late or absent marks are removed before it's sent. The old `/prelim-assignments` and
   `/quizzes/:quizId/teams` routes follow the same view. Admins get `teams` and may ask for either.

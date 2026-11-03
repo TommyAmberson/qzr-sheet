@@ -240,6 +240,11 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   // Elims, each division in its own rooms, around pinned elims
   const elims = divisions.map((d) => standInFor(buildElimQuizzes(d)))
   const fixedElims = new Map(pinnedAt('elim').map(({ q, k, room }) => [q.id, { round: k, room }]))
+  // A pinned elim outside the elim slots (the tray, say) holds no cell but counts as decided, so
+  // the quizzes it feeds still get placed
+  for (const q of pinned) {
+    if (q.phase === 'elim' && !fixedElims.has(q.id)) fixedElims.set(q.id, { round: -1, room: '' })
+  }
   const gapRounds = Math.ceil(settings.totallingMinutes / settings.slotMinutes)
   const scheduled = elimRounds(
     elims.map((quizzes, d) => ({

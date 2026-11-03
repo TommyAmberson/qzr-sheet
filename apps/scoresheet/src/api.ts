@@ -107,7 +107,7 @@ export function getTeamQuizzers(
 /** A schedule quiz as the scoresheet loads it: the fields that name its results (research R10) */
 export interface ScheduledQuizSummary {
   id: string
-  /** The schedule's name, shown when the scoresheet wasn't on this meet yet */
+  /** The meet's name, shown when the scoresheet wasn't on this meet yet */
   meetName: string
   label: string
   division: string
@@ -145,7 +145,7 @@ export async function getScheduledQuiz(
   meetId: number,
   quizId: string,
 ): Promise<ScheduledQuizDetails> {
-  const [{ document }, { teams }] = await Promise.all([
+  const [{ document, meetName }, { teams }] = await Promise.all([
     getPublishedSchedule(meetId),
     getMeetTeams(meetId),
   ])
@@ -167,7 +167,7 @@ export async function getScheduledQuiz(
     }),
   )
   return {
-    quiz: { id: quiz.id, meetName: document.name, label: quiz.label, ...scheduleQuizMeta(quiz) },
+    quiz: { id: quiz.id, meetName, label: quiz.label, ...scheduleQuizMeta(quiz) },
     seats,
   }
 }

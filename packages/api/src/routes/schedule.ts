@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono'
 import { eq, and, asc, desc, inArray, sql } from 'drizzle-orm'
 import {
   checkSchedule,
+  indexOfLetter,
   parseScheduleFile,
   serializeSchedule,
   type ScheduleDocument,
@@ -1472,7 +1473,14 @@ publishedSchedule.get('/:id/schedule/published', async (c) => {
   if (denied) return denied
   const db = getDb(c)
 
-  const [row, view] = await Promise.all([newestVersion(db, meetId), readerView(c, db, meetId)])
+  const [row, view, [meet]] = await Promise.all([
+    newestVersion(db, meetId),
+    readerView(c, db, meetId),
+    db
+      .select({ name: schema.quizMeets.name })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, meetId)),
+  ])
   let doc: ScheduleDocument
   let publishedAt: Date
   if (row) {
@@ -1493,7 +1501,7 @@ publishedSchedule.get('/:id/schedule/published', async (c) => {
       // match to a known team would all give the draw away
       draw.teams = draw.teams
         .map((t) => ({ letter: t.letter, late: false, absent: false }))
-        .sort((x, y) => (x.letter ?? '').localeCompare(y.letter ?? ''))
+        .sort((x, y) => indexOfLetter(x.letter ?? '') - indexOfLetter(y.letter ?? ''))
     }
   } else {
     const names = await teamNames(db, meetId)
@@ -1504,7 +1512,7 @@ publishedSchedule.get('/:id/schedule/published', async (c) => {
       }
     }
   }
-  return c.json({ document: doc, publishedAt, view })
+  return c.json({ document: doc, publishedAt, view, meetName: meet?.name ?? doc.name })
 })
 
 /** Each team's name as the portal shows it */
