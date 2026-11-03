@@ -262,8 +262,9 @@ a quiz with no sign-in prompt in the way.
 * **FR-011**: Requests that send email MUST be limited to 3 per address per hour (reset,
   verification and the provider code step combined; the sign-up email not counted) and 30 per client
   per day (the same emails). Sign-up codes count apart, 30 per client per day, so sign-ups at a
-  venue sharing one network don't use up its people's resets. A limited request is told to try again
-  later; sign-up is never refused, and over its own limit it says the code wasn't sent.
+  venue sharing one network don't use up its people's resets. A request the address limit refuses
+  sends nothing and doesn't count for the client. A limited request is told to try again later;
+  sign-up is never refused, and over its own limit it says the code wasn't sent.
 * **FR-012**: All email MUST come from `VerseVault <no-reply@versevault.ca>`, show the code
   prominently, say why it was sent, how long it lasts, not to share it, and what to do if the reader
   didn't ask for it. Each code MUST work only for the purpose its email names. The code for the
