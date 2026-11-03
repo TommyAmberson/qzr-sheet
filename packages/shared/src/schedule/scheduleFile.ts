@@ -80,14 +80,22 @@ const SettingsSchema = Type.Object({
 
 // ---- Grid ----
 
+/** A row changed by hand; while any row is pinned, re-flow fits the quizzes into the frame as it is */
+const RowPinned = { pinned: Type.Optional(Type.Boolean()) }
+
 const FrameRowSchema = Type.Union([
-  Type.Object({ kind: Type.Literal('day'), id: Type.String(), label: Type.String() }),
+  Type.Object({ kind: Type.Literal('day'), id: Type.String(), label: Type.String(), ...RowPinned }),
   Type.Object({
     kind: Type.Literal('slot'),
     id: Type.String(),
     /** Minutes after midnight on its day */
     at: Type.Integer({ minimum: 0 }),
     minutes: Type.Integer({ minimum: 1 }),
+    /** What the generator made it for; a slot added by hand takes the use of the slot before it */
+    use: Type.Optional(
+      Type.Union([Type.Literal('prelim'), Type.Literal('elim'), Type.Literal('finals')]),
+    ),
+    ...RowPinned,
   }),
   Type.Object({
     kind: Type.Literal('event'),
@@ -97,8 +105,9 @@ const FrameRowSchema = Type.Union([
     label: Type.String(),
     /** A single room's event; absent means every room */
     room: Type.Optional(Type.String()),
+    ...RowPinned,
   }),
-  Type.Object({ kind: Type.Literal('note'), id: Type.String(), text: Type.String() }),
+  Type.Object({ kind: Type.Literal('note'), id: Type.String(), text: Type.String(), ...RowPinned }),
 ])
 
 const SeatSchema = Type.Union([

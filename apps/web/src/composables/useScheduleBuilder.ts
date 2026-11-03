@@ -3,6 +3,7 @@ import {
   checkSchedule,
   generateSchedule,
   newScheduleDocument,
+  reflowSchedule,
   type Conflict,
   type ScheduleDocument,
 } from '@qzr/shared'
@@ -36,7 +37,7 @@ export function useScheduleBuilder(
   function changeSettings(mutate: (draft: ScheduleDocument) => void) {
     change((d) => {
       mutate(d)
-      if (d.settings.autoApply) Object.assign(d, generateSchedule(d))
+      if (d.settings.autoApply) Object.assign(d, reflowSchedule(d))
     })
   }
 

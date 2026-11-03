@@ -27,12 +27,20 @@ export function buildFrame(
   finalsSpacing = 30,
 ): FrameRow[] {
   const rows: FrameRow[] = []
-  const id = () => crypto.randomUUID()
-  const day = (label: string) => rows.push({ kind: 'day', id: id(), label })
+  // Ids follow what a row is for, not where it sits, so a quiz pinned to the 3rd elim slot keeps it
+  // when the frame is rebuilt around it
+  const count = new Map<string, number>()
+  const next = (key: string) => {
+    const n = count.get(key) ?? 0
+    count.set(key, n + 1)
+    return `${key}-${n}`
+  }
+  let use: 'prelim' | 'elim' | 'finals' = 'prelim'
+  const day = (label: string) => rows.push({ kind: 'day', id: next(`day-${label}`), label })
   const event = (at: number, minutes: number, label: string) =>
-    rows.push({ kind: 'event', id: id(), at, minutes, label })
+    rows.push({ kind: 'event', id: next(`event-${label}`), at, minutes, label })
   const slot = (at: number, minutes = slotMinutes) =>
-    rows.push({ kind: 'slot', id: id(), at, minutes })
+    rows.push({ kind: 'slot', id: next(use), at, minutes, use })
 
   /** Slots from `start` up to `count`, stopping before `until`; returns where it stopped and how many fit */
   const fill = (start: number, count: number, until = Infinity) => {
@@ -47,6 +55,7 @@ export function buildFrame(
   }
 
   const finals = (start: number) => {
+    use = 'finals'
     let at = Math.max(start, h(15, 15))
     for (let i = 0; i < shape.finalsSlots; i++) {
       slot(at)
@@ -66,8 +75,12 @@ export function buildFrame(
   if (preset === 'oneDay') {
     day('Saturday')
     event(h(9, 30), 30, 'Assembly')
-    const end = elimsAroundLunch(h(10), shape.prelimSlots + shape.elimSlots)
-    finals(end)
+    const morning = fill(h(10), shape.prelimSlots, h(12))
+    event(Math.max(h(12), morning.at), 60, 'Lunch')
+    let at = fill(Math.max(h(12), morning.at) + 60, shape.prelimSlots - morning.placed).at
+    use = 'elim'
+    at = fill(at, shape.elimSlots).at
+    finals(at)
     return rows
   }
 
@@ -84,6 +97,7 @@ export function buildFrame(
     event(at, 25, 'Stats break')
     at += 25
   }
+  use = 'elim'
   const end = finals(elimsAroundLunch(at, shape.elimSlots))
   const supper = Math.max(h(17), end)
   event(supper, 60, 'Supper')
