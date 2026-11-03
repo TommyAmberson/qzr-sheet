@@ -610,8 +610,9 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   * **No rematches**: the rotating draw for 7 teams or more, the rule book's tables below 7.
 * **FR-024**: The rotating draw MUST give, for `n` teams and a step `k`, quiz `i` the letters
   `(i, i + k + 1, i + 2k)` counted round from 1 to `n`, choosing `k` so that no two teams meet twice
-  where that's possible (W-1). Its result MUST satisfy H-9 and H-10 for every team count from 4 to
-  at least 90.
+  where that's possible (W-1); where no step does (8 and 13 teams), it MUST use another cyclic
+  pattern `(i, i + a, i + b)` that does. Its result MUST satisfy H-9 and H-10 for every team count
+  from 4 to at least 90.
 * **FR-025**: With 6 quizzes per team, the draw MUST be two rounds of the 3-quiz draw, and SHOULD
   avoid repeating the first round's pairings in the second.
 * **FR-026**: Prelim quizzes MUST be labelled `Div <division> Quiz <n>`, numbered in draw order.

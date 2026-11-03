@@ -1,3 +1,5 @@
+import { indexOfLetter, letterOf } from './letters'
+
 /**
  * Per-team-count round-robin patterns for prelim quizzes, transcribed
  * verbatim from `docs/rules.md` §"Preliminary Round Brackets". Each
@@ -281,4 +283,91 @@ export function getPrelimDraw(
   teamCount: number,
 ): ReadonlyArray<readonly [string, string, string]> | null {
   return PRELIM_DRAW_PATTERNS[teamCount] ?? null
+}
+
+/** Where prelim pairings come from (FR-023) */
+export type PrelimDrawSource = 'ruleBook' | 'noRematches'
+
+/** How many pairs of teams meet more than once among these quizzes */
+function repeats(quizzes: readonly (readonly number[])[]): number {
+  const met = new Set<string>()
+  let count = 0
+  for (const q of quizzes) {
+    for (let i = 0; i < q.length; i++) {
+      for (let j = i + 1; j < q.length; j++) {
+        const a = Math.min(q[i]!, q[j]!)
+        const b = Math.max(q[i]!, q[j]!)
+        const key = `${a}-${b}`
+        if (met.has(key)) count++
+        met.add(key)
+      }
+    }
+  }
+  return count
+}
+
+/**
+ * The rotating draw for `n` teams: quiz `i` gets teams `(i, i + k + 1, i + 2k)` counted round
+ * (FR-024), with the step `k` that has no two teams meeting twice, nearest `n / 3` when several
+ * do (the sister org's spreadsheet). Where no step manages that (8 and 13 teams), the cyclic
+ * pattern `(i, i + a, i + b)` that does. Teams are 0-based.
+ */
+function rotatingDraw(n: number): number[][] {
+  const cyclic = (a: number, b: number) =>
+    Array.from({ length: n }, (_, i) => [i, (i + a) % n, (i + b) % n])
+  let best: { quizzes: number[][]; score: number } | null = null
+  for (let k = 1; k < n; k++) {
+    const quizzes = cyclic(k + 1, 2 * k)
+    if (quizzes.some((q) => new Set(q).size < 3)) continue
+    const score = repeats(quizzes) * n + Math.abs(k - Math.floor(n / 3))
+    if (!best || score < best.score) best = { quizzes, score }
+  }
+  if (best && repeats(best.quizzes) === 0) return best.quizzes
+  for (let a = 1; a < n; a++) {
+    for (let b = a + 1; b < n; b++) {
+      const quizzes = cyclic(a, b)
+      if (repeats(quizzes) === 0) return quizzes
+    }
+  }
+  return best?.quizzes ?? []
+}
+
+/** One round of 3 quizzes per team, as team indexes */
+function oneRound(n: number, source: PrelimDrawSource): number[][] {
+  const table = getPrelimDraw(n)
+  const useTable = table && (source === 'ruleBook' || n < 7)
+  if (useTable) return table.map((q) => q.map(indexOfLetter))
+  return n < 4 ? [] : rotatingDraw(n)
+}
+
+/**
+ * The prelim quizzes for a division of `n` teams, in draw order, as letters (FR-023 to FR-025).
+ * With 6 quizzes per team the second round is the first relabelled, choosing the relabelling that
+ * repeats the fewest of the first round's pairings.
+ */
+export function drawPrelims(
+  n: number,
+  source: PrelimDrawSource,
+  quizzesPerTeam: 3 | 6,
+): string[][] {
+  const first = oneRound(n, source)
+  let quizzes = first
+  if (quizzesPerTeam === 6 && first.length > 0) {
+    let best: number[][] = first
+    let bestRepeats = Infinity
+    for (let shift = 0; shift < n; shift++) {
+      for (let step = 1; step < n; step++) {
+        const relabel = (t: number) => (t * step + shift) % n
+        if (new Set(Array.from({ length: n }, (_, t) => relabel(t))).size < n) continue
+        const second = first.map((q) => q.map(relabel))
+        const r = repeats([...first, ...second])
+        if (r < bestRepeats) {
+          best = second
+          bestRepeats = r
+        }
+      }
+    }
+    quizzes = [...first, ...best]
+  }
+  return quizzes.map((q) => q.map(letterOf))
 }

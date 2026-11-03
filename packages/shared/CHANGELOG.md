@@ -37,6 +37,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * The schedule conflict check (`checkSchedule`): every hard rule and warning of
   `docs/schedule-invariants.md` that a schedule breaks, by rule ID with the quizzes involved and a
   reason; and `resultName`, the name a schedule quiz's results are saved under (W-5).
+* `drawPrelims`: a division's prelim quizzes as letters from either draw source, the rule book's
+  tables for 4 to 21 teams or the rotating draw (no rematches from 7 teams up, any size to 90 and
+  beyond), with 6 quizzes per team as two rounds that avoid repeating pairings.
 
 ## [1.6.0] - 2026-10-31
 
