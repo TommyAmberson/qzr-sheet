@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import { routePath } from 'hono/route'
 import { cors } from 'hono/cors'
 import { csrf } from 'hono/csrf'
-import { logger } from 'hono/logger'
 import type { ScheduledController, ExecutionContext } from '@cloudflare/workers-types'
 import type { Bindings } from './bindings'
 import type { SessionVariables } from './middleware/session'
@@ -47,7 +46,14 @@ app.use(
     credentials: true,
   }),
 )
-app.use('*', logger())
+// One line per request with the path only: a query string can carry one-time
+// values, such as a provider callback's `code` and `state`, that the app's
+// log lines have no use for.
+app.use('*', async (c, next) => {
+  const start = Date.now()
+  await next()
+  console.log(`${c.req.method} ${c.req.path} ${c.res.status} ${Date.now() - start}ms`)
+})
 
 // Every route lives on `api`, mounted at both `/qzr` and the root. Production
 // reaches it only under `/qzr/` (specs/001-qzr-subpath; the public `/api/*` belongs
