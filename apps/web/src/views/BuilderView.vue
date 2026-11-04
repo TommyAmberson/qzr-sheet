@@ -122,6 +122,36 @@ function toTray() {
 let drag: { quiz: string; seat: number | null; x: number; y: number; on: boolean } | null = null
 let dragged = false
 
+/** What a drag carries, shown beside the pointer, and the target under it */
+const ghost = ref<{ text: string; x: number; y: number; seat: boolean } | null>(null)
+let dropOver: HTMLElement | null = null
+
+/** Which drop targets to outline: wherever a move or swap, by click or by drag, can land */
+const guide = computed(() =>
+  pending.value?.kind === 'move'
+    ? 'quiz'
+    : pending.value?.kind === 'seat'
+      ? 'seat'
+      : ghost.value
+        ? ghost.value.seat
+          ? 'seat'
+          : 'quiz'
+        : null,
+)
+
+function markDrop(el: HTMLElement | null) {
+  if (el === dropOver) return
+  dropOver?.classList.remove('drop-over')
+  el?.classList.add('drop-over')
+  dropOver = el
+}
+
+function dropTarget(over: Element | null, seat: boolean) {
+  if (!over) return null
+  if (seat) return over.closest<HTMLElement>('[data-seat]')
+  return over.closest<HTMLElement>('.empty-cell, .quiz, .tray')
+}
+
 function onPointerDown(event: PointerEvent) {
   if (event.button !== 0) return
   const el = event.target as HTMLElement
@@ -139,13 +169,27 @@ function onPointerDown(event: PointerEvent) {
 }
 
 function onPointerMove(event: PointerEvent) {
-  if (!drag || drag.on) return
-  if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) >= 6) drag.on = true
+  if (!drag) return
+  if (!drag.on) {
+    if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return
+    drag.on = true
+  }
+  const q = doc.value.quizzes.find((x) => x.id === drag!.quiz)
+  const seat = drag.seat === null ? null : q?.seats[drag.seat]
+  ghost.value = {
+    text: seat && q ? seatText(doc.value, q, seat, view.value) : (q?.label ?? ''),
+    x: event.clientX,
+    y: event.clientY,
+    seat: drag.seat !== null,
+  }
+  markDrop(dropTarget(document.elementFromPoint(event.clientX, event.clientY), drag.seat !== null))
 }
 
 function onPointerUp(event: PointerEvent) {
   const d = drag
   drag = null
+  ghost.value = null
+  markDrop(null)
   if (!d?.on) return
   dragged = true
   setTimeout(() => (dragged = false))
@@ -284,7 +328,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <div class="builder" :class="`print-${printing}`">
+  <div class="builder" :class="[`print-${printing}`, guide && `guide-${guide}`]">
     <header class="builder-bar">
       <input class="schedule-name" :value="doc.name" aria-label="Schedule name" @change="rename" />
       <button
@@ -496,6 +540,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </ul>
         </section>
       </main>
+    </div>
+    <div
+      v-if="ghost"
+      class="drag-ghost"
+      :style="{ left: `${ghost.x + 12}px`, top: `${ghost.y + 12}px` }"
+      aria-hidden="true"
+    >
+      {{ ghost.text }}
     </div>
     <div class="print-only">
       <h2>{{ doc.name }}</h2>
@@ -941,5 +993,46 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 .empty {
   color: var(--color-text-muted, #666);
+}
+
+/* Drop guides: while a quiz or seat is being moved, by click or drag, every place it can go is
+   outlined in blue, and the one under the pointer filled */
+.guide-quiz :deep(.empty-cell),
+.guide-quiz :deep(.quiz:not(.selected)),
+.guide-quiz .tray,
+.guide-seat :deep(.seat),
+.guide-seat .tray-seat {
+  outline: 1.5px dashed color-mix(in srgb, var(--color-accent) 70%, transparent);
+  outline-offset: -2px;
+}
+
+.guide-quiz :deep(.empty-cell) {
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+}
+
+.guide-quiz :deep(:is(.empty-cell, .quiz):hover),
+.guide-seat :deep(.seat:hover),
+.guide-seat .tray-seat:hover,
+.builder :deep(.drop-over) {
+  outline: 2px solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+.guide-quiz :deep(.quiz.selected) {
+  opacity: 0.55;
+}
+
+.drag-ghost {
+  position: fixed;
+  z-index: 60;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  background: var(--color-bg);
+  box-shadow: var(--b-shadow-lift);
+  color: var(--color-heading);
+  font-size: 0.8rem;
+  font-weight: 600;
+  pointer-events: none;
 }
 </style>
