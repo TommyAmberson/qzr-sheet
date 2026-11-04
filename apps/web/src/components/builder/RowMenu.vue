@@ -16,8 +16,8 @@ import BuilderPopover from './BuilderPopover.vue'
 
 /**
  * A row's menu: retime it, set its length, rename a day or a note, delete it, or insert a slot, a
- * slot holding an event across every room, or a note after it (FR-016, FR-017). Later times stay
- * as they are; the events in a row have menus of their own.
+ * slot holding an event across every room, or a note after it (FR-016, FR-017). Rows never
+ * overlap: those after move down as far as they must. The events in a row have menus of their own.
  */
 const props = defineProps<{ doc: ScheduleDocument; rowId: string; anchor: HTMLElement }>()
 const emit = defineEmits<{

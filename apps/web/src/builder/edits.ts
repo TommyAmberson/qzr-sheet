@@ -236,16 +236,52 @@ export function insertEvent(
   return id
 }
 
-/** Insert a row after another (or first), pinned; later times are left as they are */
+/**
+ * Keep a day's rows from overlapping (FR-016): its slots in time order, each note staying under
+ * the slot before it, and any slot that starts before the one above ends moved down just enough.
+ * Gaps between rows are left as they are.
+ */
+function settleDay(d: ScheduleDocument, id: string) {
+  const i = d.frame.findIndex((r) => r.id === id)
+  if (i < 0) return
+  let start = i
+  while (start > 0 && d.frame[start - 1]!.kind !== 'day') start--
+  let end = i + 1
+  while (end < d.frame.length && d.frame[end]!.kind !== 'day') end++
+  // A slot with the notes under it moves as one; notes before the first slot stay first
+  const groups: FrameRow[][] = []
+  for (const row of d.frame.slice(start, end)) {
+    if (row.kind === 'slot' || groups.length === 0) groups.push([row])
+    else groups[groups.length - 1]!.push(row)
+  }
+  const at = (g: FrameRow[]) => (g[0]!.kind === 'slot' ? g[0]!.at : -1)
+  groups.sort((a, b) => at(a) - at(b))
+  let free = 0
+  for (const group of groups) {
+    const row = group[0]!
+    if (row.kind !== 'slot') continue
+    if (row.at < free) {
+      row.at = free
+      row.pinned = true
+    }
+    free = row.at + row.minutes
+  }
+  d.frame.splice(start, end - start, ...groups.flat())
+}
+
+/** Insert a row after another (or first), pinned; rows after it on its day move down to fit */
 export function insertRow(d: ScheduleDocument, after: string | null, row: FrameRow) {
   const at = after === null ? 0 : d.frame.findIndex((r) => r.id === after) + 1
   d.frame.splice(at, 0, { ...row, pinned: true })
+  settleDay(d, row.id)
 }
 
+/** Change a row; a retimed or longer slot takes its place in time, and rows after it move down */
 export function editRow(d: ScheduleDocument, id: string, patch: Partial<FrameRow>) {
   const i = d.frame.findIndex((r) => r.id === id)
   if (i < 0) return
   d.frame[i] = { ...d.frame[i]!, ...patch, pinned: true } as FrameRow
+  settleDay(d, id)
 }
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
