@@ -64,7 +64,18 @@ const offLength = computed(() => {
   return list
 })
 
-const recommended = computed(() => recommendedRooms(props.doc.settings))
+// Only what the recommendation depends on, so it's worked out again only when one of them
+// changes, not on every edit (each edit brings a new document)
+const roomInputs = computed(() => {
+  const { framePreset, prelimDraw, quizzesPerTeam, divisions } = props.doc.settings
+  return JSON.stringify({
+    framePreset,
+    prelimDraw,
+    quizzesPerTeam,
+    divisions: divisions.map((d) => ({ teams: d.teams })),
+  })
+})
+const recommended = computed(() => recommendedRooms(JSON.parse(roomInputs.value)))
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 function rename(id: string, e: Event) {
   const label = (e.target as HTMLInputElement).value.trim()

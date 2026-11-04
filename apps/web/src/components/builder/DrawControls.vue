@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import {
   divisionColour,
   clearDraw,
@@ -85,19 +85,20 @@ function markAbsent() {
 const sorting = ref<string[] | null>(null)
 const acrossRooms = ref(false)
 const includePinned = ref(false)
-const sorted = computed(() =>
-  sorting.value
-    ? sortPrelims(props.doc, {
-        divisions: sorting.value,
-        acrossRooms: acrossRooms.value,
-        includePinned: includePinned.value,
-      })
-    : null,
-)
+// The preview is of the schedule as it was when the choice opened, so editing meanwhile doesn't
+// re-sort; confirming sorts what the schedule is then
+const shown = shallowRef(props.doc)
+watch(sorting, () => (shown.value = props.doc))
+const sortOptions = () => ({
+  divisions: sorting.value ?? [],
+  acrossRooms: acrossRooms.value,
+  includePinned: includePinned.value,
+})
+const sorted = computed(() => (sorting.value ? sortPrelims(shown.value, sortOptions()) : null))
 const moves = computed(() => {
   const after = sorted.value
   if (!after) return 0
-  const before = new Map(props.doc.quizzes.map((q) => [q.id, JSON.stringify(q.cell)]))
+  const before = new Map(shown.value.quizzes.map((q) => [q.id, JSON.stringify(q.cell)]))
   return after.quizzes.filter((q) => before.get(q.id) !== JSON.stringify(q.cell)).length
 })
 const pinnedCount = computed(
@@ -107,8 +108,8 @@ const pinnedCount = computed(
     ).length,
 )
 function confirmSort() {
-  const after = sorted.value
-  if (after) emit('edit', (d) => Object.assign(d, { quizzes: after.quizzes }))
+  const options = sortOptions()
+  emit('edit', (d) => Object.assign(d, { quizzes: sortPrelims(d, options).quizzes }))
   sorting.value = null
 }
 </script>

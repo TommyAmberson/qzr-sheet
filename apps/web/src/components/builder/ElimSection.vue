@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import {
   divisionColour,
   replaceElims,
@@ -32,15 +32,21 @@ const withElims = computed(() =>
     props.doc.quizzes.some((q) => q.division === d.id && q.phase === 'elim'),
   ),
 )
+// The preview is of the schedule as it was when the choice opened, so editing meanwhile doesn't
+// re-run the generator; confirming re-places what the schedule is then
+const shown = shallowRef(props.doc)
+watch(replacing, () => (shown.value = props.doc))
+const replaceOptions = () => ({
+  divisions: replacing.value ?? [],
+  includePinned: includePinned.value,
+})
 const replaced = computed(() =>
-  replacing.value
-    ? replaceElims(props.doc, { divisions: replacing.value, includePinned: includePinned.value })
-    : null,
+  replacing.value ? replaceElims(shown.value, replaceOptions()) : null,
 )
 const replaceMoves = computed(() => {
   const after = replaced.value
   if (!after) return 0
-  const before = new Map(props.doc.quizzes.map((q) => [q.id, JSON.stringify(q.cell)]))
+  const before = new Map(shown.value.quizzes.map((q) => [q.id, JSON.stringify(q.cell)]))
   return after.quizzes.filter((q) => before.get(q.id) !== JSON.stringify(q.cell)).length
 })
 const pinnedElims = computed(
@@ -50,8 +56,8 @@ const pinnedElims = computed(
     ).length,
 )
 function confirmReplace() {
-  const after = replaced.value
-  if (after) emit('edit', (d) => Object.assign(d, { quizzes: after.quizzes }))
+  const options = replaceOptions()
+  emit('edit', (d) => Object.assign(d, { quizzes: replaceElims(d, options).quizzes }))
   replacing.value = null
 }
 
