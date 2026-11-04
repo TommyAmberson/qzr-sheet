@@ -605,6 +605,21 @@ describe('linked schedule routes', () => {
     expect(state).toMatchObject({ draft: { name: 'Linked Meet' }, version: 1 })
   })
 
+  it('restores a version without the teams the meet has lost since, its draw to redo', async () => {
+    const { meet, teams, doc } = await linkedMeet(db)
+    const base = `/api/meets/${meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: doc, baseRevision: 0 }), env)
+    await app.request(`${base}/publish`, post({ baseRevision: 1 }), env)
+    await db.delete(schema.teams).where(eq(schema.teams.id, teams[0]!.id))
+
+    const restored = await app.request(`${base}/versions/1/restore`, post({ baseRevision: 2 }), env)
+    expect(restored.status).toBe(200)
+    const state = await jsonOf<{ draft: ScheduleDocument }>(await app.request(base, {}, env))
+    const draw = state.draft.draw['1']!
+    expect(draw.teams.map((t) => t.teamId)).not.toContain(teams[0]!.id)
+    expect(draw.stale).toBe(true)
+  })
+
   it("makes the meet's rooms match: adds, renames, and keeps an unused room with an official code", async () => {
     const { meet, doc } = await linkedMeet(db)
     const kept = await seedRoom(db, meet.id, 'Gym')

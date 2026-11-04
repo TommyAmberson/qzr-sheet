@@ -630,11 +630,8 @@ schedule.get('/:id/schedule', async (c) => {
   })
 })
 
-/**
- * A team the draw names that isn't the meet's, or null. Readers are shown the draw's teams and
- * rosters, so a team from another meet would show that meet's quizzers.
- */
-async function foreignTeam(db: Db, meetId: number, doc: ScheduleDocument): Promise<number | null> {
+/** The teams a document's draw names that are the meet's own, and every team it names */
+async function drawTeams(db: Db, meetId: number, doc: ScheduleDocument) {
   const ids = [
     ...new Set(
       Object.values(doc.draw).flatMap((d) =>
@@ -642,15 +639,45 @@ async function foreignTeam(db: Db, meetId: number, doc: ScheduleDocument): Promi
       ),
     ),
   ]
-  if (ids.length === 0) return null
-  const own = await inChunks(ids, 2, (chunk) =>
-    db
-      .select({ id: schema.teams.id })
-      .from(schema.teams)
-      .where(and(eq(schema.teams.meetId, meetId), inArray(schema.teams.id, chunk))),
-  )
-  const owned = new Set(own.map((t) => t.id))
+  const own =
+    ids.length === 0
+      ? []
+      : await inChunks(ids, 2, (chunk) =>
+          db
+            .select({ id: schema.teams.id })
+            .from(schema.teams)
+            .where(and(eq(schema.teams.meetId, meetId), inArray(schema.teams.id, chunk))),
+        )
+  return { ids, owned: new Set(own.map((t) => t.id)) }
+}
+
+/**
+ * A team the draw names that isn't the meet's, or null. Readers are shown the draw's teams and
+ * rosters, so a team from another meet would show that meet's quizzers.
+ */
+async function foreignTeam(db: Db, meetId: number, doc: ScheduleDocument): Promise<number | null> {
+  const { ids, owned } = await drawTeams(db, meetId, doc)
   return ids.find((id) => !owned.has(id)) ?? null
+}
+
+/**
+ * A document without the draw's teams the meet no longer has, as an old version restored as the
+ * draft must be; a division that lost a drawn team needs its draw redone
+ */
+async function withoutForeignTeams(
+  db: Db,
+  meetId: number,
+  doc: ScheduleDocument,
+): Promise<ScheduleDocument> {
+  const { owned } = await drawTeams(db, meetId, doc)
+  const draw = Object.fromEntries(
+    Object.entries(doc.draw).map(([division, d]) => {
+      const kept = d.teams.filter((t) => t.teamId === undefined || owned.has(t.teamId))
+      if (kept.length === d.teams.length) return [division, d]
+      return [division, { ...d, teams: kept, stale: d.stale || d.teams.some((t) => t.letter) }]
+    }),
+  )
+  return { ...doc, draw }
 }
 
 /** The 409 for a save or publish based on an older draft, carrying the newer one (FR-048a) */
@@ -944,8 +971,14 @@ schedule.post('/:id/schedule/versions/:version/restore', async (c) => {
   if (!row) return c.json({ error: 'No such version' }, 404)
   const body = await jsonBody<{ baseRevision?: unknown }>(c)
   if (!body) return c.json({ error: 'Expected a JSON body' }, 400)
+  // An old version can name a team the meet has since lost, which a draft may not hold
+  const doc = await withoutForeignTeams(
+    getDb(c),
+    meetId,
+    JSON.parse(row.document) as ScheduleDocument,
+  )
   // Restoring replaces the draft by choice, whichever draft it was
-  return saveDraft(c, meetId, JSON.parse(row.document) as ScheduleDocument, body.baseRevision, true)
+  return saveDraft(c, meetId, doc, body.baseRevision, true)
 })
 
 /** Unlink (FR-048): the draft goes; published versions stay as the record of what was out */
