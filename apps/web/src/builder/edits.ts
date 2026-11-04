@@ -355,7 +355,8 @@ export function editRow(d: ScheduleDocument, id: string, patch: Partial<FrameRow
   if (follow && old.kind === 'slot' && row.kind === 'slot') {
     shiftLater(d, id, row.at + row.minutes - (old.at + old.minutes))
   }
-  settleDay(d, id)
+  // Only a slot's time can put rows out of order; a renamed day or note leaves them as they are
+  if (row.kind === 'slot') settleDay(d, id)
 }
 
 /** The rows of a day: its heading and everything up to the next day */

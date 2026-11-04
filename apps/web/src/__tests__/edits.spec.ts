@@ -79,6 +79,12 @@ describe("a day's rows never overlap (FR-016)", () => {
     expect(times(d)).toEqual(['sat', 'a@540', 'n', 'x@565', 'b@595', 'c@660', 'sun', 'd@540'])
   })
 
+  it("leaves every day's rows in order when a day is renamed", () => {
+    const d = day()
+    editRow(d, 'sun', { label: 'Sun' })
+    expect(times(d)).toEqual(['sat', 'a@540', 'n', 'b@565', 'c@660', 'sun', 'd@540'])
+  })
+
   it('puts a row retimed earlier in its place, its notes with it', () => {
     const d = day()
     editRow(d, 'a', { at: 10 * 60 })
