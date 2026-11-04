@@ -76,6 +76,18 @@ const builder = useTemplateRef<InstanceType<typeof BuilderView>>('builder')
 type SaveState = 'saved' | 'unsent' | 'saving' | 'offline' | 'failed'
 const saveState = ref<SaveState>('saved')
 const saveError = ref('')
+/**
+ * A refusal because another admin saved the draft meanwhile, with their draft and revision (the
+ * server's 409 for a stale base, as against a publish's hard conflicts); null for anything else
+ */
+function staleDraft(e: unknown): { draft: ScheduleDocument | null; draftRevision: number } | null {
+  if (!(e instanceof ApiError) || e.status !== 409) return null
+  const body = e.body as { draft?: ScheduleDocument | null; draftRevision?: number }
+  return body.draftRevision === undefined
+    ? null
+    : { draft: body.draft ?? null, draftRevision: body.draftRevision }
+}
+
 /** The server's draft when another admin saved meanwhile, to keep mine or take theirs */
 const conflict = shallowRef<{ draft: ScheduleDocument | null; draftRevision: number } | null>(null)
 
@@ -446,10 +458,9 @@ async function publish(confirmConflicts = false) {
       (e.body as { conflicts?: Conflict[] }).conflicts
     ) {
       hardConflicts.value = (e.body as { conflicts: Conflict[] }).conflicts
-    } else if (e instanceof ApiError && e.status === 409) {
+    } else if (staleDraft(e)) {
       // Another admin saved meanwhile: the same choice a save offers
-      const body = e.body as { draft: ScheduleDocument | null; draftRevision: number }
-      conflict.value = { draft: body.draft, draftRevision: body.draftRevision }
+      conflict.value = staleDraft(e)
     } else {
       publishNote.value = e instanceof Error ? `Not published: ${e.message}` : 'Not published'
     }
@@ -498,10 +509,13 @@ async function restoreVersion(v: number) {
     // The restored version replaces the draft, edits made while it was on its way included
     openFromServer(document, saved.draftRevision)
   } catch (e) {
-    if (e instanceof ApiError && e.status === 409) {
-      // Another admin saved meanwhile: the same choice a save offers
-      const body = e.body as { draft: ScheduleDocument | null; draftRevision: number }
-      conflict.value = { draft: body.draft, draftRevision: body.draftRevision }
+    const stale = staleDraft(e)
+    if (stale?.draft) {
+      // Another admin saved meanwhile. Nothing here was unsent (restore waits for that), so their
+      // draft opens, and the director can restore again over it
+      openFromServer(stale.draft, stale.draftRevision)
+      publishNote.value =
+        'Not restored: another admin saved the draft meanwhile. Theirs is open now.'
     } else {
       publishNote.value = `Not restored: ${e instanceof Error ? e.message : String(e)}`
     }
