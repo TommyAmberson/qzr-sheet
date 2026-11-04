@@ -87,6 +87,25 @@ describe('generateSchedule', () => {
     for (const s of prelimSlots) expect(doc.quizzes.some((q) => q.cell?.slot === s.id)).toBe(true)
   })
 
+  it('never puts two divisions in one room at once when they share rooms (H-2)', () => {
+    // Three divisions in two rooms: their room blocks overlap
+    const doc = meet([10, 10, 10], 2)
+    expect(hard(doc).filter((c) => c.rule === 'H-2')).toEqual([])
+  })
+
+  it('runs no more Finals side by side than there are rooms (H-2)', () => {
+    const doc = newScheduleDocument('Test')
+    doc.settings.framePreset = 'oneRoom'
+    doc.settings.finals.sideBySide = 2
+    doc.settings.divisions = [6, 6].map((teams, i) => ({
+      id: `d${i + 1}`,
+      name: `Div ${i + 1}`,
+      teams,
+      elims: defaultElims(teams),
+    }))
+    expect(hard(generateSchedule(doc)).filter((c) => c.rule === 'H-2')).toEqual([])
+  })
+
   it('with no team counts, a minimal frame of 3 rooms (FR-010)', () => {
     const doc = meet([])
     expect(doc.rooms).toHaveLength(3)

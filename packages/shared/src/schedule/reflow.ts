@@ -146,6 +146,8 @@ function elimRounds(
       const owned = new Set([...laneRooms.values()].flat())
       const give = (q: ScheduleQuiz, rm: string) => {
         free.splice(free.indexOf(rm), 1)
+        // Divisions whose rooms overlap (more divisions than rooms) share the round's rooms
+        busy.add(`${r}|${rm}`)
         round.set(q.id, r)
         room.set(q.id, rm)
         left[d]!.splice(left[d]!.indexOf(q), 1)
@@ -360,10 +362,11 @@ export function reflowSchedule(
   )
 
   // Finals in the sequence's free places
-  // Finals are placed by place, a finals slot times the Finals side by side plus the room
+  // Finals are placed by place, a finals slot times the Finals side by side plus the room; no more
+  // run side by side than there are rooms
+  const side = Math.max(1, Math.min(settings.finals.sideBySide, roomIds.size))
   const pinnedFinals = new Set(
     pinnedAt('finals').flatMap(({ k, room }) => {
-      const side = settings.finals.sideBySide
       const r = [...roomIds].indexOf(room)
       // In a room the Finals don't use, it still runs then, so it takes the whole slot
       return r >= 0 && r < side
@@ -374,9 +377,7 @@ export function reflowSchedule(
   // A one-room event in a finals slot takes its room's place there too (H-3)
   for (const e of eventTaken) {
     const r = [...roomIds].indexOf(e.room)
-    if (e.use === 'finals' && r >= 0 && r < settings.finals.sideBySide) {
-      pinnedFinals.add(e.k * settings.finals.sideBySide + r)
-    }
+    if (e.use === 'finals' && r >= 0 && r < side) pinnedFinals.add(e.k * side + r)
   }
   const finals = finalsOrder(
     doc,
@@ -385,7 +386,6 @@ export function reflowSchedule(
   const finalsPlaces: number[] = []
   for (let k = 0; finalsPlaces.length < finals.length; k++)
     if (!pinnedFinals.has(k)) finalsPlaces.push(k)
-  const side = settings.finals.sideBySide
   const finalsSlots = keepFrame
     ? oldSlots.finals.length
     : Math.ceil((Math.max(-1, ...finalsPlaces, ...pinnedFinals) + 1) / side)
