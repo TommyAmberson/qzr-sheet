@@ -823,7 +823,8 @@ schedule.post('/:id/schedule/publish', async (c) => {
   if (!row) return c.json({ error: 'There is no draft to publish' }, 404)
   if (body.baseRevision !== row.draftRevision) return staleDraft(c, row)
   const doc = JSON.parse(row.draft) as ScheduleDocument
-  const conflicts = checkSchedule(doc).filter((x) => !x.warning)
+  // Checked as the builder checks it: the grid against the settings it was built with
+  const conflicts = checkSchedule({ ...doc, settings: doc.applied }).filter((x) => !x.warning)
   if (conflicts.length > 0 && body.confirmConflicts !== true) {
     return c.json({ error: 'The schedule has hard conflicts', conflicts }, 409)
   }

@@ -101,7 +101,9 @@ export function useScheduleBuilder(
     change((d) => Object.assign(d, reflowSchedule(d)))
   }
 
-  const conflicts = computed(() => checkSchedule(doc.value))
+  // The grid is checked against the settings it was built with, so a change waiting for Apply
+  // isn't reported as problems on a grid it hasn't touched yet (FR-012a)
+  const conflicts = computed(() => checkSchedule({ ...doc.value, settings: doc.value.applied }))
   /** Conflicts by quiz, for marking cells */
   const issues = computed(() => {
     const byQuiz = new Map<string, Conflict[]>()
