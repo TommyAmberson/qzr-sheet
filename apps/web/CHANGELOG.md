@@ -29,6 +29,7 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * While moving a quiz, the "Choose where it goes" prompt floats at the bottom of the window instead
   of scrolling away with the grid; the builder's other notices stay in view too.
 * On a meet's page, the phase name no longer overlaps the Advance button on a narrow screen.
+* On a touch screen the builder's buttons and fields are at least 40 pixels tall.
 
 ### Bundled contract
 
