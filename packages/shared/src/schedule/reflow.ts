@@ -1,3 +1,4 @@
+import { teamKey } from './conflicts'
 import { buildElimQuizzes } from './elims'
 import { buildFrame, DEFAULT_SHAPE, defaultRoomCount, eventCells } from './frame'
 import { placePrelims, sortPrelims, type PrelimDivision } from './placement'
@@ -10,7 +11,6 @@ import {
   type ScheduleDocument,
   type ScheduleQuiz,
   type ScheduleSettings,
-  type Seat,
 } from './scheduleFile'
 
 /** Prelim rounds a weekend starts from: five Friday evening, three Saturday morning */
@@ -43,21 +43,6 @@ export function recommendedRooms(
 const MAX_ELIM_ROUNDS = 60
 
 type Use = 'prelim' | 'elim' | 'finals'
-
-/** A seat's team as a key, so two quizzes in one round can't share one (H-1) */
-function seatKey(seat: Seat): string | null {
-  switch (seat.kind) {
-    case 'rank':
-    case 'new':
-      return `${seat.kind}:${seat.rank}`
-    case 'place':
-      return `place:${seat.quiz}:${seat.place}`
-    case 'points':
-      return `points:${seat.place}`
-    default:
-      return null
-  }
-}
 
 /**
  * The frame's quiz slots grouped by use, in order; a slot added by hand takes the use of the quiz
@@ -136,7 +121,7 @@ function elimRounds(
       const chosen: ScheduleQuiz[] = []
       for (const q of turns) {
         if (chosen.length === free.length) break
-        const keys = q.seats.map(seatKey).filter((k): k is string => k !== null)
+        const keys = q.seats.map((seat) => teamKey(q, seat)).filter((k): k is string => k !== null)
         if (keys.some((k) => used.has(k))) continue
         keys.forEach((k) => used.add(k))
         chosen.push(q)

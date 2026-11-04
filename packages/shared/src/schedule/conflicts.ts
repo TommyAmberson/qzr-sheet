@@ -36,8 +36,11 @@ function slotTimes(doc: ScheduleDocument): Map<string, SlotTime> {
   return times
 }
 
-/** A seat's team, as a key two seats share when they name the same team; null for an empty seat */
-function teamKey(q: ScheduleQuiz, seat: Seat): string | null {
+/**
+ * A seat's team, as a key two seats share when they name the same team; null for an empty seat.
+ * Placing elims uses it too, so the generator and this check agree on what a team is (H-1).
+ */
+export function teamKey(q: ScheduleQuiz, seat: Seat): string | null {
   switch (seat.kind) {
     case 'letter':
       return `letter:${seat.letter}`
