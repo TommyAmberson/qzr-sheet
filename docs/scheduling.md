@@ -40,7 +40,7 @@ doc is the stable design reference those issues link back to.
 | **Team**                       | A church-owned roster for one meet + division. `teams` row. Has `consolation: boolean` (already in schema) — always `false` during prelims; set post-stats-break to route a team into the consolation elim bracket. Division never changes. |
 | **Room**                       | A physical location where quizzes run in parallel. Named ("Room 1"–"Room 5"). New concept — not in schema today.                                                                                                                            |
 | **Round**                      | An ordinal grouping of quizzes that run simultaneously across rooms in the same time slot.                                                                                                                                                  |
-| **Slot**                       | A wall-clock time for a round. Not 1:1 with round — non-quiz events also occupy slots.                                                                                                                                                      |
+| **Slot**                       | A wall-clock time and length: a row of the grid. Quizzes and events sit in its rooms; a slot made for events (Breakfast, Lunch) takes no generated quizzes.                                                                                 |
 | **Quiz**                       | Three teams competing at one `(round, room)` pair. Labeled `Div 1 Quiz 1`, `Div 2 Quiz A`, `Div 2 Quiz X`, etc.                                                                                                                             |
 | **Prelim** (qualifier)         | Round-robin within a division. Every team plays exactly 3 prelim quizzes. Pairings are lookup tables (`rules.md` §"Preliminary Round Brackets", 4–21 teams).                                                                                |
 | **Stats break**                | Transition. Admin reviews standings and picks an elim structure based on team count.                                                                                                                                                        |
@@ -52,7 +52,7 @@ doc is the stable design reference those issues link back to.
 | **Championship quizzes**       | 3–5 end-of-bracket quizzes with "win twice" semantics. `rules.md` §3.                                                                                                                                                                       |
 | **Lane**                       | A division's elim path. Real meets often run more than two — Winkler runs A (championship), K (next 12), B (consolation), and M (extras). See `docs/example-winkler-2026.md` §6.                                                            |
 | **Custom bracket template**    | Hand-composed elim template for fields larger than the rule book's 9-team A/B/C. Stored as data in `packages/shared/scheduling/templates/`. See `docs/example-winkler-2026.md` §6.1.                                                        |
-| **Event**                      | Non-quiz item on the schedule — Breakfast, Stats Break, Worship, etc. Occupies a slot, no room/teams.                                                                                                                                       |
+| **Event**                      | Non-quiz item on the schedule (Breakfast, Stats break, a coaches' meeting). Sits in a slot over any set of its rooms, or all of them, like a quiz.                                                                                          |
 
 ## 2. Meet phases
 
@@ -189,9 +189,10 @@ truth.
 
 **Event rules**:
 
-* Events occupy a slot but no rooms or quizzes.
-* Events can be inserted between quiz rounds.
-* Events don't enforce the default slot duration.
+* An event sits in a slot like a quiz, over any set of its rooms or all of them. A quiz in a room an
+  event takes at that time breaks H-3.
+* A slot whose rooms are all taken by events, with no quizzes, is drawn as a short event row.
+* A slot made for events doesn't take the default slot length.
 
 **Phase-aware rules** (see §2):
 
@@ -459,22 +460,24 @@ elim epic.
 
 The builder lives in the portal: `/builder` for schedules kept in the browser with no account, and a
 meet's Schedule edit page for its linked schedule. A settings panel (Teams, Time slots and rooms,
-Prelims, Elims) sits beside the grid; time runs down, rooms across, with day headings, events across
-all rooms or one, and note rows. Each quiz card shows its seats in letters, or team names once a
-division is drawn.
+Prelims, Elims) sits beside the grid; time runs down, rooms across, with day headings, events in
+their rooms or across all of them, and note rows. Each quiz card shows its seats in letters, or team
+names once a division is drawn.
 
 * **Generate and re-flow**: settings changes re-flow the grid around pinned quizzes and rows. With
   Auto-apply off, changes wait, each marked, until Apply, which first says how many quizzes move.
 * **Edit by hand**: a quiz's menu renames it, sets any seat, moves it (drag, or pick then choose the
-  target, by pointer or keyboard), sends it to the unplaced tray, pins or unpins it, and deletes it.
-  Rows and rooms have menus of their own. Every change can be undone.
+  target, by pointer or keyboard), sends it to the unplaced tray, pins or unpins it, deletes it, and
+  turns it into an event. An event's menu does the same for an event, sets its rooms, and turns it
+  into a quiz. An empty cell adds either. Rows and rooms have menus of their own. Every change can
+  be undone.
 * **Conflicts**: every hard rule and warning of `docs/schedule-invariants.md` is checked after each
   change, marked on its cells and counted, with a way to step through them. Nothing is refused.
 * **Linked schedules**: the draft is kept in the browser and sent shortly after each change, offline
   edits included. Publish asks before going past hard conflicts and turns Auto-apply off; the
   history shows every version, to view or restore. A quiz with results changes only after a
   confirmation, and is then marked as changed after results.
-* **Printing**: the room grid, a one-room list, or the basic schedule.
+* **Printing**: the room grid, or the basic schedule.
 
 ## 10. UX flow (end-to-end)
 

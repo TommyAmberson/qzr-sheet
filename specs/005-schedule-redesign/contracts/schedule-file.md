@@ -13,9 +13,11 @@ what readers and writers promise each other.
   * refuses a newer version with a message naming both versions, and leaves what's open untouched;
   * refuses a document that fails validation with a message saying what's wrong.
 * **Round trip**: saving and reopening gives an identical document, pins and draw included (SC-006).
-* **Ids**: quiz, slot, room and division ids are strings and stable for the document's life. A
-  seat's "place in another quiz" names the quiz by id. Ids from converted meets are the old row ids
-  as strings.
+* **Events**: `events` holds the schedule's events, each in a slot (or none, for the unplaced tray)
+  over a list of room ids or `all`.
+* **Ids**: quiz, event, slot, room and division ids are strings and stable for the document's life.
+  A seat's "place in another quiz" names the quiz by id. Ids from converted meets are the old row
+  ids as strings.
 * **Linked rooms and times**: when linked, a room may name its meet room (`meetRoomId`); publishing
   adds a meet room for each room without one and fills it in. `link.timeZone`, the meet's time zone,
   turns a day's times into the instants the meet's old read routes return. Each day row is the first
