@@ -122,6 +122,15 @@ describe('settings sections', () => {
     wrapper.unmount()
   })
 
+  it("picks a division's colour, which its quizzes take", async () => {
+    const wrapper = await fbc()
+    await wrapper.find('[aria-label="Div 2 colour"]').trigger('click')
+    await wrapper.find('[aria-label="Div 2 colours"] [aria-label="teal"]').trigger('click')
+    const quiz = wrapper.findAll('.quiz').find((q) => q.text().includes('Div 2 Quiz 1'))!
+    expect(quiz.attributes('style')).toContain('--dc-teal')
+    wrapper.unmount()
+  })
+
   it('steps a number field with its + and − buttons', async () => {
     const wrapper = await fbc()
     const field = wrapper

@@ -1,5 +1,6 @@
 import { ordinal, quizNumber } from './names'
 import { eventRooms } from './frame'
+import { DIVISION_COLOURS, type DivisionColour } from './scheduleFile'
 import type { FrameRow, ScheduleDocument, ScheduleEvent, ScheduleQuiz, Seat } from './scheduleFile'
 
 /** Letters, or the drawn team's name where the division has a draw (FR-043) */
@@ -94,6 +95,12 @@ export function sheetRows(doc: ScheduleDocument): SheetRow[] {
     const short = cells.some((c) => c.kind === 'event') && cells.every((c) => c.kind !== 'quiz')
     return { kind: 'slot', row, cells, short }
   })
+}
+
+/** A division's colour: its own, or by its place, the first four colours in turn */
+export function divisionColour(doc: ScheduleDocument, division: string): DivisionColour {
+  const i = doc.settings.divisions.findIndex((d) => d.id === division)
+  return doc.settings.divisions[i]?.colour ?? DIVISION_COLOURS[Math.max(0, i) % 4]!
 }
 
 /** The divisions that use a room, Finals aside (FR-019) */

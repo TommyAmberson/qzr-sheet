@@ -49,9 +49,24 @@ const LineSchema = Type.Object({
   ),
 })
 
+/** The colours a division can be drawn in, by name so each theme gives its own shade */
+export const DIVISION_COLOURS = [
+  'green',
+  'rose',
+  'amber',
+  'violet',
+  'blue',
+  'teal',
+  'orange',
+  'slate',
+] as const
+export type DivisionColour = (typeof DIVISION_COLOURS)[number]
+
 const DivisionSchema = Type.Object({
   id: Type.String(),
   name: Type.String(),
+  /** Chosen by the director; without one a division takes the next of the first four in order */
+  colour: Type.Optional(Type.Union(DIVISION_COLOURS.map((c) => Type.Literal(c)))),
   teams: Type.Integer({ minimum: 0 }),
   elims: Type.Object({
     lanes: Type.Array(LaneSchema),

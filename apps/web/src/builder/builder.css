@@ -17,12 +17,6 @@
   --b-shadow: 0 1px 2px rgb(0 0 0 / 8%), 0 1px 1px rgb(0 0 0 / 4%);
   --b-shadow-lift: 0 12px 32px rgb(0 0 0 / 18%), 0 2px 6px rgb(0 0 0 / 8%);
 
-  /* Division colours, for the tick on each quiz and room */
-  --b-d1: #2f9e6e;
-  --b-d2: #c2416b;
-  --b-d3: #c27c0e;
-  --b-d4: #7a5af5;
-
   font-size: 14px;
   line-height: 1.45;
 }
@@ -33,10 +27,6 @@
   .linked {
     --b-shadow: 0 1px 2px rgb(0 0 0 / 40%);
     --b-shadow-lift: 0 12px 32px rgb(0 0 0 / 55%);
-    --b-d1: #4fd1a0;
-    --b-d2: #f08aa6;
-    --b-d3: #f0b452;
-    --b-d4: #a996ff;
   }
 }
 

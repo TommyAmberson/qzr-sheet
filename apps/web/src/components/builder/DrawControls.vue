@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import {
+  divisionColour,
   clearDraw,
   drawDivision,
   setTeamCount,
@@ -27,8 +28,7 @@ const teamsOf = (id: string, count: number) =>
   }))
 const nameOf = (t: { name?: string; i: number }) => t.name ?? `Team ${t.i + 1}`
 /** Each division's colour, as its quizzes carry it on the grid */
-const colourOf = (id: string) =>
-  `var(--b-d${(props.doc.settings.divisions.findIndex((d) => d.id === id) % 4) + 1})`
+const colourOf = (id: string) => `var(--dc-${divisionColour(props.doc, id)})`
 const drawn = (id: string) => props.doc.draw[id]?.teams.some((t) => t.letter) ?? false
 
 const showLate = ref(false)

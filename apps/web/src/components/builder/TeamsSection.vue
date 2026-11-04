@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import NumberInput from './NumberInput.vue'
-import { defaultElims, setTeamCount, type ScheduleDocument } from '@qzr/shared'
+import { ref } from 'vue'
+import {
+  DIVISION_COLOURS,
+  defaultElims,
+  divisionColour,
+  setTeamCount,
+  type DivisionColour,
+  type ScheduleDocument,
+} from '@qzr/shared'
 
 import { pinWhere } from '../../builder/edits'
 
@@ -32,6 +40,17 @@ function setName(id: string, event: Event) {
     const division = d.settings.divisions.find((x) => x.id === id)
     if (division) division.name = name
   })
+}
+
+/** The division whose colour is being picked, if any */
+const picking = ref<string | null>(null)
+
+function setColour(id: string, colour: DivisionColour) {
+  emit('change', (d) => {
+    const division = d.settings.divisions.find((x) => x.id === id)
+    if (division) division.colour = colour
+  })
+  picking.value = null
 }
 
 /** How many of a division's teams have a name typed */
@@ -71,13 +90,21 @@ function setTeamName(id: string, index: number, event: Event) {
       />
     </label>
     <div
-      v-for="(d, n) in doc.settings.divisions"
+      v-for="d in doc.settings.divisions"
       :key="d.id"
       class="division"
       :data-division="d.id"
-      :style="{ '--qc': `var(--b-d${(n % 4) + 1})` }"
+      :style="{ '--qc': `var(--dc-${divisionColour(doc, d.id)})` }"
     >
       <div class="head">
+        <button
+          type="button"
+          class="swatch"
+          :aria-label="`${d.name} colour`"
+          :aria-expanded="picking === d.id"
+          title="Colour"
+          @click="picking = picking === d.id ? null : d.id"
+        />
         <input
           class="name"
           :value="d.name"
@@ -91,6 +118,18 @@ function setTeamName(id: string, index: number, event: Event) {
           @change="setTeams(d.id, $event)"
         />
         <span class="unit">teams</span>
+      </div>
+      <div v-if="picking === d.id" class="swatches" role="group" :aria-label="`${d.name} colours`">
+        <button
+          v-for="c in DIVISION_COLOURS"
+          :key="c"
+          type="button"
+          class="swatch"
+          :style="{ '--qc': `var(--dc-${c})` }"
+          :aria-label="c"
+          :aria-pressed="divisionColour(doc, d.id) === c"
+          @click="setColour(d.id, c)"
+        />
       </div>
       <div class="foot">
         <details v-if="d.teams > 0" class="names">
@@ -205,5 +244,28 @@ function setTeamName(id: string, index: number, event: Event) {
 
 .unpin {
   font-size: 0.8rem;
+}
+/* A division's colour, a dot that opens the choice of them */
+.teams .swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 2px solid var(--color-bg);
+  border-radius: 50%;
+  background: var(--qc);
+  box-shadow: 0 0 0 1px var(--color-border-alt);
+}
+
+.teams .swatch[aria-pressed='true'],
+.teams .swatch[aria-expanded='true'] {
+  box-shadow: 0 0 0 2px var(--color-heading);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.2rem 0 0.1rem 0.15rem;
 }
 </style>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import './divisionColours.css'
 import {
+  divisionColour,
   formatClock,
   roomDivisions,
   seatText,
@@ -72,11 +74,8 @@ function hasWarning(id: string) {
 }
 const target = (e: Event) => e.currentTarget as HTMLElement
 
-/** Each division's colour, by its place in the settings, for the tick on its quizzes */
-const divisionClass = computed(() => {
-  const order = new Map(props.doc.settings.divisions.map((d, i) => [d.id, `d${(i % 4) + 1}`]))
-  return (id: string) => order.get(id) ?? 'd1'
-})
+/** Each division's colour, its own or by its place, for the tick on its quizzes */
+const colourOf = (division: string) => `var(--dc-${divisionColour(props.doc, division)})`
 </script>
 
 <template>
@@ -134,13 +133,13 @@ const divisionClass = computed(() => {
               v-if="c.kind === 'quiz'"
               class="quiz"
               :class="{
-                [divisionClass(c.quiz.division)]: true,
                 conflict: hasHard(c.quiz.id),
                 warning: !hasHard(c.quiz.id) && hasWarning(c.quiz.id),
                 selected: selected === c.quiz.id,
                 pinned: c.quiz.pinned,
               }"
               :data-quiz="c.quiz.id"
+              :style="{ '--qc': colourOf(c.quiz.division) }"
               :title="issueText(c.quiz.id) || undefined"
             >
               <!-- A reader's page can make the title a link instead, the portal's to the scoresheet -->
@@ -215,10 +214,6 @@ const divisionClass = computed(() => {
   --sheet-ink: var(--color-heading, #33302a);
   --sheet-rule: var(--color-border-alt, #e0ddd4);
   --sheet-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
-  --d1: #2f9e6e;
-  --d2: #c2416b;
-  --d3: #c27c0e;
-  --d4: #7a5af5;
 
   border-collapse: separate;
   border-spacing: 0;
@@ -226,15 +221,6 @@ const divisionClass = computed(() => {
   border-radius: 6px;
   background: var(--color-bg, #fff);
   font-size: 0.85rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  .sheet {
-    --d1: #4fd1a0;
-    --d2: #f08aa6;
-    --d3: #f0b452;
-    --d4: #a996ff;
-  }
 }
 
 .sheet th,
@@ -368,7 +354,7 @@ const divisionClass = computed(() => {
 }
 
 .quiz {
-  --qc: var(--d1);
+  --qc: var(--dc-green);
 
   position: relative;
   display: grid;
@@ -379,18 +365,6 @@ const divisionClass = computed(() => {
   transition:
     background 0.12s,
     box-shadow 0.12s;
-}
-
-.quiz.d2 {
-  --qc: var(--d2);
-}
-
-.quiz.d3 {
-  --qc: var(--d3);
-}
-
-.quiz.d4 {
-  --qc: var(--d4);
 }
 
 .quiz:hover {

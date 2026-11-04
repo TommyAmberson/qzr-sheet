@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import {
+  divisionColour,
   defaultAbove,
   type DivisionSettings,
   type LaneSettings,
@@ -128,8 +129,7 @@ const BRACKET_NAMES: Record<string, string> = {
 const unapplied = (id: string) => props.unapplied.some((u) => u.key === `${id}.elims`)
 
 /** Each division's colour, as the grid ticks its quizzes */
-const colourOf = (d: DivisionSettings) =>
-  `var(--b-d${(props.doc.settings.divisions.indexOf(d) % 4) + 1})`
+const colourOf = (d: DivisionSettings) => `var(--dc-${divisionColour(props.doc, d.id)})`
 const range = (from: number, to: number) => (from === to ? `${from}` : `${from}–${to}`)
 /** Who a lane takes, in words, reading down the ranks */
 function takes(d: DivisionSettings, i: number) {
@@ -405,7 +405,7 @@ function laneNote(l: LaneSettings) {
 }
 
 .division {
-  --qc: var(--b-d1);
+  --qc: var(--dc-green);
 
   display: grid;
   gap: 0.6rem;

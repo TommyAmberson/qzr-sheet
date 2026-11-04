@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watch } from 'vue'
 import {
+  divisionColour,
   formatClock,
   indexOfLetter,
   letterOf,
@@ -103,10 +104,7 @@ watch(
 
 const division = computed(() => props.doc.settings.divisions.find((d) => d.id === q.value.division))
 /** The division's colour, as the grid ticks its quizzes */
-const colour = computed(() => {
-  const i = props.doc.settings.divisions.findIndex((d) => d.id === q.value.division)
-  return i < 0 ? undefined : `var(--b-d${(i % 4) + 1})`
-})
+const colour = computed(() => `var(--dc-${divisionColour(props.doc, q.value.division)})`)
 const teams = computed(() => division.value?.teams ?? 0)
 const sameDivision = computed(() =>
   props.doc.quizzes.filter((x) => x.division === q.value.division && x.id !== props.quizId),
