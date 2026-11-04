@@ -484,12 +484,15 @@ const divisionClass = computed(() => {
     background: #fff;
     font-size: 8.5pt;
     --sheet-ink: #000;
-    --sheet-rule: #bbb;
+    --sheet-rule: #888;
   }
 
+  /* Rules in points and fixed ink: a 1px hairline in a dark-mode colour drops out of a PDF view */
   .sheet th,
   .sheet td {
     padding: 2pt 3pt;
+    border-bottom: 0.75pt solid var(--sheet-rule);
+    color: #000;
   }
 
   .sheet thead th {
@@ -513,6 +516,7 @@ const divisionClass = computed(() => {
   .time {
     position: static;
     width: 6.5em;
+    border-right: 0.75pt solid var(--sheet-rule);
   }
 
   .sheet .time .row-button {
@@ -521,6 +525,8 @@ const divisionClass = computed(() => {
 
   .sheet .seat {
     min-width: 0;
+    border-bottom: 0.75pt solid #000;
+    color: #000;
     font-size: 8pt;
   }
 
