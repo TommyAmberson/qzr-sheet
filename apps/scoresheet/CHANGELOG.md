@@ -15,12 +15,18 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.18.3] - 2026-11-04
+
 ### Changed
 
 * Load from schedule shows the meet's published schedule, drawn the way the portal and builder draw
   it, and loading a quiz fills its division, consolation flag and number so its results are saved
   under the name the schedule gives it. A meet with nothing published says so. Links from the portal
   name the quiz by its id in the schedule.
+
+### Bundled contract
+
+* `@qzr/shared@1.7.0` - bumped from 1.6.0
 
 ## [0.18.2] - 2026-10-31
 
