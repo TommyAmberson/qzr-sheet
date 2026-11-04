@@ -514,11 +514,14 @@ export function unappliedSettings(doc: ScheduleDocument): UnappliedSetting[] {
   const list: UnappliedSetting[] = []
   const { settings: now, applied: was } = doc
   const top: [keyof ScheduleSettings, UnappliedSetting['section']][] = [
+    ['framePreset', 'frame'],
     ['slotMinutes', 'frame'],
     ['rooms', 'frame'],
     ['quizzesPerTeam', 'prelims'],
     ['prelimDraw', 'prelims'],
     ['lateTeams', 'prelims'],
+    ['totallingMinutes', 'elims'],
+    ['finals', 'elims'],
   ]
   for (const [key, section] of top) {
     if (show(now[key]) !== show(was[key])) list.push({ section, key, applied: show(was[key]) })

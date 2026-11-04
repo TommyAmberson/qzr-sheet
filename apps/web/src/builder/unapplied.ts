@@ -11,6 +11,12 @@ export const DRAW_NAMES: Record<ScheduleSettings['prelimDraw'], string> = {
   noRematches: 'No rematches',
 }
 
+const FRAME_NAMES: Record<ScheduleSettings['framePreset'], string> = {
+  weekend: 'Weekend',
+  oneDay: 'One day',
+  oneRoom: 'One room',
+}
+
 /** A room count as the director chose it: a number, or the recommendation and what it comes to */
 export function roomsText(settings: ScheduleSettings): string {
   return settings.rooms === 'auto'
@@ -41,6 +47,14 @@ export function describeUnapplied(doc: ScheduleDocument): string[] {
       lines.push(`Prelim draw: ${DRAW_NAMES[was.prelimDraw]} to ${DRAW_NAMES[now.prelimDraw]}`)
     } else if (u.key === 'lateTeams') {
       lines.push(`Late teams play late: ${now.lateTeams ? 'on' : 'off'}`)
+    } else if (u.key === 'framePreset') {
+      lines.push(`Frame: ${FRAME_NAMES[was.framePreset]} to ${FRAME_NAMES[now.framePreset]}`)
+    } else if (u.key === 'totallingMinutes') {
+      lines.push(`Time to total: ${was.totallingMinutes} to ${now.totallingMinutes} minutes`)
+    } else if (u.key === 'finals') {
+      lines.push(
+        `Finals: ${was.finals.sideBySide} to ${now.finals.sideBySide} side by side, ${was.finals.spacingMinutes} to ${now.finals.spacingMinutes} minutes apart`,
+      )
     } else if (u.key === 'divisions') {
       lines.push(`Divisions: ${was.divisions.length} to ${now.divisions.length}`)
     } else if (division && field === 'name') {
