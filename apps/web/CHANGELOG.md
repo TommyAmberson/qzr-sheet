@@ -69,6 +69,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * The meet's schedule page shows the newest published schedule, in letters until the meet goes live
   and team names after, each quiz linking to the scoresheet. Before anything is published it says
   so.
+* Pinning many quizzes at once: a room's menu pins or unpins its column, a time slot's menu its row,
+  Teams unpins a division, and the panel unpins everything, handing it back to the generator.
 
 ### Removed
 

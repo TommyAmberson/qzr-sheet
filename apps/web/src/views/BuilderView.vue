@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, wa
 import { ChoiceDialog, ScheduleBasic, ScheduleList, ScheduleSheet } from '@qzr/ui'
 import type { ScheduleDocument, SheetView } from '@qzr/shared'
 
-import { addRoom, moveQuiz, swapSeats } from '../builder/edits'
+import { addRoom, moveQuiz, swapSeats, unpinAll } from '../builder/edits'
 import { keepSchedule, loadSchedule, saveScheduleFile } from '../builder/persistence'
 import ElimSection from '../components/builder/ElimSection.vue'
 import FrameSection from '../components/builder/FrameSection.vue'
@@ -168,6 +168,9 @@ const panelOpen = ref(false)
 
 // Every change is kept in this browser at once (FR-002)
 const keepFailed = ref(false)
+
+/** Quizzes the director has pinned; unpinning them all hands the grid back to the generator */
+const pinnedCount = computed(() => doc.value.quizzes.filter((q) => q.pinned).length)
 
 /** A save to file that failed says why, since the director is relying on that copy */
 const fileError = ref('')
@@ -341,6 +344,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 : 'Changes wait until you press Apply.'
             }}
           </span>
+          <div v-if="pinnedCount > 0" class="pins">
+            {{ pinnedCount }} pinned
+            <button type="button" @click="changeSettings(unpinAll)">Unpin all</button>
+          </div>
           <div v-if="!doc.settings.autoApply && unapplied.length > 0" class="apply-bar">
             {{ unapplied.length }} unapplied {{ unapplied.length === 1 ? 'change' : 'changes' }}
             <button type="button" class="apply" @click="confirmApply">Apply</button>
@@ -479,6 +486,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       :row-id="popup.id"
       :anchor="popup.anchor"
       @change="change"
+      @settings="changeSettings"
       @close="popup = null"
     />
     <RoomMenu
@@ -487,6 +495,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       :room-id="popup.id"
       :anchor="popup.anchor"
       @change="change"
+      @settings="changeSettings"
       @close="popup = null"
     />
     <ChoiceDialog ref="dialog" />
@@ -570,7 +579,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   color: var(--color-text-muted, #666);
 }
 
-.apply-bar {
+.apply-bar,
+.pins {
   display: flex;
   align-items: center;
   justify-content: space-between;

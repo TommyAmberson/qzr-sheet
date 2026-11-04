@@ -526,7 +526,8 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   default set of slots.
 * **FR-011**: A quiz MUST become pinned when the director moves it, edits its label or seats, or
   adds it by hand. A pinned quiz MUST be visibly marked and MUST be unpinnable, singly or for a
-  whole section or division.
+  whole division, room column or slot's row, or all at once; a room's column and a slot's row can
+  also be pinned together. Unpinned quizzes return to the generator at the next re-flow.
 * **FR-012**: A settings change MUST regenerate only unpinned quizzes and MUST NOT move, change or
   delete a pinned one (H-19).
 * **FR-012a**: An Auto-apply switch at the top of the left panel MUST control when settings changes

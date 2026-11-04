@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { formatClock, type FrameRow, type ScheduleDocument } from '@qzr/shared'
 
-import { deleteRow, editRow, insertRow } from '../../builder/edits'
+import { deleteRow, editRow, insertRow, pinWhere } from '../../builder/edits'
 import BuilderPopover from './BuilderPopover.vue'
 
 /**
@@ -11,9 +11,26 @@ import BuilderPopover from './BuilderPopover.vue'
  * are.
  */
 const props = defineProps<{ doc: ScheduleDocument; rowId: string; anchor: HTMLElement }>()
-const emit = defineEmits<{ change: [mutate: (d: ScheduleDocument) => void]; close: [] }>()
+const emit = defineEmits<{
+  change: [mutate: (d: ScheduleDocument) => void]
+  /** A change the generator follows, as a settings change (unpinning) */
+  settings: [mutate: (d: ScheduleDocument) => void]
+  close: []
+}>()
 
 const row = computed(() => props.doc.frame.find((r) => r.id === props.rowId)!)
+
+// A slot's row of quizzes pins or unpins together (FR-011)
+const inRow = computed(() => props.doc.quizzes.filter((q) => q.cell?.slot === props.rowId))
+const pinnedCount = computed(() => inRow.value.filter((q) => q.pinned).length)
+function pinRow(pinned: boolean) {
+  const pick = (q: ScheduleDocument['quizzes'][number]) => q.cell?.slot === props.rowId
+  const mutate = (d: ScheduleDocument) => pinWhere(d, pick, pinned)
+  // Pinning changes nothing on the grid; unpinning hands quizzes back to the generator
+  if (pinned) emit('change', mutate)
+  else emit('settings', mutate)
+  emit('close')
+}
 const title = computed(() => {
   const r = row.value
   if (r.kind === 'slot') return `Slot at ${formatClock(r.at)}`
@@ -106,6 +123,14 @@ function insert(kind: 'slot' | 'event' | 'note', room?: string) {
         <option v-for="r in doc.rooms" :key="r.id" :value="r.id">{{ r.name }}</option>
       </select>
     </label>
+    <div v-if="row.kind === 'slot' && inRow.length > 0" class="actions">
+      <button type="button" :disabled="pinnedCount === inRow.length" @click="pinRow(true)">
+        Pin row
+      </button>
+      <button type="button" :disabled="pinnedCount === 0" @click="pinRow(false)">
+        Unpin row ({{ pinnedCount }})
+      </button>
+    </div>
     <div class="actions">
       <button type="button" @click="insert('slot')">Insert slot after</button>
       <button type="button" @click="insert('event')">Insert event after</button>

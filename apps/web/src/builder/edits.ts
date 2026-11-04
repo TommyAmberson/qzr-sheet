@@ -54,6 +54,24 @@ export function setPinned(d: ScheduleDocument, id: string, pinned: boolean) {
   quiz(d, id).pinned = pinned
 }
 
+/**
+ * Pin or unpin every quiz `pick` chooses: a room's column, a slot's row, a division (FR-011).
+ * Unpinned quizzes go back to the generator at the next re-flow.
+ */
+export function pinWhere(
+  d: ScheduleDocument,
+  pick: (q: ScheduleDocument['quizzes'][number]) => boolean,
+  pinned: boolean,
+) {
+  for (const q of d.quizzes) if (pick(q)) q.pinned = pinned
+}
+
+/** Unpin every quiz and row, so the next re-flow regenerates the whole grid around nothing */
+export function unpinAll(d: ScheduleDocument) {
+  for (const q of d.quizzes) q.pinned = false
+  for (const r of d.frame) delete r.pinned
+}
+
 export function deleteQuiz(d: ScheduleDocument, id: string) {
   d.quizzes = d.quizzes.filter((q) => q.id !== id)
 }

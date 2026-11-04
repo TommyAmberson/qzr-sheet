@@ -283,3 +283,45 @@ describe('Elim settings (story 4)', () => {
     expect(w.find('.message').text()).toMatch(/Make those lanes bigger/)
   })
 })
+
+describe('pinning many at once (FR-011)', () => {
+  const pinned = (w: VueWrapper) => w.findAll('.quiz.pinned').length
+
+  it("pins and unpins a room's column and a slot's row", async () => {
+    const w = await sixTeams()
+    await w.findAll('.room-name')[0]!.trigger('click')
+    popupButton('Pin room').click()
+    await w.vm.$nextTick()
+    const inRoom = pinned(w)
+    expect(inRoom).toBeGreaterThan(0)
+
+    await w.findAll('.room-name')[0]!.trigger('click')
+    popupButton(`Unpin room (${inRoom})`).click()
+    await w.vm.$nextTick()
+    expect(pinned(w)).toBe(0)
+
+    await w.find('.slot .time button').trigger('click')
+    popupButton('Pin row').click()
+    await w.vm.$nextTick()
+    expect(pinned(w)).toBeGreaterThan(0)
+  })
+
+  it('unpins everything, and a division, from the panel', async () => {
+    const w = await sixTeams()
+    await w.findAll('.room-name')[0]!.trigger('click')
+    popupButton('Pin room').click()
+    await w.vm.$nextTick()
+    const unpinDivision = w.findAll('button').find((b) => b.text().startsWith('Unpin Div 1'))!
+    await unpinDivision.trigger('click')
+    expect(pinned(w)).toBe(0)
+
+    await w.findAll('.room-name')[0]!.trigger('click')
+    popupButton('Pin room').click()
+    await w.vm.$nextTick()
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Unpin all')!
+      .trigger('click')
+    expect(pinned(w)).toBe(0)
+  })
+})

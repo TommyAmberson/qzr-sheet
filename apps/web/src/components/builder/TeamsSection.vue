@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { defaultElims, setTeamCount, type ScheduleDocument } from '@qzr/shared'
 
+import { pinWhere } from '../../builder/edits'
+
 const props = defineProps<{ doc: ScheduleDocument }>()
 const emit = defineEmits<{ change: [mutate: (d: ScheduleDocument) => void] }>()
 
@@ -30,6 +32,10 @@ function setName(id: string, event: Event) {
     if (division) division.name = name
   })
 }
+
+/** How many of a division's quizzes are pinned; unpinning them hands the division back (FR-011) */
+const pinnedIn = (id: string) =>
+  props.doc.quizzes.filter((q) => q.division === id && q.pinned).length
 
 /** A division's team count; its elims follow its size until the director changes them (FR-030) */
 function setTeams(id: string, event: Event) {
@@ -73,6 +79,14 @@ function setTeamName(id: string, index: number, event: Event) {
           @change="setTeams(d.id, $event)"
         />
       </label>
+      <button
+        v-if="pinnedIn(d.id) > 0"
+        type="button"
+        class="unpin"
+        @click="emit('change', (x) => pinWhere(x, (q) => q.division === d.id, false))"
+      >
+        Unpin {{ d.name }} ({{ pinnedIn(d.id) }})
+      </button>
       <details v-if="d.teams > 0" class="names">
         <summary>Team names</summary>
         <input
