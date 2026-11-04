@@ -4,7 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, wa
 import { ChoiceDialog, ScheduleBasic, ScheduleSheet } from '@qzr/ui'
 import type { ScheduleDocument, SheetView } from '@qzr/shared'
 
-import { addRoom, moveQuiz, swapSeats, unpinAll } from '../builder/edits'
+import { addDay, addRoom, moveQuiz, swapSeats, unpinAll } from '../builder/edits'
 import { keepSchedule, loadSchedule, saveScheduleFile } from '../builder/persistence'
 import ElimSection from '../components/builder/ElimSection.vue'
 import FrameSection from '../components/builder/FrameSection.vue'
@@ -372,6 +372,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               :doc="doc"
               :unapplied="unapplied"
               @change="changeSettings"
+              @edit="change"
             />
             <ElimSection
               v-else-if="s.key === 'elims'"
@@ -447,6 +448,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               <button type="button" class="add-room" @click="change((d) => addRoom(d))">
                 + Room
               </button>
+            </template>
+            <template #days-end>
+              <button type="button" class="add-day" @click="change((d) => addDay(d))">+ Day</button>
             </template>
           </ScheduleSheet>
         </div>
@@ -749,6 +753,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   .panel,
   .tray,
   .add-room,
+  .add-day,
   .pending,
   .message,
   .empty,

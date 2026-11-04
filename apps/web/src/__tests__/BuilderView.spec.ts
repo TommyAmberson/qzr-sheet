@@ -104,6 +104,24 @@ describe('settings sections', () => {
     wrapper.unmount()
   })
 
+  it('adds and deletes days from Time slots and under the grid', async () => {
+    const wrapper = await fbc()
+    await openSection(wrapper, 'Time slots and rooms')
+    const days = () =>
+      wrapper.findAll('[aria-label="Day name"]').map((d) => (d.element as HTMLInputElement).value)
+    expect(days()).toEqual(['Friday', 'Saturday', 'Sunday'])
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === '+ Add a day')!
+      .trigger('click')
+    await wrapper.find('.add-day').trigger('click')
+    expect(days()).toEqual(['Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday'])
+    await wrapper.find('[aria-label="Delete Friday"]').trigger('click')
+    expect(days()[0]).toBe('Saturday')
+    expect(wrapper.findAll('tr.day')).toHaveLength(4)
+    wrapper.unmount()
+  })
+
   it('steps a number field with its + and − buttons', async () => {
     const wrapper = await fbc()
     const field = wrapper

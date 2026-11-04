@@ -176,6 +176,13 @@ const divisionClass = computed(() => {
         </tr>
       </template>
     </tbody>
+    <tfoot v-if="$slots['days-end']" class="days-end">
+      <tr>
+        <td :colspan="columns + 1">
+          <slot name="days-end" />
+        </td>
+      </tr>
+    </tfoot>
   </table>
 </template>
 
@@ -559,7 +566,8 @@ const divisionClass = computed(() => {
 
   .sheet .empty-cell,
   .quiz.pinned::after,
-  .rooms-end {
+  .rooms-end,
+  .days-end {
     display: none;
   }
 

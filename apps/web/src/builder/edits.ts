@@ -107,6 +107,14 @@ export function insertDay(d: ScheduleDocument, after: string) {
   d.frame.splice(end, 0, { kind: 'day', id: crypto.randomUUID(), label, pinned: true })
 }
 
+/** Add a day after the last one */
+export function addDay(d: ScheduleDocument) {
+  const days = d.frame.filter((r) => r.kind === 'day')
+  const last = days[days.length - 1]
+  if (last) return insertDay(d, last.id)
+  d.frame.unshift({ kind: 'day', id: crypto.randomUUID(), label: 'New day', pinned: true })
+}
+
 /** Delete a whole day: its heading and rows go, and its quizzes to the unplaced tray */
 export function deleteDay(d: ScheduleDocument, id: string) {
   const { start, end } = dayRows(d, id)
