@@ -590,30 +590,64 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 .panel .section-head {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.6rem;
   width: 100%;
-  padding: 0.7rem 1rem;
+  padding: 0.75rem 1rem;
   border: 0;
   border-bottom: 1px solid var(--color-border-alt);
+  border-left: 3px solid transparent;
   border-radius: 0;
   background: none;
   color: var(--color-text-muted);
   font-size: 0.75rem;
   letter-spacing: 0.06em;
+  text-align: left;
   text-transform: uppercase;
 }
 
-.panel .section-head:hover:not(:disabled),
+/* A chevron saying the section opens, turned down while it's open */
+.panel .section-head::before {
+  content: '';
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+
+.panel .section-head .count {
+  margin-left: auto;
+}
+
+.panel .section-head:hover:not(:disabled) {
+  background: var(--color-meta-bg);
+  color: var(--color-text);
+}
+
+/* The open section: its header and body drawn as one panel with the scoresheet's gold edge */
 .panel .section-head[aria-expanded='true'] {
+  border-bottom-color: transparent;
+  border-left-color: var(--color-meta-border);
   background: var(--color-meta-bg);
   color: var(--color-heading);
+  font-weight: 700;
+}
+
+.panel .section-head[aria-expanded='true']::before {
+  transform: rotate(45deg) translate(-2px, -2px);
 }
 
 .section-body {
   display: grid;
   gap: 0.6rem;
-  padding: 0.75rem 1rem 1rem;
+  padding: 0.25rem 1rem 1rem calc(1rem - 3px);
   border-bottom: 1px solid var(--color-border-alt);
+  border-left: 3px solid var(--color-meta-border);
+  background: color-mix(in srgb, var(--color-meta-bg) 45%, var(--color-bg));
 }
 
 .grid-area {
