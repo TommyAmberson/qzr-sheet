@@ -305,6 +305,11 @@ export function reflowSchedule(
   while (!keepFrame && placement.unplaced.length > 0 && prelimSlots < base * 4) {
     placement = place(++prelimSlots)
   }
+  // Prelim rounds left empty at the end are dropped, so no empty row waits before the stats break
+  if (!keepFrame && divisions.length > 0) {
+    const used = [...placement.cells.values()].map((c) => Number(c.slot.slice(1)) + 1)
+    prelimSlots = Math.max(1, minPrelims, ...used)
+  }
 
   // Elims, each division in its own rooms, around pinned elims
   const elims = divisions.map((d) => standInFor(buildElimQuizzes(d)))

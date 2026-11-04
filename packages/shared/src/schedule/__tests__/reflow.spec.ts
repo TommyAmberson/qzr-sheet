@@ -66,6 +66,14 @@ describe('generateSchedule', () => {
     expect(checkSchedule(doc).filter((c) => c.rule === 'H-11')).toEqual([])
   })
 
+  it('leaves no empty prelim row before the stats break (P-7)', () => {
+    // May 2023: 32 prelims fit 7 rounds of 5 rooms, as they did at the meet
+    const doc = meet([6, 26], 5)
+    const prelimSlots = doc.frame.filter((r) => r.kind === 'slot' && r.use === 'prelim')
+    expect(prelimSlots).toHaveLength(7)
+    for (const s of prelimSlots) expect(doc.quizzes.some((q) => q.cell?.slot === s.id)).toBe(true)
+  })
+
   it('with no team counts, a minimal frame of 3 rooms (FR-010)', () => {
     const doc = meet([])
     expect(doc.rooms).toHaveLength(3)
