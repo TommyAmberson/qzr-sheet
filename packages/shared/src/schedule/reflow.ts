@@ -393,7 +393,7 @@ export function unappliedSettings(doc: ScheduleDocument): UnappliedSetting[] {
     ['framePreset', 'frame'],
     ['slotMinutes', 'frame'],
     ['rooms', 'frame'],
-    ['finals', 'frame'],
+    ['finals', 'elims'],
     ['quizzesPerTeam', 'prelims'],
     ['prelimDraw', 'prelims'],
     ['totallingMinutes', 'elims'],

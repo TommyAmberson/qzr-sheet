@@ -215,8 +215,8 @@ division, and three finals 25 to 30 minutes apart. No hard conflicts.
    the schedule generates, **Then** the frame grows (more slots or rooms, per the room setting) or,
    if rooms are fixed and the day is full, the quizzes that don't fit are left in the unplaced tray
    with a message saying why.
-5. **Given** a one-day or one-room meet, **When** the director picks that frame preset, **Then** the
-   schedule generates on that frame (one day; or one room, listed in time order).
+5. **Given** a one-day meet, **When** the director deletes the other days and retimes the events,
+   **Then** the schedule generates on that one day.
 
 ---
 
@@ -554,7 +554,9 @@ without the edit, and the scoresheet loads a published quiz with the right teams
 
 **Frame: days, slots, rooms and events**
 
-* **FR-015**: The builder MUST offer frame presets, and default to Weekend:
+* **FR-015**: A new schedule MUST start on the Weekend frame. The builder doesn't offer a choice of
+  frame yet: directors shape it by adding and deleting days and editing events (FR-016). The One day
+  and One room frames below are kept for a later preset picker:
   * **Weekend**: Friday 7:00 PM Registration, 7:30 PM Assembly, prelims from 8:00 PM; Saturday 8:00
     AM Breakfast, prelims from 9:00 AM, each division's stats break, elims, 12:00 PM Lunch, elims,
     each division's Finals staggered about 30 minutes apart from about 3:15 PM, then 5:00 PM Supper,
@@ -563,7 +565,7 @@ without the edit, and the scoresheet loads a published quiz with the right teams
     finals to close.
   * **One room**: one room, the schedule printed as a single time-ordered list.
 
-  One-day and one-room meets are small and run however suits them; their presets are only a starting
+  One-day and one-room meets are small and run however suits them; their frames are only a starting
   point, and the defaults in this spec are tuned for weekend meets.
 * **FR-016**: Directors MUST be able to add, remove, retime and reorder rows, and set each row's
   length. A row is a time; quizzes and events sit in its rooms. A day's rows MUST NOT overlap: a row
@@ -588,15 +590,16 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   MUST keep to the same rooms (P-2, P-3). A division MAY borrow other rooms when its block can't fit
   its quizzes. Each room's header MUST show every division that uses it, Finals aside.
 * **FR-019a**: Finals MUST default to one at a time, in Room 1, about 25 to 30 minutes apart from
-  mid-afternoon, so they can be watched and still finish before the evening (P-6). The director MUST
-  be able to set their order, spacing and rooms, including two side by side (CMQ). The default order
-  MUST be highest division first (Div 3, Div 2, Div 1, as every 2025 meet), each division's
-  consolation Finals just before its own; it's a starting point, not a preference the generator
-  weighs (P-6).
+  mid-afternoon, so they can be watched and still finish before the evening (P-6). The director
+  changes their order, spacing and rooms on the grid, including two side by side (CMQ), by moving
+  and pinning them (FR-004a); Elim settings has no Finals controls beyond each lane's Finals on or
+  off. The default order MUST be highest division first (Div 3, Div 2, Div 1, as every 2025 meet),
+  each division's consolation Finals just before its own; it's a starting point, not a preference
+  the generator weighs (P-6).
 * **FR-020**: Each division's stats break MUST be worked out automatically: it falls between the
   division's last prelim and its first elim, so divisions can break at different times (H-11). It
-  isn't a special row. A "Stats break" event in the frame is an ordinary event for the people at the
-  meet, and the builder shows each division's break time in the Time slots section.
+  isn't a special row and the builder doesn't list it. A "Stats break" event in the frame is an
+  ordinary event for the people at the meet.
 
 **Prelims**
 

@@ -24,17 +24,17 @@ hard rules, which the conflict check reports and never repairs on its own (FR-03
 
 ## Settings
 
-| Field              | Meaning                                                                  |
-| ------------------ | ------------------------------------------------------------------------ |
-| `framePreset`      | Weekend, One day or One room (FR-015)                                    |
-| `slotMinutes`      | Default slot length, 25 (FR-016); each slot can differ                   |
-| `rooms`            | A fixed count, or "as many as needed" (FR-018)                           |
-| `quizzesPerTeam`   | 3 or 6 (FR-022, H-9)                                                     |
-| `prelimDraw`       | Rule book or No rematches (FR-023)                                       |
-| `totallingMinutes` | Gap after an intermediate before a `New n` quiz (FR-028a, W-3)           |
-| `finals`           | Order, spacing and rooms of the deciding quizzes called Finals (FR-019a) |
-| `autoApply`        | On or off (FR-012a); publishing turns it off                             |
-| `divisions`        | Ordered: id, name, team count, elims (below) (FR-021)                    |
+| Field              | Meaning                                                                 |
+| ------------------ | ----------------------------------------------------------------------- |
+| `framePreset`      | Weekend, One day or One room; the builder starts on Weekend (FR-015)    |
+| `slotMinutes`      | Default slot length, 25 (FR-016); each slot can differ                  |
+| `rooms`            | A fixed count, or "as many as needed" (FR-018)                          |
+| `quizzesPerTeam`   | 3 or 6 (FR-022, H-9)                                                    |
+| `prelimDraw`       | Rule book or No rematches (FR-023)                                      |
+| `totallingMinutes` | Gap after an intermediate before a `New n` quiz (FR-028a, W-3)          |
+| `finals`           | Finals order, spacing, rooms; defaults, not edited in builder (FR-019a) |
+| `autoApply`        | On or off (FR-012a); publishing turns it off                            |
+| `divisions`        | Ordered: id, name, team count, elims (below) (FR-021)                   |
 
 ### A division's elims
 

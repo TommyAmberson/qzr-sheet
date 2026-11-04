@@ -119,13 +119,6 @@ describe('settings sections', () => {
     wrapper.unmount()
   })
 
-  it("shows each division's stats break time (FR-020)", async () => {
-    const wrapper = await fbc()
-    await openSection(wrapper, 'Time slots and rooms')
-    expect(wrapper.find('.breaks').text()).toMatch(/Div 2: \d+:\d\d [AP]M to \d+:\d\d [AP]M/)
-    wrapper.unmount()
-  })
-
   it('with Auto-apply off, marks a changed setting until Apply (FR-012a, story 2 scenario 6)', async () => {
     const wrapper = await fbc()
     await wrapper.find('[aria-label="Auto-apply"]').setValue(false)
