@@ -118,7 +118,11 @@ function onQuiz(id: string, anchor: HTMLElement) {
   if (p?.kind === 'move') {
     const target = doc.value.quizzes.find((q) => q.id === id)
     pending.value = null
-    if (p.id !== id && target?.cell) moveItem(p.item, p.id, target.cell)
+    // Only a quiz drawn on the grid is a cell to move to; one waiting in Unplaced isn't, even if
+    // it still names the cell it shares with another
+    if (p.id !== id && target?.cell && !tray.value.includes(target)) {
+      moveItem(p.item, p.id, target.cell)
+    }
     return
   }
   popup.value = { kind: 'quiz', id, anchor }
@@ -410,7 +414,18 @@ async function toggleAutoApply(event: Event) {
 
 const problems = computed(() => conflicts.value.filter((c) => !c.warning).length)
 const warnings = computed(() => conflicts.value.filter((c) => c.warning).length)
-const tray = computed(() => doc.value.quizzes.filter((q) => !q.cell))
+// The grid draws one quiz per cell, so a quiz sharing its cell with another (H-2) waits here too,
+// where it can be seen and moved
+const tray = computed(() => {
+  const drawn = new Map(
+    doc.value.quizzes.flatMap((q) =>
+      q.cell ? [[`${q.cell.slot}|${q.cell.room}`, q.id] as const] : [],
+    ),
+  )
+  return doc.value.quizzes.filter(
+    (q) => !q.cell || drawn.get(`${q.cell.slot}|${q.cell.room}`) !== q.id,
+  )
+})
 const trayEvents = computed(() => doc.value.events.filter((e) => !e.slot))
 
 /** Step through the flagged quizzes, one at a time (FR-037) */
