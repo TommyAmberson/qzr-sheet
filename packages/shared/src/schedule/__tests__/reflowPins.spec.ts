@@ -279,6 +279,14 @@ describe('re-placing elims (FR-034a)', () => {
     expect(checkSchedule(after).filter((c) => c.rule === 'H-2')).toEqual([])
   })
 
+  it("doesn't bring back an elim deleted from a division it re-places", () => {
+    const doc = meet([8])
+    const gone = doc.quizzes.find((q) => q.phase === 'elim')!.id
+    doc.quizzes = doc.quizzes.filter((q) => q.id !== gone)
+    const after = replaceElims(doc, { divisions: ['d1'], includePinned: true })
+    expect(after.quizzes.some((q) => q.id === gone)).toBe(false)
+  })
+
   it("doesn't bring back quizzes deleted from the divisions it leaves alone", () => {
     const doc = meet([8, 8])
     const gone = [
