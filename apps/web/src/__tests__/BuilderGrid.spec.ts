@@ -56,27 +56,35 @@ describe('the quiz menu (FR-005c)', () => {
     const w = await sixTeams()
     await quizEl(w, 'Div 1 Quiz 1').findAll('.seat')[2]!.trigger('click')
     expect(document.querySelector('.seat-editor')).not.toBeNull()
-    const kind = document.querySelector<HTMLSelectElement>('[aria-label="Seat kind"]')!
-    kind.value = 'new'
-    kind.dispatchEvent(new Event('change'))
+    popupButton('Rank').click()
     await w.vm.$nextTick()
-    const rank = document.querySelector<HTMLInputElement>('[aria-label="Rank"]')!
-    rank.value = '10'
-    popupButton('Set seat').click()
+    const typed = document.querySelector<HTMLInputElement>('[aria-label="Other rank"]')!
+    typed.value = 'New 10'
+    typed.dispatchEvent(new Event('change'))
     await w.vm.$nextTick()
     expect(seatsOf(w, 'Div 1 Quiz 1')).toEqual(['A', 'C', 'New 10'])
-    // Back on the quiz's menu; nothing is refused: a letter beyond the division is kept, and
+    // Back on the quiz's menu; nothing is refused: a letter beyond the division is typed, kept and
     // marked (H-10)
     document.querySelector<HTMLButtonElement>('[aria-label="Seat 3"]')!.click()
     await w.vm.$nextTick()
-    const letter = document.querySelector<HTMLSelectElement>('[aria-label="Seat kind"]')!
-    letter.value = 'letter'
-    letter.dispatchEvent(new Event('change'))
+    popupButton('Letter').click()
     await w.vm.$nextTick()
-    document.querySelector<HTMLInputElement>('[aria-label="Letter"]')!.value = 'Z'
-    popupButton('Set seat').click()
+    const other = document.querySelector<HTMLInputElement>('[aria-label="Other letter"]')!
+    other.value = 'Z'
+    other.dispatchEvent(new Event('change'))
     await w.vm.$nextTick()
     expect(quizEl(w, 'Div 1 Quiz 1').classes()).toContain('conflict')
+  })
+
+  it('sets a seat from a place in an earlier quiz', async () => {
+    const w = await sixTeams()
+    await quizEl(w, 'Div 1 Quiz C').findAll('.seat')[0]!.trigger('click')
+    expect(document.querySelector('[role="tab"][aria-selected="true"]')!.textContent!.trim()).toBe(
+      'From quiz',
+    )
+    document.querySelector<HTMLButtonElement>('[aria-label="3rd of A"]')!.click()
+    await w.vm.$nextTick()
+    expect(seatsOf(w, 'Div 1 Quiz C')[0]).toBe('3 of A')
   })
 
   it('closes with its × or a click outside', async () => {
