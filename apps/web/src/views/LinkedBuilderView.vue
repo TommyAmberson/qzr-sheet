@@ -514,6 +514,7 @@ async function viewVersion(v: number) {
 
 async function restore(v: number) {
   if (busy.value) return
+  publishNote.value = ''
   restoring.value = true
   try {
     await restoreVersion(v)
