@@ -30,6 +30,15 @@ describe('events of the same name in one slot are one event (FR-017)', () => {
   })
 })
 
+describe('moving an event', () => {
+  it('keeps its rooms together, shifting back from the last room rather than losing one', () => {
+    const d = doc()
+    editEvent(d, 'a', { rooms: ['r1', 'r2'] })
+    moveEvent(d, 'a', { slot: 's1', room: 'r3' })
+    expect(d.events.find((e) => e.id === 'a')!.rooms).toEqual(['r2', 'r3'])
+  })
+})
+
 describe("a day's rows never overlap (FR-016)", () => {
   function day(): ScheduleDocument {
     const d = newScheduleDocument('Meet')

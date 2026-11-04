@@ -199,9 +199,16 @@ export function moveEvent(d: ScheduleDocument, id: string, cell: Cell) {
   if (e.rooms === 'all') return
   const order = d.rooms.map((r) => r.id)
   const at = e.rooms.map((r) => order.indexOf(r)).filter((i) => i >= 0)
-  const by = order.indexOf(cell.room) - Math.min(...at)
-  const moved = [...new Set(at.map((i) => order[i + by]).filter((r): r is string => !!r))]
-  e.rooms = moved.length > 0 ? moved : [cell.room]
+  if (at.length === 0) {
+    e.rooms = [cell.room]
+  } else {
+    // Shifted to start in the cell's room, or as near it as keeps every room on the grid
+    const by = Math.min(
+      order.indexOf(cell.room) - Math.min(...at),
+      order.length - 1 - Math.max(...at),
+    )
+    e.rooms = at.map((i) => order[i + by]!)
+  }
   mergeSameNamed(d, e.slot)
 }
 
