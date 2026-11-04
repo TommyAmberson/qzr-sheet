@@ -34,6 +34,8 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   as the draft and version 1. The old read routes (`/rooms`, `/slots`, `/quizzes`,
   `/quizzes/:quizId/teams`, `/prelim-assignments`) answer from the newest published version in their
   old shapes, so installed scoresheets keep working.
+* `builder` is reserved as a viewer code, beside `account` and `roadmap`, since the portal's
+  schedule builder lives at `/builder`.
 
 ### Removed
 

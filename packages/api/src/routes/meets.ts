@@ -39,7 +39,7 @@ function getDb(c: { get(key: 'db'): Db }): Db {
 const MEET_ID = /^\d+$/
 
 /** Top-level portal paths a meet's viewer code can't take. */
-const RESERVED_VIEWER_CODES = new Set(['account', 'roadmap'])
+const RESERVED_VIEWER_CODES = new Set(['account', 'builder', 'roadmap'])
 
 /**
  * Why a viewer code is refused, or null. Codes are slugs, and never all digits so a `?meet=` link

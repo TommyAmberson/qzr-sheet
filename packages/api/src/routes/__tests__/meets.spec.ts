@@ -131,6 +131,7 @@ describe('meet CRUD', () => {
       ['fall 2025', 'a space'],
       ['fall_2025', 'an underscore'],
       ['Account', 'the portal account page'],
+      ['builder', 'the schedule builder page'],
     ])('refuses viewer code %j (%s) with 400', async (viewerCode) => {
       const res = await app.request('/api/meets', json({ ...newMeet, viewerCode }), env)
       expect(res.status).toBe(400)
