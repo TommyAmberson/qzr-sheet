@@ -130,9 +130,10 @@ Taken from the org's printed schedules (2021 to 2026), where every meet follows 
 the maintainer. Earlier preferences win when two conflict.
 
 * **P-1. Late teams play late** (see W-2). Before the draw this is the draw's job: late teams get
-  the letters that play last, and nothing moves. The generator itself ignores lateness, so a layout
-  depends only on team counts and rooms. After the draw, the director's Sort moves late teams'
-  quizzes later, using the latest free cells in any room, and this outranks every other preference.
+  the letters that play last, and nothing moves. After the draw, re-flow places a division's prelims
+  as Sort does within its rooms, so late teams' quizzes take its latest cells and a settings change
+  keeps them there. The director's Sort across rooms goes further, using the latest free cells in
+  any room, and this outranks every other preference.
 * **P-2. Higher-numbered divisions sit in higher-numbered rooms**, in every slot: Div 1 in the
   lowest rooms, then Div 2, then Div 3. Each division's block is sized to its share of the quizzes.
 * **P-3. A room switches divisions and lanes as few times as possible, and never back and forth.**
@@ -150,8 +151,8 @@ the maintainer. Earlier preferences win when two conflict.
 * **P-6. Finals balance being watched against finishing on time.** Running finals one at a time, in
   one room, lets as many people as possible watch each one; running them together frees the evening
   sooner for the social and supper. Meets have settled on finals one at a time, about 25 to 30
-  minutes apart, from mid-afternoon. The director sets the order and spacing; there's no fixed order
-  to prefer.
+  minutes apart, from mid-afternoon, the highest division first and each consolation Finals just
+  before its own. The director changes any of it on the grid.
 * **P-7. The schedule uses as few slots and rooms as it can**, so the day ends on time.
 * **P-8. Spare cells come last**, so a division's rounds are full and only its last slot is partly
   empty. This is a weak preference: a gap can go anywhere when that lets a late team start later
