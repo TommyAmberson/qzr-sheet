@@ -487,6 +487,11 @@ async function publish(confirmConflicts = false) {
     } else if (staleDraft(e)) {
       // Another admin saved meanwhile: the same choice a save offers
       conflict.value = staleDraft(e)
+    } else if (e instanceof ApiError && (e.body as { teamId?: number }).teamId !== undefined) {
+      // A team left the meet since the draft was saved: catch up, then it can be published
+      publishNote.value =
+        'Not published: a team has left the meet. The draft now follows the meet; publish again.'
+      void catchUpWithTeams(e.message)
     } else {
       publishNote.value = e instanceof Error ? `Not published: ${e.message}` : 'Not published'
     }

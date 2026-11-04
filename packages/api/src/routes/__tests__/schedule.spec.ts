@@ -622,6 +622,16 @@ describe('linked schedule routes', () => {
     expect(draw.stale).toBe(true)
   })
 
+  it('refuses to publish a draft naming a team the meet has lost since, saying which', async () => {
+    const { meet, teams, doc } = await linkedMeet(db)
+    const base = `/api/meets/${meet.id}/schedule`
+    await app.request(`${base}/draft`, put({ document: doc, baseRevision: 0 }), env)
+    await db.delete(schema.teams).where(eq(schema.teams.id, teams[0]!.id))
+    const res = await app.request(`${base}/publish`, post({ baseRevision: 1 }), env)
+    expect(res.status).toBe(400)
+    expect(await jsonOf(res)).toMatchObject({ teamId: teams[0]!.id })
+  })
+
   it("makes the meet's rooms match: adds, renames, and keeps an unused room with an official code", async () => {
     const { meet, doc } = await linkedMeet(db)
     const kept = await seedRoom(db, meet.id, 'Gym')
