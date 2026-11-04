@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { basicRows, formatClock, roomDivisions, seatText, sheetRows, statsBreaks } from '../sheet'
+import { basicRows, formatClock, roomDivisions, seatText, sheetRows } from '../sheet'
 import { at, doc, quiz, seats } from './fixtures'
 
 describe('the printed sheet', () => {
@@ -90,18 +90,6 @@ describe('the printed sheet', () => {
       elims: { lanes: [], lines: [] },
     })
     expect(roomDivisions(d, 'r1')).toEqual(['Div 1'])
-  })
-})
-
-describe('statsBreaks', () => {
-  it("runs from a division's last prelim to its first elim (FR-020)", () => {
-    const d = doc({
-      quizzes: [
-        quiz('p', { cell: at('s1') }),
-        quiz('e', { phase: 'elim', lane: 0, cell: at('s3'), seats: seats('1', '2', '3') }),
-      ],
-    })
-    expect(statsBreaks(d)).toEqual([{ division: 'Div 1', from: 20 * 60 + 25, to: 20 * 60 + 50 }])
   })
 })
 

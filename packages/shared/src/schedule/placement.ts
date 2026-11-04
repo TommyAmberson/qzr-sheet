@@ -1,6 +1,6 @@
 import { quizNumber } from './names'
 import { eventCells } from './frame'
-import type { ScheduleDocument, ScheduleQuiz } from './scheduleFile'
+import { lateLetters, type ScheduleDocument, type ScheduleQuiz } from './scheduleFile'
 
 /** A division's prelim quizzes, in draw order, with their letters */
 export interface PrelimDivision {
@@ -266,10 +266,7 @@ export function sortPrelims(doc: ScheduleDocument, options: SortOptions): Schedu
   )
   const prelimsOf = (division: string) =>
     next.quizzes.filter((q) => q.division === division && q.phase === 'prelim')
-  const lateLetters = (division: string) =>
-    new Set(
-      (next.draw[division]?.teams ?? []).filter((t) => t.late && t.letter).map((t) => t.letter!),
-    )
+  const lateOf = (division: string) => lateLetters(next, division)
   const letters = (q: ScheduleQuiz) =>
     q.seats.flatMap((s) => (s.kind === 'letter' ? [s.letter] : []))
   const lateness = (q: ScheduleQuiz, late: Set<string>) =>
@@ -327,7 +324,7 @@ export function sortPrelims(doc: ScheduleDocument, options: SortOptions): Schedu
   if (!options.acrossRooms) {
     for (const d of sorted) {
       const qs = moving.get(d.id)!
-      const late = lateLetters(d.id)
+      const late = lateOf(d.id)
       const own = homeRooms.get(d.id)!.length > 0 ? homeRooms.get(d.id)! : rooms
       const anyRoom = [...own, ...rooms.filter((r) => !own.includes(r))]
       // Late teams' quizzes first, from the latest slot back, in any room, own rooms first
@@ -392,7 +389,7 @@ export function sortPrelims(doc: ScheduleDocument, options: SortOptions): Schedu
     start: number
   }
   const fillBlock = (division: string, cells: SortCell[]): Block => {
-    const late = lateLetters(division)
+    const late = lateOf(division)
     const pool = moving.get(division) ?? []
     const used = new Map<number, Set<string>>()
     const inSlot = (t: number) => {

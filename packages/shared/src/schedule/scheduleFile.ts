@@ -101,6 +101,14 @@ const SettingsSchema = Type.Object({
 export const lateCounts = (settings: Pick<ScheduleSettings, 'lateTeams'>) =>
   settings.lateTeams === true
 
+/** A division's drawn late teams' letters, none while lateness doesn't count */
+export function lateLetters(doc: ScheduleDocument, division: string): Set<string> {
+  if (!lateCounts(doc.settings)) return new Set()
+  return new Set(
+    (doc.draw[division]?.teams ?? []).flatMap((t) => (t.late && t.letter ? [t.letter] : [])),
+  )
+}
+
 // ---- Grid ----
 
 /** A row changed by hand; while any row is pinned, re-flow fits the quizzes into the frame as it is */

@@ -76,14 +76,14 @@ function intermediateSeating(quizzes: number, alternate: boolean): number[][] {
   return Array.from({ length: quizzes }, (_, j) => [j, 2 * quizzes - 1 - j, 2 * quizzes + j])
 }
 
-interface LineRange {
+export interface LineRange {
   from: number
   to: number
   kind: 'rerank' | 'playIn'
 }
 
-/** The ranks each line's intermediate holds */
-function lineRanges(division: DivisionSettings): (LineRange | null)[] {
+/** The ranks each line's intermediate plays, from the line's place and size, or null without one */
+export function lineRanges(division: DivisionSettings): (LineRange | null)[] {
   let after = 0
   return division.elims.lines.map((line, i) => {
     after += division.elims.lanes[i]?.size ?? 0

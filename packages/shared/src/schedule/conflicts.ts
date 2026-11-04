@@ -2,7 +2,7 @@ import { foldName, resultKey } from '../results'
 import { eventCells } from './frame'
 import { indexOfLetter, letterOf } from './letters'
 import { quizNumber } from './names'
-import { lateCounts, type ScheduleDocument, type ScheduleQuiz, type Seat } from './scheduleFile'
+import { lateLetters, type ScheduleDocument, type ScheduleQuiz, type Seat } from './scheduleFile'
 
 /**
  * A broken rule from docs/schedule-invariants.md: its ID, the quizzes involved (none when the
@@ -348,10 +348,8 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
     }
 
     // W-2: a late team in the division's first prelim slot
-    const late = new Set(
-      (draw?.teams ?? []).filter((t) => t.late && t.letter).map((t) => t.letter!),
-    )
-    if (lateCounts(doc.settings) && late.size > 0 && placedPrelims.length > 0) {
+    const late = lateLetters(doc, division.id)
+    if (late.size > 0 && placedPrelims.length > 0) {
       const first = Math.min(...placedPrelims.map((q) => timeOf(q)!.order))
       for (const q of placedPrelims.filter((q) => timeOf(q)!.order === first)) {
         if (q.seats.some((s) => s.kind === 'letter' && late.has(s.letter)))

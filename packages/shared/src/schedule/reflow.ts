@@ -4,7 +4,7 @@ import { placePrelims, sortPrelims, type PrelimDivision } from './placement'
 import { drawPrelims } from './prelimDraw'
 import { quizNumber } from './names'
 import {
-  lateCounts,
+  lateLetters,
   type DivisionSettings,
   type FrameRow,
   type ScheduleDocument,
@@ -186,10 +186,15 @@ const isFinals = (q: ScheduleQuiz) => q.deciding === true && q.label.endsWith('F
  * kept as it is and the quizzes fit into it; otherwise it is rebuilt to fit. Nothing is placed
  * against a hard rule; what can't be placed is left in the tray (FR-013).
  */
-export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
+export function reflowSchedule(
+  doc: ScheduleDocument,
+  /** Keep the frame as it is even with nothing in it pinned, as re-placing elims does */
+  options: { keepFrame?: boolean } = {},
+): ScheduleDocument {
   const { settings } = doc
   const divisions = settings.divisions.filter((d) => d.teams > 0)
-  const keepFrame = doc.frame.some((r) => r.pinned) || doc.events.some((e) => e.pinned)
+  const keepFrame =
+    options.keepFrame ?? (doc.frame.some((r) => r.pinned) || doc.events.some((e) => e.pinned))
   const oldSlots = slotsByUse(doc.frame)
   const positionOf = new Map<string, { use: Use; k: number }>()
   for (const use of ['prelim', 'elim', 'finals'] as const) {
@@ -432,11 +437,7 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   const flowed = { ...doc, applied: structuredClone(settings), frame, rooms, quizzes, events }
   // Late teams play late (P-1): re-flow sorts what it places, as Sort does within each division's
   // rooms, so a settings change never undoes a Sort
-  const late = lateCounts(settings)
-    ? divisions
-        .filter((d) => doc.draw[d.id]?.teams.some((t) => t.late && t.letter))
-        .map((d) => d.id)
-    : []
+  const late = divisions.filter((d) => lateLetters(doc, d.id).size > 0).map((d) => d.id)
   return late.length > 0
     ? sortPrelims(flowed, { divisions: late, includePinned: false, acrossRooms: false })
     : flowed
@@ -457,12 +458,11 @@ export function replaceElims(
     q.phase === 'elim' && chosen.has(q.division) && (options.includePinned || !q.pinned)
   // Everything else is held where it is for the re-flow, then given back its own pins
   const held: ScheduleDocument = {
-    ...structuredClone(doc),
-    settings: structuredClone(doc.applied),
-    frame: doc.frame.map((r, i) => (i === 0 ? { ...r, pinned: true } : r)),
+    ...doc,
+    settings: doc.applied,
     quizzes: doc.quizzes.map((q) => ({ ...q, pinned: !moving(q) })),
   }
-  const after = reflowSchedule(held)
+  const after = reflowSchedule(held, { keepFrame: true })
   const pins = new Map(doc.quizzes.map((q) => [q.id, q.pinned]))
   return {
     ...after,
@@ -502,14 +502,11 @@ export function unappliedSettings(doc: ScheduleDocument): UnappliedSetting[] {
   const list: UnappliedSetting[] = []
   const { settings: now, applied: was } = doc
   const top: [keyof ScheduleSettings, UnappliedSetting['section']][] = [
-    ['framePreset', 'frame'],
     ['slotMinutes', 'frame'],
     ['rooms', 'frame'],
-    ['finals', 'elims'],
     ['quizzesPerTeam', 'prelims'],
     ['prelimDraw', 'prelims'],
     ['lateTeams', 'prelims'],
-    ['totallingMinutes', 'elims'],
   ]
   for (const [key, section] of top) {
     if (show(now[key]) !== show(was[key])) list.push({ section, key, applied: show(was[key]) })
@@ -533,6 +530,12 @@ export function unappliedSettings(doc: ScheduleDocument): UnappliedSetting[] {
 }
 
 /** What Apply would do, and how many quizzes it would move or change (FR-012a) */
+/** How many quizzes are in another cell after a change, the tray counting as a cell */
+export function cellMoves(before: ScheduleDocument, after: ScheduleDocument): number {
+  const was = new Map(before.quizzes.map((q) => [q.id, show(q.cell)]))
+  return after.quizzes.filter((q) => was.get(q.id) !== show(q.cell)).length
+}
+
 export function applyPreview(doc: ScheduleDocument): { doc: ScheduleDocument; moves: number } {
   const next = reflowSchedule(doc)
   const before = new Map(

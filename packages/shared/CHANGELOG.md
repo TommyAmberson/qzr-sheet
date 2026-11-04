@@ -44,7 +44,10 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   by its place.
 * `replaceElims`: divisions' elims placed again where the generator would, around everything else.
 * `recommendedRooms`: the fewest rooms, at least 3, that fit a schedule's prelims.
-* `lateCounts` and the `lateTeams` setting: whether late marks count at all, off by default.
+* `lateCounts`, `lateLetters` and the `lateTeams` setting: whether late marks count at all, off by
+  default, and a division's late letters when they do.
+* `cellMoves`, how many quizzes a change moves, and `lineRanges`, the ranks each line's intermediate
+  plays.
 * `laneName`: the name a lane's quizzes go by (`Div 2C`), for renaming a quiz by hand.
 * `resultKey`: the key a meet stores a quiz's results under, which `resultName` now returns too.
 * `elimsForCount` and `setTeamCount`: a division's elims for a new team count, keeping elims the
@@ -79,7 +82,6 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   frame rows can be pinned too.
 * `sheetRows`, `seatText`, `roomDivisions` and `formatClock`: a schedule laid out as the printed
   sheet, each seat's text in letters or drawn teams, and the divisions using each room.
-* `statsBreaks`: each division's stats break, from its last prelim to its first elim.
 * `drawDivision` and `clearDraw`: a division's draw, every team one letter, late teams given letters
   that share quizzes and start as late as can be, the rest at random; the schedule never changes.
 * `sortPrelims`: prelims placed again with drawn late teams' quizzes in the latest cells, in any
