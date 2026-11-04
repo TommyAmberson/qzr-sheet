@@ -443,6 +443,19 @@ export function reflowSchedule(
 }
 
 /**
+ * Whether a quiz is an elim the generator makes for its division, which re-placing elims can
+ * place again; one added by hand isn't
+ */
+export function isGeneratedElim(doc: ScheduleDocument): (q: ScheduleQuiz) => boolean {
+  const made = new Set(
+    doc.applied.divisions
+      .filter((d) => d.teams > 0)
+      .flatMap((d) => buildElimQuizzes(d).map(quizKey)),
+  )
+  return (q) => q.phase === 'elim' && made.has(quizKey(q))
+}
+
+/**
  * Divisions' elims placed again where the generator would put them, around everything else as it
  * is (FR-034a): the frame, the prelims, other divisions' elims and, unless included, their own
  * pinned elims. It works from the settings the grid was built with, so waiting settings changes
@@ -455,16 +468,9 @@ export function replaceElims(
   const chosen = new Set(options.divisions)
   // Only elims the generator makes can be placed again; one added by hand stays where it is, held
   // with everything else so no re-placed quiz lands in its cell
-  const made = new Set(
-    doc.applied.divisions
-      .filter((d) => chosen.has(d.id) && d.teams > 0)
-      .flatMap((d) => buildElimQuizzes(d).map(quizKey)),
-  )
+  const generated = isGeneratedElim(doc)
   const moving = (q: ScheduleQuiz) =>
-    q.phase === 'elim' &&
-    chosen.has(q.division) &&
-    (options.includePinned || !q.pinned) &&
-    made.has(quizKey(q))
+    generated(q) && chosen.has(q.division) && (options.includePinned || !q.pinned)
   // Everything else is held where it is for the re-flow, then given back its own pins
   const held: ScheduleDocument = {
     ...doc,

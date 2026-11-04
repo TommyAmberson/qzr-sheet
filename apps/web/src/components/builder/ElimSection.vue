@@ -5,6 +5,7 @@ import {
   laneName,
   lineRanges,
   cellMoves,
+  isGeneratedElim,
   replaceElims,
   defaultAbove,
   type DivisionSettings,
@@ -50,12 +51,13 @@ const replaceMoves = computed(() => {
   const after = replaced.value
   return after ? cellMoves(shown.value, after) : 0
 })
-const pinnedElims = computed(
-  () =>
-    props.doc.quizzes.filter(
-      (q) => q.phase === 'elim' && q.pinned && (replacing.value ?? []).includes(q.division),
-    ).length,
-)
+// The pinned elims a re-place would move: those the generator makes, not ones added by hand
+const pinnedElims = computed(() => {
+  const generated = isGeneratedElim(props.doc)
+  return props.doc.quizzes.filter(
+    (q) => generated(q) && q.pinned && (replacing.value ?? []).includes(q.division),
+  ).length
+})
 function confirmReplace() {
   const options = replaceOptions()
   emit('edit', (d) => Object.assign(d, { quizzes: replaceElims(d, options).quizzes }))
