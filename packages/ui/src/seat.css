@@ -67,6 +67,12 @@
   white-space: nowrap;
 }
 
+.qz-seat-line.absent {
+  color: var(--color-warn, #a60);
+  font-style: italic;
+  font-weight: 500;
+}
+
 .qz-seat:hover .qz-seat-line {
   border-bottom-color: var(--qc, var(--color-accent));
   background: color-mix(in srgb, var(--qc, var(--color-accent)) 12%, transparent);

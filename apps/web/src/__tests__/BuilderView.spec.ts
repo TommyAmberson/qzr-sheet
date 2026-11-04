@@ -166,11 +166,14 @@ describe('settings sections', () => {
     await length.trigger('change')
 
     expect(wrapper.find('.unapplied').text()).toBe('Unapplied · grid uses 25')
+    // The grid's slots are still the length it was built with, so none is listed as another
+    expect(wrapper.find('[aria-label="Slots of another length"]').exists()).toBe(false)
     expect(wrapper.find('[data-section="frame"] .count').text()).toBe('1 unapplied')
     await wrapper.find('.apply').trigger('click')
     await wrapper.vm.$nextTick()
     const dialog = document.querySelector('.choice-dialog')!
     expect(dialog.textContent).toMatch(/\d+ quizz?(es)? will move/)
+    expect(dialog.textContent).toContain('The slots get new times.')
     ;(
       [...dialog.querySelectorAll('button')].find(
         (b) => b.textContent?.trim() === 'Apply',

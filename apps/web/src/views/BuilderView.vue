@@ -359,9 +359,14 @@ const dialog = useTemplateRef<InstanceType<typeof ChoiceDialog>>('dialog')
 /** Apply waiting settings, first saying how many quizzes will move */
 async function confirmApply() {
   const moves = pendingMoves()
+  // A new slot length keeps every quiz in its slot but moves the slots' times, which the count
+  // alone wouldn't say
+  const retimed = unapplied.value.some((u) => u.key === 'slotMinutes')
+    ? ' The slots get new times.'
+    : ''
   const go = await dialog.value?.ask(
     'Apply the changed settings?',
-    `${moves} ${moves === 1 ? 'quiz' : 'quizzes'} will move or change. Pinned quizzes stay.`,
+    `${moves} ${moves === 1 ? 'quiz' : 'quizzes'} will move or change.${retimed} Pinned quizzes stay.`,
     [
       { label: 'Cancel', value: false },
       { label: 'Apply', value: true, primary: true },

@@ -47,13 +47,15 @@ const days = computed(() => {
   return list
 })
 
-/** Quiz slots holding a quiz whose length isn't the default, with their day */
+/** Quiz slots holding a quiz whose length isn't the grid's default, with their day */
 const offLength = computed(() => {
   const list: { id: string; when: string; minutes: number }[] = []
   let day = ''
   for (const row of props.doc.frame) {
     if (row.kind === 'day') day = row.label
-    if (row.kind !== 'slot' || row.use === 'event' || row.minutes === s.value.slotMinutes) continue
+    // Against the length the grid was built with: a waiting change isn't the grid's yet
+    const built = props.doc.applied.slotMinutes
+    if (row.kind !== 'slot' || row.use === 'event' || row.minutes === built) continue
     if (!props.doc.quizzes.some((q) => q.cell?.slot === row.id)) continue
     list.push({
       id: row.id,

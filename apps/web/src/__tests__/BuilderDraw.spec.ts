@@ -51,6 +51,23 @@ describe('the draw in the builder (FR-039 to FR-042b)', () => {
     w.unmount()
   })
 
+  it("shows an absent team's seats as Absent (FR-042b)", async () => {
+    const w = await withNineTeams()
+    await w
+      .findAll('.section-head')
+      .find((h) => h.text().includes('Prelim'))!
+      .trigger('click')
+    await button(w, 'Draw').trigger('click')
+    await w.find('.disclose').trigger('click')
+    await w.find('[aria-label="Div 1 Team 2 dropped out"]').trigger('click')
+    await button(w, 'Mark absent').trigger('click')
+    const letter = saved().draw[saved().settings.divisions[0]!.id]!.teams[1]!.letter!
+    const seats = w.findAll('.seat').filter((s) => s.text().startsWith(letter))
+    expect(seats.length).toBeGreaterThan(0)
+    expect(seats.every((s) => s.text().includes('Absent'))).toBe(true)
+    w.unmount()
+  })
+
   it('says how many quizzes Sort will move before it moves them (FR-042a)', async () => {
     const w = await withNineTeams()
     await w
