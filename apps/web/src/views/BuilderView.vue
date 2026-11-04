@@ -1000,8 +1000,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   left: 0;
 }
 
+/* Scroll and pinch to zoom, without a double tap zooming instead of choosing a cell */
 .sheet-wrap {
-  touch-action: pan-x pan-y;
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 .builder-main.rail-hidden {
