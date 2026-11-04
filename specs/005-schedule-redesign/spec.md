@@ -167,6 +167,9 @@ takes nothing away from it.
   slot in a row, with spare cells at the end; lateness is the draw's and Sort's job.
 * Q: In what order are the Finals by default? → A: Highest division first (Div 3, Div 2, Div 1, as
   in 2025), each division's consolation Finals just before its own.
+* Q: Where do consolation Finals run? → A: With two divisions, with the other Finals, just before
+  their division's own; with three or more, in the lane's own rooms like its other quizzes (FBC
+  2025). Possibly a setting later.
 * Q: Does the builder need to work offline? → A: No. It's a page of the portal; once open it edits
   without the network, but opening it needs a connection. It still needs no account and no meet.
 * Q: Is a meet's schedule history kept? → A: Every published version is, with when and by whom, so
@@ -597,9 +600,11 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   mid-afternoon, so they can be watched and still finish before the evening (P-6). The director
   changes their order, spacing and rooms on the grid, including two side by side (CMQ), by moving
   and pinning them (FR-004a); Elim settings has no Finals controls beyond each lane's Finals on or
-  off. The default order MUST be highest division first (Div 3, Div 2, Div 1, as every 2025 meet),
-  each division's consolation Finals just before its own; it's a starting point, not a preference
-  the generator weighs (P-6).
+  off. The default order MUST be highest division first (Div 3, Div 2, Div 1, as every 2025 meet).
+  With two divisions each division's consolation Finals runs with the others, just before its own
+  (2021 to 2024); with three or more it runs in its lane's rooms like the lane's other quizzes (FBC
+  2025), so the Finals don't push the evening back. It's a starting point, not a preference the
+  generator weighs (P-6), and may become a setting later.
 * **FR-020**: Each division's stats break MUST be worked out automatically: it falls between the
   division's last prelim and its first elim, so divisions can break at different times (H-11). It
   isn't a special row and the builder doesn't list it. A "Stats break" event in the frame is an

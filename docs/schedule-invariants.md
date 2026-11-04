@@ -153,8 +153,10 @@ the maintainer. Earlier preferences win when two conflict.
 * **P-6. Finals balance being watched against finishing on time.** Running finals one at a time, in
   one room, lets as many people as possible watch each one; running them together frees the evening
   sooner for the social and supper. Meets have settled on finals one at a time, about 25 to 30
-  minutes apart, from mid-afternoon, the highest division first and each consolation Finals just
-  before its own. The director changes any of it on the grid.
+  minutes apart, from mid-afternoon, the highest division first. With two divisions each consolation
+  Finals runs just before its own division's; with three, consolation Finals run in their lanes'
+  rooms alongside the last elims, or the Finals would run into the evening. The director changes any
+  of it on the grid.
 * **P-7. The schedule uses as few slots and rooms as it can**, so the day ends on time.
 * **P-8. Spare cells come last**, so a division's rounds are full and only its last slot is partly
   empty. This is a weak preference: a gap can go anywhere when that lets a late team start later

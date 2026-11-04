@@ -42,23 +42,36 @@ describe('generateSchedule', () => {
     )
   })
 
-  it("runs Finals one at a time in Room 1, highest division first, each consolation's just before its division's (FR-019a)", () => {
-    const doc = meet([6, 17, 16])
-    const slots = new Map(
-      doc.frame.flatMap((r) => (r.kind === 'slot' ? [[r.id, r.at] as const] : [])),
-    )
+  function finalsInOrder(doc: ScheduleDocument) {
+    const slots = new Map(doc.frame.flatMap((r) => (r.kind === 'slot' ? [[r.id, r] as const] : [])))
     const finals = doc.quizzes
       .filter((q) => q.label.endsWith('Finals') && q.cell)
-      .sort((a, b) => slots.get(a.cell!.slot)! - slots.get(b.cell!.slot)!)
-    expect(finals.map((q) => q.label)).toEqual([
-      'Div 3C Finals',
-      'Div 3 Finals',
-      'Div 2C Finals',
-      'Div 2 Finals',
-      'Div 1 Finals',
-    ])
+      .sort((a, b) => slots.get(a.cell!.slot)!.at - slots.get(b.cell!.slot)!.at)
+    return { finals, slotOf: (q: ScheduleDocument['quizzes'][number]) => slots.get(q.cell!.slot)! }
+  }
+
+  it("with two divisions, runs every Finals one at a time in Room 1, each consolation's just before its division's (FR-019a)", () => {
+    const doc = meet([6, 26], 5)
+    const { finals, slotOf } = finalsInOrder(doc)
+    expect(finals.map((q) => q.label)).toEqual(['Div 2C Finals', 'Div 2 Finals', 'Div 1 Finals'])
     expect(new Set(finals.map((q) => q.cell!.room))).toEqual(new Set([doc.rooms[0]!.id]))
-    expect(clock(slots.get(finals[0]!.cell!.slot)!) >= '15:00').toBe(true)
+    expect(finals.every((q) => slotOf(q).use === 'finals')).toBe(true)
+    expect(clock(slotOf(finals[0]!).at) >= '15:00').toBe(true)
+  })
+
+  it("with three divisions, runs consolation Finals in their lane's rooms and the rest in Room 1, highest division first (FR-019a)", () => {
+    const doc = meet([6, 17, 16])
+    const { finals, slotOf } = finalsInOrder(doc)
+    const main = finals.filter((q) => slotOf(q).use === 'finals')
+    expect(main.map((q) => q.label)).toEqual(['Div 3 Finals', 'Div 2 Finals', 'Div 1 Finals'])
+    expect(new Set(main.map((q) => q.cell!.room))).toEqual(new Set([doc.rooms[0]!.id]))
+    for (const label of ['Div 2C Finals', 'Div 3C Finals']) {
+      const q = finals.find((x) => x.label === label)!
+      expect(slotOf(q).use).toBe('elim')
+      const lane = doc.quizzes.filter((x) => x.lane === q.lane && x.division === q.division)
+      expect(lane.filter((x) => x !== q).some((x) => x.cell?.room === q.cell!.room)).toBe(true)
+    }
+    expect(hard(doc)).toEqual([])
   })
 
   it("keeps each division's elims after its prelims, the stats break between (H-11, FR-020)", () => {

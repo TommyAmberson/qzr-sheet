@@ -166,8 +166,8 @@ function elimRounds(
 }
 
 /**
- * The order Finals run in: the highest division first, each division's consolation Finals just
- * before its own (FR-019a); the director changes it on the grid
+ * The order Finals run in: the highest division first, each division's consolation Finals, when
+ * they run with the others, just before its own (FR-019a); the director changes it on the grid
  */
 function finalsOrder(doc: ScheduleDocument, finals: ScheduleQuiz[]): ScheduleQuiz[] {
   const divisionIndex = (q: ScheduleQuiz) =>
@@ -178,6 +178,15 @@ function finalsOrder(doc: ScheduleDocument, finals: ScheduleQuiz[]): ScheduleQui
 }
 
 const isFinals = (q: ScheduleQuiz) => q.deciding === true && q.label.endsWith('Finals')
+
+/**
+ * Whether a Finals runs with the others in the Finals slots (FR-019a). With two divisions every
+ * Finals does, consolations too, as in 2021 to 2024; with three or more a consolation's Finals runs
+ * in its lane's rooms like the lane's other quizzes, as at FBC 2025, so the Finals don't push the
+ * evening back.
+ */
+const inFinalsSlots = (q: ScheduleQuiz, divisions: number) =>
+  isFinals(q) && (divisions < 3 || (q.lane ?? 0) === 0)
 
 /**
  * The schedule re-flowed to its settings, around every pinned quiz (FR-012, H-19): pinned quizzes
@@ -341,7 +350,7 @@ export function reflowSchedule(
   }
   const scheduled = elimRounds(
     elims.map((quizzes, d) => ({
-      quizzes: quizzes.filter((q) => !isFinals(q) && !isPinned(q)),
+      quizzes: quizzes.filter((q) => !inFinalsSlots(q, divisions.length) && !isPinned(q)),
       all: quizzes,
       rooms: elimRooms(d),
     })),
@@ -371,7 +380,7 @@ export function reflowSchedule(
   }
   const finals = finalsOrder(
     doc,
-    elims.flat().filter((q) => isFinals(q) && !isPinned(q)),
+    elims.flat().filter((q) => inFinalsSlots(q, divisions.length) && !isPinned(q)),
   )
   const finalsPlaces: number[] = []
   for (let k = 0; finalsPlaces.length < finals.length; k++)
