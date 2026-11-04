@@ -148,7 +148,11 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
     const filled = keys.length
     if (q.seats.some((s) => s.kind === 'empty')) add('H-5', [q], 'A seat is empty')
     else if (filled !== 3 && !(q.deciding && filled === 2))
-      add('H-5', [q], 'A quiz has three seats')
+      add(
+        'H-5',
+        [q],
+        `Has ${filled} ${filled === 1 ? 'seat' : 'seats'}; ${q.deciding ? 'a deciding quiz has two or three' : 'a quiz has three'}`,
+      )
     // H-6: a division the schedule knows
     if (!divisions.has(q.division)) add('H-6', [q], 'Its division is not in the schedule')
   }
