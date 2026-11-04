@@ -116,10 +116,10 @@ export function defaultRoomCount(prelimQuizzes: number, prelimSlots: number): nu
 }
 
 /**
- * The cells one-room events take (H-3), as `slot|room`: each slot on the event's own day whose
- * time overlaps it, in the event's room
+ * The cells events take (H-3), as `slot|room`: each slot on the event's own day whose time
+ * overlaps it, in the event's room, or in every room for an event across all of them
  */
-export function eventCells(frame: FrameRow[]): Set<string> {
+export function eventCells(frame: FrameRow[], rooms: string[]): Set<string> {
   const cells = new Set<string>()
   const dayOf = new Map<string, number>()
   let day = 0
@@ -128,7 +128,7 @@ export function eventCells(frame: FrameRow[]): Set<string> {
     dayOf.set(row.id, day)
   }
   for (const row of frame) {
-    if (row.kind !== 'event' || !row.room) continue
+    if (row.kind !== 'event') continue
     for (const s of frame) {
       if (
         s.kind === 'slot' &&
@@ -136,7 +136,7 @@ export function eventCells(frame: FrameRow[]): Set<string> {
         row.at < s.at + s.minutes &&
         s.at < row.at + row.minutes
       ) {
-        cells.add(`${s.id}|${row.room}`)
+        for (const room of row.room ? [row.room] : rooms) cells.add(`${s.id}|${room}`)
       }
     }
   }

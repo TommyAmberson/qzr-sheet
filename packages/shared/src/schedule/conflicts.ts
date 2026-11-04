@@ -122,7 +122,10 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
   }
 
   // H-3: a quiz over an event, or in a room a one-room event takes
-  const takenByEvents = eventCells(doc.frame)
+  const takenByEvents = eventCells(
+    doc.frame,
+    doc.rooms.map((r) => r.id),
+  )
   for (const q of doc.quizzes) {
     if (!q.cell) continue
     const t = times.get(q.cell.slot)

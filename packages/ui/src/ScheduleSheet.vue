@@ -90,9 +90,9 @@ const target = (e: Event) => e.currentTarget as HTMLElement
             </button>
           </td>
           <td v-for="c in r.cells" :key="c.room" class="cell" :data-cell="`${r.row.id}|${c.room}`">
-            <div v-if="c.event" class="room-event">{{ c.event }}</div>
+            <!-- A quiz an event clashes with still shows, marked, so it can be moved (H-3) -->
             <div
-              v-else-if="c.quiz"
+              v-if="c.quiz"
               class="quiz"
               :class="{
                 conflict: hasHard(c.quiz.id),
@@ -124,6 +124,7 @@ const target = (e: Event) => e.currentTarget as HTMLElement
                 {{ seatText(doc, c.quiz, seat, view) }}
               </button>
             </div>
+            <div v-else-if="c.event" class="room-event">{{ c.event }}</div>
             <button
               v-else
               type="button"

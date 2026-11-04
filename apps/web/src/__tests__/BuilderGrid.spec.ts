@@ -184,7 +184,9 @@ describe('rows and rooms', () => {
     room.value = room.options[2]!.value
     room.dispatchEvent(new Event('change'))
     await w.vm.$nextTick()
-    expect(w.find('.room-event').exists()).toBe(true)
+    // The event takes its room's cell: shown there, or, over a quiz, the quiz is marked (H-3)
+    const marked = w.findAll('.quiz').some((q) => (q.attributes('title') ?? '').includes('H-3'))
+    expect(w.find('.room-event').exists() || marked).toBe(true)
 
     await firstTime().trigger('click')
     const length = document.querySelector<HTMLInputElement>('[aria-label="Length"]')!

@@ -391,3 +391,23 @@ describe('H-9 and result names', () => {
     expect(resultName(q)).toBe('2|c|a')
   })
 })
+
+describe('H-3 with an event across every room', () => {
+  it('flags the quizzes in a slot the event overlaps', () => {
+    const d = generateSchedule(newScheduleDocument('x'))
+    d.settings.divisions = [{ id: '1', name: 'Div 1', teams: 6, elims: { lanes: [], lines: [] } }]
+    const doc = generateSchedule(d)
+    const slot = doc.frame.find(
+      (r) => r.kind === 'slot' && doc.quizzes.some((q) => q.cell?.slot === r.id),
+    )!
+    if (slot.kind !== 'slot') throw new Error('no slot')
+    doc.frame.splice(doc.frame.indexOf(slot), 0, {
+      kind: 'event',
+      id: 'assembly',
+      at: slot.at,
+      minutes: 10,
+      label: 'Assembly',
+    })
+    expect(checkSchedule(doc).some((c) => c.rule === 'H-3')).toBe(true)
+  })
+})

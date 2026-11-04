@@ -295,8 +295,12 @@ export function sortPrelims(doc: ScheduleDocument, options: SortOptions): Schedu
   const taken = new Set(
     next.quizzes.flatMap((q) => (q.cell ? [`${q.cell.slot}|${q.cell.room}`] : [])),
   )
-  // One-room events take their room's cells on their own day (H-3)
-  for (const cell of eventCells(next.frame)) taken.add(cell)
+  // Events take their rooms' cells on their own day (H-3)
+  for (const cell of eventCells(
+    next.frame,
+    next.rooms.map((r) => r.id),
+  ))
+    taken.add(cell)
   const busy = new Map<string, Set<string>>()
   const busyAt = (t: number, division: string) => {
     const key = `${t}|${division}`

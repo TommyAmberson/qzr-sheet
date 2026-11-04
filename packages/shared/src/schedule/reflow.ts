@@ -208,9 +208,9 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
     })
 
   // Prelims, around pinned quizzes' cells and letters
-  // Cells one-room events take (H-3), by use and position; only a kept frame has events
+  // Cells events take (H-3), by use and position; only a kept frame has hand-made events
   const eventTaken = keepFrame
-    ? [...eventCells(doc.frame)].flatMap((cell) => {
+    ? [...eventCells(doc.frame, [...roomIds])].flatMap((cell) => {
         const [slot, room] = cell.split('|') as [string, string]
         const pos = positionOf.get(slot)
         return pos && roomIds.has(room) ? [{ ...pos, room }] : []
