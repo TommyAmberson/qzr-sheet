@@ -108,7 +108,12 @@ const divisionClass = computed(() => {
               {{ formatClock(r.row.at) }}
             </button>
           </td>
-          <td :colspan="columns">{{ r.row.label }}</td>
+          <td :colspan="columns">
+            <!-- The event's name opens its menu too, as its time does -->
+            <button type="button" class="event-name" @click="emit('row', r.row.id, target($event))">
+              {{ r.row.label }}
+            </button>
+          </td>
         </tr>
         <tr v-else class="slot">
           <td class="time">
@@ -152,7 +157,14 @@ const divisionClass = computed(() => {
                 {{ seatText(doc, c.quiz, seat, view) }}
               </button>
             </div>
-            <div v-else-if="c.event" class="room-event">{{ c.event }}</div>
+            <button
+              v-else-if="c.event"
+              type="button"
+              class="room-event"
+              @click="emit('row', c.eventId!, target($event))"
+            >
+              {{ c.event }}
+            </button>
             <button
               v-else
               type="button"
@@ -436,7 +448,15 @@ const divisionClass = computed(() => {
   box-shadow: inset 0 0 0 1px dashed var(--color-meta-accent, #c9c0a8);
 }
 
-.room-event {
+.sheet .event-name {
+  display: block;
+  width: 100%;
+  padding: 0 0.25rem;
+  text-align: left;
+}
+
+.sheet .room-event {
+  width: 100%;
   display: grid;
   place-items: center;
   min-height: 5.2rem;

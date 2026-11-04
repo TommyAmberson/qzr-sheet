@@ -48,7 +48,13 @@ export type SheetRow =
       kind: 'slot'
       row: Extract<FrameRow, { kind: 'slot' }>
       /** Per room, in room order: its quiz, the one-room event taking it, or nothing */
-      cells: { room: string; quiz: ScheduleQuiz | null; event: string | null }[]
+      cells: {
+        room: string
+        quiz: ScheduleQuiz | null
+        event: string | null
+        /** The one-room event's row, to open it */
+        eventId: string | null
+      }[]
     }
 
 /** The grid as rows, slots carrying a cell per room (H-3: a one-room event takes its room's cell) */
@@ -58,11 +64,19 @@ export function sheetRows(doc: ScheduleDocument): SheetRow[] {
   )
   const rows: SheetRow[] = []
   let day = 0
-  const roomEvents: { day: number; at: number; end: number; room: string; label: string }[] = []
+  const roomEvents: {
+    id: string
+    day: number
+    at: number
+    end: number
+    room: string
+    label: string
+  }[] = []
   for (const row of doc.frame) {
     if (row.kind === 'day') day++
     if (row.kind === 'event' && row.room) {
       roomEvents.push({
+        id: row.id,
         day,
         at: row.at,
         end: row.at + row.minutes,
@@ -85,14 +99,17 @@ export function sheetRows(doc: ScheduleDocument): SheetRow[] {
       rows.push({
         kind: 'slot',
         row,
-        cells: doc.rooms.map((room) => ({
-          room: room.id,
-          quiz: byCell.get(`${row.id}|${room.id}`) ?? null,
-          event:
-            roomEvents.find(
-              (e) => e.room === room.id && e.day === day && e.at < end && row.at < e.end,
-            )?.label ?? null,
-        })),
+        cells: doc.rooms.map((room) => {
+          const event = roomEvents.find(
+            (e) => e.room === room.id && e.day === day && e.at < end && row.at < e.end,
+          )
+          return {
+            room: room.id,
+            quiz: byCell.get(`${row.id}|${room.id}`) ?? null,
+            event: event?.label ?? null,
+            eventId: event?.id ?? null,
+          }
+        }),
       })
     }
   }
