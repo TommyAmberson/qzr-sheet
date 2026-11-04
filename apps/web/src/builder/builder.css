@@ -248,3 +248,49 @@
 :is(.builder, .builder-list, .linked) .message > button + button {
   margin-left: 0.25rem;
 }
+
+/* ---- Groups ---- */
+
+/* A group of settings, as the Teams section draws each division */
+:is(.builder, .linked) .card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  background: var(--color-bg);
+}
+
+:is(.builder, .linked) .card-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+/* A choice of a few, as one control: Bracket | Round robin, 3 | 6 */
+:is(.builder, .linked) .seg {
+  display: inline-flex;
+  gap: 1px;
+  padding: 1px;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 5px;
+}
+
+:is(.builder, .linked) .seg button {
+  padding: 0.1rem 0.45rem;
+  border-color: transparent;
+  background: transparent;
+  font-size: 0.75rem;
+}
+
+:is(.builder, .linked) .seg button[aria-pressed='true'] {
+  border-color: var(--color-meta-accent);
+  background: var(--color-bg);
+  color: var(--color-heading);
+}

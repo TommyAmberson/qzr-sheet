@@ -26,6 +26,9 @@ const teamsOf = (id: string, count: number) =>
     ...(props.doc.draw[id]?.teams[i] ?? { late: false, absent: false }),
   }))
 const nameOf = (t: { name?: string; i: number }) => t.name ?? `Team ${t.i + 1}`
+/** Each division's colour, as its quizzes carry it on the grid */
+const colourOf = (id: string) =>
+  `var(--b-d${(props.doc.settings.divisions.findIndex((d) => d.id === id) % 4) + 1})`
 const drawn = (id: string) => props.doc.draw[id]?.teams.some((t) => t.letter) ?? false
 
 const showLate = ref(false)
@@ -110,171 +113,250 @@ function confirmSort() {
 
 <template>
   <div class="draw-controls">
-    <button type="button" class="disclose" :aria-expanded="showLate" @click="showLate = !showLate">
-      Late teams
-      <span class="sum">{{
-        marked.length === 0
-          ? 'None'
-          : marked.length > 2
-            ? `${marked.length} teams`
-            : marked.join(', ')
-      }}</span>
-    </button>
-    <template v-if="showLate">
-      <p class="hint">
-        Mark teams expected to arrive late. The draw gives them letters that play late, so nothing
-        moves. If you learn after the draw, Sort moves their quizzes instead.
-      </p>
-      <div v-for="d in divisions" :key="d.id" class="teams">
-        <strong>{{ d.name }}</strong>
-        <div v-for="t in teamsOf(d.id, d.teams)" :key="t.i" class="team">
-          <label>
-            <input
-              type="checkbox"
-              :checked="t.late"
-              :aria-label="`${d.name} ${nameOf(t)} late`"
-              @change="mark(d.id, t.i, 'late', ($event.target as HTMLInputElement).checked)"
-            />
-            {{ t.letter ? `${t.letter} · ` : '' }}{{ nameOf(t) }}
-          </label>
-          <span v-if="t.absent" class="absent">Absent</span>
-          <button
-            v-if="t.absent"
-            type="button"
-            class="link"
-            @click="mark(d.id, t.i, 'absent', false)"
-          >
-            Back
-          </button>
-          <button
-            v-else
-            type="button"
-            class="link"
-            :aria-label="`${d.name} ${nameOf(t)} dropped out`"
-            @click="droppingOut = { id: d.id, i: t.i }"
-          >
-            Dropped out
-          </button>
-        </div>
-      </div>
-    </template>
-    <div v-if="droppingOut" class="choice" role="group" aria-label="A team dropped out">
-      <p>
-        Lower the division's team count (its prelims are rebuilt and the draw redone), or mark the
-        team absent (nothing moves; its quizzes run with two teams)?
-      </p>
-      <button type="button" @click="lowerCount">Lower the count</button>
-      <button type="button" @click="markAbsent">Mark absent</button>
-      <button type="button" @click="droppingOut = null">Cancel</button>
-    </div>
-
-    <h4>Draw</h4>
-    <p class="hint">Decides which team is which letter. It never moves a quiz.</p>
-    <div v-for="d in divisions" :key="d.id" class="draw-row" :data-draw="d.id">
-      <strong>{{ d.name }}</strong>
-      <span class="chip">{{
-        doc.draw[d.id]?.stale ? 'Draw again' : drawn(d.id) ? 'Drawn' : 'Not drawn'
-      }}</span>
-      <button type="button" @click="draw([d.id])">{{ drawn(d.id) ? 'Redraw' : 'Draw' }}</button>
-      <button v-if="drawn(d.id)" type="button" @click="clear([d.id])">Clear</button>
-    </div>
-    <div class="draw-row">
-      <button type="button" @click="draw(divisions.map((d) => d.id))">
-        {{ divisions.some((d) => drawn(d.id)) ? 'Redraw all' : 'Draw all' }}
-      </button>
+    <section class="card">
       <button
-        v-if="divisions.some((d) => drawn(d.id))"
         type="button"
-        @click="clear(divisions.map((d) => d.id))"
+        class="disclose"
+        :aria-expanded="showLate"
+        @click="showLate = !showLate"
       >
-        Clear all
+        <span class="card-title">Late teams</span>
+        <span class="sum">{{
+          marked.length === 0
+            ? 'None'
+            : marked.length > 2
+              ? `${marked.length} teams`
+              : marked.join(', ')
+        }}</span>
       </button>
-    </div>
+      <template v-if="showLate">
+        <p class="hint">
+          Mark teams expected to arrive late. The draw gives them letters that play late, so nothing
+          moves. If you learn after the draw, Sort moves their quizzes instead.
+        </p>
+        <div v-for="d in divisions" :key="d.id" class="teams" :style="{ '--qc': colourOf(d.id) }">
+          <strong><span class="tick" />{{ d.name }}</strong>
+          <div v-for="t in teamsOf(d.id, d.teams)" :key="t.i" class="team">
+            <label>
+              <input
+                type="checkbox"
+                :checked="t.late"
+                :aria-label="`${d.name} ${nameOf(t)} late`"
+                @change="mark(d.id, t.i, 'late', ($event.target as HTMLInputElement).checked)"
+              />
+              {{ t.letter ? `${t.letter} · ` : '' }}{{ nameOf(t) }}
+            </label>
+            <span v-if="t.absent" class="absent">Absent</span>
+            <button
+              v-if="t.absent"
+              type="button"
+              class="link"
+              @click="mark(d.id, t.i, 'absent', false)"
+            >
+              Back
+            </button>
+            <button
+              v-else
+              type="button"
+              class="link"
+              :aria-label="`${d.name} ${nameOf(t)} dropped out`"
+              @click="droppingOut = { id: d.id, i: t.i }"
+            >
+              Dropped out
+            </button>
+          </div>
+        </div>
+      </template>
+      <div v-if="droppingOut" class="choice" role="group" aria-label="A team dropped out">
+        <p>
+          Lower the division's team count (its prelims are rebuilt and the draw redone), or mark the
+          team absent (nothing moves; its quizzes run with two teams)?
+        </p>
+        <button type="button" @click="lowerCount">Lower the count</button>
+        <button type="button" @click="markAbsent">Mark absent</button>
+        <button type="button" @click="droppingOut = null">Cancel</button>
+      </div>
+    </section>
 
-    <h4>Sort prelims</h4>
-    <div class="draw-row">
-      <button type="button" @click="sorting = divisions.map((d) => d.id)">Sort all prelims</button>
-      <button v-for="d in divisions" :key="d.id" type="button" @click="sorting = [d.id]">
-        {{ d.name }}
-      </button>
-    </div>
-    <div v-if="sorting" class="choice" role="group" aria-label="Sort prelims">
-      <label
-        ><input v-model="acrossRooms" type="checkbox" aria-label="Sort across rooms" /> Sort across
-        rooms</label
-      >
-      <label v-if="pinnedCount > 0">
-        <input v-model="includePinned" type="checkbox" /> Also sort the {{ pinnedCount }} pinned
-        (unpins them)
-      </label>
-      <p class="moves">{{ moves }} {{ moves === 1 ? 'quiz' : 'quizzes' }} will move.</p>
-      <button type="button" @click="confirmSort">Sort</button>
-      <button type="button" @click="sorting = null">Cancel</button>
-    </div>
+    <section class="card">
+      <h4 class="card-title">Draw</h4>
+      <p class="hint">Decides which team is which letter. It never moves a quiz.</p>
+      <ul class="rows">
+        <li
+          v-for="d in divisions"
+          :key="d.id"
+          class="draw-row"
+          :data-draw="d.id"
+          :style="{ '--qc': colourOf(d.id) }"
+        >
+          <span class="tick" />
+          <strong>{{ d.name }}</strong>
+          <span class="state" :class="{ stale: doc.draw[d.id]?.stale, done: drawn(d.id) }">{{
+            doc.draw[d.id]?.stale ? 'Draw again' : drawn(d.id) ? 'Drawn' : 'Not drawn'
+          }}</span>
+          <span class="acts">
+            <button type="button" @click="draw([d.id])">
+              {{ drawn(d.id) ? 'Redraw' : 'Draw' }}
+            </button>
+            <button v-if="drawn(d.id)" type="button" @click="clear([d.id])">Clear</button>
+          </span>
+        </li>
+      </ul>
+      <div class="all">
+        <button type="button" @click="draw(divisions.map((d) => d.id))">
+          {{ divisions.some((d) => drawn(d.id)) ? 'Redraw all' : 'Draw all' }}
+        </button>
+        <button
+          v-if="divisions.some((d) => drawn(d.id))"
+          type="button"
+          @click="clear(divisions.map((d) => d.id))"
+        >
+          Clear all
+        </button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h4 class="card-title">Sort prelims</h4>
+      <p class="hint">Moves prelims so late teams play late.</p>
+      <div class="all">
+        <button type="button" @click="sorting = divisions.map((d) => d.id)">
+          Sort all prelims
+        </button>
+        <button
+          v-for="d in divisions"
+          :key="d.id"
+          type="button"
+          :style="{ '--qc': colourOf(d.id) }"
+          @click="sorting = [d.id]"
+        >
+          <span class="tick" />{{ d.name }}
+        </button>
+      </div>
+      <div v-if="sorting" class="choice" role="group" aria-label="Sort prelims">
+        <label
+          ><input v-model="acrossRooms" type="checkbox" aria-label="Sort across rooms" /> Sort
+          across rooms</label
+        >
+        <label v-if="pinnedCount > 0">
+          <input v-model="includePinned" type="checkbox" /> Also sort the {{ pinnedCount }} pinned
+          (unpins them)
+        </label>
+        <p class="moves">{{ moves }} {{ moves === 1 ? 'quiz' : 'quizzes' }} will move.</p>
+        <button type="button" @click="confirmSort">Sort</button>
+        <button type="button" @click="sorting = null">Cancel</button>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
 .draw-controls {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
-.disclose {
-  display: flex;
+.card-title {
+  margin: 0;
+}
+
+/* Late teams' heading opens the list; its summary says who is marked */
+.draw-controls .disclose {
   justify-content: space-between;
-  font: inherit;
-  font-weight: 600;
+  padding: 0;
+  border: 0;
   background: none;
-  border: none;
-  border-top: 1px solid var(--color-border, #ddd);
-  padding: 0.5rem 0 0;
-  cursor: pointer;
 }
 
 .sum {
-  font-weight: normal;
-  color: var(--color-text-muted, #666);
+  color: var(--color-text-muted);
+  font-weight: 500;
 }
 
-.team,
+.tick {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 0.35rem;
+  border-radius: 50%;
+  background: var(--qc);
+}
+
+.rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .draw-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
   align-items: center;
+  padding: 0.25rem 0;
+  border-top: 1px dashed var(--color-border-alt);
+}
+
+.draw-row:first-child {
+  border-top: 0;
+}
+
+.draw-row strong,
+.teams strong {
+  color: var(--color-heading);
+}
+
+.state {
+  margin-left: 0.4rem;
+  color: var(--color-text-faint);
+  font-size: 0.75rem;
+}
+
+.state.done {
+  color: var(--color-text-muted);
+}
+
+.state.stale {
+  color: var(--color-warn);
+  font-weight: 600;
+}
+
+.acts {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.all,
+.team {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+}
+
+.teams {
+  display: grid;
+  gap: 0.15rem;
 }
 
 .hint,
 .moves {
   margin: 0;
   font-size: 0.8rem;
-  color: var(--color-text-muted, #666);
+  color: var(--color-text-muted);
 }
 
 .choice {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.35rem;
+  justify-items: start;
   padding: 0.5rem;
-  border: 1px solid var(--color-border, #ddd);
-  border-radius: 8px;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 6px;
 }
 
 .absent {
   font-size: 0.75rem;
-  color: var(--color-warn, #a60);
-}
-
-.link {
-  font: inherit;
-  font-size: 0.8rem;
-  background: none;
-  border: none;
-  color: var(--color-accent, #36c);
-  cursor: pointer;
-}
-
-h4 {
-  margin: 0.5rem 0 0;
+  color: var(--color-warn);
 }
 </style>

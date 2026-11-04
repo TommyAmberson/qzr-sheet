@@ -17,7 +17,19 @@ const was = (key: string) => props.unapplied.find((u) => u.key === key)?.applied
 function set(mutate: (settings: ScheduleSettings) => void) {
   emit('change', (d) => mutate(d.settings))
 }
-const days = computed(() => props.doc.frame.filter((r) => r.kind === 'day'))
+/** Each day with what it holds, from its heading to the next */
+const days = computed(() => {
+  const list: { id: string; label: string; slots: number; events: number }[] = []
+  for (const row of props.doc.frame) {
+    if (row.kind === 'day') list.push({ id: row.id, label: row.label, slots: 0, events: 0 })
+    const day = list[list.length - 1]
+    if (!day || row.kind !== 'slot') continue
+    if (row.use !== 'event') day.slots++
+    day.events += props.doc.events.filter((e) => e.slot === row.id).length
+  }
+  return list
+})
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 function rename(id: string, e: Event) {
   const label = (e.target as HTMLInputElement).value.trim()
   if (label) emit('edit', (d) => editRow(d, id, { label }))
@@ -27,70 +39,102 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
 
 <template>
   <div class="frame-section">
-    <label class="field">
-      Slot length (min)
-      <NumberInput
-        min="1"
-        :value="s.slotMinutes"
-        aria-label="Slot length"
-        @change="set((x) => (x.slotMinutes = Math.max(1, num($event))))"
-      />
-    </label>
-    <p v-if="was('slotMinutes')" class="unapplied">
-      Unapplied · grid uses {{ was('slotMinutes') }}
-    </p>
+    <section class="card">
+      <h4 class="card-title">Slots</h4>
+      <label class="field">
+        Length
+        <span class="with-unit">
+          <NumberInput
+            min="1"
+            :value="s.slotMinutes"
+            aria-label="Slot length"
+            @change="set((x) => (x.slotMinutes = Math.max(1, num($event))))"
+          />
+          <span class="unit">min</span>
+        </span>
+      </label>
+      <p v-if="was('slotMinutes')" class="unapplied">
+        Unapplied · grid uses {{ was('slotMinutes') }}
+      </p>
+    </section>
 
-    <label class="field">
-      Rooms
-      <NumberInput
-        min="1"
-        :value="s.rooms === 'auto' ? doc.rooms.length : s.rooms"
-        :disabled="s.rooms === 'auto'"
-        aria-label="Room count"
-        @change="set((x) => (x.rooms = Math.max(1, num($event))))"
-      />
-    </label>
-    <label class="check">
-      <input
-        type="checkbox"
-        :checked="s.rooms === 'auto'"
-        aria-label="As many rooms as needed"
-        @change="
-          set(
-            (x) =>
-              (x.rooms = ($event.target as HTMLInputElement).checked ? 'auto' : doc.rooms.length),
-          )
-        "
-      />
-      As many as needed
-    </label>
-    <p v-if="was('rooms')" class="unapplied">Unapplied · grid uses {{ was('rooms') }}</p>
+    <section class="card">
+      <h4 class="card-title">Rooms</h4>
+      <label class="field">
+        As many as needed
+        <input
+          type="checkbox"
+          role="switch"
+          :checked="s.rooms === 'auto'"
+          aria-label="As many rooms as needed"
+          @change="
+            set(
+              (x) =>
+                (x.rooms = ($event.target as HTMLInputElement).checked ? 'auto' : doc.rooms.length),
+            )
+          "
+        />
+      </label>
+      <label class="field">
+        {{ s.rooms === 'auto' ? 'Now' : 'Rooms' }}
+        <span class="with-unit">
+          <NumberInput
+            min="1"
+            :value="s.rooms === 'auto' ? doc.rooms.length : s.rooms"
+            :disabled="s.rooms === 'auto'"
+            aria-label="Room count"
+            @change="set((x) => (x.rooms = Math.max(1, num($event))))"
+          />
+          <span class="unit">rooms</span>
+        </span>
+      </label>
+      <p v-if="was('rooms')" class="unapplied">Unapplied · grid uses {{ was('rooms') }}</p>
+    </section>
 
-    <h4>Days</h4>
-    <ul class="days">
-      <li v-for="day in days" :key="day.id">
-        <input :value="day.label" aria-label="Day name" @change="rename(day.id, $event)" />
-        <button
-          type="button"
-          class="icon"
-          :aria-label="`Delete ${day.label}`"
-          title="Delete the day; its quizzes go to Unplaced"
-          :disabled="days.length <= 1"
-          @click="emit('edit', (d) => deleteDay(d, day.id))"
-        >
-          ✕
+    <section class="card">
+      <h4 class="card-title">Days</h4>
+      <ul class="days">
+        <li v-for="day in days" :key="day.id">
+          <input
+            class="name"
+            :value="day.label"
+            aria-label="Day name"
+            @change="rename(day.id, $event)"
+          />
+          <span class="sum">
+            {{ plural(day.slots, 'slot')
+            }}<template v-if="day.events"> · {{ plural(day.events, 'event') }}</template>
+          </span>
+          <button
+            type="button"
+            class="icon"
+            :aria-label="`Delete ${day.label}`"
+            title="Delete the day; its quizzes and events go to Unplaced"
+            :disabled="days.length <= 1"
+            @click="emit('edit', (d) => deleteDay(d, day.id))"
+          >
+            ✕
+          </button>
+        </li>
+      </ul>
+      <div class="foot">
+        <button type="button" class="link" @click="emit('edit', (d) => addDay(d))">
+          + Add a day
         </button>
-      </li>
-    </ul>
-    <button type="button" class="link" @click="emit('edit', (d) => addDay(d))">+ Add a day</button>
-    <p class="hint">Add a day's events and slots from its heading on the grid.</p>
+        <span class="hint">To add slots or events to a day, click its name on the grid</span>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
 .frame-section {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.6rem;
+}
+
+.card-title {
+  margin: 0;
 }
 
 .field {
@@ -100,13 +144,20 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
   gap: 0.5rem;
 }
 
-.field input {
-  width: 5rem;
+.with-unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.unit,
+.sum {
+  color: var(--color-text-faint);
+  font-size: 0.75rem;
 }
 
 .days {
   display: grid;
-  gap: 0.3rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -114,11 +165,29 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
 
 .days li {
   display: flex;
+  align-items: center;
   gap: 0.4rem;
+  padding: 0.15rem 0;
+  border-top: 1px dashed var(--color-border-alt);
 }
 
-.days input {
+.days li:first-child {
+  border-top: 0;
+}
+
+/* A day's name reads as its title until it's edited */
+.frame-section .name {
   flex: 1;
+  width: 0;
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-heading);
+  font-weight: 650;
+}
+
+.frame-section .name:hover {
+  border-color: var(--color-meta-accent);
 }
 
 .frame-section .icon {
@@ -132,12 +201,16 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
   color: var(--color-danger);
 }
 
-.frame-section > .link {
-  justify-self: start;
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
 }
 
-.hint {
-  margin: 0;
+.foot .hint {
+  font-size: 0.75rem;
 }
 
 .unapplied {

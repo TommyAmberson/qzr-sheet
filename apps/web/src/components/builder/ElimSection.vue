@@ -538,27 +538,6 @@ function laneNote(l: LaneSettings) {
 }
 
 /* Segmented choices, as one control */
-.seg {
-  display: inline-flex;
-  gap: 1px;
-  padding: 1px;
-  border: 1px solid var(--color-meta-accent);
-  border-radius: 5px;
-}
-
-.elim-section .seg button {
-  padding: 0.1rem 0.45rem;
-  border-color: transparent;
-  background: transparent;
-  font-size: 0.75rem;
-}
-
-.elim-section .seg button[aria-pressed='true'] {
-  border-color: var(--color-meta-accent);
-  background: var(--color-bg);
-  color: var(--color-heading);
-}
-
 .stepper {
   display: inline-flex;
   align-items: center;

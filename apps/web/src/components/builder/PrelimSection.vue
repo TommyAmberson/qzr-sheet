@@ -13,75 +13,72 @@ const emit = defineEmits<{
 const was = (key: string) => props.unapplied.find((u) => u.key === key)?.applied
 const showInfo = ref(false)
 
-const SOURCE_NAMES: Record<string, string> = { ruleBook: 'Rule book', noRematches: 'No rematches' }
+type PrelimDraw = ScheduleDocument['settings']['prelimDraw']
+const SOURCE_NAMES: Record<PrelimDraw, string> = {
+  ruleBook: 'Rule book',
+  noRematches: 'No rematches',
+}
 </script>
 
 <template>
   <div class="prelim-section">
-    <label class="field">
-      Quizzes per team
-      <select
-        :value="String(doc.settings.quizzesPerTeam)"
-        aria-label="Quizzes per team"
-        @change="
-          emit(
-            'change',
-            (d) =>
-              (d.settings.quizzesPerTeam = Number(($event.target as HTMLSelectElement).value) as
-                | 3
-                | 6),
-          )
-        "
-      >
-        <option value="3">3</option>
-        <option value="6">6</option>
-      </select>
-    </label>
-    <p v-if="was('quizzesPerTeam')" class="unapplied">
-      Unapplied · grid uses {{ was('quizzesPerTeam') }}
-    </p>
+    <section class="card">
+      <h4 class="card-title">Prelims</h4>
+      <div class="field">
+        Quizzes per team
+        <span class="seg" role="group" aria-label="Quizzes per team">
+          <button
+            v-for="n in [3, 6] as const"
+            :key="n"
+            type="button"
+            :aria-pressed="doc.settings.quizzesPerTeam === n"
+            @click="emit('change', (d) => (d.settings.quizzesPerTeam = n))"
+          >
+            {{ n }}
+          </button>
+        </span>
+      </div>
+      <p v-if="was('quizzesPerTeam')" class="unapplied">
+        Unapplied · grid uses {{ was('quizzesPerTeam') }}
+      </p>
 
-    <label class="field">
-      <span>
-        Prelim draw
-        <button
-          type="button"
-          class="info"
-          aria-label="About the prelim draw"
-          :aria-expanded="showInfo"
-          @click="showInfo = !showInfo"
-        >
-          i
-        </button>
-      </span>
-      <select
-        :value="doc.settings.prelimDraw"
-        aria-label="Prelim draw"
-        @change="
-          emit(
-            'change',
-            (d) =>
-              (d.settings.prelimDraw = ($event.target as HTMLSelectElement).value as
-                | 'ruleBook'
-                | 'noRematches'),
-          )
-        "
-      >
-        <option value="ruleBook">Rule book</option>
-        <option value="noRematches">No rematches</option>
-      </select>
-    </label>
-    <p v-if="was('prelimDraw')" class="unapplied">
-      Unapplied · grid uses {{ SOURCE_NAMES[was('prelimDraw')!] }}
-    </p>
-    <p v-if="showInfo" class="info-box">
-      Every team plays the same number of prelim quizzes against different opponents, whichever you
-      pick. <strong>Rule book</strong> uses the official tables for 4 to 21 teams; the rule book has
-      no tables over 21 teams, so larger divisions use the rotating draw, and its 8-team table has
-      one pair of teams meeting twice. <strong>No rematches</strong> uses the rotating draw from 7
-      teams, so no two teams meet twice. The draw gives teams their letters at random, so neither
-      favours a team.
-    </p>
+      <div class="field stack">
+        <span>
+          Draw from
+          <button
+            type="button"
+            class="info"
+            aria-label="About the prelim draw"
+            :aria-expanded="showInfo"
+            @click="showInfo = !showInfo"
+          >
+            i
+          </button>
+        </span>
+        <span class="seg" role="group" aria-label="Prelim draw">
+          <button
+            v-for="(name, key) in SOURCE_NAMES"
+            :key="key"
+            type="button"
+            :aria-pressed="doc.settings.prelimDraw === key"
+            @click="emit('change', (d) => (d.settings.prelimDraw = key))"
+          >
+            {{ name }}
+          </button>
+        </span>
+      </div>
+      <p v-if="was('prelimDraw')" class="unapplied">
+        Unapplied · grid uses {{ SOURCE_NAMES[was('prelimDraw') as PrelimDraw] }}
+      </p>
+      <p v-if="showInfo" class="info-box">
+        Every team plays the same number of prelim quizzes against different opponents, whichever
+        you pick. <strong>Rule book</strong> uses the official tables for 4 to 21 teams; the rule
+        book has no tables over 21 teams, so larger divisions use the rotating draw, and its 8-team
+        table has one pair of teams meeting twice. <strong>No rematches</strong> uses the rotating
+        draw from 7 teams, so no two teams meet twice. The draw gives teams their letters at random,
+        so neither favours a team.
+      </p>
+    </section>
     <DrawControls :doc="doc" @change="(m) => emit('change', m)" @edit="(m) => emit('edit', m)" />
   </div>
 </template>
@@ -89,7 +86,11 @@ const SOURCE_NAMES: Record<string, string> = { ruleBook: 'Rule book', noRematche
 <style scoped>
 .prelim-section {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.6rem;
+}
+
+.card-title {
+  margin: 0;
 }
 
 .field {
@@ -99,20 +100,31 @@ const SOURCE_NAMES: Record<string, string> = { ruleBook: 'Rule book', noRematche
   gap: 0.5rem;
 }
 
+/* A choice too wide to share its label's line sits under it, full width */
+.stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+
+.stack .seg button {
+  flex: 1;
+  white-space: nowrap;
+}
+
 .info {
-  font: inherit;
-  font-size: 0.75rem;
   width: 1.2rem;
   height: 1.2rem;
+  margin-left: 0.2rem;
+  padding: 0;
   border-radius: 50%;
-  border: 1px solid currentColor;
-  background: none;
-  cursor: pointer;
+  font-size: 0.7rem;
 }
 
 .info-box {
-  font-size: 0.85rem;
   margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
 }
 
 .unapplied {
