@@ -76,6 +76,17 @@ const target = (e: Event) => e.currentTarget as HTMLElement
 
 /** Each division's colour, its own or by its place, for the tick on its quizzes */
 const colourOf = (division: string) => `var(--dc-${divisionColour(props.doc, division)})`
+
+/** How much of its division's colour each lane's tick takes, as Elim settings shades the lanes */
+const LANE_SHARE = [100, 55, 32, 16]
+/** A quiz's tick: its division's colour, paler in each lane below the main one */
+function tickOf(quiz: ScheduleQuiz) {
+  const lane = quiz.phase === 'elim' && quiz.line === undefined ? (quiz.lane ?? 0) : 0
+  const base = colourOf(quiz.division)
+  if (lane === 0) return base
+  const share = LANE_SHARE[Math.min(lane, LANE_SHARE.length - 1)]!
+  return `color-mix(in srgb, ${base} ${share}%, var(--color-bg, #fff))`
+}
 </script>
 
 <template>
@@ -139,7 +150,7 @@ const colourOf = (division: string) => `var(--dc-${divisionColour(props.doc, div
                 pinned: c.quiz.pinned,
               }"
               :data-quiz="c.quiz.id"
-              :style="{ '--qc': colourOf(c.quiz.division) }"
+              :style="{ '--qc': colourOf(c.quiz.division), '--qt': tickOf(c.quiz) }"
               :title="issueText(c.quiz.id) || undefined"
             >
               <!-- A reader's page can make the title a link instead, the portal's to the scoresheet -->
@@ -382,13 +393,14 @@ const colourOf = (division: string) => `var(--dc-${divisionColour(props.doc, div
   white-space: nowrap;
 }
 
-/* The division's tick */
+/* The division's tick, paler for a consolation lane and ringed so it still shows */
 .sheet .quiz-title::before {
   content: '';
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--qc);
+  background: var(--qt, var(--qc));
+  box-shadow: 0 0 0 1px var(--qc);
 }
 
 .sheet .seat {
