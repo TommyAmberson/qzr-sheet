@@ -68,6 +68,11 @@ function elimRounds(
   const busy = new Set([...fixed.values()].map((f) => `${f.round}|${f.room}`))
   let r = 0
   const left = divisions.map((d) => [...d.quizzes])
+  // The rooms each lane (or intermediate) has used, so it keeps to them and lanes don't swap
+  // rooms from round to round (P-2, P-3)
+  const laneOf = (q: ScheduleQuiz) =>
+    `${q.division}:${q.line !== undefined ? `line${q.line}` : `lane${q.lane ?? 0}`}`
+  const laneRooms = new Map<string, string[]>()
   while (left.some((l) => l.length > 0) && r < maxRounds) {
     divisions.forEach((division, d) => {
       const used = new Set<string>()
@@ -95,15 +100,41 @@ function elimRounds(
         }
         return true
       })
-      for (const q of ready) {
-        if (free.length === 0) break
+      // Which quizzes run this round, as many as there are rooms, no team twice, the lanes taking
+      // turns so each runs alongside the others in a room of its own rather than one lane
+      // taking every room and the next taking them all after it
+      const byLane = new Map<string, ScheduleQuiz[]>()
+      for (const q of ready) byLane.set(laneOf(q), [...(byLane.get(laneOf(q)) ?? []), q])
+      const turns: ScheduleQuiz[] = []
+      for (let i = 0; turns.length < ready.length; i++) {
+        for (const lane of byLane.values()) if (lane[i]) turns.push(lane[i]!)
+      }
+      const chosen: ScheduleQuiz[] = []
+      for (const q of turns) {
+        if (chosen.length === free.length) break
         const keys = q.seats.map(seatKey).filter((k): k is string => k !== null)
         if (keys.some((k) => used.has(k))) continue
         keys.forEach((k) => used.add(k))
-        round.set(q.id, r)
-        room.set(q.id, free.shift()!)
-        left[d]!.splice(left[d]!.indexOf(q), 1)
+        chosen.push(q)
       }
+      // Then their rooms: a room the quiz's lane has used if one is free, else one no other lane
+      // has used, else whatever is left
+      const owned = new Set([...laneRooms.values()].flat())
+      const give = (q: ScheduleQuiz, rm: string) => {
+        free.splice(free.indexOf(rm), 1)
+        round.set(q.id, r)
+        room.set(q.id, rm)
+        left[d]!.splice(left[d]!.indexOf(q), 1)
+        const lane = laneRooms.get(laneOf(q)) ?? []
+        if (!lane.includes(rm)) laneRooms.set(laneOf(q), [...lane, rm])
+      }
+      const later: ScheduleQuiz[] = []
+      for (const q of chosen) {
+        const home = (laneRooms.get(laneOf(q)) ?? []).find((rm) => free.includes(rm))
+        if (home) give(q, home)
+        else later.push(q)
+      }
+      for (const q of later) give(q, free.find((rm) => !owned.has(rm)) ?? free[0]!)
     })
     r++
   }

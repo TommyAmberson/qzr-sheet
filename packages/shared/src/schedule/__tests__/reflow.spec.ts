@@ -78,3 +78,29 @@ describe('generateSchedule', () => {
     expect(performance.now() - start).toBeLessThan(2000)
   })
 })
+
+describe('elim rooms (P-2, P-3)', () => {
+  it('keeps each lane to as few rooms as it runs quizzes at once', () => {
+    for (const counts of [
+      [6, 17, 16],
+      [10, 14, 21],
+      [6, 32],
+    ]) {
+      const doc = meet(counts)
+      const lanes = new Map<string, { rooms: Set<string>; atOnce: Map<string, number> }>()
+      for (const q of doc.quizzes) {
+        if (q.phase !== 'elim' || !q.cell || q.line !== undefined || q.deciding) continue
+        const key = `${q.division}:${q.lane ?? 0}`
+        const lane = lanes.get(key) ?? { rooms: new Set(), atOnce: new Map() }
+        lane.rooms.add(q.cell.room)
+        lane.atOnce.set(q.cell.slot, (lane.atOnce.get(q.cell.slot) ?? 0) + 1)
+        lanes.set(key, lane)
+      }
+      for (const [key, lane] of lanes) {
+        expect(lane.rooms.size, `${counts.join('/')} ${key}`).toBe(
+          Math.max(...lane.atOnce.values()),
+        )
+      }
+    }
+  })
+})
