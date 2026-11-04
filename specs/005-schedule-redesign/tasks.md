@@ -262,7 +262,7 @@ twice more: three versions, any one restorable as the draft.
 **Goal**: events sit in rows like quizzes, over any set of rooms, and can be moved, dragged,
 unplaced, pinned and turned into quizzes and back.
 
-- [X] T057 [US3] Schema in `packages/shared/src/schedule/scheduleFile.ts`: drop the `event` frame row, add slot use `event` and `ScheduleDocument.events` (`id`, `label`, `slot` or null, `rooms` or `all`, `pinned`); `parseScheduleFile` turns a draft's old event rows into an event slot and an event; tests in `packages/shared/src/schedule/__tests__/scheduleFile.spec.ts`
+- [X] T057 [US3] Schema in `packages/shared/src/schedule/scheduleFile.ts`: drop the `event` frame row, add slot use `event` and `ScheduleDocument.events` (`id`, `label`, `slot` or null, `rooms` or `all`, `pinned`); tests in `packages/shared/src/schedule/__tests__/scheduleFile.spec.ts`
 - [X] T058 [US3] `packages/shared/src/schedule/frame.ts`: `buildFrame` returns rows and events (event slots for Breakfast, Lunch and the rest), and `eventCells` reads events; `reflow.ts` keeps the frame when any event is pinned, skips event slots, and rebuilds events with the frame; `conflicts.ts` H-3 from events; tests in `frame.spec.ts`, `reflowPins.spec.ts`, `conflicts.spec.ts`
 - [X] T059 [US3] `packages/shared/src/schedule/sheet.ts`: `sheetRows` gives each slot's cells with events merged across adjacent rooms and marks a row with no quizzes and every room taken by events as short; `basicRows` lists all-rooms events; tests in `sheet.spec.ts`
 - [X] T060 [US3] `packages/ui/src/ScheduleSheet.vue`: draw event cells with their span, short event rows, and emit `event` when one is clicked
