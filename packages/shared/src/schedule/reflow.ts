@@ -551,8 +551,11 @@ export function cellMoves(before: ScheduleDocument, after: ScheduleDocument): nu
 }
 
 /** How many quizzes Apply would move, change or remove (FR-012a) */
-export function applyMoves(doc: ScheduleDocument): number {
-  const next = reflowSchedule(doc)
+export function applyMoves(
+  doc: ScheduleDocument,
+  /** The re-flowed schedule, when the caller has it already */
+  next = reflowSchedule(doc),
+): number {
   const before = new Map(
     doc.quizzes.map((q) => [q.id, show({ c: q.cell, s: q.seats, l: q.label })]),
   )

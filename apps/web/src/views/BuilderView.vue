@@ -43,8 +43,7 @@ const {
   changeSettings,
   setAutoApply,
   unapplied,
-  pendingMoves,
-  pendingProblems,
+  previewApply,
   apply,
   conflicts,
   issues,
@@ -373,13 +372,12 @@ const changes = computed(() => describeUnapplied(doc.value))
 
 /** Ask before applying waiting settings: what changed, how many quizzes move, what's left wrong */
 async function askApply(title: string, action: string): Promise<boolean> {
-  const moves = pendingMoves()
+  const { moves, problems: left } = previewApply()
   // A new slot length keeps every quiz in its slot but moves the slots' times, which the count
   // alone wouldn't say
   const retimed = unapplied.value.some((u) => u.key === 'slotMinutes')
     ? ' The slots get new times.'
     : ''
-  const left = pendingProblems()
   const after = left > 0 ? ` It leaves ${left} ${left === 1 ? 'problem' : 'problems'}.` : ''
   const go = await dialog.value?.ask(
     title,
