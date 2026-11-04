@@ -34,6 +34,9 @@ function setName(id: string, event: Event) {
   })
 }
 
+/** How many of a division's teams have a name typed */
+const namedIn = (id: string) => props.doc.draw[id]?.teams.filter((t) => t.name).length ?? 0
+
 /** How many of a division's quizzes are pinned; unpinning them hands the division back (FR-011) */
 const pinnedIn = (id: string) =>
   props.doc.quizzes.filter((q) => q.division === id && q.pinned).length
@@ -67,36 +70,53 @@ function setTeamName(id: string, index: number, event: Event) {
         @change="setCount"
       />
     </label>
-    <div v-for="d in doc.settings.divisions" :key="d.id" class="division" :data-division="d.id">
-      <input :value="d.name" aria-label="Division name" @change="setName(d.id, $event)" />
-      <label class="field">
-        Teams
+    <div
+      v-for="(d, n) in doc.settings.divisions"
+      :key="d.id"
+      class="division"
+      :data-division="d.id"
+      :style="{ '--qc': `var(--b-d${(n % 4) + 1})` }"
+    >
+      <div class="head">
+        <input
+          class="name"
+          :value="d.name"
+          aria-label="Division name"
+          @change="setName(d.id, $event)"
+        />
         <NumberInput
           min="0"
           :value="d.teams"
           :aria-label="`${d.name} team count`"
           @change="setTeams(d.id, $event)"
         />
-      </label>
-      <button
-        v-if="pinnedIn(d.id) > 0"
-        type="button"
-        class="unpin"
-        @click="emit('change', (x) => pinWhere(x, (q) => q.division === d.id, false))"
-      >
-        Unpin {{ d.name }} ({{ pinnedIn(d.id) }})
-      </button>
-      <details v-if="d.teams > 0" class="names">
-        <summary>Team names</summary>
-        <input
-          v-for="i in d.teams"
-          :key="i"
-          :value="doc.draw[d.id]?.teams[i - 1]?.name ?? ''"
-          :placeholder="`Team ${i}`"
-          :aria-label="`${d.name} team ${i} name`"
-          @change="setTeamName(d.id, i - 1, $event)"
-        />
-      </details>
+        <span class="unit">teams</span>
+      </div>
+      <div class="foot">
+        <details v-if="d.teams > 0" class="names">
+          <summary>
+            Team names <span class="hint">{{ namedIn(d.id) }} of {{ d.teams }}</span>
+          </summary>
+          <ol>
+            <li v-for="i in d.teams" :key="i">
+              <input
+                :value="doc.draw[d.id]?.teams[i - 1]?.name ?? ''"
+                :placeholder="`Team ${i}`"
+                :aria-label="`${d.name} team ${i} name`"
+                @change="setTeamName(d.id, i - 1, $event)"
+              />
+            </li>
+          </ol>
+        </details>
+        <button
+          v-if="pinnedIn(d.id) > 0"
+          type="button"
+          class="link unpin"
+          @click="emit('change', (x) => pinWhere(x, (q) => q.division === d.id, false))"
+        >
+          Unpin {{ d.name }} ({{ pinnedIn(d.id) }})
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -104,7 +124,7 @@ function setTeamName(id: string, index: number, event: Event) {
 <style scoped>
 .teams {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .field {
@@ -114,24 +134,76 @@ function setTeamName(id: string, index: number, event: Event) {
   gap: 0.5rem;
 }
 
-.field input {
-  width: 5rem;
+/* Each division a card edged in the colour its quizzes carry on the grid */
+.division {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-border-alt);
+  border-left: 3px solid var(--qc);
+  border-radius: 6px;
+  background: var(--color-bg);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.teams .name {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-heading);
+  font-weight: 650;
+}
+
+.teams .name:hover {
+  border-color: var(--color-meta-accent);
+}
+
+.unit {
+  color: var(--color-text-faint);
+  font-size: 0.75rem;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.8rem;
 }
 
 .names {
+  flex: 1;
+}
+
+.names summary {
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.names ol {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.25rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
 }
 
 .names input {
-  display: block;
   width: 100%;
+  font-size: 0.8rem;
 }
 
-.division {
-  display: grid;
-  gap: 0.25rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--color-border, #ddd);
+.unpin {
+  font-size: 0.8rem;
 }
 </style>
