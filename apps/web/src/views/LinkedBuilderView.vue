@@ -466,7 +466,11 @@ async function restore(v: number) {
   clearTimeout(timer)
   await send()
   const link = readLink(meetId.value)
-  if (!link || conflict.value) return
+  // Restoring replaces the draft, so edits that haven't reached the server would be lost
+  if (!link || link.unsent || conflict.value) {
+    if (!conflict.value) publishNote.value = `Not restored: ${saveText.value.toLowerCase()}.`
+    return
+  }
   try {
     const saved = await restoreScheduleVersion(meetId.value, v, link.baseRevision)
     const { document } = await getScheduleVersion(meetId.value, v)

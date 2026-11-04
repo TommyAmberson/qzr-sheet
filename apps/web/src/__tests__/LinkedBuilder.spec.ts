@@ -403,6 +403,27 @@ describe('publishing and history (FR-049, FR-049a)', () => {
     w.unmount()
   })
 
+  it("doesn't restore a version over edits that haven't reached the server", async () => {
+    const { server } = fakeServer()
+    serverDraft(server)
+    const w = await openBuilder()
+    await button(w, 'Publish')!.trigger('click')
+    await flushPromises()
+    await button(w, 'History')!.trigger('click')
+    await flushPromises()
+    server.offline = true
+    const name = w.find('[aria-label="Schedule name"]')
+    await name.setValue('Offline edit')
+    await name.trigger('change')
+    await button(w, 'Restore as the draft')!.trigger('click')
+    await flushPromises()
+    expect(w.text()).toMatch(/Not restored: not saved: offline/)
+    expect(w.find<HTMLInputElement>('[aria-label="Schedule name"]').element.value).toBe(
+      'Offline edit',
+    )
+    w.unmount()
+  })
+
   it('protects a quiz with results: changed only after confirming, then marked (H-20)', async () => {
     const { server } = fakeServer()
     const doc = serverDraft(server)
