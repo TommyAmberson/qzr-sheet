@@ -23,6 +23,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * Scrolling the schedule builder's grid with a finger no longer starts dragging the quiz or seat
   under it, which then dropped it wherever the next tap landed. On a touch screen quizzes move with
   Move; a mouse or pen still drags.
+* Rows no longer show above the builder grid's room names or left of its times, in the gap the
+  grid's padding left.
+* The settings sheet on a phone has a solid header bar with a clear Done button; before, Done was
+  see-through text over the settings scrolling under it.
 
 ### Bundled contract
 
