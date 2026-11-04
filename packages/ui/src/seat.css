@@ -1,0 +1,109 @@
+/*
+ * A quiz's seat as the org's printed schedules draw it: the line its team is written on, centred,
+ * with where the seat comes from and its scoresheet bench colour (red, white, blue in seat order)
+ * just left of it. The grid, the builder's Unplaced cards and its quiz menu all use these.
+ */
+/* Tripled to win over the button resets of the pages that hold it (`.sheet button`, `.builder button`) */
+.qz-seat.qz-seat.qz-seat {
+  display: grid;
+  /* The line's width; equal columns either side keep it centred whatever the source's length */
+  grid-template-columns: minmax(0, 1fr) 3px var(--seat-line, min(7rem, 50%)) minmax(0, 1fr);
+  align-items: end;
+  column-gap: 0.3rem;
+  width: 100%;
+  padding: 0.1rem 0 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--color-text, #2a2724);
+  font-size: 0.8rem;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.qz-bench {
+  width: 3px;
+  height: 1em;
+  margin-bottom: 0.15em;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text, #2a2724) 25%, transparent);
+}
+
+.qz-bench-0 {
+  background: var(--color-team-red, #e02424);
+}
+
+.qz-bench-1 {
+  background: var(--color-team-white, #fff);
+}
+
+.qz-bench-2 {
+  background: var(--color-team-blue, #1d4ed8);
+}
+
+/* Ends at the bar; a long source spills left rather than being cut short */
+.qz-seat-src {
+  justify-self: end;
+  color: var(--color-text, #2a2724);
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.qz-seat-src.choose {
+  color: var(--color-accent, #2563eb);
+  font-family: inherit;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.qz-seat-line {
+  min-height: 1.2em;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text, #2a2724) 30%, transparent);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qz-seat-line.absent {
+  color: var(--color-warn, #a60);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.qz-seat:hover .qz-seat-line {
+  border-bottom-color: var(--qc, var(--color-accent));
+  background: color-mix(in srgb, var(--qc, var(--color-accent)) 12%, transparent);
+}
+
+.qz-seat:hover .qz-seat-src {
+  color: var(--qc, var(--color-accent));
+}
+
+@media print {
+  .qz-seat.qz-seat.qz-seat {
+    min-width: 0;
+    color: #000;
+    font-size: 8pt;
+  }
+
+  .qz-seat-line {
+    border-bottom: 0.75pt solid #000;
+  }
+
+  .qz-seat-src {
+    color: #000;
+    font-size: 7.5pt;
+  }
+
+  .qz-seat-src.choose {
+    color: #777;
+  }
+
+  .qz-bench {
+    box-shadow: inset 0 0 0 0.5pt #000;
+    print-color-adjust: exact;
+  }
+}

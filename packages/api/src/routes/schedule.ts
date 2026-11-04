@@ -1,11 +1,23 @@
 import { Hono, type Context } from 'hono'
-import { eq, and, asc, inArray, sql } from 'drizzle-orm'
+import { eq, and, asc, desc, inArray, sql } from 'drizzle-orm'
+import {
+  checkSchedule,
+  dropTeams,
+  indexOfLetter,
+  parseScheduleFile,
+  serializeSchedule,
+  type ScheduleDocument,
+  teamDisplayName,
+  type SheetView,
+} from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
-import { requireAuth, getUser } from '../middleware/session'
-import { createDb, inChunks, type Db } from '../lib/db'
+import { requireAuth, requireAuthOrGuest, getUser } from '../middleware/session'
+import { asOne, createDb, inChunks, type Db } from '../lib/db'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
+import { jsonBody, meetIdOf } from '../lib/request'
+import { documentFromLegacy, legacyFromDocument, type LegacySchedule } from '../lib/scheduleLegacy'
 
 interface ScheduleVariables extends SessionVariables {
   db: Db
@@ -45,6 +57,55 @@ async function requireViewer(c: Context<Env>, meetId: number) {
     return c.json({ error: 'Forbidden' }, 403)
   }
   return null
+}
+
+/**
+ * What a reader may see of the published schedule (FR-052): letters while the meet is in
+ * registration or build, team names from live on; admins see teams and may ask for letters.
+ */
+async function readerView(c: Context<Env>, db: Db, meetId: number): Promise<SheetView> {
+  const user = c.get('user')
+  const [isAdmin, [meet]] = await Promise.all([
+    user ? isAdminOrSuperuser(db, user.id, user.role, meetId) : false,
+    db
+      .select({ phase: schema.quizMeets.phase })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, meetId)),
+  ])
+  if (isAdmin) return c.req.query('view') === 'letters' ? 'letters' : 'teams'
+  return meet && (meet.phase === 'registration' || meet.phase === 'build') ? 'letters' : 'teams'
+}
+
+/** The meet's newest published version, the one readers see */
+async function newestVersion(db: Db, meetId: number) {
+  const [row] = await db
+    .select()
+    .from(schema.meetScheduleVersions)
+    .where(eq(schema.meetScheduleVersions.meetId, meetId))
+    .orderBy(desc(schema.meetScheduleVersions.version))
+    .limit(1)
+  return row ?? null
+}
+
+/**
+ * The newest published version in the old routes' shapes, or null for a meet still on the old
+ * tables. Installed scoresheets call the old routes for their picker (research R5).
+ */
+async function publishedLegacy(db: Db, meetId: number) {
+  const [row, [meet]] = await Promise.all([
+    newestVersion(db, meetId),
+    db
+      .select({
+        id: schema.quizMeets.id,
+        name: schema.quizMeets.name,
+        dateFrom: schema.quizMeets.dateFrom,
+      })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, meetId)),
+  ])
+  if (!row || !meet) return null
+  const doc = JSON.parse(row.document) as ScheduleDocument
+  return { meet, ...legacyFromDocument(doc, meet, row.publishedAt) }
 }
 
 // ---- Rooms ----
@@ -129,6 +190,8 @@ schedule.get('/:id/slots', async (c) => {
   if (denied) return denied
 
   const db = getDb(c)
+  const published = await publishedLegacy(db, meetId)
+  if (published) return c.json({ slots: published.slots })
   const slots = await db
     .select()
     .from(schema.meetSlots)
@@ -140,12 +203,6 @@ schedule.get('/:id/slots', async (c) => {
 
 // ---- Scheduled quizzes + seats ----
 
-interface SeatInput {
-  seatNumber: number
-  letter?: string | null
-  seedRef?: string | null
-}
-
 schedule.get('/:id/quizzes', async (c) => {
   const meetId = Number(c.req.param('id'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
@@ -154,23 +211,23 @@ schedule.get('/:id/quizzes', async (c) => {
   if (denied) return denied
 
   const db = getDb(c)
+  const published = await publishedLegacy(db, meetId)
+  if (published) return c.json({ quizzes: published.quizzes })
   const quizzes = await db
     .select()
     .from(schema.scheduledQuizzes)
     .where(eq(schema.scheduledQuizzes.meetId, meetId))
 
-  const seats =
-    quizzes.length === 0
-      ? []
-      : await db
-          .select()
-          .from(schema.scheduledQuizSeats)
-          .where(
-            inArray(
-              schema.scheduledQuizSeats.quizId,
-              quizzes.map((q) => q.id),
-            ),
-          )
+  // In chunks: a meet's quizzes bind far more parameters than one D1 statement takes
+  const seats = await inChunks(
+    quizzes.map((q) => q.id),
+    1,
+    (chunk) =>
+      db
+        .select()
+        .from(schema.scheduledQuizSeats)
+        .where(inArray(schema.scheduledQuizSeats.quizId, chunk)),
+  )
 
   const seatsByQuiz = new Map<number, schema.ScheduledQuizSeat[]>()
   for (const seat of seats) {
@@ -207,6 +264,42 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
   if (denied) return denied
 
   const db = getDb(c)
+  const published = await publishedLegacy(db, meetId)
+  if (published) {
+    const q = published.quizzes.find((x) => x.id === quizId)
+    if (!q) return c.json({ error: 'Quiz not found' }, 404)
+    const slot = published.slots.find((x) => x.id === q.slotId)
+    const [room] = await db
+      .select({ name: schema.meetRooms.name })
+      .from(schema.meetRooms)
+      .where(and(eq(schema.meetRooms.id, q.roomId), eq(schema.meetRooms.meetId, meetId)))
+    const view = await readerView(c, db, meetId)
+    const letters = new Map(
+      published.assignments
+        .filter((a) => view === 'teams' && a.division === q.division)
+        .map((a) => [a.letter, a.teamId]),
+    )
+    return quizWithTeams(
+      c,
+      meetId,
+      {
+        id: q.id,
+        meetId,
+        meetName: published.meet.name,
+        slotId: q.slotId,
+        roomId: q.roomId,
+        division: q.division,
+        phase: q.phase,
+        lane: q.lane,
+        label: q.label,
+        bracketLabel: q.bracketLabel,
+        slotStartAt: slot?.startAt ?? null,
+        roomName: room?.name ?? '',
+      },
+      q.seats,
+      letters,
+    )
+  }
 
   // Phase 1: quiz row + seats in parallel — seats only depend on quizId
   // (a route param), so they can race with the join. If quiz is missing
@@ -243,17 +336,13 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
   const quizRow = quizRows[0]
   if (!quizRow) return c.json({ error: 'Quiz not found' }, 404)
 
-  // Phase 2: prelim + elim seat resolutions in parallel — both only need
-  // the seats from phase 1.
   const prelimLetters = seats
     .map((s) => s.letter)
     .filter((l): l is string => l !== null && l !== '')
-  const elimRefs = seats.map((s) => s.seedRef).filter((r): r is string => r !== null && r !== '')
-
-  const [prelimRows, elimRows] = await Promise.all([
+  const prelimRows =
     prelimLetters.length === 0
-      ? Promise.resolve([] as { letter: string; teamId: number }[])
-      : db
+      ? []
+      : await db
           .select({
             letter: schema.prelimAssignments.letter,
             teamId: schema.prelimAssignments.teamId,
@@ -265,10 +354,33 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
               eq(schema.prelimAssignments.division, quizRow.division),
               inArray(schema.prelimAssignments.letter, prelimLetters),
             ),
-          ),
+          )
+  return quizWithTeams(
+    c,
+    meetId,
+    quizRow,
+    seats,
+    new Map(prelimRows.map((r) => [r.letter, r.teamId])),
+  )
+})
+
+/**
+ * A quiz with its seats resolved to teams and rosters: prelim letters through `letters`, elim
+ * seats through `seed_resolutions`. Unresolved seats get `team: null` and no quizzers.
+ */
+async function quizWithTeams(
+  c: Context<Env>,
+  meetId: number,
+  quiz: Record<string, unknown> & { division: string },
+  seats: { seatNumber: number; letter: string | null; seedRef: string | null }[],
+  letters: Map<string, number>,
+) {
+  const db = getDb(c)
+  const elimRefs = seats.map((s) => s.seedRef).filter((r): r is string => r !== null && r !== '')
+  const elimRows =
     elimRefs.length === 0
-      ? Promise.resolve([] as { seedRef: string; teamId: number }[])
-      : db
+      ? []
+      : await db
           .select({
             seedRef: schema.seedResolutions.seedRef,
             teamId: schema.seedResolutions.teamId,
@@ -279,17 +391,14 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
               eq(schema.seedResolutions.meetId, meetId),
               inArray(schema.seedResolutions.seedRef, elimRefs),
             ),
-          ),
-  ])
-  const prelimMap = new Map(prelimRows.map((r) => [r.letter, r.teamId]))
+          )
   const elimMap = new Map(elimRows.map((r) => [r.seedRef, r.teamId]))
 
   const seatTeamIds = seats.map((s) => {
-    if (s.letter) return prelimMap.get(s.letter) ?? null
+    if (s.letter) return letters.get(s.letter) ?? null
     if (s.seedRef) return elimMap.get(s.seedRef) ?? null
     return null
   })
-
   const teamIds = Array.from(new Set(seatTeamIds.filter((t): t is number => t !== null)))
   const [teamRows, rosterRows] =
     teamIds.length === 0
@@ -307,7 +416,7 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
             })
             .from(schema.teams)
             .innerJoin(schema.churches, eq(schema.churches.id, schema.teams.churchId))
-            .where(inArray(schema.teams.id, teamIds)),
+            .where(and(eq(schema.teams.meetId, meetId), inArray(schema.teams.id, teamIds))),
           db
             .select({
               teamId: schema.teamRosters.teamId,
@@ -327,20 +436,7 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
   }
 
   return c.json({
-    quiz: {
-      id: quizRow.id,
-      meetId: quizRow.meetId,
-      meetName: quizRow.meetName,
-      slotId: quizRow.slotId,
-      roomId: quizRow.roomId,
-      division: quizRow.division,
-      phase: quizRow.phase,
-      lane: quizRow.lane,
-      label: quizRow.label,
-      bracketLabel: quizRow.bracketLabel,
-      slotStartAt: quizRow.slotStartAt,
-      roomName: quizRow.roomName,
-    },
+    quiz,
     seats: seats.map((s, i) => {
       const tid = seatTeamIds[i]
       const team = tid !== null && tid !== undefined ? (teamById.get(tid) ?? null) : null
@@ -353,7 +449,7 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
       }
     }),
   })
-})
+}
 
 /**
  * GET /api/meets/:id/prelim-assignments
@@ -369,6 +465,12 @@ schedule.get('/:id/prelim-assignments', async (c) => {
   if (denied) return denied
 
   const db = getDb(c)
+  const published = await publishedLegacy(db, meetId)
+  if (published) {
+    // The old route would otherwise show the draw that the published view hides
+    const view = await readerView(c, db, meetId)
+    return c.json({ assignments: view === 'teams' ? published.assignments : [] })
+  }
   const rows = await db
     .select()
     .from(schema.prelimAssignments)
@@ -377,518 +479,596 @@ schedule.get('/:id/prelim-assignments', async (c) => {
   return c.json({ assignments: rows })
 })
 
-// ---- Schedule sync (draft → server commit) ----
+// ---- Linked schedules (specs/005-schedule-redesign/contracts/api.md) ----
 
-interface SyncSlotInput {
-  id: number
-  startAt: string | number
-  durationMinutes: number
-  kind: 'quiz' | 'event'
-  eventLabel?: string | null
-  sortOrder: number
+/** A document from a request body, or the reason it isn't one */
+function documentOf(raw: unknown, meetId: number): ScheduleDocument | string {
+  try {
+    const doc = parseScheduleFile(JSON.stringify(raw))
+    doc.link = { ...doc.link, meetId }
+    return doc
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Not a valid schedule'
+  }
 }
 
-interface SyncQuizInput {
-  id: number
-  slotId: number
-  roomId: number
-  division: string
-  phase: 'prelim' | 'elim'
-  label: string
-  bracketLabel?: string | null
-  seats: SeatInput[]
+async function draftRow(db: Db, meetId: number) {
+  const [row] = await db
+    .select()
+    .from(schema.meetSchedules)
+    .where(eq(schema.meetSchedules.meetId, meetId))
+  return row ?? null
 }
 
-interface SyncPrelimDivision {
-  division: string
-  mapping: { letter: string; teamId: number }[]
+async function addVersion(
+  db: Db,
+  meetId: number,
+  doc: ScheduleDocument,
+  by: { id: string | null; name: string },
+) {
+  const [row] = await versionInsert(db, meetId, doc, by)
+  return row!
 }
 
-interface SyncTeamLateness {
-  teamId: number
-  lateness: boolean
+/** The insert that adds a version, to run alone or in a batch */
+function versionInsert(
+  db: Db,
+  meetId: number,
+  doc: ScheduleDocument,
+  by: { id: string | null; name: string },
+) {
+  const v = schema.meetScheduleVersions
+  // Numbered in the insert itself, so two publishes at once can't take the same number
+  return db
+    .insert(v)
+    .values({
+      meetId,
+      version: sql<number>`(SELECT COALESCE(MAX(${v.version}), 0) + 1 FROM ${v} WHERE ${v.meetId} = ${meetId})`,
+      document: serializeSchedule(doc),
+      publishedAt: new Date(),
+      publishedByAccountId: by.id,
+      publishedByName: by.name,
+    })
+    .returning()
 }
 
-interface ScheduleSyncPayload {
-  slots: SyncSlotInput[]
-  quizzes: SyncQuizInput[]
-  prelimAssignments: SyncPrelimDivision[]
-  teamLateness: SyncTeamLateness[]
+/** The meet's old schedule rows, or null when it has none to convert */
+async function loadLegacy(db: Db, meetId: number): Promise<LegacySchedule | null> {
+  const [meet] = await db.select().from(schema.quizMeets).where(eq(schema.quizMeets.id, meetId))
+  if (!meet) return null
+  const [slots, quizzes, rooms, assignments, teams] = await Promise.all([
+    db.select().from(schema.meetSlots).where(eq(schema.meetSlots.meetId, meetId)),
+    db.select().from(schema.scheduledQuizzes).where(eq(schema.scheduledQuizzes.meetId, meetId)),
+    db
+      .select({ id: schema.meetRooms.id, name: schema.meetRooms.name })
+      .from(schema.meetRooms)
+      .where(eq(schema.meetRooms.meetId, meetId))
+      .orderBy(asc(schema.meetRooms.sortOrder), asc(schema.meetRooms.id)),
+    db
+      .select({
+        division: schema.prelimAssignments.division,
+        letter: schema.prelimAssignments.letter,
+        teamId: schema.prelimAssignments.teamId,
+      })
+      .from(schema.prelimAssignments)
+      .where(eq(schema.prelimAssignments.meetId, meetId)),
+    db
+      .select({
+        id: schema.teams.id,
+        division: schema.teams.division,
+        lateness: schema.teams.lateness,
+      })
+      .from(schema.teams)
+      .where(eq(schema.teams.meetId, meetId)),
+  ])
+  if (slots.length === 0 && quizzes.length === 0) return null
+  // In chunks: a meet's quizzes bind far more parameters than one D1 statement takes
+  const seats = await inChunks(
+    quizzes.map((q) => q.id),
+    1,
+    (chunk) =>
+      db
+        .select()
+        .from(schema.scheduledQuizSeats)
+        .where(inArray(schema.scheduledQuizSeats.quizId, chunk)),
+  )
+  const divisions = JSON.parse(meet.divisions) as string[]
+  return {
+    meet: { id: meet.id, name: meet.name, divisions },
+    rooms,
+    slots,
+    quizzes,
+    seats,
+    assignments,
+    teams,
+  }
 }
 
 /**
- * POST /api/meets/:id/schedule/sync
- *
- * Replaces the meet's editable schedule state in one request: slots,
- * quizzes (with seats), prelim-assignment mappings per division, and
- * any team-lateness flips. Negative ids mark new slots/quizzes;
- * `quiz.slotId` may reference a negative slot id from the same payload
- * and is resolved after the slot inserts. Response is the post-commit
- * state.
- *
- * Not atomic — D1 has no interactive transactions. A mid-flight
- * failure can leave the meet partly updated; the client recovers by
- * re-issuing the sync.
- *
- * TODO: lock completed quizzes in the editor UI. The server already
- * rejects destructive payloads against them, but the client doesn't
- * surface the constraint and can build a draft that 409s on save.
+ * GET /api/meets/:id/schedule: the draft and the newest published version, for the builder.
+ * A meet built with the old editor is converted on first open (research R5); `timeZone`, the
+ * builder's, places the old slots' instants on the meet's days.
  */
-schedule.post('/:id/schedule/sync', async (c) => {
-  const meetId = Number(c.req.param('id'))
-  if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
+schedule.get('/:id/schedule', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+  const db = getDb(c)
 
+  let row = await draftRow(db, meetId)
+  // Only a meet that never had a document is converted: after unlinking, the old rows stay stale
+  const legacy = row || (await newestVersion(db, meetId)) ? null : await loadLegacy(db, meetId)
+  if (legacy) {
+    const doc = documentFromLegacy(legacy, c.req.query('timeZone') || 'UTC')
+    const inserted = await db
+      .insert(schema.meetSchedules)
+      .values({ meetId, draft: serializeSchedule(doc), draftRevision: 1, draftSavedAt: new Date() })
+      .onConflictDoNothing()
+      .returning({ id: schema.meetSchedules.id })
+    // Another admin opening at the same moment converted it already
+    if (inserted.length > 0) {
+      await addVersion(db, meetId, doc, { id: null, name: 'Converted from the old schedule' })
+    }
+    row = await draftRow(db, meetId)
+  }
+
+  const [published, results] = await Promise.all([
+    newestVersion(db, meetId),
+    db
+      .select({ quizKey: schema.quizResults.quizKey })
+      .from(schema.quizResults)
+      .where(eq(schema.quizResults.meetId, meetId)),
+  ])
+  return c.json({
+    draft: row ? JSON.parse(row.draft) : null,
+    draftRevision: row?.draftRevision ?? 0,
+    draftSavedAt: row?.draftSavedAt ?? null,
+    published: published ? JSON.parse(published.document) : null,
+    publishedAt: published?.publishedAt ?? null,
+    version: published?.version ?? null,
+    results: results.map((r) => r.quizKey),
+  })
+})
+
+/** The teams a document's draw names that are the meet's own, and every team it names */
+async function drawTeams(db: Db, meetId: number, doc: ScheduleDocument) {
+  const ids = [
+    ...new Set(
+      Object.values(doc.draw).flatMap((d) =>
+        d.teams.flatMap((t) => (t.teamId === undefined ? [] : [t.teamId])),
+      ),
+    ),
+  ]
+  const own = await inChunks(ids, 2, (chunk) =>
+    db
+      .select({ id: schema.teams.id })
+      .from(schema.teams)
+      .where(and(eq(schema.teams.meetId, meetId), inArray(schema.teams.id, chunk))),
+  )
+  return { ids, owned: new Set(own.map((t) => t.id)) }
+}
+
+/**
+ * A team the draw names that isn't the meet's, or null. Readers are shown the draw's teams and
+ * rosters, so a team from another meet would show that meet's quizzers.
+ */
+async function foreignTeam(db: Db, meetId: number, doc: ScheduleDocument): Promise<number | null> {
+  const { ids, owned } = await drawTeams(db, meetId, doc)
+  return ids.find((id) => !owned.has(id)) ?? null
+}
+
+/**
+ * A document without the draw's teams the meet no longer has, as an old version restored as the
+ * draft must be; a division that lost a drawn team needs its draw redone
+ */
+async function withoutForeignTeams(
+  db: Db,
+  meetId: number,
+  doc: ScheduleDocument,
+): Promise<ScheduleDocument> {
+  const { owned } = await drawTeams(db, meetId, doc)
+  const copy = structuredClone(doc)
+  for (const draw of Object.values(copy.draw)) dropTeams(draw, owned)
+  return copy
+}
+
+/** The 409 for a save or publish based on an older draft, carrying the newer one (FR-048a) */
+function staleDraft(c: Context<Env>, row: schema.MeetSchedule | null) {
+  return c.json(
+    {
+      error: 'The draft was changed since you opened it',
+      draft: row ? JSON.parse(row.draft) : null,
+      draftRevision: row?.draftRevision ?? 0,
+    },
+    409,
+  )
+}
+
+/** Write the draft if `baseRevision` is the current one; otherwise the 409 with the newer draft */
+async function saveDraft(
+  c: Context<Env>,
+  meetId: number,
+  doc: ScheduleDocument,
+  baseRevision: unknown,
+  replace = false,
+) {
+  const db = getDb(c)
+  const row = await draftRow(db, meetId)
+  const current = row?.draftRevision ?? 0
+  if (baseRevision !== current) return staleDraft(c, row)
+  // Revisions restart after an unlink, so a matching revision of a different draft is still stale,
+  // unless the director chose to replace it
+  if (row && !replace && (JSON.parse(row.draft) as ScheduleDocument).id !== doc.id) {
+    return staleDraft(c, row)
+  }
+  const draftSavedAt = new Date()
+  const draftRevision = current + 1
+  if (row) {
+    // The revision in the WHERE makes a save that raced another one change nothing
+    const updated = await db
+      .update(schema.meetSchedules)
+      .set({ draft: serializeSchedule(doc), draftRevision, draftSavedAt })
+      .where(
+        and(
+          eq(schema.meetSchedules.meetId, meetId),
+          eq(schema.meetSchedules.draftRevision, current),
+        ),
+      )
+      .returning({ id: schema.meetSchedules.id })
+    if (updated.length === 0) return staleDraft(c, await draftRow(db, meetId))
+  } else {
+    // Two first saves at once: the second finds the first's draft, as a stale save would
+    const inserted = await db
+      .insert(schema.meetSchedules)
+      .values({ meetId, draft: serializeSchedule(doc), draftRevision, draftSavedAt })
+      .onConflictDoNothing()
+      .returning({ id: schema.meetSchedules.id })
+    if (inserted.length === 0) return staleDraft(c, await draftRow(db, meetId))
+  }
+  return c.json({ draftRevision, draftSavedAt })
+}
+
+schedule.put('/:id/schedule/draft', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
   const denied = await requireAdmin(c, meetId)
   if (denied) return denied
 
-  const body = await c.req.json<ScheduleSyncPayload>()
-  if (
-    !Array.isArray(body.slots) ||
-    !Array.isArray(body.quizzes) ||
-    !Array.isArray(body.prelimAssignments) ||
-    !Array.isArray(body.teamLateness)
-  ) {
-    return c.json({ error: 'slots, quizzes, prelimAssignments, teamLateness all required' }, 400)
+  const body = await jsonBody<{ document?: unknown; baseRevision?: unknown; replace?: unknown }>(c)
+  if (!body) return c.json({ error: 'Expected a JSON body' }, 400)
+  const doc = documentOf(body.document, meetId)
+  if (typeof doc === 'string') return c.json({ error: doc }, 400)
+  const foreign = await foreignTeam(getDb(c), meetId, doc)
+  // The team says which, so a page whose teams went stale can catch up and save again
+  if (foreign !== null) {
+    return c.json({ error: `Team ${foreign} is not in this meet`, teamId: foreign }, 400)
   }
+  return saveDraft(c, meetId, doc, body.baseRevision, body.replace === true)
+})
 
-  // ---- Shallow shape validation ----
-  for (const s of body.slots) {
-    if (typeof s.id !== 'number') return c.json({ error: 'slot.id required' }, 400)
-    if (s.kind !== 'quiz' && s.kind !== 'event') {
-      return c.json({ error: 'slot.kind must be quiz or event' }, 400)
+/**
+ * Make the meet's rooms match the schedule's (FR-047): add the rooms without a meet room, rename
+ * and reorder the rest, and remove a room the schedule no longer uses unless it has an official
+ * code, officials or results, so nobody is locked out mid-meet. Fills in `meetRoomId` on the document.
+ */
+async function syncRooms(
+  db: Db,
+  meetId: number,
+  doc: ScheduleDocument,
+): Promise<{ statements: PromiseLike<unknown>[]; unusedRooms: { id: number; name: string }[] }> {
+  // New rooms are added at once, for their ids; a publish that then fails leaves them unused, and
+  // the next publish takes them back by name. Renames and removals are handed back to run with the
+  // publish, so a publish that fails leaves the meet's existing rooms as they were
+  const statements: PromiseLike<unknown>[] = []
+  const current = await db
+    .select()
+    .from(schema.meetRooms)
+    .where(eq(schema.meetRooms.meetId, meetId))
+  const byId = new Map(current.map((r) => [r.id, r]))
+  // Each meet room belongs to one schedule room; a second claim to it is treated as none
+  const owner = new Map<number, string>()
+  for (const r of doc.rooms) {
+    if (r.meetRoomId !== undefined && byId.has(r.meetRoomId) && !owner.has(r.meetRoomId)) {
+      owner.set(r.meetRoomId, r.id)
     }
-    if (typeof s.durationMinutes !== 'number' || s.durationMinutes <= 0) {
-      return c.json({ error: 'slot.durationMinutes must be positive' }, 400)
-    }
-    if (typeof s.sortOrder !== 'number') {
-      return c.json({ error: 'slot.sortOrder required' }, 400)
-    }
-    const startAt = new Date(s.startAt)
-    if (Number.isNaN(startAt.getTime())) return c.json({ error: 'invalid slot.startAt' }, 400)
   }
-  for (const q of body.quizzes) {
-    if (typeof q.id !== 'number') return c.json({ error: 'quiz.id required' }, 400)
-    if (typeof q.slotId !== 'number' || typeof q.roomId !== 'number') {
-      return c.json({ error: 'quiz.slotId and quiz.roomId required' }, 400)
+  const claimed = new Set(owner.keys())
+  for (const [i, room] of doc.rooms.entries()) {
+    if (room.meetRoomId !== undefined && owner.get(room.meetRoomId) !== room.id) {
+      delete room.meetRoomId
     }
-    if (q.phase !== 'prelim' && q.phase !== 'elim') {
-      return c.json({ error: 'quiz.phase must be prelim or elim' }, 400)
-    }
-    if (typeof q.label !== 'string' || !q.label.trim()) {
-      return c.json({ error: 'quiz.label required' }, 400)
-    }
-    if (!Array.isArray(q.seats)) return c.json({ error: 'quiz.seats array required' }, 400)
-    for (const seat of q.seats) {
-      if (typeof seat.seatNumber !== 'number') {
-        return c.json({ error: 'seat.seatNumber required' }, 400)
+    // A room that lost its meet room (an undo, say) takes back an unclaimed one of the same name
+    let existing = room.meetRoomId === undefined ? undefined : byId.get(room.meetRoomId)
+    if (!existing) {
+      existing = current.find((r) => r.name === room.name && !claimed.has(r.id))
+      if (existing) {
+        room.meetRoomId = existing.id
+        claimed.add(existing.id)
       }
     }
+    if (!existing) {
+      const [added] = await db
+        .insert(schema.meetRooms)
+        .values({ meetId, name: room.name, sortOrder: i })
+        .returning({ id: schema.meetRooms.id })
+      room.meetRoomId = added!.id
+      continue
+    }
+    if (existing.name !== room.name || existing.sortOrder !== i) {
+      statements.push(
+        db
+          .update(schema.meetRooms)
+          .set({ name: room.name, sortOrder: i })
+          .where(eq(schema.meetRooms.id, existing.id)),
+      )
+    }
   }
+  const used = new Set(doc.rooms.map((r) => r.meetRoomId))
+  const unused = current.filter((r) => !used.has(r.id))
+  if (unused.length === 0) return { statements, unusedRooms: [] }
+  // Removing a room drops its officials' memberships and unlinks its results, so a room with
+  // either, or with a code, stays
+  const ids = unused.map((r) => r.id)
+  const [officials, results] = await Promise.all([
+    db
+      .select({ roomId: schema.officialMemberships.roomId })
+      .from(schema.officialMemberships)
+      .where(inArray(schema.officialMemberships.roomId, ids)),
+    db
+      .select({ roomId: schema.quizResults.roomId })
+      .from(schema.quizResults)
+      .where(inArray(schema.quizResults.roomId, ids)),
+  ])
+  const inUse = new Set([...officials, ...results].map((r) => r.roomId))
+  const kept = unused.filter((r) => r.codeHash !== null || inUse.has(r.id))
+  const removable = unused.filter((r) => !kept.includes(r)).map((r) => r.id)
+  if (removable.length > 0) {
+    statements.push(db.delete(schema.meetRooms).where(inArray(schema.meetRooms.id, removable)))
+  }
+  return { statements, unusedRooms: kept.map((r) => ({ id: r.id, name: r.name })) }
+}
 
+schedule.post('/:id/schedule/publish', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
   const db = getDb(c)
 
-  // ---- Load current state ----
-  const [currentSlots, currentQuizzes, currentTeams, currentRooms] = await Promise.all([
-    db.select().from(schema.meetSlots).where(eq(schema.meetSlots.meetId, meetId)),
-    db.select().from(schema.scheduledQuizzes).where(eq(schema.scheduledQuizzes.meetId, meetId)),
-    db.select().from(schema.teams).where(eq(schema.teams.meetId, meetId)),
-    db
-      .select({ id: schema.meetRooms.id })
-      .from(schema.meetRooms)
-      .where(eq(schema.meetRooms.meetId, meetId)),
-  ])
-  const currentSlotMap = new Map(currentSlots.map((s) => [s.id, s]))
-
-  // ---- Ownership ----
-  // Positive IDs name existing rows, and requireAdmin only vouches for :id.
-  // Refuse any slot, quiz or room that isn't this meet's before writing, or
-  // a foreign quiz ID would skip the completed-quiz guard below and have its
-  // seats rewritten, and foreign rooms/slots would cross-link the meets.
-  const ownQuizIds = new Set(currentQuizzes.map((q) => q.id))
-  const ownRoomIds = new Set(currentRooms.map((r) => r.id))
-  // Sync replaces the whole schedule, so a quiz's slot must be one the payload
-  // keeps or creates; one it omits is about to be deleted.
-  const keptSlotIds = new Set(body.slots.map((s) => s.id))
-  for (const s of body.slots) {
-    if (s.id > 0 && !currentSlotMap.has(s.id)) {
-      return c.json({ error: `Slot ${s.id} is not in this meet` }, 400)
-    }
+  const body = await jsonBody<{ baseRevision?: unknown; confirmConflicts?: unknown }>(c)
+  if (!body) return c.json({ error: 'Expected a JSON body' }, 400)
+  const row = await draftRow(db, meetId)
+  if (!row) return c.json({ error: 'There is no draft to publish' }, 404)
+  if (body.baseRevision !== row.draftRevision) return staleDraft(c, row)
+  const doc = JSON.parse(row.draft) as ScheduleDocument
+  // A team removed from the meet since the draft was saved can't go out with it
+  const foreign = await foreignTeam(db, meetId, doc)
+  if (foreign !== null) {
+    return c.json({ error: `Team ${foreign} is not in this meet`, teamId: foreign }, 400)
   }
-  for (const q of body.quizzes) {
-    if (q.id > 0 && !ownQuizIds.has(q.id)) {
-      return c.json({ error: `Quiz ${q.id} is not in this meet` }, 400)
-    }
-    if (!ownRoomIds.has(q.roomId)) {
-      return c.json({ error: `Room ${q.roomId} is not in this meet` }, 400)
-    }
-    if (!keptSlotIds.has(q.slotId)) {
-      return c.json({ error: `Slot ${q.slotId} is not in this meet or payload` }, 400)
-    }
+  // Checked as the builder checks it: the grid against the settings it was built with
+  const conflicts = checkSchedule({ ...doc, settings: doc.applied }).filter((x) => !x.warning)
+  if (conflicts.length > 0 && body.confirmConflicts !== true) {
+    return c.json({ error: 'The schedule has hard conflicts', conflicts }, 409)
   }
 
-  // ---- Completed-quiz guard ----
-  // Reject sync payloads that would delete or mutate a completed quiz.
-  // We don't yet surface a per-row lock in the UI; this server-side
-  // check is the safety net.
-  const payloadQuizById = new Map(body.quizzes.filter((q) => q.id > 0).map((q) => [q.id, q]))
-  for (const cq of currentQuizzes) {
-    if (!cq.completedAt) continue
-    const payload = payloadQuizById.get(cq.id)
-    if (!payload) {
-      return c.json({ error: `Completed quiz ${cq.id} cannot be deleted` }, 409)
-    }
-    if (
-      payload.roomId !== cq.roomId ||
-      payload.division !== cq.division ||
-      payload.phase !== cq.phase ||
-      payload.label.trim() !== cq.label ||
-      (payload.bracketLabel ?? null) !== (cq.bracketLabel ?? null)
-    ) {
-      return c.json({ error: `Completed quiz ${cq.id} cannot be modified` }, 409)
-    }
-  }
-
-  // ---- Slot diff ----
-  const payloadSlotIds = new Set(body.slots.filter((s) => s.id > 0).map((s) => s.id))
-  const slotIdsToDelete = currentSlots.filter((s) => !payloadSlotIds.has(s.id)).map((s) => s.id)
-
-  // Don't allow deleting a slot that hosts a completed quiz.
-  if (slotIdsToDelete.length > 0) {
-    const completedOnDeleted = currentQuizzes.find(
-      (q) => q.completedAt !== null && slotIdsToDelete.includes(q.slotId),
+  // Claim the next revision first, so a save landing meanwhile is refused as stale, not overwritten
+  const draftSavedAt = new Date()
+  const draftRevision = row.draftRevision + 1
+  const claimed = await db
+    .update(schema.meetSchedules)
+    .set({ draftRevision, draftSavedAt })
+    .where(
+      and(
+        eq(schema.meetSchedules.meetId, meetId),
+        eq(schema.meetSchedules.draftRevision, row.draftRevision),
+      ),
     )
-    if (completedOnDeleted) {
-      return c.json(
-        {
-          error: `Slot ${completedOnDeleted.slotId} hosts a completed quiz and cannot be deleted`,
-        },
-        409,
-      )
-    }
-    await db.delete(schema.meetSlots).where(inArray(schema.meetSlots.id, slotIdsToDelete))
-  }
+    .returning({ id: schema.meetSchedules.id })
+  if (claimed.length === 0) return staleDraft(c, await draftRow(db, meetId))
 
-  // ---- Insert new slots; build tempId → realId map ----
-  const slotTempIdMap = new Map<number, number>()
-  const newSlots = body.slots.filter((s) => s.id < 0)
-  if (newSlots.length > 0) {
-    const inserted = await db
-      .insert(schema.meetSlots)
-      .values(
-        newSlots.map((s) => ({
-          meetId,
-          startAt: new Date(s.startAt),
-          durationMinutes: s.durationMinutes,
-          kind: s.kind,
-          eventLabel: s.eventLabel ?? null,
-          sortOrder: s.sortOrder,
-        })),
-      )
-      .returning()
-    newSlots.forEach((s, i) => slotTempIdMap.set(s.id, inserted[i]!.id))
-  }
-
-  // ---- Update existing slot rows ----
-  for (const s of body.slots) {
-    if (s.id < 0) continue
-    const current = currentSlotMap.get(s.id)
-    if (!current) continue
-    const startAt = new Date(s.startAt)
-    const changed =
-      current.startAt.getTime() !== startAt.getTime() ||
-      current.durationMinutes !== s.durationMinutes ||
-      current.kind !== s.kind ||
-      (current.eventLabel ?? null) !== (s.eventLabel ?? null) ||
-      current.sortOrder !== s.sortOrder
-    if (changed) {
-      await db
-        .update(schema.meetSlots)
-        .set({
-          startAt,
-          durationMinutes: s.durationMinutes,
-          kind: s.kind,
-          eventLabel: s.eventLabel ?? null,
-          sortOrder: s.sortOrder,
-        })
-        .where(and(eq(schema.meetSlots.id, s.id), eq(schema.meetSlots.meetId, meetId)))
-    }
-  }
-
-  function resolveSlotId(slotId: number): number | null {
-    if (slotId > 0) return slotId
-    return slotTempIdMap.get(slotId) ?? null
-  }
-
-  // Reject completed-quiz slot moves after temp resolution.
-  for (const cq of currentQuizzes) {
-    if (!cq.completedAt) continue
-    const payload = payloadQuizById.get(cq.id)!
-    const resolved = resolveSlotId(payload.slotId)
-    if (resolved !== cq.slotId) {
-      return c.json({ error: `Completed quiz ${cq.id} cannot be moved between slots` }, 409)
-    }
-  }
-
-  // ---- Quiz diff ----
-  // Quizzes on deleted slots are gone via FK cascade; ignore them.
-  const survivingCurrentQuizzes = currentQuizzes.filter((q) => !slotIdsToDelete.includes(q.slotId))
-  const quizIdsToDelete = survivingCurrentQuizzes
-    .filter((q) => !payloadQuizById.has(q.id))
-    .map((q) => q.id)
-  if (quizIdsToDelete.length > 0) {
-    await db
-      .delete(schema.scheduledQuizzes)
-      .where(inArray(schema.scheduledQuizzes.id, quizIdsToDelete))
-  }
-
-  // ---- Insert new quizzes; build tempId → realId map ----
-  const quizTempIdMap = new Map<number, number>()
-  const newQuizzes = body.quizzes.filter((q) => q.id < 0)
-  if (newQuizzes.length > 0) {
-    const rows: (typeof schema.scheduledQuizzes.$inferInsert)[] = []
-    for (const q of newQuizzes) {
-      const slotId = resolveSlotId(q.slotId)
-      if (slotId === null) {
-        return c.json({ error: `Cannot resolve slotId ${q.slotId} for new quiz` }, 400)
-      }
-      rows.push({
-        meetId,
-        slotId,
-        roomId: q.roomId,
-        division: q.division,
-        phase: q.phase,
-        lane: null,
-        label: q.label.trim(),
-        bracketLabel: q.bracketLabel ?? null,
-      })
-    }
-    // 8 cols per row — see inChunks in lib/db.ts.
-    const inserted = await inChunks(rows, 8, (chunk) =>
-      db.insert(schema.scheduledQuizzes).values(chunk).returning(),
-    )
-    newQuizzes.forEach((q, i) => quizTempIdMap.set(q.id, inserted[i]!.id))
-  }
-
-  // ---- Update existing quiz rows ----
-  const currentQuizMap = new Map(survivingCurrentQuizzes.map((q) => [q.id, q]))
-  for (const q of body.quizzes) {
-    if (q.id < 0) continue
-    const current = currentQuizMap.get(q.id)
-    if (!current) continue
-    if (current.completedAt) continue // already validated as unchanged above
-    const slotId = resolveSlotId(q.slotId)
-    if (slotId === null) {
-      return c.json({ error: `Cannot resolve slotId ${q.slotId} for quiz ${q.id}` }, 400)
-    }
-    const labelTrim = q.label.trim()
-    const changed =
-      current.slotId !== slotId ||
-      current.roomId !== q.roomId ||
-      current.division !== q.division ||
-      current.phase !== q.phase ||
-      current.label !== labelTrim ||
-      (current.bracketLabel ?? null) !== (q.bracketLabel ?? null)
-    if (changed) {
-      await db
-        .update(schema.scheduledQuizzes)
-        .set({
-          slotId,
-          roomId: q.roomId,
-          division: q.division,
-          phase: q.phase,
-          label: labelTrim,
-          bracketLabel: q.bracketLabel ?? null,
-        })
+  let unusedRooms: { id: number; name: string }[]
+  let version: schema.MeetScheduleVersion
+  try {
+    const rooms = await syncRooms(db, meetId, doc)
+    unusedRooms = rooms.unusedRooms
+    const user = getUser(c)
+    // One batch: the rooms, the draft with its meet rooms, and the version, all or none
+    const results = await asOne(db, [
+      ...rooms.statements,
+      db
+        .update(schema.meetSchedules)
+        .set({ draft: serializeSchedule(doc) })
         .where(
-          and(eq(schema.scheduledQuizzes.id, q.id), eq(schema.scheduledQuizzes.meetId, meetId)),
-        )
-    }
-  }
-
-  // ---- Replace seats for every editable quiz in payload ----
-  // Same delete-then-insert pattern as PATCH /quizzes/:id/seats. We
-  // skip completed quizzes; their seats are pinned with the row.
-  const editableQuizIds: number[] = []
-  for (const q of body.quizzes) {
-    const current = q.id > 0 ? currentQuizMap.get(q.id) : null
-    if (current?.completedAt) continue
-    const realId = q.id > 0 ? q.id : quizTempIdMap.get(q.id)!
-    editableQuizIds.push(realId)
-  }
-  if (editableQuizIds.length > 0) {
-    await db
-      .delete(schema.scheduledQuizSeats)
-      .where(inArray(schema.scheduledQuizSeats.quizId, editableQuizIds))
-  }
-  const seatRows: (typeof schema.scheduledQuizSeats.$inferInsert)[] = []
-  for (const q of body.quizzes) {
-    const current = q.id > 0 ? currentQuizMap.get(q.id) : null
-    if (current?.completedAt) continue
-    const realId = q.id > 0 ? q.id : quizTempIdMap.get(q.id)!
-    for (const seat of q.seats) {
-      seatRows.push({
-        quizId: realId,
-        seatNumber: seat.seatNumber,
-        letter: seat.letter ?? null,
-        seedRef: seat.seedRef ?? null,
-      })
-    }
-  }
-  if (seatRows.length > 0) {
-    // 4 cols per row — see inChunks in lib/db.ts.
-    await inChunks(seatRows, 4, async (chunk) => {
-      await db.insert(schema.scheduledQuizSeats).values(chunk)
-      return []
-    })
-  }
-
-  // ---- Prelim assignments (full-replace per division in payload) ----
-  for (const div of body.prelimAssignments) {
-    if (typeof div.division !== 'string' || !div.division.trim()) {
-      return c.json({ error: 'prelimAssignments.division required' }, 400)
-    }
-    if (!Array.isArray(div.mapping)) {
-      return c.json({ error: 'prelimAssignments.mapping array required' }, 400)
-    }
-    const seenLetters = new Set<string>()
-    const seenTeams = new Set<number>()
-    for (const entry of div.mapping) {
-      if (!entry.letter || typeof entry.teamId !== 'number') {
-        return c.json(
-          { error: `prelimAssignments[${div.division}] entries need letter + teamId` },
-          400,
-        )
-      }
-      if (seenLetters.has(entry.letter)) {
-        return c.json(
-          { error: `duplicate letter ${entry.letter} in division ${div.division}` },
-          400,
-        )
-      }
-      if (seenTeams.has(entry.teamId)) {
-        return c.json(
-          { error: `duplicate teamId ${entry.teamId} in division ${div.division}` },
-          400,
-        )
-      }
-      seenLetters.add(entry.letter)
-      seenTeams.add(entry.teamId)
-    }
-  }
-  const allMappings = body.prelimAssignments.flatMap((d) =>
-    d.mapping.map((m) => ({ division: d.division, teamId: m.teamId })),
-  )
-  if (allMappings.length > 0) {
-    const teamRows = await db
-      .select({ id: schema.teams.id, division: schema.teams.division })
-      .from(schema.teams)
-      .where(
-        and(
-          eq(schema.teams.meetId, meetId),
-          inArray(
-            schema.teams.id,
-            allMappings.map((m) => m.teamId),
+          and(
+            eq(schema.meetSchedules.meetId, meetId),
+            eq(schema.meetSchedules.draftRevision, draftRevision),
           ),
         ),
-      )
-    const teamDivMap = new Map(teamRows.map((t) => [t.id, t.division]))
-    for (const m of allMappings) {
-      const teamDiv = teamDivMap.get(m.teamId)
-      if (!teamDiv) {
-        return c.json({ error: `Team ${m.teamId} is not in this meet` }, 400)
-      }
-      if (teamDiv !== m.division) {
-        return c.json(
-          { error: `Team ${m.teamId} is in division ${teamDiv}, not ${m.division}` },
-          400,
-        )
-      }
-    }
-  }
-  const now = new Date()
-  for (const div of body.prelimAssignments) {
+      versionInsert(db, meetId, doc, { id: user.id, name: user.name }),
+    ])
+    version = (results[results.length - 1] as schema.MeetScheduleVersion[])[0]!
+  } catch (e) {
+    // Nothing was published, so the claimed revision goes back and the director's next save fits
     await db
-      .delete(schema.prelimAssignments)
+      .update(schema.meetSchedules)
+      .set({ draftRevision: row.draftRevision })
       .where(
         and(
-          eq(schema.prelimAssignments.meetId, meetId),
-          eq(schema.prelimAssignments.division, div.division),
+          eq(schema.meetSchedules.meetId, meetId),
+          eq(schema.meetSchedules.draftRevision, draftRevision),
         ),
       )
-    if (div.mapping.length > 0) {
-      // 5 cols per row — a division with ~20+ letters trips D1's
-      // 100-param cap even though the for-loop only inserts one
-      // division at a time.
-      await inChunks(div.mapping, 5, async (chunk) => {
-        await db.insert(schema.prelimAssignments).values(
-          chunk.map((m) => ({
-            meetId,
-            division: div.division,
-            letter: m.letter,
-            teamId: m.teamId,
-            assignedAt: now,
-          })),
-        )
-        return []
-      })
-    }
+    throw e
   }
-
-  // ---- Team lateness (per-team diff) ----
-  const currentTeamMap = new Map(currentTeams.map((t) => [t.id, t]))
-  for (const t of body.teamLateness) {
-    if (typeof t.teamId !== 'number' || typeof t.lateness !== 'boolean') {
-      return c.json({ error: 'teamLateness entries need teamId + lateness' }, 400)
-    }
-    const current = currentTeamMap.get(t.teamId)
-    if (!current) continue
-    if (current.lateness !== t.lateness) {
-      await db
-        .update(schema.teams)
-        .set({ lateness: t.lateness })
-        .where(eq(schema.teams.id, t.teamId))
-    }
-  }
-
-  // ---- Build response from post-commit state ----
-  const responseSlots = await db
-    .select()
-    .from(schema.meetSlots)
-    .where(eq(schema.meetSlots.meetId, meetId))
-    .orderBy(asc(schema.meetSlots.sortOrder), asc(schema.meetSlots.id))
-  const responseQuizzes = await db
-    .select()
-    .from(schema.scheduledQuizzes)
-    .where(eq(schema.scheduledQuizzes.meetId, meetId))
-  const responseSeats =
-    responseQuizzes.length === 0
-      ? []
-      : await db
-          .select()
-          .from(schema.scheduledQuizSeats)
-          .where(
-            inArray(
-              schema.scheduledQuizSeats.quizId,
-              responseQuizzes.map((q) => q.id),
-            ),
-          )
-  const seatsByQuiz = new Map<number, schema.ScheduledQuizSeat[]>()
-  for (const seat of responseSeats) {
-    const arr = seatsByQuiz.get(seat.quizId) ?? []
-    arr.push(seat)
-    seatsByQuiz.set(seat.quizId, arr)
-  }
-  const responsePrelim = await db
-    .select()
-    .from(schema.prelimAssignments)
-    .where(eq(schema.prelimAssignments.meetId, meetId))
-    .orderBy(schema.prelimAssignments.division, schema.prelimAssignments.letter)
-  const responseTeams = await db.select().from(schema.teams).where(eq(schema.teams.meetId, meetId))
-
   return c.json({
-    slots: responseSlots,
-    quizzes: responseQuizzes.map((q) => ({ ...q, seats: seatsByQuiz.get(q.id) ?? [] })),
-    prelimAssignments: responsePrelim,
-    teams: responseTeams,
+    version: version.version,
+    publishedAt: version.publishedAt,
+    draftRevision,
+    draftSavedAt,
+    rooms: doc.rooms,
+    unusedRooms,
   })
 })
+
+schedule.get('/:id/schedule/versions', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const rows = await getDb(c)
+    .select({
+      version: schema.meetScheduleVersions.version,
+      publishedAt: schema.meetScheduleVersions.publishedAt,
+      publishedBy: schema.meetScheduleVersions.publishedByName,
+    })
+    .from(schema.meetScheduleVersions)
+    .where(eq(schema.meetScheduleVersions.meetId, meetId))
+    .orderBy(desc(schema.meetScheduleVersions.version))
+  return c.json(rows)
+})
+
+async function versionRow(db: Db, meetId: number, version: number) {
+  const [row] = await db
+    .select()
+    .from(schema.meetScheduleVersions)
+    .where(
+      and(
+        eq(schema.meetScheduleVersions.meetId, meetId),
+        eq(schema.meetScheduleVersions.version, version),
+      ),
+    )
+  return row ?? null
+}
+
+schedule.get('/:id/schedule/versions/:version', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const row = await versionRow(getDb(c), meetId, Number(c.req.param('version')))
+  if (!row) return c.json({ error: 'No such version' }, 404)
+  return c.json({
+    version: row.version,
+    publishedAt: row.publishedAt,
+    publishedBy: row.publishedByName,
+    document: JSON.parse(row.document),
+  })
+})
+
+schedule.post('/:id/schedule/versions/:version/restore', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  const row = await versionRow(getDb(c), meetId, Number(c.req.param('version')))
+  if (!row) return c.json({ error: 'No such version' }, 404)
+  const body = await jsonBody<{ baseRevision?: unknown }>(c)
+  if (!body) return c.json({ error: 'Expected a JSON body' }, 400)
+  // An old version can name a team the meet has since lost, which a draft may not hold
+  const doc = await withoutForeignTeams(
+    getDb(c),
+    meetId,
+    JSON.parse(row.document) as ScheduleDocument,
+  )
+  // Restoring replaces the draft by choice, whichever draft it was; the draft it saved comes back,
+  // so the page opens what the server holds
+  const saved = await saveDraft(c, meetId, doc, body.baseRevision, true)
+  if (saved.status !== 200) return saved
+  return c.json({ ...((await saved.json()) as object), document: doc })
+})
+
+/** Unlink (FR-048): the draft goes; published versions stay as the record of what was out */
+schedule.delete('/:id/schedule', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireAdmin(c, meetId)
+  if (denied) return denied
+
+  await getDb(c).delete(schema.meetSchedules).where(eq(schema.meetSchedules.meetId, meetId))
+  return c.json({ ok: true })
+})
+
+/**
+ * The published schedule, open to a guest token for the meet as well as an account
+ * (contracts/api.md). Its own router, with middleware scoped to its path like `results`, so it
+ * can mount ahead of the account-only routers.
+ */
+export const publishedSchedule = new Hono<Env>()
+publishedSchedule.use('/:id/schedule/published', requireAuthOrGuest())
+publishedSchedule.use('/:id/schedule/published', async (c, next) => {
+  if (!c.get('db')) c.set('db', createDb(c.env.DB) as unknown as Db)
+  await next()
+})
+
+/**
+ * GET /api/meets/:id/schedule/published: the newest version for anyone with access to the meet.
+ * Letters while the meet is in registration or build, with the draw's teams removed; team names,
+ * read from the meet, from live on (FR-052). Admins see teams and may ask for either.
+ */
+publishedSchedule.get('/:id/schedule/published', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+  const denied = await requireViewer(c, meetId)
+  if (denied) return denied
+  const db = getDb(c)
+
+  const [row, view, [meet]] = await Promise.all([
+    newestVersion(db, meetId),
+    readerView(c, db, meetId),
+    db
+      .select({ name: schema.quizMeets.name })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, meetId)),
+  ])
+  let doc: ScheduleDocument
+  let publishedAt: Date
+  if (row) {
+    doc = JSON.parse(row.document) as ScheduleDocument
+    publishedAt = row.publishedAt
+  } else {
+    // A meet still on the old tables, until an admin opens it in the builder: its schedule, read
+    // as the conversion would, in the reader's time zone, and stored by nobody
+    const legacy = await loadLegacy(db, meetId)
+    if (!legacy) return c.json({ error: 'Nothing is published yet' }, 404)
+    doc = documentFromLegacy(legacy, c.req.query('timeZone') || 'UTC')
+    publishedAt = new Date()
+  }
+
+  if (view === 'letters') {
+    for (const draw of Object.values(doc.draw)) {
+      // Letters only, in letter order: names, team ids, and late or absent marks a reader could
+      // match to a known team would all give the draw away
+      draw.teams = draw.teams
+        .map((t) => ({ letter: t.letter, late: false, absent: false }))
+        .sort((x, y) => indexOfLetter(x.letter ?? '') - indexOfLetter(y.letter ?? ''))
+    }
+  } else {
+    const names = await teamNames(db, meetId)
+    for (const draw of Object.values(doc.draw)) {
+      for (const t of draw.teams) {
+        const name = t.teamId === undefined ? undefined : names.get(t.teamId)
+        if (name) t.name = name
+      }
+    }
+  }
+  return c.json({ document: doc, publishedAt, view, meetName: meet?.name ?? doc.name })
+})
+
+/** Each team's name as the portal shows it */
+async function teamNames(db: Db, meetId: number) {
+  const rows = await db
+    .select({
+      id: schema.teams.id,
+      shortName: schema.churches.shortName,
+      number: schema.teams.number,
+    })
+    .from(schema.teams)
+    .innerJoin(schema.churches, eq(schema.churches.id, schema.teams.churchId))
+    .where(eq(schema.teams.meetId, meetId))
+  return new Map(rows.map((r) => [r.id, teamDisplayName(r)]))
+}

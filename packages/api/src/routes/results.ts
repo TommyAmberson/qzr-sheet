@@ -4,6 +4,7 @@ import { alias } from 'drizzle-orm/sqlite-core'
 import {
   NewerFileVersionError,
   foldName,
+  resultKey,
   isQuizFile,
   parseQuizFile,
   quizName,
@@ -22,6 +23,7 @@ import {
   officialRoomsOf,
 } from '../lib/permissions'
 import * as schema from '../db/schema'
+import { jsonBody, meetIdOf } from '../lib/request'
 
 interface ResultsVariables extends SessionVariables {
   db: Db
@@ -42,21 +44,6 @@ for (const path of ['/:id/results', '/:id/results/*', '/:id/team-names']) {
     if (!c.get('db')) c.set('db', createDb(c.env.DB) as unknown as Db)
     await next()
   })
-}
-
-/** The meet id in the path, or null when it isn't one */
-function meetIdOf(c: Context<Env>): number | null {
-  const id = Number(c.req.param('id'))
-  return Number.isInteger(id) ? id : null
-}
-
-/** The request body, or null when it isn't JSON */
-async function jsonBody<T>(c: Context<Env>): Promise<T | null> {
-  try {
-    return await c.req.json<T>()
-  } catch {
-    return null
-  }
 }
 
 /** Who saved a revision, in the revision's own columns */
@@ -308,13 +295,9 @@ async function addRevisions(
   }
 }
 
-/** The name folded for case and spaces: the identity of a quiz not tied to the schedule */
+/** The name folded for case and spaces: the identity of a quiz, which a schedule quiz shares */
 function quizKey(file: QuizFile): string {
-  return [
-    foldName(file.quiz.division),
-    file.quiz.consolation ? 'c' : '',
-    foldName(file.quiz.quizNumber),
-  ].join('|')
+  return resultKey(file.quiz)
 }
 
 /** The 409 for a name the meet already has, with its current revision so the caller can decide */

@@ -426,6 +426,41 @@ export const quizResultCountChanges = sqliteTable(
   (t) => [index('quiz_result_count_changes_result_id_idx').on(t.resultId)],
 )
 
+// A meet's linked schedule: the draft the builder saves, one per meet (research R5)
+export const meetSchedules = sqliteTable('meet_schedules', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  meetId: integer('meet_id')
+    .notNull()
+    .unique()
+    .references(() => quizMeets.id, { onDelete: 'cascade' }),
+  // The schedule document, JSON, validated before storing
+  draft: text('draft').notNull(),
+  // Increments on every save; a save names the revision it read, so a stale one is refused
+  draftRevision: integer('draft_revision').notNull(),
+  draftSavedAt: integer('draft_saved_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+// Append-only: one row per publish, never updated or deleted while the meet exists, unlinking
+// included. The newest is the published schedule.
+export const meetScheduleVersions = sqliteTable(
+  'meet_schedule_versions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    document: text('document').notNull(),
+    publishedAt: integer('published_at', { mode: 'timestamp_ms' }).notNull(),
+    publishedByAccountId: text('published_by_account_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    // Who published it, as named at the time, so the history survives a deleted account
+    publishedByName: text('published_by_name').notNull(),
+  },
+  (t) => [unique().on(t.meetId, t.version)],
+)
+
 // ---- Inferred types ----
 
 export type User = typeof user.$inferSelect
@@ -448,6 +483,8 @@ export type PrelimAssignment = typeof prelimAssignments.$inferSelect
 export type SeedResolution = typeof seedResolutions.$inferSelect
 export type QuizResult = typeof quizResults.$inferSelect
 export type QuizResultRevision = typeof quizResultRevisions.$inferSelect
+export type MeetSchedule = typeof meetSchedules.$inferSelect
+export type MeetScheduleVersion = typeof meetScheduleVersions.$inferSelect
 
 // Optional, per meet and division (Story 6): the team names the meet's scoresheets offer.
 // Independent of churches and the teams table, for meets that have neither.

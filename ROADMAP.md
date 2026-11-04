@@ -29,6 +29,17 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
      #14, #41
    * [#16 Schedule result linkage](https://github.com/TommyAmberson/qzr-sheet/issues/16) — blocked
      by #7, #12, #42
+
+   The builder itself has shipped (specs/005-schedule-redesign): generation from team counts with
+   pins, the draw, elim lanes, and linked publishing with versions. Follow-ups:
+   * [#134 Name and letter schedule lanes as meets do](https://github.com/TommyAmberson/qzr-sheet/issues/134)
+   * [#135 Build one-day meets in the schedule builder](https://github.com/TommyAmberson/qzr-sheet/issues/135)
+   * [#136 Let a team play back to back when it saves a round](https://github.com/TommyAmberson/qzr-sheet/issues/136)
+   * [#137 Choose where consolation Finals run](https://github.com/TommyAmberson/qzr-sheet/issues/137)
+   * [#138 Smaller schedule builder options](https://github.com/TommyAmberson/qzr-sheet/issues/138)
+   * [#139 Phone layout and light theme for the schedule builder](https://github.com/TommyAmberson/qzr-sheet/issues/139)
+   * [#141 Record a quiz's lane in the quiz file and results](https://github.com/TommyAmberson/qzr-sheet/issues/141)
+   * [#142 Remove the old schedule tables and routes](https://github.com/TommyAmberson/qzr-sheet/issues/142)
 3. [#6 Load teams from schedule](https://github.com/TommyAmberson/qzr-sheet/issues/6) — blocked by
    #12
 4. [#8 Stats calculator](https://github.com/TommyAmberson/qzr-sheet/issues/8) — blocked by #7
@@ -49,3 +60,5 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
 * [#114 Two-team 15-question tie-breaker quiz](https://github.com/TommyAmberson/qzr-sheet/issues/114)
 * Cloudflare Turnstile on the sign-up and reset forms, so scripted requests can't use up an
   address's email allowance (also for verse-vault)
+* [#140 Add tooltips to every control](https://github.com/TommyAmberson/qzr-sheet/issues/140)
+* [#143 Investigate two-team (1v1) quizzes](https://github.com/TommyAmberson/qzr-sheet/issues/143)

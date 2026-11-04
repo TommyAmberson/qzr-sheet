@@ -1,34 +1,63 @@
 <script setup lang="ts">
-import { onMounted, toRef } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
+import { ApiError, type ScheduleDocument, type SheetView } from '@qzr/shared'
+import { ScheduleSheet } from '@qzr/ui'
 
-import ReviewSection from '../components/schedule/ReviewSection.vue'
-import { useScheduleData } from '../composables/useScheduleData'
+import { getMeet, getMyMeets, getPublishedSchedule, type QuizMeet } from '../api'
+import { useAuth } from '../composables/useAuth'
+import { isAdminOrSuperuser } from '../meetAccess'
 
+/**
+ * A meet's published schedule (FR-050): letters or team names as the API says for the meet's phase
+ * (FR-052), each quiz linking to the scoresheet.
+ */
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
 
 declare const __SCORESHEET_URL__: string
 
-const {
-  rooms,
-  slots,
-  quizzes,
-  teams,
-  prelimAssignments,
-  loading,
-  error,
-  meet,
-  divisions,
-  isAdmin,
-  load,
-} = useScheduleData(toRef(props, 'slug'))
+const { session } = useAuth()
 
-/** Build the scoresheet URL for a given quiz cell. Vite injects the
- *  scoresheet's base URL, with a trailing slash, as __SCORESHEET_URL__. */
-function scoresheetHref(quizId: number): string {
+const meet = ref<QuizMeet | null>(null)
+const isAdmin = ref(false)
+const doc = shallowRef<ScheduleDocument | null>(null)
+const view = ref<SheetView>('letters')
+const loading = ref(true)
+const error = ref('')
+const unpublished = ref(false)
+
+const divisions = computed(
+  () => doc.value?.settings.divisions.length ?? meet.value?.divisions.length ?? 0,
+)
+
+/** The scoresheet opens a schedule quiz by the meet and the quiz's id in the schedule */
+function scoresheetHref(quizId: string): string {
   if (!meet.value) return '#'
-  return `${__SCORESHEET_URL__}?meetId=${meet.value.id}&quiz=${quizId}`
+  return `${__SCORESHEET_URL__}?meetId=${meet.value.id}&quiz=${encodeURIComponent(quizId)}`
+}
+
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    const [detail, mine] = await Promise.all([getMeet(props.slug), getMyMeets()])
+    meet.value = detail.meet
+    const accountRole = (session.value?.data?.user as { role?: string } | undefined)?.role
+    isAdmin.value = isAdminOrSuperuser(mine.memberships, detail.meet.id, accountRole)
+    try {
+      const published = await getPublishedSchedule(detail.meet.id)
+      doc.value = published.document
+      view.value = published.view
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 404)) throw e
+      unpublished.value = true
+    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)
@@ -46,10 +75,10 @@ onMounted(load)
     <template v-else-if="meet">
       <div class="page-header">
         <div class="meet-info">
-          <h2 class="page-title">Schedule — {{ meet.name }}</h2>
+          <h2 class="page-title">Schedule: {{ meet.name }}</h2>
           <span class="meet-meta">
             {{ meet.dateFrom }}{{ meet.dateTo ? ` – ${meet.dateTo}` : '' }} ·
-            {{ divisions.length }} divisions
+            {{ divisions }} divisions
           </span>
         </div>
         <button
@@ -62,14 +91,12 @@ onMounted(load)
         </button>
       </div>
 
-      <ReviewSection
-        :rooms="rooms"
-        :slots="slots"
-        :quizzes="quizzes"
-        :prelim-assignments="prelimAssignments"
-        :meet-teams="teams"
-        :scoresheet-href="scoresheetHref"
-      />
+      <p v-if="unpublished" class="state-msg">The schedule hasn't been published yet.</p>
+      <ScheduleSheet v-else-if="doc" class="published" :doc="doc" :view="view">
+        <template #quiz-title="{ quiz }">
+          <a class="quiz-title" :href="scoresheetHref(quiz.id)">{{ quiz.label }}</a>
+        </template>
+      </ScheduleSheet>
     </template>
   </div>
 </template>

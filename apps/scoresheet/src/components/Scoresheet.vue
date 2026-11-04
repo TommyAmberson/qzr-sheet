@@ -55,7 +55,6 @@ import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
 import { renewedSenderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
 import { useTeamNames } from '../composables/useTeamNames'
 import { useTutorial } from '../composables/useTutorial'
-import { quizNumberFromScheduledQuiz, consolationFromScheduledQuiz } from '../quizMeta'
 import MeetPickerDialog from './MeetPickerDialog.vue'
 import SchedulePickerDialog from './SchedulePickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
@@ -143,7 +142,7 @@ function hasNonDefaultNames(): boolean {
  *  then per seat decides what to do via `computeSeatChange`, and
  *  commits all slot updates in one atomic write. Returns true on
  *  success so the picker dialog can decide whether to close. */
-async function loadScheduledQuiz(meetId: number, quizId: number): Promise<boolean> {
+async function loadScheduledQuiz(meetId: number, quizId: string): Promise<boolean> {
   if (hasNonDefaultNames()) {
     if (!(await confirmAction('Loading this quiz will overwrite your current names. Continue?'))) {
       return false
@@ -157,8 +156,8 @@ async function loadScheduledQuiz(meetId: number, quizId: number): Promise<boolea
     return false
   }
   quiz.value.division = details.quiz.division
-  quiz.value.quizNumber = quizNumberFromScheduledQuiz(details.quiz)
-  quiz.value.consolation = consolationFromScheduledQuiz(details.quiz)
+  quiz.value.quizNumber = details.quiz.quizNumber
+  quiz.value.consolation = details.quiz.consolation
 
   const slots = [0, 1, 2].map((i) => meetSession.getSlot(i))
   const storeMirrors: (() => void)[] = []
@@ -248,10 +247,10 @@ async function loadFromUrlParams() {
   const params = new URLSearchParams(window.location.search)
   // Portal links name the meet in `meetId`; links shared before that used `meet`
   const meetId = Number(params.get('meetId') ?? params.get('meet'))
-  const quizId = Number(params.get('quiz'))
+  const quizId = params.get('quiz') ?? ''
   const resultId = Number(params.get('result'))
   const revision = Number(params.get('revision'))
-  const scheduled = quizId > 0 && Number.isInteger(quizId)
+  const scheduled = quizId !== ''
   const stored =
     resultId > 0 && Number.isInteger(resultId) && revision > 0 && Number.isInteger(revision)
   if (!(meetId > 0 && Number.isInteger(meetId)) || !(scheduled || stored)) return

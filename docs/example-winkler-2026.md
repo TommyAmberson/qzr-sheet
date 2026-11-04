@@ -120,9 +120,12 @@ The Winkler spreadsheet only ships 4–8 team lookups inline. The lookup functio
 TeamDraw column J) would let any larger field plug in if the table were filled in; the spreadsheet's
 authors composed the A-div 36-team prelims by hand instead.
 
-**For qzr**: ship `drawPrelims(teamCount)` with all 4–21 lookups baked in from day one (it's pure
-data; no judgment calls). The composition utility lives in
-`packages/shared/scheduling/prelimDraw.ts`. See `docs/scheduling.md` §5.1.
+CMQ's draw spreadsheet goes further: its tables cover every field from 4 to 90 teams, so no
+division's prelims are composed by hand.
+
+**For qzr**: `drawPrelims` in `packages/shared/src/schedule/prelimDraw.ts` offers two draw sources
+per division: the rule book's 4–21 team tables, and a rotating draw for any field up to 90 teams
+with no rematches from 7 teams up. See `docs/scheduling.md` §5.
 
 ## 5. The schedule structure
 
@@ -269,7 +272,10 @@ example:
 
 ## 8. Patterns that motivate new design work
 
-These are gaps in the current design exposed by the spreadsheet:
+These were gaps in the design when this example was written. The schedule redesign
+(`specs/005-schedule-redesign/`) answers 1 to 4 and 6: late marks drive the draw, brackets come from
+a library, intermediates take any size and rank range, a division's elims are lanes, and the grid
+scrolls with the time column fixed. Deciding quizzes can be called Finals.
 
 1. **Lateness bias in Roll Teams** — see §3.2. Add per-team `expectedLate: boolean` to
    `prelim_assignments` input; bias the permutation so late teams sort to higher letters.
@@ -291,7 +297,10 @@ These are gaps in the current design exposed by the spreadsheet:
 
 ## 9. What qzr would deliver in place of this spreadsheet
 
-If a meet director used qzr for Winkler 2026 instead of the .ods, here's the rough flow:
+If a meet director used qzr for Winkler 2026 instead of the .ods, here's the rough flow as first
+sketched. The builder that shipped generates the whole layout from team counts and holds the draw,
+late marks and elims in its schedule document (see `docs/scheduling.md` §5 and §9), so the "Roll
+Teams", `autoSlot` and `drawElims` steps below became the builder's Draw and generation.
 
 | Stage                  | Spreadsheet today                                                | qzr equivalent                                                                 |
 | ---------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |

@@ -92,6 +92,21 @@ the URL, then auto-fetches and pre-populates.
 | Portal → click quiz         | Opens `/qzr/scoresheet/?quiz=abc`, session already established |
 | Scoresheet → sign in → load | OAuth flow, pick from list in a modal, same end state          |
 
+The portal's schedule page links each quiz as `?meetId=<meet>&quiz=<quiz id>`, the quiz's id in the
+published schedule document.
+
+### Schedule builder
+
+The schedule builder is a portal page (`apps/web/src/views/BuilderView.vue`), at `/builder` for
+schedules kept in the browser with no account, and on a meet's schedule edit page
+(`LinkedBuilderView.vue`) for its linked schedule. It edits one schedule document through
+`useScheduleBuilder`, whose every change is a whole-document snapshot for undo and redo; the
+document is kept in `localStorage` on each change, saved to and opened from `.qzrschedule.json`
+files, and, when linked, sent to the API as the meet's draft and published as numbered versions. The
+logic it runs is pure and lives in `packages/shared/src/schedule/`; the grid it draws is
+`ScheduleSheet` in `packages/ui`, which the portal's schedule page and the scoresheet's picker draw
+too.
+
 ## Shared Package (`packages/shared`)
 
 Contract package consumed by both frontend apps and the API (see "Contract package versioning" in
@@ -102,6 +117,9 @@ Contract package consumed by both frontend apps and the API (see "Contract packa
 * Role enums (`AccountRole`, `MeetRole`) and meet phase / division state constants
 * `createApiClient` + `ApiError`, the fetch wrapper both apps construct with their own base URL
 * `createAppAuthClient`, the Better Auth client factory returning `{ authClient, useAuth }`
+* `schedule/`: the schedule document and its codec, the conflict check, the prelim draw tables and
+  rotating draw, the frame, placement and Sort, elim shapes and the bracket library, re-flow around
+  pins, the team draw, and the views the grid and printouts are drawn from
 
 ---
 
@@ -230,8 +248,8 @@ placement. `openedFromNewerFile` marks a quiz opened through the try-anyway path
 
 ### `useHistory.ts`
 
-Generic command stack (undo/redo). Capped at 100 entries by default. `setCell` and `toggleNoJump` in
-`useScoresheet` push commands here.
+Generic command stack (undo/redo), in `packages/ui` so the schedule builder uses it too. Capped at
+100 entries by default. `setCell` and `toggleNoJump` in `useScoresheet` push commands here.
 
 ### `useCellSelector.ts`
 

@@ -223,18 +223,12 @@ describe('useMeetSession — loadFromQuiz', () => {
   ): ScheduledQuizDetails {
     return {
       quiz: {
-        id: 777,
-        meetId: 42,
+        id: '777',
         meetName: 'District Finals',
-        slotId: 1,
-        roomId: 1,
+        label: 'Div 1 Quiz 1',
         division: '1',
-        phase: 'prelim',
-        lane: null,
-        label: 'D1-Q1',
-        bracketLabel: null,
-        slotStartAt: '2026-01-01T20:00:00.000Z',
-        roomName: 'Room A',
+        consolation: false,
+        quizNumber: '1',
         ...overrides,
       },
       seats,
@@ -249,9 +243,9 @@ describe('useMeetSession — loadFromQuiz', () => {
       ]),
     )
     const { loadFromQuiz, getSlot, quizId } = useMeetSession()
-    const result = await loadFromQuiz(42, 777)
+    const result = await loadFromQuiz(42, '777')
 
-    expect(result.quiz.id).toBe(777)
+    expect(result.quiz.id).toBe('777')
     expect(quizId.value).toBeNull()
     expect(getSlot(0)).toBeUndefined()
   })
@@ -261,7 +255,7 @@ describe('useMeetSession — loadFromQuiz', () => {
     const { loadMeet, loadFromQuiz } = useMeetSession()
     await loadMeet(42, 'Finals')
     vi.mocked(getMeetTeams).mockClear()
-    await loadFromQuiz(42, 777)
+    await loadFromQuiz(42, '777')
     expect(getMeetTeams).not.toHaveBeenCalled()
   })
 })
@@ -324,13 +318,13 @@ describe('useMeetSession — buildSlotFromSeat + applyLoadedQuiz', () => {
     }
     const slot = buildSlotFromSeat(seat, emptyNames)!
     const writesBefore = localStorageWriteCount()
-    applyLoadedQuiz([slot, undefined, undefined], 555)
+    applyLoadedQuiz([slot, undefined, undefined], '555')
     const writesAfter = localStorageWriteCount()
 
     expect(writesAfter - writesBefore).toBe(1)
     expect(getSlot(0)?.teamId).toBe(teamA.id)
     expect(getSlot(1)).toBeUndefined()
-    expect(quizId.value).toBe(555)
+    expect(quizId.value).toBe('555')
   })
 })
 

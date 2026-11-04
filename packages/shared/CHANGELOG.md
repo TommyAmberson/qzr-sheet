@@ -23,6 +23,73 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-04
+
+### Added
+
+* `schedule/`: the schedule builder's pure logic, starting with the rule book's prelim draw tables
+  for 4 to 21 teams (`PRELIM_DRAW_PATTERNS`, `getPrelimDraw`), moved here from the portal so the
+  builder, the API and the readers share them.
+* The schedule document (`ScheduleDocumentSchema`, `SCHEDULE_FILE_VERSION` 1) and its file codec
+  (`serializeSchedule`, `parseScheduleFile`, `NewerScheduleFileError`, `newScheduleDocument`):
+  settings, frame rows, rooms, quizzes with their seats and pins, and the draw, in one versioned
+  JSON document. When linked to a meet it names the meet, its time zone, and each room's meet room.
+* The schedule conflict check (`checkSchedule`): every hard rule and warning of
+  `docs/schedule-invariants.md` that a schedule breaks, by rule ID with the quizzes involved and a
+  reason; `resultName`, the name a schedule quiz's results are saved under (W-5); and
+  `scheduleQuizMeta`, the scoresheet's division, consolation flag and quiz number that make it.
+* Name helpers: `ordinal`, `quizNumber` (a quiz's own name, its label's last word) and
+  `teamDisplayName` (`Grace 2`), and the `PublishedSchedule` response type.
+* `DIVISION_COLOURS` and `divisionColour`: a division's colour, chosen from a named palette or taken
+  by its place.
+* `replaceElims`: divisions' elims placed again where the generator would, around everything else.
+* `recommendedRooms`: the fewest rooms, at least 3, that fit a schedule's prelims.
+* `lateCounts`, `lateLetters` and the `lateTeams` setting: whether late marks count at all, off by
+  default, and a division's late letters when they do.
+* `cellMoves`, how many quizzes a change moves, and `lineRanges`, the ranks each line's intermediate
+  plays.
+* `WEEKDAYS`: the day names day rows use, shared by the builder and the old-table conversion.
+* `laneName`: the name a lane's quizzes go by (`Div 2C`), for renaming a quiz by hand.
+* `resultKey`: the key a meet stores a quiz's results under, which `resultName` now returns too.
+* `elimsForCount` and `setTeamCount`: a division's elims for a new team count, keeping elims the
+  director changed with the last lane taking the difference, and the one way to change a count.
+* Events in the schedule document (`ScheduleEvent`), each in a slot over any rooms or all of them,
+  and `eventCells`, the cells they take, with `eventRooms`.
+* `drawPrelims`: a division's prelim quizzes as letters from either draw source, the rule book's
+  tables for 4 to 21 teams or the rotating draw (no rematches from 7 teams up, any size to 90 and
+  beyond), with 6 quizzes per team as two rounds that avoid repeating pairings.
+* `buildFrame` and `defaultRoomCount`: the Weekend and One day frame presets, with their events, and
+  as many slots as a schedule needs, and the fewest rooms (at least 3) that fit its prelims.
+* `placePrelims`: where each prelim quiz goes. Each division takes a block of adjacent rooms in
+  division order, sized by its share of the quizzes, packed from its first slot with no team twice
+  in a slot; a division that doesn't fit borrows only as many of other rooms' latest free cells as
+  it needs, and what fits nowhere is left unplaced with the reason.
+* `defaultElims` and `buildElimQuizzes`: a division's elims by its size, as the org's meets ran them
+  (lanes stacked down the ranks, a rerank XY across the line below the main lane), built from the
+  bracket library for 5 to 12 and 14 teams, with consolation letters continuing the main lane's and
+  each lane's deciding quiz called a Finals or named as its next letter.
+* Elim settings in full: intermediates of one to four quizzes (X, XY, XYZ, WXYZ), reranking or
+  play-in, on any line between lanes, with a window that slides (`defaultAbove`); round-robin lanes
+  of 1 to 3 quizzes each with an optional Finals on points; the 10, 11 and 14-team brackets and the
+  rule book's Brackets A to C, chosen per lane; lane labels of their own and lettering that
+  restarts; and placeholder quizzes for a lane size with no bracket.
+* `generateSchedule`: a whole schedule from its settings: frame, rooms, prelims, each division's
+  stats break, elims in its own rooms with time to total an intermediate, and Finals one at a time
+  in Room 1, highest division first, each consolation's just before its division's.
+* `reflowSchedule`, `unappliedSettings` and `applyMoves`: re-flow a schedule to its settings around
+  every pinned quiz, which keeps its cell, label and seats; list the settings the grid wasn't built
+  with, with their applied values; and count what Apply would move. Generated slots and events carry
+  ids by what they are for, so a pinned quiz keeps its slot when the frame is rebuilt, and frame
+  rows can be pinned too.
+* `sheetRows`, `seatText`, `roomDivisions` and `formatClock`: a schedule laid out as the printed
+  sheet, each seat's text in letters or drawn teams, and the divisions using each room.
+* `drawDivision` and `clearDraw`: a division's draw, every team one letter, late teams given letters
+  that share quizzes and start as late as can be, the rest at random; the schedule never changes.
+* `sortPrelims`: prelims placed again with drawn late teams' quizzes in the latest cells, in any
+  room; across rooms, each division keeps a block of adjacent rooms whose edge moves at most once,
+  so no room switches division and back. Pinned quizzes stay unless included.
+* `basicRows`: the basic schedule, each run of quiz slots collapsed into one "Quizzing" row.
+
 ## [1.6.0] - 2026-10-31
 
 ### Added

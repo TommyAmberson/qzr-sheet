@@ -2,6 +2,7 @@ export { default as SignInForm } from './SignInForm.vue'
 export { default as ChoiceDialog } from './ChoiceDialog.vue'
 export { default as RoomCodeDialog } from './RoomCodeDialog.vue'
 export { default as GuestNotice } from './GuestNotice.vue'
+export { useHistory } from './useHistory'
 export { askAlreadySubmitted, chooseRoom, existingQuizOf, uploadPicked } from './sendQuizzes'
 export type { ExistingQuiz, FileReport, OnExisting, Sender, Stored } from './sendQuizzes'
 export {
@@ -28,27 +29,8 @@ export type {
   RoomCodeOptions,
   RoomCodeRequest,
 } from './guestSession'
-export { default as ScheduleGrid } from './ScheduleGrid.vue'
-export {
-  STATS_BREAK_LABEL,
-  buildGrid,
-  bySortOrder,
-  formatSlotTime,
-  groupRowsByDay,
-  hasAnyQuiz,
-  isStatsBreak,
-  seatRef,
-  seatTeam,
-  sortedSeats,
-} from './scheduleGrid'
-export type {
-  DayGroup,
-  Grid,
-  GridRow,
-  MeetTeamRow,
-  PrelimAssignmentRow,
-  ScheduleRoom,
-  ScheduleSlot,
-  ScheduledQuiz,
-  ScheduledSeat,
-} from './scheduleGrid'
+export { default as ScheduleSheet } from './ScheduleSheet.vue'
+export { default as ScheduleSeat } from './ScheduleSeat.vue'
+export { divisionColourVar } from './divisionColour'
+export { browserTimeZone, formatSlotTime, formatWhen } from './formatTime'
+export { default as ScheduleBasic } from './ScheduleBasic.vue'

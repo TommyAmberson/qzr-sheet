@@ -1,5 +1,5 @@
 import { ref, computed, shallowRef, watch } from 'vue'
-import { useHistory } from './useHistory'
+import { useHistory } from '@qzr/ui'
 import {
   readOpenedFromNewerFile,
   writeOpenedFromNewerFile,

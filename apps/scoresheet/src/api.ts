@@ -1,5 +1,15 @@
-import { createApiClient, type DivisionTeamNames, type QuizFile } from '@qzr/shared'
 import {
+  createApiClient,
+  scheduleQuizMeta,
+  seatText,
+  type DivisionTeamNames,
+  type PublishedSchedule,
+  type QuizFile,
+} from '@qzr/shared'
+
+export type { PublishedSchedule }
+import {
+  browserTimeZone,
   withGuestToken,
   type GuestJoinAnswer,
   type OnExisting,
@@ -95,24 +105,21 @@ export function getTeamQuizzers(
   return request(`/api/teams/${teamId}/quizzers`, undefined, meetId)
 }
 
+/** A schedule quiz as the scoresheet loads it: the fields that name its results (research R10) */
 export interface ScheduledQuizSummary {
-  id: number
-  meetId: number
+  id: string
+  /** The meet's name, shown when the scoresheet wasn't on this meet yet */
   meetName: string
-  slotId: number
-  roomId: number
-  division: string
-  phase: 'prelim' | 'elim'
-  lane: 'main' | 'consolation' | 'intermediate' | null
   label: string
-  bracketLabel: string | null
-  slotStartAt: string
-  roomName: string
+  division: string
+  consolation: boolean
+  quizNumber: string
 }
 
 export interface ScheduledQuizSeat {
   seatNumber: number
   letter: string | null
+  /** A seat that isn't a prelim letter, as the schedule shows it: `1 of X`, `2nd in pts` */
   seedRef: string | null
   team: MeetTeam | null
   quizzers: MeetTeamQuizzer[]
@@ -123,77 +130,47 @@ export interface ScheduledQuizDetails {
   seats: ScheduledQuizSeat[]
 }
 
-export function getScheduledQuiz(meetId: number, quizId: number): Promise<ScheduledQuizDetails> {
-  return request(`/api/meets/${meetId}/quizzes/${quizId}/teams`)
+/** The meet's newest published schedule; a 404 `ApiError` when nothing is published */
+export function getPublishedSchedule(meetId: number): Promise<PublishedSchedule> {
+  // The time zone places a schedule still in the old tables on the meet's days
+  const timeZone = encodeURIComponent(browserTimeZone())
+  return request(`/api/meets/${meetId}/schedule/published?timeZone=${timeZone}`)
 }
 
-// ---- Picker bulk reads (used by SchedulePickerDialog) ----
-
-export interface MeetRoomSummary {
-  id: number
-  name: string
-  sortOrder: number
-  hasCode: boolean
-}
-
-export interface MeetSlotSummary {
-  id: number
-  meetId: number
-  startAt: string
-  durationMinutes: number
-  kind: 'quiz' | 'event'
-  eventLabel: string | null
-  sortOrder: number
-}
-
-export interface ScheduledQuizSummaryRow {
-  id: number
-  meetId: number
-  slotId: number
-  roomId: number
-  division: string
-  phase: 'prelim' | 'elim'
-  lane: 'main' | 'consolation' | 'intermediate' | null
-  label: string
-  bracketLabel: string | null
-  publishedAt: string | null
-  completedAt: string | null
-  seats: Array<{
-    id: number
-    quizId: number
-    seatNumber: number
-    letter: string | null
-    seedRef: string | null
-  }>
-}
-
-export interface PrelimAssignmentRow {
-  id: number
-  meetId: number
-  division: string
-  letter: string
-  teamId: number
-  assignedAt: string | number
-}
-
-export function listMeetRooms(meetId: number): Promise<{ rooms: MeetRoomSummary[] }> {
-  return request(`/api/meets/${meetId}/rooms`)
-}
-
-export function listMeetSlots(meetId: number): Promise<{ slots: MeetSlotSummary[] }> {
-  return request(`/api/meets/${meetId}/slots`)
-}
-
-export function listScheduledQuizzes(
+/**
+ * One quiz of the published schedule with its seats resolved: a prelim letter to the team the draw
+ * gave it, when the schedule shows teams, with that team's roster. Other seats have no team until
+ * the elims are filled in.
+ */
+export async function getScheduledQuiz(
   meetId: number,
-): Promise<{ quizzes: ScheduledQuizSummaryRow[] }> {
-  return request(`/api/meets/${meetId}/quizzes`)
-}
-
-export function listPrelimAssignments(
-  meetId: number,
-): Promise<{ assignments: PrelimAssignmentRow[] }> {
-  return request(`/api/meets/${meetId}/prelim-assignments`)
+  quizId: string,
+): Promise<ScheduledQuizDetails> {
+  const [{ document, meetName }, { teams }] = await Promise.all([
+    getPublishedSchedule(meetId),
+    getMeetTeams(meetId),
+  ])
+  const quiz = document.quizzes.find((q) => q.id === quizId)
+  if (!quiz) throw new Error("This quiz isn't in the meet's published schedule")
+  const draw = document.draw[quiz.division]?.teams ?? []
+  const seats = await Promise.all(
+    quiz.seats.map(async (seat, i): Promise<ScheduledQuizSeat> => {
+      const teamId =
+        seat.kind === 'letter' ? draw.find((t) => t.letter === seat.letter)?.teamId : undefined
+      const team = teams.find((t) => t.id === teamId) ?? null
+      return {
+        seatNumber: i + 1,
+        letter: seat.kind === 'letter' ? seat.letter : null,
+        seedRef: seat.kind === 'letter' ? null : seatText(document, quiz, seat, 'letters'),
+        team,
+        quizzers: team ? (await getTeamQuizzers(meetId, team.id)).quizzers : [],
+      }
+    }),
+  )
+  return {
+    quiz: { id: quiz.id, meetName, label: quiz.label, ...scheduleQuizMeta(quiz) },
+    seats,
+  }
 }
 
 export function joinMeet(

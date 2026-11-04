@@ -9,7 +9,7 @@ const linked: MeetSessionData = {
   slots: [undefined, undefined, undefined],
   teamList: [],
   meetDivisions: ['1'],
-  quizId: 5,
+  quizId: '5',
   sender: { admin: false, rooms: [] },
 }
 

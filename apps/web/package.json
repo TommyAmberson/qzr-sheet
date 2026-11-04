@@ -1,6 +1,6 @@
 {
   "name": "@qzr/web",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -25,6 +25,7 @@
     "@types/jsdom": "^27.0.0",
     "@types/node": "^24.10.13",
     "@vitejs/plugin-vue": "^6.0.4",
+    "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.8.1",
     "jsdom": "^28.1.0",
     "npm-run-all2": "^8.0.4",

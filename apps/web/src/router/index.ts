@@ -22,6 +22,14 @@ const router = createRouter({
       name: 'account-provider',
       component: () => import('../views/AccountProviderView.vue'),
     },
+    // The schedule builder needs no account; `builder` can't be a meet's slug, as `roadmap` can't
+    { path: '/builder', name: 'builder', component: () => import('../views/BuilderListView.vue') },
+    {
+      path: '/builder/:id',
+      name: 'builder-schedule',
+      component: () => import('../views/BuilderView.vue'),
+      props: (route) => ({ id: route.params.id as string }),
+    },
     {
       path: '/:slug',
       meta: { requiresAuth: true },
@@ -69,7 +77,7 @@ const router = createRouter({
         {
           path: 'schedule/edit',
           name: 'meet-schedule-edit',
-          component: () => import('../views/ScheduleEditView.vue'),
+          component: () => import('../views/LinkedBuilderView.vue'),
           props: (route) => ({ slug: route.params.slug as string }),
         },
       ],

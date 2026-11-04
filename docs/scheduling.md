@@ -16,12 +16,15 @@ team fields, late-team draw handling, realistic slot pitches), look there for on
 rule book always wins on rule conflicts; this example shows one working approach to the gaps the
 rule book leaves open. We're free to adapt or diverge wherever it makes sense for QuizMeet.
 
-**Philosophy**: the schedule feature is an **admin-driven builder**, not a generator. The admin
-assembles the schedule in a grid editor, and the system offers assists — draw helpers, drag-and-drop
-swaps, conflict warnings, quick fills — that make building fast without taking the wheel. When the
-admin clicks "Generate prelims", the system produces a first draft that the admin is expected to
-tweak; rearranging rounds, swapping teams, and adding events all remain first-class actions. The
-admin should feel like they built the schedule with help, not like they approved a computed result.
+**Philosophy**: the schedule feature is an **admin-driven builder**. The admin enters team counts
+and settings, the builder generates a whole weekend from them, and from then on every quiz, row and
+seat can be changed by hand. A hand edit pins what it touched, and later settings changes re-flow
+the rest of the grid around the pins, so generating never throws away the admin's work. The admin
+should feel like they built the schedule with help, not like they approved a computed result.
+
+**Current design**: the schedule redesign in `specs/005-schedule-redesign/` (spec, plan, data model
+and contracts) is the detailed reference for the builder as it ships. This page keeps the domain
+background; where the two differ, the spec and the code win.
 
 Planning and work tracking live in GitHub issues (see `#9` Schedule epic and its sub-issues). This
 doc is the stable design reference those issues link back to.
@@ -37,7 +40,7 @@ doc is the stable design reference those issues link back to.
 | **Team**                       | A church-owned roster for one meet + division. `teams` row. Has `consolation: boolean` (already in schema) — always `false` during prelims; set post-stats-break to route a team into the consolation elim bracket. Division never changes. |
 | **Room**                       | A physical location where quizzes run in parallel. Named ("Room 1"–"Room 5"). New concept — not in schema today.                                                                                                                            |
 | **Round**                      | An ordinal grouping of quizzes that run simultaneously across rooms in the same time slot.                                                                                                                                                  |
-| **Slot**                       | A wall-clock time for a round. Not 1:1 with round — non-quiz events also occupy slots.                                                                                                                                                      |
+| **Slot**                       | A wall-clock time and length: a row of the grid. Quizzes and events sit in its rooms; a slot made for events (Breakfast, Lunch) takes no generated quizzes.                                                                                 |
 | **Quiz**                       | Three teams competing at one `(round, room)` pair. Labeled `Div 1 Quiz 1`, `Div 2 Quiz A`, `Div 2 Quiz X`, etc.                                                                                                                             |
 | **Prelim** (qualifier)         | Round-robin within a division. Every team plays exactly 3 prelim quizzes. Pairings are lookup tables (`rules.md` §"Preliminary Round Brackets", 4–21 teams).                                                                                |
 | **Stats break**                | Transition. Admin reviews standings and picks an elim structure based on team count.                                                                                                                                                        |
@@ -49,7 +52,7 @@ doc is the stable design reference those issues link back to.
 | **Championship quizzes**       | 3–5 end-of-bracket quizzes with "win twice" semantics. `rules.md` §3.                                                                                                                                                                       |
 | **Lane**                       | A division's elim path. Real meets often run more than two — Winkler runs A (championship), K (next 12), B (consolation), and M (extras). See `docs/example-winkler-2026.md` §6.                                                            |
 | **Custom bracket template**    | Hand-composed elim template for fields larger than the rule book's 9-team A/B/C. Stored as data in `packages/shared/scheduling/templates/`. See `docs/example-winkler-2026.md` §6.1.                                                        |
-| **Event**                      | Non-quiz item on the schedule — Breakfast, Stats Break, Worship, etc. Occupies a slot, no room/teams.                                                                                                                                       |
+| **Event**                      | Non-quiz item on the schedule (Breakfast, Stats break, a coaches' meeting). Sits in a slot over any set of its rooms, or all of them, like a quiz.                                                                                          |
 
 ## 2. Meet phases
 
@@ -83,10 +86,10 @@ State transitions are admin-manual.
 
 ### Phases vs draft/publish
 
-The schedule still has a draft / published toggle, independent of phase. The admin can stage edits
-in any phase; they're not visible to coaches/viewers until published. In `registration` and `build`
-even a published schedule is visible only to admin (no coach-facing schedule yet); in `live` a
-published schedule is visible to everyone, and stays visible in `review` and `done`.
+A linked schedule has a draft and published versions, independent of phase. The admin edits the
+draft in any phase; nobody else sees it. Publishing adds the draft as the meet's next version, and
+every version is kept. Anyone with access to the meet sees the newest version: in letters while the
+meet is in `registration` or `build`, with team names from `live` on.
 
 ## 3. How a meet actually runs
 
@@ -186,9 +189,10 @@ truth.
 
 **Event rules**:
 
-* Events occupy a slot but no rooms or quizzes.
-* Events can be inserted between quiz rounds.
-* Events don't enforce the default slot duration.
+* An event sits in a slot like a quiz, over any set of its rooms or all of them. A quiz in a room an
+  event takes at that time breaks H-3.
+* A slot whose rooms are all taken by events, with no quizzes, is drawn as a short event row.
+* A slot made for events doesn't take the default slot length.
 
 **Phase-aware rules** (see §2):
 
@@ -201,53 +205,36 @@ truth.
 * Per-division state advances (`prelim_running → stats_break → elim_running → division_done`) are
   admin-manual; reverses also allowed and flagged.
 
-## 5. The prelim draw (utility, not the main UX)
+## 5. The prelim draw
 
-**The draw is a lookup keyed on team count, not on team identity.** `rules.md` §"Preliminary Round
-Brackets" spells out pairings for 4–21 teams as a fixed table. Example for 9 teams:
+**The prelims are letters; the draw decides which team is which letter.** `rules.md` §"Preliminary
+Round Brackets" spells out pairings for 4 to 21 teams as fixed tables. Example for 9 teams:
 
 ```
 Quizzes: 1. ABC  2. DEF  3. GHI  4. ADG  5. BEH  6. CDH  7. AEI  8. BFG  9. CFI
 ```
 
-The schedule is built around these letter slots, not around concrete teams. Team identity is bound
-to letters only when the event is about to start (see §5.2). This decouples the schedule from the
-roster: the admin can build and publish the schedule before all teams are registered.
+The schedule is built around these letters, not around concrete teams, so it can be built and
+published before every team is registered. Each division has a prelim draw source: the rule book's
+tables, or a rotating draw with no rematches from 7 teams up, for any size to 90 teams. Where the
+rotating draw would rematch (8 and 13 teams), a cyclic pattern takes over.
 
-Team counts > 21 are out of scope for the built-in helper; the admin builds those compositions
-manually in the editor.
+### 5.1 The draw
 
-### 5.1 Composition utility
+The draw, per division, gives each team a letter. It never moves a quiz. Draw, Redraw and Clear work
+per division or for all, and a cleared division shows letters again. When linked to a meet, the
+teams are the meet's; the draw lives in the schedule document, not in `prelim_assignments`.
 
-`drawPrelims(teamCount: number): Quiz[]` — looks up the team count in the `rules.md` table and
-returns `teamCount` quizzes, each holding three letter slots (`A`–`U`). Pure function.
+### 5.2 Late and absent teams
 
-A second utility, `autoSlot(quizzes, rooms, rounds)`, fits the quizzes into a `(round, room)` grid
-without hard-rule conflicts. Each utility is independently invocable from the editor toolbar.
+A team can be marked late before the draw. The draw then gives late teams the letters that put them
+in as few quizzes as possible, starting as late as possible, so nothing has to move. If lateness is
+learned after the draw, Sort moves the prelims so late teams play late, within each division's rooms
+or across rooms, saying first how many quizzes will move.
 
-### 5.2 Team assignment ("Roll Teams")
-
-During the `build` phase, the admin clicks "Roll Teams" for a division. This generates a random
-permutation of the registered teams and binds each team to one letter: `A` → first team, `B` →
-second team, etc. The mapping is written to `prelim_assignments` (one row per letter per division)
-in a single transaction.
-
-* Re-roll is allowed throughout `build` — it's a transactional UPDATE on the same rows. There's no
-  separate "lock" step; the `build → live` phase transition is what makes the assignment
-  coach-visible.
-* Admin can override individual letter→team assignments before advancing to `live` (drag a team chip
-  onto a letter slot — single-row UPDATE).
-* In `live`, edits to letter→team assignments are still possible but constrained: completed quizzes
-  (`scheduled_quizzes.completedAt` set) won't accept seat changes that would alter their results.
-
-### 5.3 Late teams
-
-If a team is added _before_ `build` (i.e. during `registration`), the schedule isn't built yet —
-nothing to patch. If a team is added during `build` (admin approves a late roster change), the draw
-is regenerated to the new team count's table — the admin re-places quizzes into rooms/slots. During
-`live`, the admin patches manually in the editor, swapping teams between not-yet-completed quizzes;
-if too many quizzes have already completed for the team to fit fairly, the team forfeits the missed
-quizzes.
+A team that drops out is the admin's choice: lower the division's team count (the prelims are
+rebuilt and the draw needs redoing) or mark the team absent (nothing moves; its quizzes run with two
+teams).
 
 ## 6. Stats break — the pivot
 
@@ -259,15 +246,10 @@ transition is deterministic once team count is known. Per division, the admin:
 1. Reviews prelim standings (sum of 3 prelim quiz scores per team, per `rules.md` §1.a).
    Tiebreakers, per `rules.md` §2.b: head-to-head competition first, then total prelim points, then
    fewest errors. (Verify against current rulebook.)
-2. Looks up the tournament shape for team count:
-
-   | Team count | Structure                                                                                                |
-   | ---------- | -------------------------------------------------------------------------------------------------------- |
-   | ≤ 9        | Single championship bracket, no XYZ, no consolation.                                                     |
-   | 10–14      | Top 9 → championship bracket. Teams 10+ dropped.                                                         |
-   | 15–20      | Top 6 → championship (auto-qualify). Teams 7–15 → XYZ. Teams 16+ dropped.                                |
-   | 21–24      | Same as 15–20.                                                                                           |
-   | > 24       | Top 6 → championship. Teams 7–15 → XYZ. Teams 16–24 → XXYYZZ. Consolation final-9 holds positions 10–18. |
+2. Follows the division's elim shape, set in the builder's Elim settings: one or more lanes, each
+   taking a number of prelim ranks and playing a bracket or a round robin, with an intermediate on
+   the line between two lanes where one is wanted. The defaults per team count, and every reference
+   meet's shape, are in `specs/005-schedule-redesign/spec.md` (FR-030) and `bracket-library.md`.
 
 3. Flips `teams.consolation=true` for teams headed to consolation. For the "> 24 teams" shape,
    consolation membership is finalised _after_ XYZ and XXYYZZ resolve, not at the break itself.
@@ -297,33 +279,42 @@ quizzes after Quiz H/I/etc. are added on demand as results come in.
 **Consolation bracket**: 9-team bracket using one of A/B/C, populated from positions 10–18. Only
 present in meets > 24 teams.
 
-**Seed-reference formats**:
+**Lanes and intermediates**: a division's elims are lanes, top first: the championship, then any
+consolation lanes, each a bracket from the bracket library or a round robin of 1 to 3 quizzes per
+team with an optional Finals on points. Between two lanes sits an optional intermediate of 1 to 4
+quizzes (X, XY, XYZ, WXYZ), either reranking the teams around the line or playing in to the lane
+above.
 
-| Format                                     | Meaning                                                                                 |
-| ------------------------------------------ | --------------------------------------------------------------------------------------- |
-| `prelimSeed(n)`                            | Team ranked `n` from prelim standings                                                   |
-| `xyRank(n)`                                | Team at "new `n`" position after XY/XYZ rerank (e.g., `xyRank(11)` = sample's `new 11`) |
-| `place(quizId, p)`                         | Team that placed `p` in a given bracket quiz                                            |
-| `xyzTop3(rank)` / `xyzBottom6(rank)`       | XYZ advancers / fall-throughs                                                           |
-| `xxyyzzTop3(rank)` / `xxyyzzBottom6(rank)` | XXYYZZ equivalents                                                                      |
-| `winner(quizId)` / `loser(quizId)`         | Convenience for championship series                                                     |
-| `tiebreaker(candidates)`                   | Unresolved tied teams (`rules.md` §2.b)                                                 |
+**Seats**: an elim seat names where its team comes from, as one of:
 
-The "`new N`" labels seen on sample schedules (`new 11`, `new 15`, etc.) refer to placement after
-the XY/XYZ intermediate quizzes finish: a team that started at prelim rank 12 may end up at `new 11`
-once intermediate results are factored in. Encoded as `xyRank(N)` in the data model.
+| Seat         | Meaning                                                                           |
+| ------------ | --------------------------------------------------------------------------------- |
+| rank `n`     | The team ranked `n` after the prelims                                             |
+| new `n`      | The team at rank `n` after an intermediate's rerank                               |
+| place in `q` | The team that placed `p` in quiz `q`, named by the quiz's id, so a rename follows |
+| points `p`   | The team placed `p` in points across a lane's round robin                         |
+| empty        | Not chosen yet                                                                    |
 
 ### Def vs resolution layering
 
-Elim quiz seats carry only the **def** — the seedRef. The **resolution** (which concrete team a
-given seedRef currently points to) lives in a separate table (`seed_resolutions`, see §8). This
-matters because the same seedRef appears in multiple seats (e.g. `place(quizB, 2)` could feed two
-downstream bracket quizzes), and a single resolution row keeps them consistent. The same pattern
-applies to prelim seats with their `letter` def → `prelim_assignments` resolution.
+A seat carries only the **def**: where its team comes from. The **resolution**, which team that
+currently is, is kept apart, because one source can feed several seats. Prelim letters resolve
+through the schedule document's draw. Resolving elim seats from results is still to come with
+[#16](https://github.com/TommyAmberson/qzr-sheet/issues/16); the old design's `seed_resolutions`
+table (§8) is no longer written.
 
 ## 8. Data model
 
-New tables and columns. Existing `quiz_meets` gains phase fields.
+**Storage since the redesign**: a schedule is one schedule document (settings, frame rows, rooms,
+quizzes with their seats and pins, and the draw), the same in the browser, in a file and on the
+server. A linked meet keeps its draft in `meet_schedules` and every published version in the
+append-only `meet_schedule_versions` (see `docs/data-model.md`). The `meet_slots`,
+`scheduled_quizzes`, `scheduled_quiz_seats` and `prelim_assignments` tables below are no longer
+written: a meet built with them is converted to a document when an admin first opens its schedule,
+and the old read routes answer from the newest published version for installed scoresheets. They go
+once every meet is converted and no supported scoresheet calls them.
+
+The original design follows. Existing `quiz_meets` gains phase fields.
 
 ```ts
 // Existing quiz_meets table gains:
@@ -465,62 +456,28 @@ prelim path writes rows. Elim columns (`scheduled_quizzes.lane`, `bracketLabel`,
 `scheduled_quiz_seats.seedRef`, `seed_resolutions`) exist from day one but stay unused until the
 elim epic.
 
-## 9. UX — the builder (primary experience)
+## 9. UX: the builder
 
-The Schedule tab is a grid editor: y-axis = slots, x-axis = rooms, plus division filter. Each cell
-is a quiz card with three seat chips. Before "Roll Teams" runs the chips show letters (`A`, `B`,
-`C`); after, they show team names.
+The builder lives in the portal: `/builder` for schedules kept in the browser with no account, and a
+meet's Schedule edit page for its linked schedule. A settings panel (Teams, Time slots and rooms,
+Prelims, Elims) sits beside the grid; time runs down, rooms across, with day headings, events in
+their rooms or across all of them, and note rows. Each quiz card shows its seats in letters, or team
+names once a division is drawn.
 
-A **phase header bar** sits above the grid showing the current meet phase (`registration` / `build`
-/ `live` / `review` / `done`) with admin-only "Advance" and "Revert" controls. Inside the schedule,
-each division's row carries a state badge (e.g. "Div 2: prelim running") when the meet is `live`.
-
-**Direct manipulation (any time)**:
-
-* Drag a quiz card between `(round, room)` cells → move the whole quiz.
-* Drag a row header to reorder rounds.
-* Right-click / ellipsis on quiz card → delete, move to…, convert to event row.
-* Click an empty cell → "Add quiz" popup.
-* Click "+" between rows → "Add event" popup.
-
-**Letter mode** (before Roll Teams runs):
-
-* The letter compositions are determined by the `rules.md` lookup; admin can't edit which letters
-  are in which quiz.
-* Admin focuses on slot placement: which rooms each division uses per round, where event rows go,
-  custom slot times.
-
-**Team mode** (after Roll Teams runs):
-
-* Click a team chip → dropdown to pick a different team in the same division (rare; reserved for
-  no-shows / late substitutions).
-* Drag a team chip between quizzes → swap.
-
-**Toolbar assists (not automation)**:
-
-* Draw Prelims (division + count picker) — produces the letter-based composition for the chosen team
-  count. Available in `build` phase.
-* Auto-slot — assigns `(round, room)` without changing compositions.
-* Find Conflicts — jump to next hard-rule violation.
-* Roll Teams (per division) — random A→Team mapping. Available in `build` and on the boundary into
-  `live`. Re-rollable until the meet enters `live`; in `live`, individual swaps only.
-* Regenerate (destructive) — wipes prelim composition for a division and starts from scratch.
-  Forbidden once the meet is `live`.
-
-**Rule surfacing**:
-
-* Hard violations: red border, blocks save/publish. Hover tooltip names the rule.
-* Completed quizzes (`completedAt` set): rendered with a lock icon; all edits rejected with an
-  inline explanation.
-* Division status panel: per-division progress summary (e.g. "Div 2: 26 quizzes, prelim running, 18
-  of 26 complete").
-
-**Draft vs published**:
-
-* Draft edits are admin-only until "Publish" is clicked.
-* In `registration` and `build`, even published schedules stay admin-only — no coach-facing schedule
-  before the meet starts.
-* In `live`, published schedules are visible to everyone.
+* **Generate and re-flow**: settings changes re-flow the grid around pinned quizzes and rows. With
+  Auto-apply off, changes wait, each marked, until Apply, which first says how many quizzes move.
+* **Edit by hand**: a quiz's menu renames it, sets any seat, moves it (drag, or pick then choose the
+  target, by pointer or keyboard), sends it to the unplaced tray, pins or unpins it, deletes it, and
+  turns it into an event. An event's menu does the same for an event, sets its rooms, and turns it
+  into a quiz. An empty cell adds either. Rows and rooms have menus of their own. Every change can
+  be undone.
+* **Conflicts**: every hard rule and warning of `docs/schedule-invariants.md` is checked after each
+  change, marked on its cells and counted, with a way to step through them. Nothing is refused.
+* **Linked schedules**: the draft is kept in the browser and sent shortly after each change, offline
+  edits included. Publish asks before going past hard conflicts and turns Auto-apply off; the
+  history shows every version, to view or restore. A quiz with results changes only after a
+  confirmation, and is then marked as changed after results.
+* **Printing**: the room grid, or the basic schedule.
 
 ## 10. UX flow (end-to-end)
 
@@ -531,45 +488,42 @@ Meet setup [phase: registration]
   2. Coaches register churches / teams / quizzers.
 
 Prelim build [phase: build — auto-advanced at registrationClosesAt]
-  3. Admin opens Schedule tab (empty grid).
-  4. Admin enters team count per division → "Draw Prelims" produces letter
-     compositions from the rules.md table.
-  5. Admin places quizzes into (round, room) cells, adds event rows, tweaks
-     slot times. Chips show letters (A, B, C…).
-  6. Admin clicks "Roll Teams" per division → random A→Team mapping.
-     Re-roll or hand-edit as needed.
-  7. Publishes (admin-only visibility — phase still 'build').
+  3. Admin opens the meet's schedule in the builder, which starts from the
+     meet's divisions, teams and rooms and generates the weekend.
+  4. Admin adjusts settings and edits by hand; seats show letters.
+  5. Admin marks late teams and draws each division.
+  6. Publishes; readers see letters until the meet goes live.
 
 Live transition [phase: live — auto-advanced at meetStartsAt]
-  8. Coaches/viewers now see the published team-mode schedule.
+  8. Coaches/viewers now see the published schedule with team names.
   9. Per-division state initialised to 'prelim_running'.
 
 Prelim running [div state: prelim_running]
-  10. Scoresheet auto-populates teams.
-  11. Officials submit results; scheduled_quizzes.completedAt fills in.
+  10. Officials load each quiz from the published schedule; the scoresheet
+      fills its teams.
+  11. Officials submit results, saved under the quiz's result name.
 
 Stats break [div state: stats_break — admin manual]
   12. Admin reviews Standings.
-  13. Picks elim shape (looks up team count in §6 table).
+  13. Confirms the division's elim shape (§6).
   14. Flips `consolation=true` on bottom-M teams.
 
 Elim build [div state: stats_break]
-  15. Admin opens Schedule tab, switches to Elim mode.
-  16. (Optional) clicks "Draw Elims" per division → bracket draft.
-  17. Admin edits seed refs, reorders rounds, adds events.
-  18. Publishes; advances division to 'elim_running'.
+  15. The elims are already in the schedule from the division's elim shape;
+      the admin adjusts lanes, seats or rows if needed.
+  16. Publishes; advances division to 'elim_running'.
 
 Elim running [div state: elim_running]
-  19. XYZ/XXYYZZ resolve → `consolation=true` propagates to remaining teams.
-  20. Results flow in; seed refs resolve to teams.
-  21. Final placements displayed → admin advances division to 'division_done'.
+  17. XYZ/XXYYZZ resolve → `consolation=true` propagates to remaining teams.
+  18. Results flow in; elim seats resolve to teams.
+  19. Final placements displayed → admin advances division to 'division_done'.
 
 Review [phase: review, admin manual]
-  22. When all divisions are 'division_done', the UI suggests advancing to 'review'.
+  20. When all divisions are 'division_done', the UI suggests advancing to 'review'.
       Officials stop submitting; admin corrects results and settles disputes.
 
 Wrap-up [phase: done, admin manual]
-  23. Admin advances meet to 'done'. Schedule and stats become read-only for everyone.
+  21. Admin advances meet to 'done'. Schedule and stats become read-only for everyone.
 ```
 
 ## 11. Open questions

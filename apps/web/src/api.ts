@@ -3,8 +3,10 @@ import type {
   DivisionStateValue,
   DivisionTeamNames,
   MeetPhase,
+  PublishedSchedule,
   QuizFile,
   ResultAction,
+  ScheduleDocument,
 } from '@qzr/shared'
 import {
   withGuestToken,
@@ -13,6 +15,8 @@ import {
   type Sender,
   type Stored,
 } from '@qzr/ui'
+
+import { browserTimeZone } from '@qzr/ui'
 
 export type { MeetPhase, DivisionStateValue }
 
@@ -243,9 +247,8 @@ export interface Team {
   division: string
   number: number
   consolation: boolean
-  /** Late teams sort to the bottom of Roll Teams's permutation, landing
-   *  in the highest-numbered letters (which appear later in the
-   *  rule-book prelim pattern). */
+  /** Read once, to seed the late marks when the meet's schedule is first made; the schedule's draw
+   *  owns lateness after that (research R6) */
   lateness: boolean
 }
 
@@ -297,8 +300,8 @@ export function listTeams(churchId: number): Promise<{ teams: Team[] }> {
 }
 
 /** Team row joined with its church label and the meet's division list,
- *  for any view that needs to render team names per division (Prelim
- *  setup roster, Roll Teams summary, etc.). */
+ *  for any view that needs to render team names per division (the
+ *  schedule builder's draw, say). */
 export interface MeetTeamRow {
   id: number
   churchId: number
@@ -437,13 +440,7 @@ export function exportRoster(meetId: number): Promise<{ entries: RosterExportEnt
   return request(`/api/meets/${meetId}/roster/export`)
 }
 
-// ---- Division team counts ----
-
-export function getMeetTeamCounts(meetId: number): Promise<{ counts: Record<string, number> }> {
-  return request(`/api/meets/${meetId}/team-counts`)
-}
-
-// ---- Schedule ----
+// ---- Rooms ----
 
 export interface MeetRoom {
   id: number
@@ -452,147 +449,8 @@ export interface MeetRoom {
   hasCode: boolean
 }
 
-export interface MeetSlot {
-  id: number
-  meetId: number
-  startAt: string
-  durationMinutes: number
-  kind: 'quiz' | 'event'
-  eventLabel: string | null
-  sortOrder: number
-}
-
-export interface ScheduledQuizSeat {
-  id: number
-  quizId: number
-  seatNumber: number
-  letter: string | null
-  seedRef: string | null
-}
-
-export interface ScheduledQuiz {
-  id: number
-  meetId: number
-  slotId: number
-  roomId: number
-  division: string
-  phase: 'prelim' | 'elim'
-  lane: 'main' | 'consolation' | 'intermediate' | null
-  label: string
-  bracketLabel: string | null
-  publishedAt: string | null
-  completedAt: string | null
-  seats: ScheduledQuizSeat[]
-}
-
 export function listMeetRooms(meetId: number): Promise<{ rooms: MeetRoom[] }> {
   return request(`/api/meets/${meetId}/rooms`)
-}
-
-export function listMeetSlots(meetId: number): Promise<{ slots: MeetSlot[] }> {
-  return request(`/api/meets/${meetId}/slots`)
-}
-
-export function listScheduledQuizzes(meetId: number): Promise<{ quizzes: ScheduledQuiz[] }> {
-  return request(`/api/meets/${meetId}/quizzes`)
-}
-
-// ---- Schedule editor ----
-//
-// Every editable mutation flows through `syncSchedule` (defined below)
-// — there are no per-row create/update/delete helpers. Only GETs and
-// the bulk sync endpoint live in this section.
-
-export interface SeatInput {
-  seatNumber: number
-  letter?: string | null
-  seedRef?: string | null
-}
-
-export interface PrelimAssignment {
-  id: number
-  meetId: number
-  division: string
-  letter: string
-  teamId: number
-  assignedAt: string | number
-}
-
-export function listPrelimAssignments(
-  meetId: number,
-): Promise<{ assignments: PrelimAssignment[] }> {
-  return request(`/api/meets/${meetId}/prelim-assignments`)
-}
-
-// ---- Schedule sync (draft → server commit) ----
-
-export interface ScheduleSyncSlot {
-  /** Negative id signals a new slot; positive id targets an existing row. */
-  id: number
-  startAt: string | number
-  durationMinutes: number
-  kind: 'quiz' | 'event'
-  eventLabel: string | null
-  sortOrder: number
-}
-
-export interface ScheduleSyncQuiz {
-  /** Negative id signals a new quiz; positive id targets an existing row. */
-  id: number
-  /** May reference a negative slot id from the same payload. */
-  slotId: number
-  roomId: number
-  division: string
-  phase: 'prelim' | 'elim'
-  label: string
-  bracketLabel: string | null
-  seats: SeatInput[]
-}
-
-export interface ScheduleSyncPrelimDivision {
-  division: string
-  mapping: { letter: string; teamId: number }[]
-}
-
-export interface ScheduleSyncTeamLateness {
-  teamId: number
-  lateness: boolean
-}
-
-export interface ScheduleSyncPayload {
-  slots: ScheduleSyncSlot[]
-  quizzes: ScheduleSyncQuiz[]
-  /** Full-replace per division listed; divisions omitted are left as-is. */
-  prelimAssignments: ScheduleSyncPrelimDivision[]
-  /** Per-team lateness diff; teams omitted are left as-is. */
-  teamLateness: ScheduleSyncTeamLateness[]
-}
-
-export interface ScheduleSyncTeam {
-  id: number
-  meetId: number
-  churchId: number
-  division: string
-  number: number
-  consolation: boolean
-  lateness: boolean
-}
-
-export interface ScheduleSyncResult {
-  slots: MeetSlot[]
-  quizzes: ScheduledQuiz[]
-  prelimAssignments: PrelimAssignment[]
-  teams: ScheduleSyncTeam[]
-}
-
-export function syncSchedule(
-  meetId: number,
-  payload: ScheduleSyncPayload,
-): Promise<ScheduleSyncResult> {
-  return request(`/api/meets/${meetId}/schedule/sync`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
 }
 
 // ---- Results ----
@@ -708,4 +566,101 @@ export function setResultsCounted(
     method: 'PATCH',
     body: JSON.stringify({ ids, counted }),
   })
+}
+
+// ---- Linked schedules (specs/005-schedule-redesign/contracts/api.md) ----
+
+export interface LinkedScheduleState {
+  draft: ScheduleDocument | null
+  draftRevision: number
+  draftSavedAt: string | null
+  published: ScheduleDocument | null
+  publishedAt: string | null
+  version: number | null
+  /** Result names with submitted results, protected in the builder (H-20) */
+  results: string[]
+}
+
+/** The meet's draft and newest version; a meet built with the old editor is converted first */
+export function getLinkedSchedule(meetId: number, timeZone: string): Promise<LinkedScheduleState> {
+  return request(`/api/meets/${meetId}/schedule?timeZone=${encodeURIComponent(timeZone)}`)
+}
+
+export interface DraftSaved {
+  draftRevision: number
+  draftSavedAt: string
+}
+
+/** Throws a 409 `ApiError` whose body has the newer `draft` and `draftRevision` when stale */
+export function saveScheduleDraft(
+  meetId: number,
+  document: ScheduleDocument,
+  baseRevision: number,
+  /** Replace the server's draft even when it's a different one ("keep mine") */
+  replace = false,
+): Promise<DraftSaved> {
+  return request(`/api/meets/${meetId}/schedule/draft`, {
+    method: 'PUT',
+    body: JSON.stringify({ document, baseRevision, replace }),
+  })
+}
+
+export interface Published extends DraftSaved {
+  version: number
+  publishedAt: string
+  /** The schedule's rooms, each with its meet room */
+  rooms: ScheduleDocument['rooms']
+  /** Meet rooms the schedule doesn't use, kept because they have a room code, officials or results */
+  unusedRooms: { id: number; name: string }[]
+}
+
+/** Throws a 409 `ApiError` whose body has `conflicts` when there are hard conflicts unconfirmed */
+export function publishSchedule(
+  meetId: number,
+  baseRevision: number,
+  confirmConflicts: boolean,
+): Promise<Published> {
+  return request(`/api/meets/${meetId}/schedule/publish`, {
+    method: 'POST',
+    body: JSON.stringify({ baseRevision, confirmConflicts }),
+  })
+}
+
+export interface ScheduleVersion {
+  version: number
+  publishedAt: string
+  publishedBy: string
+}
+
+export function listScheduleVersions(meetId: number): Promise<ScheduleVersion[]> {
+  return request(`/api/meets/${meetId}/schedule/versions`)
+}
+
+export function getScheduleVersion(
+  meetId: number,
+  version: number,
+): Promise<ScheduleVersion & { document: ScheduleDocument }> {
+  return request(`/api/meets/${meetId}/schedule/versions/${version}`)
+}
+
+export function restoreScheduleVersion(
+  meetId: number,
+  version: number,
+  baseRevision: number,
+): Promise<DraftSaved & { document: ScheduleDocument }> {
+  return request(`/api/meets/${meetId}/schedule/versions/${version}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({ baseRevision }),
+  })
+}
+
+export function unlinkSchedule(meetId: number): Promise<{ ok: true }> {
+  return request(`/api/meets/${meetId}/schedule`, { method: 'DELETE' })
+}
+
+export function getPublishedSchedule(meetId: number): Promise<PublishedSchedule> {
+  // The time zone places a schedule still in the old tables on the meet's days
+  return request(
+    `/api/meets/${meetId}/schedule/published?timeZone=${encodeURIComponent(browserTimeZone())}`,
+  )
 }

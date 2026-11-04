@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError, deserialize, quizName, quizOutcome, type QuizFile } from '@qzr/shared'
+import { formatWhen } from '@qzr/ui'
 
 import {
   editResult,
@@ -146,12 +147,6 @@ function scoresheetHref(revision: number): string {
     revision: String(revision),
   })
   return `${__SCORESHEET_URL__}?${query}`
-}
-
-function formatWhen(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 onMounted(load)

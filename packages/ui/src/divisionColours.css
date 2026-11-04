@@ -1,0 +1,27 @@
+/*
+ * The colours a division can be drawn in (DIVISION_COLOURS in @qzr/shared), by name, with a
+ * lighter shade of each for dark mode. The grid and the builder both read them.
+ */
+:root {
+  --dc-green: #2f9e6e;
+  --dc-rose: #c2416b;
+  --dc-amber: #c27c0e;
+  --dc-violet: #7a5af5;
+  --dc-blue: #2563eb;
+  --dc-teal: #0e8a8a;
+  --dc-orange: #d9622b;
+  --dc-slate: #5b6b7c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --dc-green: #4fd1a0;
+    --dc-rose: #f08aa6;
+    --dc-amber: #f0b452;
+    --dc-violet: #a996ff;
+    --dc-blue: #6ea8fe;
+    --dc-teal: #4fd1d1;
+    --dc-orange: #ff9a66;
+    --dc-slate: #a3b1c2;
+  }
+}
