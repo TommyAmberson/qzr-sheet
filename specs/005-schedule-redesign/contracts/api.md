@@ -89,9 +89,9 @@ Anyone with access to the meet: a membership, a guest token for the meet, or sup
 
 ## Retired and kept
 
-* `POST /api/meets/:id/schedule/sync` and the old editor's room `PATCH` stop being called once the
-  builder ships, and are removed with the old tables after every meet has been converted (research
-  R5).
+* `POST /api/meets/:id/schedule/sync` is removed with the old editor, its only caller. The old
+  editor's room `PATCH` stops being called, and is removed with the old tables after every meet has
+  been converted (research R5).
 * `GET /:id/rooms`, `/:id/slots`, `/:id/quizzes`, `/:id/quizzes/:quizId/teams` and
   `/:id/prelim-assignments` stay, answering from the newest published version in their current
   shapes (a meet not yet converted still reads the old tables), because installed scoresheets call

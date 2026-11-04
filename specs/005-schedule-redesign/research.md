@@ -90,9 +90,10 @@ browser meanwhile, so a lost connection only delays the save (FR-048a).
 Existing meets (FR-053) are converted on first open: when a meet has no `meet_schedules` row but has
 rows in `meet_slots` and `scheduled_quizzes`, the API builds a document from them, every quiz
 pinned, placeholder elim seats as seats with no source, and stores it as the draft and as version 1.
-The old tables and the `/schedule/sync` route are then unused by the builder; dropping them is a
-later change, once every meet has been converted. The old read routes stay, answering from the
-newest published version, because installed scoresheets call them for their picker.
+The `/schedule/sync` route goes with the old editor, its only caller. The old tables are then unused
+by the builder; dropping them is a later change, once every meet has been converted. The old read
+routes stay, answering from the newest published version, because installed scoresheets call them
+for their picker.
 
 **Rationale**: the document is already the unit of the standalone builder, so linking adds a place
 to keep it, not a second model. A draft plus whole published versions gives FR-049, FR-049a and

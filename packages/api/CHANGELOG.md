@@ -35,6 +35,10 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   `/quizzes/:quizId/teams`, `/prelim-assignments`) answer from the newest published version in their
   old shapes, so installed scoresheets keep working.
 
+### Removed
+
+* `POST /api/meets/:id/schedule/sync`, the old schedule editor's save, which the builder replaces.
+
 ### Bundled contract
 
 * `@qzr/shared@1.7.0` - bumped from 1.6.0
