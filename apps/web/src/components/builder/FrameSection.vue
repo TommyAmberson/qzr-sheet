@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NumberInput from './NumberInput.vue'
 import { computed } from 'vue'
 import {
   formatClock,
@@ -69,8 +70,7 @@ const breaks = computed(() => statsBreaks(props.doc))
 
     <label class="field">
       Slot length (min)
-      <input
-        type="number"
+      <NumberInput
         min="1"
         :value="s.slotMinutes"
         aria-label="Slot length"
@@ -83,8 +83,7 @@ const breaks = computed(() => statsBreaks(props.doc))
 
     <label class="field">
       Rooms
-      <input
-        type="number"
+      <NumberInput
         min="1"
         :value="s.rooms === 'auto' ? doc.rooms.length : s.rooms"
         :disabled="s.rooms === 'auto'"
@@ -129,8 +128,7 @@ const breaks = computed(() => statsBreaks(props.doc))
     </ol>
     <label class="field">
       Minutes apart
-      <input
-        type="number"
+      <NumberInput
         min="0"
         :value="s.finals.spacingMinutes"
         aria-label="Minutes between Finals"
@@ -139,8 +137,7 @@ const breaks = computed(() => statsBreaks(props.doc))
     </label>
     <label class="field">
       At once
-      <input
-        type="number"
+      <NumberInput
         min="1"
         :value="s.finals.sideBySide"
         aria-label="Finals at once"

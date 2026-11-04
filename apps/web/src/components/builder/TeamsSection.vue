@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NumberInput from './NumberInput.vue'
 import { defaultElims, setTeamCount, type ScheduleDocument } from '@qzr/shared'
 
 import { pinWhere } from '../../builder/edits'
@@ -59,8 +60,7 @@ function setTeamName(id: string, index: number, event: Event) {
   <div class="teams">
     <label class="field">
       Divisions
-      <input
-        type="number"
+      <NumberInput
         min="0"
         :value="doc.settings.divisions.length"
         aria-label="Number of divisions"
@@ -71,8 +71,7 @@ function setTeamName(id: string, index: number, event: Event) {
       <input :value="d.name" aria-label="Division name" @change="setName(d.id, $event)" />
       <label class="field">
         Teams
-        <input
-          type="number"
+        <NumberInput
           min="0"
           :value="d.teams"
           :aria-label="`${d.name} team count`"

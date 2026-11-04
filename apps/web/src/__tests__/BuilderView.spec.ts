@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
 import router from '../router'
 import BuilderView from '../views/BuilderView.vue'
@@ -101,6 +101,21 @@ describe('settings sections', () => {
     await rooms.trigger('change')
     expect(wrapper.findAll('th.room')).toHaveLength(6)
     expect(wrapper.find('.issue-count').text()).toMatch(/^0 problems/)
+    wrapper.unmount()
+  })
+
+  it('steps a number field with its + and − buttons', async () => {
+    const wrapper = await fbc()
+    const field = wrapper
+      .find('[aria-label="Number of divisions"]')
+      .element.closest('.number-input')!
+    const [fewer, more] = field.querySelectorAll('button')
+    more!.click()
+    await flushPromises()
+    expect(wrapper.findAll('[aria-label$="team count"]')).toHaveLength(4)
+    fewer!.click()
+    await flushPromises()
+    expect(wrapper.findAll('[aria-label$="team count"]')).toHaveLength(3)
     wrapper.unmount()
   })
 

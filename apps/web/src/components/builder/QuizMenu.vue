@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NumberInput from './NumberInput.vue'
 import { computed, ref, watch } from 'vue'
 import {
   indexOfLetter,
@@ -182,10 +183,9 @@ const current = (key: 'letter' | 'number' | 'quiz') => {
         aria-label="Letter"
         autocomplete="off"
       />
-      <input
+      <NumberInput
         v-if="kind === 'rank' || kind === 'new' || kind === 'place' || kind === 'points'"
         name="number"
-        type="number"
         min="1"
         :value="current('number')"
         :aria-label="kind === 'place' || kind === 'points' ? 'Place' : 'Rank'"

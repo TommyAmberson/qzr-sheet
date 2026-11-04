@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import NumberInput from './NumberInput.vue'
 import { computed } from 'vue'
 import { formatClock, type FrameRow, type ScheduleDocument } from '@qzr/shared'
 
@@ -91,8 +92,7 @@ function insert(kind: 'slot' | 'event' | 'note', room?: string) {
       </label>
       <label class="field">
         Minutes
-        <input
-          type="number"
+        <NumberInput
           min="1"
           :value="row.minutes"
           aria-label="Length"
