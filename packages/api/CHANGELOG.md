@@ -17,6 +17,8 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-04
+
 ### Added
 
 * **Linked schedules** - a meet's schedule is kept as one schedule document: a draft the builder
@@ -32,6 +34,10 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   as the draft and version 1. The old read routes (`/rooms`, `/slots`, `/quizzes`,
   `/quizzes/:quizId/teams`, `/prelim-assignments`) answer from the newest published version in their
   old shapes, so installed scoresheets keep working.
+
+### Bundled contract
+
+* `@qzr/shared@1.7.0` - bumped from 1.6.0
 
 ## [0.23.2] - 2026-11-03
 
