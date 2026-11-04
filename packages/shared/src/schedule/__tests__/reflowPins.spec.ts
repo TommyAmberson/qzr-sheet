@@ -256,6 +256,29 @@ describe('re-placing elims (FR-034a)', () => {
     expect({ frame: after.frame, events: after.events, d1: quiz(after, d1Elim) }).toEqual(kept)
   })
 
+  it('keeps a quiz added by hand, which the generator could never place again', () => {
+    const doc = meet([8])
+    const slot = doc.frame.find((r) => r.kind === 'slot' && r.use === 'elim')!.id
+    const room = doc.rooms.find(
+      (r) => !doc.quizzes.some((q) => q.cell?.slot === slot && q.cell.room === r.id),
+    )
+    doc.quizzes.push({
+      id: 'by-hand',
+      label: 'Div 1 Quiz Z',
+      division: 'd1',
+      phase: 'elim',
+      cell: room ? { slot, room: room.id } : null,
+      seats: [{ kind: 'empty' }, { kind: 'empty' }, { kind: 'empty' }],
+      pinned: true,
+    })
+    const after = replaceElims(doc, { divisions: ['d1'], includePinned: true })
+    expect(after.quizzes.find((q) => q.id === 'by-hand')).toEqual(
+      doc.quizzes.find((q) => q.id === 'by-hand'),
+    )
+    // and no re-placed elim lands in its cell
+    expect(checkSchedule(after).filter((c) => c.rule === 'H-2')).toEqual([])
+  })
+
   it("doesn't bring back quizzes deleted from the divisions it leaves alone", () => {
     const doc = meet([8, 8])
     const gone = [

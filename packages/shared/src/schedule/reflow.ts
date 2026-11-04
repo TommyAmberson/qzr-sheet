@@ -468,8 +468,18 @@ export function replaceElims(
   options: { divisions: string[]; includePinned: boolean },
 ): ScheduleDocument {
   const chosen = new Set(options.divisions)
+  // Only elims the generator makes can be placed again; one added by hand stays where it is, held
+  // with everything else so no re-placed quiz lands in its cell
+  const made = new Set(
+    doc.applied.divisions
+      .filter((d) => chosen.has(d.id) && d.teams > 0)
+      .flatMap((d) => buildElimQuizzes(d).map(quizKey)),
+  )
   const moving = (q: ScheduleQuiz) =>
-    q.phase === 'elim' && chosen.has(q.division) && (options.includePinned || !q.pinned)
+    q.phase === 'elim' &&
+    chosen.has(q.division) &&
+    (options.includePinned || !q.pinned) &&
+    made.has(quizKey(q))
   // Everything else is held where it is for the re-flow, then given back its own pins
   const held: ScheduleDocument = {
     ...doc,
