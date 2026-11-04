@@ -32,6 +32,8 @@
   /* Fixed */
   --color-accent: var(--palette-blue);
   --color-accent-hover: #93c5fd;
+  /* The scoresheet's toolbar edge, which the portal's toolbars share */
+  --color-meta-border: var(--palette-gold);
   --color-correct: var(--palette-correct);
   --color-bonus: var(--palette-bonus);
 }
@@ -47,6 +49,15 @@
   --color-text-muted: var(--palette-slate);
   --color-text-faint: var(--palette-stone);
   --color-heading: var(--palette-flint);
+  /* Problems, warnings and the accent's tint, for marks on the schedule and its settings */
+  --color-danger: var(--palette-error);
+  --color-danger-bg: var(--palette-error-alt);
+  --color-warn: var(--palette-amber);
+  --color-warn-bg: #faf0dc;
+  --color-accent-soft: #e5efff;
+  /* Toolbars and controls, as the scoresheet draws them */
+  --color-meta-bg: var(--palette-cream);
+  --color-meta-accent: var(--palette-tan);
 }
 
 /* ── Dark theme ── */
@@ -61,5 +72,12 @@
     --color-text-muted: var(--palette-khaki);
     --color-text-faint: var(--palette-stone);
     --color-heading: var(--palette-tan);
+    --color-danger: #e8897c;
+    --color-danger-bg: #3b2420;
+    --color-warn: var(--palette-gold);
+    --color-warn-bg: #3a321e;
+    --color-accent-soft: #24304a;
+    --color-meta-bg: var(--palette-shadow);
+    --color-meta-accent: var(--palette-slate);
   }
 }

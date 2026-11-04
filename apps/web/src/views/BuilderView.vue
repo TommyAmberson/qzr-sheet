@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import '../builder/builder.css'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { ChoiceDialog, ScheduleBasic, ScheduleList, ScheduleSheet } from '@qzr/ui'
 import type { ScheduleDocument, SheetView } from '@qzr/shared'
@@ -509,25 +510,58 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   min-height: calc(100vh - 4rem);
 }
 
+/* The builder's toolbar, drawn like the scoresheet's: a raised panel with a gold edge */
 .builder-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--color-border, #ddd);
+  gap: 0.4rem;
+  margin: 0.6rem 0.75rem 0;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--color-meta-accent);
+  border-left: 3px solid var(--color-meta-border);
+  border-radius: 6px;
+  background: var(--color-meta-bg);
 }
 
-.schedule-name {
-  font: inherit;
-  font-weight: 600;
-  border: 1px solid transparent;
+.builder-bar .schedule-name {
+  min-width: 12rem;
+  border-color: transparent;
   background: transparent;
-  padding: 0.25rem 0.5rem;
+  color: var(--color-heading);
+  font-size: 0.95rem;
+  font-weight: 650;
 }
 
-.schedule-name:hover,
-.schedule-name:focus {
-  border-color: var(--color-border, #ddd);
+.builder-bar .schedule-name:hover {
+  border-color: var(--color-meta-accent);
+}
+
+/* Letters or teams, as one control */
+.view-toggle {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 5px;
+}
+
+.view-toggle button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.view-toggle button[aria-pressed='true'] {
+  border-color: var(--color-meta-accent);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* The count of problems reads as a status, red while there are any */
+.issue-count:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-danger) 50%, transparent);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
 }
 
 .spacer {
@@ -537,46 +571,69 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .builder-main {
   flex: 1;
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-columns: 320px minmax(0, 1fr);
   min-height: 0;
+  margin-top: 0.6rem;
+  border-top: 1px solid var(--color-border-alt);
 }
 
+/* The settings rail stays in view while the grid scrolls */
 .panel {
-  border-right: 1px solid var(--color-border, #ddd);
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
   overflow-y: auto;
+  border-right: 1px solid var(--color-border-alt);
+  background: var(--color-bg);
 }
 
-.section-head {
+.panel .section-head {
+  display: flex;
+  justify-content: space-between;
   width: 100%;
-  text-align: left;
-  font: inherit;
-  font-weight: 600;
-  padding: 0.75rem 1rem;
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--color-border-alt);
+  border-radius: 0;
   background: none;
-  border: none;
-  border-bottom: 1px solid var(--color-border, #ddd);
-  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.panel .section-head:hover:not(:disabled),
+.panel .section-head[aria-expanded='true'] {
+  background: var(--color-meta-bg);
+  color: var(--color-heading);
 }
 
 .section-body {
-  padding: 0.75rem 1rem;
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem 1rem;
+  border-bottom: 1px solid var(--color-border-alt);
 }
 
 .grid-area {
   overflow: auto;
-  padding: 1rem;
+  padding: 0.75rem;
+  background: var(--color-bg-warm);
 }
 
 .auto-apply {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.35rem;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--color-border, #ddd);
+  border-bottom: 1px solid var(--color-border-alt);
 }
 
-.hint {
-  font-size: 0.8rem;
-  color: var(--color-text-muted, #666);
+.auto-apply label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
 }
 
 .apply-bar,
@@ -584,6 +641,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.35rem 0.35rem 0.6rem;
+  border-radius: 5px;
+  font-size: 0.8rem;
+}
+
+.apply-bar {
+  background: var(--color-warn-bg);
+  color: var(--color-warn);
+  font-weight: 600;
+}
+
+.pins {
+  background: var(--color-meta-bg);
+  color: var(--color-text-muted);
 }
 
 .count {

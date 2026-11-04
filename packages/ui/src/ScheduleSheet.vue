@@ -48,6 +48,12 @@ function hasWarning(id: string) {
   return (props.issues.get(id) ?? []).some((c) => c.warning)
 }
 const target = (e: Event) => e.currentTarget as HTMLElement
+
+/** Each division's colour, by its place in the settings, for the tick on its quizzes */
+const divisionClass = computed(() => {
+  const order = new Map(props.doc.settings.divisions.map((d, i) => [d.id, `d${(i % 4) + 1}`]))
+  return (id: string) => order.get(id) ?? 'd1'
+})
 </script>
 
 <template>
@@ -95,6 +101,7 @@ const target = (e: Event) => e.currentTarget as HTMLElement
               v-if="c.quiz"
               class="quiz"
               :class="{
+                [divisionClass(c.quiz.division)]: true,
                 conflict: hasHard(c.quiz.id),
                 warning: !hasHard(c.quiz.id) && hasWarning(c.quiz.id),
                 selected: selected === c.quiz.id,
@@ -140,104 +147,287 @@ const target = (e: Event) => e.currentTarget as HTMLElement
 </template>
 
 <style scoped>
+/*
+ * The schedule as a printed tournament programme: an ink-ruled sheet, heavy rules under each day,
+ * times and seat letters in a typewriter face, each quiz a centred title over three ruled seats,
+ * and a coloured tick saying whose division it is.
+ */
 .sheet {
-  border-collapse: collapse;
+  --sheet-ink: var(--color-heading, #33302a);
+  --sheet-rule: var(--color-border-alt, #e0ddd4);
+  --sheet-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+  --d1: #2f9e6e;
+  --d2: #c2416b;
+  --d3: #c27c0e;
+  --d4: #7a5af5;
+
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--color-meta-accent, #c9c0a8);
+  border-radius: 6px;
+  background: var(--color-bg, #fff);
   font-size: 0.85rem;
 }
 
-th,
-td {
-  border-bottom: 1px solid var(--color-border, #ddd);
-  padding: 0.25rem 0.5rem;
+@media (prefers-color-scheme: dark) {
+  .sheet {
+    --d1: #4fd1a0;
+    --d2: #f08aa6;
+    --d3: #f0b452;
+    --d4: #a996ff;
+  }
+}
+
+.sheet th,
+.sheet td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--sheet-rule);
   vertical-align: top;
 }
 
-.time {
+/* Plain text that happens to be clickable: no button chrome anywhere in the sheet */
+.sheet button {
+  display: inline;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.sheet button:hover {
+  background: var(--color-meta-bg, #f0e8e0);
+}
+
+/* ---- Header: a tan bar per room, as the scoresheet heads each team ---- */
+
+.sheet thead th {
   position: sticky;
-  left: 0;
-  background: var(--color-bg, #fff);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  top: 0;
+  z-index: 2;
+  padding: 0.45rem 0.5rem 0.35rem;
+  border-bottom: 1.5px solid var(--sheet-ink);
+  background: var(--color-meta-bg, #f0e8e0);
+}
+
+.sheet thead th:first-child {
+  border-top-left-radius: 6px;
+}
+
+.sheet thead th:last-child {
+  border-top-right-radius: 6px;
 }
 
 .room {
-  min-width: 10rem;
+  min-width: 9.5rem;
   text-align: center;
+}
+
+.sheet .room-name {
+  padding: 0 0.3rem;
+  color: var(--sheet-ink);
+  font-weight: 700;
 }
 
 .room-divisions {
   display: block;
-  font-weight: normal;
-  font-size: 0.75rem;
-  color: var(--color-text-muted, #666);
+  color: var(--color-text-faint, #78716c);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+/* ---- Rows ---- */
+
+.time {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 5.5rem;
+  border-right: 1px solid var(--sheet-rule);
+  background: var(--color-bg, #fff);
+  white-space: nowrap;
+}
+
+.sheet .time .row-button {
+  padding: 0.1rem 0.25rem;
+  color: var(--color-text-muted, #57534e);
+  font-family: var(--sheet-mono);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .day th {
+  padding: 1.1rem 0.6rem 0.3rem;
+  border-bottom: 1.5px solid var(--sheet-ink);
+  color: var(--sheet-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-align: left;
-  padding-top: 1rem;
+  text-transform: uppercase;
 }
 
 .event td,
 .note td {
+  color: var(--color-text-muted, #57534e);
   font-style: italic;
 }
 
-button {
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
+.event td:not(.time) {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 7px,
+    color-mix(in srgb, var(--color-meta-accent, #c9c0a8) 18%, transparent) 7px 14px
+  );
+  color: var(--sheet-ink);
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ---- Quizzes: a centred title over three ruled seats ---- */
+
+.cell {
+  padding: 0.35rem 0.4rem;
 }
 
 .quiz {
+  --qc: var(--d1);
+
+  position: relative;
   display: grid;
   justify-items: center;
-  gap: 0.1rem;
-  padding: 0.25rem;
-  border-radius: 6px;
+  gap: 0.15rem;
+  padding: 0.3rem 0.45rem 0.4rem;
+  border-radius: 5px;
+  transition:
+    background 0.12s,
+    box-shadow 0.12s;
 }
 
-.quiz-title {
+.quiz.d2 {
+  --qc: var(--d2);
+}
+
+.quiz.d3 {
+  --qc: var(--d3);
+}
+
+.quiz.d4 {
+  --qc: var(--d4);
+}
+
+.quiz:hover {
+  box-shadow: inset 0 0 0 1px var(--color-meta-accent, #c9c0a8);
+}
+
+.sheet .quiz-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.25rem;
+  color: var(--sheet-ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* The division's tick */
+.sheet .quiz-title::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--qc);
+}
+
+.sheet .seat {
+  display: block;
+  width: 100%;
+  min-width: 6.5rem;
+  padding: 0.05rem 0.3rem 0;
+  border-bottom: 1px solid var(--color-text, #2a2724);
+  border-radius: 0;
+  color: var(--color-text, #2a2724);
+  font-family: var(--sheet-mono);
+  font-size: 0.8rem;
   font-weight: 600;
+  text-align: center;
 }
 
-.seat {
-  min-width: 6rem;
-  border-bottom: 1px solid currentColor;
+.sheet .seat:hover {
+  border-bottom-color: var(--qc);
+  background: color-mix(in srgb, var(--qc) 12%, transparent);
+  color: var(--qc);
+}
+
+/* A pinned quiz carries a small mark in its corner */
+.quiz.pinned::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 0;
+  height: 0;
+  border-top: 7px solid var(--color-accent, #60a5fa);
+  border-left: 7px solid transparent;
 }
 
 .quiz.conflict {
-  box-shadow: 0 0 0 2px var(--color-danger, #c33);
+  background: var(--color-danger-bg, #f2e4e2);
+  box-shadow: inset 0 0 0 1.5px var(--color-danger, #8b4038);
 }
 
 .quiz.warning {
-  box-shadow: 0 0 0 2px var(--color-warn, #c90);
+  background: var(--color-warn-bg, #faf0dc);
+  box-shadow: inset 0 0 0 1.5px var(--color-warn, #c47a1a);
 }
 
 .quiz.selected {
-  box-shadow: 0 0 0 2px var(--color-accent, #36c);
+  box-shadow: 0 0 0 2px var(--color-accent, #60a5fa);
 }
 
-.quiz.pinned {
-  outline: 1px dashed var(--color-text-muted, #666);
-}
-
-.empty-cell {
+.sheet .empty-cell {
+  display: block;
   width: 100%;
-  min-height: 3rem;
+  min-height: 5.2rem;
+  border-radius: 5px;
+}
+
+.sheet .empty-cell:hover {
+  background: var(--color-meta-bg, #f0e8e0);
+  box-shadow: inset 0 0 0 1px dashed var(--color-meta-accent, #c9c0a8);
 }
 
 .room-event {
+  display: grid;
+  place-items: center;
+  min-height: 5.2rem;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--color-meta-accent, #c9c0a8) 18%, transparent);
+  color: var(--color-text-muted, #57534e);
   font-style: italic;
-  text-align: center;
 }
 
 /* One or more pages per day, the time column and room headers on each, no quiz split (FR-044) */
 @media print {
-  button {
+  .sheet {
+    border: 0;
+    background: #fff;
+  }
+
+  .sheet button {
     cursor: default;
+  }
+
+  .sheet thead th {
+    position: static;
   }
 
   .day:not(:first-child) {
@@ -248,7 +438,8 @@ button {
     break-inside: avoid;
   }
 
-  .empty-cell {
+  .sheet .empty-cell,
+  .quiz.pinned::after {
     display: none;
   }
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import '../builder/builder.css'
 import {
   computed,
   nextTick,

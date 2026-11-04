@@ -1,0 +1,250 @@
+/*
+ * The schedule builder's controls, in one place for every builder page: the portal's colours,
+ * a quiet settings rail, and a schedule laid out like a printed tournament programme. Scoped to
+ * the builder's root classes so the rest of the portal is untouched.
+ */
+
+.builder,
+.builder-list,
+.linked {
+  --b-surface: var(--color-bg);
+  --b-surface-2: var(--color-bg-raised);
+  --b-canvas: var(--color-bg-warm);
+  --b-line: var(--color-border-alt);
+  --b-line-strong: var(--color-border);
+  --b-radius: 8px;
+  --b-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+  --b-shadow: 0 1px 2px rgb(0 0 0 / 8%), 0 1px 1px rgb(0 0 0 / 4%);
+  --b-shadow-lift: 0 12px 32px rgb(0 0 0 / 18%), 0 2px 6px rgb(0 0 0 / 8%);
+
+  /* Division colours, for the tick on each quiz and room */
+  --b-d1: #2f9e6e;
+  --b-d2: #c2416b;
+  --b-d3: #c27c0e;
+  --b-d4: #7a5af5;
+
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+@media (prefers-color-scheme: dark) {
+  .builder,
+  .builder-list,
+  .linked {
+    --b-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+    --b-shadow-lift: 0 12px 32px rgb(0 0 0 / 55%);
+    --b-d1: #4fd1a0;
+    --b-d2: #f08aa6;
+    --b-d3: #f0b452;
+    --b-d4: #a996ff;
+  }
+}
+
+/* ---- Controls, as the scoresheet draws them ---- */
+
+:is(.builder, .builder-list, .linked) :is(button, input, select, textarea) {
+  font: inherit;
+  color: inherit;
+}
+
+:is(.builder, .builder-list, .linked) button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-meta-accent) 20%, transparent);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+:is(.builder, .builder-list, .linked) button:hover:not(:disabled) {
+  border-color: var(--color-text-faint);
+  background: var(--color-border-alt);
+  color: var(--color-text);
+}
+
+:is(.builder, .builder-list, .linked) button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The one action that matters most on a page: Publish, Apply, Start */
+:is(.builder, .builder-list, .linked) :is(button.primary, button.apply) {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--palette-obsidian);
+}
+
+:is(.builder, .builder-list, .linked) :is(button.primary, button.apply):hover:not(:disabled) {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+  color: var(--palette-obsidian);
+}
+
+:is(.builder, .builder-list, .linked) button.danger {
+  border-color: color-mix(in srgb, var(--color-danger) 50%, transparent);
+  background: transparent;
+  color: var(--color-danger);
+}
+
+/* A button that reads as a link: inline actions inside lists and notes */
+:is(.builder, .builder-list, .linked) button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+:is(.builder, .builder-list, .linked) button.link:hover:not(:disabled) {
+  background: none;
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+:is(.builder, .builder-list, .linked)
+  :is(input:not([type='checkbox'], [type='radio'], [type='file']), select, textarea) {
+  min-width: 0;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 4px;
+  background: var(--color-bg);
+  font-size: 0.85rem;
+}
+
+:is(.builder, .builder-list, .linked)
+  :is(input:not([type='checkbox'], [type='radio'], [type='file']), select, textarea):focus {
+  border-color: var(--color-accent);
+  outline: 1px solid var(--color-accent);
+  outline-offset: 0;
+}
+
+:is(.builder, .builder-list, .linked) select {
+  padding-right: 1.3rem;
+  background: var(--color-bg)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23888' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E")
+    no-repeat right 0.4rem center;
+  appearance: none;
+  cursor: pointer;
+}
+
+:is(.builder, .builder-list, .linked) input[type='number'] {
+  width: 4rem;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+:is(.builder, .builder-list, .linked) :is(input[type='checkbox'], input[type='radio']) {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-accent);
+}
+
+:is(.builder, .builder-list, .linked) :focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* A checkbox drawn as a switch, for Auto-apply */
+:is(.builder, .builder-list, .linked) input[role='switch'] {
+  appearance: none;
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--b-line-strong);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+:is(.builder, .builder-list, .linked) input[role='switch']::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+  transition: left 0.15s;
+}
+
+:is(.builder, .builder-list, .linked) input[role='switch']:checked {
+  background: var(--color-accent);
+}
+
+:is(.builder, .builder-list, .linked) input[role='switch']:checked::after {
+  left: 18px;
+}
+
+/* ---- Text ---- */
+
+/* A field's label, as the scoresheet's DIVISION and QUIZ */
+:is(.builder, .builder-list, .linked) :is(.field, label.field) {
+  color: var(--color-text-muted);
+}
+
+:is(.builder, .builder-list, .linked) .hint {
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+}
+
+:is(.builder, .builder-list, .linked) h2 {
+  font-size: 1.15rem;
+  color: var(--color-heading);
+  letter-spacing: -0.01em;
+}
+
+:is(.builder, .builder-list, .linked) h4 {
+  margin-top: 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+/* A value waiting for Apply, and a count of them */
+:is(.builder, .builder-list, .linked) :is(.unapplied, .count) {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-warn-bg);
+  color: var(--color-warn);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* A notice over the grid: a problem to answer, a choice, or news */
+:is(.builder, .builder-list, .linked) .message {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--b-line-strong);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--b-radius);
+  background: var(--b-surface);
+}
+
+:is(.builder, .builder-list, .linked) .message[role='alert'] {
+  border-left-color: var(--color-warn);
+  background: var(--color-warn-bg);
+}
+
+:is(.builder, .builder-list, .linked) .message > button + button {
+  margin-left: 0.25rem;
+}
