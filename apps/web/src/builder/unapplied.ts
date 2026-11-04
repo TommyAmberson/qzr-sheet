@@ -56,8 +56,17 @@ export function describeUnapplied(doc: ScheduleDocument): string[] {
         `Finals: ${was.finals.sideBySide} to ${now.finals.sideBySide} side by side, ${was.finals.spacingMinutes} to ${now.finals.spacingMinutes} minutes apart`,
       )
     } else if (u.key === 'divisions') {
-      const names = (s: ScheduleSettings) => s.divisions.map((d) => d.name).join(', ') || 'none'
-      lines.push(`Divisions: ${names(was)} to ${names(now)}`)
+      // What went and what came, since a division can go and another of its name come back
+      const ids = (s: ScheduleSettings) => new Set(s.divisions.map((d) => d.id))
+      const list = (ds: ScheduleSettings['divisions']) =>
+        ds.map((d) => `${d.name} (${d.teams} ${d.teams === 1 ? 'team' : 'teams'})`).join(', ')
+      const gone = was.divisions.filter((d) => !ids(now).has(d.id))
+      const added = now.divisions.filter((d) => !ids(was).has(d.id))
+      const parts = [
+        ...(gone.length ? [`${list(gone)} removed`] : []),
+        ...(added.length ? [`${list(added)} added`] : []),
+      ]
+      lines.push(`Divisions: ${parts.join('; ')}`)
     } else if (division && field === 'name') {
       lines.push(`${before?.name ?? division.name} renamed ${division.name}`)
     } else if (division && field === 'teams') {
