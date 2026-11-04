@@ -16,6 +16,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-04
+
 ### Added
 
 * The schedule builder page at `/builder`, open without an account: a left panel of settings
@@ -23,29 +25,33 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * Building from team counts: set the number of divisions and each one's teams, and the whole weekend
   appears on the grid, laid out like the printed schedules, with each room's divisions, every
   conflict marked and counted, and quizzes that fit nowhere listed as unplaced.
-* Time slots and rooms, and Prelim settings: the frame preset, slot length, rooms (a number or as
-  many as needed), each division's stats break, the Finals' order, spacing and how many run at once,
-  quizzes per team, and the prelim draw source with an (i) explaining it. Settings re-flow the grid
-  around anything moved by hand; with Auto-apply off they wait, each marked with the value the grid
-  uses, until Apply, which first says how many quizzes will move.
-* Editing on the grid: a quiz's menu renames it (seats that refer to it follow), sets any seat to
-  any kind of source, moves it, sends it to the unplaced tray, pins or unpins it, or deletes it.
-  Quizzes and seats move and swap by dragging or by choosing Move and then the target. Times and
-  events open a menu to retime, set a slot's length, rename, delete, or insert a slot, an event in
-  every room or one, or a note; rooms can be added, renamed and removed. Everything done by hand is
-  pinned, nothing is refused, and every popup closes with its × or a click elsewhere. On a phone the
-  settings open as a sheet over the grid.
+* Time slots and rooms, and Prelim settings: slot length, rooms (a number or as many as needed), the
+  days, each renamed or deleted and more added, quizzes per team, and the prelim draw source with an
+  (i) explaining it. Settings re-flow the grid around anything moved by hand; with Auto-apply off
+  they wait, each marked with the value the grid uses, until Apply, which first says how many
+  quizzes will move.
+* Editing on the grid: a quiz's menu renames it (seats that refer to it follow), sets any seat by
+  picking from the division's letters, ranks or earlier quizzes, moves it, sends it to the unplaced
+  tray, pins or unpins it, deletes it, or turns it into an event. Events sit in a row's rooms like
+  quizzes, over any rooms or all of them, and move, unplace, pin and turn into quizzes the same way;
+  a row of only events is drawn short. An empty cell adds a quiz or an event. Quizzes, events and
+  seats move and swap by dragging or by choosing Move and then the target, with every place they can
+  go outlined. Times open a menu to retime, set a length, delete, or insert a slot, an event or a
+  note; rooms, rows, divisions or everything can be pinned and unpinned; rooms and days can be added
+  from the grid. Everything done by hand is pinned, nothing is refused, and every popup closes with
+  its × or a click elsewhere. On a phone the settings open as a sheet over the grid.
 * Elim settings, lanes first: how many ranks each lane takes, splitting and merging lanes, an
   intermediate of one to four quizzes on any line (rerank or play-in, its window sliding with ▲▼),
   each lane as a bracket (the 9-team one in either order, or the rule book's A to C) or a round
-  robin of 1 to 3 each, whether its deciding quiz is called a Finals, its label and its lettering,
-  and the totalling gap with an (i). Anything that won't fit says why in the page.
+  robin of 1 to 3 each, whether its deciding quiz is called a Finals, and its lettering. Anything
+  that won't fit says why in the page.
 * Schedules are kept in this browser as they change: `/builder` lists them to open, rename,
   duplicate or delete, and starts new ones. A schedule saves to and opens from a `.qzrschedule.json`
   file; a newer or invalid file says why and changes nothing. Editing needs no network once the page
   is open.
-* Printing: the room grid a page or more per day, a one-room list in time order, or the basic
-  schedule of events and "Quizzing" blocks; and a Letters / Teams switch once a division has a draw.
+* Printing: the room grid a page or more per day, each seat a line to write the team on with its
+  source and bench colour beside it, or the basic schedule of events and "Quizzing" blocks; and a
+  Letters / Teams switch once a division has a draw.
 * The draw: team names in Teams, then per division (or all at once) Draw, Redraw and Clear, which
   only decide which team holds which letter and never move a quiz. Teams marked late, behind a
   collapsed row, get letters that play late. A team that drops out can lower the count or be marked
@@ -67,6 +73,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 ### Removed
 
 * The old schedule editor, which the builder replaces.
+
+### Bundled contract
+
+* `@qzr/shared@1.7.0` - bumped from 1.6.0
 
 ## [0.21.0] - 2026-11-01
 
