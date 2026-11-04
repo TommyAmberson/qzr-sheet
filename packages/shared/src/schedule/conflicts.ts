@@ -294,15 +294,18 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
         }
       }
 
-      // H-16: each New result of a reranking intermediate used once, and only within its range
+      // H-16: each New result of a reranking intermediate used once, and only within its range;
+      // a round robin seats each of its teams more than once, which counts as one use (as H-14)
       const uses = new Map<number, ScheduleQuiz[]>()
       for (const q of elims)
         for (const s of q.seats)
           if (s.kind === 'new') uses.set(s.rank, [...(uses.get(s.rank) ?? []), q])
       for (const [rank, quizzes] of uses) {
+        const times =
+          quizzes.filter((q) => !roundRobin(q)).length + (quizzes.some(roundRobin) ? 1 : 0)
         if (feedersOf(rank, quizzes).length === 0)
           add('H-16', quizzes, `New ${rank} isn't in any intermediate's range`)
-        else if (quizzes.length > 1) add('H-16', quizzes, `New ${rank} is used more than once`)
+        else if (times > 1) add('H-16', quizzes, `New ${rank} is used more than once`)
       }
       for (const rank of rerankRange.keys()) {
         if (!uses.has(rank)) add('H-16', [], `New ${rank} is never used`)

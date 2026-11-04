@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { checkSchedule, resultName, type Conflict } from '../conflicts'
+import { defaultElims } from '../elims'
 import { generateSchedule } from '../reflow'
 import { newScheduleDocument } from '../scheduleFile'
 import type { ScheduleDocument, ScheduleQuiz } from '../scheduleFile'
@@ -415,5 +416,21 @@ describe('H-3 with an event across every room', () => {
     })
     doc.events.push({ id: 'ev', label: 'Assembly', slot: 'assembly', rooms: 'all', pinned: true })
     expect(checkSchedule(doc).some((c) => c.rule === 'H-3')).toBe(true)
+  })
+})
+
+describe('H-16 with a round robin', () => {
+  it("counts a New rank seated across a round robin's quizzes as one use", () => {
+    const d = newScheduleDocument('x')
+    d.settings.divisions = [{ id: '2', name: 'Div 2', teams: 17, elims: defaultElims(17) }]
+    // The consolation lane, fed by the XY's New ranks, as a round robin of 2 each
+    d.settings.divisions[0]!.elims.lanes[1] = {
+      ...d.settings.divisions[0]!.elims.lanes[1]!,
+      format: 'roundRobin',
+      perTeam: 2,
+      finals: false,
+    }
+    const doc = generateSchedule(d)
+    expect(checkSchedule(doc).filter((c) => c.rule === 'H-16')).toEqual([])
   })
 })

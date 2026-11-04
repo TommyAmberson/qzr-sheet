@@ -87,9 +87,10 @@ prelims a seat holds a **letter**, which the draw later maps to a team. In the e
   reranks the teams of a rank range (7 to 12, say) together, across all its quizzes, by prelim
   points plus the points from their intermediate quiz (`rules.md` §2.b). The results are `New 7` to
   `New 12`: a team can't leave the range, however it did. Every `New n` is the source of exactly one
-  seat. The top of the range joins the bracket above, the rest the lane below. A play-in
-  intermediate reranks nobody: its places go to seats like any quiz's (H-15), and each of its teams
-  still enters exactly one lane (H-14).
+  seat, or, in a round-robin lane, of every quiz the round robin gives it (as H-14). The top of the
+  range joins the bracket above, the rest the lane below. A play-in intermediate reranks nobody: its
+  places go to seats like any quiz's (H-15), and each of its teams still enters exactly one lane
+  (H-14).
 * **H-17. A source refers to a quiz in the same division.**
 
 ## The draw
