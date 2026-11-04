@@ -332,3 +332,27 @@ describe('pinning many at once (FR-011)', () => {
     expect(pinned(w)).toBe(0)
   })
 })
+
+describe("a day's menu", () => {
+  const days = (w: VueWrapper) => w.findAll('.day .row-button').map((b) => b.text())
+
+  it('deletes a day with its rows, and adds one after another', async () => {
+    const w = await sixTeams()
+    expect(days(w)).toContain('Sunday')
+    await w
+      .findAll('.day .row-button')
+      .find((b) => b.text() === 'Sunday')!
+      .trigger('click')
+    popupButton('Delete day').click()
+    await w.vm.$nextTick()
+    expect(days(w)).not.toContain('Sunday')
+
+    await w
+      .findAll('.day .row-button')
+      .find((b) => b.text() === 'Saturday')!
+      .trigger('click')
+    popupButton('Insert day after').click()
+    await w.vm.$nextTick()
+    expect(days(w)).toEqual(['Friday', 'Saturday', 'Sunday'])
+  })
+})

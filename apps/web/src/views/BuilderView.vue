@@ -442,9 +442,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             @cell="onCell"
             @row="(id, el) => (popup = { kind: 'row', id, anchor: el })"
             @room="(id, el) => (popup = { kind: 'room', id, anchor: el })"
-          />
+          >
+            <template #rooms-end>
+              <button type="button" class="add-room" @click="change((d) => addRoom(d))">
+                + Room
+              </button>
+            </template>
+          </ScheduleSheet>
         </div>
-        <button type="button" class="add-room" @click="change((d) => addRoom(d))">+ Room</button>
         <section v-if="tray.length > 0" class="tray" aria-label="Unplaced quizzes">
           <h3>Unplaced</h3>
           <ul>

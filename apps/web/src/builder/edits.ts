@@ -88,6 +88,35 @@ export function editRow(d: ScheduleDocument, id: string, patch: Partial<FrameRow
   d.frame[i] = { ...d.frame[i]!, ...patch, pinned: true } as FrameRow
 }
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+/** The rows of a day: its heading and everything up to the next day */
+function dayRows(d: ScheduleDocument, id: string) {
+  const start = d.frame.findIndex((r) => r.id === id)
+  let end = start + 1
+  while (end < d.frame.length && d.frame[end]!.kind !== 'day') end++
+  return { start, end }
+}
+
+/** Add a day after another, named for the weekday after it, empty until rows are inserted */
+export function insertDay(d: ScheduleDocument, after: string) {
+  const { end } = dayRows(d, after)
+  const before = d.frame.find((r) => r.id === after)
+  const weekday = before?.kind === 'day' ? WEEKDAYS.indexOf(before.label) : -1
+  const label = weekday >= 0 ? WEEKDAYS[(weekday + 1) % 7]! : 'New day'
+  d.frame.splice(end, 0, { kind: 'day', id: crypto.randomUUID(), label, pinned: true })
+}
+
+/** Delete a whole day: its heading and rows go, and its quizzes to the unplaced tray */
+export function deleteDay(d: ScheduleDocument, id: string) {
+  const { start, end } = dayRows(d, id)
+  const gone = new Set(d.frame.slice(start, end).map((r) => r.id))
+  d.frame.splice(start, end - start)
+  for (const q of d.quizzes) if (q.cell && gone.has(q.cell.slot)) q.cell = null
+  const first = d.frame[0]
+  if (first) first.pinned = true
+}
+
 /** Delete a row; a slot's quizzes go to the unplaced tray */
 export function deleteRow(d: ScheduleDocument, id: string) {
   d.frame = d.frame.filter((r) => r.id !== id)

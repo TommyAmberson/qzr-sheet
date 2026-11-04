@@ -80,12 +80,20 @@ const divisionClass = computed(() => {
           <span class="room-print">{{ room.name }}</span>
           <span class="room-divisions">{{ roomDivisions(doc, room.id).join(', ') }}</span>
         </th>
+        <!-- An editing page adds its own header cell, the builder's + Room -->
+        <th v-if="$slots['rooms-end']" class="rooms-end">
+          <slot name="rooms-end" />
+        </th>
       </tr>
     </thead>
     <tbody>
       <template v-for="r in rows" :key="r.row.id">
         <tr v-if="r.kind === 'day'" class="day" :class="{ 'quiz-day': quizDays.has(r.row.id) }">
-          <th :colspan="columns + 1">{{ r.row.label }}</th>
+          <th :colspan="columns + 1">
+            <button type="button" class="row-button" @click="emit('row', r.row.id, target($event))">
+              {{ r.row.label }}
+            </button>
+          </th>
         </tr>
         <tr v-else-if="r.kind === 'note'" class="note">
           <td :colspan="columns + 1">
@@ -250,6 +258,12 @@ const divisionClass = computed(() => {
 
 .room-print {
   display: none;
+}
+
+.rooms-end {
+  width: 1%;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .room-divisions {
@@ -518,7 +532,8 @@ const divisionClass = computed(() => {
   }
 
   .sheet .empty-cell,
-  .quiz.pinned::after {
+  .quiz.pinned::after,
+  .rooms-end {
     display: none;
   }
 

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { formatClock, type FrameRow, type ScheduleDocument } from '@qzr/shared'
 
-import { deleteRow, editRow, insertRow, pinWhere } from '../../builder/edits'
+import { deleteDay, deleteRow, editRow, insertDay, insertRow, pinWhere } from '../../builder/edits'
 import BuilderPopover from './BuilderPopover.vue'
 
 /**
@@ -49,10 +49,21 @@ function patch(p: Partial<FrameRow>) {
   emit('change', (d) => editRow(d, props.rowId, p))
 }
 
-/** A new row starts where this one ends */
+/** The first time on a day, for a row inserted at its start: an hour before its first, or 9:00 */
+function dayStart(id: string) {
+  const frame = props.doc.frame
+  for (let i = frame.findIndex((r) => r.id === id) + 1; i < frame.length; i++) {
+    const r = frame[i]!
+    if (r.kind === 'day') break
+    if (r.kind === 'slot' || r.kind === 'event') return Math.max(0, r.at - 60)
+  }
+  return 9 * 60
+}
+
+/** A new row starts where this one ends, or, after a day's heading, early in the day */
 function insert(kind: 'slot' | 'event' | 'note', room?: string) {
   const r = row.value
-  const at = r.kind === 'slot' || r.kind === 'event' ? r.at + r.minutes : 0
+  const at = r.kind === 'slot' || r.kind === 'event' ? r.at + r.minutes : dayStart(r.id)
   const minutes = r.kind === 'slot' ? r.minutes : props.doc.settings.slotMinutes
   const id = crypto.randomUUID()
   const next: FrameRow =
@@ -135,7 +146,20 @@ function insert(kind: 'slot' | 'event' | 'note', room?: string) {
       <button type="button" @click="insert('slot')">Insert slot after</button>
       <button type="button" @click="insert('event')">Insert event after</button>
       <button type="button" @click="insert('note')">Insert note after</button>
+      <template v-if="row.kind === 'day'">
+        <button type="button" @click="(emit('change', (d) => insertDay(d, rowId)), emit('close'))">
+          Insert day after
+        </button>
+        <button
+          type="button"
+          class="danger"
+          @click="(emit('change', (d) => deleteDay(d, rowId)), emit('close'))"
+        >
+          Delete day
+        </button>
+      </template>
       <button
+        v-else
         type="button"
         class="danger"
         @click="(emit('change', (d) => deleteRow(d, rowId)), emit('close'))"
