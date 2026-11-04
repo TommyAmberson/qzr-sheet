@@ -280,7 +280,7 @@ unplaced, pinned and turned into quizzes and back.
 - [X] T053 [P] Amend `docs/scheduling.md` (the builder in the portal, generation with pins, per-division stats breaks, lanes and intermediates, document storage with draft and versions, the old tables kept unwritten), `docs/data-model.md` (`meet_schedules`, `meet_schedule_versions`), `docs/architecture.md` (the builder and `packages/shared/src/schedule/`) and `docs/example-winkler-2026.md` §4 (CMQ's tables for 4 to 90 teams), as Principle II requires
 - [X] T054 [P] Record the future work in `ROADMAP.md`, kept in step with `apps/web/src/views/RoadmapView.vue`: recording a quiz's lane in the scoresheet's quiz file so results from two consolation lanes can't share a name (W-5), and removing the old schedule tables, `/schedule/sync` and the old read routes once no supported scoresheet release calls them
 - [X] T055 Releases: api MINOR, web MINOR and scoresheet PATCH (`@qzr/ui` is private, bundled into web and the scoresheet, and unversioned), each with its changelog entry and a `### Bundled contract` section naming the shared version from T001; `tools/check-contract-versions.sh --ci` must pass
-- [ ] T056 Run `pnpm test:unit`, `pnpm type-check` and `pnpm lint`, then walk the manual scenarios in `specs/005-schedule-redesign/quickstart.md`
+- [X] T056 Run `pnpm test:unit`, `pnpm type-check` and `pnpm lint`, then walk the manual scenarios in `specs/005-schedule-redesign/quickstart.md` (scenario 7, phones, moves to #139 with the phone layout)
 
 ---
 
