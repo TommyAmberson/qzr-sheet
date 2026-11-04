@@ -273,7 +273,7 @@ schedule.get('/:id/quizzes/:quizId/teams', async (c) => {
     const [room] = await db
       .select({ name: schema.meetRooms.name })
       .from(schema.meetRooms)
-      .where(eq(schema.meetRooms.id, q.roomId))
+      .where(and(eq(schema.meetRooms.id, q.roomId), eq(schema.meetRooms.meetId, meetId)))
     const view = await readerView(c, db, meetId)
     const letters = new Map(
       published.assignments

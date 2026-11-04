@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { newScheduleDocument, type ScheduleDocument } from '@qzr/shared'
 
-import { legacyFromDocument } from '../scheduleLegacy'
+import * as schema from '../../db/schema'
+import { documentFromLegacy, legacyFromDocument, type LegacySchedule } from '../scheduleLegacy'
 
 const meet = { id: 1, dateFrom: '2026-03-06' }
 const at = new Date('2026-03-01T00:00:00Z')
@@ -62,5 +63,68 @@ describe('legacyFromDocument', () => {
       (q) => q.label === 'Div 1 Quiz b',
     )!.id
     expect(after).toBe(before)
+  })
+})
+
+describe('documentFromLegacy', () => {
+  /** An old one-division schedule of `quizzes` prelims, every one seating teams A, B and C */
+  function old(quizzes: number, slot: Partial<schema.MeetSlot> = {}): LegacySchedule {
+    const slots = Array.from({ length: quizzes }, (_, i) => ({
+      id: i + 1,
+      meetId: 1,
+      startAt: new Date(Date.UTC(2026, 2, 7, 15, i * 25)),
+      durationMinutes: 25,
+      kind: 'quiz' as const,
+      eventLabel: null,
+      sortOrder: i,
+      ...slot,
+    })) as schema.MeetSlot[]
+    const quizRows = slots.map((s, i) => ({
+      id: i + 1,
+      meetId: 1,
+      slotId: s.id,
+      roomId: 7,
+      division: '1',
+      phase: 'prelim' as const,
+      lane: null,
+      label: `D1-Q${i + 1}`,
+      bracketLabel: null,
+      publishedAt: null,
+      completedAt: null,
+    })) as schema.ScheduledQuiz[]
+    const seats = quizRows.flatMap((q) =>
+      ['A', 'B', 'C'].map((letter, n) => ({
+        id: q.id * 10 + n,
+        quizId: q.id,
+        seatNumber: n + 1,
+        letter,
+        seedRef: null,
+      })),
+    ) as schema.ScheduledQuizSeat[]
+    return {
+      meet: { id: 1, name: 'Old meet', divisions: ['1'] },
+      rooms: [{ id: 7, name: 'Room 1' }],
+      slots,
+      quizzes: quizRows,
+      seats,
+      assignments: [],
+      teams: [],
+    }
+  }
+
+  it('keeps the prelims per team the old schedule ran, so H-9 holds', () => {
+    expect(documentFromLegacy(old(3), 'UTC').settings.quizzesPerTeam).toBe(3)
+    expect(documentFromLegacy(old(6), 'UTC').settings.quizzesPerTeam).toBe(6)
+  })
+
+  it('makes an old slot of part minutes a whole number of minutes', () => {
+    const d = documentFromLegacy(old(1, { durationMinutes: 12.5 }), 'UTC')
+    expect(d.frame.flatMap((r) => (r.kind === 'slot' ? [r.minutes] : []))).toEqual([13])
+  })
+
+  it('numbers a quiz with an empty bracket label from its label, as the old scoresheet did', () => {
+    const o = old(1)
+    o.quizzes[0] = { ...o.quizzes[0]!, label: 'D1-Q7', bracketLabel: '' }
+    expect(documentFromLegacy(o, 'UTC').quizzes[0]!.label).toBe('Div 1 Quiz 7')
   })
 })

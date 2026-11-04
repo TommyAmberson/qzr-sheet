@@ -25,19 +25,20 @@ import type * as schema from '../db/schema'
 const formatters = new Map<string, Intl.DateTimeFormat>()
 
 function formatterFor(tz: string): Intl.DateTimeFormat {
-  let f = formatters.get(tz)
-  if (!f) {
-    // A zone this runtime doesn't know (a typo in a request, say) reads as UTC rather than failing
-    const known = (() => {
-      try {
-        new Intl.DateTimeFormat('en-CA', { timeZone: tz })
-        return tz
-      } catch {
-        return 'UTC'
-      }
-    })()
-    f = new Intl.DateTimeFormat('en-CA', {
-      timeZone: known,
+  const cached = formatters.get(tz)
+  if (cached) return cached
+  // A zone this runtime doesn't know (a typo in a request, say) reads as UTC rather than failing,
+  // and only zones that exist are kept, so made-up ones can't grow the cache
+  let zone = tz
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: tz })
+  } catch {
+    zone = 'UTC'
+  }
+  const f =
+    formatters.get(zone) ??
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: zone,
       hourCycle: 'h23',
       year: 'numeric',
       month: '2-digit',
@@ -46,8 +47,7 @@ function formatterFor(tz: string): Intl.DateTimeFormat {
       minute: '2-digit',
       second: '2-digit',
     })
-    formatters.set(tz, f)
-  }
+  formatters.set(zone, f)
   return f
 }
 
@@ -83,6 +83,11 @@ export function instantOf(date: string, minutes: number, tz: string): Date {
   return new Date(guess - zoneOffset(first, tz))
 }
 
+/** An old slot's length as a schedule row's: whole minutes, at least one */
+function wholeMinutes(minutes: number): number {
+  return Math.max(1, Math.round(minutes))
+}
+
 function addDays(date: string, days: number): string {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 }
@@ -90,12 +95,13 @@ function addDays(date: string, days: number): string {
 // ---- Old tables to a document ----
 
 /**
- * An old quiz's number as the old scoresheet recorded it: its bracket label, or what follows the
- * last `Q` of a `D1-Q3` label, or its label's last word. Converted quizzes are labelled
- * `Div 1 Quiz 3` with it, so their result names match the results already saved.
+ * An old quiz's number: its bracket label if it has one, or what follows the last `Q` of a `D1-Q3`
+ * label, as the old scoresheet read them, or else its label's last word (`Div 1 Quiz 3`). Converted
+ * quizzes are labelled `Div 1 Quiz 3` with it. The old scoresheet took a whole hand-made label as
+ * the number, which a converted label can't carry, so such a quiz's results keep the old name.
  */
 function oldNumber(q: schema.ScheduledQuiz): string {
-  return q.bracketLabel ?? /Q([^\s]+)$/.exec(q.label)?.[1] ?? quizNumber(q)
+  return q.bracketLabel || /Q([^\s]+)$/.exec(q.label)?.[1] || quizNumber(q)
 }
 
 export interface LegacySchedule {
@@ -137,6 +143,18 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
       }),
     )
   doc.settings.autoApply = false
+  // Prelims per team as the old schedule ran them: the count most of its teams play, 6 at the
+  // one-room meets and 3 elsewhere, so the converted grid isn't checked against the wrong count
+  const plays = new Map<string, number>()
+  for (const seat of old.seats) {
+    const q = quizById.get(seat.quizId)
+    if (q?.phase !== 'prelim' || !seat.letter) continue
+    const key = `${q.division}|${seat.letter}`
+    plays.set(key, (plays.get(key) ?? 0) + 1)
+  }
+  const counts = [...plays.values()]
+  const sixes = counts.filter((n) => n >= 6).length
+  if (counts.length > 0 && sixes * 2 > counts.length) doc.settings.quizzesPerTeam = 6
   // The meet's rooms, as many as it had, so re-flow keeps them
   if (old.rooms.length > 0) doc.settings.rooms = old.rooms.length
   doc.settings.divisions = divisions.map((d) => {
@@ -171,7 +189,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
         kind: 'slot',
         id,
         at: at.minutes,
-        minutes: Math.max(1, slot.durationMinutes),
+        minutes: wholeMinutes(slot.durationMinutes),
         use: 'event',
         pinned: true,
       })
@@ -190,7 +208,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
       kind: 'slot',
       id,
       at: at.minutes,
-      minutes: slot.durationMinutes,
+      minutes: wholeMinutes(slot.durationMinutes),
       use,
       pinned: true,
     })
