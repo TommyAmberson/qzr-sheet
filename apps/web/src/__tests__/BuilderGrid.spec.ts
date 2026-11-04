@@ -178,6 +178,16 @@ describe('moving and swapping (FR-005a)', () => {
       quizEl(w, 'Div 1 Quiz 2').findAll('.seat')[0]!.element,
     )
     expect(seatsOf(w, 'Div 1 Quiz 1')[0]).toBe('B')
+
+    // Unplaced quizzes show their seats, and drag back onto the grid
+    await new Promise((r) => setTimeout(r))
+    await quizEl(w, 'Div 1 Quiz 2').find('.quiz-title').trigger('click')
+    popupButton('Move to Unplaced').click()
+    await w.vm.$nextTick()
+    const card = w.find('.tray-card')
+    expect(card.findAll('.tray-seat')).toHaveLength(3)
+    await drag(card.find('.tray-quiz').element, w.find('.empty-cell').element)
+    expect(w.find('.tray').exists()).toBe(false)
   })
 })
 

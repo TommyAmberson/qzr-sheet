@@ -2,7 +2,7 @@
 import '../builder/builder.css'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { ChoiceDialog, ScheduleBasic, ScheduleSheet } from '@qzr/ui'
-import type { ScheduleDocument, SheetView } from '@qzr/shared'
+import { seatText, type ScheduleDocument, type SheetView } from '@qzr/shared'
 
 import { addDay, addQuiz, addRoom, moveQuiz, swapSeats, unpinAll } from '../builder/edits'
 import { keepSchedule, loadSchedule, saveScheduleFile } from '../builder/persistence'
@@ -399,7 +399,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </section>
       </aside>
 
-      <main class="grid-area">
+      <!-- Drags start on the grid or in Unplaced, and end on either -->
+      <main
+        class="grid-area"
+        @pointerdown="onPointerDown"
+        @pointermove="onPointerMove"
+        @pointerup="onPointerUp"
+        @click.capture="swallowAfterDrag"
+      >
         <p v-if="missing" class="message" role="status">
           This schedule isn't in this browser any more; its stored data may have been cleared. Open
           it from a file if you saved one.
@@ -432,13 +439,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </button>
           <button type="button" @click="pending = null">Cancel</button>
         </p>
-        <div
-          class="sheet-wrap"
-          @pointerdown="onPointerDown"
-          @pointermove="onPointerMove"
-          @pointerup="onPointerUp"
-          @click.capture="swallowAfterDrag"
-        >
+        <div class="sheet-wrap">
           <ScheduleSheet
             v-if="doc.rooms.length > 0"
             :class="{ 'print-hidden': printing !== 'grid' }"
@@ -468,15 +469,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             Unplaced <span class="count">{{ tray.length }}</span>
           </h3>
           <ul>
-            <li v-for="q in tray" :key="q.id" :data-quiz="q.id">
+            <li v-for="q in tray" :key="q.id" class="tray-card" :data-quiz="q.id">
               <button
                 type="button"
                 class="tray-quiz"
                 @click="onQuiz(q.id, $event.currentTarget as HTMLElement)"
               >
-                <strong>{{ q.label }}</strong>
-                <small>{{ (issues.get(q.id) ?? []).map((c) => c.reason).join('; ') }}</small>
+                {{ q.label }}
               </button>
+              <button
+                v-for="(seat, i) in q.seats"
+                :key="i"
+                type="button"
+                class="tray-seat"
+                :data-seat="`${q.id}:${i}`"
+                @click="onSeat(q.id, i, $event.currentTarget as HTMLElement)"
+              >
+                {{ seatText(doc, q, seat, view) }}
+              </button>
+              <small>{{ (issues.get(q.id) ?? []).map((c) => c.reason).join('; ') }}</small>
             </li>
           </ul>
         </section>
@@ -834,29 +845,53 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .tray ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  max-height: 9rem;
+  gap: 0.5rem;
+  max-height: 14rem;
   margin: 0;
   padding: 0;
   overflow-y: auto;
   list-style: none;
 }
 
-.builder .tray-quiz {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  max-width: 18rem;
-  text-align: left;
+/* An unplaced quiz drawn as on the grid: its title over its ruled seats */
+.tray-card {
+  display: grid;
+  gap: 0.15rem;
+  width: 10rem;
+  padding: 0.35rem 0.5rem 0.4rem;
+  border: 1px solid var(--color-border-alt);
+  border-radius: 5px;
+  background: var(--color-bg);
+  cursor: grab;
 }
 
-.tray-quiz strong {
+.builder .tray-card button {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.builder .tray-card .tray-quiz {
   color: var(--color-heading);
+  font-weight: 700;
 }
 
-.tray-quiz small {
-  font-weight: 500;
+.builder .tray-card .tray-seat {
+  border-bottom: 1px solid var(--color-text);
+  color: var(--color-text);
+  font-family: var(--b-mono);
+  font-size: 0.8rem;
+}
+
+.builder .tray-card button:hover {
+  background: var(--color-meta-bg);
+  color: var(--color-accent);
+}
+
+.tray-card small {
   color: var(--color-text-muted);
+  font-size: 0.72rem;
 }
 
 .empty {
