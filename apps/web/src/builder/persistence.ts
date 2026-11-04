@@ -35,8 +35,15 @@ export function listSchedules(): KeptSchedule[] {
   return readIndex().sort((a, b) => b.savedAt.localeCompare(a.savedAt))
 }
 
+/**
+ * Schedules this browser wouldn't store, kept for as long as the page is open so a new or opened
+ * one still opens in the builder, which says to save it to a file
+ */
+const unkept = new Map<string, ScheduleDocument>()
+
 /** Keep a schedule in this browser; called on every change */
 export function keepSchedule(doc: ScheduleDocument): boolean {
+  unkept.set(doc.id, doc)
   try {
     localStorage.setItem(scheduleKey(doc.id), serializeSchedule(doc))
     const index = readIndex().filter((s) => s.id !== doc.id)
@@ -47,6 +54,7 @@ export function keepSchedule(doc: ScheduleDocument): boolean {
       ...(doc.link ? { linked: true } : {}),
     })
     writeIndex(index)
+    unkept.delete(doc.id)
     return true
   } catch {
     // Storage full or unavailable; the builder says so rather than failing
@@ -56,6 +64,9 @@ export function keepSchedule(doc: ScheduleDocument): boolean {
 
 /** A kept schedule, or null when it isn't in this browser (any more) */
 export function loadSchedule(id: string): ScheduleDocument | null {
+  // One kept in memory is newer than any stored copy: it's there only because storage refused it
+  const inMemory = unkept.get(id)
+  if (inMemory) return inMemory
   try {
     const raw = localStorage.getItem(scheduleKey(id))
     return raw ? parseScheduleFile(raw) : null
@@ -65,6 +76,7 @@ export function loadSchedule(id: string): ScheduleDocument | null {
 }
 
 export function forgetSchedule(id: string) {
+  unkept.delete(id)
   try {
     localStorage.removeItem(scheduleKey(id))
     writeIndex(readIndex().filter((s) => s.id !== id))

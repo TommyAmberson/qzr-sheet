@@ -52,6 +52,27 @@ describe('keeping schedules in the browser (FR-002)', () => {
     w.unmount()
   })
 
+  it("still opens a schedule this browser won't store, for as long as the page is open", () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Full', 'QuotaExceededError')
+    })
+    const doc = generateSchedule(newScheduleDocument('Unkept'))
+    expect(keepSchedule(doc)).toBe(false)
+    expect(loadSchedule(doc.id)?.name).toBe('Unkept')
+    setItem.mockRestore()
+  })
+
+  it('opens the newer copy kept in memory over an older stored one', () => {
+    const doc = generateSchedule(newScheduleDocument('Stored'))
+    expect(keepSchedule(doc)).toBe(true)
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Full', 'QuotaExceededError')
+    })
+    expect(keepSchedule({ ...doc, name: 'Newer' })).toBe(false)
+    expect(loadSchedule(doc.id)?.name).toBe('Newer')
+    setItem.mockRestore()
+  })
+
   it('says so when a schedule is no longer in this browser', () => {
     const w = mount(BuilderView, { props: { id: 'gone' } })
     expect(w.find('.message').text()).toMatch(/isn't in this browser any more/)

@@ -29,9 +29,8 @@ function open(id: string) {
 
 function create() {
   const doc = generateSchedule(newScheduleDocument('New schedule'))
-  if (!keepSchedule(doc)) {
-    message.value = "This browser won't keep schedules, so save each one to a file."
-  }
+  // One this browser won't keep still opens; the builder says to save it to a file
+  keepSchedule(doc)
   open(doc.id)
 }
 
@@ -54,7 +53,10 @@ function remove(id: string) {
 
 /** Open a schedule file; a newer or invalid one says why and changes nothing (FR-003) */
 async function openFile(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  // Cleared, so picking the same file again (after freeing storage, say) still opens it
+  input.value = ''
   if (!file) return
   try {
     let doc = await readScheduleFile(file)
@@ -68,6 +70,8 @@ async function openFile(event: Event) {
     if (kept && JSON.stringify(kept) !== JSON.stringify(doc)) {
       doc = { ...doc, id: crypto.randomUUID(), name: `${doc.name} (from file)` }
     }
+    // One this browser won't keep still opens, for as long as the page is open; the builder says
+    // to save it to a file
     keepSchedule(doc)
     open(doc.id)
   } catch (e) {
