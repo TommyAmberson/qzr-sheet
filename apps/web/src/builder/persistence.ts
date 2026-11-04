@@ -128,7 +128,8 @@ export async function saveScheduleFile(
   a.href = url
   a.download = name
   a.click()
-  URL.revokeObjectURL(url)
+  // Some browsers start the download after the click returns, so the URL stays a while
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
   return { name, downloaded: true }
 }
 
