@@ -12,6 +12,17 @@ export const DEFAULT_SHAPE: FrameShape = { prelimSlots: 8, elimSlots: 9, finalsS
 
 const h = (hours: number, minutes = 0) => hours * 60 + minutes
 
+/** The days of the week from Sunday, as day rows are named */
+export const WEEKDAYS: readonly string[] = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+]
+
 /** Friday evening holds at most this many prelim rounds; the rest are Saturday morning */
 const FRIDAY_ROUNDS = 5
 

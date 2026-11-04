@@ -1,3 +1,6 @@
+/** The browser's time zone, which a meet's days are in when the API places them in time */
+export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+
 /** "8:00 AM": an ISO instant as a local time of day */
 export function formatSlotTime(startAt: string): string {
   const d = new Date(startAt)

@@ -7,6 +7,7 @@ import {
   type ScheduleDocument,
 } from '@qzr/shared'
 
+import { browserTimeZone } from '@qzr/ui'
 import type { MeetRoom, MeetTeamRow, QuizMeet } from '../api'
 
 /**
@@ -56,9 +57,6 @@ export function forgetLink(meetId: number) {
     // Nothing kept to forget
   }
 }
-
-/** The browser's time zone, which the meet's days are in */
-export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
 /** A meet team's name as the builder shows it */
 export const teamName = (t: MeetTeamRow) =>

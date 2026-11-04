@@ -16,7 +16,7 @@ import {
   type Stored,
 } from '@qzr/ui'
 
-import { browserTimeZone } from './builder/linked'
+import { browserTimeZone } from '@qzr/ui'
 
 export type { MeetPhase, DivisionStateValue }
 

@@ -48,6 +48,7 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   default, and a division's late letters when they do.
 * `cellMoves`, how many quizzes a change moves, and `lineRanges`, the ranks each line's intermediate
   plays.
+* `WEEKDAYS`: the day names day rows use, shared by the builder and the old-table conversion.
 * `laneName`: the name a lane's quizzes go by (`Div 2C`), for renaming a quiz by hand.
 * `resultKey`: the key a meet stores a quiz's results under, which `resultName` now returns too.
 * `elimsForCount` and `setTeamCount`: a division's elims for a new team count, keeping elims the
@@ -75,11 +76,11 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `generateSchedule`: a whole schedule from its settings: frame, rooms, prelims, each division's
   stats break, elims in its own rooms with time to total an intermediate, and Finals one at a time
   in Room 1, highest division first, each consolation's just before its division's.
-* `reflowSchedule`, `unappliedSettings` and `applyPreview`: re-flow a schedule to its settings
-  around every pinned quiz, which keeps its cell, label and seats; list the settings the grid wasn't
-  built with, with their applied values; and count what Apply would move. Generated slots and events
-  carry ids by what they are for, so a pinned quiz keeps its slot when the frame is rebuilt, and
-  frame rows can be pinned too.
+* `reflowSchedule`, `unappliedSettings` and `applyMoves`: re-flow a schedule to its settings around
+  every pinned quiz, which keeps its cell, label and seats; list the settings the grid wasn't built
+  with, with their applied values; and count what Apply would move. Generated slots and events carry
+  ids by what they are for, so a pinned quiz keeps its slot when the frame is rebuilt, and frame
+  rows can be pinned too.
 * `sheetRows`, `seatText`, `roomDivisions` and `formatClock`: a schedule laid out as the printed
   sheet, each seat's text in letters or drawn teams, and the divisions using each room.
 * `drawDivision` and `clearDraw`: a division's draw, every team one letter, late teams given letters

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { checkSchedule } from '../conflicts'
 import { defaultElims } from '../elims'
 import {
-  applyPreview,
+  applyMoves,
   generateSchedule,
   reflowSchedule,
   replaceElims,
@@ -112,9 +112,8 @@ describe('Auto-apply off (FR-012a)', () => {
   it('says how many quizzes Apply will move before it applies', () => {
     const doc = meet([6, 17, 16])
     doc.settings.rooms = 6
-    const preview = applyPreview(doc)
-    expect(preview.moves).toBeGreaterThan(0)
-    expect(preview.doc.rooms).toHaveLength(6)
+    expect(applyMoves(doc)).toBeGreaterThan(0)
+    expect(reflowSchedule(doc).rooms).toHaveLength(6)
   })
 })
 

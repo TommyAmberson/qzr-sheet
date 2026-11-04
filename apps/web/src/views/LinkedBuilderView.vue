@@ -19,7 +19,7 @@ import {
   type Conflict,
   type ScheduleDocument,
 } from '@qzr/shared'
-import { ScheduleSheet, formatWhen } from '@qzr/ui'
+import { ScheduleSheet, browserTimeZone, formatWhen } from '@qzr/ui'
 
 import {
   getLinkedSchedule,
@@ -38,7 +38,6 @@ import {
   type ScheduleVersion,
 } from '../api'
 import {
-  browserTimeZone,
   comparable,
   forgetLink,
   readLink,

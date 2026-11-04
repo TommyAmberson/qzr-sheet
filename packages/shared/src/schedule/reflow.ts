@@ -529,25 +529,23 @@ export function unappliedSettings(doc: ScheduleDocument): UnappliedSetting[] {
   return list
 }
 
-/** What Apply would do, and how many quizzes it would move or change (FR-012a) */
 /** How many quizzes are in another cell after a change, the tray counting as a cell */
 export function cellMoves(before: ScheduleDocument, after: ScheduleDocument): number {
   const was = new Map(before.quizzes.map((q) => [q.id, show(q.cell)]))
   return after.quizzes.filter((q) => was.get(q.id) !== show(q.cell)).length
 }
 
-export function applyPreview(doc: ScheduleDocument): { doc: ScheduleDocument; moves: number } {
+/** How many quizzes Apply would move, change or remove (FR-012a) */
+export function applyMoves(doc: ScheduleDocument): number {
   const next = reflowSchedule(doc)
   const before = new Map(
     doc.quizzes.map((q) => [q.id, show({ c: q.cell, s: q.seats, l: q.label })]),
   )
-  const moves = next.quizzes.filter(
+  const kept = new Set(next.quizzes.map((q) => q.id))
+  const changed = next.quizzes.filter(
     (q) => before.get(q.id) !== show({ c: q.cell, s: q.seats, l: q.label }),
   ).length
-  return {
-    doc: next,
-    moves: moves + doc.quizzes.filter((q) => !next.quizzes.some((n) => n.id === q.id)).length,
-  }
+  return changed + doc.quizzes.filter((q) => !kept.has(q.id)).length
 }
 
 /** Which generated quiz a quiz is: its division, phase, lane or line, and number */

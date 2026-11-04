@@ -5,7 +5,7 @@ import {
   newScheduleDocument,
   reflowSchedule,
   unappliedSettings,
-  applyPreview,
+  applyMoves,
   resultName,
   type Conflict,
   type ScheduleDocument,
@@ -96,7 +96,7 @@ export function useScheduleBuilder(
 
   /** Settings the grid wasn't built with, and how many quizzes applying them would move */
   const unapplied = computed(() => unappliedSettings(doc.value))
-  const pendingMoves = () => applyPreview(doc.value).moves
+  const pendingMoves = () => applyMoves(doc.value)
   function apply() {
     change((d) => Object.assign(d, reflowSchedule(d)))
   }

@@ -1,4 +1,5 @@
 import {
+  WEEKDAYS,
   laneName,
   type FrameRow,
   type ScheduleDocument,
@@ -313,8 +314,6 @@ export function editRow(d: ScheduleDocument, id: string, patch: Partial<FrameRow
   d.frame[i] = { ...d.frame[i]!, ...patch, pinned: true } as FrameRow
   settleDay(d, id)
 }
-
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 /** The rows of a day: its heading and everything up to the next day */
 function dayRows(d: ScheduleDocument, id: string) {

@@ -32,5 +32,5 @@ export type {
 export { default as ScheduleSheet } from './ScheduleSheet.vue'
 export { default as ScheduleSeat } from './ScheduleSeat.vue'
 export { divisionColourVar } from './divisionColour'
-export { formatSlotTime, formatWhen } from './formatTime'
+export { browserTimeZone, formatSlotTime, formatWhen } from './formatTime'
 export { default as ScheduleBasic } from './ScheduleBasic.vue'

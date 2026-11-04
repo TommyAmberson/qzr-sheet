@@ -1,4 +1,5 @@
 import {
+  WEEKDAYS,
   defaultElims,
   newScheduleDocument,
   ordinal,
@@ -84,8 +85,6 @@ export function instantOf(date: string, minutes: number, tz: string): Date {
 function addDays(date: string, days: number): string {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 }
-
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 // ---- Old tables to a document ----
 
