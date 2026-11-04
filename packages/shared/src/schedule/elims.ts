@@ -94,7 +94,8 @@ function lineRanges(division: DivisionSettings): (LineRange | null)[] {
   })
 }
 
-function laneName(division: DivisionSettings, index: number): string {
+/** The name a lane's quizzes go by: the division's, or its with a C per lane below the main one */
+export function laneName(division: DivisionSettings, index: number): string {
   const label = division.elims.lanes[index]!.label
   if (label.kind === 'own') return label.name
   if (label.kind === 'division' || index === 0) return division.name

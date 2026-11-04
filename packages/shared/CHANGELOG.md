@@ -40,6 +40,7 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   `scheduleQuizMeta`, the scoresheet's division, consolation flag and quiz number that make it.
 * Name helpers: `ordinal`, `quizNumber` (a quiz's own name, its label's last word) and
   `teamDisplayName` (`Grace 2`), and the `PublishedSchedule` response type.
+* `laneName`: the name a lane's quizzes go by (`Div 2C`), for renaming a quiz by hand.
 * `resultKey`: the key a meet stores a quiz's results under, which `resultName` now returns too.
 * `elimsForCount` and `setTeamCount`: a division's elims for a new team count, keeping elims the
   director changed with the last lane taking the difference, and the one way to change a count.

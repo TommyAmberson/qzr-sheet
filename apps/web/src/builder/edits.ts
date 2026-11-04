@@ -1,4 +1,11 @@
-import type { FrameRow, ScheduleDocument, ScheduleEvent, ScheduleQuiz, Seat } from '@qzr/shared'
+import {
+  laneName,
+  type FrameRow,
+  type ScheduleDocument,
+  type ScheduleEvent,
+  type ScheduleQuiz,
+  type Seat,
+} from '@qzr/shared'
 
 /**
  * Hand edits to a schedule, each a change to a draft document for `change` to record. Anything an
@@ -44,9 +51,28 @@ export function setSeat(d: ScheduleDocument, id: string, index: number, seat: Se
 }
 
 /** Renaming keeps every seat that refers to the quiz, since seats name quizzes by id (FR-035c) */
-export function renameQuiz(d: ScheduleDocument, id: string, label: string) {
+/**
+ * Rename a quiz as the scoresheet names one: its division and its own name (`16`, `A`, `Finals`).
+ * The label is built from them, `Div 2 Quiz 16`, an elim taking its lane's name (`Div 2C Quiz I`)
+ * and a Finals keeping its form (`Div 2 Finals`).
+ */
+export function renameQuiz(
+  d: ScheduleDocument,
+  id: string,
+  name: { division: string; quiz: string },
+) {
   const q = quiz(d, id)
-  q.label = label
+  const division = d.settings.divisions.find((x) => x.id === name.division)
+  q.division = name.division
+  // TODO: lanes named by the director, and the lane naming changes planned beyond suffixes
+  // (FR-033's future work), will need the prefix chosen here rather than derived from the lane
+  const lane = q.phase === 'elim' && q.lane !== undefined ? q.lane : 0
+  const prefix = !division
+    ? 'Quiz'
+    : lane > 0 && lane < division.elims.lanes.length
+      ? laneName(division, lane)
+      : division.name
+  q.label = name.quiz === 'Finals' ? `${prefix} Finals` : `${prefix} Quiz ${name.quiz}`
   q.pinned = true
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import {
   formatClock,
   indexOfLetter,
@@ -259,9 +259,14 @@ function setOther(event: Event) {
   } else if (tab.value === 'points' && n >= 1) setTo({ kind: 'points', place: n })
 }
 
-function rename(event: Event) {
-  const label = (event.target as HTMLInputElement).value.trim()
-  if (label && label !== q.value.label) emit('change', (d) => renameQuiz(d, props.quizId, label))
+const nameInput = useTemplateRef<HTMLInputElement>('quizName')
+const divisionSelect = useTemplateRef<HTMLSelectElement>('quizDivision')
+function rename() {
+  const quiz = nameInput.value?.value.trim()
+  const division = divisionSelect.value?.value
+  if (!quiz || !division) return
+  if (quiz === quizNumber(q.value) && division === q.value.division) return
+  emit('change', (d) => renameQuiz(d, props.quizId, { division, quiz }))
 }
 </script>
 
@@ -276,9 +281,24 @@ function rename(event: Event) {
     @close="emit('close')"
   >
     <template v-if="editing === null">
+      <!-- Named as the scoresheet names a quiz: its division, then its own name -->
       <label class="row">
-        Name
-        <input :value="q.label" aria-label="Quiz name" @change="rename" />
+        Division
+        <select ref="quizDivision" :value="q.division" aria-label="Quiz division" @change="rename">
+          <option v-for="d in doc.settings.divisions" :key="d.id" :value="d.id">
+            {{ d.name }}
+          </option>
+        </select>
+      </label>
+      <label class="row">
+        Quiz
+        <input
+          ref="quizName"
+          :value="quizNumber(q)"
+          aria-label="Quiz name"
+          autocomplete="off"
+          @change="rename"
+        />
       </label>
       <div class="group">
         <h4 class="card-title">Seats</h4>

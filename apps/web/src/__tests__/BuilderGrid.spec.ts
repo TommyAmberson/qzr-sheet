@@ -45,8 +45,10 @@ describe('the quiz menu (FR-005c)', () => {
     // Div 1 Quiz C takes 2 of A and 2 of B in the 6-team bracket
     expect(seatsOf(w, 'Div 1 Quiz C')).toContain('2 of A')
     await quizEl(w, 'Div 1 Quiz A').find('.quiz-title').trigger('click')
+    // Named as the scoresheet names it: the division stays, the quiz's own name changes
     const name = document.querySelector<HTMLInputElement>('[aria-label="Quiz name"]')!
-    name.value = 'Div 1 Quiz A2'
+    expect(name.value).toBe('A')
+    name.value = 'A2'
     name.dispatchEvent(new Event('change'))
     await w.vm.$nextTick()
     expect(seatsOf(w, 'Div 1 Quiz C')).toContain('2 of A2')
