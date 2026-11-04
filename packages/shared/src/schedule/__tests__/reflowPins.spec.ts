@@ -255,4 +255,16 @@ describe('re-placing elims (FR-034a)', () => {
     expect(after.quizzes.filter((q) => q.division === 'd2' && q.pinned)).toEqual([])
     expect({ frame: after.frame, events: after.events, d1: quiz(after, d1Elim) }).toEqual(kept)
   })
+
+  it("doesn't bring back quizzes deleted from the divisions it leaves alone", () => {
+    const doc = meet([8, 8])
+    const gone = [
+      doc.quizzes.find((q) => q.division === 'd1' && q.phase === 'prelim')!.id,
+      doc.quizzes.find((q) => q.division === 'd1' && q.phase === 'elim')!.id,
+    ]
+    doc.quizzes = doc.quizzes.filter((q) => !gone.includes(q.id))
+    const after = replaceElims(doc, { divisions: ['d2'], includePinned: false })
+    expect(after.quizzes).toHaveLength(doc.quizzes.length)
+    expect(after.quizzes.some((q) => gone.includes(q.id))).toBe(false)
+  })
 })

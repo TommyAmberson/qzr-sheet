@@ -477,7 +477,13 @@ export function replaceElims(
     quizzes: doc.quizzes.map((q) => ({ ...q, pinned: !moving(q) })),
   }
   const after = reflowSchedule(held, { keepFrame: true })
-  const pins = new Map(doc.quizzes.map((q) => [q.id, q.pinned]))
+  // Every quiz not being re-placed stays exactly as it is, so the re-flow can't bring back one the
+  // director deleted; the chosen divisions' elims come from the re-flow, unpinned
+  const kept = doc.quizzes.filter((q) => !moving(q))
+  const keptIds = new Set(kept.map((q) => q.id))
+  const placed = after.quizzes
+    .filter((q) => q.phase === 'elim' && chosen.has(q.division) && !keptIds.has(q.id))
+    .map((q) => ({ ...q, pinned: false }))
   return {
     ...after,
     settings: doc.settings,
@@ -485,10 +491,7 @@ export function replaceElims(
     // Rows and events never move with a re-place
     frame: doc.frame,
     events: doc.events,
-    quizzes: after.quizzes.map((q) => ({
-      ...q,
-      pinned: moving(q) || !pins.has(q.id) ? false : pins.get(q.id)!,
-    })),
+    quizzes: [...kept, ...placed],
   }
 }
 
