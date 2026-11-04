@@ -2,6 +2,7 @@
 import { divisionColourVar } from '@qzr/ui'
 import { computed, ref, useTemplateRef, watch } from 'vue'
 import {
+  lineRanges,
   formatClock,
   indexOfLetter,
   letterOf,
@@ -54,7 +55,6 @@ function toEvent() {
 }
 
 const q = computed(() => props.doc.quizzes.find((x) => x.id === props.quizId)!)
-const exists = computed(() => props.doc.quizzes.some((x) => x.id === props.quizId))
 const editing = ref<number | null>(props.seat ?? null)
 
 /** In Teams view, a drawn division's letters are picked by team (FR-043) */
@@ -115,9 +115,9 @@ const hasRoundRobin = computed(
 const tabs = computed(() => TABS.filter((t) => t.tab !== 'points' || hasRoundRobin.value))
 
 const slotAt = computed(() => {
-  const at = new Map<string, { order: number; minutes: number }>()
+  const at = new Map<string, { order: number; at: number }>()
   props.doc.frame.forEach((r, i) => {
-    if (r.kind === 'slot') at.set(r.id, { order: i, minutes: r.at })
+    if (r.kind === 'slot') at.set(r.id, { order: i, at: r.at })
   })
   return at
 })
@@ -193,14 +193,9 @@ const newChoices = computed<Choice[]>(() => {
   const d = division.value
   if (tab.value !== 'rank' || !d) return []
   const ranks = new Set<number>()
-  let lineAt = 1
-  d.elims.lanes.forEach((lane, i) => {
-    lineAt += lane.size
-    const inter = d.elims.lines[i]?.intermediate
-    if (!inter) return
-    const from = lineAt - inter.above
-    for (let r = from; r < from + 3 * inter.quizzes; r++) ranks.add(r)
-  })
+  for (const range of lineRanges(d)) {
+    if (range) for (let r = range.from; r <= range.to; r++) ranks.add(r)
+  }
   return [...ranks]
     .sort((a, b) => a - b)
     .map((r) => {
@@ -224,7 +219,7 @@ const sources = computed(() => {
     .sort((a, b) => orderOf(a) - orderOf(b))
     .map((x) => ({
       quiz: x,
-      when: x.cell ? formatClock(slotAt.value.get(x.cell.slot)?.minutes ?? 0) : 'Unplaced',
+      when: x.cell ? formatClock(slotAt.value.get(x.cell.slot)?.at ?? 0) : 'Unplaced',
       places: [1, 2, 3].map((place) => {
         const seat: Seat = { kind: 'place', place, quiz: x.id }
         const other = usedIn(seat)
@@ -269,9 +264,7 @@ function rename() {
 </script>
 
 <template>
-  <!-- Gone once turned into an event, until its menu opens in this one's place -->
   <BuilderPopover
-    v-if="exists"
     :anchor="anchor"
     :title="q.label"
     :tag="division?.name ?? 'Quiz'"
@@ -500,13 +493,6 @@ function rename() {
 
 .seat-editor .seg button {
   flex: 1;
-}
-
-/* The tabs mark their choice as the settings' segmented toggles do */
-.seat-editor .seg button[aria-selected='true'] {
-  border-color: var(--color-meta-accent);
-  background: var(--color-bg);
-  color: var(--color-heading);
 }
 
 .choices {

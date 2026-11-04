@@ -2,6 +2,9 @@
 import { divisionColourVar } from '@qzr/ui'
 import { computed, ref, shallowRef, watch } from 'vue'
 import {
+  laneName,
+  lineRanges,
+  cellMoves,
   replaceElims,
   defaultAbove,
   type DivisionSettings,
@@ -45,9 +48,7 @@ const replaced = computed(() =>
 )
 const replaceMoves = computed(() => {
   const after = replaced.value
-  if (!after) return 0
-  const before = new Map(shown.value.quizzes.map((q) => [q.id, JSON.stringify(q.cell)]))
-  return after.quizzes.filter((q) => before.get(q.id) !== JSON.stringify(q.cell)).length
+  return after ? cellMoves(shown.value, after) : 0
 })
 const pinnedElims = computed(
   () =>
@@ -70,11 +71,6 @@ function edit(id: string, mutate: (d: DivisionSettings) => void) {
 
 const laneFrom = (d: DivisionSettings, i: number) =>
   1 + d.elims.lanes.slice(0, i).reduce((n, l) => n + l.size, 0)
-const laneName = (d: DivisionSettings, i: number) => {
-  const label = d.elims.lanes[i]!.label
-  if (label.kind === 'own') return label.name
-  return label.kind === 'division' || i === 0 ? d.name : `${d.name}${'C'.repeat(i)}`
-}
 
 /** Move the line below a lane: the lane under it gives or takes the ranks */
 function resize(d: DivisionSettings, i: number, by: number) {
@@ -186,12 +182,7 @@ function takes(d: DivisionSettings, i: number) {
         : `Next ${size}`
 }
 /** The ranks an intermediate plays, around the line below lane `line` */
-function interRange(d: DivisionSettings, line: number) {
-  const inter = d.elims.lines[line]?.intermediate
-  if (!inter) return null
-  const lineAt = laneFrom(d, line + 1)
-  return { from: lineAt - inter.above, to: lineAt - inter.above + 3 * inter.quizzes - 1 }
-}
+const interRange = (d: DivisionSettings, line: number) => lineRanges(d)[line] ?? null
 const COUNT = ['', 'Three', 'Six', 'Nine', 'Twelve']
 const SHORT = ['', 'X', 'XY', 'XYZ', 'WXYZ']
 /** A lane's format and size, in words */

@@ -72,6 +72,22 @@ type Popup =
   | { kind: 'cell'; slot: string; room: string; anchor: HTMLElement }
 const popup = ref<Popup | null>(null)
 
+// A popup whose quiz, event, row or room is gone (deleted, turned into another kind, undone)
+// closes before the page draws again, so no menu draws a missing thing
+watch(doc, (d) => {
+  const p = popup.value
+  if (!p) return
+  const there =
+    p.kind === 'quiz'
+      ? d.quizzes.some((q) => q.id === p.id)
+      : p.kind === 'event'
+        ? d.events.some((e) => e.id === p.id)
+        : p.kind === 'room'
+          ? d.rooms.some((r) => r.id === p.id)
+          : d.frame.some((r) => r.id === (p.kind === 'row' ? p.id : p.slot))
+  if (!there) popup.value = null
+})
+
 /** A quiz or an event, which move the same way (FR-017) */
 type Item = 'quiz' | 'event'
 
@@ -195,17 +211,11 @@ const ghost = ref<{ text: string; x: number; y: number; seat: boolean } | null>(
 let dropOver: HTMLElement | null = null
 
 /** Which drop targets to outline: wherever a move or swap, by click or by drag, can land */
-const guide = computed(() =>
-  pending.value?.kind === 'move'
-    ? 'quiz'
-    : pending.value?.kind === 'seat'
-      ? 'seat'
-      : ghost.value
-        ? ghost.value.seat
-          ? 'seat'
-          : 'quiz'
-        : null,
-)
+const guide = computed(() => {
+  if (pending.value) return pending.value.kind === 'move' ? 'quiz' : 'seat'
+  if (ghost.value) return ghost.value.seat ? 'seat' : 'quiz'
+  return null
+})
 
 function markDrop(el: HTMLElement | null) {
   if (el === dropOver) return
@@ -424,7 +434,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         {{ problems }} {{ problems === 1 ? 'problem' : 'problems' }}, {{ warnings }}
         {{ warnings === 1 ? 'warning' : 'warnings' }}
       </button>
-      <div class="view-toggle" role="group" aria-label="Show">
+      <div class="seg view-toggle" role="group" aria-label="Show">
         <button type="button" :aria-pressed="view === 'letters'" @click="view = 'letters'">
           Letters
         </button>
@@ -738,24 +748,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   border-color: var(--color-meta-accent);
 }
 
-/* Letters or teams, as one control */
-.view-toggle {
-  display: inline-flex;
-  padding: 2px;
-  gap: 2px;
-  border: 1px solid var(--color-meta-accent);
-  border-radius: 5px;
-}
-
-.view-toggle button {
-  border-color: transparent;
-  background: transparent;
-}
-
-.view-toggle button[aria-pressed='true'] {
-  border-color: var(--color-meta-accent);
-  background: var(--color-bg);
-  color: var(--color-text);
+/* Letters or teams, a segmented toggle at the toolbar's size */
+.builder .view-toggle button {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
 }
 
 /* The count of problems reads as a status, red while there are any */

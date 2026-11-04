@@ -20,7 +20,6 @@ const emit = defineEmits<{
 }>()
 
 const event = computed(() => props.doc.events.find((e) => e.id === props.eventId)!)
-const exists = computed(() => props.doc.events.some((e) => e.id === props.eventId))
 const takes = (room: string) => event.value.rooms === 'all' || event.value.rooms.includes(room)
 
 function rename(e: Event) {
@@ -51,14 +50,7 @@ function toQuiz() {
 </script>
 
 <template>
-  <!-- Gone once turned into a quiz, until its menu opens in this one's place -->
-  <BuilderPopover
-    v-if="exists"
-    :anchor="anchor"
-    :title="event.label"
-    tag="Event"
-    @close="emit('close')"
-  >
+  <BuilderPopover :anchor="anchor" :title="event.label" tag="Event" @close="emit('close')">
     <label class="row">
       Name
       <input :value="event.label" aria-label="Event name" @change="rename" />

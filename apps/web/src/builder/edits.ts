@@ -50,9 +50,9 @@ export function setSeat(d: ScheduleDocument, id: string, index: number, seat: Se
   q.pinned = true
 }
 
-/** Renaming keeps every seat that refers to the quiz, since seats name quizzes by id (FR-035c) */
 /**
  * Rename a quiz as the scoresheet names one: its division and its own name (`16`, `A`, `Finals`).
+ * Seats that refer to it keep doing so, since they name quizzes by id (FR-035c).
  * The label is built from them, `Div 2 Quiz 16`, an elim taking its lane's name (`Div 2C Quiz I`)
  * and a Finals keeping its form (`Div 2 Finals`).
  */
@@ -196,20 +196,17 @@ export function moveEvent(d: ScheduleDocument, id: string, cell: Cell) {
     return
   }
   e.slot = cell.slot
-  if (e.rooms === 'all') return
-  const order = d.rooms.map((r) => r.id)
-  const at = e.rooms.map((r) => order.indexOf(r)).filter((i) => i >= 0)
-  if (at.length === 0) {
-    e.rooms = [cell.room]
-  } else {
-    // Shifted to start in the cell's room, or as near it as keeps every room on the grid
-    const by = Math.min(
-      order.indexOf(cell.room) - Math.min(...at),
-      order.length - 1 - Math.max(...at),
-    )
-    e.rooms = at.map((i) => order[i + by]!)
-  }
+  if (e.rooms !== 'all') e.rooms = shiftedRooms(d, e.rooms, cell.room)
   mergeSameNamed(d, e.slot)
+}
+
+/** Rooms shifted to start in a room, or as near it as keeps every room on the grid */
+function shiftedRooms(d: ScheduleDocument, rooms: string[], start: string): string[] {
+  const order = d.rooms.map((r) => r.id)
+  const at = rooms.map((r) => order.indexOf(r)).filter((i) => i >= 0)
+  if (at.length === 0) return [start]
+  const by = Math.min(order.indexOf(start) - Math.min(...at), order.length - 1 - Math.max(...at))
+  return at.map((i) => order[i + by]!)
 }
 
 export function editEvent(
@@ -230,7 +227,7 @@ export function deleteEvent(d: ScheduleDocument, id: string) {
   d.events = d.events.filter((e) => e.id !== id)
 }
 
-/** A quiz turned into an event in its cell, named for the quiz */
+/** A quiz turned into an event in its cell, called Event until it's named */
 export function quizToEvent(d: ScheduleDocument, id: string): string {
   const q = quiz(d, id)
   const added: ScheduleEvent = {

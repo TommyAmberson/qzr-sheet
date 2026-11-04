@@ -21,6 +21,16 @@ describe('events of the same name in one slot are one event (FR-017)', () => {
     expect(d.events.map((e) => [e.id, e.rooms])).toEqual([['a', ['r1', 'r3']]])
   })
 
+  it('joins an all-rooms event moved beside one of its name', () => {
+    const d = doc()
+    d.frame.push({ kind: 'slot', id: 's2', at: 9 * 60, minutes: 60, use: 'event' })
+    d.events.push({ id: 'c', label: 'Breakfast', slot: 's2', rooms: 'all', pinned: false })
+    moveEvent(d, 'c', { slot: 's1', room: 'r1' })
+    expect(d.events.filter((e) => e.label === 'Breakfast').map((e) => [e.id, e.rooms])).toEqual([
+      ['a', 'all'],
+    ])
+  })
+
   it('becomes all rooms once it has every one', () => {
     const d = doc()
     d.events.push({ id: 'c', label: 'Breakfast', slot: null, rooms: ['r1'], pinned: false })

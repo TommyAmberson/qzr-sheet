@@ -287,7 +287,7 @@
   font-size: 0.75rem;
 }
 
-:is(.builder, .linked) .seg button[aria-pressed='true'] {
+:is(.builder, .linked) .seg button:is([aria-pressed='true'], [aria-selected='true']) {
   border-color: var(--color-meta-accent);
   background: var(--color-bg);
   color: var(--color-heading);

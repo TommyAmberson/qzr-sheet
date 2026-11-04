@@ -2,6 +2,7 @@
 import { divisionColourVar } from '@qzr/ui'
 import { computed, ref, shallowRef, watch } from 'vue'
 import {
+  cellMoves,
   clearDraw,
   drawDivision,
   lateCounts,
@@ -97,9 +98,7 @@ const sortOptions = () => ({
 const sorted = computed(() => (sorting.value ? sortPrelims(shown.value, sortOptions()) : null))
 const moves = computed(() => {
   const after = sorted.value
-  if (!after) return 0
-  const before = new Map(shown.value.quizzes.map((q) => [q.id, JSON.stringify(q.cell)]))
-  return after.quizzes.filter((q) => before.get(q.id) !== JSON.stringify(q.cell)).length
+  return after ? cellMoves(shown.value, after) : 0
 })
 const pinnedCount = computed(
   () =>
