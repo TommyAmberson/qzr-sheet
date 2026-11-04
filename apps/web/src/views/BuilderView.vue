@@ -889,7 +889,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 
 /* Not a scroll box of its own: the page scrolls, so the room headers and Unplaced can stick */
+/*
+ * The grid scrolls on its own, both ways, beside the settings rail, so a wide grid never widens the
+ * page and pushes the rail out of view; the room headers and times stay put as it scrolls
+ */
 .grid-area {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow: auto;
   padding: 0.75rem;
   background: var(--color-bg-warm);
 }
@@ -1006,6 +1015,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   }
 
   .grid-area {
+    position: static;
+    max-height: none;
     overflow: visible;
     padding: 0;
     background: none;
