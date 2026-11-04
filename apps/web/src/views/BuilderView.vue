@@ -315,12 +315,22 @@ const keepFailed = ref(false)
 /** Quizzes the director has pinned; unpinning them all hands the grid back to the generator */
 const pinnedCount = computed(() => doc.value.quizzes.filter((q) => q.pinned).length)
 
-/** A save to file that failed says why, since the director is relying on that copy */
+/**
+ * A save to file says where it went, since the browser may say nothing, and a failed one says why,
+ * since the director is relying on that copy
+ */
 const fileError = ref('')
+const fileNote = ref('')
+let fileNoteTimer: ReturnType<typeof setTimeout> | undefined
 async function saveFile() {
   fileError.value = ''
+  fileNote.value = ''
   try {
-    await saveScheduleFile(doc.value)
+    const saved = await saveScheduleFile(doc.value)
+    if (!saved) return
+    fileNote.value = `${saved.downloaded ? 'Downloaded' : 'Saved to'} ${saved.name}`
+    clearTimeout(fileNoteTimer)
+    fileNoteTimer = setTimeout(() => (fileNote.value = ''), 6000)
   } catch (e) {
     fileError.value = e instanceof Error ? e.message : String(e)
   }
@@ -576,6 +586,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           it from a file if you saved one.
         </p>
         <p v-if="fileError" class="message" role="alert">The file wasn't saved: {{ fileError }}</p>
+        <p v-if="fileNote" class="message" role="status">{{ fileNote }}</p>
         <p v-if="keepFailed" class="message" role="status">
           This browser couldn't keep the schedule. Save it to a file so nothing is lost.
         </p>

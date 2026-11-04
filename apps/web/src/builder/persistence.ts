@@ -93,12 +93,18 @@ interface WindowWithFilePicker extends Window {
     suggestedName?: string
     types?: { description: string; accept: Record<string, string[]> }[]
   }): Promise<{
+    name: string
     createWritable(): Promise<{ write(data: string): Promise<void>; close(): Promise<void> }>
   }>
 }
 
-/** Save to a `.qzrschedule.json` file: the save picker where the browser has one, else a download */
-export async function saveScheduleFile(doc: ScheduleDocument): Promise<void> {
+/**
+ * Save to a `.qzrschedule.json` file: the save picker where the browser has one, else a download.
+ * Says which file it went to, or null when the picker was cancelled.
+ */
+export async function saveScheduleFile(
+  doc: ScheduleDocument,
+): Promise<{ name: string; downloaded: boolean } | null> {
   const json = serializeSchedule(doc)
   const name = `${doc.name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'schedule'}.qzrschedule.json`
   if ('showSaveFilePicker' in window) {
@@ -110,12 +116,12 @@ export async function saveScheduleFile(doc: ScheduleDocument): Promise<void> {
       const writable = await handle.createWritable()
       await writable.write(json)
       await writable.close()
+      return { name: handle.name, downloaded: false }
     } catch (e) {
       // Cancelling the picker isn't an error; a write that failed is
-      if (e instanceof DOMException && e.name === 'AbortError') return
+      if (e instanceof DOMException && e.name === 'AbortError') return null
       throw e
     }
-    return
   }
   const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
   const a = document.createElement('a')
@@ -123,6 +129,7 @@ export async function saveScheduleFile(doc: ScheduleDocument): Promise<void> {
   a.download = name
   a.click()
   URL.revokeObjectURL(url)
+  return { name, downloaded: true }
 }
 
 /**
