@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { divisionColourVar } from '@qzr/ui'
 import { computed, ref, useTemplateRef, watch } from 'vue'
 import {
-  divisionColour,
   formatClock,
   indexOfLetter,
   letterOf,
@@ -104,7 +104,7 @@ watch(
 
 const division = computed(() => props.doc.settings.divisions.find((d) => d.id === q.value.division))
 /** The division's colour, as the grid ticks its quizzes */
-const colour = computed(() => `var(--dc-${divisionColour(props.doc, q.value.division)})`)
+const colour = computed(() => divisionColourVar(props.doc, q.value.division))
 const teams = computed(() => division.value?.teams ?? 0)
 const sameDivision = computed(() =>
   props.doc.quizzes.filter((x) => x.division === q.value.division && x.id !== props.quizId),
@@ -309,7 +309,7 @@ function rename() {
           :aria-label="`Seat ${i + 1}`"
           @click="openSeat(i)"
         >
-          <span class="bench" :class="`bench-${i}`" />
+          <span class="qz-bench" :class="`qz-bench-${i}`" />
           <span class="src" :class="{ choose: s.kind === 'empty' }">{{
             seatText(doc, q, s, view ?? 'letters')
           }}</span>
@@ -461,22 +461,10 @@ function rename() {
   text-align: left;
 }
 
-.seat-row .bench {
+.seat-row .qz-bench {
   align-self: stretch;
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 25%, transparent);
-}
-
-.bench-0 {
-  background: #e02424;
-}
-
-.bench-1 {
-  background: #fff;
-}
-
-.bench-2 {
-  background: #1d4ed8;
+  height: auto;
+  margin: 0;
 }
 
 .seat-row .src {

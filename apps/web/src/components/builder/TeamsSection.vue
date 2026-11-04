@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { divisionColourVar } from '@qzr/ui'
 import NumberInput from './NumberInput.vue'
 import { ref } from 'vue'
 import {
@@ -94,7 +95,7 @@ function setTeamName(id: string, index: number, event: Event) {
       :key="d.id"
       class="division"
       :data-division="d.id"
-      :style="{ '--qc': `var(--dc-${divisionColour(doc, d.id)})` }"
+      :style="{ '--qc': divisionColourVar(doc, d.id) }"
     >
       <div class="head">
         <button

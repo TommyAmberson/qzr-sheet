@@ -107,13 +107,6 @@ header {
   text-transform: uppercase;
 }
 
-.tick {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--qc);
-}
-
 .popover .close {
   margin-left: auto;
   padding: 0 0.35rem;

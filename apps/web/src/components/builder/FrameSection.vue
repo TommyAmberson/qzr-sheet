@@ -190,10 +190,6 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
   gap: 0.6rem;
 }
 
-.card-title {
-  margin: 0;
-}
-
 .field {
   display: flex;
   align-items: center;
@@ -297,11 +293,5 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
 
 .foot .hint {
   font-size: 0.75rem;
-}
-
-.unapplied {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--color-warn, #a60);
 }
 </style>

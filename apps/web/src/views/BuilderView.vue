@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import '../builder/builder.css'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
-import { ChoiceDialog, ScheduleBasic, ScheduleSheet } from '@qzr/ui'
+import { ChoiceDialog, ScheduleBasic, ScheduleSeat, ScheduleSheet } from '@qzr/ui'
 import { seatText, type ScheduleDocument, type SheetView } from '@qzr/shared'
 
 import {
@@ -617,20 +617,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               >
                 {{ q.label }}
               </button>
-              <button
-                v-for="(seat, i) in q.seats"
+              <ScheduleSeat
+                v-for="(_, i) in q.seats"
                 :key="i"
-                type="button"
                 class="tray-seat"
-                :data-seat="`${q.id}:${i}`"
+                :doc="doc"
+                :quiz="q"
+                :index="i"
+                :view="view"
                 @click="onSeat(q.id, i, $event.currentTarget as HTMLElement)"
-              >
-                <span class="src">{{ seatText(doc, q, seat, 'letters') }}</span>
-                <span class="bench" :class="`bench-${i}`" />
-                <span class="line">{{
-                  view === 'teams' && seat.kind === 'letter' ? seatText(doc, q, seat, 'teams') : ''
-                }}</span>
-              </button>
+              />
               <small>{{ (issues.get(q.id) ?? []).map((c) => c.reason).join('; ') }}</small>
             </li>
           </ul>
@@ -1054,51 +1050,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   font-weight: 700;
 }
 
-/* Seats as the grid draws them: the line centred under the title, the source and bench colour
-   (red, white, blue) just left of it */
-.builder .tray-card .tray-seat {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 3px 5rem minmax(0, 1fr);
-  align-items: end;
-  width: 100%;
-  column-gap: 0.3rem;
-  color: var(--color-text);
-  font-size: 0.8rem;
-  line-height: 1.25;
-}
-
-.tray-seat .src {
-  justify-self: end;
-  font-family: var(--b-mono);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.tray-seat .bench {
-  height: 1em;
-  margin-bottom: 0.15em;
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 25%, transparent);
-}
-
-.tray-seat .bench-0 {
-  background: #e02424;
-}
-
-.tray-seat .bench-1 {
-  background: #fff;
-}
-
-.tray-seat .bench-2 {
-  background: #1d4ed8;
-}
-
-.tray-seat .line {
-  min-height: 1.2em;
-  overflow: hidden;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 30%, transparent);
-  font-weight: 600;
-  white-space: nowrap;
+/* Seats as the grid draws them, with a shorter line to fit the card */
+.tray-card .tray-seat {
+  --seat-line: 5rem;
 }
 
 .builder .tray-card button:hover {

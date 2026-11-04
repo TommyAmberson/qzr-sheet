@@ -89,10 +89,6 @@ const SOURCE_NAMES: Record<PrelimDraw, string> = {
   gap: 0.6rem;
 }
 
-.card-title {
-  margin: 0;
-}
-
 .field {
   display: flex;
   align-items: center;
@@ -125,11 +121,5 @@ const SOURCE_NAMES: Record<PrelimDraw, string> = {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.8rem;
-}
-
-.unapplied {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--color-warn, #a60);
 }
 </style>

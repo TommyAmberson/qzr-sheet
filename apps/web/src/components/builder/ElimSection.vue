@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { divisionColourVar } from '@qzr/ui'
 import { computed, ref, shallowRef, watch } from 'vue'
 import {
-  divisionColour,
   replaceElims,
   defaultAbove,
   type DivisionSettings,
@@ -171,7 +171,7 @@ const BRACKET_NAMES: Record<string, string> = {
 const unapplied = (id: string) => props.unapplied.some((u) => u.key === `${id}.elims`)
 
 /** Each division's colour, as the grid ticks its quizzes */
-const colourOf = (d: DivisionSettings) => `var(--dc-${divisionColour(props.doc, d.id)})`
+const colourOf = (d: DivisionSettings) => divisionColourVar(props.doc, d.id)
 const range = (from: number, to: number) => (from === to ? `${from}` : `${from}–${to}`)
 /** Who a lane takes, in words, reading down the ranks */
 function takes(d: DivisionSettings, i: number) {
@@ -507,13 +507,6 @@ function laneNote(l: LaneSettings) {
   margin-left: auto;
 }
 
-.tick {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--qc);
-}
-
 /* Lane shades: the main lane in the division's colour, each lane below paler */
 .l0 {
   background: var(--qc);
@@ -685,25 +678,5 @@ h4 {
   gap: 0.3rem;
   color: var(--color-text-muted);
   font-size: 0.8rem;
-}
-.all {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.3rem 0.5rem;
-}
-
-.card .tick {
-  display: inline-block;
-  margin-right: 0.35rem;
-}
-
-.choice {
-  display: grid;
-  gap: 0.35rem;
-  justify-items: start;
-  padding: 0.5rem;
-  border: 1px solid var(--color-meta-accent);
-  border-radius: 6px;
 }
 </style>

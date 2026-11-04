@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import './divisionColours.css'
+import ScheduleSeat from './ScheduleSeat.vue'
+import { divisionColourVar } from './divisionColour'
 import {
-  divisionColour,
   formatClock,
   roomDivisions,
-  seatText,
   sheetRows,
   type Conflict,
   type ScheduleDocument,
   type ScheduleQuiz,
-  type Seat,
   type SheetView,
 } from '@qzr/shared'
 
@@ -44,13 +42,6 @@ const emit = defineEmits<{
 
 const rows = computed(() => sheetRows(props.doc))
 
-/** The team on a seat's line: a drawn team in Teams view, else blank for the meet to fill in */
-function seatTeam(quiz: ScheduleQuiz, seat: Seat) {
-  return props.view === 'teams' && seat.kind === 'letter'
-    ? seatText(props.doc, quiz, seat, 'teams')
-    : ''
-}
-
 /** Days with quizzes, which each start a printed page; a day of only events follows on */
 const quizDays = computed(() => {
   const days = new Set<string>()
@@ -75,7 +66,7 @@ function hasWarning(id: string) {
 const target = (e: Event) => e.currentTarget as HTMLElement
 
 /** Each division's colour, its own or by its place, for the tick on its quizzes */
-const colourOf = (division: string) => `var(--dc-${divisionColour(props.doc, division)})`
+const colourOf = (division: string) => divisionColourVar(props.doc, division)
 
 /** How much of its division's colour each lane's tick takes, as Elim settings shades the lanes */
 const LANE_SHARE = [100, 55, 32, 16]
@@ -163,22 +154,16 @@ function tickOf(quiz: ScheduleQuiz) {
                   {{ c.quiz.label }}
                 </button>
               </slot>
-              <button
-                v-for="(seat, i) in c.quiz.seats"
+              <ScheduleSeat
+                v-for="(_, i) in c.quiz.seats"
                 :key="i"
-                type="button"
                 class="seat"
-                :data-seat="`${c.quiz.id}:${i}`"
-                :title="seatText(doc, c.quiz, seat, 'letters')"
+                :doc="doc"
+                :quiz="c.quiz"
+                :index="i"
+                :view="view"
                 @click="emit('seat', c.quiz.id, i, target($event))"
-              >
-                <!-- Where the seat comes from, its bench colour, and the line its team goes on -->
-                <span class="src" :class="{ choose: seat.kind === 'empty' }">{{
-                  seatText(doc, c.quiz, seat, 'letters')
-                }}</span>
-                <span class="bench" :class="`bench-${i}`" />
-                <span class="line">{{ seatTeam(c.quiz, seat) }}</span>
-              </button>
+              />
             </div>
             <button
               v-else-if="c.kind === 'event'"
@@ -403,76 +388,9 @@ function tickOf(quiz: ScheduleQuiz) {
   box-shadow: 0 0 0 1px var(--qc);
 }
 
+/* Room for a long source beside a centred line */
 .sheet .seat {
-  display: grid;
-  /* The line centred under the quiz's title, as on paper, its source hanging to the left */
-  grid-template-columns: minmax(0, 1fr) 3px min(7rem, 50%) minmax(0, 1fr);
-  align-items: end;
-  column-gap: 0.3rem;
-  line-height: 1.25;
-  width: 100%;
   min-width: 12rem;
-  padding: 0.1rem 0 0;
-  border-radius: 0;
-  color: var(--color-text, #2a2724);
-  font-size: 0.8rem;
-  text-align: left;
-}
-
-/* The scoresheet's benches, in seat order: red, white, blue, as a slim bar at the line's start */
-.bench {
-  height: 1em;
-  margin-bottom: 0.15em;
-  width: 3px;
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text, #2a2724) 25%, transparent);
-}
-
-.bench-0 {
-  background: var(--color-team-red, #e02424);
-}
-
-.bench-1 {
-  background: var(--color-team-white, #fff);
-}
-
-.bench-2 {
-  background: var(--color-team-blue, #1d4ed8);
-}
-
-/* Ends at the bar; a long source spills left rather than being cut short */
-.src {
-  justify-self: end;
-  color: var(--color-text, #2a2724);
-  font-family: var(--sheet-mono);
-  font-size: 0.8rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.src.choose {
-  color: var(--color-accent, #2563eb);
-  font-family: inherit;
-  font-style: italic;
-  font-weight: 500;
-}
-
-.line {
-  min-height: 1.2em;
-  overflow: hidden;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-text, #2a2724) 30%, transparent);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sheet .seat:hover .line {
-  border-bottom-color: var(--qc);
-  background: color-mix(in srgb, var(--qc) 12%, transparent);
-}
-
-.sheet .seat:hover .src {
-  color: var(--qc);
 }
 
 /* A pinned quiz carries a small mark in its corner */
@@ -610,28 +528,7 @@ function tickOf(quiz: ScheduleQuiz) {
   }
 
   .sheet .seat {
-    width: 100%;
     min-width: 0;
-    color: #000;
-    font-size: 8pt;
-  }
-
-  .line {
-    border-bottom: 0.75pt solid #000;
-  }
-
-  .src {
-    color: #000;
-    font-size: 7.5pt;
-  }
-
-  .src.choose {
-    color: #777;
-  }
-
-  .bench {
-    box-shadow: inset 0 0 0 0.5pt #000;
-    print-color-adjust: exact;
   }
 
   .sheet .quiz-title {

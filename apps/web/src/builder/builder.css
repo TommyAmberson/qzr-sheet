@@ -259,6 +259,7 @@
 }
 
 :is(.builder, .linked) .card-title {
+  margin: 0;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -329,4 +330,36 @@
   gap: 0.3rem;
   padding-top: 0.45rem;
   border-top: 1px dashed var(--color-border-alt);
+}
+
+/* A division's colour, as the dot before its name */
+:is(.builder, .linked) .tick {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--qc);
+}
+
+:is(.builder, .linked) .card .tick {
+  margin-right: 0.35rem;
+}
+
+/* A row of buttons that wraps */
+:is(.builder, .linked) .all {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+}
+
+/* A choice to confirm before it applies: Sort, Re-place */
+:is(.builder, .linked) .choice {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+  padding: 0.5rem;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 6px;
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { divisionColourVar } from '@qzr/ui'
 import { computed, ref, shallowRef, watch } from 'vue'
 import {
-  divisionColour,
   clearDraw,
   drawDivision,
   lateCounts,
@@ -29,7 +29,7 @@ const teamsOf = (id: string, count: number) =>
   }))
 const nameOf = (t: { name?: string; i: number }) => t.name ?? `Team ${t.i + 1}`
 /** Each division's colour, as its quizzes carry it on the grid */
-const colourOf = (id: string) => `var(--dc-${divisionColour(props.doc, id)})`
+const colourOf = (id: string) => divisionColourVar(props.doc, id)
 const lateOn = computed(() => lateCounts(props.doc.settings))
 const drawn = (id: string) => props.doc.draw[id]?.teams.some((t) => t.letter) ?? false
 
@@ -278,10 +278,6 @@ function confirmSort() {
   gap: 0.6rem;
 }
 
-.card-title {
-  margin: 0;
-}
-
 /* Late teams' heading opens the list; its summary says who is marked */
 .draw-controls .disclose {
   justify-content: space-between;
@@ -300,15 +296,6 @@ function confirmSort() {
 .sum {
   color: var(--color-text-muted);
   font-weight: 500;
-}
-
-.tick {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 0.35rem;
-  border-radius: 50%;
-  background: var(--qc);
 }
 
 .rows {
@@ -355,7 +342,6 @@ function confirmSort() {
   margin-left: auto;
 }
 
-.all,
 .team {
   display: flex;
   flex-wrap: wrap;
@@ -373,15 +359,6 @@ function confirmSort() {
   margin: 0;
   font-size: 0.8rem;
   color: var(--color-text-muted);
-}
-
-.choice {
-  display: grid;
-  gap: 0.35rem;
-  justify-items: start;
-  padding: 0.5rem;
-  border: 1px solid var(--color-meta-accent);
-  border-radius: 6px;
 }
 
 .absent {
