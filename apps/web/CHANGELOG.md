@@ -16,6 +16,18 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.22.3] - 2026-11-04
+
+### Fixed
+
+* Scrolling the schedule builder's grid with a finger no longer starts dragging the quiz or seat
+  under it, which then dropped it wherever the next tap landed. On a touch screen quizzes move with
+  Move; a mouse or pen still drags.
+
+### Bundled contract
+
+* `@qzr/shared@1.7.1` - unchanged
+
 ## [0.22.2] - 2026-11-04
 
 ### Fixed

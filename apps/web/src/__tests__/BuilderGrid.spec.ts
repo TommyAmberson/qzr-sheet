@@ -213,6 +213,30 @@ describe('moving and swapping (FR-005a)', () => {
     await drag(card.find('.tray-quiz').element, w.find('.empty-cell').element)
     expect(w.find('.tray').exists()).toBe(false)
   })
+
+  it("doesn't drag when a finger scrolls, or when the browser takes the pointer over", async () => {
+    const w = await sixTeams()
+    const from = quizEl(w, 'Div 1 Quiz 1').find('.quiz-title').element
+    const before = cellOf(w, 'Div 1 Quiz 1')
+    document.elementFromPoint = () => w.find('.empty-cell').element
+    const at = (type: string, x: number, pointerType: string) =>
+      new PointerEvent(type, { bubbles: true, button: 0, clientX: x, clientY: x, pointerType })
+
+    from.dispatchEvent(at('pointerdown', 0, 'touch'))
+    from.dispatchEvent(at('pointermove', 40, 'touch'))
+    from.dispatchEvent(at('pointerup', 40, 'touch'))
+    await w.vm.$nextTick()
+    expect(cellOf(w, 'Div 1 Quiz 1')).toBe(before)
+
+    // A pen's drag the browser cancels leaves nothing armed for the next tap
+    from.dispatchEvent(at('pointerdown', 0, 'pen'))
+    from.dispatchEvent(at('pointermove', 40, 'pen'))
+    from.dispatchEvent(at('pointercancel', 40, 'pen'))
+    from.dispatchEvent(at('pointerup', 40, 'pen'))
+    await w.vm.$nextTick()
+    expect(cellOf(w, 'Div 1 Quiz 1')).toBe(before)
+    expect(w.find('.drag-ghost').exists()).toBe(false)
+  })
 })
 
 describe('rows and rooms', () => {

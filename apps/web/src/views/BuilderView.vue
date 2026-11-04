@@ -236,7 +236,8 @@ function dropTarget(over: Element | null, seat: boolean) {
 }
 
 function onPointerDown(event: PointerEvent) {
-  if (event.button !== 0) return
+  // A finger scrolls the grid; on a touch screen quizzes move by Move instead (FR-005a)
+  if (event.button !== 0 || event.pointerType === 'touch') return
   const el = event.target as HTMLElement
   const seat = el.closest<HTMLElement>('[data-seat]')
   const quiz = el.closest<HTMLElement>('[data-quiz]')
@@ -302,6 +303,13 @@ function onPointerUp(event: PointerEvent) {
   } else if (onCell && onEventEl !== d.id) {
     moveItem(d.item, d.id, { slot: onCell[0]!, room: onCell[1]! })
   }
+}
+
+/** The browser took the pointer over, to scroll or zoom, so nothing is being dragged */
+function onPointerCancel() {
+  drag = null
+  ghost.value = null
+  markDrop(null)
 }
 
 /** A click that ends a drag isn't a click */
@@ -604,6 +612,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
+        @pointercancel="onPointerCancel"
         @click.capture="swallowAfterDrag"
       >
         <p v-if="missing" class="message" role="status">
