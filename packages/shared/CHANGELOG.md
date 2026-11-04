@@ -23,6 +23,20 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-04
+
+### Changed
+
+* `generateSchedule` no longer skips a slot after an intermediate: the quizzes using its results run
+  in the very next row (FR-028a). The intermediate's row is longer by `totallingMinutes`, whose
+  default is now 0, since the app totals the results. `buildFrame` takes the elim slots holding an
+  intermediate.
+
+### Removed
+
+* Warning W-3: any time to total sits inside the intermediate's own row, so a `New n` quiz in the
+  next row is soon enough, and H-12 still orders it after the intermediate.
+
 ## [1.7.0] - 2026-11-04
 
 ### Added

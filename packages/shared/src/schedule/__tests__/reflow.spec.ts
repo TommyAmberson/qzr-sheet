@@ -25,7 +25,6 @@ describe('generateSchedule', () => {
     expect(doc.rooms).toHaveLength(5)
     expect(hard(doc)).toEqual([])
     const rules = new Set(checkSchedule(doc).map((c) => c.rule))
-    expect(rules.has('W-3')).toBe(false)
     expect(rules.has('W-4')).toBe(false)
     expect(doc.quizzes.filter((q) => q.phase === 'prelim')).toHaveLength(39)
   })
@@ -78,6 +77,31 @@ describe('generateSchedule', () => {
     const doc = meet([6, 17, 16])
     expect(checkSchedule(doc).filter((c) => c.rule === 'H-11')).toEqual([])
   })
+
+  it.each([0, 20])(
+    'runs the quizzes using an intermediate in the next row, its row %i minutes longer (FR-028a)',
+    (totallingMinutes) => {
+      // FBC 2025: X and Y at 10:40 in a 45-minute row, then Quiz A, which seats New 7
+      const doc = newScheduleDocument('Test')
+      doc.settings.totallingMinutes = totallingMinutes
+      doc.settings.divisions = [6, 17, 16].map((teams, i) => ({
+        id: `d${i + 1}`,
+        name: `Div ${i + 1}`,
+        teams,
+        elims: defaultElims(teams),
+      }))
+      const built = generateSchedule(doc)
+      const slots = new Map(
+        built.frame.flatMap((r) => (r.kind === 'slot' ? [[r.id, r] as const] : [])),
+      )
+      const x = built.quizzes.find((q) => q.division === 'd2' && q.line !== undefined)!
+      const a = built.quizzes.find((q) => q.division === 'd2' && q.label === 'Div 2 Quiz A')!
+      const xRow = slots.get(x.cell!.slot)!
+      expect(xRow.minutes).toBe(built.settings.slotMinutes + totallingMinutes)
+      const elimRows = built.frame.filter((r) => r.kind === 'slot' && r.use === 'elim')
+      expect(elimRows.indexOf(slots.get(a.cell!.slot)!)).toBe(elimRows.indexOf(xRow) + 1)
+    },
+  )
 
   it('leaves no empty prelim row before the stats break (P-7)', () => {
     // May 2023: 32 prelims fit 7 rounds of 5 rooms, as they did at the meet

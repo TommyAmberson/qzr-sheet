@@ -54,10 +54,15 @@ const offLength = computed(() => {
   let day = ''
   for (const row of props.doc.frame) {
     if (row.kind === 'day') day = row.label
-    // Against the length the grid was built with: a waiting change isn't the grid's yet
-    const built = props.doc.applied.slotMinutes
-    if (row.kind !== 'slot' || row.use === 'event' || row.minutes === built) continue
-    if (!props.doc.quizzes.some((q) => q.cell?.slot === row.id)) continue
+    if (row.kind !== 'slot' || row.use === 'event') continue
+    const held = props.doc.quizzes.filter((q) => q.cell?.slot === row.id)
+    if (held.length === 0) continue
+    // Against the length the grid was built with, since a waiting change isn't the grid's yet. A
+    // row holding an intermediate is built longer, to total it (FR-028a)
+    const built =
+      props.doc.applied.slotMinutes +
+      (held.some((q) => q.line !== undefined) ? props.doc.applied.totallingMinutes : 0)
+    if (row.minutes === built) continue
     list.push({
       id: row.id,
       when: `${day.slice(0, 3)} ${formatClock(row.at)}`,

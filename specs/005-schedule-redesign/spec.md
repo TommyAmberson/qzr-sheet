@@ -109,8 +109,9 @@ takes nothing away from it.
   behind; there may be no way to make the schedule "right", and it should show what actually
   happens.
 * Q: How much time must there be between the XY quizzes and the first quiz that uses their results?
-  → A: A setting, defaulting to the 2025 meets: the next slot, starting about 10 to 20 minutes late,
-  so the reranking can be totalled.
+  → A: None by default: the quizzes using its results run in the very next row, since the app totals
+  the results itself. A schedule can make the intermediate's own row longer by its totalling
+  minutes, as the 2024 and 2025 meets did when totalling by hand (10 to 20 minutes).
 * Q: How does a division's Finals run, given the rule book's "win twice" championship series? → A:
   The org doesn't play a series. Finals is a single quiz of three teams, so each division's Finals
   takes one slot.
@@ -655,10 +656,11 @@ without the edit, and the scoresheet loads a published quiz with the right teams
 
   Intermediates are named as in the rule book: X, XY, XYZ or WXYZ on the first line that has one,
   with the letters doubled on the second (XX, XXYY, …).
-* **FR-028a**: The generator MUST leave time for totalling an intermediate: a gap between the end of
-  the intermediate's slot and the start of the first quiz with a `New n` seat, 15 minutes, so that
-  quiz runs in the next slot starting late (the 2025 meets). A hand edit that shortens it MUST show
-  warning W-3. Making the gap a setting (a full skipped slot as in 2023, or none) is future work.
+* **FR-028a**: The generator MUST put the quizzes with `New n` seats in the very next elim row after
+  their intermediate, with no slot skipped. The intermediate's own row is longer by the schedule's
+  totalling minutes, 0 by default because the app totals the results; a director totalling by hand
+  can add the time there. H-12 still flags a `New n` quiz moved by hand into the intermediate's row
+  or earlier; there is no separate warning for the time.
 * **FR-029**: Each lane MUST be a **bracket** or a **round robin**. A bracket comes from the
   **bracket library**, which MUST include every bracket in the reference schedules: the org's 5, 6,
   7, 8 and 12-team brackets; the 9-team bracket seeded both ways (rule-book Bracket B order 1, 4, 9

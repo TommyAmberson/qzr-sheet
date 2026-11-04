@@ -287,7 +287,7 @@ export function newScheduleDocument(name: string): ScheduleDocument {
     rooms: 'auto',
     quizzesPerTeam: 3,
     prelimDraw: 'ruleBook',
-    totallingMinutes: 15,
+    totallingMinutes: 0,
     finals: { spacingMinutes: 30, sideBySide: 1 },
     autoApply: true,
     divisions: [],

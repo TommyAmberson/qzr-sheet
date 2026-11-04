@@ -62,13 +62,12 @@ function slotsByUse(frame: FrameRow[]): Record<Use, string[]> {
 /**
  * Elim rounds for every division's regular quizzes (Finals aside), each division in its own rooms,
  * around the rounds and rooms pinned quizzes already hold. A quiz is ready once every quiz it takes
- * a team from is in an earlier round (H-12), every quiz of the intermediate behind a `New n` seat is
- * far enough back to total (W-3), and, for a lane's deciding quiz, every other quiz of its lane is
- * earlier (H-13).
+ * a team from is in an earlier round (H-12), every quiz of the intermediate behind a `New n` seat
+ * included (its round is longer, to total it: FR-028a), and, for a lane's deciding quiz, every
+ * other quiz of its lane is earlier (H-13).
  */
 function elimRounds(
   divisions: { quizzes: ScheduleQuiz[]; all: ScheduleQuiz[]; rooms: string[] }[],
-  gapRounds: number,
   fixed: Map<string, { round: number; room: string }>,
   maxRounds: number,
 ): { round: Map<string, number>; room: Map<string, string>; rounds: number } {
@@ -100,7 +99,7 @@ function elimRounds(
             const line = seating.find((x) => x.line !== undefined)?.line
             const feeders =
               line === undefined ? seating : division.all.filter((x) => x.line === line)
-            if (feeders.some((x) => (round.get(x.id) ?? Infinity) > r - 1 - gapRounds)) return false
+            if (feeders.some((x) => (round.get(x.id) ?? Infinity) >= r)) return false
           }
         }
         if (q.deciding) {
@@ -318,7 +317,6 @@ export function reflowSchedule(
   for (const q of pinned) {
     if (q.phase === 'elim' && !fixedElims.has(q.id)) fixedElims.set(q.id, { round: -1, room: '' })
   }
-  const gapRounds = Math.ceil(settings.totallingMinutes / settings.slotMinutes)
   // A division's elims use its prelim block; with every prelim pinned there is no block, so the
   // rooms its pinned prelims mostly use (a room it borrowed for a quiz or two isn't its own), or
   // failing those every room
@@ -341,10 +339,22 @@ export function reflowSchedule(
       all: quizzes,
       rooms: elimRooms(d),
     })),
-    gapRounds,
     fixedElims,
     keepFrame ? oldSlots.elim.length : MAX_ELIM_ROUNDS,
   )
+
+  // The elim rounds an intermediate runs in, whose rows are made longer to total it (FR-028a)
+  const intermediateSlots = [
+    ...new Set(
+      elims
+        .flat()
+        .filter((q) => q.line !== undefined)
+        .flatMap((q) => {
+          const r = scheduled.round.get(q.id)
+          return r === undefined || r < 0 ? [] : [r]
+        }),
+    ),
+  ]
 
   // Finals in the sequence's free places
   // Finals are placed by place, a finals slot times the Finals side by side plus the room; no more
@@ -382,8 +392,9 @@ export function reflowSchedule(
         settings.slotMinutes,
         divisions.length === 0
           ? DEFAULT_SHAPE
-          : { prelimSlots, elimSlots: scheduled.rounds, finalsSlots },
+          : { prelimSlots, elimSlots: scheduled.rounds, finalsSlots, intermediateSlots },
         settings.finals.spacingMinutes,
+        settings.totallingMinutes,
       )
   const frame = built.rows
   // An event keeps the rooms that are still there; one with none left waits in the tray

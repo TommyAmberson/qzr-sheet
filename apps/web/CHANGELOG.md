@@ -16,6 +16,17 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-11-04
+
+### Changed
+
+* The schedule builder runs the quizzes using an intermediate's results (the XY quizzes) in the next
+  row, with no empty slot between them, since the app totals the results.
+
+### Bundled contract
+
+* `@qzr/shared@1.7.1` - bumped from 1.7.0
+
 ## [0.22.0] - 2026-11-04
 
 ### Added

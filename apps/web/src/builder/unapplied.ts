@@ -50,7 +50,9 @@ export function describeUnapplied(doc: ScheduleDocument): string[] {
     } else if (u.key === 'framePreset') {
       lines.push(`Frame: ${FRAME_NAMES[was.framePreset]} to ${FRAME_NAMES[now.framePreset]}`)
     } else if (u.key === 'totallingMinutes') {
-      lines.push(`Time to total: ${was.totallingMinutes} to ${now.totallingMinutes} minutes`)
+      lines.push(
+        `Time to total an intermediate: ${was.totallingMinutes} to ${now.totallingMinutes} minutes`,
+      )
     } else if (u.key === 'finals') {
       lines.push(
         `Finals: ${was.finals.sideBySide} to ${now.finals.sideBySide} side by side, ${was.finals.spacingMinutes} to ${now.finals.spacingMinutes} minutes apart`,
