@@ -259,9 +259,10 @@ export function insertEvent(
   d: ScheduleDocument,
   after: string,
   time: { at: number; minutes: number },
+  follow = false,
 ): string {
   const slot = crypto.randomUUID()
-  insertRow(d, after, { kind: 'slot', id: slot, ...time, use: 'event' })
+  insertRow(d, after, { kind: 'slot', id: slot, ...time, use: 'event' }, follow)
   const id = crypto.randomUUID()
   d.events.push({ id, label: 'Event', slot, rooms: 'all', pinned: true })
   return id
@@ -300,18 +301,60 @@ function settleDay(d: ScheduleDocument, id: string) {
   d.frame.splice(start, end - start, ...groups.flat())
 }
 
+/** Move every slot after a row on its day by some minutes, so they keep their spacing */
+function shiftLater(d: ScheduleDocument, id: string, by: number) {
+  if (by === 0) return
+  for (let k = d.frame.findIndex((r) => r.id === id) + 1; k < d.frame.length; k++) {
+    const row = d.frame[k]!
+    if (row.kind === 'day') break
+    if (row.kind !== 'slot') continue
+    row.at = Math.max(0, row.at + by)
+    row.pinned = true
+  }
+}
+
+/** The next slot after a row on its day */
+function nextSlot(d: ScheduleDocument, id: string) {
+  for (let k = d.frame.findIndex((r) => r.id === id) + 1; k < d.frame.length; k++) {
+    const row = d.frame[k]!
+    if (row.kind === 'day') return undefined
+    if (row.kind === 'slot') return row
+  }
+  return undefined
+}
+
+/*
+ * Rows can follow an edit (FR-016): with `follow`, the rows after an inserted, deleted, retimed or
+ * resized row on its day move by as much as its end did, gaps and all, as a timeline's do. Without
+ * it they move only as far as they would overlap.
+ */
+
 /** Insert a row after another (or first), pinned; rows after it on its day move down to fit */
-export function insertRow(d: ScheduleDocument, after: string | null, row: FrameRow) {
+export function insertRow(
+  d: ScheduleDocument,
+  after: string | null,
+  row: FrameRow,
+  follow = false,
+) {
   const at = after === null ? 0 : d.frame.findIndex((r) => r.id === after) + 1
   d.frame.splice(at, 0, { ...row, pinned: true })
+  const next = nextSlot(d, row.id)
+  if (follow && row.kind === 'slot' && next) {
+    shiftLater(d, row.id, Math.max(0, row.at + row.minutes - next.at))
+  }
   settleDay(d, row.id)
 }
 
 /** Change a row; a retimed or longer slot takes its place in time, and rows after it move down */
-export function editRow(d: ScheduleDocument, id: string, patch: Partial<FrameRow>) {
+export function editRow(d: ScheduleDocument, id: string, patch: Partial<FrameRow>, follow = false) {
   const i = d.frame.findIndex((r) => r.id === id)
   if (i < 0) return
-  d.frame[i] = { ...d.frame[i]!, ...patch, pinned: true } as FrameRow
+  const old = d.frame[i]!
+  const row = { ...old, ...patch, pinned: true } as FrameRow
+  d.frame[i] = row
+  if (follow && old.kind === 'slot' && row.kind === 'slot') {
+    shiftLater(d, id, row.at + row.minutes - (old.at + old.minutes))
+  }
   settleDay(d, id)
 }
 
@@ -352,7 +395,9 @@ export function deleteDay(d: ScheduleDocument, id: string) {
 }
 
 /** Delete a row; a slot's quizzes and events go to the unplaced tray */
-export function deleteRow(d: ScheduleDocument, id: string) {
+export function deleteRow(d: ScheduleDocument, id: string, follow = false) {
+  const row = d.frame.find((r) => r.id === id)
+  if (follow && row?.kind === 'slot') shiftLater(d, id, -row.minutes)
   d.frame = d.frame.filter((r) => r.id !== id)
   for (const q of d.quizzes) if (q.cell?.slot === id) q.cell = null
   for (const e of d.events) if (e.slot === id) e.slot = null

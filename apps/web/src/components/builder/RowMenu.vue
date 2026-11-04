@@ -12,12 +12,14 @@ import {
   insertRow,
   pinWhere,
 } from '../../builder/edits'
+import { followRows } from '../../builder/followRows'
 import BuilderPopover from './BuilderPopover.vue'
 
 /**
  * A row's menu: retime it, set its length, rename a day or a note, delete it, or insert a slot, a
  * slot holding an event across every room, or a note after it (FR-016, FR-017). Rows never
- * overlap: those after move down as far as they must. The events in a row have menus of their own.
+ * overlap; with "Later rows follow" on, the rows after move with this one's end, and otherwise only
+ * as far as they must. The events in a row have menus of their own.
  */
 const props = defineProps<{ doc: ScheduleDocument; rowId: string; anchor: HTMLElement }>()
 const emit = defineEmits<{
@@ -59,7 +61,14 @@ const fromClock = (v: string) => {
 }
 
 function patch(p: Partial<FrameRow>) {
-  emit('change', (d) => editRow(d, props.rowId, p))
+  const follow = followRows.value
+  emit('change', (d) => editRow(d, props.rowId, p, follow))
+}
+
+function remove() {
+  const follow = followRows.value
+  emit('change', (d) => deleteRow(d, props.rowId, follow))
+  emit('close')
 }
 
 /** The first time on a day, for a row inserted at its start: an hour before its first, or 9:00 */
@@ -81,11 +90,12 @@ function insert(kind: 'slot' | 'event' | 'note') {
   const minutes =
     r.kind === 'slot' && r.use !== 'event' ? r.minutes : props.doc.settings.slotMinutes
   const id = crypto.randomUUID()
-  if (kind === 'event') emit('change', (d) => insertEvent(d, props.rowId, { at, minutes }))
+  const follow = followRows.value
+  if (kind === 'event') emit('change', (d) => insertEvent(d, props.rowId, { at, minutes }, follow))
   else {
     const next: FrameRow =
       kind === 'slot' ? { kind: 'slot', id, at, minutes } : { kind: 'note', id, text: 'Note' }
-    emit('change', (d) => insertRow(d, props.rowId, next))
+    emit('change', (d) => insertRow(d, props.rowId, next, follow))
   }
   emit('close')
 }
@@ -120,6 +130,10 @@ function insert(kind: 'slot' | 'event' | 'note') {
         />
       </label>
     </template>
+    <label v-if="row.kind !== 'note'" class="follow">
+      <input v-model="followRows" type="checkbox" aria-label="Later rows follow" />
+      Later rows follow
+    </label>
     <label v-if="row.kind === 'day'" class="row">
       Name
       <input
@@ -171,14 +185,17 @@ function insert(kind: 'slot' | 'event' | 'note') {
       >
         Delete day
       </button>
-      <button
-        v-else
-        type="button"
-        class="danger"
-        @click="(emit('change', (d) => deleteRow(d, rowId)), emit('close'))"
-      >
-        Delete
-      </button>
+      <button v-else type="button" class="danger" @click="remove">Delete</button>
     </div>
   </BuilderPopover>
 </template>
+
+<style scoped>
+.follow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-text-faint);
+  font-size: 0.85rem;
+}
+</style>

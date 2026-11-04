@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { newScheduleDocument, type ScheduleDocument } from '@qzr/shared'
 
-import { editEvent, editRow, insertRow, moveEvent } from '../builder/edits'
+import { deleteRow, editEvent, editRow, insertRow, moveEvent } from '../builder/edits'
 
 function doc(): ScheduleDocument {
   const d = newScheduleDocument('Meet')
@@ -83,5 +83,46 @@ describe("a day's rows never overlap (FR-016)", () => {
     const d = day()
     editRow(d, 'a', { at: 10 * 60 })
     expect(times(d)).toEqual(['sat', 'b@565', 'a@600', 'n', 'c@660', 'sun', 'd@540'])
+  })
+})
+
+describe('later rows follow an edited row (FR-016)', () => {
+  function day(): ScheduleDocument {
+    const d = newScheduleDocument('Meet')
+    d.frame = [
+      { kind: 'day', id: 'sat', label: 'Saturday' },
+      { kind: 'slot', id: 'a', at: 9 * 60, minutes: 25 },
+      { kind: 'slot', id: 'b', at: 9 * 60 + 25, minutes: 25 },
+      { kind: 'slot', id: 'c', at: 11 * 60, minutes: 25 },
+      { kind: 'day', id: 'sun', label: 'Sunday' },
+      { kind: 'slot', id: 'd', at: 9 * 60, minutes: 25 },
+    ]
+    return d
+  }
+  const times = (d: ScheduleDocument) =>
+    d.frame.flatMap((r) => (r.kind === 'slot' ? [`${r.id}@${r.at}`] : []))
+
+  it('moves them by as much as a shorter row ends sooner, gaps kept', () => {
+    const d = day()
+    editRow(d, 'a', { minutes: 15 }, true)
+    expect(times(d)).toEqual(['a@540', 'b@555', 'c@650', 'd@540'])
+  })
+
+  it('moves a row retimed later with the rows after it, in their order', () => {
+    const d = day()
+    editRow(d, 'a', { at: 10 * 60 + 30 }, true)
+    expect(times(d)).toEqual(['a@630', 'b@655', 'c@750', 'd@540'])
+  })
+
+  it('closes the space of a deleted row', () => {
+    const d = day()
+    deleteRow(d, 'a', true)
+    expect(times(d)).toEqual(['b@540', 'c@635', 'd@540'])
+  })
+
+  it('makes room for an inserted row past a gap', () => {
+    const d = day()
+    insertRow(d, 'a', { kind: 'slot', id: 'x', at: 9 * 60 + 25, minutes: 30 }, true)
+    expect(times(d)).toEqual(['a@540', 'x@565', 'b@595', 'c@690', 'd@540'])
   })
 })

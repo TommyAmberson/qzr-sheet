@@ -570,11 +570,13 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   One-day and one-room meets are small and run however suits them; their frames are only a starting
   point, and the defaults in this spec are tuned for weekend meets.
 * **FR-016**: Directors MUST be able to add, remove, retime and reorder rows, and set each row's
-  length. A row is a time; quizzes and events sit in its rooms. A day's rows MUST NOT overlap: a row
-  inserted, lengthened or moved later pushes the rows after it down only as far as they would
-  overlap, and a row moved earlier takes its place in time order. The default slot length MUST be 25
-  minutes, for 20-question quizzes; 15-question quizzes (practice and one-day meets) run in shorter
-  slots.
+  length. A row is a time; quizzes and events sit in its rooms. A day's rows MUST NOT overlap. By
+  default the rows after an inserted, deleted, retimed or resized row on its day follow it, moving
+  by as much as its end did with their gaps kept, as a timeline's do. With that turned off (a choice
+  the browser remembers), a row inserted, lengthened or moved later pushes the rows after it down
+  only as far as they would overlap, and a row moved earlier takes its place in time order. The
+  default slot length MUST be 25 minutes, for 20-question quizzes; 15-question quizzes (practice and
+  one-day meets) run in shorter slots.
 * **FR-017**: An event MUST sit in a row like a quiz, taking any set of its rooms or all of them
   (all follows the room count). Events of the same name in one row are one event. Adjacent rooms
   MUST be drawn as one cell; rooms apart are drawn as separate cells with the same name. A row with
