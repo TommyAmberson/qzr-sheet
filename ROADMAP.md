@@ -34,7 +34,7 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
    pins, the draw, elim lanes, and linked publishing with versions. Follow-ups:
    * [#134 Name and letter schedule lanes as meets do](https://github.com/TommyAmberson/qzr-sheet/issues/134)
    * [#135 Build one-day meets in the schedule builder](https://github.com/TommyAmberson/qzr-sheet/issues/135)
-   * [#136 Let a team play back to back when it saves a round](https://github.com/TommyAmberson/qzr-sheet/issues/136)
+   * [#136 Fill every prelim row as the meets' draw tables do](https://github.com/TommyAmberson/qzr-sheet/issues/136)
    * [#137 Choose where consolation Finals run](https://github.com/TommyAmberson/qzr-sheet/issues/137)
    * [#138 Smaller schedule builder options](https://github.com/TommyAmberson/qzr-sheet/issues/138)
    * [#139 Phone layout and light theme for the schedule builder](https://github.com/TommyAmberson/qzr-sheet/issues/139)
