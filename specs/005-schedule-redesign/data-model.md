@@ -34,7 +34,7 @@ hard rules, which the conflict check reports and never repairs on its own (FR-03
 | `totallingMinutes` | Gap after an intermediate before a `New n` quiz (FR-028a, W-3)          |
 | `finals`           | Finals order, spacing, rooms; defaults, not edited in builder (FR-019a) |
 | `autoApply`        | On or off (FR-012a); publishing turns it off                            |
-| `divisions`        | Ordered: id, name, team count, elims (below) (FR-021)                   |
+| `divisions`        | Ordered: id, name, team count, colour, elims (below) (FR-021)           |
 
 ### A division's elims
 
