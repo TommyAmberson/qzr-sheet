@@ -464,7 +464,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </ScheduleSheet>
         </div>
         <section v-if="tray.length > 0" class="tray" aria-label="Unplaced quizzes">
-          <h3>Unplaced</h3>
+          <h3>
+            Unplaced <span class="count">{{ tray.length }}</span>
+          </h3>
           <ul>
             <li v-for="q in tray" :key="q.id" :data-quiz="q.id">
               <button
@@ -472,9 +474,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 class="tray-quiz"
                 @click="onQuiz(q.id, $event.currentTarget as HTMLElement)"
               >
-                {{ q.label }}
+                <strong>{{ q.label }}</strong>
+                <small>{{ (issues.get(q.id) ?? []).map((c) => c.reason).join('; ') }}</small>
               </button>
-              {{ (issues.get(q.id) ?? []).map((c) => c.reason).join('; ') }}
             </li>
           </ul>
         </section>
@@ -666,8 +668,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   background: color-mix(in srgb, var(--color-meta-bg) 45%, var(--color-bg));
 }
 
+/* Not a scroll box of its own: the page scrolls, so the room headers and Unplaced can stick */
 .grid-area {
-  overflow: auto;
   padding: 0.75rem;
   background: var(--color-bg-warm);
 }
@@ -802,8 +804,59 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   color: var(--color-warn, #a60);
 }
 
+/* Always in view while anything waits to be placed */
 .tray {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: grid;
+  gap: 0.5rem;
   margin-top: 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--color-meta-accent);
+  border-top: 3px solid var(--color-warn);
+  border-radius: var(--b-radius) var(--b-radius) 0 0;
+  background: var(--color-bg);
+  box-shadow: var(--b-shadow-lift);
+}
+
+.tray h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-heading);
+}
+
+.tray ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  max-height: 9rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.builder .tray-quiz {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  max-width: 18rem;
+  text-align: left;
+}
+
+.tray-quiz strong {
+  color: var(--color-heading);
+}
+
+.tray-quiz small {
+  font-weight: 500;
+  color: var(--color-text-muted);
 }
 
 .empty {
