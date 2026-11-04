@@ -132,7 +132,7 @@ function confirmSort() {
             <input
               type="checkbox"
               :checked="t.late"
-              :aria-label="`${nameOf(t)} late`"
+              :aria-label="`${d.name} ${nameOf(t)} late`"
               @change="mark(d.id, t.i, 'late', ($event.target as HTMLInputElement).checked)"
             />
             {{ t.letter ? `${t.letter} · ` : '' }}{{ nameOf(t) }}
@@ -150,7 +150,7 @@ function confirmSort() {
             v-else
             type="button"
             class="link"
-            :aria-label="`${nameOf(t)} dropped out`"
+            :aria-label="`${d.name} ${nameOf(t)} dropped out`"
             @click="droppingOut = { id: d.id, i: t.i }"
           >
             Dropped out

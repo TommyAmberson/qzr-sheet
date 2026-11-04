@@ -30,8 +30,8 @@ describe('the draw in the builder (FR-039 to FR-042b)', () => {
       .find((h) => h.text().includes('Prelim'))!
       .trigger('click')
     await w.find('.disclose').trigger('click')
-    await w.find('[aria-label="Team 3 late"]').setValue(true)
-    await w.find('[aria-label="Team 6 late"]').setValue(true)
+    await w.find('[aria-label="Div 1 Team 3 late"]').setValue(true)
+    await w.find('[aria-label="Div 1 Team 6 late"]').setValue(true)
     const before = structuredClone(saved().quizzes)
 
     await button(w, 'Draw').trigger('click')

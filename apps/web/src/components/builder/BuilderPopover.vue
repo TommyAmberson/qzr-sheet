@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 /**
- * A popup beside the thing clicked on the grid. It closes with its × or a click anywhere outside
+ * A popup beside the thing clicked on the grid. It closes with its ×, Escape, or a click anywhere outside
  * a popup, and never opens another in the same click (FR-005c).
  */
 const props = defineProps<{ anchor: HTMLElement; title: string }>()
@@ -14,8 +14,17 @@ const style = ref({ top: `${rect.bottom + 4}px`, left: `${Math.max(8, rect.left)
 function outside(event: PointerEvent) {
   if (!(event.target as HTMLElement | null)?.closest('.popover')) emit('close')
 }
-onMounted(() => document.addEventListener('pointerdown', outside, true))
-onBeforeUnmount(() => document.removeEventListener('pointerdown', outside, true))
+function escape(event: KeyboardEvent) {
+  if (event.key === 'Escape') emit('close')
+}
+onMounted(() => {
+  document.addEventListener('pointerdown', outside, true)
+  document.addEventListener('keydown', escape)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', outside, true)
+  document.removeEventListener('keydown', escape)
+})
 </script>
 
 <template>
