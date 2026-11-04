@@ -472,8 +472,9 @@ async function restore(v: number) {
     return
   }
   try {
-    const saved = await restoreScheduleVersion(meetId.value, v, link.baseRevision)
+    // The version first, so a failed fetch leaves nothing restored on the server
     const { document } = await getScheduleVersion(meetId.value, v)
+    const saved = await restoreScheduleVersion(meetId.value, v, link.baseRevision)
     viewing.value = null
     openFromServer(document, saved.draftRevision)
   } catch (e) {
