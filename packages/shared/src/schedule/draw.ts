@@ -68,3 +68,15 @@ export function clearDraw(draw: DivisionDraw): DivisionDraw {
     stale: false,
   }
 }
+
+/**
+ * Drop a division's drawn teams that aren't in `keep` (teams the meet no longer has there); a draw
+ * that had given them letters needs doing again. Whether any were dropped.
+ */
+export function dropTeams(draw: DivisionDraw, keep: Set<number>): boolean {
+  const kept = draw.teams.filter((t) => t.teamId === undefined || keep.has(t.teamId))
+  if (kept.length === draw.teams.length) return false
+  if (draw.teams.some((t) => t.letter)) draw.stale = true
+  draw.teams = kept
+  return true
+}

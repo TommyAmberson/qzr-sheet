@@ -1,6 +1,7 @@
 import {
   defaultElims,
   divisionName,
+  dropTeams,
   setTeamCount,
   generateSchedule,
   newScheduleDocument,
@@ -114,33 +115,25 @@ export function reconcileTeams(doc: ScheduleDocument, teams: MeetTeamRow[]): boo
     doc.settings.divisions.push({ id, name: divisionName(id), teams: 0, elims: defaultElims(0) })
     changed = true
   }
-  const inMeet = new Set(teams.map((t) => t.id))
   for (const division of doc.settings.divisions) {
-    // A division with nothing registered keeps the count it was built with, but its draw lets go of
-    // teams the meet no longer has (its last one left, say), which a draft can't name
-    if (!registered.has(division.id)) {
-      const draw = doc.draw[division.id]
-      const kept = draw?.teams.filter((t) => t.teamId === undefined || inMeet.has(t.teamId))
-      if (draw && kept && kept.length < draw.teams.length) {
-        if (draw.teams.some((t) => t.letter)) draw.stale = true
-        draw.teams = kept
-        changed = true
-      }
-      continue
-    }
     const meetTeams = teams.filter((t) => t.division === division.id)
-    if (setTeamCount(doc, division.id, meetTeams.length)) changed = true
-    const draw = (doc.draw[division.id] ??= { teams: [], stale: false })
-    const ids = new Set(meetTeams.map((t) => t.id))
-    const kept = draw.teams.filter((t) => t.teamId === undefined || ids.has(t.teamId))
-    const have = new Set(kept.map((t) => t.teamId))
+    // A division with nothing registered keeps the count it was built with, but its draw still
+    // lets go of teams the meet no longer has there (its last one left, say)
+    if (registered.has(division.id) && setTeamCount(doc, division.id, meetTeams.length)) {
+      changed = true
+    }
+    const draw = doc.draw[division.id]
+    if (draw && dropTeams(draw, new Set(meetTeams.map((t) => t.id)))) changed = true
+    if (!registered.has(division.id)) continue
+    const drawn = (doc.draw[division.id] ??= { teams: [], stale: false })
+    const have = new Set(drawn.teams.map((t) => t.teamId))
     const joined = meetTeams
       .filter((t) => !have.has(t.id))
       .map((t) => ({ teamId: t.id, name: teamName(t), late: t.lateness, absent: false }))
-    if (kept.length === draw.teams.length && joined.length === 0) continue
+    if (joined.length === 0) continue
     changed = true
-    if (draw.teams.some((t) => t.letter)) draw.stale = true
-    draw.teams = [...kept, ...joined]
+    if (drawn.teams.some((t) => t.letter)) drawn.stale = true
+    drawn.teams = [...drawn.teams, ...joined]
   }
   return changed
 }

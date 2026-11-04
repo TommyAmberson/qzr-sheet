@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono'
 import { eq, and, asc, desc, inArray, sql } from 'drizzle-orm'
 import {
   checkSchedule,
+  dropTeams,
   indexOfLetter,
   parseScheduleFile,
   serializeSchedule,
@@ -639,15 +640,12 @@ async function drawTeams(db: Db, meetId: number, doc: ScheduleDocument) {
       ),
     ),
   ]
-  const own =
-    ids.length === 0
-      ? []
-      : await inChunks(ids, 2, (chunk) =>
-          db
-            .select({ id: schema.teams.id })
-            .from(schema.teams)
-            .where(and(eq(schema.teams.meetId, meetId), inArray(schema.teams.id, chunk))),
-        )
+  const own = await inChunks(ids, 2, (chunk) =>
+    db
+      .select({ id: schema.teams.id })
+      .from(schema.teams)
+      .where(and(eq(schema.teams.meetId, meetId), inArray(schema.teams.id, chunk))),
+  )
   return { ids, owned: new Set(own.map((t) => t.id)) }
 }
 
@@ -670,14 +668,9 @@ async function withoutForeignTeams(
   doc: ScheduleDocument,
 ): Promise<ScheduleDocument> {
   const { owned } = await drawTeams(db, meetId, doc)
-  const draw = Object.fromEntries(
-    Object.entries(doc.draw).map(([division, d]) => {
-      const kept = d.teams.filter((t) => t.teamId === undefined || owned.has(t.teamId))
-      if (kept.length === d.teams.length) return [division, d]
-      return [division, { ...d, teams: kept, stale: d.stale || d.teams.some((t) => t.letter) }]
-    }),
-  )
-  return { ...doc, draw }
+  const copy = structuredClone(doc)
+  for (const draw of Object.values(copy.draw)) dropTeams(draw, owned)
+  return copy
 }
 
 /** The 409 for a save or publish based on an older draft, carrying the newer one (FR-048a) */
