@@ -5,6 +5,8 @@ export interface FrameShape {
   prelimSlots: number
   elimSlots: number
   finalsSlots: number
+  /** Elim slots, counted from 0, that hold an intermediate, made longer to total it (FR-028a) */
+  intermediateSlots?: number[]
 }
 
 /** The frame a schedule with no team counts starts from (FR-010) */
@@ -30,12 +32,15 @@ const FRIDAY_ROUNDS = 5
  * The rows of a preset's frame (FR-015), with as many slots as `shape` asks for, and its events,
  * each across every room of a slot of its own, where the org's meets put them. Quiz slots never
  * overlap an event, and Finals start no earlier than mid-afternoon, `finalsSpacing` minutes apart.
+ * An elim slot holding an intermediate is `totallingMinutes` longer, so the quizzes using its
+ * results can run in the next slot (FR-028a).
  */
 export function buildFrame(
   preset: ScheduleSettings['framePreset'],
   slotMinutes: number,
   shape: FrameShape,
   finalsSpacing = 30,
+  totallingMinutes = 0,
 ): { rows: FrameRow[]; events: ScheduleEvent[] } {
   const rows: FrameRow[] = []
   const events: ScheduleEvent[] = []
@@ -57,13 +62,21 @@ export function buildFrame(
   const slot = (at: number, minutes = slotMinutes) =>
     rows.push({ kind: 'slot', id: next(use), at, minutes, use })
 
+  // Elim slots made so far, to know which hold an intermediate
+  let elimSlot = 0
+  const intermediates = new Set(shape.intermediateSlots ?? [])
+  const nextLength = () =>
+    use === 'elim' && intermediates.has(elimSlot) ? slotMinutes + totallingMinutes : slotMinutes
+
   /** Slots from `start` up to `count`, stopping before `until`; returns where it stopped and how many fit */
   const fill = (start: number, count: number, until = Infinity) => {
     let at = start
     let placed = 0
-    while (placed < count && at + slotMinutes <= until) {
-      slot(at)
-      at += slotMinutes
+    while (placed < count && at + nextLength() <= until) {
+      const minutes = nextLength()
+      slot(at, minutes)
+      if (use === 'elim') elimSlot++
+      at += minutes
       placed++
     }
     return { at, placed }

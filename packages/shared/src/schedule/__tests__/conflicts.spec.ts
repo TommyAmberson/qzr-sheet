@@ -297,7 +297,7 @@ describe('checkSchedule', () => {
     expect(flagged(checkSchedule(d), 'W-2')).toEqual(['p1'])
   })
 
-  it('W-3: a New seat too soon after its intermediate', () => {
+  it('a New seat may run in the slot right after its intermediate (FR-028a)', () => {
     const d = doc({}, 6)
     d.settings.divisions[0]!.elims = {
       lanes: [
@@ -323,7 +323,10 @@ describe('checkSchedule', () => {
       quiz('A', { phase: 'elim', lane: 0, cell: at('s2'), seats: seats('1', '2', 'N3') }),
       quiz('I', { phase: 'elim', lane: 1, cell: at('s3'), seats: seats('N4', 'N5', '6') }),
     ]
-    expect(flagged(checkSchedule(d), 'W-3')).toEqual(['A'])
+    // The intermediate's row is long enough to total it, so the next slot is soon enough
+    const conflicts = checkSchedule(d)
+    expect(flagged(conflicts, 'H-12')).toEqual([])
+    expect(conflicts.some((c) => c.rule === 'W-3')).toBe(false)
   })
 
   it('W-4: a quiz waiting in the tray, so the check never reports nothing to fix', () => {

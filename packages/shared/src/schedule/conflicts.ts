@@ -254,7 +254,7 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
           if (t && st && st.order >= t.order)
             add('H-12', [q], `Takes a team from ${source.label}, which isn't earlier`)
         }
-        // H-12 and W-3: a New seat after every quiz of its intermediate, with time to total
+        // H-12: a New seat after every quiz of its intermediate, whose row has the time to total it
         if (s.kind === 'new' && t) {
           const inter = feedersOf(s.rank, [q])
             .map(timeOf)
@@ -263,13 +263,6 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
           const last = inter.reduce((a, b) => (b.order > a.order ? b : a))
           if (last.order >= t.order)
             add('H-12', [q], `Uses New ${s.rank} before the intermediate ends`)
-          else if (last.day === t.day && t.start - last.end < doc.settings.totallingMinutes) {
-            add(
-              'W-3',
-              [q],
-              `Starts ${t.start - last.end} min after the intermediate; totalling needs ${doc.settings.totallingMinutes}`,
-            )
-          }
         }
       }
     }

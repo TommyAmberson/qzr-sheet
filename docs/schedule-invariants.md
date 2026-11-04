@@ -100,10 +100,6 @@ prelims a seat holds a **letter**, which the draw later maps to a team. In the e
 * **W-2. A team expected late doesn't play in its division's first quiz slot.** The draw gives late
   teams the letters whose first quiz is latest, so this only fires when there aren't enough late
   letters to go round, or after hand edits.
-* **W-3. A quiz using intermediate results leaves time to total them.** The first quiz with a
-  `New n` seat starts no sooner after the intermediate's slot ends than the schedule's totalling gap
-  (a setting, 10 to 20 minutes by default), since the rerank needs every intermediate team's points
-  added up first (H-16).
 * **W-4. Every quiz is on the schedule.** A quiz left in the unplaced tray breaks no hard rule
   (H-8), but the schedule isn't finished until it has a cell, so the builder never reports "no
   problems" while one is waiting. A quiz whose row or room has gone (a frame rebuilt around it) is
