@@ -92,20 +92,28 @@ onMounted(load)
       </div>
 
       <p v-if="unpublished" class="state-msg">The schedule hasn't been published yet.</p>
-      <ScheduleSheet v-else-if="doc" class="published" :doc="doc" :view="view">
-        <template #quiz-title="{ quiz }">
-          <a class="quiz-title" :href="scoresheetHref(quiz.id)">{{ quiz.label }}</a>
-        </template>
-      </ScheduleSheet>
+      <div v-else-if="doc" class="sheet-scroll">
+        <ScheduleSheet class="published" :doc="doc" :view="view">
+          <template #quiz-title="{ quiz }">
+            <a class="quiz-title" :href="scoresheetHref(quiz.id)">{{ quiz.label }}</a>
+          </template>
+        </ScheduleSheet>
+      </div>
     </template>
   </div>
 </template>
 
 <style scoped>
+/* As wide as the window, since a meet's rooms rarely fit the portal's usual column */
 .container {
-  max-width: 64rem;
   margin: 0 auto;
   padding: 2rem 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 1.25rem 0.75rem;
+  }
 }
 
 .back-link {
@@ -160,6 +168,16 @@ onMounted(load)
   color: var(--color-text-faint);
 }
 
+/* The sheet scrolls in its own box, so the page and its header stay put on a narrow screen. Once
+   the header scrolls away the box fills the window, with room names and times in view */
+.sheet-scroll {
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: auto;
+}
+
 .edit-link {
   background: none;
   border: 1px solid var(--color-border);
@@ -188,6 +206,11 @@ onMounted(load)
   }
   .back-link {
     display: none;
+  }
+  .sheet-scroll {
+    position: static;
+    max-height: none;
+    overflow: visible;
   }
 }
 </style>

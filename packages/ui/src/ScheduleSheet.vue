@@ -175,7 +175,7 @@ function tickOf(quiz: ScheduleQuiz) {
               :data-event="c.event.id"
               @click="emit('event', c.event.id, target($event))"
             >
-              {{ c.event.label }}
+              <span class="event-label">{{ c.event.label }}</span>
             </button>
             <button
               v-else
@@ -311,6 +311,19 @@ function tickOf(quiz: ScheduleQuiz) {
   font-family: var(--sheet-mono);
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Day and note labels, and a long event's name, stay in view when the grid scrolls sideways */
+.day .row-button,
+.note .row-button {
+  position: sticky;
+  left: 0.6rem;
+  display: inline-block;
+}
+
+.event-name .event-label {
+  position: sticky;
+  left: calc(5.5rem + 1.25rem);
 }
 
 .day th {

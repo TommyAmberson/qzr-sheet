@@ -16,6 +16,18 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-11-04
+
+### Fixed
+
+* The published schedule scrolls sideways in its own box on a phone, instead of dragging the whole
+  page and its header with it, and uses the window's full width on a laptop.
+* Day labels, notes and events' names stay in view when a schedule scrolls sideways.
+
+### Bundled contract
+
+* `@qzr/shared@1.7.1` - unchanged
+
 ## [0.22.1] - 2026-11-04
 
 ### Changed
