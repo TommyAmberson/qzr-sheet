@@ -236,7 +236,8 @@ function dropTarget(over: Element | null, seat: boolean) {
 }
 
 function onPointerDown(event: PointerEvent) {
-  if (event.button !== 0) return
+  // A finger scrolls the grid; on a touch screen quizzes move by Move instead (FR-005a)
+  if (event.button !== 0 || event.pointerType === 'touch') return
   const el = event.target as HTMLElement
   const seat = el.closest<HTMLElement>('[data-seat]')
   const quiz = el.closest<HTMLElement>('[data-quiz]')
@@ -302,6 +303,13 @@ function onPointerUp(event: PointerEvent) {
   } else if (onCell && onEventEl !== d.id) {
     moveItem(d.item, d.id, { slot: onCell[0]!, room: onCell[1]! })
   }
+}
+
+/** The browser took the pointer over, to scroll or zoom, so nothing is being dragged */
+function onPointerCancel() {
+  drag = null
+  ghost.value = null
+  markDrop(null)
 }
 
 /** A click that ends a drag isn't a click */
@@ -531,7 +539,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
     <div class="builder-main" :class="{ 'rail-hidden': railHidden }">
       <aside class="panel" :class="{ open: panelOpen }">
-        <button type="button" class="panel-close" @click="panelOpen = false">Done</button>
+        <div class="panel-head">
+          <span>Settings</span>
+          <button type="button" class="panel-close" @click="panelOpen = false">Done</button>
+        </div>
         <div class="auto-apply">
           <label>
             <input
@@ -604,6 +615,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
+        @pointercancel="onPointerCancel"
         @click.capture="swallowAfterDrag"
       >
         <p v-if="missing" class="message" role="status">
@@ -926,8 +938,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   max-height: 100vh;
   max-height: 100dvh;
   overflow: auto;
-  padding: 0.75rem;
   background: var(--color-bg-warm);
+}
+
+/* Spaced by margins, not the scroller's padding, so the room names and times stick flush to its
+   edges with nothing showing past them */
+.grid-area > :not(.pending) {
+  margin: 0.75rem;
 }
 
 .auto-apply {
@@ -1010,7 +1027,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 
 .builder-main.rail-hidden .panel,
-.panel-close {
+.panel-head {
   display: none;
 }
 
@@ -1035,14 +1052,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     display: block;
   }
 
-  .panel-close {
-    display: block;
+  /* A solid bar the settings scroll under, its Done the sheet's one way back to the grid */
+  .panel-head {
+    display: flex;
     position: sticky;
     top: 0;
     z-index: 1;
-    width: 100%;
-    border-width: 0 0 1px;
-    border-radius: 0;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem 0.5rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-raised, var(--color-bg));
+    color: var(--color-heading);
+    font-weight: 650;
+  }
+
+  .builder .panel-close {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-bg);
   }
 }
 
@@ -1081,8 +1109,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     position: static;
     max-height: none;
     overflow: visible;
-    padding: 0;
     background: none;
+  }
+
+  .grid-area > :not(.pending) {
+    margin: 0;
   }
 
   .print-grid .print-only {
