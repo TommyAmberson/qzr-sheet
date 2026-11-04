@@ -528,12 +528,11 @@ async function restoreVersion(v: number) {
   }
   try {
     writeInFlight = true
-    // The version first, so a failed fetch leaves nothing restored on the server
-    const { document } = await getScheduleVersion(meetId.value, v)
+    // The draft the server saved comes back with the restore, so one request does it
     const saved = await restoreScheduleVersion(meetId.value, v, link.baseRevision)
     viewing.value = null
     // The restored version replaces the draft, edits made while it was on its way included
-    openFromServer(document, saved.draftRevision)
+    openFromServer(saved.document, saved.draftRevision)
   } catch (e) {
     const stale = staleDraft(e)
     if (stale?.draft) {

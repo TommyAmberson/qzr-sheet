@@ -647,7 +647,7 @@ export function restoreScheduleVersion(
   meetId: number,
   version: number,
   baseRevision: number,
-): Promise<DraftSaved> {
+): Promise<DraftSaved & { document: ScheduleDocument }> {
   return request(`/api/meets/${meetId}/schedule/versions/${version}/restore`, {
     method: 'POST',
     body: JSON.stringify({ baseRevision }),

@@ -977,8 +977,11 @@ schedule.post('/:id/schedule/versions/:version/restore', async (c) => {
     meetId,
     JSON.parse(row.document) as ScheduleDocument,
   )
-  // Restoring replaces the draft by choice, whichever draft it was
-  return saveDraft(c, meetId, doc, body.baseRevision, true)
+  // Restoring replaces the draft by choice, whichever draft it was; the draft it saved comes back,
+  // so the page opens what the server holds
+  const saved = await saveDraft(c, meetId, doc, body.baseRevision, true)
+  if (saved.status !== 200) return saved
+  return c.json({ ...((await saved.json()) as object), document: doc })
 })
 
 /** Unlink (FR-048): the draft goes; published versions stay as the record of what was out */

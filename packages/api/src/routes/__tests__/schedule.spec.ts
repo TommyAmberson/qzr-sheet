@@ -615,6 +615,8 @@ describe('linked schedule routes', () => {
     const restored = await app.request(`${base}/versions/1/restore`, post({ baseRevision: 2 }), env)
     expect(restored.status).toBe(200)
     const state = await jsonOf<{ draft: ScheduleDocument }>(await app.request(base, {}, env))
+    // The restore answers with the draft it saved, for the page to open
+    expect((await jsonOf<{ document: ScheduleDocument }>(restored)).document).toEqual(state.draft)
     const draw = state.draft.draw['1']!
     expect(draw.teams.map((t) => t.teamId)).not.toContain(teams[0]!.id)
     expect(draw.stale).toBe(true)

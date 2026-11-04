@@ -116,7 +116,11 @@ function fakeServer() {
       if (body.baseRevision !== server.revision) return reply(409, { error: 'stale' })
       server.draft = structuredClone(v.document)
       server.revision++
-      return reply(200, { draftRevision: server.revision, draftSavedAt: '2026-11-02T00:00:00Z' })
+      return reply(200, {
+        draftRevision: server.revision,
+        draftSavedAt: '2026-11-02T00:00:00Z',
+        document: server.draft,
+      })
     }
     return reply(404, { error: `no route ${method} ${path}` })
   })
