@@ -7,6 +7,8 @@ import {
   sheetRows,
   type Conflict,
   type ScheduleDocument,
+  type ScheduleQuiz,
+  type Seat,
   type SheetView,
 } from '@qzr/shared'
 
@@ -38,6 +40,13 @@ const emit = defineEmits<{
 }>()
 
 const rows = computed(() => sheetRows(props.doc))
+
+/** The team on a seat's line: a drawn team in Teams view, else blank for the meet to fill in */
+function seatTeam(quiz: ScheduleQuiz, seat: Seat) {
+  return props.view === 'teams' && seat.kind === 'letter'
+    ? seatText(props.doc, quiz, seat, 'teams')
+    : ''
+}
 
 /** Days with quizzes, which each start a printed page; a day of only events follows on */
 const quizDays = computed(() => {
@@ -154,9 +163,15 @@ const divisionClass = computed(() => {
                 type="button"
                 class="seat"
                 :data-seat="`${c.quiz.id}:${i}`"
+                :title="seatText(doc, c.quiz, seat, 'letters')"
                 @click="emit('seat', c.quiz!.id, i, target($event))"
               >
-                {{ seatText(doc, c.quiz, seat, view) }}
+                <!-- Where the seat comes from, its bench colour, and the line its team goes on -->
+                <span class="src" :class="{ choose: seat.kind === 'empty' }">{{
+                  seatText(doc, c.quiz, seat, 'letters')
+                }}</span>
+                <span class="bench" :class="`bench-${i}`" />
+                <span class="line">{{ seatTeam(c.quiz, seat) }}</span>
               </button>
             </div>
             <button
@@ -402,22 +417,74 @@ const divisionClass = computed(() => {
 }
 
 .sheet .seat {
-  display: block;
+  display: grid;
+  /* The line centred under the quiz's title, as on paper, its source hanging to the left */
+  grid-template-columns: minmax(0, 1fr) 3px min(7rem, 50%) minmax(0, 1fr);
+  align-items: end;
+  column-gap: 0.3rem;
+  line-height: 1.25;
   width: 100%;
-  min-width: 6.5rem;
-  padding: 0.05rem 0.3rem 0;
-  border-bottom: 1px solid var(--color-text, #2a2724);
+  min-width: 12rem;
+  padding: 0.1rem 0 0;
   border-radius: 0;
+  color: var(--color-text, #2a2724);
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+/* The scoresheet's benches, in seat order: red, white, blue, as a slim bar at the line's start */
+.bench {
+  height: 1em;
+  margin-bottom: 0.15em;
+  width: 3px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text, #2a2724) 25%, transparent);
+}
+
+.bench-0 {
+  background: var(--color-team-red, #e02424);
+}
+
+.bench-1 {
+  background: var(--color-team-white, #fff);
+}
+
+.bench-2 {
+  background: var(--color-team-blue, #1d4ed8);
+}
+
+/* Ends at the bar; a long source spills left rather than being cut short */
+.src {
+  justify-self: end;
   color: var(--color-text, #2a2724);
   font-family: var(--sheet-mono);
   font-size: 0.8rem;
   font-weight: 600;
-  text-align: center;
+  white-space: nowrap;
 }
 
-.sheet .seat:hover {
+.src.choose {
+  color: var(--color-accent, #2563eb);
+  font-family: inherit;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.line {
+  min-height: 1.2em;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text, #2a2724) 30%, transparent);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet .seat:hover .line {
   border-bottom-color: var(--qc);
   background: color-mix(in srgb, var(--qc) 12%, transparent);
+}
+
+.sheet .seat:hover .src {
   color: var(--qc);
 }
 
@@ -555,10 +622,28 @@ const divisionClass = computed(() => {
   }
 
   .sheet .seat {
+    width: 100%;
     min-width: 0;
-    border-bottom: 0.75pt solid #000;
     color: #000;
     font-size: 8pt;
+  }
+
+  .line {
+    border-bottom: 0.75pt solid #000;
+  }
+
+  .src {
+    color: #000;
+    font-size: 7.5pt;
+  }
+
+  .src.choose {
+    color: #777;
+  }
+
+  .bench {
+    box-shadow: inset 0 0 0 0.5pt #000;
+    print-color-adjust: exact;
   }
 
   .sheet .quiz-title {
