@@ -106,7 +106,8 @@ prelims a seat holds a **letter**, which the draw later maps to a team. In the e
   added up first (H-16).
 * **W-4. Every quiz is on the schedule.** A quiz left in the unplaced tray breaks no hard rule
   (H-8), but the schedule isn't finished until it has a cell, so the builder never reports "no
-  problems" while one is waiting.
+  problems" while one is waiting. A quiz whose row or room has gone (a frame rebuilt around it) is
+  waiting too, and shows in the tray.
 * **W-5. Each quiz's results have a name of their own.** The scoresheet saves a quiz's results under
   its division, whether it's in a consolation lane, and its number or letter (`D2c QI`), so two
   quizzes that differ only in which consolation lane they're in would share a name and their results

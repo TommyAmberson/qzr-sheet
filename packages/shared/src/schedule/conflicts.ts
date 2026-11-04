@@ -2,6 +2,7 @@ import { foldName, resultKey } from '../results'
 import { eventCells } from './frame'
 import { indexOfLetter, letterOf } from './letters'
 import { quizNumber } from './names'
+import { onGrid } from './sheet'
 import { lateLetters, type ScheduleDocument, type ScheduleQuiz, type Seat } from './scheduleFile'
 
 /**
@@ -100,8 +101,10 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
   const times = slotTimes(doc)
   const divisions = new Map(doc.settings.divisions.map((d) => [d.id, d]))
   const byId = new Map(doc.quizzes.map((q) => [q.id, q]))
-  const placed = doc.quizzes.filter((q) => q.cell && times.has(q.cell.slot))
-  const timeOf = (q: ScheduleQuiz) => (q.cell ? times.get(q.cell.slot) : undefined)
+  // A quiz whose row or room is gone waits in the tray (W-4), so it has no time and clashes with
+  // nothing
+  const placed = doc.quizzes.filter((q) => onGrid(doc, q.cell))
+  const timeOf = (q: ScheduleQuiz) => (onGrid(doc, q.cell) ? times.get(q.cell!.slot) : undefined)
 
   // H-1: a team in two quizzes in one slot
   for (const inSlot of groupBy(placed, (q) => q.cell!.slot).values()) {
@@ -368,8 +371,11 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
     }
   }
 
-  // W-4: every quiz on the schedule
-  for (const q of doc.quizzes) if (!q.cell) add('W-4', [q], 'Not on the schedule yet')
+  // W-4: every quiz on the schedule, in a row and a room that are there
+  for (const q of doc.quizzes) {
+    if (!q.cell) add('W-4', [q], 'Not on the schedule yet')
+    else if (!onGrid(doc, q.cell)) add('W-4', [q], 'Its row or room is no longer on the schedule')
+  }
 
   // W-5: each quiz's results have a name of their own
   for (const same of groupBy(doc.quizzes, resultName).values()) {

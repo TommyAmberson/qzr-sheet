@@ -1,6 +1,8 @@
 import {
   WEEKDAYS,
+  drawnQuizzes,
   laneName,
+  onGrid,
   type FrameRow,
   type ScheduleDocument,
   type ScheduleEvent,
@@ -25,14 +27,12 @@ function quiz(d: ScheduleDocument, id: string): ScheduleQuiz {
 /** Move a quiz to a cell, or to the unplaced tray with null; a quiz already there swaps back */
 export function moveQuiz(d: ScheduleDocument, id: string, cell: Cell) {
   const q = quiz(d, id)
-  // The quiz drawn in the cell, which in a cell two quizzes share is the last (as `sheetRows`)
-  const other = cell
-    ? [...d.quizzes]
-        .reverse()
-        .find((x) => x !== q && x.cell?.slot === cell.slot && x.cell.room === cell.room)
-    : undefined
+  // The quiz the grid draws in the cell, whichever of two sharing it that is
+  const drawn = cell ? drawnQuizzes(d).get(`${cell.slot}|${cell.room}`) : undefined
+  const other = drawn === q ? undefined : drawn
   if (other) {
-    other.cell = q.cell
+    // It takes the mover's old cell, or the tray if that cell's row or room is gone
+    other.cell = onGrid(d, q.cell) ? q.cell : null
     other.pinned = true
   }
   q.cell = cell

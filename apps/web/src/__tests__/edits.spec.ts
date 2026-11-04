@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { newScheduleDocument, type ScheduleDocument } from '@qzr/shared'
 
-import { deleteRow, editEvent, editRow, insertRow, moveEvent } from '../builder/edits'
+import { deleteRow, editEvent, editRow, insertRow, moveEvent, moveQuiz } from '../builder/edits'
 
 function doc(): ScheduleDocument {
   const d = newScheduleDocument('Meet')
@@ -37,6 +37,43 @@ describe('events of the same name in one slot are one event (FR-017)', () => {
     editEvent(d, 'b', { label: 'Breakfast' })
     moveEvent(d, 'c', { slot: 's1', room: 'r2' })
     expect(d.events.map((e) => [e.id, e.rooms])).toEqual([['a', 'all']])
+  })
+})
+
+describe('moving a quiz', () => {
+  it('swaps with the quiz the grid draws when two share the cell', () => {
+    const d = newScheduleDocument('Meet')
+    d.rooms = [{ id: 'r1', name: 'Room 1' }]
+    d.frame = [
+      { kind: 'slot', id: 'a', at: 9 * 60, minutes: 25 },
+      { kind: 'slot', id: 'b', at: 10 * 60, minutes: 25 },
+    ]
+    const q = (id: string, slot: string) => ({
+      id,
+      label: `Div 1 Quiz ${id}`,
+      division: 'd1',
+      phase: 'prelim' as const,
+      cell: { slot, room: 'r1' },
+      seats: [],
+      pinned: false,
+    })
+    // 1 and 2 share cell a; the grid draws the last, 2
+    d.quizzes = [q('1', 'a'), q('2', 'a'), q('3', 'b')]
+    moveQuiz(d, '3', { slot: 'a', room: 'r1' })
+    expect(d.quizzes.map((x) => `${x.id}@${x.cell!.slot}`)).toEqual(['1@a', '2@b', '3@a'])
+  })
+
+  it("sends the quiz it swaps out to the tray when the mover's old row is gone", () => {
+    const d = newScheduleDocument('Meet')
+    d.rooms = [{ id: 'r1', name: 'Room 1' }]
+    d.frame = [{ kind: 'slot', id: 'a', at: 9 * 60, minutes: 25 }]
+    const base = { division: 'd1', phase: 'prelim' as const, seats: [], pinned: false }
+    d.quizzes = [
+      { ...base, id: '1', label: 'Div 1 Quiz 1', cell: { slot: 'a', room: 'r1' } },
+      { ...base, id: '2', label: 'Div 1 Quiz 2', cell: { slot: 'gone', room: 'r1' } },
+    ]
+    moveQuiz(d, '2', { slot: 'a', room: 'r1' })
+    expect(d.quizzes.map((x) => x.cell?.slot ?? 'tray')).toEqual(['tray', 'a'])
   })
 })
 

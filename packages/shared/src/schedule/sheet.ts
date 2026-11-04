@@ -64,14 +64,41 @@ export type SheetRow =
     }
 
 /**
+ * Whether a cell is on the grid: its row and its room are both still there. A quiz in a cell that
+ * isn't waits in the tray (W-4), as one with no cell does.
+ */
+export function onGrid(
+  doc: Pick<ScheduleDocument, 'frame' | 'rooms'>,
+  cell: { slot: string; room: string } | null,
+): boolean {
+  return (
+    cell !== null &&
+    doc.frame.some((r) => r.kind === 'slot' && r.id === cell.slot) &&
+    doc.rooms.some((r) => r.id === cell.room)
+  )
+}
+
+/**
+ * The quiz the grid draws in each cell, by `slot|room`: one per cell, the last when two share it
+ * (H-2). A quiz whose cell isn't on the grid isn't drawn.
+ */
+export function drawnQuizzes(doc: ScheduleDocument): Map<string, ScheduleQuiz> {
+  const drawn = new Map<string, ScheduleQuiz>()
+  for (const q of doc.quizzes) {
+    if (q.cell && onGrid(doc, q.cell)) {
+      drawn.set(`${q.cell.slot}|${q.cell.room}`, q)
+    }
+  }
+  return drawn
+}
+
+/**
  * The grid as rows (FR-017). A slot's quiz takes its room even under an event, where it's marked
  * (H-3); an event's rooms next to each other are one cell, as are neighbours with the same name,
  * and rooms apart are separate cells.
  */
 export function sheetRows(doc: ScheduleDocument): SheetRow[] {
-  const byCell = new Map(
-    doc.quizzes.flatMap((q) => (q.cell ? [[`${q.cell.slot}|${q.cell.room}`, q] as const] : [])),
-  )
+  const byCell = drawnQuizzes(doc)
   const roomIds = doc.rooms.map((r) => r.id)
   const eventsIn = new Map<string, ScheduleEvent[]>()
   for (const e of doc.events) {

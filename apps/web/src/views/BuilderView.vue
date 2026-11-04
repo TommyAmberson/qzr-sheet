@@ -2,7 +2,7 @@
 import '../builder/builder.css'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { ChoiceDialog, ScheduleBasic, ScheduleSeat, ScheduleSheet } from '@qzr/ui'
-import { seatText, type ScheduleDocument, type SheetView } from '@qzr/shared'
+import { drawnQuizzes, seatText, type ScheduleDocument, type SheetView } from '@qzr/shared'
 
 import {
   addDay,
@@ -414,17 +414,11 @@ async function toggleAutoApply(event: Event) {
 
 const problems = computed(() => conflicts.value.filter((c) => !c.warning).length)
 const warnings = computed(() => conflicts.value.filter((c) => c.warning).length)
-// The grid draws one quiz per cell, so a quiz sharing its cell with another (H-2) waits here too,
-// where it can be seen and moved
+// Every quiz the grid doesn't draw waits here, where it can be seen and moved: one not placed, one
+// sharing its cell with another (H-2), or one whose row or room is gone
 const tray = computed(() => {
-  const drawn = new Map(
-    doc.value.quizzes.flatMap((q) =>
-      q.cell ? [[`${q.cell.slot}|${q.cell.room}`, q.id] as const] : [],
-    ),
-  )
-  return doc.value.quizzes.filter(
-    (q) => !q.cell || drawn.get(`${q.cell.slot}|${q.cell.room}`) !== q.id,
-  )
+  const drawn = new Set(drawnQuizzes(doc.value).values())
+  return doc.value.quizzes.filter((q) => !drawn.has(q))
 })
 const trayEvents = computed(() => doc.value.events.filter((e) => !e.slot))
 

@@ -334,6 +334,40 @@ describe('checkSchedule', () => {
     expect(conflicts.length).toBeGreaterThan(0)
   })
 
+  it('no clash for quizzes whose room is gone, which wait in the tray (H-2, W-4)', () => {
+    const quizzes = sixTeams()
+    quizzes[4]!.cell = { slot: quizzes[0]!.cell!.slot, room: 'gone' }
+    quizzes[5]!.cell = { slot: quizzes[0]!.cell!.slot, room: 'gone' }
+    const conflicts = checkSchedule(doc({ quizzes }))
+    expect(flagged(conflicts, 'H-2')).toEqual([])
+    expect(flagged(conflicts, 'W-4').sort()).toEqual(['p5', 'p6'])
+  })
+
+  it('an elim whose room is gone has no time, so prelims after it break nothing (H-11)', () => {
+    const quizzes = sixTeams()
+    const first = quizzes[0]!.cell!
+    quizzes.push({
+      id: 'e1',
+      label: 'Div 1 Quiz A',
+      division: 'd1',
+      phase: 'elim',
+      cell: { slot: first.slot, room: 'gone' },
+      seats: [
+        { kind: 'rank', rank: 1 },
+        { kind: 'rank', rank: 2 },
+        { kind: 'rank', rank: 3 },
+      ],
+      pinned: true,
+    })
+    expect(flagged(checkSchedule(doc({ quizzes })), 'H-11')).toEqual([])
+  })
+
+  it("W-4: a quiz whose row is gone, which the grid can't draw", () => {
+    const quizzes = sixTeams()
+    quizzes[5]!.cell = { slot: 'gone', room: quizzes[5]!.cell!.room }
+    expect(flagged(checkSchedule(doc({ quizzes })), 'W-4')).toEqual(['p6'])
+  })
+
   it('W-5: two quizzes whose results would share a name', () => {
     const d: ScheduleDocument = doc({}, 9)
     const lane = {
