@@ -95,7 +95,6 @@ describe('settings sections', () => {
   it('raising the room count adds a room and re-flows the grid (story 2 scenario 1)', async () => {
     const wrapper = await fbc()
     await openSection(wrapper, 'Time slots and rooms')
-    await wrapper.find('[aria-label="As many rooms as needed"]').setValue(false)
     const rooms = wrapper.find('[aria-label="Room count"]')
     await rooms.setValue('6')
     await rooms.trigger('change')

@@ -2,7 +2,13 @@
 import NumberInput from './NumberInput.vue'
 import { computed } from 'vue'
 import { addDay, deleteDay, editRow } from '../../builder/edits'
-import { type ScheduleDocument, type ScheduleSettings, type UnappliedSetting } from '@qzr/shared'
+import {
+  formatClock,
+  recommendedRooms,
+  type ScheduleDocument,
+  type ScheduleSettings,
+  type UnappliedSetting,
+} from '@qzr/shared'
 
 const props = defineProps<{ doc: ScheduleDocument; unapplied: UnappliedSetting[] }>()
 const emit = defineEmits<{
@@ -17,18 +23,48 @@ const was = (key: string) => props.unapplied.find((u) => u.key === key)?.applied
 function set(mutate: (settings: ScheduleSettings) => void) {
   emit('change', (d) => mutate(d.settings))
 }
-/** Each day with what it holds, from its heading to the next */
+/** Each day with what it holds and when it starts and ends, from its heading to the next */
 const days = computed(() => {
-  const list: { id: string; label: string; slots: number; events: number }[] = []
+  const list: {
+    id: string
+    label: string
+    slots: number
+    events: number
+    from: number | null
+    to: number | null
+  }[] = []
   for (const row of props.doc.frame) {
-    if (row.kind === 'day') list.push({ id: row.id, label: row.label, slots: 0, events: 0 })
+    if (row.kind === 'day') {
+      list.push({ id: row.id, label: row.label, slots: 0, events: 0, from: null, to: null })
+    }
     const day = list[list.length - 1]
     if (!day || row.kind !== 'slot') continue
     if (row.use !== 'event') day.slots++
     day.events += props.doc.events.filter((e) => e.slot === row.id).length
+    day.from = Math.min(day.from ?? row.at, row.at)
+    day.to = Math.max(day.to ?? 0, row.at + row.minutes)
   }
   return list
 })
+
+/** Quiz slots holding a quiz whose length isn't the default, with their day */
+const offLength = computed(() => {
+  const list: { id: string; when: string; minutes: number }[] = []
+  let day = ''
+  for (const row of props.doc.frame) {
+    if (row.kind === 'day') day = row.label
+    if (row.kind !== 'slot' || row.use === 'event' || row.minutes === s.value.slotMinutes) continue
+    if (!props.doc.quizzes.some((q) => q.cell?.slot === row.id)) continue
+    list.push({
+      id: row.id,
+      when: `${day.slice(0, 3)} ${formatClock(row.at)}`,
+      minutes: row.minutes,
+    })
+  }
+  return list
+})
+
+const recommended = computed(() => recommendedRooms(props.doc.settings))
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 function rename(id: string, e: Event) {
   const label = (e.target as HTMLInputElement).value.trim()
@@ -42,7 +78,7 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
     <section class="card">
       <h4 class="card-title">Slots</h4>
       <label class="field">
-        Length
+        Default length
         <span class="with-unit">
           <NumberInput
             min="1"
@@ -56,38 +92,45 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
       <p v-if="was('slotMinutes')" class="unapplied">
         Unapplied · grid uses {{ was('slotMinutes') }}
       </p>
+      <!-- Slots set to their own length on the grid, where it matters: those holding a quiz -->
+      <ul v-if="offLength.length > 0" class="off" aria-label="Slots of another length">
+        <li v-for="o in offLength" :key="o.id">
+          <span>{{ o.when }}</span>
+          <span class="sum">{{ o.minutes }} min</span>
+        </li>
+      </ul>
     </section>
 
     <section class="card">
       <h4 class="card-title">Rooms</h4>
       <label class="field">
-        As many as needed
-        <input
-          type="checkbox"
-          role="switch"
-          :checked="s.rooms === 'auto'"
-          aria-label="As many rooms as needed"
-          @change="
-            set(
-              (x) =>
-                (x.rooms = ($event.target as HTMLInputElement).checked ? 'auto' : doc.rooms.length),
-            )
-          "
-        />
-      </label>
-      <label class="field">
-        {{ s.rooms === 'auto' ? 'Now' : 'Rooms' }}
+        Rooms
         <span class="with-unit">
           <NumberInput
             min="1"
             :value="s.rooms === 'auto' ? doc.rooms.length : s.rooms"
-            :disabled="s.rooms === 'auto'"
             aria-label="Room count"
             @change="set((x) => (x.rooms = Math.max(1, num($event))))"
           />
           <span class="unit">rooms</span>
         </span>
       </label>
+      <!-- The rooms the prelims need; following it keeps the count in step as teams change -->
+      <p class="recommend">
+        <template v-if="s.rooms === 'auto'">Following the recommendation</template>
+        <template v-else>
+          Recommended: {{ recommended }}
+          <button
+            v-if="s.rooms !== recommended"
+            type="button"
+            class="link"
+            aria-label="Use the recommended rooms"
+            @click="set((x) => (x.rooms = 'auto'))"
+          >
+            Use {{ recommended }}
+          </button>
+        </template>
+      </p>
       <p v-if="was('rooms')" class="unapplied">Unapplied · grid uses {{ was('rooms') }}</p>
     </section>
 
@@ -102,6 +145,9 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
             @change="rename(day.id, $event)"
           />
           <span class="sum">
+            <template v-if="day.from !== null"
+              >{{ formatClock(day.from) }}–{{ formatClock(day.to!) }}<br
+            /></template>
             {{ plural(day.slots, 'slot')
             }}<template v-if="day.events"> · {{ plural(day.events, 'event') }}</template>
           </span>
@@ -150,8 +196,37 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
   gap: 0.4rem;
 }
 
+.sum {
+  text-align: right;
+  line-height: 1.3;
+}
+
 .unit,
 .sum {
+  color: var(--color-text-faint);
+  font-size: 0.75rem;
+}
+
+.off {
+  display: grid;
+  margin: 0;
+  padding: 0.3rem 0 0;
+  border-top: 1px dashed var(--color-border-alt);
+  list-style: none;
+  font-size: 0.8rem;
+}
+
+.off li {
+  display: flex;
+  justify-content: space-between;
+}
+
+.recommend {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin: 0;
   color: var(--color-text-faint);
   font-size: 0.75rem;
 }

@@ -15,6 +15,21 @@ import type {
 /** Prelim rounds a weekend starts from: five Friday evening, three Saturday morning */
 const BASE_PRELIM_SLOTS = { weekend: 8, oneRoom: 8, oneDay: 6 } as const
 
+/**
+ * The rooms a schedule's settings call for (FR-018): the fewest, at least 3, that fit every
+ * division's prelims in the frame's prelim slots
+ */
+export function recommendedRooms(settings: ScheduleSettings): number {
+  if (settings.framePreset === 'oneRoom') return 1
+  const prelims = settings.divisions
+    .filter((d) => d.teams > 0)
+    .reduce(
+      (n, d) => n + drawPrelims(d.teams, settings.prelimDraw, settings.quizzesPerTeam).length,
+      0,
+    )
+  return defaultRoomCount(prelims, BASE_PRELIM_SLOTS[settings.framePreset])
+}
+
 /** Beyond this many elim rounds something can never become ready; stop rather than loop */
 const MAX_ELIM_ROUNDS = 60
 
@@ -185,7 +200,7 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
     settings.framePreset === 'oneRoom'
       ? 1
       : settings.rooms === 'auto'
-        ? defaultRoomCount(totalPrelims, base)
+        ? recommendedRooms(settings)
         : settings.rooms
   // The rooms there are stay as they are, names and meet rooms included; any more are added
   const taken = new Set(doc.rooms.map((r) => r.id))
