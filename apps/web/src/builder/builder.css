@@ -30,6 +30,13 @@
   }
 }
 
+/* Scrollbars drawn quietly in the theme's colours, not the system's bright ones */
+:is(.builder, .builder-list, .linked),
+:is(.builder, .builder-list, .linked) * {
+  scrollbar-color: var(--color-meta-accent) transparent;
+  scrollbar-width: thin;
+}
+
 /* ---- Controls, as the scoresheet draws them ---- */
 
 :is(.builder, .builder-list, .linked) :is(button, input, select, textarea) {
