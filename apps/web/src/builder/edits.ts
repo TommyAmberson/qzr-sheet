@@ -25,8 +25,11 @@ function quiz(d: ScheduleDocument, id: string): ScheduleQuiz {
 /** Move a quiz to a cell, or to the unplaced tray with null; a quiz already there swaps back */
 export function moveQuiz(d: ScheduleDocument, id: string, cell: Cell) {
   const q = quiz(d, id)
+  // The quiz drawn in the cell, which in a cell two quizzes share is the last (as `sheetRows`)
   const other = cell
-    ? d.quizzes.find((x) => x !== q && x.cell?.slot === cell.slot && x.cell.room === cell.room)
+    ? [...d.quizzes]
+        .reverse()
+        .find((x) => x !== q && x.cell?.slot === cell.slot && x.cell.room === cell.room)
     : undefined
   if (other) {
     other.cell = q.cell
