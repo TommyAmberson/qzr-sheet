@@ -1,5 +1,6 @@
 import { ordinal, quizNumber } from './names'
-import type { FrameRow, ScheduleDocument, ScheduleQuiz, Seat } from './scheduleFile'
+import { eventRooms } from './frame'
+import type { FrameRow, ScheduleDocument, ScheduleEvent, ScheduleQuiz, Seat } from './scheduleFile'
 
 /** Letters, or the drawn team's name where the division has a draw (FR-043) */
 export type SheetView = 'letters' | 'teams'
@@ -42,81 +43,55 @@ export function seatText(
   }
 }
 
+/** A cell of a slot: a room's quiz, an event over one or more adjacent rooms, or an empty room */
+export type SheetCell =
+  | { kind: 'quiz'; room: string; quiz: ScheduleQuiz }
+  | { kind: 'event'; rooms: string[]; event: ScheduleEvent }
+  | { kind: 'empty'; room: string }
+
 /** One row of the printed sheet */
 export type SheetRow =
   | { kind: 'day'; row: Extract<FrameRow, { kind: 'day' }> }
   | { kind: 'note'; row: Extract<FrameRow, { kind: 'note' }> }
-  | { kind: 'event'; row: Extract<FrameRow, { kind: 'event' }> }
   | {
       kind: 'slot'
       row: Extract<FrameRow, { kind: 'slot' }>
-      /** Per room, in room order: its quiz, the one-room event taking it, or nothing */
-      cells: {
-        room: string
-        quiz: ScheduleQuiz | null
-        event: string | null
-        /** The one-room event's row, to open it */
-        eventId: string | null
-      }[]
+      /** Its cells in room order, an event's adjacent rooms merged into one */
+      cells: SheetCell[]
+      /** No quizzes and every room taken by events: drawn as a short event row (FR-017) */
+      short: boolean
     }
 
-/** The grid as rows, slots carrying a cell per room (H-3: a one-room event takes its room's cell) */
+/**
+ * The grid as rows (FR-017). A slot's quiz takes its room even under an event, where it's marked
+ * (H-3); an event's rooms next to each other are one cell, and rooms apart are separate cells.
+ */
 export function sheetRows(doc: ScheduleDocument): SheetRow[] {
   const byCell = new Map(
     doc.quizzes.flatMap((q) => (q.cell ? [[`${q.cell.slot}|${q.cell.room}`, q] as const] : [])),
   )
-  const rows: SheetRow[] = []
-  let day = 0
-  const roomEvents: {
-    id: string
-    day: number
-    at: number
-    end: number
-    room: string
-    label: string
-  }[] = []
-  for (const row of doc.frame) {
-    if (row.kind === 'day') day++
-    if (row.kind === 'event' && row.room) {
-      roomEvents.push({
-        id: row.id,
-        day,
-        at: row.at,
-        end: row.at + row.minutes,
-        room: row.room,
-        label: row.label,
-      })
-    }
+  const roomIds = doc.rooms.map((r) => r.id)
+  const eventsIn = new Map<string, ScheduleEvent[]>()
+  for (const e of doc.events) {
+    if (e.slot) eventsIn.set(e.slot, [...(eventsIn.get(e.slot) ?? []), e])
   }
-  day = 0
-  for (const row of doc.frame) {
-    if (row.kind === 'day') {
-      day++
-      rows.push({ kind: 'day', row })
-    } else if (row.kind === 'note') rows.push({ kind: 'note', row })
-    else if (row.kind === 'event') {
-      // A one-room event shows in its slot's cell, not as a row of its own
-      if (!row.room) rows.push({ kind: 'event', row })
-    } else {
-      const end = row.at + row.minutes
-      rows.push({
-        kind: 'slot',
-        row,
-        cells: doc.rooms.map((room) => {
-          const event = roomEvents.find(
-            (e) => e.room === room.id && e.day === day && e.at < end && row.at < e.end,
-          )
-          return {
-            room: room.id,
-            quiz: byCell.get(`${row.id}|${room.id}`) ?? null,
-            event: event?.label ?? null,
-            eventId: event?.id ?? null,
-          }
-        }),
-      })
+  return doc.frame.map((row): SheetRow => {
+    if (row.kind === 'day') return { kind: 'day', row }
+    if (row.kind === 'note') return { kind: 'note', row }
+    const events = eventsIn.get(row.id) ?? []
+    const cells: SheetCell[] = []
+    for (const room of roomIds) {
+      const quiz = byCell.get(`${row.id}|${room}`)
+      const event = events.find((e) => eventRooms(e, roomIds).includes(room))
+      const last = cells[cells.length - 1]
+      if (quiz) cells.push({ kind: 'quiz', room, quiz })
+      else if (!event) cells.push({ kind: 'empty', room })
+      else if (last?.kind === 'event' && last.event.id === event.id) last.rooms.push(room)
+      else cells.push({ kind: 'event', rooms: [room], event })
     }
-  }
-  return rows
+    const short = cells.length > 0 && cells.every((c) => c.kind === 'event')
+    return { kind: 'slot', row, cells, short }
+  })
 }
 
 /** The divisions that use a room, Finals aside (FR-019) */
@@ -154,24 +129,28 @@ export function statsBreaks(
 }
 
 /**
- * The basic schedule: events as they are, and each run of quiz slots collapsed into one "Quizzing"
- * row from its first start to its last end (FR-044)
+ * The basic schedule: event rows as they are, and each run of quiz slots collapsed into one
+ * "Quizzing" row from its first start to its last end (FR-044). A slot made for events that has
+ * none left is skipped.
  */
 export function basicRows(
   doc: ScheduleDocument,
 ): { kind: 'day' | 'event' | 'quizzing'; label: string; from?: number; to?: number }[] {
   const rows: { kind: 'day' | 'event' | 'quizzing'; label: string; from?: number; to?: number }[] =
     []
-  for (const row of doc.frame) {
-    if (row.kind === 'day') rows.push({ kind: 'day', label: row.label })
-    else if (row.kind === 'event' && !row.room) {
-      rows.push({ kind: 'event', label: row.label, from: row.at, to: row.at + row.minutes })
-    } else if (row.kind === 'slot') {
-      const last = rows[rows.length - 1]
-      if (last?.kind === 'quizzing') last.to = row.at + row.minutes
-      else
-        rows.push({ kind: 'quizzing', label: 'Quizzing', from: row.at, to: row.at + row.minutes })
+  for (const r of sheetRows(doc)) {
+    if (r.kind === 'day') rows.push({ kind: 'day', label: r.row.label })
+    if (r.kind !== 'slot') continue
+    const { at, minutes, use } = r.row
+    if (r.short) {
+      const labels = [...new Set(r.cells.map((c) => (c.kind === 'event' ? c.event.label : '')))]
+      rows.push({ kind: 'event', label: labels.join(' · '), from: at, to: at + minutes })
+      continue
     }
+    if (use === 'event' && r.cells.every((c) => c.kind !== 'quiz')) continue
+    const last = rows[rows.length - 1]
+    if (last?.kind === 'quizzing') last.to = at + minutes
+    else rows.push({ kind: 'quizzing', label: 'Quizzing', from: at, to: at + minutes })
   }
   return rows
 }

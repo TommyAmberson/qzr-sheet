@@ -1,4 +1,4 @@
-import type { FrameRow, ScheduleSettings } from './scheduleFile'
+import type { FrameRow, ScheduleEvent, ScheduleSettings } from './scheduleFile'
 
 /** How many slots a frame needs: prelim rounds, elim rounds, and Finals one after another */
 export interface FrameShape {
@@ -16,17 +16,18 @@ const h = (hours: number, minutes = 0) => hours * 60 + minutes
 const FRIDAY_ROUNDS = 5
 
 /**
- * The rows of a preset's frame (FR-015), with as many slots as `shape` asks for. Events sit where
- * the org's meets put them; slots never overlap an event, and Finals start no earlier than
- * mid-afternoon, `finalsSpacing` minutes apart.
+ * The rows of a preset's frame (FR-015), with as many slots as `shape` asks for, and its events,
+ * each across every room of a slot of its own, where the org's meets put them. Quiz slots never
+ * overlap an event, and Finals start no earlier than mid-afternoon, `finalsSpacing` minutes apart.
  */
 export function buildFrame(
   preset: ScheduleSettings['framePreset'],
   slotMinutes: number,
   shape: FrameShape,
   finalsSpacing = 30,
-): FrameRow[] {
+): { rows: FrameRow[]; events: ScheduleEvent[] } {
   const rows: FrameRow[] = []
+  const events: ScheduleEvent[] = []
   // Ids follow what a row is for, not where it sits, so a quiz pinned to the 3rd elim slot keeps it
   // when the frame is rebuilt around it
   const count = new Map<string, number>()
@@ -37,8 +38,11 @@ export function buildFrame(
   }
   let use: 'prelim' | 'elim' | 'finals' = 'prelim'
   const day = (label: string) => rows.push({ kind: 'day', id: next(`day-${label}`), label })
-  const event = (at: number, minutes: number, label: string) =>
-    rows.push({ kind: 'event', id: next(`event-${label}`), at, minutes, label })
+  const event = (at: number, minutes: number, label: string) => {
+    const id = next(`event-${label}`)
+    rows.push({ kind: 'slot', id, at, minutes, use: 'event' })
+    events.push({ id: `ev-${id}`, label, slot: id, rooms: 'all', pinned: false })
+  }
   const slot = (at: number, minutes = slotMinutes) =>
     rows.push({ kind: 'slot', id: next(use), at, minutes, use })
 
@@ -81,7 +85,7 @@ export function buildFrame(
     use = 'elim'
     at = fill(at, shape.elimSlots).at
     finals(at)
-    return rows
+    return { rows, events }
   }
 
   day('Friday')
@@ -107,7 +111,7 @@ export function buildFrame(
   day('Sunday')
   event(h(11), 60, 'Worship service')
   event(h(12), 60, 'Lunch')
-  return rows
+  return { rows, events }
 }
 
 /** The fewest rooms, at least 3, that fit every prelim quiz in the prelim slots (FR-018) */
@@ -115,11 +119,20 @@ export function defaultRoomCount(prelimQuizzes: number, prelimSlots: number): nu
   return Math.max(3, Math.ceil(prelimQuizzes / Math.max(1, prelimSlots)))
 }
 
+/** The rooms an event takes, in room order */
+export function eventRooms(event: ScheduleEvent, rooms: string[]): string[] {
+  return event.rooms === 'all' ? rooms : rooms.filter((r) => event.rooms.includes(r))
+}
+
 /**
- * The cells events take (H-3), as `slot|room`: each slot on the event's own day whose time
- * overlaps it, in the event's room, or in every room for an event across all of them
+ * The cells events take (H-3), as `slot|room`: in each of the event's rooms, every slot on its
+ * day whose time overlaps the event's own slot, that slot included
  */
-export function eventCells(frame: FrameRow[], rooms: string[]): Set<string> {
+export function eventCells(
+  frame: FrameRow[],
+  events: ScheduleEvent[],
+  rooms: string[],
+): Set<string> {
   const cells = new Set<string>()
   const dayOf = new Map<string, number>()
   let day = 0
@@ -127,16 +140,18 @@ export function eventCells(frame: FrameRow[], rooms: string[]): Set<string> {
     if (row.kind === 'day') day++
     dayOf.set(row.id, day)
   }
-  for (const row of frame) {
-    if (row.kind !== 'event') continue
-    for (const s of frame) {
+  const slots = frame.filter((r): r is Extract<FrameRow, { kind: 'slot' }> => r.kind === 'slot')
+  const slotOf = new Map(slots.map((s) => [s.id, s]))
+  for (const event of events) {
+    const own = event.slot ? slotOf.get(event.slot) : undefined
+    if (!own) continue
+    for (const s of slots) {
       if (
-        s.kind === 'slot' &&
-        dayOf.get(s.id) === dayOf.get(row.id) &&
-        row.at < s.at + s.minutes &&
-        s.at < row.at + row.minutes
+        dayOf.get(s.id) === dayOf.get(own.id) &&
+        own.at < s.at + s.minutes &&
+        s.at < own.at + own.minutes
       ) {
-        for (const room of row.room ? [row.room] : rooms) cells.add(`${s.id}|${room}`)
+        for (const room of eventRooms(event, rooms)) cells.add(`${s.id}|${room}`)
       }
     }
   }

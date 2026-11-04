@@ -5,6 +5,7 @@ import {
   quizNumber,
   type FrameRow,
   type ScheduleDocument,
+  type ScheduleEvent,
   type ScheduleQuiz,
   type Seat,
 } from '@qzr/shared'
@@ -154,6 +155,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
   )
   const lastPrelimSlot = slots.reduce((last, s, i) => (prelimSlotIds.has(s.id) ? i : last), -1)
   const frame: FrameRow[] = []
+  const events: ScheduleEvent[] = []
   let day = ''
   for (const slot of slots) {
     const at = wallClock(slot.startAt, timeZone)
@@ -164,12 +166,20 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
     }
     const id = String(slot.id)
     if (slot.kind === 'event') {
+      // An old event spans every room, in a slot of its own
       frame.push({
-        kind: 'event',
+        kind: 'slot',
         id,
         at: at.minutes,
-        minutes: slot.durationMinutes,
+        minutes: Math.max(1, slot.durationMinutes),
+        use: 'event',
+        pinned: true,
+      })
+      events.push({
+        id: `ev-${id}`,
         label: slot.eventLabel ?? '',
+        slot: id,
+        rooms: 'all',
         pinned: true,
       })
       continue
@@ -186,6 +196,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
     })
   }
   doc.frame = frame
+  doc.events = events
   doc.rooms = old.rooms.map((r) => ({ id: String(r.id), name: r.name, meetRoomId: r.id }))
 
   const seatsOf = (quizId: number) =>
@@ -334,7 +345,7 @@ export interface LegacyView {
 
 /**
  * A published document as the old routes return it. Placed quizzes in rooms the meet has only;
- * note rows are left out, and a one-room event becomes an event for every room.
+ * note rows are left out, and a slot holding events and no quizzes is an event, named for them all.
  */
 export function legacyFromDocument(
   doc: ScheduleDocument,
@@ -342,11 +353,14 @@ export function legacyFromDocument(
   publishedAt: Date,
 ): LegacyView {
   const tz = doc.link?.timeZone ?? 'UTC'
-  const timed = doc.frame.filter(
-    (r): r is Extract<FrameRow, { kind: 'slot' | 'event' }> =>
-      r.kind === 'slot' || r.kind === 'event',
-  )
+  const timed = doc.frame.filter((r) => r.kind === 'slot')
   const slotIds = numericIds(timed.map((r) => r.id))
+  const withQuizzes = new Set(doc.quizzes.flatMap((q) => (q.cell ? [q.cell.slot] : [])))
+  const eventLabel = (slot: string) => {
+    if (withQuizzes.has(slot)) return null
+    const labels = [...new Set(doc.events.filter((e) => e.slot === slot).map((e) => e.label))]
+    return labels.length > 0 ? labels.join(' · ') : null
+  }
   const quizIds = numericIds(doc.quizzes.map((q) => q.id))
   const meetRoom = new Map(doc.rooms.map((r) => [r.id, r.meetRoomId]))
 
@@ -359,14 +373,15 @@ export function legacyFromDocument(
         ? dayDate(row.label, addDays(date, 1), false)
         : dayDate(row.label, meet.dateFrom, true)
     }
-    if (row.kind !== 'slot' && row.kind !== 'event') continue
+    if (row.kind !== 'slot') continue
+    const event = eventLabel(row.id)
     slots.push({
       id: slotIds.get(row.id)!,
       meetId: meet.id,
       startAt: instantOf(date ?? meet.dateFrom, row.at, tz).toISOString(),
       durationMinutes: row.minutes,
-      kind: row.kind === 'slot' ? 'quiz' : 'event',
-      eventLabel: row.kind === 'event' ? row.label : null,
+      kind: event === null ? 'quiz' : 'event',
+      eventLabel: event,
       sortOrder: slots.length + 1,
     })
   }

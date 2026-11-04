@@ -35,12 +35,15 @@ function seatKey(seat: Seat): string | null {
   }
 }
 
-/** The frame's slots grouped by use, in order; a slot added by hand takes the use of the one before */
+/**
+ * The frame's quiz slots grouped by use, in order; a slot added by hand takes the use of the quiz
+ * slot before it, and slots made for events take no quizzes
+ */
 function slotsByUse(frame: FrameRow[]): Record<Use, string[]> {
   const byUse: Record<Use, string[]> = { prelim: [], elim: [], finals: [] }
   let use: Use = 'prelim'
   for (const row of frame) {
-    if (row.kind !== 'slot') continue
+    if (row.kind !== 'slot' || row.use === 'event') continue
     use = row.use ?? use
     byUse[use].push(row.id)
   }
@@ -136,7 +139,7 @@ const isFinals = (q: ScheduleQuiz) => q.deciding === true && q.label.endsWith('F
 export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   const { settings } = doc
   const divisions = settings.divisions.filter((d) => d.teams > 0)
-  const keepFrame = doc.frame.some((r) => r.pinned)
+  const keepFrame = doc.frame.some((r) => r.pinned) || doc.events.some((e) => e.pinned)
   const oldSlots = slotsByUse(doc.frame)
   const positionOf = new Map<string, { use: Use; k: number }>()
   for (const use of ['prelim', 'elim', 'finals'] as const) {
@@ -210,7 +213,7 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   // Prelims, around pinned quizzes' cells and letters
   // Cells events take (H-3), by use and position; only a kept frame has hand-made events
   const eventTaken = keepFrame
-    ? [...eventCells(doc.frame, [...roomIds])].flatMap((cell) => {
+    ? [...eventCells(doc.frame, doc.events, [...roomIds])].flatMap((cell) => {
         const [slot, room] = cell.split('|') as [string, string]
         const pos = positionOf.get(slot)
         return pos && roomIds.has(room) ? [{ ...pos, room }] : []
@@ -315,8 +318,8 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
     ? oldSlots.finals.length
     : Math.ceil((Math.max(-1, ...finalsPlaces, ...pinnedFinals) + 1) / side)
 
-  const frame = keepFrame
-    ? doc.frame
+  const built = keepFrame
+    ? { rows: doc.frame, events: doc.events }
     : buildFrame(
         settings.framePreset,
         settings.slotMinutes,
@@ -325,6 +328,15 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
           : { prelimSlots, elimSlots: scheduled.rounds, finalsSlots },
         settings.finals.spacingMinutes,
       )
+  const frame = built.rows
+  // An event keeps the rooms that are still there; one with none left waits in the tray
+  const events = built.events.map((e) => {
+    if (e.rooms === 'all') return e
+    const kept = e.rooms.filter((r) => roomIds.has(r))
+    return kept.length === e.rooms.length
+      ? e
+      : { ...e, rooms: kept, slot: kept.length ? e.slot : null }
+  })
   const slots = slotsByUse(frame)
   const orderedRooms = rooms.map((r) => r.id)
 
@@ -364,7 +376,7 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
     }
   })
 
-  return { ...doc, applied: structuredClone(settings), frame, rooms, quizzes }
+  return { ...doc, applied: structuredClone(settings), frame, rooms, quizzes, events }
 }
 
 /** A whole schedule from its settings, nothing pinned (FR-009) */
@@ -372,6 +384,7 @@ export function generateSchedule(doc: ScheduleDocument): ScheduleDocument {
   return reflowSchedule({
     ...doc,
     frame: doc.frame.map((r) => ({ ...r, pinned: false })),
+    events: doc.events.map((e) => ({ ...e, pinned: false })),
     quizzes: [],
   })
 }

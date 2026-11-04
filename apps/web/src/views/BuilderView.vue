@@ -4,11 +4,22 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, wa
 import { ChoiceDialog, ScheduleBasic, ScheduleSheet } from '@qzr/ui'
 import { seatText, type ScheduleDocument, type SheetView } from '@qzr/shared'
 
-import { addDay, addQuiz, addRoom, moveQuiz, swapSeats, unpinAll } from '../builder/edits'
+import {
+  addDay,
+  addEvent,
+  addQuiz,
+  addRoom,
+  moveEvent,
+  moveQuiz,
+  swapSeats,
+  unpinAll,
+} from '../builder/edits'
 import { keepSchedule, loadSchedule, saveScheduleFile } from '../builder/persistence'
 import ElimSection from '../components/builder/ElimSection.vue'
 import FrameSection from '../components/builder/FrameSection.vue'
 import PrelimSection from '../components/builder/PrelimSection.vue'
+import BuilderPopover from '../components/builder/BuilderPopover.vue'
+import EventMenu from '../components/builder/EventMenu.vue'
 import QuizMenu from '../components/builder/QuizMenu.vue'
 import RoomMenu from '../components/builder/RoomMenu.vue'
 import RowMenu from '../components/builder/RowMenu.vue'
@@ -55,23 +66,67 @@ const heldLabels = computed(() =>
 /** The popup open on the grid, if any: one at a time (FR-005c) */
 type Popup =
   | { kind: 'quiz'; id: string; anchor: HTMLElement; seat?: number }
+  | { kind: 'event'; id: string; anchor: HTMLElement }
   | { kind: 'row'; id: string; anchor: HTMLElement }
   | { kind: 'room'; id: string; anchor: HTMLElement }
+  | { kind: 'cell'; slot: string; room: string; anchor: HTMLElement }
 const popup = ref<Popup | null>(null)
 
+/** A quiz or an event, which move the same way (FR-017) */
+type Item = 'quiz' | 'event'
+
 /** A move or seat swap waiting for its target, chosen by click, tap or keyboard (FR-005a) */
-type Pending = { kind: 'move'; id: string } | { kind: 'seat'; id: string; index: number }
+type Pending =
+  | { kind: 'move'; id: string; item: Item }
+  | { kind: 'seat'; id: string; index: number }
 const pending = ref<Pending | null>(null)
+
+type Cell = { slot: string; room: string } | null
+
+/** Move a quiz or an event to a cell, or to the tray with null; a quiz there swaps back */
+function moveItem(item: Item, id: string, cell: Cell) {
+  change((d) => (item === 'quiz' ? moveQuiz(d, id, cell) : moveEvent(d, id, cell)))
+}
+
+/** The cell an event starts in: its slot and its first room */
+function eventCell(id: string): Cell {
+  const e = doc.value.events.find((x) => x.id === id)
+  if (!e?.slot) return null
+  const room = e.rooms === 'all' ? doc.value.rooms[0]?.id : e.rooms[0]
+  return room ? { slot: e.slot, room } : null
+}
 
 function onQuiz(id: string, anchor: HTMLElement) {
   const p = pending.value
   if (p?.kind === 'move') {
     const target = doc.value.quizzes.find((q) => q.id === id)
     pending.value = null
-    if (p.id !== id && target?.cell) change((d) => moveQuiz(d, p.id, target.cell))
+    if (p.id !== id && target?.cell) moveItem(p.item, p.id, target.cell)
     return
   }
   popup.value = { kind: 'quiz', id, anchor }
+}
+
+function onEvent(id: string, anchor: HTMLElement) {
+  const p = pending.value
+  if (p?.kind === 'move') {
+    pending.value = null
+    const cell = eventCell(id)
+    if (p.id !== id && cell) moveItem(p.item, p.id, cell)
+    return
+  }
+  popup.value = { kind: 'event', id, anchor }
+}
+
+/** Open a quiz's or an event's menu once it's drawn, on the grid or in Unplaced */
+async function openMenu(kind: 'quiz' | 'event', id: string) {
+  await nextTick()
+  const anchor = document.querySelector<HTMLElement>(
+    kind === 'quiz'
+      ? `[data-quiz="${id}"] .tray-quiz, [data-quiz="${id}"] .quiz-title`
+      : `[data-event="${id}"]`,
+  )
+  popup.value = anchor ? { kind, id, anchor } : null
 }
 
 function onSeat(id: string, index: number, anchor: HTMLElement) {
@@ -85,24 +140,30 @@ function onSeat(id: string, index: number, anchor: HTMLElement) {
   popup.value = { kind: 'quiz', id, anchor, seat: index }
 }
 
-/** An empty cell takes the quiz being moved, or else a new quiz, whose menu then opens */
-async function onCell(slot: string, room: string) {
+/** An empty cell takes what's being moved, or else offers to add a quiz or an event there */
+function onCell(slot: string, room: string, anchor: HTMLElement) {
   const p = pending.value
   if (p?.kind === 'move') {
     pending.value = null
-    change((d) => moveQuiz(d, p.id, { slot, room }))
+    moveItem(p.item, p.id, { slot, room })
     return
   }
-  let id = ''
-  change((d) => (id = addQuiz(d, { slot, room })))
-  await nextTick()
-  const title = document.querySelector<HTMLElement>(`[data-quiz="${id}"] .quiz-title`)
-  if (title) popup.value = { kind: 'quiz', id, anchor: title }
+  popup.value = { kind: 'cell', slot, room, anchor }
 }
 
-function startMove(id: string) {
+/** Add a quiz or an event in the cell offered, and open its menu */
+function addInCell(kind: Item) {
+  const p = popup.value
+  if (p?.kind !== 'cell') return
+  let id = ''
+  const cell = { slot: p.slot, room: p.room }
+  change((d) => (id = kind === 'quiz' ? addQuiz(d, cell) : addEvent(d, cell)))
+  void openMenu(kind, id)
+}
+
+function startMove(id: string, item: Item = 'quiz') {
   popup.value = null
-  pending.value = { kind: 'move', id }
+  pending.value = { kind: 'move', id, item }
 }
 
 function startSeatSwap(id: string, index: number) {
@@ -114,12 +175,19 @@ function toTray() {
   const p = pending.value
   if (p?.kind !== 'move') return
   pending.value = null
-  change((d) => moveQuiz(d, p.id, null))
+  moveItem(p.item, p.id, null)
 }
 
 // Dragging, with pointer events (the HTML5 drag API crashes Tauri on Linux): a quiz onto a cell,
 // another quiz or the tray, or a seat onto another seat
-let drag: { quiz: string; seat: number | null; x: number; y: number; on: boolean } | null = null
+let drag: {
+  id: string
+  item: Item
+  seat: number | null
+  x: number
+  y: number
+  on: boolean
+} | null = null
 let dragged = false
 
 /** What a drag carries, shown beside the pointer, and the target under it */
@@ -149,7 +217,7 @@ function markDrop(el: HTMLElement | null) {
 function dropTarget(over: Element | null, seat: boolean) {
   if (!over) return null
   if (seat) return over.closest<HTMLElement>('[data-seat]')
-  return over.closest<HTMLElement>('.empty-cell, .quiz, .tray')
+  return over.closest<HTMLElement>('.empty-cell, .quiz, [data-event], .tray')
 }
 
 function onPointerDown(event: PointerEvent) {
@@ -157,10 +225,12 @@ function onPointerDown(event: PointerEvent) {
   const el = event.target as HTMLElement
   const seat = el.closest<HTMLElement>('[data-seat]')
   const quiz = el.closest<HTMLElement>('[data-quiz]')
-  if (!quiz) return
+  const ev = el.closest<HTMLElement>('[data-event]')
+  if (!quiz && !ev) return
   const [, index] = seat?.dataset.seat?.split(':') ?? []
   drag = {
-    quiz: quiz.dataset.quiz!,
+    id: quiz ? quiz.dataset.quiz! : ev!.dataset.event!,
+    item: quiz ? 'quiz' : 'event',
     seat: index === undefined ? null : Number(index),
     x: event.clientX,
     y: event.clientY,
@@ -174,10 +244,12 @@ function onPointerMove(event: PointerEvent) {
     if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return
     drag.on = true
   }
-  const q = doc.value.quizzes.find((x) => x.id === drag!.quiz)
+  const q = doc.value.quizzes.find((x) => x.id === drag!.id)
   const seat = drag.seat === null ? null : q?.seats[drag.seat]
+  const label =
+    drag.item === 'quiz' ? q?.label : doc.value.events.find((x) => x.id === drag!.id)?.label
   ghost.value = {
-    text: seat && q ? seatText(doc.value, q, seat, view.value) : (q?.label ?? ''),
+    text: seat && q ? seatText(doc.value, q, seat, view.value) : (label ?? ''),
     x: event.clientX,
     y: event.clientY,
     seat: drag.seat !== null,
@@ -197,18 +269,24 @@ function onPointerUp(event: PointerEvent) {
   if (!over) return
   if (d.seat !== null) {
     const target = over.closest<HTMLElement>('[data-seat]')?.dataset.seat?.split(':')
-    if (target && (target[0] !== d.quiz || Number(target[1]) !== d.seat)) {
-      change((x) => swapSeats(x, d.quiz, d.seat!, target[0]!, Number(target[1])))
+    if (target && (target[0] !== d.id || Number(target[1]) !== d.seat)) {
+      change((x) => swapSeats(x, d.id, d.seat!, target[0]!, Number(target[1])))
     }
     return
   }
   const onQuiz = over.closest<HTMLElement>('[data-quiz]')?.dataset.quiz
+  const onEventEl = over.closest<HTMLElement>('[data-event]')?.dataset.event
   const onCell = over.closest<HTMLElement>('[data-cell]')?.dataset.cell?.split('|')
-  if (over.closest('.tray')) change((x) => moveQuiz(x, d.quiz, null))
-  else if (onQuiz && onQuiz !== d.quiz) {
+  if (over.closest('.tray')) moveItem(d.item, d.id, null)
+  else if (onQuiz && onQuiz !== d.id) {
     const target = doc.value.quizzes.find((q) => q.id === onQuiz)
-    if (target?.cell) change((x) => moveQuiz(x, d.quiz, target.cell))
-  } else if (onCell) change((x) => moveQuiz(x, d.quiz, { slot: onCell[0]!, room: onCell[1]! }))
+    if (target?.cell) moveItem(d.item, d.id, target.cell)
+  } else if (onEventEl && onEventEl !== d.id) {
+    const cell = eventCell(onEventEl)
+    if (cell) moveItem(d.item, d.id, cell)
+  } else if (onCell && onEventEl !== d.id) {
+    moveItem(d.item, d.id, { slot: onCell[0]!, room: onCell[1]! })
+  }
 }
 
 /** A click that ends a drag isn't a click */
@@ -285,6 +363,7 @@ async function confirmApply() {
 const problems = computed(() => conflicts.value.filter((c) => !c.warning).length)
 const warnings = computed(() => conflicts.value.filter((c) => c.warning).length)
 const tray = computed(() => doc.value.quizzes.filter((q) => !q.cell))
+const trayEvents = computed(() => doc.value.events.filter((e) => !e.slot))
 
 /** Step through the flagged quizzes, one at a time (FR-037) */
 const flagged = computed(() => [...issues.value.keys()])
@@ -495,6 +574,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             @quiz="onQuiz"
             @seat="onSeat"
             @cell="onCell"
+            @event="onEvent"
             @row="(id, el) => (popup = { kind: 'row', id, anchor: el })"
             @room="(id, el) => (popup = { kind: 'room', id, anchor: el })"
           >
@@ -508,11 +588,26 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </template>
           </ScheduleSheet>
         </div>
-        <section v-if="tray.length > 0" class="tray" aria-label="Unplaced quizzes">
+        <section
+          v-if="tray.length + trayEvents.length > 0"
+          class="tray"
+          aria-label="Unplaced quizzes"
+        >
           <h3>
-            Unplaced <span class="count">{{ tray.length }}</span>
+            Unplaced <span class="count">{{ tray.length + trayEvents.length }}</span>
           </h3>
           <ul>
+            <li v-for="e in trayEvents" :key="e.id" class="tray-card tray-event">
+              <button
+                type="button"
+                class="tray-quiz"
+                :data-event="e.id"
+                @click="onEvent(e.id, $event.currentTarget as HTMLElement)"
+              >
+                {{ e.label }}
+              </button>
+              <small>Event</small>
+            </li>
             <li v-for="q in tray" :key="q.id" class="tray-card" :data-quiz="q.id">
               <button
                 type="button"
@@ -565,7 +660,30 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       @close="popup = null"
       @move="startMove"
       @swap-seat="startSeatSwap"
+      @event="(id) => openMenu('event', id)"
     />
+    <EventMenu
+      v-else-if="popup?.kind === 'event'"
+      :key="popup.id"
+      :doc="doc"
+      :event-id="popup.id"
+      :anchor="popup.anchor"
+      @change="change"
+      @close="popup = null"
+      @move="(id) => startMove(id, 'event')"
+      @quiz="(id) => openMenu('quiz', id)"
+    />
+    <BuilderPopover
+      v-else-if="popup?.kind === 'cell'"
+      :anchor="popup.anchor"
+      title="Add here"
+      @close="popup = null"
+    >
+      <div class="add-choice">
+        <button type="button" @click="addInCell('quiz')">Quiz</button>
+        <button type="button" @click="addInCell('event')">Event</button>
+      </div>
+    </BuilderPopover>
     <RowMenu
       v-else-if="popup?.kind === 'row'"
       :doc="doc"
@@ -1034,5 +1152,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   font-size: 0.8rem;
   font-weight: 600;
   pointer-events: none;
+}
+.add-choice {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.add-choice button {
+  flex: 1;
+}
+
+.tray-event {
+  border-style: dashed;
 }
 </style>

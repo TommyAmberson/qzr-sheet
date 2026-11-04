@@ -47,16 +47,8 @@ function sample(): ScheduleDocument {
     applied: settings,
     frame: [
       { kind: 'day', id: 'r1', label: 'Friday' },
-      { kind: 'event', id: 'r2', at: 19 * 60, minutes: 30, label: 'Registration' },
+      { kind: 'slot', id: 'r2', at: 19 * 60, minutes: 30, use: 'event' },
       { kind: 'slot', id: 's1', at: 20 * 60, minutes: 25 },
-      {
-        kind: 'event',
-        id: 'r3',
-        at: 20 * 60 + 25,
-        minutes: 25,
-        label: 'Coaches meeting',
-        room: 'room2',
-      },
       { kind: 'note', id: 'n1', text: 'Stats will be calculated after this round' },
     ],
     rooms: [
@@ -103,6 +95,10 @@ function sample(): ScheduleDocument {
         deciding: true,
         changedAfterResults: true,
       },
+    ],
+    events: [
+      { id: 'e1', label: 'Registration', slot: 'r2', rooms: 'all', pinned: false },
+      { id: 'e2', label: 'Coaches meeting', slot: 's1', rooms: ['room2'], pinned: true },
     ],
     draw: {
       d1: {

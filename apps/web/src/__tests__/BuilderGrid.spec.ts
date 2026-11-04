@@ -134,10 +134,11 @@ describe('moving and swapping (FR-005a)', () => {
   it('adds a quiz by clicking an empty cell, and opens its menu (FR-035a)', async () => {
     const w = await sixTeams()
     const empty = w.find('.empty-cell')
-    expect(empty.attributes('aria-label')).toBe('Add a quiz here')
+    expect(empty.attributes('aria-label')).toBe('Add a quiz or event here')
     const target = empty.element.closest('td')!.dataset.cell
     const before = w.findAll('.quiz').length
     await empty.trigger('click')
+    popupButton('Quiz').click()
     await flushPromises()
     expect(w.findAll('.quiz')).toHaveLength(before + 1)
     const added = w.find(`td[data-cell="${target}"] .quiz`)
@@ -145,6 +146,26 @@ describe('moving and swapping (FR-005a)', () => {
     expect(document.querySelector('.popover')?.textContent).toContain(
       added.find('.quiz-title').text(),
     )
+  })
+
+  it('adds an event in a cell, moves it to Unplaced, and turns it into a quiz and back (FR-017)', async () => {
+    const w = await sixTeams()
+    await w.find('.empty-cell').trigger('click')
+    popupButton('Event').click()
+    await flushPromises()
+    expect(w.findAll('.room-event').map((e) => e.text())).toContain('Event')
+    popupButton('Move to Unplaced').click()
+    await w.vm.$nextTick()
+    expect(w.find('.tray-event').text()).toContain('Event')
+
+    await w.find('.tray-event button').trigger('click')
+    popupButton('Turn into quiz').click()
+    await flushPromises()
+    expect(w.find('.tray-event').exists()).toBe(false)
+    expect(w.findAll('.tray-card')).toHaveLength(1)
+    popupButton('Turn into event').click()
+    await flushPromises()
+    expect(w.find('.tray-event').exists()).toBe(true)
   })
 
   it('swaps two seats by choosing one, then the other', async () => {
@@ -196,7 +217,8 @@ describe('rows and rooms', () => {
     const w = await sixTeams()
     const rows = () => w.findAll('tbody tr').length
     const before = rows()
-    const firstTime = () => w.find('.slot .time button')
+    // The first quiz slot's time; the rows before it hold events
+    const firstTime = () => w.find('.slot:not(.event) .time button')
     await firstTime().trigger('click')
     popupButton('Insert slot after').click()
     await w.vm.$nextTick()
@@ -209,18 +231,17 @@ describe('rows and rooms', () => {
     await firstTime().trigger('click')
     popupButton('Insert event after').click()
     await w.vm.$nextTick()
-    await w
-      .findAll('.event')
-      .find((e) => e.text().includes('Event'))!
-      .find('.time button')
-      .trigger('click')
-    const room = document.querySelector<HTMLSelectElement>('[aria-label="Event room"]')!
-    room.value = room.options[2]!.value
-    room.dispatchEvent(new Event('change'))
+    // A new event takes every room of a row of its own, drawn short; taking one room fewer
+    // leaves a cell for the event and an empty one
+    const added = w.findAll('.event-name').find((e) => e.text() === 'Event')!
+    await added.trigger('click')
+    const inRoom1 = document.querySelector<HTMLInputElement>('[aria-label="In Room 1"]')!
+    inRoom1.checked = false
+    inRoom1.dispatchEvent(new Event('change'))
     await w.vm.$nextTick()
-    // The event takes its room's cell: shown there, or, over a quiz, the quiz is marked (H-3)
-    const marked = w.findAll('.quiz').some((q) => (q.attributes('title') ?? '').includes('H-3'))
-    expect(w.find('.room-event').exists() || marked).toBe(true)
+    expect(w.findAll('.room-event').some((e) => e.text() === 'Event')).toBe(true)
+    popupButton('×').click()
+    await w.vm.$nextTick()
 
     await firstTime().trigger('click')
     const length = document.querySelector<HTMLInputElement>('[aria-label="Length"]')!
@@ -341,7 +362,7 @@ describe('pinning many at once (FR-011)', () => {
     await w.vm.$nextTick()
     expect(pinned(w)).toBe(0)
 
-    await w.find('.slot .time button').trigger('click')
+    await w.find('.slot:not(.event) .time button').trigger('click')
     popupButton('Pin row').click()
     await w.vm.$nextTick()
     expect(pinned(w)).toBeGreaterThan(0)

@@ -121,18 +121,17 @@ export function checkSchedule(doc: ScheduleDocument): Conflict[] {
     if (inCell.length > 1) add('H-2', inCell, 'Two quizzes in one room at once')
   }
 
-  // H-3: a quiz over an event, or in a room a one-room event takes
+  // H-3: a quiz in a room an event takes at that time
   const takenByEvents = eventCells(
     doc.frame,
+    doc.events,
     doc.rooms.map((r) => r.id),
   )
   for (const q of doc.quizzes) {
     if (!q.cell) continue
     const t = times.get(q.cell.slot)
-    if (!t) {
-      add('H-3', [q], 'Scheduled over an event')
-      continue
-    }
+    // A cell whose slot is gone isn't over an event; it just has no time to check
+    if (!t) continue
     if (takenByEvents.has(`${q.cell.slot}|${q.cell.room}`)) {
       add('H-3', [q], 'Its room has an event at this time')
     }

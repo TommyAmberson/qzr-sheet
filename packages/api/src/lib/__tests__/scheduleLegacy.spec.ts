@@ -43,6 +43,19 @@ describe('legacyFromDocument', () => {
     expect(view.slots[0]!.startAt).toBe('2026-03-07T09:00:00.000Z')
   })
 
+  it('reports a slot holding events and no quizzes as an event', () => {
+    const d = doc(['a'])
+    d.events = [
+      { id: 'cm', label: 'Coaches meeting', slot: 's1', rooms: ['r1'], pinned: true },
+      { id: 'l', label: 'Lunch', slot: 's2', rooms: 'all', pinned: true },
+    ]
+    const view = legacyFromDocument(d, meet, at)
+    expect(view.slots.map((s) => [s.kind, s.eventLabel])).toEqual([
+      ['quiz', null],
+      ['event', 'Lunch'],
+    ])
+  })
+
   it("keeps a quiz's number when quizzes are added before it", () => {
     const before = legacyFromDocument(doc(['b']), meet, at).quizzes[0]!.id
     const after = legacyFromDocument(doc(['a', 'b']), meet, at).quizzes.find(

@@ -22,7 +22,8 @@ function dragToFreeCell(doc: ScheduleDocument, id: string): ScheduleDocument {
   const taken = new Set(
     next.quizzes.flatMap((x) => (x.cell ? [`${x.cell.slot}|${x.cell.room}`] : [])),
   )
-  const slots = next.frame.filter((r) => r.kind === 'slot')
+  // A free cell is a quiz slot's; slots made for events are taken by them
+  const slots = next.frame.filter((r) => r.kind === 'slot' && r.use !== 'event')
   const free = slots
     .flatMap((s) => next.rooms.map((r) => ({ slot: s.id, room: r.id })))
     .find((c) => !taken.has(`${c.slot}|${c.room}`))!
@@ -206,14 +207,11 @@ describe('one-room events', () => {
     const doc = meet([6, 17])
     const slot = doc.frame.find((r) => r.kind === 'slot' && r.use === 'prelim')!
     if (slot.kind !== 'slot') throw new Error('no slot')
-    const at = doc.frame.indexOf(slot)
-    doc.frame.splice(at, 0, {
-      kind: 'event',
+    doc.events.push({
       id: 'chapel',
-      at: slot.at,
-      minutes: slot.minutes,
       label: 'Chapel',
-      room: doc.rooms[0]!.id,
+      slot: slot.id,
+      rooms: [doc.rooms[0]!.id],
       pinned: true,
     })
     const after = reflowSchedule(doc)

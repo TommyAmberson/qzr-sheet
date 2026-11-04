@@ -254,7 +254,8 @@ export function sortPrelims(doc: ScheduleDocument, options: SortOptions): Schedu
   let use: string = 'prelim'
   const slots: string[] = []
   for (const row of next.frame) {
-    if (row.kind !== 'slot') continue
+    // A slot made for events takes no quizzes, and a hand-made slot after it keeps the use before
+    if (row.kind !== 'slot' || row.use === 'event') continue
     use = row.use ?? use
     if (use === 'prelim') slots.push(row.id)
   }
@@ -298,6 +299,7 @@ export function sortPrelims(doc: ScheduleDocument, options: SortOptions): Schedu
   // Events take their rooms' cells on their own day (H-3)
   for (const cell of eventCells(
     next.frame,
+    next.events,
     next.rooms.map((r) => r.id),
   ))
     taken.add(cell)

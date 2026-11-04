@@ -1,4 +1,4 @@
-import type { FrameRow, ScheduleDocument, ScheduleQuiz, Seat } from '@qzr/shared'
+import type { FrameRow, ScheduleDocument, ScheduleEvent, ScheduleQuiz, Seat } from '@qzr/shared'
 
 /**
  * Hand edits to a schedule, each a change to a draft document for `change` to record. Anything an
@@ -69,6 +69,7 @@ export function pinWhere(
 /** Unpin every quiz and row, so the next re-flow regenerates the whole grid around nothing */
 export function unpinAll(d: ScheduleDocument) {
   for (const q of d.quizzes) q.pinned = false
+  for (const e of d.events) e.pinned = false
   for (const r of d.frame) delete r.pinned
 }
 
@@ -102,6 +103,95 @@ export function addQuiz(d: ScheduleDocument, cell: { slot: string; room: string 
 
 export function deleteQuiz(d: ScheduleDocument, id: string) {
   d.quizzes = d.quizzes.filter((q) => q.id !== id)
+}
+
+// ---- Events, which sit in a slot's rooms like quizzes (FR-017) ----
+
+function event(d: ScheduleDocument, id: string): ScheduleEvent {
+  const e = d.events.find((x) => x.id === id)
+  if (!e) throw new Error(`No event ${id}`)
+  return e
+}
+
+/** Add an event in one room's cell, pinned */
+export function addEvent(d: ScheduleDocument, cell: { slot: string; room: string }): string {
+  const id = crypto.randomUUID()
+  d.events.push({ id, label: 'Event', slot: cell.slot, rooms: [cell.room], pinned: true })
+  return id
+}
+
+/**
+ * Move an event to a cell, or to the unplaced tray with null. Its rooms shift so the first lands
+ * in the cell's room, keeping their spacing as far as the rooms go; an event in all rooms stays so.
+ */
+export function moveEvent(d: ScheduleDocument, id: string, cell: Cell) {
+  const e = event(d, id)
+  e.pinned = true
+  if (!cell) {
+    e.slot = null
+    return
+  }
+  e.slot = cell.slot
+  if (e.rooms === 'all') return
+  const order = d.rooms.map((r) => r.id)
+  const at = e.rooms.map((r) => order.indexOf(r)).filter((i) => i >= 0)
+  const by = order.indexOf(cell.room) - Math.min(...at)
+  const moved = [...new Set(at.map((i) => order[i + by]).filter((r): r is string => !!r))]
+  e.rooms = moved.length > 0 ? moved : [cell.room]
+}
+
+export function editEvent(
+  d: ScheduleDocument,
+  id: string,
+  patch: Partial<Pick<ScheduleEvent, 'label' | 'rooms'>>,
+) {
+  Object.assign(event(d, id), patch, { pinned: true })
+}
+
+export function setEventPinned(d: ScheduleDocument, id: string, pinned: boolean) {
+  event(d, id).pinned = pinned
+}
+
+export function deleteEvent(d: ScheduleDocument, id: string) {
+  d.events = d.events.filter((e) => e.id !== id)
+}
+
+/** A quiz turned into an event in its cell, named for the quiz */
+export function quizToEvent(d: ScheduleDocument, id: string): string {
+  const q = quiz(d, id)
+  const eventId = crypto.randomUUID()
+  d.events.push({
+    id: eventId,
+    label: 'Event',
+    slot: q.cell?.slot ?? null,
+    rooms: q.cell ? [q.cell.room] : [],
+    pinned: true,
+  })
+  deleteQuiz(d, id)
+  return eventId
+}
+
+/** An event turned into a quiz in the first room it takes */
+export function eventToQuiz(d: ScheduleDocument, id: string): string {
+  const e = event(d, id)
+  const room = e.rooms === 'all' ? d.rooms[0]?.id : d.rooms.find((r) => e.rooms.includes(r.id))?.id
+  const quizId = addQuiz(d, { slot: e.slot ?? '', room: room ?? d.rooms[0]?.id ?? '' })
+  if (!e.slot || !room) quiz(d, quizId).cell = null
+  deleteEvent(d, id)
+  return quizId
+}
+
+/** A slot for events inserted after a row, holding one event across every room */
+export function insertEvent(
+  d: ScheduleDocument,
+  after: string,
+  time: { at: number; minutes: number },
+): string {
+  const slot = crypto.randomUUID()
+  insertRow(d, after, { kind: 'slot', id: slot, ...time, use: 'event' })
+  const id = crypto.randomUUID()
+  d.events.push({ id, label: 'Event', slot, rooms: 'all', pinned: true })
+  return id
 }
 
 /** Insert a row after another (or first), pinned; later times are left as they are */
@@ -149,14 +239,16 @@ export function deleteDay(d: ScheduleDocument, id: string) {
   const gone = new Set(d.frame.slice(start, end).map((r) => r.id))
   d.frame.splice(start, end - start)
   for (const q of d.quizzes) if (q.cell && gone.has(q.cell.slot)) q.cell = null
+  for (const e of d.events) if (e.slot && gone.has(e.slot)) e.slot = null
   const first = d.frame[0]
   if (first) first.pinned = true
 }
 
-/** Delete a row; a slot's quizzes go to the unplaced tray */
+/** Delete a row; a slot's quizzes and events go to the unplaced tray */
 export function deleteRow(d: ScheduleDocument, id: string) {
   d.frame = d.frame.filter((r) => r.id !== id)
   for (const q of d.quizzes) if (q.cell?.slot === id) q.cell = null
+  for (const e of d.events) if (e.slot === id) e.slot = null
   // A deleted row is a hand edit to the frame, so re-flow keeps the frame as it now is
   const first = d.frame[0]
   if (first) first.pinned = true
@@ -181,11 +273,16 @@ export function renameRoom(d: ScheduleDocument, id: string, name: string) {
   if (room) room.name = name
 }
 
-/** Remove a room; its quizzes go to the unplaced tray */
+/** Remove a room; its quizzes go to the unplaced tray, and an event left with no room too */
 export function removeRoom(d: ScheduleDocument, id: string) {
   // A schedule keeps at least one room
   if (d.rooms.length <= 1) return
   d.rooms = d.rooms.filter((r) => r.id !== id)
   for (const q of d.quizzes) if (q.cell?.room === id) q.cell = null
+  for (const e of d.events) {
+    if (e.rooms === 'all' || !e.rooms.includes(id)) continue
+    e.rooms = e.rooms.filter((r) => r !== id)
+    if (e.rooms.length === 0) e.slot = null
+  }
   setRoomCount(d)
 }

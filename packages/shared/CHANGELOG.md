@@ -43,12 +43,13 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `resultKey`: the key a meet stores a quiz's results under, which `resultName` now returns too.
 * `elimsForCount` and `setTeamCount`: a division's elims for a new team count, keeping elims the
   director changed with the last lane taking the difference, and the one way to change a count.
-* `eventCells`: the cells one-room events take.
+* Events in the schedule document (`ScheduleEvent`), each in a slot over any rooms or all of them,
+  and `eventCells`, the cells they take, with `eventRooms`.
 * `drawPrelims`: a division's prelim quizzes as letters from either draw source, the rule book's
   tables for 4 to 21 teams or the rotating draw (no rematches from 7 teams up, any size to 90 and
   beyond), with 6 quizzes per team as two rounds that avoid repeating pairings.
-* `buildFrame` and `defaultRoomCount`: the Weekend and One day frame presets with as many slots as a
-  schedule needs, and the fewest rooms (at least 3) that fit its prelims.
+* `buildFrame` and `defaultRoomCount`: the Weekend and One day frame presets, with their events, and
+  as many slots as a schedule needs, and the fewest rooms (at least 3) that fit its prelims.
 * `placePrelims`: where each prelim quiz goes. Each division takes a block of adjacent rooms in
   division order, sized by its share of the quizzes, packed from its first slot with no team twice
   in a slot; a division that doesn't fit borrows only as many of other rooms' latest free cells as

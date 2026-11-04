@@ -3,13 +3,21 @@ import NumberInput from './NumberInput.vue'
 import { computed } from 'vue'
 import { formatClock, type FrameRow, type ScheduleDocument } from '@qzr/shared'
 
-import { deleteDay, deleteRow, editRow, insertDay, insertRow, pinWhere } from '../../builder/edits'
+import {
+  deleteDay,
+  deleteRow,
+  editRow,
+  insertDay,
+  insertEvent,
+  insertRow,
+  pinWhere,
+} from '../../builder/edits'
 import BuilderPopover from './BuilderPopover.vue'
 
 /**
- * A row's menu: retime it, set its length, rename an event or a note, delete it, or insert a slot,
- * an event (in every room or one) or a note after it (FR-016, FR-017). Later times stay as they
- * are.
+ * A row's menu: retime it, set its length, rename a day or a note, delete it, or insert a slot, a
+ * slot holding an event across every room, or a note after it (FR-016, FR-017). Later times stay
+ * as they are; the events in a row have menus of their own.
  */
 const props = defineProps<{ doc: ScheduleDocument; rowId: string; anchor: HTMLElement }>()
 const emit = defineEmits<{
@@ -34,8 +42,7 @@ function pinRow(pinned: boolean) {
 }
 const title = computed(() => {
   const r = row.value
-  if (r.kind === 'slot') return `Slot at ${formatClock(r.at)}`
-  if (r.kind === 'event') return r.label
+  if (r.kind === 'slot') return `${r.use === 'event' ? 'Row' : 'Slot'} at ${formatClock(r.at)}`
   return r.kind === 'note' ? 'Note' : r.label
 })
 
@@ -56,31 +63,32 @@ function dayStart(id: string) {
   for (let i = frame.findIndex((r) => r.id === id) + 1; i < frame.length; i++) {
     const r = frame[i]!
     if (r.kind === 'day') break
-    if (r.kind === 'slot' || r.kind === 'event') return Math.max(0, r.at - 60)
+    if (r.kind === 'slot') return Math.max(0, r.at - 60)
   }
   return 9 * 60
 }
 
 /** A new row starts where this one ends, or, after a day's heading, early in the day */
-function insert(kind: 'slot' | 'event' | 'note', room?: string) {
+function insert(kind: 'slot' | 'event' | 'note') {
   const r = row.value
-  const at = r.kind === 'slot' || r.kind === 'event' ? r.at + r.minutes : dayStart(r.id)
-  const minutes = r.kind === 'slot' ? r.minutes : props.doc.settings.slotMinutes
+  const at = r.kind === 'slot' ? r.at + r.minutes : dayStart(r.id)
+  // A slot after a quiz slot is as long; one after an event row is a quiz's length
+  const minutes =
+    r.kind === 'slot' && r.use !== 'event' ? r.minutes : props.doc.settings.slotMinutes
   const id = crypto.randomUUID()
-  const next: FrameRow =
-    kind === 'slot'
-      ? { kind: 'slot', id, at, minutes }
-      : kind === 'event'
-        ? { kind: 'event', id, at, minutes, label: 'Event', ...(room ? { room } : {}) }
-        : { kind: 'note', id, text: 'Note' }
-  emit('change', (d) => insertRow(d, props.rowId, next))
+  if (kind === 'event') emit('change', (d) => insertEvent(d, props.rowId, { at, minutes }))
+  else {
+    const next: FrameRow =
+      kind === 'slot' ? { kind: 'slot', id, at, minutes } : { kind: 'note', id, text: 'Note' }
+    emit('change', (d) => insertRow(d, props.rowId, next))
+  }
   emit('close')
 }
 </script>
 
 <template>
   <BuilderPopover :anchor="anchor" :title="title" @close="emit('close')">
-    <template v-if="row.kind === 'slot' || row.kind === 'event'">
+    <template v-if="row.kind === 'slot'">
       <label class="field">
         Starts
         <input
@@ -107,7 +115,7 @@ function insert(kind: 'slot' | 'event' | 'note', room?: string) {
         />
       </label>
     </template>
-    <label v-if="row.kind === 'event' || row.kind === 'day'" class="field">
+    <label v-if="row.kind === 'day'" class="field">
       Name
       <input
         :value="row.label"
@@ -122,17 +130,6 @@ function insert(kind: 'slot' | 'event' | 'note', room?: string) {
         aria-label="Note text"
         @change="patch({ text: ($event.target as HTMLInputElement).value })"
       />
-    </label>
-    <label v-if="row.kind === 'event'" class="field">
-      Room
-      <select
-        :value="row.room ?? ''"
-        aria-label="Event room"
-        @change="patch({ room: ($event.target as HTMLSelectElement).value || undefined })"
-      >
-        <option value="">Every room</option>
-        <option v-for="r in doc.rooms" :key="r.id" :value="r.id">{{ r.name }}</option>
-      </select>
     </label>
     <div v-if="row.kind === 'slot' && inRow.length > 0" class="actions">
       <button type="button" :disabled="pinnedCount === inRow.length" @click="pinRow(true)">

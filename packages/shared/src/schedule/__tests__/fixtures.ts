@@ -77,6 +77,7 @@ export function doc(over: Partial<ScheduleDocument> = {}, teams = 6): ScheduleDo
       { id: 'r2', name: 'Room 2' },
     ],
     quizzes: [],
+    events: [],
     draw: {},
     ...over,
   }

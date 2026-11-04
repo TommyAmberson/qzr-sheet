@@ -13,7 +13,14 @@ import {
   type SheetView,
 } from '@qzr/shared'
 
-import { deleteQuiz, moveQuiz, renameQuiz, setPinned, setSeat } from '../../builder/edits'
+import {
+  deleteQuiz,
+  moveQuiz,
+  quizToEvent,
+  renameQuiz,
+  setPinned,
+  setSeat,
+} from '../../builder/edits'
 import BuilderPopover from './BuilderPopover.vue'
 
 /**
@@ -35,9 +42,18 @@ const emit = defineEmits<{
   move: [id: string]
   /** Start swapping this seat: the next seat chosen swaps with it */
   swapSeat: [id: string, index: number]
+  /** It became an event, whose menu opens in its place */
+  event: [id: string]
 }>()
 
+function toEvent() {
+  let id = ''
+  emit('change', (d) => (id = quizToEvent(d, props.quizId)))
+  emit('event', id)
+}
+
 const q = computed(() => props.doc.quizzes.find((x) => x.id === props.quizId)!)
+const exists = computed(() => props.doc.quizzes.some((x) => x.id === props.quizId))
 const editing = ref<number | null>(props.seat ?? null)
 
 /** In Teams view, a drawn division's letters are picked by team (FR-043) */
@@ -245,7 +261,8 @@ function rename(event: Event) {
 </script>
 
 <template>
-  <BuilderPopover :anchor="anchor" :title="q.label" @close="emit('close')">
+  <!-- Gone once turned into an event, until its menu opens in this one's place -->
+  <BuilderPopover v-if="exists" :anchor="anchor" :title="q.label" @close="emit('close')">
     <template v-if="editing === null">
       <label class="field">
         Name
@@ -271,6 +288,7 @@ function rename(event: Event) {
         <button type="button" @click="emit('change', (d) => setPinned(d, quizId, !q.pinned))">
           {{ q.pinned ? 'Unpin' : 'Pin' }}
         </button>
+        <button type="button" @click="toEvent">Turn into event</button>
         <button
           type="button"
           class="danger"

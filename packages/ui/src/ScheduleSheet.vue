@@ -37,6 +37,7 @@ const emit = defineEmits<{
   cell: [slot: string, room: string, el: HTMLElement]
   row: [id: string, el: HTMLElement]
   room: [id: string, el: HTMLElement]
+  event: [id: string, el: HTMLElement]
 }>()
 
 const rows = computed(() => sheetRows(props.doc))
@@ -54,7 +55,7 @@ const quizDays = computed(() => {
   let day: string | null = null
   for (const r of rows.value) {
     if (r.kind === 'day') day = r.row.id
-    else if (day && r.kind === 'slot' && r.cells.some((c) => c.quiz)) days.add(day)
+    else if (day && r.kind === 'slot' && r.cells.some((c) => c.kind === 'quiz')) days.add(day)
   }
   return days
 })
@@ -113,29 +114,23 @@ const divisionClass = computed(() => {
             </button>
           </td>
         </tr>
-        <tr v-else-if="r.kind === 'event'" class="event">
+        <!-- A row of only events is drawn short, as the paper schedules draw Lunch (FR-017) -->
+        <tr v-else class="slot" :class="{ event: r.short }">
           <td class="time">
             <button type="button" class="row-button" @click="emit('row', r.row.id, target($event))">
               {{ formatClock(r.row.at) }}
             </button>
           </td>
-          <td :colspan="columns">
-            <!-- The event's name opens its menu too, as its time does -->
-            <button type="button" class="event-name" @click="emit('row', r.row.id, target($event))">
-              {{ r.row.label }}
-            </button>
-          </td>
-        </tr>
-        <tr v-else class="slot">
-          <td class="time">
-            <button type="button" class="row-button" @click="emit('row', r.row.id, target($event))">
-              {{ formatClock(r.row.at) }}
-            </button>
-          </td>
-          <td v-for="c in r.cells" :key="c.room" class="cell" :data-cell="`${r.row.id}|${c.room}`">
+          <td
+            v-for="(c, ci) in r.cells"
+            :key="c.kind === 'event' ? `${c.event.id}:${ci}` : c.room"
+            :colspan="c.kind === 'event' ? c.rooms.length : undefined"
+            class="cell"
+            :data-cell="`${r.row.id}|${c.kind === 'event' ? c.rooms[0] : c.room}`"
+          >
             <!-- A quiz an event clashes with still shows, marked, so it can be moved (H-3) -->
             <div
-              v-if="c.quiz"
+              v-if="c.kind === 'quiz'"
               class="quiz"
               :class="{
                 [divisionClass(c.quiz.division)]: true,
@@ -152,7 +147,7 @@ const divisionClass = computed(() => {
                 <button
                   type="button"
                   class="quiz-title"
-                  @click="emit('quiz', c.quiz!.id, target($event))"
+                  @click="emit('quiz', c.quiz.id, target($event))"
                 >
                   {{ c.quiz.label }}
                 </button>
@@ -164,7 +159,7 @@ const divisionClass = computed(() => {
                 class="seat"
                 :data-seat="`${c.quiz.id}:${i}`"
                 :title="seatText(doc, c.quiz, seat, 'letters')"
-                @click="emit('seat', c.quiz!.id, i, target($event))"
+                @click="emit('seat', c.quiz.id, i, target($event))"
               >
                 <!-- Where the seat comes from, its bench colour, and the line its team goes on -->
                 <span class="src" :class="{ choose: seat.kind === 'empty' }">{{
@@ -175,18 +170,22 @@ const divisionClass = computed(() => {
               </button>
             </div>
             <button
-              v-else-if="c.event"
+              v-else-if="c.kind === 'event'"
               type="button"
-              class="room-event"
-              @click="emit('row', c.eventId!, target($event))"
+              :class="[
+                r.short ? 'event-name' : 'room-event',
+                { selected: selected === c.event.id },
+              ]"
+              :data-event="c.event.id"
+              @click="emit('event', c.event.id, target($event))"
             >
-              {{ c.event }}
+              {{ c.event.label }}
             </button>
             <button
               v-else
               type="button"
               class="empty-cell"
-              :aria-label="editable ? 'Add a quiz here' : 'Empty cell'"
+              :aria-label="editable ? 'Add a quiz or event here' : 'Empty cell'"
               @click="emit('cell', r.row.id, c.room, target($event))"
             >
               <span v-if="editable" class="add" aria-hidden="true">+</span>

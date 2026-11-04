@@ -95,20 +95,18 @@ const FrameRowSchema = Type.Union([
     /** Minutes after midnight on its day */
     at: Type.Integer({ minimum: 0 }),
     minutes: Type.Integer({ minimum: 1 }),
-    /** What the generator made it for; a slot added by hand takes the use of the slot before it */
+    /**
+     * What the generator made it for; a slot added by hand takes the use of the quiz slot before
+     * it. A slot made for events (Breakfast, Lunch) takes no generated quizzes.
+     */
     use: Type.Optional(
-      Type.Union([Type.Literal('prelim'), Type.Literal('elim'), Type.Literal('finals')]),
+      Type.Union([
+        Type.Literal('prelim'),
+        Type.Literal('elim'),
+        Type.Literal('finals'),
+        Type.Literal('event'),
+      ]),
     ),
-    ...RowPinned,
-  }),
-  Type.Object({
-    kind: Type.Literal('event'),
-    id: Type.String(),
-    at: Type.Integer({ minimum: 0 }),
-    minutes: Type.Integer({ minimum: 0 }),
-    label: Type.String(),
-    /** A single room's event; absent means every room */
-    room: Type.Optional(Type.String()),
     ...RowPinned,
   }),
   Type.Object({ kind: Type.Literal('note'), id: Type.String(), text: Type.String(), ...RowPinned }),
@@ -146,6 +144,17 @@ const QuizSchema = Type.Object({
   changedAfterResults: Type.Optional(Type.Boolean()),
 })
 
+/** Sits in a slot's rooms like a quiz (FR-017) */
+const EventSchema = Type.Object({
+  id: Type.String(),
+  label: Type.String(),
+  /** Its slot, or null for the unplaced tray */
+  slot: Type.Union([Type.String(), Type.Null()]),
+  /** The rooms it takes, or all of them, however many there are */
+  rooms: Type.Union([Type.Array(Type.String()), Type.Literal('all')]),
+  pinned: Type.Boolean(),
+})
+
 // ---- Draw ----
 
 const DrawTeamSchema = Type.Object({
@@ -181,6 +190,7 @@ export const ScheduleDocumentSchema = Type.Object({
     }),
   ),
   quizzes: Type.Array(QuizSchema),
+  events: Type.Array(EventSchema),
   draw: Type.Record(Type.String(), DivisionDrawSchema),
   link: Type.Optional(
     Type.Object({
@@ -198,6 +208,7 @@ export type LaneSettings = Static<typeof LaneSchema>
 export type LineSettings = Static<typeof LineSchema>
 export type FrameRow = Static<typeof FrameRowSchema>
 export type ScheduleQuiz = Static<typeof QuizSchema>
+export type ScheduleEvent = Static<typeof EventSchema>
 export type Seat = Static<typeof SeatSchema>
 export type DivisionDraw = Static<typeof DivisionDrawSchema>
 
@@ -263,6 +274,7 @@ export function newScheduleDocument(name: string): ScheduleDocument {
     frame: [],
     rooms: [],
     quizzes: [],
+    events: [],
     draw: {},
   }
 }

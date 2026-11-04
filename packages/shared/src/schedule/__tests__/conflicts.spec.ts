@@ -37,18 +37,21 @@ describe('checkSchedule', () => {
     expect(flagged(checkSchedule(doc({ quizzes })), 'H-2')).toEqual(['p1', 'p4'])
   })
 
-  it('H-3: a quiz over an event, or in a room taken by a one-room event', () => {
+  it('H-3: a quiz in a room an event takes at that time', () => {
     const d = doc({ quizzes: sixTeams() })
-    d.frame.push({
-      kind: 'event',
+    // A coaches' meeting in Room 1 during the second slot, and a quiz in its cell
+    d.events.push({
       id: 'meeting',
-      at: 20 * 60 + 25,
-      minutes: 25,
       label: 'Coaches meeting',
-      room: 'r1',
+      slot: 's2',
+      rooms: ['r1'],
+      pinned: true,
     })
-    d.quizzes[0]!.cell = { slot: 'meeting', room: 'r2' }
-    expect(flagged(checkSchedule(d), 'H-3')).toEqual(['p1', 'p2'])
+    d.quizzes[0]!.cell = { slot: 's2', room: 'r1' }
+    expect(flagged(checkSchedule(d), 'H-3')).toContain('p1')
+    // In another room it's clear
+    d.quizzes[0]!.cell = { slot: 's2', room: 'r2' }
+    expect(flagged(checkSchedule(d), 'H-3')).not.toContain('p1')
   })
 
   it('H-4: a team twice in one quiz', () => {
@@ -401,13 +404,15 @@ describe('H-3 with an event across every room', () => {
       (r) => r.kind === 'slot' && doc.quizzes.some((q) => q.cell?.slot === r.id),
     )!
     if (slot.kind !== 'slot') throw new Error('no slot')
+    // An all-rooms event in a slot of its own whose time overlaps the quizzes' slot
     doc.frame.splice(doc.frame.indexOf(slot), 0, {
-      kind: 'event',
+      kind: 'slot',
       id: 'assembly',
       at: slot.at,
       minutes: 10,
-      label: 'Assembly',
+      use: 'event',
     })
+    doc.events.push({ id: 'ev', label: 'Assembly', slot: 'assembly', rooms: 'all', pinned: true })
     expect(checkSchedule(doc).some((c) => c.rule === 'H-3')).toBe(true)
   })
 })

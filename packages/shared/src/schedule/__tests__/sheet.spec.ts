@@ -36,25 +36,32 @@ describe('the printed sheet', () => {
     ])
   })
 
-  it("lays the grid out by row, a one-room event taking its room's cell (H-3)", () => {
+  it("lays the grid out by row, an event taking its rooms' cells (FR-017)", () => {
     const d = doc({ quizzes: [quiz('q1', { cell: at('s1', 'r1') })] })
-    d.frame.push({
-      kind: 'event',
-      id: 'meet',
-      at: 20 * 60,
-      minutes: 25,
-      label: 'Coaches meeting',
-      room: 'r2',
-    })
-    const rows = sheetRows(d)
-    const first = rows.find((r) => r.kind === 'slot')
-    expect(first?.kind === 'slot' && first.cells.map((c) => [c.quiz?.id ?? null, c.event])).toEqual(
-      [
-        ['q1', null],
-        [null, 'Coaches meeting'],
-      ],
+    d.rooms.push({ id: 'r3', name: 'Room 3' }, { id: 'r4', name: 'Room 4' })
+    d.events.push(
+      { id: 'cm', label: 'Coaches meeting', slot: 's1', rooms: ['r2', 'r3'], pinned: true },
+      { id: 'tea', label: 'Tea', slot: 's2', rooms: ['r1', 'r3'], pinned: true },
+      { id: 'all', label: 'Snack', slot: 's3', rooms: 'all', pinned: true },
     )
-    expect(rows.some((r) => r.kind === 'event')).toBe(false)
+    const rows = sheetRows(d).filter((r) => r.kind === 'slot')
+    const shape = (i: number) => {
+      const r = rows[i]!
+      if (r.kind !== 'slot') throw new Error('not a slot')
+      return r.cells.map((c) =>
+        c.kind === 'quiz'
+          ? c.quiz.id
+          : c.kind === 'event'
+            ? `${c.event.id}x${c.rooms.length}`
+            : '-',
+      )
+    }
+    // Adjacent rooms are one cell; rooms apart are two
+    expect(shape(0)).toEqual(['q1', 'cmx2', '-'])
+    expect(shape(1)).toEqual(['teax1', '-', 'teax1', '-'])
+    // A row with every room taken by events and no quizzes is short
+    expect(shape(2)).toEqual(['allx4'])
+    expect(rows.map((r) => r.kind === 'slot' && r.short).slice(0, 3)).toEqual([false, false, true])
   })
 
   it('lists the divisions using a room, Finals aside (FR-019)', () => {
@@ -89,7 +96,8 @@ describe('statsBreaks', () => {
 describe('basicRows', () => {
   it('collapses each run of slots into one Quizzing row between the events (FR-044)', () => {
     const d = doc()
-    d.frame.splice(4, 0, { kind: 'event', id: 'snack', at: 21 * 60, minutes: 15, label: 'Snack' })
+    d.frame.splice(4, 0, { kind: 'slot', id: 'snack', at: 21 * 60, minutes: 15, use: 'event' })
+    d.events.push({ id: 'e', label: 'Snack', slot: 'snack', rooms: 'all', pinned: true })
     expect(basicRows(d).map((r) => `${r.kind} ${r.label}`)).toEqual([
       'day Friday',
       'quizzing Quizzing',

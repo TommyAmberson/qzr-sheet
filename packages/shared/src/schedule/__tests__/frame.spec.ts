@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { buildFrame, defaultRoomCount, DEFAULT_SHAPE } from '../frame'
-import type { FrameRow } from '../scheduleFile'
+import type { FrameRow, ScheduleEvent } from '../scheduleFile'
 
 const clock = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`
 
-/** The frame as readable lines: days, events with their time, slots as their start time */
-function lines(frame: FrameRow[]): string[] {
-  return frame.map((r) => {
+/** The frame as readable lines: days, events with their slot's time, quiz slots as their start */
+function lines({ rows, events }: { rows: FrameRow[]; events: ScheduleEvent[] }): string[] {
+  return rows.map((r) => {
     if (r.kind === 'day') return `# ${r.label}`
-    if (r.kind === 'event') return `${clock(r.at)} ${r.label}`
-    if (r.kind === 'slot') return `${clock(r.at)} slot`
-    return `note ${r.text}`
+    if (r.kind === 'note') return `note ${r.text}`
+    const event = events.find((e) => e.slot === r.id)
+    return `${clock(r.at)} ${event ? event.label : 'slot'}`
   })
 }
 
@@ -49,10 +49,17 @@ describe('buildFrame', () => {
   })
 
   it('leaves no slot during Lunch, and Finals from mid-afternoon', () => {
-    const frame = buildFrame('weekend', 25, { prelimSlots: 8, elimSlots: 9, finalsSlots: 3 })
-    const lunch = frame.find((r) => r.kind === 'event' && r.label === 'Lunch')!
-    const slots = frame.filter((r) => r.kind === 'slot')
-    if (lunch.kind !== 'event') throw new Error('Lunch is an event')
+    const { rows, events } = buildFrame('weekend', 25, {
+      prelimSlots: 8,
+      elimSlots: 9,
+      finalsSlots: 3,
+    })
+    // Every event sits across all rooms of a slot made for it
+    expect(events.every((e) => e.rooms === 'all')).toBe(true)
+    const lunchSlot = events.find((e) => e.label === 'Lunch')!.slot
+    const lunch = rows.find((r) => r.id === lunchSlot)!
+    const slots = rows.filter((r) => r.kind === 'slot' && r.use !== 'event')
+    if (lunch.kind !== 'slot' || lunch.use !== 'event') throw new Error('Lunch has its own slot')
     expect(
       slots.some(
         (s) => s.kind === 'slot' && s.at < lunch.at + lunch.minutes && lunch.at < s.at + s.minutes,
@@ -63,10 +70,9 @@ describe('buildFrame', () => {
   })
 
   it('uses the slot length it is given (FR-016)', () => {
-    const frame = buildFrame('weekend', 20, DEFAULT_SHAPE)
-    expect(
-      frame.filter((r) => r.kind === 'slot').every((r) => r.kind === 'slot' && r.minutes === 20),
-    ).toBe(true)
+    const { rows } = buildFrame('weekend', 20, DEFAULT_SHAPE)
+    const quizSlots = rows.filter((r) => r.kind === 'slot' && r.use !== 'event')
+    expect(quizSlots.every((r) => r.kind === 'slot' && r.minutes === 20)).toBe(true)
   })
 
   it('lays out a one-day meet', () => {
