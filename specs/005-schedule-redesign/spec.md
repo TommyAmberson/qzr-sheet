@@ -643,11 +643,10 @@ without the edit, and the scoresheet loads a published quiz with the right teams
 
   Intermediates are named as in the rule book: X, XY, XYZ or WXYZ on the first line that has one,
   with the letters doubled on the second (XX, XXYY, …).
-* **FR-028a**: The time left for totalling an intermediate MUST be a setting, with an (i): the gap
-  between the end of the intermediate's slot and the start of the first quiz with a `New n` seat.
-  The default is 10 to 20 minutes, so that quiz runs in the next slot starting late (the 2025
-  meets); a full skipped slot (the 2023 meets) and no gap are the alternatives. The generator MUST
-  leave the gap, and a hand edit that shortens it MUST show warning W-3.
+* **FR-028a**: The generator MUST leave time for totalling an intermediate: a gap between the end of
+  the intermediate's slot and the start of the first quiz with a `New n` seat, 15 minutes, so that
+  quiz runs in the next slot starting late (the 2025 meets). A hand edit that shortens it MUST show
+  warning W-3. Making the gap a setting (a full skipped slot as in 2023, or none) is future work.
 * **FR-029**: Each lane MUST be a **bracket** or a **round robin**. A bracket comes from the
   **bracket library**, which MUST include every bracket in the reference schedules: the org's 5, 6,
   7, 8 and 12-team brackets; the 9-team bracket seeded both ways (rule-book Bracket B order 1, 4, 9
@@ -685,11 +684,12 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   each lane's label and lettering. Changing a lane rebuilds only that lane's unpinned quizzes.
 * **FR-032**: Every team MUST enter the elims exactly once, and every intermediate result MUST be
   used (H-14, H-16).
-* **FR-033**: Each lane's label and lettering MUST be settings. The label is a suffix (`Div 2C`,
-  `Div 3CC`), the division's own name (`Div 3 Quiz I`, Apr 2025), or a name of its own (CMQ's
-  `K Qz`, `B Qz`). The letters either continue the lane above's (main A to H, consolation from I;
-  the default, as since 2025) or restart at A (`Div 2C Quiz A`, 2021 to 2024; every CMQ lane). A
-  lane below a consolation lane continues or restarts from that lane's letters.
+* **FR-033**: Each lane after the main one MUST be labelled with a suffix: `Div 2C`, then `Div 3CC`
+  for a third lane. Other labels, the division's own name (`Div 3 Quiz I`, Apr 2025) or a name of
+  the lane's own (CMQ's `K Qz`, `B Qz`), are future work. Each lane's lettering MUST be a setting:
+  the letters either continue the lane above's (main A to H, consolation from I; the default, as
+  since 2025) or restart at A (`Div 2C Quiz A`, 2021 to 2024; every CMQ lane). A lane below a
+  consolation lane continues or restarts from that lane's letters.
 * **FR-034**: Every bracket ends in a deciding quiz: one quiz of three teams, in one slot. There is
   no "win twice" series (`rules.md` §3 isn't used). Whether that quiz is called a Finals MUST be a
   setting per lane: on, it is `Div 2 Finals` and runs with the other finals (FR-019a); off, it is

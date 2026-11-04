@@ -16,7 +16,6 @@ import {
 const props = defineProps<{ doc: ScheduleDocument; unapplied: UnappliedSetting[] }>()
 const emit = defineEmits<{ change: [mutate: (d: ScheduleDocument) => void] }>()
 
-const showGapInfo = ref(false)
 const message = ref('')
 
 function edit(id: string, mutate: (d: DivisionSettings) => void) {
@@ -224,38 +223,6 @@ const unapplied = (id: string) => props.unapplied.some((u) => u.key === `${id}.e
               />
               Finals
             </label>
-            <label>
-              <select
-                :value="l.label.kind"
-                :aria-label="`${laneName(d, i)} label`"
-                @change="
-                  setLane(d, i, {
-                    label:
-                      ($event.target as HTMLSelectElement).value === 'own'
-                        ? { kind: 'own', name: laneName(d, i) }
-                        : {
-                            kind: ($event.target as HTMLSelectElement).value as
-                              | 'suffix'
-                              | 'division',
-                          },
-                  })
-                "
-              >
-                <option value="suffix">Suffix (2C)</option>
-                <option value="division">Division's name</option>
-                <option value="own">Its own name</option>
-              </select>
-            </label>
-            <input
-              v-if="l.label.kind === 'own'"
-              :value="l.label.name"
-              :aria-label="`${laneName(d, i)} name`"
-              @change="
-                setLane(d, i, {
-                  label: { kind: 'own', name: ($event.target as HTMLInputElement).value },
-                })
-              "
-            />
             <label v-if="i > 0">
               <select
                 :value="l.lettering"
@@ -316,41 +283,6 @@ const unapplied = (id: string) => props.unapplied.some((u) => u.key === `${id}.e
         Split {{ laneName(d, d.elims.lanes.length - 1) }} into two lanes
       </button>
     </div>
-
-    <label class="field">
-      <span>
-        Totalling gap (min)
-        <button
-          type="button"
-          class="info"
-          aria-label="About the totalling gap"
-          :aria-expanded="showGapInfo"
-          @click="showGapInfo = !showGapInfo"
-        >
-          i
-        </button>
-      </span>
-      <input
-        type="number"
-        min="0"
-        :value="doc.settings.totallingMinutes"
-        aria-label="Totalling gap"
-        @change="
-          emit(
-            'change',
-            (x) =>
-              (x.settings.totallingMinutes = Math.max(
-                0,
-                Number(($event.target as HTMLInputElement).value),
-              )),
-          )
-        "
-      />
-    </label>
-    <p v-if="showGapInfo" class="info-box">
-      Time between the end of an intermediate and the first quiz with a New seat, so prelim and
-      intermediate points can be added up and its teams reranked.
-    </p>
   </div>
 </template>
 
