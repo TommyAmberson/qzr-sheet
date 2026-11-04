@@ -264,16 +264,19 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   }
   const gapRounds = Math.ceil(settings.totallingMinutes / settings.slotMinutes)
   // A division's elims use its prelim block; with every prelim pinned there is no block, so the
-  // rooms its pinned prelims use, or failing those every room
+  // rooms its pinned prelims mostly use (a room it borrowed for a quiz or two isn't its own), or
+  // failing those every room
   const elimRooms = (d: number) => {
     const block = placement.blocks[d] ?? []
     if (block.length > 0) return block
-    const own = new Set(
-      pinned.flatMap((q) =>
-        q.phase === 'prelim' && q.division === divisions[d]!.id && q.cell ? [q.cell.room] : [],
-      ),
-    )
-    const used = [...roomIds].filter((r) => own.has(r))
+    const count = new Map<string, number>()
+    for (const q of pinned) {
+      if (q.phase === 'prelim' && q.division === divisions[d]!.id && q.cell) {
+        count.set(q.cell.room, (count.get(q.cell.room) ?? 0) + 1)
+      }
+    }
+    const most = Math.max(0, ...count.values())
+    const used = [...roomIds].filter((r) => (count.get(r) ?? 0) * 2 >= most && most > 0)
     return used.length > 0 ? used : [...roomIds]
   }
   const scheduled = elimRounds(
