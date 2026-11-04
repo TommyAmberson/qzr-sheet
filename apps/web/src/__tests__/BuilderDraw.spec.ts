@@ -29,7 +29,10 @@ describe('the draw in the builder (FR-039 to FR-042b)', () => {
       .findAll('.section-head')
       .find((h) => h.text().includes('Prelim'))!
       .trigger('click')
+    // Lateness is off until switched on; off, there's nothing to mark
     await w.find('.disclose').trigger('click')
+    expect(w.find('[aria-label="Div 1 Team 3 late"]').exists()).toBe(false)
+    await w.find('[aria-label="Late teams play late"]').setValue(true)
     await w.find('[aria-label="Div 1 Team 3 late"]').setValue(true)
     await w.find('[aria-label="Div 1 Team 6 late"]').setValue(true)
     const before = structuredClone(saved().quizzes)
@@ -54,6 +57,8 @@ describe('the draw in the builder (FR-039 to FR-042b)', () => {
       .findAll('.section-head')
       .find((h) => h.text().includes('Prelim'))!
       .trigger('click')
+    expect(w.findAll('button').some((b) => b.text() === 'Sort all prelims')).toBe(false)
+    await w.find('[aria-label="Late teams play late"]').setValue(true)
     await button(w, 'Sort all prelims').trigger('click')
     expect(w.find('.moves').text()).toMatch(/\d+ quizz?(es)? will move/)
     await button(w, 'Cancel').trigger('click')

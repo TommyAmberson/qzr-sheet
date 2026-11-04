@@ -285,6 +285,7 @@ describe('checkSchedule', () => {
 
   it("W-2: a late team playing its division's first slot", () => {
     const d = doc({ quizzes: sixTeams() })
+    d.settings.lateTeams = true
     d.draw.d1 = {
       stale: false,
       teams: [

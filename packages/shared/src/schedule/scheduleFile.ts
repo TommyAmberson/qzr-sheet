@@ -92,8 +92,14 @@ const SettingsSchema = Type.Object({
     sideBySide: Type.Integer({ minimum: 1 }),
   }),
   autoApply: Type.Boolean(),
+  /** Whether late marks count at all (FR-042a): off unless the director switches it on */
+  lateTeams: Type.Optional(Type.Boolean()),
   divisions: Type.Array(DivisionSchema),
 })
+
+/** Whether the schedule's late marks count: for the draw, re-flow, Sort and W-2 */
+export const lateCounts = (settings: Pick<ScheduleSettings, 'lateTeams'>) =>
+  settings.lateTeams === true
 
 // ---- Grid ----
 

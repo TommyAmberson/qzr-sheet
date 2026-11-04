@@ -1,5 +1,5 @@
 import { letterOf } from './letters'
-import type { DivisionDraw, ScheduleDocument } from './scheduleFile'
+import { lateCounts, type DivisionDraw, type ScheduleDocument } from './scheduleFile'
 
 /**
  * A division's draw: which team holds which letter (FR-039 to FR-042b). The draw never changes the
@@ -29,7 +29,9 @@ export function drawDivision(
       ...quizzesOf(letter).map((q) => (q.cell ? (order.get(q.cell.slot) ?? Infinity) : Infinity)),
     )
 
-  const lateTeams = teams.map((t, i) => (t.late ? i : -1)).filter((i) => i >= 0)
+  const lateTeams = lateCounts(doc.settings)
+    ? teams.map((t, i) => (t.late ? i : -1)).filter((i) => i >= 0)
+    : []
   const chosen: string[] = []
   while (chosen.length < lateTeams.length) {
     // The next late letter: the fewest quizzes it adds to the late teams', then the latest start

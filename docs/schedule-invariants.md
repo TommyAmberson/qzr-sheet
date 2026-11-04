@@ -129,11 +129,12 @@ These are rules about how the builder behaves, not about a finished schedule.
 Taken from the org's printed schedules (2021 to 2026), where every meet follows them, and ranked by
 the maintainer. Earlier preferences win when two conflict.
 
-* **P-1. Late teams play late** (see W-2). Before the draw this is the draw's job: late teams get
-  the letters that play last, and nothing moves. After the draw, re-flow places a division's prelims
-  as Sort does within its rooms, so late teams' quizzes take its latest cells and a settings change
-  keeps them there. The director's Sort across rooms goes further, using the latest free cells in
-  any room, and this outranks every other preference.
+* **P-1. Late teams play late** (see W-2), when the schedule counts lateness: it's off unless the
+  director switches it on. Before the draw this is the draw's job: late teams get the letters that
+  play last, and nothing moves. After the draw, re-flow places a division's prelims as Sort does
+  within its rooms, so late teams' quizzes take its latest cells and a settings change keeps them
+  there. The director's Sort across rooms goes further, using the latest free cells in any room, and
+  this outranks every other preference.
 * **P-2. Higher-numbered divisions sit in higher-numbered rooms**, in every slot: Div 1 in the
   lowest rooms, then Div 2, then Div 3. Each division's block is sized to its share of the quizzes.
 * **P-3. A room switches divisions and lanes as few times as possible, and never back and forth.**

@@ -748,21 +748,23 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   (W-2).
 * **FR-042**: When a division's team count no longer matches its draw, the draw MUST be flagged to
   be redone.
-* **FR-042a**: Late teams and sorting MUST sit together in Prelim settings, apart from the draw.
-  Directors mark each team expected late with a switch; there is no arrival time. The switches MUST
-  be hidden by default, behind a row that shows who is marked (none, their names, or a count).
-  Before the draw, lateness is handled by the draw (FR-041); once a division is drawn with late
-  teams, re-flow MUST place its prelims as Sort does within its rooms, so a settings change keeps
-  what a Sort did rather than undoing it. A **Sort prelims** action, for all divisions or one, MUST
-  re-place prelims in quiz order, with drawn late teams' quizzes later, treating lateness as a
-  preference that gives way to the hard rules. Late teams' quizzes MUST take the latest cells
-  available, including empty cells and free cells in other divisions' rooms; the other quizzes stay
-  in their division's rooms. A **Sort across rooms** option MUST let every sorted quiz move between
-  rooms, weighing late teams playing late above keeping divisions in room order and rooms on one
-  division (P-1 to P-3). Across rooms, each division MUST still keep a block of adjacent rooms, and
-  the line between two divisions' blocks MUST move at most once, so no room switches back. Sort MUST
-  say how many quizzes will move before it applies, and MUST leave pinned quizzes alone unless the
-  director includes them. Sorting across rooms, and sorting pinned quizzes, happen only when asked.
+* **FR-042a**: Late teams and sorting MUST sit together in Prelim settings, apart from the draw. A
+  schedule-wide switch, off by default, says whether lateness counts at all; off, late marks change
+  nothing (the draw, re-flow, Sort and W-2 ignore them) and Sort is hidden. Directors mark each team
+  expected late with a switch; there is no arrival time. The switches MUST be hidden by default,
+  behind a row that shows who is marked (none, their names, or a count). Before the draw, lateness
+  is handled by the draw (FR-041); once a division is drawn with late teams, re-flow MUST place its
+  prelims as Sort does within its rooms, so a settings change keeps what a Sort did rather than
+  undoing it. A **Sort prelims** action, for all divisions or one, MUST re-place prelims in quiz
+  order, with drawn late teams' quizzes later, treating lateness as a preference that gives way to
+  the hard rules. Late teams' quizzes MUST take the latest cells available, including empty cells
+  and free cells in other divisions' rooms; the other quizzes stay in their division's rooms. A
+  **Sort across rooms** option MUST let every sorted quiz move between rooms, weighing late teams
+  playing late above keeping divisions in room order and rooms on one division (P-1 to P-3). Across
+  rooms, each division MUST still keep a block of adjacent rooms, and the line between two
+  divisions' blocks MUST move at most once, so no room switches back. Sort MUST say how many quizzes
+  will move before it applies, and MUST leave pinned quizzes alone unless the director includes
+  them. Sorting across rooms, and sorting pinned quizzes, happen only when asked.
 
 * **FR-042b**: When a team drops out, the builder MUST offer the admin both ways and pick neither
   itself: **lower the team count**, which rebuilds the division's unpinned prelims and flags the

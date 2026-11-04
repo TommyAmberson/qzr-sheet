@@ -4,6 +4,7 @@ import {
   divisionColour,
   clearDraw,
   drawDivision,
+  lateCounts,
   setTeamCount,
   sortPrelims,
   type ScheduleDocument,
@@ -29,6 +30,7 @@ const teamsOf = (id: string, count: number) =>
 const nameOf = (t: { name?: string; i: number }) => t.name ?? `Team ${t.i + 1}`
 /** Each division's colour, as its quizzes carry it on the grid */
 const colourOf = (id: string) => `var(--dc-${divisionColour(props.doc, id)})`
+const lateOn = computed(() => lateCounts(props.doc.settings))
 const drawn = (id: string) => props.doc.draw[id]?.teams.some((t) => t.letter) ?? false
 
 const showLate = ref(false)
@@ -122,23 +124,42 @@ function confirmSort() {
       >
         <span class="card-title">Late teams</span>
         <span class="sum">{{
-          marked.length === 0
-            ? 'None'
-            : marked.length > 2
-              ? `${marked.length} teams`
-              : marked.join(', ')
+          !lateOn
+            ? 'Off'
+            : marked.length === 0
+              ? 'None'
+              : marked.length > 2
+                ? `${marked.length} teams`
+                : marked.join(', ')
         }}</span>
       </button>
+      <!-- Whether lateness counts at all: off, late marks change nothing (FR-042a) -->
+      <label class="switch-row">
+        Late teams play late
+        <input
+          type="checkbox"
+          role="switch"
+          :checked="lateOn"
+          aria-label="Late teams play late"
+          @change="
+            emit(
+              'change',
+              (d) => (d.settings.lateTeams = ($event.target as HTMLInputElement).checked),
+            )
+          "
+        />
+      </label>
       <template v-if="showLate">
-        <p class="hint">
-          Mark teams expected to arrive late. The draw gives them letters that play late, so nothing
-          moves. If you learn after the draw, Sort moves their quizzes instead.
+        <p v-if="lateOn" class="hint">
+          Mark teams expected to arrive late. The draw gives them letters that play late, and the
+          grid keeps their quizzes late.
         </p>
         <div v-for="d in divisions" :key="d.id" class="teams" :style="{ '--qc': colourOf(d.id) }">
           <strong><span class="tick" />{{ d.name }}</strong>
           <div v-for="t in teamsOf(d.id, d.teams)" :key="t.i" class="team">
             <label>
               <input
+                v-if="lateOn"
                 type="checkbox"
                 :checked="t.late"
                 :aria-label="`${d.name} ${nameOf(t)} late`"
@@ -216,7 +237,7 @@ function confirmSort() {
       </div>
     </section>
 
-    <section class="card">
+    <section v-if="lateOn" class="card">
       <h4 class="card-title">Sort prelims</h4>
       <p class="hint">Moves prelims so late teams play late.</p>
       <div class="all">
@@ -266,6 +287,13 @@ function confirmSort() {
   padding: 0;
   border: 0;
   background: none;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .sum {

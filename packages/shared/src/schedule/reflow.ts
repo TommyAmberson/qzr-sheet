@@ -3,13 +3,14 @@ import { buildFrame, DEFAULT_SHAPE, defaultRoomCount, eventCells } from './frame
 import { placePrelims, sortPrelims, type PrelimDivision } from './placement'
 import { drawPrelims } from './prelimDraw'
 import { quizNumber } from './names'
-import type {
-  DivisionSettings,
-  FrameRow,
-  ScheduleDocument,
-  ScheduleQuiz,
-  ScheduleSettings,
-  Seat,
+import {
+  lateCounts,
+  type DivisionSettings,
+  type FrameRow,
+  type ScheduleDocument,
+  type ScheduleQuiz,
+  type ScheduleSettings,
+  type Seat,
 } from './scheduleFile'
 
 /** Prelim rounds a weekend starts from: five Friday evening, three Saturday morning */
@@ -423,9 +424,11 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   const flowed = { ...doc, applied: structuredClone(settings), frame, rooms, quizzes, events }
   // Late teams play late (P-1): re-flow sorts what it places, as Sort does within each division's
   // rooms, so a settings change never undoes a Sort
-  const late = divisions
-    .filter((d) => doc.draw[d.id]?.teams.some((t) => t.late && t.letter))
-    .map((d) => d.id)
+  const late = lateCounts(settings)
+    ? divisions
+        .filter((d) => doc.draw[d.id]?.teams.some((t) => t.late && t.letter))
+        .map((d) => d.id)
+    : []
   return late.length > 0
     ? sortPrelims(flowed, { divisions: late, includePinned: false, acrossRooms: false })
     : flowed
@@ -497,6 +500,7 @@ export function unappliedSettings(doc: ScheduleDocument): UnappliedSetting[] {
     ['finals', 'elims'],
     ['quizzesPerTeam', 'prelims'],
     ['prelimDraw', 'prelims'],
+    ['lateTeams', 'prelims'],
     ['totallingMinutes', 'elims'],
   ]
   for (const [key, section] of top) {

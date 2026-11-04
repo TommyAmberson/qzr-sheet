@@ -9,6 +9,8 @@ import { newScheduleDocument, type ScheduleDocument } from '../scheduleFile'
 function meet(counts: number[], rooms: number | 'auto' = 'auto'): ScheduleDocument {
   const doc = newScheduleDocument('Test')
   doc.settings.rooms = rooms
+  // These schedules mark late teams, so lateness counts
+  doc.settings.lateTeams = true
   doc.settings.divisions = counts.map((teams, i) => ({
     id: `d${i + 1}`,
     name: `Div ${i + 1}`,
@@ -129,6 +131,18 @@ describe('sortPrelims', () => {
     const after = reflowSchedule(doc)
     expect(lateOnSaturday(after)).toBe(true)
     expect(checkSchedule(after).filter((c) => !c.warning)).toEqual([])
+  })
+
+  it('counts for nothing with lateness switched off', () => {
+    const doc = lateFbc()
+    doc.settings.lateTeams = false
+    const unmarked = structuredClone(doc)
+    for (const d of Object.values(unmarked.draw)) for (const t of d.teams) t.late = false
+    const cells = (d: ScheduleDocument) => new Map(d.quizzes.map((q) => [q.id, q.cell]))
+    expect(cells(reflowSchedule(doc))).toEqual(cells(reflowSchedule(unmarked)))
+    const letters = (d: ScheduleDocument) =>
+      drawDivision(d, 'd2', seeded(7)).teams.map((t) => t.letter)
+    expect(letters(doc)).toEqual(letters(unmarked))
   })
 
   it('puts every quiz of the late teams on Saturday, breaking no hard rule (P-1)', () => {

@@ -44,6 +44,7 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   by its place.
 * `replaceElims`: divisions' elims placed again where the generator would, around everything else.
 * `recommendedRooms`: the fewest rooms, at least 3, that fit a schedule's prelims.
+* `lateCounts` and the `lateTeams` setting: whether late marks count at all, off by default.
 * `laneName`: the name a lane's quizzes go by (`Div 2C`), for renaming a quiz by hand.
 * `resultKey`: the key a meet stores a quiz's results under, which `resultName` now returns too.
 * `elimsForCount` and `setTeamCount`: a division's elims for a new team count, keeping elims the
