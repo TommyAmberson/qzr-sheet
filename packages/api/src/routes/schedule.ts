@@ -217,18 +217,16 @@ schedule.get('/:id/quizzes', async (c) => {
     .from(schema.scheduledQuizzes)
     .where(eq(schema.scheduledQuizzes.meetId, meetId))
 
-  const seats =
-    quizzes.length === 0
-      ? []
-      : await db
-          .select()
-          .from(schema.scheduledQuizSeats)
-          .where(
-            inArray(
-              schema.scheduledQuizSeats.quizId,
-              quizzes.map((q) => q.id),
-            ),
-          )
+  // In chunks: a meet's quizzes bind far more parameters than one D1 statement takes
+  const seats = await inChunks(
+    quizzes.map((q) => q.id),
+    1,
+    (chunk) =>
+      db
+        .select()
+        .from(schema.scheduledQuizSeats)
+        .where(inArray(schema.scheduledQuizSeats.quizId, chunk)),
+  )
 
   const seatsByQuiz = new Map<number, schema.ScheduledQuizSeat[]>()
   for (const seat of seats) {
@@ -563,18 +561,16 @@ async function loadLegacy(db: Db, meetId: number): Promise<LegacySchedule | null
       .where(eq(schema.teams.meetId, meetId)),
   ])
   if (slots.length === 0 && quizzes.length === 0) return null
-  const seats =
-    quizzes.length === 0
-      ? []
-      : await db
-          .select()
-          .from(schema.scheduledQuizSeats)
-          .where(
-            inArray(
-              schema.scheduledQuizSeats.quizId,
-              quizzes.map((q) => q.id),
-            ),
-          )
+  // In chunks: a meet's quizzes bind far more parameters than one D1 statement takes
+  const seats = await inChunks(
+    quizzes.map((q) => q.id),
+    1,
+    (chunk) =>
+      db
+        .select()
+        .from(schema.scheduledQuizSeats)
+        .where(inArray(schema.scheduledQuizSeats.quizId, chunk)),
+  )
   const divisions = JSON.parse(meet.divisions) as string[]
   return {
     meet: { id: meet.id, name: meet.name, divisions },
