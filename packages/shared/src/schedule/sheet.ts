@@ -21,8 +21,11 @@ export function seatText(
   switch (seat.kind) {
     case 'letter': {
       if (view === 'letters') return seat.letter
-      const team = doc.draw[quiz.division]?.teams.find((t) => t.letter === seat.letter)
-      return team?.name ?? seat.letter
+      const teams = doc.draw[quiz.division]?.teams ?? []
+      const index = teams.findIndex((t) => t.letter === seat.letter)
+      // An unnamed team goes by its place in the list, as the Teams section shows it
+      if (index < 0) return seat.letter
+      return teams[index]!.name ?? `Team ${index + 1}`
     }
     case 'rank':
       return String(seat.rank)

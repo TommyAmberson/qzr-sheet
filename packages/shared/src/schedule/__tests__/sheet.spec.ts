@@ -26,6 +26,9 @@ describe('the printed sheet', () => {
     const [a, b] = d.quizzes
     expect(a!.seats.map((s) => seatText(d, a!, s, 'letters'))).toEqual(['A', '3', 'New 10'])
     expect(seatText(d, a!, a!.seats[0]!, 'teams')).toBe('Northside 1')
+    // An unnamed team goes by its place in the list
+    d.draw.d1.teams[0]!.name = undefined
+    expect(seatText(d, a!, a!.seats[0]!, 'teams')).toBe('Team 1')
     expect(b!.seats.map((s) => seatText(d, b!, s, 'letters'))).toEqual([
       '2 of A',
       '1st in pts',
