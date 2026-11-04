@@ -3,7 +3,7 @@ import { checkSchedule } from '../conflicts'
 import { clearDraw, drawDivision } from '../draw'
 import { defaultElims } from '../elims'
 import { sortPrelims } from '../placement'
-import { generateSchedule } from '../reflow'
+import { generateSchedule, reflowSchedule } from '../reflow'
 import { newScheduleDocument, type ScheduleDocument } from '../scheduleFile'
 
 function meet(counts: number[], rooms: number | 'auto' = 'auto'): ScheduleDocument {
@@ -122,6 +122,14 @@ describe('sortPrelims', () => {
       return new Set(seq).size === seq.length
     })
   }
+
+  it('is how re-flow places prelims, so a settings change keeps it (P-1)', () => {
+    const doc = lateFbc()
+    doc.settings.slotMinutes = 20
+    const after = reflowSchedule(doc)
+    expect(lateOnSaturday(after)).toBe(true)
+    expect(checkSchedule(after).filter((c) => !c.warning)).toEqual([])
+  })
 
   it('puts every quiz of the late teams on Saturday, breaking no hard rule (P-1)', () => {
     const doc = sortPrelims(lateFbc(), { includePinned: false, acrossRooms: false })

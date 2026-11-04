@@ -1,6 +1,6 @@
 import { buildElimQuizzes } from './elims'
 import { buildFrame, DEFAULT_SHAPE, defaultRoomCount, eventCells } from './frame'
-import { placePrelims, type PrelimDivision } from './placement'
+import { placePrelims, sortPrelims, type PrelimDivision } from './placement'
 import { drawPrelims } from './prelimDraw'
 import { quizNumber } from './names'
 import type {
@@ -420,7 +420,15 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
     }
   })
 
-  return { ...doc, applied: structuredClone(settings), frame, rooms, quizzes, events }
+  const flowed = { ...doc, applied: structuredClone(settings), frame, rooms, quizzes, events }
+  // Late teams play late (P-1): re-flow sorts what it places, as Sort does within each division's
+  // rooms, so a settings change never undoes a Sort
+  const late = divisions
+    .filter((d) => doc.draw[d.id]?.teams.some((t) => t.late && t.letter))
+    .map((d) => d.id)
+  return late.length > 0
+    ? sortPrelims(flowed, { divisions: late, includePinned: false, acrossRooms: false })
+    : flowed
 }
 
 /**

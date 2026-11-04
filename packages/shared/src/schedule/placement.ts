@@ -247,7 +247,7 @@ const prelimNumber = (q: ScheduleQuiz) => Number(quizNumber(q)) || 0
  * available, including empty cells and free cells in other divisions' rooms (P-1); the others stay
  * in their division's rooms. Across rooms, every sorted quiz may move between rooms, but each
  * division keeps a block of adjacent rooms whose edge with the next moves at most once, so no room
- * switches back (P-2, P-3). Pinned quizzes stay unless included. Sorting is never a side effect.
+ * switches back (P-2, P-3). Pinned quizzes stay unless included. Re-flow sorts within rooms too.
  */
 export function sortPrelims(doc: ScheduleDocument, options: SortOptions): ScheduleDocument {
   const next = structuredClone(doc)
