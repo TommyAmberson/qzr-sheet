@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 import BuilderView from '../views/BuilderView.vue'
@@ -279,12 +279,25 @@ describe('rows and rooms', () => {
   })
 })
 
-describe('on a phone (FR-005b)', () => {
+describe('screen sizes (FR-005b)', () => {
+  const screen = (narrow: boolean) =>
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: narrow,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }))
+  afterEach(() => vi.unstubAllGlobals())
+
   it('opens the settings as a sheet and still moves a quiz by select-then-choose', async () => {
+    screen(true)
     const w = await sixTeams()
     await w.find('.settings-toggle').trigger('click')
     expect(w.find('.panel').classes()).toContain('open')
-    await w.find('.settings-toggle').trigger('click')
+    expect(w.find('.settings-toggle').attributes('aria-expanded')).toBe('true')
+    await w.find('.panel-close').trigger('click')
+    expect(w.find('.panel').classes()).not.toContain('open')
+    expect(w.find('.settings-toggle').attributes('aria-expanded')).toBe('false')
     const empty = w.find('.empty-cell')
     const target = empty.element.closest('td')!.dataset.cell
     await quizEl(w, 'Div 1 Quiz 3').find('.quiz-title').trigger('click')
@@ -292,6 +305,14 @@ describe('on a phone (FR-005b)', () => {
     await w.vm.$nextTick()
     await empty.trigger('click')
     expect(cellOf(w, 'Div 1 Quiz 3')).toBe(target)
+  })
+
+  it('hides the settings beside the grid on a wide screen, to give the grid the room', async () => {
+    screen(false)
+    const w = await sixTeams()
+    await w.find('.settings-toggle').trigger('click')
+    expect(w.find('.builder-main').classes()).toContain('rail-hidden')
+    expect(w.find('.settings-toggle').attributes('aria-expanded')).toBe('false')
   })
 })
 

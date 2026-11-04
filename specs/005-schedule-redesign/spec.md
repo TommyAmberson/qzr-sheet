@@ -504,10 +504,11 @@ without the edit, and the scoresheet loads a published quiz with the right teams
 * **FR-005a**: Every action done by dragging (moving or swapping quizzes, swapping seats) MUST also
   be doable without dragging: select the quiz or seat, then choose the target, by click, tap or
   keyboard.
-* **FR-005b**: On a phone-sized screen, the settings panel MUST open as a sheet over the grid, and
-  the grid MUST scroll sideways with its time column fixed. A phone MUST be enough for on-the-day
-  fixes (move or swap quizzes, change a seat, publish); building a whole schedule is expected on a
-  laptop or larger.
+* **FR-005b**: On a phone-sized or narrow screen (a tablet, half a laptop screen), the settings
+  panel MUST open as a sheet over the grid, with its own way to close it; on a wider one it sits
+  beside the grid and can be hidden. The grid MUST scroll sideways with its time column, day labels
+  and notices in view. A phone MUST be enough for on-the-day fixes (move or swap quizzes, change a
+  seat, publish); building a whole schedule is expected on a laptop or larger.
 * **FR-005c**: The grid MUST be able to do everything the panel can. Clicking a quiz MUST open its
   menu (rename, edit seats, move, move to the unplaced tray, pin or unpin, delete); clicking a time
   MUST let the director retime or delete its row, or insert a slot or event; clicking an event MUST
