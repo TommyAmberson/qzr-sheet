@@ -154,6 +154,27 @@ async function followMeetTeams() {
   builder.value?.changeSettings((d) => reconcileTeams(d, teams.value))
 }
 
+/**
+ * Read the meet's teams again and follow them, as when the draft was opened; if that changes
+ * nothing, the save's refusal stands
+ */
+async function catchUpWithTeams(refusal: string) {
+  try {
+    teams.value = (await listMeetTeams(meetId.value)).teams
+  } catch {
+    // Can't read the teams: the refusal stands
+  }
+  // Whether following them changes the draft, decided before the builder takes the change, since
+  // it may wait for the director to confirm one touching quizzes with results
+  const changes = !!current.value && reconcileTeams(structuredClone(current.value), teams.value)
+  if (!changes) {
+    saveState.value = 'failed'
+    saveError.value = refusal
+    return
+  }
+  await followMeetTeams()
+}
+
 /** The server's draft, with the meet's team names */
 function openFromServer(draft: ScheduleDocument, revision: number) {
   open(withMeetNames(draft, teams.value), revision, false)
@@ -306,10 +327,15 @@ async function send(): Promise<void> {
       })
       saveState.value = changedSinceSend ? 'unsent' : 'saved'
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        const body = e.body as { draft: ScheduleDocument | null; draftRevision: number }
-        conflict.value = { draft: body.draft, draftRevision: body.draftRevision }
+      const stale = staleDraft(e)
+      if (stale) {
+        conflict.value = stale
         saveState.value = 'unsent'
+      } else if (e instanceof ApiError && (e.body as { teamId?: number }).teamId !== undefined) {
+        // A team left the meet while this page was open: catch up with the meet's teams, which
+        // changes the draft and saves it again
+        saveState.value = 'unsent'
+        void catchUpWithTeams(e.message)
       } else if (e instanceof ApiError) {
         saveState.value = 'failed'
         saveError.value = e.message

@@ -724,7 +724,10 @@ schedule.put('/:id/schedule/draft', async (c) => {
   const doc = documentOf(body.document, meetId)
   if (typeof doc === 'string') return c.json({ error: doc }, 400)
   const foreign = await foreignTeam(getDb(c), meetId, doc)
-  if (foreign !== null) return c.json({ error: `Team ${foreign} is not in this meet` }, 400)
+  // The team says which, so a page whose teams went stale can catch up and save again
+  if (foreign !== null) {
+    return c.json({ error: `Team ${foreign} is not in this meet`, teamId: foreign }, 400)
+  }
   return saveDraft(c, meetId, doc, body.baseRevision, body.replace === true)
 })
 

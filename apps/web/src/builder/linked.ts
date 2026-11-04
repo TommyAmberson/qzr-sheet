@@ -114,9 +114,20 @@ export function reconcileTeams(doc: ScheduleDocument, teams: MeetTeamRow[]): boo
     doc.settings.divisions.push({ id, name: divisionName(id), teams: 0, elims: defaultElims(0) })
     changed = true
   }
+  const inMeet = new Set(teams.map((t) => t.id))
   for (const division of doc.settings.divisions) {
-    // A division with nothing registered yet keeps the count it was built with
-    if (!registered.has(division.id)) continue
+    // A division with nothing registered keeps the count it was built with, but its draw lets go of
+    // teams the meet no longer has (its last one left, say), which a draft can't name
+    if (!registered.has(division.id)) {
+      const draw = doc.draw[division.id]
+      const kept = draw?.teams.filter((t) => t.teamId === undefined || inMeet.has(t.teamId))
+      if (draw && kept && kept.length < draw.teams.length) {
+        if (draw.teams.some((t) => t.letter)) draw.stale = true
+        draw.teams = kept
+        changed = true
+      }
+      continue
+    }
     const meetTeams = teams.filter((t) => t.division === division.id)
     if (setTeamCount(doc, division.id, meetTeams.length)) changed = true
     const draw = (doc.draw[division.id] ??= { teams: [], stale: false })
