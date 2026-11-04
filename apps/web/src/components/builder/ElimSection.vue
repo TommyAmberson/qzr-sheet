@@ -116,7 +116,6 @@ function slide(d: DivisionSettings, line: number, by: number) {
   edit(d.id, (x) => (x.elims.lines[line]!.intermediate!.above += by))
 }
 
-const NAMES = ['None', 'X · 3 teams', 'XY · 6 teams', 'XYZ · 9 teams', 'WXYZ · 12 teams']
 const bracketsFor = (size: number) =>
   size === 9 ? ['9', '9b', 'ruleA', 'ruleB', 'ruleC'] : [String(size)]
 const BRACKET_NAMES: Record<string, string> = {
@@ -127,6 +126,40 @@ const BRACKET_NAMES: Record<string, string> = {
   ruleC: 'Rule book C',
 }
 const unapplied = (id: string) => props.unapplied.some((u) => u.key === `${id}.elims`)
+
+/** Each division's colour, as the grid ticks its quizzes */
+const colourOf = (d: DivisionSettings) =>
+  `var(--b-d${(props.doc.settings.divisions.indexOf(d) % 4) + 1})`
+const range = (from: number, to: number) => (from === to ? `${from}` : `${from}–${to}`)
+/** Who a lane takes, in words, reading down the ranks */
+function takes(d: DivisionSettings, i: number) {
+  const last = d.elims.lanes.length - 1
+  const size = d.elims.lanes[i]!.size
+  return last === 0
+    ? 'Everyone'
+    : i === 0
+      ? `Top ${size}`
+      : i === last
+        ? 'The rest'
+        : `Next ${size}`
+}
+/** The ranks an intermediate plays, around the line below lane `line` */
+function interRange(d: DivisionSettings, line: number) {
+  const inter = d.elims.lines[line]?.intermediate
+  if (!inter) return null
+  const lineAt = laneFrom(d, line + 1)
+  return { from: lineAt - inter.above, to: lineAt - inter.above + 3 * inter.quizzes - 1 }
+}
+const COUNT = ['', 'Three', 'Six', 'Nine', 'Twelve']
+const SHORT = ['', 'X', 'XY', 'XYZ', 'WXYZ']
+/** A lane's format and size, in words */
+function laneNote(l: LaneSettings) {
+  if (l.format === 'roundRobin') {
+    const n = l.perTeam ?? 2
+    return `${l.size} teams · round robin, ${n} ${n === 1 ? 'quiz' : 'quizzes'} each`
+  }
+  return `${l.size} teams · bracket`
+}
 </script>
 
 <template>
@@ -137,151 +170,230 @@ const unapplied = (id: string) => props.unapplied.some((u) => u.key === `${id}.e
       :key="d.id"
       class="division"
       :data-elims="d.id"
+      :style="{ '--qc': colourOf(d) }"
     >
-      <h4>
-        {{ d.name }} <span class="hint">{{ d.teams }} teams, by prelim rank</span>
+      <div class="ehead">
+        <span class="tick" />
+        <strong>{{ d.name }}</strong>
+        <span class="hint">{{ d.teams }} teams, by prelim rank</span>
         <span v-if="unapplied(d.id)" class="unapplied">Unapplied</span>
-      </h4>
-      <template v-for="(l, i) in d.elims.lanes" :key="i">
-        <div class="lane" :data-lane="i">
-          <div class="lane-head">
-            <strong
-              >{{ laneFrom(d, i) }}–{{ laneFrom(d, i) + l.size - 1 }} → {{ laneName(d, i) }}</strong
-            >
-            <span v-if="i < d.elims.lanes.length - 1" class="stepper">
+      </div>
+
+      <!-- The lanes in proportion, top ranks first -->
+      <div class="strip" aria-hidden="true">
+        <span
+          v-for="(l, i) in d.elims.lanes"
+          :key="i"
+          :class="`l${Math.min(i, 3)}`"
+          :style="{ flex: l.size }"
+        />
+      </div>
+
+      <!-- Reading down the ranks: who goes where, and what settles each line -->
+      <div class="steps">
+        <template v-for="(l, i) in d.elims.lanes" :key="i">
+          <div class="step" :data-lane="i">
+            <span class="rk">{{ range(laneFrom(d, i), laneFrom(d, i) + l.size - 1) }}</span>
+            <span class="say">
+              {{ takes(d, i) }} →
+              <span class="chip" :class="`l${Math.min(i, 3)}`">{{ laneName(d, i) }}</span>
+            </span>
+            <span class="ctl">
+              <span v-if="i < d.elims.lanes.length - 1" class="stepper">
+                <button
+                  type="button"
+                  :aria-label="`${laneName(d, i)} fewer teams`"
+                  @click="resize(d, i, -1)"
+                >
+                  −
+                </button>
+                <output>{{ l.size }}</output>
+                <button
+                  type="button"
+                  :aria-label="`${laneName(d, i)} more teams`"
+                  @click="resize(d, i, 1)"
+                >
+                  +
+                </button>
+              </span>
               <button
+                v-if="i > 0"
                 type="button"
-                :aria-label="`${laneName(d, i)} fewer teams`"
-                @click="resize(d, i, -1)"
+                class="icon"
+                :title="`Merge into ${laneName(d, i - 1)}`"
+                :aria-label="`Merge ${laneName(d, i)} into the lane above`"
+                @click="merge(d, i)"
               >
-                −
-              </button>
-              {{ l.size }}
-              <button
-                type="button"
-                :aria-label="`${laneName(d, i)} more teams`"
-                @click="resize(d, i, 1)"
-              >
-                +
+                ✕
               </button>
             </span>
-            <button v-if="i > 0" type="button" class="link" @click="merge(d, i)">Merge up</button>
           </div>
-          <div class="lane-controls">
-            <label>
-              <select
-                :value="l.format"
-                :aria-label="`${laneName(d, i)} format`"
-                @change="
-                  setFormat(
-                    d,
-                    i,
-                    ($event.target as HTMLSelectElement).value as LaneSettings['format'],
-                  )
-                "
-              >
-                <option value="bracket">Bracket</option>
-                <option value="roundRobin">Round robin</option>
-              </select>
-            </label>
-            <label v-if="l.format === 'bracket' && l.size === 9">
-              <select
-                :value="l.bracket ?? '9'"
-                :aria-label="`${laneName(d, i)} bracket`"
-                @change="setLane(d, i, { bracket: ($event.target as HTMLSelectElement).value })"
-              >
-                <option v-for="b in bracketsFor(l.size)" :key="b" :value="b">
-                  {{ BRACKET_NAMES[b] ?? b }}
-                </option>
-              </select>
-            </label>
-            <label v-if="l.format === 'roundRobin'">
-              Each plays
-              <select
-                :value="String(l.perTeam ?? 2)"
-                :aria-label="`${laneName(d, i)} quizzes each`"
-                @change="
-                  setLane(d, i, { perTeam: Number(($event.target as HTMLSelectElement).value) })
-                "
-              >
-                <option v-for="n in [1, 2, 3]" :key="n" :value="String(n)">{{ n }}</option>
-              </select>
-            </label>
-            <label
-              class="check"
-              :title="
-                l.format === 'roundRobin'
-                  ? 'Add a Finals: the top 3 in points across the round robin'
-                  : 'Call the deciding quiz Finals; off, it is named as the lane’s next letter'
-              "
-            >
-              <input
-                type="checkbox"
-                :checked="l.finals"
-                :aria-label="`${laneName(d, i)} Finals`"
-                @change="setLane(d, i, { finals: ($event.target as HTMLInputElement).checked })"
-              />
-              Finals
-            </label>
-            <label v-if="i > 0">
-              <select
-                :value="l.lettering"
-                :aria-label="`${laneName(d, i)} lettering`"
-                @change="
-                  setLane(d, i, {
-                    lettering: ($event.target as HTMLSelectElement).value as 'continue' | 'restart',
-                  })
-                "
-              >
-                <option value="continue">Letters continue</option>
-                <option value="restart">Letters restart at A</option>
-              </select>
-            </label>
-          </div>
-        </div>
-        <div v-if="i < d.elims.lines.length" class="line" :data-line="i">
-          <select
-            :value="String(d.elims.lines[i]!.intermediate?.quizzes ?? 0)"
-            :aria-label="`Intermediate after ${laneName(d, i)}`"
-            @change="setIntermediate(d, i, Number(($event.target as HTMLSelectElement).value))"
-          >
-            <option v-for="(n, q) in NAMES" :key="q" :value="String(q)">{{ n }}</option>
-          </select>
-          <template v-if="d.elims.lines[i]!.intermediate">
-            <select
-              :value="d.elims.lines[i]!.intermediate!.kind"
-              :aria-label="`Intermediate after ${laneName(d, i)} kind`"
-              @change="
-                edit(
-                  d.id,
-                  (x) =>
-                    (x.elims.lines[i]!.intermediate!.kind = ($event.target as HTMLSelectElement)
-                      .value as 'rerank' | 'playIn'),
-                )
-              "
-            >
-              <option value="rerank">Rerank</option>
-              <option value="playIn">Play-in</option>
-            </select>
-            <span class="slide">
-              {{ d.elims.lines[i]!.intermediate!.above }} above
-              <button type="button" aria-label="Slide the intermediate up" @click="slide(d, i, 1)">
-                ▲
+
+          <template v-if="i < d.elims.lines.length">
+            <div v-if="d.elims.lines[i]!.intermediate" class="step inter" :data-line="i">
+              <span class="rk">{{ range(interRange(d, i)!.from, interRange(d, i)!.to) }}</span>
+              <span class="say">
+                {{ COUNT[d.elims.lines[i]!.intermediate!.quizzes] }} around the line ({{
+                  d.elims.lines[i]!.intermediate!.above
+                }}
+                above) play
+                <span class="seg" role="group" :aria-label="`Intermediate after ${laneName(d, i)}`">
+                  <button
+                    v-for="q in [1, 2, 3, 4]"
+                    :key="q"
+                    type="button"
+                    :aria-pressed="d.elims.lines[i]!.intermediate!.quizzes === q"
+                    @click="setIntermediate(d, i, q)"
+                  >
+                    {{ SHORT[q] }}
+                  </button>
+                </span>
+                to
+                <span
+                  class="seg"
+                  role="group"
+                  :aria-label="`Intermediate after ${laneName(d, i)} kind`"
+                >
+                  <button
+                    type="button"
+                    :aria-pressed="d.elims.lines[i]!.intermediate!.kind === 'rerank'"
+                    title="Rerank the teams around the line"
+                    @click="edit(d.id, (x) => (x.elims.lines[i]!.intermediate!.kind = 'rerank'))"
+                  >
+                    rerank
+                  </button>
+                  <button
+                    type="button"
+                    :aria-pressed="d.elims.lines[i]!.intermediate!.kind === 'playIn'"
+                    title="The winners play in to the lane above"
+                    @click="edit(d.id, (x) => (x.elims.lines[i]!.intermediate!.kind = 'playIn'))"
+                  >
+                    play in
+                  </button>
+                </span>
+              </span>
+              <span class="ctl">
+                <span class="slide" title="Slide the intermediate across the line">
+                  <button
+                    type="button"
+                    aria-label="Slide the intermediate up"
+                    @click="slide(d, i, 1)"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Slide the intermediate down"
+                    @click="slide(d, i, -1)"
+                  >
+                    ▼
+                  </button>
+                </span>
+                <button
+                  type="button"
+                  class="icon"
+                  aria-label="Remove the intermediate"
+                  title="No intermediate"
+                  @click="setIntermediate(d, i, 0)"
+                >
+                  ✕
+                </button>
+              </span>
+            </div>
+            <div v-else class="step gap" :data-line="i">
+              <button type="button" class="link" @click="setIntermediate(d, i, 2)">
+                + Add an intermediate across this line
               </button>
-              <button
-                type="button"
-                aria-label="Slide the intermediate down"
-                @click="slide(d, i, -1)"
-              >
-                ▼
-              </button>
-            </span>
+            </div>
           </template>
-        </div>
-      </template>
-      <button type="button" class="link" @click="split(d)">
-        Split {{ laneName(d, d.elims.lanes.length - 1) }} into two lanes
+        </template>
+      </div>
+
+      <button type="button" class="link split" @click="split(d)">
+        + Split {{ laneName(d, d.elims.lanes.length - 1) }} into two lanes
       </button>
+
+      <h4>Lanes</h4>
+      <div v-for="(l, i) in d.elims.lanes" :key="i" class="lrow">
+        <span class="chip" :class="`l${Math.min(i, 3)}`">{{ laneName(d, i) }}</span>
+        <span class="hint">{{ laneNote(l) }}</span>
+        <span class="lctl">
+          <span class="seg" role="group" :aria-label="`${laneName(d, i)} format`">
+            <button
+              type="button"
+              :aria-pressed="l.format === 'bracket'"
+              @click="setFormat(d, i, 'bracket')"
+            >
+              Bracket
+            </button>
+            <button
+              type="button"
+              :aria-pressed="l.format === 'roundRobin'"
+              @click="setFormat(d, i, 'roundRobin')"
+            >
+              Round robin
+            </button>
+          </span>
+          <span v-if="l.format === 'roundRobin'" class="stepper" title="Quizzes each">
+            <button
+              type="button"
+              :aria-label="`${laneName(d, i)} fewer quizzes each`"
+              :disabled="(l.perTeam ?? 2) <= 1"
+              @click="setLane(d, i, { perTeam: (l.perTeam ?? 2) - 1 })"
+            >
+              −
+            </button>
+            <output :aria-label="`${laneName(d, i)} quizzes each`">{{ l.perTeam ?? 2 }}</output>
+            <button
+              type="button"
+              :aria-label="`${laneName(d, i)} more quizzes each`"
+              :disabled="(l.perTeam ?? 2) >= 3"
+              @click="setLane(d, i, { perTeam: (l.perTeam ?? 2) + 1 })"
+            >
+              +
+            </button>
+          </span>
+          <select
+            v-if="l.format === 'bracket' && l.size === 9"
+            :value="l.bracket ?? '9'"
+            :aria-label="`${laneName(d, i)} bracket`"
+            @change="setLane(d, i, { bracket: ($event.target as HTMLSelectElement).value })"
+          >
+            <option v-for="b in bracketsFor(l.size)" :key="b" :value="b">
+              {{ BRACKET_NAMES[b] ?? b }}
+            </option>
+          </select>
+          <label
+            class="check"
+            :title="
+              l.format === 'roundRobin'
+                ? 'Add a Finals: the top 3 in points across the round robin'
+                : 'Call the deciding quiz Finals; off, it is named as the lane’s next letter'
+            "
+          >
+            <input
+              type="checkbox"
+              :checked="l.finals"
+              :aria-label="`${laneName(d, i)} Finals`"
+              @change="setLane(d, i, { finals: ($event.target as HTMLInputElement).checked })"
+            />
+            Finals
+          </label>
+          <select
+            v-if="i > 0"
+            :value="l.lettering"
+            :aria-label="`${laneName(d, i)} lettering`"
+            @change="
+              setLane(d, i, {
+                lettering: ($event.target as HTMLSelectElement).value as 'continue' | 'restart',
+              })
+            "
+          >
+            <option value="continue">Letters continue</option>
+            <option value="restart">Letters restart at A</option>
+          </select>
+        </span>
+      </div>
     </div>
   </div>
 </template>
@@ -289,81 +401,236 @@ const unapplied = (id: string) => props.unapplied.some((u) => u.key === `${id}.e
 <style scoped>
 .elim-section {
   display: grid;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
-h4 {
-  margin: 0;
-}
+.division {
+  --qc: var(--b-d1);
 
-.hint {
-  font-weight: normal;
-  font-size: 0.8rem;
-  color: var(--color-text-muted, #666);
-}
-
-.lane {
-  border: 1px solid var(--color-border, #ddd);
-  border-radius: 8px;
-  padding: 0.5rem;
   display: grid;
+  gap: 0.6rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border-alt);
+}
+
+.division:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.ehead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+}
+
+.ehead strong {
+  color: var(--color-heading);
+}
+
+.ehead .unapplied {
+  margin-left: auto;
+}
+
+.tick {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--qc);
+}
+
+/* Lane shades: the main lane in the division's colour, each lane below paler */
+.l0 {
+  background: var(--qc);
+  color: var(--color-bg);
+}
+
+.l1 {
+  background: color-mix(in srgb, var(--qc) 55%, var(--color-bg));
+  color: var(--color-heading);
+}
+
+.l2 {
+  background: color-mix(in srgb, var(--qc) 32%, var(--color-bg));
+  color: var(--color-heading);
+}
+
+.l3 {
+  background: color-mix(in srgb, var(--qc) 16%, var(--color-bg));
+  color: var(--color-heading);
+}
+
+.strip {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.steps {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 6px;
+  background: var(--color-bg);
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem 0.45rem 0.6rem;
+  border-top: 1px solid var(--color-border-alt);
+  font-size: 0.8rem;
+}
+
+.step:first-child {
+  border-top: 0;
+}
+
+.rk {
+  color: var(--color-heading);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.say {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.35rem;
+  color: var(--color-text-muted);
+}
+
+.ctl {
+  display: flex;
+  align-items: center;
   gap: 0.25rem;
 }
 
-.lane-head,
-.lane-controls,
-.line {
+/* An intermediate settling a line: hatched, as the grid draws events */
+.step.inter {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    color-mix(in srgb, var(--qc) 10%, transparent) 6px 12px
+  );
+}
+
+.step.gap {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  padding: 0.2rem;
+  background: var(--color-meta-bg);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+/* Segmented choices, as one control */
+.seg {
+  display: inline-flex;
+  gap: 1px;
+  padding: 1px;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 5px;
+}
+
+.elim-section .seg button {
+  padding: 0.1rem 0.45rem;
+  border-color: transparent;
+  background: transparent;
+  font-size: 0.75rem;
+}
+
+.elim-section .seg button[aria-pressed='true'] {
+  border-color: var(--color-meta-accent);
+  background: var(--color-bg);
+  color: var(--color-heading);
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 5px;
+}
+
+.elim-section .stepper button,
+.elim-section .slide button,
+.elim-section button.icon {
+  padding: 0 0.4rem;
+  border: 0;
+  background: none;
+  font-size: 0.85rem;
+}
+
+.stepper output {
+  min-width: 1.6rem;
+  color: var(--color-heading);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  text-align: center;
+}
+
+.slide {
+  display: inline-grid;
+  line-height: 1;
+}
+
+.elim-section .slide button {
+  font-size: 0.6rem;
+}
+
+.elim-section button.icon:hover:not(:disabled) {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.split {
+  justify-self: start;
+}
+
+h4 {
+  margin-top: 0.25rem;
+}
+
+.lrow {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
   align-items: center;
+  gap: 0.4rem 0.5rem;
+  padding: 0.4rem 0;
+  border-top: 1px dashed var(--color-border-alt);
 }
 
-.line {
-  padding: 0.25rem 0.5rem;
-  background: var(--color-bg-warm, #faf7f2);
+.lrow .hint {
+  flex: 1 1 8rem;
 }
 
-.link,
-.stepper button,
-.slide button {
-  font: inherit;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.link {
-  color: var(--color-accent, #36c);
-}
-
-.field {
+.lctl {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.4rem 0.6rem;
+  flex-basis: 100%;
 }
 
-.field input {
-  width: 5rem;
-}
-
-.info {
-  font: inherit;
-  font-size: 0.75rem;
-  border-radius: 50%;
-  border: 1px solid currentColor;
-  background: none;
-}
-
-.message,
-.unapplied {
-  margin: 0;
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--color-text-muted);
   font-size: 0.8rem;
-  color: var(--color-warn, #a60);
-}
-
-.info-box {
-  font-size: 0.85rem;
-  margin: 0;
 }
 </style>

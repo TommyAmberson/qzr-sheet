@@ -251,7 +251,10 @@ describe('Elim settings (story 4)', () => {
       .find((h) => h.text().startsWith('Elim settings'))!
       .trigger('click')
     const format = w.find('[aria-label="Div 1C format"]')
-    await format.setValue('roundRobin')
+    await format
+      .findAll('button')
+      .find((b) => b.text() === 'Round robin')!
+      .trigger('click')
     const consolation = w
       .findAll('.quiz')
       .filter((q) => q.find('.quiz-title').text().startsWith('Div 1C'))
@@ -277,9 +280,13 @@ describe('Elim settings (story 4)', () => {
       .findAll('.section-head')
       .find((h) => h.text().startsWith('Elim settings'))!
       .trigger('click')
-    await w.find('.elim-section .link:last-of-type').trigger('click')
+    await w.find('.elim-section .split').trigger('click')
+    await w.find('.elim-section .step.gap .link').trigger('click')
     const line = w.find('[aria-label="Intermediate after Div 1"]')
-    await line.setValue('4')
+    await line
+      .findAll('button')
+      .find((b) => b.text() === 'WXYZ')!
+      .trigger('click')
     expect(w.find('.message').text()).toMatch(/Make those lanes bigger/)
   })
 })
