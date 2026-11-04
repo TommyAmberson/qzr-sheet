@@ -15,6 +15,7 @@ import {
   unpinAll,
 } from '../builder/edits'
 import { keepSchedule, loadSchedule, saveScheduleFile } from '../builder/persistence'
+import { describeUnapplied } from '../builder/unapplied'
 import ElimSection from '../components/builder/ElimSection.vue'
 import FrameSection from '../components/builder/FrameSection.vue'
 import PrelimSection from '../components/builder/PrelimSection.vue'
@@ -43,6 +44,7 @@ const {
   setAutoApply,
   unapplied,
   pendingMoves,
+  pendingProblems,
   apply,
   conflicts,
   issues,
@@ -356,23 +358,46 @@ const unappliedIn = (key: string) => unapplied.value.filter((u) => u.section ===
 // In-page confirmations; the builder never uses a browser dialog (FR-007)
 const dialog = useTemplateRef<InstanceType<typeof ChoiceDialog>>('dialog')
 
-/** Apply waiting settings, first saying how many quizzes will move */
-async function confirmApply() {
+/** The settings waiting for Apply, one line per change the director made (FR-012a) */
+const changes = computed(() => describeUnapplied(doc.value))
+
+/** Ask before applying waiting settings: what changed, how many quizzes move, what's left wrong */
+async function askApply(title: string, action: string): Promise<boolean> {
   const moves = pendingMoves()
   // A new slot length keeps every quiz in its slot but moves the slots' times, which the count
   // alone wouldn't say
   const retimed = unapplied.value.some((u) => u.key === 'slotMinutes')
     ? ' The slots get new times.'
     : ''
+  const left = pendingProblems()
+  const after = left > 0 ? ` It leaves ${left} ${left === 1 ? 'problem' : 'problems'}.` : ''
   const go = await dialog.value?.ask(
-    'Apply the changed settings?',
-    `${moves} ${moves === 1 ? 'quiz' : 'quizzes'} will move or change.${retimed} Pinned quizzes stay.`,
+    title,
+    `${moves} ${moves === 1 ? 'quiz' : 'quizzes'} will move or change.${retimed} Pinned quizzes stay.${after}`,
     [
       { label: 'Cancel', value: false },
-      { label: 'Apply', value: true, primary: true },
+      { label: action, value: true, primary: true },
     ],
+    changes.value,
   )
-  if (go) apply()
+  return go === true
+}
+
+async function confirmApply() {
+  if (await askApply('Apply the changed settings?', 'Apply')) apply()
+}
+
+/** Turning Auto-apply on applies what's waiting, so it asks first, as Apply does */
+async function toggleAutoApply(event: Event) {
+  const box = event.target as HTMLInputElement
+  if (box.checked && unapplied.value.length > 0) {
+    const go = await askApply('Turn on Auto-apply?', 'Apply and turn on')
+    if (!go) {
+      box.checked = false
+      return
+    }
+  }
+  setAutoApply(box.checked)
 }
 
 const problems = computed(() => conflicts.value.filter((c) => !c.warning).length)
@@ -479,7 +504,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               role="switch"
               :checked="doc.settings.autoApply"
               aria-label="Auto-apply"
-              @change="setAutoApply(($event.target as HTMLInputElement).checked)"
+              @change="toggleAutoApply"
             />
             Auto-apply
           </label>
@@ -495,7 +520,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <button type="button" @click="changeSettings(unpinAll)">Unpin all</button>
           </div>
           <div v-if="!doc.settings.autoApply && unapplied.length > 0" class="apply-bar">
-            {{ unapplied.length }} unapplied {{ unapplied.length === 1 ? 'change' : 'changes' }}
+            {{ changes.length }} unapplied {{ changes.length === 1 ? 'change' : 'changes' }}
             <button type="button" class="apply" @click="confirmApply">Apply</button>
           </div>
         </div>

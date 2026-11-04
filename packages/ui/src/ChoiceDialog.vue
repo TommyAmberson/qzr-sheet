@@ -5,6 +5,8 @@ interface Question {
   title: string
   detail: string
   choices: { label: string; value: unknown; primary?: boolean }[]
+  /** Items the question is about, listed under the detail */
+  items?: string[]
 }
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
@@ -19,10 +21,11 @@ function ask<T>(
   title: string,
   detail: string,
   choices: { label: string; value: T | null; primary?: boolean }[],
+  items?: string[],
 ): Promise<T | null> {
   // A question asked over an unanswered one dismisses it, so no caller waits forever
   settle?.(null)
-  question.value = { title, detail, choices }
+  question.value = { title, detail, choices, items }
   dialogRef.value?.showModal()
   return new Promise((resolve) => (settle = resolve as (value: unknown) => void))
 }
@@ -40,6 +43,9 @@ defineExpose({ ask })
   <dialog ref="dialogRef" class="choice-dialog" @cancel="choose(null)">
     <div v-if="question" class="choice-dialog__inner">
       <p class="choice-dialog__title">{{ question.title }}</p>
+      <ul v-if="question.items?.length" class="choice-dialog__items">
+        <li v-for="item in question.items" :key="item">{{ item }}</li>
+      </ul>
       <p class="choice-dialog__detail">{{ question.detail }}</p>
       <div class="choice-dialog__actions">
         <button
@@ -85,8 +91,14 @@ defineExpose({ ask })
   font-size: 0.9rem;
 }
 
-.choice-dialog__detail {
+.choice-dialog__detail,
+.choice-dialog__items {
   font-size: 0.8rem;
+}
+
+.choice-dialog__items {
+  margin: 0;
+  padding-left: 1.1rem;
 }
 
 .choice-dialog__actions {

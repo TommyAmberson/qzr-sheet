@@ -97,6 +97,9 @@ export function useScheduleBuilder(
   /** Settings the grid wasn't built with, and how many quizzes applying them would move */
   const unapplied = computed(() => unappliedSettings(doc.value))
   const pendingMoves = () => applyMoves(doc.value)
+  /** The problems the grid would have once the waiting settings are applied */
+  const pendingProblems = () =>
+    checkSchedule(reflowSchedule(doc.value)).filter((c) => !c.warning).length
   function apply() {
     change((d) => Object.assign(d, reflowSchedule(d)))
   }
@@ -119,6 +122,7 @@ export function useScheduleBuilder(
     setAutoApply,
     unapplied,
     pendingMoves,
+    pendingProblems,
     apply,
     conflicts,
     issues,

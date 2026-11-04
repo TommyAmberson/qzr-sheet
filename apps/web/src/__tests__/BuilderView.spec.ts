@@ -174,6 +174,7 @@ describe('settings sections', () => {
     const dialog = document.querySelector('.choice-dialog')!
     expect(dialog.textContent).toMatch(/\d+ quizz?(es)? will move/)
     expect(dialog.textContent).toContain('The slots get new times.')
+    expect(dialog.textContent).toContain('Slot length: 25 to 20 minutes')
     ;(
       [...dialog.querySelectorAll('button')].find(
         (b) => b.textContent?.trim() === 'Apply',
@@ -182,6 +183,43 @@ describe('settings sections', () => {
     await new Promise((r) => setTimeout(r))
     await wrapper.vm.$nextTick()
     expect(wrapper.find('.unapplied').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it("with Auto-apply off, counts a team count as one change and doesn't mark the grid for it (FR-012a)", async () => {
+    const wrapper = await fbc()
+    await wrapper.find('[aria-label="Auto-apply"]').setValue(false)
+    const problems = wrapper.find('.issue-count').text()
+    const count = wrapper.findAll('[aria-label$="team count"]')[2]!
+    await count.setValue('15')
+    await count.trigger('change')
+    // Its default elims follow the count, so the director made one change, not two
+    expect(wrapper.find('.apply-bar').text()).toMatch(/^1 unapplied change/)
+    // The grid is still built for 16 teams, so quizzes seating the 16th aren't problems yet
+    expect(wrapper.find('.issue-count').text()).toBe(problems)
+    wrapper.unmount()
+  })
+
+  it('asks before turning Auto-apply on applies waiting changes, and stays off if cancelled (FR-012a)', async () => {
+    const wrapper = await fbc()
+    const toggle = wrapper.find('[aria-label="Auto-apply"]')
+    await toggle.setValue(false)
+    const count = wrapper.findAll('[aria-label$="team count"]')[2]!
+    await count.setValue('15')
+    await count.trigger('change')
+    await toggle.setValue(true)
+    await flushPromises()
+    const dialog = document.querySelector('.choice-dialog')!
+    expect(dialog.textContent).toContain('Turn on Auto-apply?')
+    expect(dialog.textContent).toContain('Div 3: 16 to 15 teams, its elims to suit')
+    ;(
+      [...dialog.querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === 'Cancel',
+      ) as HTMLButtonElement
+    ).click()
+    await flushPromises()
+    expect((toggle.element as HTMLInputElement).checked).toBe(false)
+    expect(wrapper.find('.apply-bar').exists()).toBe(true)
     wrapper.unmount()
   })
 

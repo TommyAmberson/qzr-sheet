@@ -2,6 +2,7 @@
 import NumberInput from './NumberInput.vue'
 import { computed } from 'vue'
 import { addDay, deleteDay, editRow } from '../../builder/edits'
+import { roomsText } from '../../builder/unapplied'
 import {
   formatClock,
   recommendedRooms,
@@ -144,7 +145,9 @@ const num = (e: Event) => Math.floor(Number((e.target as HTMLInputElement).value
           </button>
         </template>
       </p>
-      <p v-if="was('rooms')" class="unapplied">Unapplied · grid uses {{ was('rooms') }}</p>
+      <p v-if="was('rooms')" class="unapplied">
+        Unapplied · grid uses {{ roomsText(doc.applied) }}
+      </p>
     </section>
 
     <section class="card">

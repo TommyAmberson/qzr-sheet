@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import type { ScheduleDocument, UnappliedSetting } from '@qzr/shared'
 
+import { DRAW_NAMES } from '../../builder/unapplied'
 import DrawControls from './DrawControls.vue'
 
 const props = defineProps<{ doc: ScheduleDocument; unapplied: UnappliedSetting[] }>()
@@ -14,10 +15,6 @@ const was = (key: string) => props.unapplied.find((u) => u.key === key)?.applied
 const showInfo = ref(false)
 
 type PrelimDraw = ScheduleDocument['settings']['prelimDraw']
-const SOURCE_NAMES: Record<PrelimDraw, string> = {
-  ruleBook: 'Rule book',
-  noRematches: 'No rematches',
-}
 </script>
 
 <template>
@@ -57,7 +54,7 @@ const SOURCE_NAMES: Record<PrelimDraw, string> = {
         </span>
         <span class="seg" role="group" aria-label="Prelim draw">
           <button
-            v-for="(name, key) in SOURCE_NAMES"
+            v-for="(name, key) in DRAW_NAMES"
             :key="key"
             type="button"
             :aria-pressed="doc.settings.prelimDraw === key"
@@ -68,7 +65,7 @@ const SOURCE_NAMES: Record<PrelimDraw, string> = {
         </span>
       </div>
       <p v-if="was('prelimDraw')" class="unapplied">
-        Unapplied · grid uses {{ SOURCE_NAMES[was('prelimDraw') as PrelimDraw] }}
+        Unapplied · grid uses {{ DRAW_NAMES[was('prelimDraw') as PrelimDraw] }}
       </p>
       <p v-if="showInfo" class="info-box">
         Every team plays the same number of prelim quizzes against different opponents, whichever
