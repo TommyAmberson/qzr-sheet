@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import '../builder/builder.css'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
-import { ChoiceDialog, ScheduleBasic, ScheduleList, ScheduleSheet } from '@qzr/ui'
+import { ChoiceDialog, ScheduleBasic, ScheduleSheet } from '@qzr/ui'
 import type { ScheduleDocument, SheetView } from '@qzr/shared'
 
 import { addRoom, moveQuiz, swapSeats, unpinAll } from '../builder/edits'
@@ -202,9 +202,9 @@ const anyDrawn = computed(() =>
   Object.values(doc.value.draw).some((d) => d.teams.some((t) => t.letter)),
 )
 
-/** Print the grid, a one-room list, or the basic schedule (FR-044) */
-const printing = ref<'grid' | 'list' | 'basic'>('grid')
-async function print(kind: 'grid' | 'list' | 'basic') {
+/** Print the room grid or the basic schedule (FR-044) */
+const printing = ref<'grid' | 'basic'>('grid')
+async function print(kind: 'grid' | 'basic') {
   printing.value = kind
   await nextTick()
   window.print()
@@ -276,7 +276,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <div class="builder">
+  <div class="builder" :class="`print-${printing}`">
     <header class="builder-bar">
       <input class="schedule-name" :value="doc.name" aria-label="Schedule name" @change="rename" />
       <button
@@ -311,13 +311,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         aria-label="Print"
         value=""
         @change="
-          (print(($event.target as HTMLSelectElement).value as 'grid' | 'list' | 'basic'),
+          (print(($event.target as HTMLSelectElement).value as 'grid' | 'basic'),
           (($event.target as HTMLSelectElement).value = ''))
         "
       >
         <option value="" disabled>Print…</option>
         <option value="grid">Room grid</option>
-        <option value="list">One-room list</option>
         <option value="basic">Basic schedule</option>
       </select>
       <button type="button" class="save-file" @click="saveFile">Save to file</button>
@@ -465,8 +464,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     </div>
     <div class="print-only">
       <h2>{{ doc.name }}</h2>
-      <ScheduleList v-if="printing === 'list'" :doc="doc" :view="view" />
-      <ScheduleBasic v-else-if="printing === 'basic'" :doc="doc" />
+      <ScheduleBasic v-if="printing === 'basic'" :doc="doc" />
     </div>
     <QuizMenu
       v-if="popup?.kind === 'quiz'"
@@ -740,7 +738,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   display: none;
 }
 
-/* Only the chosen view prints */
+/* Only the chosen view prints, starting at the top of the page */
 @media print {
   .builder-bar,
   .panel,
@@ -748,7 +746,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   .add-room,
   .pending,
   .message,
-  .print-hidden {
+  .empty,
+  .print-hidden,
+  .print-basic .grid-area {
     display: none !important;
   }
 
@@ -756,8 +756,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     display: block;
   }
 
+  .builder,
   .builder-main {
     display: block;
+    min-height: 0;
+    margin: 0;
+    border: 0;
+  }
+
+  .grid-area {
+    overflow: visible;
+    padding: 0;
+    background: none;
+  }
+
+  .print-grid .print-only {
+    display: none;
   }
 }
 

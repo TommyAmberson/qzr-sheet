@@ -125,13 +125,14 @@ describe('schedule files (FR-003)', () => {
 })
 
 describe('printing (FR-044)', () => {
-  it('prints the one-room list and the basic schedule', async () => {
+  it('prints the room grid and the basic schedule', async () => {
     const print = vi.spyOn(window, 'print').mockImplementation(() => {})
     const w = await withSixTeams()
-    await w.find('[aria-label="Print"]').setValue('list')
+    await w.find('[aria-label="Print"]').setValue('grid')
     expect(print).toHaveBeenCalled()
-    expect(w.find('.schedule-list').text()).toMatch(/Div 1 Quiz 1/)
+    expect(w.find('.builder').classes()).toContain('print-grid')
     await w.find('[aria-label="Print"]').setValue('basic')
+    expect(w.find('.builder').classes()).toContain('print-basic')
     expect(w.find('.schedule-basic').text()).toMatch(/Quizzing/)
     w.unmount()
   })

@@ -65,6 +65,8 @@ const divisionClass = computed(() => {
           <button type="button" class="room-name" @click="emit('room', room.id, target($event))">
             {{ room.name }}
           </button>
+          <!-- Plain text for print: a repeated page header drops a button's text -->
+          <span class="room-print">{{ room.name }}</span>
           <span class="room-divisions">{{ roomDivisions(doc, room.id).join(', ') }}</span>
         </th>
       </tr>
@@ -233,6 +235,10 @@ const divisionClass = computed(() => {
   padding: 0 0.3rem;
   color: var(--sheet-ink);
   font-weight: 700;
+}
+
+.room-print {
+  display: none;
 }
 
 .room-divisions {
@@ -415,19 +421,71 @@ const divisionClass = computed(() => {
   font-style: italic;
 }
 
-/* One or more pages per day, the time column and room headers on each, no quiz split (FR-044) */
+/*
+ * One or more landscape pages per day, every room across the page, the time column and room
+ * headers on each page, and no quiz split between pages (FR-044)
+ */
+@page grid {
+  size: landscape;
+  margin: 10mm;
+}
+
 @media print {
   .sheet {
+    page: grid;
+    width: 100%;
+    table-layout: fixed;
     border: 0;
     background: #fff;
+    font-size: 8.5pt;
+    --sheet-ink: #000;
+    --sheet-rule: #bbb;
   }
 
-  .sheet button {
-    cursor: default;
+  .sheet th,
+  .sheet td {
+    padding: 2pt 3pt;
   }
 
   .sheet thead th {
     position: static;
+    background: #eee;
+  }
+
+  .room {
+    min-width: 0;
+  }
+
+  .sheet .room-name {
+    display: none;
+  }
+
+  .room-print {
+    display: block;
+    font-weight: 700;
+  }
+
+  .time {
+    position: static;
+    width: 6.5em;
+  }
+
+  .sheet .time .row-button {
+    font-size: 7.5pt;
+  }
+
+  .sheet .seat {
+    min-width: 0;
+    font-size: 8pt;
+  }
+
+  .sheet .quiz-title {
+    font-size: 8pt;
+    white-space: normal;
+  }
+
+  .sheet button {
+    cursor: default;
   }
 
   .day:not(:first-child) {
@@ -439,8 +497,19 @@ const divisionClass = computed(() => {
   }
 
   .sheet .empty-cell,
+  .room-event,
+  .quiz.pinned::after {
+    min-height: 0;
+  }
+
+  .sheet .empty-cell,
   .quiz.pinned::after {
     display: none;
+  }
+
+  .quiz.conflict,
+  .quiz.warning {
+    background: none;
   }
 }
 </style>

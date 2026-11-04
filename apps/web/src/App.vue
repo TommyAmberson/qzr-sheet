@@ -60,6 +60,18 @@ a:hover {
   color: var(--color-accent-hover);
   text-decoration: underline;
 }
+
+/* A printed page is only what the page is about, never the portal's header and footer */
+@media print {
+  .site > .header,
+  .site > .footer {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+}
 </style>
 
 <style scoped>

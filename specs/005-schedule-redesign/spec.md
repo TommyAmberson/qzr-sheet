@@ -348,8 +348,8 @@ the org's meets used for that size (table under FR-030), every rank enters the e
 
 A director builds a schedule over several sittings with no meet and no account. It is kept in the
 browser between sessions, they can save it to a file and open it on another device, and they can
-print it: the room grid by day, a one-room list in time order, or a "basic schedule" that shows only
-events and "Quizzing" blocks, in letters or (after the draw) team names.
+print it: the room grid by day, or a "basic schedule" that shows only events and "Quizzing" blocks,
+in letters or (after the draw) team names.
 
 **Why this priority**: a standalone tool is only useful if the work survives and reaches the people
 running the meet. Printouts are how every example schedule was shared.
@@ -770,8 +770,9 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   letters and drawn teams once a draw exists, and show letters until then. Editing a prelim seat
   always sets a letter; in Teams view the choices show each letter with its drawn team's name. A
   seat can't name a team directly.
-* **FR-044**: Directors MUST be able to print: the room grid, one or more pages per day; a one-room
-  list in time order; and a basic schedule of events and "Quizzing" blocks.
+* **FR-044**: Directors MUST be able to print: the room grid, on one or more landscape pages per day
+  with every room across the page; and a basic schedule of events and "Quizzing" blocks. A printout
+  holds only the schedule, not the portal around it.
 
 **Meet integration**
 
