@@ -73,6 +73,9 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
   min-width: 17rem;
   max-width: min(22rem, calc(100vw - 16px));
+  /* Only a popup taller than the window scrolls, as a whole */
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   padding: 0.6rem 0.75rem 0.7rem;
   border: 1px solid var(--color-meta-accent);
   border-top: 3px solid var(--color-meta-accent);

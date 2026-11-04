@@ -447,6 +447,8 @@ function rename() {
 .seat-editor {
   display: grid;
   gap: 0.45rem;
+  /* Wide enough for five choices a row, so a division's ranks fit without scrolling */
+  width: min(20rem, calc(100vw - 48px));
 }
 
 /* A seat as the grid draws it, a row to open */
@@ -523,10 +525,8 @@ function rename() {
 
 .choices {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(4.4rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(3.9rem, 1fr));
   gap: 0.25rem;
-  max-height: 14rem;
-  overflow-y: auto;
 }
 
 .seat-editor .choices button,
@@ -571,8 +571,6 @@ function rename() {
 .sources {
   display: grid;
   gap: 0.25rem;
-  max-height: 16rem;
-  overflow-y: auto;
 }
 
 .source {
