@@ -19,15 +19,21 @@ const rect = props.anchor.getBoundingClientRect()
 const style = ref({ top: `${rect.bottom + 4}px`, left: `${Math.max(8, rect.left)}px` })
 
 const box = useTemplateRef<HTMLElement>('box')
-/** Above the anchor, or pushed up, when there isn't room for it below */
+/**
+ * Above the anchor, or pushed up, when there isn't room for it below; pulled left when it would
+ * run past the window's right edge
+ */
 function keepOnScreen() {
   const el = box.value
   if (!el) return
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - el.offsetWidth - 8))
   const height = el.offsetHeight
-  if (rect.bottom + 4 + height <= window.innerHeight - 8) return
-  const above = rect.top - 4 - height
-  const top = above >= 8 ? above : Math.max(8, window.innerHeight - height - 8)
-  style.value = { ...style.value, top: `${top}px` }
+  let top = rect.bottom + 4
+  if (top + height > window.innerHeight - 8) {
+    const above = rect.top - 4 - height
+    top = above >= 8 ? above : Math.max(8, window.innerHeight - height - 8)
+  }
+  style.value = { top: `${top}px`, left: `${left}px` }
 }
 // Its contents change size as it's used, a seat editor's tabs for one
 const resized = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(keepOnScreen)
