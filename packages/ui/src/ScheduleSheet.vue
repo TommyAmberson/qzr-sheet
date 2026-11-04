@@ -36,6 +36,17 @@ const emit = defineEmits<{
 }>()
 
 const rows = computed(() => sheetRows(props.doc))
+
+/** Days with quizzes, which each start a printed page; a day of only events follows on */
+const quizDays = computed(() => {
+  const days = new Set<string>()
+  let day: string | null = null
+  for (const r of rows.value) {
+    if (r.kind === 'day') day = r.row.id
+    else if (day && r.kind === 'slot' && r.cells.some((c) => c.quiz)) days.add(day)
+  }
+  return days
+})
 const columns = computed(() => props.doc.rooms.length)
 
 function issueText(id: string): string {
@@ -73,7 +84,7 @@ const divisionClass = computed(() => {
     </thead>
     <tbody>
       <template v-for="r in rows" :key="r.row.id">
-        <tr v-if="r.kind === 'day'" class="day">
+        <tr v-if="r.kind === 'day'" class="day" :class="{ 'quiz-day': quizDays.has(r.row.id) }">
           <th :colspan="columns + 1">{{ r.row.label }}</th>
         </tr>
         <tr v-else-if="r.kind === 'note'" class="note">
@@ -488,8 +499,12 @@ const divisionClass = computed(() => {
     cursor: default;
   }
 
-  .day:not(:first-child) {
+  .day.quiz-day:not(:first-child) {
     break-before: page;
+  }
+
+  .day {
+    break-after: avoid;
   }
 
   tr {
