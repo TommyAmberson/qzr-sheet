@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 import BuilderView from '../views/BuilderView.vue'
 
@@ -121,6 +121,22 @@ describe('moving and swapping (FR-005a)', () => {
     await w.vm.$nextTick()
     await quizEl(w, 'Div 1 Quiz 2').find('.quiz-title').trigger('click')
     expect([cellOf(w, 'Div 1 Quiz 1'), cellOf(w, 'Div 1 Quiz 2')]).toEqual([two, one])
+  })
+
+  it('adds a quiz by clicking an empty cell, and opens its menu (FR-035a)', async () => {
+    const w = await sixTeams()
+    const empty = w.find('.empty-cell')
+    expect(empty.attributes('aria-label')).toBe('Add a quiz here')
+    const target = empty.element.closest('td')!.dataset.cell
+    const before = w.findAll('.quiz').length
+    await empty.trigger('click')
+    await flushPromises()
+    expect(w.findAll('.quiz')).toHaveLength(before + 1)
+    const added = w.find(`td[data-cell="${target}"] .quiz`)
+    expect(added.findAll('.seat')).toHaveLength(3)
+    expect(document.querySelector('.popover')?.textContent).toContain(
+      added.find('.quiz-title').text(),
+    )
   })
 
   it('swaps two seats by choosing one, then the other', async () => {

@@ -23,8 +23,10 @@ const props = withDefaults(
     issues?: Map<string, Conflict[]>
     /** The quiz the builder has selected */
     selected?: string | null
+    /** The builder's grid, whose empty cells offer to add a quiz */
+    editable?: boolean
   }>(),
-  { view: 'letters', issues: () => new Map(), selected: null },
+  { view: 'letters', issues: () => new Map(), selected: null, editable: false },
 )
 
 const emit = defineEmits<{
@@ -68,7 +70,7 @@ const divisionClass = computed(() => {
 </script>
 
 <template>
-  <table class="sheet">
+  <table class="sheet" :class="{ editable }">
     <thead>
       <tr>
         <th class="time" />
@@ -169,9 +171,11 @@ const divisionClass = computed(() => {
               v-else
               type="button"
               class="empty-cell"
-              :aria-label="`Empty cell`"
+              :aria-label="editable ? 'Add a quiz here' : 'Empty cell'"
               @click="emit('cell', r.row.id, c.room, target($event))"
-            />
+            >
+              <span v-if="editable" class="add" aria-hidden="true">+</span>
+            </button>
           </td>
         </tr>
       </template>
@@ -444,15 +448,35 @@ const divisionClass = computed(() => {
 }
 
 .sheet .empty-cell {
-  display: block;
+  display: grid;
   width: 100%;
   min-height: 5.2rem;
   border-radius: 5px;
 }
 
-.sheet .empty-cell:hover {
+.sheet .empty-cell .add {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: auto;
+  border: 1px dashed var(--color-meta-accent, #c9c0a8);
+  border-radius: 50%;
+  color: var(--color-text-muted, #57534e);
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.sheet.editable .empty-cell:hover,
+.sheet.editable .empty-cell:focus-visible {
   background: var(--color-meta-bg, #f0e8e0);
-  box-shadow: inset 0 0 0 1px dashed var(--color-meta-accent, #c9c0a8);
+}
+
+.sheet .empty-cell:hover .add,
+.sheet .empty-cell:focus-visible .add {
+  opacity: 1;
 }
 
 .sheet .event-name {

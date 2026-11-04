@@ -4,7 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, wa
 import { ChoiceDialog, ScheduleBasic, ScheduleSheet } from '@qzr/ui'
 import type { ScheduleDocument, SheetView } from '@qzr/shared'
 
-import { addDay, addRoom, moveQuiz, swapSeats, unpinAll } from '../builder/edits'
+import { addDay, addQuiz, addRoom, moveQuiz, swapSeats, unpinAll } from '../builder/edits'
 import { keepSchedule, loadSchedule, saveScheduleFile } from '../builder/persistence'
 import ElimSection from '../components/builder/ElimSection.vue'
 import FrameSection from '../components/builder/FrameSection.vue'
@@ -85,11 +85,19 @@ function onSeat(id: string, index: number, anchor: HTMLElement) {
   popup.value = { kind: 'quiz', id, anchor, seat: index }
 }
 
-function onCell(slot: string, room: string) {
+/** An empty cell takes the quiz being moved, or else a new quiz, whose menu then opens */
+async function onCell(slot: string, room: string) {
   const p = pending.value
-  if (p?.kind !== 'move') return
-  pending.value = null
-  change((d) => moveQuiz(d, p.id, { slot, room }))
+  if (p?.kind === 'move') {
+    pending.value = null
+    change((d) => moveQuiz(d, p.id, { slot, room }))
+    return
+  }
+  let id = ''
+  change((d) => (id = addQuiz(d, { slot, room })))
+  await nextTick()
+  const title = document.querySelector<HTMLElement>(`[data-quiz="${id}"] .quiz-title`)
+  if (title) popup.value = { kind: 'quiz', id, anchor: title }
 }
 
 function startMove(id: string) {
@@ -438,6 +446,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :view="view"
             :issues="issues"
             :selected="pending?.kind === 'move' ? pending.id : null"
+            editable
             @quiz="onQuiz"
             @seat="onSeat"
             @cell="onCell"

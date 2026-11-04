@@ -72,6 +72,34 @@ export function unpinAll(d: ScheduleDocument) {
   for (const r of d.frame) delete r.pinned
 }
 
+/**
+ * Add a quiz by hand to an empty cell (FR-035a), pinned, with three empty seats. It takes the
+ * division that already uses the room most and the next free quiz number, both changeable after.
+ */
+export function addQuiz(d: ScheduleDocument, cell: { slot: string; room: string }): string {
+  const uses = new Map<string, number>()
+  for (const q of d.quizzes) {
+    if (q.cell?.room === cell.room) uses.set(q.division, (uses.get(q.division) ?? 0) + 1)
+  }
+  const division =
+    [...uses].sort((a, b) => b[1] - a[1])[0]?.[0] ?? d.settings.divisions[0]?.id ?? ''
+  const name = d.settings.divisions.find((x) => x.id === division)?.name ?? 'Quiz'
+  const labels = new Set(d.quizzes.map((q) => q.label))
+  let n = 1
+  while (labels.has(`${name} Quiz ${n}`)) n++
+  const id = crypto.randomUUID()
+  d.quizzes.push({
+    id,
+    label: `${name} Quiz ${n}`,
+    division,
+    phase: 'elim',
+    cell,
+    seats: [{ kind: 'empty' }, { kind: 'empty' }, { kind: 'empty' }],
+    pinned: true,
+  })
+  return id
+}
+
 export function deleteQuiz(d: ScheduleDocument, id: string) {
   d.quizzes = d.quizzes.filter((q) => q.id !== id)
 }
