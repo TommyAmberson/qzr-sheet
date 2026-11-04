@@ -16,6 +16,26 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-11-04
+
+### Fixed
+
+* The published schedule scrolls sideways in its own box on a phone, instead of dragging the whole
+  page and its header with it, and uses the window's full width on a laptop.
+* Day labels, notes and events' names stay in view when a schedule scrolls sideways.
+* The schedule builder's settings sheet on a phone fills the screen and has a Done button; before,
+  it covered the Settings button and couldn't be closed. Tablets and half-screen windows get the
+  sheet too, and on a wider screen the Settings button hides the panel to give the grid the room.
+* While moving a quiz, the "Choose where it goes" prompt floats at the bottom of the window instead
+  of scrolling away with the grid; the builder's other notices stay in view too.
+* On a meet's page, the phase name no longer overlaps the Advance button on a narrow screen.
+* On a touch screen the builder's buttons and fields are at least 40 pixels tall.
+* The builder's grid can be pinched to zoom on a phone or tablet.
+
+### Bundled contract
+
+* `@qzr/shared@1.7.1` - unchanged
+
 ## [0.22.1] - 2026-11-04
 
 ### Changed

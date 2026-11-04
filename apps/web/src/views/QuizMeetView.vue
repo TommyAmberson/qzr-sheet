@@ -1450,12 +1450,12 @@ onMounted(load)
     0 0 0 4px color-mix(in srgb, var(--phase-color) 18%, transparent);
 }
 
+/* Sized by its words, so on a narrow screen the actions wrap below instead of overlapping it */
 .phase-strip-label {
   display: flex;
   align-items: baseline;
   gap: 0.35rem;
-  flex: 1;
-  min-width: 0;
+  flex: 1 0 auto;
 }
 
 .phase-strip-name {

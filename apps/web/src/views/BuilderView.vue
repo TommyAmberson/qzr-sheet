@@ -309,8 +309,25 @@ function swallowAfterDrag(event: Event) {
   if (dragged) event.stopPropagation()
 }
 
-/** On a phone the settings open as a sheet over the grid (FR-005b) */
+/** On a narrow screen the settings open as a sheet over the grid (FR-005b) */
 const panelOpen = ref(false)
+/** On a wide one they sit beside it, and can be hidden to give the grid the room */
+const railHidden = ref(false)
+/** Which of the two the screen gets, matching the stylesheet's breakpoint */
+const narrowQuery =
+  typeof window.matchMedia === 'function'
+    ? window.matchMedia('(max-width: 900px), (max-height: 500px)')
+    : null
+const narrow = ref(narrowQuery?.matches ?? false)
+const onNarrow = (event: MediaQueryListEvent) => (narrow.value = event.matches)
+onMounted(() => narrowQuery?.addEventListener('change', onNarrow))
+onBeforeUnmount(() => narrowQuery?.removeEventListener('change', onNarrow))
+const settingsShown = computed(() => (narrow.value ? panelOpen.value : !railHidden.value))
+
+function toggleSettings() {
+  if (narrow.value) panelOpen.value = !panelOpen.value
+  else railHidden.value = !railHidden.value
+}
 
 // Every change is kept in this browser at once (FR-002)
 const keepFailed = ref(false)
@@ -470,8 +487,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <button
         type="button"
         class="settings-toggle"
-        :aria-expanded="panelOpen"
-        @click="panelOpen = !panelOpen"
+        :aria-expanded="settingsShown"
+        @click="toggleSettings"
       >
         Settings
       </button>
@@ -512,8 +529,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <button type="button" :disabled="!canRedo" aria-label="Redo" @click="redo">Redo</button>
     </header>
 
-    <div class="builder-main">
+    <div class="builder-main" :class="{ 'rail-hidden': railHidden }">
       <aside class="panel" :class="{ open: panelOpen }">
+        <button type="button" class="panel-close" @click="panelOpen = false">Done</button>
         <div class="auto-apply">
           <label>
             <input
@@ -828,6 +846,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   top: 0;
   align-self: start;
   max-height: 100vh;
+  max-height: 100dvh;
   overflow-y: auto;
   border-right: 1px solid var(--color-border-alt);
   background: var(--color-bg);
@@ -905,6 +924,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   top: 0;
   align-self: start;
   max-height: 100vh;
+  max-height: 100dvh;
   overflow: auto;
   padding: 0.75rem;
   background: var(--color-bg-warm);
@@ -953,26 +973,50 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   color: var(--color-warn, #a60);
 }
 
+/* Floats over the grid, so it stays in view however far the grid is scrolled */
 .pending {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  z-index: 30;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 8px;
+  background: var(--color-bg-raised, var(--color-bg));
+  box-shadow: var(--b-shadow-lift);
+  translate: -50% 0;
 }
 
+/* Notices sit across the visible part of the grid, not at its far left */
+.grid-area > .message,
+.grid-area > .empty {
+  position: sticky;
+  left: 0;
+}
+
+/* Scroll and pinch to zoom, without a double tap zooming instead of choosing a cell */
 .sheet-wrap {
-  touch-action: pan-x pan-y;
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
-.settings-toggle {
+.builder-main.rail-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.builder-main.rail-hidden .panel,
+.panel-close {
   display: none;
 }
 
-/* On a phone the panel is a sheet over the grid, and the grid scrolls sideways (FR-005b) */
-@media (max-width: 700px) {
-  .settings-toggle {
-    display: inline-block;
-  }
-
+/* On a phone either way up, or a narrow window, the panel is a sheet over the grid, and the grid
+   scrolls sideways (FR-005b) */
+@media (max-width: 900px), (max-height: 500px) {
   .builder-main {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -982,11 +1026,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     position: fixed;
     inset: 3rem 0 0;
     z-index: 40;
+    align-self: stretch;
+    max-height: none;
     background: var(--color-bg, #fff);
   }
 
   .panel.open {
     display: block;
+  }
+
+  .panel-close {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    width: 100%;
+    border-width: 0 0 1px;
+    border-radius: 0;
   }
 }
 
@@ -1046,6 +1102,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .tray {
   position: sticky;
   bottom: 0;
+  left: 0;
   z-index: 3;
   display: grid;
   gap: 0.5rem;

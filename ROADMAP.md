@@ -51,6 +51,7 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
 ## Backlog (independent, any time)
 
 * [#1 Tablet-optimized touch targets](https://github.com/TommyAmberson/qzr-sheet/issues/1)
+* [#147 Phone and tablet use across the rest of the app](https://github.com/TommyAmberson/qzr-sheet/issues/147)
 * [#2 Custom question type dropdown](https://github.com/TommyAmberson/qzr-sheet/issues/2)
 * [#3 Print-friendly layout](https://github.com/TommyAmberson/qzr-sheet/issues/3)
 * [#4 Code signing for desktop installers](https://github.com/TommyAmberson/qzr-sheet/issues/4)
