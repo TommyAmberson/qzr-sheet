@@ -343,17 +343,24 @@ describe('publishing and history (FR-049, FR-049a)', () => {
     doc.quizzes[1]!.cell = doc.quizzes[0]!.cell
     const w = await openBuilder()
     expect(w.find('.unpublished').exists()).toBe(true)
+    expect(w.find('.audience').text()).toBe('The meet sees no schedule yet')
 
     await button(w, 'Publish')!.trigger('click')
     await flushPromises()
     expect(w.text()).toMatch(/The schedule has \d+ problems?/)
     expect(server.versions).toHaveLength(0)
 
-    await button(w, 'Publish anyway')!.trigger('click')
+    await w
+      .findAll('button')
+      .find((b) => /^Publish with \d+ problems?$/.test(b.text()))!
+      .trigger('click')
     await flushPromises()
     expect(server.versions).toHaveLength(1)
     expect(w.text()).toMatch(/Published version 1/)
     expect(w.find('.unpublished').exists()).toBe(false)
+    expect(w.find('.audience').text()).toBe(
+      'The meet sees version 1, in letters until the meet is live',
+    )
     w.unmount()
   })
 

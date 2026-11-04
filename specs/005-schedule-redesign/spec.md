@@ -804,7 +804,9 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   publishing, the admin MUST be shown any hard conflicts and warnings. With hard conflicts, the
   schedule MUST publish after the admin confirms in the page; with only warnings, it publishes
   without asking. Publishing MUST never be refused, so the schedule can show what actually happens
-  on the day.
+  on the day, and a schedule still being worked on can be published as it is. Beside Publish the
+  admin MUST see which version the meet sees and how (in letters until the meet is live, then with
+  team names; FR-052).
 * **FR-048a**: Edits to a linked schedule MUST save to the meet's draft automatically, shortly after
   each change, with the save state shown ("Saving…", "Saved", "Not saved: offline"). Every edit MUST
   also be kept in the browser at once, so closing the tab or losing the connection loses nothing;

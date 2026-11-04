@@ -373,6 +373,16 @@ const publishing = ref(false)
 const hardConflicts = shallowRef<Conflict[] | null>(null)
 const publishNote = ref('')
 
+/** Who sees the published version, and how, by the meet's phase (FR-052) */
+const audience = computed(() => {
+  if (version.value === null) return 'The meet sees no schedule yet'
+  const names = meet.value?.phase === 'live' || meet.value?.phase === 'done'
+  return `The meet sees version ${version.value}, ${names ? 'with team names' : 'in letters until the meet is live'}`
+})
+
+/** The problems listed before publishing past them; the problem count lists them all */
+const SHOWN_PROBLEMS = 10
+
 async function publish(confirmConflicts = false) {
   publishing.value = true
   publishNote.value = ''
@@ -560,7 +570,14 @@ async function unlink() {
       <template #bar>
         <span class="save-state" role="status">{{ saveText }}</span>
         <span v-if="unpublished" class="unpublished">Unpublished changes</span>
-        <button type="button" class="primary" :disabled="publishing" @click="publish()">
+        <span class="audience">{{ audience }}</span>
+        <button
+          type="button"
+          class="primary"
+          :disabled="publishing"
+          title="Everyone with access to the meet, and the scoresheet's schedule picker, will see this version"
+          @click="publish()"
+        >
           Publish
         </button>
         <button type="button" @click="history ? (history = null) : showHistory()">History</button>
@@ -578,13 +595,22 @@ async function unlink() {
         <div v-if="hardConflicts" class="message" role="alert">
           <p>
             The schedule has {{ hardConflicts.length }}
-            {{ hardConflicts.length === 1 ? 'problem' : 'problems' }}:
+            {{ hardConflicts.length === 1 ? 'problem' : 'problems' }}. It can be published as it is,
+            while it's still being worked on.
           </p>
-          <ul>
-            <li v-for="(c, i) in hardConflicts" :key="i">{{ c.rule }}: {{ c.reason }}</li>
-          </ul>
-          <button type="button" @click="publish(true)">Publish anyway</button>
+          <button type="button" @click="publish(true)">
+            Publish with {{ hardConflicts.length }}
+            {{ hardConflicts.length === 1 ? 'problem' : 'problems' }}
+          </button>
           <button type="button" @click="hardConflicts = null">Cancel</button>
+          <ul>
+            <li v-for="(c, i) in hardConflicts.slice(0, SHOWN_PROBLEMS)" :key="i">
+              {{ c.rule }}: {{ c.reason }}
+            </li>
+          </ul>
+          <p v-if="hardConflicts.length > SHOWN_PROBLEMS" class="hint">
+            And {{ hardConflicts.length - SHOWN_PROBLEMS }} more, listed under the problem count.
+          </p>
         </div>
         <p v-if="publishNote" class="message" role="status">{{ publishNote }}</p>
         <div v-if="confirmingUnlink" class="message" role="alert">
@@ -627,7 +653,8 @@ async function unlink() {
 }
 
 .hint,
-.save-state {
+.save-state,
+.audience {
   font-size: 0.85rem;
   color: var(--color-text-muted, #666);
 }
