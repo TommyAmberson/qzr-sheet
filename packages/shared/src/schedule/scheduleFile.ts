@@ -87,8 +87,6 @@ const SettingsSchema = Type.Object({
   prelimDraw: Type.Union([Type.Literal('ruleBook'), Type.Literal('noRematches')]),
   totallingMinutes: Type.Integer({ minimum: 0 }),
   finals: Type.Object({
-    /** Lanes as `<division id>:<lane index>`, earliest first; empty means the default order */
-    order: Type.Array(Type.String()),
     spacingMinutes: Type.Integer({ minimum: 0 }),
     /** How many Finals run at once */
     sideBySide: Type.Integer({ minimum: 1 }),
@@ -276,7 +274,7 @@ export function newScheduleDocument(name: string): ScheduleDocument {
     quizzesPerTeam: 3,
     prelimDraw: 'ruleBook',
     totallingMinutes: 15,
-    finals: { order: [], spacingMinutes: 30, sideBySide: 1 },
+    finals: { spacingMinutes: 30, sideBySide: 1 },
     autoApply: true,
     divisions: [],
   }

@@ -46,7 +46,7 @@ export function doc(over: Partial<ScheduleDocument> = {}, teams = 6): ScheduleDo
     quizzesPerTeam: 3,
     prelimDraw: 'ruleBook',
     totallingMinutes: 15,
-    finals: { order: [], spacingMinutes: 25, sideBySide: 1 },
+    finals: { spacingMinutes: 25, sideBySide: 1 },
     autoApply: true,
     divisions: [
       {

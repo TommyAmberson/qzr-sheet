@@ -111,20 +111,15 @@ function elimRounds(
 }
 
 /**
- * The order Finals run in: the director's, or by default the highest division first, each
- * division's consolation Finals just before its own (FR-019a)
+ * The order Finals run in: the highest division first, each division's consolation Finals just
+ * before its own (FR-019a); the director changes it on the grid
  */
 function finalsOrder(doc: ScheduleDocument, finals: ScheduleQuiz[]): ScheduleQuiz[] {
-  const key = (q: ScheduleQuiz) => `${q.division}:${q.lane ?? 0}`
-  const chosen = doc.settings.finals.order
   const divisionIndex = (q: ScheduleQuiz) =>
     doc.settings.divisions.findIndex((d) => d.id === q.division)
-  return [...finals].sort((a, b) => {
-    const ia = chosen.indexOf(key(a))
-    const ib = chosen.indexOf(key(b))
-    if (ia >= 0 || ib >= 0) return (ia < 0 ? Infinity : ia) - (ib < 0 ? Infinity : ib)
-    return divisionIndex(b) - divisionIndex(a) || (b.lane ?? 0) - (a.lane ?? 0)
-  })
+  return [...finals].sort(
+    (a, b) => divisionIndex(b) - divisionIndex(a) || (b.lane ?? 0) - (a.lane ?? 0),
+  )
 }
 
 const isFinals = (q: ScheduleQuiz) => q.deciding === true && q.label.endsWith('Finals')

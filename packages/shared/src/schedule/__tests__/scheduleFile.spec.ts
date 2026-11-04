@@ -17,7 +17,7 @@ function sample(): ScheduleDocument {
     quizzesPerTeam: 3,
     prelimDraw: 'ruleBook',
     totallingMinutes: 15,
-    finals: { order: [], spacingMinutes: 25, sideBySide: 1 },
+    finals: { spacingMinutes: 25, sideBySide: 1 },
     autoApply: true,
     divisions: [
       {
