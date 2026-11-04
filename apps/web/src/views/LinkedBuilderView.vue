@@ -249,8 +249,11 @@ let retry: ReturnType<typeof setInterval> | undefined
 /** Changes made while a save was on its way, so that save doesn't mark them sent */
 let changedSinceSend = false
 let sending: Promise<void> | null = null
-/** While a publish is on its way, saves wait for it, so they don't race it for the next revision */
-let publishInFlight = false
+/**
+ * While a publish or a restore is on its way, saves wait for it, so they don't race it for the
+ * next revision
+ */
+let writeInFlight = false
 /** The next save replaces the server's draft whichever it is: the director chose to keep their own */
 let replaceNext = false
 
@@ -267,7 +270,7 @@ function onChanged(doc: ScheduleDocument) {
 
 /** Send the kept draft if it has unsent changes; resolves when this and any queued save are done */
 async function send(): Promise<void> {
-  if (publishInFlight) return
+  if (writeInFlight) return
   if (sending) {
     await sending
     if (readLink(meetId.value)?.unsent && !conflict.value) return send()
@@ -403,10 +406,10 @@ async function publish(confirmConflicts = false) {
     const sent = current.value!
     let res
     try {
-      publishInFlight = true
+      writeInFlight = true
       res = await publishSchedule(meetId.value, link.baseRevision, confirmConflicts)
     } finally {
-      publishInFlight = false
+      writeInFlight = false
       // Edits made while it was on its way waited for it, whatever its answer
       if (readLink(meetId.value)?.unsent) setTimeout(() => void send())
     }
@@ -472,13 +475,18 @@ async function restore(v: number) {
     return
   }
   try {
+    writeInFlight = true
     // The version first, so a failed fetch leaves nothing restored on the server
     const { document } = await getScheduleVersion(meetId.value, v)
     const saved = await restoreScheduleVersion(meetId.value, v, link.baseRevision)
     viewing.value = null
+    // The restored version replaces the draft, edits made while it was on its way included
     openFromServer(document, saved.draftRevision)
   } catch (e) {
     publishNote.value = `Not restored: ${e instanceof Error ? e.message : String(e)}`
+  } finally {
+    writeInFlight = false
+    if (readLink(meetId.value)?.unsent) setTimeout(() => void send())
   }
 }
 
