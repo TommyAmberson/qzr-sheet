@@ -155,7 +155,14 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', 'apps/scoresheet/src-tauri/**', 'scripts/**'],
+    // .wrangler holds the API dev server's build output, gitignored like dist
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'apps/scoresheet/src-tauri/**',
+      'scripts/**',
+      '**/.wrangler/**',
+    ],
   },
   prettier,
 )
