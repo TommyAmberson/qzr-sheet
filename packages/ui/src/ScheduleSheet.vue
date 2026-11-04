@@ -126,6 +126,7 @@ const divisionClass = computed(() => {
             :key="c.kind === 'event' ? `${c.event.id}:${ci}` : c.room"
             :colspan="c.kind === 'event' ? c.rooms.length : undefined"
             class="cell"
+            :class="{ 'event-cell': c.kind === 'event' }"
             :data-cell="`${r.row.id}|${c.kind === 'event' ? c.rooms[0] : c.room}`"
           >
             <!-- A quiz an event clashes with still shows, marked, so it can be moved (H-3) -->
@@ -347,7 +348,8 @@ const divisionClass = computed(() => {
   font-style: italic;
 }
 
-.event td:not(.time) {
+/* An event's cell, in a short row or beside quizzes, striped as the paper schedules shade them */
+.sheet .event-cell {
   background: repeating-linear-gradient(
     -45deg,
     transparent 0 7px,
@@ -557,10 +559,11 @@ const divisionClass = computed(() => {
   display: grid;
   place-items: center;
   min-height: 5.2rem;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--color-meta-accent, #c9c0a8) 18%, transparent);
-  color: var(--color-text-muted, #57534e);
-  font-style: italic;
+}
+
+/* A short row's empty rooms stay as short as its events */
+.event .empty-cell {
+  min-height: 1.4em;
 }
 
 /*

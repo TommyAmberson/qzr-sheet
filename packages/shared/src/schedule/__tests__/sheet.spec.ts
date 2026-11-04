@@ -59,9 +59,21 @@ describe('the printed sheet', () => {
     // Adjacent rooms are one cell; rooms apart are two
     expect(shape(0)).toEqual(['q1', 'cmx2', '-'])
     expect(shape(1)).toEqual(['teax1', '-', 'teax1', '-'])
-    // A row with every room taken by events and no quizzes is short
     expect(shape(2)).toEqual(['allx4'])
-    expect(rows.map((r) => r.kind === 'slot' && r.short).slice(0, 3)).toEqual([false, false, true])
+    // A row with events and no quizzes is short, empty rooms and all
+    expect(rows.map((r) => r.kind === 'slot' && r.short).slice(0, 3)).toEqual([false, true, true])
+  })
+
+  it('draws neighbouring events of the same name as one cell', () => {
+    const d = doc()
+    d.rooms.push({ id: 'r3', name: 'Room 3' })
+    d.events.push(
+      { id: 'a', label: 'Breakfast', slot: 's1', rooms: ['r1'], pinned: true },
+      { id: 'b', label: 'Breakfast', slot: 's1', rooms: ['r2', 'r3'], pinned: true },
+    )
+    const row = sheetRows(d).find((r) => r.kind === 'slot')!
+    if (row.kind !== 'slot') throw new Error('not a slot')
+    expect(row.cells.map((c) => (c.kind === 'event' ? c.rooms.length : 0))).toEqual([3])
   })
 
   it('lists the divisions using a room, Finals aside (FR-019)', () => {

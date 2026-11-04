@@ -58,13 +58,14 @@ export type SheetRow =
       row: Extract<FrameRow, { kind: 'slot' }>
       /** Its cells in room order, an event's adjacent rooms merged into one */
       cells: SheetCell[]
-      /** No quizzes and every room taken by events: drawn as a short event row (FR-017) */
+      /** Events and no quizzes: drawn as a short event row (FR-017) */
       short: boolean
     }
 
 /**
  * The grid as rows (FR-017). A slot's quiz takes its room even under an event, where it's marked
- * (H-3); an event's rooms next to each other are one cell, and rooms apart are separate cells.
+ * (H-3); an event's rooms next to each other are one cell, as are neighbours with the same name,
+ * and rooms apart are separate cells.
  */
 export function sheetRows(doc: ScheduleDocument): SheetRow[] {
   const byCell = new Map(
@@ -86,10 +87,11 @@ export function sheetRows(doc: ScheduleDocument): SheetRow[] {
       const last = cells[cells.length - 1]
       if (quiz) cells.push({ kind: 'quiz', room, quiz })
       else if (!event) cells.push({ kind: 'empty', room })
-      else if (last?.kind === 'event' && last.event.id === event.id) last.rooms.push(room)
+      // The same event, or another of the same name, carries on across the next room
+      else if (last?.kind === 'event' && last.event.label === event.label) last.rooms.push(room)
       else cells.push({ kind: 'event', rooms: [room], event })
     }
-    const short = cells.length > 0 && cells.every((c) => c.kind === 'event')
+    const short = cells.some((c) => c.kind === 'event') && cells.every((c) => c.kind !== 'quiz')
     return { kind: 'slot', row, cells, short }
   })
 }

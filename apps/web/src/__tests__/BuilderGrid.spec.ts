@@ -232,14 +232,19 @@ describe('rows and rooms', () => {
     popupButton('Insert event after').click()
     await w.vm.$nextTick()
     // A new event takes every room of a row of its own, drawn short; taking one room fewer
-    // leaves a cell for the event and an empty one
+    // leaves an empty room in that row, which stays short
     const added = w.findAll('.event-name').find((e) => e.text() === 'Event')!
     await added.trigger('click')
     const inRoom1 = document.querySelector<HTMLInputElement>('[aria-label="In Room 1"]')!
     inRoom1.checked = false
     inRoom1.dispatchEvent(new Event('change'))
     await w.vm.$nextTick()
-    expect(w.findAll('.room-event').some((e) => e.text() === 'Event')).toBe(true)
+    const row = w
+      .findAll('.event-name')
+      .find((e) => e.text() === 'Event')!
+      .element.closest('tr')!
+    expect(row.classList.contains('event')).toBe(true)
+    expect(row.querySelector('.empty-cell')).not.toBeNull()
     popupButton('×').click()
     await w.vm.$nextTick()
 

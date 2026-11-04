@@ -113,11 +113,49 @@ function event(d: ScheduleDocument, id: string): ScheduleEvent {
   return e
 }
 
+/**
+ * Events of the same name in one slot are one event (FR-017): the first takes the others' rooms,
+ * or all rooms once it has every one, and the others go
+ */
+function mergeSameNamed(d: ScheduleDocument, slot: string | null) {
+  if (!slot) return
+  const all = d.rooms.map((r) => r.id)
+  const byLabel = new Map<string, ScheduleEvent>()
+  d.events = d.events.filter((e) => {
+    if (e.slot !== slot) return true
+    const first = byLabel.get(e.label)
+    if (!first) {
+      byLabel.set(e.label, e)
+      return true
+    }
+    if (first.rooms !== 'all') {
+      const rooms = e.rooms === 'all' ? all : [...new Set([...first.rooms, ...e.rooms])]
+      first.rooms = all.every((r) => rooms.includes(r)) ? 'all' : rooms
+    }
+    first.pinned = true
+    return false
+  })
+}
+
+/** The event a new one became: itself, or the one of its name it joined in its slot */
+function joined(d: ScheduleDocument, added: ScheduleEvent): string {
+  const kept = d.events.find((e) => e.id === added.id)
+  if (kept) return kept.id
+  return d.events.find((e) => e.slot === added.slot && e.label === added.label)!.id
+}
+
 /** Add an event in one room's cell, pinned */
 export function addEvent(d: ScheduleDocument, cell: { slot: string; room: string }): string {
-  const id = crypto.randomUUID()
-  d.events.push({ id, label: 'Event', slot: cell.slot, rooms: [cell.room], pinned: true })
-  return id
+  const added: ScheduleEvent = {
+    id: crypto.randomUUID(),
+    label: 'Event',
+    slot: cell.slot,
+    rooms: [cell.room],
+    pinned: true,
+  }
+  d.events.push(added)
+  mergeSameNamed(d, cell.slot)
+  return joined(d, added)
 }
 
 /**
@@ -138,6 +176,7 @@ export function moveEvent(d: ScheduleDocument, id: string, cell: Cell) {
   const by = order.indexOf(cell.room) - Math.min(...at)
   const moved = [...new Set(at.map((i) => order[i + by]).filter((r): r is string => !!r))]
   e.rooms = moved.length > 0 ? moved : [cell.room]
+  mergeSameNamed(d, e.slot)
 }
 
 export function editEvent(
@@ -145,7 +184,9 @@ export function editEvent(
   id: string,
   patch: Partial<Pick<ScheduleEvent, 'label' | 'rooms'>>,
 ) {
-  Object.assign(event(d, id), patch, { pinned: true })
+  const e = event(d, id)
+  Object.assign(e, patch, { pinned: true })
+  mergeSameNamed(d, e.slot)
 }
 
 export function setEventPinned(d: ScheduleDocument, id: string, pinned: boolean) {
@@ -159,16 +200,17 @@ export function deleteEvent(d: ScheduleDocument, id: string) {
 /** A quiz turned into an event in its cell, named for the quiz */
 export function quizToEvent(d: ScheduleDocument, id: string): string {
   const q = quiz(d, id)
-  const eventId = crypto.randomUUID()
-  d.events.push({
-    id: eventId,
+  const added: ScheduleEvent = {
+    id: crypto.randomUUID(),
     label: 'Event',
     slot: q.cell?.slot ?? null,
     rooms: q.cell ? [q.cell.room] : [],
     pinned: true,
-  })
+  }
+  d.events.push(added)
   deleteQuiz(d, id)
-  return eventId
+  mergeSameNamed(d, added.slot)
+  return joined(d, added)
 }
 
 /** An event turned into a quiz in the first room it takes */
