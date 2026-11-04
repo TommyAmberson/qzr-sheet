@@ -56,7 +56,8 @@ export function describeUnapplied(doc: ScheduleDocument): string[] {
         `Finals: ${was.finals.sideBySide} to ${now.finals.sideBySide} side by side, ${was.finals.spacingMinutes} to ${now.finals.spacingMinutes} minutes apart`,
       )
     } else if (u.key === 'divisions') {
-      lines.push(`Divisions: ${was.divisions.length} to ${now.divisions.length}`)
+      const names = (s: ScheduleSettings) => s.divisions.map((d) => d.name).join(', ') || 'none'
+      lines.push(`Divisions: ${names(was)} to ${names(now)}`)
     } else if (division && field === 'name') {
       lines.push(`${before?.name ?? division.name} renamed ${division.name}`)
     } else if (division && field === 'teams') {

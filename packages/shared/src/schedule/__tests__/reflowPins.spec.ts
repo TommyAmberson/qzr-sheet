@@ -102,6 +102,19 @@ describe('Auto-apply off (FR-012a)', () => {
     expect(list).toContainEqual({ section: 'teams', key: 'd2.teams', applied: '17' })
   })
 
+  it('lists a division swapped for another, though the count is the same', () => {
+    const doc = meet([6, 17])
+    doc.settings.divisions = [
+      doc.settings.divisions[0]!,
+      { ...doc.settings.divisions[1]!, id: 'd3', name: 'Div 3' },
+    ]
+    expect(unappliedSettings(doc)).toContainEqual({
+      section: 'teams',
+      key: 'divisions',
+      applied: '2',
+    })
+  })
+
   it('a setting changed back to its applied value is no longer unapplied', () => {
     const doc = meet([6])
     doc.settings.slotMinutes = 20

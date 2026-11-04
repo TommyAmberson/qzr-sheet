@@ -527,7 +527,10 @@ export function unappliedSettings(doc: ScheduleDocument): UnappliedSetting[] {
     if (show(now[key]) !== show(was[key])) list.push({ section, key, applied: show(was[key]) })
   }
   const before = new Map(was.divisions.map((d) => [d.id, d]))
-  if (now.divisions.length !== was.divisions.length) {
+  // The divisions themselves, not only how many: one removed and another added keeps the count
+  const sameDivisions =
+    now.divisions.length === was.divisions.length && now.divisions.every((d) => before.has(d.id))
+  if (!sameDivisions) {
     list.push({ section: 'teams', key: 'divisions', applied: String(was.divisions.length) })
   }
   for (const d of now.divisions) {
