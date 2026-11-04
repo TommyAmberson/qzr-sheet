@@ -33,9 +33,10 @@ const lastRoom = (w: VueWrapper) => {
   const rooms = w.findAll('.room-name')
   return rooms[rooms.length - 1]!
 }
+/** A button in the open popup, by its text or, for a short one, its accessible name */
 const popupButton = (text: string) =>
   [...document.querySelectorAll<HTMLButtonElement>('.popover button')].find(
-    (b) => b.textContent?.trim() === text,
+    (b) => b.textContent?.trim() === text || b.getAttribute('aria-label') === text,
   )!
 
 describe('the quiz menu (FR-005c)', () => {
@@ -235,9 +236,7 @@ describe('rows and rooms', () => {
     // leaves an empty room in that row, which stays short
     const added = w.findAll('.event-name').find((e) => e.text() === 'Event')!
     await added.trigger('click')
-    const inRoom1 = document.querySelector<HTMLInputElement>('[aria-label="In Room 1"]')!
-    inRoom1.checked = false
-    inRoom1.dispatchEvent(new Event('change'))
+    popupButton('In Room 1').click()
     await w.vm.$nextTick()
     const row = w
       .findAll('.event-name')

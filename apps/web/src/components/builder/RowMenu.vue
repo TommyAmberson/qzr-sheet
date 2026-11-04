@@ -42,8 +42,13 @@ function pinRow(pinned: boolean) {
 }
 const title = computed(() => {
   const r = row.value
-  if (r.kind === 'slot') return `${r.use === 'event' ? 'Row' : 'Slot'} at ${formatClock(r.at)}`
+  if (r.kind === 'slot') return formatClock(r.at)
   return r.kind === 'note' ? 'Note' : r.label
+})
+const tag = computed(() => {
+  const r = row.value
+  if (r.kind === 'slot') return r.use === 'event' ? 'Event row' : 'Slot'
+  return r.kind === 'day' ? 'Day' : ''
 })
 
 const toClock = (m: number) =>
@@ -87,9 +92,9 @@ function insert(kind: 'slot' | 'event' | 'note') {
 </script>
 
 <template>
-  <BuilderPopover :anchor="anchor" :title="title" @close="emit('close')">
+  <BuilderPopover :anchor="anchor" :title="title" :tag="tag" @close="emit('close')">
     <template v-if="row.kind === 'slot'">
-      <label class="field">
+      <label class="row">
         Starts
         <input
           type="time"
@@ -98,7 +103,7 @@ function insert(kind: 'slot' | 'event' | 'note') {
           @change="patch({ at: fromClock(($event.target as HTMLInputElement).value) })"
         />
       </label>
-      <label class="field">
+      <label class="row">
         Minutes
         <NumberInput
           min="1"
@@ -115,7 +120,7 @@ function insert(kind: 'slot' | 'event' | 'note') {
         />
       </label>
     </template>
-    <label v-if="row.kind === 'day'" class="field">
+    <label v-if="row.kind === 'day'" class="row">
       Name
       <input
         :value="row.label"
@@ -123,7 +128,7 @@ function insert(kind: 'slot' | 'event' | 'note') {
         @change="patch({ label: ($event.target as HTMLInputElement).value })"
       />
     </label>
-    <label v-if="row.kind === 'note'" class="field">
+    <label v-if="row.kind === 'note'" class="row">
       Text
       <input
         :value="row.text"
@@ -139,22 +144,33 @@ function insert(kind: 'slot' | 'event' | 'note') {
         Unpin row ({{ pinnedCount }})
       </button>
     </div>
-    <div class="actions">
-      <button type="button" @click="insert('slot')">Insert slot after</button>
-      <button type="button" @click="insert('event')">Insert event after</button>
-      <button type="button" @click="insert('note')">Insert note after</button>
-      <template v-if="row.kind === 'day'">
-        <button type="button" @click="(emit('change', (d) => insertDay(d, rowId)), emit('close'))">
-          Insert day after
+    <div class="group">
+      <h4 class="card-title">{{ row.kind === 'day' ? 'Insert first' : 'Insert after' }}</h4>
+      <div class="actions">
+        <button type="button" aria-label="Insert slot after" @click="insert('slot')">Slot</button>
+        <button type="button" aria-label="Insert event after" @click="insert('event')">
+          Event
         </button>
+        <button type="button" aria-label="Insert note after" @click="insert('note')">Note</button>
         <button
+          v-if="row.kind === 'day'"
           type="button"
-          class="danger"
-          @click="(emit('change', (d) => deleteDay(d, rowId)), emit('close'))"
+          aria-label="Insert day after"
+          @click="(emit('change', (d) => insertDay(d, rowId)), emit('close'))"
         >
-          Delete day
+          Day after
         </button>
-      </template>
+      </div>
+    </div>
+    <div class="foot">
+      <button
+        v-if="row.kind === 'day'"
+        type="button"
+        class="danger"
+        @click="(emit('change', (d) => deleteDay(d, rowId)), emit('close'))"
+      >
+        Delete day
+      </button>
       <button
         v-else
         type="button"
@@ -166,22 +182,3 @@ function insert(kind: 'slot' | 'event' | 'note') {
     </div>
   </BuilderPopover>
 </template>
-
-<style scoped>
-.field {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-
-.danger {
-  color: var(--color-danger, #c33);
-}
-</style>

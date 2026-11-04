@@ -102,6 +102,11 @@ watch(
 )
 
 const division = computed(() => props.doc.settings.divisions.find((d) => d.id === q.value.division))
+/** The division's colour, as the grid ticks its quizzes */
+const colour = computed(() => {
+  const i = props.doc.settings.divisions.findIndex((d) => d.id === q.value.division)
+  return i < 0 ? undefined : `var(--b-d${(i % 4) + 1})`
+})
 const teams = computed(() => division.value?.teams ?? 0)
 const sameDivision = computed(() =>
   props.doc.quizzes.filter((x) => x.division === q.value.division && x.id !== props.quizId),
@@ -262,13 +267,22 @@ function rename(event: Event) {
 
 <template>
   <!-- Gone once turned into an event, until its menu opens in this one's place -->
-  <BuilderPopover v-if="exists" :anchor="anchor" :title="q.label" @close="emit('close')">
+  <BuilderPopover
+    v-if="exists"
+    :anchor="anchor"
+    :title="q.label"
+    :tag="division?.name ?? 'Quiz'"
+    :colour="colour"
+    @close="emit('close')"
+  >
     <template v-if="editing === null">
-      <label class="field">
+      <label class="row">
         Name
         <input :value="q.label" aria-label="Quiz name" @change="rename" />
       </label>
-      <div class="seats">
+      <div class="group">
+        <h4 class="card-title">Seats</h4>
+        <!-- Each seat as the grid draws it: its bench colour, its source, then its editor -->
         <button
           v-for="(s, i) in q.seats"
           :key="i"
@@ -277,7 +291,11 @@ function rename(event: Event) {
           :aria-label="`Seat ${i + 1}`"
           @click="openSeat(i)"
         >
-          {{ seatText(doc, q, s, 'letters') }} ›
+          <span class="bench" :class="`bench-${i}`" />
+          <span class="src" :class="{ choose: s.kind === 'empty' }">{{
+            seatText(doc, q, s, view ?? 'letters')
+          }}</span>
+          <span class="go">›</span>
         </button>
       </div>
       <div class="actions">
@@ -289,6 +307,8 @@ function rename(event: Event) {
           {{ q.pinned ? 'Unpin' : 'Pin' }}
         </button>
         <button type="button" @click="toEvent">Turn into event</button>
+      </div>
+      <div class="foot">
         <button
           type="button"
           class="danger"
@@ -302,7 +322,7 @@ function rename(event: Event) {
     <div v-else class="seat-editor">
       <div class="seat-head">
         <button type="button" class="link" @click="editing = null">‹ Back</button>
-        <span>Seat {{ editing + 1 }}</span>
+        <h4 class="card-title">Seat {{ editing + 1 }}</h4>
         <span class="now">Now: {{ seatText(doc, q, editingSeat!, view ?? 'letters') }}</span>
       </div>
       <div class="seg" role="tablist" aria-label="Seat comes from">
@@ -393,7 +413,7 @@ function rename(event: Event) {
         </details>
       </div>
 
-      <div class="actions">
+      <div class="foot">
         <button type="button" @click="setTo({ kind: 'empty' })">Clear seat</button>
         <button type="button" @click="emit('swapSeat', quizId, editing!)">
           Swap with another seat
@@ -404,31 +424,54 @@ function rename(event: Event) {
 </template>
 
 <style scoped>
-.field {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.seats,
 .seat-editor {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.45rem;
 }
 
-.seat-row {
-  text-align: left;
-  font: inherit;
-  background: none;
-  border: 1px solid var(--color-border, #ddd);
-  border-radius: 6px;
+/* A seat as the grid draws it, a row to open */
+.popover .seat-row {
+  display: grid;
+  grid-template-columns: 3px 1fr auto;
+  justify-content: stretch;
+  gap: 0.5rem;
   padding: 0.25rem 0.5rem;
-  cursor: pointer;
+  border-color: var(--color-border-alt);
+  background: var(--color-bg);
+  text-align: left;
 }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
+.seat-row .bench {
+  align-self: stretch;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 25%, transparent);
+}
+
+.bench-0 {
+  background: #e02424;
+}
+
+.bench-1 {
+  background: #fff;
+}
+
+.bench-2 {
+  background: #1d4ed8;
+}
+
+.seat-row .src {
+  color: var(--color-heading);
+  font-family: var(--b-mono);
+}
+
+.seat-row .src.choose {
+  color: var(--color-accent);
+  font-family: inherit;
+  font-style: italic;
+}
+
+.seat-row .go {
+  color: var(--color-text-faint);
 }
 
 .seat-head {
@@ -443,29 +486,24 @@ function rename(event: Event) {
   font-size: 0.8rem;
 }
 
-.seg {
+.seat-editor .seg {
   display: flex;
-  border: 1px solid var(--color-meta-accent);
-  border-radius: 5px;
-  overflow: hidden;
 }
 
 .seat-editor .seg button {
   flex: 1;
-  padding: 0.25rem 0.3rem;
-  border: 0;
-  border-radius: 0;
-  background: none;
 }
 
+/* The tabs mark their choice as the settings' segmented toggles do */
 .seat-editor .seg button[aria-selected='true'] {
-  background: var(--color-meta-accent);
+  border-color: var(--color-meta-accent);
+  background: var(--color-bg);
   color: var(--color-heading);
 }
 
 .choices {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(3.4rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(4.4rem, 1fr));
   gap: 0.25rem;
   max-height: 14rem;
   overflow-y: auto;
@@ -546,9 +584,5 @@ function rename(event: Event) {
 
 .seat-editor h4 {
   margin: 0.25rem 0 0;
-}
-
-.danger {
-  color: var(--color-danger, #c33);
 }
 </style>

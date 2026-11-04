@@ -5,7 +5,14 @@ import { onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
  * A popup beside the thing clicked on the grid. It closes with its ×, Escape, or a click anywhere outside
  * a popup, and never opens another in the same click (FR-005c).
  */
-const props = defineProps<{ anchor: HTMLElement; title: string }>()
+const props = defineProps<{
+  anchor: HTMLElement
+  title: string
+  /** What it's the menu of, beside the title: Slot, Room, Event, or a quiz's division */
+  tag?: string
+  /** A division's colour, ticked before the tag */
+  colour?: string
+}>()
 const emit = defineEmits<{ close: [] }>()
 
 const rect = props.anchor.getBoundingClientRect()
@@ -47,9 +54,10 @@ onBeforeUnmount(() => {
 <template>
   <div ref="box" class="popover" role="dialog" :aria-label="title" :style="style">
     <header>
-      <slot name="head"
-        ><strong>{{ title }}</strong></slot
-      >
+      <strong class="title">{{ title }}</strong>
+      <span v-if="tag" class="tag" :style="colour ? { '--qc': colour } : undefined">
+        <span v-if="colour" class="tick" />{{ tag }}
+      </span>
       <button type="button" class="close" aria-label="Close" @click="emit('close')">×</button>
     </header>
     <slot />
@@ -57,32 +65,57 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* A popup drawn like the settings cards: a raised panel with a gold edge */
 .popover {
   position: fixed;
   z-index: 50;
-  min-width: 16rem;
-  max-width: min(22rem, calc(100vw - 16px));
-  background: var(--color-bg, #fff);
-  border: 1px solid var(--color-border, #ddd);
-  border-radius: 10px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  padding: 0.75rem;
   display: grid;
   gap: 0.5rem;
+  min-width: 17rem;
+  max-width: min(22rem, calc(100vw - 16px));
+  padding: 0.6rem 0.75rem 0.7rem;
+  border: 1px solid var(--color-meta-accent);
+  border-top: 3px solid var(--color-meta-accent);
+  border-radius: 8px;
+  background: var(--color-bg-raised, var(--color-bg));
+  box-shadow: var(--b-shadow-lift);
 }
 
 header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--color-border-alt);
 }
 
-.close {
-  font: inherit;
-  font-size: 1.2rem;
+.title {
+  color: var(--color-heading);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--color-text-faint);
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tick {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--qc);
+}
+
+.popover .close {
+  margin-left: auto;
+  padding: 0 0.35rem;
+  border: 0;
   background: none;
-  border: none;
-  cursor: pointer;
+  font-size: 1.1rem;
 }
 </style>

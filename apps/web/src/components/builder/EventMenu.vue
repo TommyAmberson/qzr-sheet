@@ -52,32 +52,42 @@ function toQuiz() {
 
 <template>
   <!-- Gone once turned into a quiz, until its menu opens in this one's place -->
-  <BuilderPopover v-if="exists" :anchor="anchor" :title="event.label" @close="emit('close')">
-    <label class="field">
+  <BuilderPopover
+    v-if="exists"
+    :anchor="anchor"
+    :title="event.label"
+    tag="Event"
+    @close="emit('close')"
+  >
+    <label class="row">
       Name
       <input :value="event.label" aria-label="Event name" @change="rename" />
     </label>
-    <fieldset class="rooms">
-      <legend>Rooms</legend>
-      <label class="check all">
-        <input
-          type="checkbox"
-          :checked="event.rooms === 'all'"
+    <div class="group">
+      <h4 class="card-title">Rooms</h4>
+      <div class="rooms">
+        <button
+          type="button"
+          class="chip"
+          :aria-pressed="event.rooms === 'all'"
           aria-label="All rooms"
-          @change="setAll(($event.target as HTMLInputElement).checked)"
-        />
-        All rooms
-      </label>
-      <label v-for="r in doc.rooms" :key="r.id" class="check">
-        <input
-          type="checkbox"
-          :checked="takes(r.id)"
+          @click="setAll(event.rooms !== 'all')"
+        >
+          All
+        </button>
+        <button
+          v-for="r in doc.rooms"
+          :key="r.id"
+          type="button"
+          class="chip"
+          :aria-pressed="takes(r.id)"
           :aria-label="`In ${r.name}`"
-          @change="toggle(r.id, ($event.target as HTMLInputElement).checked)"
-        />
-        {{ r.name }}
-      </label>
-    </fieldset>
+          @click="toggle(r.id, !takes(r.id))"
+        >
+          {{ r.name }}
+        </button>
+      </div>
+    </div>
     <div class="actions">
       <button type="button" @click="emit('move', eventId)">Move</button>
       <button
@@ -94,6 +104,8 @@ function toQuiz() {
         {{ event.pinned ? 'Unpin' : 'Pin' }}
       </button>
       <button type="button" @click="toQuiz">Turn into quiz</button>
+    </div>
+    <div class="foot">
       <button
         type="button"
         class="danger"
@@ -106,46 +118,21 @@ function toQuiz() {
 </template>
 
 <style scoped>
-.field {
-  display: grid;
-  gap: 0.25rem;
-}
-
 .rooms {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  margin: 0;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--color-border-alt);
-  border-radius: 6px;
-}
-
-.rooms legend {
-  padding: 0 0.25rem;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-}
-
-.check {
-  display: flex;
-  align-items: center;
   gap: 0.3rem;
-  font-size: 0.85rem;
 }
 
-.check.all {
-  flex-basis: 100%;
-  font-weight: 600;
+/* A room the event takes is marked as a segmented toggle's choice is */
+.popover .chip {
+  border-color: var(--color-border-alt);
+  background: transparent;
 }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-
-.danger {
-  color: var(--color-danger, #c33);
+.popover .chip[aria-pressed='true'] {
+  border-color: var(--color-meta-accent);
+  background: var(--color-bg);
+  color: var(--color-heading);
 }
 </style>

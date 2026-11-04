@@ -294,3 +294,42 @@
   background: var(--color-bg);
   color: var(--color-heading);
 }
+
+/* ---- Popups on the grid: one pattern for every menu ---- */
+
+/* A label on the left and its control on the right */
+:is(.builder, .linked) .popover .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+:is(.builder, .linked) .popover .row > input:not([type='checkbox'], [type='time']) {
+  width: 11rem;
+}
+
+/* A labelled part of a menu, titled as the settings cards are */
+:is(.builder, .linked) .popover .group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+:is(.builder, .linked) .popover .card-title {
+  margin: 0;
+}
+
+:is(.builder, .linked) .popover .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+/* What removes the thing, alone at the bottom */
+:is(.builder, .linked) .popover .foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed var(--color-border-alt);
+}

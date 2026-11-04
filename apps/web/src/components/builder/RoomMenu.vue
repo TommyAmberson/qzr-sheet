@@ -38,8 +38,8 @@ function rename(event: Event) {
 </script>
 
 <template>
-  <BuilderPopover :anchor="anchor" :title="room.name" @close="emit('close')">
-    <label class="field">
+  <BuilderPopover :anchor="anchor" :title="room.name" tag="Room" @close="emit('close')">
+    <label class="row">
       Name
       <input :value="room.name" aria-label="Room name" @change="rename" />
     </label>
@@ -51,30 +51,14 @@ function rename(event: Event) {
         Unpin room ({{ pinnedCount }})
       </button>
     </div>
-    <button
-      type="button"
-      class="danger"
-      @click="(emit('change', (d) => removeRoom(d, roomId)), emit('close'))"
-    >
-      Remove room
-    </button>
+    <div class="foot">
+      <button
+        type="button"
+        class="danger"
+        @click="(emit('change', (d) => removeRoom(d, roomId)), emit('close'))"
+      >
+        Remove room
+      </button>
+    </div>
   </BuilderPopover>
 </template>
-
-<style scoped>
-.field {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-
-.danger {
-  justify-self: start;
-  color: var(--color-danger, #c33);
-}
-</style>

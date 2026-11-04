@@ -677,6 +677,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       v-else-if="popup?.kind === 'cell'"
       :anchor="popup.anchor"
       title="Add here"
+      tag="Empty cell"
       @close="popup = null"
     >
       <div class="add-choice">
