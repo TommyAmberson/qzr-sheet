@@ -374,6 +374,10 @@ const unpublished = computed(
   () => !!current.value && comparable(current.value) !== publishedForm.value,
 )
 const publishing = ref(false)
+const restoring = ref(false)
+const unlinking = ref(false)
+/** One write to the meet's draft at a time: publish, restore and unlink wait for each other */
+const busy = computed(() => publishing.value || restoring.value || unlinking.value)
 const hardConflicts = shallowRef<Conflict[] | null>(null)
 const publishNote = ref('')
 
@@ -388,6 +392,7 @@ const audience = computed(() => {
 const SHOWN_PROBLEMS = 10
 
 async function publish(confirmConflicts = false) {
+  if (busy.value) return
   publishing.value = true
   publishNote.value = ''
   try {
@@ -466,6 +471,16 @@ async function viewVersion(v: number) {
 }
 
 async function restore(v: number) {
+  if (busy.value) return
+  restoring.value = true
+  try {
+    await restoreVersion(v)
+  } finally {
+    restoring.value = false
+  }
+}
+
+async function restoreVersion(v: number) {
   clearTimeout(timer)
   await send()
   const link = readLink(meetId.value)
@@ -483,7 +498,13 @@ async function restore(v: number) {
     // The restored version replaces the draft, edits made while it was on its way included
     openFromServer(document, saved.draftRevision)
   } catch (e) {
-    publishNote.value = `Not restored: ${e instanceof Error ? e.message : String(e)}`
+    if (e instanceof ApiError && e.status === 409) {
+      // Another admin saved meanwhile: the same choice a save offers
+      const body = e.body as { draft: ScheduleDocument | null; draftRevision: number }
+      conflict.value = { draft: body.draft, draftRevision: body.draftRevision }
+    } else {
+      publishNote.value = `Not restored: ${e instanceof Error ? e.message : String(e)}`
+    }
   } finally {
     writeInFlight = false
     if (readLink(meetId.value)?.unsent) setTimeout(() => void send())
@@ -495,6 +516,16 @@ async function restore(v: number) {
 const confirmingUnlink = ref(false)
 
 async function unlink() {
+  if (busy.value) return
+  unlinking.value = true
+  try {
+    await unlinkNow()
+  } finally {
+    unlinking.value = false
+  }
+}
+
+async function unlinkNow() {
   const doc = current.value
   if (!doc) return
   // A save still on its way would write the link back after it's forgotten
@@ -588,14 +619,14 @@ async function unlink() {
         <button
           type="button"
           class="primary"
-          :disabled="publishing"
+          :disabled="busy"
           title="Everyone with access to the meet, and the scoresheet's schedule picker, will see this version"
           @click="publish()"
         >
           Publish
         </button>
         <button type="button" @click="history ? (history = null) : showHistory()">History</button>
-        <button type="button" @click="confirmingUnlink = true">Unlink</button>
+        <button type="button" :disabled="busy" @click="confirmingUnlink = true">Unlink</button>
       </template>
       <template #notices>
         <div v-if="conflict" class="message" role="alert">
@@ -632,7 +663,7 @@ async function unlink() {
             Unlink the schedule from {{ meet?.name }}? It stays in this browser as a schedule of its
             own; published versions stay with the meet.
           </p>
-          <button type="button" @click="unlink">Unlink</button>
+          <button type="button" :disabled="busy" @click="unlink">Unlink</button>
           <button type="button" @click="confirmingUnlink = false">Cancel</button>
         </div>
         <section v-if="history" class="history" aria-label="Published versions">
@@ -641,7 +672,9 @@ async function unlink() {
             <li v-for="v in history" :key="v.version">
               Version {{ v.version }}, {{ formatWhen(v.publishedAt) }}, {{ v.publishedBy }}
               <button type="button" @click="viewVersion(v.version)">View</button>
-              <button type="button" @click="restore(v.version)">Restore as the draft</button>
+              <button type="button" :disabled="busy" @click="restore(v.version)">
+                Restore as the draft
+              </button>
             </li>
           </ol>
           <div v-if="viewing" class="viewing">
