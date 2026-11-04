@@ -130,10 +130,11 @@ reads the published schedule.
 `localStorage` and file pickers as the scoresheet uses them; `window.print()` with print CSS; Better
 Auth cookies on the shared origin; Vue Router ranks a static path above `/:slug`.
 
-**Releases**: shared MINOR; then api MINOR (new routes and table), ui MINOR (the grid reads
-documents, `useHistory` added), web MINOR (the builder replaces the editor, the viewer reads the
-published document), scoresheet PATCH (the picker reads the published document). Each consumer names
-the bundled shared version.
+**Releases**: shared MINOR; then api MINOR (new routes and table), web MINOR (the builder replaces
+the editor, the viewer reads the published document, and the ui grid and `useHistory` it bundles),
+scoresheet PATCH (the picker reads the published document). `@qzr/ui` is private and bundled into
+web and the scoresheet, so it isn't released on its own: its changes ship, and are recorded, with
+those apps. Each consumer names the bundled shared version.
 
 ## Complexity Tracking
 
