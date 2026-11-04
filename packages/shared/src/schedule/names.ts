@@ -15,3 +15,12 @@ export function quizNumber(q: Pick<ScheduleQuiz, 'label'>): string {
 export function teamDisplayName(team: { shortName: string; number: number }): string {
   return `${team.shortName} ${team.number}`
 }
+
+/**
+ * A division's name in a schedule from a meet's division (`2`, `2C`), as `Div 2`. Meets name
+ * divisions both ways, so one already called `Div 2` keeps its name rather than becoming
+ * `Div Div 2`.
+ */
+export function divisionName(meetDivision: string): string {
+  return /^div\b/i.test(meetDivision.trim()) ? meetDivision.trim() : `Div ${meetDivision}`
+}

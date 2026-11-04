@@ -1,6 +1,7 @@
 import {
   WEEKDAYS,
   defaultElims,
+  divisionName,
   newScheduleDocument,
   ordinal,
   quizNumber,
@@ -144,7 +145,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
     // its default elims beside them would double them
     const builtElims = old.quizzes.some((q) => q.division === d && q.phase === 'elim')
     const elims = builtElims ? { lanes: [], lines: [] } : defaultElims(teams)
-    return { id: d, name: `Div ${d}`, teams, elims }
+    return { id: d, name: divisionName(d), teams, elims }
   })
   doc.applied = structuredClone(doc.settings)
 
@@ -219,7 +220,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
   doc.quizzes = quizzes.map((q): ScheduleQuiz => {
     const quiz: ScheduleQuiz = {
       id: String(q.id),
-      label: `Div ${q.division} Quiz ${oldNumber(q)}`,
+      label: `${divisionName(q.division)} Quiz ${oldNumber(q)}`,
       division: q.division,
       phase: q.phase,
       cell: { slot: String(q.slotId), room: String(q.roomId) },
