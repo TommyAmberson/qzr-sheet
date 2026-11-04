@@ -28,6 +28,7 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   sheet too, and on a wider screen the Settings button hides the panel to give the grid the room.
 * While moving a quiz, the "Choose where it goes" prompt floats at the bottom of the window instead
   of scrolling away with the grid; the builder's other notices stay in view too.
+* On a meet's page, the phase name no longer overlaps the Advance button on a narrow screen.
 
 ### Bundled contract
 
