@@ -382,6 +382,42 @@ export function reflowSchedule(doc: ScheduleDocument): ScheduleDocument {
   return { ...doc, applied: structuredClone(settings), frame, rooms, quizzes, events }
 }
 
+/**
+ * Divisions' elims placed again where the generator would put them, around everything else as it
+ * is (FR-034a): the frame, the prelims, other divisions' elims and, unless included, their own
+ * pinned elims. It works from the settings the grid was built with, so waiting settings changes
+ * aren't applied by it. Re-placed elims come out unpinned.
+ */
+export function replaceElims(
+  doc: ScheduleDocument,
+  options: { divisions: string[]; includePinned: boolean },
+): ScheduleDocument {
+  const chosen = new Set(options.divisions)
+  const moving = (q: ScheduleQuiz) =>
+    q.phase === 'elim' && chosen.has(q.division) && (options.includePinned || !q.pinned)
+  // Everything else is held where it is for the re-flow, then given back its own pins
+  const held: ScheduleDocument = {
+    ...structuredClone(doc),
+    settings: structuredClone(doc.applied),
+    frame: doc.frame.map((r, i) => (i === 0 ? { ...r, pinned: true } : r)),
+    quizzes: doc.quizzes.map((q) => ({ ...q, pinned: !moving(q) })),
+  }
+  const after = reflowSchedule(held)
+  const pins = new Map(doc.quizzes.map((q) => [q.id, q.pinned]))
+  return {
+    ...after,
+    settings: doc.settings,
+    applied: doc.applied,
+    // Rows and events never move with a re-place
+    frame: doc.frame,
+    events: doc.events,
+    quizzes: after.quizzes.map((q) => ({
+      ...q,
+      pinned: moving(q) || !pins.has(q.id) ? false : pins.get(q.id)!,
+    })),
+  }
+}
+
 /** A whole schedule from its settings, nothing pinned (FR-009) */
 export function generateSchedule(doc: ScheduleDocument): ScheduleDocument {
   return reflowSchedule({

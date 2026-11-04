@@ -510,6 +510,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               :doc="doc"
               :unapplied="unapplied"
               @change="changeSettings"
+              @edit="change"
             />
             <PrelimSection
               v-else-if="s.key === 'prelims'"

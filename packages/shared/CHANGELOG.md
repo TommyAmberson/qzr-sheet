@@ -42,6 +42,7 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   `teamDisplayName` (`Grace 2`), and the `PublishedSchedule` response type.
 * `DIVISION_COLOURS` and `divisionColour`: a division's colour, chosen from a named palette or taken
   by its place.
+* `replaceElims`: divisions' elims placed again where the generator would, around everything else.
 * `laneName`: the name a lane's quizzes go by (`Div 2C`), for renaming a quiz by hand.
 * `resultKey`: the key a meet stores a quiz's results under, which `resultName` now returns too.
 * `elimsForCount` and `setTeamCount`: a division's elims for a new team count, keeping elims the

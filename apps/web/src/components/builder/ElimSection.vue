@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import {
   divisionColour,
+  replaceElims,
   defaultAbove,
   type DivisionSettings,
   type LaneSettings,
@@ -15,9 +16,44 @@ import {
  * FR-034). Changing them rebuilds only unpinned quizzes.
  */
 const props = defineProps<{ doc: ScheduleDocument; unapplied: UnappliedSetting[] }>()
-const emit = defineEmits<{ change: [mutate: (d: ScheduleDocument) => void] }>()
+const emit = defineEmits<{
+  change: [mutate: (d: ScheduleDocument) => void]
+  /** A hand edit, applied at once like one on the grid: re-placing elims */
+  edit: [mutate: (d: ScheduleDocument) => void]
+}>()
 
 const message = ref('')
+
+// Re-placing elims: always explicit, saying first how many quizzes will move (FR-034a)
+const replacing = ref<string[] | null>(null)
+const includePinned = ref(false)
+const withElims = computed(() =>
+  props.doc.settings.divisions.filter((d) =>
+    props.doc.quizzes.some((q) => q.division === d.id && q.phase === 'elim'),
+  ),
+)
+const replaced = computed(() =>
+  replacing.value
+    ? replaceElims(props.doc, { divisions: replacing.value, includePinned: includePinned.value })
+    : null,
+)
+const replaceMoves = computed(() => {
+  const after = replaced.value
+  if (!after) return 0
+  const before = new Map(props.doc.quizzes.map((q) => [q.id, JSON.stringify(q.cell)]))
+  return after.quizzes.filter((q) => before.get(q.id) !== JSON.stringify(q.cell)).length
+})
+const pinnedElims = computed(
+  () =>
+    props.doc.quizzes.filter(
+      (q) => q.phase === 'elim' && q.pinned && (replacing.value ?? []).includes(q.division),
+    ).length,
+)
+function confirmReplace() {
+  const after = replaced.value
+  if (after) emit('edit', (d) => Object.assign(d, { quizzes: after.quizzes }))
+  replacing.value = null
+}
 
 function edit(id: string, mutate: (d: DivisionSettings) => void) {
   emit('change', (doc) => {
@@ -395,6 +431,38 @@ function laneNote(l: LaneSettings) {
         </span>
       </div>
     </div>
+
+    <section v-if="withElims.length > 0" class="card">
+      <h4 class="card-title">Re-place elims</h4>
+      <p class="hint">Puts elims back where the generator would, around everything else.</p>
+      <div class="all">
+        <button type="button" @click="replacing = withElims.map((d) => d.id)">
+          Re-place all elims
+        </button>
+        <button
+          v-for="d in withElims"
+          :key="d.id"
+          type="button"
+          :style="{ '--qc': colourOf(d) }"
+          @click="replacing = [d.id]"
+        >
+          <span class="tick" />{{ d.name }}
+        </button>
+      </div>
+      <div v-if="replacing" class="choice" role="group" aria-label="Re-place elims">
+        <label v-if="pinnedElims > 0" class="check">
+          <input v-model="includePinned" type="checkbox" />
+          Also re-place the {{ pinnedElims }} pinned (unpins them)
+        </label>
+        <p class="hint">
+          {{ replaceMoves }} {{ replaceMoves === 1 ? 'quiz' : 'quizzes' }} will move.
+        </p>
+        <span class="all">
+          <button type="button" @click="confirmReplace">Re-place</button>
+          <button type="button" @click="replacing = null">Cancel</button>
+        </span>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -611,5 +679,25 @@ h4 {
   gap: 0.3rem;
   color: var(--color-text-muted);
   font-size: 0.8rem;
+}
+.all {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+}
+
+.card .tick {
+  display: inline-block;
+  margin-right: 0.35rem;
+}
+
+.choice {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+  padding: 0.5rem;
+  border: 1px solid var(--color-meta-accent);
+  border-radius: 6px;
 }
 </style>

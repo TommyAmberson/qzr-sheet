@@ -131,6 +131,18 @@ describe('settings sections', () => {
     wrapper.unmount()
   })
 
+  it('re-places elims from Elim settings, saying first how many move (FR-034a)', async () => {
+    const wrapper = await fbc()
+    await openSection(wrapper, 'Elim settings')
+    const button = (text: string) => wrapper.findAll('button').find((b) => b.text() === text)!
+    await button('Re-place all elims').trigger('click')
+    // Straight from the generator nothing moves; the choice says so and can be confirmed
+    expect(wrapper.find('[aria-label="Re-place elims"]').text()).toContain('0 quizzes will move')
+    await button('Re-place').trigger('click')
+    expect(wrapper.find('[aria-label="Re-place elims"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('steps a number field with its + and − buttons', async () => {
     const wrapper = await fbc()
     const field = wrapper

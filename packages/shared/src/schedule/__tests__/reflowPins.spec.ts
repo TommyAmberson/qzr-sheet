@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { checkSchedule } from '../conflicts'
 import { defaultElims } from '../elims'
-import { applyPreview, generateSchedule, reflowSchedule, unappliedSettings } from '../reflow'
+import {
+  applyPreview,
+  generateSchedule,
+  reflowSchedule,
+  replaceElims,
+  unappliedSettings,
+} from '../reflow'
 import { newScheduleDocument, type ScheduleDocument } from '../scheduleFile'
 
 function meet(counts: number[]): ScheduleDocument {
@@ -216,5 +222,38 @@ describe('one-room events', () => {
     })
     const after = reflowSchedule(doc)
     expect(checkSchedule(after).filter((c) => c.rule === 'H-3')).toEqual([])
+  })
+})
+
+describe('re-placing elims (FR-034a)', () => {
+  it('moves nothing in a schedule straight from the generator', () => {
+    const doc = meet([6, 17, 16])
+    const after = replaceElims(doc, { divisions: ['d1', 'd2', 'd3'], includePinned: false })
+    const cells = (d: ScheduleDocument) => new Map(d.quizzes.map((q) => [q.id, q.cell]))
+    expect(cells(after)).toEqual(cells(doc))
+  })
+
+  it("places a division's elims again, leaving everything else and its events alone", () => {
+    const start = meet([6, 17])
+    // Move Div 2's first elim by hand, so it's pinned somewhere odd,
+    const doc = dragToFreeCell(
+      start,
+      start.quizzes.find((q) => q.division === 'd2' && q.phase === 'elim')!.id,
+    )
+    // and pin a Div 1 elim where it is
+    const d1Elim = doc.quizzes.find((q) => q.division === 'd1' && q.phase === 'elim')!.id
+    quiz(doc, d1Elim).pinned = true
+    const kept = structuredClone({ frame: doc.frame, events: doc.events, d1: quiz(doc, d1Elim) })
+
+    const without = replaceElims(doc, { divisions: ['d2'], includePinned: false })
+    // A pinned elim stays unless included
+    expect(without.quizzes.filter((q) => q.division === 'd2' && q.pinned)).toHaveLength(1)
+
+    const after = replaceElims(doc, { divisions: ['d2'], includePinned: true })
+    const d2Elims = after.quizzes.filter((q) => q.division === 'd2' && q.phase === 'elim')
+    expect(d2Elims.every((q) => q.cell !== null)).toBe(true)
+    expect(checkSchedule(after).filter((c) => !c.warning)).toEqual([])
+    expect(after.quizzes.filter((q) => q.division === 'd2' && q.pinned)).toEqual([])
+    expect({ frame: after.frame, events: after.events, d1: quiz(after, d1Elim) }).toEqual(kept)
   })
 })
