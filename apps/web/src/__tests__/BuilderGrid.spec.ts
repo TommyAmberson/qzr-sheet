@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { defaultElims, generateSchedule, newScheduleDocument } from '@qzr/shared'
 
+import { keepSchedule } from '../builder/persistence'
 import BuilderView from '../views/BuilderView.vue'
 
 let wrapper: VueWrapper | null = null
@@ -341,6 +343,30 @@ describe('screen sizes (FR-005b)', () => {
 })
 
 describe('Elim settings (story 4)', () => {
+  it("names a 9-team lane's brackets by their opening quizzes, a saved 9b as rule book B", async () => {
+    const doc = newScheduleDocument('Nine')
+    const elims = defaultElims(9)
+    elims.lanes[0]!.bracket = '9b'
+    doc.settings.divisions = [{ id: 'd1', name: 'Div 1', teams: 9, elims }]
+    const saved = generateSchedule(doc)
+    keepSchedule(saved)
+    wrapper = mount(BuilderView, { props: { id: saved.id }, attachTo: document.body })
+    const w = wrapper
+    await w
+      .findAll('.section-head')
+      .find((h) => h.text().startsWith('Elim settings'))!
+      .trigger('click')
+    const select = w.find<HTMLSelectElement>('[aria-label="Div 1 bracket"]')
+    expect(select.findAll('option').map((o) => o.text())).toEqual([
+      'Snake: 1-6-7, 2-5-8, 3-4-9',
+      'Rule book A: 1-2-3, 4-5-6, 7-8-9',
+      'Rule book B: 1-4-9, 2-5-7, 3-6-8',
+      'Rule book C: 1-4-9, winners next',
+    ])
+    expect(select.element.value).toBe('ruleB')
+    expect(w.find('.lrow .hint').text()).toBe('9 teams · bracket, every team loses twice')
+  })
+
   it('turning a consolation lane into a round robin rebuilds its quizzes', async () => {
     wrapper = mount(BuilderView, { attachTo: document.body })
     const w = wrapper

@@ -664,19 +664,19 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   or earlier; there is no separate warning for the time.
 * **FR-029**: Each lane MUST be a **bracket** or a **round robin**. A bracket comes from the
   **bracket library**, which MUST include every bracket in the reference schedules: the org's 5, 6,
-  7, 8 and 12-team brackets; the 9-team bracket seeded both ways (rule-book Bracket B order 1, 4, 9
-  / 2, 5, 7 / 3, 6, 8 when an X feeds it, snake order 1, 6, 7 / 2, 5, 8 / 3, 4, 9 otherwise); the
-  10-team bracket (Heritage 2025: the 9-team bracket with New 10 entering its bottom placing quiz, G
-  = 3 of F, 2 of F, New 10); an 11-team bracket built the same way (a play-in X on 9 to 11 whose
-  winner takes seed 9, A = 1, 4, 1 of X as at Heritage 2023, and whose other two join G = 2 of F, 2
-  of X, 3 of X, which places 9th to 11th); CMQ's 14-team bracket (its C division as run, with a
-  play-in); and the rule book's Brackets A, B and C. Each lists its quizzes, each seat's source, and
-  its deciding quiz; the entries are in [bracket-library.md](./bracket-library.md). A round robin
-  seats every quiz by rank alone (`New n` for ranks from the intermediate above), so nobody moves
-  on: it gives each team a set number of quizzes (1 to 3, default 2) for personal stats and fun. Its
-  quizzes walk the lane's ranks in order, with every other pass mixed so the same three teams don't
-  meet again (22, 25, 23 / 26, 24, 27, Feb 2023), and a short last quiz is topped up from the top of
-  the lane.
+  7, 8 and 12-team brackets; the 9-team bracket seeded both ways (snake order 1, 6, 7 / 2, 5, 8 / 3,
+  4, 9, the default, and rule-book Bracket B order 1, 4, 9 / 2, 5, 7 / 3, 6, 8, as Heritage 2023 and
+  2025 played it after an X; the builder offers it as rule book B); the 10-team bracket (Heritage
+  2025: the 9-team bracket with New 10 entering its bottom placing quiz, G = 3 of F, 2 of F, New
+  10); an 11-team bracket built the same way (a play-in X on 9 to 11 whose winner takes seed 9, A =
+  1, 4, 1 of X as at Heritage 2023, and whose other two join G = 2 of F, 2 of X, 3 of X, which
+  places 9th to 11th); CMQ's 14-team bracket (its C division as run, with a play-in); and the rule
+  book's Brackets A, B and C. Each lists its quizzes, each seat's source, and its deciding quiz; the
+  entries are in [bracket-library.md](./bracket-library.md). A round robin seats every quiz by rank
+  alone (`New n` for ranks from the intermediate above), so nobody moves on: it gives each team a
+  set number of quizzes (1 to 3, default 2) for personal stats and fun. Its quizzes walk the lane's
+  ranks in order, with every other pass mixed so the same three teams don't meet again (22, 25, 23 /
+  26, 24, 27, Feb 2023), and a short last quiz is topped up from the top of the lane.
 * **FR-030**: By default, elims MUST follow division size, as the org's meets did:
 
   | Teams     | Main lane                 | Intermediate                                    | Below the main lane         |

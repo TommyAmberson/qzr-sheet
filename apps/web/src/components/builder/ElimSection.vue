@@ -157,15 +157,18 @@ function slide(d: DivisionSettings, line: number, by: number) {
   edit(d.id, (x) => (x.elims.lines[line]!.intermediate!.above += by))
 }
 
-const bracketsFor = (size: number) =>
-  size === 9 ? ['9', '9b', 'ruleA', 'ruleB', 'ruleC'] : [String(size)]
-const BRACKET_NAMES: Record<string, string> = {
-  '9': 'Snake order',
-  '9b': 'Bracket B order',
-  ruleA: 'Rule book A',
-  ruleB: 'Rule book B',
-  ruleC: 'Rule book C',
+/** The 9-team brackets, named by their opening quizzes, and what sets each apart */
+const NINE_BRACKETS: Record<string, { name: string; note: string }> = {
+  '9': { name: 'Snake: 1-6-7, 2-5-8, 3-4-9', note: 'rule book B with snake seeds' },
+  ruleA: { name: 'Rule book A: 1-2-3, 4-5-6, 7-8-9', note: 'winners move up' },
+  ruleB: { name: 'Rule book B: 1-4-9, 2-5-7, 3-6-8', note: 'every team loses twice' },
+  ruleC: {
+    name: 'Rule book C: 1-4-9, winners next',
+    note: 'winners meet next, others work back up',
+  },
 }
+/** Which of them a lane plays; `9b` is an older name for rule book B, kept by saved schedules */
+const nineBracket = (l: LaneSettings) => (l.bracket === '9b' ? 'ruleB' : (l.bracket ?? '9'))
 const unapplied = (id: string) => props.unapplied.some((u) => u.key === `${id}.elims`)
 
 /** Each division's colour, as the grid ticks its quizzes */
@@ -193,6 +196,7 @@ function laneNote(l: LaneSettings) {
     const n = l.perTeam ?? 2
     return `${l.size} teams · round robin, ${n} ${n === 1 ? 'quiz' : 'quizzes'} each`
   }
+  if (l.size === 9) return `${l.size} teams · bracket, ${NINE_BRACKETS[nineBracket(l)]?.note}`
   return `${l.size} teams · bracket`
 }
 </script>
@@ -390,12 +394,12 @@ function laneNote(l: LaneSettings) {
           </span>
           <select
             v-if="l.format === 'bracket' && l.size === 9"
-            :value="l.bracket ?? '9'"
+            :value="nineBracket(l)"
             :aria-label="`${laneName(d, i)} bracket`"
             @change="setLane(d, i, { bracket: ($event.target as HTMLSelectElement).value })"
           >
-            <option v-for="b in bracketsFor(l.size)" :key="b" :value="b">
-              {{ BRACKET_NAMES[b] ?? b }}
+            <option v-for="(b, key) in NINE_BRACKETS" :key="key" :value="key">
+              {{ b.name }}
             </option>
           </select>
           <label

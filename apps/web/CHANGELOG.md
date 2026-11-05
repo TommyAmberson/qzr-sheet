@@ -16,6 +16,19 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.22.4] - 2026-11-04
+
+### Changed
+
+* A 9-team lane's bracket options are named by their opening quizzes, such as "Snake: 1-6-7, 2-5-8,
+  3-4-9" and "Rule book B: 1-4-9, 2-5-7, 3-6-8", and the lane's note says how the chosen one plays.
+  "Bracket B order" and "Rule book B", the same bracket under two names, are now one option; a
+  schedule saved with either opens on Rule book B.
+
+### Bundled contract
+
+* `@qzr/shared@1.7.1` - unchanged
+
 ## [0.22.3] - 2026-11-04
 
 ### Fixed
