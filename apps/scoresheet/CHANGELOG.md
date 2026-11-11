@@ -21,6 +21,8 @@ portal/API/infra work shipped on that tag.
 
 * New app icon: "qzr" in light grey on the app's dark surface, replacing the stock Tauri logo on the
   desktop app, the Android app, the installed web app, and the browser tab
+* The installed web app's title bar and launch screen use the app's dark surface colour, matching
+  the icon and the meet portal, instead of navy
 
 ### Bundled contract
 

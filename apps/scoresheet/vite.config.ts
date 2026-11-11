@@ -22,8 +22,8 @@ export default defineConfig({
               name: 'qzr-sheet',
               short_name: 'qzr-sheet',
               description: 'Bible Quiz scoresheet',
-              theme_color: '#1a1a2e',
-              background_color: '#1a1a2e',
+              theme_color: '#1a1816',
+              background_color: '#1a1816',
               display: 'standalone',
               // Explicit id: the install identity no longer depends on start_url.
               id: webBase,
