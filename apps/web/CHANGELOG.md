@@ -16,6 +16,17 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-11-11
+
+### Fixed
+
+* Sort prelims is always in Prelim settings, not only while late teams count, so prelims moved by
+  hand can be put back in quiz order
+
+### Bundled contract
+
+* `@qzr/shared@1.8.0` - unchanged
+
 ## [0.23.0] - 2026-11-11
 
 ### Added
