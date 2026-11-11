@@ -225,14 +225,19 @@ async function nameMove(
   const key = quizKey(file)
   if (key === currentKey) return () => []
   const db = c.get('db')
-  const [clash] = await db
-    .select({ id: schema.quizResults.id })
-    .from(schema.quizResults)
-    .where(and(eq(schema.quizResults.meetId, meetId), eq(schema.quizResults.quizKey, key)))
+  const [clash] = await quizNamed(db, meetId, key)
   if (clash) return nameTaken(c, file)
   return () => [
     db.update(schema.quizResults).set({ quizKey: key }).where(eq(schema.quizResults.id, resultId)),
   ]
+}
+
+/** The meet's stored quiz with the name `key`: a select to run, or to use as a subquery */
+function quizNamed(db: Db, meetId: number, key: string) {
+  return db
+    .select({ id: schema.quizResults.id })
+    .from(schema.quizResults)
+    .where(and(eq(schema.quizResults.meetId, meetId), eq(schema.quizResults.quizKey, key)))
 }
 
 type RevisionRow = Saver &
@@ -354,27 +359,34 @@ results.post('/:id/results', async (c) => {
 
   // A name the meet already has is the same quiz: say so, or add a revision when asked to
   const db = c.get('db')
-  const existingId = async () => {
-    const [row] = await db
-      .select({ id: schema.quizResults.id })
-      .from(schema.quizResults)
-      .where(and(eq(schema.quizResults.meetId, meetId), eq(schema.quizResults.quizKey, key)))
-    return row?.id
-  }
+  const existingId = async () => (await quizNamed(db, meetId, key))[0]?.id
   let resultId = await existingId()
   if (resultId === undefined) {
     try {
-      const [created] = await db
+      // The quiz and its first revision are saved together, so a failed save can't leave a quiz
+      // with no revision. The revision finds the new quiz by its name, which is unique in the meet.
+      const now = new Date()
+      const createdQuiz = db
         .insert(schema.quizResults)
-        .values({
-          meetId,
-          roomId: saver.savedByRoomId ?? null,
-          quizKey: key,
-          createdAt: new Date(),
-        })
+        .values({ meetId, roomId: saver.savedByRoomId ?? null, quizKey: key, createdAt: now })
         .returning({ id: schema.quizResults.id })
-      const [revision] = await addRevisions(db, created!.id, [revisionValues])
-      return c.json({ id: created!.id, revision, created: true }, 201)
+      const firstRevision = db
+        .insert(schema.quizResultRevisions)
+        .values({
+          ...revisionValues,
+          resultId: sql`(${quizNamed(db, meetId, key)})`,
+          revision: 1,
+          savedAt: now,
+        })
+        .returning({ revision: schema.quizResultRevisions.revision })
+      const [quizRows, revisionRows] = (await asOne(db, [createdQuiz, firstRevision])) as [
+        { id: number }[],
+        { revision: number }[],
+      ]
+      return c.json(
+        { id: quizRows[0]!.id, revision: revisionRows[0]!.revision, created: true },
+        201,
+      )
     } catch (e) {
       // Another submission of the same name won the race; treat it as already submitted
       if (!isUniqueViolation(e)) throw e

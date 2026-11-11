@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import { CellValue, MeetRole, PlacementFormula, type QuizFile } from '@qzr/shared'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { Bindings } from '../../bindings'
 import type { SessionUser, SessionVariables } from '../../middleware/session'
 import { codeTagFor, type GuestPayload } from '../../lib/jwt'
@@ -120,6 +120,20 @@ async function list() {
 }
 
 describe('POST /api/meets/:id/results', () => {
+  it('stores no quiz when its first revision fails', async () => {
+    db.run(sql`create trigger refuse before insert on quiz_result_revisions
+      begin select raise(abort, 'refused'); end`)
+    // The route's error is the point of the test, so keep it out of the log
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      expect((await asAdmin()).status).toBe(500)
+    } finally {
+      logged.mockRestore()
+      db.run(sql`drop trigger refuse`)
+    }
+    expect(await db.select().from(schema.quizResults)).toEqual([])
+  })
+
   it("stores a guest official's quiz as submitted from their room", async () => {
     const res = await submit(official(room1))
     expect(res.status).toBe(201)

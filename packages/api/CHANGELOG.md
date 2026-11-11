@@ -17,6 +17,11 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+### Fixed
+
+* **Quiz create is one save** - a new quiz and its first revision are saved together, so a failed
+  save no longer leaves a quiz with no revision, which broke its meet's results.
+
 ## [0.24.0] - 2026-11-04
 
 ### Added
