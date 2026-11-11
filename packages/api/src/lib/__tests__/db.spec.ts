@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { isUniqueViolation } from '../db'
+import { asOne, isUniqueViolation } from '../db'
+import * as schema from '../../db/schema'
+import { createTestDb } from '../../test-db'
+import { seedMeet } from '../../test-utils'
 
 describe('isUniqueViolation', () => {
   const failed = (detail: string, sql = 'insert into "quiz_meets" ...') =>
@@ -39,5 +42,21 @@ describe('isUniqueViolation', () => {
 
   it('is false for other errors', () => {
     expect(isUniqueViolation(new Error('FOREIGN KEY constraint failed'))).toBe(false)
+  })
+})
+
+describe('asOne on the test database', () => {
+  it('undoes every statement when one fails', async () => {
+    const db = await createTestDb()
+    const { id: meetId } = await seedMeet(db)
+    const quiz = { meetId, roomId: null, quizKey: 'a', createdAt: new Date() }
+    const error = await asOne(db, [
+      db.insert(schema.quizResults).values(quiz),
+      db.insert(schema.quizResults).values({ ...quiz, quizKey: 'b' }),
+      db.insert(schema.quizResults).values(quiz),
+    ]).catch((e: unknown) => e)
+    // The third insert clashes with the first, so the first two did run before being undone
+    expect(isUniqueViolation(error, 'quiz_results')).toBe(true)
+    expect(await db.select().from(schema.quizResults)).toEqual([])
   })
 })
