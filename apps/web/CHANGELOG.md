@@ -16,6 +16,24 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-11
+
+### Added
+
+* Elim settings has a Finals card choosing where consolation Finals run: with the other Finals, or
+  in the lane's rooms. Left alone, a schedule keeps the old rule (with the others at two divisions,
+  in the lane's rooms at three or more).
+
+### Changed
+
+* A generated schedule's prelims take the fewest rows that hold them, borrowing a smaller division's
+  room once it is done, so meets like Nov 2021 and Nov 2022 fit their prelims in 7 rows instead
+  of 8.
+
+### Bundled contract
+
+* `@qzr/shared@1.8.0` - bumped from 1.7.1
+
 ## [0.22.4] - 2026-11-04
 
 ### Changed
