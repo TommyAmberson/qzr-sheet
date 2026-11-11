@@ -1,12 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import {
+  BonusRule,
   buildColumns,
   buildKeyToIdx,
   CellValue,
+  parseQuizFile,
+  PlacementFormula,
+  QuestionCategory,
   QuizFormat,
   toQuizzerId,
   TWENTY_QUESTION_RULES as TWENTY,
 } from '@qzr/shared'
+import { serializeStore } from '../../persistence/quizFile'
 import { createQuizStore } from '../quizStore'
 
 const COLUMNS = buildColumns(TWENTY)
@@ -251,5 +256,25 @@ describe('quizStore format', () => {
       answers: [],
     })
     expect(store.quiz.format).toBe(QuizFormat.FifteenQuestion)
+  })
+})
+
+describe('quizStore loadState', () => {
+  it('keeps every quiz setting through a save and reopen', () => {
+    const saved = createQuizStore()
+    Object.assign(saved.quiz, {
+      division: '2C',
+      quizNumber: '14',
+      overtime: true,
+      consolation: true,
+      placementFormula: PlacementFormula.Legacy,
+      bonusRule: BonusRule.Team,
+      format: QuizFormat.FifteenQuestion,
+    })
+    saved.quiz.questionTypes.set('3', QuestionCategory.FTV)
+
+    const opened = createQuizStore()
+    opened.loadState(parseQuizFile(serializeStore(saved, new Map(), new Map())))
+    expect(opened.quiz).toEqual({ ...saved.quiz, id: opened.quiz.id })
   })
 })
