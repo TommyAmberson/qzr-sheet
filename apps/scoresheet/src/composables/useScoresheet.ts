@@ -646,14 +646,17 @@ export function useScoresheet() {
     clearStorage()
   }
 
-  /** Clear all answers and no-jump flags, keeping names and quiz metadata */
+  /**
+   * Restart the quiz with the same teams and quizzers: clears answers, no-jumps, timeouts and
+   * question types, since a restarted quiz asks new questions
+   */
   function clearAnswers() {
     // Snapshot before calling loadState — loadState mutates the internal arrays in-place,
     // so passing store.teams/quizzers directly would zero them out mid-iteration.
     const teams = [...store.teams]
     const quizzers = [...store.quizzers]
     store.loadState({
-      quiz: store.quiz,
+      quiz: { ...store.quiz, questionTypes: new Map() },
       teams,
       quizzers,
       answers: [],

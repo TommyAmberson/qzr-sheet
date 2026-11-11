@@ -368,6 +368,16 @@ async function onMeetLoaded() {
   }
 }
 
+/** What an empty name shows; the sizer measures it too, so the box fits it */
+const TEAM_PLACEHOLDER = 'Team name'
+const quizzerPlaceholder = (seatIdx: number) => `Quizzer ${seatIdx + 1}`
+
+/** A click anywhere in a name cell types into its name, not only on the input's own width (#144) */
+function focusName(e: MouseEvent) {
+  if ((e.target as HTMLElement).closest('input, button, .drag-handle')) return
+  ;(e.currentTarget as HTMLElement).querySelector<HTMLInputElement>('input.editable-name')?.focus()
+}
+
 function restoreQuizzerName(slotIdx: number, seatIdx: number) {
   setQuizzerName(slotIdx, seatIdx, meetSession.getDbName(slotIdx, seatIdx) ?? '')
 }
@@ -1352,7 +1362,7 @@ const appVersion: string = __APP_VERSION__
               <tr :class="['row--team-header', teamColors[teamIdx]]">
                 <td class="col--left-spacer" />
                 <td class="col--name sticky-col team-name" colspan="2">
-                  <div class="name-cell-inner">
+                  <div class="name-cell-inner" @click="focusName">
                     <span class="name-main">
                       <template v-if="picksTeam(teamIdx)">
                         <button
@@ -1396,12 +1406,13 @@ const appVersion: string = __APP_VERSION__
                       <template v-else>
                         <span
                           class="name-input-sizer name-input-sizer--team"
-                          :data-value="team.name || ' '"
+                          :data-value="team.name || TEAM_PLACEHOLDER"
                         >
                           <input
                             class="editable-name editable-name--team"
                             :data-tutorial="`team-name-${teamIdx}`"
                             list="team-name-options"
+                            :placeholder="TEAM_PLACEHOLDER"
                             :value="team.name"
                             @input="setTeamName(teamIdx, ($event.target as HTMLInputElement).value)"
                             @focus="($event.target as HTMLInputElement).select()"
@@ -1507,7 +1518,7 @@ const appVersion: string = __APP_VERSION__
                       : undefined
                   "
                 >
-                  <div class="name-cell-inner">
+                  <div class="name-cell-inner" @click="focusName">
                     <span class="name-main">
                       <span
                         class="drag-handle"
@@ -1516,7 +1527,7 @@ const appVersion: string = __APP_VERSION__
                       >
                       <span
                         class="name-input-sizer name-input-sizer--quizzer"
-                        :data-value="quizzer.name || ' '"
+                        :data-value="quizzer.name || quizzerPlaceholder(seatIdx)"
                       >
                         <input
                           :class="[
@@ -1531,6 +1542,7 @@ const appVersion: string = __APP_VERSION__
                             },
                           ]"
                           :data-tutorial="`quizzer-name-${teamIdx}-${seatIdx}`"
+                          :placeholder="quizzerPlaceholder(seatIdx)"
                           :value="quizzer.name"
                           @input="
                             setQuizzerName(
@@ -3277,6 +3289,11 @@ thead tr th.sticky-col {
   outline: none;
   height: 100%;
 }
+.editable-name::placeholder {
+  color: var(--color-text-faint);
+  font-weight: 400;
+  font-style: italic;
+}
 .editable-name:focus {
   border-bottom: 1.5px solid var(--color-accent);
 }
@@ -3294,7 +3311,6 @@ thead tr th.sticky-col {
 .name-input-sizer {
   position: relative;
   display: inline-block;
-  min-width: 2ch;
 }
 .name-input-sizer::after {
   content: attr(data-value);

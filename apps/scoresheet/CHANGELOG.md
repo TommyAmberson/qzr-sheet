@@ -15,6 +15,19 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.18.4] - 2026-11-11
+
+### Fixed
+
+* A quiz saved with the Team bonus rule keeps it when reopened or restored from auto-save, instead
+  of coming back as the seat rule
+* Clicking anywhere in a team or quizzer name box starts typing in it, and an empty name shows a
+  placeholder ("Team name", "Quizzer 5") rather than a tiny blank
+
+### Bundled contract
+
+* `@qzr/shared@1.7.1` - bumped from 1.7.0
+
 ## [0.18.3] - 2026-11-04
 
 ### Changed

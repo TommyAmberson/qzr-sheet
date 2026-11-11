@@ -220,6 +220,15 @@ describe('useScoresheet — clearAnswers', () => {
     expect(s.noJumps.value[2]).toBe(false)
   })
 
+  it('clears question types, keeping the quiz settings', () => {
+    const s = useScoresheet()
+    s.setQuestionType(C(2), QuestionCategory.FTV)
+    s.quiz.value.division = '2C'
+    s.clearAnswers()
+    expect(s.quiz.value.questionTypes.size).toBe(0)
+    expect(s.quiz.value.division).toBe('2C')
+  })
+
   it('resets undo/redo history', () => {
     const s = useScoresheet()
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
