@@ -16,6 +16,16 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-11-11
+
+### Changed
+
+* The browser tab icon is the new qzr app icon, replacing the stock Tauri logo
+
+### Bundled contract
+
+* `@qzr/shared@1.8.0` - unchanged
+
 ## [0.23.1] - 2026-11-11
 
 ### Fixed
