@@ -288,5 +288,25 @@ export async function createTestDb(): Promise<Db> {
             ('user-001', 'Test User', 'user@test.com', 1, ${now}, ${now}, 'normal')`,
   )
 
-  return drizzle(sqlite, { schema }) as unknown as Db
+  const db = drizzle(sqlite, { schema })
+  // D1's batch, which sql.js lacks: the statements in turn inside a transaction, so they all happen
+  // or none do. The connection is shared, so a test that overlaps two batches gets an error.
+  const batch = async (statements: PromiseLike<unknown>[]) => {
+    sqlite.run('begin')
+    try {
+      const results: unknown[] = []
+      for (const statement of statements) results.push(await statement)
+      sqlite.run('commit')
+      return results
+    } catch (e) {
+      // Keep the error that caused it, even if SQLite already rolled back and this one fails too
+      try {
+        sqlite.run('rollback')
+      } catch {
+        // nothing left to undo
+      }
+      throw e
+    }
+  }
+  return Object.assign(db, { batch }) as unknown as Db
 }

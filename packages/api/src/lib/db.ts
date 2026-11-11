@@ -39,16 +39,13 @@ export function chunksOf<T>(rows: T[], paramsPerRow: number): T[][] {
 }
 
 /**
- * Run statements as one: in production a D1 batch, which is a transaction, so they all happen or
- * none do; on the test database, which has no batch, in turn. Answers each statement's result.
+ * Run statements as one, in a D1 batch, which is a transaction, so they all happen or none do. The
+ * test database supplies a batch of its own (see `createTestDb`). Answers each statement's result.
  */
-export async function asOne(db: Db, statements: PromiseLike<unknown>[]): Promise<unknown[]> {
-  const batch = (db as unknown as { batch?: (s: PromiseLike<unknown>[]) => Promise<unknown[]> })
-    .batch
-  if (batch) return batch.call(db, statements)
-  const results: unknown[] = []
-  for (const statement of statements) results.push(await statement)
-  return results
+export function asOne(db: Db, statements: PromiseLike<unknown>[]): Promise<unknown[]> {
+  return (db as unknown as { batch: (s: PromiseLike<unknown>[]) => Promise<unknown[]> }).batch(
+    statements,
+  )
 }
 
 /**

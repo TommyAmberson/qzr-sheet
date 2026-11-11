@@ -17,6 +17,19 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-11-11
+
+### Fixed
+
+* **Quiz create is one save** - a new quiz and its first revision are saved together, so a failed
+  save no longer leaves a quiz with no revision, which broke its meet's results.
+
+### Bundled contract
+
+* `@qzr/shared@1.7.1` - bumped from 1.7.0. A new schedule document's `totallingMinutes` now defaults
+  to 0, so an old-editor meet converted on first open gets 0 rather than 15, as the portal already
+  does.
+
 ## [0.24.0] - 2026-11-04
 
 ### Added
