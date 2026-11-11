@@ -39,6 +39,14 @@ describe('generateSchedule', () => {
     expect(hard(meet([10, 14, 21]))).toEqual([])
   })
 
+  it("fills every room in each prelim row as the meets did, borrowing a finished division's room (#136)", () => {
+    const prelimRows = (doc: ScheduleDocument) =>
+      doc.frame.filter((r) => r.kind === 'slot' && r.use === 'prelim').length
+    // Nov 2021: 27 quizzes in 4 rooms; Nov 2022: 35 in 5
+    expect(prelimRows(meet([5, 22], 4))).toBe(7)
+    expect(prelimRows(meet([8, 27], 5))).toBe(7)
+  })
+
   it('labels prelims in draw order (FR-026)', () => {
     const doc = meet([6])
     expect(doc.quizzes.filter((q) => q.phase === 'prelim').map((q) => q.label)).toEqual(

@@ -596,8 +596,10 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   change, and a count the director sets stays until they choose the recommendation again.
 * **FR-019**: By default each division MUST get its own block of adjacent rooms, in division order
   (Div 1 in the lowest-numbered rooms) and sized to its share of the quizzes, and each elim lane
-  MUST keep to the same rooms (P-2, P-3). A division MAY borrow other rooms when its block can't fit
-  its quizzes. Each room's header MUST show every division that uses it, Finals aside.
+  MUST keep to the same rooms (P-2, P-3). The prelims MUST take the fewest rows that hold them, so a
+  division whose block can't fit its quizzes in those rows borrows other rooms' free cells, such as
+  a smaller division's room once it is done (27 quizzes in 4 rooms took 7 rows at Nov 2021, 35 in 5
+  at Nov 2022). Each room's header MUST show every division that uses it, Finals aside.
 * **FR-019a**: Finals MUST default to one at a time, in Room 1, about 25 to 30 minutes apart from
   mid-afternoon, so they can be watched and still finish before the evening (P-6). The director
   changes their order, spacing and rooms on the grid, including two side by side (CMQ), by moving

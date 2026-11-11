@@ -31,6 +31,13 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   the Finals slots, `'inLane'` in their lane's rooms. Unset, it follows the division count as before
   (FR-019a). `consolationFinalsWithFinals(settings)` says which applies.
 
+### Changed
+
+* `generateSchedule` gives the prelims the fewest rows that hold them, rather than starting a
+  weekend at 8, so a division borrows a smaller division's room once that one is done: Nov 2021 (5
+  and 22 teams in 4 rooms) and Nov 2022 (8 and 27 in 5) take 7 prelim rows, as those meets did
+  (FR-019).
+
 ## [1.7.1] - 2026-11-04
 
 ### Changed

@@ -296,7 +296,7 @@ export function reflowSchedule(
     ? oldSlots.prelim.length
     : divisions.length === 0
       ? DEFAULT_SHAPE.prelimSlots
-      : Math.max(base, minPrelims, Math.ceil(totalPrelims / roomCount))
+      : Math.max(1, minPrelims, Math.ceil(totalPrelims / roomCount))
   const place = (n: number) =>
     placePrelims({
       divisions: toPlace,
