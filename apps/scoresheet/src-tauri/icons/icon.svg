@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!--
+    qzr app icon. The letters are Kanit Bold outlines (SIL Open Font License
+    1.1, https://github.com/cadsondemak/kanit), spaced 4% tighter, centred on
+    the lowercase letters with a 10% nudge towards the q's tail.
+
+    The tile is the dark surface colour; android-fg.svg and android-bg.svg
+    split it into the two layers of an Android adaptive icon, and
+    public/favicon.svg is the browser tab version. To regenerate the Tauri icons from
+    apps/scoresheet: pnpm tauri icon src-tauri/icons/icon-manifest.json
+    The PWA icons are built from the resulting icon.png by pnpm pwa-icons.
+  -->
+  <rect width="512" height="512" rx="112" fill="#1a1816"/>
+  <g fill="#b8b4a8" transform="translate(256 256) scale(0.28715 -0.28715) translate(-721.5 -225.4)">
+    <!-- q --><path d="M535 -242Q452 -242 413 -204Q374 -166 374 -86V17Q351 4 319 -3Q287 -10 254 -10Q148 -10 86.5 47Q25 104 25 231Q25 359 85 421.5Q145 484 248 484Q295 484 328 471.5Q361 459 389 436L399 474H562V-64Q562 -88 570.5 -97Q579 -106 602 -106Q625 -106 647 -98V-222Q622 -232 598 -237Q574 -242 535 -242ZM301 127Q325 127 342 133Q359 139 374 151V319Q358 333 341.5 340Q325 347 302 347Q260 347 238.5 320Q217 293 217 234Q217 173 239 150Q261 127 301 127Z"/>
+    <!-- z --><path transform="translate(567 0)" d="M25 0V103L224 330H32V474H463V368L270 144H470V0Z"/>
+    <!-- r --><path transform="translate(1022 0)" d="M45 0V474H226L231 436Q260 453 305 467Q350 481 396 484V344Q370 342 339.5 337Q309 332 280.5 324.5Q252 317 233 308V0Z"/>
+  </g>
+</svg>

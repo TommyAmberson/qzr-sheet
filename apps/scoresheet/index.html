@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="%BASE_URL%favicon.ico">
+    <!-- The tab icon is the app icon with slightly larger letters, to hold up
+         at 16px. The .ico is a fallback: listed first and with a sizes hint,
+         so browsers that read SVG pick the sharper SVG. -->
+    <link rel="icon" href="%BASE_URL%favicon.ico" sizes="32x32">
+    <link rel="icon" href="%BASE_URL%favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon-180x180.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#1a1a2e">

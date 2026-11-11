@@ -15,6 +15,17 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.18.5] - 2026-11-11
+
+### Changed
+
+* New app icon: "qzr" in light grey on the app's dark surface, replacing the stock Tauri logo on the
+  desktop app, the Android app, the installed web app, and the browser tab
+
+### Bundled contract
+
+* `@qzr/shared@1.8.0` - bumped from 1.7.1
+
 ## [0.18.4] - 2026-11-11
 
 ### Fixed
