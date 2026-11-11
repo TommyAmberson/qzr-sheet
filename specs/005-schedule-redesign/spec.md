@@ -602,11 +602,12 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   mid-afternoon, so they can be watched and still finish before the evening (P-6). The director
   changes their order, spacing and rooms on the grid, including two side by side (CMQ), by moving
   and pinning them (FR-004a); Elim settings has no Finals controls beyond each lane's Finals on or
-  off. The default order MUST be highest division first (Div 3, Div 2, Div 1, as every 2025 meet).
-  With two divisions each division's consolation Finals runs with the others, just before its own
-  (2021 to 2024); with three or more it runs in its lane's rooms like the lane's other quizzes (FBC
-  2025), so the Finals don't push the evening back. It's a starting point, not a preference the
-  generator weighs (P-6), and may become a setting later.
+  off and where consolation Finals run. The default order MUST be highest division first (Div 3, Div
+  2, Div 1, as every 2025 meet). With two divisions each division's consolation Finals runs with the
+  others, just before its own (2021 to 2024); with three or more it runs in its lane's rooms like
+  the lane's other quizzes (FBC 2025), so the Finals don't push the evening back. Elim settings MUST
+  let the director choose either for the whole schedule; unchosen, it follows the division count.
+  It's a starting point, not a preference the generator weighs (P-6).
 * **FR-020**: Each division's stats break MUST be worked out automatically: it falls between the
   division's last prelim and its first elim, so divisions can break at different times (H-11). It
   isn't a special row and the builder doesn't list it. A "Stats break" event in the frame is an

@@ -166,13 +166,20 @@ function finalsOrder(doc: ScheduleDocument, finals: ScheduleQuiz[]): ScheduleQui
 const isFinals = (q: ScheduleQuiz) => q.deciding === true && q.label.endsWith('Finals')
 
 /**
- * Whether a Finals runs with the others in the Finals slots (FR-019a). With two divisions every
- * Finals does, consolations too, as in 2021 to 2024; with three or more a consolation's Finals runs
- * in its lane's rooms like the lane's other quizzes, as at FBC 2025, so the Finals don't push the
+ * Whether consolation lanes' Finals run with the others in the Finals slots (FR-019a). Unless the
+ * director chooses, they do with two divisions, as in 2021 to 2024; with three or more they run in
+ * their lane's rooms like the lane's other quizzes, as at FBC 2025, so the Finals don't push the
  * evening back.
  */
-const inFinalsSlots = (q: ScheduleQuiz, divisions: number) =>
-  isFinals(q) && (divisions < 3 || (q.lane ?? 0) === 0)
+export function consolationFinalsWithFinals(settings: ScheduleSettings): boolean {
+  const choice = settings.finals.consolation
+  if (choice) return choice === 'withFinals'
+  return settings.divisions.filter((d) => d.teams > 0).length < 3
+}
+
+/** Whether a Finals runs with the others in the Finals slots: a main lane's always does */
+const inFinalsSlots = (q: ScheduleQuiz, consolationsToo: boolean) =>
+  isFinals(q) && (consolationsToo || (q.lane ?? 0) === 0)
 
 /**
  * The schedule re-flowed to its settings, around every pinned quiz (FR-012, H-19): pinned quizzes
@@ -188,6 +195,7 @@ export function reflowSchedule(
 ): ScheduleDocument {
   const { settings } = doc
   const divisions = settings.divisions.filter((d) => d.teams > 0)
+  const consolationsToo = consolationFinalsWithFinals(settings)
   const keepFrame =
     options.keepFrame ?? (doc.frame.some((r) => r.pinned) || doc.events.some((e) => e.pinned))
   const oldSlots = slotsByUse(doc.frame)
@@ -335,7 +343,7 @@ export function reflowSchedule(
   }
   const scheduled = elimRounds(
     elims.map((quizzes, d) => ({
-      quizzes: quizzes.filter((q) => !inFinalsSlots(q, divisions.length) && !isPinned(q)),
+      quizzes: quizzes.filter((q) => !inFinalsSlots(q, consolationsToo) && !isPinned(q)),
       all: quizzes,
       rooms: elimRooms(d),
     })),
@@ -376,7 +384,7 @@ export function reflowSchedule(
   }
   const finals = finalsOrder(
     doc,
-    elims.flat().filter((q) => inFinalsSlots(q, divisions.length) && !isPinned(q)),
+    elims.flat().filter((q) => inFinalsSlots(q, consolationsToo) && !isPinned(q)),
   )
   const finalsPlaces: number[] = []
   for (let k = 0; finalsPlaces.length < finals.length; k++)

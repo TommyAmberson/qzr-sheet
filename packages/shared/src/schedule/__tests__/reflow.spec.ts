@@ -4,9 +4,14 @@ import { defaultElims } from '../elims'
 import { generateSchedule } from '../reflow'
 import { newScheduleDocument, type ScheduleDocument } from '../scheduleFile'
 
-function meet(counts: number[], rooms: number | 'auto' = 'auto'): ScheduleDocument {
+function meet(
+  counts: number[],
+  rooms: number | 'auto' = 'auto',
+  consolation?: ScheduleDocument['settings']['finals']['consolation'],
+): ScheduleDocument {
   const doc = newScheduleDocument('Test')
   doc.settings.rooms = rooms
+  doc.settings.finals.consolation = consolation
   doc.settings.divisions = counts.map((teams, i) => ({
     id: `d${i + 1}`,
     name: `Div ${i + 1}`,
@@ -71,6 +76,19 @@ describe('generateSchedule', () => {
       expect(lane.filter((x) => x !== q).some((x) => x.cell?.room === q.cell!.room)).toBe(true)
     }
     expect(hard(doc)).toEqual([])
+  })
+
+  it('runs consolation Finals where the director chooses, whatever the division count (FR-019a)', () => {
+    const withFinals = finalsInOrder(meet([6, 17, 16], 'auto', 'withFinals'))
+    expect(withFinals.finals.every((q) => withFinals.slotOf(q).use === 'finals')).toBe(true)
+    expect(withFinals.finals.map((q) => q.label)).toContain('Div 3C Finals')
+
+    const inLane = finalsInOrder(meet([6, 26], 5, 'inLane'))
+    const consolation = inLane.finals.find((q) => q.label === 'Div 2C Finals')!
+    expect(inLane.slotOf(consolation).use).toBe('elim')
+    expect(
+      inLane.finals.filter((q) => inLane.slotOf(q).use === 'finals').map((q) => q.label),
+    ).toEqual(['Div 2 Finals', 'Div 1 Finals'])
   })
 
   it("keeps each division's elims after its prelims, the stats break between (H-11, FR-020)", () => {

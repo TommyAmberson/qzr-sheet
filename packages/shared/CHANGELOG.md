@@ -23,6 +23,14 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-11
+
+### Added
+
+* `ScheduleSettings.finals.consolation`, optional: `'withFinals'` runs consolation lanes' Finals in
+  the Finals slots, `'inLane'` in their lane's rooms. Unset, it follows the division count as before
+  (FR-019a). `consolationFinalsWithFinals(settings)` says which applies.
+
 ## [1.7.1] - 2026-11-04
 
 ### Changed

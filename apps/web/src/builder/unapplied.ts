@@ -1,4 +1,5 @@
 import {
+  consolationFinalsWithFinals,
   defaultElims,
   recommendedRooms,
   unappliedSettings,
@@ -10,6 +11,15 @@ export const DRAW_NAMES: Record<ScheduleSettings['prelimDraw'], string> = {
   ruleBook: 'Rule book',
   noRematches: 'No rematches',
 }
+
+export const CONSOLATION_FINALS_NAMES = {
+  withFinals: 'With the other Finals',
+  inLane: "In the lane's rooms",
+} as const
+
+/** Where a schedule's consolation Finals run, its own choice or the default (FR-019a) */
+export const consolationFinals = (settings: ScheduleSettings) =>
+  consolationFinalsWithFinals(settings) ? 'withFinals' : 'inLane'
 
 const FRAME_NAMES: Record<ScheduleSettings['framePreset'], string> = {
   weekend: 'Weekend',
@@ -53,6 +63,9 @@ export function describeUnapplied(doc: ScheduleDocument): string[] {
       lines.push(
         `Time to total an intermediate: ${was.totallingMinutes} to ${now.totallingMinutes} minutes`,
       )
+    } else if (u.key === 'finals' && consolationFinals(was) !== consolationFinals(now)) {
+      const name = (s: ScheduleSettings) => CONSOLATION_FINALS_NAMES[consolationFinals(s)]
+      lines.push(`Consolation Finals: ${name(was)} to ${name(now)}`)
     } else if (u.key === 'finals') {
       lines.push(
         `Finals: ${was.finals.sideBySide} to ${now.finals.sideBySide} side by side, ${was.finals.spacingMinutes} to ${now.finals.spacingMinutes} minutes apart`,
