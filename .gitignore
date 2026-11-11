@@ -46,17 +46,17 @@ __screenshots__/
 .~lock.*#
 
 # PWA generated icons (produced by `pnpm pwa-icons`)
-public/pwa-*.png
-public/maskable-icon*.png
-public/apple-touch-icon*.png
+apps/scoresheet/public/pwa-*.png
+apps/scoresheet/public/maskable-icon*.png
+apps/scoresheet/public/apple-touch-icon*.png
 
 
 
 # Tauri icon dir: pwa-icons accidentally generated here if run without public/icon.png present
-src-tauri/icons/pwa-*.png
-src-tauri/icons/maskable-icon*.png
-src-tauri/icons/apple-touch-icon*.png
-src-tauri/icons/favicon.ico
+apps/scoresheet/src-tauri/icons/pwa-*.png
+apps/scoresheet/src-tauri/icons/maskable-icon*.png
+apps/scoresheet/src-tauri/icons/apple-touch-icon*.png
+apps/scoresheet/src-tauri/icons/favicon.ico
 
 
 
