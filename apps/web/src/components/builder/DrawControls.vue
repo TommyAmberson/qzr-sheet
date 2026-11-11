@@ -237,9 +237,13 @@ function confirmSort() {
       </div>
     </section>
 
-    <section v-if="lateOn" class="card">
+    <section class="card">
       <h4 class="card-title">Sort prelims</h4>
-      <p class="hint">Moves prelims so late teams play late.</p>
+      <p class="hint">
+        Puts prelims back in quiz order, as after moving them by hand{{
+          lateOn ? ', with late teams playing late' : ''
+        }}.
+      </p>
       <div class="all">
         <button type="button" @click="sorting = divisions.map((d) => d.id)">
           Sort all prelims

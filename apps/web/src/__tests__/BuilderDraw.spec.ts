@@ -74,8 +74,7 @@ describe('the draw in the builder (FR-039 to FR-042b)', () => {
       .findAll('.section-head')
       .find((h) => h.text().includes('Prelim'))!
       .trigger('click')
-    expect(w.findAll('button').some((b) => b.text() === 'Sort all prelims')).toBe(false)
-    await w.find('[aria-label="Late teams play late"]').setValue(true)
+    // Available with late teams off too, to put prelims moved by hand back in quiz order
     await button(w, 'Sort all prelims').trigger('click')
     expect(w.find('.moves').text()).toMatch(/\d+ quizz?(es)? will move/)
     await button(w, 'Cancel').trigger('click')
