@@ -596,17 +596,20 @@ without the edit, and the scoresheet loads a published quiz with the right teams
   change, and a count the director sets stays until they choose the recommendation again.
 * **FR-019**: By default each division MUST get its own block of adjacent rooms, in division order
   (Div 1 in the lowest-numbered rooms) and sized to its share of the quizzes, and each elim lane
-  MUST keep to the same rooms (P-2, P-3). A division MAY borrow other rooms when its block can't fit
-  its quizzes. Each room's header MUST show every division that uses it, Finals aside.
+  MUST keep to the same rooms (P-2, P-3). The prelims MUST take the fewest rows that hold them, so a
+  division whose block can't fit its quizzes in those rows borrows other rooms' free cells, such as
+  a smaller division's room once it is done (27 quizzes in 4 rooms took 7 rows at Nov 2021, 35 in 5
+  at Nov 2022). Each room's header MUST show every division that uses it, Finals aside.
 * **FR-019a**: Finals MUST default to one at a time, in Room 1, about 25 to 30 minutes apart from
   mid-afternoon, so they can be watched and still finish before the evening (P-6). The director
   changes their order, spacing and rooms on the grid, including two side by side (CMQ), by moving
   and pinning them (FR-004a); Elim settings has no Finals controls beyond each lane's Finals on or
-  off. The default order MUST be highest division first (Div 3, Div 2, Div 1, as every 2025 meet).
-  With two divisions each division's consolation Finals runs with the others, just before its own
-  (2021 to 2024); with three or more it runs in its lane's rooms like the lane's other quizzes (FBC
-  2025), so the Finals don't push the evening back. It's a starting point, not a preference the
-  generator weighs (P-6), and may become a setting later.
+  off and where consolation Finals run. The default order MUST be highest division first (Div 3, Div
+  2, Div 1, as every 2025 meet). With two divisions each division's consolation Finals runs with the
+  others, just before its own (2021 to 2024); with three or more it runs in its lane's rooms like
+  the lane's other quizzes (FBC 2025), so the Finals don't push the evening back. Elim settings MUST
+  let the director choose either for the whole schedule; unchosen, it follows the division count.
+  It's a starting point, not a preference the generator weighs (P-6).
 * **FR-020**: Each division's stats break MUST be worked out automatically: it falls between the
   division's last prelim and its first elim, so divisions can break at different times (H-11). It
   isn't a special row and the builder doesn't list it. A "Stats break" event in the frame is an

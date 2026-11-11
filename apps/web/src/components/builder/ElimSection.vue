@@ -14,6 +14,8 @@ import {
   type UnappliedSetting,
 } from '@qzr/shared'
 
+import { CONSOLATION_FINALS_NAMES, consolationFinals } from '../../builder/unapplied'
+
 /**
  * Each division's elims, lanes first: how many ranks each lane takes, then an intermediate across
  * any line to settle it, then each lane's format, bracket, Finals, label and lettering (FR-027 to
@@ -170,6 +172,16 @@ const NINE_BRACKETS: Record<string, { name: string; note: string }> = {
 /** Which of them a lane plays; `9b` is an older name for rule book B, kept by saved schedules */
 const nineBracket = (l: LaneSettings) => (l.bracket === '9b' ? 'ruleB' : (l.bracket ?? '9'))
 const unapplied = (id: string) => props.unapplied.some((u) => u.key === `${id}.elims`)
+
+// Where consolation lanes' Finals run, shown once some division has one (FR-019a)
+const hasConsolationFinals = computed(() =>
+  props.doc.settings.divisions.some(
+    (d) => d.teams > 0 && d.elims.lanes.some((l, i) => i > 0 && l.finals),
+  ),
+)
+const consolationNow = computed(() => consolationFinals(props.doc.settings))
+const finalsUnapplied = computed(() => props.unapplied.some((u) => u.key === 'finals'))
+const showFinalsInfo = ref(false)
 
 /** Each division's colour, as the grid ticks its quizzes */
 const colourOf = (d: DivisionSettings) => divisionColourVar(props.doc, d.id)
@@ -434,6 +446,43 @@ function laneNote(l: LaneSettings) {
         </span>
       </div>
     </div>
+
+    <section v-if="hasConsolationFinals" class="card">
+      <h4 class="card-title">Finals</h4>
+      <div class="field stack">
+        <span>
+          Consolation Finals run
+          <button
+            type="button"
+            class="info"
+            aria-label="About consolation Finals"
+            :aria-expanded="showFinalsInfo"
+            @click="showFinalsInfo = !showFinalsInfo"
+          >
+            i
+          </button>
+        </span>
+        <span class="seg" role="group" aria-label="Consolation Finals">
+          <button
+            v-for="(name, key) in CONSOLATION_FINALS_NAMES"
+            :key="key"
+            type="button"
+            :aria-pressed="consolationNow === key"
+            @click="emit('change', (d) => (d.settings.finals.consolation = key))"
+          >
+            {{ name }}
+          </button>
+        </span>
+      </div>
+      <p v-if="finalsUnapplied" class="unapplied">Unapplied</p>
+      <p v-if="showFinalsInfo" class="info-box">
+        <strong>With the other Finals</strong> runs each consolation lane's Finals in the Finals
+        slots, just before its division's own, so everyone can watch.
+        <strong>In the lane's rooms</strong> runs it like the lane's other quizzes, so the Finals
+        don't push the evening back. Unless you choose, a schedule with two divisions runs them with
+        the other Finals and one with three or more in the lane's rooms.
+      </p>
+    </section>
 
     <section v-if="withElims.length > 0" class="card">
       <h4 class="card-title">Re-place elims</h4>

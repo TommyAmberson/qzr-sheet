@@ -90,6 +90,8 @@ const SettingsSchema = Type.Object({
     spacingMinutes: Type.Integer({ minimum: 0 }),
     /** How many Finals run at once */
     sideBySide: Type.Integer({ minimum: 1 }),
+    /** Where a consolation lane's Finals runs (FR-019a); unset, it follows the division count */
+    consolation: Type.Optional(Type.Union([Type.Literal('withFinals'), Type.Literal('inLane')])),
   }),
   autoApply: Type.Boolean(),
   /** Whether late marks count at all (FR-042a): off unless the director switches it on */

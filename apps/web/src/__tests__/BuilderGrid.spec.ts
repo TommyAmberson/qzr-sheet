@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defaultElims, generateSchedule, newScheduleDocument } from '@qzr/shared'
 
-import { keepSchedule } from '../builder/persistence'
+import { keepSchedule, loadSchedule } from '../builder/persistence'
 import BuilderView from '../views/BuilderView.vue'
 
 let wrapper: VueWrapper | null = null
@@ -365,6 +365,38 @@ describe('Elim settings (story 4)', () => {
     ])
     expect(select.element.value).toBe('ruleB')
     expect(w.find('.lrow .hint').text()).toBe('9 teams · bracket, every team loses twice')
+  })
+
+  it('moves consolation Finals into the Finals slots when chosen (FR-019a)', async () => {
+    const doc = newScheduleDocument('Three divisions')
+    doc.settings.divisions = [6, 17, 16].map((teams, i) => ({
+      id: `d${i + 1}`,
+      name: `Div ${i + 1}`,
+      teams,
+      elims: defaultElims(teams),
+    }))
+    const saved = generateSchedule(doc)
+    keepSchedule(saved)
+    wrapper = mount(BuilderView, { props: { id: saved.id }, attachTo: document.body })
+    const w = wrapper
+    await w
+      .findAll('.section-head')
+      .find((h) => h.text().startsWith('Elim settings'))!
+      .trigger('click')
+    const choice = (name: string) =>
+      w
+        .find('[aria-label="Consolation Finals"]')
+        .findAll('button')
+        .find((b) => b.text() === name)!
+    expect(choice("In the lane's rooms").attributes('aria-pressed')).toBe('true')
+    await choice('With the other Finals').trigger('click')
+    expect(choice('With the other Finals').attributes('aria-pressed')).toBe('true')
+    const kept = loadSchedule(saved.id)!
+    const slot = (label: string) => {
+      const q = kept.quizzes.find((x) => x.label === label)!
+      return kept.frame.find((r) => r.kind === 'slot' && r.id === q.cell!.slot)
+    }
+    expect(slot('Div 3C Finals')).toMatchObject({ use: 'finals' })
   })
 
   it('turning a consolation lane into a round robin rebuilds its quizzes', async () => {
