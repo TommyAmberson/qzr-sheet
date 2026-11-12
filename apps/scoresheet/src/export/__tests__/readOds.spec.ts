@@ -571,6 +571,34 @@ describe('readOds — Q16+ placement by the state of the quiz', () => {
     expect(noJumps).toEqual(['19B'])
   })
 
+  it('orders two errors before a no-jump by a seat whose quizzer errored out', () => {
+    const cells = namedCells()
+    setCell(cells, T1_QUIZZER_ROW3, 1, 'Third seat')
+    setCell(cells, T3_QUIZZER_ROW + 2, 1, 'Third seat')
+    // Team 3's third seat errors out with nobody to replace them, so that seat is empty
+    for (const q of [1, 3, 5]) setCell(cells, T3_QUIZZER_ROW + 2, Q_COL(q), 'e')
+    for (const q of [2, 4, 6]) setCell(cells, 27, Q_COL(q), 'x')
+    setCell(cells, T1_QUIZZER_ROW3, Q_COL(19), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(19), 'e')
+    setCell(cells, 27, Q_COL(19), 'x')
+    const { answers, noJumps } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '19', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T1_Q3, columnKey: '19A', value: CellValue.Error })
+    expect(noJumps).toContain('19B')
+  })
+
+  it('goes to A, as the shared rules do, when every team is already locked out', () => {
+    const cells = namedCells()
+    // Three errors on 16 lock all three teams out of 17, which then isn't a toss-up to one team
+    for (const row of [T1_QUIZZER_ROW, T2_QUIZZER_ROW, T3_QUIZZER_ROW]) {
+      setCell(cells, row, Q_COL(16), 'e')
+    }
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(17), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(17), 'c')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '17A', value: CellValue.Correct })
+  })
+
   it('reads a second error on an errored toss-up as an answer to B', () => {
     const cells = namedCells()
     setCell(cells, T1_QUIZZER_ROW, Q_COL(15), 'e')

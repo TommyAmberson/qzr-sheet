@@ -6,6 +6,7 @@ import {
   buildCellGrid,
   buildColumns,
   CellValue,
+  ColStatus,
   computeGreyedOut,
   computeOtIneligibility,
   deserialize,
@@ -58,14 +59,17 @@ interface Placement {
   noJumps: string[]
 }
 
+/** The ODS template only holds 20-question quizzes */
+const RULES = quizRules(QuizFormat.TwentyQuestion)
+
 /**
- * How many teams can't jump on a question's numbered column, going by the questions before it: none
- * on an open question, one on a toss-up.
+ * Whether an error on a question leaves one team to answer, so that its A question is skipped and
+ * the rest is on B: the case when the question was already a toss-up. Asked of the shared scoring
+ * rules, given the quiz so far with that error placed.
  */
-function teamsLockedOut(fileSoFar: QuizFile, q: number): number {
-  const { quiz, teams, quizzers, answers, noJumps } = deserialize(fileSoFar)
-  const rules = quizRules(quiz.format)
-  const columns = buildColumns(rules, OT_ROUNDS_IN_SHEET)
+function errorSkipsA(fileWithError: QuizFile, q: number): boolean {
+  const { quiz, teams, quizzers, answers, noJumps } = deserialize(fileWithError)
+  const columns = buildColumns(RULES, OT_ROUNDS_IN_SHEET)
   const cells = buildCellGrid(teams, quizzers, columns, answerLookup(answers))
   // In overtime, teams that aren't tied are locked out of every question
   const notInOvertime = computeOtIneligibility(
@@ -73,10 +77,10 @@ function teamsLockedOut(fileSoFar: QuizFile, q: number): number {
     columns,
     inSeatOrder(teams, quizzers).map(({ team }) => team.onTime),
     columns.map((c) => noJumps.get(c.key) ?? false),
-    rules,
+    RULES,
   )
-  const { tossedUp } = computeGreyedOut(cells, columns, notInOvertime, quiz.bonusRule)
-  return tossedUp[columns.findIndex((c) => c.key === `${q}`)]?.size ?? 0
+  const { colStatuses } = computeGreyedOut(cells, columns, notInOvertime, quiz.bonusRule)
+  return colStatuses[columns.findIndex((c) => c.key === `${q}A`)] === ColStatus.Skipped
 }
 
 /** Seats on a team's bench; a fifth quizzer listed is a substitute */
@@ -86,7 +90,7 @@ const ERROR_OUT = 3
 const FOUL_OUT = 3
 
 /** The seat a mark was most likely made from, when the sheet gives a reason to pick one */
-type SeatOf = (mark: RawAnswer) => number | undefined
+type SeatOf = (mark: Pick<RawAnswer, 'teamIdx' | 'seatIdx'>) => number | undefined
 
 /**
  * The two errors of a question that went to B, in the order they were made. The spreadsheet doesn't
@@ -98,27 +102,29 @@ type SeatOf = (mark: RawAnswer) => number | undefined
  * The seats are themselves a guess (see `seatOf`), so this is the likelier order, not a known one.
  * When the seat favours neither error, the order they are listed in stands.
  *
- * @param named - per team, per row, whether a quizzer is listed there
+ * @param isSeatEmpty - whether a team has nobody sitting in a seat
  */
 function inOrderMade(
   errors: RawAnswer[],
   rest: RawAnswer[],
   noJump: boolean,
-  named: boolean[][],
   seatOf: SeatOf,
+  isSeatEmpty: (teamIdx: number, seat: number) => boolean,
 ): RawAnswer[] {
   const [first, second] = errors
   if (!first || !second) return errors
   const bonus = rest.find((a) => a.value === CellValue.Bonus || a.value === CellValue.MissedBonus)
   const bonusSeat = bonus && seatOf(bonus)
-  const thirdTeam = named.findIndex((_, teamIdx) => errors.every((e) => e.teamIdx !== teamIdx))
+  const thirdTeam = TEAM_BLOCKS.findIndex((_, teamIdx) =>
+    errors.every((e) => e.teamIdx !== teamIdx),
+  )
   if (bonus ? bonusSeat === undefined : !noJump || thirdTeam < 0) return errors
 
   /** How likely an error came from the bonus seat: 1 if it seems so, 0 if not, between if unknown */
   const fromBonusSeat = (error: RawAnswer) => {
     const seat = seatOf(error)
     if (seat === undefined) return 0.5
-    return (bonus ? seat === bonusSeat : !named[thirdTeam]![seat]) ? 1 : 0
+    return (bonus ? seat === bonusSeat : isSeatEmpty(thirdTeam, seat)) ? 1 : 0
   }
   return fromBonusSeat(first) > fromBonusSeat(second) ? [second, first, ...errors.slice(2)] : errors
 }
@@ -137,8 +143,8 @@ function placeQuestion(
   q: number,
   noJump: boolean,
   tossUp: boolean,
-  named: boolean[][],
   seatOf: SeatOf,
+  isSeatEmpty: (teamIdx: number, seat: number) => boolean,
 ): Placement {
   const errors = rawAnswers.filter((a) => a.value === CellValue.Error)
   const rest = rawAnswers.filter((a) => a.value !== CellValue.Error)
@@ -147,11 +153,11 @@ function placeQuestion(
     columnKey: key,
     value: a.value,
   })
-  if (q < 16 || errors.length === 0) {
+  if (q < RULES.firstAbQuestion || errors.length === 0) {
     return { answers: rawAnswers.map(on(`${q}`)), noJumps: noJump ? [`${q}`] : [] }
   }
 
-  const ordered = tossUp ? errors : inOrderMade(errors, rest, noJump, named, seatOf)
+  const ordered = tossUp ? errors : inOrderMade(errors, rest, noJump, seatOf, isSeatEmpty)
   // Errors beyond the ones that fit are answers to the last question asked
   const onA = tossUp ? [] : ordered.slice(1, 2)
   const extra = ordered.slice(tossUp ? 1 : 2)
@@ -306,7 +312,6 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   const tallies = teams.map((team) =>
     team.quizzers.map(() => ({ correct: 0, errors: 0, fouls: 0 })),
   )
-  const { quizOutCorrect } = quizRules(QuizFormat.TwentyQuestion)
   // A best guess, since the sheet lists quizzers, not seats, and a substitution never changes the
   // rows. The first four listed are taken to sit in order. A fifth is a substitute: usually in the
   // seat of the one teammate who has quizzed, errored or fouled out, and otherwise unknown. A team
@@ -315,9 +320,18 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   const seatOf: SeatOf = ({ teamIdx, seatIdx }) => {
     if (seatIdx < SEATS) return seatIdx
     const out = tallies[teamIdx]!.slice(0, SEATS).flatMap(({ correct, errors, fouls }, seat) =>
-      correct >= quizOutCorrect || errors >= ERROR_OUT || fouls >= FOUL_OUT ? [seat] : [],
+      correct >= RULES.quizOutCorrect || errors >= ERROR_OUT || fouls >= FOUL_OUT ? [seat] : [],
     )
     return out.length === 1 ? out[0] : undefined
+  }
+
+  // A seat is empty when its quizzer isn't listed or had to leave (a quiz-out may stay on for
+  // bonuses), unless the substitute is guessed to have taken it
+  const isSeatEmpty = (teamIdx: number, seat: number) => {
+    const { errors, fouls } = tallies[teamIdx]![seat]!
+    const vacated = !named[teamIdx]![seat] || errors >= ERROR_OUT || fouls >= FOUL_OUT
+    const filled = named[teamIdx]![SEATS] && seatOf({ teamIdx, seatIdx: SEATS }) === seat
+    return vacated && !filled
   }
 
   // Second pass: assign column keys, question by question, since where a question's marks belong
@@ -330,12 +344,21 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   for (const q of questions) {
     const rawAnswers = rawAnswersByQ.get(q) ?? []
     const noJump = noJumpQuestions.has(q)
-    // Whether an error on a Q16+ question leaves only one team to answer
+    const firstError = rawAnswers.find((a) => a.value === CellValue.Error)
     const tossUp =
-      q >= 16 &&
-      rawAnswers.some((a) => a.value === CellValue.Error) &&
-      teamsLockedOut(toFile(answers, noJumps), q) >= TEAM_BLOCKS.length - 2
-    const placed = placeQuestion(rawAnswers, q, noJump, tossUp, named, seatOf)
+      q >= RULES.firstAbQuestion &&
+      firstError !== undefined &&
+      errorSkipsA(
+        toFile(
+          [
+            ...answers,
+            { quizzerId: firstError.quizzerId, columnKey: `${q}`, value: firstError.value },
+          ],
+          noJumps,
+        ),
+        q,
+      )
+    const placed = placeQuestion(rawAnswers, q, noJump, tossUp, seatOf, isSeatEmpty)
     for (const { teamIdx, seatIdx, value } of rawAnswers) {
       const tally = tallies[teamIdx]![seatIdx]!
       if (value === CellValue.Correct) tally.correct++
