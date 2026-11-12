@@ -16,6 +16,17 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-11
+
+### Added
+
+* The meet page's phase bar has a Review step between Live and Done, for checking and correcting
+  results once quizzing is over (#117)
+
+### Bundled contract
+
+* `@qzr/shared@1.9.0` - bumped from 1.8.0
+
 ## [0.23.2] - 2026-11-11
 
 ### Changed
