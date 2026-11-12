@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { deflateRawSync } from 'node:zlib'
 import { readOds } from '../readOds'
-import { CellValue, deserialize, QuizFormat } from '@qzr/shared'
+import { CellValue, deserialize, quizOutcome, QuizFormat } from '@qzr/shared'
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -307,8 +307,8 @@ describe('readOds — Q1–Q15 answers', () => {
 // Q16+ answers — distributeABAnswers with footer-row depth
 // ---------------------------------------------------------------------------
 
-describe('readOds — Q16+ A/B distribution via footer rows', () => {
-  it('depth 0 (no footer types): all answers go to base key', () => {
+describe('readOds — Q16+ A/B distribution with footer types', () => {
+  it('no errors: all answers go to base key', () => {
     const cells = minimalCells()
     // No entries in rows 29/30 for Q16 col
     setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'c')
@@ -316,7 +316,7 @@ describe('readOds — Q16+ A/B distribution via footer rows', () => {
     expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '16', value: CellValue.Correct })
   })
 
-  it('depth 1 (A type in row 29): error → base key, correct → A key', () => {
+  it('one error (A type in row 29): error → base key, correct → A key', () => {
     const cells = minimalCells()
     setCell(cells, 29, Q_COL(16), 'INT') // marks depth=1
     setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e') // quizzer 1 errors
@@ -326,7 +326,7 @@ describe('readOds — Q16+ A/B distribution via footer rows', () => {
     expect(answers).toContainEqual({ quizzerId: T1_Q2, columnKey: '16A', value: CellValue.Correct })
   })
 
-  it('depth 2 (B type in row 30): two errors distributed, correct → B key', () => {
+  it('two errors (B type in row 30): errors on base and A, correct → B key', () => {
     const cells = minimalCells()
     setCell(cells, 30, Q_COL(16), 'INT') // marks depth=2
     setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e') // first error → base
@@ -338,7 +338,7 @@ describe('readOds — Q16+ A/B distribution via footer rows', () => {
     expect(answers).toContainEqual({ quizzerId: T1_Q3, columnKey: '16B', value: CellValue.Correct })
   })
 
-  it('depth 1: multiple non-errors all go to A key', () => {
+  it('one error: multiple non-errors all go to A key', () => {
     const cells = minimalCells()
     setCell(cells, 29, Q_COL(17), 'FTV') // Q17, depth=1
     setCell(cells, T1_QUIZZER_ROW, Q_COL(17), 'e')
@@ -352,18 +352,18 @@ describe('readOds — Q16+ A/B distribution via footer rows', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Q16+ answers — inferABDepth (footer rows absent)
+// Q16+ answers — footer rows absent
 // ---------------------------------------------------------------------------
 
-describe('readOds — Q16+ A/B depth inference when footer is empty', () => {
-  it('0 errors → depth 0: correct answer stays on base key', () => {
+describe('readOds — Q16+ A/B distribution when footer is empty', () => {
+  it('0 errors: correct answer stays on base key', () => {
     const cells = minimalCells()
     setCell(cells, T1_QUIZZER_ROW, Q_COL(18), 'c')
     const { answers } = readOds(makeOds(makeSheetXml(cells)))
     expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '18', value: CellValue.Correct })
   })
 
-  it('1 error → depth 1: error on base key, correct on A key', () => {
+  it('1 error: error on base key, correct on A key', () => {
     const cells = minimalCells()
     setCell(cells, T1_QUIZZER_ROW, Q_COL(18), 'e')
     setCell(cells, T1_QUIZZER_ROW2, Q_COL(18), 'c')
@@ -372,7 +372,7 @@ describe('readOds — Q16+ A/B depth inference when footer is empty', () => {
     expect(answers).toContainEqual({ quizzerId: T1_Q2, columnKey: '18A', value: CellValue.Correct })
   })
 
-  it('2 errors → depth 2: errors on base/A, correct on B key', () => {
+  it('2 errors: errors on base/A, correct on B key', () => {
     const cells = minimalCells()
     setCell(cells, T1_QUIZZER_ROW, Q_COL(19), 'e')
     setCell(cells, T1_QUIZZER_ROW2, Q_COL(19), 'e')
@@ -383,16 +383,280 @@ describe('readOds — Q16+ A/B depth inference when footer is empty', () => {
     expect(answers).toContainEqual({ quizzerId: T1_Q3, columnKey: '19B', value: CellValue.Correct })
   })
 
-  it('3+ errors → depth capped at 2: third error goes to A key', () => {
-    // inferABDepth caps at 2 even with 3 errors
+  it('a third error is an answer to B, the last question asked', () => {
     const cells = minimalCells()
     setCell(cells, T1_QUIZZER_ROW, Q_COL(20), 'e') // → base
-    setCell(cells, T1_QUIZZER_ROW2, Q_COL(20), 'e') // → A (depth-1 cap)
-    setCell(cells, T1_QUIZZER_ROW3, Q_COL(20), 'e') // → A (depth-1 cap, 3rd error)
+    setCell(cells, T1_QUIZZER_ROW2, Q_COL(20), 'e') // → A
+    setCell(cells, T1_QUIZZER_ROW3, Q_COL(20), 'e') // → B
     const { answers } = readOds(makeOds(makeSheetXml(cells)))
     expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '20', value: CellValue.Error })
     expect(answers).toContainEqual({ quizzerId: T1_Q2, columnKey: '20A', value: CellValue.Error })
-    expect(answers).toContainEqual({ quizzerId: T1_Q3, columnKey: '20A', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T1_Q3, columnKey: '20B', value: CellValue.Error })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Q16+ placement by the state of the quiz
+// ---------------------------------------------------------------------------
+
+// TEAM_BLOCKS[1]: quizzerStart=13, quizzerIds 8-12; TEAM_BLOCKS[2]: quizzerStart=21, quizzerIds 14-18
+const T2_Q1 = 8
+const T3_Q1 = 14
+const T2_QUIZZER_ROW = 13
+const T3_QUIZZER_ROW = 21
+
+describe('readOds — Q16+ placement by the state of the quiz', () => {
+  /** Cells with a named first quizzer on each team, so their answers are valid */
+  function namedCells(): Map<number, Map<number, string>> {
+    const cells = minimalCells()
+    for (const row of [T1_QUIZZER_ROW, T2_QUIZZER_ROW, T3_QUIZZER_ROW]) {
+      setCell(cells, row, 1, `Quizzer ${row}`)
+    }
+    return cells
+  }
+
+  it('puts a no-jump under an errored question on its A question', () => {
+    const cells = namedCells()
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, 27, Q_COL(16), 'x')
+    const { answers, noJumps } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '16', value: CellValue.Error })
+    expect(noJumps).toEqual(['16A'])
+  })
+
+  it('puts a no-jump under a twice-errored question on its B question', () => {
+    const cells = namedCells()
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(18), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(18), 'e')
+    setCell(cells, 27, Q_COL(18), 'x')
+    const { answers, noJumps } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '18', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '18A', value: CellValue.Error })
+    expect(noJumps).toEqual(['18B'])
+  })
+
+  it('keeps a no-jump after one error on A even when the footer types B', () => {
+    const cells = namedCells()
+    setCell(cells, 30, Q_COL(17), 'INT')
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(17), 'e')
+    setCell(cells, 27, Q_COL(17), 'x')
+    const { noJumps } = readOds(makeOds(makeSheetXml(cells)))
+    expect(noJumps).toEqual(['17A'])
+  })
+
+  it('orders two errors by the bonus seat: the error from that seat was the last', () => {
+    const cells = namedCells()
+    for (const row of [T2_QUIZZER_ROW + 2, T3_QUIZZER_ROW + 2]) setCell(cells, row, 1, 'Third seat')
+    // Team 1 is listed first, but the bonus went to team 3's first seat, so team 1's first-seat
+    // error was the second one, and team 2's third-seat error the first
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 2, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({
+      quizzerId: T2_Q1 + 2,
+      columnKey: '16',
+      value: CellValue.Error,
+    })
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '16A', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T3_Q1, columnKey: '16B', value: CellValue.Bonus })
+  })
+
+  it('still orders two errors by the bonus seat on a team of five, for its first four rows', () => {
+    const cells = namedCells()
+    for (const row of [T2_QUIZZER_ROW + 2, T3_QUIZZER_ROW + 2]) setCell(cells, row, 1, 'Third seat')
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T3_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 2, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({
+      quizzerId: T2_Q1 + 2,
+      columnKey: '16',
+      value: CellValue.Error,
+    })
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '16A', value: CellValue.Error })
+  })
+
+  it('takes a fifth-row error as the last when the other error was not from the bonus seat', () => {
+    const cells = namedCells()
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T1_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T3_QUIZZER_ROW + 1, 1, 'Second seat')
+    // The substitute on team 1's fifth row could be in any seat; team 2's first-seat error can't
+    // be the one the second-seat bonus followed, so the substitute's was
+    setCell(cells, T1_QUIZZER_ROW + 4, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW + 1, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '16', value: CellValue.Error })
+    expect(answers).toContainEqual({
+      quizzerId: T1_Q1 + 4,
+      columnKey: '16A',
+      value: CellValue.Error,
+    })
+  })
+
+  it('seats a fifth-row quizzer where the one teammate who is out sat', () => {
+    const cells = namedCells()
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T1_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T2_QUIZZER_ROW + 1, 1, 'Second seat')
+    setCell(cells, T3_QUIZZER_ROW + 2, 1, 'Third seat')
+    // Team 1's third seat quizzes out, so its substitute sits there
+    for (const q of [1, 2, 3, 4]) setCell(cells, T1_QUIZZER_ROW3, Q_COL(q), 'c')
+    // The substitute's error is listed first, but the third-seat bonus shows it was the last
+    setCell(cells, T1_QUIZZER_ROW + 4, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 1, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW + 2, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1 + 1, columnKey: '16', value: 'e' })
+    expect(answers).toContainEqual({ quizzerId: T1_Q1 + 4, columnKey: '16A', value: 'e' })
+  })
+
+  it('seats a fifth-row quizzer where a teammate who fouled out sat', () => {
+    const cells = namedCells()
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T1_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T2_QUIZZER_ROW + 1, 1, 'Second seat')
+    setCell(cells, T3_QUIZZER_ROW + 2, 1, 'Third seat')
+    for (const q of [1, 2, 3]) setCell(cells, T1_QUIZZER_ROW3, Q_COL(q), 'f')
+    setCell(cells, T1_QUIZZER_ROW + 4, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 1, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW + 2, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1 + 1, columnKey: '16', value: 'e' })
+    expect(answers).toContainEqual({ quizzerId: T1_Q1 + 4, columnKey: '16A', value: 'e' })
+  })
+
+  it('takes a fifth-row error as the first when its seat is known not to be the bonus seat', () => {
+    const cells = namedCells()
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T2_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T3_QUIZZER_ROW + 1, 1, 'Second seat')
+    // Team 2's fourth seat errors out, so its substitute sits there, not in the bonus seat; with
+    // that seat unknown, team 1's first-seat error would have stayed first as listed
+    for (const q of [1, 2, 3]) setCell(cells, T2_QUIZZER_ROW + 3, Q_COL(q), 'e')
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 4, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1 + 4, columnKey: '16', value: 'e' })
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '16A', value: 'e' })
+  })
+
+  it('leaves two errors as listed when the bonus answer is on a fifth row', () => {
+    const cells = namedCells()
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T3_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T2_QUIZZER_ROW + 2, 1, 'Third seat')
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 2, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW + 4, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '16', value: CellValue.Error })
+    expect(answers).toContainEqual({
+      quizzerId: T2_Q1 + 2,
+      columnKey: '16A',
+      value: CellValue.Error,
+    })
+  })
+
+  it('orders two errors before a no-jump by the empty bonus seat', () => {
+    const cells = namedCells()
+    setCell(cells, T1_QUIZZER_ROW3, 1, 'Third seat')
+    // Team 3 has nobody in its third seat, so a no-jump on its bonus means the third-seat error
+    // was the last one, though team 1 is listed first
+    setCell(cells, T1_QUIZZER_ROW3, Q_COL(19), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(19), 'e')
+    setCell(cells, 27, Q_COL(19), 'x')
+    const { answers, noJumps } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '19', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T1_Q3, columnKey: '19A', value: CellValue.Error })
+    expect(noJumps).toEqual(['19B'])
+  })
+
+  it('orders two errors before a no-jump by a seat whose quizzer errored out', () => {
+    const cells = namedCells()
+    setCell(cells, T1_QUIZZER_ROW3, 1, 'Third seat')
+    setCell(cells, T3_QUIZZER_ROW + 2, 1, 'Third seat')
+    // Team 3's third seat errors out with nobody to replace them, so that seat is empty
+    for (const q of [1, 3, 5]) setCell(cells, T3_QUIZZER_ROW + 2, Q_COL(q), 'e')
+    for (const q of [2, 4, 6]) setCell(cells, 27, Q_COL(q), 'x')
+    setCell(cells, T1_QUIZZER_ROW3, Q_COL(19), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(19), 'e')
+    setCell(cells, 27, Q_COL(19), 'x')
+    const { answers, noJumps } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '19', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T1_Q3, columnKey: '19A', value: CellValue.Error })
+    expect(noJumps).toContain('19B')
+  })
+
+  it('goes to A, as the shared rules do, when every team is already locked out', () => {
+    const cells = namedCells()
+    // Three errors on 16 lock all three teams out of 17, which then isn't a toss-up to one team
+    for (const row of [T1_QUIZZER_ROW, T2_QUIZZER_ROW, T3_QUIZZER_ROW]) {
+      setCell(cells, row, Q_COL(16), 'e')
+    }
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(17), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(17), 'c')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '17A', value: CellValue.Correct })
+  })
+
+  it('reads a second error on an errored toss-up as an answer to B', () => {
+    const cells = namedCells()
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(15), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW, Q_COL(16), 'e')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '16', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T3_Q1, columnKey: '16B', value: CellValue.Error })
+  })
+
+  it('takes two errors as reaching B even when the footer only types A', () => {
+    const cells = namedCells()
+    setCell(cells, 29, Q_COL(18), 'INT')
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(18), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(18), 'e')
+    setCell(cells, 27, Q_COL(18), 'x')
+    const { answers, noJumps } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '18', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '18A', value: CellValue.Error })
+    expect(noJumps).toEqual(['18B'])
+  })
+
+  it('puts the bonus after an errored toss-up on the B question', () => {
+    const cells = namedCells()
+    // Team 1's error on 15 makes 16 a toss-up, so team 2's error on it sends a bonus to team 3
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(15), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '16', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T3_Q1, columnKey: '16B', value: CellValue.Bonus })
+  })
+
+  it('puts the bonus after an error between two teams tied in overtime on the B question', () => {
+    const cells = namedCells()
+    setCell(cells, 29, 2, 'y')
+    // Teams 1 and 2 tie on a correct answer each; every other regulation question is a no-jump
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(1), 'c')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(2), 'c')
+    for (let q = 3; q <= 20; q++) setCell(cells, 27, Q_COL(q), 'x')
+    setCell(cells, T1_QUIZZER_ROW, OT_COL(21), 'e')
+    setCell(cells, T2_QUIZZER_ROW, OT_COL(21), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '21', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '21B', value: CellValue.Bonus })
+  })
+
+  it('reads a file with these marks as a quiz with no validation errors', () => {
+    const cells = namedCells()
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(15), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW, Q_COL(16), 'b')
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(17), 'e')
+    setCell(cells, 27, Q_COL(17), 'x')
+    for (const q of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 18, 19, 20]) {
+      setCell(cells, 27, Q_COL(q), 'x')
+    }
+    expect(quizOutcome(deserialize(readOds(makeOds(makeSheetXml(cells))))).placed).toBe(true)
   })
 })
 

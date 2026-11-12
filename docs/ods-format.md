@@ -315,15 +315,32 @@ data model. Since the ODS has no concept of IDs, team and quizzer IDs are genera
 ### A/B Answer Guessing
 
 The ODS stores all sub-question answers (toss-up, A, B) in **one column per question**. On import
-the app must guess which sub-question each answer belongs to. The heuristic uses the footer rows
-(29–31) to determine how far the chain went, then applies the error-first rule:
+the app must work out which sub-question each mark belongs to. It places the questions in order and
+follows how each one must have gone, asking the shared scoring code (`computeGreyedOut`) who could
+jump on it given the questions before:
 
-* **depth 0** (no A/B type in footer): all answers → normal key
-* **depth 1** (A type present): first error → normal key, rest → A key
-* **depth 2** (B type present): first error → normal, second error → A, rest → B
+* **no errors**: all answers → normal key
+* **an open question**: first error → normal key, a second error → A key, the rest → B key (or the A
+  key after a single error)
+* **a toss-up**, where an error leaves one team to answer (a team errored on the question before, or
+  only two teams are tied in overtime): the error → normal key, the rest → B key
 
-This is a best-effort guess. Edge cases (fouls, missed bonuses on sub-questions) may not reconstruct
-perfectly — the user should verify after import.
+A no-jump (row 28) under a question that has an error is a no-jump on the last sub-question asked,
+so it follows the rest of the marks to the A or B key. The footer type rows (29–31) are read as
+question types only; they no longer decide placement, since a sub-question nobody answered often has
+no type typed in.
+
+The sheet doesn't record which of two errors on a question came first. A seat bonus goes to the seat
+of the last error, so the error more likely to have come from the bonus seat is taken as the last:
+the seat of the bonus answer, or, when the bonus is a no-jump, a seat the third team had nobody in.
+A quizzer's row is taken as their seat for the first four listed; a fifth is a substitute, guessed
+to sit where the one teammate who has quizzed, errored or fouled out sat. When the seat favours
+neither error, the order they are listed in stands.
+
+That order is a best guess. The sheet lists quizzers, not seats, and a team that swaps quizzers at a
+time-out and back again leaves no trace in it. The order changes no score, total or placing, only
+which sub-question each error is recorded against. Other edge cases (fouls, a missed bonus written
+as an error) may not reconstruct perfectly, and the user should verify after import.
 
 ## Known Limitations
 
