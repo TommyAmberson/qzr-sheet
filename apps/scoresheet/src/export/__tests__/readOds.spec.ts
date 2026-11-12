@@ -444,6 +444,133 @@ describe('readOds — Q16+ placement by the state of the quiz', () => {
     expect(noJumps).toEqual(['17A'])
   })
 
+  it('orders two errors by the bonus seat: the error from that seat was the last', () => {
+    const cells = namedCells()
+    for (const row of [T2_QUIZZER_ROW + 2, T3_QUIZZER_ROW + 2]) setCell(cells, row, 1, 'Third seat')
+    // Team 1 is listed first, but the bonus went to team 3's first seat, so team 1's first-seat
+    // error was the second one, and team 2's third-seat error the first
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 2, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({
+      quizzerId: T2_Q1 + 2,
+      columnKey: '16',
+      value: CellValue.Error,
+    })
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '16A', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T3_Q1, columnKey: '16B', value: CellValue.Bonus })
+  })
+
+  it('still orders two errors by the bonus seat on a team of five, for its first four rows', () => {
+    const cells = namedCells()
+    for (const row of [T2_QUIZZER_ROW + 2, T3_QUIZZER_ROW + 2]) setCell(cells, row, 1, 'Third seat')
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T3_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 2, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({
+      quizzerId: T2_Q1 + 2,
+      columnKey: '16',
+      value: CellValue.Error,
+    })
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '16A', value: CellValue.Error })
+  })
+
+  it('takes a fifth-row error as the last when the other error was not from the bonus seat', () => {
+    const cells = namedCells()
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T1_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T3_QUIZZER_ROW + 1, 1, 'Second seat')
+    // The substitute on team 1's fifth row could be in any seat; team 2's first-seat error can't
+    // be the one the second-seat bonus followed, so the substitute's was
+    setCell(cells, T1_QUIZZER_ROW + 4, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW + 1, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '16', value: CellValue.Error })
+    expect(answers).toContainEqual({
+      quizzerId: T1_Q1 + 4,
+      columnKey: '16A',
+      value: CellValue.Error,
+    })
+  })
+
+  it('seats a fifth-row quizzer where the one teammate who is out sat', () => {
+    const cells = namedCells()
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T1_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T2_QUIZZER_ROW + 1, 1, 'Second seat')
+    setCell(cells, T3_QUIZZER_ROW + 2, 1, 'Third seat')
+    // Team 1's third seat quizzes out, so its substitute sits there
+    for (const q of [1, 2, 3, 4]) setCell(cells, T1_QUIZZER_ROW3, Q_COL(q), 'c')
+    // The substitute's error is listed first, but the third-seat bonus shows it was the last
+    setCell(cells, T1_QUIZZER_ROW + 4, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 1, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW + 2, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1 + 1, columnKey: '16', value: 'e' })
+    expect(answers).toContainEqual({ quizzerId: T1_Q1 + 4, columnKey: '16A', value: 'e' })
+  })
+
+  it('seats a fifth-row quizzer where a teammate who fouled out sat', () => {
+    const cells = namedCells()
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T1_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T2_QUIZZER_ROW + 1, 1, 'Second seat')
+    setCell(cells, T3_QUIZZER_ROW + 2, 1, 'Third seat')
+    for (const q of [1, 2, 3]) setCell(cells, T1_QUIZZER_ROW3, Q_COL(q), 'f')
+    setCell(cells, T1_QUIZZER_ROW + 4, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 1, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW + 2, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1 + 1, columnKey: '16', value: 'e' })
+    expect(answers).toContainEqual({ quizzerId: T1_Q1 + 4, columnKey: '16A', value: 'e' })
+  })
+
+  it('takes a fifth-row error as the first when its seat is known not to be the bonus seat', () => {
+    const cells = namedCells()
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T2_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T3_QUIZZER_ROW + 1, 1, 'Second seat')
+    // Team 2's fourth seat errors out, so its substitute sits there, not in the bonus seat; with
+    // that seat unknown, team 1's first-seat error would have stayed first as listed
+    for (const q of [1, 2, 3]) setCell(cells, T2_QUIZZER_ROW + 3, Q_COL(q), 'e')
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 4, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1 + 4, columnKey: '16', value: 'e' })
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '16A', value: 'e' })
+  })
+
+  it('leaves two errors as listed when the bonus answer is on a fifth row', () => {
+    const cells = namedCells()
+    for (let seat = 1; seat < 5; seat++) setCell(cells, T3_QUIZZER_ROW + seat, 1, `Quizzer ${seat}`)
+    setCell(cells, T2_QUIZZER_ROW + 2, 1, 'Third seat')
+    setCell(cells, T1_QUIZZER_ROW, Q_COL(16), 'e')
+    setCell(cells, T2_QUIZZER_ROW + 2, Q_COL(16), 'e')
+    setCell(cells, T3_QUIZZER_ROW + 4, Q_COL(16), 'b')
+    const { answers } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T1_Q1, columnKey: '16', value: CellValue.Error })
+    expect(answers).toContainEqual({
+      quizzerId: T2_Q1 + 2,
+      columnKey: '16A',
+      value: CellValue.Error,
+    })
+  })
+
+  it('orders two errors before a no-jump by the empty bonus seat', () => {
+    const cells = namedCells()
+    setCell(cells, T1_QUIZZER_ROW3, 1, 'Third seat')
+    // Team 3 has nobody in its third seat, so a no-jump on its bonus means the third-seat error
+    // was the last one, though team 1 is listed first
+    setCell(cells, T1_QUIZZER_ROW3, Q_COL(19), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(19), 'e')
+    setCell(cells, 27, Q_COL(19), 'x')
+    const { answers, noJumps } = readOds(makeOds(makeSheetXml(cells)))
+    expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '19', value: CellValue.Error })
+    expect(answers).toContainEqual({ quizzerId: T1_Q3, columnKey: '19A', value: CellValue.Error })
+    expect(noJumps).toEqual(['19B'])
+  })
+
   it('reads a second error on an errored toss-up as an answer to B', () => {
     const cells = namedCells()
     setCell(cells, T1_QUIZZER_ROW, Q_COL(15), 'e')

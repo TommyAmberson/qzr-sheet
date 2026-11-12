@@ -45,6 +45,9 @@ const OT_ROUNDS_IN_SHEET = 2
 /** One mark in a question's column of the spreadsheet */
 interface RawAnswer {
   quizzerId: number
+  teamIdx: number
+  /** The quizzer's seat on their team, which a seat bonus follows */
+  seatIdx: number
   q: number
   value: CellValue
 }
@@ -76,6 +79,50 @@ function teamsLockedOut(fileSoFar: QuizFile, q: number): number {
   return tossedUp[columns.findIndex((c) => c.key === `${q}`)]?.size ?? 0
 }
 
+/** Seats on a team's bench; a fifth quizzer listed is a substitute */
+const SEATS = 4
+/** Errors, or fouls, after which a quizzer leaves the bench */
+const ERROR_OUT = 3
+const FOUL_OUT = 3
+
+/** The seat a mark was most likely made from, when the sheet gives a reason to pick one */
+type SeatOf = (mark: RawAnswer) => number | undefined
+
+/**
+ * The two errors of a question that went to B, in the order they were made. The spreadsheet doesn't
+ * record the order, but a seat bonus goes to the seat of the last error, so the error more likely
+ * to have come from that seat is taken as the last:
+ * - a bonus answer is in that seat
+ * - a no-jump means the third team had nobody in that seat
+ *
+ * The seats are themselves a guess (see `seatOf`), so this is the likelier order, not a known one.
+ * When the seat favours neither error, the order they are listed in stands.
+ *
+ * @param named - per team, per row, whether a quizzer is listed there
+ */
+function inOrderMade(
+  errors: RawAnswer[],
+  rest: RawAnswer[],
+  noJump: boolean,
+  named: boolean[][],
+  seatOf: SeatOf,
+): RawAnswer[] {
+  const [first, second] = errors
+  if (!first || !second) return errors
+  const bonus = rest.find((a) => a.value === CellValue.Bonus || a.value === CellValue.MissedBonus)
+  const bonusSeat = bonus && seatOf(bonus)
+  const thirdTeam = named.findIndex((_, teamIdx) => errors.every((e) => e.teamIdx !== teamIdx))
+  if (bonus ? bonusSeat === undefined : !noJump || thirdTeam < 0) return errors
+
+  /** How likely an error came from the bonus seat: 1 if it seems so, 0 if not, between if unknown */
+  const fromBonusSeat = (error: RawAnswer) => {
+    const seat = seatOf(error)
+    if (seat === undefined) return 0.5
+    return (bonus ? seat === bonusSeat : !named[thirdTeam]![seat]) ? 1 : 0
+  }
+  return fromBonusSeat(first) > fromBonusSeat(second) ? [second, first, ...errors.slice(2)] : errors
+}
+
 /**
  * A question's marks spread over its columns. The spreadsheet has one column for a Q16+ question's
  * three, so which of them a mark is on follows from how the question must have gone:
@@ -90,6 +137,8 @@ function placeQuestion(
   q: number,
   noJump: boolean,
   tossUp: boolean,
+  named: boolean[][],
+  seatOf: SeatOf,
 ): Placement {
   const errors = rawAnswers.filter((a) => a.value === CellValue.Error)
   const rest = rawAnswers.filter((a) => a.value !== CellValue.Error)
@@ -102,13 +151,14 @@ function placeQuestion(
     return { answers: rawAnswers.map(on(`${q}`)), noJumps: noJump ? [`${q}`] : [] }
   }
 
+  const ordered = tossUp ? errors : inOrderMade(errors, rest, noJump, named, seatOf)
   // Errors beyond the ones that fit are answers to the last question asked
-  const onA = tossUp ? [] : errors.slice(1, 2)
-  const extra = errors.slice(tossUp ? 1 : 2)
+  const onA = tossUp ? [] : ordered.slice(1, 2)
+  const extra = ordered.slice(tossUp ? 1 : 2)
   const last = tossUp || onA.length > 0 ? `${q}B` : `${q}A`
   return {
     answers: [
-      on(`${q}`)(errors[0]!),
+      on(`${q}`)(ordered[0]!),
       ...onA.map(on(`${q}A`)),
       ...[...extra, ...rest].map(on(last)),
     ],
@@ -218,7 +268,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
         const val = readCell(sheet, qRow, 3 + (q - 1)).toLowerCase()
         if (val && VALID_CELL_VALUES.has(val)) {
           if (!rawAnswersByQ.has(q)) rawAnswersByQ.set(q, [])
-          rawAnswersByQ.get(q)!.push({ quizzerId, q, value: val as CellValue })
+          rawAnswersByQ.get(q)!.push({ quizzerId, teamIdx, seatIdx, q, value: val as CellValue })
         }
       }
 
@@ -226,7 +276,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
         const val = readCell(sheet, qRow, 23 + (q - 21)).toLowerCase()
         if (val && VALID_CELL_VALUES.has(val)) {
           if (!rawAnswersByQ.has(q)) rawAnswersByQ.set(q, [])
-          rawAnswersByQ.get(q)!.push({ quizzerId, q, value: val as CellValue })
+          rawAnswersByQ.get(q)!.push({ quizzerId, teamIdx, seatIdx, q, value: val as CellValue })
         }
       }
     }
@@ -250,6 +300,26 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     noJumps,
   })
 
+  const named = teams.map((team) => team.quizzers.map((quizzer) => quizzer.name.trim() !== ''))
+
+  // Each quizzer's correct answers, errors and fouls on the questions placed so far
+  const tallies = teams.map((team) =>
+    team.quizzers.map(() => ({ correct: 0, errors: 0, fouls: 0 })),
+  )
+  const { quizOutCorrect } = quizRules(QuizFormat.TwentyQuestion)
+  // A best guess, since the sheet lists quizzers, not seats, and a substitution never changes the
+  // rows. The first four listed are taken to sit in order. A fifth is a substitute: usually in the
+  // seat of the one teammate who has quizzed, errored or fouled out, and otherwise unknown. A team
+  // that swaps quizzers mid-quiz and back again breaks both, which only costs the order of two
+  // errors, never a score.
+  const seatOf: SeatOf = ({ teamIdx, seatIdx }) => {
+    if (seatIdx < SEATS) return seatIdx
+    const out = tallies[teamIdx]!.slice(0, SEATS).flatMap(({ correct, errors, fouls }, seat) =>
+      correct >= quizOutCorrect || errors >= ERROR_OUT || fouls >= FOUL_OUT ? [seat] : [],
+    )
+    return out.length === 1 ? out[0] : undefined
+  }
+
   // Second pass: assign column keys, question by question, since where a question's marks belong
   // depends on the questions before it
   const answers: QuizFile['answers'] = []
@@ -265,7 +335,13 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
       q >= 16 &&
       rawAnswers.some((a) => a.value === CellValue.Error) &&
       teamsLockedOut(toFile(answers, noJumps), q) >= TEAM_BLOCKS.length - 2
-    const placed = placeQuestion(rawAnswers, q, noJump, tossUp)
+    const placed = placeQuestion(rawAnswers, q, noJump, tossUp, named, seatOf)
+    for (const { teamIdx, seatIdx, value } of rawAnswers) {
+      const tally = tallies[teamIdx]![seatIdx]!
+      if (value === CellValue.Correct) tally.correct++
+      if (value === CellValue.Error) tally.errors++
+      if (value === CellValue.Foul) tally.fouls++
+    }
     answers.push(...placed.answers)
     noJumps.push(...placed.noJumps)
   }
