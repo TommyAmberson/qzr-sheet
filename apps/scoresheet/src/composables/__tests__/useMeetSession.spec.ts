@@ -455,6 +455,71 @@ describe('useMeetSession — isQuizzerDiverged', () => {
   })
 })
 
+describe('useMeetSession — isTeamNameDiverged', () => {
+  it('returns false when no team is picked for the slot', async () => {
+    const { loadMeet, isTeamNameDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    expect(isTeamNameDiverged(0, 'Some Church 4')).toBe(false)
+  })
+
+  it("returns false for the picked team's full label, ignoring case and spaces", async () => {
+    const { loadMeet, assignTeam, isTeamNameDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    expect(isTeamNameDiverged(0, '  first  Church 1 ')).toBe(false)
+  })
+
+  it('returns true for the short label, which would be submitted as another team', async () => {
+    const { loadMeet, assignTeam, isTeamNameDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    expect(isTeamNameDiverged(0, 'FC 1')).toBe(true)
+  })
+
+  it('returns true when the name was edited away from the picked team', async () => {
+    const { loadMeet, assignTeam, isTeamNameDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    expect(isTeamNameDiverged(0, 'First Church 3')).toBe(true)
+  })
+
+  it("follows the roster's name when it is corrected after the pick", async () => {
+    const { loadMeet, assignTeam, refresh, isTeamNameDiverged, pickedTeamName } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    vi.mocked(getMeetTeams).mockResolvedValue({
+      teams: mockTeams.map((team) =>
+        team.id === 1 ? { ...team, churchName: 'First Chapel' } : team,
+      ),
+      meetDivisions: ['1', '2'],
+    })
+    await refresh()
+    expect(pickedTeamName(0)).toBe('First Chapel 1')
+    expect(isTeamNameDiverged(0, 'First Chapel 1')).toBe(false)
+    expect(isTeamNameDiverged(0, 'First Church 1')).toBe(true)
+  })
+
+  it("follows a corrected name that arrives with a scheduled quiz's seats", async () => {
+    const { loadMeet, assignTeam, loadFromQuiz, pickedTeamName } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    const renamed = { ...mockTeams[0]!, churchName: 'First Chapel' }
+    vi.mocked(getScheduledQuiz).mockResolvedValueOnce({
+      quiz: {
+        id: '777',
+        meetName: 'Finals',
+        label: 'Div 1 Quiz 1',
+        division: '1',
+        consolation: false,
+        quizNumber: '1',
+      },
+      seats: [{ seatNumber: 1, letter: 'A', seedRef: null, team: renamed, quizzers: [] }],
+    })
+    await loadFromQuiz(42, '777')
+    expect(pickedTeamName(0)).toBe('First Chapel 1')
+  })
+})
+
 describe('useMeetSession — clearSession', () => {
   it('sets isActive to false', async () => {
     const { loadMeet, clearSession, isActive } = useMeetSession()
