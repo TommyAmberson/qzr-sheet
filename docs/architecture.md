@@ -320,8 +320,9 @@ unchanged so the template's formulas recalculate in LibreOffice.
 ### `readOds.ts`
 
 Parses a filled `.ods` file and maps the fixed cell addresses back into store format (teams,
-quizzers, answers, no-jumps, question types, metadata). Infers A/B column depth from error counts
-when footer rows are empty.
+quizzers, answers, no-jumps, question types, metadata). The sheet has one column per question from
+16 on, so it places each mark on the question or its A or B sub-question by how the quiz went up to
+there (see [ods-format.md](./ods-format.md#ab-answer-guessing)).
 
 ### `odsXml.ts`
 

@@ -1,13 +1,21 @@
 import { strFromU8, unzipSync } from 'fflate'
 import { readCell } from './odsXml'
 import {
+  answerLookup,
   BonusRule,
+  buildCellGrid,
+  buildColumns,
   CellValue,
+  computeGreyedOut,
+  computeOtIneligibility,
+  deserialize,
   fileVersionFor,
+  inSeatOrder,
   PlacementFormula,
   QuestionCategory,
   type QuizFile,
   QuizFormat,
+  quizRules,
 } from '@qzr/shared'
 
 /**
@@ -31,67 +39,80 @@ function extractQuizSheet(xml: string): string {
   return xml.slice(tableTagStart, quizSheetEnd)
 }
 
-/**
- * Determine how deep the A/B chain went for a question column.
- * 0 = toss-up only, 1 = through A, 2 = through B.
- */
-function getABDepth(sheet: string, odsCol: number): number {
-  if (readCell(sheet, 30, odsCol)) return 2
-  if (readCell(sheet, 29, odsCol)) return 1
-  return 0
+/** Overtime rounds the spreadsheet has columns for (questions 21 to 26) */
+const OT_ROUNDS_IN_SHEET = 2
+
+/** One mark in a question's column of the spreadsheet */
+interface RawAnswer {
+  quizzerId: number
+  q: number
+  value: CellValue
+}
+
+/** Where one question's marks go among its normal, A and B columns */
+interface Placement {
+  answers: QuizFile['answers']
+  noJumps: string[]
 }
 
 /**
- * Infer A/B depth from the answer values when footer rows are empty.
- * Each error triggers the next sub-question, so error count = depth.
+ * How many teams can't jump on a question's numbered column, going by the questions before it: none
+ * on an open question, one on a toss-up.
  */
-function inferABDepth(rawAnswers: { quizzerId: number; q: number; value: CellValue }[]): number {
-  const errorCount = rawAnswers.filter((a) => a.value === CellValue.Error).length
-  return Math.min(errorCount, 2)
+function teamsLockedOut(fileSoFar: QuizFile, q: number): number {
+  const { quiz, teams, quizzers, answers, noJumps } = deserialize(fileSoFar)
+  const rules = quizRules(quiz.format)
+  const columns = buildColumns(rules, OT_ROUNDS_IN_SHEET)
+  const cells = buildCellGrid(teams, quizzers, columns, answerLookup(answers))
+  // In overtime, teams that aren't tied are locked out of every question
+  const notInOvertime = computeOtIneligibility(
+    cells,
+    columns,
+    inSeatOrder(teams, quizzers).map(({ team }) => team.onTime),
+    columns.map((c) => noJumps.get(c.key) ?? false),
+    rules,
+  )
+  const { tossedUp } = computeGreyedOut(cells, columns, notInOvertime, quiz.bonusRule)
+  return tossedUp[columns.findIndex((c) => c.key === `${q}`)]?.size ?? 0
 }
 
 /**
- * Distribute answers for a Q16+ question across normal/A/B column keys.
+ * A question's marks spread over its columns. The spreadsheet has one column for a Q16+ question's
+ * three, so which of them a mark is on follows from how the question must have gone:
+ * - no errors: everything is on the numbered question
+ * - an open question: the first error is on it, a second on A, and anything after on B
+ * - a toss-up, where an error leaves one team to answer: the error is on it, the rest on B
  *
- * Uses the A/B depth from the footer rows and the error-first chain rule:
- * - depth 0: all answers → normal key
- * - depth 1: first error → normal, rest → A
- * - depth 2: first error → normal, second error → A, rest → B
- *
- * Errors are assigned to earlier sub-questions since they trigger the
- * next sub-question in the chain.
+ * A no-jump is on the last of them asked.
  */
-function distributeABAnswers(
-  out: QuizFile['answers'],
-  rawAnswers: { quizzerId: number; q: number; value: CellValue }[],
+function placeQuestion(
+  rawAnswers: RawAnswer[],
   q: number,
-  depth: number,
-): void {
-  if (depth === 0) {
-    for (const a of rawAnswers) {
-      out.push({ quizzerId: a.quizzerId, columnKey: `${q}`, value: a.value })
-    }
-    return
-  }
-
-  // Separate errors from non-errors to assign them in chain order
+  noJump: boolean,
+  tossUp: boolean,
+): Placement {
   const errors = rawAnswers.filter((a) => a.value === CellValue.Error)
-  const nonErrors = rawAnswers.filter((a) => a.value !== CellValue.Error)
-
-  const keys = [`${q}`, `${q}A`, `${q}B`]
-  let errorIdx = 0
-
-  // Assign errors to progressively deeper keys (normal first, then A, then B)
-  for (const a of errors) {
-    const key = keys[Math.min(errorIdx, depth - 1)]!
-    out.push({ quizzerId: a.quizzerId, columnKey: key, value: a.value })
-    errorIdx++
+  const rest = rawAnswers.filter((a) => a.value !== CellValue.Error)
+  const on = (key: string) => (a: RawAnswer) => ({
+    quizzerId: a.quizzerId,
+    columnKey: key,
+    value: a.value,
+  })
+  if (q < 16 || errors.length === 0) {
+    return { answers: rawAnswers.map(on(`${q}`)), noJumps: noJump ? [`${q}`] : [] }
   }
 
-  // Non-errors go to the deepest reached key
-  const resolvedKey = keys[depth]!
-  for (const a of nonErrors) {
-    out.push({ quizzerId: a.quizzerId, columnKey: resolvedKey, value: a.value })
+  // Errors beyond the ones that fit are answers to the last question asked
+  const onA = tossUp ? [] : errors.slice(1, 2)
+  const extra = errors.slice(tossUp ? 1 : 2)
+  const last = tossUp || onA.length > 0 ? `${q}B` : `${q}A`
+  return {
+    answers: [
+      on(`${q}`)(errors[0]!),
+      ...onA.map(on(`${q}A`)),
+      ...[...extra, ...rest].map(on(last)),
+    ],
+    noJumps: noJump ? [last] : [],
   }
 }
 
@@ -161,31 +182,21 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   }
 
   // --- No-jumps (row 27) ---
-  const noJumps: string[] = []
+  const noJumpQuestions = new Set<number>()
   // Q1–Q20: cols 3–22
   for (let q = 1; q <= 20; q++) {
-    if (readCell(sheet, 27, 3 + (q - 1)).toLowerCase() === 'x') {
-      noJumps.push(`${q}`)
-    }
+    if (readCell(sheet, 27, 3 + (q - 1)).toLowerCase() === 'x') noJumpQuestions.add(q)
   }
   // OT Q21–Q26: cols 23–28
   for (let q = 21; q <= 26; q++) {
-    if (readCell(sheet, 27, 23 + (q - 21)).toLowerCase() === 'x') {
-      noJumps.push(`${q}`)
-    }
+    if (readCell(sheet, 27, 23 + (q - 21)).toLowerCase() === 'x') noJumpQuestions.add(q)
   }
 
   // --- Teams and quizzers ---
   let nextId = 1
   const teams: QuizFile['teams'] = []
-  const answers: QuizFile['answers'] = []
 
   // First pass: build teams/quizzers and collect raw answer values
-  interface RawAnswer {
-    quizzerId: number
-    q: number
-    value: CellValue
-  }
   const rawAnswersByQ = new Map<number, RawAnswer[]>()
 
   for (let teamIdx = 0; teamIdx < TEAM_BLOCKS.length; teamIdx++) {
@@ -223,23 +234,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     teams.push({ id: teamId, name: teamName, onTime, seatOrder: teamIdx, quizzers })
   }
 
-  // Second pass: assign column keys using footer rows to guess A/B depth
-  for (const [q, rawAnswers] of rawAnswersByQ) {
-    if (q < 16) {
-      for (const a of rawAnswers) {
-        answers.push({ quizzerId: a.quizzerId, columnKey: `${q}`, value: a.value })
-      }
-    } else {
-      const odsCol = q <= 20 ? 3 + (q - 1) : 23 + (q - 21)
-      let depth = getABDepth(sheet, odsCol)
-      // If footer rows are empty, infer depth from the answers themselves:
-      // an error + any other answer means the question went to at least A.
-      if (depth === 0) depth = inferABDepth(rawAnswers)
-      distributeABAnswers(answers, rawAnswers, q, depth)
-    }
-  }
-
-  return {
+  const toFile = (answers: QuizFile['answers'], noJumps: string[]): QuizFile => ({
     // The ODS template only holds 20-question quizzes
     version: fileVersionFor(QuizFormat.TwentyQuestion),
     quiz: {
@@ -253,5 +248,27 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     teams,
     answers,
     noJumps,
+  })
+
+  // Second pass: assign column keys, question by question, since where a question's marks belong
+  // depends on the questions before it
+  const answers: QuizFile['answers'] = []
+  const noJumps: string[] = []
+  const questions = [...new Set([...rawAnswersByQ.keys(), ...noJumpQuestions])].sort(
+    (a, b) => a - b,
+  )
+  for (const q of questions) {
+    const rawAnswers = rawAnswersByQ.get(q) ?? []
+    const noJump = noJumpQuestions.has(q)
+    // Whether an error on a Q16+ question leaves only one team to answer
+    const tossUp =
+      q >= 16 &&
+      rawAnswers.some((a) => a.value === CellValue.Error) &&
+      teamsLockedOut(toFile(answers, noJumps), q) >= TEAM_BLOCKS.length - 2
+    const placed = placeQuestion(rawAnswers, q, noJump, tossUp)
+    answers.push(...placed.answers)
+    noJumps.push(...placed.noJumps)
   }
+
+  return toFile(answers, noJumps)
 }
