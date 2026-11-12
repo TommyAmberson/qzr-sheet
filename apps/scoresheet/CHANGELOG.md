@@ -15,6 +15,21 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.18.6] - 2026-11-11
+
+### Fixed
+
+* Opening a LibreOffice scoresheet (`.ods`) reads questions 16 and up by how the quiz went, where
+  the old sheet's single column was misread before: a no-jump marked under a question that already
+  has an error is a no-jump on its A or B question, a bonus after one error on a toss-up is on the B
+  question, and two errors are put in their most likely order, going by the bonus seat. Such quizzes
+  no longer load with validation errors, so they place and can be submitted, and their question
+  types line up (#159)
+
+### Bundled contract
+
+* `@qzr/shared@1.8.0` - unchanged
+
 ## [0.18.5] - 2026-11-11
 
 ### Changed
