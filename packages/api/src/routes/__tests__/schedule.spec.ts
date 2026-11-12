@@ -780,7 +780,7 @@ describe('GET /api/meets/:id/schedule/published', () => {
   })
 
   it('gives team names, read from the meet, from live on', async () => {
-    for (const phase of ['live', 'done'] as const) {
+    for (const phase of ['live', 'review', 'done'] as const) {
       const { meet } = await publish(phase)
       const res = await guestApp(db, meet.id).request(
         `/api/meets/${meet.id}/schedule/published`,

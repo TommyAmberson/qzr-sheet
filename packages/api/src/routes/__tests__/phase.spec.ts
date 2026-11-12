@@ -64,6 +64,44 @@ describe('POST /api/meets/:id/phase', () => {
     expect(body.reversed).toBe(true)
   })
 
+  it('advances live → review → done, one step at a time', async () => {
+    const meet = await seedMeet(db, 'Test Meet', { phase: 'live' })
+    const skipped = await app.request(
+      `/api/meets/${meet.id}/phase`,
+      postJson({ phase: 'done' }),
+      env,
+    )
+    expect(skipped.status).toBe(400)
+
+    const toReview = await app.request(
+      `/api/meets/${meet.id}/phase`,
+      postJson({ phase: 'review' }),
+      env,
+    )
+    expect(toReview.status).toBe(200)
+    expect(await jsonOf<{ phase: string; reversed: boolean }>(toReview)).toMatchObject({
+      phase: 'review',
+      reversed: false,
+    })
+
+    const toDone = await app.request(
+      `/api/meets/${meet.id}/phase`,
+      postJson({ phase: 'done' }),
+      env,
+    )
+    expect(toDone.status).toBe(200)
+  })
+
+  it('reopens a done meet into review, flagged as a reverse', async () => {
+    const meet = await seedMeet(db, 'Test Meet', { phase: 'done' })
+    const res = await app.request(`/api/meets/${meet.id}/phase`, postJson({ phase: 'review' }), env)
+    expect(res.status).toBe(200)
+    expect(await jsonOf<{ phase: string; reversed: boolean }>(res)).toMatchObject({
+      phase: 'review',
+      reversed: true,
+    })
+  })
+
   it('rejects multi-step transitions', async () => {
     const meet = await seedMeet(db)
     const res = await app.request(`/api/meets/${meet.id}/phase`, postJson({ phase: 'live' }), env)
@@ -185,6 +223,26 @@ describe('POST /api/meets/:id/divisions/:division/state', () => {
     const body = await jsonOf<{ state: string; reversed: boolean }>(res)
     expect(body.state).toBe('stats_break')
     expect(body.reversed).toBe(true)
+  })
+
+  it('allows state changes while the meet is in review', async () => {
+    const meet = await seedMeet(db, 'Test Meet', { phase: 'review' })
+    const res = await app.request(
+      `/api/meets/${meet.id}/divisions/Division 1/state`,
+      postJson({ state: 'stats_break' }),
+      env,
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('rejects state changes once the meet is done', async () => {
+    const meet = await seedMeet(db, 'Test Meet', { phase: 'done' })
+    const res = await app.request(
+      `/api/meets/${meet.id}/divisions/Division 1/state`,
+      postJson({ state: 'stats_break' }),
+      env,
+    )
+    expect(res.status).toBe(409)
   })
 
   it('rejects state changes when meet is not live', async () => {

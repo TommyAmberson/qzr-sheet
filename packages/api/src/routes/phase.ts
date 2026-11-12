@@ -94,7 +94,7 @@ phase.post('/:id/phase', async (c) => {
 })
 
 /**
- * Advance or revert a per-division state inside the meet's `live` phase.
+ * Advance or revert a per-division state, while the meet is `live` or in `review`.
  * Single-step only; reverses are allowed and flagged.
  */
 phase.post('/:id/divisions/:division/state', async (c) => {
@@ -116,9 +116,12 @@ phase.post('/:id/divisions/:division/state', async (c) => {
     .from(schema.quizMeets)
     .where(eq(schema.quizMeets.id, meetId))
   if (!meet) return c.json({ error: 'Meet not found' }, 404)
-  if (meet.phase !== 'live') {
+  if (meet.phase !== 'live' && meet.phase !== 'review') {
     return c.json(
-      { error: 'Division state transitions only allowed when meet is live', meetPhase: meet.phase },
+      {
+        error: 'Division state transitions only allowed when meet is live or in review',
+        meetPhase: meet.phase,
+      },
       409,
     )
   }
