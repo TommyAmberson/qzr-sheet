@@ -143,7 +143,7 @@ describe('route mount order: a guest reads the published schedule', () => {
 describe('route mount order — a guest official can submit results', () => {
   it('reaches the results router ahead of the account-only routers', async () => {
     const db = await createTestDb()
-    const meet = await seedMeet(db, 'Results Meet')
+    const meet = await seedMeet(db, 'Results Meet', { phase: 'live' })
     const [room] = await db
       .insert(schema.meetRooms)
       .values({ meetId: meet.id, name: 'Room 1', codeHash: 'hash-1' })

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
-import { CellValue, MeetRole, PlacementFormula, type QuizFile } from '@qzr/shared'
+import { CellValue, MeetRole, PlacementFormula, type MeetPhase, type QuizFile } from '@qzr/shared'
 import { eq, sql } from 'drizzle-orm'
 import type { Bindings } from '../../bindings'
 import type { SessionUser, SessionVariables } from '../../middleware/session'
@@ -83,8 +83,8 @@ const official = (roomId: number | undefined, forMeet = () => meetId): GuestPayl
 
 beforeEach(async () => {
   db = await createTestDb()
-  meetId = (await seedMeet(db, 'Practice Meet')).id
-  otherMeetId = (await seedMeet(db, 'Other Meet')).id
+  meetId = (await seedMeet(db, 'Practice Meet', { phase: 'live' })).id
+  otherMeetId = (await seedMeet(db, 'Other Meet', { phase: 'live' })).id
   const rooms = await db
     .insert(schema.meetRooms)
     .values([
@@ -793,6 +793,72 @@ describe('history and restore', () => {
     )
     expect(elsewhere.status).toBe(404)
     expect((await restore(9)).status).toBe(404)
+  })
+})
+
+describe('changing quizzes by the phase of the meet', () => {
+  let id: number
+
+  beforeEach(async () => {
+    id = (await jsonOf<{ id: number }>(await submit(official(room1)))).id
+  })
+
+  const inPhase = (phase: MeetPhase) =>
+    db.update(schema.quizMeets).set({ phase }).where(eq(schema.quizMeets.id, meetId))
+
+  const edit = (app: ReturnType<typeof createApp>) =>
+    app.request(
+      `/api/meets/${meetId}/results/${id}`,
+      jsonRequest('PUT', { quizFile: quizFile({ division: '2' }) }),
+      env,
+    )
+  const restore = (app: ReturnType<typeof createApp>) =>
+    app.request(
+      `/api/meets/${meetId}/results/${id}/restore`,
+      jsonRequest('POST', { revision: 1 }),
+      env,
+    )
+  const count = (app: ReturnType<typeof createApp>) =>
+    app.request(
+      `/api/meets/${meetId}/results/counted`,
+      jsonRequest('PATCH', { ids: [id], counted: true }),
+      env,
+    )
+  const another = { quizFile: quizFile({ quizNumber: '9' }) }
+
+  it('leaves review to the admin, who keeps every change', async () => {
+    await inPhase('review')
+    const asOfficial = createApp(db, null, official(room1))
+    const refused = await submit(official(room1), another)
+    expect(refused.status).toBe(409)
+    expect(await jsonOf(refused)).toMatchObject({ meetPhase: 'review' })
+    expect((await edit(asOfficial)).status).toBe(409)
+    expect((await restore(asOfficial)).status).toBe(409)
+
+    const admin = createApp(db, testSuperuser)
+    expect((await asAdmin(another)).status).toBe(201)
+    expect((await edit(admin)).status).toBe(200)
+    expect((await restore(admin)).status).toBe(200)
+    expect((await count(admin)).status).toBe(200)
+  })
+
+  it.each(['registration', 'build', 'done'] as const)(
+    'changes nothing in %s, for the admin too',
+    async (phase) => {
+      await inPhase(phase)
+      const admin = createApp(db, testSuperuser)
+      expect((await submit(official(room1), another)).status).toBe(409)
+      expect((await asAdmin(another)).status).toBe(409)
+      expect((await edit(admin)).status).toBe(409)
+      expect((await restore(admin)).status).toBe(409)
+      expect((await count(admin)).status).toBe(409)
+      expect((await list()).map((r) => r.id)).toEqual([id])
+    },
+  )
+
+  it('still refuses a stranger as a stranger, whatever the phase', async () => {
+    await inPhase('done')
+    expect((await submit(official(room2), { roomId: room1 })).status).toBe(403)
   })
 })
 
