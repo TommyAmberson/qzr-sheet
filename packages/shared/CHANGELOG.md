@@ -23,6 +23,15 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-11
+
+### Added
+
+* `MEET_PHASES` gains `review`, between `live` and `done`: quizzing is over and the admin checks and
+  corrects results before the meet is locked (#117). A consumer that lists or orders phases picks it
+  up from the array; one that compares against `'live'` or `'done'` by name should check whether
+  `review` belongs with either.
+
 ## [1.8.0] - 2026-11-11
 
 ### Added
