@@ -320,6 +320,44 @@ export function useMeetSession() {
   }
 }
 
+/** How many edits a typed team name may be from a roster team's and still be taken for a typo */
+const TEAM_TYPO_EDITS = 2
+/** The same for a church's short name, where two edits reach most other churches' */
+const SHORT_NAME_TYPO_EDITS = 1
+/** How many typed quizzers must be on a team's roster before a misspelt name is taken for it */
+const QUIZZERS_TO_CONFIRM = 2
+
+/**
+ * The roster teams whose name, full or short, is a typo away from the typed one. Often more than
+ * one: a church's second team is a single edit from its first, so the name alone never settles
+ * which is meant.
+ */
+export function teamsNearName(
+  typedName: string,
+  teams: { id: number; name: string; shortName: string }[],
+): number[] {
+  const typed = foldName(typedName)
+  return teams
+    .filter(
+      (team) =>
+        editDistance(typed, foldName(team.name)) <= TEAM_TYPO_EDITS ||
+        editDistance(typed, foldName(team.shortName)) <= SHORT_NAME_TYPO_EDITS,
+    )
+    .map((team) => team.id)
+}
+
+/**
+ * Whether the typed quizzers show a misspelt team name to be this roster's team. Stricter than
+ * seating a picked team's quizzers: a name that matches no team exactly is more likely a team the
+ * roster lacks than a typo, so every typed quizzer has to be on the roster by full name, and at least two of them.
+ */
+export function quizzersConfirmTeam(typedQuizzers: string[], rosterQuizzers: string[]): boolean {
+  // A set, so one quizzer typed into two seats doesn't count twice
+  const typed = new Set(typedQuizzers.map(foldName).filter((name) => name !== ''))
+  const roster = new Set(rosterQuizzers.map(foldName))
+  return typed.size >= QUIZZERS_TO_CONFIRM && [...typed].every((name) => roster.has(name))
+}
+
 function matchQuizzers(
   storeNames: string[],
   dbQuizzers: { quizzerId: number; name: string }[],

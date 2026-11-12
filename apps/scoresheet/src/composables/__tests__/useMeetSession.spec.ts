@@ -11,7 +11,7 @@ vi.mock('../../api', () => ({
 }))
 
 import { getMeetTeams, getScheduledQuiz, getSender, getTeamQuizzers } from '../../api'
-import { useMeetSession } from '../useMeetSession'
+import { quizzersConfirmTeam, teamsNearName, useMeetSession } from '../useMeetSession'
 
 const mockTeams: MeetTeam[] = [
   {
@@ -517,6 +517,55 @@ describe('useMeetSession — isTeamNameDiverged', () => {
     })
     await loadFromQuiz(42, '777')
     expect(pickedTeamName(0)).toBe('First Chapel 1')
+  })
+})
+
+describe('teamsNearName', () => {
+  const labelled = (id: number, name: string, shortName: string) => ({ id, name, shortName })
+  const roster = [
+    labelled(1, 'Alpha Church 2', 'AC 2'),
+    labelled(2, 'Grace Chapel 1', 'GRC 1'),
+    labelled(3, 'Alpha Church 3', 'AC 3'),
+  ]
+
+  it('finds the team a typo away', () => {
+    expect(teamsNearName('alfa church 2', roster)).toEqual([1])
+  })
+
+  it('finds nothing for a name that is far from every team', () => {
+    expect(teamsNearName('Bethel 1', roster)).toEqual([])
+  })
+
+  it("finds both of a church's teams for a number neither has", () => {
+    expect(teamsNearName('Alpha Church 4', roster)).toEqual([1, 3])
+  })
+
+  it('finds the team whose short label is a typo away', () => {
+    expect(teamsNearName('GRCC 1', roster)).toEqual([2])
+  })
+
+  it("allows a short label one edit only, since two reach other churches' teams", () => {
+    expect(teamsNearName('AD 9', roster)).toEqual([])
+  })
+})
+
+describe('quizzersConfirmTeam', () => {
+  const roster = ['Alice Smith', 'Bob Jones', 'Carol White']
+
+  it('confirms when every typed quizzer is on the roster, ignoring case and spaces', () => {
+    expect(quizzersConfirmTeam(['alice  smith', '', 'Bob Jones', '', ''], roster)).toBe(true)
+  })
+
+  it('needs two typed quizzers', () => {
+    expect(quizzersConfirmTeam(['Alice Smith', '', '', '', ''], roster)).toBe(false)
+  })
+
+  it('counts a quizzer typed into two seats once', () => {
+    expect(quizzersConfirmTeam(['Alice Smith', 'alice smith', '', '', ''], roster)).toBe(false)
+  })
+
+  it('refuses when a typed quizzer is not on the roster, even by first name', () => {
+    expect(quizzersConfirmTeam(['Alice Smith', 'Bob', '', '', ''], roster)).toBe(false)
   })
 })
 

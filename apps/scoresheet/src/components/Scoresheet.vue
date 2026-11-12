@@ -35,7 +35,14 @@ import {
 } from '../persistence/fileIO'
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
-import { getMeetName, getRevision, joinMeet, joinMeetGuest, type ScheduledQuizSeat } from '../api'
+import {
+  getMeetName,
+  getRevision,
+  getTeamQuizzers,
+  joinMeet,
+  joinMeetGuest,
+  type ScheduledQuizSeat,
+} from '../api'
 import {
   ChoiceDialog,
   RoomCodeDialog,
@@ -51,7 +58,12 @@ import {
   type Sender,
 } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
-import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
+import {
+  quizzersConfirmTeam,
+  teamsNearName,
+  useMeetSession,
+  type SlotSession,
+} from '../composables/useMeetSession'
 import { renewedSenderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
 import { useTeamNames } from '../composables/useTeamNames'
 import { useTutorial } from '../composables/useTutorial'
@@ -269,7 +281,11 @@ function isDefaultTeamName(name: string): boolean {
   return /^Team [1-3]$/.test(name)
 }
 
-async function pickTeam(slotIdx: number, teamId: number) {
+/**
+ * Pick a roster team for a slot, seating its quizzers around the names already typed. The team's
+ * name replaces the typed one unless `keepName`, for a pick made on the sheet's behalf.
+ */
+async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
   openPickerSlot.value = null
   if (!teamId) {
     meetSession.clearSlot(slotIdx)
@@ -290,7 +306,7 @@ async function pickTeam(slotIdx: number, teamId: number) {
   // Fill empty store seats with the DB names that were matched to those positions
   const slot = meetSession.getSlot(slotIdx)
   if (!slot) return
-  setTeamName(slotIdx, slot.dbLabelFull)
+  if (!keepName) setTeamName(slotIdx, slot.dbLabelFull)
   for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
     if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
       setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
@@ -330,8 +346,67 @@ async function onMeetLoaded() {
     const teamName = store.teams[teamIdx]?.name ?? ''
     if (isDefaultTeamName(teamName)) continue
     const match = findMatchingTeam(teamName)
-    if (match) await pickTeam(teamIdx, match.id)
+    try {
+      if (match) await pickTeam(teamIdx, match.id)
+      else await pickMisspeltTeam(teamIdx, teamName)
+    } catch {
+      // The roster couldn't be fetched: this name stays unpicked, and the next is still tried
+    }
   }
+}
+
+/**
+ * Pick the roster team a typed name misspells, when the typed quizzers bear it out. The name only
+ * shortlists teams, since a church's teams are an edit apart; the quizzers say which one, and it's
+ * picked only if they say exactly one. The name stays as typed, flagged against the roster's,
+ * since it's the roster that may be wrong.
+ */
+async function pickMisspeltTeam(slotIdx: number, teamName: string) {
+  const meetId = meetSession.meetId.value
+  if (meetId === null) return
+  const picked = new Set([0, 1, 2].map((i) => meetSession.getSlot(i)?.teamId))
+  const unpicked = filteredTeamList.value
+    .filter((team) => !picked.has(team.id))
+    .map((team) => ({
+      id: team.id,
+      name: meetSession.teamLabelFull(team),
+      shortName: meetSession.teamLabel(team),
+    }))
+  const nearTeamIds = teamsNearName(teamName, unpicked)
+  if (nearTeamIds.length === 0) return
+
+  const typedQuizzerNames = () =>
+    store
+      .quizzersByTeam(store.teams[slotIdx]!.id)
+      .map((quizzer) => (isDefaultQuizzerName(quizzer.name) ? '' : quizzer.name))
+  const typedQuizzers = typedQuizzerNames()
+  let confirmedTeamIds: number[]
+  try {
+    const rosters = await Promise.all(
+      nearTeamIds.map(async (teamId) => (await getTeamQuizzers(meetId, teamId)).quizzers),
+    )
+    confirmedTeamIds = nearTeamIds.filter((_, i) =>
+      quizzersConfirmTeam(
+        typedQuizzers,
+        rosters[i]!.map((quizzer) => quizzer.name),
+      ),
+    )
+  } catch {
+    // Offline or refused: the name stays unpicked, and the team can be picked by hand
+    return
+  }
+  if (confirmedTeamIds.length !== 1) return
+  const teamId = confirmedTeamIds[0]!
+
+  // The rosters took a while to arrive, and the sheet stayed in use: leave alone a slot that was
+  // picked by hand meanwhile or had its names retyped, and a team that went to another slot
+  const stillAsTyped =
+    store.teams[slotIdx]?.name === teamName &&
+    !meetSession.getSlot(slotIdx) &&
+    typedQuizzerNames().join('\n') === typedQuizzers.join('\n')
+  const pickedElsewhere = [0, 1, 2].some((i) => meetSession.getSlot(i)?.teamId === teamId)
+  if (meetSession.meetId.value !== meetId || !stillAsTyped || pickedElsewhere) return
+  await pickTeam(slotIdx, teamId, true)
 }
 
 /** What an empty name shows; the sizer measures it too, so the box fits it */
