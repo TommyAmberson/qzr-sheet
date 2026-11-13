@@ -349,6 +349,15 @@ describe('useScoresheet — isAfterOut', () => {
     s.setCell(T(0), S(0), C(4), CellValue.Error)
     expect(s.isAfterOut(T(0), S(0), C(4))).toBe(false)
   })
+
+  it('leaves bonuses open to a quizzed-out quizzer until they foul out', () => {
+    const s = useScoresheet()
+    const bonus = C(s.columns.value.findIndex((col) => col.key === '16B'))
+    for (const col of [0, 1, 2, 3]) s.setCell(T(0), S(0), C(col), CellValue.Correct)
+    expect(s.isAfterOut(T(0), S(0), bonus)).toBe(false)
+    for (const col of [4, 5, 6]) s.setCell(T(0), S(0), C(col), CellValue.Foul)
+    expect(s.isAfterOut(T(0), S(0), bonus)).toBe(true)
+  })
 })
 
 describe('useScoresheet — error tracking helpers', () => {

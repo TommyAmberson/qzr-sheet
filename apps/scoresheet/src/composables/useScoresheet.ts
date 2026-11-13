@@ -342,7 +342,8 @@ export function useScoresheet() {
     const qs = scoring.value[teamIdx]?.quizzers[seatIdx]
     if (!qs || qs.outAfterCol < 0 || colIdx <= qs.outAfterCol) return false
     if (cells.value[teamIdx]![seatIdx]![colIdx] !== CellValue.Empty) return false
-    if (qs.quizzedOut && !qs.erroredOut) {
+    // A quizzed-out quizzer stays for bonuses, unless they have since had to leave the bench
+    if (qs.quizzedOut && !qs.erroredOut && !qs.fouledOut) {
       if (columns.value[colIdx]?.type === QuestionType.B || isBonusForTeam(teamIdx, colIdx))
         return false
     }
