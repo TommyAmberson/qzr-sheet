@@ -352,11 +352,14 @@ describe('useScoresheet — isAfterOut', () => {
 
   it('leaves bonuses open to a quizzed-out quizzer until they foul out', () => {
     const s = useScoresheet()
-    const bonus = C(s.columns.value.findIndex((col) => col.key === '16B'))
+    const at = (key: string) => C(s.columns.value.findIndex((col) => col.key === key))
     for (const col of [0, 1, 2, 3]) s.setCell(T(0), S(0), C(col), CellValue.Correct)
-    expect(s.isAfterOut(T(0), S(0), bonus)).toBe(false)
-    for (const col of [4, 5, 6]) s.setCell(T(0), S(0), C(col), CellValue.Foul)
-    expect(s.isAfterOut(T(0), S(0), bonus)).toBe(true)
+    expect(s.isAfterOut(T(0), S(0), at('16B'))).toBe(false)
+    expect(s.isAfterOut(T(0), S(0), at('20B'))).toBe(false)
+    for (const key of ['17', '18', '19']) s.setCell(T(0), S(0), at(key), CellValue.Foul)
+    // Still on the bench for the bonus before the third foul, gone for the one after it
+    expect(s.isAfterOut(T(0), S(0), at('16B'))).toBe(false)
+    expect(s.isAfterOut(T(0), S(0), at('20B'))).toBe(true)
   })
 })
 

@@ -599,16 +599,6 @@ function quizzerScoreLabel(teamIdx: number, seatIdx: number): string | null {
 }
 
 /**
- * Whether the quizzer's quiz-out earned the team its bonus. In overtime the team gets it and the
- * quizzer doesn't, so this asks the team's score, not the quizzer's.
- */
-function quizOutEarnedBonus(teamIdx: number, seatIdx: number): boolean {
-  const team = scoring.value[teamIdx]
-  const quizzer = team?.quizzers[seatIdx]
-  return !!quizzer?.quizzedOut && team!.quizoutBonusCols.has(quizzer.outAfterCol)
-}
-
-/**
  * Column indices at which a round-boundary running total should always be shown.
  * The last regulation question (regulation→OT) and the last question of each OT round.
  * Only relevant when OT is active.
@@ -1676,11 +1666,12 @@ const appVersion: string = __APP_VERSION__
                           'stat-badge',
                           'stat-badge--quizout',
                           {
-                            'stat-badge--quizout-bonus': quizOutEarnedBonus(teamIdx, seatIdx),
+                            'stat-badge--quizout-bonus':
+                              scoring[teamIdx]!.quizzers[seatIdx]!.teamQuizoutBonus,
                           },
                         ]"
                         :title="
-                          quizOutEarnedBonus(teamIdx, seatIdx)
+                          scoring[teamIdx]!.quizzers[seatIdx]!.teamQuizoutBonus
                             ? 'Quiz-out with bonus (+10)'
                             : 'Quiz-out'
                         "
