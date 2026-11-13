@@ -11,7 +11,7 @@ vi.mock('../../api', () => ({
 }))
 
 import { getMeetTeams, getScheduledQuiz, getSender, getTeamQuizzers } from '../../api'
-import { useMeetSession } from '../useMeetSession'
+import { quizzersConfirmTeam, teamsNearName, useMeetSession } from '../useMeetSession'
 
 const mockTeams: MeetTeam[] = [
   {
@@ -452,6 +452,120 @@ describe('useMeetSession — isQuizzerDiverged', () => {
     await loadMeet(42, 'Finals')
     await assignTeam(0, 1, emptyNames)
     expect(isQuizzerDiverged(0, 2, 'Jordan')).toBe(true)
+  })
+})
+
+describe('useMeetSession — isTeamNameDiverged', () => {
+  it('returns false when no team is picked for the slot', async () => {
+    const { loadMeet, isTeamNameDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    expect(isTeamNameDiverged(0, 'Some Church 4')).toBe(false)
+  })
+
+  it("returns false for the picked team's full label, ignoring case and spaces", async () => {
+    const { loadMeet, assignTeam, isTeamNameDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    expect(isTeamNameDiverged(0, '  first  Church 1 ')).toBe(false)
+  })
+
+  it('returns true for the short label, which would be submitted as another team', async () => {
+    const { loadMeet, assignTeam, isTeamNameDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    expect(isTeamNameDiverged(0, 'FC 1')).toBe(true)
+  })
+
+  it('returns true when the name was edited away from the picked team', async () => {
+    const { loadMeet, assignTeam, isTeamNameDiverged } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    expect(isTeamNameDiverged(0, 'First Church 3')).toBe(true)
+  })
+
+  it("follows the roster's name when it is corrected after the pick", async () => {
+    const { loadMeet, assignTeam, refresh, isTeamNameDiverged, pickedTeamName } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    vi.mocked(getMeetTeams).mockResolvedValue({
+      teams: mockTeams.map((team) =>
+        team.id === 1 ? { ...team, churchName: 'First Chapel' } : team,
+      ),
+      meetDivisions: ['1', '2'],
+    })
+    await refresh()
+    expect(pickedTeamName(0)).toBe('First Chapel 1')
+    expect(isTeamNameDiverged(0, 'First Chapel 1')).toBe(false)
+    expect(isTeamNameDiverged(0, 'First Church 1')).toBe(true)
+  })
+
+  it("follows a corrected name that arrives with a scheduled quiz's seats", async () => {
+    const { loadMeet, assignTeam, loadFromQuiz, pickedTeamName } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    const renamed = { ...mockTeams[0]!, churchName: 'First Chapel' }
+    vi.mocked(getScheduledQuiz).mockResolvedValueOnce({
+      quiz: {
+        id: '777',
+        meetName: 'Finals',
+        label: 'Div 1 Quiz 1',
+        division: '1',
+        consolation: false,
+        quizNumber: '1',
+      },
+      seats: [{ seatNumber: 1, letter: 'A', seedRef: null, team: renamed, quizzers: [] }],
+    })
+    await loadFromQuiz(42, '777')
+    expect(pickedTeamName(0)).toBe('First Chapel 1')
+  })
+})
+
+describe('teamsNearName', () => {
+  const labelled = (id: number, name: string, shortName: string) => ({ id, name, shortName })
+  const roster = [
+    labelled(1, 'Alpha Church 2', 'AC 2'),
+    labelled(2, 'Grace Chapel 1', 'GRC 1'),
+    labelled(3, 'Alpha Church 3', 'AC 3'),
+  ]
+
+  it('finds the team a typo away', () => {
+    expect(teamsNearName('alfa church 2', roster)).toEqual([1])
+  })
+
+  it('finds nothing for a name that is far from every team', () => {
+    expect(teamsNearName('Bethel 1', roster)).toEqual([])
+  })
+
+  it("finds both of a church's teams for a number neither has", () => {
+    expect(teamsNearName('Alpha Church 4', roster)).toEqual([1, 3])
+  })
+
+  it('finds the team whose short label is a typo away', () => {
+    expect(teamsNearName('GRCC 1', roster)).toEqual([2])
+  })
+
+  it("allows a short label one edit only, since two reach other churches' teams", () => {
+    expect(teamsNearName('AD 9', roster)).toEqual([])
+  })
+})
+
+describe('quizzersConfirmTeam', () => {
+  const roster = ['Alice Smith', 'Bob Jones', 'Carol White']
+
+  it('confirms when every typed quizzer is on the roster, ignoring case and spaces', () => {
+    expect(quizzersConfirmTeam(['alice  smith', '', 'Bob Jones', '', ''], roster)).toBe(true)
+  })
+
+  it('needs two typed quizzers', () => {
+    expect(quizzersConfirmTeam(['Alice Smith', '', '', '', ''], roster)).toBe(false)
+  })
+
+  it('counts a quizzer typed into two seats once', () => {
+    expect(quizzersConfirmTeam(['Alice Smith', 'alice smith', '', '', ''], roster)).toBe(false)
+  })
+
+  it('refuses when a typed quizzer is not on the roster, even by first name', () => {
+    expect(quizzersConfirmTeam(['Alice Smith', 'Bob', '', '', ''], roster)).toBe(false)
   })
 })
 

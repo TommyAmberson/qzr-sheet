@@ -35,7 +35,14 @@ import {
 } from '../persistence/fileIO'
 import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
-import { getMeetName, getRevision, joinMeet, joinMeetGuest, type ScheduledQuizSeat } from '../api'
+import {
+  getMeetName,
+  getRevision,
+  getTeamQuizzers,
+  joinMeet,
+  joinMeetGuest,
+  type ScheduledQuizSeat,
+} from '../api'
 import {
   ChoiceDialog,
   RoomCodeDialog,
@@ -51,7 +58,12 @@ import {
   type Sender,
 } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
-import { useMeetSession, type SlotSession } from '../composables/useMeetSession'
+import {
+  quizzersConfirmTeam,
+  teamsNearName,
+  useMeetSession,
+  type SlotSession,
+} from '../composables/useMeetSession'
 import { renewedSenderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
 import { useTeamNames } from '../composables/useTeamNames'
 import { useTutorial } from '../composables/useTutorial'
@@ -61,41 +73,6 @@ import SignInWidget from './SignInWidget.vue'
 import TutorialOverlay from './TutorialOverlay.vue'
 
 const { theme, toggleTheme } = useTheme()
-
-// v-fit-name: show full name if it fits, otherwise short. CSS ellipsis is final fallback.
-interface FitNameBinding {
-  full: string
-  short: string
-}
-function applyFitName(el: HTMLElement, { full, short }: FitNameBinding) {
-  el.textContent = full
-  requestAnimationFrame(() => {
-    if (el.scrollWidth > el.clientWidth && short && short !== full) el.textContent = short
-  })
-}
-const fitNameObservers = new WeakMap<HTMLElement, ResizeObserver>()
-const fitNameValues = new WeakMap<HTMLElement, FitNameBinding>()
-const vFitName = {
-  mounted(el: HTMLElement, binding: { value: FitNameBinding }) {
-    fitNameValues.set(el, binding.value)
-    applyFitName(el, binding.value)
-    const ro = new ResizeObserver(() => {
-      const v = fitNameValues.get(el)
-      if (v) applyFitName(el, v)
-    })
-    ro.observe(el)
-    fitNameObservers.set(el, ro)
-  },
-  updated(el: HTMLElement, binding: { value: FitNameBinding }) {
-    fitNameValues.set(el, binding.value)
-    applyFitName(el, binding.value)
-  },
-  unmounted(el: HTMLElement) {
-    fitNameObservers.get(el)?.disconnect()
-    fitNameObservers.delete(el)
-    fitNameValues.delete(el)
-  },
-}
 
 const meetSession = useMeetSession()
 const meetPickerRef = ref<InstanceType<typeof MeetPickerDialog> | null>(null)
@@ -108,7 +85,8 @@ function toggleTeamPicker(teamIdx: number, event: MouseEvent) {
     openPickerSlot.value = null
     return
   }
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  const trigger = event.currentTarget as HTMLElement
+  const rect = (trigger.closest('.name-main') ?? trigger).getBoundingClientRect()
   pickerPos.value = { top: rect.bottom + 4, left: rect.left }
   openPickerSlot.value = teamIdx
 }
@@ -303,7 +281,11 @@ function isDefaultTeamName(name: string): boolean {
   return /^Team [1-3]$/.test(name)
 }
 
-async function pickTeam(slotIdx: number, teamId: number) {
+/**
+ * Pick a roster team for a slot, seating its quizzers around the names already typed. The team's
+ * name replaces the typed one unless `keepName`, for a pick made on the sheet's behalf.
+ */
+async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
   openPickerSlot.value = null
   if (!teamId) {
     meetSession.clearSlot(slotIdx)
@@ -324,7 +306,7 @@ async function pickTeam(slotIdx: number, teamId: number) {
   // Fill empty store seats with the DB names that were matched to those positions
   const slot = meetSession.getSlot(slotIdx)
   if (!slot) return
-  setTeamName(slotIdx, slot.dbLabelFull)
+  if (!keepName) setTeamName(slotIdx, slot.dbLabelFull)
   for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
     if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
       setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
@@ -364,12 +346,93 @@ async function onMeetLoaded() {
     const teamName = store.teams[teamIdx]?.name ?? ''
     if (isDefaultTeamName(teamName)) continue
     const match = findMatchingTeam(teamName)
-    if (match) await pickTeam(teamIdx, match.id)
+    try {
+      if (match) await pickTeam(teamIdx, match.id)
+      else await pickMisspeltTeam(teamIdx, teamName)
+    } catch {
+      // The roster couldn't be fetched: this name stays unpicked, and the next is still tried
+    }
   }
+}
+
+/**
+ * Pick the roster team a typed name misspells, when the typed quizzers bear it out. The name only
+ * shortlists teams, since a church's teams are an edit apart; the quizzers say which one, and it's
+ * picked only if they say exactly one. The name stays as typed, flagged against the roster's,
+ * since it's the roster that may be wrong.
+ */
+async function pickMisspeltTeam(slotIdx: number, teamName: string) {
+  const meetId = meetSession.meetId.value
+  if (meetId === null) return
+  const picked = new Set([0, 1, 2].map((i) => meetSession.getSlot(i)?.teamId))
+  const unpicked = filteredTeamList.value
+    .filter((team) => !picked.has(team.id))
+    .map((team) => ({
+      id: team.id,
+      name: meetSession.teamLabelFull(team),
+      shortName: meetSession.teamLabel(team),
+    }))
+  const nearTeamIds = teamsNearName(teamName, unpicked)
+  if (nearTeamIds.length === 0) return
+
+  const typedQuizzerNames = () =>
+    store
+      .quizzersByTeam(store.teams[slotIdx]!.id)
+      .map((quizzer) => (isDefaultQuizzerName(quizzer.name) ? '' : quizzer.name))
+  const typedQuizzers = typedQuizzerNames()
+  let confirmedTeamIds: number[]
+  try {
+    const rosters = await Promise.all(
+      nearTeamIds.map(async (teamId) => (await getTeamQuizzers(meetId, teamId)).quizzers),
+    )
+    confirmedTeamIds = nearTeamIds.filter((_, i) =>
+      quizzersConfirmTeam(
+        typedQuizzers,
+        rosters[i]!.map((quizzer) => quizzer.name),
+      ),
+    )
+  } catch {
+    // Offline or refused: the name stays unpicked, and the team can be picked by hand
+    return
+  }
+  if (confirmedTeamIds.length !== 1) return
+  const teamId = confirmedTeamIds[0]!
+
+  // The rosters took a while to arrive, and the sheet stayed in use: leave alone a slot that was
+  // picked by hand meanwhile or had its names retyped, and a team that went to another slot
+  const stillAsTyped =
+    store.teams[slotIdx]?.name === teamName &&
+    !meetSession.getSlot(slotIdx) &&
+    typedQuizzerNames().join('\n') === typedQuizzers.join('\n')
+  const pickedElsewhere = [0, 1, 2].some((i) => meetSession.getSlot(i)?.teamId === teamId)
+  if (meetSession.meetId.value !== meetId || !stillAsTyped || pickedElsewhere) return
+  await pickTeam(slotIdx, teamId, true)
 }
 
 /** What an empty name shows; the sizer measures it too, so the box fits it */
 const TEAM_PLACEHOLDER = 'Team name'
+const PICK_TEAM_PLACEHOLDER = 'Pick team'
+/** The slot whose team name is being typed, from the first keystroke until the input loses focus */
+const typingTeamSlot = ref<number | null>(null)
+function typeTeamName(slotIdx: number, name: string) {
+  typingTeamSlot.value = slotIdx
+  setTeamName(slotIdx, name)
+}
+function awaitsTeamPick(slotIdx: number): boolean {
+  return picksTeam(slotIdx) && !meetSession.getSlot(slotIdx)
+}
+/**
+ * Where teams are picked from the roster, an untouched "Team N" stands for no team yet, so it
+ * gives way to a prompt to pick one, the way an empty quizzer seat shows "Quizzer N". Not while
+ * it's being typed, or a name that passes through "Team 1" would empty the input mid-word.
+ */
+function shownTeamName(slotIdx: number, name: string): string {
+  const untouched = isDefaultTeamName(name) && typingTeamSlot.value !== slotIdx
+  return awaitsTeamPick(slotIdx) && untouched ? '' : name
+}
+function teamPlaceholder(slotIdx: number): string {
+  return awaitsTeamPick(slotIdx) ? PICK_TEAM_PLACEHOLDER : TEAM_PLACEHOLDER
+}
 const quizzerPlaceholder = (seatIdx: number) => `Quizzer ${seatIdx + 1}`
 
 /** A click anywhere in a name cell types into its name, not only on the input's own width (#144) */
@@ -380,6 +443,30 @@ function focusName(e: MouseEvent) {
 
 function restoreQuizzerName(slotIdx: number, seatIdx: number) {
   setQuizzerName(slotIdx, seatIdx, meetSession.getDbName(slotIdx, seatIdx) ?? '')
+}
+
+function restoreTeamName(slotIdx: number) {
+  const pickedName = meetSession.pickedTeamName(slotIdx)
+  if (pickedName !== undefined) setTeamName(slotIdx, pickedName)
+}
+
+/**
+ * Why a team's name is flagged against the linked meet's roster, if it is. The name stays as
+ * typed either way: the sheet records what happened in the room, and an admin sorts out the
+ * roster afterwards.
+ */
+function teamNameWarning(slotIdx: number, name: string): string | undefined {
+  if (!picksTeam(slotIdx)) return undefined
+  const slot = meetSession.getSlot(slotIdx)
+  if (!slot) {
+    const typed = name.trim() !== '' && !isDefaultTeamName(name)
+    return typed ? "Not picked from the meet's teams" : undefined
+  }
+  if (meetSession.isTeamNameDiverged(slotIdx, name)) {
+    return `Picked team: ${meetSession.pickedTeamName(slotIdx)}`
+  }
+  if (isTeamDivisionDiverged(slotIdx)) return "Picked team isn't in this division"
+  return undefined
 }
 
 function isTeamDivisionDiverged(slotIdx: number): boolean {
@@ -876,8 +963,9 @@ const { refreshTeamNames, teamNamesFor } = useTeamNames()
 /** Whether the linked meet's roster has teams for the quiz's division, to pick from */
 const rosterHasTeams = computed(() => filteredTeamList.value.length > 0)
 /**
- * A team is picked from the roster when it has teams for the division, or when the team is already
- * picked, so a pick made in another division can still be seen and cleared; otherwise it's typed
+ * A team can be picked from the roster when it has teams for the division, or when the team is
+ * already picked, so a pick made in another division can still be seen and cleared. The name can
+ * be typed over either way.
  */
 function picksTeam(teamIdx: number): boolean {
   return rosterHasTeams.value || !!meetSession.getSlot(teamIdx)
@@ -1364,34 +1452,45 @@ const appVersion: string = __APP_VERSION__
                 <td class="col--name sticky-col team-name" colspan="2">
                   <div class="name-cell-inner" @click="focusName">
                     <span class="name-main">
+                      <span
+                        class="name-input-sizer name-input-sizer--team"
+                        :data-value="shownTeamName(teamIdx, team.name) || teamPlaceholder(teamIdx)"
+                      >
+                        <input
+                          :class="[
+                            'editable-name',
+                            'editable-name--team',
+                            { 'editable-name--diverged': teamNameWarning(teamIdx, team.name) },
+                          ]"
+                          :data-tutorial="`team-name-${teamIdx}`"
+                          :list="rosterHasTeams ? undefined : 'team-name-options'"
+                          :placeholder="teamPlaceholder(teamIdx)"
+                          :title="teamNameWarning(teamIdx, team.name)"
+                          :value="shownTeamName(teamIdx, team.name)"
+                          @input="typeTeamName(teamIdx, ($event.target as HTMLInputElement).value)"
+                          @focus="($event.target as HTMLInputElement).select()"
+                          @blur="typingTeamSlot = null"
+                          @keydown.enter="($event.target as HTMLInputElement).blur()"
+                        />
+                      </span>
                       <template v-if="picksTeam(teamIdx)">
+                        <button
+                          v-if="meetSession.isTeamNameDiverged(teamIdx, team.name)"
+                          class="name-restore"
+                          :title="`Restore: ${meetSession.pickedTeamName(teamIdx)}`"
+                          :aria-label="`Restore: ${meetSession.pickedTeamName(teamIdx)}`"
+                          @click.stop="restoreTeamName(teamIdx)"
+                        >
+                          ↺
+                        </button>
                         <button
                           class="team-picker-trigger"
                           :class="{ 'is-open': openPickerSlot === teamIdx }"
+                          title="Pick a team from the meet"
+                          aria-label="Pick a team from the meet"
                           @click.stop="toggleTeamPicker(teamIdx, $event)"
                           @keydown.escape.stop="openPickerSlot = null"
                         >
-                          <span
-                            v-if="meetSession.getSlot(teamIdx)"
-                            v-fit-name="{
-                              full: meetSession.getSlot(teamIdx)!.dbLabelFull,
-                              short: meetSession.getSlot(teamIdx)!.dbLabel,
-                            }"
-                            :class="[
-                              'team-name-fit',
-                              { 'team-name-fit--diverged': isTeamDivisionDiverged(teamIdx) },
-                            ]"
-                          />
-                          <span
-                            v-else-if="isDefaultTeamName(team.name)"
-                            class="team-picker-placeholder"
-                            >— pick team —</span
-                          >
-                          <span
-                            v-else
-                            class="team-picker-placeholder team-picker-placeholder--diverged"
-                            >{{ team.name }}</span
-                          >
                           <svg
                             class="team-picker-chevron"
                             viewBox="0 0 10 6"
@@ -1402,23 +1501,6 @@ const appVersion: string = __APP_VERSION__
                             <path d="M0 0l5 6 5-6z" fill="currentColor" />
                           </svg>
                         </button>
-                      </template>
-                      <template v-else>
-                        <span
-                          class="name-input-sizer name-input-sizer--team"
-                          :data-value="team.name || TEAM_PLACEHOLDER"
-                        >
-                          <input
-                            class="editable-name editable-name--team"
-                            :data-tutorial="`team-name-${teamIdx}`"
-                            list="team-name-options"
-                            :placeholder="TEAM_PLACEHOLDER"
-                            :value="team.name"
-                            @input="setTeamName(teamIdx, ($event.target as HTMLInputElement).value)"
-                            @focus="($event.target as HTMLInputElement).select()"
-                            @keydown.enter="($event.target as HTMLInputElement).blur()"
-                          />
-                        </span>
                       </template>
                     </span>
                     <span class="team-stats">
@@ -2360,37 +2442,25 @@ const appVersion: string = __APP_VERSION__
 }
 
 .team-picker-trigger {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  justify-content: center;
   background: none;
   border: none;
+  border-radius: 50%;
   color: inherit;
   cursor: pointer;
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 700;
-  max-width: 100%;
-  min-width: 0;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
   padding: 0;
   opacity: 0.85;
 }
 
 .team-picker-trigger:hover,
 .team-picker-trigger.is-open {
+  background: var(--color-border-alt);
   opacity: 1;
-}
-
-.team-name-fit {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.team-name-fit--diverged {
-  border-bottom: 1.5px solid var(--palette-warning, #b45309);
-  color: var(--palette-warning, #b45309);
 }
 
 .team-picker-chevron {
@@ -2401,18 +2471,6 @@ const appVersion: string = __APP_VERSION__
 
 .team-picker-trigger.is-open .team-picker-chevron {
   transform: rotate(180deg);
-}
-
-.team-picker-placeholder {
-  font-weight: 400;
-  opacity: 0.6;
-  font-style: italic;
-  font-size: 0.8rem;
-}
-
-.team-picker-placeholder--diverged {
-  font-style: normal;
-  border-bottom: 1.5px solid var(--palette-warning, #b45309);
 }
 
 @keyframes picker-enter {
@@ -3330,6 +3388,20 @@ thead tr th.sticky-col {
 .name-input-sizer--team::after {
   font-weight: 700;
   font-size: 0.85rem;
+}
+/* A team name longer than its cell is cut short with an ellipsis rather than running under the
+ * score columns, which keeps the restore and pick-team buttons beside it in reach. */
+.team-name .name-main {
+  max-width: 100%;
+  min-width: 0;
+}
+.name-input-sizer--team {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.editable-name--team {
+  text-overflow: ellipsis;
 }
 .name-input-sizer--quizzer::after {
   font-weight: 500;

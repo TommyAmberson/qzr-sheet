@@ -59,8 +59,9 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   // from this, not from the serialized string, so a parse failure at finish time
   // can't destroy the user's pre-tutorial state.
   let snapshotData: DeserializeResult | null = null
-  // Pre-tutorial meet link. Linked meets replace the team-name input with a
-  // team-picker, so we unlink for the walkthrough and re-link on finish.
+  // Pre-tutorial meet link. A linked meet keeps the real quiz's team picks and
+  // flags names against its roster, which would mark up the walkthrough's
+  // made-up teams, so we unlink for the walkthrough and re-link on finish.
   let meetSnapshot: MeetSessionData | null = null
   // Whether the snapshotted quiz carried the opened-from-newer-file warning
   let snapshotFromNewer = false
@@ -103,8 +104,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
       // localStorage full — the warning still returns on a normal finish
     }
 
-    // Snapshot and clear the meet link so the team/quizzer inputs stay
-    // editable during the tutorial. Persist a copy too so a mid-tutorial
+    // Snapshot and clear the meet link so the walkthrough's names aren't
+    // checked against a real roster. Persist a copy too so a mid-tutorial
     // crash recovery can restore the link along with the quiz state.
     meetSnapshot = meetSession.snapshotSession()
     if (meetSnapshot) {

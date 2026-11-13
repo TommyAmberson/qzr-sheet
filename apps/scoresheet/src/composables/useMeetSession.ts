@@ -7,7 +7,7 @@ import {
   type ScheduledQuizDetails,
   type ScheduledQuizSeat,
 } from '../api'
-import { QUIZZERS_PER_TEAM, editDistance, teamDisplayName } from '@qzr/shared'
+import { QUIZZERS_PER_TEAM, editDistance, foldName, teamDisplayName } from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 import { senderOf } from './useSubmitToMeet'
 
@@ -103,6 +103,19 @@ export function useMeetSession() {
     const details = await getScheduledQuiz(meetId, quizId)
     if (!session.value || session.value.meetId !== meetId) {
       await loadMeet(meetId, details.quiz.meetName)
+    } else {
+      // The seats' teams are newer than the team list kept since linking. Take them into it, so
+      // a team's name reads the same from both
+      const seated = new Map(
+        details.seats
+          .flatMap((seat) => (seat.team ? [seat.team] : []))
+          .map((team) => [team.id, team]),
+      )
+      session.value = {
+        ...session.value,
+        teamList: session.value.teamList.map((team) => seated.get(team.id) ?? team),
+      }
+      persist()
     }
     return details
   }
@@ -192,6 +205,29 @@ export function useMeetSession() {
     return currentName.trim() !== dbName.trim()
   }
 
+  /**
+   * The picked team's full name as the roster has it now. The slot keeps the name from when the
+   * team was picked, but the roster is reloaded since and may have been corrected: a room types
+   * the right name over a wrong one, and the meet's admin fixes the roster afterwards.
+   */
+  function pickedTeamName(slotIdx: number): string | undefined {
+    const slot = session.value?.slots[slotIdx]
+    if (!slot) return undefined
+    const team = session.value?.teamList.find((t) => t.id === slot.teamId)
+    return team ? teamLabelFull(team) : slot.dbLabelFull
+  }
+
+  /**
+   * Whether a slot's typed name was edited away from the team picked for it. Only the full label
+   * counts as the team's own name: it's the typed name that is submitted, and the short label
+   * would be recorded as another team. Case and spacing don't tell teams apart anywhere else.
+   */
+  function isTeamNameDiverged(slotIdx: number, currentName: string): boolean {
+    const pickedName = pickedTeamName(slotIdx)
+    if (pickedName === undefined) return false
+    return foldName(currentName) !== foldName(pickedName)
+  }
+
   function getDbName(slotIdx: number, seatIdx: number): string | undefined {
     return session.value?.slots[slotIdx]?.quizzers[seatIdx]?.dbName
   }
@@ -273,6 +309,8 @@ export function useMeetSession() {
     getSlot,
     reorderSlotQuizzers,
     isQuizzerDiverged,
+    pickedTeamName,
+    isTeamNameDiverged,
     getDbName,
     clearSession,
     startNewQuiz,
@@ -280,6 +318,44 @@ export function useMeetSession() {
     restoreSession,
     refresh,
   }
+}
+
+/** How many edits a typed team name may be from a roster team's and still be taken for a typo */
+const TEAM_TYPO_EDITS = 2
+/** The same for a church's short name, where two edits reach most other churches' */
+const SHORT_NAME_TYPO_EDITS = 1
+/** How many typed quizzers must be on a team's roster before a misspelt name is taken for it */
+const QUIZZERS_TO_CONFIRM = 2
+
+/**
+ * The roster teams whose name, full or short, is a typo away from the typed one. Often more than
+ * one: a church's second team is a single edit from its first, so the name alone never settles
+ * which is meant.
+ */
+export function teamsNearName(
+  typedName: string,
+  teams: { id: number; name: string; shortName: string }[],
+): number[] {
+  const typed = foldName(typedName)
+  return teams
+    .filter(
+      (team) =>
+        editDistance(typed, foldName(team.name)) <= TEAM_TYPO_EDITS ||
+        editDistance(typed, foldName(team.shortName)) <= SHORT_NAME_TYPO_EDITS,
+    )
+    .map((team) => team.id)
+}
+
+/**
+ * Whether the typed quizzers show a misspelt team name to be this roster's team. Stricter than
+ * seating a picked team's quizzers: a name that matches no team exactly is more likely a team the
+ * roster lacks than a typo, so every typed quizzer has to be on the roster by full name, and at least two of them.
+ */
+export function quizzersConfirmTeam(typedQuizzers: string[], rosterQuizzers: string[]): boolean {
+  // A set, so one quizzer typed into two seats doesn't count twice
+  const typed = new Set(typedQuizzers.map(foldName).filter((name) => name !== ''))
+  const roster = new Set(rosterQuizzers.map(foldName))
+  return typed.size >= QUIZZERS_TO_CONFIRM && [...typed].every((name) => roster.has(name))
 }
 
 function matchQuizzers(
