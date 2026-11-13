@@ -23,6 +23,16 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-12
+
+### Fixed
+
+* Overtime answers count towards quizzing, erroring and fouling out, in `scoreTeam` and in
+  `validateCells`' `QuizzerOut` check. They were skipped, so a third error, a fourth correct answer
+  or a third foul in overtime left the quizzer in. A quiz-out in overtime with no errors gives the
+  team the +10 quiz-out bonus, and a foul-out in overtime costs the team 10. The quizzer's own
+  points and counts still leave overtime out (#165)
+
 ## [1.9.0] - 2026-11-11
 
 ### Added

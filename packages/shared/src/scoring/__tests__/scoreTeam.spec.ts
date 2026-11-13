@@ -490,6 +490,75 @@ describe('scoreTeam', () => {
     expect(result.total).toBe(-10)
   })
 
+  describe('overtime counts towards outs, not towards the quizzer', () => {
+    const otColumns = buildColumns(TWENTY, 1)
+    const at = (key: string) => {
+      const idx = otColumns.findIndex((c) => c.key === key)
+      if (idx === -1) throw new Error(`Column ${key} not found`)
+      return idx
+    }
+    const otCells = () => Array.from({ length: 5 }, () => otColumns.map(() => _))
+
+    it('quizzes a quizzer out on a fourth correct in overtime, with the team bonus only', () => {
+      const cells = otCells()
+      for (const key of ['1', '2', '3', '21']) cells[0]![at(key)] = C
+      const result = scoreTeam(cells, otColumns, false, TWENTY)
+      const quizzer = result.quizzers[0]!
+      expect(quizzer.quizzedOut).toBe(true)
+      expect(quizzer.outAfterCol).toBe(at('21'))
+      // 4 correct and the quiz-out bonus for the team
+      expect(result.total).toBe(90)
+      expect(result.quizoutBonusCols.has(at('21'))).toBe(true)
+      // 3 regulation correct and no bonus for the quizzer
+      expect(quizzer.points).toBe(60)
+      expect(quizzer.correctCount).toBe(3)
+      expect(quizzer.quizoutBonus).toBe(false)
+    })
+
+    it('gives no quiz-out bonus after an error in overtime', () => {
+      const cells = otCells()
+      for (const key of ['1', '2', '3', '22']) cells[0]![at(key)] = C
+      cells[0]![at('21')] = E
+      const result = scoreTeam(cells, otColumns, false, TWENTY)
+      expect(result.quizzers[0]!.quizzedOut).toBe(true)
+      expect(result.quizoutBonusCols.size).toBe(0)
+      expect(result.total).toBe(70)
+    })
+
+    it('errors a quizzer out on a third error in overtime, costing them nothing more', () => {
+      const cells = otCells()
+      for (const key of ['1', '2', '21']) cells[0]![at(key)] = E
+      const result = scoreTeam(cells, otColumns, false, TWENTY)
+      const quizzer = result.quizzers[0]!
+      expect(quizzer.erroredOut).toBe(true)
+      expect(quizzer.outAfterCol).toBe(at('21'))
+      // The second error and the overtime error each cost the team 10
+      expect(result.total).toBe(-20)
+      // Only the second error is the quizzer's
+      expect(quizzer.points).toBe(-10)
+      expect(quizzer.errorCount).toBe(2)
+    })
+
+    it('fouls a quizzer out on a third foul in overtime, costing the team alone', () => {
+      const cells = otCells()
+      cells[0]![at('1')] = F
+      cells[0]![at('2')] = F
+      cells[1]![at('3')] = F
+      cells[1]![at('4')] = F
+      // The team's fifth foul, so the deduction is for the foul-out
+      cells[0]![at('21')] = F
+      const result = scoreTeam(cells, otColumns, false, TWENTY)
+      const quizzer = result.quizzers[0]!
+      expect(quizzer.fouledOut).toBe(true)
+      expect(quizzer.outAfterCol).toBe(at('21'))
+      expect(result.foulDeductCols.has(at('21'))).toBe(true)
+      // The third team foul, then the foul-out
+      expect(result.total).toBe(-20)
+      expect(quizzer.points).toBe(0)
+      expect(quizzer.foulCount).toBe(2)
+    })
+  })
+
   it('deducts -10 at every 3rd team foul (6th foul)', () => {
     const cells = blankCells()
     cells[0]![colIdx('1')] = F // team 1

@@ -88,7 +88,8 @@ A quizzer's first error is free if _all_ of:
 | Error out | 3 errors          | Quizzer must leave; cannot answer anything (not even fouls)                        |
 | Foul out  | 3 fouls           | Quizzer must leave; −10 to individual and team (does not stack with 3rd-team-foul) |
 
-**No individual points** for bonus questions or overtime correct answers.
+**No individual points** for bonus questions or overtime answers. Overtime answers still count
+towards the thresholds above (see [Overtime](#overtime)).
 
 ## Toss-up and Bonus Questions
 
@@ -153,8 +154,11 @@ are eligible to answer overtime questions.
 * Overtime questions use `isErrorPoints = true` (same rules as Q17+).
 * Questions are grouped in rounds of 3 (Q21–23, Q24–26, …).
 * A new round is shown only when the previous round is complete and teams are still tied.
-* Overtime correct answers do **not** count toward individual quizzer stats (no quiz-out, no
-  individual points).
+* Overtime answers give a quizzer **no individual points or stats**: correct answers, errors and
+  fouls in overtime score for the team only.
+* Overtime answers **do** count towards quizzing, erroring and fouling out. A fourth correct answer
+  in overtime, with no errors, quizzes the quizzer out and gives the team the +10 quiz-out bonus
+  (not the quizzer). A third foul in overtime is a foul-out and costs the team 10, not the quizzer.
 * **2-way tie:** when only two teams are eligible, every numbered OT question is effectively a
   toss-up (only two teams can jump). An error leaves one team → A is skipped, B is asked directly as
   a bonus. The same A=toss-up / B=bonus rule from regulation applies.
@@ -233,6 +237,12 @@ meets also run short three-team quizzes, which the rulebook does not cover. The 
 | 2 timeouts per team                           | Unchanged from §8.a; practice-meet convention                                                                      |
 | Unique-quizzer and on-time bonuses            | Unchanged; practice-meet convention                                                                                |
 | Placement points from the end-of-Q15 score    | The existing formulas, unchanged (§1.e.4 uses the end of regulation); practice-meet convention                     |
+
+### Foul-out in overtime
+
+A third foul in overtime costs the quizzer no individual points. The rulebook exempts overtime
+answers and errors from individual points (Individual Points §2.a.v, §2.b.v) and is silent on fouls,
+taken here as an omission because a foul-out is so rare.
 
 ### Practice meet standings
 

@@ -179,11 +179,12 @@ export function validateCells(
         }
 
         // Update running counts for this seat
-        if (v === CellValue.Correct && !col.isOvertime) {
+        // Overtime answers count here too: they give a quizzer no points, but do put them out
+        if (v === CellValue.Correct) {
           qCorrects[teamIdx]![seatIdx]!++
-        } else if (v === CellValue.Error && !col.isOvertime) {
+        } else if (v === CellValue.Error) {
           qErrors[teamIdx]![seatIdx]!++
-        } else if (v === CellValue.Foul && !col.isOvertime) {
+        } else if (v === CellValue.Foul) {
           qFouls[teamIdx]![seatIdx]!++
         }
 

@@ -651,6 +651,24 @@ describe('cell validation', () => {
       return codes ? codes.includes(code) : false
     }
 
+    it('counts overtime answers towards a quizzer being out', () => {
+      const cells = otBlankCells()
+      cells[0]![0]![otColIdxOf('1')] = E
+      cells[0]![0]![otColIdxOf('2')] = E
+      // Errored out here, on the third error
+      cells[0]![0]![otColIdxOf('21')] = E
+      cells[0]![0]![otColIdxOf('22')] = C
+      // Quizzed out on the fourth correct
+      for (const key of ['3', '4', '5', '21']) cells[1]![0]![otColIdxOf(key)] = C
+      cells[1]![0]![otColIdxOf('23')] = C
+      const grey = computeGreyedOut(cells, otColumns)
+      const errors = validateCells(cells, otColumns, grey, TWENTY)
+      expect(otHasCode(errors, 0, 0, otColIdxOf('21'), ValidationCode.QuizzerOut)).toBe(false)
+      expect(otHasCode(errors, 0, 0, otColIdxOf('22'), ValidationCode.QuizzerOut)).toBe(true)
+      expect(otHasCode(errors, 1, 0, otColIdxOf('21'), ValidationCode.QuizzerOut)).toBe(false)
+      expect(otHasCode(errors, 1, 0, otColIdxOf('23'), ValidationCode.QuizzerOut)).toBe(true)
+    })
+
     it('team not part of the tie answering OT question is invalid', () => {
       const cells = otBlankCells()
       // Team 0: 3 correct = 80 (60 + 20 on-time)
