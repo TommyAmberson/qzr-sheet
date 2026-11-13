@@ -25,6 +25,13 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [1.10.0] - 2026-11-12
 
+### Added
+
+* `OutTally` with `newOutTally`, `countTowardsOut`, `isQuizzedOut`, `isErroredOut`, `isFouledOut`
+  and `hasLeftBench`, and the thresholds `ERRORS_TO_ERROR_OUT` and `FOULS_TO_FOUL_OUT`: the one
+  count of a quizzer's marks towards going out, which `scoreTeam`, `validateCells` and the ODS
+  reader now share
+
 ### Fixed
 
 * Overtime answers count towards quizzing, erroring and fouling out, in `scoreTeam` and in
