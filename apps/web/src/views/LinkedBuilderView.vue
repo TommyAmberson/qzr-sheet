@@ -422,7 +422,8 @@ const publishNote = ref('')
 /** Who sees the published version, and how, by the meet's phase (FR-052) */
 const audience = computed(() => {
   if (version.value === null) return 'The meet sees no schedule yet'
-  const names = meet.value?.phase === 'live' || meet.value?.phase === 'done'
+  const phase = meet.value?.phase
+  const names = phase !== undefined && phase !== 'registration' && phase !== 'build'
   return `The meet sees version ${version.value}, ${names ? 'with team names' : 'in letters until the meet is live'}`
 })
 

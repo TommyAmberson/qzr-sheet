@@ -62,6 +62,30 @@ async function isAdmin(c: Context<Env>, meetId: number): Promise<boolean> {
 }
 
 /**
+ * The response refusing a change to the meet's quizzes in its phase, or null when the phase allows
+ * it: anyone who may change them does so while the meet is live, only an admin while it is in
+ * review, and nobody before it is live or once it is done.
+ */
+async function refusedByPhase(
+  c: Context<Env>,
+  meetId: number,
+  admin: boolean,
+): Promise<Response | null> {
+  const [meet] = await c
+    .get('db')
+    .select({ phase: schema.quizMeets.phase })
+    .from(schema.quizMeets)
+    .where(eq(schema.quizMeets.id, meetId))
+  if (!meet) return c.json({ error: 'Meet not found' }, 404)
+  if (meet.phase === 'live' || (meet.phase === 'review' && admin)) return null
+  const error =
+    meet.phase === 'review'
+      ? 'Only an admin changes quizzes while the meet is in review'
+      : 'Quizzes change only while the meet is live or in review'
+  return c.json({ error, meetPhase: meet.phase }, 409)
+}
+
+/**
  * A save for a room of the meet, by a signed-in account ("Pat, Room 2") or the room's guest
  * official ("Room 2"); undefined when the meet has no such room
  */
@@ -106,7 +130,7 @@ async function quizAccess(
   c: Context<Env>,
   meetId: number,
   resultId: number,
-): Promise<{ saver: Saver; quizKey: string } | Response> {
+): Promise<{ saver: Saver; quizKey: string; admin: boolean } | Response> {
   const db = c.get('db')
   const [result] = await db
     .select({ quizKey: schema.quizResults.quizKey })
@@ -115,7 +139,7 @@ async function quizAccess(
   if (!result) return c.json({ error: 'Quiz not found' }, 404)
   const user = c.get('user')
   if (user && (await isAdmin(c, meetId)))
-    return { saver: adminSaver(user), quizKey: result.quizKey }
+    return { saver: adminSaver(user), quizKey: result.quizKey, admin: true }
 
   const mine = await officialRoomsOf(c, db, meetId)
   const [shared] =
@@ -141,7 +165,7 @@ async function quizAccess(
           .orderBy(asc(schema.meetRooms.sortOrder), asc(schema.meetRooms.id))
           .limit(1)
   if (!shared) return c.json({ error: "Not an admin, or an official of this quiz's rooms" }, 403)
-  return { saver: roomSaverFor(shared, user), quizKey: result.quizKey }
+  return { saver: roomSaverFor(shared, user), quizKey: result.quizKey, admin: false }
 }
 
 /** The validated file to store, or the response refusing it */
@@ -339,11 +363,14 @@ results.post('/:id/results', async (c) => {
     (typeof body.roomId === 'number' ? body.roomId : null) ?? c.get('guest')?.roomId ?? null
 
   // An admin sends for any room of the meet, or none; anyone else is an official of the room
-  if (!user || !(await isAdmin(c, meetId))) {
+  const admin = await isAdmin(c, meetId)
+  if (!admin) {
     if (roomId === null || !(await isOfficialOfRoom(c, c.get('db'), meetId, roomId))) {
       return c.json({ error: 'Not an official of this room' }, 403)
     }
   }
+  const refused = await refusedByPhase(c, meetId, admin)
+  if (refused) return refused
   // Only an admin gets here with no room: an official always sends for one
   const saver =
     roomId === null ? adminSaver(user!) : await roomSaver(c.get('db'), meetId, roomId, user)
@@ -416,6 +443,8 @@ results.put('/:id/results/:resultId', async (c) => {
   if (meetId === null || resultId === null) return c.json({ error: 'Quiz not found' }, 404)
   const access = await quizAccess(c, meetId, resultId)
   if (access instanceof Response) return access
+  const refused = await refusedByPhase(c, meetId, access.admin)
+  if (refused) return refused
   const body = await jsonBody<{ quizFile?: unknown; action?: unknown }>(c)
   if (!body) return c.json({ error: 'Body must be JSON' }, 400)
   const db = c.get('db')
@@ -538,6 +567,8 @@ results.post('/:id/results/:resultId/restore', async (c) => {
   if (meetId === null || resultId === null) return c.json({ error: 'Quiz not found' }, 404)
   const access = await quizAccess(c, meetId, resultId)
   if (access instanceof Response) return access
+  const refused = await refusedByPhase(c, meetId, access.admin)
+  if (refused) return refused
   const body = await jsonBody<{ revision?: unknown }>(c)
   if (!body || !Number.isInteger(body.revision)) {
     return c.json({ error: 'Expected { revision: number }' }, 400)
@@ -593,6 +624,8 @@ results.patch('/:id/results/counted', async (c) => {
   if (meetId === null) return c.json({ error: 'Meet not found' }, 404)
   const user = c.get('user')
   if (!user || !(await isAdmin(c, meetId))) return c.json({ error: 'Admin access required' }, 403)
+  const refused = await refusedByPhase(c, meetId, true)
+  if (refused) return refused
 
   const body = await jsonBody<{ ids?: unknown; counted?: unknown }>(c)
   const ids = body?.ids

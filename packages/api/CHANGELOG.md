@@ -17,6 +17,26 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-11
+
+### Added
+
+* A meet moves `live → review → done`, one step at a time like the other phases, and a `done` meet
+  reopens into `review` (flagged as a reverse). Nothing advances into `review` automatically (#117)
+
+### Changed
+
+* Division states can be changed while the meet is in `review` as well as `live`, and no longer once
+  it is `done`
+* Quizzes are sent, edited, restored and counted only while the meet is `live` or in `review`, and
+  in `review` only by an admin. In any other phase the request is refused with a 409 naming the
+  meet's phase, where before the phase was never checked. A meet has to be moved to `live` before
+  its first quiz is sent
+
+### Bundled contract
+
+* `@qzr/shared@1.9.0` - bumped from 1.8.0
+
 ## [0.24.1] - 2026-11-11
 
 ### Fixed

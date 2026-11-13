@@ -1375,6 +1375,9 @@ onMounted(load)
 .phase-strip[data-phase='live'] {
   --phase-color: var(--palette-correct);
 }
+.phase-strip[data-phase='review'] {
+  --phase-color: var(--palette-bonus);
+}
 .phase-strip[data-phase='done'] {
   --phase-color: var(--color-text-muted);
 }
