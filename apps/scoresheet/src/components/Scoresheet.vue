@@ -7,6 +7,7 @@ import {
   endsRound,
   firstOvertimeQuestion,
   lastQuestionThroughRound,
+  FOULS_TO_FOUL_OUT,
   MeetRole,
   NewerFileVersionError,
   parseQuizFile,
@@ -586,12 +587,25 @@ const allValidationMessages = computed(() => {
   return [...msgs]
 })
 
-/** Show individual score if the quizzer jumped (correct or error) or fouled out. */
+/**
+ * Show individual score if the quizzer has one: they jumped (correct or error) or fouled out, before
+ * overtime. Overtime marks give a quizzer nothing, so a foul-out there leaves no score to show.
+ */
 function quizzerScoreLabel(teamIdx: number, seatIdx: number): string | null {
   const q = scoring.value[teamIdx]?.quizzers[seatIdx]
   if (!q) return null
-  if (q.correctCount === 0 && q.errorCount === 0 && !q.fouledOut) return null
+  if (q.correctCount === 0 && q.errorCount === 0 && q.foulCount < FOULS_TO_FOUL_OUT) return null
   return `${q.points}`
+}
+
+/**
+ * Whether the quizzer's quiz-out earned the team its bonus. In overtime the team gets it and the
+ * quizzer doesn't, so this asks the team's score, not the quizzer's.
+ */
+function quizOutEarnedBonus(teamIdx: number, seatIdx: number): boolean {
+  const team = scoring.value[teamIdx]
+  const quizzer = team?.quizzers[seatIdx]
+  return !!quizzer?.quizzedOut && team!.quizoutBonusCols.has(quizzer.outAfterCol)
 }
 
 /**
@@ -1662,12 +1676,11 @@ const appVersion: string = __APP_VERSION__
                           'stat-badge',
                           'stat-badge--quizout',
                           {
-                            'stat-badge--quizout-bonus':
-                              scoring[teamIdx]!.quizzers[seatIdx]!.quizoutBonus,
+                            'stat-badge--quizout-bonus': quizOutEarnedBonus(teamIdx, seatIdx),
                           },
                         ]"
                         :title="
-                          scoring[teamIdx]!.quizzers[seatIdx]!.quizoutBonus
+                          quizOutEarnedBonus(teamIdx, seatIdx)
                             ? 'Quiz-out with bonus (+10)'
                             : 'Quiz-out'
                         "
