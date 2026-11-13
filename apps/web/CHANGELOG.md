@@ -16,6 +16,19 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-11-12
+
+### Fixed
+
+* Stored quizzes are checked and scored with overtime counting towards quiz-out, error-out and
+  foul-out, as the scoresheet now does: an answer from a quizzer who went out in overtime is a
+  validation error, and a quiz-out bonus or foul-out in overtime changes the team's final score
+  (#165)
+
+### Bundled contract
+
+* `@qzr/shared@1.10.0` - bumped from 1.9.0
+
 ## [0.24.0] - 2026-11-11
 
 ### Added
