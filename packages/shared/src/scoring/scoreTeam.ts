@@ -1,4 +1,14 @@
 import { CellValue, type Column } from '../types/scoresheet'
+import {
+  ERRORS_TO_ERROR_OUT,
+  FOULS_TO_FOUL_OUT,
+  type OutTally,
+  countTowardsOut,
+  isErroredOut,
+  isFouledOut,
+  isQuizzedOut,
+  newOutTally,
+} from './outs'
 import type { QuizRules } from './quizRules'
 
 export interface QuizzerScoring {
@@ -6,20 +16,29 @@ export interface QuizzerScoring {
   points: number
   /** Number of correct answers (non-bonus, non-OT) */
   correctCount: number
-  /** Number of errors */
+  /** Number of errors (non-OT) */
   errorCount: number
-  /** Number of fouls */
+  /** Number of fouls (non-OT) */
   foulCount: number
-  /** Quizzed out (the format's quiz-out count of correct answers) */
+  /** Quizzed out (the format's quiz-out count of correct answers, overtime included) */
   quizzedOut: boolean
-  /** Errored out (3 errors) */
+  /** Errored out (3 errors, overtime included) */
   erroredOut: boolean
-  /** Fouled out (3 fouls) */
+  /** Fouled out (3 fouls, overtime included) */
   fouledOut: boolean
-  /** Quizout bonus earned (4 correct with 0 errors) */
+  /** Quizout bonus earned by the quizzer (quizzed out with 0 errors, all before overtime) */
   quizoutBonus: boolean
-  /** Column index where this quizzer became out, or -1 if not out */
+  /** Marks towards going out, overtime included: what the bench counts, not the quizzer's stats */
+  out: OutTally
+  /** The team got the quizout bonus for this quizzer, which in overtime the quizzer doesn't */
+  teamQuizoutBonus: boolean
+  /** Column index where this quizzer became out (overtime included), or -1 if not out */
   outAfterCol: number
+  /**
+   * Column index where this quizzer errored or fouled out and left the bench, or -1. Later than
+   * `outAfterCol` for a quizzer who quizzed out first and stayed on for bonuses.
+   */
+  leftBenchAfterCol: number
 }
 
 export interface TeamScoring {
@@ -63,12 +82,23 @@ export function scoreTeam(
 ): TeamScoring {
   const seatCount = teamCells.length
 
-  // --- Per-seat accumulators (only non-bonus, non-OT questions) ---
+  // --- Per-seat accumulators for the quizzer's own stats (only non-bonus, non-OT questions) ---
   const qCorrect = new Array(seatCount).fill(0) as number[]
   const qError = new Array(seatCount).fill(0) as number[]
   const qFoul = new Array(seatCount).fill(0) as number[]
   const qHasQuizoutBonus = new Array(seatCount).fill(false) as boolean[]
-  const qOutAfterCol = new Array(seatCount).fill(-1) as number[]
+  // --- Per-seat marks towards going out, which overtime counts for too ---
+  const outs = Array.from({ length: seatCount }, newOutTally)
+  const qTeamQuizoutBonus = new Array(seatCount).fill(false) as boolean[]
+  const outAfterCol = new Array(seatCount).fill(-1) as number[]
+  const leftBenchAfterCol = new Array(seatCount).fill(-1) as number[]
+  const markOut = (seatIdx: number, colIdx: number) => {
+    if (outAfterCol[seatIdx] === -1) outAfterCol[seatIdx] = colIdx
+  }
+  const markLeftBench = (seatIdx: number, colIdx: number) => {
+    markOut(seatIdx, colIdx)
+    if (leftBenchAfterCol[seatIdx] === -1) leftBenchAfterCol[seatIdx] = colIdx
+  }
 
   // Track which seats have gotten at least one correct (for 3rd/4th/5th bonus)
   const seatHasCorrect = new Array(seatCount).fill(false) as boolean[]
@@ -102,6 +132,8 @@ export function scoreTeam(
       const isBonus = cell === CellValue.Bonus
       const isMissedBonus = cell === CellValue.MissedBonus
       const isOvertime = col.isOvertime
+      const out = outs[seatIdx]!
+      countTowardsOut(out, cell)
 
       if (cell === CellValue.Correct) {
         // +20 for correct (non-bonus, non-OT gets individual credit)
@@ -119,18 +151,18 @@ export function scoreTeam(
               uniqueBonusCols.set(colIdx, uniqueCorrectCount)
             }
           }
+        }
 
-          // Quizout bonus: awarded on the answer that quizzes the quizzer out
-          if (qCorrect[seatIdx] === rules.quizOutCorrect && qError[seatIdx] === 0) {
-            qHasQuizoutBonus[seatIdx] = true
+        if (out.correct === rules.quizOutCorrect) {
+          // Quizout bonus: awarded on the answer that quizzes the quizzer out. The team gets it in
+          // overtime too, the quizzer doesn't
+          if (out.errors === 0) {
+            if (!isOvertime) qHasQuizoutBonus[seatIdx] = true
+            qTeamQuizoutBonus[seatIdx] = true
             colPoints += 10
             quizoutBonusCols.add(colIdx)
           }
-
-          // Track quiz-out column
-          if (qCorrect[seatIdx] === rules.quizOutCorrect && qOutAfterCol[seatIdx] === -1) {
-            qOutAfterCol[seatIdx] = colIdx
-          }
+          markOut(seatIdx, colIdx)
         }
       } else if (isBonus) {
         // Bonus question correct
@@ -144,14 +176,8 @@ export function scoreTeam(
       } else if (isMissedBonus) {
         // No points for missed bonus
       } else if (cell === CellValue.Error) {
-        if (!isOvertime) {
-          qError[seatIdx]!++
-
-          // Track error-out column (3 errors = out)
-          if (qError[seatIdx]! === 3 && qOutAfterCol[seatIdx] === -1) {
-            qOutAfterCol[seatIdx] = colIdx
-          }
-        }
+        if (!isOvertime) qError[seatIdx]!++
+        if (out.errors === ERRORS_TO_ERROR_OUT) markLeftBench(seatIdx, colIdx)
         teamErrors++
 
         // Error deduction: -10 if any of these (don't stack):
@@ -174,20 +200,14 @@ export function scoreTeam(
           freeErrorCols.add(colIdx)
         }
       } else if (cell === CellValue.Foul) {
-        if (!isOvertime) {
-          qFoul[seatIdx]!++
-
-          // Track foul-out column (3 fouls = out)
-          if (qFoul[seatIdx] === 3 && qOutAfterCol[seatIdx] === -1) {
-            qOutAfterCol[seatIdx] = colIdx
-          }
-        }
+        if (!isOvertime) qFoul[seatIdx]!++
+        const isFoulOut = out.fouls === FOULS_TO_FOUL_OUT
+        if (isFoulOut) markLeftBench(seatIdx, colIdx)
         teamFouls++
 
         // Deduct -10 for every 3rd team foul OR 3rd individual foul (foul-out),
         // but don't stack if both happen on the same foul
         const isTeamFoulDeduct = teamFouls % 3 === 0
-        const isFoulOut = !isOvertime && qFoul[seatIdx] === 3
         if (isTeamFoulDeduct || isFoulOut) {
           colPoints -= 10
           foulDeductCols.add(colIdx)
@@ -212,9 +232,10 @@ export function scoreTeam(
     const correct = qCorrect[seatIdx]!
     const errors = qError[seatIdx]!
     const fouls = qFoul[seatIdx]!
-    const quizzedOut = correct >= rules.quizOutCorrect
-    const erroredOut = errors >= 3
-    const fouledOut = fouls >= 3
+    const out = outs[seatIdx]!
+    const quizzedOut = isQuizzedOut(out, rules)
+    const erroredOut = isErroredOut(out)
+    const fouledOut = isFouledOut(out)
     const quizoutBonus = qHasQuizoutBonus[seatIdx]!
 
     // Individual points: 20 per correct (non-bonus, non-OT)
@@ -224,8 +245,9 @@ export function scoreTeam(
     // 2nd and 3rd individual error: -10 each
     if (errors >= 2) points -= 10
     if (errors >= 3) points -= 10
-    // Foul-out penalty: -10 to individual
-    if (fouledOut) points -= 10
+    // Third foul before overtime: -10 to individual. A foul in overtime can put the quizzer out,
+    // but costs them nothing
+    if (fouls >= FOULS_TO_FOUL_OUT) points -= 10
 
     quizzers.push({
       points,
@@ -236,7 +258,10 @@ export function scoreTeam(
       erroredOut,
       fouledOut,
       quizoutBonus,
-      outAfterCol: qOutAfterCol[seatIdx]!,
+      teamQuizoutBonus: qTeamQuizoutBonus[seatIdx]!,
+      out,
+      outAfterCol: outAfterCol[seatIdx]!,
+      leftBenchAfterCol: leftBenchAfterCol[seatIdx]!,
     })
   }
 

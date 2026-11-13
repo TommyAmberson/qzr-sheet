@@ -1,5 +1,6 @@
 import { CellValue, QuestionType, type Column } from '../types/scoresheet'
 import type { GreyedOutResult } from './greyedOut'
+import { countTowardsOut, hasLeftBench, isQuizzedOut, newOutTally } from './outs'
 import type { QuizRules } from './quizRules'
 import { ColStatus, isAnswer, isBonusSituation } from './helpers'
 import { toSeatIdx, toTeamIdx, teamSeatKey, type TeamSeat } from '../types/indices'
@@ -95,11 +96,8 @@ export function validateCells(
     }
   }
 
-  // Track per-seat running counts for out detection (left-to-right)
-  // qCorrects[teamIdx][seatIdx], qErrors[teamIdx][seatIdx], qFouls[teamIdx][seatIdx]
-  const qCorrects: number[][] = cellData.map((team) => new Array(team.length).fill(0))
-  const qErrors: number[][] = cellData.map((team) => new Array(team.length).fill(0))
-  const qFouls: number[][] = cellData.map((team) => new Array(team.length).fill(0))
+  // Per-seat running marks towards going out (left-to-right), as outs[teamIdx][seatIdx]
+  const outs = cellData.map((team) => team.map(newOutTally))
 
   for (let colIdx = 0; colIdx < cols.length; colIdx++) {
     const col = cols[colIdx]!
@@ -162,14 +160,12 @@ export function validateCells(
 
         // --- Quizzer out ---
         // Check BEFORE updating counts: if already out, flag appropriately
-        const isQuizzedOut = qCorrects[teamIdx]![seatIdx]! >= rules.quizOutCorrect
-        const isErrorOut = qErrors[teamIdx]![seatIdx]! >= 3
-        const isFoulOut = qFouls[teamIdx]![seatIdx]! >= 3
-        if ((isErrorOut || isFoulOut) && v !== CellValue.Foul) {
+        const out = outs[teamIdx]![seatIdx]!
+        if (hasLeftBench(out) && v !== CellValue.Foul) {
           // Error/foul out: must leave, can't answer anything (except fouls)
           addError(teamIdx, seatIdx, colIdx, ValidationCode.QuizzerOut)
         } else if (
-          isQuizzedOut &&
+          isQuizzedOut(out, rules) &&
           v !== CellValue.Foul &&
           v !== CellValue.Bonus &&
           v !== CellValue.MissedBonus
@@ -178,14 +174,7 @@ export function validateCells(
           addError(teamIdx, seatIdx, colIdx, ValidationCode.QuizzerOut)
         }
 
-        // Update running counts for this seat
-        if (v === CellValue.Correct && !col.isOvertime) {
-          qCorrects[teamIdx]![seatIdx]!++
-        } else if (v === CellValue.Error && !col.isOvertime) {
-          qErrors[teamIdx]![seatIdx]!++
-        } else if (v === CellValue.Foul && !col.isOvertime) {
-          qFouls[teamIdx]![seatIdx]!++
-        }
+        countTowardsOut(out, v)
 
         // --- Fouled on question (can't answer sub-parts) ---
         if (

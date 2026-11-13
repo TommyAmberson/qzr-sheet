@@ -342,11 +342,10 @@ export function useScoresheet() {
     const qs = scoring.value[teamIdx]?.quizzers[seatIdx]
     if (!qs || qs.outAfterCol < 0 || colIdx <= qs.outAfterCol) return false
     if (cells.value[teamIdx]![seatIdx]![colIdx] !== CellValue.Empty) return false
-    if (qs.quizzedOut && !qs.erroredOut) {
-      if (columns.value[colIdx]?.type === QuestionType.B || isBonusForTeam(teamIdx, colIdx))
-        return false
-    }
-    return true
+    // Errored or fouled out by this column: gone from the bench
+    if (qs.leftBenchAfterCol >= 0 && colIdx > qs.leftBenchAfterCol) return true
+    // Otherwise quizzed out, and still on the bench for bonuses
+    return !(columns.value[colIdx]?.type === QuestionType.B || isBonusForTeam(teamIdx, colIdx))
   }
 
   function isFouledOnQuestion(teamIdx: number, seatIdx: number, colIdx: number): boolean {

@@ -9,9 +9,13 @@ import {
   ColStatus,
   computeGreyedOut,
   computeOtIneligibility,
+  countTowardsOut,
   deserialize,
   fileVersionFor,
+  hasLeftBench,
   inSeatOrder,
+  isQuizzedOut,
+  newOutTally,
   PlacementFormula,
   QuestionCategory,
   type QuizFile,
@@ -85,9 +89,6 @@ function errorSkipsA(fileWithError: QuizFile, q: number): boolean {
 
 /** Seats on a team's bench; a fifth quizzer listed is a substitute */
 const SEATS = 4
-/** Errors, or fouls, after which a quizzer leaves the bench */
-const ERROR_OUT = 3
-const FOUL_OUT = 3
 
 /** The seat a mark was most likely made from, when the sheet gives a reason to pick one */
 type SeatOf = (mark: Pick<RawAnswer, 'teamIdx' | 'seatIdx'>) => number | undefined
@@ -309,9 +310,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   const named = teams.map((team) => team.quizzers.map((quizzer) => quizzer.name.trim() !== ''))
 
   // Each quizzer's correct answers, errors and fouls on the questions placed so far
-  const tallies = teams.map((team) =>
-    team.quizzers.map(() => ({ correct: 0, errors: 0, fouls: 0 })),
-  )
+  const tallies = teams.map((team) => team.quizzers.map(newOutTally))
   // A best guess, since the sheet lists quizzers, not seats, and a substitution never changes the
   // rows. The first four listed are taken to sit in order. A fifth is a substitute: usually in the
   // seat of the one teammate who has quizzed, errored or fouled out, and otherwise unknown. A team
@@ -319,8 +318,8 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   // errors, never a score.
   const seatOf: SeatOf = ({ teamIdx, seatIdx }) => {
     if (seatIdx < SEATS) return seatIdx
-    const out = tallies[teamIdx]!.slice(0, SEATS).flatMap(({ correct, errors, fouls }, seat) =>
-      correct >= RULES.quizOutCorrect || errors >= ERROR_OUT || fouls >= FOUL_OUT ? [seat] : [],
+    const out = tallies[teamIdx]!.slice(0, SEATS).flatMap((tally, seat) =>
+      isQuizzedOut(tally, RULES) || hasLeftBench(tally) ? [seat] : [],
     )
     return out.length === 1 ? out[0] : undefined
   }
@@ -328,8 +327,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
   // A seat is empty when its quizzer isn't listed or had to leave (a quiz-out may stay on for
   // bonuses), unless the substitute is guessed to have taken it
   const isSeatEmpty = (teamIdx: number, seat: number) => {
-    const { errors, fouls } = tallies[teamIdx]![seat]!
-    const vacated = !named[teamIdx]![seat] || errors >= ERROR_OUT || fouls >= FOUL_OUT
+    const vacated = !named[teamIdx]![seat] || hasLeftBench(tallies[teamIdx]![seat]!)
     const filled = named[teamIdx]![SEATS] && seatOf({ teamIdx, seatIdx: SEATS }) === seat
     return vacated && !filled
   }
@@ -360,10 +358,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
       )
     const placed = placeQuestion(rawAnswers, q, noJump, tossUp, seatOf, isSeatEmpty)
     for (const { teamIdx, seatIdx, value } of rawAnswers) {
-      const tally = tallies[teamIdx]![seatIdx]!
-      if (value === CellValue.Correct) tally.correct++
-      if (value === CellValue.Error) tally.errors++
-      if (value === CellValue.Foul) tally.fouls++
+      countTowardsOut(tallies[teamIdx]![seatIdx]!, value)
     }
     answers.push(...placed.answers)
     noJumps.push(...placed.noJumps)

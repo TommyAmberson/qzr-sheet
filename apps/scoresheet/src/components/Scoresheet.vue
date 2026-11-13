@@ -7,6 +7,7 @@ import {
   endsRound,
   firstOvertimeQuestion,
   lastQuestionThroughRound,
+  FOULS_TO_FOUL_OUT,
   MeetRole,
   NewerFileVersionError,
   parseQuizFile,
@@ -586,11 +587,14 @@ const allValidationMessages = computed(() => {
   return [...msgs]
 })
 
-/** Show individual score if the quizzer jumped (correct or error) or fouled out. */
+/**
+ * Show individual score if the quizzer has one: they jumped (correct or error) or fouled out, before
+ * overtime. Overtime marks give a quizzer nothing, so a foul-out there leaves no score to show.
+ */
 function quizzerScoreLabel(teamIdx: number, seatIdx: number): string | null {
   const q = scoring.value[teamIdx]?.quizzers[seatIdx]
   if (!q) return null
-  if (q.correctCount === 0 && q.errorCount === 0 && !q.fouledOut) return null
+  if (q.correctCount === 0 && q.errorCount === 0 && q.foulCount < FOULS_TO_FOUL_OUT) return null
   return `${q.points}`
 }
 
@@ -1663,11 +1667,11 @@ const appVersion: string = __APP_VERSION__
                           'stat-badge--quizout',
                           {
                             'stat-badge--quizout-bonus':
-                              scoring[teamIdx]!.quizzers[seatIdx]!.quizoutBonus,
+                              scoring[teamIdx]!.quizzers[seatIdx]!.teamQuizoutBonus,
                           },
                         ]"
                         :title="
-                          scoring[teamIdx]!.quizzers[seatIdx]!.quizoutBonus
+                          scoring[teamIdx]!.quizzers[seatIdx]!.teamQuizoutBonus
                             ? 'Quiz-out with bonus (+10)'
                             : 'Quiz-out'
                         "
@@ -1690,33 +1694,33 @@ const appVersion: string = __APP_VERSION__
                       >
                       <span
                         v-if="
-                          scoring[teamIdx]!.quizzers[seatIdx]!.correctCount > 0 &&
+                          scoring[teamIdx]!.quizzers[seatIdx]!.out.correct > 0 &&
                           !scoring[teamIdx]!.quizzers[seatIdx]!.quizzedOut
                         "
                         class="stat-count stat-count--correct"
-                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.correctCount} correct`"
-                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.correctCount }}c</span
+                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.out.correct} correct`"
+                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.out.correct }}c</span
                       >
                       <span
                         v-if="
-                          scoring[teamIdx]!.quizzers[seatIdx]!.errorCount > 0 &&
+                          scoring[teamIdx]!.quizzers[seatIdx]!.out.errors > 0 &&
                           !(
                             scoring[teamIdx]!.quizzers[seatIdx]!.erroredOut &&
                             !scoring[teamIdx]!.quizzers[seatIdx]!.fouledOut
                           )
                         "
                         class="stat-count stat-count--error"
-                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.errorCount} error(s)`"
-                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.errorCount }}e</span
+                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.out.errors} error(s)`"
+                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.out.errors }}e</span
                       >
                       <span
                         v-if="
-                          scoring[teamIdx]!.quizzers[seatIdx]!.foulCount > 0 &&
+                          scoring[teamIdx]!.quizzers[seatIdx]!.out.fouls > 0 &&
                           !scoring[teamIdx]!.quizzers[seatIdx]!.fouledOut
                         "
                         class="stat-count stat-count--foul"
-                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.foulCount} foul(s)`"
-                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.foulCount }}f</span
+                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.out.fouls} foul(s)`"
+                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.out.fouls }}f</span
                       >
                       <span
                         v-if="

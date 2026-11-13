@@ -23,6 +23,28 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-12
+
+### Added
+
+* `OutTally` with `newOutTally`, `countTowardsOut`, `isQuizzedOut`, `isErroredOut`, `isFouledOut`
+  and `hasLeftBench`, and the thresholds `ERRORS_TO_ERROR_OUT` and `FOULS_TO_FOUL_OUT`: the one
+  count of a quizzer's marks towards going out, which `scoreTeam`, `validateCells` and the ODS
+  reader now share
+* `QuizzerScoring.out`, a quizzer's `OutTally`: the correct answers, errors and fouls the bench
+  counts, overtime included, beside the regulation-only `correctCount`, `errorCount` and `foulCount`
+* `QuizzerScoring.teamQuizoutBonus`, whether the team got the quiz-out bonus for the quizzer, and
+  `QuizzerScoring.leftBenchAfterCol`, the column where they errored or fouled out, which is later
+  than `outAfterCol` for a quizzer who quizzed out first
+
+### Fixed
+
+* Overtime answers count towards quizzing, erroring and fouling out, in `scoreTeam` and in
+  `validateCells`' `QuizzerOut` check. They were skipped, so a third error, a fourth correct answer
+  or a third foul in overtime left the quizzer in. A quiz-out in overtime with no errors gives the
+  team the +10 quiz-out bonus, and a foul-out in overtime costs the team 10. The quizzer's own
+  points and counts still leave overtime out (#165)
+
 ## [1.9.0] - 2026-11-11
 
 ### Added

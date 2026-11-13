@@ -210,8 +210,8 @@ export works as before.
   new quiz, so no answers are ever re-interpreted under different rules.
 * The interactive tutorial always runs on a 20-question quiz. Started from a 15-question quiz, it
   sets that quiz aside and, when it ends, restores it as a 15-question quiz with its answers intact.
-* Overtime correct answers in a 15-question quiz do not count toward quiz-out, exactly as in a
-  20-question quiz.
+* Overtime correct answers in a 15-question quiz count toward quiz-out, exactly as in a 20-question
+  quiz, and like them give the quizzer no individual points.
 
 ## Requirements _(mandatory)_
 
