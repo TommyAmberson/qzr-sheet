@@ -33,6 +33,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   reader now share
 * `QuizzerScoring.out`, a quizzer's `OutTally`: the correct answers, errors and fouls the bench
   counts, overtime included, beside the regulation-only `correctCount`, `errorCount` and `foulCount`
+* `QuizzerScoring.teamQuizoutBonus`, whether the team got the quiz-out bonus for the quizzer, and
+  `QuizzerScoring.leftBenchAfterCol`, the column where they errored or fouled out, which is later
+  than `outAfterCol` for a quizzer who quizzed out first
 
 ### Fixed
 

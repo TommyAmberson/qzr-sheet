@@ -490,6 +490,16 @@ describe('scoreTeam', () => {
     expect(result.total).toBe(-10)
   })
 
+  it('tells a quiz-out from leaving the bench, for a quizzer who does both', () => {
+    const cells = blankCells()
+    for (const key of ['1', '2', '3', '4']) cells[0]![colIdx(key)] = C
+    for (const key of ['5', '6', '7']) cells[0]![colIdx(key)] = F
+    const quizzer = scoreTeam(cells, columns, false, TWENTY).quizzers[0]!
+    expect(quizzer.outAfterCol).toBe(colIdx('4'))
+    expect(quizzer.leftBenchAfterCol).toBe(colIdx('7'))
+    expect(quizzer.teamQuizoutBonus).toBe(true)
+  })
+
   describe('overtime counts towards outs, not towards the quizzer', () => {
     const otColumns = buildColumns(TWENTY, 1)
     const at = (key: string) => {
@@ -514,6 +524,8 @@ describe('scoreTeam', () => {
       expect(quizzer.correctCount).toBe(3)
       expect(quizzer.out.correct).toBe(4)
       expect(quizzer.quizoutBonus).toBe(false)
+      expect(quizzer.teamQuizoutBonus).toBe(true)
+      expect(quizzer.leftBenchAfterCol).toBe(-1)
     })
 
     it('gives no quiz-out bonus after an error in overtime', () => {
@@ -522,6 +534,7 @@ describe('scoreTeam', () => {
       cells[0]![at('21')] = E
       const result = scoreTeam(cells, otColumns, false, TWENTY)
       expect(result.quizzers[0]!.quizzedOut).toBe(true)
+      expect(result.quizzers[0]!.teamQuizoutBonus).toBe(false)
       expect(result.quizoutBonusCols.size).toBe(0)
       expect(result.total).toBe(70)
     })
@@ -533,6 +546,7 @@ describe('scoreTeam', () => {
       const quizzer = result.quizzers[0]!
       expect(quizzer.erroredOut).toBe(true)
       expect(quizzer.outAfterCol).toBe(at('21'))
+      expect(quizzer.leftBenchAfterCol).toBe(at('21'))
       // The second error and the overtime error each cost the team 10
       expect(result.total).toBe(-20)
       // Only the second error is the quizzer's
