@@ -1703,33 +1703,33 @@ const appVersion: string = __APP_VERSION__
                       >
                       <span
                         v-if="
-                          scoring[teamIdx]!.quizzers[seatIdx]!.correctCount > 0 &&
+                          scoring[teamIdx]!.quizzers[seatIdx]!.out.correct > 0 &&
                           !scoring[teamIdx]!.quizzers[seatIdx]!.quizzedOut
                         "
                         class="stat-count stat-count--correct"
-                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.correctCount} correct`"
-                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.correctCount }}c</span
+                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.out.correct} correct`"
+                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.out.correct }}c</span
                       >
                       <span
                         v-if="
-                          scoring[teamIdx]!.quizzers[seatIdx]!.errorCount > 0 &&
+                          scoring[teamIdx]!.quizzers[seatIdx]!.out.errors > 0 &&
                           !(
                             scoring[teamIdx]!.quizzers[seatIdx]!.erroredOut &&
                             !scoring[teamIdx]!.quizzers[seatIdx]!.fouledOut
                           )
                         "
                         class="stat-count stat-count--error"
-                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.errorCount} error(s)`"
-                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.errorCount }}e</span
+                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.out.errors} error(s)`"
+                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.out.errors }}e</span
                       >
                       <span
                         v-if="
-                          scoring[teamIdx]!.quizzers[seatIdx]!.foulCount > 0 &&
+                          scoring[teamIdx]!.quizzers[seatIdx]!.out.fouls > 0 &&
                           !scoring[teamIdx]!.quizzers[seatIdx]!.fouledOut
                         "
                         class="stat-count stat-count--foul"
-                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.foulCount} foul(s)`"
-                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.foulCount }}f</span
+                        :title="`${scoring[teamIdx]!.quizzers[seatIdx]!.out.fouls} foul(s)`"
+                        >{{ scoring[teamIdx]!.quizzers[seatIdx]!.out.fouls }}f</span
                       >
                       <span
                         v-if="
