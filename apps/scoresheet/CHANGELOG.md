@@ -15,6 +15,28 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-12
+
+### Added
+
+* Linked to a meet, a team's name can be typed over, the way quizzer names can: for a team the
+  roster has wrong, or doesn't have. The roster's teams are still a click away, behind the arrow
+  beside the name. A name that differs from the picked team's, or that was never picked from the
+  roster, is underlined, and a picked team's roster name can be restored. The quiz is submitted with
+  the names as typed, for the meet's admin to sort out afterwards
+* Linking a meet to a sheet that already has names picks a misspelt team too, when at least two
+  quizzers are typed and exactly one similarly named team has all of them on its roster. The typed
+  name is kept
+
+### Changed
+
+* A picked team shows its full name, no longer swapping to the church's short name when cramped. A
+  team name too long for its cell ends in an ellipsis
+
+### Bundled contract
+
+* `@qzr/shared@1.8.0` - unchanged
+
 ## [0.18.6] - 2026-11-11
 
 ### Fixed
