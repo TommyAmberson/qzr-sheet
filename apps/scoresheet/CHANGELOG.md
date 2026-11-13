@@ -15,6 +15,23 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-11-12
+
+### Fixed
+
+* A quizzer who makes a third error, answers a fourth question correctly or takes a third foul in
+  overtime is now out: the row is marked and a later answer from them is flagged. A quiz-out in
+  overtime with no errors gives the team the +10 bonus, and a foul-out in overtime costs the team
+  10. The quizzer's own points still leave overtime out (#165)
+* The counts beside a quizzer's name (`2c`, `1e`, `1f`) include overtime, since they show how close
+  the quizzer is to going out. The score beside them stays the quizzer's own
+* A quizzer who quizzes out and then fouls out has their bonus cells greyed too. They were left
+  open, as for a quizzer still on the bench, though an answer there was flagged
+
+### Bundled contract
+
+* `@qzr/shared@1.10.0` - bumped from 1.8.0
+
 ## [0.19.0] - 2026-11-12
 
 ### Added
