@@ -31,6 +31,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   and `hasLeftBench`, and the thresholds `ERRORS_TO_ERROR_OUT` and `FOULS_TO_FOUL_OUT`: the one
   count of a quizzer's marks towards going out, which `scoreTeam`, `validateCells` and the ODS
   reader now share
+* `QuizzerScoring.out`, a quizzer's `OutTally`: the correct answers, errors and fouls the bench
+  counts, overtime included, beside the regulation-only `correctCount`, `errorCount` and `foulCount`
 
 ### Fixed
 

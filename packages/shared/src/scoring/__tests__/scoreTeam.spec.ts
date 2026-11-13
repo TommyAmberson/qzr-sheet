@@ -512,6 +512,7 @@ describe('scoreTeam', () => {
       // 3 regulation correct and no bonus for the quizzer
       expect(quizzer.points).toBe(60)
       expect(quizzer.correctCount).toBe(3)
+      expect(quizzer.out.correct).toBe(4)
       expect(quizzer.quizoutBonus).toBe(false)
     })
 
@@ -537,6 +538,7 @@ describe('scoreTeam', () => {
       // Only the second error is the quizzer's
       expect(quizzer.points).toBe(-10)
       expect(quizzer.errorCount).toBe(2)
+      expect(quizzer.out.errors).toBe(3)
     })
 
     it('fouls a quizzer out on a third foul in overtime, costing the team alone', () => {

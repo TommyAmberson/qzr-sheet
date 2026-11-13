@@ -2,6 +2,7 @@ import { CellValue, type Column } from '../types/scoresheet'
 import {
   ERRORS_TO_ERROR_OUT,
   FOULS_TO_FOUL_OUT,
+  type OutTally,
   countTowardsOut,
   isErroredOut,
   isFouledOut,
@@ -27,6 +28,8 @@ export interface QuizzerScoring {
   fouledOut: boolean
   /** Quizout bonus earned by the quizzer (quizzed out with 0 errors, all before overtime) */
   quizoutBonus: boolean
+  /** Marks towards going out, overtime included: what the bench counts, not the quizzer's stats */
+  out: OutTally
   /** Column index where this quizzer became out (overtime included), or -1 if not out */
   outAfterCol: number
 }
@@ -241,6 +244,7 @@ export function scoreTeam(
       erroredOut,
       fouledOut,
       quizoutBonus,
+      out,
       outAfterCol: outAfterCol[seatIdx]!,
     })
   }
