@@ -568,6 +568,61 @@ const tutorial = useTutorial({
 })
 tutorial.recoverFromCrash()
 
+/** What a warning calls a team: its name, or its place on the sheet while it has none */
+function teamCalled(slotIdx: number, name: string): string {
+  return name.trim() || `Team ${slotIdx + 1}`
+}
+
+/**
+ * Names that don't agree with the linked meet's roster, a line each. Warnings, not errors: the
+ * sheet records what the room typed, which may be righter than the roster, so they never stop a
+ * quiz being sent. They are shown, and asked about once before it goes.
+ */
+const nameWarnings = computed<string[]>(() => {
+  const warnings: string[] = []
+  teams.value.forEach((team, slotIdx) => {
+    if (!picksTeam(slotIdx)) return
+    const called = teamCalled(slotIdx, team.name)
+    const slot = meetSession.getSlot(slotIdx)
+    if (!slot) {
+      const typed = team.name.trim() !== '' && !isDefaultTeamName(team.name)
+      warnings.push(
+        typed ? `${called}: not picked from the meet's teams` : `${called}: no team picked`,
+      )
+      return
+    }
+    if (meetSession.isTeamNameDiverged(slotIdx, team.name)) {
+      warnings.push(`${called}: picked team is ${meetSession.pickedTeamName(slotIdx)}`)
+    } else if (isTeamDivisionDiverged(slotIdx)) {
+      warnings.push(`${called}: picked team isn't in this division`)
+    }
+    teamQuizzers.value[slotIdx]?.forEach((quizzer, seatIdx) => {
+      // A seat emptied of its roster quizzer is an absence, not a disagreement
+      if (!quizzer.name.trim()) return
+      if (!meetSession.isQuizzerDiverged(slotIdx, seatIdx, quizzer.name)) return
+      const rosterName = meetSession.getDbName(slotIdx, seatIdx)
+      warnings.push(
+        rosterName
+          ? `${called}, ${quizzer.name.trim()}: roster has ${rosterName}`
+          : `${called}, ${quizzer.name.trim()}: not on the roster`,
+      )
+    })
+  })
+  return warnings
+})
+
+/**
+ * The names to ask about before a quiz goes to a meet. A slot with no roster to hold its name
+ * against, for want of a linked meet or of teams in the division, is asked about only while it is
+ * still called "Team N", the one name sure to be wrong.
+ */
+function submitWarnings(): string[] {
+  const defaultNames = teams.value
+    .filter((team, slotIdx) => !picksTeam(slotIdx) && isDefaultTeamName(team.name))
+    .map((team) => `${team.name}: still has its default name`)
+  return [...nameWarnings.value, ...defaultNames]
+}
+
 /** All unique validation messages for the status tooltip */
 const allValidationMessages = computed(() => {
   const msgs = new Set<string>()
@@ -1056,6 +1111,13 @@ async function doSubmitToMeet() {
     alert(`Fix these before submitting:\n${allValidationMessages.value.join('\n')}`)
     return
   }
+  const warnings = submitWarnings()
+  if (
+    warnings.length > 0 &&
+    !(await confirmAction(`Check these names:\n${warnings.join('\n')}\n\nSubmit anyway?`))
+  ) {
+    return
+  }
   const target = await chooseMeet()
   if (!target) return
   const meet = target.name
@@ -1323,6 +1385,14 @@ const appVersion: string = __APP_VERSION__
                 <span class="meta-label">{{
                   hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : '…'
                 }}</span>
+              </span>
+              <span
+                v-if="nameWarnings.length > 0"
+                class="meta-field meta-name-warnings"
+                :title="nameWarnings.join('\n')"
+                :aria-label="`${nameWarnings.length} name warnings: ${nameWarnings.join('; ')}`"
+              >
+                ⚠ {{ nameWarnings.length }}
               </span>
               <span v-if="meetSession.isActive.value" class="meta-field meta-session-pill">
                 🔗 {{ meetSession.meetName.value }}
@@ -2453,6 +2523,14 @@ const appVersion: string = __APP_VERSION__
   border-radius: 999px;
   padding: 0.15rem 0.5rem;
   white-space: nowrap;
+}
+
+.meta-name-warnings {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--palette-warning, #b45309);
+  white-space: nowrap;
+  cursor: help;
 }
 
 .team-picker-trigger {

@@ -26,9 +26,10 @@ vi.mock('../../api', async () => ({
 vi.mock('../../persistence/fileIO', async () => ({
   ...(await vi.importActual<typeof import('../../persistence/fileIO')>('../../persistence/fileIO')),
   openAnyQuizFile: vi.fn(),
+  confirmAction: vi.fn(async () => false),
 }))
 
-import { openAnyQuizFile } from '../../persistence/fileIO'
+import { confirmAction, openAnyQuizFile } from '../../persistence/fileIO'
 import Scoresheet from '../Scoresheet.vue'
 import { useMeetSession, type MeetSessionData } from '../../composables/useMeetSession'
 
@@ -89,6 +90,31 @@ describe('opening a file in a linked meet', () => {
     expect(getSlot(0)).toBeUndefined()
     expect(getSlot(1)).toBeUndefined()
     expect(quizId.value).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('lists the names that disagree with the roster, and asks before sending them', async () => {
+    const wrapper = mount(Scoresheet)
+    await flushPromises()
+    await wrapper.vm.openFile()
+    await flushPromises()
+
+    // No team of an opened file is picked, on the roster or off it, and the third has no name
+    const warnings = [
+      "Calgary 1: not picked from the meet's teams",
+      "Saskatoon 1: not picked from the meet's teams",
+      'Team 3: no team picked',
+    ]
+    expect(wrapper.get('.meta-name-warnings').attributes('title')).toBe(warnings.join('\n'))
+
+    const button = (label: string) =>
+      wrapper.findAll('button').find((candidate) => candidate.text().includes(label))!
+    await button('Save').trigger('click')
+    await button('Submit to meet').trigger('click')
+    await flushPromises()
+    expect(confirmAction).toHaveBeenLastCalledWith(
+      `Check these names:\n${warnings.join('\n')}\n\nSubmit anyway?`,
+    )
     wrapper.unmount()
   })
 })
