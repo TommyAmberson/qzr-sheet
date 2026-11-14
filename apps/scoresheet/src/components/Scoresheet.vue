@@ -641,6 +641,24 @@ const allValidationMessages = computed(() => {
 })
 
 /**
+ * What to ask about before a quiz goes to a meet: its scoring errors, then its name warnings.
+ * Neither stops it going. The room may have no time to put it right, and the meet's admin can:
+ * a quiz with scoring errors is stored and goes unplaced until a corrected one is sent.
+ */
+function submitConcerns(): string | undefined {
+  const sections: string[] = []
+  if (hasAnyErrors.value) {
+    sections.push(
+      `Scoring errors (the meet can't place this quiz until they're fixed):\n` +
+        allValidationMessages.value.join('\n'),
+    )
+  }
+  const warnings = submitWarnings()
+  if (warnings.length > 0) sections.push(`Check these names:\n${warnings.join('\n')}`)
+  return sections.length > 0 ? sections.join('\n\n') : undefined
+}
+
+/**
  * Show individual score if the quizzer has one: they jumped (correct or error) or fouled out, before
  * overtime. Overtime marks give a quizzer nothing, so a foul-out there leaves no score to show.
  */
@@ -1107,17 +1125,8 @@ async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender 
 /** Send the quiz to a meet; the sheet itself is untouched whether or not it arrives */
 async function doSubmitToMeet() {
   closeMenus()
-  if (hasAnyErrors.value) {
-    alert(`Fix these before submitting:\n${allValidationMessages.value.join('\n')}`)
-    return
-  }
-  const warnings = submitWarnings()
-  if (
-    warnings.length > 0 &&
-    !(await confirmAction(`Check these names:\n${warnings.join('\n')}\n\nSubmit anyway?`))
-  ) {
-    return
-  }
+  const concerns = submitConcerns()
+  if (concerns && !(await confirmAction(`${concerns}\n\nSubmit anyway?`))) return
   const target = await chooseMeet()
   if (!target) return
   const meet = target.name

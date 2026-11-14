@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { ApiError, PlacementFormula, type QuizFile } from '@qzr/shared'
+import { ApiError, CellValue, PlacementFormula, type QuizFile } from '@qzr/shared'
 import type { MeetTeam } from '../../api'
 
 const team = (id: number, churchName: string, division: string): MeetTeam => ({
@@ -115,6 +115,33 @@ describe('opening a file in a linked meet', () => {
     expect(confirmAction).toHaveBeenLastCalledWith(
       `Check these names:\n${warnings.join('\n')}\n\nSubmit anyway?`,
     )
+    wrapper.unmount()
+  })
+
+  it('asks before sending a quiz with scoring errors, rather than refusing it', async () => {
+    // Two teams marked correct on the one question
+    const answers = [10, 20].map((quizzerId) => ({
+      quizzerId,
+      columnKey: '1',
+      value: CellValue.Correct,
+    }))
+    vi.mocked(openAnyQuizFile).mockResolvedValue({
+      type: 'json',
+      content: JSON.stringify({ ...savedQuiz, answers }),
+    })
+    const wrapper = mount(Scoresheet)
+    await flushPromises()
+    await wrapper.vm.openFile()
+    await flushPromises()
+
+    const button = (label: string) =>
+      wrapper.findAll('button').find((candidate) => candidate.text().includes(label))!
+    await button('Save').trigger('click')
+    await button('Submit to meet').trigger('click')
+    await flushPromises()
+    const question = vi.mocked(confirmAction).mock.lastCall?.[0]
+    expect(question).toMatch(/^Scoring errors .*\n.+\n\nCheck these names:/)
+    expect(question).toMatch(/Submit anyway\?$/)
     wrapper.unmount()
   })
 })

@@ -73,6 +73,6 @@ quiz's status, and asked about once when the quiz is submitted:
 Team names are compared ignoring case and spacing, quizzer names exactly. A seat emptied of its
 roster quizzer is an absence and gives no warning.
 
-Warnings never block a submission; scoring errors do. Teams are only held against the roster when it
-has teams for the quiz's division. With no meet linked, the only warning is for a team still called
-`Team N` when the quiz is sent to a meet.
+Neither warnings nor scoring errors block a submission: both are listed and asked about once before
+it goes. Teams are only held against the roster when it has teams for the quiz's division. With no
+meet linked, the only warning is for a team still called `Team N` when the quiz is sent to a meet.
