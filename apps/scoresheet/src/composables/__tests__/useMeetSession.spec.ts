@@ -258,6 +258,19 @@ describe('useMeetSession — loadFromQuiz', () => {
     await loadFromQuiz(42, '777')
     expect(getMeetTeams).not.toHaveBeenCalled()
   })
+
+  it('takes in a seated team added to the roster since the meet was linked', async () => {
+    const added: MeetTeam = { ...mockTeams[0]!, id: 3, number: 3 }
+    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(
+      makeQuizDetails({}, [
+        { seatNumber: 1, letter: 'A', seedRef: null, team: added, quizzers: mockQuizzers },
+      ]),
+    )
+    const { loadMeet, loadFromQuiz, teamList } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await loadFromQuiz(42, '777')
+    expect(teamList.value.map((team) => team.id)).toEqual([1, 2, 3])
+  })
 })
 
 describe('useMeetSession — buildSlotFromSeat + applyLoadedQuiz', () => {

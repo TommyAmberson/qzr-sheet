@@ -105,15 +105,19 @@ export function useMeetSession() {
       await loadMeet(meetId, details.quiz.meetName)
     } else {
       // The seats' teams are newer than the team list kept since linking. Take them into it, so
-      // a team's name reads the same from both
+      // a team's name reads the same from both, and one added to the roster since can be picked
       const seated = new Map(
         details.seats
           .flatMap((seat) => (seat.team ? [seat.team] : []))
           .map((team) => [team.id, team]),
       )
+      const known = new Set(session.value.teamList.map((team) => team.id))
       session.value = {
         ...session.value,
-        teamList: session.value.teamList.map((team) => seated.get(team.id) ?? team),
+        teamList: [
+          ...session.value.teamList.map((team) => seated.get(team.id) ?? team),
+          ...[...seated.values()].filter((team) => !known.has(team.id)),
+        ],
       }
       persist()
     }
