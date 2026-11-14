@@ -350,7 +350,8 @@ function findMatchingTeam(slotIdx: number, typedName: string): number | undefine
 async function onMeetLoaded() {
   for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
     const teamName = store.teams[teamIdx]?.name ?? ''
-    if (isDefaultTeamName(teamName)) continue
+    // A blank name names no team, the same as one still called "Team N"
+    if (!teamName.trim() || isDefaultTeamName(teamName)) continue
     const matchId = findMatchingTeam(teamIdx, teamName)
     try {
       if (matchId !== undefined) await pickTeam(teamIdx, matchId)
@@ -841,6 +842,7 @@ async function openFile() {
     if (result.type === 'ods') {
       const data = deserialize(readOds(result.content))
       loadFile(data)
+      dropPicks()
     } else {
       await openJsonQuiz(result.content)
     }
@@ -862,6 +864,16 @@ async function openJsonQuiz(json: string) {
     if (!(await confirmAction(TRY_NEWER_PROMPT))) return
     loadFile(parseQuizFileAttempt(json), { fromNewerFile: true })
   }
+  dropPicks()
+}
+
+/**
+ * A quiz opened over the sheet brings its own teams, so the picks kept for the last quiz no
+ * longer describe it: drop them. Its names aren't looked up on the roster, since a pick seats
+ * quizzers and an opened quiz is to stay as it was saved.
+ */
+function dropPicks() {
+  meetSession.startNewQuiz()
 }
 
 function startTutorial() {
@@ -881,6 +893,7 @@ async function tryOpenKeptAutoSave() {
   if (!(await confirmAction(TRY_NEWER_PROMPT))) return
   try {
     openKeptNewerAutoSave()
+    dropPicks()
   } catch (e) {
     alert(`Failed to open the kept quiz: ${e instanceof Error ? e.message : e}`)
   }
