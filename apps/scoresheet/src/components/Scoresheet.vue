@@ -304,7 +304,8 @@ async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
   }
 
   const storeNames = store.quizzersByTeam(storeTeamId).map((q) => q.name)
-  await meetSession.assignTeam(slotIdx, teamId, storeNames)
+  // No pick made, as when another quiz took the sheet while the roster loaded: leave its names
+  if (!(await meetSession.assignTeam(slotIdx, teamId, storeNames))) return
 
   // Fill empty store seats with the DB names that were matched to those positions
   const slot = meetSession.getSlot(slotIdx)
@@ -321,18 +322,21 @@ const filteredTeamList = computed(() =>
   meetSession.teamsForDivision(quiz.value.division ?? '', quiz.value.consolation ?? false),
 )
 
+/** Teams by the names a typed one is matched against */
+function teamsByName(teams: MeetTeam[]) {
+  return teams.map((team) => ({
+    id: team.id,
+    name: meetSession.teamLabelFull(team),
+    shortName: meetSession.teamLabel(team),
+  }))
+}
+
 /** A slot's candidates for a pick made on the sheet's behalf: teams no other slot has taken */
 function teamsFreeFor(slotIdx: number, teams: MeetTeam[]) {
   const taken = new Set(
     [0, 1, 2].filter((i) => i !== slotIdx).map((i) => meetSession.getSlot(i)?.teamId),
   )
-  return teams
-    .filter((team) => !taken.has(team.id))
-    .map((team) => ({
-      id: team.id,
-      name: meetSession.teamLabelFull(team),
-      shortName: meetSession.teamLabel(team),
-    }))
+  return teamsByName(teams.filter((team) => !taken.has(team.id)))
 }
 
 /**
@@ -341,10 +345,12 @@ function teamsFreeFor(slotIdx: number, teams: MeetTeam[]) {
  * match shows up flagged as out of its division.
  */
 function findMatchingTeam(slotIdx: number, typedName: string): number | undefined {
-  return (
-    teamNamed(typedName, teamsFreeFor(slotIdx, filteredTeamList.value)) ??
-    teamNamed(typedName, teamsFreeFor(slotIdx, meetSession.teamList.value))
-  )
+  const inDivision = teamNamed(typedName, teamsFreeFor(slotIdx, filteredTeamList.value))
+  if (inDivision !== undefined) return inDivision
+  // The division has a team of this name and another slot holds it. A name typed twice is a
+  // slip, not a call for another division's namesake: leave it to the misspelt-name path
+  if (teamNamed(typedName, teamsByName(filteredTeamList.value)) !== undefined) return undefined
+  return teamNamed(typedName, teamsFreeFor(slotIdx, meetSession.teamList.value))
 }
 
 async function onMeetLoaded() {
@@ -597,8 +603,9 @@ const nameWarnings = computed<string[]>(() => {
       warnings.push(`${called}: picked team isn't in this division`)
     }
     teamQuizzers.value[slotIdx]?.forEach((quizzer, seatIdx) => {
-      // A seat emptied of its roster quizzer is an absence, not a disagreement
-      if (!quizzer.name.trim()) return
+      // A seat emptied of its roster quizzer is an absence, not a disagreement, and one still
+      // called "Quizzer N" was never named
+      if (!quizzer.name.trim() || isDefaultQuizzerName(quizzer.name)) return
       if (!meetSession.isQuizzerDiverged(slotIdx, seatIdx, quizzer.name)) return
       const rosterName = meetSession.getDbName(slotIdx, seatIdx)
       warnings.push(
@@ -1399,7 +1406,8 @@ const appVersion: string = __APP_VERSION__
                 v-if="nameWarnings.length > 0"
                 class="meta-field meta-name-warnings"
                 :title="nameWarnings.join('\n')"
-                :aria-label="`${nameWarnings.length} name warnings: ${nameWarnings.join('; ')}`"
+                role="img"
+                :aria-label="`Name warnings (${nameWarnings.length}): ${nameWarnings.join('; ')}`"
               >
                 ⚠ {{ nameWarnings.length }}
               </span>
