@@ -154,6 +154,30 @@ describe('useMeetSession — assignTeam', () => {
     expect(getTeamQuizzers).not.toHaveBeenCalled()
   })
 
+  it('drops the pick when the meet is unlinked while the roster loads', async () => {
+    let arrive!: (roster: { quizzers: typeof mockQuizzers }) => void
+    vi.mocked(getTeamQuizzers).mockReturnValueOnce(new Promise((resolve) => (arrive = resolve)))
+    const { loadMeet, assignTeam, clearSession, isActive } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    const picking = assignTeam(0, 1, emptyNames)
+    clearSession()
+    arrive({ quizzers: mockQuizzers })
+    await expect(picking).resolves.toBeUndefined()
+    expect(isActive.value).toBe(false)
+  })
+
+  it('drops the pick when another meet is linked while the roster loads', async () => {
+    let arrive!: (roster: { quizzers: typeof mockQuizzers }) => void
+    vi.mocked(getTeamQuizzers).mockReturnValueOnce(new Promise((resolve) => (arrive = resolve)))
+    const { loadMeet, assignTeam, getSlot } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    const picking = assignTeam(0, 1, emptyNames)
+    await loadMeet(43, 'Regionals')
+    arrive({ quizzers: mockQuizzers })
+    await picking
+    expect(getSlot(0)).toBeUndefined()
+  })
+
   it('places exact-matched quizzer at its store seat', async () => {
     const { loadMeet, assignTeam, getSlot } = useMeetSession()
     await loadMeet(42, 'Finals')
