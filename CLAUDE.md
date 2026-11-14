@@ -203,4 +203,5 @@ When working on scoring logic, rules, or architecture, read the relevant file fi
 * `docs/auth.md`: Better Auth setup, account types, OAuth and Tauri flows, security
 * `docs/roles-and-access.md`: meet-scoped roles, codes, join flow, guest tokens
 * `docs/data-model.md`: full schema, memberships, quizzer identity
+* `docs/meet-link.md`: team and quizzer names against a linked meet's roster: picks, flags, warnings
 * `docs/ods-format.md`: the LibreOffice template layout that ODS export and import target
