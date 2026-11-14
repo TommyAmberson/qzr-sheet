@@ -15,6 +15,38 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-14
+
+### Added
+
+* Linked to a meet, names that disagree with its roster are counted beside the quiz's status, with
+  the list on hover: a team never picked, a team name typed or edited away from the roster's, a
+  quizzer whose name differs from the roster's or who isn't on it. Submitting asks once about them
+  and sends the quiz as typed if confirmed. They never block. With no meet linked, or sending to
+  another meet than the linked one, submitting asks only about a team still called "Team 1", "Team
+  2" or "Team 3"
+
+### Changed
+
+* A quiz with scoring errors can be submitted to a meet. Submitting used to refuse it until they
+  were fixed; it now lists them, asks once, and sends the quiz if confirmed, for the meet's admin to
+  sort out. The meet can't place such a quiz until a corrected one is sent
+
+### Fixed
+
+* Opening a file, an ODS sheet or a stored quiz while linked to a meet no longer keeps the last
+  quiz's teams picked against the opened quiz's names. The opened quiz's teams start unpicked
+* Linking a meet picks a typed team name from the quiz's own division before another division's team
+  of the same name, and no longer picks one team for two slots
+* A team added to the roster after the meet was linked can be picked once a scheduled quiz seats it,
+  without reloading the page
+* Unlinking the meet, or linking another, while a picked team's roster is still loading no longer
+  fails or files the team under the wrong meet
+
+### Bundled contract
+
+* `@qzr/shared@1.10.0` - unchanged
+
 ## [0.19.1] - 2026-11-12
 
 ### Fixed
