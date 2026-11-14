@@ -1,0 +1,759 @@
+<title>Stats Settings Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: the settings as a timeline grid on the left (steps of the meet day as columns, divisions and "viewers see" rows under them), and the viewer's division page on the right, redrawn from the same state. Tokens follow the schedule builder mockup. */
+:root {
+  --bg: #fbfaf8; --surface: #ffffff; --surface-2: #f6f3ee; --canvas: #f1ede6;
+  --line: #e9e4db; --line-strong: #d8d0c3;
+  --text: #23201c; --muted: #6a645b; --faint: #948d80; --heading: #1c1a17;
+  --accent: #3b5bdb; --accent-ink: #2b45b8; --accent-soft: #e9eeff; --on-accent: #ffffff;
+  --danger: #c0352b; --danger-soft: #fdecea; --warn: #b26a00; --warn-soft: #fff3dc; --ok: #1f7a4d; --ok-soft: #e3f4ea;
+  --gold: #a87900; --silver: #6f7780; --bronze: #9a5a2c;
+  --shadow-sm: 0 1px 2px rgba(35,32,28,.07), 0 1px 1px rgba(35,32,28,.04);
+  --font: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r-sm: 6px; --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1a1917; --surface: #23211e; --surface-2: #2b2925; --canvas: #141311;
+    --line: #34312c; --line-strong: #47433b;
+    --text: #ece8e1; --muted: #b0a99d; --faint: #8a8377; --heading: #f6f3ee;
+    --accent: #8ea2ff; --accent-ink: #b6c2ff; --accent-soft: #252c4a; --on-accent: #14172a;
+    --danger: #ff8a7d; --danger-soft: #3b2220; --warn: #f0b452; --warn-soft: #3a2f1c; --ok: #6fd39b; --ok-soft: #1c3125;
+    --gold: #e6bd4f; --silver: #b9c0c8; --bronze: #d59465;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1a1917; --surface: #23211e; --surface-2: #2b2925; --canvas: #141311;
+  --line: #34312c; --line-strong: #47433b;
+  --text: #ece8e1; --muted: #b0a99d; --faint: #8a8377; --heading: #f6f3ee;
+  --accent: #8ea2ff; --accent-ink: #b6c2ff; --accent-soft: #252c4a; --on-accent: #14172a;
+  --danger: #ff8a7d; --danger-soft: #3b2220; --warn: #f0b452; --warn-soft: #3a2f1c; --ok: #6fd39b; --ok-soft: #1c3125;
+  --gold: #e6bd4f; --silver: #b9c0c8; --bronze: #d59465;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; color: var(--heading); text-wrap: balance; }
+
+.page { padding-block: 18px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 16px; max-width: 1500px; margin-inline: auto; }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.head h1 { font-size: 20px; letter-spacing: -.01em; }
+.head p { margin: 0; color: var(--muted); max-width: 70ch; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1420px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-sm); min-width: 0; }
+.panel > header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.panel > header h2 { font-size: 15px; }
+.spacer { flex: 1; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--muted); background: var(--surface-2); white-space: nowrap; }
+.chip.ok { color: var(--ok); background: var(--ok-soft); }
+.chip.warn { color: var(--warn); background: var(--warn-soft); }
+.chip.accent { color: var(--accent-ink); background: var(--accent-soft); }
+/* The three states a table can be in, always shown beside its heading */
+.chip.live { color: var(--accent-ink); background: var(--accent-soft); font-weight: 600; }
+.chip.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.chip.prov { color: var(--warn); background: var(--warn-soft); font-weight: 600; }
+.chip.prov::before { content: ""; width: 7px; height: 7px; border-radius: 50%; border: 2px solid var(--warn); }
+.chip.lock { color: var(--ok); background: var(--ok-soft); font-weight: 600; }
+.chip.lock::before { content: ""; width: 8px; height: 7px; border-radius: 1px; background: var(--ok); box-shadow: 0 -4px 0 -2px var(--ok-soft), 0 -4px 0 0 var(--ok); }
+.states { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.states span { display: inline-flex; align-items: center; gap: 5px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px; padding: 0 11px; font-weight: 500; }
+.btn:hover:not(:disabled) { background: var(--surface-2); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: var(--accent-ink); border-color: var(--accent-ink); }
+.btn.small { min-height: 26px; padding: 0 9px; font-size: 12.5px; white-space: nowrap; }
+.btn.quiet { border-color: transparent; color: var(--muted); }
+select { height: 28px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface); padding: 0 6px; max-width: 100%; }
+
+/* The timeline grid: each column is a stretch of the day, and the lines between columns are the events (the admin's confirmations) that end one stretch and begin the next */
+.scroll { overflow-x: auto; overflow-y: hidden; }
+.grid { display: grid; grid-template-columns: 132px repeat(7, minmax(78px, 1fr)) 216px; min-width: 894px; }
+.grid > * { min-width: 0; }
+.gh { position: relative; padding: 9px 3px 7px; font-size: 11px; letter-spacing: -.01em; font-weight: 650; color: var(--heading); text-align: center; line-height: 1.2; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.gh.first, .gh.last { align-items: flex-start; padding-left: 14px; font-size: 10.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); justify-content: center; }
+.gh .here { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; min-height: 18px; }
+.gh .here .chip { height: 18px; padding: 0 6px; font-size: 10.5px; }
+.band { background: var(--surface-2); }
+/* The events row: a diamond on each line between two stretches, with what happens there */
+.eh { position: relative; min-height: 54px; border-bottom: 1px solid var(--line); }
+.eh.first, .eh.last { display: flex; align-items: center; padding-left: 14px; font-size: 10.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
+.ev { position: absolute; left: 0; top: 4px; transform: translateX(-50%); width: 100%; padding: 0 3px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; line-height: 1.15; text-align: center; color: var(--muted); z-index: 2; }
+.ev.startev { transform: none; align-items: flex-start; text-align: left; left: -5px; width: 60%; padding: 0; }
+.dia { display: block; flex: none; width: 10px; height: 10px; transform: rotate(45deg); background: var(--surface); border: 2px solid var(--line-strong); }
+.dia.done { background: var(--ok); border-color: var(--ok); }
+.sect { grid-column: 1 / -1; padding: 12px 14px 4px; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
+.rl { padding: 7px 8px 7px 14px; display: flex; align-items: center; font-weight: 500; }
+.rc { padding: 5px 14px 5px 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.cell { position: relative; display: flex; align-items: center; justify-content: center; min-height: 34px; }
+.cell::before, .eh:not(.first):not(.last)::before { content: ""; position: absolute; inset: 0 auto 0 0; border-left: 1px solid var(--line-strong); }
+
+/* Division progress: a stretch is past, the current one, or still to come; the diamond on its left line is the confirmation that began it */
+.cell.div { min-height: 40px; font-size: 11px; color: var(--faint); }
+.cell.div .track { position: absolute; left: 0; right: 0; top: 50%; height: 3px; margin-top: -1.5px; background: var(--line-strong); }
+.cell.div.past .track { background: var(--ok); }
+.cell.div.cur { background: var(--ok-soft); }
+.cell.div.cur .track { background: linear-gradient(90deg, var(--ok) 0 50%, var(--line-strong) 50% 100%); }
+.cell.div .dia { position: absolute; left: -6px; top: 50%; margin-top: -6px; z-index: 2; }
+.cell.div .nowtag { position: relative; z-index: 1; padding: 1px 6px; border-radius: 999px; background: var(--ok); color: var(--surface); font-weight: 600; font-size: 10.5px; }
+.cell.div .skiptag { position: relative; z-index: 1; padding: 0 4px; background: var(--surface); font-size: 10.5px; }
+.cell.div.band .skiptag { background: var(--surface-2); }
+
+/* "Viewers see" bars */
+.bar { all: unset; box-sizing: border-box; position: relative; display: block; width: 100%; height: 20px; cursor: pointer; }
+.bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bar::after { content: ""; position: absolute; inset: 0; background: transparent; }
+.bar.on::after { background: var(--accent); }
+.bar.on.start::after { left: 0; }
+.bar.on.end::after { border-radius: 0 10px 10px 0; right: 6px; }
+/* A bar begins on a line, at an event, so its start carries the event's diamond */
+.bar.start::before { content: ""; position: absolute; left: -6px; top: 50%; width: 10px; height: 10px; margin-top: -6px; transform: rotate(45deg); background: var(--accent-ink); border: 1px solid var(--surface); z-index: 2; }
+.bar.live::after { background: repeating-linear-gradient(135deg, var(--accent) 0 5px, var(--accent-soft) 5px 10px); }
+.bar.off:hover::after { background: var(--accent-soft); }
+.bar.locked { cursor: default; }
+.bar.na { cursor: default; }
+.bar.na::after { inset: auto; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: var(--line-strong); }
+.rowoff .bar.on::after { background: var(--line-strong); }
+.check { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+
+.note { margin: 0; padding: 8px 14px; font-size: 12.5px; color: var(--muted); }
+.confirm { grid-column: 1 / -1; margin: 2px 14px 8px; padding: 10px 12px; border-radius: 8px; background: var(--warn-soft); color: var(--text); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.confirm p { margin: 0; flex: 1 1 260px; }
+.confirm strong { color: var(--warn); }
+
+.scoring { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 8px 8px; padding: 4px 14px 12px; }
+.scoring .lab { font-weight: 500; padding-top: 3px; }
+.scoring .opts { display: flex; flex-direction: column; gap: 4px; }
+.scoring label { display: flex; gap: 7px; align-items: baseline; cursor: pointer; }
+@media (max-width: 560px) { .scoring { grid-template-columns: minmax(0, 1fr); } }
+
+.savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; border-top: 1px solid var(--line); background: var(--surface-2); border-radius: 0 0 var(--r) var(--r); }
+.savebar .what { flex: 1 1 280px; min-width: 0; }
+.savebar ul { margin: 2px 0 0; padding-left: 18px; }
+.gain { color: var(--ok); font-weight: 600; }
+.lose { color: var(--danger); font-weight: 600; }
+
+/* Viewer's page */
+.viewer { padding: 14px; display: flex; flex-direction: column; gap: 16px; }
+.vhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.vhead h3 { font-size: 18px; }
+.block h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.block h4 .chip { text-transform: none; letter-spacing: 0; }
+.absent { color: var(--faint); font-style: italic; margin: 0; }
+.medals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.medal { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface-2); }
+.medal b { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.medal.g b { color: var(--gold); } .medal.s b { color: var(--silver); } .medal.b b { color: var(--bronze); }
+.medal span { font-weight: 600; font-size: 15px; color: var(--heading); }
+.medal i { font-style: normal; font-family: var(--mono); color: var(--muted); margin-left: 6px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--faint); padding: 3px 8px 3px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td.n, th.n { text-align: right; font-family: var(--mono); font-size: 12.5px; }
+.covers { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.quiz { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.quiz .qn { font-weight: 600; min-width: 62px; }
+.quiz .pl { color: var(--muted); }
+.quiz .pl b { color: var(--text); font-weight: 500; }
+.quiz .pl i { font-style: normal; font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.stage { margin: 8px 0 2px; font-weight: 600; color: var(--heading); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 0 14px 10px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { display: inline-block; width: 22px; height: 10px; border-radius: 5px; background: var(--accent); }
+.sw.live { background: repeating-linear-gradient(135deg, var(--accent) 0 5px, var(--accent-soft) 5px 10px); }
+.sw.dia { width: 10px; height: 10px; border-radius: 0; transform: rotate(45deg); background: var(--accent-ink); }
+/* Layout switch */
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 9px; overflow: hidden; background: var(--surface); }
+.seg button { all: unset; box-sizing: border-box; cursor: pointer; padding: 6px 12px; font-weight: 500; color: var(--muted); }
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cols.pagey { grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); }
+@media (max-width: 1420px) { .cols.pagey { grid-template-columns: minmax(0, 1fr); } }
+
+/* Sentences layout: a strip of steps for each division, then the policy as a list */
+.strips { display: flex; flex-direction: column; gap: 4px; padding: 4px 14px 10px; }
+.strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; }
+.strip .dname { font-weight: 600; min-width: 46px; color: var(--heading); }
+.steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.pill { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 12.5px; border: 1px solid var(--line-strong); color: var(--faint); white-space: nowrap; }
+.pill.past { border-color: transparent; background: var(--ok-soft); color: var(--ok); }
+.pill.cur { border-color: var(--accent); background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.steps .sep { color: var(--faint); }
+.strip .rc { padding: 0; margin-left: auto; }
+.strips .confirm { margin: 0 0 6px; }
+.policy { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 0; padding: 0 14px 12px; }
+.policy > div { padding: 8px 8px 8px 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 5px 7px; min-width: 0; }
+.policy .plab { font-weight: 600; color: var(--heading); }
+.policy .pnow { justify-content: flex-end; padding-right: 0; }
+.policy .phead { border-top: 0; padding-top: 0; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
+.policy .sub { flex-basis: 100%; color: var(--muted); font-size: 12.5px; }
+.policy .psay b { color: var(--heading); font-weight: 600; }
+@media (max-width: 640px) { .policy { grid-template-columns: minmax(0, 1fr); } .policy .pnow { justify-content: flex-start; border-top: 0; padding-top: 0; } .policy .plab { padding-bottom: 0; } .policy .psay { border-top: 0; padding-top: 2px; } .policy .phead:not(:first-child) { display: none; } }
+/* On-the-page layout: each block's heading carries its own setting */
+.ctl { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px 7px; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12.5px; color: var(--muted); margin-left: auto; }
+.ctl select { height: 26px; }
+.block.hid { opacity: .72; }
+.stagehead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 0 2px; }
+.stagehead .stage { margin: 0; }
+@media (prefers-reduced-motion: no-preference) { .bar::after, .dot { transition: background .12s; } }
+</style>
+
+<div class="page">
+  <div class="head">
+    <h1>Stats settings</h1>
+    <p>Mockup for the meet stats spec, three ways of laying out the same settings. Confirm a division's step and watch what a viewer of that division sees. Teams and quizzers are made up.</p>
+    <div class="seg" id="layout" role="group" aria-label="Layout">
+      <button type="button" data-layout="list">Sentences</button>
+      <button type="button" data-layout="page">On the page</button>
+      <button type="button" data-layout="timeline">Timeline</button>
+    </div>
+  </div>
+  <div class="cols">
+    <section class="panel" aria-labelledby="set-h">
+      <header>
+        <h2 id="set-h">Example Meet</h2>
+        <span class="chip accent" id="phase-chip"></span>
+        <span class="spacer"></span>
+        <span id="meet-actions"></span>
+      </header>
+      <div id="lay-strips">
+        <div class="sect">Divisions</div>
+        <div class="strips" id="strips"></div>
+      </div>
+      <div id="lay-list">
+        <div class="sect">What viewers see</div>
+        <div class="policy" id="policy"></div>
+      </div>
+      <p class="note" id="lay-page-note">What viewers see is set on each block of the division's page, beside this.</p>
+      <div id="lay-timeline">
+      <div class="scroll"><div class="grid" id="grid"></div></div>
+      <div class="legend">
+        <span><i class="sw"></i> shown to viewers</span>
+        <span><i class="sw live"></i> shown live, before it is confirmed</span>
+        <span><i class="sw dia"></i> starts at that event</span>
+        <span>· cannot show yet: it does not exist</span>
+        <span>Columns are stretches of the day. The lines between them are the events you confirm.</span>
+      </div>
+      </div>
+      <div class="sect" style="padding-top:4px">Scoring</div>
+      <div class="scoring">
+        <div class="lab">Ties between teams</div>
+        <div class="opts">
+          <label><input type="radio" name="tb" id="tb-h2h" value="h2h"> Head-to-head, then total points, then fewest errors <span class="chip">rulebook</span></label>
+          <label><input type="radio" name="tb" id="tb-pts" value="pts"> Total points, then fewest errors</label>
+        </div>
+        <div class="lab">Teams level in a quiz</div>
+        <div class="opts">
+          <label><input type="radio" name="lv" id="lv-shared" value="shared"> Each gets the points of the place they share <span class="chip">rulebook</span></label>
+          <label><input type="radio" name="lv" id="lv-reduced" value="reduced"> Reduced points for a shared place</label>
+          <div class="rc" style="padding:2px 0 0"><span class="chip warn">2 quizzes were scored the other way on their device</span> <button class="btn small" type="button" id="match-btn">Set them to match</button></div>
+        </div>
+      </div>
+      <div class="savebar">
+        <div class="what" id="summary"></div>
+        <button class="btn" type="button" id="discard">Discard</button>
+        <button class="btn primary" type="button" id="save">Save</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="view-h">
+      <header>
+        <h2 id="view-h">As a viewer sees it</h2>
+        <span class="spacer"></span>
+        <label for="pv-div" class="chip">Division</label>
+        <select id="pv-div"></select>
+        <select id="pv-which" aria-label="Which settings to preview">
+          <option value="saved">Saved settings</option>
+          <option value="draft">With my unsaved changes</option>
+        </select>
+        <select id="pv-mode" aria-label="Whose view of the page">
+          <option value="admin">As the admin, with the settings</option>
+          <option value="viewer">As a viewer</option>
+        </select>
+      </header>
+      <div class="viewer" id="viewer"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+// Column i is the stretch of the day that begins at event i
+const PERIODS = ['Prelims', 'Intermediates', 'Eliminations', 'Finals', 'Division finished', 'Review', 'Meet done']
+const EVENTS = ['start of quizzing', 'prelims confirmed', 'intermediates confirmed', 'eliminations in', 'Finals done', 'meet moved to review', 'meet marked done']
+const RESULT_ROWS = [
+  { key: 'prelim', label: 'Prelim results', min: 0 },
+  { key: 'mid', label: 'Intermediate results', min: 1 },
+  { key: 'elim', label: 'Elimination results', min: 2 },
+  { key: 'finals', label: 'Finals result', min: 3 },
+]
+const defaults = () => ({
+  results: {
+    prelim: { from: 0, on: true, level: 'places' },
+    mid: { from: 1, on: true, level: 'places' },
+    elim: { from: 2, on: true, level: 'places' },
+    finals: { from: 4, on: true, level: 'places' },
+  },
+  prelimLive: false,
+  quizzers: { from: 6, on: true, mode: 'live' },
+  tiebreak: 'h2h',
+  level: 'shared',
+})
+const clone = (o) => JSON.parse(JSON.stringify(o))
+
+const state = {
+  phase: 'live',
+  divisions: [
+    { id: '1', name: 'Div 1', step: 1, mid: true, by: ['', 'Pat, 12:02'] },
+    { id: '2', name: 'Div 2', step: 0, mid: false, by: [''] },
+  ],
+  saved: defaults(),
+  draft: defaults(),
+  ask: null,
+  matched: false,
+  layout: 'list',
+}
+
+// --- Example data: nine teams a division, the same shape for both ---
+const TEAMS = {
+  1: ['Oak', 'Fir', 'Elm', 'Yew', 'Ash', 'Bay', 'Box', 'Lime', 'Rowan'],
+  2: ['Birch', 'Cedar', 'Hazel', 'Holly', 'Larch', 'Maple', 'Pine', 'Alder', 'Beech'],
+}
+const QUIZZERS = ['Ada Lind', 'Ben Okoro', 'Cai Morgan', 'Dee Tanaka', 'Eli Brandt', 'Fay Osei', 'Gus Varga', 'Hana Ito', 'Ian Roche',
+  'Jo Mensah', 'Kit Almeida', 'Lea Novak', 'Max Idowu', 'Nia Sorensen', 'Oz Halloran', 'Pia Costa', 'Rae Dubois', 'Sam Petrov']
+const PRELIMS = [
+  [[0, 150], [3, 90], [6, 40]], [[1, 130], [4, 80], [7, 50]], [[2, 110], [5, 110], [8, 30]],
+  [[0, 120], [4, 100], [8, 60]], [[1, 140], [5, 70], [6, 60]], [[2, 100], [3, 120], [7, 20]],
+  [[0, 160], [5, 60], [7, 70]], [[1, 90], [3, 110], [8, 40]], [[2, 130], [4, 90], [6, 50]],
+]
+const placePoints = (place, score) => place === 1 ? Math.max(10, score / 10) : place === 2 ? Math.max(5, score / 10 - 1) : Math.max(1, score / 10 - 2)
+function placed(entries) {
+  const sorted = [...entries].sort((a, b) => b[1] - a[1])
+  return sorted.map(([team, score]) => {
+    const place = 1 + sorted.filter((e) => e[1] > score).length
+    return { team, score, place, points: placePoints(place, score) }
+  })
+}
+function prelimStandings(count) {
+  const rows = TEAMS[1].map((_, team) => ({ team, points: 0, score: 0, quizzes: 0 }))
+  for (const quiz of PRELIMS.slice(0, count)) for (const r of placed(quiz)) {
+    rows[r.team].points += r.points; rows[r.team].score += r.score; rows[r.team].quizzes++
+  }
+  return rows.sort((a, b) => b.points - a.points || b.score - a.score)
+}
+const CONFIRMED = prelimStandings(9)
+const MIDS = [
+  { name: 'X', teams: [[CONFIRMED[3].team, 90], [CONFIRMED[5].team, 60], [CONFIRMED[7].team, 40]] },
+  { name: 'Y', teams: [[CONFIRMED[4].team, 80], [CONFIRMED[6].team, 70], [CONFIRMED[8].team, 30]] },
+]
+const ELIMS = [
+  { name: 'A', teams: [[CONFIRMED[0].team, 140], [CONFIRMED[3].team, 80], [CONFIRMED[4].team, 60]] },
+  { name: 'B', teams: [[CONFIRMED[1].team, 120], [CONFIRMED[2].team, 110], [CONFIRMED[5].team, 40]] },
+  { name: 'C', teams: [[CONFIRMED[0].team, 130], [CONFIRMED[2].team, 100], [CONFIRMED[3].team, 50]] },
+  { name: 'D', teams: [[CONFIRMED[1].team, 110], [CONFIRMED[4].team, 90], [CONFIRMED[5].team, 70]] },
+]
+const FINALS = { name: 'Finals', teams: [[CONFIRMED[0].team, 150], [CONFIRMED[1].team, 110], [CONFIRMED[2].team, 90]] }
+function rerank(count) {
+  const rows = CONFIRMED.slice(3).map((r) => ({ team: r.team, points: r.points }))
+  for (const quiz of MIDS.slice(0, count)) for (const r of placed(quiz.teams)) rows.find((x) => x.team === r.team).points += r.points
+  return rows.sort((a, b) => b.points - a.points)
+}
+// A quizzer's points in each stage, made up but steady from one draw to the next
+const quizzerStage = (i, stage) => ({ prelim: [200, 160, 180, 120, 140, 90, 110, 70, 100, 60, 80, 40, 60, 20, 50, 30, 40, -10], mid: [0, 0, 0, 0, 0, 0, 40, 20, 60, 20, 40, 0, 20, 20, 40, 0, 20, 0], elim: [120, 60, 100, 40, 80, 60, 60, 20, 40, 20, 20, 20, 0, 0, 0, 0, 0, 0] })[stage][i]
+const quizzerErrors = (i) => [2, 1, 3, 2, 1, 4, 2, 3, 1, 5, 2, 3, 4, 2, 3, 1, 2, 6][i]
+
+// --- What a division's step and the meet's phase make reachable ---
+const reached = (moment, div) => moment <= 4 ? div.step >= moment : moment === 5 ? state.phase !== 'live' : state.phase === 'done'
+function visible(settings, div) {
+  const out = {}
+  for (const row of RESULT_ROWS) {
+    const s = settings.results[row.key]
+    out[row.key] = row.key === 'mid' && !div.mid ? false : s.on && reached(s.from, div) && div.step >= row.min
+  }
+  out.prelimLive = settings.prelimLive && div.step === 0
+  out.quizzers = settings.quizzers.on && reached(settings.quizzers.from, div)
+  return out
+}
+const NAMES = { prelim: 'prelim results', mid: 'intermediate results', elim: 'elimination results', finals: 'the Finals result', prelimLive: 'live prelim standings', quizzers: 'quizzer standings' }
+
+// --- Rendering the settings grid ---
+const el = (tag, attrs = {}, html = '') => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); n.innerHTML = html; return n }
+const nextLabel = (div) => ['Confirm prelims', div.mid ? 'Confirm intermediates' : 'Start eliminations', 'Confirm eliminations', 'Confirm Finals'][div.step]
+const missing = (div) => div.id === '2' && div.step === 0 ? 'Quiz 7 and Quiz 8 are not in yet' : div.id === '2' && div.step === 2 ? 'Quiz D has an error nobody has accepted' : ''
+const laterQuizzes = (div) => div.step === 2 ? 'Quiz A, Quiz B' : div.step === 3 ? 'Quiz A, Quiz B, Quiz C, Quiz D' : div.step === 4 ? 'the Finals' : div.step === 1 && div.mid ? 'Quiz X' : ''
+
+function drawGrid() {
+  const grid = document.getElementById('grid')
+  grid.textContent = ''
+  const band = (i) => i % 2 ? ' band' : ''
+  // Which stretch each division, or the whole meet, is in now
+  const nowAt = (div) => state.phase === 'done' ? 6 : state.phase === 'review' ? 5 : div.step
+  const happened = (i, div) => i <= 4 ? div.step >= i : reached(i, div)
+  grid.append(el('div', { class: 'gh first' }, 'Stretch of the day'))
+  PERIODS.forEach((name, i) => {
+    const here = state.divisions.filter((d) => nowAt(d) === i).map((d) => `<span class="chip ok">${d.name}</span>`).join('')
+    grid.append(el('div', { class: 'gh' + band(i) }, `${name}<span class="here">${here}</span>`))
+  })
+  grid.append(el('div', { class: 'gh last' }, ''))
+  grid.append(el('div', { class: 'eh first' }, 'Event'))
+  EVENTS.forEach((name, i) => {
+    const all = state.divisions.every((d) => happened(i, d))
+    grid.append(el('div', { class: 'eh' + band(i) }, `<span class="ev${i === 0 ? ' startev' : ''}"><i class="dia${all ? ' done' : ''}"></i>${name}</span>`))
+  })
+  grid.append(el('div', { class: 'eh last' }, ''))
+
+  grid.append(el('div', { class: 'sect' }, 'Divisions'))
+  for (const div of state.divisions) {
+    grid.append(el('div', { class: 'rl' }, div.name))
+    PERIODS.forEach((_, i) => {
+      const at = nowAt(div)
+      const skipped = i === 1 && !div.mid
+      const cell = el('div', { class: 'cell div' + band(i) + (i < at ? ' past' : i === at ? ' cur' : '') })
+      cell.append(el('span', { class: 'track' }))
+      if (i > 0) cell.append(el('i', { class: 'dia' + (happened(i, div) ? ' done' : ''), title: EVENTS[i] }))
+      if (i === at) cell.append(el('span', { class: 'nowtag' }, 'now'))
+      else if (skipped) cell.append(el('span', { class: 'skiptag' }, 'none'))
+      grid.append(cell)
+    })
+    const ctl = divControls(div)
+    grid.append(ctl)
+    if (state.ask && state.ask.div === div.id) grid.append(confirmBox(div))
+  }
+
+  grid.append(el('div', { class: 'sect' }, 'Viewers see'))
+  for (const row of RESULT_ROWS) {
+    const s = state.draft.results[row.key]
+    grid.append(el('div', { class: 'rl' }, row.label))
+    barCells(grid, s, row.min, (i) => { s.from = i; s.on = true })
+    const ctl = el('div', { class: 'rc' })
+    const lvl = el('select', { id: `level-${row.key}`, 'aria-label': `${row.label}: how much` }, `<option value="places">Places only</option><option value="scores">Places and scores</option><option value="full" disabled>Full scoresheet (later)</option>`)
+    lvl.value = s.level
+    lvl.onchange = () => { s.level = lvl.value; draw() }
+    ctl.append(lvl, toggle(`on-${row.key}`, s.on, (v) => { s.on = v }))
+    grid.append(ctl)
+  }
+
+  grid.append(el('div', { class: 'rl' }, 'Prelim standings'))
+  PERIODS.forEach((_, i) => {
+    const cell = el('div', { class: 'cell' + (i % 2 ? ' band' : '') })
+    const live = state.draft.prelimLive
+    const cls = i === 0 ? (live ? 'bar live start' : 'bar off') : 'bar on locked' + (i === 1 && !live ? ' start' : '') + (i === 6 ? ' end' : '')
+    const b = el('button', { class: cls, type: 'button', 'aria-label': i === 0 ? 'Show prelim standings live, from the start of quizzing' : 'Shown once the prelims are confirmed' })
+    if (i === 0) b.onclick = () => { state.draft.prelimLive = !state.draft.prelimLive; draw() }
+    else b.tabIndex = -1
+    cell.append(b); grid.append(cell)
+  })
+  const pc = el('div', { class: 'rc' })
+  pc.append(toggle('prelim-live', state.draft.prelimLive, (v) => { state.draft.prelimLive = v }, 'Also show live'))
+  grid.append(pc)
+  grid.append(el('p', { class: 'note', style: 'grid-column:1/-1;padding-top:0' }, 'Prelim standings and the re-rank always show once you confirm them. They are what seeds the next quizzes.'))
+
+  const q = state.draft.quizzers
+  grid.append(el('div', { class: 'rl' }, 'Quizzer standings'))
+  barCells(grid, q, 0, (i) => { q.from = i; q.on = true })
+  const qc = el('div', { class: 'rc' })
+  const mode = el('select', { id: 'quizzer-mode', 'aria-label': 'Quizzer standings: how they update' }, `<option value="live">Live</option><option value="stage">By stage</option>`)
+  mode.value = q.mode
+  mode.onchange = () => { q.mode = mode.value; draw() }
+  mode.hidden = !modeMatters(q)
+  qc.append(mode, toggle('on-quizzers', q.on, (v) => { q.on = v }))
+  grid.append(qc)
+}
+// The confirm and take-back controls for a division, the same in every layout
+function divControls(div) {
+  const ctl = el('div', { class: 'rc' })
+  if (state.phase !== 'live') return ctl
+  if (div.step < 4) {
+    const problem = missing(div)
+    ctl.append(el('span', { class: 'chip ' + (problem ? 'warn' : 'ok') }, problem ? 'not ready' : 'ready'))
+    const go = el('button', { class: 'btn small primary', type: 'button' }, nextLabel(div))
+    go.onclick = () => problem ? ask({ kind: 'forward', div: div.id, text: `<strong>${problem}.</strong> Confirming now cannot easily be redone once the next quizzes are played.`, yes: 'Confirm anyway' }) : advance(div)
+    ctl.append(go)
+  } else ctl.append(el('span', { class: 'chip ok' }, 'done'))
+  if (div.step > 0) {
+    const back = el('button', { class: 'btn small quiet', type: 'button' }, 'Take back')
+    const later = laterQuizzes(div)
+    const many = later.includes(',')
+    back.onclick = () => later ? ask({ kind: 'back', div: div.id, text: `<strong>${later}</strong> ${many ? 'were' : 'was'} seated from the order you are withdrawing and may no longer be valid. ${many ? 'They stay' : 'It stays'} stored and will be flagged until you keep or uncount ${many ? 'each' : 'it'}.`, yes: 'Take back anyway' }) : retreat(div)
+    ctl.append(back)
+  }
+  return ctl
+}
+
+// --- Sentences layout ---
+const WHEN = ['from the start', 'once prelims are confirmed', 'once intermediates are confirmed', 'once eliminations are in', 'once the Finals is done', 'once the meet is in review', 'once the meet is done']
+// A "show from" picker that offers only the moments that make sense for the thing
+function whenSelect(key, min, s, label) {
+  // Standings say in each choice whether viewers get a live preview first or only the actual standings; a quiz result is just a result
+  const text = (i) => key === 'quizzers'
+    ? (i <= 5 ? `${WHEN[i]}, as a preview` : `${WHEN[i]}, actual standings only`)
+    : i === min ? (key === 'finals' ? 'as soon as it is scored' : 'as quizzes come in') : WHEN[i]
+  const opts = WHEN.map((_, i) => i < min ? '' : `<option value="${i}"${s.on && s.from === i ? ' selected' : ''}>${text(i)}</option>`).join('')
+  return `<select data-set="from:${key}" aria-label="${label}: when">${opts}<option value="off"${s.on ? '' : ' selected'}>never</option></select>`
+}
+const levelSelect = (key, s, label) => `<select data-set="level:${key}" aria-label="${label}: how much"><option value="places"${s.level === 'places' ? ' selected' : ''}>places only</option><option value="scores"${s.level === 'scores' ? ' selected' : ''}>places and scores</option><option value="full" disabled>full scoresheet (later)</option></select>`
+const modeSelect = (s) => `<select data-set="mode" aria-label="Quizzer standings: how they update"><option value="live"${s.mode === 'live' ? ' selected' : ''}>after every quiz</option><option value="stage"${s.mode === 'stage' ? ' selected' : ''}>only when you confirm a step</option></select>`
+// How quizzer standings update only matters while quizzes that count for quizzers are still to come: from the eliminations being in, nothing more counts
+const modeMatters = (s) => s.on && s.from <= 2
+const liveCheck = () => `<label class="check"><input type="checkbox" data-set="live"${state.draft.prelimLive ? ' checked' : ''}> <b>Live preview:</b> also show them before that, changing as prelims come in</label>`
+function onSet(event) {
+  const what = event.target.dataset.set
+  if (!what) return
+  const [field, key] = what.split(':')
+  const d = state.draft
+  const target = key === 'quizzers' ? d.quizzers : d.results[key]
+  if (field === 'from') { if (event.target.value === 'off') target.on = false; else { target.on = true; target.from = Number(event.target.value) } }
+  if (field === 'level') target.level = event.target.value
+  if (field === 'mode') d.quizzers.mode = event.target.value
+  if (field === 'live') d.prelimLive = event.target.checked
+  draw()
+}
+function nowChips(key) {
+  return state.divisions.map((div) => {
+    if (key === 'mid' && !div.mid) return `<span class="chip">${div.name}: none</span>`
+    const v = visible(state.draft, div)
+    const yes = key === 'standings' ? div.step >= 1 || v.prelimLive : v[key]
+    // Actual once the admin has confirmed the stage it belongs to; a live preview before that
+    const actual = key === 'standings' ? div.step >= 1 : state.phase === 'done'
+    // A preview is live while quizzes that count are still coming and the list follows them
+    const changing = key === 'standings' || (div.step < 3 && state.draft.quizzers.mode === 'live')
+    if (key !== 'standings' && key !== 'quizzers') return `<span class="chip ${yes ? 'ok' : ''}">${div.name}: ${yes ? 'showing' : 'nothing yet'}</span>`
+    return !yes ? `<span class="chip">${div.name}: nothing yet</span>` : actual ? `<span class="chip lock">${div.name}: actual</span>` : changing ? `<span class="chip live">${div.name}: live preview</span>` : `<span class="chip prov">${div.name}: preview</span>`
+  }).join('')
+}
+function drawStrips() {
+  const box = document.getElementById('strips')
+  box.textContent = ''
+  for (const div of state.divisions) {
+    const names = ['Prelims', div.mid ? 'Intermediates' : 'Stats break', 'Eliminations', 'Finals', 'Finished']
+    const at = state.phase === 'live' ? div.step : 5
+    const row = el('div', { class: 'strip' })
+    row.append(el('span', { class: 'dname' }, div.name))
+    row.append(el('span', { class: 'steps' }, names.map((n, i) => `<span class="pill${i < at ? ' past' : i === at ? ' cur' : ''}">${i < at ? '&#10003; ' : ''}${n}${i === at ? ' &middot; now' : ''}</span>`).join('<span class="sep">&rsaquo;</span>')))
+    row.append(divControls(div))
+    box.append(row)
+    if (state.ask && state.ask.div === div.id) box.append(confirmBox(div))
+  }
+}
+function drawPolicy() {
+  const d = state.draft
+  const rows = [`<div class="phead">Thing</div><div class="phead">Setting</div><div class="phead pnow">Right now</div>`]
+  for (const row of RESULT_ROWS) {
+    const s = d.results[row.key]
+    rows.push(`<div class="plab">${row.label}</div><div class="psay">show ${whenSelect(row.key, row.min, s, row.label)}${s.on ? ` with ${levelSelect(row.key, s, row.label)}` : ''}</div><div class="pnow">${nowChips(row.key)}</div>`)
+  }
+  rows.push(`<div class="plab">Prelim standings</div><div class="psay"><span><b>Actual standings:</b> shown when you confirm the prelims, which puts the placements into the elimination draw (the re-rank likewise, when you confirm the intermediates)</span><span class="sub">${liveCheck()}</span></div><div class="pnow">${nowChips('standings')}</div>`)
+  rows.push(`<div class="plab">Quizzer standings</div><div class="psay">show ${whenSelect('quizzers', 0, d.quizzers, 'Quizzer standings')}${modeMatters(d.quizzers) ? `, updating ${modeSelect(d.quizzers)}` : ''}</div><div class="pnow">${nowChips('quizzers')}</div>`)
+  document.getElementById('policy').innerHTML = rows.join('')
+}
+
+function barCells(grid, s, min, pick) {
+  PERIODS.forEach((_, i) => {
+    const cell = el('div', { class: 'cell' + (i % 2 ? ' band' : '') + (s.on ? '' : ' rowoff') })
+    const on = i >= s.from
+    const b = el('button', { class: 'bar ' + (i < min ? 'na' : on ? 'on' + (i === s.from ? ' start' : '') + (i === 6 ? ' end' : '') : 'off'), type: 'button', title: i < min ? '' : `Show from: ${EVENTS[i]}`, 'aria-label': i < min ? 'Not possible yet' : `Show from: ${EVENTS[i]}` })
+    if (i >= min) b.onclick = () => { pick(i); draw() }
+    else b.disabled = true
+    cell.append(b); grid.append(cell)
+  })
+}
+function toggle(id, on, set, text = 'Show') {
+  const label = el('label', { class: 'check', for: id })
+  const box = el('input', { type: 'checkbox', id })
+  box.checked = on
+  box.onchange = () => { set(box.checked); draw() }
+  label.append(box, document.createTextNode(text))
+  return label
+}
+function confirmBox(div) {
+  const box = el('div', { class: 'confirm', role: 'alert' }, `<p>${div.name}: ${state.ask.text}</p>`)
+  const yes = el('button', { class: 'btn small primary', type: 'button' }, state.ask.yes)
+  const no = el('button', { class: 'btn small', type: 'button' }, 'Cancel')
+  yes.onclick = () => { const kind = state.ask.kind; state.ask = null; kind === 'forward' ? advance(div) : retreat(div) }
+  no.onclick = () => { state.ask = null; draw() }
+  box.append(yes, no)
+  return box
+}
+const ask = (what) => { state.ask = what; draw() }
+function advance(div) { div.step++; div.by[div.step] = 'you, just now'; draw() }
+function retreat(div) { div.by.length = div.step; div.step--; draw() }
+
+function drawMeet() {
+  document.getElementById('phase-chip').textContent = { live: 'Meet is live', review: 'Meet is in review', done: 'Meet is done' }[state.phase]
+  const box = document.getElementById('meet-actions')
+  box.textContent = ''
+  const allDone = state.divisions.every((d) => d.step === 4)
+  const add = (text, to, primary) => { const b = el('button', { class: 'btn small' + (primary ? ' primary' : ''), type: 'button' }, text); b.onclick = () => { state.phase = to; draw() }; box.append(b) }
+  if (state.phase === 'live' && allDone) add('Every division is done. Move the meet to review', 'review', true)
+  if (state.phase === 'review') { add('Back to live', 'live'); add('Mark the meet done', 'done', true) }
+  if (state.phase === 'done') add('Reopen for review', 'review')
+}
+
+function drawSummary() {
+  const same = JSON.stringify(state.saved) === JSON.stringify(state.draft)
+  const box = document.getElementById('summary')
+  const locked = state.phase === 'done'
+  document.getElementById('save').disabled = same || locked
+  document.getElementById('discard').disabled = same
+  if (locked) { box.innerHTML = '<b>The meet is done.</b> Settings are locked; reopen it for review to change them.'; return }
+  if (same) { box.innerHTML = `Saved. Last changed by Pat, Saturday 10:02.`; return }
+  const lines = []
+  for (const div of state.divisions) {
+    const before = visible(state.saved, div), after = visible(state.draft, div)
+    for (const key of Object.keys(after)) {
+      if (after[key] && !before[key]) lines.push(`<li><span class="gain">${div.name} viewers will now see</span> ${NAMES[key]}</li>`)
+      if (!after[key] && before[key]) lines.push(`<li><span class="lose">${div.name} viewers will stop seeing</span> ${NAMES[key]}</li>`)
+    }
+    for (const row of RESULT_ROWS) {
+      const a = state.saved.results[row.key].level, b = state.draft.results[row.key].level
+      if (a !== b && after[row.key] && before[row.key]) lines.push(`<li><span class="${b === 'scores' ? 'gain' : 'lose'}">${div.name} viewers will ${b === 'scores' ? 'now see scores' : 'stop seeing scores'}</span> in ${NAMES[row.key]}</li>`)
+    }
+  }
+  if (state.saved.quizzers.mode !== state.draft.quizzers.mode && modeMatters(state.draft.quizzers)) lines.push(`<li>Quizzer standings will update ${state.draft.quizzers.mode === 'live' ? 'after every quiz' : 'only when you confirm a step'}</li>`)
+  if (state.saved.tiebreak !== state.draft.tiebreak || state.saved.level !== state.draft.level) lines.push('<li>Standings will be worked out the new way. Orders you already confirmed stay as they are; a difference will be shown.</li>')
+  box.innerHTML = lines.length ? `<b>On Save, straight away:</b><ul>${lines.join('')}</ul>` : '<b>Unsaved changes.</b> Nothing changes for viewers right now; it will at a later step.'
+}
+
+// --- The viewer's page ---
+function quizLine(divId, name, entries, level, mark) {
+  const names = TEAMS[divId]
+  if (mark === 'review') return `<div class="quiz"><span class="qn">${name}</span><span class="pl">${entries.map((e) => names[e[0]]).join(', ')}</span><span class="chip warn">under review</span></div>`
+  const parts = placed(entries).map((r) => `<span class="pl">${['', '1st', '2nd', '3rd'][r.place]} <b>${names[r.team]}</b>${level === 'scores' ? ` <i>${r.score}</i>` : ''}</span>`)
+  return `<div class="quiz"><span class="qn">${name}</span>${parts.join('')}${mark === 'accepted' ? '<span class="chip">accepted as scored</span>' : ''}</div>`
+}
+function standingsTable(divId, rows, firstRank, pointsHead) {
+  return `<div class="tablewrap"><table><thead><tr><th class="n">#</th><th>Team</th><th class="n">${pointsHead}</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="n">${firstRank + i}</td><td>${TEAMS[divId][r.team]}</td><td class="n">${r.points}</td></tr>`).join('')}</tbody></table></div>`
+}
+function quizzerTable(divId, stages, partial) {
+  const rows = QUIZZERS.map((name, i) => {
+    const team = Math.floor(i / 2)
+    let points = 0, quizzes = 0
+    for (const stage of stages) {
+      const inMid = MIDS.some((qz) => qz.teams.some((t) => t[0] === team))
+      const played = stage === 'prelim' ? 3 : stage === 'mid' ? (inMid ? 1 : 0) : ELIMS.filter((qz) => qz.teams.some((t) => t[0] === team)).length
+      const share = stage === partial ? 0.5 : 1
+      const count = Math.ceil(played * share)
+      quizzes += count
+      points += played ? Math.round((quizzerStage(i, stage) * count) / played / 10) * 10 : 0
+    }
+    return { name, team, points, quizzes, average: quizzes ? points / quizzes : 0, errors: Math.max(0, quizzerErrors(i) - (partial ? 1 : 0)) }
+  }).sort((a, b) => b.average - a.average || a.errors - b.errors)
+  return `<div class="tablewrap"><table><thead><tr><th class="n">#</th><th>Quizzer</th><th>Team</th><th class="n">Average</th><th class="n">Errors</th><th class="n">Quizzes</th></tr></thead><tbody>${rows.slice(0, 10).map((r, i) => `<tr><td class="n">${i + 1}</td><td>${r.name}</td><td>${TEAMS[divId][r.team]}</td><td class="n">${r.average.toFixed(2)}</td><td class="n">${r.errors}</td><td class="n">${r.quizzes}</td></tr>`).join('')}</tbody></table></div><p class="covers">Top 10 of ${rows.length} shown in this mockup.</p>`
+}
+// Every table says which of three states it is in
+const STATE = { live: ['Live preview', 'not the actual standings yet: still changing as quizzes come in'], prov: ['Preview', 'not the actual standings yet: not changing now, but may still be corrected'], lock: ['Locked in', 'the actual result: will not change'] }
+const st = (kind, extra = '') => `<span class="chip ${kind}" title="${STATE[kind][1]}">${STATE[kind][0]}${extra ? ` &middot; ${extra}` : ''}</span>`
+// Once the meet is done everything is locked in; before that, a thing is live while its quizzes are still coming, and provisional after
+const settle = (stillComing) => state.phase === 'done' ? 'lock' : stillComing ? 'live' : 'prov'
+
+function drawViewer() {
+  const div = state.divisions.find((d) => d.id === document.getElementById('pv-div').value)
+  const admin = state.layout === 'page' && document.getElementById('pv-mode').value === 'admin'
+  const settings = admin || document.getElementById('pv-which').value === 'draft' ? state.draft : state.saved
+  const shown = visible(settings, div)
+  // The admin sees every block that exists; `shown` then only says what viewers get
+  const see = admin ? { prelim: true, mid: div.mid, elim: true, finals: true, prelimLive: div.step === 0, quizzers: true } : shown
+  const R = settings.results
+  const tag = (yes, actual) => !admin ? '' : !yes ? '<span class="chip warn">hidden from viewers now</span>' : actual === undefined ? '<span class="chip ok">viewers see this now</span>' : actual ? '<span class="chip ok">viewers see the actual standings</span>' : '<span class="chip accent">viewers see a preview</span>'
+  const ctl = (html) => admin ? `<span class="ctl">viewers: ${html}</span>` : ''
+  const level = (key) => admin ? 'scores' : R[key].level
+  const out = []
+  out.push(`<div class="vhead"><h3>${div.name}</h3></div><div class="states"><span>Standings are marked:</span>${Object.keys(STATE).map((k) => `<span>${st(k)} ${STATE[k][1]}</span>`).join('')}</div>`)
+
+  if (div.step >= 3) {
+    const finalsCtl = ctl(whenSelect('finals', 3, R.finals, 'Finals result') + (R.finals.on ? levelSelect('finals', R.finals, 'Finals result') : ''))
+    if (see.finals && div.step >= 4) {
+      const f = placed(FINALS.teams)
+      out.push(`<div class="block${admin && !shown.finals ? ' hid' : ''}"><h4>Finals ${tag(shown.finals)}${finalsCtl}</h4><div class="medals">${['g', 's', 'b'].map((c, i) => `<div class="medal ${c}"><b>${['Gold', 'Silver', 'Bronze'][i]}</b><span>${TEAMS[div.id][f[i].team]}</span>${level('finals') === 'scores' ? `<i>${f[i].score}</i>` : ''}</div>`).join('')}</div></div>`)
+    } else out.push(`<div class="block"><h4>Finals ${finalsCtl}</h4><p class="absent">${see.finals ? 'The Finals is being played.' : 'Not available yet.'}</p></div>`)
+  }
+
+  const liveCtl = ctl(`when placements go into the draw &middot; ${liveCheck()}`)
+  if (div.step >= 1) out.push(`<div class="block"><h4>Prelim standings ${st('lock', 'confirmed, in the elimination draw')}${tag(true, true)}${liveCtl}</h4>${standingsTable(div.id, CONFIRMED, 1, 'Points')}</div>`)
+  else if (see.prelimLive) out.push(`<div class="block${admin && !shown.prelimLive ? ' hid' : ''}"><h4>Prelim standings ${st('live', 'after 5 of 9 quizzes')}${tag(shown.prelimLive)}${liveCtl}</h4>${standingsTable(div.id, prelimStandings(5), 1, 'Points')}</div>`)
+  else out.push(`<div class="block"><h4>Prelim standings ${liveCtl}</h4><p class="absent">Not available until the prelims are confirmed.</p></div>`)
+
+  if (div.mid && div.step >= 2) out.push(`<div class="block"><h4>Re-rank after intermediates ${st('lock', 'confirmed')}${tag(true, true)}</h4>${standingsTable(div.id, rerank(2), 4, 'Prelim + intermediate')}</div>`)
+  else if (div.mid && div.step === 1 && (admin || settings.prelimLive)) out.push(`<div class="block${admin && !settings.prelimLive ? ' hid' : ''}"><h4>Re-rank after intermediates ${st('live', 'after Quiz X')}${tag(settings.prelimLive)}</h4>${standingsTable(div.id, rerank(1), 4, 'Prelim + intermediate')}</div>`)
+
+  const quizzerCtl = ctl(whenSelect('quizzers', 0, settings.quizzers, 'Quizzer standings') + (modeMatters(settings.quizzers) ? modeSelect(settings.quizzers) : ''))
+  if (see.quizzers) {
+    const order = ['prelim', ...(div.mid ? ['mid'] : []), 'elim']
+    const finished = order.filter((s) => div.step >= { prelim: 1, mid: 2, elim: 3 }[s])
+    const current = order.find((s) => !finished.includes(s))
+    const label = { prelim: 'prelims', mid: 'intermediates', elim: 'eliminations' }
+    const cls = `block${admin && !shown.quizzers ? ' hid' : ''}`
+    if (settings.quizzers.mode === 'stage' && modeMatters(settings.quizzers) && !admin) {
+      out.push(finished.length
+        ? `<div class="${cls}"><h4>Quizzer standings ${st(settle(false), 'as of the ' + label[finished.at(-1)])}</h4>${quizzerTable(div.id, finished)}<p class="covers">Covers quizzes up to the ${label[finished.at(-1)]}. Moves on when the next step is confirmed.</p></div>`
+        : `<div class="${cls}"><h4>Quizzer standings</h4><p class="absent">Available once the prelims are confirmed.</p></div>`)
+    } else {
+      const started = current && !(current === 'elim' && div.step < 2) ? [...finished, current] : finished
+      out.push(`<div class="${cls}"><h4>Quizzer standings ${st(settle(div.step < 3))}${tag(shown.quizzers, state.phase === 'done')}${quizzerCtl}</h4>${quizzerTable(div.id, started, started.includes(current) ? current : null)}<p class="covers">Covers every counted quiz so far. The Finals never counts for quizzers.</p></div>`)
+    }
+  } else out.push(`<div class="block"><h4>Quizzer standings</h4><p class="absent">Not available yet.</p></div>`)
+
+  const quizzes = []
+  const stage = (key, min, title, lines) => {
+    const head = `<div class="stagehead"><span class="stage">${title}</span>${tag(shown[key])}${ctl(whenSelect(key, min, R[key], title) + (R[key].on ? levelSelect(key, R[key], title) : ''))}</div>`
+    quizzes.push(head + (see[key] ? lines() : '<p class="absent">Not available yet.</p>'))
+  }
+  if (div.step >= 2) stage('elim', 2, 'Eliminations', () => ELIMS.slice(0, div.step >= 3 ? 4 : 2).map((qz) => quizLine(div.id, 'Quiz ' + qz.name, qz.teams, level('elim'))).join(''))
+  if (div.mid && div.step >= 1) stage('mid', 1, 'Intermediates', () => MIDS.slice(0, div.step >= 2 ? 2 : 1).map((qz) => quizLine(div.id, 'Quiz ' + qz.name, qz.teams, level('mid'))).join(''))
+  stage('prelim', 0, 'Prelims', () => PRELIMS.slice(0, div.step >= 1 ? 9 : 5).map((qz, i) => quizLine(div.id, 'Quiz ' + (i + 1), qz, level('prelim'), i === 2 ? (div.step >= 1 ? 'accepted' : 'review') : '')).join(''))
+  out.push(`<div class="block"><h4>Quizzes</h4>${quizzes.join('')}</div>`)
+  document.getElementById('viewer').innerHTML = out.join('')
+}
+
+function draw() {
+  const lay = state.layout
+  document.getElementById('lay-timeline').hidden = lay !== 'timeline'
+  document.getElementById('lay-strips').hidden = lay === 'timeline'
+  document.getElementById('lay-list').hidden = lay !== 'list'
+  document.getElementById('lay-page-note').hidden = lay !== 'page'
+  document.getElementById('pv-mode').hidden = lay !== 'page'
+  const admin = lay === 'page' && document.getElementById('pv-mode').value === 'admin'
+  document.getElementById('pv-which').hidden = admin
+  document.getElementById('view-h').textContent = admin ? 'The division\'s page, with its settings' : 'As a viewer sees it'
+  document.querySelector('.cols').classList.toggle('pagey', lay === 'page')
+  document.querySelectorAll('#layout button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.layout === lay)))
+  drawMeet()
+  if (lay === 'timeline') drawGrid(); else drawStrips()
+  if (lay === 'list') drawPolicy()
+  drawSummary(); drawViewer()
+  document.getElementById('tb-h2h').checked = state.draft.tiebreak === 'h2h'
+  document.getElementById('tb-pts').checked = state.draft.tiebreak === 'pts'
+  document.getElementById('lv-shared').checked = state.draft.level === 'shared'
+  document.getElementById('lv-reduced').checked = state.draft.level === 'reduced'
+  const mb = document.getElementById('match-btn')
+  mb.disabled = state.matched
+  mb.previousElementSibling.textContent = state.matched ? 'Every quiz is scored the meet\'s way' : '2 quizzes were scored the other way on their device'
+  mb.previousElementSibling.className = 'chip ' + (state.matched ? 'ok' : 'warn')
+}
+for (const name of ['tb', 'lv']) document.querySelectorAll(`input[name=${name}]`).forEach((r) => { r.onchange = () => { state.draft[name === 'tb' ? 'tiebreak' : 'level'] = r.value; draw() } })
+document.getElementById('match-btn').onclick = () => { state.matched = true; draw() }
+document.getElementById('save').onclick = () => { state.saved = clone(state.draft); draw() }
+document.getElementById('discard').onclick = () => { state.draft = clone(state.saved); draw() }
+const pv = document.getElementById('pv-div')
+state.divisions.forEach((d) => pv.append(new Option(d.name, d.id)))
+pv.onchange = drawViewer
+document.getElementById('pv-which').onchange = drawViewer
+document.getElementById('pv-mode').onchange = draw
+document.getElementById('policy').addEventListener('change', onSet)
+document.getElementById('viewer').addEventListener('change', onSet)
+document.querySelectorAll('#layout button').forEach((b) => { b.onclick = () => { state.layout = b.dataset.layout; draw() } })
+draw()
+</script>
