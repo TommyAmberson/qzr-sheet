@@ -11,7 +11,7 @@ vi.mock('../../api', () => ({
 }))
 
 import { getMeetTeams, getScheduledQuiz, getSender, getTeamQuizzers } from '../../api'
-import { quizzersConfirmTeam, teamsNearName, useMeetSession } from '../useMeetSession'
+import { quizzersConfirmTeam, teamNamed, teamsNearName, useMeetSession } from '../useMeetSession'
 
 const mockTeams: MeetTeam[] = [
   {
@@ -554,6 +554,31 @@ describe('useMeetSession — isTeamNameDiverged', () => {
     })
     await loadFromQuiz(42, '777')
     expect(pickedTeamName(0)).toBe('First Chapel 1')
+  })
+})
+
+describe('teamNamed', () => {
+  const teams = [
+    { id: 1, name: "St. John's 1", shortName: 'SJ 1' },
+    { id: 2, name: 'SJ 1', shortName: 'Saint 1' },
+    { id: 3, name: 'St Johns 1', shortName: 'STJ 1' },
+  ]
+
+  it('finds a team by its full name, ignoring case and spacing', () => {
+    expect(teamNamed("  st. john's  1", teams)).toBe(1)
+  })
+
+  it("takes a full name before another team's short one", () => {
+    expect(teamNamed('sj 1', teams)).toBe(2)
+  })
+
+  it('sets punctuation aside only when nothing matches as written', () => {
+    expect(teamNamed('St Johns 1', teams)).toBe(3)
+    expect(teamNamed('St. Johns 1', teams)).toBe(1)
+  })
+
+  it('finds nothing for a name no team has', () => {
+    expect(teamNamed('St Jon 1', teams)).toBeUndefined()
   })
 })
 

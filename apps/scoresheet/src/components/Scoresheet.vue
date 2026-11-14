@@ -42,6 +42,7 @@ import {
   getTeamQuizzers,
   joinMeet,
   joinMeetGuest,
+  type MeetTeam,
   type ScheduledQuizSeat,
 } from '../api'
 import {
@@ -61,6 +62,7 @@ import {
 import { useAuth } from '../composables/useAuth'
 import {
   quizzersConfirmTeam,
+  teamNamed,
   teamsNearName,
   useMeetSession,
   type SlotSession,
@@ -315,40 +317,43 @@ async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
   }
 }
 
-function normalizeForMatch(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function findMatchingTeam(storeName: string) {
-  const lower = storeName.trim().toLowerCase()
-  const norm = normalizeForMatch(storeName)
-  const teams = meetSession.teamList.value
-  return (
-    teams.find((t) => meetSession.teamLabelFull(t).toLowerCase() === lower) ??
-    teams.find((t) => meetSession.teamLabel(t).toLowerCase() === lower) ??
-    teams.find(
-      (t) =>
-        normalizeForMatch(meetSession.teamLabelFull(t)) === norm ||
-        normalizeForMatch(meetSession.teamLabel(t)) === norm,
-    )
-  )
-}
-
 const filteredTeamList = computed(() =>
   meetSession.teamsForDivision(quiz.value.division ?? '', quiz.value.consolation ?? false),
 )
+
+/** A slot's candidates for a pick made on the sheet's behalf: teams no other slot has taken */
+function teamsFreeFor(slotIdx: number, teams: MeetTeam[]) {
+  const taken = new Set(
+    [0, 1, 2].filter((i) => i !== slotIdx).map((i) => meetSession.getSlot(i)?.teamId),
+  )
+  return teams
+    .filter((team) => !taken.has(team.id))
+    .map((team) => ({
+      id: team.id,
+      name: meetSession.teamLabelFull(team),
+      shortName: meetSession.teamLabel(team),
+    }))
+}
+
+/**
+ * The roster team a slot's typed name names outright. The quiz's division is looked in first,
+ * since two divisions can each have a team of that name; the rest of the meet only after, where a
+ * match shows up flagged as out of its division.
+ */
+function findMatchingTeam(slotIdx: number, typedName: string): number | undefined {
+  return (
+    teamNamed(typedName, teamsFreeFor(slotIdx, filteredTeamList.value)) ??
+    teamNamed(typedName, teamsFreeFor(slotIdx, meetSession.teamList.value))
+  )
+}
 
 async function onMeetLoaded() {
   for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
     const teamName = store.teams[teamIdx]?.name ?? ''
     if (isDefaultTeamName(teamName)) continue
-    const match = findMatchingTeam(teamName)
+    const matchId = findMatchingTeam(teamIdx, teamName)
     try {
-      if (match) await pickTeam(teamIdx, match.id)
+      if (matchId !== undefined) await pickTeam(teamIdx, matchId)
       else await pickMisspeltTeam(teamIdx, teamName)
     } catch {
       // The roster couldn't be fetched: this name stays unpicked, and the next is still tried
@@ -365,15 +370,7 @@ async function onMeetLoaded() {
 async function pickMisspeltTeam(slotIdx: number, teamName: string) {
   const meetId = meetSession.meetId.value
   if (meetId === null) return
-  const picked = new Set([0, 1, 2].map((i) => meetSession.getSlot(i)?.teamId))
-  const unpicked = filteredTeamList.value
-    .filter((team) => !picked.has(team.id))
-    .map((team) => ({
-      id: team.id,
-      name: meetSession.teamLabelFull(team),
-      shortName: meetSession.teamLabel(team),
-    }))
-  const nearTeamIds = teamsNearName(teamName, unpicked)
+  const nearTeamIds = teamsNearName(teamName, teamsFreeFor(slotIdx, filteredTeamList.value))
   if (nearTeamIds.length === 0) return
 
   const typedQuizzerNames = () =>

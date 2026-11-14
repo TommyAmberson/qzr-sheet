@@ -334,6 +334,28 @@ const SHORT_NAME_TYPO_EDITS = 1
 /** How many typed quizzers must be on a team's roster before a misspelt name is taken for it */
 const QUIZZERS_TO_CONFIRM = 2
 
+/** A name with case, punctuation and spacing set aside, so "st. john's 1" finds "St Johns 1" */
+function looseName(name: string): string {
+  return foldName(name.replace(/[^\w\s]/g, ''))
+}
+
+/**
+ * The roster team a typed name names outright, by its full name before its short one, and as
+ * written before punctuation is set aside. The first listed wins, so list the likelier teams first.
+ */
+export function teamNamed(
+  typedName: string,
+  teams: { id: number; name: string; shortName: string }[],
+): number | undefined {
+  const typed = foldName(typedName)
+  const loose = looseName(typedName)
+  return (
+    teams.find((team) => foldName(team.name) === typed) ??
+    teams.find((team) => foldName(team.shortName) === typed) ??
+    teams.find((team) => looseName(team.name) === loose || looseName(team.shortName) === loose)
+  )?.id
+}
+
 /**
  * The roster teams whose name, full or short, is a typo away from the typed one. Often more than
  * one: a church's second team is a single edit from its first, so the name alone never settles
