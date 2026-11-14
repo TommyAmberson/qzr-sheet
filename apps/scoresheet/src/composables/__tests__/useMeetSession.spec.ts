@@ -162,8 +162,20 @@ describe('useMeetSession — assignTeam', () => {
     const picking = assignTeam(0, 1, emptyNames)
     clearSession()
     arrive({ quizzers: mockQuizzers })
-    await expect(picking).resolves.toBeUndefined()
+    await expect(picking).resolves.toBe(false)
     expect(isActive.value).toBe(false)
+  })
+
+  it('drops the pick when a new quiz is begun while the roster loads', async () => {
+    let arrive!: (roster: { quizzers: typeof mockQuizzers }) => void
+    vi.mocked(getTeamQuizzers).mockReturnValueOnce(new Promise((resolve) => (arrive = resolve)))
+    const { loadMeet, assignTeam, startNewQuiz, getSlot } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    const picking = assignTeam(0, 1, emptyNames)
+    startNewQuiz()
+    arrive({ quizzers: mockQuizzers })
+    await expect(picking).resolves.toBe(false)
+    expect(getSlot(0)).toBeUndefined()
   })
 
   it('drops the pick when another meet is linked while the roster loads', async () => {

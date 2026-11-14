@@ -41,6 +41,13 @@ export interface MeetSessionData {
 
 const session = ref<MeetSessionData | null>(loadFromStorage())
 
+/**
+ * Counts the quizzes the session has stood for: stepped whenever its picks are replaced wholesale
+ * (a meet linked or unlinked, a new or scheduled quiz), so a pick still waiting on its roster can
+ * tell that the quiz it was made for is gone.
+ */
+let quizEpoch = 0
+
 export function useMeetSession() {
   const isActive = computed(() => session.value !== null)
   const meetId = computed(() => session.value?.meetId ?? null)
@@ -77,6 +84,7 @@ export function useMeetSession() {
       getMeetTeams(meetId),
       senderOf(meetId),
     ])
+    quizEpoch++
     session.value = {
       meetId,
       meetName,
@@ -149,20 +157,26 @@ export function useMeetSession() {
    */
   function applyLoadedQuiz(slots: (SlotSession | undefined)[], quizId: string): void {
     if (!session.value) return
+    quizEpoch++
     session.value = { ...session.value, slots, quizId }
     persist()
   }
 
   /** Assign a team to a slot and fetch its quizzers */
-  async function assignTeam(slotIdx: number, teamId: number, storeNames: string[]): Promise<void> {
-    if (!session.value) return
+  /** Pick a roster team for a slot. False when the pick wasn't made. */
+  async function assignTeam(
+    slotIdx: number,
+    teamId: number,
+    storeNames: string[],
+  ): Promise<boolean> {
+    if (!session.value) return false
     const team = session.value.teamList.find((t) => t.id === teamId)
-    if (!team) return
+    if (!team) return false
 
-    const meetId = session.value.meetId
-    const { quizzers } = await getTeamQuizzers(meetId, teamId)
-    // The roster took a while to arrive: the meet may have been unlinked or another linked since
-    if (session.value?.meetId !== meetId) return
+    const epoch = quizEpoch
+    const { quizzers } = await getTeamQuizzers(session.value.meetId, teamId)
+    // The roster took a while to arrive: the meet may have been unlinked, or another quiz begun
+    if (!session.value || quizEpoch !== epoch) return false
 
     session.value.slots[slotIdx] = {
       teamId,
@@ -173,6 +187,7 @@ export function useMeetSession() {
     // Trigger reactivity — slots is a plain array inside a ref
     session.value = { ...session.value, slots: [...session.value.slots] }
     persist()
+    return true
   }
 
   /** Clear the team assignment for a slot */
@@ -242,12 +257,14 @@ export function useMeetSession() {
   /** Start the next quiz in the same meet: forget this quiz's teams, keep the meet */
   function startNewQuiz(): void {
     if (!session.value) return
+    quizEpoch++
     session.value = { ...session.value, slots: [undefined, undefined, undefined], quizId: null }
     persist()
   }
 
   /** Disconnect from meet — called by Unlink meet and sign-out */
   function clearSession(): void {
+    quizEpoch++
     session.value = null
     persist()
   }
@@ -265,6 +282,7 @@ export function useMeetSession() {
 
   /** Restore a previously-snapshotted session (or clear if null). */
   function restoreSession(data: MeetSessionData | null): void {
+    quizEpoch++
     session.value = data
     persist()
   }
