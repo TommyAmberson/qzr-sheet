@@ -24,6 +24,7 @@ import {
 } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { jsonBody, meetIdOf } from '../lib/request'
+import { keepScores } from '../lib/scores'
 
 interface ResultsVariables extends SessionVariables {
   db: Db
@@ -314,9 +315,20 @@ async function addRevisions(
             savedAt,
           })),
         )
-        .returning({ revision: schema.quizResultRevisions.revision })
+        .returning({
+          id: schema.quizResultRevisions.id,
+          revision: schema.quizResultRevisions.revision,
+        })
       const results = await asOne(db, [...together(), insert])
-      return (results.at(-1) as { revision: number }[]).map((r) => r.revision)
+      const added = results.at(-1) as { id: number; revision: number }[]
+      await keepScores(
+        db,
+        added.flatMap(({ id }, i) => {
+          const quizFile = rows[i]!.quizFile
+          return quizFile ? [{ id, quizFile }] : []
+        }),
+      )
+      return added.map((r) => r.revision)
     } catch (e) {
       if (attempt < 3 && isRevisionClash(e)) continue
       throw e
@@ -405,11 +417,15 @@ results.post('/:id/results', async (c) => {
           revision: 1,
           savedAt: now,
         })
-        .returning({ revision: schema.quizResultRevisions.revision })
+        .returning({
+          id: schema.quizResultRevisions.id,
+          revision: schema.quizResultRevisions.revision,
+        })
       const [quizRows, revisionRows] = (await asOne(db, [createdQuiz, firstRevision])) as [
         { id: number }[],
-        { revision: number }[],
+        { id: number; revision: number }[],
       ]
+      await keepScores(db, [{ id: revisionRows[0]!.id, quizFile: json }])
       return c.json(
         { id: quizRows[0]!.id, revision: revisionRows[0]!.revision, created: true },
         201,

@@ -17,6 +17,17 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+### Added
+
+* `GET /api/meets/:id/stats` and `GET /api/meets/:id/stats/:division`, for admins: a meet's
+  divisions with their states, and one division's quizzes by stage with its prelim standings,
+  computed by the shared `divisionStats`. Mounted where guest tokens reach it, ahead of the
+  account-only routers
+* Table `quiz_result_scores` (migration `0013`): what scoring makes of a revision's quiz file, kept
+  when the revision is saved and keyed by the `@qzr/shared` version that scored it, so a stats
+  request ranks without scoring. A division with scores missing, or made by another shared version,
+  scores a few per request and answers 503 with `Retry-After: 1` until all are kept
+
 ## [0.25.0] - 2026-11-11
 
 ### Added

@@ -27,6 +27,7 @@ describe('scoreStoredQuiz', () => {
       { name: 'Team C', score: 100, regulationScore: 100, errors: 2, place: 2 },
     ])
     expect(scored.problems).toEqual([])
+    expect(scored.name).toBe('D1 Q1')
   })
 
   it("gives each named quizzer's points, errors and correct answers, bonuses adding nothing", () => {

@@ -20,6 +20,7 @@ function stats(quizzes: StatsQuiz[]) {
 /** A quiz three teams finished in the order given, 100, 60 and 20 points */
 function scoredQuiz(first: string, second: string, third: string): ScoredQuiz {
   return {
+    name: 'D1 Q1',
     formula: PlacementFormula.Rules,
     teams: [first, second, third].map((name, i) => ({
       name,

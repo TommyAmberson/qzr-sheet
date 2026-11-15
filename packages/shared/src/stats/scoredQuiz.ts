@@ -1,5 +1,6 @@
 import { CellValue, type PlacementFormula, type QuizFile } from '../quizFile'
 import { deserialize } from '../quizFileCodec'
+import { quizName } from '../results'
 import {
   computeOtCheckpointScores,
   computeRegulationScores,
@@ -57,6 +58,8 @@ export type ScoringProblem =
  * and later decisions change.
  */
 export interface ScoredQuiz {
+  /** The quiz's name, as officials know it: "D1 Q3" */
+  name: string
   /** The quiz's own way of giving level teams placement points */
   formula: PlacementFormula
   /** In seat order */
@@ -153,5 +156,5 @@ export function scoreStoredQuiz(file: QuizFile): ScoredQuiz {
   }
   if (unanswered.length > 0) problems.push({ kind: 'unanswered', questions: unanswered })
 
-  return { formula: quiz.placementFormula, teams, problems }
+  return { name: quizName(quiz), formula: quiz.placementFormula, teams, problems }
 }
