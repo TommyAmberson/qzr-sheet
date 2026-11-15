@@ -104,7 +104,8 @@ export function useScoresheet() {
     noJumpMap.value = restored.noJumps
     timeoutMap.value = restored.timeouts
     internalOtRounds.value = computeInitialOtRounds(restored)
-    if (restored.answers.length > 0 || restored.quizzers.some((q) => q.name.trim())) {
+    const named = [...restored.teams, ...restored.quizzers].some(({ name }) => name.trim())
+    if (restored.answers.length > 0 || named) {
       history.push({ undo: () => {}, redo: () => {} })
     }
   } else {
@@ -667,16 +668,11 @@ export function useScoresheet() {
     saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
 
-  /** Reset all team and quizzer names to defaults (Team 1/2/3, Quizzer 1/2/3/4) */
+  /** Blank every team and quizzer name, as a new quiz has them */
   function clearNames() {
-    const sortedTeams = [...store.teams].sort((a, b) => a.seatOrder - b.seatOrder)
-    for (let i = 0; i < sortedTeams.length; i++) {
-      const team = sortedTeams[i]!
-      store.setTeamName(team.id, `Team ${i + 1}`)
-      const qzrs = store.quizzersByTeam(team.id)
-      for (let j = 0; j < qzrs.length; j++) {
-        store.setQuizzerName(qzrs[j]!.id, j < 4 ? `Quizzer ${j + 1}` : '')
-      }
+    for (const team of store.teams) {
+      store.setTeamName(team.id, '')
+      for (const quizzer of store.quizzersByTeam(team.id)) store.setQuizzerName(quizzer.id, '')
     }
     history.clear()
     saveToStorage(store, noJumpMap.value, timeoutMap.value)

@@ -5,11 +5,9 @@ import { toQuizzerId } from '@qzr/shared'
 describe('editable names', () => {
   // --- Team names ---
 
-  it('teams have default names', () => {
+  it('teams start with no name', () => {
     const store = createQuizStore()
-    expect(store.teams[0]!.name).toBe('Team 1')
-    expect(store.teams[1]!.name).toBe('Team 2')
-    expect(store.teams[2]!.name).toBe('Team 3')
+    expect(store.teams.map((t) => t.name)).toEqual(['', '', ''])
   })
 
   it('setTeamName updates a team name', () => {
@@ -22,7 +20,7 @@ describe('editable names', () => {
     const store = createQuizStore()
     store.setTeamName(999, 'Nope')
     // No crash, names unchanged
-    expect(store.teams.map((t) => t.name)).toEqual(['Team 1', 'Team 2', 'Team 3'])
+    expect(store.teams.map((t) => t.name)).toEqual(['', '', ''])
   })
 
   it('setTeamName allows empty string', () => {
@@ -33,14 +31,10 @@ describe('editable names', () => {
 
   // --- Quizzer names ---
 
-  it('quizzers have default names (5th is empty seat)', () => {
+  it('quizzers start with no name', () => {
     const store = createQuizStore()
     for (const team of store.teams) {
-      const quizzers = store.quizzersByTeam(team.id)
-      for (let i = 0; i < 4; i++) {
-        expect(quizzers[i]!.name).toBe(`Quizzer ${i + 1}`)
-      }
-      expect(quizzers[4]!.name).toBe('')
+      expect(store.quizzersByTeam(team.id).map((q) => q.name)).toEqual(['', '', '', '', ''])
     }
   })
 
@@ -54,13 +48,9 @@ describe('editable names', () => {
   it('setQuizzerName does nothing for unknown quizzer', () => {
     const store = createQuizStore()
     store.setQuizzerName(toQuizzerId(999), 'Nope')
-    // No crash — first 4 still have names, 5th still empty
+    // No crash, and every seat still blank
     for (const team of store.teams) {
-      const quizzers = store.quizzersByTeam(team.id)
-      for (let i = 0; i < 4; i++) {
-        expect(quizzers[i]!.name).toBe(`Quizzer ${i + 1}`)
-      }
-      expect(quizzers[4]!.name).toBe('')
+      expect(store.quizzersByTeam(team.id).map((q) => q.name)).toEqual(['', '', '', '', ''])
     }
   })
 
@@ -78,6 +68,6 @@ describe('editable names', () => {
     store.setQuizzerName(qzrs[1]!.id, 'Bob')
     expect(qzrs[0]!.name).toBe('Alice')
     expect(qzrs[1]!.name).toBe('Bob')
-    expect(qzrs[2]!.name).toBe('Quizzer 3')
+    expect(qzrs[2]!.name).toBe('')
   })
 })

@@ -204,8 +204,8 @@ describe('quizStore', () => {
 
   it('quiz has default values', () => {
     const store = createQuizStore()
-    expect(store.quiz.division).toBe('1')
-    expect(store.quiz.quizNumber).toBe('1')
+    expect(store.quiz.division).toBe('')
+    expect(store.quiz.quizNumber).toBe('')
     expect(store.quiz.overtime).toBe(false)
   })
 

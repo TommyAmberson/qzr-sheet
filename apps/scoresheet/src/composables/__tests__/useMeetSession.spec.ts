@@ -738,9 +738,9 @@ describe('useMeetSession — teamsForDivision', () => {
     await loadMeet(42, 'Finals')
   })
 
-  it('returns all teams when division is empty string', () => {
+  it('returns no teams while the quiz has no division', () => {
     const { teamsForDivision } = useMeetSession()
-    expect(teamsForDivision('', false)).toHaveLength(2)
+    expect(teamsForDivision('', false)).toHaveLength(0)
   })
 
   it('returns only non-consolation teams for a base division', () => {

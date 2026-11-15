@@ -25,11 +25,12 @@ vi.mock('../../api', async () => ({
 vi.mock('../../persistence/fileIO', async () => ({
   ...(await vi.importActual<typeof import('../../persistence/fileIO')>('../../persistence/fileIO')),
   openAnyQuizFile: vi.fn(),
+  saveQuizToFile: vi.fn(async () => true),
   confirmAction: vi.fn(async () => false),
 }))
 
 import { getMyMeets, getSender } from '../../api'
-import { confirmAction, openAnyQuizFile } from '../../persistence/fileIO'
+import { confirmAction, openAnyQuizFile, saveQuizToFile } from '../../persistence/fileIO'
 import Scoresheet from '../Scoresheet.vue'
 import { useMeetSession, type MeetSessionData } from '../../composables/useMeetSession'
 import { useSubmitToMeet } from '../../composables/useSubmitToMeet'
@@ -115,7 +116,7 @@ describe('opening a file in a linked meet', () => {
       "Saskatoon 1: not picked from the meet's teams",
       'Team 3: no team picked',
     ]
-    expect(wrapper.get('.meta-name-warnings').attributes('title')).toBe(warnings.join('\n'))
+    expect(wrapper.get('.meta-meet-warnings').attributes('title')).toBe(warnings.join('\n'))
 
     const button = (label: string) =>
       wrapper.findAll('button').find((candidate) => candidate.text().includes(label))!
@@ -123,7 +124,7 @@ describe('opening a file in a linked meet', () => {
     await button('Submit to meet').trigger('click')
     await flushPromises()
     expect(confirmAction).toHaveBeenLastCalledWith(
-      `Check these names:\n${warnings.join('\n')}\n\nSubmit anyway?`,
+      `Check these:\n${warnings.join('\n')}\n\nSubmit anyway?`,
     )
     wrapper.unmount()
   })
@@ -144,7 +145,7 @@ describe('opening a file in a linked meet', () => {
     await button('Submit to meet').trigger('click')
     await flushPromises()
     const question = vi.mocked(confirmAction).mock.lastCall?.[0]
-    expect(question).toMatch(/^Scoring errors .*\n.+\n\nCheck these names:/)
+    expect(question).toMatch(/^Scoring errors .*\n.+\n\nCheck these:/)
     expect(question).toMatch(/Submit anyway\?$/)
     wrapper.unmount()
   })
@@ -176,7 +177,64 @@ describe('opening a file in a linked meet', () => {
     await flushPromises()
     const question = vi.mocked(confirmAction).mock.lastCall?.[0]
     expect(question).toMatch(/^Scoring errors /)
-    expect(question).not.toContain('Check these names')
+    expect(question).not.toContain('Check these')
+    wrapper.unmount()
+  })
+
+  // "_" is what a file name shows for a blank, and counts as one
+  it.each(['', '_'])(
+    'warns of division and quiz number "%s", and asks before sending',
+    async (blank) => {
+      vi.mocked(openAnyQuizFile).mockResolvedValue({
+        type: 'json',
+        content: JSON.stringify({
+          ...savedQuiz,
+          quiz: { ...savedQuiz.quiz, division: blank, quizNumber: blank },
+        }),
+      })
+      const wrapper = mount(Scoresheet)
+      await flushPromises()
+      await wrapper.vm.openFile()
+      await flushPromises()
+
+      const button = (label: string) =>
+        wrapper.findAll('button').find((candidate) => candidate.text().includes(label))!
+      await button('Save').trigger('click')
+      await button('Submit to meet').trigger('click')
+      await flushPromises()
+      expect(wrapper.get('.meta-meet-warnings').attributes('title')).toContain(
+        'Division: none chosen',
+      )
+      expect(vi.mocked(confirmAction).mock.lastCall?.[0]).toContain(
+        'Division: none chosen\nQuiz: no number given',
+      )
+      wrapper.unmount()
+    },
+  )
+
+  it("gives a new quiz the meet's division when it has only one", async () => {
+    useMeetSession().restoreSession({ ...structuredClone(linked), meetDivisions: ['1'] })
+    const wrapper = mount(Scoresheet)
+    await flushPromises()
+
+    expect(wrapper.get<HTMLSelectElement>('.division-select').element.value).toBe('1')
+    wrapper.unmount()
+  })
+})
+
+describe('saving a quiz', () => {
+  it('names the file of a quiz with no division or number "D_Q_"', async () => {
+    const wrapper = mount(Scoresheet)
+    await flushPromises()
+    await wrapper.vm.newQuiz()
+    await flushPromises()
+
+    const button = (label: string) =>
+      wrapper.findAll('button').find((candidate) => candidate.text().includes(label))!
+    await button('Save').trigger('click')
+    await button('Save as JSON').trigger('click')
+    await flushPromises()
+    expect(vi.mocked(saveQuizToFile).mock.lastCall?.[1]).toBe('D_Q_.json')
     wrapper.unmount()
   })
 })

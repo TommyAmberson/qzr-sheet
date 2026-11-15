@@ -59,12 +59,19 @@ export function useMeetSession() {
   const divisionOptions = computed((): string[] => session.value?.meetDivisions ?? [])
 
   /**
-   * Filter the team list by division and consolation status.
-   * "" division → all teams (no filter).
+   * Whether the linked meet lists divisions and this isn't one of them. Blank isn't: the meet has
+   * no division called nothing, the way its roster has no team called nothing.
+   */
+  function lacksDivision(division: string): boolean {
+    return divisionOptions.value.length > 0 && !divisionOptions.value.includes(division)
+  }
+
+  /**
+   * The teams of a division, consolation or not. A quiz with no division yet has none: offering
+   * the whole meet would let a team be picked with nothing to say it's in the wrong division.
    */
   function teamsForDivision(division: string, consolation: boolean): MeetTeam[] {
     const all = session.value?.teamList ?? []
-    if (!division) return all
     return all.filter((t) => t.division === division && t.consolation === consolation)
   }
 
@@ -322,6 +329,7 @@ export function useMeetSession() {
     teamList,
     quizId,
     divisionOptions,
+    lacksDivision,
     teamsForDivision,
     teamLabel,
     teamLabelFull,
