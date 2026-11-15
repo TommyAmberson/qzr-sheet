@@ -23,6 +23,19 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-14
+
+### Added
+
+* `scoreStoredQuiz` and `ScoredQuiz`: what scoring makes of one stored quiz file, for keeping beside
+  a stored revision. Per team its name, score, score before overtime, errors and place by score; per
+  named quizzer the points, errors, correct answers and correct answers by question type; the quiz's
+  own placement formula; and every scoring problem, each validation error with its team, quizzer,
+  question and code, and the unanswered questions. It holds no placement points, since a meet's
+  settings decide those
+* `assessStoredQuiz`: the one pass over a stored quiz that `quizOutcome` and `scoreStoredQuiz` both
+  read
+
 ## [1.10.0] - 2026-11-12
 
 ### Added

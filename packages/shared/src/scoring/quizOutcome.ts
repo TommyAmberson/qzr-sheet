@@ -60,8 +60,12 @@ export interface QuizOutcome {
   teams: TeamOutcome[]
 }
 
-/** A stored quiz's result, scored and placed exactly as the scoresheet shows it */
-export function quizOutcome(content: DeserializeResult): QuizOutcome {
+/**
+ * One pass over a stored quiz, as the scoresheet makes it: its columns, its cells in seat order, the
+ * assessment of the whole quiz and each team's scoring. Everything read from a stored quiz starts
+ * here, so nothing is scored a second way.
+ */
+export function assessStoredQuiz(content: DeserializeResult) {
   const { quiz, teams, quizzers, answers, noJumps, timeouts } = content
   const rules = quizRules(quiz.format)
   const answerAt = answerLookup(answers)
@@ -72,12 +76,13 @@ export function quizOutcome(content: DeserializeResult): QuizOutcome {
   const seated = inSeatOrder(teams, quizzers)
   const cells = buildCellGrid(teams, quizzers, columns, answerAt)
   const onTimes = seated.map(({ team }) => team.onTime)
+  const noJumpColumns = columns.map((c) => noJumps.get(c.key) ?? false)
 
   const assessment = assessQuiz({
     cells,
     columns,
     rules,
-    noJumps: columns.map((c) => noJumps.get(c.key) ?? false),
+    noJumps: noJumpColumns,
     onTimes,
     overtime: quiz.overtime,
     bonusRule: quiz.bonusRule,
@@ -85,11 +90,21 @@ export function quizOutcome(content: DeserializeResult): QuizOutcome {
     emptySeats: emptySeatKeys(seated.map((s) => s.quizzers)),
     timeouts: seated.map(({ team }) => timeouts.get(team.id) ?? []),
   })
+  const scorings = seated.map(({ team }, teamIdx) =>
+    scoreTeam(cells[teamIdx]!, columns, team.onTime, rules),
+  )
+
+  return { rules, columns, seated, cells, onTimes, noJumpColumns, assessment, scorings }
+}
+
+/** A stored quiz's result, scored and placed exactly as the scoresheet shows it */
+export function quizOutcome(content: DeserializeResult): QuizOutcome {
+  const { seated, assessment, scorings } = assessStoredQuiz(content)
 
   return {
     placed: assessment.placements.every((p) => p !== null),
     teams: seated.map(({ team }, teamIdx) => {
-      const scoring = scoreTeam(cells[teamIdx]!, columns, team.onTime, rules)
+      const scoring = scorings[teamIdx]!
       return {
         name: team.name,
         score: scoring.total,
