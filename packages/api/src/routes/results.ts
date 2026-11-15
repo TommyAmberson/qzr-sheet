@@ -24,6 +24,7 @@ import {
 } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { jsonBody, meetIdOf } from '../lib/request'
+import { isCounted, latestRevision } from '../lib/resultsSql'
 import { keepScores } from '../lib/scores'
 
 interface ResultsVariables extends SessionVariables {
@@ -182,25 +183,6 @@ function validFile(c: Context<Env>, quizFile: unknown): string | Response {
   if (!isQuizFile(quizFile)) return c.json({ error: 'Quiz file values have the wrong types' }, 400)
   return json
 }
-
-/**
- * The enclosing query's stored quiz, for a subquery. Always qualified: drizzle leaves a column
- * unqualified in a one-table select, where inside a subquery it would name the subquery's own.
- */
-const storedQuizId = sql`${schema.quizResults}.${sql.identifier('id')}`
-
-/** The newest revision of the stored quiz in the enclosing query, which is its current one */
-const latestRevision = sql<number>`(
-  SELECT MAX(latest.revision) FROM quiz_result_revisions latest
-  WHERE latest.result_id = ${storedQuizId}
-)`
-
-/** Whether the stored quiz in the enclosing query counts: its newest counting record says so */
-const isCounted = sql`COALESCE((
-  SELECT newest.counted FROM quiz_result_count_changes newest
-  WHERE newest.result_id = ${storedQuizId}
-  ORDER BY newest.id DESC LIMIT 1
-), 0)`.mapWith(Boolean)
 
 /** The revision a selecting revision points at, for its quiz file */
 const source = alias(schema.quizResultRevisions, 'source')

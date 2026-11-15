@@ -1,5 +1,5 @@
 import { foldName, tidyName } from '../results'
-import { mostUsedSpelling } from './standings'
+import { countSpelling, mostUsedSpelling } from './standings'
 
 /** One quizzer's figures in one quiz, as scoring gives them: nothing from bonuses or overtime */
 export interface QuizzerFigures {
@@ -66,11 +66,6 @@ interface TeamTally {
 interface QuizzerTally {
   spellings: Map<string, number>
   lines: QuizzerStanding['lines']
-}
-
-function countSpelling(spellings: Map<string, number>, name: string) {
-  const spelling = tidyName(name)
-  spellings.set(spelling, (spellings.get(spelling) ?? 0) + 1)
 }
 
 function addTypes(into: Record<string, number>, types: Record<string, number>) {

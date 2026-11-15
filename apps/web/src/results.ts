@@ -1,4 +1,5 @@
 import {
+  byNumber,
   deserialize,
   foldName,
   quizName,
@@ -29,8 +30,6 @@ export interface DivisionResults {
   division: string
   quizzes: ResultRow[]
 }
-
-const byNumber = new Intl.Collator(undefined, { numeric: true })
 
 /** A meet's stored quizzes grouped by the division each one records, as written */
 export function groupResults(stored: StoredQuiz[]): DivisionResults[] {

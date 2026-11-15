@@ -1,7 +1,16 @@
 export { AccountRole, MeetRole, effectiveAccountRole } from './roles'
 export { MEET_PHASES, DIVISION_STATES } from './phases'
 export type { MeetPhase, DivisionStateValue } from './phases'
-export { RESULT_ACTIONS, editDistance, foldName, quizName, resultKey, tidyName } from './results'
+export {
+  RESULT_ACTIONS,
+  byNumber,
+  editDistance,
+  foldName,
+  quizName,
+  resultKey,
+  resultKeyDivision,
+  tidyName,
+} from './results'
 export type { DivisionTeamNames, ResultAction } from './results'
 export {
   QuizFileSchema,

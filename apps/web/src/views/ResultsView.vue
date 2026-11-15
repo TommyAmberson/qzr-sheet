@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
-import { ApiError, MeetRole, type DivisionStats } from '@qzr/shared'
+import { ApiError, MeetRole, placeRank, placeTieCount, type DivisionStats } from '@qzr/shared'
 import {
   ChoiceDialog,
   formatSlotTime,
@@ -23,7 +23,7 @@ import {
   type StoredQuiz,
 } from '../api'
 import { groupResults, mergeEdits, type ResultRow } from '../results'
-import { warningText } from '../stats'
+import { placeLabel, warningText } from '../stats'
 import { useRoomCode } from '../composables/useRoomCode'
 
 const props = defineProps<{ slug: string }>()
@@ -215,14 +215,6 @@ async function mergeNames(
   }
 }
 
-const ORDINALS = ['', '1st', '2nd', '3rd']
-
-/** A place key counts teams sharing it after the decimal point (1.2: two tied for first) */
-function placeLabel(place: number): string {
-  const label = ORDINALS[Math.floor(place)] ?? String(place)
-  return Number.isInteger(place) ? label : `tied ${label}`
-}
-
 onMounted(load)
 </script>
 
@@ -350,7 +342,8 @@ onMounted(load)
                   <li v-for="(team, seat) in quiz.teams" :key="seat">
                     {{ team.name }} <strong>{{ team.score }}</strong>
                     <span v-if="team.place !== null" class="note">
-                      {{ placeLabel(team.place) }}, {{ team.placementPoints }} pts
+                      {{ placeLabel(placeRank(team.place), placeTieCount(team.place)) }},
+                      {{ team.placementPoints }} pts
                     </span>
                   </li>
                   <li v-if="!quiz.placed" class="note">not placed yet</li>

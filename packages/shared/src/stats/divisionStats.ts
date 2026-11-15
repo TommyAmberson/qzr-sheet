@@ -1,6 +1,6 @@
 import type { DivisionStateValue, MeetPhase } from '../phases'
-import { foldName, tidyName } from '../results'
-import { computePlacementPoints } from '../scoring/placement'
+import { byNumber, foldName, tidyName } from '../results'
+import { computePlacementPoints, placeRank, placeTieCount } from '../scoring/placement'
 import type { QuizOutcome } from '../scoring/quizOutcome'
 import { quizzerStandings, type QuizzerList } from '../scoring/quizzerStandings'
 import { divisionStandings, type TieBreak } from '../scoring/standings'
@@ -159,7 +159,7 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
           .map((scoredTeam) => ({
             quiz: name,
             stage,
-            place: scoredTeam.place === null ? null : Math.floor(scoredTeam.place),
+            place: scoredTeam.place === null ? null : placeRank(scoredTeam.place),
             score: scoredTeam.score,
             placementPoints: placementPointsOf(scoredTeam, scored),
             errors: scoredTeam.errors,
@@ -190,9 +190,6 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
 
   return { division, state, phase, results, prelimStandings, quizzers, warnings }
 }
-
-/** Quiz names in the order people count them: Q2 before Q10 */
-const byNumber = new Intl.Collator('en', { numeric: true })
 
 /** Whether a quiz adds to the tables: one in error adds nothing */
 function counts(quiz: StatsQuiz): boolean {
@@ -232,13 +229,12 @@ function quizResult(quiz: StatsQuiz): QuizResult {
     name: quiz.name,
     status: 'counted',
     teams: named.map((team) => {
-      // A place key's fraction is how many teams share the place: 1.2 is a two-way tie for first
-      const place = team.place === null ? undefined : (Math.floor(team.place) as 1 | 2 | 3)
-      const tiedWith = team.place === null ? 0 : Math.round((team.place % 1) * 10)
+      const place = team.place === null ? undefined : placeRank(team.place)
+      const tiedWith = team.place === null ? 1 : placeTieCount(team.place)
       return {
         name: tidyName(team.name),
         ...(place ? { place } : {}),
-        ...(tiedWith ? { tiedWith } : {}),
+        ...(tiedWith > 1 ? { tiedWith } : {}),
         score: team.score,
       }
     }),

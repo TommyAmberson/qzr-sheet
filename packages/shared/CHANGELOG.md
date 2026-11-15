@@ -44,7 +44,11 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   quizzers sharing a place; the quizzers of consolation teams ranked apart; flags for a quizzer
   listed in a different number of quizzes from their team and for question types that don't add up.
   `divisionStats` gives it as `quizzers`, a `QuizzerTable`, over every counting quiz but a Finals
-* `mostUsedSpelling`, the spelling a name is shown under, which the team standings already used
+* `mostUsedSpelling` and `countSpelling`, the spelling a name is shown under and its tally, which
+  the team standings already used
+* `incompleteQuestions`, the questions of a range not yet filled out, which `questionsComplete` now
+  reads; `placeRank` and `placeTieCount`, which read a `PlaceKey`; `byNumber`, the order quiz and
+  division names are listed in; and `resultKeyDivision`, the division a result key names
 
 ## [1.10.0] - 2026-11-12
 

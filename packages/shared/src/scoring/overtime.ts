@@ -211,15 +211,29 @@ export function questionsComplete(
   fromQ: number,
   toQ: number,
 ): boolean {
+  return incompleteQuestions(cellData, cols, noJumps, fromQ, toQ).length === 0
+}
+
+/** The questions of a range that are not yet filled out, by the same cascade, in order */
+export function incompleteQuestions(
+  cellData: CellValue[][][],
+  cols: Column[],
+  noJumps: boolean[],
+  fromQ: number,
+  toQ: number,
+): number[] {
   const keyToIdx = buildKeyToIdx(cols)
   const { colStatuses } = computeGreyedOut(cellData, cols)
+  const incomplete: number[] = []
   for (let colIdx = 0; colIdx < cols.length; colIdx++) {
     const col = cols[colIdx]!
     if (col.type !== '') continue
     if (col.number < fromQ || col.number > toQ) continue
-    if (!questionGroupComplete(colStatuses, cols, noJumps, keyToIdx, colIdx)) return false
+    if (!questionGroupComplete(colStatuses, cols, noJumps, keyToIdx, colIdx)) {
+      incomplete.push(col.number)
+    }
   }
-  return true
+  return incomplete
 }
 
 /**

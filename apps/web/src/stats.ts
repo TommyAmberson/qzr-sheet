@@ -16,9 +16,9 @@ export const TIE_BREAKS: Record<TieBreak, string> = {
 const ORDINALS = ['', '1st', '2nd', '3rd']
 
 /** A team's place in a quiz: "2nd", or "tied 1st" when teams share it */
-export function placeLabel(place: number, tiedWith?: number): string {
+export function placeLabel(place: number, tiedWith = 1): string {
   const label = ORDINALS[place] ?? String(place)
-  return tiedWith ? `tied ${label}` : label
+  return tiedWith > 1 ? `tied ${label}` : label
 }
 
 /** One thing wrong with a stored quiz, as a line an admin can act on */

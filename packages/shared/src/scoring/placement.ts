@@ -110,6 +110,16 @@ function placeKey(rank: number, tieCount: number): PlaceKey {
   return parseFloat(`${rank}.${tieCount}`) as PlaceKey
 }
 
+/** The rank a PlaceKey stands for: 1 for both 1 and 1.2 */
+export function placeRank(place: PlaceKey): 1 | 2 | 3 {
+  return Math.floor(place) as 1 | 2 | 3
+}
+
+/** How many teams share a PlaceKey's rank: 2 for 1.2, and 1 for a place held alone */
+export function placeTieCount(place: PlaceKey): number {
+  return Number.isInteger(place) ? 1 : Math.round((place % 1) * 10)
+}
+
 function allTeamIndices(count: number): number[] {
   return Array.from({ length: count }, (_, i) => i)
 }

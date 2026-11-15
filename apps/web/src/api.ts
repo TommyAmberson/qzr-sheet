@@ -571,13 +571,6 @@ export function setResultsCounted(
 
 // ---- Stats (specs/006-meet-stats/contracts/stats-api.md) ----
 
-/** The meet's divisions with their states, in the meet's order */
-export function listStatsDivisions(
-  meetId: number,
-): Promise<{ phase: MeetPhase; divisions: { division: string; state: DivisionStateValue }[] }> {
-  return request(`/api/meets/${meetId}/stats`)
-}
-
 /** How long to keep asking for stats the API is still preparing, one try a second */
 const STATS_TRIES = 60
 

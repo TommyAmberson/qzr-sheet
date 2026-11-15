@@ -97,11 +97,14 @@ export function divisionStandings(quizzes: CountedQuiz[]): DivisionStandings {
     const rank = teams.length + 1
     const finalist = teams.length + tied.length <= FINALISTS
     if (!finalist && teams.length < FINALISTS) {
-      warnings.push({ kind: 'finalTie', teams: tied.map(nameOf) })
+      warnings.push({
+        kind: 'finalTie',
+        teams: tied.map((tally) => mostUsedSpelling(tally.spellings)),
+      })
     }
     for (const tally of tied) {
       teams.push({
-        name: nameOf(tally),
+        name: mostUsedSpelling(tally.spellings),
         placementPoints: tally.placementPoints,
         quizzes: tally.quizzes,
         rank,
@@ -152,9 +155,14 @@ function tallyOf(tallies: Map<string, Tally>, name: string): Tally {
     }
     tallies.set(key, tally)
   }
-  const spelling = tidyName(name)
-  tally.spellings.set(spelling, (tally.spellings.get(spelling) ?? 0) + 1)
+  countSpelling(tally.spellings, name)
   return tally
+}
+
+/** Count one more use of a name's spelling, as it is shown */
+export function countSpelling(spellings: Map<string, number>, name: string) {
+  const spelling = tidyName(name)
+  spellings.set(spelling, (spellings.get(spelling) ?? 0) + 1)
 }
 
 /** The most-used spelling of a name, a tie going to the one seen first */
@@ -165,10 +173,6 @@ export function mostUsedSpelling(spellings: Map<string, number>): string {
     if (count > bestCount) [best, bestCount] = [spelling, count]
   }
   return best
-}
-
-function nameOf(tally: Tally): string {
-  return mostUsedSpelling(tally.spellings)
 }
 
 /** Whether one team finished a quiz above another; teams sharing a place are level */

@@ -4,24 +4,13 @@ import { quizName } from '../results'
 import {
   computeOtCheckpointScores,
   computeRegulationScores,
-  questionsComplete,
+  incompleteQuestions,
 } from '../scoring/overtime'
 import { computePlacements } from '../scoring/placement'
 import { assessStoredQuiz } from '../scoring/quizOutcome'
+import type { QuizzerFigures } from '../scoring/quizzerStandings'
 import { ValidationCode } from '../scoring/validation'
 import type { PlaceKey } from '../types/scoresheet'
-
-/** One quizzer's figures in one quiz: nothing from bonus questions or overtime */
-export interface ScoredQuizzer {
-  name: string
-  points: number
-  /** Errors outside overtime, whether or not they cost points */
-  errors: number
-  /** Correct answers outside overtime; with `errors`, the quizzer's jumps */
-  correct: number
-  /** Correct answers by question type, for the questions whose type the quiz records */
-  types: Record<string, number>
-}
 
 export interface ScoredTeam {
   name: string
@@ -37,7 +26,7 @@ export interface ScoredTeam {
    */
   place: PlaceKey | null
   /** The quizzers named on the sheet, in seat order */
-  quizzers: ScoredQuizzer[]
+  quizzers: QuizzerFigures[]
 }
 
 /** What is wrong with a quiz that the quiz alone shows */
@@ -116,47 +105,43 @@ export function scoreStoredQuiz(file: QuizFile): ScoredQuiz {
   })
 
   const problems: ScoringProblem[] = []
+  const invalid = (
+    teamIdx: number,
+    seatIdx: number | null,
+    colIdx: number | null,
+    code: ValidationCode,
+  ) =>
+    problems.push({
+      kind: 'validation',
+      team: seated[teamIdx]!.team.name,
+      quizzer: seatIdx === null ? null : (seated[teamIdx]!.quizzers[seatIdx]?.name ?? null),
+      question: colIdx === null ? null : columns[colIdx]!.key,
+      code,
+    })
   for (const [colIdx, seats] of [...assessment.validationErrors].sort(([a], [b]) => a - b)) {
     for (const [seat, codes] of seats) {
       const [teamIdx, seatIdx] = seat.split(':').map(Number) as [number, number]
-      for (const code of codes) {
-        problems.push({
-          kind: 'validation',
-          team: seated[teamIdx]!.team.name,
-          quizzer: seated[teamIdx]!.quizzers[seatIdx]?.name ?? null,
-          question: columns[colIdx]!.key,
-          code,
-        })
-      }
+      for (const code of codes) invalid(teamIdx, seatIdx, colIdx, code)
     }
   }
   for (const [teamIdx, columnIdxs] of assessment.timeoutErrorsByTeam) {
     for (const colIdx of columnIdxs) {
-      problems.push({
-        kind: 'validation',
-        team: seated[teamIdx]!.team.name,
-        quizzer: null,
-        question: columns[colIdx]!.key,
-        code: ValidationCode.TimeoutAfterErrorPoints,
-      })
+      invalid(teamIdx, null, colIdx, ValidationCode.TimeoutAfterErrorPoints)
     }
   }
   for (const teamIdx of assessment.tooManyTimeoutsTeams) {
-    problems.push({
-      kind: 'validation',
-      team: seated[teamIdx]!.team.name,
-      quizzer: null,
-      question: null,
-      code: ValidationCode.TooManyTimeouts,
-    })
+    invalid(teamIdx, null, null, ValidationCode.TooManyTimeouts)
   }
-  const unanswered: string[] = []
-  for (let question = 1; question <= rules.regulationQuestions; question++) {
-    if (!questionsComplete(cells, columns, noJumpColumns, question, question)) {
-      unanswered.push(String(question))
-    }
+  const unanswered = incompleteQuestions(
+    cells,
+    columns,
+    noJumpColumns,
+    1,
+    rules.regulationQuestions,
+  )
+  if (unanswered.length > 0) {
+    problems.push({ kind: 'unanswered', questions: unanswered.map(String) })
   }
-  if (unanswered.length > 0) problems.push({ kind: 'unanswered', questions: unanswered })
 
   return {
     name: quizName(quiz),
