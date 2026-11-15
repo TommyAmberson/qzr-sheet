@@ -103,18 +103,14 @@ onMounted(() => {
   void loadFromUrlParams()
 })
 
-/** True when any team or quizzer name has been edited away from
- *  the auto-generated defaults. Used to gate the overwrite confirm
- *  before loading from schedule. */
-function hasNonDefaultNames(): boolean {
-  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
-    if (!isDefaultTeamName(store.teams[teamIdx]?.name ?? '')) return true
-    const storeTeamId = store.teams[teamIdx]!.id
-    for (const q of store.quizzersByTeam(storeTeamId)) {
-      if (!isDefaultQuizzerName(q.name)) return true
-    }
-  }
-  return false
+/** True when any team or quizzer has a name. Gates the overwrite confirm before loading from
+ *  schedule. */
+function hasTypedNames(): boolean {
+  return store.teams.some(
+    (team) =>
+      team.name.trim() !== '' ||
+      store.quizzersByTeam(team.id).some((quizzer) => quizzer.name.trim() !== ''),
+  )
 }
 
 /** Single entry point for loading a scheduled quiz into the
@@ -124,7 +120,7 @@ function hasNonDefaultNames(): boolean {
  *  commits all slot updates in one atomic write. Returns true on
  *  success so the picker dialog can decide whether to close. */
 async function loadScheduledQuiz(meetId: number, quizId: string): Promise<boolean> {
-  if (hasNonDefaultNames()) {
+  if (hasTypedNames()) {
     if (!(await confirmAction('Loading this quiz will overwrite your current names. Continue?'))) {
       return false
     }
@@ -158,10 +154,9 @@ async function loadScheduledQuiz(meetId: number, quizId: string): Promise<boolea
 /** Decide what to do for one seat. Three branches, in order:
  *  - Same team as before — refresh team display, leave quizzer
  *    names alone.
- *  - Different team but every non-default typed name appears in
- *    the incoming roster (case-insensitive, any order) — keep
- *    the user's name positions, fill any default seats with the
- *    unused roster names.
+ *  - Different team but every typed name appears in the incoming
+ *    roster (case-insensitive, any order) — keep the user's name
+ *    positions, fill the blank seats with the unused roster names.
  *  - Otherwise — clear all 5 quizzer seats and fill with the DB
  *    roster in seat order. No fuzzy "Bobby ≈ Robert" rescue.
  *
@@ -185,21 +180,19 @@ function computeSeatChange(
     }
   }
 
-  const currentNonDefault = currentNames.filter((n) => !isDefaultQuizzerName(n))
+  const typedNames = currentNames.filter((n) => n.trim() !== '')
   const rosterSet = new Set(seat.quizzers.map((q) => q.name.trim().toLowerCase()))
   const allMatch =
-    currentNonDefault.length > 0 &&
-    currentNonDefault.every((n) => rosterSet.has(n.trim().toLowerCase()))
+    typedNames.length > 0 && typedNames.every((n) => rosterSet.has(n.trim().toLowerCase()))
 
   if (allMatch) {
-    const namesForMatch = currentNames.map((n) => (isDefaultQuizzerName(n) ? '' : n))
-    const slot = meetSession.buildSlotFromSeat(seat, namesForMatch)!
+    const slot = meetSession.buildSlotFromSeat(seat, currentNames)!
     return {
       slot,
       mirrorToStore: () => {
         setTeamName(slotIdx, slot.dbLabelFull)
         for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-          if (isDefaultQuizzerName(currentNames[seatIdx] ?? '')) {
+          if (!(currentNames[seatIdx] ?? '').trim()) {
             setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
           }
         }
@@ -276,14 +269,6 @@ async function openSchedulePicker() {
   schedulePickerRef.value?.open()
 }
 
-function isDefaultQuizzerName(name: string): boolean {
-  return !name.trim() || /^Quizzer [1-4]$/.test(name)
-}
-
-function isDefaultTeamName(name: string): boolean {
-  return /^Team [1-3]$/.test(name)
-}
-
 /**
  * Pick a roster team for a slot, seating its quizzers around the names already typed. The team's
  * name replaces the typed one unless `keepName`, for a pick made on the sheet's behalf.
@@ -295,14 +280,7 @@ async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
     return
   }
 
-  // Clear default quizzer names so they become empty seats for the matching algorithm
   const storeTeamId = store.teams[slotIdx]!.id
-  for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-    if (isDefaultQuizzerName(store.quizzersByTeam(storeTeamId)[seatIdx]?.name ?? '')) {
-      setQuizzerName(slotIdx, seatIdx, '')
-    }
-  }
-
   const storeNames = store.quizzersByTeam(storeTeamId).map((q) => q.name)
   // No pick made, as when another quiz took the sheet while the roster loaded: leave its names
   if (!(await meetSession.assignTeam(slotIdx, teamId, storeNames))) return
@@ -356,8 +334,8 @@ function findMatchingTeam(slotIdx: number, typedName: string): number | undefine
 async function onMeetLoaded() {
   for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
     const teamName = store.teams[teamIdx]?.name ?? ''
-    // A blank name names no team, the same as one still called "Team N"
-    if (!teamName.trim() || isDefaultTeamName(teamName)) continue
+    // A blank name names no team
+    if (!teamName.trim()) continue
     const matchId = findMatchingTeam(teamIdx, teamName)
     try {
       if (matchId !== undefined) await pickTeam(teamIdx, matchId)
@@ -381,9 +359,7 @@ async function pickMisspeltTeam(slotIdx: number, teamName: string) {
   if (nearTeamIds.length === 0) return
 
   const typedQuizzerNames = () =>
-    store
-      .quizzersByTeam(store.teams[slotIdx]!.id)
-      .map((quizzer) => (isDefaultQuizzerName(quizzer.name) ? '' : quizzer.name))
+    store.quizzersByTeam(store.teams[slotIdx]!.id).map((quizzer) => quizzer.name)
   const typedQuizzers = typedQuizzerNames()
   let confirmedTeamIds: number[]
   try {
@@ -417,33 +393,28 @@ async function pickMisspeltTeam(slotIdx: number, teamName: string) {
 /** What an empty name shows; the sizer measures it too, so the box fits it */
 const TEAM_PLACEHOLDER = 'Team name'
 const PICK_TEAM_PLACEHOLDER = 'Pick team'
-/** The slot whose team name is being typed, from the first keystroke until the input loses focus */
-const typingTeamSlot = ref<number | null>(null)
-function typeTeamName(slotIdx: number, name: string) {
-  typingTeamSlot.value = slotIdx
-  setTeamName(slotIdx, name)
-}
 function awaitsTeamPick(slotIdx: number): boolean {
   return picksTeam(slotIdx) && !meetSession.getSlot(slotIdx)
-}
-/**
- * Where teams are picked from the roster, an untouched "Team N" stands for no team yet, so it
- * gives way to a prompt to pick one, the way an empty quizzer seat shows "Quizzer N". Not while
- * it's being typed, or a name that passes through "Team 1" would empty the input mid-word.
- */
-function shownTeamName(slotIdx: number, name: string): string {
-  const untouched = isDefaultTeamName(name) && typingTeamSlot.value !== slotIdx
-  return awaitsTeamPick(slotIdx) && untouched ? '' : name
 }
 function teamPlaceholder(slotIdx: number): string {
   return awaitsTeamPick(slotIdx) ? PICK_TEAM_PLACEHOLDER : TEAM_PLACEHOLDER
 }
-const quizzerPlaceholder = (seatIdx: number) => `Quizzer ${seatIdx + 1}`
+const quizzerPlaceholder = (seatIdx: number) => `Seat ${seatIdx + 1}`
 
 /** A click anywhere in a name cell types into its name, not only on the input's own width (#144) */
 function focusName(e: MouseEvent) {
   if ((e.target as HTMLElement).closest('input, button, .drag-handle')) return
   ;(e.currentTarget as HTMLElement).querySelector<HTMLInputElement>('input.editable-name')?.focus()
+}
+
+/**
+ * Once a quizzer's name is typed in, not at each keystroke: a name half typed can be another's.
+ * Every seat of the team is looked at, since a name cleared from one seat frees its quizzer for the
+ * seat that already bears the name.
+ */
+function relinkSeats(slotIdx: number) {
+  const seatNames = teamQuizzers.value[slotIdx]?.map((quizzer) => quizzer.name) ?? []
+  seatNames.forEach((_, seatIdx) => meetSession.relinkSeatByName(slotIdx, seatIdx, seatNames))
 }
 
 function restoreQuizzerName(slotIdx: number, seatIdx: number) {
@@ -467,8 +438,7 @@ type TeamNameIssue =
 function teamNameIssue(slotIdx: number, name: string): TeamNameIssue | undefined {
   if (!picksTeam(slotIdx)) return undefined
   if (!meetSession.getSlot(slotIdx)) {
-    const typed = name.trim() !== '' && !isDefaultTeamName(name)
-    return { kind: typed ? 'unpicked' : 'unnamed' }
+    return { kind: name.trim() ? 'unpicked' : 'unnamed' }
   }
   if (meetSession.isTeamNameDiverged(slotIdx, name)) {
     return { kind: 'renamed', pickedName: meetSession.pickedTeamName(slotIdx) ?? '' }
@@ -612,12 +582,25 @@ function teamCalled(slotIdx: number, name: string): string {
 }
 
 /**
- * Names that don't agree with the linked meet's roster, a line each. Warnings, not errors: the
- * sheet records what the room typed, which may be righter than the roster, so they never stop a
- * quiz being sent. They are shown, and asked about once before it goes.
+ * What doesn't agree with the linked meet, a line each: the quiz's division and number, and the
+ * names against its roster. Warnings, not errors: the sheet records what the room typed, which may
+ * be righter than the meet, so they never stop a quiz being sent. They are shown, and asked about
+ * once before it goes. With no meet linked there is nothing to disagree with, and none.
  */
-const nameWarnings = computed<string[]>(() => {
+const meetWarnings = computed<string[]>(() => {
   const warnings: string[] = []
+  if (meetSession.isActive.value) {
+    const division = given(quiz.value.division)
+    if (meetSession.lacksDivision(division)) {
+      warnings.push(
+        division
+          ? `Division ${division}: not one of the meet's divisions`
+          : 'Division: none chosen',
+      )
+    }
+    // The meet files a quiz under its division and number, and has no quiz called nothing
+    if (!given(quiz.value.quizNumber)) warnings.push('Quiz: no number given')
+  }
   teams.value.forEach((team, slotIdx) => {
     if (!picksTeam(slotIdx)) return
     const called = teamCalled(slotIdx, team.name)
@@ -626,9 +609,8 @@ const nameWarnings = computed<string[]>(() => {
     // No team picked, so no roster to hold the quizzers against
     if (!meetSession.getSlot(slotIdx)) return
     teamQuizzers.value[slotIdx]?.forEach((quizzer, seatIdx) => {
-      // A seat emptied of its roster quizzer is an absence, not a disagreement, and one still
-      // called "Quizzer N" was never named
-      if (!quizzer.name.trim() || isDefaultQuizzerName(quizzer.name)) return
+      // A seat emptied of its roster quizzer is an absence, not a disagreement
+      if (!quizzer.name.trim()) return
       if (!meetSession.isQuizzerDiverged(slotIdx, seatIdx, quizzer.name)) return
       const rosterName = meetSession.getDbName(slotIdx, seatIdx)
       warnings.push(
@@ -641,20 +623,16 @@ const nameWarnings = computed<string[]>(() => {
   return warnings
 })
 
-/**
- * The names to ask about before a quiz goes to a meet. They are held against the linked meet's
- * roster only when that is the meet it goes to. A slot with no roster to hold its name against,
- * for want of that or of teams in the division, is asked about only while it is still called
- * "Team N", the one name sure to be wrong.
- */
-function submitWarnings(targetMeetId: number): string[] {
-  const againstRoster = meetSession.meetId.value === targetMeetId
-  const defaultNames = teams.value
-    .filter(
-      (team, slotIdx) => !(againstRoster && picksTeam(slotIdx)) && isDefaultTeamName(team.name),
-    )
-    .map((team) => `${team.name}: still has its default name`)
-  return [...(againstRoster ? nameWarnings.value : []), ...defaultNames]
+/** The warnings as a dialog lists them */
+function warningList(warnings: string[]): string {
+  return `Check these:\n${warnings.join('\n')}`
+}
+
+/** The list a hover shows, for a touch screen, which has no hover */
+function showMeetWarnings(event: MouseEvent) {
+  // Keys score the sheet, so the count mustn't keep the focus a click gave it
+  ;(event.currentTarget as HTMLElement).blur()
+  alert(warningList(meetWarnings.value))
 }
 
 /** All unique validation messages for the status tooltip */
@@ -675,9 +653,10 @@ const allValidationMessages = computed(() => {
 })
 
 /**
- * What to ask about before a quiz goes to a meet: its scoring errors, then its name warnings.
- * Neither stops it going. The room may have no time to put it right, and the meet's admin can:
- * a quiz with scoring errors is stored and goes unplaced until a corrected one is sent.
+ * What to ask about before a quiz goes to a meet: its scoring errors, then what disagrees with the
+ * linked meet, when that is the meet it goes to. Neither stops it going. The room may have no time
+ * to put it right, and the meet's admin can: a quiz with scoring errors is stored and goes unplaced
+ * until a corrected one is sent.
  */
 function submitConcerns(targetMeetId: number): string | undefined {
   const sections: string[] = []
@@ -687,8 +666,8 @@ function submitConcerns(targetMeetId: number): string | undefined {
         allValidationMessages.value.join('\n'),
     )
   }
-  const warnings = submitWarnings(targetMeetId)
-  if (warnings.length > 0) sections.push(`Check these names:\n${warnings.join('\n')}`)
+  const warnings = meetSession.meetId.value === targetMeetId ? meetWarnings.value : []
+  if (warnings.length > 0) sections.push(warningList(warnings))
   return sections.length > 0 ? sections.join('\n\n') : undefined
 }
 
@@ -1045,9 +1024,27 @@ async function doExportOds() {
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
 const roomCodeDialog = ref<InstanceType<typeof RoomCodeDialog> | null>(null)
 
-/** A saved file's name: the quiz's name without its space, "D1Q3" or "D1cQ3" */
+/** What a file name shows where the quiz has no division or number */
+const BLANK_IN_FILE_NAME = '_'
+
+/**
+ * A division or quiz number as given: none when blank, and none when it is the "_" a file name
+ * puts in a blank's place, so a value copied back off a file name is no more a division than a
+ * blank is
+ */
+function given(value: string): string {
+  const trimmed = value.trim()
+  return trimmed === BLANK_IN_FILE_NAME ? '' : trimmed
+}
+
+/**
+ * A saved file's name: the quiz's name without its space, "D1Q3" or "D1cQ3". A blank division or
+ * number shows as "_", so a new quiz saves as "D_Q_" and the name still says which part is which.
+ */
 function fileStem(): string {
-  return quizName(quiz.value).replace(' Q', 'Q')
+  const division = given(quiz.value.division) || BLANK_IN_FILE_NAME
+  const quizNumber = given(quiz.value.quizNumber) || BLANK_IN_FILE_NAME
+  return quizName({ ...quiz.value, division, quizNumber }).replace(' Q', 'Q')
 }
 
 const submitter = useSubmitToMeet()
@@ -1083,6 +1080,16 @@ watch(
 const { refreshTeamNames, teamNamesFor } = useTeamNames()
 /** Whether the linked meet's roster has teams for the quiz's division, to pick from */
 const rosterHasTeams = computed(() => filteredTeamList.value.length > 0)
+// A new quiz has no division, and teams are only picked within one. A meet with a single division
+// leaves nothing to choose, so it is chosen. Sync, so that `onMeetLoaded`, which matches typed
+// names within the division as soon as a meet is linked, already has it
+watch(
+  [() => meetSession.divisionOptions.value, () => quiz.value.division],
+  ([divisions, division]) => {
+    if (!given(division) && divisions.length === 1) quiz.value.division = divisions[0]!
+  },
+  { immediate: true, flush: 'sync' },
+)
 /**
  * A team can be picked from the roster when it has teams for the division, or when the team is
  * already picked, so a pick made in another division can still be seen and cleared. The name can
@@ -1213,7 +1220,7 @@ async function doClearAnswers() {
 
 async function doClearNames() {
   closeMenus()
-  if (!(await confirmAction('Reset names to defaults? This cannot be undone.'))) return
+  if (!(await confirmAction('Clear all names? This cannot be undone.'))) return
   clearNames()
 }
 
@@ -1382,7 +1389,10 @@ const appVersion: string = __APP_VERSION__
                     v-model="quiz.division"
                     class="division-select"
                   >
-                    <option value="">—</option>
+                    <!-- A lone division is chosen for the quiz, so there is no "none" to go back to -->
+                    <option v-if="meetSession.divisionOptions.value.length !== 1" value="">
+                      —
+                    </option>
                     <option
                       v-for="opt in meetSession.divisionOptions.value"
                       :key="opt"
@@ -1391,7 +1401,7 @@ const appVersion: string = __APP_VERSION__
                       {{ opt }}
                     </option>
                   </select>
-                  <input v-else v-model="quiz.division" type="text" placeholder="1" />
+                  <input v-else v-model="quiz.division" type="text" />
                 </label>
                 <span
                   class="consolation-toggle"
@@ -1430,15 +1440,16 @@ const appVersion: string = __APP_VERSION__
                   hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : '…'
                 }}</span>
               </span>
-              <span
-                v-if="nameWarnings.length > 0"
-                class="meta-field meta-name-warnings"
-                :title="nameWarnings.join('\n')"
-                role="img"
-                :aria-label="`Name warnings (${nameWarnings.length}): ${nameWarnings.join('; ')}`"
+              <button
+                v-if="meetWarnings.length > 0"
+                type="button"
+                class="meta-field meta-meet-warnings"
+                :title="meetWarnings.join('\n')"
+                :aria-label="`Warnings (${meetWarnings.length}): ${meetWarnings.join('; ')}`"
+                @click="showMeetWarnings"
               >
-                ⚠ {{ nameWarnings.length }}
-              </span>
+                ⚠ {{ meetWarnings.length }}
+              </button>
               <span v-if="meetSession.isActive.value" class="meta-field meta-session-pill">
                 🔗 {{ meetSession.meetName.value }}
               </span>
@@ -1583,7 +1594,7 @@ const appVersion: string = __APP_VERSION__
                     <span class="name-main">
                       <span
                         class="name-input-sizer name-input-sizer--team"
-                        :data-value="shownTeamName(teamIdx, team.name) || teamPlaceholder(teamIdx)"
+                        :data-value="team.name || teamPlaceholder(teamIdx)"
                       >
                         <input
                           :class="[
@@ -1595,10 +1606,9 @@ const appVersion: string = __APP_VERSION__
                           :list="rosterHasTeams ? undefined : 'team-name-options'"
                           :placeholder="teamPlaceholder(teamIdx)"
                           :title="teamNameWarning(teamIdx, team.name)"
-                          :value="shownTeamName(teamIdx, team.name)"
-                          @input="typeTeamName(teamIdx, ($event.target as HTMLInputElement).value)"
+                          :value="team.name"
+                          @input="setTeamName(teamIdx, ($event.target as HTMLInputElement).value)"
                           @focus="($event.target as HTMLInputElement).select()"
-                          @blur="typingTeamSlot = null"
                           @keydown.enter="($event.target as HTMLInputElement).blur()"
                         />
                       </span>
@@ -1762,6 +1772,7 @@ const appVersion: string = __APP_VERSION__
                               ($event.target as HTMLInputElement).value,
                             )
                           "
+                          @change="relinkSeats(teamIdx)"
                           @focus="($event.target as HTMLInputElement).select()"
                           @keydown.enter="($event.target as HTMLInputElement).blur()"
                         />
@@ -2570,12 +2581,16 @@ const appVersion: string = __APP_VERSION__
   white-space: nowrap;
 }
 
-.meta-name-warnings {
+.meta-meet-warnings {
+  font: inherit;
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--palette-warning, #b45309);
   white-space: nowrap;
-  cursor: help;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 
 .team-picker-trigger {
@@ -3484,10 +3499,13 @@ thead tr th.sticky-col {
   outline: none;
   height: 100%;
 }
+/* A prompt, not a name: small and pale enough that a blank seat can't pass for a filled one */
 .editable-name::placeholder {
   color: var(--color-text-faint);
+  font-size: 0.8em;
   font-weight: 400;
   font-style: italic;
+  opacity: 0.6;
 }
 .editable-name:focus {
   border-bottom: 1.5px solid var(--color-accent);

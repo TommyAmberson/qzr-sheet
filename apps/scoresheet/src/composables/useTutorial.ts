@@ -18,7 +18,7 @@ import {
   removeOnceSaved,
 } from '../persistence/autoSave'
 import type { QuizStore } from '../stores/quizStore'
-import { TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
+import { standInNames, TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
 import { useMeetSession, type MeetSessionData } from './useMeetSession'
 
 const SNAPSHOT_KEY = 'qzr-sheet:tutorial-snapshot'
@@ -119,6 +119,7 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
 
     scoresheet.pauseAutoSave.value = true
     scoresheet.resetStore()
+    standInNames(scoresheet)
 
     active.value = true
     currentStepIndex.value = 0
@@ -233,13 +234,12 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
         seatIdx !== undefined
           ? () => scoresheet.teamQuizzers.value[teamIdx]?.[seatIdx]?.name ?? ''
           : () => scoresheet.teams.value[teamIdx]?.name ?? ''
-      const placeholder = seatIdx !== undefined ? `Quizzer ${seatIdx + 1}` : `Team ${teamIdx + 1}`
+      // The stand-in the step opened on, which doesn't count as a name given
+      const standIn = nameSource()
       cleanupFns.push(
         watch(nameSource, (name) => {
           const changed =
-            seatIdx !== undefined
-              ? name.trim() !== '' && name !== placeholder
-              : name !== placeholder
+            seatIdx !== undefined ? name.trim() !== '' && name !== standIn : name !== standIn
           if (changed) stepCompleted.value = true
         }),
       )

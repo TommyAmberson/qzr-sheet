@@ -11,9 +11,21 @@ const C = CellValue.Correct
 const E = CellValue.Error
 const _ = CellValue.Empty
 
+/** A store with its first four seats named, as a quiz under way has them */
+function createNamedStore() {
+  const store = createQuizStore()
+  for (const team of store.teams) {
+    store
+      .quizzersByTeam(team.id)
+      .slice(0, 4)
+      .forEach((quizzer, seat) => store.setQuizzerName(quizzer.id, `Quizzer ${seat + 1}`))
+  }
+  return store
+}
+
 describe('moveQuizzer', () => {
   it('swaps seatOrder of two quizzers', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     const team = store.teams[0]!
     const before = store.quizzersByTeam(team.id).map((q) => q.name)
     expect(before).toEqual(['Quizzer 1', 'Quizzer 2', 'Quizzer 3', 'Quizzer 4', ''])
@@ -24,7 +36,7 @@ describe('moveQuizzer', () => {
   })
 
   it('answers follow the quizzer after reorder', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     const team = store.teams[0]!
     const qzrs = store.quizzersByTeam(team.id)
     // Quizzer 1 (seat 0) gets a correct on Q1
@@ -48,7 +60,7 @@ describe('moveQuizzer', () => {
   })
 
   it('no-op when fromSeat equals toSeat', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     const team = store.teams[0]!
     store.moveQuizzer(team.id, S(1), S(1))
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
@@ -56,13 +68,13 @@ describe('moveQuizzer', () => {
   })
 
   it('no-op for unknown team', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     // Should not throw
     store.moveQuizzer(999, S(0), S(1))
   })
 
   it('no-op for out-of-range seats', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     const team = store.teams[0]!
     store.moveQuizzer(team.id, S(0), S(10))
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
@@ -70,7 +82,7 @@ describe('moveQuizzer', () => {
   })
 
   it('move last to first', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     const team = store.teams[0]!
     store.moveQuizzer(team.id, S(4), S(0))
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
@@ -78,7 +90,7 @@ describe('moveQuizzer', () => {
   })
 
   it('move first to last', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     const team = store.teams[0]!
     store.moveQuizzer(team.id, S(0), S(4))
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
@@ -86,7 +98,7 @@ describe('moveQuizzer', () => {
   })
 
   it('does not affect other teams', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     const team0 = store.teams[0]!
     const team1 = store.teams[1]!
     store.moveQuizzer(team0.id, S(0), S(2))
@@ -95,7 +107,7 @@ describe('moveQuizzer', () => {
   })
 
   it('multiple moves compose correctly', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     const team = store.teams[0]!
     // Move seat 0 → 1 (swap Q1, Q2), then seat 2 → 0 (swap Q3, Q2)
     store.moveQuizzer(team.id, S(0), S(1))
@@ -107,7 +119,7 @@ describe('moveQuizzer', () => {
   })
 
   it('adjacent swap (move down one)', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     const team = store.teams[0]!
     store.moveQuizzer(team.id, S(1), S(2))
     const names = store.quizzersByTeam(team.id).map((q) => q.name)
@@ -115,7 +127,7 @@ describe('moveQuizzer', () => {
   })
 
   it('adjacent swap (move up one)', () => {
-    const store = createQuizStore()
+    const store = createNamedStore()
     const team = store.teams[0]!
     store.moveQuizzer(team.id, S(2), S(1))
     const names = store.quizzersByTeam(team.id).map((q) => q.name)

@@ -238,22 +238,19 @@ describe('useScoresheet — clearAnswers', () => {
 })
 
 describe('useScoresheet — clearNames', () => {
-  it('resets team names to Team 1/2/3', () => {
+  it('blanks team names', () => {
     const s = useScoresheet()
     s.setTeamName(T(0), 'Alpha')
     s.setTeamName(T(1), 'Beta')
     s.clearNames()
-    expect(s.teams.value[0]!.name).toBe('Team 1')
-    expect(s.teams.value[1]!.name).toBe('Team 2')
-    expect(s.teams.value[2]!.name).toBe('Team 3')
+    expect(s.teams.value.map((team) => team.name)).toEqual(['', '', ''])
   })
 
-  it('resets quizzer names to Quizzer 1/2/3/4', () => {
+  it('blanks quizzer names', () => {
     const s = useScoresheet()
     s.setQuizzerName(T(0), S(0), 'Alice')
     s.clearNames()
-    expect(s.teamQuizzers.value[0]![0]!.name).toBe('Quizzer 1')
-    expect(s.teamQuizzers.value[0]![1]!.name).toBe('Quizzer 2')
+    expect(s.teamQuizzers.value[0]!.map((quizzer) => quizzer.name)).toEqual(['', '', '', '', ''])
   })
 
   it('does not clear answers', () => {
@@ -444,11 +441,11 @@ describe('useScoresheet — resetStore', () => {
     expect(s.cells.value[0]![0]![0]).toBe(CellValue.Empty)
   })
 
-  it('resets team names to defaults', () => {
+  it('blanks team names', () => {
     const s = useScoresheet()
     s.setTeamName(T(0), 'Eagles')
     s.resetStore()
-    expect(s.teams.value[0]!.name).toBe('Team 1')
+    expect(s.teams.value[0]!.name).toBe('')
   })
 
   it('resets undo history', () => {

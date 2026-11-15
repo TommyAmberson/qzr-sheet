@@ -15,6 +15,43 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-14
+
+### Added
+
+* The count of name warnings beside a quiz's status is a button: a click or tap shows the list,
+  which a touch screen couldn't reach by hovering
+* Linked to a meet, typing a quizzer's exact roster name into another seat of their team ties that
+  seat to them, swapping with the seat they were in, so a team seated in a different order than its
+  roster no longer shows every seat as disagreeing
+
+### Changed
+
+* A saved file's name shows `_` for a blank division or quiz number, so a new quiz saves as
+  `D_Q_.json`. A division or quiz number typed as `_` counts as blank
+* A new quiz starts with no names, no division and no quiz number. It used to come with "Team 1" to
+  "Team 3" and "Quizzer 1" to "Quizzer 4" written in, which read as real names and could be scored
+  and sent as they were. Team and quizzer names are now blank until typed or picked from a meet, and
+  "Clear names" blanks them
+* An answer in a seat with no name is a scoring error in every seat, as it already was in the fifth.
+  Name the quizzer to clear it. A quiz with such errors can still be submitted, and the meet's
+  portal shows them
+* An empty seat's name box prompts "Seat 1" to "Seat 5" in place of "Quizzer 1" to "Quizzer 5", in
+  smaller, paler text that can't be taken for a name
+* Linked to a meet, a quiz with no division offers no teams to pick until a division is chosen; it
+  used to offer every team in the meet. A meet with one division has it chosen for a new quiz
+* Linked to a meet, a quiz with no division, one the meet doesn't list, or no quiz number is counted
+  with the name warnings and asked about when submitting. With no meet linked, submitting no longer
+  asks about a team still called "Team 1", "Team 2" or "Team 3": that question is gone with the
+  default names
+* A file saved with "Team 1" or "Quizzer 1" in it opens with those names kept as written. The sheet
+  no longer treats them as unnamed: linking a meet doesn't replace them, and they are held against
+  the roster like any other name
+
+### Bundled contract
+
+* `@qzr/shared@1.10.0` - unchanged
+
 ## [0.20.0] - 2026-11-14
 
 ### Added

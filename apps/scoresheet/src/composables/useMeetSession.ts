@@ -59,12 +59,19 @@ export function useMeetSession() {
   const divisionOptions = computed((): string[] => session.value?.meetDivisions ?? [])
 
   /**
-   * Filter the team list by division and consolation status.
-   * "" division → all teams (no filter).
+   * Whether the linked meet lists divisions and this isn't one of them. Blank isn't: the meet has
+   * no division called nothing, the way its roster has no team called nothing.
+   */
+  function lacksDivision(division: string): boolean {
+    return divisionOptions.value.length > 0 && !divisionOptions.value.includes(division)
+  }
+
+  /**
+   * The teams of a division, consolation or not. A quiz with no division yet has none: offering
+   * the whole meet would let a team be picked with nothing to say it's in the wrong division.
    */
   function teamsForDivision(division: string, consolation: boolean): MeetTeam[] {
     const all = session.value?.teamList ?? []
-    if (!division) return all
     return all.filter((t) => t.division === division && t.consolation === consolation)
   }
 
@@ -219,6 +226,24 @@ export function useMeetSession() {
   }
 
   /** Whether a name diverges from the DB value (empty seats have dbName ''). */
+  /**
+   * Tie a seat to the roster quizzer whose name was typed into it, when another seat of the team
+   * holds that quizzer and doesn't bear the name itself: the two seats swap quizzers. So a team
+   * seated in another order than the roster's can be typed in as it sits, with nothing left
+   * disagreeing. A seat that bears its own quizzer's name keeps them, and the typed one stays a
+   * disagreement, since one quizzer can't sit twice.
+   */
+  function relinkSeatByName(slotIdx: number, seatIdx: number, seatNames: string[]): void {
+    const slot = session.value?.slots[slotIdx]
+    const typed = seatNames[seatIdx]?.trim()
+    if (!slot || !typed || slot.quizzers[seatIdx]?.dbName.trim() === typed) return
+    const holder = slot.quizzers.findIndex(
+      (quizzer, seat) => seat !== seatIdx && quizzer.dbName.trim() === typed,
+    )
+    if (holder === -1 || seatNames[holder]?.trim() === typed) return
+    reorderSlotQuizzers(slotIdx, seatIdx, holder)
+  }
+
   function isQuizzerDiverged(slotIdx: number, seatIdx: number, currentName: string): boolean {
     const slot = session.value?.slots[slotIdx]
     if (!slot) return false
@@ -322,6 +347,7 @@ export function useMeetSession() {
     teamList,
     quizId,
     divisionOptions,
+    lacksDivision,
     teamsForDivision,
     teamLabel,
     teamLabelFull,
@@ -333,6 +359,7 @@ export function useMeetSession() {
     clearSlot,
     getSlot,
     reorderSlotQuizzers,
+    relinkSeatByName,
     isQuizzerDiverged,
     pickedTeamName,
     isTeamNameDiverged,

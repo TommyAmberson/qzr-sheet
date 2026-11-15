@@ -6,14 +6,12 @@ const C = CellValue.Correct
 const _ = CellValue.Empty
 
 describe('empty seat', () => {
-  it('isQuizzerUnnamed returns false for named quizzers, true for 5th (empty seat)', () => {
+  it('isQuizzerUnnamed is true for every seat of a new quiz', () => {
     const store = createQuizStore()
     for (const team of store.teams) {
-      const qzrs = store.quizzersByTeam(team.id)
-      for (let i = 0; i < 4; i++) {
-        expect(store.isQuizzerUnnamed(qzrs[i]!.id)).toBe(false)
+      for (const quizzer of store.quizzersByTeam(team.id)) {
+        expect(store.isQuizzerUnnamed(quizzer.id)).toBe(true)
       }
-      expect(store.isQuizzerUnnamed(qzrs[4]!.id)).toBe(true)
     }
   })
 

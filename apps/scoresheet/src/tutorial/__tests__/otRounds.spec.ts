@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../../composables/useScoresheet'
-import { TUTORIAL_STEPS, type ScoresheetActions } from '../tutorialSteps'
+import { standInNames, TUTORIAL_STEPS, type ScoresheetActions } from '../tutorialSteps'
 import { toColIdx } from '@qzr/shared'
 
 beforeEach(() => localStorage.clear())
 
 function buildActions(s: ReturnType<typeof useScoresheet>): ScoresheetActions {
+  // As the tutorial starts: a new quiz has no names to score
+  standInNames(s)
   return {
     setQuizzerName: s.setQuizzerName,
     setTeamName: s.setTeamName,

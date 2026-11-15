@@ -402,6 +402,47 @@ describe('useMeetSession — clearSlot', () => {
   })
 })
 
+describe('useMeetSession — relinkSeatByName', () => {
+  // Alice is tied to seat 0 and Bob to seat 1, as the roster lists them
+  async function seated() {
+    const meet = useMeetSession()
+    await meet.loadMeet(42, 'Finals')
+    await meet.assignTeam(0, 1, emptyNames)
+    return meet
+  }
+  const linked = (meet: ReturnType<typeof useMeetSession>) =>
+    meet.getSlot(0)!.quizzers.map((quizzer) => quizzer.dbName)
+
+  it("swaps two seats' quizzers when one is typed into the other's seat", async () => {
+    const meet = await seated()
+    meet.relinkSeatByName(0, 0, ['Bob', 'Bob', '', '', ''])
+    // Bob sat in seat 1 under his own name, so he stays, and seat 0 still disagrees
+    expect(linked(meet).slice(0, 2)).toEqual(['Alice', 'Bob'])
+
+    meet.relinkSeatByName(0, 0, ['Bob', 'Alice', '', '', ''])
+    expect(linked(meet).slice(0, 2)).toEqual(['Bob', 'Alice'])
+    expect(meet.isQuizzerDiverged(0, 0, 'Bob')).toBe(false)
+    expect(meet.isQuizzerDiverged(0, 1, 'Alice')).toBe(false)
+  })
+
+  it('takes a quizzer from a seat that is blank or bears another name', async () => {
+    const meet = await seated()
+    meet.relinkSeatByName(0, 0, ['Bob', '', '', '', ''])
+    expect(linked(meet).slice(0, 2)).toEqual(['Bob', 'Alice'])
+
+    meet.relinkSeatByName(0, 0, ['Alice', 'Zed', '', '', ''])
+    expect(linked(meet).slice(0, 2)).toEqual(['Alice', 'Bob'])
+  })
+
+  it('leaves the seats alone for a name not exactly a roster quizzer of the team', async () => {
+    const meet = await seated()
+    meet.relinkSeatByName(0, 0, ['bob', 'Alice', '', '', ''])
+    meet.relinkSeatByName(0, 0, ['Zed', 'Bob', '', '', ''])
+    meet.relinkSeatByName(0, 0, ['', 'Bob', '', '', ''])
+    expect(linked(meet).slice(0, 2)).toEqual(['Alice', 'Bob'])
+  })
+})
+
 describe('useMeetSession — reorderSlotQuizzers', () => {
   it('updates quizzer order in the slot', async () => {
     const { loadMeet, assignTeam, getSlot, reorderSlotQuizzers } = useMeetSession()
@@ -738,9 +779,9 @@ describe('useMeetSession — teamsForDivision', () => {
     await loadMeet(42, 'Finals')
   })
 
-  it('returns all teams when division is empty string', () => {
+  it('returns no teams while the quiz has no division', () => {
     const { teamsForDivision } = useMeetSession()
-    expect(teamsForDivision('', false)).toHaveLength(2)
+    expect(teamsForDivision('', false)).toHaveLength(0)
   })
 
   it('returns only non-consolation teams for a base division', () => {

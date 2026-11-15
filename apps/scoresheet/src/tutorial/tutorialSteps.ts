@@ -489,3 +489,16 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     completion: { type: 'acknowledge' },
   },
 ]
+
+/**
+ * Seat stand-in names for the walkthrough. A new quiz has none, and an answer in a nameless seat
+ * is an error, so the tutorial needs someone to score before it gets to naming anyone.
+ */
+export function standInNames(actions: Pick<ScoresheetActions, 'setTeamName' | 'setQuizzerName'>) {
+  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
+    actions.setTeamName(T(teamIdx), `Team ${teamIdx + 1}`)
+    for (let seatIdx = 0; seatIdx < 4; seatIdx++) {
+      actions.setQuizzerName(T(teamIdx), S(seatIdx), `Quizzer ${seatIdx + 1}`)
+    }
+  }
+}

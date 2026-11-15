@@ -26,8 +26,8 @@ function genId(): number {
 function createDefaultQuiz(): Quiz {
   return {
     id: genId(),
-    division: '1',
-    quizNumber: '1',
+    division: '',
+    quizNumber: '',
     overtime: false,
     consolation: false,
     placementFormula: PlacementFormula.Rules,
@@ -46,7 +46,7 @@ function createDefaultTeams(quizId: number): { teams: Team[]; quizzers: Quizzer[
     teams.push({
       id: teamId,
       quizId,
-      name: `Team ${t + 1}`,
+      name: '',
       onTime: true,
       seatOrder: t,
     })
@@ -55,7 +55,7 @@ function createDefaultTeams(quizId: number): { teams: Team[]; quizzers: Quizzer[
       quizzers.push({
         id: toQuizzerId(genId()),
         teamId,
-        name: q < 4 ? `Quizzer ${q + 1}` : '',
+        name: '',
         seatOrder: q,
       })
     }
