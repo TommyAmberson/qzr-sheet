@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, PlacementFormula, type QuizFile } from '@qzr/shared'
 import type { StoredQuiz } from '../api'
-import { countedQuizzes, editQuizFile, groupResults, mergeEdits } from '../results'
+import { editQuizFile, groupResults, mergeEdits } from '../results'
 
 function stored(
   id: number,
@@ -94,22 +94,6 @@ describe('groupResults', () => {
       ['D1 Q3', 'Uploaded by Pat'],
       ['D1c Q3', 'Room 1'],
     ])
-  })
-})
-
-describe('countedQuizzes', () => {
-  it("gives a division's standings only its counted quizzes, with their outcomes", () => {
-    const [division] = groupResults([
-      stored(1, '1', '1', { counted: true }),
-      stored(2, '1', '2'),
-      stored(3, '1', '3', { counted: true }),
-    ])
-    const counted = countedQuizzes(division!)
-    expect(counted.map((q) => q.name)).toEqual(['D1 Q1', 'D1 Q3'])
-    expect(counted[0]!.outcome).toEqual({
-      placed: division!.quizzes[0]!.placed,
-      teams: division!.quizzes[0]!.teams,
-    })
   })
 })
 

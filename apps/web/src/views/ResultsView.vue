@@ -1,14 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  ApiError,
-  divisionStandings,
-  MeetRole,
-  type StandingsWarning,
-  type TeamStanding,
-  type TieBreak,
-} from '@qzr/shared'
+import { ApiError, MeetRole, type DivisionStats } from '@qzr/shared'
 import {
   ChoiceDialog,
   formatSlotTime,
@@ -20,6 +13,7 @@ import {
 
 import {
   editResult,
+  getDivisionStats,
   getMeet,
   getSender,
   listResults,
@@ -28,7 +22,8 @@ import {
   type MeetDetail,
   type StoredQuiz,
 } from '../api'
-import { countedQuizzes, groupResults, mergeEdits, type ResultRow } from '../results'
+import { groupResults, mergeEdits, type ResultRow } from '../results'
+import { warningText } from '../stats'
 import { useRoomCode } from '../composables/useRoomCode'
 
 const props = defineProps<{ slug: string }>()
@@ -54,13 +49,9 @@ const uploadError = ref('')
 const merging = ref(false)
 const mergeError = ref('')
 
-/** Each division that has counted quizzes, with its standings */
-const standings = computed(() =>
-  divisions.value
-    .map((group) => ({ division: group.division, counted: countedQuizzes(group) }))
-    .filter(({ counted }) => counted.length > 0)
-    .map(({ division, counted }) => ({ division, ...divisionStandings(counted) })),
-)
+/** Each division's stats as the API works them out, for its warnings and the link to its page */
+const divisionStats = ref<DivisionStats[]>([])
+const statsError = ref('')
 const allQuizzes = computed(() => divisions.value.flatMap((group) => group.quizzes))
 
 async function load() {
@@ -80,6 +71,7 @@ async function load() {
     meet.value = loaded.detail
     sender.value = loaded.who
     stored.value = loaded.quizzes
+    void loadStats()
   } catch (e) {
     error.value =
       e instanceof ApiError && e.status === 401
@@ -89,6 +81,20 @@ async function load() {
           : (e as Error).message
   } finally {
     loading.value = false
+  }
+}
+
+/** An admin's view of each division with stored quizzes, read again after anything changes them */
+async function loadStats() {
+  if (!meet.value || !isAdmin.value) return
+  const meetId = meet.value.id
+  statsError.value = ''
+  try {
+    divisionStats.value = await Promise.all(
+      divisions.value.map((group) => getDivisionStats(meetId, group.division)),
+    )
+  } catch (e) {
+    statsError.value = `Stats could not be read: ${(e as Error).message}`
   }
 }
 
@@ -148,6 +154,7 @@ async function setCounted(quizzes: ResultRow[], counted: boolean) {
   countError.value = ''
   try {
     await setResultsCounted(meet.value.id, [...ids], counted)
+    void loadStats()
   } catch (e) {
     stored.value = before
     countError.value = (e as Error).message
@@ -161,7 +168,11 @@ async function setCounted(quizzes: ResultRow[], counted: boolean) {
  * division using the other is saved with the kept name as a `merged` revision, one at a time (R10).
  * A failure part-way leaves the rest unmerged and still flagged, so merging again finishes it.
  */
-async function mergeNames(division: string, names: [string, string], teams: TeamStanding[]) {
+async function mergeNames(
+  division: string,
+  names: [string, string],
+  teams: { name: string; quizzes: number }[],
+) {
   if (!meet.value) return
   const meetId = meet.value.id
   const quizzesOf = (name: string) => teams.find((team) => team.name === name)?.quizzes ?? 0
@@ -196,31 +207,11 @@ async function mergeNames(division: string, names: [string, string], teams: Team
   } finally {
     try {
       stored.value = await listResults(meetId)
+      void loadStats()
     } catch (e) {
       mergeError.value ||= (e as Error).message
     }
     merging.value = false
-  }
-}
-
-const TIE_BREAKS: Record<TieBreak, string> = {
-  headToHead: 'head-to-head',
-  points: 'total points',
-  errors: 'fewest errors',
-}
-
-function warningText(warning: StandingsWarning, teams: TeamStanding[]): string {
-  switch (warning.kind) {
-    case 'unequalQuizCounts':
-      return `Teams have played different numbers of counted quizzes: ${teams
-        .map((t) => `${t.name} ${t.quizzes}`)
-        .join(', ')}.`
-    case 'unplaced':
-      return `${warning.quiz} can't be placed (questions unanswered or validation errors), so it adds nothing.`
-    case 'finalTie':
-      return `${warning.teams.join(', ')} are tied for the last places in the final. Settle it away from the app.`
-    case 'lookAlike':
-      return `${warning.teams[0]} and ${warning.teams[1]} look like one team spelt two ways.`
   }
 }
 
@@ -278,46 +269,31 @@ onMounted(load)
       <p v-if="divisions.length === 0" class="state-msg">No quizzes submitted yet.</p>
 
       <template v-else-if="isAdmin">
-        <h3 class="section-title">Standings</h3>
+        <h3 class="section-title">Stats</h3>
         <p v-if="mergeError" class="state-msg state-msg--error">{{ mergeError }}</p>
-        <p v-if="standings.length === 0" class="state-msg">
-          Count quizzes below, normally the prelims, to see each division's standings.
-        </p>
-        <section v-for="division in standings" :key="division.division" class="division">
-          <h4 class="division-title">Division {{ division.division }}</h4>
-          <table v-if="division.teams.length > 0" class="results-table">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Team</th>
-                <th title="Placement points">Points</th>
-                <th>Quizzes</th>
-                <th>Tie-break</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="team in division.teams" :key="team.name">
-                <td>{{ team.tied ? `T${team.rank}` : team.rank }}</td>
-                <td>
-                  {{ team.name }}
-                  <span v-if="team.finalist" class="finalist">Final</span>
-                </td>
-                <td>{{ team.placementPoints }}</td>
-                <td>{{ team.quizzes }}</td>
-                <td>
-                  {{ team.tied ? 'still tied' : team.decidedBy ? TIE_BREAKS[team.decidedBy] : '' }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <ul v-if="division.warnings.length > 0" class="warnings">
+        <p v-if="statsError" class="state-msg state-msg--error">{{ statsError }}</p>
+        <section v-for="division in divisionStats" :key="division.division" class="division">
+          <h4 class="division-title">
+            <router-link
+              :to="{ name: 'meet-division-stats', params: { slug, division: division.division } }"
+            >
+              Division {{ division.division }} stats
+            </router-link>
+          </h4>
+          <ul v-if="division.warnings?.length" class="warnings">
             <li v-for="(warning, i) in division.warnings" :key="i">
-              {{ warningText(warning, division.teams) }}
+              {{ warningText(warning) }}
               <button
-                v-if="warning.kind === 'lookAlike'"
+                v-if="warning.kind === 'lookAlikeTeams'"
                 class="btn btn--secondary btn--sm"
                 :disabled="merging"
-                @click="mergeNames(division.division, warning.teams, division.teams)"
+                @click="
+                  mergeNames(
+                    division.division,
+                    warning.names,
+                    division.prelimStandings?.teams ?? [],
+                  )
+                "
               >
                 Merge
               </button>
@@ -609,13 +585,6 @@ onMounted(load)
 
 .upload-report .refused {
   color: var(--palette-error);
-}
-
-.finalist {
-  margin-left: 0.4rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-accent);
 }
 
 .warnings {

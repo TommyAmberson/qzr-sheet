@@ -226,6 +226,28 @@ A cell can be greyed without being invalid (e.g. a question already answered —
 just greyed). A cell can be invalid without being greyed (e.g. an answer recorded on a toss-up
 column the team shouldn't have jumped on).
 
+## Meet stats (`packages/shared/src/stats/`)
+
+A meet's stats are computed in the API, never in the portal: the API holds every stored quiz, and
+only it can send each caller no more than they may see. The functions that compute them are pure and
+live in `packages/shared`, like scoring.
+
+* **Scored once.** `scoreStoredQuiz` turns one stored quiz file into a `ScoredQuiz`: what depends on
+  the file alone. The API keeps it beside the revision (`quiz_result_scores`) when the revision is
+  saved, keyed by the `@qzr/shared` version that made it. It reads the same pass over the quiz that
+  `quizOutcome` reads (`assessStoredQuiz`), so nothing is scored a second way.
+* **Ranked on each read.** `divisionStats` builds a division's response from its scored quizzes: the
+  quizzes by stage, and the prelim standings through `divisionStandings`. Placement points are
+  worked out here, from each team's place and its score before overtime, because the meet's settings
+  decide them and a kept score must not go stale.
+* **Why not score on each read:** the API runs on the Workers free plan, which allows a request 10
+  ms of CPU, and scoring a division's quizzes takes longer than that. A division whose scores are
+  missing, or were made by another shared version, is scored a few revisions per request, and the
+  stats route answers 503 with `Retry-After` until all are kept; the portal asks again.
+
+The portal's results page still scores the quizzes it lists, to show each one's teams and places,
+but it ranks nothing: standings come from `GET /api/meets/:id/stats/:division`.
+
 ## Composables (`src/composables/`)
 
 ### `useScoresheet.ts`

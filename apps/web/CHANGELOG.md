@@ -16,6 +16,17 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Added
+
+* A stats page for each division, for the meet's admins, reached from the results page: the
+  division's prelim standings and its counted quizzes with each team's place and score, as the API
+  works them out. A quiz with errors is listed as under review, with each error named
+
+### Changed
+
+* The results page no longer ranks teams itself. It links to each division's stats page and shows
+  the warnings the API gives for the division, where look-alike team names are still merged
+
 ## [0.24.1] - 2026-11-12
 
 ### Fixed

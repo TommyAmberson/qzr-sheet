@@ -4,7 +4,6 @@ import {
   quizName,
   quizOutcome,
   serialize,
-  type CountedQuiz,
   type QuizFile,
   type TeamOutcome,
 } from '@qzr/shared'
@@ -63,14 +62,6 @@ export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
     }))
 }
 
-/** A division's counted quizzes, as its standings take them */
-export function countedQuizzes(division: DivisionResults): CountedQuiz[] {
-  return division.quizzes
-    .filter((quiz) => quiz.counted)
-    .map((quiz) => ({ name: quiz.name, outcome: { placed: quiz.placed, teams: quiz.teams } }))
-}
-
-/** The names the quick form can change in a stored quiz's file; what's left out stays as it is */
 export interface QuizEdit {
   division?: string
   quizNumber?: string

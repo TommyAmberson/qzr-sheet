@@ -1,6 +1,7 @@
-import { createApiClient, MeetRole } from '@qzr/shared'
+import { ApiError, createApiClient, MeetRole } from '@qzr/shared'
 import type {
   DivisionStateValue,
+  DivisionStats,
   DivisionTeamNames,
   MeetPhase,
   PublishedSchedule,
@@ -566,6 +567,33 @@ export function setResultsCounted(
     method: 'PATCH',
     body: JSON.stringify({ ids, counted }),
   })
+}
+
+// ---- Stats (specs/006-meet-stats/contracts/stats-api.md) ----
+
+/** The meet's divisions with their states, in the meet's order */
+export function listStatsDivisions(
+  meetId: number,
+): Promise<{ phase: MeetPhase; divisions: { division: string; state: DivisionStateValue }[] }> {
+  return request(`/api/meets/${meetId}/stats`)
+}
+
+/** How long to keep asking for stats the API is still preparing, one try a second */
+const STATS_TRIES = 60
+
+/**
+ * One division's stats. The API answers 503 while it is still scoring the division's stored
+ * quizzes, a few with each request, so this asks again until they are ready.
+ */
+export async function getDivisionStats(meetId: number, division: string): Promise<DivisionStats> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await request(`/api/meets/${meetId}/stats/${encodeURIComponent(division)}`)
+    } catch (e) {
+      if (!(e instanceof ApiError) || e.status !== 503 || attempt >= STATS_TRIES) throw e
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+  }
 }
 
 // ---- Linked schedules (specs/005-schedule-redesign/contracts/api.md) ----
