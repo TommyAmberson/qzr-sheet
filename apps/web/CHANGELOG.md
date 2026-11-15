@@ -21,6 +21,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * A stats page for each division, for the meet's admins, reached from the results page: the
   division's prelim standings and its counted quizzes with each team's place and score, as the API
   works them out. A quiz with errors is listed as under review, with each error named
+* Quizzer standings on the division's stats page: each quizzer's place, average to two decimals,
+  errors, jumps, points and their team's quiz count, the quizzers of consolation teams listed apart,
+  and a note beside a quizzer listed in a different number of quizzes from their team or whose
+  question types are incomplete
 
 ### Changed
 

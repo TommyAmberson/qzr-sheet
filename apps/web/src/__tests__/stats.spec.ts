@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ValidationCode, type QuizProblem } from '@qzr/shared'
-import { placeLabel, problemText, warningText } from '../stats'
+import { flagText, placeLabel, problemText, warningText } from '../stats'
 
 describe('placeLabel', () => {
   it('names a place, and says when teams share it', () => {
@@ -40,6 +40,14 @@ describe('problemText', () => {
     )
     expect(problemText({ kind: 'unanswered', questions: ['14', '15'] })).toBe(
       'Questions 14, 15 have no answer.',
+    )
+  })
+})
+
+describe('flagText', () => {
+  it('gives both counts for a quizzer listed in fewer quizzes than their team played', () => {
+    expect(flagText({ kind: 'quizCount', listed: 4, teamQuizzes: 6 })).toBe(
+      "listed in 4 of the team's 6 quizzes",
     )
   })
 })

@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { ApiError, type DivisionStats, type Stage } from '@qzr/shared'
 
 import { getDivisionStats, getMeet, type MeetDetail } from '../api'
-import { TIE_BREAKS, placeLabel, problemText, warningText } from '../stats'
+import { TIE_BREAKS, flagText, placeLabel, problemText, warningText } from '../stats'
 
 const props = defineProps<{ slug: string; division: string }>()
 const router = useRouter()
@@ -92,6 +92,48 @@ watch(() => [props.slug, props.division], load)
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section v-if="stats.quizzers" class="block">
+        <h3 class="section-title">Quizzer standings</h3>
+        <p v-if="stats.quizzers.lists.length === 0" class="state-msg">
+          No quiz counts for quizzers yet.
+        </p>
+        <template v-for="list in stats.quizzers.lists" :key="String(list.consolation)">
+          <h4 v-if="list.consolation" class="list-title">Consolation</h4>
+          <div class="table-scroll">
+            <table class="stats-table">
+              <thead>
+                <tr>
+                  <th>Place</th>
+                  <th>Quizzer</th>
+                  <th>Team</th>
+                  <th>Average</th>
+                  <th>Errors</th>
+                  <th>Jumps</th>
+                  <th title="Total points">Points</th>
+                  <th title="Quizzes the team played">Quizzes</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="quizzer in list.quizzers" :key="`${quizzer.team}|${quizzer.name}`">
+                  <td>{{ quizzer.place }}</td>
+                  <td>{{ quizzer.name }}</td>
+                  <td>{{ quizzer.team }}</td>
+                  <td>{{ quizzer.average.toFixed(2) }}</td>
+                  <td>{{ quizzer.errors }}</td>
+                  <td>{{ quizzer.jumps }}</td>
+                  <td>{{ quizzer.points }}</td>
+                  <td>{{ quizzer.quizzes }}</td>
+                  <td class="flags">
+                    <span v-for="(flag, i) in quizzer.flags" :key="i">{{ flagText(flag) }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </section>
 
       <section v-for="stage in stats.results" :key="stage.stage" class="block">
@@ -241,6 +283,21 @@ watch(() => [props.slug, props.division], load)
   padding-left: 1.1rem;
   font-size: 0.8rem;
   color: var(--palette-error);
+}
+
+.list-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  margin: 1rem 0 0.4rem;
+}
+
+.flags {
+  color: var(--palette-error);
+}
+
+.flags span + span::before {
+  content: '; ';
 }
 
 .note {

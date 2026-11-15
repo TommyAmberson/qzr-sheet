@@ -124,8 +124,8 @@ Each pull request rebases onto master first and carries its own changelog entrie
 
 - [X] T012 [US1] Quizzer standings, owned by a new module in `packages/shared/src/scoring/` (plan: Reuse and Ownership), built from the scored facts of T005 and reusing `foldName` and the most-used-spelling tally `packages/shared/src/scoring/standings.ts` keeps for teams; covered by T011
 - [X] T013 [US1] The quizzer table of `contracts/stats-api.md` (`QuizzerTable`: lists with `consolation`, each quizzer's `place`, exact `average`, `points`, `errors`, `jumps`, `quizzes`, `types`, `lines`, and for admins `flags`) added to a division's stats in shared `stats/` and so to `GET /stats/:division`; cases added to the T003 and T004 specs
-- [ ] T014 [US1] The division stats page in `apps/web/src/views/` shows the quizzer standings with the consolation list apart, averages to two decimals, and for the admin each quizzer's flags
-- [ ] T015 [US1] In the same pull request: record in `docs/scoring-rules-explained.md`, under "Rules Not in the Rulebook" with what each is based on, the average's divisor (the quizzes the quizzer's team played), ranking averages by fewest errors, and shared places
+- [X] T014 [US1] The division stats page in `apps/web/src/views/` shows the quizzer standings with the consolation list apart, averages to two decimals, and for the admin each quizzer's flags
+- [X] T015 [US1] In the same pull request: record in `docs/scoring-rules-explained.md`, under "Rules Not in the Rulebook" with what each is based on, the average's divisor (the quizzes the quizzer's team played), ranking averages by fewest errors, and shared places
 
 **Checkpoint**: Quizzer standings for the reference meet match the workbook; an admin reads them in the portal
 

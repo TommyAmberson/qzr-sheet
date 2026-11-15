@@ -264,6 +264,24 @@ by head-to-head, then total points, then least errors (Rules for Tournament, Eli
 | A counted quiz that can't be placed adds nothing, isn't one of its teams' quizzes, and is named in a warning                                            | The scoresheet's own placement gate                                   |
 | Team names that differ only in case and spaces are one team                                                                                             | Officials type names by hand at practice meets                        |
 
+### Quizzer standings
+
+The rulebook says what individual points a quizzer earns in a quiz (Individual Points §2) and
+nothing about ranking quizzers across a meet. A meet's quizzer standings (`quizzerStandings` in
+`packages/shared`) follow what its statisticians have done by hand, checked against a whole past
+meet's workbook.
+
+| Rule                                                                                                                        | Based on                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| A quizzer's average is their total individual points divided by the number of counting quizzes their team played            | The statistician's workbook: a quizzer who sits a quiz out is not ranked above one who quizzed |
+| A quizzer listed in fewer or more quizzes than their team played is flagged, and the average is not changed for it          | So a missing or doubled sheet is seen, without guessing what the quizzer would have scored     |
+| Quizzers are ranked by average, then by fewest errors                                                                       | The workbook's order                                                                           |
+| Errors count every error outside overtime, whether or not it cost points; jumps are correct answers plus errors, no bonuses | The workbook's columns; overtime and bonuses earn no individual points (§2.a.iv, §2.a.v)       |
+| Quizzers level on average and errors share a place, and the next place is skipped                                           | The workbook's places                                                                          |
+| A Finals counts for nobody's average; every other counting quiz does                                                        | The workbook has no rows for Finals                                                            |
+| Quizzers of teams that played in a division's consolation bracket are ranked apart, over every quiz their team played       | The published report lists them separately                                                     |
+| A quizzer is a name on a team; names that differ only in case and spaces are one quizzer                                    | Officials type names by hand                                                                   |
+
 ### Other departures
 
 * The **Legacy** placement formula and the **Team** bonus rule, described above, are opt-in variants

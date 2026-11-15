@@ -1,4 +1,10 @@
-import { validationMessage, type QuizProblem, type StatsWarning, type TieBreak } from '@qzr/shared'
+import {
+  validationMessage,
+  type QuizProblem,
+  type QuizzerFlag,
+  type StatsWarning,
+  type TieBreak,
+} from '@qzr/shared'
 
 /** How a standings table names the tie-breaker that separated a team from those level with it */
 export const TIE_BREAKS: Record<TieBreak, string> = {
@@ -26,6 +32,16 @@ export function problemText(problem: QuizProblem): string {
     .filter((part) => part)
     .join(', ')
   return `${where}: ${validationMessage(problem.code)}`
+}
+
+/** A flag on a quizzer's line in the standings, for the admin */
+export function flagText(flag: QuizzerFlag): string {
+  switch (flag.kind) {
+    case 'quizCount':
+      return `listed in ${flag.listed} of the team's ${flag.teamQuizzes} quizzes`
+    case 'incompleteTypes':
+      return 'question types incomplete'
+  }
 }
 
 /** A warning on a division's stats, as a sentence */
