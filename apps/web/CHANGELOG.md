@@ -16,6 +16,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-14
+
 ### Added
 
 * A stats page for each division, for the meet's admins, reached from the results page: the
@@ -30,6 +32,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 * The results page no longer ranks teams itself. It links to each division's stats page and shows
   the warnings the API gives for the division, where look-alike team names are still merged
+
+### Bundled contract
+
+* `@qzr/shared@1.11.0` - bumped from 1.10.0
 
 ## [0.24.1] - 2026-11-12
 
