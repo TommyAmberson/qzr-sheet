@@ -59,7 +59,7 @@ deliberate: the link only says which roster name the restore button offers.
 
 A name that disagrees with the roster is underlined, with the reason on hover and a restore button
 where there is a roster name to go back to. The same disagreements are listed as warnings beside the
-quiz's status, and asked about once when the quiz is submitted:
+quiz's status, and asked about once when the quiz is submitted to the linked meet:
 
 | Warning                                       | When                                             |
 | --------------------------------------------- | ------------------------------------------------ |

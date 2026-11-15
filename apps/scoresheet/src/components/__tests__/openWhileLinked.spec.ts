@@ -19,9 +19,8 @@ vi.mock('../../api', async () => ({
   ...(await vi.importActual<typeof import('../../api')>('../../api')),
   getMeetTeams: vi.fn(async () => ({ teams: roster, meetDivisions: ['1', '2'] })),
   getTeamQuizzers: vi.fn(async () => ({ quizzers: [{ quizzerId: 11, name: 'Ann' }] })),
-  getSender: vi.fn(async () => {
-    throw new ApiError(401, 'Authentication required')
-  }),
+  getSender: vi.fn(),
+  getMyMeets: vi.fn(),
 }))
 vi.mock('../../persistence/fileIO', async () => ({
   ...(await vi.importActual<typeof import('../../persistence/fileIO')>('../../persistence/fileIO')),
@@ -29,9 +28,11 @@ vi.mock('../../persistence/fileIO', async () => ({
   confirmAction: vi.fn(async () => false),
 }))
 
+import { getMyMeets, getSender } from '../../api'
 import { confirmAction, openAnyQuizFile } from '../../persistence/fileIO'
 import Scoresheet from '../Scoresheet.vue'
 import { useMeetSession, type MeetSessionData } from '../../composables/useMeetSession'
+import { useSubmitToMeet } from '../../composables/useSubmitToMeet'
 
 const fileTeam = (id: number, name: string, quizzer: string) => ({
   id,
@@ -54,6 +55,12 @@ const savedQuiz: QuizFile = {
   noJumps: [],
 }
 
+// Two teams marked correct on the one question
+const quizWithScoringError: QuizFile = {
+  ...savedQuiz,
+  answers: [10, 20].map((quizzerId) => ({ quizzerId, columnKey: '1', value: CellValue.Correct })),
+}
+
 // The last quiz had Regina in the first slot
 const linked: MeetSessionData = {
   meetId: 3,
@@ -66,12 +73,15 @@ const linked: MeetSessionData = {
   teamList: roster,
   meetDivisions: ['1', '2'],
   quizId: '5',
-  sender: null,
+  sender: { admin: true, rooms: [] },
 }
 
 beforeEach(() => {
   localStorage.clear()
   useMeetSession().restoreSession(structuredClone(linked))
+  vi.mocked(confirmAction).mockClear()
+  vi.mocked(getSender).mockResolvedValue({ admin: true, rooms: [] })
+  vi.mocked(getMyMeets).mockRejectedValue(new ApiError(401, 'Authentication required'))
   vi.mocked(openAnyQuizFile).mockResolvedValue({
     type: 'json',
     content: JSON.stringify(savedQuiz),
@@ -119,15 +129,9 @@ describe('opening a file in a linked meet', () => {
   })
 
   it('asks before sending a quiz with scoring errors, rather than refusing it', async () => {
-    // Two teams marked correct on the one question
-    const answers = [10, 20].map((quizzerId) => ({
-      quizzerId,
-      columnKey: '1',
-      value: CellValue.Correct,
-    }))
     vi.mocked(openAnyQuizFile).mockResolvedValue({
       type: 'json',
-      content: JSON.stringify({ ...savedQuiz, answers }),
+      content: JSON.stringify(quizWithScoringError),
     })
     const wrapper = mount(Scoresheet)
     await flushPromises()
@@ -142,6 +146,37 @@ describe('opening a file in a linked meet', () => {
     const question = vi.mocked(confirmAction).mock.lastCall?.[0]
     expect(question).toMatch(/^Scoring errors .*\n.+\n\nCheck these names:/)
     expect(question).toMatch(/Submit anyway\?$/)
+    wrapper.unmount()
+  })
+
+  it("leaves the linked meet's roster out of it when the quiz goes to another meet", async () => {
+    // Linked to a meet the user may not send to, with one other meet they may
+    useMeetSession().restoreSession({ ...structuredClone(linked), sender: null })
+    vi.mocked(getSender).mockImplementation(async (meetId) => {
+      if (meetId === linked.meetId) throw new ApiError(403, 'Forbidden')
+      return { admin: true, rooms: [] }
+    })
+    vi.mocked(getMyMeets).mockResolvedValue({
+      memberships: [{ meetId: 7, meetName: 'Regionals', role: 'admin' }],
+    } as Awaited<ReturnType<typeof getMyMeets>>)
+    vi.mocked(openAnyQuizFile).mockResolvedValue({
+      type: 'json',
+      content: JSON.stringify(quizWithScoringError),
+    })
+    const wrapper = mount(Scoresheet)
+    await flushPromises()
+    await useSubmitToMeet().refreshTargets()
+    await wrapper.vm.openFile()
+    await flushPromises()
+
+    const button = (label: string) =>
+      wrapper.findAll('button').find((candidate) => candidate.text().includes(label))!
+    await button('Save').trigger('click')
+    await button('Submit to meet').trigger('click')
+    await flushPromises()
+    const question = vi.mocked(confirmAction).mock.lastCall?.[0]
+    expect(question).toMatch(/^Scoring errors /)
+    expect(question).not.toContain('Check these names')
     wrapper.unmount()
   })
 })

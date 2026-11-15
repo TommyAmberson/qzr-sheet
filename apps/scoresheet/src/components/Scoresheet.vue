@@ -642,15 +642,19 @@ const nameWarnings = computed<string[]>(() => {
 })
 
 /**
- * The names to ask about before a quiz goes to a meet. A slot with no roster to hold its name
- * against, for want of a linked meet or of teams in the division, is asked about only while it is
- * still called "Team N", the one name sure to be wrong.
+ * The names to ask about before a quiz goes to a meet. They are held against the linked meet's
+ * roster only when that is the meet it goes to. A slot with no roster to hold its name against,
+ * for want of that or of teams in the division, is asked about only while it is still called
+ * "Team N", the one name sure to be wrong.
  */
-function submitWarnings(): string[] {
+function submitWarnings(targetMeetId: number): string[] {
+  const againstRoster = meetSession.meetId.value === targetMeetId
   const defaultNames = teams.value
-    .filter((team, slotIdx) => !picksTeam(slotIdx) && isDefaultTeamName(team.name))
+    .filter(
+      (team, slotIdx) => !(againstRoster && picksTeam(slotIdx)) && isDefaultTeamName(team.name),
+    )
     .map((team) => `${team.name}: still has its default name`)
-  return [...nameWarnings.value, ...defaultNames]
+  return [...(againstRoster ? nameWarnings.value : []), ...defaultNames]
 }
 
 /** All unique validation messages for the status tooltip */
@@ -675,7 +679,7 @@ const allValidationMessages = computed(() => {
  * Neither stops it going. The room may have no time to put it right, and the meet's admin can:
  * a quiz with scoring errors is stored and goes unplaced until a corrected one is sent.
  */
-function submitConcerns(): string | undefined {
+function submitConcerns(targetMeetId: number): string | undefined {
   const sections: string[] = []
   if (hasAnyErrors.value) {
     sections.push(
@@ -683,7 +687,7 @@ function submitConcerns(): string | undefined {
         allValidationMessages.value.join('\n'),
     )
   }
-  const warnings = submitWarnings()
+  const warnings = submitWarnings(targetMeetId)
   if (warnings.length > 0) sections.push(`Check these names:\n${warnings.join('\n')}`)
   return sections.length > 0 ? sections.join('\n\n') : undefined
 }
@@ -1155,10 +1159,11 @@ async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender 
 /** Send the quiz to a meet; the sheet itself is untouched whether or not it arrives */
 async function doSubmitToMeet() {
   closeMenus()
-  const concerns = submitConcerns()
-  if (concerns && !(await confirmAction(`${concerns}\n\nSubmit anyway?`))) return
   const target = await chooseMeet()
   if (!target) return
+  // Asked once the meet is settled: the names are held against the roster of the meet it goes to
+  const concerns = submitConcerns(target.id)
+  if (concerns && !(await confirmAction(`${concerns}\n\nSubmit anyway?`))) return
   const meet = target.name
   const roomId = await chooseRoom(choiceDialog.value, target.sender, meet, 'Submit')
   if (roomId === undefined) return
