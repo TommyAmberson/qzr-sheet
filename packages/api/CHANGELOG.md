@@ -17,6 +17,8 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-14
+
 ### Added
 
 * `GET /api/meets/:id/stats` and `GET /api/meets/:id/stats/:division`, for admins: a meet's
@@ -27,6 +29,10 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   when the revision is saved and keyed by the `@qzr/shared` version that scored it, so a stats
   request ranks without scoring. A division with scores missing, or made by another shared version,
   scores a few per request and answers 503 with `Retry-After: 1` until all are kept
+
+### Bundled contract
+
+* `@qzr/shared@1.11.0` - bumped from 1.9.0
 
 ## [0.25.0] - 2026-11-11
 
