@@ -35,6 +35,10 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   settings decide those
 * `assessStoredQuiz`: the one pass over a stored quiz that `quizOutcome` and `scoreStoredQuiz` both
   read
+* `divisionStats`, with the response types the stats API sends (`DivisionStats`, `StageResults`,
+  `QuizResult`, `TeamTable`, `StatsWarning`, `QuizRef`, `QuizProblem`, `Stage`): a division's
+  quizzes by stage and its prelim standings, read from scored quizzes with placement points worked
+  out from each team's place and score
 
 ## [1.10.0] - 2026-11-12
 

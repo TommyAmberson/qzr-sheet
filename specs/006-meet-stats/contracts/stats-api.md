@@ -127,10 +127,17 @@ request covers every division; 503 with `Retry-After: 1`, as a division's stats,
 revisions are still to be scored (R2).
 
 ```ts
+/** A stored quiz, as a warning or a list names it */
+interface QuizRef {
+  id: number
+  name: string
+}
+
 type AttentionItem =
   | { kind: 'noStage'; quiz: QuizRef; suggestedLink?: { scheduleQuizId: string; label: string } }
   | { kind: 'inError'; quiz: QuizRef; problems: QuizProblem[] }
   | { kind: 'unequalPrelims'; division: string; teams: { name: string; quizzes: number }[] }
+  | { kind: 'finalTie'; division: string; teams: string[] }
   | { kind: 'lookAlikeTeams'; division: string; names: [string, string] }
   | { kind: 'lookAlikeQuizzers'; division: string; team: string; names: [string, string] }
   | { kind: 'quizzerCount'; division: string; team: string; quizzer: string; listed: number; teamQuizzes: number }
