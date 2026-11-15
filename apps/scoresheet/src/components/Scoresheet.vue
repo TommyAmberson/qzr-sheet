@@ -618,6 +618,13 @@ function warningList(warnings: string[]): string {
   return `Check these:\n${warnings.join('\n')}`
 }
 
+/** The list a hover shows, for a touch screen, which has no hover */
+function showMeetWarnings(event: MouseEvent) {
+  // Keys score the sheet, so the count mustn't keep the focus a click gave it
+  ;(event.currentTarget as HTMLElement).blur()
+  alert(warningList(meetWarnings.value))
+}
+
 /** All unique validation messages for the status tooltip */
 const allValidationMessages = computed(() => {
   const msgs = new Set<string>()
@@ -1423,15 +1430,16 @@ const appVersion: string = __APP_VERSION__
                   hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : '…'
                 }}</span>
               </span>
-              <span
+              <button
                 v-if="meetWarnings.length > 0"
+                type="button"
                 class="meta-field meta-meet-warnings"
                 :title="meetWarnings.join('\n')"
-                role="img"
                 :aria-label="`Warnings (${meetWarnings.length}): ${meetWarnings.join('; ')}`"
+                @click="showMeetWarnings"
               >
                 ⚠ {{ meetWarnings.length }}
-              </span>
+              </button>
               <span v-if="meetSession.isActive.value" class="meta-field meta-session-pill">
                 🔗 {{ meetSession.meetName.value }}
               </span>
@@ -2563,11 +2571,15 @@ const appVersion: string = __APP_VERSION__
 }
 
 .meta-meet-warnings {
+  font: inherit;
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--palette-warning, #b45309);
   white-space: nowrap;
-  cursor: help;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 
 .team-picker-trigger {
