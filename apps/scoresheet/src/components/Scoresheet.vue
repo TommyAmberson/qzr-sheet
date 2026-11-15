@@ -42,6 +42,7 @@ import {
   getTeamQuizzers,
   joinMeet,
   joinMeetGuest,
+  type MeetTeam,
   type ScheduledQuizSeat,
 } from '../api'
 import {
@@ -61,6 +62,7 @@ import {
 import { useAuth } from '../composables/useAuth'
 import {
   quizzersConfirmTeam,
+  teamNamed,
   teamsNearName,
   useMeetSession,
   type SlotSession,
@@ -302,7 +304,8 @@ async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
   }
 
   const storeNames = store.quizzersByTeam(storeTeamId).map((q) => q.name)
-  await meetSession.assignTeam(slotIdx, teamId, storeNames)
+  // No pick made, as when another quiz took the sheet while the roster loaded: leave its names
+  if (!(await meetSession.assignTeam(slotIdx, teamId, storeNames))) return
 
   // Fill empty store seats with the DB names that were matched to those positions
   const slot = meetSession.getSlot(slotIdx)
@@ -315,40 +318,49 @@ async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
   }
 }
 
-function normalizeForMatch(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function findMatchingTeam(storeName: string) {
-  const lower = storeName.trim().toLowerCase()
-  const norm = normalizeForMatch(storeName)
-  const teams = meetSession.teamList.value
-  return (
-    teams.find((t) => meetSession.teamLabelFull(t).toLowerCase() === lower) ??
-    teams.find((t) => meetSession.teamLabel(t).toLowerCase() === lower) ??
-    teams.find(
-      (t) =>
-        normalizeForMatch(meetSession.teamLabelFull(t)) === norm ||
-        normalizeForMatch(meetSession.teamLabel(t)) === norm,
-    )
-  )
-}
-
 const filteredTeamList = computed(() =>
   meetSession.teamsForDivision(quiz.value.division ?? '', quiz.value.consolation ?? false),
 )
 
+/** Teams by the names a typed one is matched against */
+function teamsByName(teams: MeetTeam[]) {
+  return teams.map((team) => ({
+    id: team.id,
+    name: meetSession.teamLabelFull(team),
+    shortName: meetSession.teamLabel(team),
+  }))
+}
+
+/** A slot's candidates for a pick made on the sheet's behalf: teams no other slot has taken */
+function teamsFreeFor(slotIdx: number, teams: MeetTeam[]) {
+  const taken = new Set(
+    [0, 1, 2].filter((i) => i !== slotIdx).map((i) => meetSession.getSlot(i)?.teamId),
+  )
+  return teamsByName(teams.filter((team) => !taken.has(team.id)))
+}
+
+/**
+ * The roster team a slot's typed name names outright. The quiz's division is looked in first,
+ * since two divisions can each have a team of that name; the rest of the meet only after, where a
+ * match shows up flagged as out of its division.
+ */
+function findMatchingTeam(slotIdx: number, typedName: string): number | undefined {
+  const inDivision = teamNamed(typedName, teamsFreeFor(slotIdx, filteredTeamList.value))
+  if (inDivision !== undefined) return inDivision
+  // The division has a team of this name and another slot holds it. A name typed twice is a
+  // slip, not a call for another division's namesake: leave it to the misspelt-name path
+  if (teamNamed(typedName, teamsByName(filteredTeamList.value)) !== undefined) return undefined
+  return teamNamed(typedName, teamsFreeFor(slotIdx, meetSession.teamList.value))
+}
+
 async function onMeetLoaded() {
   for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
     const teamName = store.teams[teamIdx]?.name ?? ''
-    if (isDefaultTeamName(teamName)) continue
-    const match = findMatchingTeam(teamName)
+    // A blank name names no team, the same as one still called "Team N"
+    if (!teamName.trim() || isDefaultTeamName(teamName)) continue
+    const matchId = findMatchingTeam(teamIdx, teamName)
     try {
-      if (match) await pickTeam(teamIdx, match.id)
+      if (matchId !== undefined) await pickTeam(teamIdx, matchId)
       else await pickMisspeltTeam(teamIdx, teamName)
     } catch {
       // The roster couldn't be fetched: this name stays unpicked, and the next is still tried
@@ -365,15 +377,7 @@ async function onMeetLoaded() {
 async function pickMisspeltTeam(slotIdx: number, teamName: string) {
   const meetId = meetSession.meetId.value
   if (meetId === null) return
-  const picked = new Set([0, 1, 2].map((i) => meetSession.getSlot(i)?.teamId))
-  const unpicked = filteredTeamList.value
-    .filter((team) => !picked.has(team.id))
-    .map((team) => ({
-      id: team.id,
-      name: meetSession.teamLabelFull(team),
-      shortName: meetSession.teamLabel(team),
-    }))
-  const nearTeamIds = teamsNearName(teamName, unpicked)
+  const nearTeamIds = teamsNearName(teamName, teamsFreeFor(slotIdx, filteredTeamList.value))
   if (nearTeamIds.length === 0) return
 
   const typedQuizzerNames = () =>
@@ -451,23 +455,55 @@ function restoreTeamName(slotIdx: number) {
   if (pickedName !== undefined) setTeamName(slotIdx, pickedName)
 }
 
+type TeamNameIssue =
+  | { kind: 'unnamed' | 'unpicked' | 'division' }
+  | { kind: 'renamed'; pickedName: string }
+
 /**
- * Why a team's name is flagged against the linked meet's roster, if it is. The name stays as
+ * How a slot's team name disagrees with the linked meet's roster, if it does. The name stays as
  * typed either way: the sheet records what happened in the room, and an admin sorts out the
  * roster afterwards.
  */
-function teamNameWarning(slotIdx: number, name: string): string | undefined {
+function teamNameIssue(slotIdx: number, name: string): TeamNameIssue | undefined {
   if (!picksTeam(slotIdx)) return undefined
-  const slot = meetSession.getSlot(slotIdx)
-  if (!slot) {
+  if (!meetSession.getSlot(slotIdx)) {
     const typed = name.trim() !== '' && !isDefaultTeamName(name)
-    return typed ? "Not picked from the meet's teams" : undefined
+    return { kind: typed ? 'unpicked' : 'unnamed' }
   }
   if (meetSession.isTeamNameDiverged(slotIdx, name)) {
-    return `Picked team: ${meetSession.pickedTeamName(slotIdx)}`
+    return { kind: 'renamed', pickedName: meetSession.pickedTeamName(slotIdx) ?? '' }
   }
-  if (isTeamDivisionDiverged(slotIdx)) return "Picked team isn't in this division"
+  if (isTeamDivisionDiverged(slotIdx)) return { kind: 'division' }
   return undefined
+}
+
+/** Why a team's name cell is flagged, if it is. A slot nobody has named yet isn't */
+function teamNameWarning(slotIdx: number, name: string): string | undefined {
+  const issue = teamNameIssue(slotIdx, name)
+  switch (issue?.kind) {
+    case 'unpicked':
+      return "Not picked from the meet's teams"
+    case 'renamed':
+      return `Picked team: ${issue.pickedName}`
+    case 'division':
+      return "Picked team isn't in this division"
+    default:
+      return undefined
+  }
+}
+
+/** A team name's disagreement as the warning list words it */
+function teamNameIssueLine(issue: TeamNameIssue): string {
+  switch (issue.kind) {
+    case 'unnamed':
+      return 'no team picked'
+    case 'unpicked':
+      return "not picked from the meet's teams"
+    case 'renamed':
+      return `picked team is ${issue.pickedName}`
+    case 'division':
+      return "picked team isn't in this division"
+  }
 }
 
 function isTeamDivisionDiverged(slotIdx: number): boolean {
@@ -570,6 +606,57 @@ const tutorial = useTutorial({
 })
 tutorial.recoverFromCrash()
 
+/** What a warning calls a team: its name, or its place on the sheet while it has none */
+function teamCalled(slotIdx: number, name: string): string {
+  return name.trim() || `Team ${slotIdx + 1}`
+}
+
+/**
+ * Names that don't agree with the linked meet's roster, a line each. Warnings, not errors: the
+ * sheet records what the room typed, which may be righter than the roster, so they never stop a
+ * quiz being sent. They are shown, and asked about once before it goes.
+ */
+const nameWarnings = computed<string[]>(() => {
+  const warnings: string[] = []
+  teams.value.forEach((team, slotIdx) => {
+    if (!picksTeam(slotIdx)) return
+    const called = teamCalled(slotIdx, team.name)
+    const issue = teamNameIssue(slotIdx, team.name)
+    if (issue) warnings.push(`${called}: ${teamNameIssueLine(issue)}`)
+    // No team picked, so no roster to hold the quizzers against
+    if (!meetSession.getSlot(slotIdx)) return
+    teamQuizzers.value[slotIdx]?.forEach((quizzer, seatIdx) => {
+      // A seat emptied of its roster quizzer is an absence, not a disagreement, and one still
+      // called "Quizzer N" was never named
+      if (!quizzer.name.trim() || isDefaultQuizzerName(quizzer.name)) return
+      if (!meetSession.isQuizzerDiverged(slotIdx, seatIdx, quizzer.name)) return
+      const rosterName = meetSession.getDbName(slotIdx, seatIdx)
+      warnings.push(
+        rosterName
+          ? `${called}, ${quizzer.name.trim()}: roster has ${rosterName}`
+          : `${called}, ${quizzer.name.trim()}: not on the roster`,
+      )
+    })
+  })
+  return warnings
+})
+
+/**
+ * The names to ask about before a quiz goes to a meet. They are held against the linked meet's
+ * roster only when that is the meet it goes to. A slot with no roster to hold its name against,
+ * for want of that or of teams in the division, is asked about only while it is still called
+ * "Team N", the one name sure to be wrong.
+ */
+function submitWarnings(targetMeetId: number): string[] {
+  const againstRoster = meetSession.meetId.value === targetMeetId
+  const defaultNames = teams.value
+    .filter(
+      (team, slotIdx) => !(againstRoster && picksTeam(slotIdx)) && isDefaultTeamName(team.name),
+    )
+    .map((team) => `${team.name}: still has its default name`)
+  return [...(againstRoster ? nameWarnings.value : []), ...defaultNames]
+}
+
 /** All unique validation messages for the status tooltip */
 const allValidationMessages = computed(() => {
   const msgs = new Set<string>()
@@ -586,6 +673,24 @@ const allValidationMessages = computed(() => {
   }
   return [...msgs]
 })
+
+/**
+ * What to ask about before a quiz goes to a meet: its scoring errors, then its name warnings.
+ * Neither stops it going. The room may have no time to put it right, and the meet's admin can:
+ * a quiz with scoring errors is stored and goes unplaced until a corrected one is sent.
+ */
+function submitConcerns(targetMeetId: number): string | undefined {
+  const sections: string[] = []
+  if (hasAnyErrors.value) {
+    sections.push(
+      `Scoring errors (the meet can't place this quiz until they're fixed):\n` +
+        allValidationMessages.value.join('\n'),
+    )
+  }
+  const warnings = submitWarnings(targetMeetId)
+  if (warnings.length > 0) sections.push(`Check these names:\n${warnings.join('\n')}`)
+  return sections.length > 0 ? sections.join('\n\n') : undefined
+}
 
 /**
  * Show individual score if the quizzer has one: they jumped (correct or error) or fouled out, before
@@ -844,6 +949,7 @@ async function openFile() {
     if (result.type === 'ods') {
       const data = deserialize(readOds(result.content))
       loadFile(data)
+      dropPicks()
     } else {
       await openJsonQuiz(result.content)
     }
@@ -865,6 +971,16 @@ async function openJsonQuiz(json: string) {
     if (!(await confirmAction(TRY_NEWER_PROMPT))) return
     loadFile(parseQuizFileAttempt(json), { fromNewerFile: true })
   }
+  dropPicks()
+}
+
+/**
+ * A quiz opened over the sheet brings its own teams, so the picks kept for the last quiz no
+ * longer describe it: drop them. Its names aren't looked up on the roster, since a pick seats
+ * quizzers and an opened quiz is to stay as it was saved.
+ */
+function dropPicks() {
+  meetSession.startNewQuiz()
 }
 
 function startTutorial() {
@@ -884,6 +1000,7 @@ async function tryOpenKeptAutoSave() {
   if (!(await confirmAction(TRY_NEWER_PROMPT))) return
   try {
     openKeptNewerAutoSave()
+    dropPicks()
   } catch (e) {
     alert(`Failed to open the kept quiz: ${e instanceof Error ? e.message : e}`)
   }
@@ -1042,12 +1159,11 @@ async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender 
 /** Send the quiz to a meet; the sheet itself is untouched whether or not it arrives */
 async function doSubmitToMeet() {
   closeMenus()
-  if (hasAnyErrors.value) {
-    alert(`Fix these before submitting:\n${allValidationMessages.value.join('\n')}`)
-    return
-  }
   const target = await chooseMeet()
   if (!target) return
+  // Asked once the meet is settled: the names are held against the roster of the meet it goes to
+  const concerns = submitConcerns(target.id)
+  if (concerns && !(await confirmAction(`${concerns}\n\nSubmit anyway?`))) return
   const meet = target.name
   const roomId = await chooseRoom(choiceDialog.value, target.sender, meet, 'Submit')
   if (roomId === undefined) return
@@ -1313,6 +1429,15 @@ const appVersion: string = __APP_VERSION__
                 <span class="meta-label">{{
                   hasAnyErrors ? 'Invalid' : allQuestionsComplete ? 'Complete' : '…'
                 }}</span>
+              </span>
+              <span
+                v-if="nameWarnings.length > 0"
+                class="meta-field meta-name-warnings"
+                :title="nameWarnings.join('\n')"
+                role="img"
+                :aria-label="`Name warnings (${nameWarnings.length}): ${nameWarnings.join('; ')}`"
+              >
+                ⚠ {{ nameWarnings.length }}
               </span>
               <span v-if="meetSession.isActive.value" class="meta-field meta-session-pill">
                 🔗 {{ meetSession.meetName.value }}
@@ -2443,6 +2568,14 @@ const appVersion: string = __APP_VERSION__
   border-radius: 999px;
   padding: 0.15rem 0.5rem;
   white-space: nowrap;
+}
+
+.meta-name-warnings {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--palette-warning, #b45309);
+  white-space: nowrap;
+  cursor: help;
 }
 
 .team-picker-trigger {

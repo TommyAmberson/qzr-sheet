@@ -41,6 +41,13 @@ export interface MeetSessionData {
 
 const session = ref<MeetSessionData | null>(loadFromStorage())
 
+/**
+ * Counts the quizzes the session has stood for: stepped whenever its picks are replaced wholesale
+ * (a meet linked or unlinked, a new or scheduled quiz), so a pick still waiting on its roster can
+ * tell that the quiz it was made for is gone.
+ */
+let quizEpoch = 0
+
 export function useMeetSession() {
   const isActive = computed(() => session.value !== null)
   const meetId = computed(() => session.value?.meetId ?? null)
@@ -77,6 +84,7 @@ export function useMeetSession() {
       getMeetTeams(meetId),
       senderOf(meetId),
     ])
+    quizEpoch++
     session.value = {
       meetId,
       meetName,
@@ -105,15 +113,19 @@ export function useMeetSession() {
       await loadMeet(meetId, details.quiz.meetName)
     } else {
       // The seats' teams are newer than the team list kept since linking. Take them into it, so
-      // a team's name reads the same from both
+      // a team's name reads the same from both, and one added to the roster since can be picked
       const seated = new Map(
         details.seats
           .flatMap((seat) => (seat.team ? [seat.team] : []))
           .map((team) => [team.id, team]),
       )
+      const known = new Set(session.value.teamList.map((team) => team.id))
       session.value = {
         ...session.value,
-        teamList: session.value.teamList.map((team) => seated.get(team.id) ?? team),
+        teamList: [
+          ...session.value.teamList.map((team) => seated.get(team.id) ?? team),
+          ...[...seated.values()].filter((team) => !known.has(team.id)),
+        ],
       }
       persist()
     }
@@ -145,17 +157,26 @@ export function useMeetSession() {
    */
   function applyLoadedQuiz(slots: (SlotSession | undefined)[], quizId: string): void {
     if (!session.value) return
+    quizEpoch++
     session.value = { ...session.value, slots, quizId }
     persist()
   }
 
   /** Assign a team to a slot and fetch its quizzers */
-  async function assignTeam(slotIdx: number, teamId: number, storeNames: string[]): Promise<void> {
-    if (!session.value) return
+  /** Pick a roster team for a slot. False when the pick wasn't made. */
+  async function assignTeam(
+    slotIdx: number,
+    teamId: number,
+    storeNames: string[],
+  ): Promise<boolean> {
+    if (!session.value) return false
     const team = session.value.teamList.find((t) => t.id === teamId)
-    if (!team) return
+    if (!team) return false
 
+    const epoch = quizEpoch
     const { quizzers } = await getTeamQuizzers(session.value.meetId, teamId)
+    // The roster took a while to arrive: the meet may have been unlinked, or another quiz begun
+    if (!session.value || quizEpoch !== epoch) return false
 
     session.value.slots[slotIdx] = {
       teamId,
@@ -166,6 +187,7 @@ export function useMeetSession() {
     // Trigger reactivity — slots is a plain array inside a ref
     session.value = { ...session.value, slots: [...session.value.slots] }
     persist()
+    return true
   }
 
   /** Clear the team assignment for a slot */
@@ -235,12 +257,14 @@ export function useMeetSession() {
   /** Start the next quiz in the same meet: forget this quiz's teams, keep the meet */
   function startNewQuiz(): void {
     if (!session.value) return
+    quizEpoch++
     session.value = { ...session.value, slots: [undefined, undefined, undefined], quizId: null }
     persist()
   }
 
   /** Disconnect from meet — called by Unlink meet and sign-out */
   function clearSession(): void {
+    quizEpoch++
     session.value = null
     persist()
   }
@@ -258,6 +282,7 @@ export function useMeetSession() {
 
   /** Restore a previously-snapshotted session (or clear if null). */
   function restoreSession(data: MeetSessionData | null): void {
+    quizEpoch++
     session.value = data
     persist()
   }
@@ -326,6 +351,28 @@ const TEAM_TYPO_EDITS = 2
 const SHORT_NAME_TYPO_EDITS = 1
 /** How many typed quizzers must be on a team's roster before a misspelt name is taken for it */
 const QUIZZERS_TO_CONFIRM = 2
+
+/** A name with case, punctuation and spacing set aside, so "st. john's 1" finds "St Johns 1" */
+function looseName(name: string): string {
+  return foldName(name.replace(/[^\w\s]/g, ''))
+}
+
+/**
+ * The roster team a typed name names outright, by its full name before its short one, and as
+ * written before punctuation is set aside. The first listed wins, so list the likelier teams first.
+ */
+export function teamNamed(
+  typedName: string,
+  teams: { id: number; name: string; shortName: string }[],
+): number | undefined {
+  const typed = foldName(typedName)
+  const loose = looseName(typedName)
+  return (
+    teams.find((team) => foldName(team.name) === typed) ??
+    teams.find((team) => foldName(team.shortName) === typed) ??
+    teams.find((team) => looseName(team.name) === loose || looseName(team.shortName) === loose)
+  )?.id
+}
 
 /**
  * The roster teams whose name, full or short, is a typo away from the typed one. Often more than

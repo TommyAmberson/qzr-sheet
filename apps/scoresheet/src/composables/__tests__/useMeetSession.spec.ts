@@ -11,7 +11,7 @@ vi.mock('../../api', () => ({
 }))
 
 import { getMeetTeams, getScheduledQuiz, getSender, getTeamQuizzers } from '../../api'
-import { quizzersConfirmTeam, teamsNearName, useMeetSession } from '../useMeetSession'
+import { quizzersConfirmTeam, teamNamed, teamsNearName, useMeetSession } from '../useMeetSession'
 
 const mockTeams: MeetTeam[] = [
   {
@@ -154,6 +154,42 @@ describe('useMeetSession — assignTeam', () => {
     expect(getTeamQuizzers).not.toHaveBeenCalled()
   })
 
+  it('drops the pick when the meet is unlinked while the roster loads', async () => {
+    let arrive!: (roster: { quizzers: typeof mockQuizzers }) => void
+    vi.mocked(getTeamQuizzers).mockReturnValueOnce(new Promise((resolve) => (arrive = resolve)))
+    const { loadMeet, assignTeam, clearSession, isActive } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    const picking = assignTeam(0, 1, emptyNames)
+    clearSession()
+    arrive({ quizzers: mockQuizzers })
+    await expect(picking).resolves.toBe(false)
+    expect(isActive.value).toBe(false)
+  })
+
+  it('drops the pick when a new quiz is begun while the roster loads', async () => {
+    let arrive!: (roster: { quizzers: typeof mockQuizzers }) => void
+    vi.mocked(getTeamQuizzers).mockReturnValueOnce(new Promise((resolve) => (arrive = resolve)))
+    const { loadMeet, assignTeam, startNewQuiz, getSlot } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    const picking = assignTeam(0, 1, emptyNames)
+    startNewQuiz()
+    arrive({ quizzers: mockQuizzers })
+    await expect(picking).resolves.toBe(false)
+    expect(getSlot(0)).toBeUndefined()
+  })
+
+  it('drops the pick when another meet is linked while the roster loads', async () => {
+    let arrive!: (roster: { quizzers: typeof mockQuizzers }) => void
+    vi.mocked(getTeamQuizzers).mockReturnValueOnce(new Promise((resolve) => (arrive = resolve)))
+    const { loadMeet, assignTeam, getSlot } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    const picking = assignTeam(0, 1, emptyNames)
+    await loadMeet(43, 'Regionals')
+    arrive({ quizzers: mockQuizzers })
+    await picking
+    expect(getSlot(0)).toBeUndefined()
+  })
+
   it('places exact-matched quizzer at its store seat', async () => {
     const { loadMeet, assignTeam, getSlot } = useMeetSession()
     await loadMeet(42, 'Finals')
@@ -257,6 +293,19 @@ describe('useMeetSession — loadFromQuiz', () => {
     vi.mocked(getMeetTeams).mockClear()
     await loadFromQuiz(42, '777')
     expect(getMeetTeams).not.toHaveBeenCalled()
+  })
+
+  it('takes in a seated team added to the roster since the meet was linked', async () => {
+    const added: MeetTeam = { ...mockTeams[0]!, id: 3, number: 3 }
+    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(
+      makeQuizDetails({}, [
+        { seatNumber: 1, letter: 'A', seedRef: null, team: added, quizzers: mockQuizzers },
+      ]),
+    )
+    const { loadMeet, loadFromQuiz, teamList } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await loadFromQuiz(42, '777')
+    expect(teamList.value.map((team) => team.id)).toEqual([1, 2, 3])
   })
 })
 
@@ -517,6 +566,31 @@ describe('useMeetSession — isTeamNameDiverged', () => {
     })
     await loadFromQuiz(42, '777')
     expect(pickedTeamName(0)).toBe('First Chapel 1')
+  })
+})
+
+describe('teamNamed', () => {
+  const teams = [
+    { id: 1, name: "St. John's 1", shortName: 'SJ 1' },
+    { id: 2, name: 'SJ 1', shortName: 'Saint 1' },
+    { id: 3, name: 'St Johns 1', shortName: 'STJ 1' },
+  ]
+
+  it('finds a team by its full name, ignoring case and spacing', () => {
+    expect(teamNamed("  st. john's  1", teams)).toBe(1)
+  })
+
+  it("takes a full name before another team's short one", () => {
+    expect(teamNamed('sj 1', teams)).toBe(2)
+  })
+
+  it('sets punctuation aside only when nothing matches as written', () => {
+    expect(teamNamed('St Johns 1', teams)).toBe(3)
+    expect(teamNamed('St. Johns 1', teams)).toBe(1)
+  })
+
+  it('finds nothing for a name no team has', () => {
+    expect(teamNamed('St Jon 1', teams)).toBeUndefined()
   })
 })
 

@@ -246,6 +246,13 @@ placement. `openedFromNewerFile` marks a quiz opened through the try-anyway path
 `keptNewerAutoSaves` lists the keys of set-aside newer auto-saves, with `openKeptNewerAutoSave` and
 `discardKeptNewerAutoSave` acting on the first listed.
 
+### `useMeetSession.ts`
+
+The link to a meet: its roster, which roster team each of the three slots is picked as, and which
+roster quizzer each seat stands for. Kept in `localStorage`, apart from the quiz, since a pick is a
+helper for the name cells and is never saved or submitted. [meet-link.md](./meet-link.md) describes
+how names, picks and warnings behave.
+
 ### `useHistory.ts`
 
 Generic command stack (undo/redo), in `packages/ui` so the schedule builder uses it too. Capped at
