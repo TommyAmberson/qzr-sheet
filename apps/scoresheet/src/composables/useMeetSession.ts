@@ -226,6 +226,24 @@ export function useMeetSession() {
   }
 
   /** Whether a name diverges from the DB value (empty seats have dbName ''). */
+  /**
+   * Tie a seat to the roster quizzer whose name was typed into it, when another seat of the team
+   * holds that quizzer and doesn't bear the name itself: the two seats swap quizzers. So a team
+   * seated in another order than the roster's can be typed in as it sits, with nothing left
+   * disagreeing. A seat that bears its own quizzer's name keeps them, and the typed one stays a
+   * disagreement, since one quizzer can't sit twice.
+   */
+  function relinkSeatByName(slotIdx: number, seatIdx: number, seatNames: string[]): void {
+    const slot = session.value?.slots[slotIdx]
+    const typed = seatNames[seatIdx]?.trim()
+    if (!slot || !typed || slot.quizzers[seatIdx]?.dbName.trim() === typed) return
+    const holder = slot.quizzers.findIndex(
+      (quizzer, seat) => seat !== seatIdx && quizzer.dbName.trim() === typed,
+    )
+    if (holder === -1 || seatNames[holder]?.trim() === typed) return
+    reorderSlotQuizzers(slotIdx, seatIdx, holder)
+  }
+
   function isQuizzerDiverged(slotIdx: number, seatIdx: number, currentName: string): boolean {
     const slot = session.value?.slots[slotIdx]
     if (!slot) return false
@@ -341,6 +359,7 @@ export function useMeetSession() {
     clearSlot,
     getSlot,
     reorderSlotQuizzers,
+    relinkSeatByName,
     isQuizzerDiverged,
     pickedTeamName,
     isTeamNameDiverged,

@@ -407,6 +407,16 @@ function focusName(e: MouseEvent) {
   ;(e.currentTarget as HTMLElement).querySelector<HTMLInputElement>('input.editable-name')?.focus()
 }
 
+/**
+ * Once a quizzer's name is typed in, not at each keystroke: a name half typed can be another's.
+ * Every seat of the team is looked at, since a name cleared from one seat frees its quizzer for the
+ * seat that already bears the name.
+ */
+function relinkSeats(slotIdx: number) {
+  const seatNames = teamQuizzers.value[slotIdx]?.map((quizzer) => quizzer.name) ?? []
+  seatNames.forEach((_, seatIdx) => meetSession.relinkSeatByName(slotIdx, seatIdx, seatNames))
+}
+
 function restoreQuizzerName(slotIdx: number, seatIdx: number) {
   setQuizzerName(slotIdx, seatIdx, meetSession.getDbName(slotIdx, seatIdx) ?? '')
 }
@@ -1762,6 +1772,7 @@ const appVersion: string = __APP_VERSION__
                               ($event.target as HTMLInputElement).value,
                             )
                           "
+                          @change="relinkSeats(teamIdx)"
                           @focus="($event.target as HTMLInputElement).select()"
                           @keydown.enter="($event.target as HTMLInputElement).blur()"
                         />

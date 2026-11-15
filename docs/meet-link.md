@@ -100,6 +100,11 @@ is submitted to the linked meet:
 | `Lions 1, Sammy: roster has Sam Lee`          | seat linked to a roster quizzer of another name  |
 | `Lions 1, Jo: not on the roster`              | seat with no roster quizzer left for it          |
 
+Each seat of a picked team is tied to one roster quizzer. Typing a quizzer's exact roster name into
+another seat moves them there: the two seats swap quizzers, once the name is typed in, unless the
+seat they were tied to still bears their name (`relinkSeatByName`). So a team that sits in another
+order than its roster can be typed in as it sits, and nothing is left disagreeing.
+
 Team names are compared ignoring case and spacing, quizzer names exactly. A seat emptied of its
 roster quizzer is an absence and gives no warning.
 
