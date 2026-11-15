@@ -60,6 +60,8 @@ export type ScoringProblem =
 export interface ScoredQuiz {
   /** The quiz's name, as officials know it: "D1 Q3" */
   name: string
+  /** Whether it is a quiz of the division's consolation bracket */
+  consolation: boolean
   /** The quiz's own way of giving level teams placement points */
   formula: PlacementFormula
   /** In seat order */
@@ -156,5 +158,11 @@ export function scoreStoredQuiz(file: QuizFile): ScoredQuiz {
   }
   if (unanswered.length > 0) problems.push({ kind: 'unanswered', questions: unanswered })
 
-  return { name: quizName(quiz), formula: quiz.placementFormula, teams, problems }
+  return {
+    name: quizName(quiz),
+    consolation: quiz.consolation ?? false,
+    formula: quiz.placementFormula,
+    teams,
+    problems,
+  }
 }

@@ -39,6 +39,12 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   `QuizResult`, `TeamTable`, `StatsWarning`, `QuizRef`, `QuizProblem`, `Stage`): a division's
   quizzes by stage and its prelim standings, read from scored quizzes with placement points worked
   out from each team's place and score
+* `quizzerStandings`, with `QuizzerList`, `QuizzerStanding` and `QuizzerFlag`: a division's quizzers
+  ranked by average, total points over the quizzes their team played, then fewest errors, level
+  quizzers sharing a place; the quizzers of consolation teams ranked apart; flags for a quizzer
+  listed in a different number of quizzes from their team and for question types that don't add up.
+  `divisionStats` gives it as `quizzers`, a `QuizzerTable`, over every counting quiz but a Finals
+* `mostUsedSpelling`, the spelling a name is shown under, which the team standings already used
 
 ## [1.10.0] - 2026-11-12
 

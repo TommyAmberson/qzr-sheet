@@ -167,6 +167,14 @@ describe('GET /api/meets/:id/stats/:division', () => {
       ['Team C', 2, 9],
       ['Team B', 3, 1],
     ])
+    expect(body.quizzers!.lists[0]!.quizzers[0]).toMatchObject({
+      name: 'A0',
+      team: 'Team A',
+      place: 1,
+      average: 70,
+      // The quiz records no question types, so the counts by type can't add up
+      flags: [{ kind: 'incompleteTypes' }],
+    })
   })
 
   it('answers for a division of the meet with no quiz yet, and 404 for one it does not have', async () => {

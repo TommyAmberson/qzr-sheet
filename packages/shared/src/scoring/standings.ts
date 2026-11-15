@@ -157,14 +157,18 @@ function tallyOf(tallies: Map<string, Tally>, name: string): Tally {
   return tally
 }
 
-/** The most-used spelling, a tie going to the one seen first */
-function nameOf(tally: Tally): string {
+/** The most-used spelling of a name, a tie going to the one seen first */
+export function mostUsedSpelling(spellings: Map<string, number>): string {
   let best = ''
   let bestCount = 0
-  for (const [spelling, count] of tally.spellings) {
+  for (const [spelling, count] of spellings) {
     if (count > bestCount) [best, bestCount] = [spelling, count]
   }
   return best
+}
+
+function nameOf(tally: Tally): string {
+  return mostUsedSpelling(tally.spellings)
 }
 
 /** Whether one team finished a quiz above another; teams sharing a place are level */

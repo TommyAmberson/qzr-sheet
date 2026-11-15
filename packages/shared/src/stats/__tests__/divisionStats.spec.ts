@@ -21,6 +21,7 @@ function stats(quizzes: StatsQuiz[]) {
 function scoredQuiz(first: string, second: string, third: string): ScoredQuiz {
   return {
     name: 'D1 Q1',
+    consolation: false,
     formula: PlacementFormula.Rules,
     teams: [first, second, third].map((name, i) => ({
       name,
@@ -150,6 +151,42 @@ describe('divisionStats', () => {
       division: '1',
       names: ['Stone 1', 'Stome 1'],
     })
+  })
+})
+
+describe("divisionStats: a division's quizzers", () => {
+  it('ranks the quizzers of every counting quiz but a Finals', () => {
+    const { quizzers } = stats([
+      stored('D1 Q1', 'prelim', fifteenQuestionQuizFile()),
+      stored('D1 QA', 'elimination', fifteenQuestionQuizFile()),
+      stored('D1 QF', 'finals', fifteenQuestionQuizFile()),
+      stored('D1 Q9', null, fifteenQuestionQuizFile()),
+    ])
+    expect(quizzers).toMatchObject({ state: 'livePreview', through: 'elimination' })
+    expect(quizzers!.lists).toHaveLength(1)
+    // A0 scored 70 in each of the two quizzes that count for individuals
+    expect(quizzers!.lists[0]!.quizzers[0]).toMatchObject({
+      name: 'A0',
+      team: 'Team A',
+      place: 1,
+      points: 140,
+      quizzes: 2,
+      average: 70,
+    })
+  })
+
+  it('leaves a quiz in error out of the averages', () => {
+    const file = fifteenQuestionQuizFile()
+    file.answers = file.answers.filter((a) => a.columnKey !== '15')
+    const { quizzers } = stats([
+      stored('D1 Q1', 'prelim', fifteenQuestionQuizFile()),
+      stored('D1 Q2', 'prelim', file),
+    ])
+    expect(quizzers!.lists[0]!.quizzers[0]).toMatchObject({ name: 'A0', points: 70, quizzes: 1 })
+  })
+
+  it('has no list while nothing counts', () => {
+    expect(stats([]).quizzers).toEqual({ state: 'livePreview', through: 'prelim', lists: [] })
   })
 })
 

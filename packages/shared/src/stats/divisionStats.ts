@@ -2,6 +2,7 @@ import type { DivisionStateValue, MeetPhase } from '../phases'
 import { foldName, tidyName } from '../results'
 import { computePlacementPoints } from '../scoring/placement'
 import type { QuizOutcome } from '../scoring/quizOutcome'
+import { quizzerStandings, type QuizzerList } from '../scoring/quizzerStandings'
 import { divisionStandings, type TieBreak } from '../scoring/standings'
 import type { ScoredQuiz, ScoredTeam, ScoringProblem } from './scoredQuiz'
 
@@ -59,6 +60,17 @@ export interface TeamTable {
   }[]
 }
 
+/** The stages that count for individuals: every one but the Finals */
+const QUIZZER_STAGES = ['prelim', 'intermediate', 'elimination'] as const
+
+export interface QuizzerTable {
+  state: 'livePreview' | 'preview' | 'lockedIn'
+  /** The last stage it covers */
+  through: (typeof QUIZZER_STAGES)[number]
+  /** The division's main list, then its consolation list where there is one */
+  lists: QuizzerList[]
+}
+
 export type StatsWarning =
   | { kind: 'inError'; quiz: QuizRef; problems: QuizProblem[] }
   | { kind: 'unequalPrelims'; division: string; teams: { name: string; quizzes: number }[] }
@@ -73,6 +85,7 @@ export interface DivisionStats {
   /** One entry for each stage that has a quiz, newest stage first */
   results: StageResults[]
   prelimStandings?: TeamTable
+  quizzers?: QuizzerTable
   /** Admins only */
   warnings?: StatsWarning[]
 }
@@ -155,7 +168,27 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
     })),
   }
 
-  return { division, state, phase, results, prelimStandings, warnings }
+  // A Finals counts for nobody's average
+  const individual = staged.filter(
+    (quiz): quiz is typeof quiz & { stage: QuizzerTable['through'] } =>
+      quiz.stage !== 'finals' && counts(quiz),
+  )
+  const quizzers: QuizzerTable = {
+    state: 'livePreview',
+    through:
+      [...QUIZZER_STAGES]
+        .reverse()
+        .find((stage) => individual.some((quiz) => quiz.stage === stage)) ?? 'prelim',
+    lists: quizzerStandings(
+      individual.map(({ name, scored }) => ({
+        name,
+        consolation: scored.consolation,
+        teams: scored.teams,
+      })),
+    ),
+  }
+
+  return { division, state, phase, results, prelimStandings, quizzers, warnings }
 }
 
 /** Quiz names in the order people count them: Q2 before Q10 */
