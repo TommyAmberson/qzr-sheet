@@ -455,23 +455,55 @@ function restoreTeamName(slotIdx: number) {
   if (pickedName !== undefined) setTeamName(slotIdx, pickedName)
 }
 
+type TeamNameIssue =
+  | { kind: 'unnamed' | 'unpicked' | 'division' }
+  | { kind: 'renamed'; pickedName: string }
+
 /**
- * Why a team's name is flagged against the linked meet's roster, if it is. The name stays as
+ * How a slot's team name disagrees with the linked meet's roster, if it does. The name stays as
  * typed either way: the sheet records what happened in the room, and an admin sorts out the
  * roster afterwards.
  */
-function teamNameWarning(slotIdx: number, name: string): string | undefined {
+function teamNameIssue(slotIdx: number, name: string): TeamNameIssue | undefined {
   if (!picksTeam(slotIdx)) return undefined
-  const slot = meetSession.getSlot(slotIdx)
-  if (!slot) {
+  if (!meetSession.getSlot(slotIdx)) {
     const typed = name.trim() !== '' && !isDefaultTeamName(name)
-    return typed ? "Not picked from the meet's teams" : undefined
+    return { kind: typed ? 'unpicked' : 'unnamed' }
   }
   if (meetSession.isTeamNameDiverged(slotIdx, name)) {
-    return `Picked team: ${meetSession.pickedTeamName(slotIdx)}`
+    return { kind: 'renamed', pickedName: meetSession.pickedTeamName(slotIdx) ?? '' }
   }
-  if (isTeamDivisionDiverged(slotIdx)) return "Picked team isn't in this division"
+  if (isTeamDivisionDiverged(slotIdx)) return { kind: 'division' }
   return undefined
+}
+
+/** Why a team's name cell is flagged, if it is. A slot nobody has named yet isn't */
+function teamNameWarning(slotIdx: number, name: string): string | undefined {
+  const issue = teamNameIssue(slotIdx, name)
+  switch (issue?.kind) {
+    case 'unpicked':
+      return "Not picked from the meet's teams"
+    case 'renamed':
+      return `Picked team: ${issue.pickedName}`
+    case 'division':
+      return "Picked team isn't in this division"
+    default:
+      return undefined
+  }
+}
+
+/** A team name's disagreement as the warning list words it */
+function teamNameIssueLine(issue: TeamNameIssue): string {
+  switch (issue.kind) {
+    case 'unnamed':
+      return 'no team picked'
+    case 'unpicked':
+      return "not picked from the meet's teams"
+    case 'renamed':
+      return `picked team is ${issue.pickedName}`
+    case 'division':
+      return "picked team isn't in this division"
+  }
 }
 
 function isTeamDivisionDiverged(slotIdx: number): boolean {
@@ -589,19 +621,10 @@ const nameWarnings = computed<string[]>(() => {
   teams.value.forEach((team, slotIdx) => {
     if (!picksTeam(slotIdx)) return
     const called = teamCalled(slotIdx, team.name)
-    const slot = meetSession.getSlot(slotIdx)
-    if (!slot) {
-      const typed = team.name.trim() !== '' && !isDefaultTeamName(team.name)
-      warnings.push(
-        typed ? `${called}: not picked from the meet's teams` : `${called}: no team picked`,
-      )
-      return
-    }
-    if (meetSession.isTeamNameDiverged(slotIdx, team.name)) {
-      warnings.push(`${called}: picked team is ${meetSession.pickedTeamName(slotIdx)}`)
-    } else if (isTeamDivisionDiverged(slotIdx)) {
-      warnings.push(`${called}: picked team isn't in this division`)
-    }
+    const issue = teamNameIssue(slotIdx, team.name)
+    if (issue) warnings.push(`${called}: ${teamNameIssueLine(issue)}`)
+    // No team picked, so no roster to hold the quizzers against
+    if (!meetSession.getSlot(slotIdx)) return
     teamQuizzers.value[slotIdx]?.forEach((quizzer, seatIdx) => {
       // A seat emptied of its roster quizzer is an absence, not a disagreement, and one still
       // called "Quizzer N" was never named
