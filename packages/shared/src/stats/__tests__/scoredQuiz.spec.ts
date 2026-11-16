@@ -84,6 +84,17 @@ describe('scoreStoredQuiz', () => {
     expect(scored.teams.map((t) => t.place)).toEqual([1, 3, 2])
   })
 
+  it('calls a quiz undecided while teams are level in an overtime not played out', () => {
+    const file = fifteenQuestionQuizFile()
+    // Nobody jumped on anything, so every team has its on-time 20, and overtime is on
+    file.answers = []
+    file.noJumps = Array.from({ length: 15 }, (_, i) => String(i + 1))
+    file.quiz.overtime = true
+    const scored = scoreStoredQuiz(file)
+    expect(scored.problems).toEqual([{ kind: 'undecided' }])
+    expect(scored.teams.map((t) => t.place)).toEqual([null, null, null])
+  })
+
   it('names the unanswered questions', () => {
     const file = fifteenQuestionQuizFile()
     file.answers = file.answers.filter((a) => a.columnKey !== '15')

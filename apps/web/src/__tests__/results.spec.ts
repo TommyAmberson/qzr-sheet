@@ -135,6 +135,12 @@ describe('mergeEdits', () => {
     }
   })
 
+  it('finds the division however the quiz files case and space it', () => {
+    // The stats name a division as the meet lists it; the files may write it another way
+    const edits = mergeEdits([named(1, ' open', 'Calgry 1')], 'Open', 'Calgry 1', 'Calgary 1')
+    expect(edits.map((edit) => edit.id)).toEqual([1])
+  })
+
   it("leaves other divisions' quizzes alone", () => {
     expect(mergeEdits([named(1, '2', 'Calgry 1')], '1', 'Calgry 1', 'Calgary 1')).toEqual([])
   })

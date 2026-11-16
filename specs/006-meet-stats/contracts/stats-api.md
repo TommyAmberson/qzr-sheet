@@ -150,6 +150,7 @@ type QuizProblem =
   // Scoring errors: known from the quiz alone
   | { kind: 'validation'; team: string; quizzer: string | null; question: string | null; code: ValidationCode }
   | { kind: 'unanswered'; questions: string[] }
+  | { kind: 'undecided' } // teams still level in an overtime not played out
   // Roster errors: names held against the roster of the quiz's division
   | { kind: 'teamNotOnRoster'; team: string; near?: string }
   | { kind: 'quizzerNotOnRoster'; team: string; quizzer: string; near?: string }

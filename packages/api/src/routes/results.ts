@@ -247,6 +247,19 @@ function quizNamed(db: Db, meetId: number, key: string) {
     .where(and(eq(schema.quizResults.meetId, meetId), eq(schema.quizResults.quizKey, key)))
 }
 
+/**
+ * Keep the scores of revisions just saved. The save has already happened, so a failure here must
+ * not fail it: the official would send the quiz again. A score that is missing is made when the
+ * division's stats are next read.
+ */
+async function keepScoresOfSaved(db: Db, revisions: { id: number; quizFile: string }[]) {
+  try {
+    await keepScores(db, revisions)
+  } catch (e) {
+    console.error('Scores not kept for revisions', revisions.map((r) => r.id).join(', '), e)
+  }
+}
+
 type RevisionRow = Saver &
   Pick<typeof schema.quizResultRevisions.$inferInsert, 'quizFile' | 'restoredFrom' | 'action'>
 
@@ -303,7 +316,7 @@ async function addRevisions(
         })
       const results = await asOne(db, [...together(), insert])
       const added = results.at(-1) as { id: number; revision: number }[]
-      await keepScores(
+      await keepScoresOfSaved(
         db,
         added.flatMap(({ id }, i) => {
           const quizFile = rows[i]!.quizFile
@@ -407,7 +420,7 @@ results.post('/:id/results', async (c) => {
         { id: number }[],
         { id: number; revision: number }[],
       ]
-      await keepScores(db, [{ id: revisionRows[0]!.id, quizFile: json }])
+      await keepScoresOfSaved(db, [{ id: revisionRows[0]!.id, quizFile: json }])
       return c.json(
         { id: quizRows[0]!.id, revision: revisionRows[0]!.revision, created: true },
         201,

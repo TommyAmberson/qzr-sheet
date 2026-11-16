@@ -27,6 +27,7 @@ export function problemText(problem: QuizProblem): string {
     const many = problem.questions.length > 1
     return `Question${many ? 's' : ''} ${problem.questions.join(', ')} ${many ? 'have' : 'has'} no answer.`
   }
+  if (problem.kind === 'undecided') return 'Teams are still level: the overtime is not finished.'
   const seat = [problem.team, problem.quizzer].filter((part) => part).join(', ')
   const where = [seat, problem.question && `question ${problem.question}`]
     .filter((part) => part)

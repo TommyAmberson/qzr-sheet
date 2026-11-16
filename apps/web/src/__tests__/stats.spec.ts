@@ -34,6 +34,12 @@ describe('problemText', () => {
     ).toMatch(/^Maple Hill 1: \S/)
   })
 
+  it('says when an overtime is not finished', () => {
+    expect(problemText({ kind: 'undecided' })).toBe(
+      'Teams are still level: the overtime is not finished.',
+    )
+  })
+
   it('lists the unanswered questions', () => {
     expect(problemText({ kind: 'unanswered', questions: ['15'] })).toBe(
       'Question 15 has no answer.',

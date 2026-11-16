@@ -21,14 +21,21 @@ const STAGE_TITLES: Record<Stage, string> = {
   finals: 'Finals',
 }
 
+/** The newest load; one for a division the page has since left must not show */
+let loads = 0
+
 async function load() {
+  const current = ++loads
   loading.value = true
   error.value = ''
   try {
     const { meet: detail } = await getMeet(props.slug)
+    const read = await getDivisionStats(detail.id, props.division)
+    if (current !== loads) return
     meet.value = detail
-    stats.value = await getDivisionStats(detail.id, props.division)
+    stats.value = read
   } catch (e) {
+    if (current !== loads) return
     error.value =
       e instanceof ApiError && e.status === 403
         ? "Only the meet's admins can see its stats."
@@ -36,7 +43,7 @@ async function load() {
           ? 'The stats are still being prepared. Try again in a moment.'
           : (e as Error).message
   } finally {
-    loading.value = false
+    if (current === loads) loading.value = false
   }
 }
 

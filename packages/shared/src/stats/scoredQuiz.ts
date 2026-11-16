@@ -22,7 +22,7 @@ export interface ScoredTeam {
   /**
    * The team's place by score, overtime deciding a tie where it was played. Given whatever the
    * quiz's errors, since a quiz accepted as scored is placed by it; null only while teams are still
-   * level in an unfinished overtime.
+   * level in an unfinished overtime, which is itself a problem of the quiz.
    */
   place: PlaceKey | null
   /** The quizzers named on the sheet, in seat order */
@@ -40,6 +40,8 @@ export type ScoringProblem =
       code: ValidationCode
     }
   | { kind: 'unanswered'; questions: string[] }
+  /** Teams are still level in an overtime that has not been played out, so they have no place */
+  | { kind: 'undecided' }
 
 /**
  * What scoring makes of one stored quiz. It depends on nothing but the quiz file, so it can be kept
@@ -141,6 +143,8 @@ export function scoreStoredQuiz(file: QuizFile): ScoredQuiz {
   )
   if (unanswered.length > 0) {
     problems.push({ kind: 'unanswered', questions: unanswered.map(String) })
+  } else if (places.some((place) => place === null)) {
+    problems.push({ kind: 'undecided' })
   }
 
   return {

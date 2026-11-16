@@ -173,15 +173,10 @@ stats.get('/:id/stats/:division', async (c) => {
     return c.json({ error: 'Division not found' }, 404)
   }
 
-  const scores = new Map<number, ScoredQuiz>()
-  const unscored: number[] = []
-  for (const quiz of quizzes) {
-    if (quiz.scored !== null && quiz.sharedVersion === SHARED_VERSION) {
-      scores.set(quiz.revisionId, JSON.parse(quiz.scored) as ScoredQuiz)
-    } else {
-      unscored.push(quiz.revisionId)
-    }
-  }
+  const unscored = quizzes
+    .filter((quiz) => quiz.scored === null || quiz.sharedVersion !== SHARED_VERSION)
+    .map((quiz) => quiz.revisionId)
+  const rescored = new Map<number, ScoredQuiz>()
   if (unscored.length > 0) {
     const files = await db
       .select({
@@ -196,11 +191,11 @@ stats.get('/:id/stats/:division', async (c) => {
       db,
       files.flatMap(({ id, quizFile }) => (quizFile === null ? [] : [{ id, quizFile }])),
     )
-    for (const [revisionId, score] of scored) scores.set(revisionId, score)
     if (unscored.length > scored.size) {
       c.header('Retry-After', '1')
       return c.json({ error: 'Stats are being prepared' }, 503)
     }
+    for (const [revisionId, score] of scored) rescored.set(revisionId, score)
   }
 
   return c.json(
@@ -209,7 +204,8 @@ stats.get('/:id/stats/:division', async (c) => {
       state: stateOf(states, folded),
       phase: meet.phase,
       quizzes: quizzes.map((quiz): StatsQuiz => {
-        const scored = scores.get(quiz.revisionId)!
+        // Kept scores are read only now, once it is known the stats can be answered
+        const scored = rescored.get(quiz.revisionId) ?? (JSON.parse(quiz.scored!) as ScoredQuiz)
         // Until a quiz has a stage of its own, one that counts is a prelim (research R3)
         return { id: quiz.id, name: scored.name, stage: quiz.counted ? 'prelim' : null, scored }
       }),

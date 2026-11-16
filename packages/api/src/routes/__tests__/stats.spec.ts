@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
 import { MeetRole, type DivisionStats, type QuizFile } from '@qzr/shared'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { fifteenQuestionQuizFile } from '../../../../shared/src/scoring/__tests__/fixtures/fifteenQuestionQuiz'
 import type { Bindings } from '../../bindings'
 import type { SessionUser, SessionVariables } from '../../middleware/session'
@@ -115,6 +115,24 @@ describe('keeping what scoring makes of a revision', () => {
     // The stats show the restored content, from the score kept for the revision restored
     const body = await jsonOf<DivisionStats>(await division('1'))
     expect(body.results[0]!.quizzes[0]!.teams[0]!.name).toBe('Team A')
+  })
+})
+
+describe('a save whose score cannot be kept', () => {
+  it('still stores the quiz, and the score is made when stats are next read', async () => {
+    db.run(sql`create trigger refuse_scores before insert on quiz_result_scores
+      begin select raise(abort, 'refused'); end`)
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await store(quiz('1'))
+    expect(logged).toHaveBeenCalled()
+    logged.mockRestore()
+    expect(await scoreRows()).toHaveLength(0)
+
+    db.run(sql`drop trigger refuse_scores`)
+    const res = await division('1')
+    expect(res.status).toBe(200)
+    expect((await jsonOf<DivisionStats>(res)).results[0]!.quizzes[0]!.name).toBe('D1 Q1')
+    expect(await scoreRows()).toHaveLength(1)
   })
 })
 

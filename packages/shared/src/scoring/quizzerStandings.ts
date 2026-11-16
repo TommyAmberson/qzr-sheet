@@ -156,16 +156,20 @@ export function quizzerStandings(quizzes: QuizzerQuiz[]): QuizzerList[] {
         }),
       )
     if (unranked.length === 0) continue
-    const better = (a: (typeof unranked)[number], b: (typeof unranked)[number]) =>
-      a.average > b.average || (a.average === b.average && a.errors < b.errors)
-    const quizzers = unranked
-      .map((quizzer) => ({
-        ...quizzer,
-        place: unranked.filter((other) => better(other, quizzer)).length + 1,
-      }))
-      .sort(
-        (a, b) => a.place - b.place || a.team.localeCompare(b.team) || a.name.localeCompare(b.name),
-      )
+    unranked.sort(
+      (a, b) =>
+        b.average - a.average ||
+        a.errors - b.errors ||
+        a.team.localeCompare(b.team) ||
+        a.name.localeCompare(b.name),
+    )
+    const quizzers: QuizzerStanding[] = []
+    unranked.forEach((quizzer, i) => {
+      const above = quizzers[i - 1]
+      const level = above && above.average === quizzer.average && above.errors === quizzer.errors
+      // Level quizzers share the place of the first of them; the next takes its own position
+      quizzers.push({ ...quizzer, place: level ? above.place : i + 1 })
+    })
     lists.push({ consolation, quizzers })
   }
   return lists

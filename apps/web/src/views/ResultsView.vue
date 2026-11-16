@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
-import { ApiError, MeetRole, placeRank, placeTieCount, type DivisionStats } from '@qzr/shared'
+import {
+  ApiError,
+  foldName,
+  MeetRole,
+  placeRank,
+  placeTieCount,
+  type DivisionStats,
+} from '@qzr/shared'
 import {
   ChoiceDialog,
   formatSlotTime,
@@ -84,18 +91,33 @@ async function load() {
   }
 }
 
+/** The newest read of the stats; an older one still waiting on the API must not overwrite it */
+let statsRead = 0
+
 /** An admin's view of each division with stored quizzes, read again after anything changes them */
 async function loadStats() {
   if (!meet.value || !isAdmin.value) return
   const meetId = meet.value.id
-  statsError.value = ''
-  try {
-    divisionStats.value = await Promise.all(
-      divisions.value.map((group) => getDivisionStats(meetId, group.division)),
-    )
-  } catch (e) {
-    statsError.value = `Stats could not be read: ${(e as Error).message}`
+  const read = ++statsRead
+  // One request for each division, however the quiz files case its name; a quiz with no division
+  // belongs to none
+  const names = new Map<string, string>()
+  for (const { division } of divisions.value) {
+    const key = foldName(division)
+    if (key !== '' && !names.has(key)) names.set(key, division)
   }
+  // A division that can't be read must not hide the others
+  const answers = await Promise.all(
+    [...names.values()].map((division) =>
+      getDivisionStats(meetId, division).catch((e: unknown) => e as Error),
+    ),
+  )
+  if (read !== statsRead) return
+  divisionStats.value = answers.filter(
+    (answer): answer is DivisionStats => !(answer instanceof Error),
+  )
+  const failed = answers.find((answer): answer is Error => answer instanceof Error)
+  statsError.value = failed ? `Stats could not be read: ${failed.message}` : ''
 }
 
 /** Who the user is when sending to this meet, as the API works it out; null for anyone else */
@@ -132,6 +154,7 @@ async function onUploadFiles(event: Event) {
     if (!reports) return
     uploadReports.value = reports
     stored.value = await listResults(meetId)
+    void loadStats()
   } catch (e) {
     uploadError.value = (e as Error).message
   } finally {

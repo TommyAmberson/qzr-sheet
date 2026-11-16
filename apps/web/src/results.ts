@@ -61,6 +61,7 @@ export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
     }))
 }
 
+/** The names the quick form can change in a stored quiz's file; what's left out stays as it is */
 export interface QuizEdit {
   division?: string
   quizNumber?: string
@@ -106,8 +107,10 @@ export function mergeEdits(
   into: string,
 ): { id: number; quizFile: QuizFile }[] {
   const merged = foldName(from)
+  // Folded, since the stats that raised the look-alike name the division as the meet lists it
+  const inDivision = foldName(division)
   return stored.flatMap(({ id, quizFile }) => {
-    if (quizFile.quiz.division !== division) return []
+    if (foldName(quizFile.quiz.division) !== inDivision) return []
     const renamed = quizFile.teams.filter((team) => foldName(team.name) === merged)
     if (renamed.length === 0) return []
     const teamNames = new Map(renamed.map((team) => [team.id, into]))

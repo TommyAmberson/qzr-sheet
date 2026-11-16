@@ -148,23 +148,29 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
     }
   }
 
+  // The quizzes behind each team's total, by the team's folded name
+  const linesOf = new Map<string, TeamTable['teams'][number]['lines']>()
+  for (const { name, stage, scored } of prelims) {
+    for (const team of scored.teams) {
+      const key = foldName(team.name)
+      const lines = linesOf.get(key) ?? []
+      lines.push({
+        quiz: name,
+        stage,
+        place: team.place === null ? null : placeRank(team.place),
+        score: team.score,
+        placementPoints: placementPointsOf(team, scored),
+        errors: team.errors,
+      })
+      linesOf.set(key, lines)
+    }
+  }
   const prelimStandings: TeamTable = {
     state: 'livePreview',
     covers: { counted: prelims.length, scheduled: null },
     teams: standings.teams.map((team) => ({
       ...team,
-      lines: prelims.flatMap(({ name, stage, scored }) =>
-        scored.teams
-          .filter((scoredTeam) => foldName(scoredTeam.name) === foldName(team.name))
-          .map((scoredTeam) => ({
-            quiz: name,
-            stage,
-            place: scoredTeam.place === null ? null : placeRank(scoredTeam.place),
-            score: scoredTeam.score,
-            placementPoints: placementPointsOf(scoredTeam, scored),
-            errors: scoredTeam.errors,
-          })),
-      ),
+      lines: linesOf.get(foldName(team.name)) ?? [],
     })),
   }
 
