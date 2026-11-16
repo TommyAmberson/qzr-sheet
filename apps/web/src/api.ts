@@ -6,8 +6,12 @@ import type {
   MeetPhase,
   PublishedSchedule,
   QuizFile,
+  QuizProblem,
   ResultAction,
   ScheduleDocument,
+  Stage,
+  StageChoice,
+  StageFrom,
 } from '@qzr/shared'
 import {
   withGuestToken,
@@ -461,7 +465,18 @@ export interface StoredQuiz {
   id: number
   /** The first revision's saver and how it was saved: where the quiz came from */
   origin: { action: ResultAction; name: string }
-  counted: boolean
+  /** What it counts for; null when it counts for nothing */
+  stage: Stage | null
+  /** Whose choice the stage is; null with no stage, unless an admin set it to not counted */
+  stageFrom: StageFrom | null
+  /** The scheduled quiz it is linked to, and how it came to be */
+  link: { scheduleQuizId: string; how: 'sheet' | 'matched' | 'hand' } | null
+  /** A scheduled quiz it misses only by a slightly different team name */
+  suggestedLink?: { scheduleQuizId: string; label: string }
+  /** What is wrong with it; null while its score is still being made */
+  problems: QuizProblem[] | null
+  /** Whether an admin accepted its current content as scored */
+  accepted: boolean
   revision: number
   /** How the newest revision was saved */
   action: ResultAction
@@ -518,6 +533,17 @@ export type HistoryEntry =
       quizFile: QuizFile
     }
   | { kind: 'counting'; counted: boolean; changedBy: { name: string }; changedAt: string }
+  | {
+      kind: 'change'
+      what: 'stage' | 'link' | 'acceptance' | 'kept'
+      stage?: StageChoice | null
+      scheduleQuizId?: string | null
+      how?: 'sheet' | 'matched' | 'hand'
+      revision?: number
+      accepted?: boolean
+      changedBy: { name: string }
+      changedAt: string
+    }
 
 /** A stored quiz's saves and counting records, newest first */
 export function getHistory(meetId: number, resultId: number): Promise<HistoryEntry[]> {
@@ -557,15 +583,40 @@ export function getSender(meetId: number): Promise<Sender> {
   return request(`/api/meets/${meetId}/results/sender`)
 }
 
-/** Count or uncount quizzes of a meet; answers with the ones whose value changed */
-export function setResultsCounted(
+/** Set what quizzes of a meet count for, or with `null` return them to their link's stage */
+export function setResultsStage(
   meetId: number,
   ids: number[],
-  counted: boolean,
+  stage: StageChoice | null,
 ): Promise<{ changed: number[] }> {
-  return request(`/api/meets/${meetId}/results/counted`, {
+  return request(`/api/meets/${meetId}/results/stage`, {
     method: 'PATCH',
-    body: JSON.stringify({ ids, counted }),
+    body: JSON.stringify({ ids, stage }),
+  })
+}
+
+/** Link a stored quiz to a scheduled quiz by hand, or with `null` remove its link */
+export function linkResult(
+  meetId: number,
+  resultId: number,
+  scheduleQuizId: string | null,
+): Promise<{ link: StoredQuiz['link'] }> {
+  return request(`/api/meets/${meetId}/results/${resultId}/link`, {
+    method: 'PUT',
+    body: JSON.stringify({ scheduleQuizId }),
+  })
+}
+
+/** Accept a stored quiz as scored at a revision, so it counts in spite of its errors, or withdraw that */
+export function setAcceptance(
+  meetId: number,
+  resultId: number,
+  revision: number,
+  accepted: boolean,
+): Promise<{ revision: number; accepted: boolean }> {
+  return request(`/api/meets/${meetId}/results/${resultId}/acceptance`, {
+    method: 'PUT',
+    body: JSON.stringify({ revision, accepted }),
   })
 }
 

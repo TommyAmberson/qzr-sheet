@@ -1,6 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { ValidationCode, type QuizProblem } from '@qzr/shared'
-import { flagText, placeLabel, problemText, warningText } from '../stats'
+import { changeText, flagText, placeLabel, problemText, warningText } from '../stats'
+
+describe('changeText', () => {
+  it('says what was decided about a stored quiz', () => {
+    expect(changeText({ what: 'stage', stage: 'finals' })).toBe('Stage set to Finals')
+    expect(changeText({ what: 'stage', stage: null })).toBe('Stage left to the schedule')
+    expect(changeText({ what: 'link', scheduleQuizId: 'p3', how: 'matched' })).toBe(
+      'Linked to the schedule by its name and teams',
+    )
+    expect(changeText({ what: 'link', scheduleQuizId: null })).toBe('Unlinked from the schedule')
+    expect(changeText({ what: 'acceptance', revision: 2, accepted: true })).toBe(
+      'Revision 2 accepted as scored',
+    )
+  })
+})
 
 describe('placeLabel', () => {
   it('names a place, and says when teams share it', () => {

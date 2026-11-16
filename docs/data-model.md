@@ -103,8 +103,8 @@ TeamRoster             -- a quizzer's participation in a specific meet
 
 # ---- Results ----
 
-QuizResult             -- one quiz of a meet; its content is its newest revision, and whether
-                          it counts in the standings is its newest QuizResultCountChange
+QuizResult             -- one quiz of a meet; its content is its newest revision, and what it
+                          counts for is its stage, from its QuizResultChange rows
   id
   meetId               -- FK → QuizMeet (cascade delete)
   roomId               -- FK → Room the quiz was first submitted from; null for uploads
@@ -144,8 +144,33 @@ QuizResultScore        -- what scoring makes of a revision's quiz file, kept so 
                           score; per named quizzer the points, errors, correct answers and
                           correct answers by question type; and every scoring problem
 
-QuizResultCountChange  -- append-only: one row per count or uncount; a quiz counts when its
-                          newest row says so, and not until an admin first counts it
+QuizResultChange       -- append-only: one row per decision about a stored quiz; its current
+                          value of each kind is its newest row of that kind
+  id
+  resultId             -- FK → QuizResult (cascade delete)
+  kind                 -- stage | link | acceptance | kept
+  stage                -- for `stage`: prelim | intermediate | elimination | finals | notCounted,
+                          an admin's choice of what the quiz counts for; null removes the choice.
+                          A quiz's stage is this, else the stage of the scheduled quiz it is
+                          linked to, else prelim where its newest QuizResultCountChange says it
+                          counts, else none
+  scheduleQuizId       -- for `link`: the quiz's id in the published schedule document, or null
+                          when the link is removed. At most one stored quiz is linked to a
+                          scheduled quiz
+  how                  -- for `link`: sheet (the scoresheet named it on submitting) | matched (its
+                          name and teams matched on arrival or after a change) | hand
+  revision, accepted   -- for `acceptance`: the revision whose content an admin accepted as
+                          scored, or no longer accepts. A quiz in error counts only while its
+                          current content is that of an accepted revision
+  changedByAccountId   -- FK → User (set null if deleted)
+  changedByRoomId      -- FK → Room, for an official's link (set null if deleted)
+  changedByName        -- who made it, as named then
+  changedAt
+
+QuizResultCountChange  -- read-only since stored quizzes have stages: no row is written any
+                          more. One row per count or uncount made before; still shown in a quiz's
+                          history, and still makes a quiz with no stage of its own and no link a
+                          prelim when its newest row says it counts
   id
   resultId             -- FK → QuizResult (cascade delete)
   counted              -- the new value

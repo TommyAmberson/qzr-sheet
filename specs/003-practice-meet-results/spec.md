@@ -374,15 +374,18 @@ and pick teams from the list when setting up a quiz in that division.
   three or more, a team ranks ahead of the rest only if it finished above each of them in more of
   their shared quizzes than it finished below. If the teams never met, or no team is ahead this way,
   head-to-head decides nothing and total points are compared next.
-* **FR-012**: Standings MUST mark the top three teams of each division as finalists, and MUST flag a
-  tie that decides who reaches the final, naming the tied teams. The admin settles such a tie away
-  from the app; the standings record no choice.
-* **FR-013**: Meet admins MUST choose which stored quizzes count towards the standings, with a
-  counted toggle on each quiz in the list and select all and deselect all for the quizzes shown. A
-  quiz not linked to a schedule slot, which in this feature is every quiz, MUST NOT count until an
-  admin selects it, and the same holds for a quiz whose division the meet doesn't list, even once
-  schedule linkage exists. The list MUST show which quizzes are not counted, and each count or
-  uncount MUST be recorded with who did it and when.
+* **FR-012** (amended by 006-meet-stats: finalists are marked only where a division's prelims lead
+  straight to its Finals, FR-011 there): Standings MUST mark the top three teams of each division as
+  finalists, and MUST flag a tie that decides who reaches the final, naming the tied teams. The
+  admin settles such a tie away from the app; the standings record no choice.
+* **FR-013** (replaced by 006-meet-stats: a stored quiz has a stage, from its link to the schedule
+  or an admin's choice, in place of the counted toggle, FR-008 to FR-010 there; counting records
+  made before are kept and read): Meet admins MUST choose which stored quizzes count towards the
+  standings, with a counted toggle on each quiz in the list and select all and deselect all for the
+  quizzes shown. A quiz not linked to a schedule slot, which in this feature is every quiz, MUST NOT
+  count until an admin selects it, and the same holds for a quiz whose division the meet doesn't
+  list, even once schedule linkage exists. The list MUST show which quizzes are not counted, and
+  each count or uncount MUST be recorded with who did it and when.
 * **FR-014**: Standings MUST warn when a division's teams have different numbers of counted quizzes,
   and when a counted quiz can't be placed (questions unanswered or validation errors), which then
   adds no placement points and doesn't count as one of its teams' quizzes.

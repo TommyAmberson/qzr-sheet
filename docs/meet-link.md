@@ -73,6 +73,12 @@ on reload. The last two only renew the copy of the roster and scheduled quiz tha
 worked out from: they pick and fill nothing, and the reload fetch runs behind the sheet without
 holding it up. There is no polling, and editing a name fetches nothing.
 
+**On the meet's side.** The meet finds a quiz's roster and schedule problems again from its names,
+with the same comparison of team names (`teamNamed` in `packages/shared`), and there they are
+errors: a quiz with one counts for nothing until it is fixed or an admin accepts it as scored. A
+submission from a sheet holding a scheduled quiz says which (`scheduleQuizId`), which links the
+stored quiz to it; any other stored quiz is linked to the scheduled quiz of its name.
+
 ## Blank names
 
 A new quiz has no names: three teams and fifteen seats, all blank, and no division or quiz number.

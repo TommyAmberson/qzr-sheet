@@ -19,7 +19,12 @@ export interface ResultRow {
   /** In seat order, with each team's score and, once placed, its place and placement points */
   teams: TeamOutcome[]
   placed: boolean
-  counted: boolean
+  stage: StoredQuiz['stage']
+  stageFrom: StoredQuiz['stageFrom']
+  link: StoredQuiz['link']
+  suggestedLink: StoredQuiz['suggestedLink']
+  problems: StoredQuiz['problems']
+  accepted: boolean
   revision: number
   action: StoredQuiz['action']
   savedBy: string
@@ -43,7 +48,12 @@ export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
       from: s.origin.action === 'uploaded' ? `Uploaded by ${s.origin.name}` : s.origin.name,
       teams: outcome.teams,
       placed: outcome.placed,
-      counted: s.counted,
+      stage: s.stage,
+      stageFrom: s.stageFrom,
+      link: s.link,
+      suggestedLink: s.suggestedLink,
+      problems: s.problems,
+      accepted: s.accepted,
       revision: s.revision,
       action: s.action,
       savedBy: s.savedBy.name,

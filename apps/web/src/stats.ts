@@ -2,9 +2,47 @@ import {
   validationMessage,
   type QuizProblem,
   type QuizzerFlag,
+  type StageChoice,
   type StatsWarning,
   type TieBreak,
 } from '@qzr/shared'
+
+/** What a stage is called */
+export const STAGE_LABELS: Record<StageChoice, string> = {
+  prelim: 'Prelim',
+  intermediate: 'Intermediate',
+  elimination: 'Elimination',
+  finals: 'Finals',
+  notCounted: 'Not counted',
+}
+
+/** A decision in a stored quiz's history, as a few words */
+export function changeText(change: {
+  what: 'stage' | 'link' | 'acceptance' | 'kept'
+  stage?: StageChoice | null
+  scheduleQuizId?: string | null
+  how?: 'sheet' | 'matched' | 'hand'
+  accepted?: boolean
+  revision?: number
+}): string {
+  switch (change.what) {
+    case 'stage':
+      return change.stage
+        ? `Stage set to ${STAGE_LABELS[change.stage]}`
+        : 'Stage left to the schedule'
+    case 'link':
+      if (!change.scheduleQuizId) return 'Unlinked from the schedule'
+      return change.how === 'sheet'
+        ? 'Linked to the schedule by the scoresheet'
+        : change.how === 'matched'
+          ? 'Linked to the schedule by its name and teams'
+          : 'Linked to the schedule by hand'
+    case 'acceptance':
+      return `Revision ${change.revision} ${change.accepted ? 'accepted as scored' : 'no longer accepted'}`
+    case 'kept':
+      return 'Kept as it is'
+  }
+}
 
 /** How a standings table names the tie-breaker that separated a team from those level with it */
 export const TIE_BREAKS: Record<TieBreak, string> = {

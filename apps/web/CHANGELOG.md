@@ -16,6 +16,24 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Added
+
+* On the results page each quiz has a stage in place of the Counted box: an admin sets it for one
+  quiz or for every quiz shown, or leaves it to the schedule. Each quiz shows the scheduled quiz it
+  is linked to; an admin or the room's official links, relinks or unlinks it, and a link the meet
+  suggests can be taken in one click
+* Every problem of a quiz is listed on it, on the results page and on the quiz's own page: scoring
+  errors with team, quizzer and question, names that are not on the roster with the name the roster
+  has, and differences from its scheduled quiz. An admin accepts a quiz as scored, or withdraws
+  that, one quiz or all those with errors at once
+* A quiz's history shows the decisions made about it: stage, link, acceptance
+* The division stats page shows the teams re-ranked after their intermediate, a Finals' first three,
+  and marks a quiz accepted as scored
+
+### Removed
+
+* The Counted box and Count all, which stages replace
+
 ## [0.25.0] - 2026-11-14
 
 ### Added
