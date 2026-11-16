@@ -105,12 +105,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -140,10 +136,7 @@
       "indexes": {
         "admin_memberships_account_id_meet_id_unique": {
           "name": "admin_memberships_account_id_meet_id_unique",
-          "columns": [
-            "account_id",
-            "meet_id"
-          ],
+          "columns": ["account_id", "meet_id"],
           "isUnique": true
         }
       },
@@ -152,12 +145,8 @@
           "name": "admin_memberships_account_id_user_id_fk",
           "tableFrom": "admin_memberships",
           "tableTo": "user",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -165,12 +154,8 @@
           "name": "admin_memberships_meet_id_quiz_meets_id_fk",
           "tableFrom": "admin_memberships",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -224,12 +209,8 @@
           "name": "churches_meet_id_quiz_meets_id_fk",
           "tableFrom": "churches",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -266,10 +247,7 @@
       "indexes": {
         "coach_memberships_account_id_church_id_unique": {
           "name": "coach_memberships_account_id_church_id_unique",
-          "columns": [
-            "account_id",
-            "church_id"
-          ],
+          "columns": ["account_id", "church_id"],
           "isUnique": true
         }
       },
@@ -278,12 +256,8 @@
           "name": "coach_memberships_account_id_user_id_fk",
           "tableFrom": "coach_memberships",
           "tableTo": "user",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -291,12 +265,8 @@
           "name": "coach_memberships_church_id_churches_id_fk",
           "tableFrom": "coach_memberships",
           "tableTo": "churches",
-          "columnsFrom": [
-            "church_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["church_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -304,12 +274,8 @@
           "name": "coach_memberships_meet_id_quiz_meets_id_fk",
           "tableFrom": "coach_memberships",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -361,10 +327,7 @@
       "indexes": {
         "division_states_meet_id_division_unique": {
           "name": "division_states_meet_id_division_unique",
-          "columns": [
-            "meet_id",
-            "division"
-          ],
+          "columns": ["meet_id", "division"],
           "isUnique": true
         }
       },
@@ -373,12 +336,8 @@
           "name": "division_states_meet_id_quiz_meets_id_fk",
           "tableFrom": "division_states",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -416,10 +375,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "email_sends_key_window_start_pk": {
-          "columns": [
-            "key",
-            "window_start"
-          ],
+          "columns": ["key", "window_start"],
           "name": "email_sends_key_window_start_pk"
         }
       },
@@ -472,12 +428,8 @@
           "name": "meet_rooms_meet_id_quiz_meets_id_fk",
           "tableFrom": "meet_rooms",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -545,12 +497,8 @@
           "name": "meet_slots_meet_id_quiz_meets_id_fk",
           "tableFrom": "meet_slots",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -608,11 +556,7 @@
       "indexes": {
         "meet_team_names_meet_id_division_name_key_unique": {
           "name": "meet_team_names_meet_id_division_name_key_unique",
-          "columns": [
-            "meet_id",
-            "division",
-            "name_key"
-          ],
+          "columns": ["meet_id", "division", "name_key"],
           "isUnique": true
         }
       },
@@ -621,12 +565,8 @@
           "name": "meet_team_names_meet_id_quiz_meets_id_fk",
           "tableFrom": "meet_team_names",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -663,11 +603,7 @@
       "indexes": {
         "official_memberships_account_id_meet_id_room_id_unique": {
           "name": "official_memberships_account_id_meet_id_room_id_unique",
-          "columns": [
-            "account_id",
-            "meet_id",
-            "room_id"
-          ],
+          "columns": ["account_id", "meet_id", "room_id"],
           "isUnique": true
         }
       },
@@ -676,12 +612,8 @@
           "name": "official_memberships_account_id_user_id_fk",
           "tableFrom": "official_memberships",
           "tableTo": "user",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -689,12 +621,8 @@
           "name": "official_memberships_meet_id_quiz_meets_id_fk",
           "tableFrom": "official_memberships",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -702,12 +630,8 @@
           "name": "official_memberships_room_id_meet_rooms_id_fk",
           "tableFrom": "official_memberships",
           "tableTo": "meet_rooms",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["room_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -765,11 +689,7 @@
       "indexes": {
         "prelim_assignments_meet_id_division_letter_unique": {
           "name": "prelim_assignments_meet_id_division_letter_unique",
-          "columns": [
-            "meet_id",
-            "division",
-            "letter"
-          ],
+          "columns": ["meet_id", "division", "letter"],
           "isUnique": true
         }
       },
@@ -778,12 +698,8 @@
           "name": "prelim_assignments_meet_id_quiz_meets_id_fk",
           "tableFrom": "prelim_assignments",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -791,12 +707,8 @@
           "name": "prelim_assignments_team_id_teams_id_fk",
           "tableFrom": "prelim_assignments",
           "tableTo": "teams",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["team_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -891,9 +803,7 @@
       "indexes": {
         "quiz_meets_viewer_code_unique": {
           "name": "quiz_meets_viewer_code_unique",
-          "columns": [
-            "lower(\"viewer_code\")"
-          ],
+          "columns": ["lower(\"viewer_code\")"],
           "isUnique": true
         }
       },
@@ -951,9 +861,7 @@
       "indexes": {
         "quiz_result_count_changes_result_id_idx": {
           "name": "quiz_result_count_changes_result_id_idx",
-          "columns": [
-            "result_id"
-          ],
+          "columns": ["result_id"],
           "isUnique": false
         }
       },
@@ -962,12 +870,8 @@
           "name": "quiz_result_count_changes_result_id_quiz_results_id_fk",
           "tableFrom": "quiz_result_count_changes",
           "tableTo": "quiz_results",
-          "columnsFrom": [
-            "result_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["result_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -975,12 +879,8 @@
           "name": "quiz_result_count_changes_changed_by_account_id_user_id_fk",
           "tableFrom": "quiz_result_count_changes",
           "tableTo": "user",
-          "columnsFrom": [
-            "changed_by_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["changed_by_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1066,10 +966,7 @@
       "indexes": {
         "quiz_result_revisions_result_id_revision_unique": {
           "name": "quiz_result_revisions_result_id_revision_unique",
-          "columns": [
-            "result_id",
-            "revision"
-          ],
+          "columns": ["result_id", "revision"],
           "isUnique": true
         }
       },
@@ -1078,12 +975,8 @@
           "name": "quiz_result_revisions_result_id_quiz_results_id_fk",
           "tableFrom": "quiz_result_revisions",
           "tableTo": "quiz_results",
-          "columnsFrom": [
-            "result_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["result_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1091,12 +984,8 @@
           "name": "quiz_result_revisions_saved_by_account_id_user_id_fk",
           "tableFrom": "quiz_result_revisions",
           "tableTo": "user",
-          "columnsFrom": [
-            "saved_by_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["saved_by_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1104,12 +993,8 @@
           "name": "quiz_result_revisions_saved_by_room_id_meet_rooms_id_fk",
           "tableFrom": "quiz_result_revisions",
           "tableTo": "meet_rooms",
-          "columnsFrom": [
-            "saved_by_room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["saved_by_room_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1165,10 +1050,7 @@
       "indexes": {
         "quiz_results_meet_id_quiz_key_unique": {
           "name": "quiz_results_meet_id_quiz_key_unique",
-          "columns": [
-            "meet_id",
-            "quiz_key"
-          ],
+          "columns": ["meet_id", "quiz_key"],
           "isUnique": true
         }
       },
@@ -1177,12 +1059,8 @@
           "name": "quiz_results_meet_id_quiz_meets_id_fk",
           "tableFrom": "quiz_results",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1190,12 +1068,8 @@
           "name": "quiz_results_room_id_meet_rooms_id_fk",
           "tableFrom": "quiz_results",
           "tableTo": "meet_rooms",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["room_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1266,12 +1140,8 @@
           "name": "scheduled_quiz_seats_quiz_id_scheduled_quizzes_id_fk",
           "tableFrom": "scheduled_quiz_seats",
           "tableTo": "scheduled_quizzes",
-          "columnsFrom": [
-            "quiz_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["quiz_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1367,12 +1237,8 @@
           "name": "scheduled_quizzes_meet_id_quiz_meets_id_fk",
           "tableFrom": "scheduled_quizzes",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1380,12 +1246,8 @@
           "name": "scheduled_quizzes_slot_id_meet_slots_id_fk",
           "tableFrom": "scheduled_quizzes",
           "tableTo": "meet_slots",
-          "columnsFrom": [
-            "slot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["slot_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1393,12 +1255,8 @@
           "name": "scheduled_quizzes_room_id_meet_rooms_id_fk",
           "tableFrom": "scheduled_quizzes",
           "tableTo": "meet_rooms",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["room_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1449,10 +1307,7 @@
       "indexes": {
         "seed_resolutions_meet_id_seed_ref_unique": {
           "name": "seed_resolutions_meet_id_seed_ref_unique",
-          "columns": [
-            "meet_id",
-            "seed_ref"
-          ],
+          "columns": ["meet_id", "seed_ref"],
           "isUnique": true
         }
       },
@@ -1461,12 +1316,8 @@
           "name": "seed_resolutions_meet_id_quiz_meets_id_fk",
           "tableFrom": "seed_resolutions",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1474,12 +1325,8 @@
           "name": "seed_resolutions_team_id_teams_id_fk",
           "tableFrom": "seed_resolutions",
           "tableTo": "teams",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["team_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1551,9 +1398,7 @@
       "indexes": {
         "session_token_unique": {
           "name": "session_token_unique",
-          "columns": [
-            "token"
-          ],
+          "columns": ["token"],
           "isUnique": true
         }
       },
@@ -1562,12 +1407,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1604,10 +1445,7 @@
       "indexes": {
         "team_rosters_team_id_quizzer_id_unique": {
           "name": "team_rosters_team_id_quizzer_id_unique",
-          "columns": [
-            "team_id",
-            "quizzer_id"
-          ],
+          "columns": ["team_id", "quizzer_id"],
           "isUnique": true
         }
       },
@@ -1616,12 +1454,8 @@
           "name": "team_rosters_team_id_teams_id_fk",
           "tableFrom": "team_rosters",
           "tableTo": "teams",
-          "columnsFrom": [
-            "team_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["team_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1629,12 +1463,8 @@
           "name": "team_rosters_quizzer_id_quizzer_identities_id_fk",
           "tableFrom": "team_rosters",
           "tableTo": "quizzer_identities",
-          "columnsFrom": [
-            "quizzer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["quizzer_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1704,12 +1534,8 @@
           "name": "teams_meet_id_quiz_meets_id_fk",
           "tableFrom": "teams",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1717,12 +1543,8 @@
           "name": "teams_church_id_churches_id_fk",
           "tableFrom": "teams",
           "tableTo": "churches",
-          "columnsFrom": [
-            "church_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["church_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1796,9 +1618,7 @@
       "indexes": {
         "user_email_unique": {
           "name": "user_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
@@ -1880,10 +1700,7 @@
       "indexes": {
         "viewer_memberships_account_id_meet_id_unique": {
           "name": "viewer_memberships_account_id_meet_id_unique",
-          "columns": [
-            "account_id",
-            "meet_id"
-          ],
+          "columns": ["account_id", "meet_id"],
           "isUnique": true
         }
       },
@@ -1892,12 +1709,8 @@
           "name": "viewer_memberships_account_id_user_id_fk",
           "tableFrom": "viewer_memberships",
           "tableTo": "user",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1905,12 +1718,8 @@
           "name": "viewer_memberships_meet_id_quiz_meets_id_fk",
           "tableFrom": "viewer_memberships",
           "tableTo": "quiz_meets",
-          "columnsFrom": [
-            "meet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meet_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

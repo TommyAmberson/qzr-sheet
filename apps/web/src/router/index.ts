@@ -75,6 +75,15 @@ const router = createRouter({
           }),
         },
         {
+          path: 'stats/:division',
+          name: 'meet-division-stats',
+          component: () => import('../views/DivisionStatsView.vue'),
+          props: (route) => ({
+            slug: route.params.slug as string,
+            division: route.params.division as string,
+          }),
+        },
+        {
           path: 'schedule/edit',
           name: 'meet-schedule-edit',
           component: () => import('../views/LinkedBuilderView.vue'),

@@ -24,6 +24,8 @@ import {
 } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { jsonBody, meetIdOf } from '../lib/request'
+import { isCounted, latestRevision } from '../lib/resultsSql'
+import { keepScores } from '../lib/scores'
 
 interface ResultsVariables extends SessionVariables {
   db: Db
@@ -182,25 +184,6 @@ function validFile(c: Context<Env>, quizFile: unknown): string | Response {
   return json
 }
 
-/**
- * The enclosing query's stored quiz, for a subquery. Always qualified: drizzle leaves a column
- * unqualified in a one-table select, where inside a subquery it would name the subquery's own.
- */
-const storedQuizId = sql`${schema.quizResults}.${sql.identifier('id')}`
-
-/** The newest revision of the stored quiz in the enclosing query, which is its current one */
-const latestRevision = sql<number>`(
-  SELECT MAX(latest.revision) FROM quiz_result_revisions latest
-  WHERE latest.result_id = ${storedQuizId}
-)`
-
-/** Whether the stored quiz in the enclosing query counts: its newest counting record says so */
-const isCounted = sql`COALESCE((
-  SELECT newest.counted FROM quiz_result_count_changes newest
-  WHERE newest.result_id = ${storedQuizId}
-  ORDER BY newest.id DESC LIMIT 1
-), 0)`.mapWith(Boolean)
-
 /** The revision a selecting revision points at, for its quiz file */
 const source = alias(schema.quizResultRevisions, 'source')
 
@@ -264,6 +247,19 @@ function quizNamed(db: Db, meetId: number, key: string) {
     .where(and(eq(schema.quizResults.meetId, meetId), eq(schema.quizResults.quizKey, key)))
 }
 
+/**
+ * Keep the scores of revisions just saved. The save has already happened, so a failure here must
+ * not fail it: the official would send the quiz again. A score that is missing is made when the
+ * division's stats are next read.
+ */
+async function keepScoresOfSaved(db: Db, revisions: { id: number; quizFile: string }[]) {
+  try {
+    await keepScores(db, revisions)
+  } catch (e) {
+    console.error('Scores not kept for revisions', revisions.map((r) => r.id).join(', '), e)
+  }
+}
+
 type RevisionRow = Saver &
   Pick<typeof schema.quizResultRevisions.$inferInsert, 'quizFile' | 'restoredFrom' | 'action'>
 
@@ -314,9 +310,20 @@ async function addRevisions(
             savedAt,
           })),
         )
-        .returning({ revision: schema.quizResultRevisions.revision })
+        .returning({
+          id: schema.quizResultRevisions.id,
+          revision: schema.quizResultRevisions.revision,
+        })
       const results = await asOne(db, [...together(), insert])
-      return (results.at(-1) as { revision: number }[]).map((r) => r.revision)
+      const added = results.at(-1) as { id: number; revision: number }[]
+      await keepScoresOfSaved(
+        db,
+        added.flatMap(({ id }, i) => {
+          const quizFile = rows[i]!.quizFile
+          return quizFile ? [{ id, quizFile }] : []
+        }),
+      )
+      return added.map((r) => r.revision)
     } catch (e) {
       if (attempt < 3 && isRevisionClash(e)) continue
       throw e
@@ -405,11 +412,15 @@ results.post('/:id/results', async (c) => {
           revision: 1,
           savedAt: now,
         })
-        .returning({ revision: schema.quizResultRevisions.revision })
+        .returning({
+          id: schema.quizResultRevisions.id,
+          revision: schema.quizResultRevisions.revision,
+        })
       const [quizRows, revisionRows] = (await asOne(db, [createdQuiz, firstRevision])) as [
         { id: number }[],
-        { revision: number }[],
+        { id: number; revision: number }[],
       ]
+      await keepScoresOfSaved(db, [{ id: revisionRows[0]!.id, quizFile: json }])
       return c.json(
         { id: quizRows[0]!.id, revision: revisionRows[0]!.revision, created: true },
         201,

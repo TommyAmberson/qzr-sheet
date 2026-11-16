@@ -23,6 +23,33 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-14
+
+### Added
+
+* `scoreStoredQuiz` and `ScoredQuiz`: what scoring makes of one stored quiz file, for keeping beside
+  a stored revision. The quiz's name; per team its name, score, score before overtime, errors and
+  place by score; per named quizzer the points, errors, correct answers and correct answers by
+  question type; the quiz's own placement formula; and every scoring problem, each validation error
+  with its team, quizzer, question and code, the unanswered questions, and a tie left undecided in
+  an overtime not played out. It holds no placement points, since a meet's settings decide those
+* `assessStoredQuiz`: the one pass over a stored quiz that `quizOutcome` and `scoreStoredQuiz` both
+  read
+* `divisionStats`, with the response types the stats API sends (`DivisionStats`, `StageResults`,
+  `QuizResult`, `TeamTable`, `StatsWarning`, `QuizRef`, `QuizProblem`, `Stage`): a division's
+  quizzes by stage and its prelim standings, read from scored quizzes with placement points worked
+  out from each team's place and score
+* `quizzerStandings`, with `QuizzerList`, `QuizzerStanding` and `QuizzerFlag`: a division's quizzers
+  ranked by average, total points over the quizzes their team played, then fewest errors, level
+  quizzers sharing a place; the quizzers of consolation teams ranked apart; flags for a quizzer
+  listed in a different number of quizzes from their team and for question types that don't add up.
+  `divisionStats` gives it as `quizzers`, a `QuizzerTable`, over every counting quiz but a Finals
+* `mostUsedSpelling` and `countSpelling`, the spelling a name is shown under and its tally, which
+  the team standings already used
+* `incompleteQuestions`, the questions of a range not yet filled out, which `questionsComplete` now
+  reads; `placeRank` and `placeTieCount`, which read a `PlaceKey`; `byNumber`, the order quiz and
+  division names are listed in; and `resultKeyDivision`, the division a result key names
+
 ## [1.10.0] - 2026-11-12
 
 ### Added

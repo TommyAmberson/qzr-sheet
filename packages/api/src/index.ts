@@ -14,6 +14,7 @@ import { churches } from './routes/churches'
 import { phase } from './routes/phase'
 import { publishedSchedule, schedule } from './routes/schedule'
 import { results } from './routes/results'
+import { stats } from './routes/stats'
 import { account } from './routes/account'
 import { createAuth } from './lib/auth'
 import { createDb } from './lib/db'
@@ -110,6 +111,8 @@ api.route('/api/account', account)
 api.route('/api', churches)
 // Officials submit results with a guest token, so results mount ahead of the account-only routers
 api.route('/api/meets', results)
+// Viewers read stats with a guest token too
+api.route('/api/meets', stats)
 // The published schedule admits guests too, so it mounts ahead of the account-only routers
 api.route('/api/meets', publishedSchedule)
 api.route('/api/meets', phase)

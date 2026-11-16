@@ -9,6 +9,7 @@ import { churches } from '../churches'
 import { join } from '../join'
 import { memberships } from '../memberships'
 import { results } from '../results'
+import { stats } from '../stats'
 import { mockSession, mockDb, jsonOf, jsonRequest, seedMeet } from '../../test-utils'
 import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
@@ -54,6 +55,7 @@ function mountRoutes(db: Db, guest: GuestPayload | null | 'bearer') {
   app.route('/api/my-meets', memberships)
   app.route('/api', churches)
   app.route('/api/meets', results)
+  app.route('/api/meets', stats)
   app.route('/api/meets', publishedSchedule)
   app.route('/api/meets', phase)
   app.route('/api/meets', schedule)
@@ -249,5 +251,18 @@ describe('a guest token is checked by the session middleware', () => {
       env,
     )
     expect(res.status).toBe(401)
+  })
+})
+
+describe('route mount order: a guest reaches the stats router', () => {
+  it('is answered by the stats router, not turned away by an account-only one', async () => {
+    const db = await createTestDb()
+    const meet = await seedMeet(db, 'Stats Meet', { phase: 'live' })
+    const app = mountRoutes(db, { meetId: meet.id, role: MeetRole.Viewer })
+    const res = await app.request(`/api/meets/${meet.id}/stats`, {}, env)
+    // Stats are for admins until viewers are given them; an account-only router would say
+    // "Account required"
+    expect(res.status).toBe(403)
+    expect(await jsonOf(res)).toEqual({ error: 'Admin access required' })
   })
 })

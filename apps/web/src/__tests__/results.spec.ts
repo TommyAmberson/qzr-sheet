@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, PlacementFormula, type QuizFile } from '@qzr/shared'
 import type { StoredQuiz } from '../api'
-import { countedQuizzes, editQuizFile, groupResults, mergeEdits } from '../results'
+import { editQuizFile, groupResults, mergeEdits } from '../results'
 
 function stored(
   id: number,
@@ -97,22 +97,6 @@ describe('groupResults', () => {
   })
 })
 
-describe('countedQuizzes', () => {
-  it("gives a division's standings only its counted quizzes, with their outcomes", () => {
-    const [division] = groupResults([
-      stored(1, '1', '1', { counted: true }),
-      stored(2, '1', '2'),
-      stored(3, '1', '3', { counted: true }),
-    ])
-    const counted = countedQuizzes(division!)
-    expect(counted.map((q) => q.name)).toEqual(['D1 Q1', 'D1 Q3'])
-    expect(counted[0]!.outcome).toEqual({
-      placed: division!.quizzes[0]!.placed,
-      teams: division!.quizzes[0]!.teams,
-    })
-  })
-})
-
 describe('editQuizFile', () => {
   it('changes names, division and quiz number, and keeps the answers', () => {
     const { quizFile } = stored(1, '1', '3')
@@ -149,6 +133,12 @@ describe('mergeEdits', () => {
       expect(quizFile.teams.map((t) => t.name)).toEqual(['Calgary 1', 'Regina 1'])
       expect(quizFile.quiz).toMatchObject({ division: '1' })
     }
+  })
+
+  it('finds the division however the quiz files case and space it', () => {
+    // The stats name a division as the meet lists it; the files may write it another way
+    const edits = mergeEdits([named(1, ' open', 'Calgry 1')], 'Open', 'Calgry 1', 'Calgary 1')
+    expect(edits.map((edit) => edit.id)).toEqual([1])
   })
 
   it("leaves other divisions' quizzes alone", () => {

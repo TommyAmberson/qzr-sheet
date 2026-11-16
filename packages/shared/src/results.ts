@@ -17,6 +17,9 @@ export function foldName(name: string): string {
   return tidyName(name).toLowerCase()
 }
 
+/** Names in the order people count them: Q2 before Q10, division 2 before division 10 */
+export const byNumber = new Intl.Collator('en', { numeric: true })
+
 /** One division's team names, which a meet's admin lists for its scoresheets to offer (Story 6) */
 export interface DivisionTeamNames {
   division: string
@@ -47,6 +50,11 @@ export function resultKey(
   quiz: Pick<QuizFile['quiz'], 'division' | 'consolation' | 'quizNumber'>,
 ): string {
   return [foldName(quiz.division), quiz.consolation ? 'c' : '', foldName(quiz.quizNumber)].join('|')
+}
+
+/** The division a result key names, folded as the key folds it */
+export function resultKeyDivision(key: string): string {
+  return key.split('|')[0]!
 }
 
 /** A quiz's name, as officials know it: "D1 Q3", or "D1c Q3" in consolation */

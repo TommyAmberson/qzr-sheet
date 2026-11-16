@@ -131,6 +131,19 @@ QuizResultRevision     -- append-only: one row per save, never updated or delete
   savedAt
   UNIQUE(resultId, revision)
 
+QuizResultScore        -- what scoring makes of a revision's quiz file, kept so a division's
+                          stats are ranked without scoring anything; holds only what the file
+                          determines (no placement points, stage or ranking). Written when the
+                          revision is saved, and written again when read if it is missing or
+                          another @qzr/shared version made it
+  revisionId           -- PK, FK → QuizResultRevision (cascade delete); a revision that restores
+                          another has no row and uses the row of the revision it restores
+  sharedVersion        -- the @qzr/shared version that scored it
+  scored               -- JSON, a `ScoredQuiz`: the quiz's name and own placement formula; per
+                          team its name, score, score before overtime, errors and place by
+                          score; per named quizzer the points, errors, correct answers and
+                          correct answers by question type; and every scoring problem
+
 QuizResultCountChange  -- append-only: one row per count or uncount; a quiz counts when its
                           newest row says so, and not until an admin first counts it
   id

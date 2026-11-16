@@ -405,6 +405,18 @@ export const quizResultRevisions = sqliteTable(
   ],
 )
 
+// What scoring makes of a revision's quiz file, kept so a stats request ranks without scoring. It
+// holds only what the file determines, and is rescored when the shared version that made it is not
+// the running one (specs/006-meet-stats, research R2).
+export const quizResultScores = sqliteTable('quiz_result_scores', {
+  revisionId: integer('revision_id')
+    .primaryKey()
+    .references(() => quizResultRevisions.id, { onDelete: 'cascade' }),
+  sharedVersion: text('shared_version').notNull(),
+  // JSON: a `ScoredQuiz`
+  scored: text('scored').notNull(),
+})
+
 // Append-only: one row per count or uncount. A quiz counts when its newest row says so, and not
 // until an admin first counts it.
 export const quizResultCountChanges = sqliteTable(

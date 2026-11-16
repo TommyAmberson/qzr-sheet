@@ -240,6 +240,12 @@ export async function createTestDb(): Promise<Db> {
       CHECK ((quiz_file IS NULL) <> (restored_from IS NULL))
     );
 
+    CREATE TABLE quiz_result_scores (
+      revision_id INTEGER PRIMARY KEY NOT NULL REFERENCES quiz_result_revisions(id) ON DELETE CASCADE,
+      shared_version TEXT NOT NULL,
+      scored TEXT NOT NULL
+    );
+
     CREATE TABLE quiz_result_count_changes (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       result_id INTEGER NOT NULL REFERENCES quiz_results(id) ON DELETE CASCADE,

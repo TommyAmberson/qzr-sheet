@@ -1,10 +1,10 @@
 import {
+  byNumber,
   deserialize,
   foldName,
   quizName,
   quizOutcome,
   serialize,
-  type CountedQuiz,
   type QuizFile,
   type TeamOutcome,
 } from '@qzr/shared'
@@ -30,8 +30,6 @@ export interface DivisionResults {
   division: string
   quizzes: ResultRow[]
 }
-
-const byNumber = new Intl.Collator(undefined, { numeric: true })
 
 /** A meet's stored quizzes grouped by the division each one records, as written */
 export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
@@ -61,13 +59,6 @@ export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
       division,
       quizzes: quizzes.sort((a, b) => byNumber.compare(a.name, b.name)),
     }))
-}
-
-/** A division's counted quizzes, as its standings take them */
-export function countedQuizzes(division: DivisionResults): CountedQuiz[] {
-  return division.quizzes
-    .filter((quiz) => quiz.counted)
-    .map((quiz) => ({ name: quiz.name, outcome: { placed: quiz.placed, teams: quiz.teams } }))
 }
 
 /** The names the quick form can change in a stored quiz's file; what's left out stays as it is */
@@ -116,8 +107,10 @@ export function mergeEdits(
   into: string,
 ): { id: number; quizFile: QuizFile }[] {
   const merged = foldName(from)
+  // Folded, since the stats that raised the look-alike name the division as the meet lists it
+  const inDivision = foldName(division)
   return stored.flatMap(({ id, quizFile }) => {
-    if (quizFile.quiz.division !== division) return []
+    if (foldName(quizFile.quiz.division) !== inDivision) return []
     const renamed = quizFile.teams.filter((team) => foldName(team.name) === merged)
     if (renamed.length === 0) return []
     const teamNames = new Map(renamed.map((team) => [team.id, into]))
