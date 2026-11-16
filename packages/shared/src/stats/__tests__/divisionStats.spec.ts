@@ -6,7 +6,8 @@ import { quizOutcome } from '../../scoring/quizOutcome'
 import { divisionStandings } from '../../scoring/standings'
 import { fifteenQuestionQuizFile } from '../../scoring/__tests__/fixtures/fifteenQuestionQuiz'
 import { referenceMeet } from '../../scoring/__tests__/fixtures/referenceMeet'
-import { divisionStats, type Stage, type StatsQuiz } from '../divisionStats'
+import { divisionStats, type StatsQuiz } from '../divisionStats'
+import type { Stage } from '../stages'
 import { scoreStoredQuiz, type ScoredQuiz } from '../scoredQuiz'
 
 let nextId = 1

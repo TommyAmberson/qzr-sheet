@@ -23,16 +23,37 @@ export function placeLabel(place: number, tiedWith = 1): string {
 
 /** One thing wrong with a stored quiz, as a line an admin can act on */
 export function problemText(problem: QuizProblem): string {
-  if (problem.kind === 'unanswered') {
-    const many = problem.questions.length > 1
-    return `Question${many ? 's' : ''} ${problem.questions.join(', ')} ${many ? 'have' : 'has'} no answer.`
+  switch (problem.kind) {
+    case 'validation': {
+      const seat = [problem.team, problem.quizzer].filter((part) => part).join(', ')
+      const where = [seat, problem.question && `question ${problem.question}`]
+        .filter((part) => part)
+        .join(', ')
+      return `${where}: ${validationMessage(problem.code)}`
+    }
+    case 'unanswered': {
+      const many = problem.questions.length > 1
+      return `Question${many ? 's' : ''} ${problem.questions.join(', ')} ${many ? 'have' : 'has'} no answer.`
+    }
+    case 'undecided':
+      return 'Teams are still level: the overtime is not finished.'
+    case 'teamNotOnRoster': {
+      const team = problem.team ? `${problem.team} is` : 'A team with no name is'
+      return `${team} not one of the division's teams.${problem.near ? ` The roster has ${problem.near}.` : ''}`
+    }
+    case 'quizzerNotOnRoster':
+      return `${problem.team}: ${problem.quizzer} is not on the roster.${problem.near ? ` The roster has ${problem.near}.` : ''}`
+    case 'quizzerMissing':
+      return `${problem.team}: ${problem.quizzer} is on the roster and not in this quiz.`
+    case 'tooManyQuizzers':
+      return `${problem.team} lists ${problem.listed} quizzers; its roster has ${problem.roster}.`
+    case 'nameDiffers':
+      return `It is linked to ${problem.scheduled}, which is not its name.`
+    case 'teamsDiffer':
+      return `Its teams are not the schedule's: ${problem.scheduled.join(', ')}.`
+    case 'tieLeftStanding':
+      return 'It ended level with no overtime, and this quiz must have a winner.'
   }
-  if (problem.kind === 'undecided') return 'Teams are still level: the overtime is not finished.'
-  const seat = [problem.team, problem.quizzer].filter((part) => part).join(', ')
-  const where = [seat, problem.question && `question ${problem.question}`]
-    .filter((part) => part)
-    .join(', ')
-  return `${where}: ${validationMessage(problem.code)}`
 }
 
 /** A flag on a quizzer's line in the standings, for the admin */

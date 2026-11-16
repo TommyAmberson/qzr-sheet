@@ -40,6 +40,27 @@ describe('problemText', () => {
     )
   })
 
+  it('says what a roster error is and what the roster has', () => {
+    expect(
+      problemText({ kind: 'teamNotOnRoster', team: 'Mapel Hill 1', near: 'Maple Hill 1' }),
+    ).toBe("Mapel Hill 1 is not one of the division's teams. The roster has Maple Hill 1.")
+    expect(problemText({ kind: 'teamNotOnRoster', team: '' })).toBe(
+      "A team with no name is not one of the division's teams.",
+    )
+    expect(
+      problemText({ kind: 'quizzerMissing', team: 'Maple Hill 1', quizzer: 'Alex Abbott' }),
+    ).toBe('Maple Hill 1: Alex Abbott is on the roster and not in this quiz.')
+  })
+
+  it('says how a quiz differs from its scheduled quiz', () => {
+    expect(problemText({ kind: 'nameDiffers', scheduled: 'D1 Q3' })).toBe(
+      'It is linked to D1 Q3, which is not its name.',
+    )
+    expect(problemText({ kind: 'tieLeftStanding' })).toBe(
+      'It ended level with no overtime, and this quiz must have a winner.',
+    )
+  })
+
   it('lists the unanswered questions', () => {
     expect(problemText({ kind: 'unanswered', questions: ['15'] })).toBe(
       'Question 15 has no answer.',

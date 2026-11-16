@@ -23,6 +23,26 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-11-15
+
+### Added
+
+* `scheduledStage` and `storedStage`: the stage the schedule gives one of its quizzes (a bracket's
+  deciding quiz is its Finals, a quiz on a line an intermediate), and a stored quiz's stage from the
+  admin's choice, else its linked scheduled quiz, else its counting record; with `STAGE_CHOICES`,
+  `StageChoice` and `StageFrom`
+* `matchScheduledQuiz`: whether a quiz is a scheduled quiz, by its name and, where the schedule
+  names them, its teams, a miss by a slightly different team name reported as `near`; `isNamed`,
+  under which a division or quiz number left blank or written `_` is none
+* `quizProblems`, with `rosterProblems` and `scheduleProblems`: everything wrong with a stored quiz.
+  Beside the scoring problems, a team or quizzer not on the roster of the quiz's division (with the
+  nearest roster name), a team listing more quizzers than its roster, a roster quizzer missing from
+  the quiz, a linked quiz whose name or teams differ from its scheduled quiz's, and an elimination
+  or Finals left level with no overtime. `QuizProblem` is now the union of all three kinds
+* `teamNamed`, `teamsNearName` and `looseName`, with `RosterTeam`: the comparison of a typed team
+  name with a roster's, by full name, then short name, then with punctuation set aside, as the
+  scoresheet makes it when a meet is linked, so the sheet and the server match alike
+
 ## [1.11.0] - 2026-11-14
 
 ### Added

@@ -4,20 +4,15 @@ import { computePlacementPoints, placeRank, placeTieCount } from '../scoring/pla
 import type { QuizOutcome } from '../scoring/quizOutcome'
 import { quizzerStandings, type QuizzerList } from '../scoring/quizzerStandings'
 import { divisionStandings, type TieBreak } from '../scoring/standings'
-import type { ScoredQuiz, ScoredTeam, ScoringProblem } from './scoredQuiz'
-
-/** What a stored quiz counts for */
-export const STAGES = ['prelim', 'intermediate', 'elimination', 'finals'] as const
-export type Stage = (typeof STAGES)[number]
+import type { QuizProblem } from './quizProblems'
+import type { ScoredQuiz, ScoredTeam } from './scoredQuiz'
+import { STAGES, type Stage } from './stages'
 
 /** A stored quiz, as a warning or a list names it */
 export interface QuizRef {
   id: number
   name: string
 }
-
-/** What is wrong with a stored quiz; any one keeps it out of every table until fixed or accepted */
-export type QuizProblem = ScoringProblem
 
 export interface QuizResult {
   name: string
