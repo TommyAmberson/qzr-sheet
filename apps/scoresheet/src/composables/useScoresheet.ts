@@ -644,6 +644,32 @@ export function useScoresheet() {
     store.setQuestionType(col.key, category)
   }
 
+  // Names aren't kept in history, so typing them doesn't make the sheet dirty. What was typed since
+  // the sheet was last saved, started or opened is told apart from those names instead.
+  const namesNow = () =>
+    JSON.stringify(
+      store.teams.map((team) => [team.name, store.quizzersByTeam(team.id).map((q) => q.name)]),
+    )
+  const keptNames = ref(namesNow())
+  /** Take the names on the sheet as its own, as a save or a quiz just begun has them */
+  function keepNames() {
+    keptNames.value = namesNow()
+  }
+  /** Whether names were typed that the sheet would lose: changed since kept, and not all blank */
+  const namesChanged = computed(
+    () =>
+      namesNow() !== keptNames.value &&
+      store.teams.some(
+        (team) =>
+          team.name.trim() !== '' ||
+          store.quizzersByTeam(team.id).some((quizzer) => quizzer.name.trim() !== ''),
+      ),
+  )
+  function markSaved() {
+    history.markSaved()
+    keepNames()
+  }
+
   /** Load a deserialized quiz file into the store, replacing all state */
   function loadFile(data: DeserializeResult, { fromNewerFile = false } = {}) {
     openedFromNewerFile.value = fromNewerFile
@@ -652,6 +678,7 @@ export function useScoresheet() {
     timeoutMap.value = data.timeouts
     internalOtRounds.value = computeInitialOtRounds(data)
     history.clear()
+    keepNames()
     saveToStorage(store, data.noJumps, data.timeouts)
   }
   function resetStore(format = QuizFormat.TwentyQuestion) {
@@ -667,6 +694,7 @@ export function useScoresheet() {
     timeoutMap.value = new Map()
     internalOtRounds.value = 1
     history.clear()
+    keepNames()
     clearStorage()
   }
 
@@ -783,9 +811,11 @@ export function useScoresheet() {
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     isDirty: history.isDirty,
+    namesChanged,
+    keepNames,
     undo: history.undo,
     redo: history.redo,
-    markSaved: history.markSaved,
+    markSaved,
 
     // Persistence
     store,

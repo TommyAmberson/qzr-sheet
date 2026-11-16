@@ -2,10 +2,12 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   anyTeamHasAnswer,
+  ApiError,
   CellValue,
   deserialize,
   endsRound,
   firstOvertimeQuestion,
+  foldName,
   lastQuestionThroughRound,
   FOULS_TO_FOUL_OUT,
   MeetRole,
@@ -13,6 +15,8 @@ import {
   parseQuizFile,
   parseQuizFileAttempt,
   quizName,
+  resultKey,
+  scheduleQuizMeta,
   QuestionCategory,
   QuestionType,
   QuizFormat,
@@ -20,6 +24,8 @@ import {
   startsOtRound,
   ValidationCode,
   validationMessage,
+  type DeserializeResult,
+  type QuizFile,
 } from '@qzr/shared'
 import { useScoresheet } from '../composables/useScoresheet'
 import { useCellSelector } from '../composables/useCellSelector'
@@ -38,12 +44,19 @@ import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
 import { readOds } from '../export/readOds'
 import {
   getMeetName,
+  getPublishedSchedule,
   getRevision,
+  getScheduledQuiz,
+  getStoredQuizzes,
   getTeamQuizzers,
   joinMeet,
   joinMeetGuest,
+  type MeetSummary,
   type MeetTeam,
-  type ScheduledQuizSeat,
+  type MeetTeamQuizzer,
+  type ScheduledQuizDetails,
+  type PublishedSchedule,
+  type StoredQuiz,
 } from '../api'
 import {
   ChoiceDialog,
@@ -65,12 +78,16 @@ import {
   teamNamed,
   teamsNearName,
   useMeetSession,
+  scheduledQuizGone,
+  type ScheduledQuizCopy,
   type SlotSession,
 } from '../composables/useMeetSession'
 import { renewedSenderOf, useSubmitToMeet } from '../composables/useSubmitToMeet'
 import { useTeamNames } from '../composables/useTeamNames'
 import { useTutorial } from '../composables/useTutorial'
 import MeetPickerDialog from './MeetPickerDialog.vue'
+import MeetWarningsDialog, { type MeetWarning } from './MeetWarningsDialog.vue'
+import StoredQuizPickerDialog from './StoredQuizPickerDialog.vue'
 import SchedulePickerDialog from './SchedulePickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
 import TutorialOverlay from './TutorialOverlay.vue'
@@ -80,6 +97,9 @@ const { theme, toggleTheme } = useTheme()
 const meetSession = useMeetSession()
 const meetPickerRef = ref<InstanceType<typeof MeetPickerDialog> | null>(null)
 const schedulePickerRef = ref<InstanceType<typeof SchedulePickerDialog> | null>(null)
+const storedPickerRef = ref<InstanceType<typeof StoredQuizPickerDialog> | null>(null)
+const warningsDialogRef = ref<InstanceType<typeof MeetWarningsDialog> | null>(null)
+const waitingDialogRef = ref<HTMLDialogElement | null>(null)
 const openPickerSlot = ref<number | null>(null)
 const pickerPos = ref({ top: 0, left: 0 })
 
@@ -103,116 +123,539 @@ onMounted(() => {
   void loadFromUrlParams()
 })
 
-/** True when any team or quizzer has a name. Gates the overwrite confirm before loading from
- *  schedule. */
-function hasTypedNames(): boolean {
-  return store.teams.some(
-    (team) =>
-      team.name.trim() !== '' ||
-      store.quizzersByTeam(team.id).some((quizzer) => quizzer.name.trim() !== ''),
-  )
+// ---- Waiting on the meet ----
+
+/** What the sheet is waiting on the meet for, while it is; null otherwise */
+const waitingFor = ref<string | null>(null)
+let waitTurn = 0
+
+/**
+ * Wait on the meet for something the official asked for, named as what the sheet is doing
+ * ("Starting the quiz"). Until it arrives the sheet takes nothing but Cancel. Undefined when it was
+ * cancelled or the meet couldn't be reached, which is said; either way nothing has changed, since
+ * callers apply what arrives only once it has.
+ */
+async function waitOnMeet<T>(
+  what: string,
+  fetch: (stillWanted: () => boolean) => Promise<T>,
+): Promise<{ arrived: T } | undefined> {
+  const turn = ++waitTurn
+  const stillWanted = () => turn === waitTurn
+  waitingFor.value = what
+  try {
+    const arrived = await fetch(stillWanted)
+    return stillWanted() ? { arrived } : undefined
+  } catch (e) {
+    if (stillWanted()) alert(`${what} didn't finish: ${outOfReach(e)}`)
+    return undefined
+  } finally {
+    if (stillWanted()) waitingFor.value = null
+  }
 }
 
-/** Single entry point for loading a scheduled quiz into the
- *  scoresheet — shared by the URL ?meet&quiz prefill and the
- *  in-app picker. Warns first if the user has typed real names,
- *  then per seat decides what to do via `computeSeatChange`, and
- *  commits all slot updates in one atomic write. Returns true on
- *  success so the picker dialog can decide whether to close. */
-async function loadScheduledQuiz(meetId: number, quizId: string): Promise<boolean> {
-  if (hasTypedNames()) {
-    if (!(await confirmAction('Loading this quiz will overwrite your current names. Continue?'))) {
-      return false
-    }
-  }
-  let details
-  try {
-    details = await meetSession.loadFromQuiz(meetId, quizId)
-  } catch (err) {
-    alert(`Could not load scheduled quiz: ${(err as Error).message}`)
-    return false
-  }
-  quiz.value.division = details.quiz.division
-  quiz.value.quizNumber = details.quiz.quizNumber
-  quiz.value.consolation = details.quiz.consolation
+/** Give up on what the sheet is waiting for: it arrives to nobody, and the sheet is as it was */
+function cancelWaiting() {
+  waitTurn++
+  waitingFor.value = null
+}
 
-  const slots = [0, 1, 2].map((i) => meetSession.getSlot(i))
-  const storeMirrors: (() => void)[] = []
-  for (const seat of details.seats) {
-    const slotIdx = seat.seatNumber - 1
-    if (slotIdx < 0 || slotIdx > 2) continue
-    const change = computeSeatChange(slotIdx, seat)
-    if (!change) continue
-    slots[slotIdx] = change.slot
-    storeMirrors.push(change.mirrorToStore)
+/** Why a request failed, as the official is told: the server's own reason, or that there was none */
+function outOfReach(e: unknown): string {
+  return e instanceof ApiError || !(e instanceof TypeError)
+    ? (e as Error).message
+    : "the meet can't be reached"
+}
+
+// ---- Linking ----
+
+/** The names and numbers a link is worked out from: the sheet's, or a quiz's about to be on it */
+interface SheetNames {
+  division: string
+  consolation: boolean
+  quizNumber: string
+  /** In slot order, each with its quizzers in seat order */
+  teams: { name: string; quizzers: string[] }[]
+  /** The picks made for these names, when it is the sheet as it stands; a quiz new to it has none */
+  picks?: (SlotSession | undefined)[]
+}
+
+const BLANK_SHEET: SheetNames = { division: '', consolation: false, quizNumber: '', teams: [] }
+
+function sheetOf(data: Pick<DeserializeResult, 'quiz' | 'teams' | 'quizzers'>): SheetNames {
+  const bySeat = <T extends { seatOrder: number }>(a: T, b: T) => a.seatOrder - b.seatOrder
+  return {
+    division: data.quiz.division,
+    consolation: data.quiz.consolation ?? false,
+    quizNumber: data.quiz.quizNumber,
+    teams: [...data.teams].sort(bySeat).map((team) => ({
+      name: team.name,
+      quizzers: data.quizzers
+        .filter((quizzer) => quizzer.teamId === team.id)
+        .sort(bySeat)
+        .map((quizzer) => quizzer.name),
+    })),
   }
-  meetSession.applyLoadedQuiz(slots, quizId)
-  for (const mirror of storeMirrors) mirror()
+}
+
+function sheetNow(): SheetNames {
+  return {
+    ...sheetOf({ quiz: quiz.value, teams: store.teams, quizzers: store.quizzers }),
+    picks: [0, 1, 2].map((slotIdx) => meetSession.getSlot(slotIdx)),
+  }
+}
+
+/** What to link: a meet, and one of its scheduled quizzes or none */
+interface LinkTarget {
+  meetId: number
+  /** Needed only when no scheduled quiz is there to give it */
+  meetName?: string
+  quizId: string | null
+}
+
+const NOT_IN_SCHEDULE = "this quiz isn't in the meet's published schedule"
+
+/** A link worked out and not yet made: everything `applyLink` writes, and nothing fetched after */
+interface LinkPlan {
+  meetId: number
+  meetName: string
+  meet: Awaited<ReturnType<typeof meetSession.fetchMeet>>
+  quizId: string | null
+  scheduledQuiz: ScheduledQuizCopy | null
+  slots: (SlotSession | undefined)[]
+  /** The blanks the scheduled quiz fills */
+  quiz: { division?: string; consolation?: boolean; quizNumber?: string }
+  /** Per slot picked: the team's name where it is taken, and the quizzer for each blank seat */
+  names: { slotIdx: number; teamName?: string; seats: (string | undefined)[] }[]
+}
+
+/**
+ * Work out a link of `sheet` to a meet or one of its scheduled quizzes, fetching what it needs
+ * and changing nothing. This is the one place that decides what linking does:
+ *
+ * - a slot the sheet has picked against the same meet keeps its pick;
+ * - a slot with a name is picked as the roster team the name names, and never as the schedule's;
+ * - a blank slot takes the team the scheduled quiz seats there, unless it is on the sheet already;
+ * - a blank division, with its consolation flag, and a blank quiz number take the schedule's;
+ * - blank seats of a newly picked team take its roster's quizzers.
+ *
+ * Nothing typed or scored is touched. New from schedule, opening a stored quiz and the refresh
+ * symbol are all this, over a blank sheet, an opened file, and the sheet as it is. What a caller
+ * has fetched already, the scheduled quiz or the published schedule, isn't fetched again.
+ */
+async function planLink(
+  target: LinkTarget,
+  sheet: SheetNames,
+  known: { scheduled?: ScheduledQuizDetails | null; schedule?: PublishedSchedule } = {},
+): Promise<LinkPlan> {
+  const { meetId, quizId } = target
+  const sameMeet = meetSession.meetId.value === meetId
+  const nameKnown = target.meetName || (sameMeet ? meetSession.meetName.value : null) || undefined
+  const [meet, scheduled, nameFetched] = await Promise.all([
+    meetSession.fetchMeet(meetId),
+    quizId === null
+      ? null
+      : known.scheduled !== undefined
+        ? known.scheduled
+        : getScheduledQuiz(meetId, quizId, { schedule: known.schedule }),
+    quizId === null && !nameKnown ? getMeetName(meetId) : null,
+  ])
+  // A quiz the schedule has dropped can stay linked, marked as gone, but can't be linked anew
+  const linkedToIt = sameMeet && quizId !== null && meetSession.quizId.value === quizId
+  const held = linkedToIt ? meetSession.scheduledQuiz.value : null
+  if (quizId !== null && !scheduled && !linkedToIt) throw new Error(NOT_IN_SCHEDULE)
+  const meetName =
+    scheduled?.quiz.meetName ??
+    nameKnown ??
+    nameFetched?.meet.name ??
+    (await getMeetName(meetId)).meet.name
+
+  const fill: LinkPlan['quiz'] = {}
+  let division = given(sheet.division)
+  let consolation = sheet.consolation
+  if (!division && scheduled) {
+    division = fill.division = scheduled.quiz.division
+    consolation = fill.consolation = scheduled.quiz.consolation
+  }
+  if (!given(sheet.quizNumber) && scheduled) fill.quizNumber = scheduled.quiz.quizNumber
+  // The division a lone-division meet will give the quiz once it is linked
+  if (!division && meet.meetDivisions.length === 1) division = meet.meetDivisions[0]!
+  const inDivision = meet.teams.filter(
+    (team) => team.division === division && team.consolation === consolation,
+  )
+
+  const slots: (SlotSession | undefined)[] =
+    sameMeet && sheet.picks ? [...sheet.picks] : [undefined, undefined, undefined]
+  /** A slot's candidates: teams no other slot has taken */
+  const freeFor = (slotIdx: number, teams: MeetTeam[]) =>
+    teamsByName(
+      teams.filter((team) => !slots.some((slot, i) => i !== slotIdx && slot?.teamId === team.id)),
+    )
+  const typedOf = (slotIdx: number) => sheet.teams[slotIdx]?.name ?? ''
+  const seatedIn = (slotIdx: number) =>
+    scheduled?.seats.find((seat) => seat.seatNumber === slotIdx + 1)?.team ?? undefined
+
+  // Every roster a slot could need, fetched together rather than slot by slot
+  const rosters = new Map<number, MeetTeamQuizzer[]>()
+  for (const seat of scheduled?.seats ?? []) {
+    if (seat.team && seat.quizzers.length > 0) rosters.set(seat.team.id, seat.quizzers)
+  }
+  // A kept pick is seated again from its roster as it now is, so a name fixed there reaches it
+  const wanted = new Set<number>(
+    slots.flatMap((slot) => (slot && !rosters.has(slot.teamId) ? [slot.teamId] : [])),
+  )
+  for (let slotIdx = 0; slotIdx < 3; slotIdx++) {
+    if (slots[slotIdx]) continue
+    const typed = typedOf(slotIdx)
+    const named = typed.trim()
+      ? (teamNamed(typed, teamsByName(inDivision)) ?? teamNamed(typed, teamsByName(meet.teams)))
+      : undefined
+    // A misspelt name's near teams only when the name names none outright that is free to take
+    const heldElsewhere = slots.some((slot, i) => i !== slotIdx && slot?.teamId === named)
+    const ids = !typed.trim()
+      ? [seatedIn(slotIdx)?.id]
+      : named !== undefined && !heldElsewhere
+        ? [named]
+        : teamsNearName(typed, teamsByName(inDivision))
+    for (const id of ids) if (id !== undefined && !rosters.has(id)) wanted.add(id)
+  }
+  // A roster that can't be had leaves its team unpicked, or a kept pick as it was, not the link
+  const unavailable = new Set<number>()
+  await Promise.all(
+    [...wanted].map((id) =>
+      getTeamQuizzers(meetId, id).then(
+        ({ quizzers }) => rosters.set(id, quizzers),
+        () => unavailable.add(id),
+      ),
+    ),
+  )
+  const rosterOf = (teamId: number) => rosters.get(teamId) ?? []
+
+  /** The roster team a typed name names, and whether the slot takes the roster's name for it */
+  const teamForTyped = (slotIdx: number, typed: string, seatNames: string[]) => {
+    // The quiz's division is looked in first, since two divisions can each have a team of that
+    // name; the rest of the meet only after, where a match shows up flagged as out of its division
+    const named = teamNamed(typed, freeFor(slotIdx, inDivision))
+    if (named !== undefined) return { teamId: named, takeName: true }
+    // The division has a team of this name and another slot holds it. A name typed twice is a
+    // slip, not a call for another division's namesake: leave it to the misspelt-name path
+    if (teamNamed(typed, teamsByName(inDivision)) === undefined) {
+      const elsewhere = teamNamed(typed, freeFor(slotIdx, meet.teams))
+      if (elsewhere !== undefined) return { teamId: elsewhere, takeName: true }
+    }
+    // The name stays as typed, flagged against the roster's, since the roster may be wrong
+    return { teamId: misspeltTeam(typed, seatNames, freeFor(slotIdx, inDivision), rosterOf) }
+  }
+  /** The team the schedule seats in a blank slot, unless it is on the sheet already */
+  const teamForBlank = (slotIdx: number) => {
+    const seated = seatedIn(slotIdx)
+    const onSheet =
+      seated &&
+      (slots.some((slot) => slot?.teamId === seated.id) ||
+        sheet.teams.some((team) => teamNamed(team.name, teamsByName([seated])) !== undefined))
+    return { teamId: seated && !onSheet ? seated.id : undefined, takeName: true }
+  }
+
+  slots.forEach((slot, slotIdx) => {
+    if (!slot) return
+    const team = meet.teams.find((candidate) => candidate.id === slot.teamId)
+    // A team the roster no longer has can't stay picked: the slot is held by its name again
+    if (!team) {
+      slots[slotIdx] = undefined
+      return
+    }
+    if (unavailable.has(team.id)) return
+    slots[slotIdx] = meetSession.slotFor(
+      team,
+      rosterOf(team.id),
+      sheet.teams[slotIdx]?.quizzers ?? [],
+    )
+  })
+
+  const names: LinkPlan['names'] = []
+  for (let slotIdx = 0; slotIdx < 3; slotIdx++) {
+    if (slots[slotIdx]) continue
+    const typed = typedOf(slotIdx)
+    const seatNames = sheet.teams[slotIdx]?.quizzers ?? []
+    const { teamId, takeName } = typed.trim()
+      ? teamForTyped(slotIdx, typed, seatNames)
+      : teamForBlank(slotIdx)
+    const team = meet.teams.find((candidate) => candidate.id === teamId)
+    if (!team || unavailable.has(team.id)) continue
+    const slot = meetSession.slotFor(team, rosterOf(team.id), seatNames)
+    slots[slotIdx] = slot
+    names.push({
+      slotIdx,
+      teamName: takeName ? slot.dbLabelFull : undefined,
+      seats: slot.quizzers.map((quizzer, seatIdx) =>
+        seatNames[seatIdx]?.trim() ? undefined : quizzer.dbName,
+      ),
+    })
+  }
+
+  return {
+    meetId,
+    meetName,
+    meet,
+    quizId,
+    scheduledQuiz: scheduled
+      ? meetSession.scheduledQuizCopy(scheduled)
+      : linkedToIt
+        ? scheduledQuizGone(held)
+        : null,
+    slots,
+    quiz: fill,
+    names,
+  }
+}
+
+/**
+ * The roster team a typed name misspells, when the typed quizzers bear it out. The name only
+ * shortlists teams, since a church's teams are an edit apart; the quizzers say which one, and it
+ * is taken only if they say exactly one.
+ */
+function misspeltTeam(
+  typedName: string,
+  typedQuizzers: string[],
+  candidates: ReturnType<typeof teamsByName>,
+  rosterOf: (teamId: number) => MeetTeamQuizzer[],
+): number | undefined {
+  const confirmed = teamsNearName(typedName, candidates).filter((teamId) =>
+    quizzersConfirmTeam(
+      typedQuizzers,
+      rosterOf(teamId).map((quizzer) => quizzer.name),
+    ),
+  )
+  return confirmed.length === 1 ? confirmed[0] : undefined
+}
+
+/** Make a link that `planLink` worked out, in one step */
+function applyLink(plan: LinkPlan) {
+  meetSession.commitLink({
+    meetId: plan.meetId,
+    meetName: plan.meetName,
+    ...plan.meet,
+    slots: plan.slots,
+    quizId: plan.quizId,
+    scheduledQuiz: plan.scheduledQuiz,
+  })
+  if (plan.quiz.division !== undefined) quiz.value.division = plan.quiz.division
+  if (plan.quiz.consolation !== undefined) quiz.value.consolation = plan.quiz.consolation
+  if (plan.quiz.quizNumber !== undefined) quiz.value.quizNumber = plan.quiz.quizNumber
+  for (const { slotIdx, teamName, seats } of plan.names) {
+    if (teamName !== undefined) setTeamName(slotIdx, teamName)
+    seats.forEach((name, seatIdx) => {
+      if (name !== undefined) setQuizzerName(slotIdx, seatIdx, name)
+    })
+  }
+}
+
+/** Link what is on the sheet. False when it was cancelled or the meet was out of reach. */
+async function linkTo(target: LinkTarget): Promise<boolean> {
+  const plan = await waitOnMeet('Linking the meet', () => planLink(target, sheetNow()))
+  if (plan) applyLink(plan.arrived)
+  return plan !== undefined
+}
+
+/** Link a meet; the same meet again keeps its scheduled quiz, which is how a link is refreshed */
+function linkMeet(meetId: number, meetName: string) {
+  const quizId = meetSession.meetId.value === meetId ? meetSession.quizId.value : null
+  return linkTo({ meetId, meetName, quizId })
+}
+
+/** Fetch the meet afresh and link again what is linked: the refresh symbol */
+function doRefreshLink() {
+  closeMenus()
+  const meetId = meetSession.meetId.value
+  if (meetId !== null) void linkMeet(meetId, meetSession.meetName.value ?? '')
+}
+
+function linkPickedMeet(meet: MeetSummary) {
+  void linkMeet(meet.meetId, meet.meetName)
+}
+
+async function openPickedStored(meetId: number, meetName: string, quizFile: QuizFile) {
+  if (!(await confirmDiscard('Open this quiz from the meet?'))) return false
+  return openStored(meetId, quizFile, { meetName })
+}
+
+function doUnlinkQuiz() {
+  closeMenus()
+  meetSession.unlinkQuiz()
+}
+
+/** What the linked display calls the scheduled quiz; a link kept from before copies has no label */
+const linkedQuizLabel = computed(() =>
+  meetSession.quizId.value === null
+    ? ''
+    : meetSession.scheduledQuiz.value?.label || 'scheduled quiz',
+)
+
+// The waiting dialog is modal, so that it sits above the pickers a wait is started from and
+// nothing behind it can be reached
+watch(waitingFor, (what) => {
+  const dialog = waitingDialogRef.value
+  if (!dialog) return
+  if (what === null) dialog.close?.()
+  else if (!dialog.open) dialog.showModal?.()
+})
+
+// ---- New from schedule, and opening what the meet holds ----
+
+/** Ask before replacing a sheet with unsaved changes: true when there are none or the user agrees */
+async function confirmDiscard(question: string): Promise<boolean> {
+  if (!isDirty.value && !namesChanged.value) return true
+  return confirmAction(`${question} Unsaved changes will be lost.`)
+}
+
+/** The stored quiz that is a scheduled quiz: the one sharing its name, as the meet stores quizzes */
+function storedFor(
+  stored: StoredQuiz[],
+  scheduled: Parameters<typeof resultKey>[0] | null,
+): StoredQuiz | undefined {
+  if (!scheduled) return undefined
+  const key = resultKey(scheduled)
+  return stored.find((candidate) => resultKey(candidate.quizFile.quiz) === key)
+}
+
+/**
+ * The scheduled quiz a stored quiz is, by the name they share, with the schedule it was found in;
+ * null when the meet has no published schedule or it has no such quiz
+ */
+async function scheduleEntryOf(
+  meetId: number,
+  stored: QuizFile['quiz'],
+): Promise<{ quizId: string; schedule: PublishedSchedule } | null> {
+  let schedule: PublishedSchedule
+  try {
+    schedule = await getPublishedSchedule(meetId)
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+  const key = resultKey(stored)
+  const quizId = schedule.document.quizzes.find((q) => resultKey(scheduleQuizMeta(q)) === key)?.id
+  return quizId === undefined ? null : { quizId, schedule }
+}
+
+/** Start a scheduled quiz on a blank sheet, linked to it. Also what the portal's schedule links do */
+async function newFromSchedule(meetId: number, quizId: string): Promise<boolean> {
+  if (!(await confirmDiscard('Start this quiz?'))) return false
+  return startScheduled(meetId, quizId)
+}
+
+/**
+ * Start a scheduled quiz, asking first when the meet already holds a result for it. Nothing changes
+ * until the schedule has arrived.
+ */
+async function startScheduled(meetId: number, quizId: string): Promise<boolean> {
+  const fetched = await waitOnMeet('Starting the quiz', async () => {
+    const [plan, stored] = await Promise.all([
+      planLink({ meetId, quizId }, BLANK_SHEET),
+      // A list that can't be had, refused or out of reach, leaves nothing to ask about: the quiz
+      // starts, and sending it meets the meet's own "already submitted" question
+      getStoredQuizzes(meetId).catch(() => []),
+    ])
+    return { plan, stored: storedFor(stored, plan.scheduledQuiz) }
+  })
+  if (!fetched) return false
+  const { plan, stored } = fetched.arrived
+  if (stored) {
+    const choice = await choiceDialog.value?.ask(
+      `${quizName(stored.quizFile.quiz)} already has a result`,
+      'The meet holds a stored result for this quiz.',
+      [
+        { label: 'Open it', value: 'open', primary: true },
+        { label: 'Start a new one', value: 'new' },
+        { label: 'Cancel', value: null },
+      ],
+    )
+    if (!choice) return false
+    if (choice === 'open') return openStored(meetId, stored.quizFile, { quizId })
+  }
+  resetStore(QuizFormat.TwentyQuestion)
+  applyLink(plan)
+  // The names the link filled in are the quiz's own, not typing a new quiz would lose
+  keepNames()
   return true
 }
 
-/** Decide what to do for one seat. Three branches, in order:
- *  - Same team as before — refresh team display, leave quizzer
- *    names alone.
- *  - Different team but every typed name appears in the incoming
- *    roster (case-insensitive, any order) — keep the user's name
- *    positions, fill the blank seats with the unused roster names.
- *  - Otherwise — clear all 5 quizzer seats and fill with the DB
- *    roster in seat order. No fuzzy "Bobby ≈ Robert" rescue.
- *
- *  Returns the new SlotSession + a deferred store-mirror callback
- *  so the caller can commit all slots atomically before any store
- *  side-effects. Returns null when the seat is unresolved. */
-function computeSeatChange(
-  slotIdx: number,
-  seat: ScheduledQuizSeat,
-): { slot: SlotSession; mirrorToStore: () => void } | null {
-  if (!seat.team) return null
-  const currentSlot = meetSession.getSlot(slotIdx)
-  const storeTeamId = store.teams[slotIdx]!.id
-  const currentNames = store.quizzersByTeam(storeTeamId).map((q) => q.name)
-
-  if (currentSlot?.teamId === seat.team.id) {
-    const slot = meetSession.buildSlotFromSeat(seat, currentNames)!
-    return {
-      slot,
-      mirrorToStore: () => setTeamName(slotIdx, slot.dbLabelFull),
-    }
+/**
+ * Open a quiz the meet holds, exactly as if its file had been opened and then linked: to the
+ * meet, and to its scheduled quiz when it has one. Nothing changes until the meet has answered.
+ * The caller has asked about unsaved changes.
+ */
+async function openStored(
+  meetId: number,
+  quizFile: QuizFile,
+  {
+    meetName,
+    quizId,
+    scheduled,
+  }: { meetName?: string; quizId?: string; scheduled?: ScheduledQuizDetails } = {},
+): Promise<boolean> {
+  let opened: Awaited<ReturnType<typeof parseForOpen>>
+  try {
+    opened = await parseForOpen(JSON.stringify(quizFile))
+  } catch (e) {
+    alert(`Could not open the quiz from the meet: ${(e as Error).message}`)
+    return false
   }
-
-  const typedNames = currentNames.filter((n) => n.trim() !== '')
-  const rosterSet = new Set(seat.quizzers.map((q) => q.name.trim().toLowerCase()))
-  const allMatch =
-    typedNames.length > 0 && typedNames.every((n) => rosterSet.has(n.trim().toLowerCase()))
-
-  if (allMatch) {
-    const slot = meetSession.buildSlotFromSeat(seat, currentNames)!
-    return {
-      slot,
-      mirrorToStore: () => {
-        setTeamName(slotIdx, slot.dbLabelFull)
-        for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-          if (!(currentNames[seatIdx] ?? '').trim()) {
-            setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
-          }
-        }
-      },
-    }
-  }
-
-  const slot = meetSession.buildSlotFromSeat(seat, [])!
-  return {
-    slot,
-    mirrorToStore: () => {
-      setTeamName(slotIdx, slot.dbLabelFull)
-      for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-        setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
-      }
-    },
-  }
+  if (!opened) return false
+  const { data, fromNewerFile } = opened
+  const plan = await waitOnMeet('Opening the quiz', async () => {
+    if (quizId !== undefined)
+      return planLink({ meetId, meetName, quizId }, sheetOf(data), { scheduled })
+    const entry = await scheduleEntryOf(meetId, quizFile.quiz)
+    return planLink({ meetId, meetName, quizId: entry?.quizId ?? null }, sheetOf(data), {
+      schedule: entry?.schedule,
+    })
+  })
+  if (!plan) return false
+  loadFile(data, { fromNewerFile })
+  applyLink(plan.arrived)
+  keepNames()
+  return true
 }
 
-/** Strip ?meetId=&quiz= from the URL after the prefill — set by the
+/** Open the stored quiz of a scheduled quiz; with none stored, offer to start it instead */
+async function openFromSchedule(meetId: number, quizId: string): Promise<boolean> {
+  if (!(await confirmDiscard('Open this quiz from the meet?'))) return false
+  const found = await waitOnMeet('Opening the quiz', async () => {
+    const [scheduled, stored] = await Promise.all([
+      getScheduledQuiz(meetId, quizId),
+      // Refused, there is nothing stored that this user can open: the quiz can still be started
+      getStoredQuizzes(meetId).catch((e) => {
+        if (e instanceof ApiError && e.status === 403) return []
+        throw e
+      }),
+    ])
+    if (!scheduled) throw new Error(NOT_IN_SCHEDULE)
+    return { scheduled, stored: storedFor(stored, scheduled.quiz) }
+  })
+  if (!found) return false
+  const { scheduled, stored } = found.arrived
+  if (stored) return openStored(meetId, stored.quizFile, { quizId, scheduled })
+  const startIt = await choiceDialog.value?.ask(
+    `Nothing is stored for ${scheduled.quiz.label}`,
+    'The meet holds no result for this quiz that you can open.',
+    [
+      { label: 'Start it as a new quiz', value: true, primary: true },
+      { label: 'Cancel', value: null },
+    ],
+  )
+  return startIt ? startScheduled(meetId, quizId) : false
+}
+
+/** Open one version of a stored quiz: what the portal's stored quiz links do */
+async function openStoredVersion(meetId: number, resultId: number, revision: number) {
+  if (!(await confirmDiscard('Open this quiz from the meet?'))) return
+  const fetched = await waitOnMeet('Opening the quiz', () =>
+    getRevision(meetId, resultId, revision),
+  )
+  if (fetched) await openStored(meetId, fetched.arrived.quizFile)
+}
+
+/** Strip ?meetId=&quiz= from the URL after use — set by the
  *  portal's schedule view when the user clicks a quiz cell — or
  *  ?meetId=&result=&revision=, set by the portal's quiz page to open a
  *  stored quiz (`meet` in links shared before). Always strips the params so a refresh doesn't
@@ -229,44 +672,42 @@ async function loadFromUrlParams() {
     resultId > 0 && Number.isInteger(resultId) && revision > 0 && Number.isInteger(revision)
   if (!(meetId > 0 && Number.isInteger(meetId)) || !(scheduled || stored)) return
   try {
-    if (scheduled) await loadScheduledQuiz(meetId, quizId)
-    else await loadStoredQuiz(meetId, resultId, revision)
+    if (scheduled) await newFromSchedule(meetId, quizId)
+    else await openStoredVersion(meetId, resultId, revision)
   } finally {
     history.replaceState(null, '', window.location.pathname)
   }
 }
 
-/**
- * Open a revision of a stored quiz from the portal (R9), linked to its meet so Submit to meet
- * sends it back by name. Nothing about the stored quiz is remembered (R8).
- */
-async function loadStoredQuiz(meetId: number, resultId: number, revision: number) {
-  if (
-    isDirty.value &&
-    !(await confirmAction('Open this quiz from the meet? Unsaved changes will be lost.'))
-  ) {
-    return
-  }
-  try {
-    const [{ quizFile }, { meet }] = await Promise.all([
-      getRevision(meetId, resultId, revision),
-      getMeetName(meetId),
-    ])
-    await meetSession.loadMeet(meetId, meet.name)
-    await openJsonQuiz(JSON.stringify(quizFile))
-  } catch (e) {
-    alert(`Could not open the quiz from the meet: ${(e as Error).message}`)
-  }
-}
-
-async function openMeetPicker() {
+function openMeetPicker() {
   closeMenus()
   meetPickerRef.value?.open()
 }
 
-async function openSchedulePicker() {
+function openStoredPicker() {
   closeMenus()
+  storedPickerRef.value?.open()
+}
+
+/** What picking a quiz in the schedule picker does, set by the menu item that opened it */
+const SCHEDULE_PICKS = {
+  new: { title: 'New from schedule', pick: newFromSchedule },
+  open: { title: 'Open from the schedule', pick: openFromSchedule },
+  link: {
+    title: 'Link a scheduled quiz',
+    pick: (meetId: number, quizId: string) => linkTo({ meetId, quizId }),
+  },
+}
+const schedulePickUse = ref<keyof typeof SCHEDULE_PICKS>('new')
+
+function openSchedulePicker(use: keyof typeof SCHEDULE_PICKS) {
+  closeMenus()
+  schedulePickUse.value = use
   schedulePickerRef.value?.open()
+}
+
+function pickScheduledQuiz(meetId: number, quizId: string): Promise<boolean> {
+  return SCHEDULE_PICKS[schedulePickUse.value].pick(meetId, quizId)
 }
 
 /**
@@ -280,7 +721,7 @@ async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
     return
   }
 
-  const storeTeamId = store.teams[slotIdx]!.id
+  const storeTeamId = teams.value[slotIdx]!.id
   const storeNames = store.quizzersByTeam(storeTeamId).map((q) => q.name)
   // No pick made, as when another quiz took the sheet while the roster loaded: leave its names
   if (!(await meetSession.assignTeam(slotIdx, teamId, storeNames))) return
@@ -307,87 +748,6 @@ function teamsByName(teams: MeetTeam[]) {
     name: meetSession.teamLabelFull(team),
     shortName: meetSession.teamLabel(team),
   }))
-}
-
-/** A slot's candidates for a pick made on the sheet's behalf: teams no other slot has taken */
-function teamsFreeFor(slotIdx: number, teams: MeetTeam[]) {
-  const taken = new Set(
-    [0, 1, 2].filter((i) => i !== slotIdx).map((i) => meetSession.getSlot(i)?.teamId),
-  )
-  return teamsByName(teams.filter((team) => !taken.has(team.id)))
-}
-
-/**
- * The roster team a slot's typed name names outright. The quiz's division is looked in first,
- * since two divisions can each have a team of that name; the rest of the meet only after, where a
- * match shows up flagged as out of its division.
- */
-function findMatchingTeam(slotIdx: number, typedName: string): number | undefined {
-  const inDivision = teamNamed(typedName, teamsFreeFor(slotIdx, filteredTeamList.value))
-  if (inDivision !== undefined) return inDivision
-  // The division has a team of this name and another slot holds it. A name typed twice is a
-  // slip, not a call for another division's namesake: leave it to the misspelt-name path
-  if (teamNamed(typedName, teamsByName(filteredTeamList.value)) !== undefined) return undefined
-  return teamNamed(typedName, teamsFreeFor(slotIdx, meetSession.teamList.value))
-}
-
-async function onMeetLoaded() {
-  for (let teamIdx = 0; teamIdx < 3; teamIdx++) {
-    const teamName = store.teams[teamIdx]?.name ?? ''
-    // A blank name names no team
-    if (!teamName.trim()) continue
-    const matchId = findMatchingTeam(teamIdx, teamName)
-    try {
-      if (matchId !== undefined) await pickTeam(teamIdx, matchId)
-      else await pickMisspeltTeam(teamIdx, teamName)
-    } catch {
-      // The roster couldn't be fetched: this name stays unpicked, and the next is still tried
-    }
-  }
-}
-
-/**
- * Pick the roster team a typed name misspells, when the typed quizzers bear it out. The name only
- * shortlists teams, since a church's teams are an edit apart; the quizzers say which one, and it's
- * picked only if they say exactly one. The name stays as typed, flagged against the roster's,
- * since it's the roster that may be wrong.
- */
-async function pickMisspeltTeam(slotIdx: number, teamName: string) {
-  const meetId = meetSession.meetId.value
-  if (meetId === null) return
-  const nearTeamIds = teamsNearName(teamName, teamsFreeFor(slotIdx, filteredTeamList.value))
-  if (nearTeamIds.length === 0) return
-
-  const typedQuizzerNames = () =>
-    store.quizzersByTeam(store.teams[slotIdx]!.id).map((quizzer) => quizzer.name)
-  const typedQuizzers = typedQuizzerNames()
-  let confirmedTeamIds: number[]
-  try {
-    const rosters = await Promise.all(
-      nearTeamIds.map(async (teamId) => (await getTeamQuizzers(meetId, teamId)).quizzers),
-    )
-    confirmedTeamIds = nearTeamIds.filter((_, i) =>
-      quizzersConfirmTeam(
-        typedQuizzers,
-        rosters[i]!.map((quizzer) => quizzer.name),
-      ),
-    )
-  } catch {
-    // Offline or refused: the name stays unpicked, and the team can be picked by hand
-    return
-  }
-  if (confirmedTeamIds.length !== 1) return
-  const teamId = confirmedTeamIds[0]!
-
-  // The rosters took a while to arrive, and the sheet stayed in use: leave alone a slot that was
-  // picked by hand meanwhile or had its names retyped, and a team that went to another slot
-  const stillAsTyped =
-    store.teams[slotIdx]?.name === teamName &&
-    !meetSession.getSlot(slotIdx) &&
-    typedQuizzerNames().join('\n') === typedQuizzers.join('\n')
-  const pickedElsewhere = [0, 1, 2].some((i) => meetSession.getSlot(i)?.teamId === teamId)
-  if (meetSession.meetId.value !== meetId || !stillAsTyped || pickedElsewhere) return
-  await pickTeam(slotIdx, teamId, true)
 }
 
 /** What an empty name shows; the sizer measures it too, so the box fits it */
@@ -530,6 +890,8 @@ const {
   placementPoints,
   setTeamName,
   setQuizzerName,
+  swapTeams,
+  editAsOne,
   moveQuizzer,
   setQuestionType,
   store,
@@ -547,6 +909,8 @@ const {
   canUndo,
   canRedo,
   isDirty,
+  namesChanged,
+  keepNames,
   undo,
   redo,
   markSaved,
@@ -581,31 +945,168 @@ function teamCalled(slotIdx: number, name: string): string {
   return name.trim() || `Team ${slotIdx + 1}`
 }
 
+/** A division as a warning names it, with its consolation flag, which is part of which quiz it is */
+function divisionCalled(division: string, consolation: boolean): string {
+  return `${division}${consolation ? ' consolation' : ''}`
+}
+
+/** Whether a slot holds a roster team: picked as it, or bearing its name while unpicked */
+function slotIsTeam(slotIdx: number, name: string, team: MeetTeam): boolean {
+  const slot = meetSession.getSlot(slotIdx)
+  return slot ? slot.teamId === team.id : teamNamed(name, teamsByName([team])) !== undefined
+}
+
 /**
- * What doesn't agree with the linked meet, a line each: the quiz's division and number, and the
- * names against its roster. Warnings, not errors: the sheet records what the room typed, which may
- * be righter than the meet, so they never stop a quiz being sent. They are shown, and asked about
- * once before it goes. With no meet linked there is nothing to disagree with, and none.
+ * Swap two slots' picks, as their teams swap, while the meet the swap was made in is still the one
+ * linked: undone after another meet is linked, the teams swap back and that meet's picks stay put
  */
-const meetWarnings = computed<string[]>(() => {
-  const warnings: string[] = []
-  if (meetSession.isActive.value) {
-    const division = given(quiz.value.division)
-    if (meetSession.lacksDivision(division)) {
-      warnings.push(
-        division
-          ? `Division ${division}: not one of the meet's divisions`
-          : 'Division: none chosen',
-      )
+function swapPicksIn(meetId: number | null, slotA: number, slotB: number) {
+  return () => {
+    if (meetSession.meetId.value === meetId) meetSession.swapSlots(slotA, slotB)
+  }
+}
+
+/**
+ * Put a roster team in a slot in place of what is there: its name and pick, and its quizzers into
+ * the blank seats. Quizzer names already typed stay, and are held against the new team's roster.
+ * One edit, which undo takes back.
+ */
+async function replaceTeam(slotIdx: number, team: MeetTeam) {
+  const meetId = meetSession.meetId.value
+  if (meetId === null) return
+  const roster = await waitOnMeet('Seating the team', () => getTeamQuizzers(meetId, team.id))
+  if (!roster) return
+  const seatNames = teamQuizzers.value[slotIdx]?.map((quizzer) => quizzer.name) ?? []
+  const slot = meetSession.slotFor(team, roster.arrived.quizzers, seatNames)
+  const seated = seatNames.map((name, seatIdx) =>
+    name.trim() ? name : (slot.quizzers[seatIdx]?.dbName ?? ''),
+  )
+  const before = { name: teams.value[slotIdx]?.name ?? '', slot: meetSession.getSlot(slotIdx) }
+  const write = (
+    name: string,
+    pick: SlotSession | undefined,
+    over: SlotSession | undefined,
+    seats: string[],
+  ) => {
+    setTeamName(slotIdx, name)
+    // A pick belongs to its meet and its moment: undone or redone after another meet is linked, or
+    // the slot picked afresh by a link, only the names change
+    const current = meetSession.getSlot(slotIdx)
+    if (meetSession.meetId.value === meetId && current?.teamId === over?.teamId) {
+      meetSession.setSlot(slotIdx, pick)
     }
-    // The meet files a quiz under its division and number, and has no quiz called nothing
-    if (!given(quiz.value.quizNumber)) warnings.push('Quiz: no number given')
+    seats.forEach((seat, seatIdx) => setQuizzerName(slotIdx, seatIdx, seat))
+  }
+  editAsOne({
+    redo: () => write(slot.dbLabelFull, slot, before.slot, seated),
+    undo: () => write(before.name, before.slot, slot, seatNames),
+  })
+}
+
+/**
+ * What doesn't agree with the linked meet, an entry each: the quiz's division and number, its
+ * teams against the scheduled quiz's when one is linked, and the names against the roster.
+ * Warnings, not errors: the sheet records what the room typed, which may be righter than the meet,
+ * so they never stop a quiz being sent. They are shown, and asked about once before it goes. Where
+ * the meet says what it expected, the entry carries the step that takes its word. With no meet
+ * linked there is nothing to disagree with, and none.
+ */
+const meetWarningEntries = computed<MeetWarning[]>(() => {
+  const warnings: MeetWarning[] = []
+  const linkedQuiz = meetSession.scheduledQuiz.value
+  // The scheduled quiz as the schedule has it, when there is one to hold the sheet against
+  const scheduled = linkedQuiz?.inSchedule ? linkedQuiz : null
+  if (meetSession.isActive.value) {
+    if (linkedQuiz && !linkedQuiz.inSchedule) {
+      warnings.push({
+        line: "Quiz: no longer in the meet's schedule",
+        fix: { label: 'Unlink quiz', run: () => meetSession.unlinkQuiz() },
+      })
+    }
+    const division = given(quiz.value.division)
+    const consolation = quiz.value.consolation ?? false
+    const quizNumber = given(quiz.value.quizNumber)
+    if (scheduled) {
+      // Whether it is a consolation quiz is part of which division's quiz it is: one warning
+      const theirs = divisionCalled(scheduled.division, scheduled.consolation)
+      if (
+        foldName(division) !== foldName(scheduled.division) ||
+        consolation !== scheduled.consolation
+      ) {
+        warnings.push({
+          line: division
+            ? `Division ${divisionCalled(division, consolation)}: schedule has ${theirs}`
+            : `Division: none chosen, schedule has ${theirs}`,
+          fix: {
+            label: `Set division to ${theirs}`,
+            run: () => {
+              quiz.value.division = scheduled.division
+              quiz.value.consolation = scheduled.consolation
+            },
+          },
+        })
+      }
+      if (foldName(quizNumber) !== foldName(scheduled.quizNumber)) {
+        warnings.push({
+          line: quizNumber
+            ? `Quiz ${quizNumber}: schedule has ${scheduled.quizNumber}`
+            : `Quiz: no number given, schedule has ${scheduled.quizNumber}`,
+          fix: {
+            label: `Set quiz to ${scheduled.quizNumber}`,
+            run: () => (quiz.value.quizNumber = scheduled.quizNumber),
+          },
+        })
+      }
+    } else {
+      if (meetSession.lacksDivision(division)) {
+        warnings.push({
+          line: division
+            ? `Division ${division}: not one of the meet's divisions`
+            : 'Division: none chosen',
+        })
+      }
+      // The meet files a quiz under its division and number, and has no quiz called nothing
+      if (!quizNumber) warnings.push({ line: 'Quiz: no number given' })
+    }
   }
   teams.value.forEach((team, slotIdx) => {
-    if (!picksTeam(slotIdx)) return
     const called = teamCalled(slotIdx, team.name)
+    const place = `Team ${slotIdx + 1}`
+    // The team the schedule seats here. A seat it hasn't decided, or whose team the roster no
+    // longer has, is held against nothing
+    const seatedId = scheduled?.seats[slotIdx] ?? null
+    const seated = meetSession.teamList.value.find((candidate) => candidate.id === seatedId)
+    const differs = seated !== undefined && !slotIsTeam(slotIdx, team.name, seated)
+    if (seated && differs) {
+      const theirs = meetSession.teamLabelFull(seated)
+      const typed = team.name.trim()
+      // Slots are compared one by one, so the right team in another slot is moved, whole
+      const from = teams.value.findIndex(
+        (other, i) => i !== slotIdx && slotIsTeam(i, other.name, seated),
+      )
+      const label =
+        from !== -1
+          ? `Move ${theirs} to ${place}${typed ? ` (swaps with ${typed})` : ''}`
+          : typed
+            ? `Replace ${typed} with ${theirs}`
+            : `Put ${theirs} in ${place}`
+      warnings.push({
+        line: `${place}: ${typed || 'blank'}, schedule has ${theirs}`,
+        fix: {
+          label,
+          run: () =>
+            from !== -1
+              ? swapTeams(slotIdx, from, swapPicksIn(meetSession.meetId.value, slotIdx, from))
+              : void replaceTeam(slotIdx, seated),
+        },
+      })
+    }
+    if (!picksTeam(slotIdx)) return
     const issue = teamNameIssue(slotIdx, team.name)
-    if (issue) warnings.push(`${called}: ${teamNameIssueLine(issue)}`)
+    // One blank, one warning: the schedule's line already says what belongs in the slot
+    if (issue && !(issue.kind === 'unnamed' && differs)) {
+      warnings.push({ line: `${called}: ${teamNameIssueLine(issue)}` })
+    }
     // No team picked, so no roster to hold the quizzers against
     if (!meetSession.getSlot(slotIdx)) return
     teamQuizzers.value[slotIdx]?.forEach((quizzer, seatIdx) => {
@@ -613,26 +1114,29 @@ const meetWarnings = computed<string[]>(() => {
       if (!quizzer.name.trim()) return
       if (!meetSession.isQuizzerDiverged(slotIdx, seatIdx, quizzer.name)) return
       const rosterName = meetSession.getDbName(slotIdx, seatIdx)
-      warnings.push(
-        rosterName
+      warnings.push({
+        line: rosterName
           ? `${called}, ${quizzer.name.trim()}: roster has ${rosterName}`
           : `${called}, ${quizzer.name.trim()}: not on the roster`,
-      )
+      })
     })
   })
   return warnings
 })
 
-/** The warnings as a dialog lists them */
+/** The warnings as lines, for the count's hover and the submit question */
+const meetWarnings = computed(() => meetWarningEntries.value.map((warning) => warning.line))
+
+/** The warnings as a question lists them */
 function warningList(warnings: string[]): string {
   return `Check these:\n${warnings.join('\n')}`
 }
 
-/** The list a hover shows, for a touch screen, which has no hover */
+/** The list a hover shows, with each warning's fix: a touch screen has no hover */
 function showMeetWarnings(event: MouseEvent) {
   // Keys score the sheet, so the count mustn't keep the focus a click gave it
   ;(event.currentTarget as HTMLElement).blur()
-  alert(warningList(meetWarnings.value))
+  warningsDialogRef.value?.open()
 }
 
 /** All unique validation messages for the status tooltip */
@@ -793,6 +1297,7 @@ const {
 
 const { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardMode } =
   useKeyboardNav({
+    blocked: computed(() => waitingFor.value !== null),
     columns,
     teams,
     teamQuizzers,
@@ -894,22 +1399,15 @@ onUnmounted(() => {
 
 const teamColors = ['team--red', 'team--white', 'team--blue']
 
-const saveMenuOpen = ref(false)
-const newMenuOpen = ref(false)
+/** The header menu that is open, one at a time */
+const openMenu = ref<'save' | 'open' | 'new' | 'link' | null>(null)
 
-function toggleSaveMenu() {
-  saveMenuOpen.value = !saveMenuOpen.value
-  newMenuOpen.value = false
-}
-
-function toggleNewMenu() {
-  newMenuOpen.value = !newMenuOpen.value
-  saveMenuOpen.value = false
+function toggleMenu(menu: NonNullable<typeof openMenu.value>) {
+  openMenu.value = openMenu.value === menu ? null : menu
 }
 
 function closeMenus() {
-  saveMenuOpen.value = false
-  newMenuOpen.value = false
+  openMenu.value = null
   openPickerSlot.value = null
 }
 
@@ -921,14 +1419,14 @@ async function saveFile() {
 }
 
 async function openFile() {
-  if (isDirty.value && !(await confirmAction('Open a file? Unsaved changes will be lost.'))) return
+  if (!(await confirmDiscard('Open a file?'))) return
   const result = await openAnyQuizFile()
   if (!result) return
   try {
     if (result.type === 'ods') {
       const data = deserialize(readOds(result.content))
       loadFile(data)
-      dropPicks()
+      meetSession.clearSession()
     } else {
       await openJsonQuiz(result.content)
     }
@@ -941,25 +1439,25 @@ const TRY_NEWER_PROMPT =
   'This file was saved by a newer version of the scoresheet. Update to open it reliably. ' +
   'Try to open it anyway? Scores may be wrong.'
 
-/** Open a .json quiz, offering a best-effort open when a newer scoresheet saved it */
-async function openJsonQuiz(json: string) {
+/** A quiz file read for opening; undefined when it is from a newer version and the user declines */
+async function parseForOpen(
+  json: string,
+): Promise<{ data: DeserializeResult; fromNewerFile: boolean } | undefined> {
   try {
-    loadFile(parseQuizFile(json))
+    return { data: parseQuizFile(json), fromNewerFile: false }
   } catch (e) {
     if (!(e instanceof NewerFileVersionError)) throw e
-    if (!(await confirmAction(TRY_NEWER_PROMPT))) return
-    loadFile(parseQuizFileAttempt(json), { fromNewerFile: true })
+    if (!(await confirmAction(TRY_NEWER_PROMPT))) return undefined
+    return { data: parseQuizFileAttempt(json), fromNewerFile: true }
   }
-  dropPicks()
 }
 
-/**
- * A quiz opened over the sheet brings its own teams, so the picks kept for the last quiz no
- * longer describe it: drop them. Its names aren't looked up on the roster, since a pick seats
- * quizzers and an opened quiz is to stay as it was saved.
- */
-function dropPicks() {
-  meetSession.startNewQuiz()
+/** Open a quiz file. A file stands by itself: the sheet is linked to no meet afterwards. */
+async function openJsonQuiz(json: string) {
+  const opened = await parseForOpen(json)
+  if (!opened) return
+  loadFile(opened.data, { fromNewerFile: opened.fromNewerFile })
+  meetSession.clearSession()
 }
 
 function startTutorial() {
@@ -974,12 +1472,11 @@ function startTutorial() {
 }
 
 async function tryOpenKeptAutoSave() {
-  if (isDirty.value && !(await confirmAction('Open the kept quiz? Unsaved changes will be lost.')))
-    return
+  if (!(await confirmDiscard('Open the kept quiz?'))) return
   if (!(await confirmAction(TRY_NEWER_PROMPT))) return
   try {
     openKeptNewerAutoSave()
-    dropPicks()
+    meetSession.clearSession()
   } catch (e) {
     alert(`Failed to open the kept quiz: ${e instanceof Error ? e.message : e}`)
   }
@@ -1005,8 +1502,7 @@ const QUIZ_FORMATS = Object.values(QuizFormat)
  * teams. With no format (Ctrl+N), repeat the current quiz's: practice meets run many in a row.
  */
 async function newQuiz(format = quiz.value.format) {
-  if (isDirty.value && !(await confirmAction('Start a new quiz? Unsaved changes will be lost.')))
-    return
+  if (!(await confirmDiscard('Start a new quiz?'))) return
   resetStore(format)
   meetSession.startNewQuiz()
 }
@@ -1168,6 +1664,14 @@ async function doSubmitToMeet() {
   closeMenus()
   const target = await chooseMeet()
   if (!target) return
+  // The question lists warnings as the meet stands now. Only the copies are renewed: nothing is
+  // picked or filled on the way to sending
+  if (target.id === meetSession.meetId.value) {
+    const checked = await waitOnMeet('Checking the quiz against the meet', (stillWanted) =>
+      meetSession.refresh(stillWanted),
+    )
+    if (!checked) return
+  }
   // Asked once the meet is settled: the names are held against the roster of the meet it goes to
   const concerns = submitConcerns(target.id)
   if (concerns && !(await confirmAction(`${concerns}\n\nSubmit anyway?`))) return
@@ -1207,6 +1711,11 @@ async function doSubmitToMeet() {
   }
 }
 
+function doOpenFile() {
+  closeMenus()
+  void openFile()
+}
+
 async function doNewQuiz(format: QuizFormat) {
   closeMenus()
   await newQuiz(format)
@@ -1222,6 +1731,8 @@ async function doClearNames() {
   closeMenus()
   if (!(await confirmAction('Clear all names? This cannot be undone.'))) return
   clearNames()
+  // Blank names name no team: a linked sheet's picks go with them
+  for (let slotIdx = 0; slotIdx < 3; slotIdx++) meetSession.clearSlot(slotIdx)
 }
 
 function doUnlinkMeet() {
@@ -1247,7 +1758,17 @@ async function exportOds() {
   }
 }
 
-defineExpose({ saveFile, openFile, newQuiz, exportOds })
+/** What App.vue's shortcuts reach: nothing while the sheet waits on the meet, which takes only Cancel */
+function unlessWaiting<A extends unknown[], R>(action: (...args: A) => R) {
+  return (...args: A): R | undefined => (waitingFor.value === null ? action(...args) : undefined)
+}
+
+defineExpose({
+  saveFile: unlessWaiting(saveFile),
+  openFile: unlessWaiting(openFile),
+  newQuiz: unlessWaiting(newQuiz),
+  exportOds: unlessWaiting(exportOds),
+})
 
 const cellDisplay: Record<CellValue, string> = {
   [CellValue.Correct]: 'C',
@@ -1337,7 +1858,7 @@ const appVersion: string = __APP_VERSION__
       @dragstart.prevent
     >
       <div
-        v-if="saveMenuOpen || newMenuOpen || openPickerSlot !== null"
+        v-if="openMenu !== null || openPickerSlot !== null"
         class="menu-backdrop"
         @click="closeMenus"
       />
@@ -1450,14 +1971,47 @@ const appVersion: string = __APP_VERSION__
               >
                 ⚠ {{ meetWarnings.length }}
               </button>
-              <span v-if="meetSession.isActive.value" class="meta-field meta-session-pill">
-                🔗 {{ meetSession.meetName.value }}
-              </span>
+              <div class="meta-field file-menu link-menu">
+                <button
+                  class="meta-session-pill"
+                  :class="{ 'meta-session-pill--unlinked': !meetSession.isActive.value }"
+                  title="Link to a meet or one of its scheduled quizzes"
+                  @click="toggleMenu('link')"
+                >
+                  <template v-if="meetSession.isActive.value">
+                    🔗 {{ meetSession.meetName.value }}
+                    <template v-if="linkedQuizLabel"> · {{ linkedQuizLabel }}</template>
+                  </template>
+                  <template v-else>🔗 Link…</template>
+                </button>
+                <button
+                  v-if="meetSession.isActive.value"
+                  class="link-refresh"
+                  title="Refetch names from the meet and schedule"
+                  aria-label="Refetch names from the meet and schedule"
+                  @click="doRefreshLink"
+                >
+                  ⟳
+                </button>
+                <div v-if="openMenu === 'link'" class="file-menu__dropdown">
+                  <button @click="openMeetPicker">🔗 Link a meet…</button>
+                  <button @click="openSchedulePicker('link')">📅 Link a scheduled quiz…</button>
+                  <template v-if="meetSession.isActive.value">
+                    <hr class="file-menu__divider" />
+                    <button v-if="meetSession.quizId.value !== null" @click="doUnlinkQuiz">
+                      ⚡ Unlink quiz
+                    </button>
+                    <button @click="doUnlinkMeet">⚡ Unlink meet</button>
+                  </template>
+                </div>
+              </div>
               <span class="meta-divider" />
               <div class="meta-field meta-field--file">
                 <div class="file-menu">
-                  <button title="Save / Export (Ctrl+S)" @click="toggleSaveMenu">⤓ Save ▾</button>
-                  <div v-if="saveMenuOpen" class="file-menu__dropdown">
+                  <button title="Save / Export (Ctrl+S)" @click="toggleMenu('save')">
+                    ⤓ Save ▾
+                  </button>
+                  <div v-if="openMenu === 'save'" class="file-menu__dropdown">
                     <button @click="doSaveFile">⤓ Save as JSON</button>
                     <button @click="doSubmitToMeet">⇪ Submit to meet</button>
                     <button
@@ -1469,21 +2023,26 @@ const appVersion: string = __APP_VERSION__
                     </button>
                   </div>
                 </div>
-                <button title="Open quiz from file (Ctrl+O)" @click="openFile">⤒ Open</button>
                 <div class="file-menu">
-                  <button title="New quiz (Ctrl+N)" @click="toggleNewMenu">✦ New ▾</button>
-                  <div v-if="newMenuOpen" class="file-menu__dropdown">
+                  <button title="Open a quiz (Ctrl+O opens a file)" @click="toggleMenu('open')">
+                    ⤒ Open ▾
+                  </button>
+                  <div v-if="openMenu === 'open'" class="file-menu__dropdown">
+                    <button @click="doOpenFile">⤒ From file…</button>
+                    <button @click="openStoredPicker">🔗 From the meet…</button>
+                    <button @click="openSchedulePicker('open')">📅 From the schedule…</button>
+                  </div>
+                </div>
+                <div class="file-menu">
+                  <button title="New quiz (Ctrl+N)" @click="toggleMenu('new')">✦ New ▾</button>
+                  <div v-if="openMenu === 'new'" class="file-menu__dropdown">
                     <button v-for="format in QUIZ_FORMATS" :key="format" @click="doNewQuiz(format)">
                       ✦ New {{ FORMAT_LABELS[format].name }}
                     </button>
-                    <button @click="doClearAnswers">✕ Clear answers</button>
-                    <button v-if="meetSession.isActive.value" @click="doUnlinkMeet">
-                      ⚡ Unlink meet
-                    </button>
-                    <button v-else @click="doClearNames">✕ Clear names</button>
+                    <button @click="openSchedulePicker('new')">📅 New from schedule…</button>
                     <hr class="file-menu__divider" />
-                    <button @click="openMeetPicker">🔗 Load teams from meet…</button>
-                    <button @click="openSchedulePicker">📅 Load from schedule…</button>
+                    <button @click="doClearAnswers">✕ Clear answers</button>
+                    <button @click="doClearNames">✕ Clear names</button>
                   </div>
                 </div>
                 <button class="help-toggle" title="Interactive tutorial" @click="startTutorial">
@@ -2091,13 +2650,31 @@ const appVersion: string = __APP_VERSION__
       </div>
       <!-- Cell selector popup -->
       <Teleport to="body">
-        <MeetPickerDialog ref="meetPickerRef" @loaded="onMeetLoaded" />
+        <MeetPickerDialog ref="meetPickerRef" @picked="linkPickedMeet" />
+        <StoredQuizPickerDialog ref="storedPickerRef" :on-pick="openPickedStored" />
+        <MeetWarningsDialog ref="warningsDialogRef" :warnings="meetWarningEntries" />
         <ChoiceDialog ref="choiceDialog" />
         <RoomCodeDialog ref="roomCodeDialog" />
         <datalist id="team-name-options">
           <option v-for="name in offeredTeamNames" :key="name" :value="name" />
         </datalist>
-        <SchedulePickerDialog ref="schedulePickerRef" :on-pick="loadScheduledQuiz" />
+        <SchedulePickerDialog
+          ref="schedulePickerRef"
+          :title="SCHEDULE_PICKS[schedulePickUse].title"
+          :on-pick="pickScheduledQuiz"
+        />
+        <!-- Above every other dialog while the sheet waits on the meet: nothing but Cancel -->
+        <dialog
+          ref="waitingDialogRef"
+          class="waiting-dialog"
+          @cancel.prevent="cancelWaiting"
+          @keydown.stop
+        >
+          <template v-if="waitingFor">
+            <p class="waiting-dialog__text">{{ waitingFor }}…</p>
+            <button class="waiting-dialog__cancel" @click="cancelWaiting">Cancel</button>
+          </template>
+        </dialog>
         <div
           v-if="selector"
           :class="[
@@ -2570,7 +3147,14 @@ const appVersion: string = __APP_VERSION__
   margin: 2px 0;
 }
 
+.link-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
 .meta-session-pill {
+  font: inherit;
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--color-accent);
@@ -2579,6 +3163,63 @@ const appVersion: string = __APP_VERSION__
   border-radius: 999px;
   padding: 0.15rem 0.5rem;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Nothing linked: an offer to link, quieter than a link that is there */
+.meta-session-pill--unlinked {
+  color: var(--color-text-faint);
+  background: none;
+  border-color: var(--color-border-alt);
+}
+
+.link-refresh {
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  border-radius: 999px;
+  padding: 0.1rem 0.25rem;
+  cursor: pointer;
+}
+
+.link-refresh:hover {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.waiting-dialog {
+  border: 1px solid var(--color-border-alt);
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 1.25rem;
+  width: min(22rem, 90vw);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  inset: 0;
+  margin: auto;
+  text-align: center;
+}
+
+.waiting-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.waiting-dialog__text {
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+.waiting-dialog__cancel {
+  background: none;
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  cursor: pointer;
 }
 
 .meta-meet-warnings {

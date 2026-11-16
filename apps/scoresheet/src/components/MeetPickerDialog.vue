@@ -3,12 +3,13 @@ import { computed, ref } from 'vue'
 
 import { type MeetSummary } from '../api'
 import { useMeetList } from '../composables/useMeetList'
-import { useMeetSession } from '../composables/useMeetSession'
 import { maySend } from '../composables/useSubmitToMeet'
 
-const emit = defineEmits<{ loaded: [] }>()
+const emit = defineEmits<{
+  /** A meet was chosen to link; the scoresheet does the linking, which waits on the meet */
+  picked: [meet: MeetSummary]
+}>()
 
-const { loadMeet } = useMeetSession()
 const {
   meets,
   loading,
@@ -25,7 +26,6 @@ const {
 } = useMeetList()
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
-const submitting = ref(false)
 /** Loading a meet's teams links the sheet to it; choosing where to submit leaves the sheet as it is */
 const purpose = ref<'load' | 'submit'>('load')
 /** When submitting, the meet last submitted to, marked in the list */
@@ -45,18 +45,9 @@ async function selectMeet(meet: MeetSummary) {
     chosen?.(meet)
     return
   }
-  submitting.value = true
-  error.value = ''
-  try {
-    setActiveGuest(meet.meetId)
-    await loadMeet(meet.meetId, meet.meetName)
-    dialogRef.value?.close()
-    emit('loaded')
-  } catch (e) {
-    error.value = (e as Error).message
-  } finally {
-    submitting.value = false
-  }
+  setActiveGuest(meet.meetId)
+  dialogRef.value?.close()
+  emit('picked', meet)
 }
 
 function close() {
@@ -127,7 +118,6 @@ defineExpose({ open, chooseForSubmit })
           <button
             class="meet-row"
             :class="{ 'meet-row--last': purpose === 'submit' && meet.meetId === lastMeetId }"
-            :disabled="submitting"
             @click="selectMeet(meet)"
           >
             <span class="meet-row-name">{{ meet.meetName }}</span>
@@ -138,7 +128,6 @@ defineExpose({ open, chooseForSubmit })
           <button
             v-if="isGuestMeet(meet.meetId)"
             class="meet-row-leave"
-            :disabled="submitting"
             @click="leaveMeet(meet.meetId)"
           >
             Leave

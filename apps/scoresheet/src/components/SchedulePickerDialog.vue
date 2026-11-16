@@ -10,6 +10,8 @@ import { useMeetList } from '../composables/useMeetList'
 import { useMeetSession } from '../composables/useMeetSession'
 
 const props = defineProps<{
+  /** What picking a quiz here will do, as the dialog's title */
+  title: string
   /** Parent-controlled commit: returns true when the quiz has been
    *  loaded and the dialog should close. Returning false (e.g. user
    *  cancelled an overwrite confirm) keeps the dialog open. */
@@ -34,7 +36,13 @@ type Step = 'meet' | 'quiz'
 const dialogRef = ref<HTMLDialogElement | null>(null)
 const step = ref<Step>('meet')
 const activeMeetId = ref<number | null>(null)
-const headerMeetName = computed(() => meetSession.meetName.value ?? '')
+/** The meet whose schedule is shown: the linked one, or the one chosen in the first step */
+const pickedMeetName = computed(
+  () =>
+    meets.value.find((meet) => meet.meetId === activeMeetId.value)?.meetName ??
+    meetSession.meetName.value ??
+    '',
+)
 const submitting = ref(false)
 
 /** The meet's published schedule (FR-050); null when nothing is published yet */
@@ -119,7 +127,7 @@ defineExpose({ open })
     <div class="schedule-picker-inner">
       <div class="schedule-picker-header">
         <span class="schedule-picker-title">
-          {{ step === 'meet' ? 'Load from schedule' : `Load from schedule — ${headerMeetName}` }}
+          {{ step === 'meet' || !pickedMeetName ? title : `${title} — ${pickedMeetName}` }}
         </span>
         <button class="schedule-picker-close" @click="close">×</button>
       </div>
@@ -173,7 +181,7 @@ defineExpose({ open })
               type="button"
               class="picker-quiz-btn"
               :disabled="submitting"
-              :title="`Load ${quiz.label} into the scoresheet`"
+              :title="`${title}: ${quiz.label}`"
               @click="pickQuiz(quiz.id)"
             >
               {{ quiz.label }}

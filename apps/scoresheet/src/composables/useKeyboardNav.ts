@@ -23,6 +23,8 @@ interface KeyboardNavDeps {
   isFouledOnQuestion: (teamIdx: number, seatIdx: number, colIdx: number) => boolean
   undo: () => void
   redo: () => void
+  /** While true the sheet takes no keys: it is waiting on something it mustn't be edited under */
+  blocked?: Ref<boolean>
 }
 
 const letterMap: Partial<Record<string, CellValue>> = {
@@ -133,6 +135,7 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
   }
 
   function onKeydown(event: KeyboardEvent) {
+    if (deps.blocked?.value) return
     activateKeyboardMode()
     // Undo/redo — always handled first, before input guard
     if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) {

@@ -42,7 +42,10 @@ beforeEach(() => {
 })
 
 async function openOnMeet(onPick = vi.fn().mockResolvedValue(true)) {
-  const wrapper = mount(SchedulePickerDialog, { props: { onPick }, attachTo: document.body })
+  const wrapper = mount(SchedulePickerDialog, {
+    props: { title: 'New from schedule', onPick },
+    attachTo: document.body,
+  })
   await wrapper.vm.open()
   await flushPromises()
   await wrapper.find('.meet-row').trigger('click')

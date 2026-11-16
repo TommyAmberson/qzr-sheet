@@ -252,128 +252,53 @@ describe('useMeetSession — assignTeam', () => {
   })
 })
 
-describe('useMeetSession — loadFromQuiz', () => {
-  function makeQuizDetails(
-    overrides: Partial<ScheduledQuizDetails['quiz']> = {},
-    seats: ScheduledQuizDetails['seats'] = [],
-  ): ScheduledQuizDetails {
-    return {
-      quiz: {
-        id: '777',
-        meetName: 'District Finals',
-        label: 'Div 1 Quiz 1',
-        division: '1',
-        consolation: false,
-        quizNumber: '1',
-        ...overrides,
-      },
-      seats,
-    }
-  }
-
-  it('returns details, leaves slot population and quizId stamping to the caller', async () => {
+describe('useMeetSession — slotFor + commitLink', () => {
+  it('builds a pick without touching the session', async () => {
     const teamA = mockTeams[0]!
-    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(
-      makeQuizDetails({}, [
-        { seatNumber: 1, letter: 'A', seedRef: null, team: teamA, quizzers: mockQuizzers },
-      ]),
-    )
-    const { loadFromQuiz, getSlot, quizId } = useMeetSession()
-    const result = await loadFromQuiz(42, '777')
+    const { loadMeet, slotFor, getSlot } = useMeetSession()
+    await loadMeet(42, 'Finals')
 
-    expect(result.quiz.id).toBe('777')
-    expect(quizId.value).toBeNull()
+    const slot = slotFor(teamA, mockQuizzers, emptyNames)
+
+    expect(slot.teamId).toBe(teamA.id)
+    expect(slot.dbLabelFull).toBe('First Church 1')
+    expect(slot.quizzers[0]!.dbName).toBe('Alice')
     expect(getSlot(0)).toBeUndefined()
   })
 
-  it('reuses an existing meet session without reloading the team list', async () => {
-    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(makeQuizDetails({}, []))
-    const { loadMeet, loadFromQuiz } = useMeetSession()
-    await loadMeet(42, 'Finals')
-    vi.mocked(getMeetTeams).mockClear()
-    await loadFromQuiz(42, '777')
-    expect(getMeetTeams).not.toHaveBeenCalled()
+  it('ties seats around the names already there', () => {
+    const { slotFor } = useMeetSession()
+    // Bob sits first and Alice second, the reverse of the roster's order
+    const slot = slotFor(mockTeams[0]!, mockQuizzers, ['Bob', 'Alice', '', '', ''])
+    expect(slot.quizzers.slice(0, 2).map((quizzer) => quizzer.dbName)).toEqual(['Bob', 'Alice'])
   })
 
-  it('takes in a seated team added to the roster since the meet was linked', async () => {
-    const added: MeetTeam = { ...mockTeams[0]!, id: 3, number: 3 }
-    vi.mocked(getScheduledQuiz).mockResolvedValueOnce(
-      makeQuizDetails({}, [
-        { seatNumber: 1, letter: 'A', seedRef: null, team: added, quizzers: mockQuizzers },
-      ]),
-    )
-    const { loadMeet, loadFromQuiz, teamList } = useMeetSession()
-    await loadMeet(42, 'Finals')
-    await loadFromQuiz(42, '777')
-    expect(teamList.value.map((team) => team.id)).toEqual([1, 2, 3])
-  })
-})
-
-describe('useMeetSession — buildSlotFromSeat + applyLoadedQuiz', () => {
-  it('builds a slot from a pre-fetched seat without touching session state', async () => {
-    const teamA = mockTeams[0]!
-    const { loadMeet, buildSlotFromSeat, getSlot } = useMeetSession()
-    await loadMeet(42, 'Finals')
-
-    const slot = buildSlotFromSeat(
-      { seatNumber: 1, letter: 'A', seedRef: null, team: teamA, quizzers: mockQuizzers },
-      emptyNames,
-    )
-
-    expect(slot?.teamId).toBe(teamA.id)
-    expect(slot?.quizzers[0]!.dbName).toBe('Alice')
-    // Pure builder — session.slots[0] must still be unset.
-    expect(getSlot(0)).toBeUndefined()
-  })
-
-  it('returns undefined for unresolved seats (team: null)', async () => {
-    const { loadMeet, buildSlotFromSeat } = useMeetSession()
-    await loadMeet(42, 'Finals')
-
-    const slot = buildSlotFromSeat(
-      { seatNumber: 1, letter: null, seedRef: '1stA', team: null, quizzers: [] },
-      emptyNames,
-    )
-
-    expect(slot).toBeUndefined()
-  })
-
-  it('exact-match storeNames preserves seat positions', async () => {
-    const teamA = mockTeams[0]!
-    const { loadMeet, buildSlotFromSeat } = useMeetSession()
-    await loadMeet(42, 'Finals')
-
-    // Store has Bob in seat 0, Alice in seat 1 (reversed from DB order)
-    const slot = buildSlotFromSeat(
-      { seatNumber: 1, letter: 'A', seedRef: null, team: teamA, quizzers: mockQuizzers },
-      ['Bob', 'Alice', '', '', ''],
-    )
-
-    expect(slot?.quizzers[0]!.dbName).toBe('Bob')
-    expect(slot?.quizzers[1]!.dbName).toBe('Alice')
-  })
-
-  it('applyLoadedQuiz commits all 3 slots + quizId in one localStorage write', async () => {
-    const teamA = mockTeams[0]!
-    const { loadMeet, buildSlotFromSeat, applyLoadedQuiz, getSlot, quizId } = useMeetSession()
-    await loadMeet(42, 'Finals')
-
-    const seat = {
-      seatNumber: 1 as const,
-      letter: 'A',
-      seedRef: null,
-      team: teamA,
-      quizzers: mockQuizzers,
-    }
-    const slot = buildSlotFromSeat(seat, emptyNames)!
+  it('commits meet, picks and scheduled quiz in one write', async () => {
+    const { fetchMeet, slotFor, commitLink, getSlot, quizId, meetName, teamList } = useMeetSession()
+    const meet = await fetchMeet(42)
+    const slot = slotFor(mockTeams[0]!, mockQuizzers, emptyNames)
     const writesBefore = localStorageWriteCount()
-    applyLoadedQuiz([slot, undefined, undefined], '555')
-    const writesAfter = localStorageWriteCount()
+    commitLink({
+      meetId: 42,
+      meetName: 'Finals',
+      ...meet,
+      slots: [slot, undefined, undefined],
+      quizId: '555',
+      scheduledQuiz: null,
+    })
 
-    expect(writesAfter - writesBefore).toBe(1)
-    expect(getSlot(0)?.teamId).toBe(teamA.id)
+    expect(localStorageWriteCount() - writesBefore).toBe(1)
+    expect(meetName.value).toBe('Finals')
+    expect(teamList.value).toHaveLength(2)
+    expect(getSlot(0)?.teamId).toBe(1)
     expect(getSlot(1)).toBeUndefined()
     expect(quizId.value).toBe('555')
+  })
+
+  it('fetching a meet keeps nothing until it is committed', async () => {
+    const { fetchMeet, isActive } = useMeetSession()
+    await fetchMeet(42)
+    expect(isActive.value).toBe(false)
   })
 })
 
@@ -589,23 +514,13 @@ describe('useMeetSession — isTeamNameDiverged', () => {
     expect(isTeamNameDiverged(0, 'First Church 1')).toBe(true)
   })
 
-  it("follows a corrected name that arrives with a scheduled quiz's seats", async () => {
-    const { loadMeet, assignTeam, loadFromQuiz, pickedTeamName } = useMeetSession()
+  it('follows a corrected name that a refresh brings', async () => {
+    const { loadMeet, assignTeam, refresh, pickedTeamName } = useMeetSession()
     await loadMeet(42, 'Finals')
     await assignTeam(0, 1, emptyNames)
     const renamed = { ...mockTeams[0]!, churchName: 'First Chapel' }
-    vi.mocked(getScheduledQuiz).mockResolvedValueOnce({
-      quiz: {
-        id: '777',
-        meetName: 'Finals',
-        label: 'Div 1 Quiz 1',
-        division: '1',
-        consolation: false,
-        quizNumber: '1',
-      },
-      seats: [{ seatNumber: 1, letter: 'A', seedRef: null, team: renamed, quizzers: [] }],
-    })
-    await loadFromQuiz(42, '777')
+    vi.mocked(getMeetTeams).mockResolvedValue({ teams: [renamed], meetDivisions: ['1'] })
+    await refresh()
     expect(pickedTeamName(0)).toBe('First Chapel 1')
   })
 })
@@ -744,6 +659,209 @@ describe('useMeetSession — refresh', () => {
     vi.mocked(getMeetTeams).mockRejectedValue(new Error('network error'))
     await expect(refresh()).resolves.not.toThrow()
     expect(teamList.value).toHaveLength(2) // original data preserved
+  })
+})
+
+describe('useMeetSession — the linked scheduled quiz', () => {
+  const seat = (seatNumber: number, team: MeetTeam | null) => ({
+    seatNumber,
+    letter: team ? 'A' : null,
+    seedRef: team ? null : '1 of X',
+    team,
+    quizzers: team ? mockQuizzers : [],
+  })
+  const scheduled = (
+    seats: ScheduledQuizDetails['seats'],
+    quiz: Partial<ScheduledQuizDetails['quiz']> = {},
+  ): ScheduledQuizDetails => ({
+    quiz: {
+      id: '777',
+      meetName: 'District Finals',
+      label: 'Div 1 Quiz 3',
+      division: '1',
+      consolation: false,
+      quizNumber: '3',
+      ...quiz,
+    },
+    seats,
+  })
+
+  /** Link a scheduled quiz as the scoresheet does: fetch, then commit, keeping same-meet picks */
+  async function linkQuiz(meetId: number, quizId: string) {
+    const session = useMeetSession()
+    const [meet, details] = await Promise.all([
+      session.fetchMeet(meetId),
+      getScheduledQuiz(meetId, quizId),
+    ])
+    session.commitLink({
+      meetId,
+      meetName: details!.quiz.meetName,
+      ...meet,
+      slots: session.meetId.value === meetId ? [0, 1, 2].map(session.getSlot) : [],
+      quizId,
+      scheduledQuiz: session.scheduledQuizCopy(details!),
+    })
+  }
+
+  it('keeps a copy of the quiz, with each seat as a team or undecided', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValue(
+      scheduled([seat(1, mockTeams[0]!), seat(2, null), seat(3, mockTeams[1]!)]),
+    )
+    const { quizId, scheduledQuiz, meetName } = useMeetSession()
+    await linkQuiz(42, '777')
+
+    expect(meetName.value).toBe('District Finals')
+    expect(quizId.value).toBe('777')
+    expect(scheduledQuiz.value).toEqual({
+      label: 'Div 1 Quiz 3',
+      division: '1',
+      consolation: false,
+      quizNumber: '3',
+      seats: [1, null, 2],
+      inSchedule: true,
+    })
+  })
+
+  it('leaves the picks alone when the quiz is of the meet already linked', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValue(scheduled([seat(1, mockTeams[1]!)]))
+    const { loadMeet, assignTeam, getSlot } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    await linkQuiz(42, '777')
+    expect(getSlot(0)?.teamId).toBe(1)
+  })
+
+  it('unlinking the quiz keeps the meet and the picks', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValue(scheduled([seat(1, mockTeams[0]!)]))
+    const { assignTeam, unlinkQuiz, quizId, scheduledQuiz, getSlot, isActive } = useMeetSession()
+    await linkQuiz(42, '777')
+    await assignTeam(0, 1, emptyNames)
+    unlinkQuiz()
+
+    expect(quizId.value).toBeNull()
+    expect(scheduledQuiz.value).toBeNull()
+    expect(getSlot(0)?.teamId).toBe(1)
+    expect(isActive.value).toBe(true)
+  })
+
+  it('a new quiz in the meet, or unlinking the meet, forgets the scheduled quiz', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValue(scheduled([seat(1, mockTeams[0]!)]))
+    const { startNewQuiz, clearSession, quizId, scheduledQuiz } = useMeetSession()
+    await linkQuiz(42, '777')
+    startNewQuiz()
+    expect([quizId.value, scheduledQuiz.value]).toEqual([null, null])
+
+    await linkQuiz(42, '777')
+    clearSession()
+    expect([quizId.value, scheduledQuiz.value]).toEqual([null, null])
+  })
+
+  it('reads a session saved before copies were kept as linked with nothing to compare', () => {
+    const { restoreSession, quizId, scheduledQuiz } = useMeetSession()
+    restoreSession({
+      meetId: 42,
+      meetName: 'Finals',
+      slots: [undefined, undefined, undefined],
+      teamList: mockTeams,
+      meetDivisions: ['1'],
+      quizId: '777',
+      sender: null,
+    })
+    expect(quizId.value).toBe('777')
+    expect(scheduledQuiz.value).toBeNull()
+  })
+
+  it('a refresh rewrites the copy from the schedule as it now stands', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValue(scheduled([seat(1, null)]))
+    const { refresh, scheduledQuiz } = useMeetSession()
+    await linkQuiz(42, '777')
+
+    vi.mocked(getScheduledQuiz).mockResolvedValue(
+      scheduled([seat(1, mockTeams[1]!)], { quizNumber: '4' }),
+    )
+    expect(await refresh()).toBe(true)
+    expect(scheduledQuiz.value).toMatchObject({ quizNumber: '4', seats: [2, null, null] })
+  })
+
+  it('a refresh marks a quiz the schedule has dropped, keeping what was held', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValue(scheduled([seat(1, mockTeams[0]!)]))
+    const { refresh, scheduledQuiz } = useMeetSession()
+    await linkQuiz(42, '777')
+
+    vi.mocked(getScheduledQuiz).mockResolvedValue(null)
+    await refresh()
+    expect(scheduledQuiz.value).toMatchObject({ quizNumber: '3', inSchedule: false })
+  })
+
+  it('a schedule that fails to come still lets the roster be renewed', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValue(scheduled([seat(1, mockTeams[0]!)]))
+    const { refresh, scheduledQuiz, teamList } = useMeetSession()
+    await linkQuiz(42, '777')
+
+    vi.mocked(getMeetTeams).mockResolvedValue({ teams: [mockTeams[1]!], meetDivisions: ['1'] })
+    vi.mocked(getScheduledQuiz).mockRejectedValue(new ApiError(500, 'Server error'))
+    expect(await refresh()).toBe(true)
+    expect(teamList.value.map((team) => team.id)).toEqual([2])
+    expect(scheduledQuiz.value).toMatchObject({ quizNumber: '3', inSchedule: true })
+  })
+
+  it('a refresh that fails says so and keeps the copy held', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValue(scheduled([seat(1, mockTeams[0]!)]))
+    const { refresh, scheduledQuiz } = useMeetSession()
+    await linkQuiz(42, '777')
+
+    vi.mocked(getMeetTeams).mockRejectedValue(new Error('network error'))
+    expect(await refresh()).toBe(false)
+    expect(scheduledQuiz.value).toMatchObject({ quizNumber: '3', inSchedule: true })
+  })
+
+  it('a refresh that returns after another quiz was begun leaves that quiz unlinked', async () => {
+    vi.mocked(getScheduledQuiz).mockResolvedValue(scheduled([seat(1, mockTeams[0]!)]))
+    const { refresh, startNewQuiz, quizId, scheduledQuiz } = useMeetSession()
+    await linkQuiz(42, '777')
+
+    let arrive!: (details: ScheduledQuizDetails) => void
+    vi.mocked(getScheduledQuiz).mockReturnValue(new Promise((resolve) => (arrive = resolve)))
+    const refreshing = refresh()
+    startNewQuiz()
+    arrive(scheduled([seat(1, mockTeams[1]!)]))
+    await refreshing
+
+    expect([quizId.value, scheduledQuiz.value]).toEqual([null, null])
+  })
+
+  it('keeps a pick whose slot was only re-seated while its roster loaded', async () => {
+    const { loadMeet, assignTeam, setSlot, slotFor, reorderSlotQuizzers, getSlot } =
+      useMeetSession()
+    await loadMeet(42, 'Finals')
+    setSlot(0, slotFor(mockTeams[0]!, mockQuizzers, emptyNames))
+    let arrive!: (value: { quizzers: typeof mockQuizzers }) => void
+    vi.mocked(getTeamQuizzers).mockReturnValueOnce(new Promise((resolve) => (arrive = resolve)))
+    const picking = assignTeam(0, 1, emptyNames)
+    reorderSlotQuizzers(0, 0, 1)
+    arrive({ quizzers: mockQuizzers })
+    expect(await picking).toBe(true)
+    expect(getSlot(0)?.teamId).toBe(1)
+  })
+
+  it('drops a pick whose roster arrives after the slot was given another team', async () => {
+    const { loadMeet, assignTeam, setSlot, slotFor, getSlot } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    let arrive!: (value: { quizzers: typeof mockQuizzers }) => void
+    vi.mocked(getTeamQuizzers).mockReturnValueOnce(new Promise((resolve) => (arrive = resolve)))
+    const picking = assignTeam(0, 1, emptyNames)
+    setSlot(0, slotFor(mockTeams[1]!, mockQuizzers, emptyNames))
+    arrive({ quizzers: mockQuizzers })
+    expect(await picking).toBe(false)
+    expect(getSlot(0)?.teamId).toBe(2)
+  })
+
+  it("two slots' picks change places", async () => {
+    const { loadMeet, assignTeam, swapSlots, getSlot } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    await assignTeam(0, 1, emptyNames)
+    swapSlots(0, 2)
+    expect([getSlot(0), getSlot(2)?.teamId]).toEqual([undefined, 1])
   })
 })
 
