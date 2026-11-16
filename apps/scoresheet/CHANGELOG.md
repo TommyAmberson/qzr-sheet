@@ -15,6 +15,8 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-15
+
 ### Added
 
 * **New from schedule** starts the scheduled quiz on a blank sheet, linked to it, with its division,
@@ -53,10 +55,19 @@ portal/API/infra work shipped on that tag.
   sheet and replaced its teams; New from schedule and Link a scheduled quiz now do one or the other.
   "Unlink meet" moved from the New menu to the linked display's menu
 
+* New and Open ask before replacing names typed since the sheet was last saved, started or opened,
+  as they ask about unsaved answers. Only loading a scheduled quiz used to ask about names; New and
+  Open file replaced them unasked
+* "Clear names" also unpicks a linked meet's teams
+
 ### Fixed
 
 * A portal link to a stored quiz no longer relinks the meet, losing the picks, before the quiz is
   known to open, or when the unsaved-changes question is declined
+
+### Bundled contract
+
+* `@qzr/shared@1.11.0` - bumped from 1.10.0
 
 ## [0.21.0] - 2026-11-14
 
