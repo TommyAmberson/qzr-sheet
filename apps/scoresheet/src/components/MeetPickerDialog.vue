@@ -94,7 +94,7 @@ defineExpose({ open, chooseForSubmit })
     <div class="meet-picker-inner">
       <div class="meet-picker-header">
         <span class="meet-picker-title">{{
-          purpose === 'submit' ? 'Submit to which meet?' : 'Load teams from meet'
+          purpose === 'submit' ? 'Submit to which meet?' : 'Link a meet'
         }}</span>
         <button class="meet-picker-close" @click="close">×</button>
       </div>

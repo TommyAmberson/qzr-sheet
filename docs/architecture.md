@@ -84,13 +84,17 @@ A separate web app for everything that isn't live scoring: admin dashboard, coac
 official schedule, and viewer standings.
 
 The portal links into the scoresheet with context. An official viewing their schedule clicks a quiz
-and is taken to `/qzr/scoresheet/?quiz=abc123`. The scoresheet reads the session and quiz ID from
-the URL, then auto-fetches and pre-populates.
+and is taken to the scoresheet with the meet and quiz in the address. The scoresheet starts that
+quiz on a blank sheet, linked to it, as its own "New from schedule" does.
 
-| Path                        | Flow                                                           |
-| --------------------------- | -------------------------------------------------------------- |
-| Portal → click quiz         | Opens `/qzr/scoresheet/?quiz=abc`, session already established |
-| Scoresheet → sign in → load | OAuth flow, pick from list in a modal, same end state          |
+| Path                        | Flow                                                   |
+| --------------------------- | ------------------------------------------------------ |
+| Portal → click quiz         | Opens the scoresheet on that quiz, session established |
+| Scoresheet → New ▸ New from | Pick the quiz from the published schedule in a dialog, |
+| schedule                    | same end state                                         |
+
+What New, Open and Link each do to the sheet, and what linking never changes, is in
+[meet-link.md](./meet-link.md).
 
 The portal's schedule page links each quiz as `?meetId=<meet>&quiz=<quiz id>`, the quiz's id in the
 published schedule document.

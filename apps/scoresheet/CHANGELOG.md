@@ -15,6 +15,49 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Added
+
+* **New from schedule** starts the scheduled quiz on a blank sheet, linked to it, with its division,
+  number and the teams the schedule has decided in place. It asks first when the meet already holds
+  a result for that quiz, and offers to open it instead. The portal's schedule links do the same
+* **Open** has three sources: a file, the meet's stored quizzes (the current version, or an earlier
+  one by choice), and the schedule, which opens the quiz stored for the scheduled quiz picked. A
+  quiz opened from the meet or the schedule comes up linked, with its teams picked from the roster
+* **Link** a meet or a scheduled quiz to the quiz already on the sheet, at any time. The header
+  shows what the sheet is linked to, the meet and the scheduled quiz, and opens the menu that links
+  and unlinks them. "Unlink quiz" keeps the meet and the picks
+* A refresh symbol beside the linked display fetches the meet's roster and schedule afresh and links
+  again: a team the admin has since added is picked, and a seat the schedule has since decided fills
+  a blank slot
+* Linked to a scheduled quiz, the sheet warns where the quiz differs from it: the division with its
+  consolation flag, the quiz number, the team in each slot, and a quiz the schedule no longer has.
+  Each warning offers the schedule's value in one step. Where the right team sits in another slot,
+  that step moves the whole team, with its quizzers and answers, and undo takes it back
+* The warning count opens a list of the warnings with those fixes as buttons
+
+### Changed
+
+* Linking changes nothing typed or scored. It picks the roster team each typed name names, keeps
+  picks already made in the same meet, and fills only what is blank. A slot is never given the
+  schedule's team over a name someone typed
+* Opening a file unlinks the sheet: the file is shown as saved, tied to no meet. It used to keep the
+  meet link and drop the picks. Link the meet again to have the quiz checked against it
+* While the sheet waits on the meet it shows that it is waiting and takes nothing but Cancel, and
+  cancelling leaves it exactly as it was. Nothing is changed until the meet has answered
+* The sheet fetches the meet afresh once before the submit question, so the question lists warnings
+  as the meet stands. That fetch, and the one on reload, pick and fill nothing
+
+### Removed
+
+* "Load from schedule" and "Load teams from meet". Loading from the schedule kept the answers on the
+  sheet and replaced its teams; New from schedule and Link a scheduled quiz now do one or the other.
+  "Unlink meet" moved from the New menu to the linked display's menu
+
+### Fixed
+
+* A portal link to a stored quiz no longer relinks the meet, losing the picks, before the quiz is
+  known to open, or when the unsaved-changes question is declined
+
 ## [0.21.0] - 2026-11-14
 
 ### Added

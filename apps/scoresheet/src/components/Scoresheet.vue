@@ -1577,8 +1577,8 @@ const { refreshTeamNames, teamNamesFor } = useTeamNames()
 /** Whether the linked meet's roster has teams for the quiz's division, to pick from */
 const rosterHasTeams = computed(() => filteredTeamList.value.length > 0)
 // A new quiz has no division, and teams are only picked within one. A meet with a single division
-// leaves nothing to choose, so it is chosen. Sync, so that `onMeetLoaded`, which matches typed
-// names within the division as soon as a meet is linked, already has it
+// leaves nothing to choose, so it is chosen. Sync, so that the team menus and warnings, which
+// go by the division, have it as soon as a meet is linked
 watch(
   [() => meetSession.divisionOptions.value, () => quiz.value.division],
   ([divisions, division]) => {

@@ -297,8 +297,8 @@ https://www.versevault.ca/qzr/scoresheet/?meet=fall-2025
 The scoresheet redeems the code at `/qzr/api/join/guest`, keeps the session, and removes the code
 from the address bar (a rejected link says so; when the server can't be reached the code stays for a
 reload). A value of digits only, or one beside a quiz link, is a meet id and never joined. The
-meet's teams become selectable in "Load teams from meet" without signing in. Room codes are never
-put in links: a link ends up in browser history, logs, and screenshots.
+meet's teams become selectable in "Link a meet" without signing in. Room codes are never put in
+links: a link ends up in browser history, logs, and screenshots.
 
 ### Cross-site requests
 
