@@ -88,6 +88,12 @@ export interface QuizStore {
   /** Update a quizzer's name */
   setQuizzerName(quizzerId: QuizzerId, name: string): void
 
+  /**
+   * Two teams change places on the sheet. Everything of a team goes with it, since its quizzers,
+   * answers and timeouts are keyed to it and not to its place.
+   */
+  swapTeams(teamIdA: number, teamIdB: number): void
+
   /** Swap two seats within a team. Answers follow the quizzer (keyed by QuizzerId), not the seat. */
   moveQuizzer(teamId: number, fromSeat: SeatIdx, toSeat: SeatIdx): void
 
@@ -174,6 +180,16 @@ export function createQuizStore(): QuizStore {
     }
   }
 
+  function swapTeams(teamIdA: number, teamIdB: number): void {
+    const a = teams.find((t) => t.id === teamIdA)
+    const b = teams.find((t) => t.id === teamIdB)
+    if (!a || !b || a === b) return
+    ;[a.seatOrder, b.seatOrder] = [b.seatOrder, a.seatOrder]
+    // The list stays in seat order too, so a team's place reads the same by index or by seatOrder
+    const [ia, ib] = [teams.indexOf(a), teams.indexOf(b)]
+    ;[teams[ia], teams[ib]] = [b, a]
+  }
+
   function moveQuizzer(teamId: number, fromSeat: SeatIdx, toSeat: SeatIdx): void {
     if (fromSeat === toSeat) return
     const sorted = quizzersByTeam(teamId)
@@ -231,6 +247,7 @@ export function createQuizStore(): QuizStore {
     setAnswer,
     setTeamName,
     setQuizzerName,
+    swapTeams,
     moveQuizzer,
     isQuizzerUnnamed,
     setQuestionType,

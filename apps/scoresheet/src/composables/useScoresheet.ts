@@ -447,6 +447,30 @@ export function useScoresheet() {
     store.setTeamName(team.id, name)
   }
 
+  /**
+   * Two teams change places, each with its name, quizzers, answers, timeouts and on-time mark, as
+   * one edit that undo takes back. `alongside` runs with the swap each way, for what is kept by
+   * place outside the quiz.
+   */
+  function swapTeams(teamIdxA: number, teamIdxB: number, alongside: () => void = () => {}) {
+    const a = teams.value[teamIdxA]
+    const b = teams.value[teamIdxB]
+    if (!a || !b || a === b) return
+    const swap = () => {
+      store.swapTeams(a.id, b.id)
+      alongside()
+    }
+    swap()
+    // A swap is its own undoing
+    history.push({ undo: swap, redo: swap })
+  }
+
+  /** Do an edit made of several writes as one, which undo takes back and redo makes again */
+  function editAsOne(edit: { redo: () => void; undo: () => void }) {
+    edit.redo()
+    history.push(edit)
+  }
+
   function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
     const team = teams.value[teamIdx]
     if (!team) return
@@ -719,6 +743,8 @@ export function useScoresheet() {
     toggleOnTime,
     setTeamName,
     setQuizzerName,
+    swapTeams,
+    editAsOne,
     moveQuizzer,
 
     // Grey-out & validation
