@@ -1,4 +1,6 @@
-import { editDistance, foldName, resultKey, tidyName } from '../results'
+import { editDistance, foldName, quizName, resultKey, tidyName } from '../results'
+import { scheduleQuizMeta } from '../schedule/conflicts'
+import type { ScheduleDocument, ScheduleQuiz } from '../schedule/scheduleFile'
 import { placeTieCount } from '../scoring/placement'
 import type { ScoredQuiz, ScoringProblem } from './scoredQuiz'
 import type { Stage } from './stages'
@@ -30,6 +32,36 @@ export interface ScheduledQuiz {
   name: string
   /** The teams the schedule gives it, or null where it doesn't name them yet */
   teams: Pick<RosterTeam, 'name' | 'shortName'>[] | null
+}
+
+/**
+ * A quiz of the schedule as stored quizzes are held against it. The schedule names a quiz's teams
+ * where every seat is a letter of the draw; a seat filled from a rank or another quiz's result is
+ * not known from the schedule alone, and such a quiz is matched on its name.
+ */
+export function scheduledQuizOf(
+  doc: ScheduleDocument,
+  quiz: ScheduleQuiz,
+  /** A meet's team by its id, for a schedule linked to the meet */
+  teamOf: (teamId: number) => Pick<RosterTeam, 'name' | 'shortName'> | undefined,
+): ScheduledQuiz {
+  const meta = scheduleQuizMeta(quiz)
+  const drawn = doc.draw[quiz.division]?.teams ?? []
+  const teams: Pick<RosterTeam, 'name' | 'shortName'>[] = []
+  let known = true
+  for (const seat of quiz.seats) {
+    if (seat.kind === 'empty') continue
+    const team = seat.kind === 'letter' ? drawn.find((t) => t.letter === seat.letter) : undefined
+    const named =
+      team?.teamId !== undefined
+        ? teamOf(team.teamId)
+        : team?.name
+          ? { name: team.name, shortName: team.name }
+          : undefined
+    if (named) teams.push(named)
+    else known = false
+  }
+  return { key: resultKey(meta), name: quizName(meta), teams: known ? teams : null }
 }
 
 /** A quiz's name and teams, as they are held against a scheduled quiz */
@@ -86,13 +118,13 @@ export function matchScheduledQuiz(
 export function scheduleProblems(
   scored: ScoredQuiz,
   stage: Stage | null,
-  quiz: NamedQuiz['quiz'],
+  /** The quiz's own name, as a result key */
+  key: string,
   linked: ScheduledQuiz | null,
 ): ScheduleProblem[] {
   const problems: ScheduleProblem[] = []
   if (linked) {
-    if (resultKey(quiz) !== linked.key)
-      problems.push({ kind: 'nameDiffers', scheduled: linked.name })
+    if (key !== linked.key) problems.push({ kind: 'nameDiffers', scheduled: linked.name })
     if (linked.teams !== null && !sameTeams(scored.teams, linked.teams)) {
       problems.push({ kind: 'teamsDiffer', scheduled: linked.teams.map((team) => team.name) })
     }
@@ -172,7 +204,8 @@ export function quizProblems(
   scored: ScoredQuiz,
   held: {
     stage: Stage | null
-    quiz: NamedQuiz['quiz']
+    /** The quiz's own name, as a result key */
+    key: string
     linked: ScheduledQuiz | null
     roster: RosterTeam[] | null
   },
@@ -180,6 +213,6 @@ export function quizProblems(
   return [
     ...scored.problems,
     ...rosterProblems(scored, held.roster),
-    ...scheduleProblems(scored, held.stage, held.quiz, held.linked),
+    ...scheduleProblems(scored, held.stage, held.key, held.linked),
   ]
 }

@@ -246,6 +246,22 @@ export async function createTestDb(): Promise<Db> {
       scored TEXT NOT NULL
     );
 
+    CREATE TABLE quiz_result_changes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      result_id INTEGER NOT NULL REFERENCES quiz_results(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL,
+      stage TEXT,
+      schedule_quiz_id TEXT,
+      how TEXT,
+      revision INTEGER,
+      accepted INTEGER,
+      changed_by_account_id TEXT REFERENCES user(id) ON DELETE SET NULL,
+      changed_by_room_id INTEGER REFERENCES meet_rooms(id) ON DELETE SET NULL,
+      changed_by_name TEXT NOT NULL,
+      changed_at INTEGER NOT NULL
+    );
+    CREATE INDEX quiz_result_changes_result_id_idx ON quiz_result_changes(result_id);
+
     CREATE TABLE quiz_result_count_changes (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       result_id INTEGER NOT NULL REFERENCES quiz_results(id) ON DELETE CASCADE,

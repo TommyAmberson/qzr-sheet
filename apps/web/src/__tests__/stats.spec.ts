@@ -91,6 +91,22 @@ describe('warningText', () => {
     )
   })
 
+  it('names two quizzes that are both a Finals', () => {
+    expect(
+      warningText({
+        kind: 'twoFinals',
+        division: '1',
+        consolation: false,
+        quizzes: [
+          { id: 1, name: 'D1 QF' },
+          { id: 2, name: 'D1 QG' },
+        ],
+      }),
+    ).toBe(
+      'D1 QF and D1 QG are both the Finals, so neither gives its first three. Set all but one to another stage.',
+    )
+  })
+
   it("gives each team's count when prelims are unequal", () => {
     expect(
       warningText({

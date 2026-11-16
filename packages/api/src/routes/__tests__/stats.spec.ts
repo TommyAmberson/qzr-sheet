@@ -67,8 +67,8 @@ async function store(quizFile: QuizFile, counted = true): Promise<number> {
   const { id } = await jsonOf<{ id: number }>(res)
   if (counted) {
     const counting = await as(testSuperuser).request(
-      `/api/meets/${meetId}/results/counted`,
-      jsonRequest('PATCH', { ids: [id], counted: true }),
+      `/api/meets/${meetId}/results/stage`,
+      jsonRequest('PATCH', { ids: [id], stage: 'prelim' }),
       env,
     )
     expect(counting.status).toBe(200)

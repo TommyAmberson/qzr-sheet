@@ -42,6 +42,24 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `teamNamed`, `teamsNearName` and `looseName`, with `RosterTeam`: the comparison of a typed team
   name with a roster's, by full name, then short name, then with punctuation set aside, as the
   scoresheet makes it when a meet is linked, so the sheet and the server match alike
+* `scheduledQuizOf`: a quiz of the schedule as stored quizzes are held against it, with the teams
+  its draw letters name, or none where a seat is filled from a rank or another quiz's result
+* `divisionStats` takes each quiz's stage, link and acceptance, the division's roster, and whether
+  the schedule has later stages, and gives: quizzes of every stage, a quiz in error under review
+  until accepted and then marked `accepted`; the re-ranked order of the teams that played an
+  intermediate (`rerank`), by prelim placement points plus the intermediate's, within the ranks they
+  held; a bracket's first three from its one decided Finals (`medals`), with a `twoFinals` warning
+  where it has more; finalists marked only where prelims lead straight to a Finals; and roster teams
+  and quizzers under the roster's names, so a team written by its short and its full name is one row
+
+### Changed
+
+* `divisionStandings` takes quizzes that are already placed: `CountedQuiz` is a name and its teams,
+  with no `placed` flag, and the `unplaced` warning is gone, since a quiz in error never reaches it.
+  It takes `{ finalists }`, off where the quizzes do not lead straight to a Finals
+* `scheduleProblems` and `quizProblems` take the quiz's own name as a result key
+* `STAGES` and `Stage` moved from the division stats module to the stages module; both are still
+  exported from the package
 
 ## [1.11.0] - 2026-11-14
 

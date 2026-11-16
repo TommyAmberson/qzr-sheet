@@ -88,26 +88,19 @@ describe('scheduleProblems', () => {
   const teams = { 'First Church 1': [], "St. John's 1": [], 'Grace 1': [] }
 
   it('finds nothing wrong with a quiz that is the scheduled quiz, nor with one that is not linked', () => {
-    expect(scheduleProblems(scored(teams), 'prelim', quiz, scheduled)).toEqual([])
-    expect(
-      scheduleProblems(scored({ 'Hope 2': [] }), 'prelim', { ...quiz, quizNumber: '9' }, null),
-    ).toEqual([])
+    expect(scheduleProblems(scored(teams), 'prelim', '1||3', scheduled)).toEqual([])
+    expect(scheduleProblems(scored({ 'Hope 2': [] }), 'prelim', '1||9', null)).toEqual([])
   })
 
   it('says when a linked quiz has another name or other teams', () => {
     expect(
-      scheduleProblems(
-        scored({ ...teams, 'Grace 1': [] }),
-        'prelim',
-        { ...quiz, quizNumber: '4' },
-        scheduled,
-      ),
+      scheduleProblems(scored({ ...teams, 'Grace 1': [] }), 'prelim', '1||4', scheduled),
     ).toEqual([{ kind: 'nameDiffers', scheduled: 'D1 Q3' }])
     expect(
       scheduleProblems(
         scored({ 'First Church 1': [], "St. John's 1": [], 'Hope 2': [] }),
         'prelim',
-        quiz,
+        '1||3',
         scheduled,
       ),
     ).toEqual([{ kind: 'teamsDiffer', scheduled: ['First Church 1', "St. John's 1", 'Grace 1'] }])
@@ -115,13 +108,13 @@ describe('scheduleProblems', () => {
 
   it('lets a prelim or an intermediate end level, and not an elimination or a Finals', () => {
     const level = scored(teams, [1.2, 1.2, 3])
-    expect(scheduleProblems(level, 'prelim', quiz, null)).toEqual([])
-    expect(scheduleProblems(level, 'intermediate', quiz, null)).toEqual([])
-    expect(scheduleProblems(level, 'elimination', quiz, null)).toEqual([
+    expect(scheduleProblems(level, 'prelim', '1||3', null)).toEqual([])
+    expect(scheduleProblems(level, 'intermediate', '1||3', null)).toEqual([])
+    expect(scheduleProblems(level, 'elimination', '1||3', null)).toEqual([
       { kind: 'tieLeftStanding' },
     ])
-    expect(scheduleProblems(level, 'finals', quiz, null)).toEqual([{ kind: 'tieLeftStanding' }])
-    expect(scheduleProblems(scored(teams), 'finals', quiz, null)).toEqual([])
+    expect(scheduleProblems(level, 'finals', '1||3', null)).toEqual([{ kind: 'tieLeftStanding' }])
+    expect(scheduleProblems(scored(teams), 'finals', '1||3', null)).toEqual([])
   })
 })
 

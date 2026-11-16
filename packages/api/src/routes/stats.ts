@@ -14,6 +14,7 @@ import type { SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { isAdminOrSuperuser } from '../lib/permissions'
+import { hasLaterStages, meetFacts, quizFacts } from '../lib/quizFacts'
 import { meetIdOf } from '../lib/request'
 import { isCounted, latestRevision } from '../lib/resultsSql'
 import { SHARED_VERSION, keepScores } from '../lib/scores'
@@ -57,8 +58,10 @@ function storedQuizzes(db: Db, meetId: number, foldedDivision: string) {
     db
       .select({
         id: schema.quizResults.id,
+        quizKey: schema.quizResults.quizKey,
         counted: isCounted,
         revisionId: content.id,
+        contentRevision: content.revision,
         sharedVersion: schema.quizResultScores.sharedVersion,
         scored: schema.quizResultScores.scored,
       })
@@ -159,10 +162,11 @@ stats.get('/:id/stats/:division', async (c) => {
   const folded = foldName(c.req.param('division'))
   // Not one batch: D1 gives a batched select's rows by column name, and the joined revisions
   // share theirs, so the quizzes' rows would come back with one revision's columns as another's
-  const [meets, quizzes, states] = await Promise.all([
+  const [meets, quizzes, states, facts] = await Promise.all([
     meetQuery(db, meetId),
     storedQuizzes(db, meetId, folded),
     divisionStatesQuery(db, meetId),
+    meetFacts(db, meetId),
   ])
   const meet = meets[0]
   if (!meet) return c.json({ error: 'Meet not found' }, 404)
@@ -206,9 +210,21 @@ stats.get('/:id/stats/:division', async (c) => {
       quizzes: quizzes.map((quiz): StatsQuiz => {
         // Kept scores are read only now, once it is known the stats can be answered
         const scored = rescored.get(quiz.revisionId) ?? (JSON.parse(quiz.scored!) as ScoredQuiz)
-        // Until a quiz has a stage of its own, one that counts is a prelim (research R3)
-        return { id: quiz.id, name: scored.name, stage: quiz.counted ? 'prelim' : null, scored }
+        const held = quizFacts(facts, quiz)
+        return {
+          id: quiz.id,
+          name: scored.name,
+          key: quiz.quizKey,
+          stage: held.stage,
+          scored,
+          linked: held.linked,
+          line: held.line,
+          accepted: held.accepted,
+        }
       }),
+      // Every quiz of the division is held against the same teams
+      roster: quizzes[0] ? quizFacts(facts, quizzes[0]).roster : null,
+      laterStagesScheduled: hasLaterStages(facts, folded),
     }),
   )
 })

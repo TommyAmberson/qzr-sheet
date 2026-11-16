@@ -79,6 +79,8 @@ export function warningText(warning: StatsWarning): string {
         .join(', ')}.`
     case 'lookAlikeTeams':
       return `${warning.names[0]} and ${warning.names[1]} look like one team spelt two ways.`
+    case 'twoFinals':
+      return `${warning.quizzes.map((quiz) => quiz.name).join(' and ')} are both the ${warning.consolation ? 'consolation ' : ''}Finals, so neither gives its first three. Set all but one to another stage.`
     case 'finalTie':
       return `${warning.teams.join(', ')} are tied for the last places in the final. Settle it away from the app.`
   }

@@ -8,9 +8,13 @@ import {
   isQuizFile,
   parseQuizFile,
   quizName,
+  quizProblems,
+  STAGE_CHOICES,
   tidyName,
   type DivisionTeamNames,
   type QuizFile,
+  type ScoredQuiz,
+  type StageChoice,
 } from '@qzr/shared'
 import type { Bindings } from '../bindings'
 import type { SessionUser, SessionVariables } from '../middleware/session'
@@ -24,8 +28,19 @@ import {
 } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { jsonBody, meetIdOf } from '../lib/request'
+import {
+  linkedTo,
+  meetFacts,
+  quizFacts,
+  recordChanges,
+  scheduleMatch,
+  scheduledQuiz,
+  type Changer,
+  type MeetFacts,
+  type QuizLink,
+} from '../lib/quizFacts'
 import { isCounted, latestRevision } from '../lib/resultsSql'
-import { keepScores } from '../lib/scores'
+import { SHARED_VERSION, keepScores } from '../lib/scores'
 
 interface ResultsVariables extends SessionVariables {
   db: Db
@@ -114,6 +129,38 @@ function roomSaverFor(
     savedByRoomId: room.id,
     savedByName: user ? `${user.name}, ${room.name}` : room.name,
   }
+}
+
+/** Who made a decision about a stored quiz, from who would save a change to it */
+function changerOf(saver: Saver): Changer {
+  return {
+    changedByAccountId: saver.savedByAccountId,
+    changedByRoomId: saver.savedByRoomId,
+    changedByName: saver.savedByName,
+  }
+}
+
+/**
+ * Link a stored quiz that has no link to the scheduled quiz its name and teams match, as when it
+ * arrives and after a change to either. Answers the quiz's link as it then is.
+ */
+async function linkByMatch(
+  db: Db,
+  meetId: number,
+  resultId: number,
+  file: QuizFile,
+  saver: Saver,
+  facts?: MeetFacts,
+): Promise<QuizLink | null> {
+  facts ??= await meetFacts(db, meetId)
+  const current = facts.decisions.get(resultId)?.link ?? null
+  if (current) return current
+  const { match } = scheduleMatch(facts, file)
+  if (!match) return null
+  await recordChanges(db, [
+    { resultId, kind: 'link', scheduleQuizId: match, how: 'matched', ...changerOf(saver) },
+  ])
+  return { scheduleQuizId: match, how: 'matched' }
 }
 
 /** The stored quiz id in the path, or null when it isn't one */
@@ -362,6 +409,7 @@ results.post('/:id/results', async (c) => {
     roomId?: unknown
     onExisting?: unknown
     upload?: unknown
+    scheduleQuizId?: unknown
   }>(c)
   if (!body) return c.json({ error: 'Body must be JSON' }, 400)
   const user = c.get('user')
@@ -391,8 +439,34 @@ results.post('/:id/results', async (c) => {
     body.upload === true ? 'uploaded' : saver.savedByRoomId === null ? 'edited' : 'submitted'
   const revisionValues = { ...saver, quizFile: json, action } as const
 
-  // A name the meet already has is the same quiz: say so, or add a revision when asked to
   const db = c.get('db')
+  // The scheduled quiz the sheet says this is, which must be one of the published schedule's
+  const sentFor = typeof body.scheduleQuizId === 'string' ? body.scheduleQuizId : null
+  let facts: MeetFacts | undefined
+  if (sentFor !== null) {
+    facts = await meetFacts(db, meetId)
+    if (!facts.schedule?.quizzes.has(sentFor)) {
+      return c.json({ error: 'Not a quiz of the published schedule' }, 400)
+    }
+  }
+  /**
+   * The quiz's link once it is stored: to the scheduled quiz the sheet named, unless another stored
+   * quiz holds that one, in which case the submission is kept all the same, unlinked; and for a
+   * sheet that named none, to the scheduled quiz it matches
+   */
+  const linkOf = async (resultId: number): Promise<QuizLink | null> => {
+    if (sentFor === null) return linkByMatch(db, meetId, resultId, file, saver)
+    const current = facts!.decisions.get(resultId)?.link ?? null
+    if (current?.scheduleQuizId === sentFor) return current
+    const holder = linkedTo(facts!, sentFor)
+    if (holder !== undefined && holder !== resultId) return current
+    await recordChanges(db, [
+      { resultId, kind: 'link', scheduleQuizId: sentFor, how: 'sheet', ...changerOf(saver) },
+    ])
+    return { scheduleQuizId: sentFor, how: 'sheet' }
+  }
+
+  // A name the meet already has is the same quiz: say so, or add a revision when asked to
   const existingId = async () => (await quizNamed(db, meetId, key))[0]?.id
   let resultId = await existingId()
   if (resultId === undefined) {
@@ -421,8 +495,9 @@ results.post('/:id/results', async (c) => {
         { id: number; revision: number }[],
       ]
       await keepScoresOfSaved(db, [{ id: revisionRows[0]!.id, quizFile: json }])
+      const id = quizRows[0]!.id
       return c.json(
-        { id: quizRows[0]!.id, revision: revisionRows[0]!.revision, created: true },
+        { id, revision: revisionRows[0]!.revision, created: true, link: await linkOf(id) },
         201,
       )
     } catch (e) {
@@ -445,7 +520,11 @@ results.post('/:id/results', async (c) => {
       ? [revisionValues, { ...saver, action: 'restored', restoredFrom: 'current' }]
       : [revisionValues],
   )
-  return c.json({ id: resultId, revision, created: false, keptCurrent })
+  // A submission kept behind the current revision changes neither the quiz's name nor its link
+  const link = keptCurrent
+    ? ((facts ?? (await meetFacts(db, meetId))).decisions.get(resultId)?.link ?? null)
+    : await linkOf(resultId)
+  return c.json({ id: resultId, revision, created: false, keptCurrent, link })
 })
 
 results.put('/:id/results/:resultId', async (c) => {
@@ -474,6 +553,7 @@ results.put('/:id/results/:resultId', async (c) => {
       [{ ...access.saver, quizFile: json, action: body.action === 'merged' ? 'merged' : 'edited' }],
       move,
     )
+    await linkByMatch(db, meetId, resultId, file, access.saver)
     return c.json({ id: resultId, revision })
   } catch (e) {
     if (isUniqueViolation(e) && !isRevisionClash(e)) return nameTaken(c, file)
@@ -481,7 +561,7 @@ results.put('/:id/results/:resultId', async (c) => {
   }
 })
 
-/** A stored quiz's history, newest first: its saves and its counting records */
+/** A stored quiz's history, newest first: its saves, the decisions made about it, and its old counting records */
 results.get('/:id/results/:resultId/revisions', async (c) => {
   const meetId = meetIdOf(c)
   const resultId = resultIdOf(c)
@@ -529,15 +609,37 @@ results.get('/:id/results/:resultId/revisions', async (c) => {
     changedBy: { name: changedByName },
   }))
 
-  // Both lists are newest first; a count saved in the same millisecond as
-  // a save is taken to follow it, as counting a quiz follows saving it
-  const history: ((typeof saves)[number] | (typeof counts)[number])[] = []
-  while (saves.length > 0 || counts.length > 0) {
-    const takeCount =
-      counts.length > 0 &&
-      (saves.length === 0 || counts[0]!.changedAt.getTime() >= saves[0]!.savedAt.getTime())
-    history.push(takeCount ? counts.shift()! : saves.shift()!)
-  }
+  const changes = (
+    await db
+      .select({
+        what: schema.quizResultChanges.kind,
+        stage: schema.quizResultChanges.stage,
+        scheduleQuizId: schema.quizResultChanges.scheduleQuizId,
+        how: schema.quizResultChanges.how,
+        revision: schema.quizResultChanges.revision,
+        accepted: schema.quizResultChanges.accepted,
+        changedByName: schema.quizResultChanges.changedByName,
+        changedAt: schema.quizResultChanges.changedAt,
+      })
+      .from(schema.quizResultChanges)
+      .where(eq(schema.quizResultChanges.resultId, resultId))
+      .orderBy(desc(schema.quizResultChanges.id))
+  ).map(({ changedByName, what, stage, scheduleQuizId, how, revision, accepted, changedAt }) => ({
+    kind: 'change' as const,
+    what,
+    ...(what === 'stage' ? { stage } : {}),
+    ...(what === 'link' ? { scheduleQuizId, how } : {}),
+    ...(what === 'acceptance' ? { revision, accepted } : {}),
+    changedBy: { name: changedByName },
+    changedAt,
+  }))
+
+  // Newest first. A decision recorded in the same millisecond as a save is taken to follow it, as
+  // counting or linking a quiz follows saving it; the sort keeps each list's own order
+  const at = (entry: (typeof history)[number]) =>
+    (entry.kind === 'revision' ? entry.savedAt : entry.changedAt).getTime()
+  const history = [...changes, ...counts, ...saves]
+  history.sort((a, b) => at(b) - at(a))
   return c.json(history)
 })
 
@@ -618,6 +720,7 @@ results.post('/:id/results/:resultId/restore', async (c) => {
       [{ ...access.saver, action: 'restored', restoredFrom: content }],
       move,
     )
+    await linkByMatch(db, meetId, resultId, file, access.saver)
     return c.json({ id: resultId, revision })
   } catch (e) {
     if (isUniqueViolation(e) && !isRevisionClash(e)) return nameTaken(c, file)
@@ -626,11 +729,10 @@ results.post('/:id/results/:resultId/restore', async (c) => {
 })
 
 /**
- * Count or uncount quizzes of the meet. Each quiz whose value changes gets a counting record, and
- * its newest record is its value, so a quiz and its record always agree, even if a large change is
- * cut short between the chunks D1's parameter limit needs.
+ * Set the stage of stored quizzes of the meet: what each counts for. `null` removes the admin's
+ * choice, so a quiz follows its link again. Each quiz whose choice changes gets a record.
  */
-results.patch('/:id/results/counted', async (c) => {
+results.patch('/:id/results/stage', async (c) => {
   const meetId = meetIdOf(c)
   if (meetId === null) return c.json({ error: 'Meet not found' }, 404)
   const user = c.get('user')
@@ -638,39 +740,135 @@ results.patch('/:id/results/counted', async (c) => {
   const refused = await refusedByPhase(c, meetId, true)
   if (refused) return refused
 
-  const body = await jsonBody<{ ids?: unknown; counted?: unknown }>(c)
+  const body = await jsonBody<{ ids?: unknown; stage?: unknown }>(c)
   const ids = body?.ids
-  const counted = body?.counted
-  if (!Array.isArray(ids) || !ids.every(Number.isInteger) || typeof counted !== 'boolean') {
-    return c.json({ error: 'Expected { ids: number[], counted: boolean }' }, 400)
+  const stage = body?.stage
+  const isStage = stage === null || STAGE_CHOICES.includes(stage as StageChoice)
+  if (!Array.isArray(ids) || !ids.every(Number.isInteger) || !isStage) {
+    return c.json({ error: 'Expected { ids: number[], stage }' }, 400)
   }
 
   const db = c.get('db')
   const requested = [...new Set(ids as number[])]
   const stored = await inChunks(requested, 1, (chunk) =>
     db
-      .select({ id: schema.quizResults.id, counted: isCounted })
+      .select({ id: schema.quizResults.id })
       .from(schema.quizResults)
       .where(and(eq(schema.quizResults.meetId, meetId), inArray(schema.quizResults.id, chunk))),
   )
   if (stored.length !== requested.length) return c.json({ error: 'Quiz not found' }, 404)
 
-  const changed = stored.filter((quiz) => quiz.counted !== counted).map((quiz) => quiz.id)
-  const changedAt = new Date()
-  const records = changed.map((resultId) => ({
-    resultId,
-    counted,
-    changedByAccountId: user.id,
-    changedByName: user.name,
-    changedAt,
-  }))
-  await inChunks(records, 5, (chunk) =>
-    db
-      .insert(schema.quizResultCountChanges)
-      .values(chunk)
-      .returning({ id: schema.quizResultCountChanges.id }),
+  const { decisions } = await meetFacts(db, meetId)
+  const changed = requested.filter((id) => (decisions.get(id)?.stage ?? null) !== stage)
+  await recordChanges(
+    db,
+    changed.map((resultId) => ({
+      resultId,
+      kind: 'stage' as const,
+      stage: stage as StageChoice | null,
+      ...changerOf(adminSaver(user)),
+    })),
   )
   return c.json({ changed })
+})
+
+/** A stored quiz's name from its key, for naming it where its file is not at hand */
+function nameOfKey(key: string): string {
+  const [division = '', consolation, quizNumber = ''] = key.split('|')
+  return quizName({ division, consolation: consolation === 'c', quizNumber })
+}
+
+/** Link a stored quiz to a scheduled quiz by hand, change its link, or with `null` remove it */
+results.put('/:id/results/:resultId/link', async (c) => {
+  const meetId = meetIdOf(c)
+  const resultId = resultIdOf(c)
+  if (meetId === null || resultId === null) return c.json({ error: 'Quiz not found' }, 404)
+  const access = await quizAccess(c, meetId, resultId)
+  if (access instanceof Response) return access
+  const refused = await refusedByPhase(c, meetId, access.admin)
+  if (refused) return refused
+  const body = await jsonBody<{ scheduleQuizId?: unknown }>(c)
+  const scheduleQuizId = body?.scheduleQuizId
+  if (scheduleQuizId !== null && typeof scheduleQuizId !== 'string') {
+    return c.json({ error: 'Expected { scheduleQuizId: string | null }' }, 400)
+  }
+
+  const db = c.get('db')
+  if (scheduleQuizId !== null) {
+    const facts = await meetFacts(db, meetId)
+    if (!facts.schedule?.quizzes.has(scheduleQuizId)) {
+      return c.json({ error: 'Not a quiz of the published schedule' }, 400)
+    }
+    const holder = linkedTo(facts, scheduleQuizId)
+    if (holder !== undefined && holder !== resultId) {
+      const [other] = await db
+        .select({ quizKey: schema.quizResults.quizKey })
+        .from(schema.quizResults)
+        .where(eq(schema.quizResults.id, holder))
+      return c.json(
+        {
+          error: `${scheduledQuiz(facts, scheduleQuizId)!.name} is already linked to ${nameOfKey(other?.quizKey ?? '')}`,
+          existing: { id: holder },
+        },
+        409,
+      )
+    }
+  }
+  await recordChanges(db, [
+    { resultId, kind: 'link', scheduleQuizId, how: 'hand', ...changerOf(access.saver) },
+  ])
+  return c.json({ link: scheduleQuizId === null ? null : { scheduleQuizId, how: 'hand' } })
+})
+
+/**
+ * Accept a stored quiz as scored at a revision, so that it counts in spite of its errors, or
+ * withdraw that. An acceptance is of a revision's content, so a revision restoring accepted
+ * content is accepted, and a later revision in error needs its own.
+ */
+results.put('/:id/results/:resultId/acceptance', async (c) => {
+  const meetId = meetIdOf(c)
+  const resultId = resultIdOf(c)
+  if (meetId === null || resultId === null) return c.json({ error: 'Quiz not found' }, 404)
+  const user = c.get('user')
+  if (!user || !(await isAdmin(c, meetId))) return c.json({ error: 'Admin access required' }, 403)
+  const refused = await refusedByPhase(c, meetId, true)
+  if (refused) return refused
+  const body = await jsonBody<{ revision?: unknown; accepted?: unknown }>(c)
+  if (!body || !Number.isInteger(body.revision) || typeof body.accepted !== 'boolean') {
+    return c.json({ error: 'Expected { revision: number, accepted: boolean }' }, 400)
+  }
+
+  const db = c.get('db')
+  const [target] = await db
+    .select({
+      revision: schema.quizResultRevisions.revision,
+      restoredFrom: schema.quizResultRevisions.restoredFrom,
+    })
+    .from(schema.quizResultRevisions)
+    .innerJoin(schema.quizResults, eq(schema.quizResults.id, schema.quizResultRevisions.resultId))
+    .where(
+      and(
+        eq(schema.quizResults.meetId, meetId),
+        eq(schema.quizResultRevisions.resultId, resultId),
+        eq(schema.quizResultRevisions.revision, body.revision as number),
+      ),
+    )
+  if (!target) return c.json({ error: 'Revision not found' }, 404)
+  // An admin accepts only what they are looking at: the quiz as it is now
+  const newest = (await newestRevision(db, resultId))!
+  if (body.accepted && target.revision !== newest.revision) {
+    return c.json({ error: 'The quiz has changed since', revision: newest.revision }, 409)
+  }
+  await recordChanges(db, [
+    {
+      resultId,
+      kind: 'acceptance',
+      revision: contentOf(target),
+      accepted: body.accepted,
+      ...changerOf(adminSaver(user)),
+    },
+  ])
+  return c.json({ revision: target.revision, accepted: body.accepted })
 })
 
 /** Who the caller is when sending to the meet: an admin, for any of its rooms; an official, for theirs */
@@ -710,8 +908,12 @@ results.get('/:id/results', async (c) => {
       id: schema.quizResults.id,
       originAction: first.action,
       originName: first.savedByName,
+      quizKey: schema.quizResults.quizKey,
       counted: isCounted,
       revision: schema.quizResultRevisions.revision,
+      restoredFrom: schema.quizResultRevisions.restoredFrom,
+      sharedVersion: schema.quizResultScores.sharedVersion,
+      scored: schema.quizResultScores.scored,
       savedAt: schema.quizResultRevisions.savedAt,
       savedByName: schema.quizResultRevisions.savedByName,
       action: schema.quizResultRevisions.action,
@@ -726,6 +928,14 @@ results.get('/:id/results', async (c) => {
       ),
     )
     .leftJoin(source, restoredSource)
+    // The score kept for the revision whose content is current
+    .leftJoin(
+      schema.quizResultScores,
+      eq(
+        schema.quizResultScores.revisionId,
+        sql`COALESCE(${source.id}, ${schema.quizResultRevisions.id})`,
+      ),
+    )
     .innerJoin(first, and(eq(first.resultId, schema.quizResults.id), eq(first.revision, 1)))
     .where(
       and(
@@ -746,13 +956,54 @@ results.get('/:id/results', async (c) => {
       ),
     )
 
+  const facts = await meetFacts(db, meetId)
   return c.json(
-    rows.map(({ originAction, originName, savedByName, quizFile, ...row }) => ({
-      ...row,
-      origin: { action: originAction, name: originName },
-      savedBy: { name: savedByName },
-      quizFile: JSON.parse(quizFile),
-    })),
+    rows.map(
+      ({
+        originAction,
+        originName,
+        savedByName,
+        quizFile,
+        quizKey,
+        counted,
+        restoredFrom,
+        sharedVersion,
+        scored,
+        ...row
+      }) => {
+        const file = JSON.parse(quizFile) as QuizFile
+        const held = quizFacts(facts, {
+          id: row.id,
+          quizKey,
+          counted,
+          contentRevision: restoredFrom ?? row.revision,
+        })
+        // What is wrong with it is read from its kept score; the list never waits for one to be
+        // made, since quizzes are corrected from it
+        const problems =
+          scored !== null && sharedVersion === SHARED_VERSION
+            ? quizProblems(JSON.parse(scored) as ScoredQuiz, {
+                stage: held.stage,
+                key: quizKey,
+                linked: held.linked,
+                roster: held.roster,
+              })
+            : null
+        const suggested = held.link ? undefined : scheduleMatch(facts, file).near
+        return {
+          ...row,
+          origin: { action: originAction, name: originName },
+          savedBy: { name: savedByName },
+          stage: held.stage,
+          stageFrom: held.stageFrom,
+          link: held.link,
+          ...(suggested ? { suggestedLink: suggested } : {}),
+          problems,
+          accepted: held.accepted,
+          quizFile: file,
+        }
+      },
+    ),
   )
 })
 
