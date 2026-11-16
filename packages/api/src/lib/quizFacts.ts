@@ -1,11 +1,16 @@
-import { asc, desc, eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import {
-  divisionName,
-  foldName,
+  isNamed,
   matchScheduledQuiz,
+  resultKey,
   resultKeyDivision,
+  resultName,
+  sameDivision,
   scheduledQuizOf,
+  scheduledStage,
   storedStage,
+  teamDisplayName,
+  type LinkHow,
   type NamedQuiz,
   type RosterTeam,
   type ScheduleDocument,
@@ -17,15 +22,13 @@ import {
 } from '@qzr/shared'
 import * as schema from '../db/schema'
 import { inChunks, type Db } from './db'
+import { newestVersion } from './scheduleVersions'
 
 /** Who made a decision about a stored quiz, in the decision's own columns */
 export type Changer = Pick<
   typeof schema.quizResultChanges.$inferInsert,
   'changedByAccountId' | 'changedByRoomId' | 'changedByName'
 >
-
-/** How a stored quiz came to be linked to a scheduled quiz */
-export type LinkHow = 'sheet' | 'matched' | 'hand'
 
 export interface QuizLink {
   scheduleQuizId: string
@@ -72,17 +75,25 @@ type MeetTeam = RosterTeam & { division: string }
 
 /**
  * What a meet's stored quizzes are held against: the decisions made about them, the newest
- * published schedule, and the meet's teams with their quizzers
+ * published schedule, and the meet's teams with their quizzers. Read once per request, so each
+ * index here is built once.
  */
 export interface MeetFacts {
   decisions: Map<number, Decisions>
-  schedule: { document: ScheduleDocument; quizzes: Map<string, ScheduleQuiz> } | null
+  schedule: {
+    document: ScheduleDocument
+    quizzes: Map<string, ScheduleQuiz>
+    /** The scheduled quizzes by the result key they name their results under */
+    byKey: Map<string, string[]>
+  } | null
+  /** The stored quiz linked to each scheduled quiz */
+  holders: Map<string, number>
   /** Null for a meet with no teams entered: it has no roster to hold names against */
   teams: MeetTeam[] | null
 }
 
 export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
-  const [changes, [version], teams, quizzers] = await Promise.all([
+  const [changes, version, teams, quizzers] = await Promise.all([
     db
       .select({
         resultId: schema.quizResultChanges.resultId,
@@ -97,12 +108,7 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
       .innerJoin(schema.quizResults, eq(schema.quizResults.id, schema.quizResultChanges.resultId))
       .where(eq(schema.quizResults.meetId, meetId))
       .orderBy(asc(schema.quizResultChanges.id)),
-    db
-      .select({ document: schema.meetScheduleVersions.document })
-      .from(schema.meetScheduleVersions)
-      .where(eq(schema.meetScheduleVersions.meetId, meetId))
-      .orderBy(desc(schema.meetScheduleVersions.version))
-      .limit(1),
+    newestVersion(db, meetId),
     db
       .select({
         id: schema.teams.id,
@@ -139,14 +145,30 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
       quiz.accepted.set(change.revision, change.accepted ?? false)
     }
   }
+  const holders = new Map<string, number>()
+  for (const [resultId, quiz] of decisions) {
+    if (quiz.link) holders.set(quiz.link.scheduleQuizId, resultId)
+  }
 
   const document = version ? (JSON.parse(version.document) as ScheduleDocument) : null
+  const byKey = new Map<string, string[]>()
+  for (const quiz of document?.quizzes ?? []) {
+    const key = resultName(quiz)
+    byKey.set(key, [...(byKey.get(key) ?? []), quiz.id])
+  }
+  const quizzersOf = new Map<number, string[]>()
+  for (const { teamId, name } of quizzers) {
+    quizzersOf.set(teamId, [...(quizzersOf.get(teamId) ?? []), name])
+  }
+
   return {
     decisions,
     schedule: document && {
       document,
       quizzes: new Map(document.quizzes.map((quiz) => [quiz.id, quiz])),
+      byKey,
     },
+    holders,
     teams:
       teams.length === 0
         ? null
@@ -154,8 +176,8 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
             id: team.id,
             division: team.division,
             name: `${team.churchName} ${team.number}`,
-            shortName: `${team.churchShortName} ${team.number}`,
-            quizzers: quizzers.filter((q) => q.teamId === team.id).map((q) => q.name),
+            shortName: teamDisplayName({ shortName: team.churchShortName, number: team.number }),
+            quizzers: quizzersOf.get(team.id) ?? [],
           })),
   }
 }
@@ -169,26 +191,38 @@ export function scheduledQuiz(facts: MeetFacts, scheduleQuizId: string): Schedul
   )
 }
 
-/** The stored quiz linked to a scheduled quiz, if any */
-export function linkedTo(facts: MeetFacts, scheduleQuizId: string): number | undefined {
-  for (const [resultId, quiz] of facts.decisions) {
-    if (quiz.link?.scheduleQuizId === scheduleQuizId) return resultId
-  }
-  return undefined
+/**
+ * Link a stored quiz to a scheduled quiz, recording how. A scheduled quiz holds one stored quiz,
+ * so where another holds it nothing is recorded and that quiz's id is the answer.
+ */
+export async function linkTo(
+  db: Db,
+  facts: MeetFacts,
+  resultId: number,
+  scheduleQuizId: string,
+  how: LinkHow,
+  changer: Changer,
+): Promise<{ link: QuizLink } | { heldBy: number }> {
+  const holder = facts.holders.get(scheduleQuizId)
+  if (holder !== undefined && holder !== resultId) return { heldBy: holder }
+  await recordChanges(db, [{ resultId, kind: 'link', scheduleQuizId, how, ...changer }])
+  facts.holders.set(scheduleQuizId, resultId)
+  return { link: { scheduleQuizId, how } }
 }
 
 /**
  * The scheduled quiz a quiz that is not linked matches (`match`), and one it misses only by a
- * slightly different team name (`near`), each among the scheduled quizzes no stored quiz holds
+ * slightly different team name (`near`), each among the scheduled quizzes of its name that no
+ * stored quiz holds
  */
 export function scheduleMatch(
   facts: MeetFacts,
   quiz: NamedQuiz,
 ): { match?: string; near?: { scheduleQuizId: string; label: string } } {
-  if (!facts.schedule) return {}
+  if (!facts.schedule || !isNamed(quiz.quiz)) return {}
   const found: ReturnType<typeof scheduleMatch> = {}
-  for (const id of facts.schedule.quizzes.keys()) {
-    if (linkedTo(facts, id) !== undefined) continue
+  for (const id of facts.schedule.byKey.get(resultKey(quiz.quiz)) ?? []) {
+    if (facts.holders.has(id)) continue
     const scheduled = scheduledQuiz(facts, id)!
     const result = matchScheduledQuiz(quiz, scheduled)
     if (result === 'match') return { match: id }
@@ -197,15 +231,9 @@ export function scheduleMatch(
   return found
 }
 
-/** The meet's teams of a quiz's division, by the division its result key names */
-function rosterOf(facts: MeetFacts, quizKey: string): RosterTeam[] | null {
-  if (facts.teams === null) return null
-  const division = resultKeyDivision(quizKey)
-  // A meet names a division "2" where its schedule and its quizzes say "Div 2"
-  return facts.teams.filter(
-    (team) =>
-      foldName(team.division) === division || foldName(divisionName(team.division)) === division,
-  )
+/** The meet's teams of a division, null for a meet with no roster */
+export function rosterOf(facts: MeetFacts, division: string): RosterTeam[] | null {
+  return facts.teams?.filter((team) => sameDivision(team.division, division)) ?? null
 }
 
 /** A stored quiz's stage, link and acceptance, and what its problems are worked out against */
@@ -240,18 +268,21 @@ export function quizFacts(
     stage,
     stageFrom: from,
     link,
-    linked: link && scheduleQuiz ? scheduledQuiz(facts, link.scheduleQuizId) : null,
+    linked: link ? scheduledQuiz(facts, link.scheduleQuizId) : null,
     line: scheduleQuiz?.line,
     accepted: decided?.accepted.get(quiz.contentRevision) ?? false,
-    roster: rosterOf(facts, quiz.quizKey),
+    roster: rosterOf(facts, resultKeyDivision(quiz.quizKey)),
   }
 }
 
-/** Whether the schedule has an intermediate or an elimination quiz for a division, by folded name */
-export function hasLaterStages(facts: MeetFacts, foldedDivision: string): boolean {
-  if (!facts.schedule) return false
-  for (const quiz of facts.schedule.quizzes.values()) {
-    if (quiz.phase === 'elim' && foldName(quiz.division) === foldedDivision && !quiz.deciding) {
+/** Whether the schedule has an intermediate or an elimination quiz for a division */
+export function hasLaterStages(facts: MeetFacts, division: string): boolean {
+  for (const quiz of facts.schedule?.quizzes.values() ?? []) {
+    const stage = scheduledStage(quiz)
+    if (
+      sameDivision(quiz.division, division) &&
+      (stage === 'intermediate' || stage === 'elimination')
+    ) {
       return true
     }
   }

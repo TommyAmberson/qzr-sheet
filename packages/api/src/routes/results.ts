@@ -9,6 +9,7 @@ import {
   parseQuizFile,
   quizName,
   quizProblems,
+  resultKeyName,
   STAGE_CHOICES,
   tidyName,
   type DivisionTeamNames,
@@ -29,11 +30,11 @@ import {
 import * as schema from '../db/schema'
 import { jsonBody, meetIdOf } from '../lib/request'
 import {
-  linkedTo,
   meetFacts,
   quizFacts,
   recordChanges,
   scheduleMatch,
+  linkTo,
   scheduledQuiz,
   type Changer,
   type MeetFacts,
@@ -157,10 +158,8 @@ async function linkByMatch(
   if (current) return current
   const { match } = scheduleMatch(facts, file)
   if (!match) return null
-  await recordChanges(db, [
-    { resultId, kind: 'link', scheduleQuizId: match, how: 'matched', ...changerOf(saver) },
-  ])
-  return { scheduleQuizId: match, how: 'matched' }
+  const linked = await linkTo(db, facts, resultId, match, 'matched', changerOf(saver))
+  return 'link' in linked ? linked.link : null
 }
 
 /** The stored quiz id in the path, or null when it isn't one */
@@ -458,12 +457,8 @@ results.post('/:id/results', async (c) => {
     if (sentFor === null) return linkByMatch(db, meetId, resultId, file, saver)
     const current = facts!.decisions.get(resultId)?.link ?? null
     if (current?.scheduleQuizId === sentFor) return current
-    const holder = linkedTo(facts!, sentFor)
-    if (holder !== undefined && holder !== resultId) return current
-    await recordChanges(db, [
-      { resultId, kind: 'link', scheduleQuizId: sentFor, how: 'sheet', ...changerOf(saver) },
-    ])
-    return { scheduleQuizId: sentFor, how: 'sheet' }
+    const linked = await linkTo(db, facts!, resultId, sentFor, 'sheet', changerOf(saver))
+    return 'link' in linked ? linked.link : current
   }
 
   // A name the meet already has is the same quiz: say so, or add a revision when asked to
@@ -772,12 +767,6 @@ results.patch('/:id/results/stage', async (c) => {
   return c.json({ changed })
 })
 
-/** A stored quiz's name from its key, for naming it where its file is not at hand */
-function nameOfKey(key: string): string {
-  const [division = '', consolation, quizNumber = ''] = key.split('|')
-  return quizName({ division, consolation: consolation === 'c', quizNumber })
-}
-
 /** Link a stored quiz to a scheduled quiz by hand, change its link, or with `null` remove it */
 results.put('/:id/results/:resultId/link', async (c) => {
   const meetId = meetIdOf(c)
@@ -794,30 +783,29 @@ results.put('/:id/results/:resultId/link', async (c) => {
   }
 
   const db = c.get('db')
-  if (scheduleQuizId !== null) {
-    const facts = await meetFacts(db, meetId)
-    if (!facts.schedule?.quizzes.has(scheduleQuizId)) {
-      return c.json({ error: 'Not a quiz of the published schedule' }, 400)
-    }
-    const holder = linkedTo(facts, scheduleQuizId)
-    if (holder !== undefined && holder !== resultId) {
-      const [other] = await db
-        .select({ quizKey: schema.quizResults.quizKey })
-        .from(schema.quizResults)
-        .where(eq(schema.quizResults.id, holder))
-      return c.json(
-        {
-          error: `${scheduledQuiz(facts, scheduleQuizId)!.name} is already linked to ${nameOfKey(other?.quizKey ?? '')}`,
-          existing: { id: holder },
-        },
-        409,
-      )
-    }
+  if (scheduleQuizId === null) {
+    await recordChanges(db, [
+      { resultId, kind: 'link', scheduleQuizId, how: 'hand', ...changerOf(access.saver) },
+    ])
+    return c.json({ link: null })
   }
-  await recordChanges(db, [
-    { resultId, kind: 'link', scheduleQuizId, how: 'hand', ...changerOf(access.saver) },
-  ])
-  return c.json({ link: scheduleQuizId === null ? null : { scheduleQuizId, how: 'hand' } })
+  const facts = await meetFacts(db, meetId)
+  if (!facts.schedule?.quizzes.has(scheduleQuizId)) {
+    return c.json({ error: 'Not a quiz of the published schedule' }, 400)
+  }
+  const linked = await linkTo(db, facts, resultId, scheduleQuizId, 'hand', changerOf(access.saver))
+  if ('link' in linked) return c.json({ link: linked.link })
+  const [other] = await db
+    .select({ quizKey: schema.quizResults.quizKey })
+    .from(schema.quizResults)
+    .where(eq(schema.quizResults.id, linked.heldBy))
+  return c.json(
+    {
+      error: `${scheduledQuiz(facts, scheduleQuizId)!.name} is already linked to ${resultKeyName(other?.quizKey ?? '')}`,
+      existing: { id: linked.heldBy },
+    },
+    409,
+  )
 })
 
 /**
@@ -903,60 +891,61 @@ results.get('/:id/results', async (c) => {
     if (rooms.length === 0) return c.json({ error: 'Admin or official access required' }, 403)
   }
 
-  const rows = await db
-    .select({
-      id: schema.quizResults.id,
-      originAction: first.action,
-      originName: first.savedByName,
-      quizKey: schema.quizResults.quizKey,
-      counted: isCounted,
-      revision: schema.quizResultRevisions.revision,
-      restoredFrom: schema.quizResultRevisions.restoredFrom,
-      sharedVersion: schema.quizResultScores.sharedVersion,
-      scored: schema.quizResultScores.scored,
-      savedAt: schema.quizResultRevisions.savedAt,
-      savedByName: schema.quizResultRevisions.savedByName,
-      action: schema.quizResultRevisions.action,
-      quizFile: revisionFile,
-    })
-    .from(schema.quizResults)
-    .innerJoin(
-      schema.quizResultRevisions,
-      and(
-        eq(schema.quizResultRevisions.resultId, schema.quizResults.id),
-        eq(schema.quizResultRevisions.revision, latestRevision),
-      ),
-    )
-    .leftJoin(source, restoredSource)
-    // The score kept for the revision whose content is current
-    .leftJoin(
-      schema.quizResultScores,
-      eq(
-        schema.quizResultScores.revisionId,
-        sql`COALESCE(${source.id}, ${schema.quizResultRevisions.id})`,
-      ),
-    )
-    .innerJoin(first, and(eq(first.resultId, schema.quizResults.id), eq(first.revision, 1)))
-    .where(
-      and(
-        eq(schema.quizResults.meetId, meetId),
-        rooms === null
-          ? undefined
-          : exists(
-              db
-                .select({ id: savedForRoom.id })
-                .from(savedForRoom)
-                .where(
-                  and(
-                    eq(savedForRoom.resultId, schema.quizResults.id),
-                    inArray(savedForRoom.savedByRoomId, rooms),
+  const [rows, facts] = await Promise.all([
+    db
+      .select({
+        id: schema.quizResults.id,
+        originAction: first.action,
+        originName: first.savedByName,
+        quizKey: schema.quizResults.quizKey,
+        counted: isCounted,
+        revision: schema.quizResultRevisions.revision,
+        restoredFrom: schema.quizResultRevisions.restoredFrom,
+        sharedVersion: schema.quizResultScores.sharedVersion,
+        scored: schema.quizResultScores.scored,
+        savedAt: schema.quizResultRevisions.savedAt,
+        savedByName: schema.quizResultRevisions.savedByName,
+        action: schema.quizResultRevisions.action,
+        quizFile: revisionFile,
+      })
+      .from(schema.quizResults)
+      .innerJoin(
+        schema.quizResultRevisions,
+        and(
+          eq(schema.quizResultRevisions.resultId, schema.quizResults.id),
+          eq(schema.quizResultRevisions.revision, latestRevision),
+        ),
+      )
+      .leftJoin(source, restoredSource)
+      // The score kept for the revision whose content is current
+      .leftJoin(
+        schema.quizResultScores,
+        eq(
+          schema.quizResultScores.revisionId,
+          sql`COALESCE(${source.id}, ${schema.quizResultRevisions.id})`,
+        ),
+      )
+      .innerJoin(first, and(eq(first.resultId, schema.quizResults.id), eq(first.revision, 1)))
+      .where(
+        and(
+          eq(schema.quizResults.meetId, meetId),
+          rooms === null
+            ? undefined
+            : exists(
+                db
+                  .select({ id: savedForRoom.id })
+                  .from(savedForRoom)
+                  .where(
+                    and(
+                      eq(savedForRoom.resultId, schema.quizResults.id),
+                      inArray(savedForRoom.savedByRoomId, rooms),
+                    ),
                   ),
-                ),
-            ),
+              ),
+        ),
       ),
-    )
-
-  const facts = await meetFacts(db, meetId)
+    meetFacts(db, meetId),
+  ])
   return c.json(
     rows.map(
       ({

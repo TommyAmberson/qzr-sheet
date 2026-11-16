@@ -17,7 +17,7 @@ const TEAM_TYPO_EDITS = 2
 const SHORT_NAME_TYPO_EDITS = 1
 
 /** A name with case, punctuation and spacing set aside, so "st. john's 1" finds "St Johns 1" */
-export function looseName(name: string): string {
+function looseName(name: string): string {
   return foldName(name.replace(/[^\w\s]/g, ''))
 }
 

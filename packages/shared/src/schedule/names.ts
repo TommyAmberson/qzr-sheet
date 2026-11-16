@@ -24,3 +24,12 @@ export function teamDisplayName(team: { shortName: string; number: number }): st
 export function divisionName(meetDivision: string): string {
   return /^div\b/i.test(meetDivision.trim()) ? meetDivision.trim() : `Div ${meetDivision}`
 }
+
+/**
+ * Whether two names are one division, however each is written: `2`, `Div 2` and `div  2` are one,
+ * ignoring case and spacing
+ */
+export function sameDivision(a: string, b: string): boolean {
+  const key = (name: string) => divisionName(name).toLowerCase().split(/\s+/).join(' ')
+  return key(a) === key(b)
+}

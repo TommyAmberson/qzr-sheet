@@ -1,8 +1,10 @@
 import { ApiError, createApiClient, MeetRole } from '@qzr/shared'
 import type {
   DivisionStateValue,
+  ChangeKind,
   DivisionStats,
   DivisionTeamNames,
+  LinkHow,
   MeetPhase,
   PublishedSchedule,
   QuizFile,
@@ -470,7 +472,7 @@ export interface StoredQuiz {
   /** Whose choice the stage is; null with no stage, unless an admin set it to not counted */
   stageFrom: StageFrom | null
   /** The scheduled quiz it is linked to, and how it came to be */
-  link: { scheduleQuizId: string; how: 'sheet' | 'matched' | 'hand' } | null
+  link: { scheduleQuizId: string; how: LinkHow } | null
   /** A scheduled quiz it misses only by a slightly different team name */
   suggestedLink?: { scheduleQuizId: string; label: string }
   /** What is wrong with it; null while its score is still being made */
@@ -535,10 +537,10 @@ export type HistoryEntry =
   | { kind: 'counting'; counted: boolean; changedBy: { name: string }; changedAt: string }
   | {
       kind: 'change'
-      what: 'stage' | 'link' | 'acceptance' | 'kept'
+      what: ChangeKind
       stage?: StageChoice | null
       scheduleQuizId?: string | null
-      how?: 'sheet' | 'matched' | 'hand'
+      how?: LinkHow
       revision?: number
       accepted?: boolean
       changedBy: { name: string }

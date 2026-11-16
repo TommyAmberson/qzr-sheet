@@ -6,6 +6,7 @@ import {
   type StatsWarning,
   type TieBreak,
 } from '@qzr/shared'
+import type { HistoryEntry } from './api'
 
 /** What a stage is called */
 export const STAGE_LABELS: Record<StageChoice, string> = {
@@ -17,14 +18,9 @@ export const STAGE_LABELS: Record<StageChoice, string> = {
 }
 
 /** A decision in a stored quiz's history, as a few words */
-export function changeText(change: {
-  what: 'stage' | 'link' | 'acceptance' | 'kept'
-  stage?: StageChoice | null
-  scheduleQuizId?: string | null
-  how?: 'sheet' | 'matched' | 'hand'
-  accepted?: boolean
-  revision?: number
-}): string {
+export function changeText(
+  change: Omit<Extract<HistoryEntry, { kind: 'change' }>, 'kind' | 'changedBy' | 'changedAt'>,
+): string {
   switch (change.what) {
     case 'stage':
       return change.stage

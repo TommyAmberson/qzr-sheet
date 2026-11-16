@@ -57,6 +57,20 @@ export function resultKeyDivision(key: string): string {
   return key.split('|')[0]!
 }
 
+/** The name a result key gives its quiz, as `quizName` gives it, from the key's folded parts */
+export function resultKeyName(key: string): string {
+  const [division = '', consolation, quizNumber = ''] = key.split('|')
+  return quizName({ division, consolation: consolation === 'c', quizNumber })
+}
+
+/** How a stored quiz came to be linked to a scheduled quiz: named by the sheet, matched, by hand */
+export const LINK_HOWS = ['sheet', 'matched', 'hand'] as const
+export type LinkHow = (typeof LINK_HOWS)[number]
+
+/** The kinds of decision recorded about a stored quiz */
+export const CHANGE_KINDS = ['stage', 'link', 'acceptance', 'kept'] as const
+export type ChangeKind = (typeof CHANGE_KINDS)[number]
+
 /** A quiz's name, as officials know it: "D1 Q3", or "D1c Q3" in consolation */
 export function quizName(
   quiz: Pick<QuizFile['quiz'], 'division' | 'consolation' | 'quizNumber'>,

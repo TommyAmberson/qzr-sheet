@@ -15,6 +15,8 @@ import {
   DIVISION_STATES,
   RESULT_ACTIONS,
   STAGE_CHOICES,
+  CHANGE_KINDS,
+  LINK_HOWS,
 } from '@qzr/shared'
 
 // ---- Better Auth core tables ----
@@ -432,13 +434,13 @@ export const quizResultChanges = sqliteTable(
     resultId: integer('result_id')
       .notNull()
       .references(() => quizResults.id, { onDelete: 'cascade' }),
-    kind: text('kind', { enum: ['stage', 'link', 'acceptance', 'kept'] }).notNull(),
+    kind: text('kind', { enum: CHANGE_KINDS }).notNull(),
     // For `stage`: the admin's choice, or null when the admin's choice is removed
     stage: text('stage', { enum: STAGE_CHOICES }),
     // For `link`: the schedule document's quiz id, or null when the link is removed
     scheduleQuizId: text('schedule_quiz_id'),
     // For `link`: sent by the scoresheet, matched on arrival or after a rename, or made by hand
-    how: text('how', { enum: ['sheet', 'matched', 'hand'] }),
+    how: text('how', { enum: LINK_HOWS }),
     // For `acceptance`: the revision accepted as scored, or no longer accepted
     revision: integer('revision'),
     accepted: integer('accepted', { mode: 'boolean' }),

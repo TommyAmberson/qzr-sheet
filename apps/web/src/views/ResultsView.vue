@@ -254,7 +254,9 @@ function link(quiz: ResultRow, scheduleQuizId: string | null) {
 /** Accept quizzes as scored, each at the revision shown, or withdraw one's acceptance */
 function accept(quizzes: ResultRow[], accepted: boolean) {
   return change(async (meetId) => {
-    for (const quiz of quizzes) await setAcceptance(meetId, quiz.id, quiz.revision, accepted)
+    await Promise.all(
+      quizzes.map((quiz) => setAcceptance(meetId, quiz.id, quiz.revision, accepted)),
+    )
   })
 }
 

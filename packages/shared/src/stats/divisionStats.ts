@@ -128,7 +128,6 @@ interface Staged extends QuizRef {
   problems: QuizProblem[]
   /** Whether it adds to the tables: one in error does only once accepted */
   counts: boolean
-  accepted: boolean
 }
 
 /**
@@ -156,7 +155,6 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
         scored: namedByRoster(quiz.scored, roster),
         problems,
         counts: problems.length === 0 || quiz.accepted,
-        accepted: quiz.accepted,
       }
     })
   const counting = staged.filter((quiz) => quiz.counts)

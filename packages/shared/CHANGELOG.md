@@ -42,6 +42,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `teamNamed`, `teamsNearName` and `looseName`, with `RosterTeam`: the comparison of a typed team
   name with a roster's, by full name, then short name, then with punctuation set aside, as the
   scoresheet makes it when a meet is linked, so the sheet and the server match alike
+* `resultKeyName`, the name a result key gives its quiz; `LINK_HOWS` and `CHANGE_KINDS`, how a
+  stored quiz came to be linked and the kinds of decision about it; and `sameDivision`, whether two
+  names are one division however each is written (`2`, `Div 2`)
 * `scheduledQuizOf`: a quiz of the schedule as stored quizzes are held against it, with the teams
   its draw letters name, or none where a seat is filled from a rank or another quiz's result
 * `divisionStats` takes each quiz's stage, link and acceptance, the division's roster, and whether

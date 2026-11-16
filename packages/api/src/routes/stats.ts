@@ -14,7 +14,7 @@ import type { SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import { isAdminOrSuperuser } from '../lib/permissions'
-import { hasLaterStages, meetFacts, quizFacts } from '../lib/quizFacts'
+import { hasLaterStages, meetFacts, quizFacts, rosterOf } from '../lib/quizFacts'
 import { meetIdOf } from '../lib/request'
 import { isCounted, latestRevision } from '../lib/resultsSql'
 import { SHARED_VERSION, keepScores } from '../lib/scores'
@@ -223,7 +223,7 @@ stats.get('/:id/stats/:division', async (c) => {
         }
       }),
       // Every quiz of the division is held against the same teams
-      roster: quizzes[0] ? quizFacts(facts, quizzes[0]).roster : null,
+      roster: rosterOf(facts, folded),
       laterStagesScheduled: hasLaterStages(facts, folded),
     }),
   )
