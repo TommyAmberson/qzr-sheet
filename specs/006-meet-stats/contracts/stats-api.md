@@ -160,7 +160,7 @@ type QuizProblem =
   | { kind: 'nameDiffers'; scheduled: string }
   | { kind: 'teamsDiffer'; scheduled: string[] }
   // The quiz's overtime doesn't fit its stage
-  | { kind: 'overtimePlayed' } // in a prelim or an intermediate, where a tie stands
+  | { kind: 'overtimePlayed' } // in a prelim or intermediate of a meet that plays them without
   | { kind: 'tieLeftStanding' } // an elimination or Finals level with no overtime
 ```
 

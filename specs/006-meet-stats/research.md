@@ -41,10 +41,11 @@ rejected. Facts about the current code come from reading it on 2026-11-14 (maste
   score under the meet's formula, tie-breaks, stages, acceptance, what a viewer has. So an edit, a
   restore or a settings change still cannot leave a stale number, which is what the spec's "derived,
   never stored" is for.
-* **What a scored row holds**: per team its name, score, errors and place by score; what is wrong
-  with the quiz (every validation error with its team, seat, question and code, and the unanswered
-  questions; R16); per listed quizzer the name, points, errors, correct answers and correct answers
-  by type; the quiz's own formula. No placement points.
+* **What a scored row holds**: the quiz's name and whether it is a consolation quiz; per team its
+  name, score, score before overtime, errors and place by score; what is wrong with the quiz (every
+  validation error with its team, seat, question and code, and the unanswered questions; R16); per
+  listed quizzer the name, points, errors, correct answers and correct answers by type; the quiz's
+  own formula. No placement points.
 * **Every route that needs scored facts reads the rows**: a division's stats, the list of what needs
   attention, and the problems shown beside each quiz in the results list. None of them scores a
   division on the spot. What needs attention is built from scored facts and names alone, with no
@@ -263,12 +264,14 @@ rejected. Facts about the current code come from reading it on 2026-11-14 (maste
     nearest roster name), a team listing more quizzers than its roster has, and roster quizzers
     missing from the quiz.
   * Schedule errors come from the match between a quiz and a scheduled quiz (R4), and from the
-    quiz's stage: overtime played in a prelim or an intermediate, or an elimination or Finals level
-    with no overtime. Scoring one revision keeps whether overtime was played and each team's place,
-    whose key shows a shared place, so the stage check needs no rescoring. Roster and schedule
-    errors are worked out when a quiz is read, never kept, so a corrected roster or a republished
-    schedule clears them with no rescoring. An acceptance covers every kind (R6), and stands for its
-    revision if the roster or schedule later changes.
+    quiz's stage: an elimination or Finals level with no overtime (the rulebook's rule), and, where
+    the meet's setting says its prelims have no overtime (not the rulebook, so a setting, on by
+    default, FR-023d), overtime played in a prelim or an intermediate. Scoring one revision keeps
+    each team's place, whose key shows a shared place, and will keep whether overtime was played
+    once the setting arrives, so the stage check needs no rescoring. Roster and schedule errors are
+    worked out when a quiz is read, never kept, so a corrected roster or a republished schedule
+    clears them with no rescoring. An acceptance covers every kind (R6), and stands for its revision
+    if the roster or schedule later changes.
 * **Rationale**: The maintainer's ruling of 2026-11-14 with the scoresheet session: an error is
   wrong whatever the meet, and a roster or schedule problem is known only against a meet. The
   scoresheet shows the last two as warnings while linked; in the portal, which always has the meet,

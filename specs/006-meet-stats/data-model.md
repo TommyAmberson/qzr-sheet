@@ -53,13 +53,13 @@ What scoring makes of one stored revision, kept so that a stats request ranks wi
 One row per revision that carries a quiz file; a restoring revision uses the row of the revision it
 restores.
 
-| Field          | Meaning                                                                                 |
-| -------------- | --------------------------------------------------------------------------------------- |
-| revision       | the revision; deleted with it                                                           |
-| shared version | the `@qzr/shared` version that scored it                                                |
-| scored         | JSON: per team its name, score, errors and place by score; what is wrong with the quiz; |
-|                | per listed quizzer the name, points, errors, correct answers and types; the quiz's own  |
-|                | formula                                                                                 |
+| Field          | Meaning                                                                                |
+| -------------- | -------------------------------------------------------------------------------------- |
+| revision       | the revision; deleted with it                                                          |
+| shared version | the `@qzr/shared` version that scored it                                               |
+| scored         | JSON: the quiz's name, whether it is a consolation quiz, and its own formula; per team |
+|                | its name, score, score before overtime, errors and place by score; what is wrong with  |
+|                | the quiz; per listed quizzer the name, points, errors, correct answers and types       |
 
 Rules:
 
@@ -123,6 +123,7 @@ The document (a shared schema, so the API validates it and the portal's form is 
 | --------------------- | ------------------------------------------------------------------- | --------------- |
 | tie-break order       | head-to-head, points, errors; or points, errors                     | the first       |
 | level teams           | the points of the shared place; or the reduced points               | the first       |
+| prelims, no overtime  | yes or no                                                           | yes             |
 | results, per stage    | shown from a moment or never; and places only, or places and scores | see below       |
 | prelim standings live | yes or no                                                           | no              |
 | quizzer standings     | shown from a moment or never; updated live or by stage              | meet done, live |

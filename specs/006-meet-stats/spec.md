@@ -97,12 +97,14 @@ Decisions from the working session:
   from linking itself, and is an error on a linked one. All three are errors in the portal: the quiz
   adds nothing until fixed or accepted. The scoresheet shows the first as errors and the other two
   as warnings, and both compare names by the same rules (FR-014, FR-014a).
-* Q: Does a quiz's overtime have to fit its stage? → A: Yes. Prelims and intermediates, which are
-  prelims of a special kind, have no overtime: a tie stands and the level teams share the place.
-  Eliminations and Finals must have a winner. So overtime played in a prelim or an intermediate is
-  an error, and so is an elimination or Finals that ends level with no overtime. Both change
-  placement points or leave the next quiz with nobody to seat. A prelim with overtime switched on
-  but never played is not an error: its result is the same (FR-014).
+* Q: Does a quiz's overtime have to fit its stage? → A: Yes. Eliminations and Finals must have a
+  winner, as the rulebook has it, so one that ends level with no overtime is in error. Prelims and
+  intermediates, which are prelims of a special kind, are played at these meets with no overtime: a
+  tie stands and the level teams share the place. That is not the rulebook, which sends every tied
+  quiz to overtime, so it is a setting of the meet, on unless an admin turns it off. With it on,
+  overtime played in a prelim or an intermediate is an error, since it changes placement points; a
+  prelim with overtime switched on but never played is not, its result being the same (FR-014,
+  FR-023d).
 * Q: Are all of a quiz's scoring errors shown? → A: Yes, each with its team, seat, question and
   message, to admins and the quiz's room officials (FR-014).
 * Q: What counts as a roster error besides a name not on the roster? → A: A team listing more
@@ -610,10 +612,11 @@ download the division's tables and open them in a spreadsheet.
   * a **schedule error**, known by holding it against the scheduled quiz it is linked to: its name
     or its teams differ from the scheduled quiz's (FR-009a). On an unlinked quiz the same
     differences are not an error; they are why it did not link itself (FR-009). A quiz whose
-    overtime doesn't fit its stage, however it came by the stage, is in error the same way: overtime
-    played in a prelim or an intermediate, where a tie stands; or an elimination or Finals that ends
-    level with no overtime, where there must be a winner. An elimination or Finals still level in an
-    overtime not played out is undecided, a scoring error.
+    overtime doesn't fit its stage, however it came by the stage, is in error the same way: an
+    elimination or Finals that ends level with no overtime, where there must be a winner; or, in a
+    meet whose prelims are played without overtime (FR-023d), overtime played in a prelim or an
+    intermediate, where a tie stands. An elimination or Finals still level in an overtime not played
+    out is undecided, a scoring error.
 * **FR-014a**: The scoresheet and the portal MUST compare names with the same rules, kept in one
   place: what counts as a team of the roster, and as a quizzer of it. The portal finds all three
   kinds from the quiz and the meet's roster and schedule alone. The scoresheet shows scoring errors
@@ -725,10 +728,11 @@ download the division's tables and open them in a spreadsheet.
 **Settings**
 
 * **FR-022**: Each meet MUST have stats settings an admin can change while the meet is not done: the
-  team tie-break order, how teams level in a quiz are given placement points, and what viewers see
-  and when (FR-018). A change MUST take effect when it is saved (FR-023c) and MUST be recorded with
-  who made it and when. A change MUST NOT alter a confirmed prelim order or re-rank; where the
-  current order then differs from a confirmed one, that is shown as FR-019b and FR-019c say.
+  team tie-break order, how teams level in a quiz are given placement points, whether prelims are
+  played without overtime, and what viewers see and when (FR-018). A change MUST take effect when it
+  is saved (FR-023c) and MUST be recorded with who made it and when. A change MUST NOT alter a
+  confirmed prelim order or re-rank; where the current order then differs from a confirmed one, that
+  is shown as FR-019b and FR-019c say.
 * **FR-023**: The tie-break order MUST be one of: head-to-head, then total points, then fewest
   errors (the rulebook's, and the default); or total points, then fewest errors. Standings and
   re-ranks MUST follow it, and each broken tie MUST name the criterion that decided it.
@@ -744,6 +748,10 @@ download the division's tables and open them in a spreadsheet.
   themselves to the meet's way in one action, each getting a history entry and keeping any
   acceptance it had. A scoresheet working with the meet, linked to it or opening a quiz from it,
   MUST score level teams the meet's way.
+* **FR-023d**: The meet's settings MUST say whether its prelims and intermediates are played without
+  overtime, a tie standing and the level teams sharing the place. It is on unless an admin turns it
+  off, since these meets are run that way; off is the rulebook, under which every tied quiz goes to
+  overtime and overtime in a prelim is no error. Changing it changes no stored quiz.
 * **FR-023c**: The stats settings MUST be one place holding two things. First, each division's
   progress as a row of its steps (prelims, intermediates or stats break, eliminations, Finals,
   finished), with the step it is in marked, whether it is ready for the next, and the control to
@@ -810,8 +818,9 @@ download the division's tables and open them in a spreadsheet.
 * **Confirmed re-rank**: per division with intermediates, the re-ranked order at the moment the
   admin confirmed it, with who and when.
 * **Stats settings**: per meet: the tie-break order; how level teams in a quiz are given placement
-  points; for each stage's quiz results, from when and how much; whether prelim standings show live;
-  for quizzer standings, from when and whether live or by stage; and who last changed each and when.
+  points; whether prelims are played without overtime; for each stage's quiz results, from when and
+  how much; whether prelim standings show live; for quizzer standings, from when and whether live or
+  by stage; and who last changed each and when.
 * **Dismissed look-alike**: two names in a division, or on a team, that an admin has said are
   different.
 
