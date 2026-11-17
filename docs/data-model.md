@@ -38,7 +38,8 @@ QuizMeet
   dateTo         -- ISO 8601 date, null = single-day
   adminCodeHash  -- server-generated, hashed
   viewerCode     -- plain slug, admin-set, semi-public; unique ignoring case
-  divisions      -- JSON string[] e.g. ["1","2","3"]
+  divisions      -- JSON string[] e.g. ["1","2C","Junior"]: bare, the prefix (Div, D) is only
+                    shown; one saved as "Div 1" shows as such until renamed
   createdAt
 
 # ---- Memberships ----
