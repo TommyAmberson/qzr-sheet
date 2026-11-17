@@ -17,6 +17,8 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-16
+
 ### Added
 
 * Table `quiz_result_changes` (migration `0014`): one row for each decision about a stored quiz, its
@@ -46,6 +48,10 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 * `PATCH /results/counted` and `counted` on `GET /results`: a stage replaces counting. The old
   counting records are kept and still shown in a quiz's history; a quiz with no stage of its own and
   no link is a prelim where its newest record says it counts
+
+### Bundled contract
+
+* `@qzr/shared@1.12.0` - bumped from 1.11.0
 
 ## [0.26.0] - 2026-11-14
 
