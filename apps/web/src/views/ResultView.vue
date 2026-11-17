@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ApiError, deserialize, quizName, quizOutcome, type QuizFile } from '@qzr/shared'
-import { formatWhen } from '@qzr/ui'
+import {
+  ApiError,
+  deserialize,
+  quizName,
+  quizOutcome,
+  type QuizFile,
+  bareDivision,
+  findDivision,
+} from '@qzr/shared'
+import { formatWhen, DivisionInput } from '@qzr/ui'
 
 import {
   editResult,
@@ -108,6 +116,14 @@ async function load() {
   }
 }
 
+/**
+ * The division a typed name is, spelled as the meet spells it, so a quiz renamed to `2c` in a meet
+ * whose division is `2C` keeps the name its other quizzes are stored under
+ */
+function meetDivisionOf(typed: string): string {
+  return findDivision(meet.value?.divisions ?? [], typed) ?? typed
+}
+
 /** Save the quick form's names as a new revision */
 async function saveForm() {
   if (!meet.value || !currentFile.value) return
@@ -115,7 +131,11 @@ async function saveForm() {
   saveError.value = ''
   try {
     const edited = editQuizFile(currentFile.value, {
-      division: form.value.division,
+      // A division left as it was keeps its spelling, so editing a name never moves the quiz
+      division:
+        form.value.division === currentFile.value.quiz.division
+          ? form.value.division
+          : meetDivisionOf(bareDivision(form.value.division)),
       quizNumber: form.value.quizNumber,
       teamNames: new Map(form.value.teams.map((team) => [team.id, team.name])),
       quizzerNames: new Map(
@@ -219,7 +239,7 @@ onMounted(load)
         <form class="quick-form" @submit.prevent="saveForm">
           <label>
             Division
-            <input v-model="form.division" required />
+            <DivisionInput v-model="form.division" class="division-box" required />
           </label>
           <label>
             Quiz number
@@ -376,7 +396,8 @@ onMounted(load)
   max-width: 16rem;
 }
 
-.quick-form input {
+.quick-form input,
+.quick-form .division-box {
   font: inherit;
   padding: 0.3rem 0.5rem;
   border: 1px solid var(--color-border);

@@ -16,6 +16,16 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Changed
+
+* A division's name is typed in a box that shows its prefix ("Div"), when creating a meet, adding a
+  division, naming a builder division or renaming a stored quiz, so it is entered bare (`1`, `2C`,
+  `Junior`). A prefix typed anyway (`Div 1`, `Division 1`, `D1`) is dropped
+* A stored quiz renamed to a division the meet spells another way (`1` for `Div 1`) keeps the meet's
+  spelling, so it stays under the name its other quizzes are stored under
+* A division shown on its own is "Division 1", never "Division Div 1", and quizzes are named "D1
+  Q3", never "DDiv 1 Q3"
+
 ## [0.26.0] - 2026-11-16
 
 ### Added

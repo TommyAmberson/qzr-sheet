@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DivisionInput } from '@qzr/ui'
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -7,6 +8,9 @@ import {
   teamDisplayName,
   type DivisionTeamNames,
   type MeetPhase,
+  bareDivision,
+  divisionTitle,
+  findDivision,
 } from '@qzr/shared'
 import {
   getMeet,
@@ -247,8 +251,8 @@ function startEdit() {
 }
 
 function addDivision() {
-  const d = newDivision.value.trim()
-  if (!d || editForm.value.divisions.includes(d)) return
+  const d = bareDivision(newDivision.value)
+  if (!d || findDivision(editForm.value.divisions, d) !== undefined) return
   editForm.value.divisions.push(d)
   newDivision.value = ''
 }
@@ -677,10 +681,11 @@ onMounted(load)
                 </span>
               </div>
               <div class="division-add">
-                <input
+                <DivisionInput
                   v-model="newDivision"
                   class="field-input"
                   placeholder="Add division…"
+                  aria-label="New division"
                   @keydown.enter.prevent="addDivision"
                 />
                 <button type="button" class="btn btn--secondary btn--sm" @click="addDivision">
@@ -818,7 +823,7 @@ onMounted(load)
             Add the meet's divisions first (Edit meet), then list each one's teams.
           </p>
           <label v-for="division in teamNameDivisions" :key="division" class="field-label">
-            Division {{ division }}
+            {{ divisionTitle(division) }}
             <span class="field-hint">One team per line</span>
             <textarea v-model="teamNameText[division]" class="field-input" rows="5" />
           </label>

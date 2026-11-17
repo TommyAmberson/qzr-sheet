@@ -14,6 +14,7 @@ import {
   type ScheduleQuiz,
   type StageChoice,
   mayChangeQuizzes,
+  divisionTitle,
 } from '@qzr/shared'
 import {
   ChoiceDialog,
@@ -372,7 +373,7 @@ onMounted(load)
             <router-link
               :to="{ name: 'meet-division-stats', params: { slug, division: division.division } }"
             >
-              Division {{ division.division }} stats
+              {{ divisionTitle(division.division) }} stats
             </router-link>
           </h4>
           <ul v-if="division.warnings?.length" class="warnings">
@@ -426,7 +427,7 @@ onMounted(load)
       </template>
 
       <section v-for="group in divisions" :key="group.division" class="division">
-        <h3 class="division-title">Division {{ group.division }}</h3>
+        <h3 class="division-title">{{ divisionTitle(group.division) }}</h3>
         <table class="results-table quiz-table">
           <thead>
             <tr>

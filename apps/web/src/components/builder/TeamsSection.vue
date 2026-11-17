@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { divisionColourVar } from '@qzr/ui'
+import { divisionColourVar, DivisionInput } from '@qzr/ui'
 import NumberInput from './NumberInput.vue'
 import { ref } from 'vue'
 import {
@@ -9,6 +9,8 @@ import {
   setTeamCount,
   type DivisionColour,
   type ScheduleDocument,
+  bareDivision,
+  divisionName,
 } from '@qzr/shared'
 
 import { pinWhere } from '../../builder/edits'
@@ -34,9 +36,16 @@ function setCount(event: Event) {
   })
 }
 
-function setName(id: string, event: Event) {
-  const name = (event.target as HTMLInputElement).value.trim()
-  if (!name) return
+/** Bumped to redraw the name boxes, so one emptied shows its division's name again */
+const nameBoxes = ref(0)
+
+function setName(id: string, typed: string) {
+  if (!typed) {
+    nameBoxes.value++
+    return
+  }
+  // A schedule names its divisions with their prefix, as its quizzes' labels do
+  const name = divisionName(typed)
   emit('change', (d) => {
     const division = d.settings.divisions.find((x) => x.id === id)
     if (division) division.name = name
@@ -106,9 +115,10 @@ function setTeamName(id: string, index: number, event: Event) {
           title="Colour"
           @click="picking = picking === d.id ? null : d.id"
         />
-        <input
+        <DivisionInput
+          :key="nameBoxes"
           class="name"
-          :value="d.name"
+          :model-value="bareDivision(d.name)"
           aria-label="Division name"
           @change="setName(d.id, $event)"
         />
@@ -192,6 +202,7 @@ function setTeamName(id: string, index: number, event: Event) {
   gap: 0.4rem;
 }
 
+/* The division box has the builder's input look, with no edge until hovered */
 .teams .name {
   flex: 1;
   width: 0;
@@ -204,6 +215,10 @@ function setTeamName(id: string, index: number, event: Event) {
 
 .teams .name:hover {
   border-color: var(--color-meta-accent);
+}
+
+.teams .name:focus-within {
+  border-color: var(--color-accent);
 }
 
 .unit {

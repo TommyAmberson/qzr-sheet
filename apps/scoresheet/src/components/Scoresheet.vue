@@ -71,6 +71,7 @@ import {
   type OnExisting,
   type RoomCodeOptions,
   type Sender,
+  DivisionInput,
 } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 import {
@@ -1927,7 +1928,14 @@ const appVersion: string = __APP_VERSION__
                       {{ opt }}
                     </option>
                   </select>
-                  <input v-else v-model="quiz.division" type="text" />
+                  <DivisionInput
+                    v-else
+                    v-model="quiz.division"
+                    class="division-text"
+                    prefix="D"
+                    type="text"
+                    aria-label="Division"
+                  />
                 </label>
                 <span
                   class="consolation-toggle"
@@ -2947,7 +2955,8 @@ const appVersion: string = __APP_VERSION__
   letter-spacing: 0.03em;
 }
 
-.meta-field input[type='text'] {
+.meta-field input[type='text'],
+.meta-field .division-text {
   width: 3rem;
   padding: 0.2rem 0.3rem;
   border: 1px solid var(--color-meta-accent);
@@ -2958,7 +2967,13 @@ const appVersion: string = __APP_VERSION__
   background: var(--color-bg);
   color: var(--color-text);
 }
-.meta-field input[type='text']:focus {
+/* Wide enough for `D` and a name such as `Junior` */
+.meta-field .division-text {
+  width: 4.5rem;
+  text-align: left;
+}
+.meta-field input[type='text']:focus,
+.meta-field .division-text:focus-within {
   outline: 1px solid var(--color-accent);
   outline-offset: 0;
   border-color: var(--color-accent);

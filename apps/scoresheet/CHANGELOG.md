@@ -15,6 +15,12 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Changed
+
+* The division box of a sheet not linked to a meet shows its prefix ("D"), and drops a prefix typed
+  into it, so `Div 1` is saved as `1`
+* A division not one of the meet's is named "Division 1" in its warning, never "Division Div 1"
+
 ## [0.23.0] - 2026-11-16
 
 ### Added
