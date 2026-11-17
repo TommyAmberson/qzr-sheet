@@ -16,17 +16,29 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-17
+
 ### Changed
 
+* Selects, their lists and date pickers follow the dark theme, and the results page's stage and link
+  selects are outlined like the buttons beside them
 * A division's name is typed in a box that shows its prefix ("Div"), when creating a meet, adding a
   division, naming a builder division or renaming a stored quiz, so it is entered bare (`1`, `2C`,
   `Junior`). A prefix typed anyway (`Div 1`, `Division 1`, `D1`) is dropped
-* A stored quiz renamed to a division the meet spells another way (`1` for `Div 1`) keeps the meet's
+* The builder stores a division's name bare and shows it as "Div 1" in its headings, menus and quiz
+  labels; a linked schedule names the divisions it takes from the meet bare
+* A stored quiz renamed to a division the meet spells another way (`2c` for `2C`) keeps the meet's
   spelling, so it stays under the name its other quizzes are stored under
-* A division shown on its own is "Division 1", never "Division Div 1", and quizzes are named "D1
-  Q3", never "DDiv 1 Q3"
+* A division shown on its own is titled "Division 1": the stats page, its links and the meet page's
+  headings
+* A division saved with its prefix by mistake shows as saved ("Div Div 1", "Division Div 1", "DDiv 1
+  Q3") and is not taken as the meet's division `1`, so it can be found and fixed
 * The results page heads each group with its division as saved ("Division: Div 1"), so a quiz whose
   division is spelled another way stands out in a group of its own
+
+### Bundled contract
+
+* `@qzr/shared@1.13.0` - bumped from 1.12.0
 
 ## [0.26.0] - 2026-11-16
 
