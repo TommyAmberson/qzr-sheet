@@ -157,8 +157,9 @@ QuizResultChange       -- append-only: one row per decision about a stored quiz;
   scheduleQuizId       -- for `link`: the quiz's id in the published schedule document, or null
                           when the link is removed. At most one stored quiz is linked to a
                           scheduled quiz
-  how                  -- for `link`: sheet (the scoresheet named it on submitting) | matched (its
-                          name and teams matched on arrival or after a change) | hand
+  how                  -- for `link`: sheet (the scoresheet named it on submitting) | hand. A
+                          quiz with no such row is linked, when read, to the scheduled quiz of
+                          its name; that link is not recorded. An unlink by hand stays unlinked
   revision, accepted   -- for `acceptance`: the revision whose content an admin accepted as
                           scored, or no longer accepts. A quiz in error counts only while its
                           current content is that of an accepted revision

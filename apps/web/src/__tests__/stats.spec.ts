@@ -70,6 +70,7 @@ describe('problemText', () => {
     expect(problemText({ kind: 'nameDiffers', scheduled: 'D1 Q3' })).toBe(
       'It is linked to D1 Q3, which is not its name.',
     )
+    expect(problemText({ kind: 'notLinked' })).toBe('It is not linked to a quiz of the schedule.')
     expect(problemText({ kind: 'tieLeftStanding' })).toBe(
       'It ended level with no overtime, and this quiz must have a winner.',
     )

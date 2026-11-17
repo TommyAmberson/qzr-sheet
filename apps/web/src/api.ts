@@ -473,8 +473,6 @@ export interface StoredQuiz {
   stageFrom: StageFrom | null
   /** The scheduled quiz it is linked to, and how it came to be */
   link: { scheduleQuizId: string; how: LinkHow } | null
-  /** A scheduled quiz it misses only by a slightly different team name */
-  suggestedLink?: { scheduleQuizId: string; label: string }
   /** What is wrong with it; null while its score is still being made */
   problems: QuizProblem[] | null
   /** Whether an admin accepted its current content as scored */

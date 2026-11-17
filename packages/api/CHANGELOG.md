@@ -22,20 +22,20 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 * Table `quiz_result_changes` (migration `0014`): one row for each decision about a stored quiz, its
   stage, its link to a scheduled quiz, an acceptance, never changed afterwards
 * `POST /results` takes `scheduleQuizId`, the scheduled quiz the sheet is linked to, and answers
-  with the quiz's `link`. A quiz that names none is linked when its name and teams match a scheduled
-  quiz, on arrival and after a revision changes either. 400 for a scheduled quiz the published
-  schedule does not have; a scheduled quiz another stored quiz holds leaves the submission stored
-  and unlinked
+  with the quiz's `link`. Any quiz without such a link is linked, when read, to the scheduled quiz
+  of its name, so quizzes stored before the schedule was published link too. 400 for a scheduled
+  quiz the published schedule does not have; a scheduled quiz another quiz's explicit link holds
+  leaves the submission stored, linked by its name if it can be
 * `PUT /results/:id/link` (admin, or an official of the quiz's room): link, relink or unlink by
   hand; 409 naming the stored quiz that already holds the scheduled quiz
 * `PATCH /results/stage` (admin): set what several quizzes count for, or with `null` return them to
   their link's stage
 * `PUT /results/:id/acceptance` (admin): accept a quiz in error as scored at its current revision,
   or withdraw that
-* `GET /results` gives each quiz's `stage`, `stageFrom`, `link`, `suggestedLink`, `accepted` and
-  `problems`: its scoring errors with team, quizzer, question and code, its roster errors against
-  the teams of its division, and its schedule errors. `problems` is null while the quiz's score is
-  still to be made
+* `GET /results` gives each quiz's `stage`, `stageFrom`, `link`, `accepted` and `problems`: its
+  scoring errors with team, quizzer, question and code, its roster errors against the teams of its
+  division, and its schedule errors, a quiz linked to no scheduled quiz included where the meet has
+  a published schedule. `problems` is null while the quiz's score is still to be made
 * `GET /results/:id/revisions` lists the decisions among the saves
 * `GET /stats/:division` uses each quiz's stage, link and acceptance and the division's roster, so
   it now carries the re-rank, a Finals' first three, and quizzes accepted as scored

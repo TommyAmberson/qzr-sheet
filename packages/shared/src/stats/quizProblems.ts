@@ -17,6 +17,8 @@ export type RosterProblem =
 
 /** A quiz that doesn't agree with the scheduled quiz it is linked to, or with its stage */
 export type ScheduleProblem =
+  /** In a meet with a published schedule, a quiz linked to none of its quizzes */
+  | { kind: 'notLinked' }
   | { kind: 'nameDiffers'; scheduled: string }
   | { kind: 'teamsDiffer'; scheduled: string[] }
   /** An elimination or Finals that ended level with no overtime, where there must be a winner */
@@ -64,12 +66,6 @@ export function scheduledQuizOf(
   return { key: resultKey(meta), name: quizName(meta), teams: known ? teams : null }
 }
 
-/** A quiz's name and teams, as they are held against a scheduled quiz */
-export interface NamedQuiz {
-  quiz: { division: string; consolation?: boolean; quizNumber: string }
-  teams: SeatedTeam[]
-}
-
 /** A team of a quiz, with the quizzers it names */
 interface SeatedTeam {
   name: string
@@ -90,7 +86,7 @@ function playing<Team extends SeatedTeam>(teams: Team[]): Team[] {
  * Whether a quiz says which quiz it is. A division or quiz number left blank is none, and so is
  * `_`, which the scoresheet shows for a blank and writes into file names.
  */
-export function isNamed(quiz: NamedQuiz['quiz']): boolean {
+export function isNamed(quiz: { division: string; quizNumber: string }): boolean {
   return [quiz.division, quiz.quizNumber].every((part) => !['', '_'].includes(part.trim()))
 }
 
@@ -108,26 +104,6 @@ function sameTeams(teams: SeatedTeam[], scheduled: Pick<RosterTeam, 'name' | 'sh
 }
 
 /**
- * Whether a quiz is a scheduled quiz, by its name and, where the schedule names them, its teams,
- * compared ignoring case, spacing and punctuation. `near` is a quiz of that name that misses only
- * by a slightly different team name: not a match, but worth offering.
- */
-export function matchScheduledQuiz(
-  quiz: NamedQuiz,
-  scheduled: ScheduledQuiz,
-): 'match' | 'near' | 'no' {
-  if (!isNamed(quiz.quiz) || resultKey(quiz.quiz) !== scheduled.key) return 'no'
-  if (scheduled.teams === null || sameTeams(quiz.teams, scheduled.teams)) return 'match'
-  const left = [...scheduled.teams]
-  for (const team of playing(quiz.teams)) {
-    const match = teamNamed(team.name, left) ?? teamsNearName(team.name, left)[0]
-    if (!match) return 'no'
-    left.splice(left.indexOf(match), 1)
-  }
-  return left.length === 0 ? 'near' : 'no'
-}
-
-/**
  * How a quiz disagrees with the scheduled quiz it is linked to and with its stage. On an unlinked
  * quiz the differences are no error: they are why it did not link itself.
  */
@@ -137,8 +113,11 @@ export function scheduleProblems(
   /** The quiz's own name, as a result key */
   key: string,
   linked: ScheduledQuiz | null,
+  /** Whether the meet has a published schedule, so that every quiz should be one of its quizzes */
+  schedulePublished: boolean,
 ): ScheduleProblem[] {
   const problems: ScheduleProblem[] = []
+  if (!linked && schedulePublished) problems.push({ kind: 'notLinked' })
   if (linked) {
     if (key !== linked.key) problems.push({ kind: 'nameDiffers', scheduled: linked.name })
     if (linked.teams !== null && !sameTeams(scored.teams, linked.teams)) {
@@ -224,11 +203,12 @@ export function quizProblems(
     key: string
     linked: ScheduledQuiz | null
     roster: RosterTeam[] | null
+    schedulePublished: boolean
   },
 ): QuizProblem[] {
   return [
     ...scored.problems,
     ...rosterProblems(scored, held.roster),
-    ...scheduleProblems(scored, held.stage, held.key, held.linked),
+    ...scheduleProblems(scored, held.stage, held.key, held.linked, held.schedulePublished),
   ]
 }

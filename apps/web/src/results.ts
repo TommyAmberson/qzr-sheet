@@ -22,7 +22,6 @@ export interface ResultRow {
   stage: StoredQuiz['stage']
   stageFrom: StoredQuiz['stageFrom']
   link: StoredQuiz['link']
-  suggestedLink: StoredQuiz['suggestedLink']
   problems: StoredQuiz['problems']
   accepted: boolean
   revision: number
@@ -51,7 +50,6 @@ export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
       stage: s.stage,
       stageFrom: s.stageFrom,
       link: s.link,
-      suggestedLink: s.suggestedLink,
       problems: s.problems,
       accepted: s.accepted,
       revision: s.revision,

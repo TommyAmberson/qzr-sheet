@@ -225,6 +225,7 @@ stats.get('/:id/stats/:division', async (c) => {
       // Every quiz of the division is held against the same teams
       roster: rosterOf(facts, folded),
       laterStagesScheduled: hasLaterStages(facts, folded),
+      schedulePublished: facts.schedule !== null,
     }),
   )
 })

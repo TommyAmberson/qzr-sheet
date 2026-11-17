@@ -134,7 +134,7 @@ interface QuizRef {
 }
 
 type AttentionItem =
-  | { kind: 'noStage'; quiz: QuizRef; suggestedLink?: { scheduleQuizId: string; label: string } }
+  | { kind: 'noStage'; quiz: QuizRef }
   | { kind: 'inError'; quiz: QuizRef; problems: QuizProblem[] }
   | { kind: 'unequalPrelims'; division: string; teams: { name: string; quizzes: number }[] }
   | { kind: 'finalTie'; division: string; teams: string[] }
@@ -157,6 +157,7 @@ type QuizProblem =
   | { kind: 'quizzerMissing'; team: string; quizzer: string }
   | { kind: 'tooManyQuizzers'; team: string; listed: number; roster: number }
   // Schedule errors: the quiz held against the scheduled quiz it is linked to
+  | { kind: 'notLinked' } // in a meet with a published schedule, linked to none of its quizzes
   | { kind: 'nameDiffers'; scheduled: string }
   | { kind: 'teamsDiffer'; scheduled: string[] }
   // The quiz's overtime doesn't fit its stage
@@ -204,10 +205,10 @@ linked when it matches a scheduled quiz on its name and team names (R4). Respons
 ### `GET /results` (admin, or official), changed
 
 Each stored quiz gains: `stage` and `stageFrom` (`'admin' | 'schedule' | 'counted' | null`), `link`,
-`suggestedLink`, `incompleteTypes`, `problems` (null for a quiz whose current revision is still to
-be scored, R2: the list never waits, since quizzes are edited from it), `accepted` (whether its
-current content is accepted), `withdrawnOrder`, and `otherFormula` (its own way of scoring level
-teams differs from the meet's). `counted` is gone.
+`incompleteTypes`, `problems` (null for a quiz whose current revision is still to be scored, R2: the
+list never waits, since quizzes are edited from it), `accepted` (whether its current content is
+accepted), `withdrawnOrder`, and `otherFormula` (its own way of scoring level teams differs from the
+meet's). `counted` is gone.
 
 ### `PATCH /results/stage` (admin), replaces `PATCH /results/counted`
 

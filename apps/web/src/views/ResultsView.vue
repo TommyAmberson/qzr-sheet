@@ -504,14 +504,6 @@ onMounted(load)
                   </template>
                   <template v-else>
                     <span class="note">not linked</span>
-                    <button
-                      v-if="quiz.suggestedLink"
-                      class="btn btn--secondary btn--sm"
-                      :disabled="saving"
-                      @click="link(quiz, quiz.suggestedLink.scheduleQuizId)"
-                    >
-                      Link to {{ quiz.suggestedLink.label }}?
-                    </button>
                     <select
                       v-if="scheduled.length > 0"
                       class="stage-select"

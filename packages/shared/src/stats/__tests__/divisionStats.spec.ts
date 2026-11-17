@@ -19,7 +19,9 @@ function quizOf(name: string, stage: Stage | null, scored: ScoredQuiz): StatsQui
 }
 function stats(
   quizzes: StatsQuiz[],
-  more: Partial<Pick<DivisionStatsInput, 'roster' | 'laterStagesScheduled'>> = {},
+  more: Partial<
+    Pick<DivisionStatsInput, 'roster' | 'laterStagesScheduled' | 'schedulePublished'>
+  > = {},
 ) {
   return divisionStats({
     division: '1',
@@ -28,6 +30,7 @@ function stats(
     quizzes,
     roster: null,
     laterStagesScheduled: false,
+    schedulePublished: false,
     ...more,
   })
 }

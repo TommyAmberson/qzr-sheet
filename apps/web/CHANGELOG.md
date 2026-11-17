@@ -20,8 +20,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 * On the results page each quiz has a stage in place of the Counted box: an admin sets it for one
   quiz or for every quiz shown, or leaves it to the schedule. Each quiz shows the scheduled quiz it
-  is linked to; an admin or the room's official links, relinks or unlinks it, and a link the meet
-  suggests can be taken in one click
+  is linked to, by its name unless someone linked it otherwise; an admin or the room's official
+  links, relinks or unlinks it
 * Every problem of a quiz is listed on it, on the results page and on the quiz's own page: scoring
   errors with team, quizzer and question, names that are not on the roster with the name the roster
   has, and differences from its scheduled quiz. An admin accepts a quiz as scored, or withdraws

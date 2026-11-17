@@ -81,6 +81,8 @@ export function problemText(problem: QuizProblem): string {
       return `${problem.team}: ${problem.quizzer} is on the roster and not in this quiz.`
     case 'tooManyQuizzers':
       return `${problem.team} lists ${problem.listed} quizzers; its roster has ${problem.roster}.`
+    case 'notLinked':
+      return 'It is not linked to a quiz of the schedule.'
     case 'nameDiffers':
       return `It is linked to ${problem.scheduled}, which is not its name.`
     case 'teamsDiffer':

@@ -1,12 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { PlacementFormula } from '../../quizFile'
-import {
-  isNamed,
-  matchScheduledQuiz,
-  rosterProblems,
-  scheduleProblems,
-  type ScheduledQuiz,
-} from '../quizProblems'
+import { isNamed, rosterProblems, scheduleProblems, type ScheduledQuiz } from '../quizProblems'
 import type { ScoredQuiz } from '../scoredQuiz'
 import type { RosterTeam } from '../teamNames'
 
@@ -44,11 +38,6 @@ const roster: RosterTeam[] = [
   { id: 3, name: 'Grace 1', shortName: 'Grace 1', quizzers: [] },
 ]
 const scheduled: ScheduledQuiz = { key: '1||3', name: 'D1 Q3', teams: roster }
-/** A quiz of these teams, each with a quizzer named */
-const named = (...names: string[]) => ({
-  quiz,
-  teams: names.map((name) => ({ name, quizzers: [{ name: 'Someone' }] })),
-})
 
 describe('isNamed', () => {
   it('takes a blank division or quiz number, or the underscore the scoresheet shows for one, as none', () => {
@@ -58,44 +47,14 @@ describe('isNamed', () => {
   })
 })
 
-describe('matchScheduledQuiz', () => {
-  it('matches on the name and the teams, in any seats, ignoring case, spacing and punctuation', () => {
-    expect(matchScheduledQuiz(named('grace  1', 'St Johns 1', 'fc 1'), scheduled)).toBe('match')
-  })
-
-  it('matches on the name alone where the schedule names no teams yet', () => {
-    expect(matchScheduledQuiz(named('Anyone 1'), { ...scheduled, teams: null })).toBe('match')
-  })
-
-  it('calls a miss by a slightly different team name near, not a match', () => {
-    expect(matchScheduledQuiz(named('Grace 1', "St. John's 1", 'First Churchh 1'), scheduled)).toBe(
-      'near',
-    )
-  })
-
-  it('does not match another name, other teams, a blank team, or a quiz that says no name', () => {
-    expect(
-      matchScheduledQuiz({ ...named('Grace 1'), quiz: { ...quiz, quizNumber: '4' } }, scheduled),
-    ).toBe('no')
-    expect(matchScheduledQuiz(named('Grace 1', "St. John's 1", 'Hope 2'), scheduled)).toBe('no')
-    expect(matchScheduledQuiz(named('Grace 1', "St. John's 1", ''), scheduled)).toBe('no')
-    expect(
-      matchScheduledQuiz(
-        { ...named('Grace 1'), quiz: { division: '_', quizNumber: '3' } },
-        { ...scheduled, key: '_||3', teams: null },
-      ),
-    ).toBe('no')
-  })
-})
-
 describe('a two-team quiz', () => {
   // Its third team is an empty seat: no name, and no quizzer named
-  const twoTeams = { quiz, teams: [...named('Grace 1', 'FC 1').teams, { name: '', quizzers: [] }] }
 
-  it('matches a scheduled quiz that seats two teams', () => {
-    expect(matchScheduledQuiz(twoTeams, { ...scheduled, teams: [roster[2]!, roster[0]!] })).toBe(
-      'match',
-    )
+  it('is the scheduled quiz that seats two teams, with no teams differing', () => {
+    const pair = { ...scheduled, teams: [roster[2]!, roster[0]!] }
+    expect(
+      scheduleProblems(scored({ 'Grace 1': [], 'FC 1': [], '': [] }), 'prelim', '1||3', pair, true),
+    ).toEqual([])
   })
 
   it('has no roster error for its empty seat', () => {
@@ -109,13 +68,13 @@ describe('scheduleProblems', () => {
   const teams = { 'First Church 1': [], "St. John's 1": [], 'Grace 1': [] }
 
   it('finds nothing wrong with a quiz that is the scheduled quiz, nor with one that is not linked', () => {
-    expect(scheduleProblems(scored(teams), 'prelim', '1||3', scheduled)).toEqual([])
-    expect(scheduleProblems(scored({ 'Hope 2': [] }), 'prelim', '1||9', null)).toEqual([])
+    expect(scheduleProblems(scored(teams), 'prelim', '1||3', scheduled, true)).toEqual([])
+    expect(scheduleProblems(scored({ 'Hope 2': [] }), 'prelim', '1||9', null, false)).toEqual([])
   })
 
   it('says when a linked quiz has another name or other teams', () => {
     expect(
-      scheduleProblems(scored({ ...teams, 'Grace 1': [] }), 'prelim', '1||4', scheduled),
+      scheduleProblems(scored({ ...teams, 'Grace 1': [] }), 'prelim', '1||4', scheduled, true),
     ).toEqual([{ kind: 'nameDiffers', scheduled: 'D1 Q3' }])
     expect(
       scheduleProblems(
@@ -123,19 +82,30 @@ describe('scheduleProblems', () => {
         'prelim',
         '1||3',
         scheduled,
+        true,
       ),
     ).toEqual([{ kind: 'teamsDiffer', scheduled: ['First Church 1', "St. John's 1", 'Grace 1'] }])
   })
 
   it('lets a prelim or an intermediate end level, and not an elimination or a Finals', () => {
     const level = scored(teams, [1.2, 1.2, 3])
-    expect(scheduleProblems(level, 'prelim', '1||3', null)).toEqual([])
-    expect(scheduleProblems(level, 'intermediate', '1||3', null)).toEqual([])
-    expect(scheduleProblems(level, 'elimination', '1||3', null)).toEqual([
+    expect(scheduleProblems(level, 'prelim', '1||3', null, false)).toEqual([])
+    expect(scheduleProblems(level, 'intermediate', '1||3', null, false)).toEqual([])
+    expect(scheduleProblems(level, 'elimination', '1||3', null, false)).toEqual([
       { kind: 'tieLeftStanding' },
     ])
-    expect(scheduleProblems(level, 'finals', '1||3', null)).toEqual([{ kind: 'tieLeftStanding' }])
-    expect(scheduleProblems(scored(teams), 'finals', '1||3', null)).toEqual([])
+    expect(scheduleProblems(level, 'finals', '1||3', null, false)).toEqual([
+      { kind: 'tieLeftStanding' },
+    ])
+    expect(scheduleProblems(scored(teams), 'finals', '1||3', null, false)).toEqual([])
+  })
+})
+
+describe('a quiz not linked to the schedule', () => {
+  it('is in error in a meet with a published schedule, and not in a meet without one', () => {
+    const teams = scored({ 'Grace 1': [] })
+    expect(scheduleProblems(teams, 'prelim', '1||9', null, true)).toEqual([{ kind: 'notLinked' }])
+    expect(scheduleProblems(teams, 'prelim', '1||9', null, false)).toEqual([])
   })
 })
 

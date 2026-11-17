@@ -118,6 +118,8 @@ export interface DivisionStatsInput {
   roster: RosterTeam[] | null
   /** Whether the schedule has an intermediate or an elimination quiz for the division */
   laterStagesScheduled: boolean
+  /** Whether the meet has a published schedule: a quiz linked to none of its quizzes is in error */
+  schedulePublished: boolean
 }
 
 /** A quiz with a stage, its names as the roster has them, and what is wrong with it */
@@ -146,6 +148,7 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
         key: quiz.key,
         linked: quiz.linked,
         roster,
+        schedulePublished: input.schedulePublished,
       })
       return {
         id: quiz.id,

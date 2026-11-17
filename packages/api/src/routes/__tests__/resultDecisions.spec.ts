@@ -5,9 +5,10 @@ import {
   newScheduleDocument,
   type DivisionStats,
   type QuizFile,
+  type ScheduleDocument,
   type ScheduleQuiz,
 } from '@qzr/shared'
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { fifteenQuestionQuizFile } from '../../../../shared/src/scoring/__tests__/fixtures/fifteenQuestionQuiz'
 import type { Bindings } from '../../bindings'
 import type { SessionUser, SessionVariables } from '../../middleware/session'
@@ -138,6 +139,25 @@ beforeEach(async () => {
   })
 })
 
+/** Publish a new version of the meet's schedule, changed as given */
+async function publish(change: (doc: ScheduleDocument) => void) {
+  const [newest] = await db
+    .select()
+    .from(schema.meetScheduleVersions)
+    .where(eq(schema.meetScheduleVersions.meetId, meetId))
+    .orderBy(desc(schema.meetScheduleVersions.version))
+    .limit(1)
+  const document = JSON.parse(newest!.document) as ScheduleDocument
+  change(document)
+  await db.insert(schema.meetScheduleVersions).values({
+    meetId,
+    version: newest!.version + 1,
+    document: JSON.stringify(document),
+    publishedAt: new Date(),
+    publishedByName: 'Test Admin',
+  })
+}
+
 /** A complete, valid quiz of division 1 between the meet's three teams, in any seats */
 function quiz(quizNumber: string, change: (file: QuizFile) => void = () => {}): QuizFile {
   const file = fifteenQuestionQuizFile()
@@ -228,21 +248,42 @@ describe('a submission and the schedule', () => {
     expect(await listed(id)).toMatchObject({ stage: 'elimination', stageFrom: 'schedule' })
   })
 
-  it('stays unlinked, and not counted, when its teams are not the scheduled ones', async () => {
+  it('is linked by its name though its teams are not the scheduled ones, and in error for it', async () => {
     const { id, link } = await stored({
       quizFile: quiz('3', (f) => (f.teams[2]!.name = 'Faith 1')),
     })
-    expect(link).toBeNull()
-    expect(await listed(id)).toMatchObject({ stage: null, link: null })
-    expect((await division()).results).toEqual([])
+    expect(link).toEqual({ scheduleQuizId: 'p3', how: 'matched' })
+    expect((await listed(id)).problems!.map((p) => p.kind)).toContain('teamsDiffer')
+    expect((await division()).prelimStandings!.teams).toEqual([])
   })
 
-  it('offers the scheduled quiz it misses by a slightly different team name, and does not take it', async () => {
-    const { id, link } = await stored({
-      quizFile: quiz('3', (f) => (f.teams[0]!.name = 'First Churchh 1')),
-    })
+  it('is not linked when the schedule has no quiz of its name, an error until linked or accepted', async () => {
+    const { id, link } = await stored({ quizFile: quiz('9') })
     expect(link).toBeNull()
-    expect((await listed(id)).suggestedLink).toEqual({ scheduleQuizId: 'p3', label: 'D1 Q3' })
+    expect(await listed(id)).toMatchObject({
+      link: null,
+      stage: null,
+      problems: [{ kind: 'notLinked' }],
+    })
+  })
+
+  it('is linked by its name once a schedule with that quiz is published, though it was stored before', async () => {
+    const { id } = await stored({ quizFile: quiz('7') })
+    expect((await listed(id)).link).toBeNull()
+    await publish((doc) => doc.quizzes.push({ ...PRELIM, id: 'p7', label: 'Div 1 Quiz 7' }))
+    expect(await listed(id)).toMatchObject({
+      link: { scheduleQuizId: 'p7', how: 'matched' },
+      stage: 'prelim',
+    })
+  })
+
+  it('falls back to its name when the scheduled quiz it was linked to leaves the schedule', async () => {
+    const { id } = await stored({ quizFile: quiz('9') })
+    await put(`${id}/link`, { scheduleQuizId: 'eA' })
+    await publish((doc) => {
+      doc.quizzes = doc.quizzes.filter((q: ScheduleQuiz) => q.id !== 'eA')
+    })
+    expect(await listed(id)).toMatchObject({ link: null, problems: [{ kind: 'notLinked' }] })
   })
 
   it('runs the match again when a revision changes a team name', async () => {

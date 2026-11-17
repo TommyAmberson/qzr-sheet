@@ -33,7 +33,7 @@ import {
   meetFacts,
   quizFacts,
   recordChanges,
-  scheduleMatch,
+  linkOf as linkOfStored,
   linkTo,
   scheduledQuiz,
   type Changer,
@@ -139,28 +139,6 @@ function changerOf(saver: Saver): Changer {
     changedByRoomId: saver.savedByRoomId,
     changedByName: saver.savedByName,
   }
-}
-
-/**
- * Link a stored quiz to the scheduled quiz its name and teams match, as when it arrives and after a
- * change to either, while nothing has decided its link yet: a link made or removed by anyone,
- * an admin's unlink above all, is kept. Answers the quiz's link as it then is.
- */
-async function linkByMatch(
-  db: Db,
-  meetId: number,
-  resultId: number,
-  file: QuizFile,
-  saver: Saver,
-  facts?: MeetFacts,
-): Promise<QuizLink | null> {
-  facts ??= await meetFacts(db, meetId)
-  const decided = facts.decisions.get(resultId)
-  if (decided?.linkBy) return decided.link
-  const { match } = scheduleMatch(facts, file)
-  if (!match) return null
-  const linked = await linkTo(db, facts, resultId, match, 'matched', changerOf(saver))
-  return 'link' in linked ? linked.link : null
 }
 
 /** The stored quiz id in the path, or null when it isn't one */
@@ -450,18 +428,24 @@ results.post('/:id/results', async (c) => {
     }
   }
   /**
-   * The quiz's link once it is stored: to the scheduled quiz the sheet named, unless another stored
-   * quiz holds that one, in which case the submission is kept all the same, unlinked, or someone
-   * linked or unlinked it by hand; and for a sheet that named none, to the scheduled quiz it matches
+   * The quiz's link once it is stored. The sheet's scheduled quiz is recorded as its link, unless
+   * another quiz's explicit link holds that one, in which case the submission is kept all the
+   * same, or someone linked or unlinked this quiz by hand, which the sheet doesn't undo. Any other
+   * quiz is linked by its name.
    */
   const linkOf = async (resultId: number): Promise<QuizLink | null> => {
-    if (sentFor === null) return linkByMatch(db, meetId, resultId, file, saver)
-    const decided = facts!.decisions.get(resultId)
-    const current = decided?.link ?? null
+    facts ??= await meetFacts(db, meetId)
+    const decided = facts.decisions.get(resultId)
     // A link made or removed by hand is kept against the sheet, which may hold the wrong quiz
-    if (current?.scheduleQuizId === sentFor || decided?.linkBy === 'hand') return current
-    const linked = await linkTo(db, facts!, resultId, sentFor, 'sheet', changerOf(saver))
-    return 'link' in linked ? linked.link : current
+    if (
+      sentFor !== null &&
+      decided?.link?.scheduleQuizId !== sentFor &&
+      decided?.linkBy !== 'hand'
+    ) {
+      const linked = await linkTo(db, facts, resultId, sentFor, 'sheet', changerOf(saver))
+      if ('link' in linked) return linked.link
+    }
+    return linkOfStored(facts, resultId, key)
   }
 
   // A name the meet already has is the same quiz: say so, or add a revision when asked to
@@ -520,7 +504,7 @@ results.post('/:id/results', async (c) => {
   )
   // A submission kept behind the current revision changes neither the quiz's name nor its link
   const link = keptCurrent
-    ? ((facts ?? (await meetFacts(db, meetId))).decisions.get(resultId)?.link ?? null)
+    ? linkOfStored(facts ?? (await meetFacts(db, meetId)), resultId, key)
     : await linkOf(resultId)
   return c.json({ id: resultId, revision, created: false, keptCurrent, link })
 })
@@ -551,7 +535,6 @@ results.put('/:id/results/:resultId', async (c) => {
       [{ ...access.saver, quizFile: json, action: body.action === 'merged' ? 'merged' : 'edited' }],
       move,
     )
-    await linkByMatch(db, meetId, resultId, file, access.saver)
     return c.json({ id: resultId, revision })
   } catch (e) {
     if (isUniqueViolation(e) && !isRevisionClash(e)) return nameTaken(c, file)
@@ -718,7 +701,6 @@ results.post('/:id/results/:resultId/restore', async (c) => {
       [{ ...access.saver, action: 'restored', restoredFrom: content }],
       move,
     )
-    await linkByMatch(db, meetId, resultId, file, access.saver)
     return c.json({ id: resultId, revision })
   } catch (e) {
     if (isUniqueViolation(e) && !isRevisionClash(e)) return nameTaken(c, file)
@@ -979,9 +961,9 @@ results.get('/:id/results', async (c) => {
                 key: quizKey,
                 linked: held.linked,
                 roster: held.roster,
+                schedulePublished: held.schedulePublished,
               })
             : null
-        const suggested = held.link ? undefined : scheduleMatch(facts, file).near
         return {
           ...row,
           origin: { action: originAction, name: originName },
@@ -989,7 +971,6 @@ results.get('/:id/results', async (c) => {
           stage: held.stage,
           stageFrom: held.stageFrom,
           link: held.link,
-          ...(suggested ? { suggestedLink: suggested } : {}),
           problems,
           accepted: held.accepted,
           quizFile: file,

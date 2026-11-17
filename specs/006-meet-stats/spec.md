@@ -82,9 +82,13 @@ Decisions from the working session:
   part-way, is sent along when the quiz is submitted. It is not written into the quiz file, which
   stays a record of what the room typed, so an uploaded file arrives unlinked and is matched on
   arrival (FR-009).
-* Q: How closely must team names match for a quiz to link on its own? → A: Ignoring case, spacing
-  and punctuation. A near miss is not linked; it is offered to the admin as a suggested link
-  (FR-009).
+* Q: How closely must team names match for a quiz to link on its own? → A: They don't: a quiz is
+  linked by its name, as a quiz saved under a name is that quiz. Teams that differ from the
+  schedule's are then an error on the linked quiz, not a reason to leave it unlinked (FR-009;
+  replaced the earlier answer that a team-name near miss is offered as a suggestion, 2026-11-16).
+* Q: Is a quiz that is not linked an error? → A: Yes, in a meet with a published schedule, until it
+  is linked or accepted. That covers a name the schedule doesn't have, an admin's unlink, and a link
+  to a scheduled quiz a later schedule dropped (FR-014).
 * Q: What about a team or seat left unnamed? → A: The scoresheet now leaves it blank, and older
   files carry "Team 3" or "Quizzer 1" there. Either is a name not on the roster, a roster error; a
   seat with no name and no answers is nobody (FR-002a).
@@ -466,8 +470,8 @@ download the division's tables and open them in a spreadsheet.
 * An elimination quiz is opened from the schedule before its teams are known, and submitted with a
   team name left blank: it arrives linked, and where the meet has rosters the unnamed team is a
   roster error until the admin names it or accepts the quiz.
-* A quiz file saved in a room is uploaded later: it carries no link, and is matched to the schedule
-  on arrival by its name and team names.
+* A quiz file saved in a room is uploaded later: it carries no link, and is linked to the scheduled
+  quiz of its name.
 * A quiz is given the Finals stage by mistake: it leaves the individual stats; changing the stage
   puts it back.
 * Two quizzes in one division are both marked as Finals of the same bracket: a warning names them,
@@ -573,21 +577,21 @@ download the division's tables and open them in a spreadsheet.
   scheduled quiz in the scoresheet when submitted, however the sheet came to be linked, MUST arrive
   linked to that scheduled quiz: the scoresheet sends which scheduled quiz it is linked to with the
   submission, and nothing when it is unlinked, and MUST NOT write it into the quiz file, so a quiz
-  uploaded as a file arrives unlinked. A quiz that arrives unlinked MUST be linked automatically
-  when its name matches a scheduled quiz and its team names match the teams the schedule gives that
-  quiz, where the schedule gives them, names compared ignoring case, spacing and punctuation; a quiz
-  that misses only by a slightly different team name MUST NOT be linked, and MUST be offered to the
-  admin with that scheduled quiz as a suggested link; the same check MUST run again whenever its
-  name or team names are changed. Otherwise it stays unlinked until an official of its room, or an
-  admin, links it by hand to a scheduled quiz. A link can be changed or removed the same way, and
-  each change MUST be recorded with who made it and when. A link made or removed by hand is kept:
-  neither the automatic check nor a later submission naming another scheduled quiz changes it.
+  uploaded as a file arrives unlinked. Any other stored quiz MUST be linked by its name to the
+  scheduled quiz of that name, whenever and however it was stored, and so follows its name when the
+  name changes; a quiz the schedule has no name for is linked to none. An official of its room, or
+  an admin, MAY link it by hand to another scheduled quiz, or unlink it. A link can be changed or
+  removed the same way, and each change MUST be recorded with who made it and when. A link made or
+  removed by hand is kept: neither its name nor a later submission naming another scheduled quiz
+  changes it. A link the sheet sent holds while its scheduled quiz is in the schedule; when a new
+  schedule drops it, the quiz is linked by its name again.
 * **FR-009a**: A linked quiz MUST take its stage from the scheduled quiz, the deciding quiz of a
   bracket being its Finals, and, when it has no errors, MUST count without an admin's action. A
   linked quiz whose name differs from the scheduled quiz's, or whose teams differ from those the
-  schedule gives that quiz, is in error (FR-014). An unlinked quiz, or one whose division the meet
-  doesn't list, MUST stay not counted until an admin gives it a stage or it is linked. A division or
-  quiz number left blank, or written as `_` as the scoresheet shows a blank, is none.
+  schedule gives that quiz, is in error (FR-014). In a meet with a published schedule, a quiz linked
+  to none of its quizzes is in error (FR-014); it counts only with a stage from an admin and once
+  accepted. A division or quiz number left blank, or written as `_` as the scoresheet shows a blank,
+  is none.
 * **FR-010**: Meet admins MUST be able to set any stored quiz's stage, one quiz at a time or for the
   quizzes shown together. An admin's choice MUST outrank the schedule's. Each change MUST be
   recorded with who made it and when. Quizzes counted before this feature MUST become prelims.
@@ -613,13 +617,14 @@ download the division's tables and open them in a spreadsheet.
     them;
   * a **roster error**, known by holding its names against the meet's roster (FR-002a);
   * a **schedule error**, known by holding it against the scheduled quiz it is linked to: its name
-    or its teams differ from the scheduled quiz's (FR-009a). On an unlinked quiz the same
-    differences are not an error; they are why it did not link itself (FR-009). A quiz whose
-    overtime doesn't fit its stage, however it came by the stage, is in error the same way: an
-    elimination or Finals that ends level with no overtime, where there must be a winner; or, in a
-    meet whose prelims are played without overtime (FR-023d), overtime played in a prelim or an
-    intermediate, where a tie stands. An elimination or Finals still level in an overtime not played
-    out is undecided, a scoring error.
+    or its teams differ from the scheduled quiz's (FR-009a); or, in a meet with a published
+    schedule, it is linked to none of its quizzes. On an unlinked quiz the same differences are not
+    an error; they are why it did not link itself (FR-009). A quiz whose overtime doesn't fit its
+    stage, however it came by the stage, is in error the same way: an elimination or Finals that
+    ends level with no overtime, where there must be a winner; or, in a meet whose prelims are
+    played without overtime (FR-023d), overtime played in a prelim or an intermediate, where a tie
+    stands. An elimination or Finals still level in an overtime not played out is undecided, a
+    scoring error.
 * **FR-014a**: The scoresheet and the portal MUST compare names with the same rules, kept in one
   place: what counts as a team of the roster, and as a quizzer of it. The portal finds all three
   kinds from the quiz and the meet's roster and schedule alone. The scoresheet shows scoring errors
@@ -804,7 +809,8 @@ download the division's tables and open them in a spreadsheet.
 * **Stored quiz**: as today, with a stage in place of counted or not, and whether its current
   revision was accepted as scored.
 * **Schedule link**: which scheduled quiz a stored quiz is linked to, if any, apart from the quiz's
-  name; how it was made (sent by the scoresheet, matched on arrival, or by hand), by whom and when.
+  name; how it was made (sent by the scoresheet, by hand, or by its name, which is worked out and
+  not recorded), by whom and when.
 * **Stage record**: who set a stored quiz's stage, to what, and when; a stage taken from the
   schedule is recorded as such.
 * **Acceptance record**: who accepted or withdrew acceptance of which revision of a stored quiz, and

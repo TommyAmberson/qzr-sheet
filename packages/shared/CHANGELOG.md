@@ -31,9 +31,7 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   deciding quiz is its Finals, a quiz on a line an intermediate), and a stored quiz's stage from the
   admin's choice, else its linked scheduled quiz, else its counting record; with `STAGE_CHOICES`,
   `StageChoice` and `StageFrom`
-* `matchScheduledQuiz`: whether a quiz is a scheduled quiz, by its name and, where the schedule
-  names them, its teams, a miss by a slightly different team name reported as `near`; `isNamed`,
-  under which a division or quiz number left blank or written `_` is none
+* `isNamed`, under which a division or quiz number left blank or written `_` is none
 * `quizProblems`, with `rosterProblems` and `scheduleProblems`: everything wrong with a stored quiz.
   Beside the scoring problems, a team or quizzer not on the roster of the quiz's division (with the
   nearest roster name), a team listing more quizzers than its roster, a roster quizzer missing from

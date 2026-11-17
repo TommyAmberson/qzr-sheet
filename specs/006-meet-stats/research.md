@@ -83,20 +83,22 @@ rejected. Facts about the current code come from reading it on 2026-11-14 (maste
 ## R4. The schedule link
 
 * **Decision**: The link is its own record, apart from the quiz's name: which scheduled quiz (by the
-  schedule document's quiz `id`), how it was made (sent by the scoresheet, matched on arrival, or by
-  hand), who and when. The scoresheet sends `scheduleQuizId` on `POST /results` when the sheet is
-  linked and omits it otherwise; nothing is added to `QuizFile`, so `FILE_VERSION` is unchanged.
+  schedule document's quiz `id`), how it was made (sent by the scoresheet, or by hand; a link by
+  name is worked out when read), who and when. The scoresheet sends `scheduleQuizId` on
+  `POST /results` when the sheet is linked and omits it otherwise; nothing is added to `QuizFile`,
+  so `FILE_VERSION` is unchanged.
 * **Rationale**: FR-009 and the user's ruling with the scoresheet session: the file records what the
   room typed; the link travels with the submission only. The scoresheet's meet session already holds
   the value (`quizId` in `useMeetSession.ts`, set by `applyLoadedQuiz`), unread until now. The
   schedule document's quiz ids are stable across publishes ("by that quiz's id, so renames follow",
   `scheduleFile.ts`).
-* **Matching on arrival**: an unlinked quiz is linked when `resultKey` of its name equals
-  `resultName` of exactly one scheduled quiz and, where that quiz's seats resolve to teams (prelim
-  letters through the draw), its team names equal theirs after folding. The fold for this adds
-  punctuation to what `foldName` ignores. A quiz that matches on name and misses on teams by a small
-  `editDistance` is returned as a suggested link, not linked. The check runs again when a revision
-  changes the name or a team name.
+* **Linking by name**: a quiz with no explicit link is linked, when read, to the scheduled quiz
+  whose `resultName` equals its `resultKey`. It is never written, so a quiz stored before the
+  schedule was published, or renamed, or whose explicit link a new schedule dropped, is linked
+  without anyone acting. Its teams are not part of the match: teams that differ are a schedule error
+  on the linked quiz (R16). An earlier design matched on teams too and offered a near miss as a
+  suggestion; the maintainer replaced it on 2026-11-16, since a quiz saved under a name is that
+  quiz.
 * **In error**: a linked quiz whose name or teams differ from the scheduled quiz's is in error
   (FR-009a) by the same comparison, so there is one definition of "matches".
 * **Alternatives considered**: A field in `QuizFile`: a file format change, and the file would then
