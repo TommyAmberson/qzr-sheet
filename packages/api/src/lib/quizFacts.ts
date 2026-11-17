@@ -86,14 +86,12 @@ export interface MeetFacts {
   } | null
   /** The stored quiz an explicit link, by the sheet or by hand, gives each scheduled quiz */
   claimed: Map<string, number>
-  /** Each stored quiz's link: its explicit link, else the scheduled quiz of its name */
-  links: Map<number, QuizLink | null>
   /** Null for a meet with no teams entered: it has no roster to hold names against */
   teams: MeetTeam[] | null
 }
 
 export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
-  const [changes, version, teams, quizzers, stored] = await Promise.all([
+  const [changes, version, teams, quizzers] = await Promise.all([
     db
       .select({
         resultId: schema.quizResultChanges.resultId,
@@ -125,10 +123,6 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
       .from(schema.teamRosters)
       .innerJoin(schema.teams, eq(schema.teams.id, schema.teamRosters.teamId))
       .where(eq(schema.teams.meetId, meetId)),
-    db
-      .select({ id: schema.quizResults.id, quizKey: schema.quizResults.quizKey })
-      .from(schema.quizResults)
-      .where(eq(schema.quizResults.meetId, meetId)),
   ])
 
   // Rows come oldest first, so each kind's last row is its current value
@@ -170,7 +164,6 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
       byKey,
     },
     claimed: new Map(),
-    links: new Map(),
     teams:
       teams.length === 0
         ? null
@@ -188,7 +181,6 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
       facts.claimed.set(quiz.link.scheduleQuizId, resultId)
     }
   }
-  for (const { id, quizKey } of stored) facts.links.set(id, linkOf(facts, id, quizKey))
   return facts
 }
 
@@ -264,10 +256,7 @@ export function quizFacts(
   schedulePublished: boolean
 } {
   const decided = facts.decisions.get(quiz.id)
-  // An unlinked quiz is cached as null, which is an answer, not a miss
-  const link = facts.links.has(quiz.id)
-    ? facts.links.get(quiz.id)!
-    : linkOf(facts, quiz.id, quiz.quizKey)
+  const link = linkOf(facts, quiz.id, quiz.quizKey)
   const scheduleQuiz = link ? facts.schedule?.quizzes.get(link.scheduleQuizId) : undefined
   const { stage, from } = storedStage({
     chosen: decided?.stage ?? null,

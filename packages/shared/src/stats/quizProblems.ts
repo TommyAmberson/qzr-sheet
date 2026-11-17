@@ -84,14 +84,6 @@ export function playing<Team extends SeatedTeam>(teams: Team[]): Team[] {
   )
 }
 
-/**
- * Whether a quiz says which quiz it is. A division or quiz number left blank is none, and so is
- * `_`, which the scoresheet shows for a blank and writes into file names.
- */
-export function isNamed(quiz: { division: string; quizNumber: string }): boolean {
-  return [quiz.division, quiz.quizNumber].every((part) => !['', '_'].includes(part.trim()))
-}
-
 /** Whether a quiz's teams are the scheduled quiz's, each named outright, in any seats */
 function sameTeams(teams: SeatedTeam[], scheduled: Pick<RosterTeam, 'name' | 'shortName'>[]) {
   const played = playing(teams)

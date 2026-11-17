@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { PlacementFormula } from '../../quizFile'
-import { isNamed, rosterProblems, scheduleProblems, type ScheduledQuiz } from '../quizProblems'
+import { rosterProblems, scheduleProblems, type ScheduledQuiz } from '../quizProblems'
 import type { ScoredQuiz } from '../scoredQuiz'
 import type { RosterTeam } from '../teamNames'
-
-const quiz = { division: '1', quizNumber: '3' }
 
 function scored(
   teams: Record<string, string[]>,
@@ -38,14 +36,6 @@ const roster: RosterTeam[] = [
   { id: 3, name: 'Grace 1', shortName: 'Grace 1', quizzers: [] },
 ]
 const scheduled: ScheduledQuiz = { key: '1||3', name: 'D1 Q3', teams: roster }
-
-describe('isNamed', () => {
-  it('takes a blank division or quiz number, or the underscore the scoresheet shows for one, as none', () => {
-    expect(isNamed(quiz)).toBe(true)
-    expect(isNamed({ division: ' ', quizNumber: '3' })).toBe(false)
-    expect(isNamed({ division: '1', quizNumber: '_' })).toBe(false)
-  })
-})
 
 describe('a two-team quiz', () => {
   // Its third team is an empty seat: no name, and no quizzer named

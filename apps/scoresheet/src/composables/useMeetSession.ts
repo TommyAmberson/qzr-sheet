@@ -396,6 +396,11 @@ export function useMeetSession() {
     persist()
   }
 
+  /** The scheduled quiz the sheet is linked to, said only to the meet it is linked to */
+  function scheduleQuizIdFor(targetMeetId: number): string | null {
+    return meetId.value === targetMeetId ? quizId.value : null
+  }
+
   return {
     isActive,
     meetId,
@@ -403,6 +408,7 @@ export function useMeetSession() {
     meetName,
     teamList,
     quizId,
+    scheduleQuizIdFor,
     scheduledQuiz,
     divisionOptions,
     lacksDivision,

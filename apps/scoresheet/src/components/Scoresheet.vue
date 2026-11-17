@@ -1679,10 +1679,9 @@ async function doSubmitToMeet() {
   const roomId = await chooseRoom(choiceDialog.value, target.sender, meet, 'Submit')
   if (roomId === undefined) return
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
+  const scheduleQuizId = meetSession.scheduleQuizIdFor(target.id)
   // A guest official whose session ends on the way is asked for the room code, and the send
   // retried; the room is confirmed by now, so only its code will do
-  // The scheduled quiz the sheet is linked to says which quiz this is, to that meet only
-  const scheduleQuizId = meetSession.meetId.value === target.id ? meetSession.quizId.value : null
   const send = (onExisting?: OnExisting) =>
     withRoomCode(
       target.id,

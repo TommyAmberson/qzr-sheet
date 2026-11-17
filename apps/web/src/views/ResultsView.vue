@@ -13,6 +13,7 @@ import {
   type DivisionStats,
   type ScheduleQuiz,
   type StageChoice,
+  mayChangeQuizzes,
 } from '@qzr/shared'
 import {
   ChoiceDialog,
@@ -201,9 +202,9 @@ function linkLabel(quiz: ResultRow): string {
   const linked = scheduled.value.find((q) => q.id === quiz.link?.scheduleQuizId)
   return linked ? nameOfScheduled(linked) : 'a scheduled quiz'
 }
-/** Whether the user may change links now: anyone who may while the meet is live, only an admin in review */
+/** Whether the user may change links now, by the rule the API refuses changes with */
 const canLink = computed(
-  () => meet.value?.phase === 'live' || (meet.value?.phase === 'review' && isAdmin.value),
+  () => !!meet.value?.phase && mayChangeQuizzes(meet.value.phase, isAdmin.value),
 )
 
 /** The quizzes in error that no admin has accepted, which "Accept all" would accept */

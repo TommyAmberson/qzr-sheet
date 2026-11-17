@@ -31,18 +31,19 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   deciding quiz is its Finals, a quiz on a line an intermediate), and a stored quiz's stage from the
   admin's choice, else its linked scheduled quiz, else its counting record; with `STAGE_CHOICES`,
   `StageChoice` and `StageFrom`
-* `isNamed`, under which a division or quiz number left blank or written `_` is none
 * `quizProblems`, with `rosterProblems` and `scheduleProblems`: everything wrong with a stored quiz.
   Beside the scoring problems, a team or quizzer not on the roster of the quiz's division (with the
   nearest roster name), a team listing more quizzers than its roster, a roster quizzer missing from
   the quiz, a linked quiz whose name or teams differ from its scheduled quiz's, and an elimination
   or Finals left level with no overtime. `QuizProblem` is now the union of all three kinds
-* `teamNamed`, `teamsNearName` and `looseName`, with `RosterTeam`: the comparison of a typed team
-  name with a roster's, by full name, then short name, then with punctuation set aside, as the
-  scoresheet makes it when a meet is linked, so the sheet and the server match alike
+* `teamNamed` and `teamsNearName`, with `RosterTeam`: the comparison of a typed team name with a
+  roster's, by full name, then short name, then with punctuation set aside, as the scoresheet makes
+  it when a meet is linked, so the sheet and the server match alike
 * `resultKeyName`, the name a result key gives its quiz; `LINK_HOWS` and `CHANGE_KINDS`, how a
   stored quiz came to be linked and the kinds of decision about it; and `sameDivision`, whether two
   names are one division however each is written (`2`, `Div 2`)
+* `mayChangeQuizzes`: whether stored quizzes may change in a meet phase, by an admin or not; the API
+  refuses by it and the portal hides controls by it
 * `scheduledQuizOf`: a quiz of the schedule as stored quizzes are held against it, with the teams
   its draw letters name, or none where a seat is filled from a rank or another quiz's result
 * `divisionStats` takes each quiz's stage, link and acceptance, the division's roster, and whether

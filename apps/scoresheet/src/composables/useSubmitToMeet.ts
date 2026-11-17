@@ -106,8 +106,9 @@ async function refreshTargets(): Promise<void> {
 
 /**
  * Send the quiz to the meet, which knows it by its name (division and quiz number), for a room or
- * (an admin) none, with the scheduled quiz the sheet is linked to when it is linked to that meet. A name the meet already has comes back with what's stored, unless sent again
- * saying what to do with it.
+ * (an admin) none, with the scheduled quiz the sheet is linked to when it is linked to that meet.
+ * A name the meet already has comes back with what's stored, unless sent again saying what to do
+ * with it.
  */
 async function submitQuiz(
   meetId: number,

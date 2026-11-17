@@ -105,7 +105,7 @@ export function computePlacements(
  * Derive a PlaceKey from rank + number of teams sharing that rank.
  * e.g. rank=1, count=2 → 1.2; rank=2, count=2 → 2.2
  */
-export function placeKey(rank: number, tieCount: number): PlaceKey {
+function placeKey(rank: number, tieCount: number): PlaceKey {
   if (tieCount === 1) return rank as PlaceKey
   return parseFloat(`${rank}.${tieCount}`) as PlaceKey
 }

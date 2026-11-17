@@ -1,6 +1,11 @@
 import type { DivisionStateValue, MeetPhase } from '../phases'
 import { byNumber, foldName, tidyName } from '../results'
-import { computePlacementPoints, placeKey, placeRank, placeTieCount } from '../scoring/placement'
+import {
+  computePlacementPoints,
+  computePlacements,
+  placeRank,
+  placeTieCount,
+} from '../scoring/placement'
 import { quizzerStandings, type QuizzerList } from '../scoring/quizzerStandings'
 import { divisionStandings, type CountedQuiz, type TieBreak } from '../scoring/standings'
 import { playing, quizProblems, type QuizProblem, type ScheduledQuiz } from './quizProblems'
@@ -263,15 +268,20 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
  */
 function placedAsTheyStand(scored: ScoredQuiz): ScoredQuiz {
   if (scored.teams.every((team) => team.place !== null)) return scored
+  // A two-team quiz's empty seat has no place, and takes none from the teams that played. With no
+  // overtime to play, level teams share their place
+  const played = playing(scored.teams)
+  const places = computePlacements(
+    played.map((team) => team.score),
+    [],
+    true,
+    false,
+  )
   return {
     ...scored,
     teams: scored.teams.map((team) => {
-      // A two-team quiz's empty seat has no place, and takes none from the teams that played
-      const played = playing(scored.teams)
-      if (!played.includes(team)) return team
-      const above = played.filter((other) => other.score > team.score).length
-      const level = played.filter((other) => other.score === team.score).length
-      return { ...team, place: placeKey(above + 1, level) }
+      const at = played.indexOf(team)
+      return at === -1 ? team : { ...team, place: places[at]! }
     }),
   }
 }

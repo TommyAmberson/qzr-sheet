@@ -6,6 +6,7 @@ import {
   foldName,
   resultKey,
   isQuizFile,
+  mayChangeQuizzes,
   parseQuizFile,
   quizName,
   quizProblems,
@@ -33,7 +34,7 @@ import {
   meetFacts,
   quizFacts,
   recordChanges,
-  linkOf as linkOfStored,
+  linkOf,
   linkTo,
   scheduledQuiz,
   type Changer,
@@ -95,7 +96,7 @@ async function refusedByPhase(
     .from(schema.quizMeets)
     .where(eq(schema.quizMeets.id, meetId))
   if (!meet) return c.json({ error: 'Meet not found' }, 404)
-  if (meet.phase === 'live' || (meet.phase === 'review' && admin)) return null
+  if (mayChangeQuizzes(meet.phase, admin)) return null
   const error =
     meet.phase === 'review'
       ? 'Only an admin changes quizzes while the meet is in review'
@@ -421,20 +422,19 @@ results.post('/:id/results', async (c) => {
   // The scheduled quiz the sheet says this is. One the published schedule doesn't have (it was
   // republished, or the sheet holds an id from before) is let go: nothing an official scored is
   // turned away, and the quiz is linked by its name
+  // Read once, and only on the paths that need it
   let facts: MeetFacts | undefined
+  const factsOf = async () => (facts ??= await meetFacts(db, meetId))
   let sentFor = typeof body.scheduleQuizId === 'string' ? body.scheduleQuizId : null
-  if (sentFor !== null) {
-    facts = await meetFacts(db, meetId)
-    if (!facts.schedule?.quizzes.has(sentFor)) sentFor = null
-  }
+  if (sentFor !== null && !(await factsOf()).schedule?.quizzes.has(sentFor)) sentFor = null
   /**
    * The quiz's link once it is stored. The sheet's scheduled quiz is recorded as its link, unless
    * another quiz's explicit link holds that one, in which case the submission is kept all the
    * same, or someone linked or unlinked this quiz by hand, which the sheet doesn't undo. Any other
    * quiz is linked by its name.
    */
-  const linkOf = async (resultId: number): Promise<QuizLink | null> => {
-    facts ??= await meetFacts(db, meetId)
+  const linkOnSubmit = async (resultId: number): Promise<QuizLink | null> => {
+    const facts = await factsOf()
     const decided = facts.decisions.get(resultId)
     // A link made or removed by hand is kept against the sheet, which may hold the wrong quiz
     if (
@@ -445,7 +445,7 @@ results.post('/:id/results', async (c) => {
       const linked = await linkTo(db, facts, resultId, sentFor, 'sheet', changerOf(saver))
       if ('link' in linked) return linked.link
     }
-    return linkOfStored(facts, resultId, key)
+    return linkOf(facts, resultId, key)
   }
 
   // A name the meet already has is the same quiz: say so, or add a revision when asked to
@@ -479,7 +479,7 @@ results.post('/:id/results', async (c) => {
       await keepScoresOfSaved(db, [{ id: revisionRows[0]!.id, quizFile: json }])
       const id = quizRows[0]!.id
       return c.json(
-        { id, revision: revisionRows[0]!.revision, created: true, link: await linkOf(id) },
+        { id, revision: revisionRows[0]!.revision, created: true, link: await linkOnSubmit(id) },
         201,
       )
     } catch (e) {
@@ -503,9 +503,7 @@ results.post('/:id/results', async (c) => {
       : [revisionValues],
   )
   // A submission kept behind the current revision changes neither the quiz's name nor its link
-  const link = keptCurrent
-    ? linkOfStored(facts ?? (await meetFacts(db, meetId)), resultId, key)
-    : await linkOf(resultId)
+  const link = keptCurrent ? linkOf(await factsOf(), resultId, key) : await linkOnSubmit(resultId)
   return c.json({ id: resultId, revision, created: false, keptCurrent, link })
 })
 

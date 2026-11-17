@@ -439,7 +439,7 @@ export const quizResultChanges = sqliteTable(
     stage: text('stage', { enum: STAGE_CHOICES }),
     // For `link`: the schedule document's quiz id, or null when the link is removed
     scheduleQuizId: text('schedule_quiz_id'),
-    // For `link`: sent by the scoresheet, matched on arrival or after a rename, or made by hand
+    // For `link`: sent by the scoresheet, or made by hand; `matched` is only ever worked out on read
     how: text('how', { enum: LINK_HOWS }),
     // For `acceptance`: the revision accepted as scored, or no longer accepted
     revision: integer('revision'),

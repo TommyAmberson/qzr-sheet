@@ -1,5 +1,5 @@
 export { AccountRole, MeetRole, effectiveAccountRole } from './roles'
-export { MEET_PHASES, DIVISION_STATES } from './phases'
+export { MEET_PHASES, DIVISION_STATES, mayChangeQuizzes } from './phases'
 export type { MeetPhase, DivisionStateValue } from './phases'
 export {
   CHANGE_KINDS,
