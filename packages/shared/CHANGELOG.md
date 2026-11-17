@@ -23,6 +23,21 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-11-17
+
+### Added
+
+* `bareDivision`, a division's name as typed, without a prefix typed before it (`Div 2`,
+  `Division 2` and `D2` are all `2`), `divisionTitle`, a division shown on its own (`Division 2`),
+  and `findDivision`, the division of a list a name is, as the list spells it
+
+### Changed
+
+* `divisionName` adds `Div` to a division's bare name, even one already starting with it, so a
+  division saved with its prefix by mistake shows as `Div Div 2`
+* `sameDivision` ignores case and spacing only: `Div 2` is no longer division `2`, so a division
+  saved with its prefix by mistake shows as one the meet doesn't have
+
 ## [1.12.0] - 2026-11-15
 
 ### Added
