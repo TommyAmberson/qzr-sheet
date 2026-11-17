@@ -41,10 +41,11 @@ rejected. Facts about the current code come from reading it on 2026-11-14 (maste
   score under the meet's formula, tie-breaks, stages, acceptance, what a viewer has. So an edit, a
   restore or a settings change still cannot leave a stale number, which is what the spec's "derived,
   never stored" is for.
-* **What a scored row holds**: per team its name, score, errors and place by score; what is wrong
-  with the quiz (every validation error with its team, seat, question and code, and the unanswered
-  questions; R16); per listed quizzer the name, points, errors, correct answers and correct answers
-  by type; the quiz's own formula. No placement points.
+* **What a scored row holds**: the quiz's name and whether it is a consolation quiz; per team its
+  name, score, score before overtime, errors and place by score; what is wrong with the quiz (every
+  validation error with its team, seat, question and code, and the unanswered questions; R16); per
+  listed quizzer the name, points, errors, correct answers and correct answers by type; the quiz's
+  own formula. No placement points.
 * **Every route that needs scored facts reads the rows**: a division's stats, the list of what needs
   attention, and the problems shown beside each quiz in the results list. None of them scores a
   division on the spot. What needs attention is built from scored facts and names alone, with no
@@ -82,20 +83,22 @@ rejected. Facts about the current code come from reading it on 2026-11-14 (maste
 ## R4. The schedule link
 
 * **Decision**: The link is its own record, apart from the quiz's name: which scheduled quiz (by the
-  schedule document's quiz `id`), how it was made (sent by the scoresheet, matched on arrival, or by
-  hand), who and when. The scoresheet sends `scheduleQuizId` on `POST /results` when the sheet is
-  linked and omits it otherwise; nothing is added to `QuizFile`, so `FILE_VERSION` is unchanged.
+  schedule document's quiz `id`), how it was made (sent by the scoresheet, or by hand; a link by
+  name is worked out when read), who and when. The scoresheet sends `scheduleQuizId` on
+  `POST /results` when the sheet is linked and omits it otherwise; nothing is added to `QuizFile`,
+  so `FILE_VERSION` is unchanged.
 * **Rationale**: FR-009 and the user's ruling with the scoresheet session: the file records what the
   room typed; the link travels with the submission only. The scoresheet's meet session already holds
   the value (`quizId` in `useMeetSession.ts`, set by `applyLoadedQuiz`), unread until now. The
   schedule document's quiz ids are stable across publishes ("by that quiz's id, so renames follow",
   `scheduleFile.ts`).
-* **Matching on arrival**: an unlinked quiz is linked when `resultKey` of its name equals
-  `resultName` of exactly one scheduled quiz and, where that quiz's seats resolve to teams (prelim
-  letters through the draw), its team names equal theirs after folding. The fold for this adds
-  punctuation to what `foldName` ignores. A quiz that matches on name and misses on teams by a small
-  `editDistance` is returned as a suggested link, not linked. The check runs again when a revision
-  changes the name or a team name.
+* **Linking by name**: a quiz with no explicit link is linked, when read, to the scheduled quiz
+  whose `resultName` equals its `resultKey`. It is never written, so a quiz stored before the
+  schedule was published, or renamed, or whose explicit link a new schedule dropped, is linked
+  without anyone acting. Its teams are not part of the match: teams that differ are a schedule error
+  on the linked quiz (R16). An earlier design matched on teams too and offered a near miss as a
+  suggestion; the maintainer replaced it on 2026-11-16, since a quiz saved under a name is that
+  quiz.
 * **In error**: a linked quiz whose name or teams differ from the scheduled quiz's is in error
   (FR-009a) by the same comparison, so there is one definition of "matches".
 * **Alternatives considered**: A field in `QuizFile`: a file format change, and the file would then
@@ -263,12 +266,14 @@ rejected. Facts about the current code come from reading it on 2026-11-14 (maste
     nearest roster name), a team listing more quizzers than its roster has, and roster quizzers
     missing from the quiz.
   * Schedule errors come from the match between a quiz and a scheduled quiz (R4), and from the
-    quiz's stage: overtime played in a prelim or an intermediate, or an elimination or Finals level
-    with no overtime. Scoring one revision keeps whether overtime was played and each team's place,
-    whose key shows a shared place, so the stage check needs no rescoring. Roster and schedule
-    errors are worked out when a quiz is read, never kept, so a corrected roster or a republished
-    schedule clears them with no rescoring. An acceptance covers every kind (R6), and stands for its
-    revision if the roster or schedule later changes.
+    quiz's stage: an elimination or Finals level with no overtime (the rulebook's rule), and, where
+    the meet's setting says its prelims have no overtime (not the rulebook, so a setting, on by
+    default, FR-023d), overtime played in a prelim or an intermediate. Scoring one revision keeps
+    each team's place, whose key shows a shared place, and will keep whether overtime was played
+    once the setting arrives, so the stage check needs no rescoring. Roster and schedule errors are
+    worked out when a quiz is read, never kept, so a corrected roster or a republished schedule
+    clears them with no rescoring. An acceptance covers every kind (R6), and stands for its revision
+    if the roster or schedule later changes.
 * **Rationale**: The maintainer's ruling of 2026-11-14 with the scoresheet session: an error is
   wrong whatever the meet, and a roster or schedule problem is known only against a meet. The
   scoresheet shows the last two as warnings while linked; in the portal, which always has the meet,

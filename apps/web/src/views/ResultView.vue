@@ -8,11 +8,16 @@ import {
   editResult,
   getHistory,
   getMeet,
+  getSender,
+  listResults,
   restoreRevision,
+  setAcceptance,
   type HistoryEntry,
   type MeetDetail,
+  type StoredQuiz,
 } from '../api'
 import { editQuizFile } from '../results'
+import { changeText, problemText } from '../stats'
 import { useRoomCode } from '../composables/useRoomCode'
 
 const props = defineProps<{ slug: string; resultId: string }>()
@@ -22,6 +27,9 @@ const { renew } = useRoomCode()
 
 const meet = ref<MeetDetail['meet'] | null>(null)
 const history = ref<HistoryEntry[]>([])
+/** The quiz as the results list has it: what is wrong with it, and whether it is accepted */
+const listed = ref<StoredQuiz | null>(null)
+const isAdmin = ref(false)
 const loading = ref(true)
 const error = ref('')
 const saving = ref(false)
@@ -72,7 +80,12 @@ async function load() {
     // A guest official's slug is the meet's id; their ended session is renewed on opening the page
     const loaded = await renew(Number(props.slug), async () => {
       const { meet: detail } = await getMeet(props.slug)
-      return { detail, history: await getHistory(detail.id, resultId) }
+      const [entries, quizzes, who] = await Promise.all([
+        getHistory(detail.id, resultId),
+        listResults(detail.id),
+        getSender(detail.id),
+      ])
+      return { detail, history: entries, quizzes, who }
     })
     if (!loaded) {
       error.value = 'Join the meet again with your room code to see this quiz.'
@@ -80,6 +93,8 @@ async function load() {
     }
     meet.value = loaded.detail
     history.value = loaded.history
+    listed.value = loaded.quizzes.find((quiz) => quiz.id === resultId) ?? null
+    isAdmin.value = loaded.who.admin
     if (currentFile.value) fillForm(currentFile.value)
   } catch (e) {
     error.value =
@@ -138,6 +153,21 @@ async function restore(revision: number) {
   }
 }
 
+/** Accept the quiz as scored at its current revision, or withdraw that */
+async function accept(accepted: boolean) {
+  if (!meet.value || !listed.value) return
+  saving.value = true
+  saveError.value = ''
+  try {
+    await setAcceptance(meet.value.id, resultId, listed.value.revision, accepted)
+    await load()
+  } catch (e) {
+    saveError.value = (e as Error).message
+  } finally {
+    saving.value = false
+  }
+}
+
 /** The scoresheet, opening this revision (R9); saving there sends it to the meet by name */
 function scoresheetHref(revision: number): string {
   if (!meet.value) return '#'
@@ -163,6 +193,26 @@ onMounted(load)
 
     <template v-else-if="meet && currentFile">
       <h2 class="page-title">{{ quizName(currentFile.quiz) }}: {{ meet.name }}</h2>
+
+      <section v-if="listed?.problems?.length" class="section">
+        <h3 class="section-title">
+          {{ listed.accepted ? 'Accepted as scored, with these errors' : 'Errors' }}
+        </h3>
+        <ul class="problems">
+          <li v-for="(problem, i) in listed.problems" :key="i">{{ problemText(problem) }}</li>
+        </ul>
+        <p v-if="!listed.accepted" class="state-msg">
+          It adds nothing to the standings until these are fixed or an admin accepts it as scored.
+        </p>
+        <button
+          v-if="isAdmin"
+          class="btn btn--secondary btn--sm"
+          :disabled="saving"
+          @click="accept(!listed.accepted)"
+        >
+          {{ listed.accepted ? 'Withdraw acceptance' : 'Accept as scored' }}
+        </button>
+      </section>
 
       <section class="section">
         <h3 class="section-title">Names</h3>
@@ -240,7 +290,10 @@ onMounted(load)
               </div>
             </template>
             <div v-else class="entry-head">
-              <strong>{{ entry.counted ? 'Counted' : 'Uncounted' }}</strong>
+              <strong v-if="entry.kind === 'counting'">
+                {{ entry.counted ? 'Counted' : 'Uncounted' }}
+              </strong>
+              <strong v-else>{{ changeText(entry) }}</strong>
               <span>by {{ entry.changedBy.name }}, {{ formatWhen(entry.changedAt) }}</span>
             </div>
           </li>
@@ -279,6 +332,13 @@ onMounted(load)
 }
 
 .state-msg--error {
+  color: var(--palette-error);
+}
+
+.problems {
+  margin: 0 0 0.6rem;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
   color: var(--palette-error);
 }
 

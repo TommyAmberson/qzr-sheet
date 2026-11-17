@@ -58,7 +58,12 @@ function quizFile(overrides: Partial<QuizFile['quiz']> = {}): QuizFile {
 interface ListedResult {
   id: number
   origin: { action: string; name: string }
-  counted: boolean
+  stage: string | null
+  stageFrom: string | null
+  link: { scheduleQuizId: string; how: string } | null
+  suggestedLink?: { scheduleQuizId: string; label: string }
+  problems: { kind: string }[] | null
+  accepted: boolean
   revision: number
   action: string
   savedBy: { name: string }
@@ -142,7 +147,10 @@ describe('POST /api/meets/:id/results', () => {
     const [stored] = await list()
     expect(stored).toMatchObject({
       origin: { action: 'submitted', name: 'Room 1' },
-      counted: false,
+      stage: null,
+      stageFrom: null,
+      link: null,
+      accepted: false,
       revision: 1,
       action: 'submitted',
       savedBy: { name: 'Room 1' },
@@ -280,7 +288,13 @@ describe('submitting a name the meet already has', () => {
 
     const res = await submit(official(room1), { onExisting: 'newRevision' })
     expect(res.status).toBe(200)
-    expect(await jsonOf(res)).toEqual({ id, revision: 2, created: false, keptCurrent: false })
+    expect(await jsonOf(res)).toEqual({
+      id,
+      revision: 2,
+      created: false,
+      keptCurrent: false,
+      link: null,
+    })
     expect(await list()).toHaveLength(1)
   })
 
@@ -292,6 +306,7 @@ describe('submitting a name the meet already has', () => {
       revision: 2,
       created: false,
       keptCurrent: false,
+      link: null,
     })
     expect((await list())[0]).toMatchObject({
       origin: { action: 'submitted', name: 'Room 1' },
@@ -305,7 +320,13 @@ describe('submitting a name the meet already has', () => {
     changed.teams[0]!.name = 'Calgary 2'
     const res = await submit(official(room1), { quizFile: changed, onExisting: 'keepCurrent' })
     // The submission is revision 2; revision 3 selects revision 1, keeping it current
-    expect(await jsonOf(res)).toEqual({ id, revision: 2, created: false, keptCurrent: true })
+    expect(await jsonOf(res)).toEqual({
+      id,
+      revision: 2,
+      created: false,
+      keptCurrent: true,
+      link: null,
+    })
 
     const [stored] = await list()
     expect(stored).toMatchObject({ revision: 3, action: 'restored', savedBy: { name: 'Room 1' } })
@@ -494,16 +515,16 @@ describe('stored files', () => {
   })
 })
 
-describe('PATCH /api/meets/:id/results/counted', () => {
-  function setCounted(
+describe('PATCH /api/meets/:id/results/stage', () => {
+  function setStage(
     ids: number[],
-    counted: boolean,
+    stage: string | null,
     user: SessionUser | null = testSuperuser,
     guest: GuestPayload | null = null,
   ) {
     return createApp(db, user, guest).request(
-      `/api/meets/${meetId}/results/counted`,
-      jsonRequest('PATCH', { ids, counted }),
+      `/api/meets/${meetId}/results/stage`,
+      jsonRequest('PATCH', { ids, stage }),
       env,
     )
   }
@@ -517,53 +538,82 @@ describe('PATCH /api/meets/:id/results/counted', () => {
     return ids
   }
 
-  const countRecords = async () =>
-    (await db.select().from(schema.quizResultCountChanges)).map((r) => [
+  const stageRecords = async () =>
+    (await db.select().from(schema.quizResultChanges)).map((r) => [
       r.resultId,
-      r.counted,
+      r.kind,
+      r.stage,
       r.changedByName,
     ])
 
-  const countedOf = async (id: number) => (await list()).find((r) => r.id === id)!.counted
+  const stageOf = async (id: number) => {
+    const quiz = (await list()).find((r) => r.id === id)!
+    return [quiz.stage, quiz.stageFrom]
+  }
 
-  it('counts and uncounts quizzes for an admin, recording each change', async () => {
+  it('sets the stage of several quizzes for an admin, recording each change', async () => {
     const [q1, q2] = (await storeQuizzes('1', '2')) as [number, number]
-    expect(await countedOf(q1)).toBe(false)
+    expect(await stageOf(q1)).toEqual([null, null])
 
-    const res = await setCounted([q1, q2], true)
+    const res = await setStage([q1, q2], 'prelim')
     expect(res.status).toBe(200)
     expect(await jsonOf(res)).toEqual({ changed: [q1, q2] })
-    expect([await countedOf(q1), await countedOf(q2)]).toEqual([true, true])
+    expect([await stageOf(q1), await stageOf(q2)]).toEqual([
+      ['prelim', 'admin'],
+      ['prelim', 'admin'],
+    ])
 
-    expect(await jsonOf(await setCounted([q1], false))).toEqual({ changed: [q1] })
-    expect([await countedOf(q1), await countedOf(q2)]).toEqual([false, true])
-    expect(await countRecords()).toEqual([
-      [q1, true, 'Test Admin'],
-      [q2, true, 'Test Admin'],
-      [q1, false, 'Test Admin'],
+    expect(await jsonOf(await setStage([q1], 'finals'))).toEqual({ changed: [q1] })
+    expect(await stageOf(q1)).toEqual(['finals', 'admin'])
+    expect(await stageRecords()).toEqual([
+      [q1, 'stage', 'prelim', 'Test Admin'],
+      [q2, 'stage', 'prelim', 'Test Admin'],
+      [q1, 'stage', 'finals', 'Test Admin'],
     ])
   })
 
-  it('records only the quizzes whose value changes', async () => {
-    const [q1, q2] = (await storeQuizzes('1', '2')) as [number, number]
-    await setCounted([q1], true)
-    expect(await jsonOf(await setCounted([q1, q2], true))).toEqual({ changed: [q2] })
-    expect(await countRecords()).toHaveLength(2)
+  it('keeps a quiz set to not counted out, as the admin chose', async () => {
+    const [q1] = (await storeQuizzes('1')) as [number]
+    await setStage([q1], 'notCounted')
+    expect(await stageOf(q1)).toEqual([null, 'admin'])
   })
 
-  it('counts more quizzes than one D1 statement can bind', async () => {
+  it("removes the admin's choice with null, so the quiz follows its counting record again", async () => {
+    const [q1] = (await storeQuizzes('1')) as [number]
+    // Counted before quizzes had stages
+    await db.insert(schema.quizResultCountChanges).values({
+      resultId: q1,
+      counted: true,
+      changedByName: 'Test Admin',
+      changedAt: new Date(),
+    })
+    expect(await stageOf(q1)).toEqual(['prelim', 'counted'])
+    await setStage([q1], 'elimination')
+    expect(await stageOf(q1)).toEqual(['elimination', 'admin'])
+    expect(await jsonOf(await setStage([q1], null))).toEqual({ changed: [q1] })
+    expect(await stageOf(q1)).toEqual(['prelim', 'counted'])
+  })
+
+  it('records only the quizzes whose stage changes', async () => {
+    const [q1, q2] = (await storeQuizzes('1', '2')) as [number, number]
+    await setStage([q1], 'prelim')
+    expect(await jsonOf(await setStage([q1, q2], 'prelim'))).toEqual({ changed: [q2] })
+    expect(await stageRecords()).toHaveLength(2)
+  })
+
+  it('sets more quizzes than one D1 statement can bind', async () => {
     const ids = await storeQuizzes(...Array.from({ length: 95 }, (_, i) => String(i + 1)))
-    const { changed } = await jsonOf<{ changed: number[] }>(await setCounted(ids, true))
+    const { changed } = await jsonOf<{ changed: number[] }>(await setStage(ids, 'prelim'))
     expect(changed.toSorted((a, b) => a - b)).toEqual(ids)
-    expect((await list()).every((r) => r.counted)).toBe(true)
-    expect(await countRecords()).toHaveLength(95)
+    expect((await list()).every((r) => r.stage === 'prelim')).toBe(true)
+    expect(await stageRecords()).toHaveLength(95)
   })
 
   it('is for admins only', async () => {
     const [q1] = (await storeQuizzes('1')) as [number]
-    expect((await setCounted([q1], true, testUser)).status).toBe(403)
-    expect((await setCounted([q1], true, null, official(room1))).status).toBe(403)
-    expect(await countRecords()).toEqual([])
+    expect((await setStage([q1], 'prelim', testUser)).status).toBe(403)
+    expect((await setStage([q1], 'prelim', null, official(room1))).status).toBe(403)
+    expect(await stageRecords()).toEqual([])
   })
 
   it('changes nothing when an id is not a quiz of this meet', async () => {
@@ -574,18 +624,20 @@ describe('PATCH /api/meets/:id/results/counted', () => {
       env,
     )
     const otherId = (await jsonOf<{ id: number }>(other)).id
-    expect((await setCounted([q1, otherId], true)).status).toBe(404)
-    expect(await countRecords()).toEqual([])
-    expect(await countedOf(q1)).toBe(false)
+    expect((await setStage([q1, otherId], 'prelim')).status).toBe(404)
+    expect(await stageRecords()).toEqual([])
+    expect(await stageOf(q1)).toEqual([null, null])
   })
 
-  it('refuses a malformed body', async () => {
-    const res = await createApp(db, testSuperuser).request(
-      `/api/meets/${meetId}/results/counted`,
-      jsonRequest('PATCH', { ids: ['1'], counted: 'yes' }),
-      env,
-    )
-    expect(res.status).toBe(400)
+  it('refuses a malformed body, and a stage that is not one', async () => {
+    const send = (body: unknown) =>
+      createApp(db, testSuperuser).request(
+        `/api/meets/${meetId}/results/stage`,
+        jsonRequest('PATCH', body),
+        env,
+      )
+    expect((await send({ ids: ['1'], stage: 'prelim' })).status).toBe(400)
+    expect((await send({ ids: [1], stage: 'semifinal' })).status).toBe(400)
   })
 })
 
@@ -652,6 +704,7 @@ describe('history and restore', () => {
         quizFile: QuizFile
       }
     | { kind: 'counting'; counted: boolean; changedBy: { name: string } }
+    | { kind: 'change'; what: string; changedBy: { name: string } }
 
   let id: number
 
@@ -690,15 +743,23 @@ describe('history and restore', () => {
       env,
     )
 
-  it('lists saves and counting records, newest first, with who and how', async () => {
+  it('lists saves, decisions and old counting records, newest first, with who and how', async () => {
+    // A counting record from before quizzes had stages
+    await db.insert(schema.quizResultCountChanges).values({
+      resultId: id,
+      counted: true,
+      changedByName: 'Test Admin',
+      changedAt: new Date(Date.now() + 1000),
+    })
     await as(testSuperuser).request(
-      `/api/meets/${meetId}/results/counted`,
-      jsonRequest('PATCH', { ids: [id], counted: true }),
+      `/api/meets/${meetId}/results/stage`,
+      jsonRequest('PATCH', { ids: [id], stage: 'finals' }),
       env,
     )
     const { entries } = await history()
     expect(entries).toMatchObject([
       { kind: 'counting', counted: true, changedBy: { name: 'Test Admin' } },
+      { kind: 'change', what: 'stage', stage: 'finals', changedBy: { name: 'Test Admin' } },
       { kind: 'revision', revision: 2, action: 'edited', savedBy: { name: 'Test Admin' } },
       { kind: 'revision', revision: 1, action: 'submitted', savedBy: { name: 'Room 1' } },
     ])
@@ -820,8 +881,8 @@ describe('changing quizzes by the phase of the meet', () => {
     )
   const count = (app: ReturnType<typeof createApp>) =>
     app.request(
-      `/api/meets/${meetId}/results/counted`,
-      jsonRequest('PATCH', { ids: [id], counted: true }),
+      `/api/meets/${meetId}/results/stage`,
+      jsonRequest('PATCH', { ids: [id], stage: 'prelim' }),
       env,
     )
   const another = { quizFile: quizFile({ quizNumber: '9' }) }

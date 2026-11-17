@@ -63,10 +63,17 @@ export function submitResult(
   quizFile: QuizFile,
   roomId: number | null,
   onExisting?: OnExisting,
+  /** The scheduled quiz the sheet is linked to, which the meet links the stored quiz to */
+  scheduleQuizId?: string | null,
 ): Promise<Stored> {
   return request(`/api/meets/${meetId}/results`, {
     method: 'POST',
-    body: JSON.stringify({ quizFile, roomId: roomId ?? undefined, onExisting }),
+    body: JSON.stringify({
+      quizFile,
+      roomId: roomId ?? undefined,
+      onExisting,
+      scheduleQuizId: scheduleQuizId ?? undefined,
+    }),
   })
 }
 

@@ -106,14 +106,17 @@ async function refreshTargets(): Promise<void> {
 
 /**
  * Send the quiz to the meet, which knows it by its name (division and quiz number), for a room or
- * (an admin) none. A name the meet already has comes back with what's stored, unless sent again
- * saying what to do with it.
+ * (an admin) none, with the scheduled quiz the sheet is linked to when it is linked to that meet.
+ * A name the meet already has comes back with what's stored, unless sent again saying what to do
+ * with it.
  */
 async function submitQuiz(
   meetId: number,
   quizFile: QuizFile,
   roomId: number | null,
   onExisting?: OnExisting,
+  /** The scheduled quiz the sheet is linked to, if the meet is the one it is linked to */
+  scheduleQuizId?: string | null,
 ): Promise<SubmitOutcome> {
   try {
     const { created, revision, keptCurrent } = await submitResult(
@@ -121,6 +124,7 @@ async function submitQuiz(
       quizFile,
       roomId,
       onExisting,
+      scheduleQuizId,
     )
     return { stored: true, created, revision, keptCurrent: keptCurrent ?? false }
   } catch (e) {

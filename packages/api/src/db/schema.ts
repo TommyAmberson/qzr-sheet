@@ -9,7 +9,15 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core'
-import { AccountRole, MEET_PHASES, DIVISION_STATES, RESULT_ACTIONS } from '@qzr/shared'
+import {
+  AccountRole,
+  MEET_PHASES,
+  DIVISION_STATES,
+  RESULT_ACTIONS,
+  STAGE_CHOICES,
+  CHANGE_KINDS,
+  LINK_HOWS,
+} from '@qzr/shared'
 
 // ---- Better Auth core tables ----
 
@@ -417,8 +425,42 @@ export const quizResultScores = sqliteTable('quiz_result_scores', {
   scored: text('scored').notNull(),
 })
 
-// Append-only: one row per count or uncount. A quiz counts when its newest row says so, and not
-// until an admin first counts it.
+// Append-only: one row for each decision about a stored quiz. Its current value of each kind is
+// its newest row of that kind (specs/006-meet-stats, data-model.md).
+export const quizResultChanges = sqliteTable(
+  'quiz_result_changes',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    resultId: integer('result_id')
+      .notNull()
+      .references(() => quizResults.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: CHANGE_KINDS }).notNull(),
+    // For `stage`: the admin's choice, or null when the admin's choice is removed
+    stage: text('stage', { enum: STAGE_CHOICES }),
+    // For `link`: the schedule document's quiz id, or null when the link is removed
+    scheduleQuizId: text('schedule_quiz_id'),
+    // For `link`: sent by the scoresheet, or made by hand; `matched` is only ever worked out on read
+    how: text('how', { enum: LINK_HOWS }),
+    // For `acceptance`: the revision accepted as scored, or no longer accepted
+    revision: integer('revision'),
+    accepted: integer('accepted', { mode: 'boolean' }),
+    changedByAccountId: text('changed_by_account_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    changedByRoomId: integer('changed_by_room_id').references(() => meetRooms.id, {
+      onDelete: 'set null',
+    }),
+    // Who made it, as named at the time, so the trail survives a renamed or deleted room or account
+    changedByName: text('changed_by_name').notNull(),
+    changedAt: integer('changed_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  // A meet's rows are read together for its quizzes
+  (t) => [index('quiz_result_changes_result_id_idx').on(t.resultId)],
+)
+
+// Append-only: one row per count or uncount, from before stored quizzes had stages. No row is
+// written any more; a quiz with no stage of its own and no link is a prelim when its newest row
+// says it counts.
 export const quizResultCountChanges = sqliteTable(
   'quiz_result_count_changes',
   {

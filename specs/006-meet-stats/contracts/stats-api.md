@@ -134,7 +134,7 @@ interface QuizRef {
 }
 
 type AttentionItem =
-  | { kind: 'noStage'; quiz: QuizRef; suggestedLink?: { scheduleQuizId: string; label: string } }
+  | { kind: 'noStage'; quiz: QuizRef }
   | { kind: 'inError'; quiz: QuizRef; problems: QuizProblem[] }
   | { kind: 'unequalPrelims'; division: string; teams: { name: string; quizzes: number }[] }
   | { kind: 'finalTie'; division: string; teams: string[] }
@@ -156,11 +156,13 @@ type QuizProblem =
   | { kind: 'quizzerNotOnRoster'; team: string; quizzer: string; near?: string }
   | { kind: 'quizzerMissing'; team: string; quizzer: string }
   | { kind: 'tooManyQuizzers'; team: string; listed: number; roster: number }
+  | { kind: 'divisionNotOnRoster' } // the roster has no team in the quiz's division
   // Schedule errors: the quiz held against the scheduled quiz it is linked to
+  | { kind: 'notLinked' } // in a meet with a published schedule, linked to none of its quizzes
   | { kind: 'nameDiffers'; scheduled: string }
   | { kind: 'teamsDiffer'; scheduled: string[] }
   // The quiz's overtime doesn't fit its stage
-  | { kind: 'overtimePlayed' } // in a prelim or an intermediate, where a tie stands
+  | { kind: 'overtimePlayed' } // in a prelim or intermediate of a meet that plays them without
   | { kind: 'tieLeftStanding' } // an elimination or Finals level with no overtime
 ```
 
@@ -197,17 +199,18 @@ quiz is linked to that scheduled quiz, recorded as sent by the scoresheet. Witho
 linked when it matches a scheduled quiz on its name and team names (R4). Responses gain
 `link: { scheduleQuizId: string; how: 'sheet' | 'matched' | 'hand' } | null`.
 
-* 400 if `scheduleQuizId` is not a quiz of the meet's published schedule.
+* A `scheduleQuizId` the published schedule doesn't have is let go, not refused: the quiz is stored
+  and linked by its name, so nothing an official scored is turned away.
 * A scheduled quiz already linked to another stored quiz does not refuse the submission: the quiz is
   stored unlinked and `link` is null, so nothing an official scored is turned away.
 
 ### `GET /results` (admin, or official), changed
 
 Each stored quiz gains: `stage` and `stageFrom` (`'admin' | 'schedule' | 'counted' | null`), `link`,
-`suggestedLink`, `incompleteTypes`, `problems` (null for a quiz whose current revision is still to
-be scored, R2: the list never waits, since quizzes are edited from it), `accepted` (whether its
-current content is accepted), `withdrawnOrder`, and `otherFormula` (its own way of scoring level
-teams differs from the meet's). `counted` is gone.
+`incompleteTypes`, `problems` (null for a quiz whose current revision is still to be scored, R2: the
+list never waits, since quizzes are edited from it), `accepted` (whether its current content is
+accepted), `withdrawnOrder`, and `otherFormula` (its own way of scoring level teams differs from the
+meet's). `counted` is gone.
 
 ### `PATCH /results/stage` (admin), replaces `PATCH /results/counted`
 

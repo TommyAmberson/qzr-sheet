@@ -12,16 +12,13 @@ type Seat = [string, PlaceKey, number, number?, number?]
 function quiz(name: string, seats: Seat[]): CountedQuiz {
   return {
     name,
-    outcome: {
-      placed: true,
-      teams: seats.map(([team, place, placementPoints, score = 0, errors = 0]) => ({
-        name: team,
-        place,
-        placementPoints,
-        score,
-        errors,
-      })),
-    },
+    teams: seats.map(([team, place, placementPoints, score = 0, errors = 0]) => ({
+      name: team,
+      place,
+      placementPoints,
+      score,
+      errors,
+    })),
   }
 }
 
@@ -60,7 +57,7 @@ describe('divisionStandings', () => {
 
   it('scores a stored quiz file as the scoresheet places it', () => {
     const standings = divisionStandings([
-      { name: 'Q1', outcome: quizOutcome(deserialize(fifteenQuestionQuizFile())) },
+      { name: 'Q1', teams: quizOutcome(deserialize(fifteenQuestionQuizFile())).teams },
     ])
     expect(standings.teams.map((t) => [t.name, t.placementPoints])).toEqual([
       ['Team A', 20],
@@ -251,26 +248,19 @@ describe('divisionStandings', () => {
     ])
   })
 
-  it("names a quiz that can't be placed, which adds nothing and isn't one of its teams' quizzes (R12)", () => {
-    const unplaced: CountedQuiz = {
-      name: 'Q2',
-      outcome: {
-        placed: false,
-        teams: [{ name: 'Banff', score: 50, place: null, placementPoints: null, errors: 0 }],
-      },
-    }
-    const standings = divisionStandings([
-      quiz('Q1', [
-        ['Airdrie', 1, 20],
-        ['Banff', 2, 10],
-      ]),
-      unplaced,
-    ])
-    expect(standings.teams.map((t) => [t.name, t.placementPoints, t.quizzes])).toEqual([
-      ['Airdrie', 20, 1],
-      ['Banff', 10, 1],
-    ])
-    expect(standings.warnings).toEqual([{ kind: 'unplaced', quiz: 'Q2' }])
+  it('marks no finalists where the quizzes do not lead straight to a Finals', () => {
+    const standings = divisionStandings(
+      [
+        quiz('Q1', [['A', 1, 40]]),
+        quiz('Q2', [['B', 1, 30]]),
+        quiz('Q3', [['C', 1, 20, 100, 2]]),
+        quiz('Q4', [['D', 1, 20, 100, 2]]),
+      ],
+      { finalists: false },
+    )
+    expect(standings.teams.map((t) => t.finalist)).toEqual([false, false, false, false])
+    // C and D are level at the cutoff, which matters only when there is a cutoff
+    expect(standings.warnings.some((w) => w.kind === 'finalTie')).toBe(false)
   })
 
   describe('look-alike names (FR-016, R11)', () => {

@@ -7,7 +7,13 @@ import {
   MeetRole,
   placeRank,
   placeTieCount,
+  STAGE_CHOICES,
+  scheduleQuizMeta,
+  quizName,
   type DivisionStats,
+  type ScheduleQuiz,
+  type StageChoice,
+  mayChangeQuizzes,
 } from '@qzr/shared'
 import {
   ChoiceDialog,
@@ -22,15 +28,18 @@ import {
   editResult,
   getDivisionStats,
   getMeet,
+  getPublishedSchedule,
   getSender,
+  linkResult,
   listResults,
-  setResultsCounted,
+  setAcceptance,
+  setResultsStage,
   uploadResult,
   type MeetDetail,
   type StoredQuiz,
 } from '../api'
 import { groupResults, mergeEdits, type ResultRow } from '../results'
-import { placeLabel, warningText } from '../stats'
+import { STAGE_LABELS, placeLabel, problemText, warningText } from '../stats'
 import { useRoomCode } from '../composables/useRoomCode'
 
 const props = defineProps<{ slug: string }>()
@@ -43,7 +52,9 @@ const divisions = computed(() => groupResults(stored.value))
 const loading = ref(true)
 const error = ref('')
 const saving = ref(false)
-const countError = ref('')
+const changeError = ref('')
+/** The published schedule's quizzes, which stored quizzes are linked to; none when there is no schedule */
+const scheduled = shallowRef<ScheduleQuiz[]>([])
 /** Who the user is in this meet: an admin counts quizzes and reads the standings; an official doesn't */
 const sender = ref<Sender | null>(null)
 const isAdmin = computed(() => sender.value?.admin ?? false)
@@ -79,6 +90,7 @@ async function load() {
     sender.value = loaded.who
     stored.value = loaded.quizzes
     void loadStats()
+    void loadSchedule()
   } catch (e) {
     error.value =
       e instanceof ApiError && e.status === 401
@@ -118,6 +130,16 @@ async function loadStats() {
   )
   const failed = answers.find((answer): answer is Error => answer instanceof Error)
   statsError.value = failed ? `Stats could not be read: ${failed.message}` : ''
+  // The list shows no problems for a quiz whose score was still to be made when it was read;
+  // reading the stats has made those scores, so read the list again to show them
+  if (!failed && stored.value.some((quiz) => quiz.problems === null)) {
+    try {
+      const quizzes = await listResults(meetId)
+      if (read === statsRead) stored.value = quizzes
+    } catch (e) {
+      statsError.value = (e as Error).message
+    }
+  }
 }
 
 /** Who the user is when sending to this meet, as the API works it out; null for anyone else */
@@ -164,26 +186,84 @@ async function onUploadFiles(event: Event) {
   }
 }
 
-/**
- * Count or uncount quizzes, showing the change at once and undoing it if the server refuses. Once
- * it succeeds every quiz sent has that value, whichever of them actually changed.
- */
-async function setCounted(quizzes: ResultRow[], counted: boolean) {
-  if (!meet.value || quizzes.length === 0) return
-  const before = stored.value
-  const ids = new Set(quizzes.map((quiz) => quiz.id))
-  stored.value = before.map((quiz) => (ids.has(quiz.id) ? { ...quiz, counted } : quiz))
-  saving.value = true
-  countError.value = ''
+/** The schedule's quizzes to link to; a meet with no published schedule has none */
+async function loadSchedule() {
+  if (!meet.value) return
   try {
-    await setResultsCounted(meet.value.id, [...ids], counted)
-    void loadStats()
+    scheduled.value = (await getPublishedSchedule(meet.value.id)).document.quizzes
   } catch (e) {
-    stored.value = before
-    countError.value = (e as Error).message
+    if (!(e instanceof ApiError) || e.status !== 404) changeError.value = (e as Error).message
+  }
+}
+
+const nameOfScheduled = (quiz: ScheduleQuiz) => quizName(scheduleQuizMeta(quiz))
+/** The scheduled quiz a stored quiz is linked to, by name */
+function linkLabel(quiz: ResultRow): string {
+  const linked = scheduled.value.find((q) => q.id === quiz.link?.scheduleQuizId)
+  return linked ? nameOfScheduled(linked) : 'a scheduled quiz'
+}
+/** Whether the user may change links now, by the rule the API refuses changes with */
+const canLink = computed(
+  () => !!meet.value?.phase && mayChangeQuizzes(meet.value.phase, isAdmin.value),
+)
+
+/** The quizzes in error that no admin has accepted, which "Accept all" would accept */
+const unaccepted = computed(() =>
+  allQuizzes.value.filter((quiz) => quiz.problems?.length && !quiz.accepted),
+)
+
+/** Make a change to stored quizzes, then show the list and the stats as they now are */
+async function change(action: (meetId: number) => Promise<unknown>) {
+  if (!meet.value) return
+  const meetId = meet.value.id
+  saving.value = true
+  changeError.value = ''
+  try {
+    await action(meetId)
+  } catch (e) {
+    changeError.value = (e as Error).message
   } finally {
+    try {
+      stored.value = await listResults(meetId)
+      void loadStats()
+    } catch (e) {
+      changeError.value ||= (e as Error).message
+    }
     saving.value = false
   }
+}
+
+/** Set what quizzes count for; the empty choice leaves each to the schedule */
+function setStage(quizzes: ResultRow[], choice: string) {
+  if (quizzes.length === 0) return
+  const stage = choice === '' ? null : (choice as StageChoice)
+  return change((meetId) =>
+    setResultsStage(
+      meetId,
+      quizzes.map((quiz) => quiz.id),
+      stage,
+    ),
+  )
+}
+
+/** The stage picked for every quiz shown; the select then shows its prompt again */
+function setEveryStage(event: Event) {
+  const select = event.target as HTMLSelectElement
+  void setStage(allQuizzes.value, select.value)
+  select.selectedIndex = 0
+}
+
+function link(quiz: ResultRow, scheduleQuizId: string | null) {
+  return change((meetId) => linkResult(meetId, quiz.id, scheduleQuizId))
+}
+
+/** Accept quizzes as scored, each at the revision shown, or withdraw one's acceptance */
+function accept(quizzes: ResultRow[], accepted: boolean) {
+  return change(async (meetId) => {
+    await Promise.all(
+      quizzes.map((quiz) => setAcceptance(meetId, quiz.id, quiz.revision, accepted)),
+    )
+  })
 }
 
 /**
@@ -320,24 +400,29 @@ onMounted(load)
       <template v-if="divisions.length > 0">
         <div class="quizzes-header">
           <h3 class="section-title">Quizzes</h3>
-          <button
+          <select
             v-if="isAdmin"
+            class="stage-select"
+            :disabled="saving"
+            aria-label="Set the stage of every quiz shown"
+            @change="setEveryStage"
+          >
+            <option disabled selected>Set every stage to…</option>
+            <option value="">From the schedule</option>
+            <option v-for="choice in STAGE_CHOICES" :key="choice" :value="choice">
+              {{ STAGE_LABELS[choice] }}
+            </option>
+          </select>
+          <button
+            v-if="isAdmin && unaccepted.length > 0"
             class="btn btn--secondary btn--sm"
             :disabled="saving"
-            @click="setCounted(allQuizzes, true)"
+            @click="accept(unaccepted, true)"
           >
-            Count all
-          </button>
-          <button
-            v-if="isAdmin"
-            class="btn btn--secondary btn--sm"
-            :disabled="saving"
-            @click="setCounted(allQuizzes, false)"
-          >
-            Uncount all
+            Accept all {{ unaccepted.length }} with errors as scored
           </button>
         </div>
-        <p v-if="countError" class="state-msg state-msg--error">{{ countError }}</p>
+        <p v-if="changeError" class="state-msg state-msg--error">{{ changeError }}</p>
       </template>
 
       <section v-for="group in divisions" :key="group.division" class="division">
@@ -350,7 +435,7 @@ onMounted(load)
               <th>From</th>
               <th>Revision</th>
               <th>Last saved</th>
-              <th v-if="isAdmin">Counted</th>
+              <th>Stage and link</th>
             </tr>
           </thead>
           <tbody>
@@ -370,21 +455,76 @@ onMounted(load)
                     </span>
                   </li>
                   <li v-if="!quiz.placed" class="note">not placed yet</li>
+                  <li v-for="(problem, i) in quiz.problems ?? []" :key="`p${i}`" class="problem">
+                    {{ problemText(problem) }}
+                  </li>
+                  <li v-if="quiz.problems?.length && quiz.accepted" class="note">
+                    accepted as scored
+                  </li>
                 </ul>
+                <button
+                  v-if="isAdmin && quiz.problems?.length"
+                  class="btn btn--secondary btn--sm"
+                  :disabled="saving"
+                  @click="accept([quiz], !quiz.accepted)"
+                >
+                  {{ quiz.accepted ? 'Withdraw acceptance' : 'Accept as scored' }}
+                </button>
               </td>
               <td class="cell-from" data-label="From">{{ quiz.from }}</td>
               <td class="cell-revision" data-label="Revision">{{ quiz.revision }}</td>
               <td class="cell-saved" data-label="Last saved">
                 {{ quiz.savedBy }}, {{ quiz.action }}, {{ formatSlotTime(quiz.savedAt) }}
               </td>
-              <td v-if="isAdmin" class="cell-counted" data-label="Counted">
-                <input
-                  type="checkbox"
-                  :checked="quiz.counted"
+              <td class="cell-stage" data-label="Stage">
+                <select
+                  v-if="isAdmin"
+                  class="stage-select"
+                  :value="quiz.stageFrom === 'admin' ? (quiz.stage ?? 'notCounted') : ''"
                   :disabled="saving"
-                  :aria-label="`Count ${quiz.name}`"
-                  @change="setCounted([quiz], ($event.target as HTMLInputElement).checked)"
-                />
+                  :aria-label="`Stage of ${quiz.name}`"
+                  @change="setStage([quiz], ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="">
+                    {{
+                      quiz.stageFrom === 'admin' || !quiz.stage
+                        ? 'From the schedule'
+                        : `${STAGE_LABELS[quiz.stage]}, from the ${quiz.stageFrom === 'counted' ? 'old count' : 'schedule'}`
+                    }}
+                  </option>
+                  <option v-for="choice in STAGE_CHOICES" :key="choice" :value="choice">
+                    {{ STAGE_LABELS[choice] }}
+                  </option>
+                </select>
+                <span v-else>{{ quiz.stage ? STAGE_LABELS[quiz.stage] : 'Not counted' }}</span>
+                <div class="link">
+                  <template v-if="quiz.link">
+                    Linked to {{ linkLabel(quiz) }}
+                    <button
+                      v-if="canLink"
+                      class="btn btn--secondary btn--sm"
+                      :disabled="saving"
+                      @click="link(quiz, null)"
+                    >
+                      Unlink
+                    </button>
+                  </template>
+                  <template v-else>
+                    <span class="note">not linked</span>
+                    <select
+                      v-if="canLink && scheduled.length > 0"
+                      class="stage-select"
+                      :disabled="saving"
+                      :aria-label="`Link ${quiz.name} to a scheduled quiz`"
+                      @change="link(quiz, ($event.target as HTMLSelectElement).value)"
+                    >
+                      <option disabled selected>Link to…</option>
+                      <option v-for="q in scheduled" :key="q.id" :value="q.id">
+                        {{ nameOfScheduled(q) }}
+                      </option>
+                    </select>
+                  </template>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -474,7 +614,7 @@ onMounted(load)
   margin-left: 0.3rem;
 }
 
-/* On a phone each quiz is a card: its name and Counted box, its teams, then the rest, labelled */
+/* On a phone each quiz is a card: its name, its teams, then the rest, labelled */
 @media (max-width: 640px) {
   .quiz-table thead {
     display: none;
@@ -488,8 +628,9 @@ onMounted(load)
     display: grid;
     grid-template-columns: 1fr auto;
     grid-template-areas:
-      'quiz counted'
+      'quiz quiz'
       'teams teams'
+      'stage stage'
       'from from'
       'revision revision'
       'saved saved';
@@ -512,8 +653,8 @@ onMounted(load)
     font-weight: 600;
   }
 
-  .cell-counted {
-    grid-area: counted;
+  .cell-stage {
+    grid-area: stage;
   }
 
   .cell-teams {
@@ -612,6 +753,24 @@ onMounted(load)
 
 .warnings button {
   margin-left: 0.5rem;
+}
+
+.problem {
+  color: var(--palette-error);
+}
+
+.stage-select {
+  font: inherit;
+  font-size: 0.8rem;
+  max-width: 100%;
+}
+
+.link {
+  margin-top: 0.3rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
 }
 
 .note {

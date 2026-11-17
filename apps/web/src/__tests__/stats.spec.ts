@@ -1,6 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { ValidationCode, type QuizProblem } from '@qzr/shared'
-import { flagText, placeLabel, problemText, warningText } from '../stats'
+import { changeText, flagText, placeLabel, problemText, warningText } from '../stats'
+
+describe('changeText', () => {
+  it('says what was decided about a stored quiz', () => {
+    expect(changeText({ what: 'stage', stage: 'finals' })).toBe('Stage set to Finals')
+    expect(changeText({ what: 'stage', stage: null })).toBe('Stage left to the schedule')
+    expect(changeText({ what: 'link', scheduleQuizId: 'p3', how: 'matched' })).toBe(
+      'Linked to the schedule by its name and teams',
+    )
+    expect(changeText({ what: 'link', scheduleQuizId: null })).toBe('Unlinked from the schedule')
+    expect(changeText({ what: 'acceptance', revision: 2, accepted: true })).toBe(
+      'Revision 2 accepted as scored',
+    )
+  })
+})
 
 describe('placeLabel', () => {
   it('names a place, and says when teams share it', () => {
@@ -40,6 +54,28 @@ describe('problemText', () => {
     )
   })
 
+  it('says what a roster error is and what the roster has', () => {
+    expect(
+      problemText({ kind: 'teamNotOnRoster', team: 'Mapel Hill 1', near: 'Maple Hill 1' }),
+    ).toBe("Mapel Hill 1 is not one of the division's teams. The roster has Maple Hill 1.")
+    expect(problemText({ kind: 'teamNotOnRoster', team: '' })).toBe(
+      "A team with no name is not one of the division's teams.",
+    )
+    expect(
+      problemText({ kind: 'quizzerMissing', team: 'Maple Hill 1', quizzer: 'Alex Abbott' }),
+    ).toBe('Maple Hill 1: Alex Abbott is on the roster and not in this quiz.')
+  })
+
+  it('says how a quiz differs from its scheduled quiz', () => {
+    expect(problemText({ kind: 'nameDiffers', scheduled: 'D1 Q3' })).toBe(
+      'It is linked to D1 Q3, which is not its name.',
+    )
+    expect(problemText({ kind: 'notLinked' })).toBe('It is not linked to a quiz of the schedule.')
+    expect(problemText({ kind: 'tieLeftStanding' })).toBe(
+      'It ended level with no overtime, and this quiz must have a winner.',
+    )
+  })
+
   it('lists the unanswered questions', () => {
     expect(problemText({ kind: 'unanswered', questions: ['15'] })).toBe(
       'Question 15 has no answer.',
@@ -67,6 +103,22 @@ describe('warningText', () => {
     )
     expect(warningText({ kind: 'inError', quiz, problems: [problem, problem] })).toBe(
       'D1 Q3 has 2 errors, so it adds nothing.',
+    )
+  })
+
+  it('names two quizzes that are both a Finals', () => {
+    expect(
+      warningText({
+        kind: 'twoFinals',
+        division: '1',
+        consolation: false,
+        quizzes: [
+          { id: 1, name: 'D1 QF' },
+          { id: 2, name: 'D1 QG' },
+        ],
+      }),
+    ).toBe(
+      'D1 QF and D1 QG are both the Finals, so neither gives its first three. Set all but one to another stage.',
     )
   })
 

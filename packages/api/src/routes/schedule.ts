@@ -17,6 +17,7 @@ import { asOne, createDb, inChunks, type Db } from '../lib/db'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { jsonBody, meetIdOf } from '../lib/request'
+import { newestVersion } from '../lib/scheduleVersions'
 import { documentFromLegacy, legacyFromDocument, type LegacySchedule } from '../lib/scheduleLegacy'
 
 interface ScheduleVariables extends SessionVariables {
@@ -74,17 +75,6 @@ async function readerView(c: Context<Env>, db: Db, meetId: number): Promise<Shee
   ])
   if (isAdmin) return c.req.query('view') === 'letters' ? 'letters' : 'teams'
   return meet && (meet.phase === 'registration' || meet.phase === 'build') ? 'letters' : 'teams'
-}
-
-/** The meet's newest published version, the one readers see */
-async function newestVersion(db: Db, meetId: number) {
-  const [row] = await db
-    .select()
-    .from(schema.meetScheduleVersions)
-    .where(eq(schema.meetScheduleVersions.meetId, meetId))
-    .orderBy(desc(schema.meetScheduleVersions.version))
-    .limit(1)
-  return row ?? null
 }
 
 /**

@@ -20,7 +20,7 @@ current value of each kind is its newest row of that kind (R5).
 | kind           | `stage`, `link`, `acceptance` or `kept`                                              |
 | stage          | for `stage`: prelim, intermediate, elimination, finals, or not counted; else empty   |
 | scheduled quiz | for `link`: the schedule document's quiz id, or empty when the link is removed       |
-| how            | for `link`: sent by the scoresheet, matched on arrival, or by hand                   |
+| how            | for `link`: sent by the scoresheet, or by hand                                       |
 | revision       | for `acceptance`: the revision accepted or no longer accepted                        |
 | accepted       | for `acceptance`: accepted, or withdrawn                                             |
 | changed by     | the account, and for an official's link the room; and the name as it was at the time |
@@ -31,10 +31,14 @@ Rules:
 * **Stage** (R3, FR-008 to FR-010): the newest `stage` row; else the stage of the linked scheduled
   quiz; else, with no link, prelim when the newest counting record says counted; else not counted.
   Only admins write `stage` rows.
-* **Link** (R4, FR-009): the newest `link` row. Written when a submission carries `scheduleQuizId`,
-  when an unlinked quiz matches a scheduled quiz on arrival or after a rename, and when an admin or
-  one of the quiz's room officials links, relinks or unlinks it by hand. At most one stored quiz of
-  a meet should be linked to a scheduled quiz; a second is refused, naming the first.
+* **Link** (R4, FR-009): worked out when read. A quiz's newest `link` row, written when a submission
+  carries `scheduleQuizId` or when an admin or one of the quiz's room officials links, relinks or
+  unlinks it by hand, holds while its scheduled quiz is in the newest schedule; an unlink by hand
+  holds too. Otherwise the quiz is linked to the scheduled quiz of its name, unless a `link` row of
+  another quiz holds that one. At most one stored quiz of a meet is linked to a scheduled quiz: a
+  second explicit link is refused, naming the first, and a link by name gives way to an explicit
+  one. A submission naming a scheduled quiz does not replace a link made or removed by hand. No row
+  is written for a link by name.
 * **Acceptance** (R6, FR-014 to FR-016): a quiz in error counts only while its current content is
   the content of an accepted revision. Only admins write `acceptance` rows.
 * **Kept** (R9, FR-019b): clears the "played under a withdrawn order" flag raised by a withdrawal
@@ -53,13 +57,13 @@ What scoring makes of one stored revision, kept so that a stats request ranks wi
 One row per revision that carries a quiz file; a restoring revision uses the row of the revision it
 restores.
 
-| Field          | Meaning                                                                                 |
-| -------------- | --------------------------------------------------------------------------------------- |
-| revision       | the revision; deleted with it                                                           |
-| shared version | the `@qzr/shared` version that scored it                                                |
-| scored         | JSON: per team its name, score, errors and place by score; what is wrong with the quiz; |
-|                | per listed quizzer the name, points, errors, correct answers and types; the quiz's own  |
-|                | formula                                                                                 |
+| Field          | Meaning                                                                                |
+| -------------- | -------------------------------------------------------------------------------------- |
+| revision       | the revision; deleted with it                                                          |
+| shared version | the `@qzr/shared` version that scored it                                               |
+| scored         | JSON: the quiz's name, whether it is a consolation quiz, and its own formula; per team |
+|                | its name, score, score before overtime, errors and place by score; what is wrong with  |
+|                | the quiz; per listed quizzer the name, points, errors, correct answers and types       |
 
 Rules:
 
@@ -123,6 +127,7 @@ The document (a shared schema, so the API validates it and the portal's form is 
 | --------------------- | ------------------------------------------------------------------- | --------------- |
 | tie-break order       | head-to-head, points, errors; or points, errors                     | the first       |
 | level teams           | the points of the shared place; or the reduced points               | the first       |
+| prelims, no overtime  | yes or no                                                           | yes             |
 | results, per stage    | shown from a moment or never; and places only, or places and scores | see below       |
 | prelim standings live | yes or no                                                           | no              |
 | quizzer standings     | shown from a moment or never; updated live or by stage              | meet done, live |

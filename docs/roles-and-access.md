@@ -88,25 +88,27 @@ Who each role is for:
 `-` none, R read, W write. "Own" is the grant's church or room. Admin includes coach and official
 throughout; superuser includes admin.
 
-| Resource                         | registration | build       | live            | review          | done           |
-| -------------------------------- | ------------ | ----------- | --------------- | --------------- | -------------- |
-| Meet info, phase, team counts    | V: R         | V: R        | V: R            | V: R            | V: R           |
-| Viewer code                      | V: R         | V: R        | V: R            | V: R            | V: R           |
-| Own church's teams and roster    | C: RW        | C: R; A: RW | C: R; A: RW     | C: R; A: RW     | C: R           |
-| All churches, teams, and rosters | A: RW        | A: RW       | V: R; A: RW     | V: R; A: RW     | V: R           |
-| Rooms and their codes            | A: RW        | A: RW       | A: RW           | A: RW           | A: R           |
-| Published schedule               | A: RW        | A: RW       | V: R; A: RW     | V: R; A: RW     | V: R           |
-| Draft schedule                   | A: RW        | A: RW       | A: RW           | A: RW           | A: R           |
-| Send a quiz (submit or upload)   | -            | -           | own O: W; A: W  | A: W            | -              |
-| Own rooms' quizzes and history   | -            | -           | O: RW           | O: R            | O: R           |
-| All stored quizzes and history   | -            | -           | A: RW           | A: RW           | A: R           |
-| Counting quizzes                 | -            | -           | own O: R; A: RW | own O: R; A: RW | own O: R; A: R |
-| Standings                        | -            | -           | A: R            | A: R            | A: R           |
-| The meet's team-name list        | A: RW        | A: RW       | V: R; A: RW     | V: R; A: RW     | V: R           |
-| Members: list, remove            | A: RW        | A: RW       | A: RW           | A: RW           | A: R           |
-| Meet phase                       | A: RW        | A: RW       | A: RW           | A: RW           | A: RW          |
-| Division state                   | -            | -           | A: RW           | A: RW           | A: R           |
-| Redeem a code (join)             | anyone       | anyone      | anyone          | anyone          | anyone         |
+| Resource                         | registration | build       | live             | review          | done           |
+| -------------------------------- | ------------ | ----------- | ---------------- | --------------- | -------------- |
+| Meet info, phase, team counts    | V: R         | V: R        | V: R             | V: R            | V: R           |
+| Viewer code                      | V: R         | V: R        | V: R             | V: R            | V: R           |
+| Own church's teams and roster    | C: RW        | C: R; A: RW | C: R; A: RW      | C: R; A: RW     | C: R           |
+| All churches, teams, and rosters | A: RW        | A: RW       | V: R; A: RW      | V: R; A: RW     | V: R           |
+| Rooms and their codes            | A: RW        | A: RW       | A: RW            | A: RW           | A: R           |
+| Published schedule               | A: RW        | A: RW       | V: R; A: RW      | V: R; A: RW     | V: R           |
+| Draft schedule                   | A: RW        | A: RW       | A: RW            | A: RW           | A: R           |
+| Send a quiz (submit or upload)   | -            | -           | own O: W; A: W   | A: W            | -              |
+| Own rooms' quizzes and history   | -            | -           | O: RW            | O: R            | O: R           |
+| All stored quizzes and history   | -            | -           | A: RW            | A: RW           | A: R           |
+| A quiz's stage                   | -            | -           | own O: R; A: RW  | own O: R; A: RW | own O: R; A: R |
+| A quiz's link to the schedule    | -            | -           | own O: RW; A: RW | own O: R; A: RW | own O: R; A: R |
+| Accepting a quiz as scored       | -            | -           | own O: R; A: RW  | own O: R; A: RW | own O: R; A: R |
+| Standings                        | -            | -           | A: R             | A: R            | A: R           |
+| The meet's team-name list        | A: RW        | A: RW       | V: R; A: RW      | V: R; A: RW     | V: R           |
+| Members: list, remove            | A: RW        | A: RW       | A: RW            | A: RW           | A: R           |
+| Meet phase                       | A: RW        | A: RW       | A: RW            | A: RW           | A: RW          |
+| Division state                   | -            | -           | A: RW            | A: RW           | A: R           |
+| Redeem a code (join)             | anyone       | anyone      | anyone           | anyone          | anyone         |
 
 * **Before `live`**, a meet's teams, rosters, and schedule are private to the admin and, for its own
   church, the coach. Others see the meet's details and team counts only.
@@ -124,7 +126,11 @@ throughout; superuser includes admin.
   was saved for, so sending another room's quiz name, after the warning, gives this room access to
   it. A correction or restore is recorded for one of the official's rooms the quiz already has, so
   it never adds a room. An account may officiate several rooms and sees all of theirs.
-* Officials see whether their rooms' quizzes count, but don't change it or see the standings.
+* Officials see what their rooms' quizzes count for and what is wrong with each, and may link one of
+  their rooms' quizzes to its scheduled quiz, since they know which quiz they scored. They don't set
+  a stage, accept a quiz as scored, or see the standings.
+* A quiz in error (a scoring error, a name not on the roster of its division, or a difference from
+  its scheduled quiz) counts for nothing until it is fixed or an admin accepts it as scored.
 * Standings are admin-only for now. When viewers get them, they are marked provisional until `done`.
 * Nothing yet depends on a division's state within `live`.
 

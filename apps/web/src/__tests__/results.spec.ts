@@ -40,7 +40,11 @@ function stored(
   return {
     id,
     origin: { action: 'submitted', name: 'Room 1' },
-    counted: false,
+    stage: null,
+    stageFrom: null,
+    link: null,
+    problems: [],
+    accepted: false,
     revision: 1,
     action: 'submitted',
     savedAt: '2026-10-02T10:00:00.000Z',
@@ -73,7 +77,8 @@ describe('groupResults', () => {
       revision: 2,
       action: 'restored',
       savedBy: 'Pat',
-      counted: false,
+      stage: null,
+      accepted: false,
     })
     expect(row!.teams.map((t) => [t.name, t.score])).toEqual([
       ['Calgary 1', 40],

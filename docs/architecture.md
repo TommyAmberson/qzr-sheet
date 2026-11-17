@@ -249,6 +249,20 @@ live in `packages/shared`, like scoring.
   missing, or were made by another shared version, is scored a few revisions per request, and the
   stats route answers 503 with `Retry-After` until all are kept; the portal asks again.
 
+* **What is wrong with a quiz** is of three kinds, each found by shared code from the quiz and the
+  meet's data alone, with no state of the scoresheet (`quizProblems`):
+  * scoring errors, from the quiz itself (`assessQuiz`), kept with its score;
+  * roster errors, names held against the teams of the quiz's division and their quizzers;
+  * schedule errors, the quiz held against the scheduled quiz it is linked to, and against its
+    stage, where an elimination or a Finals must have a winner.
+
+  Roster and schedule errors are worked out each time a quiz is read, so a corrected roster or a
+  republished schedule clears them with no new revision. The scoresheet shows the last two kinds as
+  warnings while it is linked to a meet; in the portal, which always has the meet, any of the three
+  keeps a quiz out of every table until it is fixed or an admin accepts it as scored. Team names are
+  compared by one function (`teamNamed`), by full name, then short name, then with punctuation set
+  aside.
+
 The portal's results page still scores the quizzes it lists, to show each one's teams and places,
 but it ranks nothing: standings come from `GET /api/meets/:id/stats/:division`.
 

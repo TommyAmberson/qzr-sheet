@@ -1,7 +1,9 @@
 export { AccountRole, MeetRole, effectiveAccountRole } from './roles'
-export { MEET_PHASES, DIVISION_STATES } from './phases'
+export { MEET_PHASES, DIVISION_STATES, mayChangeQuizzes } from './phases'
 export type { MeetPhase, DivisionStateValue } from './phases'
 export {
+  CHANGE_KINDS,
+  LINK_HOWS,
   RESULT_ACTIONS,
   byNumber,
   editDistance,
@@ -9,9 +11,10 @@ export {
   quizName,
   resultKey,
   resultKeyDivision,
+  resultKeyName,
   tidyName,
 } from './results'
-export type { DivisionTeamNames, ResultAction } from './results'
+export type { ChangeKind, DivisionTeamNames, LinkHow, ResultAction } from './results'
 export {
   QuizFileSchema,
   FILE_VERSION,
@@ -59,6 +62,9 @@ export * from './scoring/quizOutcome'
 export * from './scoring/quizzerStandings'
 export * from './stats/scoredQuiz'
 export * from './stats/divisionStats'
+export * from './stats/quizProblems'
+export * from './stats/stages'
+export * from './stats/teamNames'
 export * from './schedule/prelimDraw'
 export * from './schedule/scheduleFile'
 export * from './schedule/conflicts'

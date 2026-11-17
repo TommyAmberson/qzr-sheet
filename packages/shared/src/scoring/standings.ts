@@ -1,11 +1,10 @@
 import { editDistance, foldName, tidyName } from '../results'
-import type { QuizOutcome, TeamOutcome } from './quizOutcome'
+import type { TeamOutcome } from './quizOutcome'
 
-/** A counted quiz of the division, as the standings take it */
+/** A quiz that counts for the standings, with its teams placed */
 export interface CountedQuiz {
-  /** How a warning names the quiz */
   name: string
-  outcome: QuizOutcome
+  teams: TeamOutcome[]
 }
 
 /** The tie-breaker that separated a team from the others level with it on placement points */
@@ -26,7 +25,6 @@ export interface TeamStanding {
 export type StandingsWarning =
   /** Teams have played different numbers of counted quizzes; their counts are on the teams */
   | { kind: 'unequalQuizCounts' }
-  | { kind: 'unplaced'; quiz: string }
   /** Teams tied across the finalist cutoff, which the admin settles away from the app */
   | { kind: 'finalTie'; teams: string[] }
   /** Two names that look like one team misspelt (R11), the higher ranked first */
@@ -63,17 +61,17 @@ interface RankGroup {
  * errors. Whenever a tie-breaker separates some of the tied teams, those still tied start again
  * from head-to-head among themselves.
  */
-export function divisionStandings(quizzes: CountedQuiz[]): DivisionStandings {
+export function divisionStandings(
+  quizzes: CountedQuiz[],
+  /** Whether the top three are finalists: so only where these quizzes lead straight to a Finals */
+  { finalists = true }: { finalists?: boolean } = {},
+): DivisionStandings {
   const tallies = new Map<string, Tally>()
   const warnings: StandingsWarning[] = []
 
   for (const quiz of quizzes) {
-    if (!quiz.outcome.placed) {
-      warnings.push({ kind: 'unplaced', quiz: quiz.name })
-      continue
-    }
     // A team with no name is an empty seat, as in a two-team quiz, not a team to rank
-    const seated = quiz.outcome.teams
+    const seated = quiz.teams
       .filter((team) => tidyName(team.name) !== '')
       .map((team) => ({ team, tally: tallyOf(tallies, team.name) }))
     for (const { team, tally } of seated) {
@@ -95,8 +93,8 @@ export function divisionStandings(quizzes: CountedQuiz[]): DivisionStandings {
   const teams: TeamStanding[] = []
   for (const { tallies: tied, decidedBy } of groups) {
     const rank = teams.length + 1
-    const finalist = teams.length + tied.length <= FINALISTS
-    if (!finalist && teams.length < FINALISTS) {
+    const finalist = finalists && teams.length + tied.length <= FINALISTS
+    if (finalists && !finalist && teams.length < FINALISTS) {
       warnings.push({
         kind: 'finalTie',
         teams: tied.map((tally) => mostUsedSpelling(tally.spellings)),

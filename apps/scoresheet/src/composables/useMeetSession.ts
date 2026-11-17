@@ -7,7 +7,14 @@ import {
   type MeetTeamQuizzer,
   type ScheduledQuizDetails,
 } from '../api'
-import { QUIZZERS_PER_TEAM, editDistance, foldName, teamDisplayName } from '@qzr/shared'
+import {
+  QUIZZERS_PER_TEAM,
+  editDistance,
+  foldName,
+  teamDisplayName,
+  teamNamed as rosterTeamNamed,
+  teamsNearName as rosterTeamsNearName,
+} from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 import { senderOf } from './useSubmitToMeet'
 
@@ -389,6 +396,11 @@ export function useMeetSession() {
     persist()
   }
 
+  /** The scheduled quiz the sheet is linked to, said only to the meet it is linked to */
+  function scheduleQuizIdFor(targetMeetId: number): string | null {
+    return meetId.value === targetMeetId ? quizId.value : null
+  }
+
   return {
     isActive,
     meetId,
@@ -396,6 +408,7 @@ export function useMeetSession() {
     meetName,
     teamList,
     quizId,
+    scheduleQuizIdFor,
     scheduledQuiz,
     divisionOptions,
     lacksDivision,
@@ -459,33 +472,19 @@ async function scheduledQuizNow(
   return details ? scheduledQuizCopy(details) : scheduledQuizGone(held)
 }
 
-/** How many edits a typed team name may be from a roster team's and still be taken for a typo */
-const TEAM_TYPO_EDITS = 2
-/** The same for a church's short name, where two edits reach most other churches' */
-const SHORT_NAME_TYPO_EDITS = 1
 /** How many typed quizzers must be on a team's roster before a misspelt name is taken for it */
 const QUIZZERS_TO_CONFIRM = 2
 
-/** A name with case, punctuation and spacing set aside, so "st. john's 1" finds "St Johns 1" */
-function looseName(name: string): string {
-  return foldName(name.replace(/[^\w\s]/g, ''))
-}
-
 /**
  * The roster team a typed name names outright, by its full name before its short one, and as
- * written before punctuation is set aside. The first listed wins, so list the likelier teams first.
+ * written before punctuation is set aside, as the meet matches names on its side. The first listed
+ * wins, so list the likelier teams first.
  */
 export function teamNamed(
   typedName: string,
   teams: { id: number; name: string; shortName: string }[],
 ): number | undefined {
-  const typed = foldName(typedName)
-  const loose = looseName(typedName)
-  return (
-    teams.find((team) => foldName(team.name) === typed) ??
-    teams.find((team) => foldName(team.shortName) === typed) ??
-    teams.find((team) => looseName(team.name) === loose || looseName(team.shortName) === loose)
-  )?.id
+  return rosterTeamNamed(typedName, teams)?.id
 }
 
 /**
@@ -497,14 +496,7 @@ export function teamsNearName(
   typedName: string,
   teams: { id: number; name: string; shortName: string }[],
 ): number[] {
-  const typed = foldName(typedName)
-  return teams
-    .filter(
-      (team) =>
-        editDistance(typed, foldName(team.name)) <= TEAM_TYPO_EDITS ||
-        editDistance(typed, foldName(team.shortName)) <= SHORT_NAME_TYPO_EDITS,
-    )
-    .map((team) => team.id)
+  return rosterTeamsNearName(typedName, teams).map((team) => team.id)
 }
 
 /**

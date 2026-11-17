@@ -101,6 +101,34 @@ watch(() => [props.slug, props.division], load)
         </div>
       </section>
 
+      <section v-if="stats.rerank" class="block">
+        <h3 class="section-title">After the intermediates</h3>
+        <div class="table-scroll">
+          <table class="stats-table">
+            <thead>
+              <tr>
+                <th>New rank</th>
+                <th>Team</th>
+                <th title="Prelim placement points plus the intermediate's">Points</th>
+                <th>Quizzes</th>
+                <th>Tie-break</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="team in stats.rerank.teams" :key="team.name">
+                <td>{{ team.rank }}</td>
+                <td>{{ team.name }}</td>
+                <td>{{ team.placementPoints }}</td>
+                <td>{{ team.quizzes }}</td>
+                <td>
+                  {{ team.tied ? 'still tied' : team.decidedBy ? TIE_BREAKS[team.decidedBy] : '' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section v-if="stats.quizzers" class="block">
         <h3 class="section-title">Quizzer standings</h3>
         <p v-if="stats.quizzers.lists.length === 0" class="state-msg">
@@ -145,6 +173,14 @@ watch(() => [props.slug, props.division], load)
 
       <section v-for="stage in stats.results" :key="stage.stage" class="block">
         <h3 class="section-title">{{ STAGE_TITLES[stage.stage] }}</h3>
+        <ol v-for="medals in stage.medals ?? []" :key="String(medals.consolation)" class="medals">
+          <li v-for="(team, i) in medals.teams" :key="team">
+            <span class="note"
+              >{{ medals.consolation ? 'Consolation ' : '' }}{{ placeLabel(i + 1) }}</span
+            >
+            {{ team }}
+          </li>
+        </ol>
         <div class="table-scroll">
           <table class="stats-table">
             <thead>
@@ -174,6 +210,7 @@ watch(() => [props.slug, props.division], load)
                       </span>
                     </li>
                     <li v-if="quiz.status === 'underReview'" class="note">under review</li>
+                    <li v-if="quiz.status === 'accepted'" class="note">accepted as scored</li>
                     <li v-for="(problem, i) in quiz.problems ?? []" :key="i" class="problem">
                       {{ problemText(problem) }}
                     </li>
@@ -290,6 +327,20 @@ watch(() => [props.slug, props.division], load)
   padding-left: 1.1rem;
   font-size: 0.8rem;
   color: var(--palette-error);
+}
+
+.medals {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.medals .note {
+  display: inline-block;
+  min-width: 3rem;
+  font-weight: 400;
 }
 
 .list-title {
