@@ -190,7 +190,13 @@ describe('submitting a quiz', () => {
       revision: 1,
       keptCurrent: false,
     })
-    expect(submitResult).toHaveBeenCalledWith(3, file, 5, undefined)
+    expect(submitResult).toHaveBeenCalledWith(3, file, 5, undefined, undefined)
+  })
+
+  it('says which scheduled quiz the sheet is linked to, when it is', async () => {
+    const { submitQuiz } = useSubmitToMeet()
+    await submitQuiz(3, file, 5, undefined, 'p3')
+    expect(submitResult).toHaveBeenCalledWith(3, file, 5, undefined, 'p3')
   })
 
   it('reports a name the meet already has, and sends it again as the user chooses', async () => {
@@ -218,7 +224,7 @@ describe('submitting a quiz', () => {
       revision: 2,
       keptCurrent: true,
     })
-    expect(submitResult).toHaveBeenLastCalledWith(3, file, 5, 'keepCurrent')
+    expect(submitResult).toHaveBeenLastCalledWith(3, file, 5, 'keepCurrent', undefined)
   })
 
   it('passes other failures on', async () => {

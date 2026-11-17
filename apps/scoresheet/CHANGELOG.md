@@ -15,6 +15,16 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Added
+
+* A quiz sent to the meet the sheet is linked to says which scheduled quiz it is, so the meet links
+  the stored quiz to it. Nothing is added to the quiz file
+
+### Changed
+
+* Team names are matched against the linked meet's roster by the comparison the meet itself uses,
+  from `@qzr/shared`, so a name the sheet takes for a roster team is one the meet takes for it too
+
 ## [0.22.0] - 2026-11-15
 
 ### Added
