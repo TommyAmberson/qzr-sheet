@@ -67,7 +67,23 @@ export function scheduledQuizOf(
 /** A quiz's name and teams, as they are held against a scheduled quiz */
 export interface NamedQuiz {
   quiz: { division: string; consolation?: boolean; quizNumber: string }
-  teams: { name: string }[]
+  teams: SeatedTeam[]
+}
+
+/** A team of a quiz, with the quizzers it names */
+interface SeatedTeam {
+  name: string
+  quizzers: { name: string }[]
+}
+
+/**
+ * The teams that played: a team with no name and no quizzer named is the empty seat of a two-team
+ * quiz, not a team. One with no name and quizzers named is a team the roster doesn't know.
+ */
+function playing<Team extends SeatedTeam>(teams: Team[]): Team[] {
+  return teams.filter(
+    (team) => tidyName(team.name) !== '' || team.quizzers.some((q) => tidyName(q.name) !== ''),
+  )
 }
 
 /**
@@ -79,11 +95,11 @@ export function isNamed(quiz: NamedQuiz['quiz']): boolean {
 }
 
 /** Whether a quiz's teams are the scheduled quiz's, each named outright, in any seats */
-function sameTeams(teams: { name: string }[], scheduled: Pick<RosterTeam, 'name' | 'shortName'>[]) {
-  const named = teams.filter((team) => tidyName(team.name) !== '')
-  if (named.length !== teams.length || named.length !== scheduled.length) return false
+function sameTeams(teams: SeatedTeam[], scheduled: Pick<RosterTeam, 'name' | 'shortName'>[]) {
+  const played = playing(teams)
+  if (played.length !== scheduled.length) return false
   const left = [...scheduled]
-  for (const team of named) {
+  for (const team of played) {
     const match = teamNamed(team.name, left)
     if (!match) return false
     left.splice(left.indexOf(match), 1)
@@ -103,7 +119,7 @@ export function matchScheduledQuiz(
   if (!isNamed(quiz.quiz) || resultKey(quiz.quiz) !== scheduled.key) return 'no'
   if (scheduled.teams === null || sameTeams(quiz.teams, scheduled.teams)) return 'match'
   const left = [...scheduled.teams]
-  for (const team of quiz.teams) {
+  for (const team of playing(quiz.teams)) {
     const match = teamNamed(team.name, left) ?? teamsNearName(team.name, left)[0]
     if (!match) return 'no'
     left.splice(left.indexOf(match), 1)
@@ -158,7 +174,7 @@ function nearest(typed: string, names: string[]): string | undefined {
 export function rosterProblems(scored: ScoredQuiz, teams: RosterTeam[] | null): RosterProblem[] {
   if (teams === null) return []
   const problems: RosterProblem[] = []
-  for (const team of scored.teams) {
+  for (const team of playing(scored.teams)) {
     const rosterTeam = teamNamed(team.name, teams)
     if (!rosterTeam) {
       const near = teamsNearName(team.name, teams)[0]?.name

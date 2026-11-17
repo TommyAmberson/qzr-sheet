@@ -543,8 +543,10 @@ download the division's tables and open them in a spreadsheet.
   missing from the quiz. Each MUST say what doesn't agree and offer the fixes: change the name in
   the quiz to one from the roster, correct the roster, or accept the quiz as scored (FR-015), which
   is how a quiz a rostered quizzer sat out is passed. Roster errors follow the roster as it now
-  stands, so correcting the roster clears them. A seat with no name and no answers is nobody. A meet
-  with no roster has no roster errors and uses typed names alone.
+  stands, so correcting the roster clears them. A seat with no name and no answers is nobody, and a
+  team with no name and no quizzer named is the empty seat of a two-team quiz: no error, and not
+  counted against the schedule's teams. A meet with no roster has no roster errors and uses typed
+  names alone.
 * **FR-003**: Quizzer standings MUST give each quizzer's total points, errors and jumps over the
   quizzes that count for individuals, the number of those quizzes their team played, and their
   average: total points divided by that number.
@@ -578,7 +580,8 @@ download the division's tables and open them in a spreadsheet.
   admin with that scheduled quiz as a suggested link; the same check MUST run again whenever its
   name or team names are changed. Otherwise it stays unlinked until an official of its room, or an
   admin, links it by hand to a scheduled quiz. A link can be changed or removed the same way, and
-  each change MUST be recorded with who made it and when.
+  each change MUST be recorded with who made it and when. A link made or removed by hand is kept:
+  neither the automatic check nor a later submission naming another scheduled quiz changes it.
 * **FR-009a**: A linked quiz MUST take its stage from the scheduled quiz, the deciding quiz of a
   bracket being its Finals, and, when it has no errors, MUST count without an admin's action. A
   linked quiz whose name differs from the scheduled quiz's, or whose teams differ from those the

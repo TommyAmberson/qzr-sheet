@@ -142,8 +142,9 @@ function changerOf(saver: Saver): Changer {
 }
 
 /**
- * Link a stored quiz that has no link to the scheduled quiz its name and teams match, as when it
- * arrives and after a change to either. Answers the quiz's link as it then is.
+ * Link a stored quiz to the scheduled quiz its name and teams match, as when it arrives and after a
+ * change to either, while nothing has decided its link yet: a link made or removed by anyone,
+ * an admin's unlink above all, is kept. Answers the quiz's link as it then is.
  */
 async function linkByMatch(
   db: Db,
@@ -154,8 +155,8 @@ async function linkByMatch(
   facts?: MeetFacts,
 ): Promise<QuizLink | null> {
   facts ??= await meetFacts(db, meetId)
-  const current = facts.decisions.get(resultId)?.link ?? null
-  if (current) return current
+  const decided = facts.decisions.get(resultId)
+  if (decided?.linkBy) return decided.link
   const { match } = scheduleMatch(facts, file)
   if (!match) return null
   const linked = await linkTo(db, facts, resultId, match, 'matched', changerOf(saver))
@@ -450,13 +451,15 @@ results.post('/:id/results', async (c) => {
   }
   /**
    * The quiz's link once it is stored: to the scheduled quiz the sheet named, unless another stored
-   * quiz holds that one, in which case the submission is kept all the same, unlinked; and for a
-   * sheet that named none, to the scheduled quiz it matches
+   * quiz holds that one, in which case the submission is kept all the same, unlinked, or someone
+   * linked or unlinked it by hand; and for a sheet that named none, to the scheduled quiz it matches
    */
   const linkOf = async (resultId: number): Promise<QuizLink | null> => {
     if (sentFor === null) return linkByMatch(db, meetId, resultId, file, saver)
-    const current = facts!.decisions.get(resultId)?.link ?? null
-    if (current?.scheduleQuizId === sentFor) return current
+    const decided = facts!.decisions.get(resultId)
+    const current = decided?.link ?? null
+    // A link made or removed by hand is kept against the sheet, which may hold the wrong quiz
+    if (current?.scheduleQuizId === sentFor || decided?.linkBy === 'hand') return current
     const linked = await linkTo(db, facts!, resultId, sentFor, 'sheet', changerOf(saver))
     return 'link' in linked ? linked.link : current
   }

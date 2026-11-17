@@ -44,7 +44,11 @@ const roster: RosterTeam[] = [
   { id: 3, name: 'Grace 1', shortName: 'Grace 1', quizzers: [] },
 ]
 const scheduled: ScheduledQuiz = { key: '1||3', name: 'D1 Q3', teams: roster }
-const named = (...names: string[]) => ({ quiz, teams: names.map((name) => ({ name })) })
+/** A quiz of these teams, each with a quizzer named */
+const named = (...names: string[]) => ({
+  quiz,
+  teams: names.map((name) => ({ name, quizzers: [{ name: 'Someone' }] })),
+})
 
 describe('isNamed', () => {
   it('takes a blank division or quiz number, or the underscore the scoresheet shows for one, as none', () => {
@@ -81,6 +85,23 @@ describe('matchScheduledQuiz', () => {
         { ...scheduled, key: '_||3', teams: null },
       ),
     ).toBe('no')
+  })
+})
+
+describe('a two-team quiz', () => {
+  // Its third team is an empty seat: no name, and no quizzer named
+  const twoTeams = { quiz, teams: [...named('Grace 1', 'FC 1').teams, { name: '', quizzers: [] }] }
+
+  it('matches a scheduled quiz that seats two teams', () => {
+    expect(matchScheduledQuiz(twoTeams, { ...scheduled, teams: [roster[2]!, roster[0]!] })).toBe(
+      'match',
+    )
+  })
+
+  it('has no roster error for its empty seat', () => {
+    expect(rosterProblems(scored({ 'Grace 1': [], 'SJ 1': ['Dee Holt'], '': [] }), roster)).toEqual(
+      [],
+    )
   })
 })
 
@@ -143,11 +164,13 @@ describe('rosterProblems', () => {
   })
 
   it('takes a blank team, another division\'s team and an old sheet\'s "Team 1" as not on the roster', () => {
-    expect(rosterProblems(scored({ '': [], 'Hope 2': [], 'Team 1': [] }), roster)).toEqual([
-      { kind: 'teamNotOnRoster', team: '' },
-      { kind: 'teamNotOnRoster', team: 'Hope 2' },
-      { kind: 'teamNotOnRoster', team: 'Team 1' },
-    ])
+    expect(rosterProblems(scored({ '': ['Ann Lee'], 'Hope 2': [], 'Team 1': [] }), roster)).toEqual(
+      [
+        { kind: 'teamNotOnRoster', team: '' },
+        { kind: 'teamNotOnRoster', team: 'Hope 2' },
+        { kind: 'teamNotOnRoster', team: 'Team 1' },
+      ],
+    )
   })
 
   it("names a quizzer not on the team's roster, with the roster name it is nearest to", () => {

@@ -40,6 +40,8 @@ interface Decisions {
   /** The admin's choice of stage; null when there is none, or it was removed */
   stage: StageChoice | null
   link: QuizLink | null
+  /** How the newest link decision was made, a removal included; null while there is none */
+  linkBy: LinkHow | null
   /** Each revision's newest acceptance: accepted as scored, or withdrawn */
   accepted: Map<number, boolean>
 }
@@ -132,11 +134,12 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
   for (const change of changes) {
     let quiz = decisions.get(change.resultId)
     if (!quiz) {
-      quiz = { stage: null, link: null, accepted: new Map() }
+      quiz = { stage: null, link: null, linkBy: null, accepted: new Map() }
       decisions.set(change.resultId, quiz)
     }
     if (change.kind === 'stage') quiz.stage = change.stage
     else if (change.kind === 'link') {
+      quiz.linkBy = change.how ?? 'hand'
       quiz.link =
         change.scheduleQuizId === null
           ? null

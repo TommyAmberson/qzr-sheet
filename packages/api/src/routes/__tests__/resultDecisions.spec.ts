@@ -261,6 +261,32 @@ describe('a submission and the schedule', () => {
 })
 
 describe('PUT /api/meets/:id/results/:resultId/link', () => {
+  it("keeps an admin's unlink when the quiz is edited, though its name and teams still match", async () => {
+    const { id } = await stored({ quizFile: quiz('3') })
+    expect((await listed(id)).link).toEqual({ scheduleQuizId: 'p3', how: 'matched' })
+    await put(`${id}/link`, { scheduleQuizId: null })
+    expect(
+      (
+        await put(String(id), {
+          quizFile: quiz('3', (f) => (f.teams[0]!.quizzers[0]!.name = 'Ann')),
+        })
+      ).status,
+    ).toBe(200)
+    expect((await listed(id)).link).toBeNull()
+  })
+
+  it('keeps a link made by hand when the sheet sends the quiz again for another scheduled quiz', async () => {
+    const { id } = await stored({ quizFile: quiz('A'), scheduleQuizId: 'eA' })
+    await put(`${id}/link`, { scheduleQuizId: 'p3' })
+    const again = await submit({
+      quizFile: quiz('A'),
+      scheduleQuizId: 'eA',
+      onExisting: 'newRevision',
+    })
+    expect(again.status).toBe(200)
+    expect(await jsonOf(again)).toMatchObject({ link: { scheduleQuizId: 'p3', how: 'hand' } })
+  })
+
   it("links, relinks and unlinks by hand, for an admin and for an official of the quiz's room", async () => {
     const { id } = await stored({ quizFile: quiz('9') })
     const linked = await put(`${id}/link`, { scheduleQuizId: 'p3' }, as(null, officialOf(room1)))
@@ -297,6 +323,37 @@ describe('PUT /api/meets/:id/results/:resultId/link', () => {
     const { id } = await stored({ quizFile: quiz('9') })
     expect((await put(`${id}/link`, { scheduleQuizId: 'nope' })).status).toBe(400)
     expect((await put(`${id}/link`, {})).status).toBe(400)
+  })
+})
+
+describe('a two-team quiz', () => {
+  const PAIR: ScheduleQuiz = {
+    ...PRELIM,
+    id: 'p5',
+    label: 'Div 1 Quiz 5',
+    seats: [{ kind: 'letter', letter: 'a' }, { kind: 'letter', letter: 'b' }, { kind: 'empty' }],
+  }
+
+  it('links to a scheduled quiz seating two teams, with no error for its empty seat', async () => {
+    const [version] = await db.select().from(schema.meetScheduleVersions)
+    const document = JSON.parse(version!.document)
+    document.quizzes.push(PAIR)
+    await db
+      .update(schema.meetScheduleVersions)
+      .set({ document: JSON.stringify(document) })
+      .where(eq(schema.meetScheduleVersions.id, version!.id))
+    const file = quiz('5', (f) => {
+      // The third team's seat is empty: no name, no quizzer, no answer
+      const third = f.teams[2]!
+      f.answers = f.answers.filter((a) => !third.quizzers.some((q) => q.id === a.quizzerId))
+      third.name = ''
+      third.quizzers.forEach((q) => (q.name = ''))
+    })
+    const { id, link } = await stored({ quizFile: file })
+    expect(link).toEqual({ scheduleQuizId: 'p5', how: 'matched' })
+    const problems = (await listed(id)).problems!.map((p) => p.kind)
+    expect(problems).not.toContain('teamNotOnRoster')
+    expect(problems).not.toContain('teamsDiffer')
   })
 })
 

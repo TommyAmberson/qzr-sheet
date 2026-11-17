@@ -1,6 +1,6 @@
 import type { DivisionStateValue, MeetPhase } from '../phases'
 import { byNumber, foldName, tidyName } from '../results'
-import { computePlacementPoints, placeRank, placeTieCount } from '../scoring/placement'
+import { computePlacementPoints, placeKey, placeRank, placeTieCount } from '../scoring/placement'
 import { quizzerStandings, type QuizzerList } from '../scoring/quizzerStandings'
 import { divisionStandings, type CountedQuiz, type TieBreak } from '../scoring/standings'
 import { quizProblems, type QuizProblem, type ScheduledQuiz } from './quizProblems'
@@ -152,7 +152,7 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
         name: quiz.name,
         stage: quiz.stage,
         line: quiz.line ?? 0,
-        scored: namedByRoster(quiz.scored, roster),
+        scored: namedByRoster(placedAsTheyStand(quiz.scored), roster),
         problems,
         counts: problems.length === 0 || quiz.accepted,
       }
@@ -254,6 +254,23 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
 }
 
 /**
+ * A quiz with every team placed. Teams still level in an overtime not played out have no place;
+ * such a quiz counts only once accepted as scored, and is then placed by its scores as they stand,
+ * the level teams sharing the place.
+ */
+function placedAsTheyStand(scored: ScoredQuiz): ScoredQuiz {
+  if (scored.teams.every((team) => team.place !== null)) return scored
+  return {
+    ...scored,
+    teams: scored.teams.map((team) => {
+      const above = scored.teams.filter((other) => other.score > team.score).length
+      const level = scored.teams.filter((other) => other.score === team.score).length
+      return { ...team, place: placeKey(above + 1, level) }
+    }),
+  }
+}
+
+/**
  * A scored quiz with each team and quizzer the roster has under the roster's name, so a team
  * written by its short name in one quiz and its full name in another is one team
  */
@@ -327,7 +344,11 @@ function rerankOf(
   prelims: Staged[],
   intermediates: Staged[],
 ): TeamTable {
-  const prelimRank = new Map(prelimTeams.map((team) => [foldName(team.name), team.rank]))
+  // A team's place in the prelim order, which tied teams hold one after the other, so teams an
+  // intermediate separates take places of their own
+  const position = new Map(prelimTeams.map((team, i) => [foldName(team.name), i + 1]))
+  // A team with no prelim place takes one after every prelim team, in the order it is met
+  let unplaced = prelimTeams.length
   const teams: TeamTable['teams'] = []
   for (const line of [...new Set(intermediates.map((quiz) => quiz.line))].sort((a, b) => a - b)) {
     const played = intermediates.filter((quiz) => quiz.line === line)
@@ -339,16 +360,16 @@ function rerankOf(
     const order = divisionStandings(together.map(counted), { finalists: false }).teams.filter(
       (team) => inLine.has(foldName(team.name)),
     )
-    // A team with no prelim rank takes the places after those that have one
     const held = order
-      .map((team) => prelimRank.get(foldName(team.name)))
-      .filter((rank): rank is number => rank !== undefined)
+      .map((team) => position.get(foldName(team.name)) ?? ++unplaced)
       .sort((a, b) => a - b)
-    const last = held[held.length - 1] ?? 0
     order.forEach(({ finalist: _finalist, ...team }, i) => {
+      const before = order[i - 1]
+      // Teams the re-rank leaves level share the place of the first of them
+      const level = team.tied && before?.tied && before.rank === team.rank
       teams.push({
         ...team,
-        rank: held[i] ?? last + 1 + i - held.length,
+        rank: level ? teams[teams.length - 1]!.rank : held[i]!,
         lines: lines.get(foldName(team.name)) ?? [],
       })
     })

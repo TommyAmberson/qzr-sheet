@@ -34,7 +34,9 @@ Rules:
 * **Link** (R4, FR-009): the newest `link` row. Written when a submission carries `scheduleQuizId`,
   when an unlinked quiz matches a scheduled quiz on arrival or after a rename, and when an admin or
   one of the quiz's room officials links, relinks or unlinks it by hand. At most one stored quiz of
-  a meet should be linked to a scheduled quiz; a second is refused, naming the first.
+  a meet should be linked to a scheduled quiz; a second is refused, naming the first. The automatic
+  match runs only while a quiz has no `link` row, so an admin's unlink stays; a submission naming a
+  scheduled quiz does not replace a link made or removed by hand.
 * **Acceptance** (R6, FR-014 to FR-016): a quiz in error counts only while its current content is
   the content of an accepted revision. Only admins write `acceptance` rows.
 * **Kept** (R9, FR-019b): clears the "played under a withdrawn order" flag raised by a withdrawal

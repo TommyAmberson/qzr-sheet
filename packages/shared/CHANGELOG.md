@@ -57,6 +57,12 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ### Changed
 
+* A team with no name and no quizzer named is the empty seat of a two-team quiz: no roster error,
+  and a two-team quiz matches a scheduled quiz seating two teams
+* A quiz accepted as scored while its teams are still level in an unplayed overtime is placed by its
+  scores as they stand, the level teams sharing the place; `placeKey` is exported for it
+* The re-rank after an intermediate gives teams it separates places of their own, though they were
+  level in the prelims
 * `divisionStandings` takes quizzes that are already placed: `CountedQuiz` is a name and its teams,
   with no `placed` flag, and the `unplaced` warning is gone, since a quiz in error never reaches it.
   It takes `{ finalists }`, off where the quizzes do not lead straight to a Finals

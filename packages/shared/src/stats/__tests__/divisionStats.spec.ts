@@ -243,6 +243,20 @@ describe('divisionStats: stages', () => {
     ])
   })
 
+  it('gives teams the intermediate separates places of their own, though they were level in the prelims', () => {
+    const { rerank } = stats([
+      // A and D are level first, B and E level third, C and F level fifth
+      quizOf('D1 Q1', 'prelim', scoredQuiz('A', 'B', 'C')),
+      quizOf('D1 Q2', 'prelim', scoredQuiz('D', 'E', 'F')),
+      quizOf('D1 QX', 'intermediate', scoredQuiz('E', 'B', 'C')),
+    ])
+    expect(rerank!.teams.map((t) => [t.name, t.rank])).toEqual([
+      ['E', 3],
+      ['B', 4],
+      ['C', 5],
+    ])
+  })
+
   it('has no re-rank where no intermediate was played', () => {
     expect(stats([quizOf('D1 Q1', 'prelim', scoredQuiz('A', 'B', 'C'))]).rerank).toBeUndefined()
   })
@@ -321,6 +335,36 @@ describe('divisionStats: a quiz accepted as scored', () => {
     const { prelimStandings, quizzers } = stats([broken()])
     expect(prelimStandings!.teams).toEqual([])
     expect(quizzers!.lists).toEqual([])
+  })
+})
+
+describe('divisionStats: a quiz left level in an overtime not played out', () => {
+  function undecided(): StatsQuiz {
+    const quiz = quizOf('D1 Q1', 'prelim', scoredQuiz('A', 'B', 'C'))
+    quiz.scored.teams[1]!.score = 100
+    quiz.scored.teams[1]!.regulationScore = 100
+    quiz.scored.teams[0]!.place = null
+    quiz.scored.teams[1]!.place = null
+    quiz.scored.problems = [{ kind: 'undecided' }]
+    return quiz
+  }
+
+  it('counts once accepted, the level teams sharing the place their scores give them', () => {
+    const { prelimStandings, results } = stats([{ ...undecided(), accepted: true }])
+    expect(prelimStandings!.teams.map((t) => [t.name, t.rank, t.placementPoints])).toEqual([
+      // Level in the quiz, B then falls behind on fewest errors
+      ['A', 1, 10],
+      ['B', 2, 10],
+      ['C', 3, 1],
+    ])
+    expect(results[0]!.quizzes[0]!.teams.slice(0, 2)).toMatchObject([
+      { name: 'A', place: 1, tiedWith: 2 },
+      { name: 'B', place: 1, tiedWith: 2 },
+    ])
+  })
+
+  it('adds nothing until accepted', () => {
+    expect(stats([undecided()]).prelimStandings!.teams).toEqual([])
   })
 })
 
