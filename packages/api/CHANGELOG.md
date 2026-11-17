@@ -17,6 +17,18 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-11-17
+
+### Changed
+
+* A quiz whose division is saved with its prefix (`Div 1` in a meet whose division is `1`) is no
+  longer taken as that division, so its roster errors show
+* A schedule converted from the old format names its divisions bare
+
+### Bundled contract
+
+* `@qzr/shared@1.13.0` - bumped from 1.12.0
+
 ## [0.27.0] - 2026-11-16
 
 ### Added
