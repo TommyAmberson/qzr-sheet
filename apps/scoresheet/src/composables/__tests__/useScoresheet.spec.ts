@@ -237,6 +237,65 @@ describe('useScoresheet — clearAnswers', () => {
   })
 })
 
+describe('useScoresheet — swapTeams', () => {
+  /** A quiz where each team is told apart by its name, a quizzer, an answer and its on-time mark */
+  function threeTeams() {
+    const s = useScoresheet()
+    ;['Lions', 'Tigers', 'Bears'].forEach((name, t) => {
+      s.setTeamName(T(t), name)
+      s.setQuizzerName(T(t), S(0), `${name} one`)
+      s.setQuizzerName(T(t), S(1), `${name} two`)
+    })
+    s.setCell(T(0), S(1), C(0), CellValue.Correct)
+    s.setCell(T(1), S(0), C(1), CellValue.Correct)
+    s.setCell(T(1), S(0), C(2), CellValue.Correct)
+    s.setCell(T(1), S(1), C(3), CellValue.Correct)
+    s.toggleOnTime(T(1))
+    return s
+  }
+  const teamsOf = (s: ReturnType<typeof useScoresheet>) =>
+    s.teams.value.map((team, t) => ({
+      name: team.name,
+      onTime: team.onTime,
+      quizzers: s.teamQuizzers.value[t]!.map((quizzer) => quizzer.name),
+      cells: s.cells.value[t],
+      score: s.scoring.value[t]!.total,
+    }))
+
+  it('moves each whole team to the other place, and leaves the third alone', () => {
+    const s = threeTeams()
+    const [lions, tigers, bears] = teamsOf(s)
+    expect(lions!.score).not.toBe(tigers!.score)
+
+    s.swapTeams(0, 1)
+
+    expect(teamsOf(s)).toEqual([tigers, lions, bears])
+  })
+
+  it('is one edit: undo puts both back, redo swaps again, and what runs alongside runs each way', () => {
+    const s = threeTeams()
+    const before = teamsOf(s)
+    const alongside = vi.fn()
+
+    s.swapTeams(0, 2, alongside)
+    const swapped = teamsOf(s)
+    s.undo()
+    expect(teamsOf(s)).toEqual(before)
+    s.redo()
+    expect(teamsOf(s)).toEqual(swapped)
+    expect(alongside).toHaveBeenCalledTimes(3)
+  })
+
+  it('does nothing for a team with itself or a place the sheet lacks', () => {
+    const s = threeTeams()
+    const before = teamsOf(s)
+    s.swapTeams(1, 1)
+    s.swapTeams(0, 7)
+    expect(teamsOf(s)).toEqual(before)
+    expect(s.canUndo.value).toBe(true)
+  })
+})
+
 describe('useScoresheet — clearNames', () => {
   it('blanks team names', () => {
     const s = useScoresheet()

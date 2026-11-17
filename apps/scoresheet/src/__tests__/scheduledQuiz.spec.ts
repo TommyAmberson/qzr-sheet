@@ -54,7 +54,7 @@ describe('getScheduledQuiz (research R10)', () => {
       }),
     )
 
-    const details = await getScheduledQuiz(4, quiz.id)
+    const details = (await getScheduledQuiz(4, quiz.id))!
     const byLetter = { A: 11, B: 10, C: 12, D: 13, E: 14, F: 15 } as Record<string, number>
     expect(details.seats.map((s) => s.team?.id)).toEqual(
       quiz.seats.map((s) => (s.kind === 'letter' ? byLetter[s.letter] : undefined)),
@@ -64,5 +64,21 @@ describe('getScheduledQuiz (research R10)', () => {
     expect(
       resultName({ ...quiz, division, lane: consolation ? 1 : 0, label: `Quiz ${quizNumber}` }),
     ).toBe(resultName(quiz))
+  })
+
+  it('is null when the meet has no published schedule', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url.includes('/schedule/published')
+          ? Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+          : Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve({ teams: [], meetDivisions: [] }),
+            }),
+      ),
+    )
+    expect(await getScheduledQuiz(4, 'q1')).toBeNull()
   })
 })

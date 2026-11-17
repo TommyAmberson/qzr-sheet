@@ -277,4 +277,12 @@ describe('quizStore loadState', () => {
     opened.loadState(parseQuizFile(serializeStore(saved, new Map(), new Map())))
     expect(opened.quiz).toEqual({ ...saved.quiz, id: opened.quiz.id })
   })
+
+  it('swapTeams keeps the team list in seat order', () => {
+    const store = createQuizStore()
+    const [a, , c] = store.teams
+    store.swapTeams(a!.id, c!.id)
+    expect(store.teams.map((team) => team.seatOrder)).toEqual([0, 1, 2])
+    expect([store.teams[0]!.id, store.teams[2]!.id]).toEqual([c!.id, a!.id])
+  })
 })

@@ -1,4 +1,5 @@
 import {
+  ApiError,
   createApiClient,
   scheduleQuizMeta,
   seatText,
@@ -78,6 +79,48 @@ export function getRevision(
   return request(`/api/meets/${meetId}/results/${resultId}/revisions/${revision}`)
 }
 
+/** What a meet's refusal of its stored quizzes means, said once for every place that asks */
+export const STORED_QUIZZES_REFUSED =
+  "Only the meet's admins, and the officials of the rooms that sent them, can open its stored quizzes."
+
+/** A quiz the meet holds, as the scoresheet lists it: its current version's file */
+export interface StoredQuiz {
+  id: number
+  /** The number of its newest revision, which is the current one */
+  revision: number
+  savedAt: string
+  quizFile: QuizFile
+}
+
+/**
+ * The meet's stored quizzes that the user may see: all of them for an admin, their rooms' for an
+ * official. A 403 `ApiError` for anyone else, which is the server's rule to make, not the sheet's.
+ */
+export function getStoredQuizzes(meetId: number): Promise<StoredQuiz[]> {
+  return request(`/api/meets/${meetId}/results`)
+}
+
+/** One saved version of a stored quiz */
+export interface StoredQuizVersion {
+  revision: number
+  savedAt: string
+  savedBy: { name: string }
+  /** Whether it shows the same file as the current version */
+  current: boolean
+  quizFile: QuizFile
+}
+
+/** A stored quiz's versions, newest first. Its history also lists counting changes, left out here */
+export async function getStoredQuizVersions(
+  meetId: number,
+  resultId: number,
+): Promise<StoredQuizVersion[]> {
+  const history: ({ kind: string } & StoredQuizVersion)[] = await request(
+    `/api/meets/${meetId}/results/${resultId}/revisions`,
+  )
+  return history.filter((entry) => entry.kind === 'revision')
+}
+
 export function getTeamNames(meetId: number): Promise<DivisionTeamNames[]> {
   return request(`/api/meets/${meetId}/team-names`)
 }
@@ -139,19 +182,29 @@ export function getPublishedSchedule(meetId: number): Promise<PublishedSchedule>
 
 /**
  * One quiz of the published schedule with its seats resolved: a prelim letter to the team the draw
- * gave it, when the schedule shows teams, with that team's roster. Other seats have no team until
- * the elims are filled in.
+ * gave it, when the schedule shows teams, with that team's roster unless `rosters` is false. Other
+ * seats have no team until the elims are filled in. Null when the published schedule has no such
+ * quiz, or there is no published schedule. A `schedule` already fetched is used rather than fetched
+ * again.
  */
 export async function getScheduledQuiz(
   meetId: number,
   quizId: string,
-): Promise<ScheduledQuizDetails> {
-  const [{ document, meetName }, { teams }] = await Promise.all([
-    getPublishedSchedule(meetId),
+  { schedule, rosters = true }: { schedule?: PublishedSchedule; rosters?: boolean } = {},
+): Promise<ScheduledQuizDetails | null> {
+  // Only the schedule's 404 means there is none; any other refusal is the meet's to report
+  const [published, { teams }] = await Promise.all([
+    schedule ??
+      getPublishedSchedule(meetId).catch((e) => {
+        if (e instanceof ApiError && e.status === 404) return null
+        throw e
+      }),
     getMeetTeams(meetId),
   ])
+  if (!published) return null
+  const { document, meetName } = published
   const quiz = document.quizzes.find((q) => q.id === quizId)
-  if (!quiz) throw new Error("This quiz isn't in the meet's published schedule")
+  if (!quiz) return null
   const draw = document.draw[quiz.division]?.teams ?? []
   const seats = await Promise.all(
     quiz.seats.map(async (seat, i): Promise<ScheduledQuizSeat> => {
@@ -163,7 +216,7 @@ export async function getScheduledQuiz(
         letter: seat.kind === 'letter' ? seat.letter : null,
         seedRef: seat.kind === 'letter' ? null : seatText(document, quiz, seat, 'letters'),
         team,
-        quizzers: team ? (await getTeamQuizzers(meetId, team.id)).quizzers : [],
+        quizzers: team && rosters ? (await getTeamQuizzers(meetId, team.id)).quizzers : [],
       }
     }),
   )

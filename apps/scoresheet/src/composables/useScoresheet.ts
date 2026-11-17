@@ -447,6 +447,30 @@ export function useScoresheet() {
     store.setTeamName(team.id, name)
   }
 
+  /**
+   * Two teams change places, each with its name, quizzers, answers, timeouts and on-time mark, as
+   * one edit that undo takes back. `alongside` runs with the swap each way, for what is kept by
+   * place outside the quiz.
+   */
+  function swapTeams(teamIdxA: number, teamIdxB: number, alongside: () => void = () => {}) {
+    const a = teams.value[teamIdxA]
+    const b = teams.value[teamIdxB]
+    if (!a || !b || a === b) return
+    const swap = () => {
+      store.swapTeams(a.id, b.id)
+      alongside()
+    }
+    swap()
+    // A swap is its own undoing
+    history.push({ undo: swap, redo: swap })
+  }
+
+  /** Do an edit made of several writes as one, which undo takes back and redo makes again */
+  function editAsOne(edit: { redo: () => void; undo: () => void }) {
+    edit.redo()
+    history.push(edit)
+  }
+
   function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
     const team = teams.value[teamIdx]
     if (!team) return
@@ -620,6 +644,32 @@ export function useScoresheet() {
     store.setQuestionType(col.key, category)
   }
 
+  // Names aren't kept in history, so typing them doesn't make the sheet dirty. What was typed since
+  // the sheet was last saved, started or opened is told apart from those names instead.
+  const namesNow = () =>
+    JSON.stringify(
+      store.teams.map((team) => [team.name, store.quizzersByTeam(team.id).map((q) => q.name)]),
+    )
+  const keptNames = ref(namesNow())
+  /** Take the names on the sheet as its own, as a save or a quiz just begun has them */
+  function keepNames() {
+    keptNames.value = namesNow()
+  }
+  /** Whether names were typed that the sheet would lose: changed since kept, and not all blank */
+  const namesChanged = computed(
+    () =>
+      namesNow() !== keptNames.value &&
+      store.teams.some(
+        (team) =>
+          team.name.trim() !== '' ||
+          store.quizzersByTeam(team.id).some((quizzer) => quizzer.name.trim() !== ''),
+      ),
+  )
+  function markSaved() {
+    history.markSaved()
+    keepNames()
+  }
+
   /** Load a deserialized quiz file into the store, replacing all state */
   function loadFile(data: DeserializeResult, { fromNewerFile = false } = {}) {
     openedFromNewerFile.value = fromNewerFile
@@ -628,6 +678,7 @@ export function useScoresheet() {
     timeoutMap.value = data.timeouts
     internalOtRounds.value = computeInitialOtRounds(data)
     history.clear()
+    keepNames()
     saveToStorage(store, data.noJumps, data.timeouts)
   }
   function resetStore(format = QuizFormat.TwentyQuestion) {
@@ -643,6 +694,7 @@ export function useScoresheet() {
     timeoutMap.value = new Map()
     internalOtRounds.value = 1
     history.clear()
+    keepNames()
     clearStorage()
   }
 
@@ -719,6 +771,8 @@ export function useScoresheet() {
     toggleOnTime,
     setTeamName,
     setQuizzerName,
+    swapTeams,
+    editAsOne,
     moveQuizzer,
 
     // Grey-out & validation
@@ -757,9 +811,11 @@ export function useScoresheet() {
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     isDirty: history.isDirty,
+    namesChanged,
+    keepNames,
     undo: history.undo,
     redo: history.redo,
-    markSaved: history.markSaved,
+    markSaved,
 
     // Persistence
     store,

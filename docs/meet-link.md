@@ -1,7 +1,8 @@
 # Names and the meet link
 
-How team and quizzer names behave in the scoresheet once a meet is linked. The code is in
-`apps/scoresheet/src/composables/useMeetSession.ts` and the name cells of `Scoresheet.vue`.
+How team and quizzer names behave in the scoresheet once a meet is linked, and how a quiz gets onto
+the sheet and tied to a meet. The code is in `apps/scoresheet/src/composables/useMeetSession.ts` and
+`Scoresheet.vue`.
 
 ## Two layers
 
@@ -9,11 +10,68 @@ How team and quizzer names behave in the scoresheet once a meet is linked. The c
 * A **pick** ties a team slot to a roster team, and each of its seats to a roster quizzer. Picks
   live in the meet session (`localStorage`, key `qzr-meet-session`). They drive the roster menu, the
   flags, and the restore buttons, and nothing else: a pick is never saved to a quiz file and never
-  sent with a submission. The meet knows a quiz and its teams by name.
+  sent with a submission. The meet knows a quiz and its teams by name. A pick can always be made
+  again from the names, so making or remaking one changes nothing anyone typed.
 
-Linking overwrites nothing. It may fill a seat that is empty and tidy a name to the roster's
-spelling, but text someone typed stays as typed. The sheet records what happened in the room; a
-roster that is wrong is the admin's to fix afterwards.
+The sheet can be tied to a meet in two ways, both kept in the meet session: to the **meet**, which
+gives it teams, rosters and divisions, and to one **scheduled quiz** of the meet's published
+schedule, which says which quiz this is. A scheduled quiz link implies the meet link. The header
+shows both in one place, with the menu that makes and removes them.
+
+## New, Open and Link
+
+Three actions, each doing one thing. Only New and Open replace what is on the sheet, and they ask
+first when it has unsaved changes: answers not yet saved, or names typed since the sheet was last
+saved, started or opened. Names a link filled in when the quiz was started or opened are its own and
+don't count. "Clear names" also unpicks the linked meet's teams, since a blank name names no team.
+
+| Action                 | Does                                                                      |
+| ---------------------- | ------------------------------------------------------------------------- |
+| New (20 or 15)         | a blank quiz; keeps the meet link, drops the scheduled quiz and the picks |
+| New from schedule…     | a blank 20-question quiz, then links the picked scheduled quiz            |
+| Open ▸ From file…      | the file as saved; **unlinks** the meet and the scheduled quiz            |
+| Open ▸ From the meet…  | a stored quiz, current version or an earlier one, then links the meet     |
+| Open ▸ From the        | the scheduled quiz's stored quiz, then links the scheduled quiz; with     |
+| schedule…              | nothing stored, offers New from schedule                                  |
+| Link a meet…           | links the meet                                                            |
+| Link a scheduled quiz… | links the scheduled quiz and its meet                                     |
+| ⟳ (refresh)            | fetches the meet afresh and links again what is linked                    |
+| Unlink quiz            | drops the scheduled quiz link; meet and picks stay                        |
+| Unlink meet            | drops both links and the picks; everything typed stays                    |
+
+The portal's links are two of these: `?meetId&quiz` is New from schedule, and
+`?meetId&result&revision` opens that version of a stored quiz.
+
+**Linking overwrites nothing.** It is one routine (`planLink`, then `applyLink`) whatever started
+it, and it does exactly this:
+
+* a slot picked against the same meet keeps its pick; linking another meet makes the picks again;
+* a slot with a name is picked as the roster team its name names (below), never as the team the
+  schedule seats there;
+* a blank slot takes the team the scheduled quiz seats in it, unless that team is on the sheet
+  already;
+* a blank division, with its consolation flag, and a blank quiz number take the scheduled quiz's;
+* blank seats of a newly picked team take its roster's quizzers.
+
+No answer, timeout, no-jump mark, typed name, typed division or typed quiz number changes. New from
+schedule is this over a blank sheet, the two server Opens are this over the opened quiz, and the
+refresh symbol is this over the sheet as it is. A scheduled quiz doesn't say its format yet (#173),
+so New from schedule starts a 20-question quiz.
+
+A stored quiz and a scheduled quiz are the same quiz when they share a division, consolation flag
+and quiz number (`resultKey`), which is how the meet names stored quizzes. New from schedule uses
+that to say when the meet already holds a result for the quiz, and offers to open it instead.
+
+**Waiting on the meet.** A link is worked out in full before anything is written. While an action
+the official started waits on the meet (New from schedule, the server Opens, a link, the refresh
+symbol, and submitting while it fetches), the sheet shows that it is waiting and takes nothing but
+Cancel; cancelling leaves it exactly as it was. Scoring, saving, a plain New, opening a file and
+unlinking need no network.
+
+**When the sheet fetches.** On a link, on the refresh symbol, once before the submit question, and
+on reload. The last two only renew the copy of the roster and scheduled quiz that the warnings are
+worked out from: they pick and fill nothing, and the reload fetch runs behind the sheet without
+holding it up. There is no polling, and editing a name fetches nothing.
 
 ## Blank names
 
@@ -46,8 +104,7 @@ with them, as names like any other: what was written stays as written.
 
 ## What sets a pick
 
-* **Linking a meet** looks each typed team name up on the roster (`onMeetLoaded`). A blank name is
-  skipped.
+* **Linking** (`planLink`) looks each unpicked slot's typed team name up on the roster.
   1. A name a roster team has outright (`teamNamed`): full name before short name, case and spacing
      ignored, punctuation ignored last. The quiz's division is searched first and the rest of the
      meet after, and never a team another slot holds. An exact name wins whatever the quizzers say.
@@ -55,11 +112,13 @@ with them, as names like any other: what was written stays as written.
      within two edits of the full name, or one of the short name, are shortlisted, and one is picked
      only if it alone has every typed quizzer on its roster, at least two of them. The typed name is
      kept and flagged.
-* **Opening a quiz** (file, ODS, kept auto-save, stored quiz from the portal) while linked drops the
-  picks and makes none: the quiz stays as it was saved, its teams unpicked until picked by hand.
+* **A blank slot** takes its scheduled team when a scheduled quiz is linked, as above.
+* **Opening a file** (JSON, ODS, a kept auto-save) unlinks the sheet, so it has no picks until it is
+  linked. The quiz stays as it was saved.
 * **Picking from the roster menu** sets the slot's name to the roster's full name.
-* **Loading a scheduled quiz** picks each seat's team; a seat with no team yet is left alone.
-* **A new quiz** and **unlinking** drop the picks. Unlinking leaves every name as it is.
+* **Taking the schedule's team** from a warning (below) moves or replaces a slot's team.
+* **A new quiz** and **unlinking the meet** drop the picks. Unlinking leaves every name as it is.
+* The sheet makes no pick without being asked: not on reload, and not before submitting.
 
 Editing a name never changes a pick, and a pick never stops a name being edited.
 
@@ -107,6 +166,31 @@ order than its roster can be typed in as it sits, and nothing is left disagreein
 
 Team names are compared ignoring case and spacing, quizzer names exactly. A seat emptied of its
 roster quizzer is an absence and gives no warning.
+
+### Against the scheduled quiz
+
+While a scheduled quiz is linked, the sheet's quiz is held against it, slot by slot: the schedule's
+first seat is the sheet's first team. These lines take the place of the plain division and quiz
+number lines above, and a blank slot the schedule seats shows its schedule line and not "no team
+picked" as well.
+
+| Warning                                    | When                                             | Fix offered                  |
+| ------------------------------------------ | ------------------------------------------------ | ---------------------------- |
+| `Division 2 consolation: schedule has 1`   | division or consolation flag differs             | Set division to 1            |
+| `Quiz 4: schedule has 7`                   | quiz number differs                              | Set quiz to 7                |
+| `Team 1: Regina 1, schedule has Calgary 1` | another team sits where the schedule has Calgary | Move Calgary 1 to Team 1     |
+|                                            |                                                  | (swaps with Regina 1), or    |
+|                                            |                                                  | Replace Regina 1 with        |
+|                                            |                                                  | Calgary 1 when Calgary isn't |
+|                                            |                                                  | on the sheet                 |
+| `Team 3: blank, schedule has Bears 1`      | slot blank where the schedule seats a team       | Put Bears 1 in Team 3        |
+| `Quiz: no longer in the meet's schedule`   | the published schedule dropped the quiz          | Unlink quiz                  |
+
+A seat the schedule hasn't decided (an elimination seat, until results fill it in) is held against
+nothing. Clicking the warning count opens the list with each fix as a button that says what it will
+do. A move swaps two whole teams, each with its name, quizzers, answers, timeouts and on-time mark
+(`swapTeams`), so no score changes, and undo takes it back; so does a replacement. A replaced slot
+keeps the quizzer names typed in it, held against the new team's roster.
 
 Neither warnings nor scoring errors block a submission: both are listed and asked about once before
 it goes. Teams are only held against the roster when it has teams for the quiz's division. With no

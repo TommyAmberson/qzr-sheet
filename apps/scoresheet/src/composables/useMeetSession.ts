@@ -4,8 +4,8 @@ import {
   getScheduledQuiz,
   getTeamQuizzers,
   type MeetTeam,
+  type MeetTeamQuizzer,
   type ScheduledQuizDetails,
-  type ScheduledQuizSeat,
 } from '../api'
 import { QUIZZERS_PER_TEAM, editDistance, foldName, teamDisplayName } from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
@@ -21,6 +21,22 @@ export interface SlotSession {
   quizzers: Array<{ quizzerId: number; dbName: string }>
 }
 
+/** The linked scheduled quiz as the schedule last had it: what the sheet's quiz is compared with */
+export interface ScheduledQuizCopy {
+  /** What the schedule calls the quiz */
+  label: string
+  division: string
+  consolation: boolean
+  quizNumber: string
+  /**
+   * Per team slot, in the schedule's seat order: the roster team's id, or null for a seat the
+   * schedule hasn't decided
+   */
+  seats: (number | null)[]
+  /** False once the published schedule no longer has the quiz */
+  inSchedule: boolean
+}
+
 export interface MeetSessionData {
   meetId: number
   meetName: string
@@ -30,11 +46,13 @@ export interface MeetSessionData {
   teamList: MeetTeam[]
   /** The meet's canonical division list, e.g. ["1", "2", "3"] */
   meetDivisions: string[]
-  /** Set when this session was loaded from a specific scheduled quiz
-   *  (via loadFromQuiz). Stamped onto submitted results in the future
-   *  Submit flow (#7) so they back-link to the schedule entry. */
-  /** The schedule quiz loaded, by its id in the published schedule */
+  /** The linked scheduled quiz, by its id in the published schedule; null when none is linked */
   quizId: string | null
+  /**
+   * The copy of the linked scheduled quiz. Absent while `quizId` is set only in a session saved
+   * before copies were kept, until the next fetch fills it in.
+   */
+  scheduledQuiz?: ScheduledQuizCopy | null
   /** Set when the user may send quizzes to this meet, and for which rooms */
   sender: Sender | null
 }
@@ -54,6 +72,7 @@ export function useMeetSession() {
   const meetName = computed(() => session.value?.meetName ?? null)
   const teamList = computed(() => session.value?.teamList ?? [])
   const quizId = computed(() => session.value?.quizId ?? null)
+  const scheduledQuiz = computed(() => session.value?.scheduledQuiz ?? null)
 
   /** Division options for the scoresheet dropdown — the meet's canonical division list. */
   const divisionOptions = computed((): string[] => session.value?.meetDivisions ?? [])
@@ -85,22 +104,66 @@ export function useMeetSession() {
     return `${team.churchName} ${team.number}`
   }
 
-  /** Load all teams for a meet and activate quizmeet mode */
+  /** Link a meet afresh: its teams and divisions, with no picks and no scheduled quiz */
   async function loadMeet(meetId: number, meetName: string): Promise<void> {
+    commitLink({
+      meetId,
+      meetName,
+      ...(await fetchMeet(meetId)),
+      slots: [undefined, undefined, undefined],
+      quizId: null,
+      scheduledQuiz: null,
+    })
+  }
+
+  /**
+   * What a meet gives the sheet to link against, fetched and not yet kept: a link is worked out
+   * from this and committed in one step, so one that is cancelled or fails changes nothing.
+   */
+  async function fetchMeet(
+    meetId: number,
+  ): Promise<{ teams: MeetTeam[]; meetDivisions: string[]; sender: Sender | null | undefined }> {
     const [{ teams, meetDivisions }, sender] = await Promise.all([
       getMeetTeams(meetId),
       senderOf(meetId),
     ])
+    return { teams, meetDivisions, sender }
+  }
+
+  /**
+   * Commit a link in one step: the meet, what was fetched of it, every slot's pick, and the
+   * scheduled quiz with its copy, or none.
+   */
+  function commitLink(link: {
+    meetId: number
+    meetName: string
+    teams: MeetTeam[]
+    meetDivisions: string[]
+    /** Undefined when who the user is there couldn't be told: what was known is kept */
+    sender: Sender | null | undefined
+    slots: (SlotSession | undefined)[]
+    quizId: string | null
+    scheduledQuiz: ScheduledQuizCopy | null
+  }): void {
+    const known = session.value?.meetId === link.meetId ? session.value.sender : null
     quizEpoch++
     session.value = {
-      meetId,
-      meetName,
-      slots: [undefined, undefined, undefined],
-      teamList: teams,
-      meetDivisions,
-      quizId: null,
-      sender: sender ?? null,
+      meetId: link.meetId,
+      meetName: link.meetName,
+      slots: link.slots,
+      teamList: link.teams,
+      meetDivisions: link.meetDivisions,
+      quizId: link.quizId,
+      scheduledQuiz: link.scheduledQuiz,
+      sender: link.sender === undefined ? known : link.sender,
     }
+    persist()
+  }
+
+  /** Forget the scheduled quiz and keep the meet and the picks */
+  function unlinkQuiz(): void {
+    if (!session.value) return
+    session.value = { ...session.value, quizId: null, scheduledQuiz: null }
     persist()
   }
 
@@ -108,68 +171,18 @@ export function useMeetSession() {
   const sender = computed(() => session.value?.sender ?? null)
 
   /**
-   * Fetch a scheduled quiz's resolved seats. If the active session
-   * isn't already on this meet, also loads it. Does NOT populate
-   * slots or stamp quizId — the caller decides per-slot policy,
-   * builds the slot data via `buildSlotFromSeat`, and commits it
-   * all atomically through `applyLoadedQuiz`.
+   * The pick of a roster team for a slot, its seats tied to the team's quizzers around the names
+   * already there. Builds it only; committing it is the caller's.
    */
-  async function loadFromQuiz(meetId: number, quizId: string): Promise<ScheduledQuizDetails> {
-    const details = await getScheduledQuiz(meetId, quizId)
-    if (!session.value || session.value.meetId !== meetId) {
-      await loadMeet(meetId, details.quiz.meetName)
-    } else {
-      // The seats' teams are newer than the team list kept since linking. Take them into it, so
-      // a team's name reads the same from both, and one added to the roster since can be picked
-      const seated = new Map(
-        details.seats
-          .flatMap((seat) => (seat.team ? [seat.team] : []))
-          .map((team) => [team.id, team]),
-      )
-      const known = new Set(session.value.teamList.map((team) => team.id))
-      session.value = {
-        ...session.value,
-        teamList: [
-          ...session.value.teamList.map((team) => seated.get(team.id) ?? team),
-          ...[...seated.values()].filter((team) => !known.has(team.id)),
-        ],
-      }
-      persist()
-    }
-    return details
-  }
-
-  /**
-   * Pure builder: produces a `SlotSession` from a pre-fetched seat
-   * and matcher input. Returns undefined when the seat is
-   * unresolved (`team: null`). Does not mutate session state.
-   */
-  function buildSlotFromSeat(
-    seat: ScheduledQuizSeat,
-    storeNames: string[],
-  ): SlotSession | undefined {
-    if (!seat.team) return undefined
+  function slotFor(team: MeetTeam, quizzers: MeetTeamQuizzer[], storeNames: string[]): SlotSession {
     return {
-      teamId: seat.team.id,
-      dbLabel: teamLabel(seat.team),
-      dbLabelFull: teamLabelFull(seat.team),
-      quizzers: matchQuizzers(storeNames, seat.quizzers),
+      teamId: team.id,
+      dbLabel: teamLabel(team),
+      dbLabelFull: teamLabelFull(team),
+      quizzers: matchQuizzers(storeNames, quizzers),
     }
   }
 
-  /**
-   * Atomically commit a quiz load: replace the 3 slot assignments
-   * and stamp `quizId`. One reactivity tick, one `localStorage`
-   * write — vs. one per slot if callers used per-slot setters.
-   */
-  function applyLoadedQuiz(slots: (SlotSession | undefined)[], quizId: string): void {
-    if (!session.value) return
-    quizEpoch++
-    session.value = { ...session.value, slots, quizId }
-    persist()
-  }
-
-  /** Assign a team to a slot and fetch its quizzers */
   /** Pick a roster team for a slot. False when the pick wasn't made. */
   async function assignTeam(
     slotIdx: number,
@@ -181,9 +194,14 @@ export function useMeetSession() {
     if (!team) return false
 
     const epoch = quizEpoch
+    const before = session.value.slots[slotIdx]?.teamId
     const { quizzers } = await getTeamQuizzers(session.value.meetId, teamId)
-    // The roster took a while to arrive: the meet may have been unlinked, or another quiz begun
-    if (!session.value || quizEpoch !== epoch) return false
+    // The roster took a while to arrive: the meet may have been unlinked, another quiz begun, or
+    // the slot given another team meanwhile
+    // A slot re-seated with the same team, as dragging a quizzer does, still takes the pick
+    if (!session.value || quizEpoch !== epoch || session.value.slots[slotIdx]?.teamId !== before) {
+      return false
+    }
 
     session.value.slots[slotIdx] = {
       teamId,
@@ -197,13 +215,18 @@ export function useMeetSession() {
     return true
   }
 
-  /** Clear the team assignment for a slot */
-  function clearSlot(slotIdx: number): void {
+  /** Set a slot's pick, or with none clear it */
+  function setSlot(slotIdx: number, slot: SlotSession | undefined): void {
     if (!session.value) return
     const slots = [...session.value.slots]
-    slots[slotIdx] = undefined
+    slots[slotIdx] = slot
     session.value = { ...session.value, slots }
     persist()
+  }
+
+  /** Clear the team assignment for a slot */
+  function clearSlot(slotIdx: number): void {
+    setSlot(slotIdx, undefined)
   }
 
   /** Mirror a drag-reorder into the slot's quizzer array so divergence detection stays correct */
@@ -225,7 +248,6 @@ export function useMeetSession() {
     return session.value?.slots[slotIdx]
   }
 
-  /** Whether a name diverges from the DB value (empty seats have dbName ''). */
   /**
    * Tie a seat to the roster quizzer whose name was typed into it, when another seat of the team
    * holds that quizzer and doesn't bear the name itself: the two seats swap quizzers. So a team
@@ -244,6 +266,7 @@ export function useMeetSession() {
     reorderSlotQuizzers(slotIdx, seatIdx, holder)
   }
 
+  /** Whether a name diverges from the DB value (empty seats have dbName ''). */
   function isQuizzerDiverged(slotIdx: number, seatIdx: number, currentName: string): boolean {
     const slot = session.value?.slots[slotIdx]
     if (!slot) return false
@@ -283,7 +306,12 @@ export function useMeetSession() {
   function startNewQuiz(): void {
     if (!session.value) return
     quizEpoch++
-    session.value = { ...session.value, slots: [undefined, undefined, undefined], quizId: null }
+    session.value = {
+      ...session.value,
+      slots: [undefined, undefined, undefined],
+      quizId: null,
+      scheduledQuiz: null,
+    }
     persist()
   }
 
@@ -312,31 +340,53 @@ export function useMeetSession() {
     persist()
   }
 
-  /** Re-fetch the team list (e.g. after a page restore, to pick up roster changes) */
-  async function refresh(): Promise<void> {
-    if (!session.value) return
-    // Capture meetId at call-time. Scoresheet.vue's onMounted fires
-    // refresh() and loadFromUrlParams() in parallel, so a concurrent
-    // loadMeet(B) can replace session.value while we await
-    // getMeetTeams(A). Only write back if the active meet hasn't
-    // changed — otherwise we'd clobber meet B's teamList with A's.
-    const capturedMeetId = session.value.meetId
+  /**
+   * Fetch afresh what the meet gives the sheet: its teams, divisions and who the user is there,
+   * and the linked scheduled quiz. Only the copies are renewed; picks and the sheet are the
+   * caller's. False when the meet couldn't be reached, which leaves the copies held as they were;
+   * also when `stillWanted` says the fetch was given up on, and what it brought is dropped.
+   */
+  async function refresh(stillWanted: () => boolean = () => true): Promise<boolean> {
+    if (!session.value) return false
+    // Captured at call time: a link or a new quiz made while this waits must not be written over
+    // with what was fetched for the meet and the quiz before it
+    const { meetId: fetchedMeetId, quizId: fetchedQuizId, scheduledQuiz: held } = session.value
     try {
-      const [{ teams, meetDivisions }, sender] = await Promise.all([
-        getMeetTeams(capturedMeetId),
-        senderOf(capturedMeetId),
+      const [{ teams, meetDivisions }, sender, scheduled] = await Promise.all([
+        getMeetTeams(fetchedMeetId),
+        senderOf(fetchedMeetId),
+        // The schedule failing leaves its copy held; the roster is still renewed
+        fetchedQuizId === null
+          ? null
+          : scheduledQuizNow(fetchedMeetId, fetchedQuizId, held).catch(() => null),
       ])
-      if (!session.value || session.value.meetId !== capturedMeetId) return
+      if (!stillWanted()) return false
+      if (!session.value || session.value.meetId !== fetchedMeetId) return false
+      const sameQuiz = session.value.quizId === fetchedQuizId
       session.value = {
         ...session.value,
         teamList: teams,
         meetDivisions,
         sender: sender === undefined ? session.value.sender : sender,
+        ...(sameQuiz && scheduled ? { scheduledQuiz: scheduled } : {}),
       }
       persist()
+      return true
     } catch {
-      // Silently ignore — offline or session expired; existing data stays usable
+      // Offline or the session has ended: what is held stays usable
+      return false
     }
+  }
+
+  /** Two team slots' picks change places, as their teams do on the sheet */
+  function swapSlots(slotA: number, slotB: number): void {
+    if (!session.value || slotA === slotB) return
+    // A pick still waiting on its roster was made for a slot whose team has just moved
+    quizEpoch++
+    const slots = [...session.value.slots]
+    ;[slots[slotA], slots[slotB]] = [slots[slotB], slots[slotA]]
+    session.value = { ...session.value, slots }
+    persist()
   }
 
   return {
@@ -346,16 +396,21 @@ export function useMeetSession() {
     meetName,
     teamList,
     quizId,
+    scheduledQuiz,
     divisionOptions,
     lacksDivision,
     teamsForDivision,
     teamLabel,
     teamLabelFull,
     loadMeet,
-    loadFromQuiz,
-    buildSlotFromSeat,
-    applyLoadedQuiz,
+    fetchMeet,
+    commitLink,
+    slotFor,
+    scheduledQuizCopy,
+    unlinkQuiz,
+    swapSlots,
     assignTeam,
+    setSlot,
     clearSlot,
     getSlot,
     reorderSlotQuizzers,
@@ -370,6 +425,38 @@ export function useMeetSession() {
     restoreSession,
     refresh,
   }
+}
+
+/** The copy of a scheduled quiz the session keeps: what the sheet's quiz is compared with */
+function scheduledQuizCopy(details: ScheduledQuizDetails): ScheduledQuizCopy {
+  const seats: (number | null)[] = [null, null, null]
+  for (const seat of details.seats) {
+    if (seat.seatNumber >= 1 && seat.seatNumber <= 3)
+      seats[seat.seatNumber - 1] = seat.team?.id ?? null
+  }
+  const { label, division, consolation, quizNumber } = details.quiz
+  return { label, division, consolation, quizNumber, seats, inSchedule: true }
+}
+
+/**
+ * A scheduled quiz the published schedule no longer has: the copy held, if any, marked as gone. It
+ * stays linked, so the sheet can say so, but is held against nothing.
+ */
+export function scheduledQuizGone(held: ScheduledQuizCopy | null | undefined): ScheduledQuizCopy {
+  return {
+    ...(held ?? { label: '', division: '', consolation: false, quizNumber: '', seats: [] }),
+    inSchedule: false,
+  }
+}
+
+/** The linked scheduled quiz as the published schedule has it now. Rosters aren't kept, so not fetched */
+async function scheduledQuizNow(
+  meetId: number,
+  quizId: string,
+  held: ScheduledQuizCopy | null | undefined,
+): Promise<ScheduledQuizCopy> {
+  const details = await getScheduledQuiz(meetId, quizId, { rosters: false })
+  return details ? scheduledQuizCopy(details) : scheduledQuizGone(held)
 }
 
 /** How many edits a typed team name may be from a roster team's and still be taken for a typo */
@@ -523,6 +610,7 @@ function loadFromStorage(): MeetSessionData | null {
     // Quiz ids were numbers before schedules became documents; converted meets kept them as strings
     if (typeof data.quizId === 'number') data.quizId = String(data.quizId)
     if (data.sender === undefined) data.sender = null
+    if (data.scheduledQuiz === undefined) data.scheduledQuiz = null
     return data
   } catch {
     return null
