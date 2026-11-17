@@ -25,6 +25,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   spelling, so it stays under the name its other quizzes are stored under
 * A division shown on its own is "Division 1", never "Division Div 1", and quizzes are named "D1
   Q3", never "DDiv 1 Q3"
+* The results page heads each group with its division as saved ("Division: Div 1"), so a quiz whose
+  division is spelled another way stands out in a group of its own
 
 ## [0.26.0] - 2026-11-16
 

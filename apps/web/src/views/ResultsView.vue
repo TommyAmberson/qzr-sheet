@@ -427,7 +427,8 @@ onMounted(load)
       </template>
 
       <section v-for="group in divisions" :key="group.division" class="division">
-        <h3 class="division-title">{{ divisionTitle(group.division) }}</h3>
+        <!-- As saved, so a quiz whose division is spelled another way stands out in its own group -->
+        <h3 class="division-title">Division: {{ group.division || 'none' }}</h3>
         <table class="results-table quiz-table">
           <thead>
             <tr>
