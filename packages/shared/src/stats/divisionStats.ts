@@ -3,7 +3,7 @@ import { byNumber, foldName, tidyName } from '../results'
 import { computePlacementPoints, placeKey, placeRank, placeTieCount } from '../scoring/placement'
 import { quizzerStandings, type QuizzerList } from '../scoring/quizzerStandings'
 import { divisionStandings, type CountedQuiz, type TieBreak } from '../scoring/standings'
-import { quizProblems, type QuizProblem, type ScheduledQuiz } from './quizProblems'
+import { playing, quizProblems, type QuizProblem, type ScheduledQuiz } from './quizProblems'
 import type { ScoredQuiz, ScoredTeam } from './scoredQuiz'
 import { STAGES, type Stage } from './stages'
 import { teamNamed, type RosterTeam } from './teamNames'
@@ -266,8 +266,11 @@ function placedAsTheyStand(scored: ScoredQuiz): ScoredQuiz {
   return {
     ...scored,
     teams: scored.teams.map((team) => {
-      const above = scored.teams.filter((other) => other.score > team.score).length
-      const level = scored.teams.filter((other) => other.score === team.score).length
+      // A two-team quiz's empty seat has no place, and takes none from the teams that played
+      const played = playing(scored.teams)
+      if (!played.includes(team)) return team
+      const above = played.filter((other) => other.score > team.score).length
+      const level = played.filter((other) => other.score === team.score).length
       return { ...team, place: placeKey(above + 1, level) }
     }),
   }
@@ -360,9 +363,15 @@ function rerankOf(
     )
     const together = [...prelims, ...played]
     const lines = teamLines(together)
-    const order = divisionStandings(together.map(counted), { finalists: false }).teams.filter(
-      (team) => inLine.has(foldName(team.name)),
-    )
+    // Ranked among the line's teams alone: their points from every quiz, and ties broken between
+    // them, never against a team outside the line
+    const order = divisionStandings(
+      together.map(counted).map((quiz) => ({
+        ...quiz,
+        teams: quiz.teams.filter((team) => inLine.has(foldName(team.name))),
+      })),
+      { finalists: false },
+    ).teams
     const held = order
       .map((team) => position.get(foldName(team.name)) ?? ++unplaced)
       .sort((a, b) => a - b)

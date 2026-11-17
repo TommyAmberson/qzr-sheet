@@ -14,6 +14,8 @@ export type RosterProblem =
   /** A quizzer of the team's roster the quiz doesn't list */
   | { kind: 'quizzerMissing'; team: string; quizzer: string }
   | { kind: 'tooManyQuizzers'; team: string; listed: number; roster: number }
+  /** The meet's roster has no team in the quiz's division, so its division name doesn't resolve */
+  | { kind: 'divisionNotOnRoster' }
 
 /** A quiz that doesn't agree with the scheduled quiz it is linked to, or with its stage */
 export type ScheduleProblem =
@@ -76,7 +78,7 @@ interface SeatedTeam {
  * The teams that played: a team with no name and no quizzer named is the empty seat of a two-team
  * quiz, not a team. One with no name and quizzers named is a team the roster doesn't know.
  */
-function playing<Team extends SeatedTeam>(teams: Team[]): Team[] {
+export function playing<Team extends SeatedTeam>(teams: Team[]): Team[] {
   return teams.filter(
     (team) => tidyName(team.name) !== '' || team.quizzers.some((q) => tidyName(q.name) !== ''),
   )
@@ -152,6 +154,8 @@ function nearest(typed: string, names: string[]): string | undefined {
  */
 export function rosterProblems(scored: ScoredQuiz, teams: RosterTeam[] | null): RosterProblem[] {
   if (teams === null) return []
+  // One problem, not one for every team, when the division itself is what doesn't match
+  if (teams.length === 0) return [{ kind: 'divisionNotOnRoster' }]
   const problems: RosterProblem[] = []
   for (const team of playing(scored.teams)) {
     const rosterTeam = teamNamed(team.name, teams)

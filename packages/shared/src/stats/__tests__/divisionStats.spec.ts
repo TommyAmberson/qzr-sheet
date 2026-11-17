@@ -260,6 +260,16 @@ describe('divisionStats: stages', () => {
     ])
   })
 
+  it("breaks a tie in the re-rank among the line's teams, never against a team outside it", () => {
+    const { rerank } = stats([
+      // A outside the line is level with B on points; B and C play the intermediate
+      quizOf('D1 Q1', 'prelim', scoredQuiz('A', 'B', 'C')),
+      quizOf('D1 QX', 'intermediate', scoredQuiz('B', 'C', 'D')),
+    ])
+    expect(rerank!.teams.map((t) => t.name)).toEqual(['B', 'C', 'D'])
+    expect(rerank!.teams.some((t) => t.tied)).toBe(false)
+  })
+
   it('has no re-rank where no intermediate was played', () => {
     expect(stats([quizOf('D1 Q1', 'prelim', scoredQuiz('A', 'B', 'C'))]).rerank).toBeUndefined()
   })
@@ -368,6 +378,19 @@ describe('divisionStats: a quiz left level in an overtime not played out', () =>
 
   it('adds nothing until accepted', () => {
     expect(stats([undecided()]).prelimStandings!.teams).toEqual([])
+  })
+
+  it("places a two-team quiz's teams without its empty seat", () => {
+    const quiz = undecided()
+    quiz.scored.teams[0]!.score = -10
+    quiz.scored.teams[1]!.score = -10
+    // The third seat is empty: no name, no quizzer, and a score of nothing
+    Object.assign(quiz.scored.teams[2]!, { name: '', quizzers: [], score: 0, place: null })
+    const { results } = stats([{ ...quiz, accepted: true }])
+    expect(results[0]!.quizzes[0]!.teams).toMatchObject([
+      { name: 'A', place: 1, tiedWith: 2 },
+      { name: 'B', place: 1, tiedWith: 2 },
+    ])
   })
 })
 

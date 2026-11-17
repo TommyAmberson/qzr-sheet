@@ -23,9 +23,10 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   stage, its link to a scheduled quiz, an acceptance, never changed afterwards
 * `POST /results` takes `scheduleQuizId`, the scheduled quiz the sheet is linked to, and answers
   with the quiz's `link`. Any quiz without such a link is linked, when read, to the scheduled quiz
-  of its name, so quizzes stored before the schedule was published link too. 400 for a scheduled
-  quiz the published schedule does not have; a scheduled quiz another quiz's explicit link holds
-  leaves the submission stored, linked by its name if it can be
+  of its name, so quizzes stored before the schedule was published link too. A scheduled quiz the
+  published schedule does not have is let go, the quiz stored and linked by its name; a scheduled
+  quiz another quiz's explicit link holds leaves the submission stored, linked by its name if it can
+  be
 * `PUT /results/:id/link` (admin, or an official of the quiz's room): link, relink or unlink by
   hand; 409 naming the stored quiz that already holds the scheduled quiz
 * `PATCH /results/stage` (admin): set what several quizzes count for, or with `null` return them to

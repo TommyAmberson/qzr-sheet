@@ -156,6 +156,7 @@ type QuizProblem =
   | { kind: 'quizzerNotOnRoster'; team: string; quizzer: string; near?: string }
   | { kind: 'quizzerMissing'; team: string; quizzer: string }
   | { kind: 'tooManyQuizzers'; team: string; listed: number; roster: number }
+  | { kind: 'divisionNotOnRoster' } // the roster has no team in the quiz's division
   // Schedule errors: the quiz held against the scheduled quiz it is linked to
   | { kind: 'notLinked' } // in a meet with a published schedule, linked to none of its quizzes
   | { kind: 'nameDiffers'; scheduled: string }
@@ -198,7 +199,8 @@ quiz is linked to that scheduled quiz, recorded as sent by the scoresheet. Witho
 linked when it matches a scheduled quiz on its name and team names (R4). Responses gain
 `link: { scheduleQuizId: string; how: 'sheet' | 'matched' | 'hand' } | null`.
 
-* 400 if `scheduleQuizId` is not a quiz of the meet's published schedule.
+* A `scheduleQuizId` the published schedule doesn't have is let go, not refused: the quiz is stored
+  and linked by its name, so nothing an official scored is turned away.
 * A scheduled quiz already linked to another stored quiz does not refuse the submission: the quiz is
   stored unlinked and `link` is null, so nothing an official scored is turned away.
 

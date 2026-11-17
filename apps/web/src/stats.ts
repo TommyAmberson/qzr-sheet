@@ -79,6 +79,8 @@ export function problemText(problem: QuizProblem): string {
       return `${problem.team}: ${problem.quizzer} is not on the roster.${problem.near ? ` The roster has ${problem.near}.` : ''}`
     case 'quizzerMissing':
       return `${problem.team}: ${problem.quizzer} is on the roster and not in this quiz.`
+    case 'divisionNotOnRoster':
+      return "Its division has no teams on the meet's roster."
     case 'tooManyQuizzers':
       return `${problem.team} lists ${problem.listed} quizzers; its roster has ${problem.roster}.`
     case 'notLinked':

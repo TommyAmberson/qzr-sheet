@@ -57,6 +57,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 * A team with no name and no quizzer named is the empty seat of a two-team quiz: no roster error,
   and a two-team quiz matches a scheduled quiz seating two teams
+* A quiz whose division has no teams on the meet's roster gets one `divisionNotOnRoster` problem,
+  not one for every team
+* The re-rank breaks ties among the intermediate's teams alone
 * A quiz accepted as scored while its teams are still level in an unplayed overtime is placed by its
   scores as they stand, the level teams sharing the place; `placeKey` is exported for it
 * The re-rank after an intermediate gives teams it separates places of their own, though they were

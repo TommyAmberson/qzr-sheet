@@ -201,6 +201,11 @@ function linkLabel(quiz: ResultRow): string {
   const linked = scheduled.value.find((q) => q.id === quiz.link?.scheduleQuizId)
   return linked ? nameOfScheduled(linked) : 'a scheduled quiz'
 }
+/** Whether the user may change links now: anyone who may while the meet is live, only an admin in review */
+const canLink = computed(
+  () => meet.value?.phase === 'live' || (meet.value?.phase === 'review' && isAdmin.value),
+)
+
 /** The quizzes in error that no admin has accepted, which "Accept all" would accept */
 const unaccepted = computed(() =>
   allQuizzes.value.filter((quiz) => quiz.problems?.length && !quiz.accepted),
@@ -495,6 +500,7 @@ onMounted(load)
                   <template v-if="quiz.link">
                     Linked to {{ linkLabel(quiz) }}
                     <button
+                      v-if="canLink"
                       class="btn btn--secondary btn--sm"
                       :disabled="saving"
                       @click="link(quiz, null)"
@@ -505,7 +511,7 @@ onMounted(load)
                   <template v-else>
                     <span class="note">not linked</span>
                     <select
-                      v-if="scheduled.length > 0"
+                      v-if="canLink && scheduled.length > 0"
                       class="stage-select"
                       :disabled="saving"
                       :aria-label="`Link ${quiz.name} to a scheduled quiz`"

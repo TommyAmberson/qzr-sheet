@@ -418,14 +418,14 @@ results.post('/:id/results', async (c) => {
   const revisionValues = { ...saver, quizFile: json, action } as const
 
   const db = c.get('db')
-  // The scheduled quiz the sheet says this is, which must be one of the published schedule's
-  const sentFor = typeof body.scheduleQuizId === 'string' ? body.scheduleQuizId : null
+  // The scheduled quiz the sheet says this is. One the published schedule doesn't have (it was
+  // republished, or the sheet holds an id from before) is let go: nothing an official scored is
+  // turned away, and the quiz is linked by its name
   let facts: MeetFacts | undefined
+  let sentFor = typeof body.scheduleQuizId === 'string' ? body.scheduleQuizId : null
   if (sentFor !== null) {
     facts = await meetFacts(db, meetId)
-    if (!facts.schedule?.quizzes.has(sentFor)) {
-      return c.json({ error: 'Not a quiz of the published schedule' }, 400)
-    }
+    if (!facts.schedule?.quizzes.has(sentFor)) sentFor = null
   }
   /**
    * The quiz's link once it is stored. The sheet's scheduled quiz is recorded as its link, unless

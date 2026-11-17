@@ -123,6 +123,12 @@ describe('rosterProblems', () => {
     ).toEqual([])
   })
 
+  it('says once that the division has no teams on the roster, instead of naming every team', () => {
+    expect(rosterProblems(scored({ 'Grace 1': [], 'FC 1': [] }), [])).toEqual([
+      { kind: 'divisionNotOnRoster' },
+    ])
+  })
+
   it('finds nothing in a meet with no roster', () => {
     expect(rosterProblems(scored({ 'Team 1': ['Quizzer 1'] }), null)).toEqual([])
   })

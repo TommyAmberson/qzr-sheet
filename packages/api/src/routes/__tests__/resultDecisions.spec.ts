@@ -227,10 +227,10 @@ describe('a submission and the schedule', () => {
     ])
   })
 
-  it('refuses a scheduled quiz the published schedule does not have', async () => {
-    const res = await submit({ quizFile: quiz('3'), scheduleQuizId: 'nope' })
-    expect(res.status).toBe(400)
-    expect(await db.select().from(schema.quizResults)).toEqual([])
+  it('stores a quiz whose scheduled quiz the schedule no longer has, linked by its name', async () => {
+    const res = await submit({ quizFile: quiz('3'), scheduleQuizId: 'gone' })
+    expect(res.status).toBe(201)
+    expect(await jsonOf(res)).toMatchObject({ link: { scheduleQuizId: 'p3', how: 'matched' } })
   })
 
   it('links itself when its name and its teams match, whatever seats and spelling they are in', async () => {
