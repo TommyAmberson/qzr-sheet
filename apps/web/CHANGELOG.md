@@ -16,6 +16,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-16
+
 ### Added
 
 * On the results page each quiz has a stage in place of the Counted box: an admin sets it for one
@@ -33,6 +35,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 ### Removed
 
 * The Counted box and Count all, which stages replace
+
+### Bundled contract
+
+* `@qzr/shared@1.12.0` - bumped from 1.11.0
 
 ## [0.25.0] - 2026-11-14
 
