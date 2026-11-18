@@ -761,10 +761,24 @@ onMounted(load)
   color: var(--palette-error);
 }
 
+/* Outlined like the small buttons beside it */
 .stage-select {
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   max-width: 100%;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.stage-select:hover:not(:disabled),
+.stage-select:focus-visible {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+  outline: none;
 }
 
 .link {

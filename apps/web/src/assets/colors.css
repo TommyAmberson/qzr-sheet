@@ -40,6 +40,8 @@
 
 /* ── Light theme ── */
 :root {
+  /* Native controls (selects, their lists, date pickers) follow the theme */
+  color-scheme: light;
   --color-bg: var(--palette-white);
   --color-bg-warm: var(--palette-cream);
   --color-bg-raised: var(--palette-eggshell);
@@ -63,6 +65,7 @@
 /* ── Dark theme ── */
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --color-bg: var(--palette-coal);
     --color-bg-warm: var(--palette-obsidian);
     --color-bg-raised: var(--palette-shadow);
