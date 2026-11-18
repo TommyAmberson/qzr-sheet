@@ -143,7 +143,7 @@ async function openBuilder() {
 /** A draft already on the server, as if saved earlier */
 function serverDraft(server: ReturnType<typeof fakeServer>['server']) {
   const base = newScheduleDocument('Fall Meet')
-  base.settings.divisions = [{ id: '1', name: 'Div 1', teams: 6, elims: { lanes: [], lines: [] } }]
+  base.settings.divisions = [{ id: '1', name: '1', teams: 6, elims: { lanes: [], lines: [] } }]
   base.settings.autoApply = false
   const doc = generateSchedule(base)
   doc.link = { meetId: 7, timeZone: 'UTC' }
@@ -177,9 +177,7 @@ describe('a linked schedule in the builder (story 7)', () => {
   it('links a kept schedule only once confirmed, listing what differs from the meet (FR-046)', async () => {
     const { server } = fakeServer()
     const kept = newScheduleDocument('Practice')
-    kept.settings.divisions = [
-      { id: '1', name: 'Div 1', teams: 5, elims: { lanes: [], lines: [] } },
-    ]
+    kept.settings.divisions = [{ id: '1', name: '1', teams: 5, elims: { lanes: [], lines: [] } }]
     keepSchedule(generateSchedule(kept))
     const w = await openBuilder()
     await w.find('[aria-label="Schedule to link"]').setValue(kept.id)
@@ -197,9 +195,7 @@ describe('a linked schedule in the builder (story 7)', () => {
   it("carries a kept draw to the meet's teams by name, never by position", async () => {
     const { server } = fakeServer()
     const base = newScheduleDocument('Named')
-    base.settings.divisions = [
-      { id: '1', name: 'Div 1', teams: 6, elims: { lanes: [], lines: [] } },
-    ]
+    base.settings.divisions = [{ id: '1', name: '1', teams: 6, elims: { lanes: [], lines: [] } }]
     const kept = generateSchedule(base)
     kept.draw['1'] = {
       stale: false,

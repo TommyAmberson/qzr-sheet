@@ -163,7 +163,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
     // its default elims beside them would double them
     const builtElims = old.quizzes.some((q) => q.division === d && q.phase === 'elim')
     const elims = builtElims ? { lanes: [], lines: [] } : defaultElims(teams)
-    return { id: d, name: divisionName(d), teams, elims }
+    return { id: d, name: d, teams, elims }
   })
   doc.applied = structuredClone(doc.settings)
 

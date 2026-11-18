@@ -17,7 +17,7 @@ const meet = {
 
 function published(): ScheduleDocument {
   const base = newScheduleDocument('Fall Meet')
-  base.settings.divisions = [{ id: '1', name: 'Div 1', teams: 6, elims: { lanes: [], lines: [] } }]
+  base.settings.divisions = [{ id: '1', name: '1', teams: 6, elims: { lanes: [], lines: [] } }]
   const doc = generateSchedule(base)
   doc.draw['1'] = {
     stale: false,

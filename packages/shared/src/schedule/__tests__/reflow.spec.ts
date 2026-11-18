@@ -14,7 +14,7 @@ function meet(
   doc.settings.finals.consolation = consolation
   doc.settings.divisions = counts.map((teams, i) => ({
     id: `d${i + 1}`,
-    name: `Div ${i + 1}`,
+    name: `${i + 1}`,
     teams,
     elims: defaultElims(teams),
   }))
@@ -112,7 +112,7 @@ describe('generateSchedule', () => {
       doc.settings.totallingMinutes = totallingMinutes
       doc.settings.divisions = [6, 17, 16].map((teams, i) => ({
         id: `d${i + 1}`,
-        name: `Div ${i + 1}`,
+        name: `${i + 1}`,
         teams,
         elims: defaultElims(teams),
       }))
@@ -149,7 +149,7 @@ describe('generateSchedule', () => {
     doc.settings.finals.sideBySide = 2
     doc.settings.divisions = [6, 6].map((teams, i) => ({
       id: `d${i + 1}`,
-      name: `Div ${i + 1}`,
+      name: `${i + 1}`,
       teams,
       elims: defaultElims(teams),
     }))

@@ -35,7 +35,7 @@ function seated(division: DivisionSettings): Record<string, string> {
   )
 }
 
-const div = (teams: number, elims = defaultElims(teams), name = 'Div 1'): DivisionSettings => ({
+const div = (teams: number, elims = defaultElims(teams), name = '1'): DivisionSettings => ({
   id: 'd',
   name,
   teams,
@@ -85,7 +85,7 @@ function generated(
   doc.settings.rooms = rooms
   doc.settings.divisions = counts.map((teams, i) => ({
     id: `d${i + 1}`,
-    name: `Div ${i + 1}`,
+    name: `${i + 1}`,
     teams,
     elims: elims?.[i] ?? defaultElims(teams),
   }))
@@ -94,10 +94,10 @@ function generated(
 
 describe('elim settings (FR-027 to FR-034)', () => {
   it('Heritage 2025: a 5-team consolation for 14, a 9-team 3C for 21', () => {
-    const fourteen = seated(div(14, defaultElims(14), 'Div 2'))
+    const fourteen = seated(div(14, defaultElims(14), '2'))
     expect(fourteen['Div 2C Quiz I']).toBe('New 10, New 12, 14')
     expect(fourteen['Div 2C Quiz J']).toBe('New 11, 13, 2 of I')
-    const twentyOne = seated(div(21, defaultElims(21), 'Div 3'))
+    const twentyOne = seated(div(21, defaultElims(21), '3'))
     expect(twentyOne['Div 3C Quiz L']).toBe('New 13, 18, 19')
     expect(checkSchedule(generated([10, 14, 21])).filter((c) => !c.warning)).toEqual([])
   })
@@ -107,7 +107,7 @@ describe('elim settings (FR-027 to FR-034)', () => {
       lanes: [lane(12), lane(10, { format: 'roundRobin', perTeam: 3 })],
       lines: defaultElims(22).lines.slice(0, 1),
     }
-    const quizzes = buildElimQuizzes(div(22, elims, 'Div 2'))
+    const quizzes = buildElimQuizzes(div(22, elims, '2'))
     const rr = quizzes.filter((q) => q.lane === 1 && !q.deciding)
     expect(rr).toHaveLength(10)
     expect(rr.every((q) => q.seats.every((s) => s.kind === 'rank' || s.kind === 'new'))).toBe(true)
@@ -156,9 +156,9 @@ describe('elim settings (FR-027 to FR-034)', () => {
       ],
     }
     const q = seated(div(36, a, 'A'))
-    expect(q['A Quiz W']).toBe('9, 16, 17')
-    expect(q['A Quiz X']).toBe('10, 15, 18')
-    expect(q['A Quiz Z']).toBe('12, 13, 20')
+    expect(q['Div A Quiz W']).toBe('9, 16, 17')
+    expect(q['Div A Quiz X']).toBe('10, 15, 18')
+    expect(q['Div A Quiz Z']).toBe('12, 13, 20')
     expect(q['K Quiz A']).toBe('New 13, New 17, 24')
     expect(q['B Finals']).toBe('1 in pts, 2 in pts, 3 in pts')
     const doc = generated([36, 14], [a, undefined], 9)
@@ -219,7 +219,7 @@ describe('elim settings (FR-027 to FR-034)', () => {
 
 describe('elimsForCount', () => {
   it('follows the count with the defaults, and keeps elims the director changed, resized', () => {
-    const division = { id: '1', name: 'Div 1', teams: 9, elims: defaultElims(9) }
+    const division = { id: '1', name: '1', teams: 9, elims: defaultElims(9) }
     expect(elimsForCount(division, 12)).toEqual(defaultElims(12))
     const lanes = division.elims.lanes.map((l, i) => (i === 0 ? { ...l, finals: !l.finals } : l))
     const changed = { ...division, elims: { ...division.elims, lanes } }

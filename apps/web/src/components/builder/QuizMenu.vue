@@ -13,6 +13,7 @@ import {
   type ScheduleQuiz,
   type Seat,
   type SheetView,
+  divisionName,
 } from '@qzr/shared'
 
 import {
@@ -267,7 +268,7 @@ function rename() {
   <BuilderPopover
     :anchor="anchor"
     :title="q.label"
-    :tag="division?.name ?? 'Quiz'"
+    :tag="division ? divisionName(division.name) : 'Quiz'"
     :colour="colour"
     @close="emit('close')"
   >
@@ -277,7 +278,7 @@ function rename() {
         Division
         <select ref="quizDivision" :value="q.division" aria-label="Quiz division" @change="rename">
           <option v-for="d in doc.settings.divisions" :key="d.id" :value="d.id">
-            {{ d.name }}
+            {{ divisionName(d.name) }}
           </option>
         </select>
       </label>

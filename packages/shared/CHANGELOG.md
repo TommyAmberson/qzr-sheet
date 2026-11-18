@@ -37,6 +37,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   division saved with its prefix by mistake shows as `Div Div 2`
 * `sameDivision` ignores case and spacing only: `Div 2` is no longer division `2`, so a division
   saved with its prefix by mistake shows as one the meet doesn't have
+* A schedule's divisions are named bare: quiz labels (`Div 2 Quiz 16`, `Div 2C Quiz I`) and a room's
+  divisions add the prefix to the name
 
 ## [1.12.0] - 2026-11-15
 

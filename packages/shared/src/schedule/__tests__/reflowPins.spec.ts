@@ -14,7 +14,7 @@ function meet(counts: number[]): ScheduleDocument {
   const doc = newScheduleDocument('Test')
   doc.settings.divisions = counts.map((teams, i) => ({
     id: `d${i + 1}`,
-    name: `Div ${i + 1}`,
+    name: `${i + 1}`,
     teams,
     elims: defaultElims(teams),
   }))
@@ -106,7 +106,7 @@ describe('Auto-apply off (FR-012a)', () => {
     const doc = meet([6, 17])
     doc.settings.divisions = [
       doc.settings.divisions[0]!,
-      { ...doc.settings.divisions[1]!, id: 'd3', name: 'Div 3' },
+      { ...doc.settings.divisions[1]!, id: 'd3', name: '3' },
     ]
     expect(unappliedSettings(doc)).toContainEqual({
       section: 'teams',

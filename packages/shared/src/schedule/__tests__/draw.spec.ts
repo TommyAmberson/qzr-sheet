@@ -13,7 +13,7 @@ function meet(counts: number[], rooms: number | 'auto' = 'auto'): ScheduleDocume
   doc.settings.lateTeams = true
   doc.settings.divisions = counts.map((teams, i) => ({
     id: `d${i + 1}`,
-    name: `Div ${i + 1}`,
+    name: `${i + 1}`,
     teams,
     elims: defaultElims(teams),
   }))

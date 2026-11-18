@@ -1,6 +1,5 @@
 import {
   defaultElims,
-  divisionName,
   dropTeams,
   setTeamCount,
   generateSchedule,
@@ -78,7 +77,7 @@ export function startFromMeet(
   const divisions = [...new Set([...meet.divisions, ...teams.map((t) => t.division)])]
   doc.settings.divisions = divisions.map((d) => {
     const count = teams.filter((t) => t.division === d).length
-    return { id: d, name: divisionName(d), teams: count, elims: defaultElims(count) }
+    return { id: d, name: d, teams: count, elims: defaultElims(count) }
   })
   if (rooms.length > 0) doc.settings.rooms = rooms.length
   for (const d of divisions) {
@@ -112,7 +111,7 @@ export function reconcileTeams(doc: ScheduleDocument, teams: MeetTeamRow[]): boo
   const registered = new Set(teams.map((t) => t.division))
   for (const id of registered) {
     if (doc.settings.divisions.some((d) => d.id === id)) continue
-    doc.settings.divisions.push({ id, name: divisionName(id), teams: 0, elims: defaultElims(0) })
+    doc.settings.divisions.push({ id, name: id, teams: 0, elims: defaultElims(0) })
     changed = true
   }
   for (const division of doc.settings.divisions) {

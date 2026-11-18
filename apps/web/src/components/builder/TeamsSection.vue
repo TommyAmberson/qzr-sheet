@@ -9,7 +9,6 @@ import {
   setTeamCount,
   type DivisionColour,
   type ScheduleDocument,
-  bareDivision,
   divisionName,
 } from '@qzr/shared'
 
@@ -18,7 +17,7 @@ import { pinWhere } from '../../builder/edits'
 const props = defineProps<{ doc: ScheduleDocument }>()
 const emit = defineEmits<{ change: [mutate: (d: ScheduleDocument) => void] }>()
 
-/** The number of divisions (FR-021); a new one starts as `Div n` with no teams yet */
+/** The number of divisions (FR-021); a new one is named by its place, `n`, with no teams yet */
 function setCount(event: Event) {
   const count = Math.max(0, Math.floor(Number((event.target as HTMLInputElement).value)))
   if (!Number.isFinite(count) || count === props.doc.settings.divisions.length) return
@@ -27,7 +26,7 @@ function setCount(event: Event) {
     for (let n = divisions.length; n < count; n++) {
       divisions.push({
         id: crypto.randomUUID(),
-        name: `Div ${n + 1}`,
+        name: `${n + 1}`,
         teams: 0,
         elims: defaultElims(0),
       })
@@ -44,11 +43,11 @@ function setName(id: string, typed: string) {
     nameBoxes.value++
     return
   }
-  // A schedule names its divisions with their prefix, as its quizzes' labels do
-  const name = divisionName(typed)
+  // A prefix typed before the name it already has leaves nothing to change
+  if (props.doc.settings.divisions.find((x) => x.id === id)?.name === typed) return
   emit('change', (d) => {
     const division = d.settings.divisions.find((x) => x.id === id)
-    if (division) division.name = name
+    if (division) division.name = typed
   })
 }
 
@@ -110,7 +109,7 @@ function setTeamName(id: string, index: number, event: Event) {
         <button
           type="button"
           class="swatch"
-          :aria-label="`${d.name} colour`"
+          :aria-label="`${divisionName(d.name)} colour`"
           :aria-expanded="picking === d.id"
           title="Colour"
           @click="picking = picking === d.id ? null : d.id"
@@ -118,19 +117,24 @@ function setTeamName(id: string, index: number, event: Event) {
         <DivisionInput
           :key="nameBoxes"
           class="name"
-          :model-value="bareDivision(d.name)"
+          :model-value="d.name"
           aria-label="Division name"
           @change="setName(d.id, $event)"
         />
         <NumberInput
           min="0"
           :value="d.teams"
-          :aria-label="`${d.name} team count`"
+          :aria-label="`${divisionName(d.name)} team count`"
           @change="setTeams(d.id, $event)"
         />
         <span class="unit">teams</span>
       </div>
-      <div v-if="picking === d.id" class="swatches" role="group" :aria-label="`${d.name} colours`">
+      <div
+        v-if="picking === d.id"
+        class="swatches"
+        role="group"
+        :aria-label="`${divisionName(d.name)} colours`"
+      >
         <button
           v-for="c in DIVISION_COLOURS"
           :key="c"
@@ -152,7 +156,7 @@ function setTeamName(id: string, index: number, event: Event) {
               <input
                 :value="doc.draw[d.id]?.teams[i - 1]?.name ?? ''"
                 :placeholder="`Team ${i}`"
-                :aria-label="`${d.name} team ${i} name`"
+                :aria-label="`${divisionName(d.name)} team ${i} name`"
                 @change="setTeamName(d.id, i - 1, $event)"
               />
             </li>
@@ -164,7 +168,7 @@ function setTeamName(id: string, index: number, event: Event) {
           class="link unpin"
           @click="emit('change', (x) => pinWhere(x, (q) => q.division === d.id, false))"
         >
-          Unpin {{ d.name }} ({{ pinnedIn(d.id) }})
+          Unpin {{ divisionName(d.name) }} ({{ pinnedIn(d.id) }})
         </button>
       </div>
     </div>

@@ -9,6 +9,7 @@ import {
   setTeamCount,
   sortPrelims,
   type ScheduleDocument,
+  divisionName,
 } from '@qzr/shared'
 
 /**
@@ -155,14 +156,14 @@ function confirmSort() {
           grid keeps their quizzes late.
         </p>
         <div v-for="d in divisions" :key="d.id" class="teams" :style="{ '--qc': colourOf(d.id) }">
-          <strong><span class="tick" />{{ d.name }}</strong>
+          <strong><span class="tick" />{{ divisionName(d.name) }}</strong>
           <div v-for="t in teamsOf(d.id, d.teams)" :key="t.i" class="team">
             <label>
               <input
                 v-if="lateOn"
                 type="checkbox"
                 :checked="t.late"
-                :aria-label="`${d.name} ${nameOf(t)} late`"
+                :aria-label="`${divisionName(d.name)} ${nameOf(t)} late`"
                 @change="mark(d.id, t.i, 'late', ($event.target as HTMLInputElement).checked)"
               />
               {{ t.letter ? `${t.letter} · ` : '' }}{{ nameOf(t) }}
@@ -180,7 +181,7 @@ function confirmSort() {
               v-else
               type="button"
               class="link"
-              :aria-label="`${d.name} ${nameOf(t)} dropped out`"
+              :aria-label="`${divisionName(d.name)} ${nameOf(t)} dropped out`"
               @click="droppingOut = { id: d.id, i: t.i }"
             >
               Dropped out
@@ -211,7 +212,7 @@ function confirmSort() {
           :style="{ '--qc': colourOf(d.id) }"
         >
           <span class="tick" />
-          <strong>{{ d.name }}</strong>
+          <strong>{{ divisionName(d.name) }}</strong>
           <span class="state" :class="{ stale: doc.draw[d.id]?.stale, done: drawn(d.id) }">{{
             doc.draw[d.id]?.stale ? 'Draw again' : drawn(d.id) ? 'Drawn' : 'Not drawn'
           }}</span>
@@ -255,7 +256,7 @@ function confirmSort() {
           :style="{ '--qc': colourOf(d.id) }"
           @click="sorting = [d.id]"
         >
-          <span class="tick" />{{ d.name }}
+          <span class="tick" />{{ divisionName(d.name) }}
         </button>
       </div>
       <div v-if="sorting" class="choice" role="group" aria-label="Sort prelims">

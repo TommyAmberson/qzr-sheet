@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { newScheduleDocument, type ScheduleDocument } from '@qzr/shared'
 
-import { deleteRow, editEvent, editRow, insertRow, moveEvent, moveQuiz } from '../builder/edits'
+import {
+  addQuiz,
+  deleteRow,
+  editEvent,
+  editRow,
+  insertRow,
+  moveEvent,
+  moveQuiz,
+} from '../builder/edits'
 
 function doc(): ScheduleDocument {
   const d = newScheduleDocument('Meet')
@@ -74,6 +82,27 @@ describe('moving a quiz', () => {
     ]
     moveQuiz(d, '2', { slot: 'a', room: 'r1' })
     expect(d.quizzes.map((x) => x.cell?.slot ?? 'tray')).toEqual(['tray', 'a'])
+  })
+})
+
+describe('adding a quiz by hand (FR-035a)', () => {
+  it("labels it like the division's other quizzes, after the last number taken", () => {
+    const d = newScheduleDocument('Meet')
+    d.rooms = [{ id: 'r1', name: 'Room 1' }]
+    d.settings.divisions = [{ id: 'd1', name: '1', teams: 3, elims: { lanes: [], lines: [] } }]
+    d.quizzes = [
+      {
+        id: 'q1',
+        label: 'Div 1 Quiz 1',
+        division: 'd1',
+        phase: 'prelim',
+        cell: { slot: 'a', room: 'r1' },
+        seats: [],
+        pinned: false,
+      },
+    ]
+    const id = addQuiz(d, { slot: 'b', room: 'r1' })
+    expect(d.quizzes.find((q) => q.id === id)?.label).toBe('Div 1 Quiz 2')
   })
 })
 

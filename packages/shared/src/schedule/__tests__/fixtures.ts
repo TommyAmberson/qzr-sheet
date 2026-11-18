@@ -51,7 +51,7 @@ export function doc(over: Partial<ScheduleDocument> = {}, teams = 6): ScheduleDo
     divisions: [
       {
         id: 'd1',
-        name: 'Div 1',
+        name: '1',
         teams,
         elims: { lanes: [], lines: [] },
       },

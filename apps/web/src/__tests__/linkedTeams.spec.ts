@@ -19,8 +19,8 @@ describe("following the meet's teams (FR-047)", () => {
   it("lets go of the last team a division had, so the draft doesn't name it", () => {
     const doc = newScheduleDocument('Meet')
     doc.settings.divisions = [
-      { id: '1', name: 'Div 1', teams: 1, elims: { lanes: [], lines: [] } },
-      { id: '2', name: 'Div 2', teams: 1, elims: { lanes: [], lines: [] } },
+      { id: '1', name: '1', teams: 1, elims: { lanes: [], lines: [] } },
+      { id: '2', name: '2', teams: 1, elims: { lanes: [], lines: [] } },
     ]
     doc.draw = {
       '1': { stale: false, teams: [{ teamId: 1, late: false, absent: false, letter: 'A' }] },
@@ -31,5 +31,12 @@ describe("following the meet's teams (FR-047)", () => {
     expect(doc.draw['2']).toEqual({ stale: true, teams: [] })
     // Div 2 keeps the count it was built with
     expect(doc.settings.divisions[1]!.teams).toBe(1)
+  })
+
+  it('adds a division the meet gained under its bare name', () => {
+    const doc = newScheduleDocument('Meet')
+    doc.settings.divisions = [{ id: '1', name: '1', teams: 1, elims: { lanes: [], lines: [] } }]
+    reconcileTeams(doc, [team(1, '1'), team(2, '2C')])
+    expect(doc.settings.divisions.map((d) => d.name)).toEqual(['1', '2C'])
   })
 })

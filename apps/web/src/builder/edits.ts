@@ -8,6 +8,7 @@ import {
   type ScheduleEvent,
   type ScheduleQuiz,
   type Seat,
+  divisionName,
 } from '@qzr/shared'
 
 /**
@@ -75,7 +76,7 @@ export function renameQuiz(
     ? 'Quiz'
     : lane > 0 && lane < division.elims.lanes.length
       ? laneName(division, lane)
-      : division.name
+      : divisionName(division.name)
   q.label = name.quiz === 'Finals' ? `${prefix} Finals` : `${prefix} Quiz ${name.quiz}`
   q.pinned = true
 }
@@ -114,7 +115,8 @@ export function addQuiz(d: ScheduleDocument, cell: { slot: string; room: string 
   }
   const division =
     [...uses].sort((a, b) => b[1] - a[1])[0]?.[0] ?? d.settings.divisions[0]?.id ?? ''
-  const name = d.settings.divisions.find((x) => x.id === division)?.name ?? 'Quiz'
+  const named = d.settings.divisions.find((x) => x.id === division)?.name
+  const name = named === undefined ? 'Quiz' : divisionName(named)
   const labels = new Set(d.quizzes.map((q) => q.label))
   let n = 1
   while (labels.has(`${name} Quiz ${n}`)) n++
