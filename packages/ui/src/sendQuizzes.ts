@@ -98,11 +98,13 @@ export async function chooseRoom(
     return answer ?? undefined
   }
   if (sender.admin && sender.rooms.length === 0) return null
-  const choices: { label: string; value: number | 'none' }[] = sender.rooms.map((room) => ({
+  const choices: { label: string; value: number | 'none' | null }[] = sender.rooms.map((room) => ({
     label: room.name,
     value: room.id,
   }))
   if (sender.admin) choices.push({ label: 'No room', value: 'none' })
+  // Escape also cancels, but a button says so
+  choices.push({ label: 'Cancel', value: null })
   const answer = await dialog?.ask(
     `${action} for which room?`,
     sender.admin

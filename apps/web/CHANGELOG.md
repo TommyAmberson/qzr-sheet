@@ -18,6 +18,7 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Changed
 
+* Picking which room to upload saved quizzes for has a Cancel button, not only Escape
 * Stats settings' "As a viewer sees it" link reads "Preview as viewer", and the page it opens says
   "Previewing as a viewer"
 * The results page's quiz list drops its From column, which mostly repeated Last saved beside it

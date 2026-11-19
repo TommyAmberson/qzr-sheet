@@ -22,10 +22,14 @@ function picked(...files: File[]) {
 /** A dialog that answers each question in turn, remembering what it was asked */
 function answering(...answers: unknown[]) {
   const asked: string[] = []
+  // Each question's button labels, in order
+  const offered: string[][] = []
   return {
     asked,
-    ask: <T>(title: string): Promise<T | null> => {
+    offered,
+    ask: <T>(title: string, _detail?: string, choices: { label: string }[] = []) => {
       asked.push(title)
+      offered.push(choices.map((choice) => choice.label))
       return Promise.resolve((answers.shift() ?? null) as T | null)
     },
   }
@@ -140,6 +144,16 @@ describe('chooseRoom', () => {
     const dialog = answering(6)
     expect(await chooseRoom(dialog, { admin: false, rooms }, 'Practice', 'Upload')).toBe(6)
     expect(dialog.asked).toEqual(['Upload for which room?'])
+  })
+
+  it('offers a way out when asking which room', async () => {
+    const dialog = answering(null, null)
+    expect(await chooseRoom(dialog, { admin: false, rooms }, 'Practice', 'Submit')).toBe(undefined)
+    expect(await chooseRoom(dialog, { admin: true, rooms }, 'Practice', 'Submit')).toBe(undefined)
+    expect(dialog.offered).toEqual([
+      ['Room 1', 'Room 2', 'Cancel'],
+      ['Room 1', 'Room 2', 'No room', 'Cancel'],
+    ])
   })
 
   it('lets an admin pick no room, and cancelling picks nothing', async () => {

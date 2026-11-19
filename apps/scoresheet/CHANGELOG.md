@@ -15,6 +15,10 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Changed
+
+* Picking which room to submit for has a Cancel button, not only Escape
+
 ### Fixed
 
 * The division picker and quiz box in the sheet's header use the header's font and weight, so a
