@@ -16,6 +16,11 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Fixed
+
+* The new meet form's division example is `2`, not `2C`: consolation lanes such as `2C` come from
+  the schedule, not from the meet's divisions
+
 ## [0.30.1] - 2026-11-20
 
 ### Changed

@@ -204,7 +204,7 @@ watch(
                 <DivisionInput
                   v-model="meetForm.divisions[i]"
                   class="field-input"
-                  placeholder="e.g. 2C"
+                  placeholder="e.g. 2"
                   aria-label="Division"
                 />
                 <button
