@@ -17,6 +17,25 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-19
+
+### Added
+
+* `GET /stats/attention`: everything that needs an admin's attention across a meet, in one list,
+  scoring a few revisions for the whole request
+* `POST /stats/dismissals`: an admin says two look-alike team or quizzer names are different, kept
+  in the new `meet_name_dismissals` table (migration `0017`), so they are not flagged again
+* Two quizzer names on one team that look alike are flagged
+
+### Changed
+
+* Viewers get the quizzes behind each total in a table, as far as each stage's results are shown,
+  with a team's score and errors only where the full sheet is
+
+### Bundled contract
+
+* `@qzr/shared@1.16.0` - bumped from 1.15.0
+
 ## [0.28.1] - 2026-11-19
 
 ### Changed
