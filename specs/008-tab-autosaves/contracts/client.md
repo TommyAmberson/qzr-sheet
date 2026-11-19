@@ -52,6 +52,10 @@ A quiz's rows sit together, its current state first. Each row has **Restore** an
 With no recent quizzes, the list form says **"No recent quizzes."** An offer whose quizzes were all
 taken by other tabs meanwhile says **"Nothing left to restore."**
 
+A restore that finds the quiz taken by another tab meanwhile says, in the dialog, **"That quiz was
+just opened in another tab."** and the dialog stays open without it. The list form also names, once,
+the unsaved quizzes the limits dropped since they were last named.
+
 ## Notices
 
 Shown in the notice row under the header, as notices are today, each closable.
@@ -61,7 +65,6 @@ Shown in the notice row under the header, as notices are today, each closable.
 | a tab opened by a link, with unsaved quizzes not yet offered (FR-011), which stay unoffered | "`<n>` unsaved quizzes from closed tabs." with a link **See them**       |
 | unsaved quizzes were dropped to stay within 80 (FR-009), once                               | "`<quiz>`, `<quiz>` were removed from recent quizzes to make room."      |
 | Open matched a quiz open in another tab (FR-023)                                            | "This quiz is open in another tab. It opened here as a separate quiz."   |
-| restore found the quiz taken by another tab meanwhile                                       | "That quiz was just opened in another tab." and the list stays open      |
 | the device refused a write for lack of room, after dropping saved recent quizzes (R10)      | "This quiz can't be kept on this device: it is full. Save it to a file." |
 | any other write of the tab's quiz failed                                                    | "This quiz couldn't be kept on this device. Save it to a file."          |
 

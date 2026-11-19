@@ -159,43 +159,11 @@ describe('New from schedule', () => {
     expect(linkedDisplay(sheet)).toContain('Div 1 Quiz 7')
   })
 
-  it('asks before replacing names typed by hand, and not names it filled in itself', async () => {
-    const sheet = await mountSheet()
-    await typeTeam(sheet, 0, 'Lions')
-    vi.mocked(confirmAction).mockResolvedValue(false)
-
-    expect(await pickScheduled(sheet, 'New', 'New from schedule')).toBe(false)
-    expect(teamNames(sheet)).toEqual(['Lions', '', ''])
-
-    vi.mocked(confirmAction).mockClear().mockResolvedValue(true)
-    expect(await pickScheduled(sheet, 'New', 'New from schedule')).toBe(true)
-    vi.mocked(confirmAction).mockClear()
-    await sheet.vm.newQuiz()
-    expect(confirmAction).not.toHaveBeenCalled()
-  })
-
   it('is a 20-question quiz, whatever the sheet had', async () => {
     const sheet = await mountSheet()
     await sheet.vm.newQuiz(QuizFormat.FifteenQuestion)
     await pickScheduled(sheet, 'New', 'New from schedule')
     expect(sheet.text()).toContain('20 Q')
-  })
-
-  it('leaves everything as it was when the unsaved-changes question is declined', async () => {
-    const sheet = await autoSaved(
-      quizFile([
-        ['Calgary 1', 'Ann'],
-        ['Lions', 'Leo'],
-      ]),
-    )
-    vi.mocked(confirmAction).mockResolvedValue(false)
-
-    expect(await pickScheduled(sheet, 'New', 'New from schedule')).toBe(false)
-
-    expect(confirmAction).toHaveBeenCalled()
-    expect(getScheduledQuiz).not.toHaveBeenCalled()
-    expect(teamNames(sheet)).toEqual(['Calgary 1', 'Lions', ''])
-    expect(session()).toBeNull()
   })
 
   it('says so and changes nothing when the meet is out of reach', async () => {
@@ -635,7 +603,7 @@ describe('Open', () => {
     expect(pageText()).toContain('Nothing is stored for Div 1 Quiz 7')
   })
 
-  it('leaves the sheet and both links alone when declined, or cancelled while waiting', async () => {
+  it('leaves the sheet and both links alone when cancelled while waiting', async () => {
     const sheet = await autoSaved(
       quizFile([
         ['Calgary 1', 'Ann'],
@@ -647,11 +615,6 @@ describe('Open', () => {
     const file = quizFile([['Saskatoon 1', 'Sam']])
     const open = () => storedPick(sheet)(MEET_ID, MEET_NAME, file)
 
-    vi.mocked(confirmAction).mockResolvedValue(false)
-    expect(await open()).toBe(false)
-    expect({ names: teamNames(sheet), session: session() }).toEqual(before)
-
-    vi.mocked(confirmAction).mockResolvedValue(true)
     const meet = held<Awaited<ReturnType<typeof getMeetTeams>>>()
     vi.mocked(getMeetTeams).mockReturnValue(meet.promise)
     const opening = open()

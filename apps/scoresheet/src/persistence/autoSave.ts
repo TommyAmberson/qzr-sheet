@@ -1,4 +1,4 @@
-import { NewerFileVersionError, parseQuizFile } from '@qzr/shared'
+import { NewerFileVersionError, parseQuizFile, quizName, type QuizFile } from '@qzr/shared'
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
 import { canonicalQuizFile } from './quizFile'
 import type { UndoStep } from '../composables/undoSteps'
@@ -134,15 +134,59 @@ export async function readRecord(id: string): Promise<QuizRecord | undefined> {
   return (await records()).get('quizzes', id)
 }
 
-/** Write a record over any with its id; false when the device refuses it for lack of room */
+/**
+ * Write a record over any with its id. When the device refuses it for lack of room, saved recent
+ * quizzes make room, oldest first; unsaved ones never do. False when there is still no room.
+ */
 export async function writeRecord(record: QuizRecord): Promise<boolean> {
-  try {
-    await (await records()).put('quizzes', record)
-    return true
-  } catch (e) {
-    if ((e as { name?: string } | null)?.name === 'QuotaExceededError') return false
-    throw e
+  for (;;) {
+    try {
+      await (await records()).put('quizzes', record)
+      return true
+    } catch (e) {
+      if ((e as { name?: string } | null)?.name !== 'QuotaExceededError') throw e
+    }
+    const [oldest] = (await listRecent(record.id))
+      .filter((r) => !r.unsaved && r.id !== record.id)
+      .sort(byChange)
+    if (!oldest) return false
+    await deleteRecord(oldest.id)
   }
+}
+
+const byChange = (a: QuizRecord, b: QuizRecord) => a.changedAt - b.changedAt
+
+const UNSAVED_LIMIT = 80
+const SAVED_LIMIT = 40
+
+/** The quiz name a record's quiz goes by, for saying it was dropped */
+function recordName(record: QuizRecord): string {
+  try {
+    return quizName((JSON.parse(record.current!.file) as QuizFile).quiz)
+  } catch {
+    return 'A quiz from a newer version'
+  }
+}
+
+/**
+ * Keep the 80 most recently changed unsaved recent quizzes and the 40 saved ones, deleting the rest,
+ * and remember the unsaved ones dropped so they can be named once. Quizzes in tabs don't count.
+ */
+export async function enforceLimits(ownId?: string): Promise<void> {
+  const newestFirst = (await listRecent(ownId)).sort(byChange).reverse()
+  const unsaved = newestFirst.filter((r) => r.unsaved).slice(UNSAVED_LIMIT)
+  const saved = newestFirst.filter((r) => !r.unsaved).slice(SAVED_LIMIT)
+  for (const record of [...unsaved, ...saved]) await deleteRecord(record.id)
+  if (unsaved.length === 0) return
+  const dropped = (await readMeta('dropped')) ?? []
+  await writeMeta('dropped', [...dropped, ...unsaved.map(recordName)])
+}
+
+/** Unsaved quizzes dropped by the limits since last asked, which are then forgotten */
+export async function takeDropped(): Promise<string[]> {
+  const dropped = (await readMeta('dropped')) ?? []
+  if (dropped.length > 0) await writeMeta('dropped', [])
+  return dropped
 }
 
 export async function deleteRecord(id: string): Promise<void> {
@@ -249,17 +293,94 @@ export function currentTab(): Tab | null {
   return tab
 }
 
+/** What a tab found as it started, for the sheet to show */
+export interface StartNotes {
+  /** Unsaved quizzes left by closed tabs, offered to this one */
+  offer: QuizRecord[]
+  /** How many unsaved quizzes wait, for a tab opened by a link, which offers none */
+  waiting: number
+  /** Unsaved quizzes the limits dropped since they were last named */
+  dropped: string[]
+}
+
+let notes: StartNotes = { offer: [], waiting: 0, dropped: [] }
+
+export function startNotes(): StartNotes {
+  return notes
+}
+
 /**
  * Start the tab, before the sheet mounts: move the previous version's keys once, then take the
  * tab's own record (a reload or restored session), copy it (a duplicated tab, whose original still
- * holds it), or begin a new one.
+ * holds it), or begin a new one. A new tab also looks for unsaved quizzes left by closed tabs,
+ * each offered once: one, with no other tab open, comes back by itself.
  */
-export async function startTab(): Promise<Tab> {
+export async function startTab({ byLink = false } = {}): Promise<Tab> {
+  notes = { offer: [], waiting: 0, dropped: [] }
   const migratedId = await migrate()
   const ownId = sessionStorage.getItem(TAB_KEY) ?? migratedId
   tab = ownId ? await takeBack(ownId) : await begin(newRecordId())
+  await enforceLimits(tab.id)
+  if (!ownId) {
+    await lookForLeftBehind(tab, byLink)
+    notes.dropped = await takeDropped()
+  }
   sessionStorage.setItem(TAB_KEY, tab.id)
   return tab
+}
+
+async function lookForLeftBehind(newTab: Tab, byLink: boolean): Promise<void> {
+  const waiting = (await listRecent(newTab.id)).filter((r) => r.current && r.unsaved && !r.offered)
+  if (byLink) {
+    notes.waiting = waiting.length
+    return
+  }
+  const [only] = waiting
+  if (only && waiting.length === 1 && (await openTabCount()) === 1) {
+    const claim = await claimRecord(only.id)
+    // As the last tab to hold it left it, which may be after it was listed
+    const record = claim && (await readRecord(only.id))
+    if (claim && record?.current) return moveTab(newTab, { id: only.id, claim, record })
+    claim?.release()
+  }
+  notes.offer = waiting
+  await markOffered(waiting.map((record) => record.id))
+}
+
+/** Mark records offered, each read and written in one transaction, so a newer write stays */
+async function markOffered(ids: string[]): Promise<void> {
+  const tx = (await records()).transaction('quizzes', 'readwrite')
+  for (const id of ids) {
+    const record = await tx.store.get(id)
+    if (record) await tx.store.put({ ...record, offered: true })
+  }
+  await tx.done
+}
+
+/**
+ * The tab's quiz is replaced: its record becomes a recent quiz, and the tab shows `to`, a record it
+ * has claimed, or else begins a new one. A new one has a fresh id no other tab can hold, so the tab
+ * writes to it at once and takes its lock on the way.
+ */
+export function moveTab(
+  tab: Tab,
+  to?: { id: string; claim: RecordClaim; record: QuizRecord },
+): void {
+  tab.claim.release()
+  // The record it leaves may push the oldest of its kind out
+  void enforceLimits(to?.id)
+  if (to) {
+    Object.assign(tab, held(to.id, to.claim, to.record))
+    sessionStorage.setItem(TAB_KEY, to.id)
+    return
+  }
+  const id = newRecordId()
+  Object.assign(tab, { id, record: undefined, claim: { release: () => {} } })
+  sessionStorage.setItem(TAB_KEY, id)
+  void claimRecord(id).then((claim) => {
+    if (claim && tab.id === id) tab.claim = claim
+    else claim?.release()
+  })
 }
 
 async function begin(id: string, record?: QuizRecord): Promise<Tab> {
@@ -276,9 +397,10 @@ async function takeBack(id: string): Promise<Tab> {
   const claim = await claimRecord(id, { wait: RELOAD_WAIT_MS })
   const record = await readRecord(id)
   if (claim) return held(id, claim, record)
-  // Still held: this tab is a copy of the one holding it, and from now on keeps its own
+  // Still held: this tab is a copy of the one holding it, and from now on keeps its own, which a
+  // new tab offers once this one closes like any other
   if (!record) return begin(newRecordId())
-  const copy: QuizRecord = { ...record, id: newRecordId(), offered: true }
+  const copy: QuizRecord = { ...record, id: newRecordId(), offered: false }
   await writeRecord(copy)
   return begin(copy.id, copy)
 }

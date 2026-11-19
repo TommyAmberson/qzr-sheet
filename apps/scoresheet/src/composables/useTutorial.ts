@@ -7,7 +7,7 @@ import {
   type TeamIdx,
   type Timeout,
 } from '@qzr/shared'
-import { hasNewerKeptInPlace } from '../persistence/autoSave'
+import { currentTab, hasNewerKeptInPlace } from '../persistence/autoSave'
 import type { QuizStore } from '../stores/quizStore'
 import { standInNames, TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
 import { useMeetSession, type MeetSessionData } from './useMeetSession'
@@ -30,7 +30,7 @@ export interface ScoresheetAPI {
   moveQuizzer: (teamIdx: TeamIdx, from: SeatIdx, to: SeatIdx) => void
   resetStore: () => void
   flushAutoSave: () => void
-  showTabQuiz: () => MeetSessionData | null
+  showTabQuiz: () => void
   columns: { value: { key: string }[] }
 }
 
@@ -40,6 +40,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   const currentStepIndex = ref(0)
   const targetEls = ref<HTMLElement[]>([])
   const stepCompleted = ref(false)
+  // The tab's meet link while the walkthrough runs unlinked
+  let linkBefore: MeetSessionData | null = null
   let cleanupFns: (() => void)[] = []
 
   const currentStep = computed<TutorialStep | null>(() =>
@@ -58,6 +60,7 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     scoresheet.pauseAutoSave.value = true
     // A linked meet keeps the real quiz's team picks and flags names against its roster, which
     // would mark up the walkthrough's made-up teams, so the walkthrough runs unlinked
+    linkBefore = currentTab()?.link ?? null
     meetSession.clearSession()
     scoresheet.resetStore()
     standInNames(scoresheet)
@@ -273,8 +276,10 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   function finish() {
     cleanup()
     targetEls.value = []
-    // The tab's own quiz and link back, as its record kept them
-    meetSession.restoreSession(scoresheet.showTabQuiz())
+    // The tab's own quiz back, as its record kept it, and its link
+    scoresheet.showTabQuiz()
+    meetSession.restoreSession(linkBefore)
+    linkBefore = null
     scoresheet.pauseAutoSave.value = false
     active.value = false
   }

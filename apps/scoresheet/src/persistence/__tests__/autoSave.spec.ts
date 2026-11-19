@@ -6,7 +6,9 @@ import {
   openTabCount,
   readMeta,
   readRecord,
+  enforceLimits,
   startTab,
+  takeDropped,
   writeMeta,
   writeRecord,
 } from '../autoSave'
@@ -139,7 +141,11 @@ describe("a tab's start", () => {
   })
 
   it('copies the record when another tab holds it, as a duplicated tab finds', async () => {
-    const record = aRecord({ link, current: { file: 'quiz', undo: [{ changes: [] }], redo: [] } })
+    const record = aRecord({
+      link,
+      current: { file: 'quiz', undo: [{ changes: [] }], redo: [] },
+      offered: true,
+    })
     await writeRecord(record)
     sessionStorage.setItem('qzr-sheet:quiz', record.id)
     locks.holdAsOtherTab(`qzr-sheet:quiz:${record.id}`)
@@ -150,7 +156,8 @@ describe("a tab's start", () => {
     const tab = await started
     expect(tab.id).not.toBe(record.id)
     expect(sessionStorage.getItem('qzr-sheet:quiz')).toBe(tab.id)
-    expect(tab.record).toEqual({ ...record, id: tab.id, offered: true })
+    // Its own quiz from now on, offered once its tab closes
+    expect(tab.record).toEqual({ ...record, id: tab.id, offered: false })
     expect(await readRecord(tab.id)).toEqual(tab.record)
     expect(await readRecord(record.id)).toEqual(record)
   })
@@ -239,5 +246,60 @@ describe('moving from the previous version', () => {
     }
     expect(localStorage.getItem('qzr-sheet:current')).not.toBeNull()
     expect(await readMeta('migrated')).toBeUndefined()
+  })
+})
+
+describe('the limits on recent quizzes', () => {
+  const named = (n: number) =>
+    JSON.stringify({
+      ...JSON.parse(aRecord().current!.file),
+      quiz: { ...JSON.parse(aRecord().current!.file).quiz, division: '1', quizNumber: String(n) },
+    })
+
+  it('keeps the 80 most recently changed unsaved and 40 saved, and says which unsaved went', async () => {
+    for (let n = 0; n < 81; n++) {
+      await writeRecord(
+        aRecord({ changedAt: 1000 + n, current: { file: named(n), undo: [], redo: [] } }),
+      )
+    }
+    for (let n = 0; n < 41; n++) await writeRecord(aRecord({ unsaved: false, changedAt: 1000 + n }))
+    const held = aRecord({ changedAt: 0 })
+    await writeRecord(held)
+    locks.holdAsOtherTab(`qzr-sheet:quiz:${held.id}`)
+
+    await enforceLimits()
+
+    const recent = await listRecent()
+    expect(recent.filter((r) => r.unsaved)).toHaveLength(80)
+    expect(recent.filter((r) => !r.unsaved)).toHaveLength(40)
+    expect(Math.min(...recent.map((r) => r.changedAt))).toBe(1001)
+    expect(await readRecord(held.id)).toBeDefined()
+    expect(await takeDropped()).toEqual(['D1 Q0'])
+    expect(await takeDropped()).toEqual([])
+  })
+
+  it('makes room from saved recent quizzes, oldest first, and never from unsaved ones', async () => {
+    const oldSaved = aRecord({ unsaved: false, changedAt: 1 })
+    const newSaved = aRecord({ unsaved: false, changedAt: 2 })
+    const unsaved = aRecord({ changedAt: 0 })
+    for (const r of [oldSaved, newSaved, unsaved]) await writeRecord(r)
+    // The device has room for the new record once one quiz is gone
+    let refusals = 1
+    const put = IDBObjectStore.prototype.put
+    const spy = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      ...args
+    ) {
+      if (refusals-- > 0) throw new DOMException('No room', 'QuotaExceededError')
+      return put.apply(this, args)
+    })
+    try {
+      expect(await writeRecord(aRecord())).toBe(true)
+    } finally {
+      spy.mockRestore()
+    }
+    expect(await readRecord(oldSaved.id)).toBeUndefined()
+    expect(await readRecord(newSaved.id)).toBeDefined()
+    expect(await readRecord(unsaved.id)).toBeDefined()
   })
 })

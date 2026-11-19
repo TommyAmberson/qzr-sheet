@@ -12,6 +12,7 @@ afterEach(async () => {
   // Each test starts with an empty database; an open connection closes itself when asked to
   await new Promise<void>((resolve) => {
     const request = indexedDB.deleteDatabase('qzr-sheet')
-    request.onsuccess = request.onerror = request.onblocked = () => resolve()
+    // Blocked only until the open connection hears of it and closes
+    request.onsuccess = request.onerror = () => resolve()
   })
 })

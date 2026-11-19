@@ -220,6 +220,8 @@ describe('useTutorial — a quiz opened from a newer file', () => {
       },
       { fromNewerFile: true },
     )
+    // As opening a file does
+    s.markSaved()
     return s
   }
 

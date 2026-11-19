@@ -676,6 +676,8 @@ describe('useScoresheet — keeping a 15-question quiz', () => {
       },
       { fromNewerFile: true },
     )
+    // As opening a file does
+    s.markSaved()
     await vi.waitFor(() => expect(currentTab()!.record?.fromNewerFile).toBe(true))
     expect(useScoresheet().openedFromNewerFile.value).toBe(true)
   })
@@ -716,6 +718,8 @@ describe("useScoresheet — the tab's writer", () => {
     const other = createQuizStore()
     other.setAnswer(other.quizzers[0]!.id, '1', CellValue.Correct)
     s.loadFile({ ...other, answers: other.answers, noJumps: new Map(), timeouts: new Map() })
+    // As opening a file does
+    s.markSaved()
     await vi.waitFor(async () => expect(await answersWritten()).toBe(1))
     s.clearAnswers()
     await vi.waitFor(async () => expect(await answersWritten()).toBe(0))
@@ -739,8 +743,66 @@ describe("useScoresheet — the tab's writer", () => {
   })
 
   it('writes the meet link with the quiz', async () => {
-    useScoresheet()
+    useScoresheet().setCell(T(0), S(0), C(0), CellValue.Correct)
     setTabLink({ meetId: 4, meetName: 'Meet' } as never)
     await vi.waitFor(async () => expect((await written())?.link).toMatchObject({ meetId: 4 }))
+  })
+})
+
+describe('useScoresheet — saved, and kept', () => {
+  beforeEach(async () => {
+    await startTab()
+  })
+  const pause = () => new Promise((resolve) => setTimeout(resolve, 400))
+  const kept = async () => (await readRecord(currentTab()!.id)) !== undefined
+
+  it('is saved as saved to a file, and again when undone or edited back to it', () => {
+    const s = useScoresheet()
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.markSaved()
+    expect(s.unsaved.value).toBe(false)
+    s.setCell(T(0), S(0), C(1), CellValue.Correct)
+    expect(s.unsaved.value).toBe(true)
+    s.undo()
+    expect(s.unsaved.value).toBe(false)
+    s.redo()
+    s.setCell(T(0), S(0), C(1), CellValue.Empty)
+    expect(s.unsaved.value).toBe(false)
+  })
+
+  it('is saved as submitted only while linked to the scheduled quiz it went to', () => {
+    const s = useScoresheet()
+    setTabLink({ meetId: 1, quizId: 'a' } as never)
+    s.markSubmitted(1, 'a')
+    expect(s.unsaved.value).toBe(false)
+    setTabLink({ meetId: 1, quizId: 'b' } as never)
+    expect(s.unsaved.value).toBe(true)
+    setTabLink({ meetId: 1, quizId: 'a' } as never)
+    expect(s.unsaved.value).toBe(false)
+  })
+
+  it('is not kept while nothing was done by hand, names a link filled in included', async () => {
+    const s = useScoresheet()
+    s.resetStore()
+    // The link routine fills in the rosters' names, then takes that as the quiz's start
+    s.setTeamName(T(0), 'Calgary 1')
+    s.retakeStart()
+    await pause()
+    expect(await kept()).toBe(false)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    await vi.waitFor(async () => expect(await kept()).toBe(true))
+  })
+
+  it('is kept once edited, even undone back to its start, and with a saved state unedited', async () => {
+    const s = useScoresheet()
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.undo()
+    await pause()
+    expect(await kept()).toBe(true)
+
+    await startTab()
+    const other = useScoresheet()
+    other.markSaved()
+    await vi.waitFor(async () => expect(await kept()).toBe(true))
   })
 })
