@@ -6,6 +6,7 @@ import {
   type DivisionTeamNames,
   type PublishedSchedule,
   type QuizFile,
+  type StatsSettings,
 } from '@qzr/shared'
 
 export type { PublishedSchedule }
@@ -140,6 +141,11 @@ export function getMeetName(meetId: number): Promise<{ meet: { name: string } }>
 /** Who the user is when sending to the meet, as the API works it out; 401 or 403 when no one */
 export function getSender(meetId: number): Promise<Sender> {
   return request(`/api/meets/${meetId}/results/sender`)
+}
+
+/** The meet's stats settings, of which the sheet takes how teams level in a quiz are scored */
+export function getStatsSettings(meetId: number): Promise<{ settings: StatsSettings }> {
+  return request(`/api/meets/${meetId}/stats/settings`, undefined, meetId)
 }
 
 export function getMeetTeams(

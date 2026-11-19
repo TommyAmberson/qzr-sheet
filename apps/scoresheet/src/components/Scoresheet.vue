@@ -120,6 +120,8 @@ function pickFromOpenPicker(teamId: number) {
 }
 
 onMounted(() => {
+  // The quiz takes the meet's scoring when linked and before it is sent, not here: a quiz opened
+  // from a link only to look at keeps the way it was scored
   void meetSession.refresh()
   void loadFromUrlParams()
 })
@@ -429,6 +431,15 @@ function misspeltTeam(
   return confirmed.length === 1 ? confirmed[0] : undefined
 }
 
+/**
+ * A quiz worked on with the meet scores level teams the meet's way (FR-023b), as the session
+ * knows it once a link is committed; a sheet that couldn't read it keeps its own
+ */
+function takeMeetScoring() {
+  const levelTeams = meetSession.levelTeams.value
+  if (levelTeams !== undefined) quiz.value.placementFormula = levelTeams
+}
+
 /** Make a link that `planLink` worked out, in one step */
 function applyLink(plan: LinkPlan) {
   meetSession.commitLink({
@@ -439,6 +450,7 @@ function applyLink(plan: LinkPlan) {
     quizId: plan.quizId,
     scheduledQuiz: plan.scheduledQuiz,
   })
+  takeMeetScoring()
   if (plan.quiz.division !== undefined) quiz.value.division = plan.quiz.division
   if (plan.quiz.consolation !== undefined) quiz.value.consolation = plan.quiz.consolation
   if (plan.quiz.quizNumber !== undefined) quiz.value.quizNumber = plan.quiz.quizNumber
@@ -1651,6 +1663,7 @@ async function chooseMeet(): Promise<{ id: number; name: string; sender: Sender 
   if (linked && id !== picked.meetId) {
     try {
       await meetSession.loadMeet(id, name)
+      takeMeetScoring()
     } catch {
       alert(`Couldn't reach ${name}. Try again, or save the quiz as a file.`)
       return undefined
@@ -1666,12 +1679,13 @@ async function doSubmitToMeet() {
   const target = await chooseMeet()
   if (!target) return
   // The question lists warnings as the meet stands now. Only the copies are renewed: nothing is
-  // picked or filled on the way to sending
+  // picked or filled on the way to sending, though the quiz takes the meet's way of scoring
   if (target.id === meetSession.meetId.value) {
     const checked = await waitOnMeet('Checking the quiz against the meet', (stillWanted) =>
       meetSession.refresh(stillWanted),
     )
     if (!checked) return
+    takeMeetScoring()
   }
   // Asked once the meet is settled: the names are held against the roster of the meet it goes to
   const concerns = submitConcerns(target.id)

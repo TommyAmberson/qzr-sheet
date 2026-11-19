@@ -1,10 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
-import { ApiError, CellValue, QuizFormat } from '@qzr/shared'
+import {
+  ApiError,
+  CellValue,
+  DEFAULT_STATS_SETTINGS,
+  PlacementFormula,
+  QuizFormat,
+  type QuizFile,
+} from '@qzr/shared'
 
 vi.mock('../../api', async () => ({
   ...(await vi.importActual<typeof import('../../api')>('../../api')),
   getMeetTeams: vi.fn(),
+  // The meet's stats settings are out of reach, so the sheet keeps its own way of scoring
+  getStatsSettings: vi.fn(async () => {
+    throw new Error('Not reached')
+  }),
   getTeamQuizzers: vi.fn(),
   getSender: vi.fn(),
   getMyMeets: vi.fn(),
@@ -29,6 +40,7 @@ import {
   getRevision,
   getScheduledQuiz,
   getSender,
+  getStatsSettings,
   getStoredQuizzes,
   getTeamNames,
   getTeamQuizzers,
@@ -371,6 +383,17 @@ describe('Link', () => {
     expect(session()).toMatchObject({ meetId: 8, quizId: null })
     expect(teamNames(sheet)).toEqual(['Calgary 1', 'Regina 1', ''])
     expect(pickedTeams()).toEqual([undefined, 52, undefined])
+  })
+
+  it("scores level teams the meet's way once linked (FR-023b)", async () => {
+    vi.mocked(getStatsSettings).mockResolvedValue({
+      settings: { ...DEFAULT_STATS_SETTINGS, levelTeams: PlacementFormula.Legacy },
+    })
+    const sheet = await mountSheet()
+    await pickScheduled(sheet, 'Link', 'Link a scheduled quiz')
+    await autoSaveWritten()
+    const saved = JSON.parse(localStorage.getItem('qzr-sheet:current')!) as QuizFile
+    expect(saved.quiz.placementFormula).toBe(PlacementFormula.Legacy)
   })
 
   it('survives a reload', async () => {

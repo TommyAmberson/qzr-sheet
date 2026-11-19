@@ -8,6 +8,10 @@ vi.mock('../../api', () => ({
   joinMeet: vi.fn(),
   joinMeetGuest: vi.fn(),
   getMeetTeams: vi.fn(),
+  // The meet's stats settings are out of reach, so the sheet keeps its own way of scoring
+  getStatsSettings: vi.fn(async () => {
+    throw new Error('Not reached')
+  }),
   getSender: vi.fn(),
 }))
 

@@ -5,6 +5,10 @@ import { ApiError, CellValue } from '@qzr/shared'
 vi.mock('../../api', async () => ({
   ...(await vi.importActual<typeof import('../../api')>('../../api')),
   getMeetTeams: vi.fn(),
+  // The meet's stats settings are out of reach, so the sheet keeps its own way of scoring
+  getStatsSettings: vi.fn(async () => {
+    throw new Error('Not reached')
+  }),
   getTeamQuizzers: vi.fn(),
   getSender: vi.fn(),
   getMyMeets: vi.fn(),
