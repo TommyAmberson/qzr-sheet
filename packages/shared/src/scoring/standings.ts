@@ -10,6 +10,13 @@ export interface CountedQuiz {
 /** The tie-breaker that separated a team from the others level with it on placement points */
 export type TieBreak = 'headToHead' | 'points' | 'errors'
 
+/**
+ * The orders a meet can break ties by (FR-023): the rulebook's head-to-head, then total points,
+ * then fewest errors; or total points, then fewest errors, as some meets rank
+ */
+export const TIE_BREAK_ORDERS = ['rulebook', 'pointsThenErrors'] as const
+export type TieBreakOrder = (typeof TIE_BREAK_ORDERS)[number]
+
 export interface TeamStanding {
   name: string
   placementPoints: number
@@ -57,14 +64,20 @@ interface RankGroup {
 
 /**
  * A division's teams ranked by placement points over its counted quizzes, ties broken by the
- * rulebook's tie-breakers for prelim positions: head-to-head, then total points, then fewest
- * errors. Whenever a tie-breaker separates some of the tied teams, those still tied start again
- * from head-to-head among themselves.
+ * meet's order: by default the rulebook's tie-breakers for prelim positions, head-to-head, then
+ * total points, then fewest errors. Whenever a tie-breaker separates some of the tied teams, those
+ * still tied start again from the first tie-breaker among themselves.
  */
 export function divisionStandings(
   quizzes: CountedQuiz[],
-  /** Whether the top three are finalists: so only where these quizzes lead straight to a Finals */
-  { finalists = true }: { finalists?: boolean } = {},
+  {
+    finalists = true,
+    tieBreaks = 'rulebook',
+  }: {
+    /** Whether the top three are finalists: only where these quizzes lead straight to a Finals */
+    finalists?: boolean
+    tieBreaks?: TieBreakOrder
+  } = {},
 ): DivisionStandings {
   const tallies = new Map<string, Tally>()
   const warnings: StandingsWarning[] = []
@@ -87,8 +100,9 @@ export function divisionStandings(
     }
   }
 
+  const headToHead = tieBreaks === 'rulebook'
   const groups = levels([...tallies.values()], (t) => t.placementPoints).flatMap((level) =>
-    breakTie(level),
+    breakTie(level, headToHead),
   )
   const teams: TeamStanding[] = []
   for (const { tallies: tied, decidedBy } of groups) {
@@ -198,24 +212,26 @@ const AFTER_HEAD_TO_HEAD: [TieBreak, (tally: Tally) => number][] = [
 ]
 
 /**
- * Orders teams level on placement points into ranks, by the tie-breakers in turn. `by` is the
- * tie-breaker that set these teams apart from the rest, credited to a team it leaves on its own.
+ * Orders teams level on placement points into ranks, by the tie-breakers in turn, head-to-head
+ * first where the meet uses it. `by` is the tie-breaker that set these teams apart from the rest,
+ * credited to a team it leaves on its own.
  */
-function breakTie(tied: Tally[], by: TieBreak | null = null): RankGroup[] {
+function breakTie(tied: Tally[], headToHead: boolean, by: TieBreak | null = null): RankGroup[] {
   if (tied.length === 1) return [{ tallies: tied, decidedBy: by }]
-  const leader = headToHeadLeader(tied)
+  const leader = headToHead ? headToHeadLeader(tied) : undefined
   if (leader) {
     return [
       { tallies: [leader], decidedBy: 'headToHead' },
       ...breakTie(
         tied.filter((t) => t !== leader),
+        headToHead,
         'headToHead',
       ),
     ]
   }
   for (const [criterion, value] of AFTER_HEAD_TO_HEAD) {
     const split = levels(tied, value)
-    if (split.length > 1) return split.flatMap((group) => breakTie(group, criterion))
+    if (split.length > 1) return split.flatMap((group) => breakTie(group, headToHead, criterion))
   }
   return [{ tallies: tied, decidedBy: null }]
 }

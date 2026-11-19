@@ -3,6 +3,7 @@ import { and, asc, desc, eq, exists, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import {
   NewerFileVersionError,
+  PlacementFormula,
   foldName,
   resultKey,
   isQuizFile,
@@ -43,6 +44,7 @@ import {
 } from '../lib/quizFacts'
 import { isCounted, latestRevision } from '../lib/resultsSql'
 import { SHARED_VERSION, keepScores } from '../lib/scores'
+import { otherFormulaCount, otherFormulaQuizzes, statsSettingsOf } from '../lib/statsSettings'
 
 interface ResultsVariables extends SessionVariables {
   db: Db
@@ -842,6 +844,97 @@ results.put('/:id/results/:resultId/acceptance', async (c) => {
   return c.json({ revision: target.revision, accepted: body.accepted })
 })
 
+/**
+ * How many quizzes one request sets to the meet's way of scoring level teams. Each takes a few
+ * queries, and the Workers free plan allows 50 a request, so the caller asks again for the rest.
+ */
+const FORMULA_EDITS_PER_REQUEST = 8
+
+/**
+ * Set every stored quiz whose own way of scoring level teams differs from the meet's to the meet's
+ * way (FR-023b): one `edited` revision each, carrying any acceptance it had to the new revision
+ */
+results.post('/:id/results/formula', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Meet not found' }, 404)
+  const user = c.get('user')
+  if (!user || !(await isAdmin(c, meetId))) return c.json({ error: 'Admin access required' }, 403)
+  const refused = await refusedByPhase(c, meetId, true)
+  if (refused) return refused
+  const db = c.get('db')
+  const { settings } = await statsSettingsOf(db, meetId)
+  const now = await otherFormulaQuizzes(db, meetId, settings.levelTeams, FORMULA_EDITS_PER_REQUEST)
+  // Which of these quizzes' content revisions an admin accepted as scored, by its newest decision
+  const accepted = new Set<string>()
+  if (now.length > 0) {
+    const decisions = await db
+      .select({
+        resultId: schema.quizResultChanges.resultId,
+        revision: schema.quizResultChanges.revision,
+        accepted: schema.quizResultChanges.accepted,
+      })
+      .from(schema.quizResultChanges)
+      .where(
+        and(
+          eq(schema.quizResultChanges.kind, 'acceptance'),
+          inArray(
+            schema.quizResultChanges.resultId,
+            now.map((quiz) => quiz.id),
+          ),
+        ),
+      )
+      .orderBy(asc(schema.quizResultChanges.id))
+    for (const { resultId, revision, accepted: yes } of decisions) {
+      const key = `${resultId}|${revision}`
+      if (yes) accepted.add(key)
+      else accepted.delete(key)
+    }
+  }
+  for (const { id, quizFile, contentRevision } of now) {
+    const file = JSON.parse(quizFile!) as QuizFile
+    const edited = { ...file, quiz: { ...file.quiz, placementFormula: settings.levelTeams } }
+    const [revision] = await addRevisions(db, id, [
+      { ...adminSaver(user), quizFile: JSON.stringify(edited), action: 'edited' },
+    ])
+    // Only the way level teams are scored changed, which the admin passed nothing about
+    if (accepted.has(`${id}|${contentRevision}`)) {
+      await recordChanges(db, [
+        {
+          resultId: id,
+          kind: 'acceptance',
+          revision,
+          accepted: true,
+          ...changerOf(adminSaver(user)),
+        },
+      ])
+    }
+  }
+  const remaining = await otherFormulaCount(db, meetId, settings.levelTeams)
+  return c.json({ changed: now.length, remaining })
+})
+
+/**
+ * Keep a quiz as it is after an order it was seated from was withdrawn, clearing its flag
+ * (FR-019b). Setting its stage to not counted clears it the other way.
+ */
+results.post('/:id/results/:resultId/keep', async (c) => {
+  const meetId = meetIdOf(c)
+  const resultId = resultIdOf(c)
+  if (meetId === null || resultId === null) return c.json({ error: 'Quiz not found' }, 404)
+  const user = c.get('user')
+  if (!user || !(await isAdmin(c, meetId))) return c.json({ error: 'Admin access required' }, 403)
+  const refused = await refusedByPhase(c, meetId, true)
+  if (refused) return refused
+  const db = c.get('db')
+  const [quiz] = await db
+    .select({ id: schema.quizResults.id })
+    .from(schema.quizResults)
+    .where(and(eq(schema.quizResults.meetId, meetId), eq(schema.quizResults.id, resultId)))
+  if (!quiz) return c.json({ error: 'Quiz not found' }, 404)
+  await recordChanges(db, [{ resultId, kind: 'kept', ...changerOf(adminSaver(user)) }])
+  return c.json({ kept: true })
+})
+
 /** Who the caller is when sending to the meet: an admin, for any of its rooms; an official, for theirs */
 results.get('/:id/results/sender', async (c) => {
   const meetId = meetIdOf(c)
@@ -874,7 +967,7 @@ results.get('/:id/results', async (c) => {
     if (rooms.length === 0) return c.json({ error: 'Admin or official access required' }, 403)
   }
 
-  const [rows, facts] = await Promise.all([
+  const [rows, facts, { settings }] = await Promise.all([
     db
       .select({
         id: schema.quizResults.id,
@@ -928,6 +1021,7 @@ results.get('/:id/results', async (c) => {
         ),
       ),
     meetFacts(db, meetId),
+    statsSettingsOf(db, meetId),
   ])
   return c.json(
     rows.map(
@@ -960,6 +1054,7 @@ results.get('/:id/results', async (c) => {
                 linked: held.linked,
                 roster: held.roster,
                 schedulePublished: held.schedulePublished,
+                prelimsWithoutOvertime: settings.prelimsWithoutOvertime,
               })
             : null
         return {
@@ -971,6 +1066,11 @@ results.get('/:id/results', async (c) => {
           link: held.link,
           problems,
           accepted: held.accepted,
+          ...(held.withdrawnOrder ? { withdrawnOrder: true } : {}),
+          // Its scoresheet shows other placement points than the tables, which use the meet's
+          ...((file.quiz.placementFormula ?? PlacementFormula.Rules) !== settings.levelTeams
+            ? { otherFormula: true }
+            : {}),
           quizFile: file,
         }
       },

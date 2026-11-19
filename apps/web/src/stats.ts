@@ -1,10 +1,23 @@
 import {
+  DIVISION_STATES,
+  MOMENTS,
+  STAGES,
+  STAGE_BEGINS,
+  divisionTitle,
   validationMessage,
+  viewerHas,
+  type DivisionStateValue,
+  type MeetPhase,
   type QuizProblem,
   type QuizzerFlag,
+  type ShownFrom,
+  type Stage,
   type StageChoice,
+  type StandingsState,
+  type StatsSettings,
   type StatsWarning,
   type TieBreak,
+  type ViewerHas,
 } from '@qzr/shared'
 import type { HistoryEntry } from './api'
 
@@ -91,6 +104,8 @@ export function problemText(problem: QuizProblem): string {
       return `Its teams are not the schedule's: ${problem.scheduled.join(', ')}.`
     case 'tieLeftStanding':
       return 'It ended level with no overtime, and this quiz must have a winner.'
+    case 'overtimePlayed':
+      return 'It went to overtime, which this meet does not play in prelims and intermediates.'
   }
 }
 
@@ -121,5 +136,165 @@ export function warningText(warning: StatsWarning): string {
       return `${warning.quizzes.map((quiz) => quiz.name).join(' and ')} are both the ${warning.consolation ? 'consolation ' : ''}Finals, so neither gives its first three. Set all but one to another stage.`
     case 'finalTie':
       return `${warning.teams.join(', ')} are tied for the last places in the final. Settle it away from the app.`
+    case 'orderChanged':
+      return `The ${warning.what === 'prelims' ? 'prelim order' : 're-rank'} has changed since it was confirmed. The confirmed order stands; the current one is shown beside it.`
+    case 'withdrawnOrder':
+      return `${warning.quiz.name} was seated from an order since withdrawn. Keep it as it is, or set it to not counted.`
   }
+}
+
+/** The three states standings are in (FR-020), in the same words wherever they are shown */
+export const STANDINGS_STATES: Record<StandingsState, { label: string; meaning: string }> = {
+  livePreview: {
+    label: 'Live preview',
+    meaning: 'not the actual standings yet: still changing as quizzes come in',
+  },
+  preview: {
+    label: 'Preview',
+    meaning: 'not the actual standings yet: not changing now, but may still be corrected',
+  },
+  lockedIn: { label: 'Locked in', meaning: 'the actual standings: will not change' },
+}
+
+/** When a thing starts to show, as the end of "show …" */
+export const MOMENT_WORDS: Record<ShownFrom, string> = {
+  start: 'from the start of quizzing',
+  prelimsConfirmed: 'once the prelims are confirmed',
+  intermediatesConfirmed: 'once the intermediates are confirmed',
+  eliminationsIn: 'once the eliminations are in',
+  finalsDone: 'once the Finals is done',
+  meetReview: 'once the meet is in review',
+  meetDone: 'once the meet is done',
+  never: 'never',
+}
+
+/** The moments a stage's results can be set to show from: none before the stage is played */
+export function momentsFor(stage: Stage): ShownFrom[] {
+  return [...MOMENTS.slice(MOMENTS.indexOf(STAGE_BEGINS[stage])), 'never']
+}
+
+/** What viewers are shown, thing by thing, by the names the settings page uses */
+export type ViewerThing = Stage | 'prelimStandings' | 'rerank' | 'quizzers'
+
+export const THING_NAMES: Record<ViewerThing, string> = {
+  prelim: 'prelim results',
+  intermediate: 'intermediate results',
+  elimination: 'elimination results',
+  finals: 'the Finals result',
+  prelimStandings: 'prelim standings',
+  rerank: 'the re-rank',
+  quizzers: 'quizzer standings',
+}
+
+const THINGS: ViewerThing[] = [...STAGES, 'prelimStandings', 'rerank', 'quizzers']
+
+/** How much of a thing a viewer has, in a word or two; null for nothing */
+function hasOf(has: ViewerHas, thing: ViewerThing): string | null {
+  if (thing === 'prelimStandings' || thing === 'rerank') {
+    const state = has[thing]
+    return state && STANDINGS_STATES[state].label
+  }
+  if (thing === 'quizzers') return has.quizzers && STANDINGS_STATES[has.quizzers.state].label
+  const level = has.results[thing]
+  return level ? (level === 'scores' ? 'places and scores' : 'places') : null
+}
+
+/** What a division's viewers have of a thing right now, as the settings page shows it */
+export function rightNow(has: ViewerHas, thing: ViewerThing): string {
+  return hasOf(has, thing) ?? 'none'
+}
+
+/** A division as the settings page holds it: its name and its state */
+export interface DivisionAt {
+  division: string
+  state: DivisionStateValue
+}
+
+/**
+ * What saving the settings changes for viewers the moment it is saved (FR-023c): what each
+ * division's viewers will newly see, stop seeing, or see more or less of, and how the standings
+ * will be worked out where that changes
+ */
+export function viewerChanges(
+  saved: StatsSettings,
+  draft: StatsSettings,
+  divisions: DivisionAt[],
+  phase: MeetPhase,
+): string[] {
+  const lines: string[] = []
+  for (const { division, state } of divisions) {
+    const [before, after] = [viewerHas(saved, state, phase), viewerHas(draft, state, phase)]
+    const who = `${divisionTitle(division)} viewers`
+    for (const thing of THINGS) {
+      const [was, will] = [hasOf(before, thing), hasOf(after, thing)]
+      if (was === will) continue
+      const name = THING_NAMES[thing]
+      if (was === null) lines.push(`${who} will now see ${name}`)
+      else if (will === null) lines.push(`${who} will stop seeing ${name}`)
+      else if (will === 'places and scores') lines.push(`${who} will now see scores in ${name}`)
+      else if (was === 'places and scores') lines.push(`${who} will stop seeing scores in ${name}`)
+      else lines.push(`${who} will see ${name} as ${will.toLowerCase()}`)
+    }
+  }
+  if (saved.quizzers.update !== draft.quizzers.update) {
+    lines.push(
+      `Quizzer standings will update ${draft.quizzers.update === 'live' ? 'after every quiz' : 'only when you confirm a step'}`,
+    )
+  }
+  if (
+    saved.tieBreaks !== draft.tieBreaks ||
+    saved.levelTeams !== draft.levelTeams ||
+    saved.prelimsWithoutOvertime !== draft.prelimsWithoutOvertime
+  ) {
+    lines.push(
+      'Standings will be worked out the new way. Orders you already confirmed stay as they are; a difference will be shown.',
+    )
+  }
+  return lines
+}
+
+/** A division's steps through the day, one for each of its states */
+export function stepNames(stages: Stage[]): Record<DivisionStateValue, string> {
+  return {
+    prelim_running: 'Prelims',
+    stats_break: stages.includes('intermediate') ? 'Intermediates' : 'Stats break',
+    elim_running: 'Eliminations',
+    finals: 'Finals',
+    division_done: 'Finished',
+  }
+}
+
+/**
+ * The control that confirms a division's next step: the states it moves through and its label.
+ * A division with no eliminations goes from its stats break to its Finals in one action, two moves
+ * behind it. Null once the division is finished.
+ */
+export function nextMove(
+  state: DivisionStateValue,
+  stages: Stage[],
+): { to: DivisionStateValue[]; label: string } | null {
+  switch (state) {
+    case 'prelim_running':
+      return { to: ['stats_break'], label: 'Confirm prelims' }
+    case 'stats_break':
+      // Only a schedule can say a division has no eliminations; with none, it is not known
+      if (stages.length > 0 && !stages.includes('elimination')) {
+        return { to: ['elim_running', 'finals'], label: 'Start Finals' }
+      }
+      return {
+        to: ['elim_running'],
+        label: stages.includes('intermediate') ? 'Confirm intermediates' : 'Start eliminations',
+      }
+    case 'elim_running':
+      return { to: ['finals'], label: 'Confirm eliminations' }
+    case 'finals':
+      return { to: ['division_done'], label: 'Confirm Finals' }
+    case 'division_done':
+      return null
+  }
+}
+
+/** The state a division goes back to; null where it can't go back */
+export function previousState(state: DivisionStateValue): DivisionStateValue | null {
+  return DIVISION_STATES[DIVISION_STATES.indexOf(state) - 1] ?? null
 }

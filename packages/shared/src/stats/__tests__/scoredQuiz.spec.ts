@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { foldName } from '../../results'
 import { ValidationCode } from '../../scoring/validation'
-import { PlacementFormula } from '../../quizFile'
+import { CellValue } from '../../quizFile'
 import { fifteenQuestionQuizFile } from '../../scoring/__tests__/fixtures/fifteenQuestionQuiz'
 import {
   REFERENCE_TYPES,
@@ -60,12 +60,10 @@ describe('scoreStoredQuiz', () => {
     expect(scoreStoredQuiz(file).teams[0]!.quizzers[0]!.types).toEqual({ INT: 2, FTV: 1 })
   })
 
-  it("keeps the quiz's own formula and no placement points", () => {
-    const file = fifteenQuestionQuizFile()
-    file.quiz.placementFormula = PlacementFormula.Legacy
-    const scored = scoreStoredQuiz(file)
-    expect(scored.formula).toBe(PlacementFormula.Legacy)
-    expect(JSON.stringify(scored)).not.toContain('placementPoints')
+  it("keeps no placement points, which the meet's way of scoring level teams decides", () => {
+    expect(JSON.stringify(scoreStoredQuiz(fifteenQuestionQuizFile()))).not.toContain(
+      'placementPoints',
+    )
   })
 
   it('lists every validation error with its team, quizzer, question and code', () => {
@@ -93,6 +91,14 @@ describe('scoreStoredQuiz', () => {
     const scored = scoreStoredQuiz(file)
     expect(scored.problems).toEqual([{ kind: 'undecided' }])
     expect(scored.teams.map((t) => t.place)).toEqual([null, null, null])
+  })
+
+  it('says whether overtime was played, not merely switched on', () => {
+    const file = fifteenQuestionQuizFile()
+    file.quiz.overtime = true
+    expect(scoreStoredQuiz(file).overtimePlayed).toBe(false)
+    file.answers.push({ quizzerId: 10, columnKey: '16', value: CellValue.Correct })
+    expect(scoreStoredQuiz(file).overtimePlayed).toBe(true)
   })
 
   it('names the unanswered questions', () => {

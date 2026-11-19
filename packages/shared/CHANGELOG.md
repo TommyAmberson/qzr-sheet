@@ -23,6 +23,47 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-11-18
+
+### Added
+
+* The meet's stats settings: `StatsSettings`, `DEFAULT_STATS_SETTINGS` and `statsSettingsError`,
+  with the moments a thing can show from (`MOMENTS`) and the first a stage's results can show from
+  (`STAGE_BEGINS`). Prelims and intermediates are played without overtime unless an admin turns it
+  off (FR-023d).
+* `viewerHas`: what a viewer is given of a division's stats from the settings, the division's state
+  and the meet's phase, with the state of each standings table; `viewersSeeStats`, the phases in
+  which anyone but an admin sees stats.
+* `finals` in `DIVISION_STATES`, between `elim_running` and `division_done`.
+* `TIE_BREAK_ORDERS`: `divisionStandings` takes the meet's order, and ranks by total points, then
+  fewest errors, with no head-to-head when the meet says so (FR-023).
+* `ScoredQuiz.overtimePlayed`, and the `overtimePlayed` problem: overtime played in a prelim or an
+  intermediate of a meet that plays them without it (FR-014, FR-023d).
+* `divisionStats` takes the orders an admin confirmed (`ConfirmedOrder`): a confirmed prelim order
+  or re-rank shows locked in as it was confirmed, with the current order beside it for admins where
+  a later correction changed it, and an `orderChanged` warning (FR-019b, FR-019c).
+* A stored quiz seated from an order since withdrawn is flagged (`withdrawnOrder` on the quiz and as
+  a warning) until an admin keeps it.
+* `incompleteTypes` on a quiz in a division's stats, where a quizzer's correct answers by type don't
+  add up (FR-020a).
+* `heldQuizzes`: a division's quizzes with a stage, each with whether it counts, without working the
+  tables out.
+* `divisionStats` takes `quizzersThrough`, so quizzer standings by stage cover the quizzes up to the
+  last step confirmed (FR-018a).
+
+### Changed
+
+* `divisionStats` takes the meet's settings: placement points for teams level in a quiz follow the
+  meet's way, whatever the quiz file carries (FR-023a), and standings and the re-rank its tie-break
+  order.
+* `scheduleProblems` takes what the quiz is held against as one object, as `quizProblems` does, with
+  whether the meet plays its prelims without overtime.
+
+### Removed
+
+* `ScoredQuiz.formula`: placement points follow the meet's way of scoring level teams, not the
+  file's, so nothing reads it. Kept scores are made again by this version.
+
 ## [1.13.0] - 2026-11-17
 
 ### Added

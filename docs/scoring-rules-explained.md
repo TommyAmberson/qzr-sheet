@@ -282,6 +282,21 @@ meet's workbook.
 | Quizzers of teams that played in a division's consolation bracket are ranked apart, over every quiz their team played       | The published report lists them separately                                                     |
 | A quizzer is a name on a team; names that differ only in case and spaces are one quizzer                                    | Officials type names by hand                                                                   |
 
+### Meet stats settings
+
+A meet's stats settings (`StatsSettingsSchema` in `packages/shared`) decide three things about how
+its tables score and rank, each changed by an admin from the stats settings page and changing no
+stored quiz.
+
+| Rule                                                                                                                                                                  | Based on                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Teams level on placement points may be ranked by total points, then fewest errors, with no head-to-head: an opt-in setting, the rulebook's order being the default    | The reference meet's workbook ranked its prelims this way, which changed who met whom in its intermediates                                                                                                        |
+| Teams level in a quiz are given placement points the meet's way in every table, whatever each quiz file says; a quiz whose own way differs carries a note             | So one meet's tables don't mix the two formulas; the Legacy formula stays opt-in                                                                                                                                  |
+| Prelims and intermediates are played without overtime, a tie standing and the level teams sharing the place; overtime played in one is an error. On unless turned off | The rulebook is ambiguous here: a tied quiz goes to overtime (Types of Quizzes §1.d), yet a tie gives placement points by the score at the end of question 20 (§1.e.iv). These meets have long played it this way |
+
+Eliminations and Finals must have a winner, as the rulebook has it: one that ends level with no
+overtime is an error whatever the setting.
+
 ### Other departures
 
 * The **Legacy** placement formula and the **Team** bonus rule, described above, are opt-in variants

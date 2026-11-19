@@ -35,7 +35,7 @@ doc is the stable design reference those issues link back to.
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Meet**                       | A named multi-day event. One `quiz_meets` row.                                                                                                                                                                                              |
 | **Phase**                      | Meet-wide lifecycle stage: `registration`, `build`, `live`, `review`, or `done`. Drives edit permissions and visibility. See §2.                                                                                                            |
-| **Division state**             | Per-division sub-state inside the `live` phase: `prelim_running`, `stats_break`, `elim_running`, `division_done`. See §2.                                                                                                                   |
+| **Division state**             | Per-division sub-state inside the `live` phase: `prelim_running`, `stats_break`, `elim_running`, `finals`, `division_done`. See §2.                                                                                                         |
 | **Division**                   | A competitive tier inside the meet. Set once at meet creation and never changes for a team. Today: Divisions 1, 2, 3. Stored as JSON on `quiz_meets.divisions`; teams carry a `division` string.                                            |
 | **Team**                       | A church-owned roster for one meet + division. `teams` row. Has `consolation: boolean` (already in schema) — always `false` during prelims; set post-stats-break to route a team into the consolation elim bracket. Division never changes. |
 | **Room**                       | A physical location where quizzes run in parallel. Named ("Room 1"–"Room 5"). New concept — not in schema today.                                                                                                                            |
@@ -78,11 +78,26 @@ While the meet is `live`, each division has its own state machine that the admin
 independently:
 
 ```
-prelim_running → stats_break → elim_running → division_done
+prelim_running → stats_break → elim_running → finals → division_done
 ```
 
 This lets Division 1 finish its prelims and start elims while Division 2 is still running prelims.
-State transitions are admin-manual.
+State transitions are admin-manual, one step at a time, forward or back, from the stats settings
+page (specs/006-meet-stats, FR-019a to FR-019d). A division's intermediates are played during its
+`stats_break`; a division with no eliminations goes from its `stats_break` to `finals` by one
+control, "Start Finals", which makes both moves.
+
+* **Moving on** asks first, naming them, where scheduled quizzes of the stage it ends are missing or
+  not counting; the page shows whether each division is ready.
+* **Moving to `stats_break` confirms the prelim order**, recorded with who confirmed it and when,
+  since it decides where teams quiz next. **Moving to `elim_running` confirms the re-rank** where
+  the division has intermediates. A confirmed order stands: a later correction to a prelim, or a
+  changed stats setting, leaves it as it was, and admins are shown the current order beside it.
+* **Moving back withdraws the order** the step confirmed. Where quizzes seated from it are stored,
+  the admin is warned first with each one named; they stay stored with their stages, flagged as
+  played under a withdrawn order, until an admin keeps each as it is or sets it to not counted.
+* The meet never moves to `review` on its own: moving the last division to `division_done` offers
+  it.
 
 ### Phases vs draft/publish
 
@@ -202,8 +217,9 @@ truth.
   phase. Completed quizzes are immutable so prior results stay coherent.
 * Phase advances (`registration → build → live → review → done`) are one-way by default.
   Admin-manual reverse transitions are allowed but flagged in the UI.
-* Per-division state advances (`prelim_running → stats_break → elim_running → division_done`) are
-  admin-manual; reverses also allowed and flagged.
+* Per-division state advances
+  (`prelim_running → stats_break → elim_running → finals → division_done`) are admin-manual;
+  reverses also allowed, and withdraw the order the step confirmed (§2).
 
 ## 5. The prelim draw
 
@@ -330,7 +346,7 @@ export const divisionStates = sqliteTable('division_states', {
     .references(() => quizMeets.id, { onDelete: 'cascade' }),
   division: text('division').notNull(),
   state: text('state', {
-    enum: ['prelim_running', 'stats_break', 'elim_running', 'division_done'],
+    enum: ['prelim_running', 'stats_break', 'elim_running', 'finals', 'division_done'],
   }).notNull(),
   transitionedAt: integer('transitioned_at', { mode: 'timestamp' }).notNull(),
 })
@@ -503,7 +519,7 @@ Prelim running [div state: prelim_running]
       fills its teams.
   11. Officials submit results, saved under the quiz's result name.
 
-Stats break [div state: stats_break — admin manual]
+Stats break [div state: stats_break — admin manual, confirming the prelim order]
   12. Admin reviews Standings.
   13. Confirms the division's elim shape (§6).
   14. Flips `consolation=true` on bottom-M teams.
@@ -511,19 +527,23 @@ Stats break [div state: stats_break — admin manual]
 Elim build [div state: stats_break]
   15. The elims are already in the schedule from the division's elim shape;
       the admin adjusts lanes, seats or rows if needed.
-  16. Publishes; advances division to 'elim_running'.
+  16. Publishes; advances division to 'elim_running', confirming the re-rank where the division
+      had intermediates.
 
 Elim running [div state: elim_running]
   17. XYZ/XXYYZZ resolve → `consolation=true` propagates to remaining teams.
   18. Results flow in; elim seats resolve to teams.
-  19. Final placements displayed → admin advances division to 'division_done'.
+  19. Eliminations in → admin advances division to 'finals'.
+
+Finals [div state: finals]
+  20. The Finals is played → admin advances division to 'division_done'.
 
 Review [phase: review, admin manual]
-  20. When all divisions are 'division_done', the UI suggests advancing to 'review'.
+  21. When all divisions are 'division_done', the UI suggests advancing to 'review'.
       Officials stop submitting; admin corrects results and settles disputes.
 
 Wrap-up [phase: done, admin manual]
-  21. Admin advances meet to 'done'. Schedule and stats become read-only for everyone.
+  22. Admin advances meet to 'done'. Schedule and stats become read-only for everyone.
 ```
 
 ## 11. Open questions

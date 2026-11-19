@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { PlacementFormula } from '../../quizFile'
 import { rosterProblems, scheduleProblems, type ScheduledQuiz } from '../quizProblems'
 import type { ScoredQuiz } from '../scoredQuiz'
+import type { Stage } from '../stages'
 import type { RosterTeam } from '../teamNames'
 
 function scored(
@@ -11,7 +11,6 @@ function scored(
   return {
     name: 'D1 Q3',
     consolation: false,
-    formula: PlacementFormula.Rules,
     teams: Object.entries(teams).map(([name, quizzers], i) => ({
       name,
       score: 100,
@@ -26,9 +25,19 @@ function scored(
         types: {},
       })),
     })),
+    overtimePlayed: false,
     problems: [],
   }
 }
+
+const schedule = (
+  quiz: ScoredQuiz,
+  stage: Stage,
+  key: string,
+  linked: ScheduledQuiz | null,
+  schedulePublished: boolean,
+  prelimsWithoutOvertime = true,
+) => scheduleProblems(quiz, { stage, key, linked, schedulePublished, prelimsWithoutOvertime })
 
 const roster: RosterTeam[] = [
   { id: 1, name: 'First Church 1', shortName: 'FC 1', quizzers: ['Ann Lee', 'Ben Roy', 'Cy Dunn'] },
@@ -43,7 +52,7 @@ describe('a two-team quiz', () => {
   it('is the scheduled quiz that seats two teams, with no teams differing', () => {
     const pair = { ...scheduled, teams: [roster[2]!, roster[0]!] }
     expect(
-      scheduleProblems(scored({ 'Grace 1': [], 'FC 1': [], '': [] }), 'prelim', '1||3', pair, true),
+      schedule(scored({ 'Grace 1': [], 'FC 1': [], '': [] }), 'prelim', '1||3', pair, true),
     ).toEqual([])
   })
 
@@ -58,16 +67,16 @@ describe('scheduleProblems', () => {
   const teams = { 'First Church 1': [], "St. John's 1": [], 'Grace 1': [] }
 
   it('finds nothing wrong with a quiz that is the scheduled quiz, nor with one that is not linked', () => {
-    expect(scheduleProblems(scored(teams), 'prelim', '1||3', scheduled, true)).toEqual([])
-    expect(scheduleProblems(scored({ 'Hope 2': [] }), 'prelim', '1||9', null, false)).toEqual([])
+    expect(schedule(scored(teams), 'prelim', '1||3', scheduled, true)).toEqual([])
+    expect(schedule(scored({ 'Hope 2': [] }), 'prelim', '1||9', null, false)).toEqual([])
   })
 
   it('says when a linked quiz has another name or other teams', () => {
     expect(
-      scheduleProblems(scored({ ...teams, 'Grace 1': [] }), 'prelim', '1||4', scheduled, true),
+      schedule(scored({ ...teams, 'Grace 1': [] }), 'prelim', '1||4', scheduled, true),
     ).toEqual([{ kind: 'nameDiffers', scheduled: 'D1 Q3' }])
     expect(
-      scheduleProblems(
+      schedule(
         scored({ 'First Church 1': [], "St. John's 1": [], 'Hope 2': [] }),
         'prelim',
         '1||3',
@@ -79,23 +88,37 @@ describe('scheduleProblems', () => {
 
   it('lets a prelim or an intermediate end level, and not an elimination or a Finals', () => {
     const level = scored(teams, [1.2, 1.2, 3])
-    expect(scheduleProblems(level, 'prelim', '1||3', null, false)).toEqual([])
-    expect(scheduleProblems(level, 'intermediate', '1||3', null, false)).toEqual([])
-    expect(scheduleProblems(level, 'elimination', '1||3', null, false)).toEqual([
+    expect(schedule(level, 'prelim', '1||3', null, false)).toEqual([])
+    expect(schedule(level, 'intermediate', '1||3', null, false)).toEqual([])
+    expect(schedule(level, 'elimination', '1||3', null, false)).toEqual([
       { kind: 'tieLeftStanding' },
     ])
-    expect(scheduleProblems(level, 'finals', '1||3', null, false)).toEqual([
-      { kind: 'tieLeftStanding' },
-    ])
-    expect(scheduleProblems(scored(teams), 'finals', '1||3', null, false)).toEqual([])
+    expect(schedule(level, 'finals', '1||3', null, false)).toEqual([{ kind: 'tieLeftStanding' }])
+    expect(schedule(scored(teams), 'finals', '1||3', null, false)).toEqual([])
+  })
+})
+
+describe('overtime in a prelim or an intermediate (FR-023d)', () => {
+  const played = { ...scored({ 'Grace 1': [] }), overtimePlayed: true }
+
+  it('is an error in a meet that plays them without overtime, and only there', () => {
+    for (const stage of ['prelim', 'intermediate'] as const) {
+      expect(schedule(played, stage, '1||3', null, false)).toEqual([{ kind: 'overtimePlayed' }])
+      expect(schedule(played, stage, '1||3', null, false, false)).toEqual([])
+    }
+    expect(schedule(played, 'elimination', '1||3', null, false)).toEqual([])
+  })
+
+  it('is no error where overtime was switched on and never played', () => {
+    expect(schedule(scored({ 'Grace 1': [] }), 'prelim', '1||3', null, false)).toEqual([])
   })
 })
 
 describe('a quiz not linked to the schedule', () => {
   it('is in error in a meet with a published schedule, and not in a meet without one', () => {
     const teams = scored({ 'Grace 1': [] })
-    expect(scheduleProblems(teams, 'prelim', '1||9', null, true)).toEqual([{ kind: 'notLinked' }])
-    expect(scheduleProblems(teams, 'prelim', '1||9', null, false)).toEqual([])
+    expect(schedule(teams, 'prelim', '1||9', null, true)).toEqual([{ kind: 'notLinked' }])
+    expect(schedule(teams, 'prelim', '1||9', null, false)).toEqual([])
   })
 })
 

@@ -164,6 +164,8 @@ QuizResultChange       -- append-only: one row per decision about a stored quiz;
   revision, accepted   -- for `acceptance`: the revision whose content an admin accepted as
                           scored, or no longer accepts. A quiz in error counts only while its
                           current content is that of an accepted revision
+                          (`kept` has no fields of its own: an admin kept the quiz as it is after
+                          an order it was seated from was withdrawn, clearing that flag)
   changedByAccountId   -- FK → User (set null if deleted)
   changedByRoomId      -- FK → Room, for an official's link (set null if deleted)
   changedByName        -- who made it, as named then
@@ -188,6 +190,44 @@ MeetTeamName           -- optional team names per division, which the meet's sco
   name
   nameKey              -- the name folded for case and spaces; UNIQUE(meetId, division, nameKey)
   sortOrder            -- display order across the meet's list
+
+# ---- Stats ----
+
+MeetStatsSettings      -- append-only: one row per save; the newest is the meet's stats settings,
+                          and a meet with none has the defaults
+  id
+  meetId               -- FK → QuizMeet (cascade delete)
+  settings             -- the settings document, JSON, validated by the shared schema before
+                          storing: tie-break order, how teams level in a quiz are scored, whether
+                          prelims are played without overtime, and what viewers see and when
+  savedByAccountId     -- FK → User (set null if deleted)
+  savedByName          -- who saved it, as named then
+  savedAt
+
+DivisionConfirmation   -- append-only: one row each time an admin confirms or withdraws a
+                          division's prelim order or re-rank, by moving its state
+  id
+  meetId               -- FK → QuizMeet (cascade delete)
+  division             -- as the meet spells it
+  what                 -- prelims | rerank
+  confirmed            -- true for a confirmation, false for a withdrawal. A division's confirmed
+                          order is the teams of its newest row of that `what`, when that row
+                          confirms
+  teams                -- on a confirmation: the teams in order as they stood, JSON
+  affected             -- on a withdrawal: the stored quizzes of later stages seated from the
+                          order withdrawn, JSON ids. Each is flagged as played under a withdrawn
+                          order until a newer `kept` QuizResultChange, or its stage is not counted
+  byAccountId          -- FK → User (set null if deleted)
+  byName               -- who did it, as named then
+  at
+
+DivisionState          -- one row per meet and division the admin has moved, updated in place
+  id
+  meetId               -- FK → QuizMeet (cascade delete)
+  division             -- as the meet spells it; UNIQUE(meetId, division)
+  state                -- prelim_running | stats_break | elim_running | finals | division_done;
+                          a division with no row is running its prelims
+  transitionedAt
 
 # ---- Schedules ----
 

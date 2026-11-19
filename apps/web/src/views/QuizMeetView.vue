@@ -806,6 +806,21 @@ onMounted(load)
         </div>
       </div>
 
+      <!-- Stats: what the meet's settings give each member, and everything for admins -->
+      <div class="section">
+        <div class="section-header">
+          <h3 class="section-title">Stats</h3>
+          <div class="section-actions">
+            <button
+              class="btn btn--secondary btn--sm"
+              @click="router.push({ name: 'meet-stats', params: { slug } })"
+            >
+              Open stats →
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Team names -->
       <div v-if="isAdmin" class="section">
         <div class="section-header">

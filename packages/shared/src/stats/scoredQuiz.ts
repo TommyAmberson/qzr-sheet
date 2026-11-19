@@ -1,4 +1,4 @@
-import { CellValue, type PlacementFormula, type QuizFile } from '../quizFile'
+import { CellValue, type QuizFile } from '../quizFile'
 import { deserialize } from '../quizFileCodec'
 import { quizName } from '../results'
 import {
@@ -53,10 +53,13 @@ export interface ScoredQuiz {
   name: string
   /** Whether it is a quiz of the division's consolation bracket */
   consolation: boolean
-  /** The quiz's own way of giving level teams placement points */
-  formula: PlacementFormula
   /** In seat order */
   teams: ScoredTeam[]
+  /**
+   * Whether any overtime question was played: anything marked in an overtime column. Overtime
+   * switched on but never played leaves the result as it would have been without it.
+   */
+  overtimePlayed: boolean
   /** Empty for a quiz that can be placed */
   problems: ScoringProblem[]
 }
@@ -150,8 +153,12 @@ export function scoreStoredQuiz(file: QuizFile): ScoredQuiz {
   return {
     name: quizName(quiz),
     consolation: quiz.consolation ?? false,
-    formula: quiz.placementFormula,
     teams,
+    overtimePlayed: columns.some(
+      (column, colIdx) =>
+        column.isOvertime &&
+        cells.some((seats) => seats.some((seat) => seat[colIdx] !== CellValue.Empty)),
+    ),
     problems,
   }
 }

@@ -16,6 +16,29 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-18
+
+### Added
+
+* A stats settings page: each division's steps with whether it is ready for the next and the control
+  to confirm it or take it back, warnings shown in the page; what viewers see of each thing and from
+  when, with what each division's viewers have right now; the scoring settings, with the quizzes
+  scored the other way and the action that sets them to match. Before saving, it says what viewers
+  will newly see and stop seeing
+* A stats page listing the meet's divisions for every member, reached from the meet page, and from
+  the home page by a guest viewer
+
+### Changed
+
+* A division's stats page serves every member, a guest viewer included, as far as the meet's
+  settings give it: each standings table says whether it is a live preview, a preview or locked in,
+  and a table not yet available says so. Admins see a confirmed order with the current one beside
+  it, and can keep a quiz seated from a withdrawn order, or look at the page as a viewer
+
+### Bundled contract
+
+* `@qzr/shared@1.14.0` - bumped from 1.13.0
+
 ## [0.27.0] - 2026-11-17
 
 ### Changed

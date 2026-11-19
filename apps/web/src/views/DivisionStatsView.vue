@@ -1,13 +1,24 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ApiError, type DivisionStats, type Stage, divisionTitle } from '@qzr/shared'
 
-import { getDivisionStats, getMeet, type MeetDetail } from '../api'
+import { getDivisionStats, getMeet, keepQuiz, type MeetDetail } from '../api'
+import StandingState from '../components/StandingState.vue'
 import { TIE_BREAKS, flagText, placeLabel, problemText, warningText } from '../stats'
 
+/**
+ * A division's stats for every member of the meet, signed in or a guest, as far as the meet's
+ * settings give them (FR-018 to FR-021); an admin sees everything, and may look as a viewer
+ */
 const props = defineProps<{ slug: string; division: string }>()
+const route = useRoute()
 const router = useRouter()
+
+/** An admin looking at the page as its viewers see it (FR-023c) */
+const asViewer = computed(() => route.query.as === 'viewer')
+/** Whether this reader is shown warnings, so is one of the meet's admins */
+const admin = computed(() => stats.value?.warnings !== undefined)
 
 const meet = ref<MeetDetail['meet'] | null>(null)
 const stats = ref<DivisionStats | null>(null)
@@ -30,7 +41,7 @@ async function load() {
   error.value = ''
   try {
     const { meet: detail } = await getMeet(props.slug)
-    const read = await getDivisionStats(detail.id, props.division)
+    const read = await getDivisionStats(detail.id, props.division, asViewer.value)
     if (current !== loads) return
     meet.value = detail
     stats.value = read
@@ -38,7 +49,7 @@ async function load() {
     if (current !== loads) return
     error.value =
       e instanceof ApiError && e.status === 403
-        ? "Only the meet's admins can see its stats."
+        ? "Only the meet's members can see its stats."
         : e instanceof ApiError && e.status === 503
           ? 'The stats are still being prepared. Try again in a moment.'
           : (e as Error).message
@@ -48,13 +59,24 @@ async function load() {
 }
 
 onMounted(load)
-watch(() => [props.slug, props.division], load)
+watch(() => [props.slug, props.division, asViewer.value], load)
+
+/** Keep a quiz seated from a withdrawn order as it is, clearing its flag */
+async function keep(resultId: number) {
+  if (!meet.value) return
+  try {
+    await keepQuiz(meet.value.id, resultId)
+    await load()
+  } catch (e) {
+    error.value = (e as Error).message
+  }
+}
 </script>
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'meet-results', params: { slug } })">
-      ← Results
+    <button class="back-link" @click="router.push({ name: 'meet-stats', params: { slug } })">
+      ← Stats
     </button>
 
     <p v-if="loading" class="state-msg">Loading…</p>
@@ -62,13 +84,27 @@ watch(() => [props.slug, props.division], load)
 
     <template v-else-if="meet && stats">
       <h2 class="page-title">{{ divisionTitle(stats.division) }} stats: {{ meet.name }}</h2>
+      <p v-if="asViewer" class="viewer-note">
+        As a viewer sees it.
+        <router-link :to="{ query: {} }">See everything</router-link>
+      </p>
 
       <ul v-if="stats.warnings?.length" class="warnings">
         <li v-for="(warning, i) in stats.warnings" :key="i">{{ warningText(warning) }}</li>
       </ul>
 
-      <section v-if="stats.prelimStandings" class="block">
+      <section v-if="!stats.prelimStandings" class="block">
         <h3 class="section-title">Prelim standings</h3>
+        <p class="state-msg">Not available yet.</p>
+      </section>
+      <section v-else class="block">
+        <h3 class="section-title">
+          Prelim standings
+          <StandingState :state="stats.prelimStandings.state" />
+        </h3>
+        <p v-if="stats.prelimStandings.confirmed" class="note">
+          Confirmed by {{ stats.prelimStandings.confirmed.by }}, in the elimination draw.
+        </p>
         <p v-if="stats.prelimStandings.teams.length === 0" class="state-msg">
           No prelim counts yet. Count quizzes on the results page to see the standings.
         </p>
@@ -101,8 +137,39 @@ watch(() => [props.slug, props.division], load)
         </div>
       </section>
 
+      <section v-if="stats.prelimStandings?.current" class="block">
+        <h3 class="section-title">Prelim standings as they stand now</h3>
+        <p class="note">
+          A prelim has changed since the order was confirmed. The confirmed order stands; this is
+          the current one.
+        </p>
+        <div class="table-scroll">
+          <table class="stats-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Team</th>
+                <th title="Placement points">Points</th>
+                <th>Quizzes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="team in stats.prelimStandings.current" :key="team.name">
+                <td>{{ team.tied ? `T${team.rank}` : team.rank }}</td>
+                <td>{{ team.name }}</td>
+                <td>{{ team.placementPoints }}</td>
+                <td>{{ team.quizzes }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section v-if="stats.rerank" class="block">
-        <h3 class="section-title">After the intermediates</h3>
+        <h3 class="section-title">
+          After the intermediates
+          <StandingState :state="stats.rerank.state" />
+        </h3>
         <div class="table-scroll">
           <table class="stats-table">
             <thead>
@@ -129,8 +196,15 @@ watch(() => [props.slug, props.division], load)
         </div>
       </section>
 
-      <section v-if="stats.quizzers" class="block">
+      <section v-if="!stats.quizzers" class="block">
         <h3 class="section-title">Quizzer standings</h3>
+        <p class="state-msg">Not available yet.</p>
+      </section>
+      <section v-else class="block">
+        <h3 class="section-title">
+          Quizzer standings
+          <StandingState :state="stats.quizzers.state" />
+        </h3>
         <p v-if="stats.quizzers.lists.length === 0" class="state-msg">
           No quiz counts for quizzers yet.
         </p>
@@ -171,6 +245,7 @@ watch(() => [props.slug, props.division], load)
         </template>
       </section>
 
+      <p v-if="stats.results.length === 0" class="state-msg">No quiz results to show yet.</p>
       <section v-for="stage in stats.results" :key="stage.stage" class="block">
         <h3 class="section-title">{{ STAGE_TITLES[stage.stage] }}</h3>
         <ol v-for="medals in stage.medals ?? []" :key="String(medals.consolation)" class="medals">
@@ -211,6 +286,17 @@ watch(() => [props.slug, props.division], load)
                     </li>
                     <li v-if="quiz.status === 'underReview'" class="note">under review</li>
                     <li v-if="quiz.status === 'accepted'" class="note">accepted as scored</li>
+                    <li v-if="quiz.incompleteTypes" class="note">question types incomplete</li>
+                    <li v-if="quiz.withdrawnOrder" class="problem">
+                      Seated from an order since withdrawn.
+                      <button
+                        v-if="admin && quiz.id !== undefined"
+                        class="keep"
+                        @click="keep(quiz.id)"
+                      >
+                        Keep as it is
+                      </button>
+                    </li>
                     <li v-for="(problem, i) in quiz.problems ?? []" :key="i" class="problem">
                       {{ problemText(problem) }}
                     </li>
@@ -365,5 +451,17 @@ watch(() => [props.slug, props.division], load)
 
 .problem {
   color: var(--palette-error);
+}
+
+.viewer-note {
+  margin: -0.75rem 0 1.25rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.keep {
+  margin-left: 0.4rem;
+  font: inherit;
+  font-size: 0.75rem;
 }
 </style>

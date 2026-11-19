@@ -33,7 +33,9 @@ Decisions from the brainstorm:
 * Ranking follows the rulebook prelim round: total placement points, with its tie-breakers.
 * Edits are allowed, but each one is kept with who made it and when.
 * Teams only for now; quizzer totals come later.
-* Standings are for admins for now; viewer-code access comes later.
+* Standings are for admins for now; viewer-code access comes later. (Amended by 006-meet-stats:
+  viewers, coaches and officials see results and standings as the meet's stats settings give them,
+  FR-018 there.)
 
 ## Clarifications
 
@@ -305,7 +307,8 @@ and pick teams from the list when setting up a quiz in that division.
 * A quiz's division is spelt differently from the meet's ("Div 1" for "1"), typically from an
   uploaded file: it forms its own group in the standings until the admin corrects it.
 * A quiz uses a different placement formula from the others: its placement points are counted as the
-  quiz itself computes them.
+  quiz itself computes them. (Amended by 006-meet-stats: every quiz is scored the meet's way, and a
+  quiz whose own way differs carries a note, FR-023a and FR-023b there.)
 * A counted quiz can't be placed, typically an uploaded file with unanswered questions or validation
   errors: it adds nothing to the standings, and a warning names it.
 * An admin scores a quiz in a room: they submit it from the scoresheet for that room, or save the
@@ -359,15 +362,17 @@ and pick teams from the list when setting up a quiz in that division.
 * **FR-009**: Meet admins, and officials for their rooms' quizzes, MUST be able to open a stored
   quiz in the scoresheet and save the corrected quiz back to the meet, by its name like a submission
   (FR-003).
-* **FR-010**: Standings MUST group counted quizzes by the division written in each quiz, as given,
-  so a division the meet doesn't list forms its own group. Standings MUST rank each division's teams
-  by total placement points over the counted quizzes, each quiz's placement points being those the
-  quiz itself scores.
-* **FR-011**: Ties in total placement points MUST be broken, in order, by head-to-head results
-  between the tied teams, total points scored in counted quizzes, and fewest errors in counted
-  quizzes, as in the rulebook's preliminary round. Errors MUST count every error a team made in the
-  counted quizzes, whether or not it cost points, and MUST NOT count fouls. Teams still tied MUST
-  share a rank and be flagged.
+* **FR-010** (amended by 006-meet-stats: teams level in a quiz are given placement points the meet's
+  way, whatever the quiz file carries, FR-023a there): Standings MUST group counted quizzes by the
+  division written in each quiz, as given, so a division the meet doesn't list forms its own group.
+  Standings MUST rank each division's teams by total placement points over the counted quizzes, each
+  quiz's placement points being those the quiz itself scores.
+* **FR-011** (amended by 006-meet-stats: a meet may rank by total points, then fewest errors, with
+  no head-to-head, FR-023 there): Ties in total placement points MUST be broken, in order, by
+  head-to-head results between the tied teams, total points scored in counted quizzes, and fewest
+  errors in counted quizzes, as in the rulebook's preliminary round. Errors MUST count every error a
+  team made in the counted quizzes, whether or not it cost points, and MUST NOT count fouls. Teams
+  still tied MUST share a rank and be flagged.
 * **FR-011a**: Head-to-head MUST count only the counted quizzes in which the tied teams played each
   other, and compare how often each finished above the other; other teams' places don't matter. With
   two tied teams, the one that finished above the other in more of those quizzes ranks ahead. With
@@ -397,11 +402,13 @@ and pick teams from the list when setting up a quiz in that division.
 * **FR-017**: Meet admins MUST be able to keep a list of team names per division for the meet, and a
   scoresheet linked to the meet, or last submitted to it, MUST offer that list while still accepting
   typed names.
-* **FR-018**: Meet admins (and superusers) MUST be able to view and change all of a meet's stored
-  quizzes and their history, count them, and see the standings. An official MUST be able to view and
-  change only the quizzes of the rooms they officiate (those with a revision saved for one of them),
-  with their history, and MAY see whether a quiz counts but MUST NOT change it or see the standings.
-  Officials MUST only be able to submit or upload to the meet of the rooms they officiate.
+* **FR-018** (amended by 006-meet-stats: standings are no longer for admins alone; officials,
+  coaches and viewers see them as the meet's stats settings give them, FR-019 there): Meet admins
+  (and superusers) MUST be able to view and change all of a meet's stored quizzes and their history,
+  count them, and see the standings. An official MUST be able to view and change only the quizzes of
+  the rooms they officiate (those with a revision saved for one of them), with their history, and
+  MAY see whether a quiz counts but MUST NOT change it or see the standings. Officials MUST only be
+  able to submit or upload to the meet of the rooms they officiate.
 * **FR-019**: Standings MUST always use the newest revision of each counted quiz, with no further
   action after a counted quiz is resubmitted or edited.
 
@@ -444,6 +451,7 @@ and pick teams from the list when setting up a quiz in that division.
   the access design describes. The two apps share an origin, so a code joined in either works in
   both.
 * Standings use the placement points each quiz computes under its own placement formula setting.
+  (Amended by 006-meet-stats: they use the meet's way of scoring level teams, FR-023a there.)
 * In a scheduled meet, quizzes linked to a schedule slot will be counted automatically. That arrives
   with schedule result linkage (#16) and is out of scope here.
 * "Fewest errors" counts every error, including those that cost no points, and no fouls. The

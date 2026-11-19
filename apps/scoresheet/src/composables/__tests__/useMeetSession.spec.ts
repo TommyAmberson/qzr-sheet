@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ApiError } from '@qzr/shared'
+import { ApiError, DEFAULT_STATS_SETTINGS, PlacementFormula } from '@qzr/shared'
 import type { MeetTeam, ScheduledQuizDetails } from '../../api'
 
 // Mock the API module before importing useMeetSession
@@ -8,9 +8,16 @@ vi.mock('../../api', () => ({
   getTeamQuizzers: vi.fn(),
   getScheduledQuiz: vi.fn(),
   getSender: vi.fn(),
+  getStatsSettings: vi.fn(),
 }))
 
-import { getMeetTeams, getScheduledQuiz, getSender, getTeamQuizzers } from '../../api'
+import {
+  getMeetTeams,
+  getScheduledQuiz,
+  getSender,
+  getStatsSettings,
+  getTeamQuizzers,
+} from '../../api'
 import { quizzersConfirmTeam, teamNamed, teamsNearName, useMeetSession } from '../useMeetSession'
 
 const mockTeams: MeetTeam[] = [
@@ -55,6 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getMeetTeams).mockResolvedValue({ teams: mockTeams, meetDivisions: ['1', '2'] })
   vi.mocked(getTeamQuizzers).mockResolvedValue({ quizzers: mockQuizzers })
+  vi.mocked(getStatsSettings).mockResolvedValue({ settings: DEFAULT_STATS_SETTINGS })
   setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
 })
 
@@ -293,6 +301,46 @@ describe('useMeetSession — slotFor + commitLink', () => {
     expect(getSlot(0)?.teamId).toBe(1)
     expect(getSlot(1)).toBeUndefined()
     expect(quizId.value).toBe('555')
+  })
+
+  it("keeps the meet's way of scoring level teams (FR-023b)", async () => {
+    vi.mocked(getStatsSettings).mockResolvedValue({
+      settings: { ...DEFAULT_STATS_SETTINGS, levelTeams: PlacementFormula.Legacy },
+    })
+    const { loadMeet, levelTeams } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    expect(levelTeams.value).toBe(PlacementFormula.Legacy)
+  })
+
+  it("links a meet whose settings can't be read, keeping what was known of them", async () => {
+    vi.mocked(getStatsSettings).mockResolvedValue({
+      settings: { ...DEFAULT_STATS_SETTINGS, levelTeams: PlacementFormula.Legacy },
+    })
+    const { loadMeet, fetchMeet, commitLink, levelTeams } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    vi.mocked(getStatsSettings).mockRejectedValue(new Error('offline'))
+    const meet = await fetchMeet(42)
+    expect(meet.levelTeams).toBeUndefined()
+    commitLink({
+      meetId: 42,
+      meetName: 'Finals',
+      ...meet,
+      slots: [],
+      quizId: null,
+      scheduledQuiz: null,
+    })
+    expect(levelTeams.value).toBe(PlacementFormula.Legacy)
+  })
+
+  it("renews the meet's way of scoring level teams with the rest of the meet", async () => {
+    const { loadMeet, refresh, levelTeams } = useMeetSession()
+    await loadMeet(42, 'Finals')
+    expect(levelTeams.value).toBe(PlacementFormula.Rules)
+    vi.mocked(getStatsSettings).mockResolvedValue({
+      settings: { ...DEFAULT_STATS_SETTINGS, levelTeams: PlacementFormula.Legacy },
+    })
+    expect(await refresh()).toBe(true)
+    expect(levelTeams.value).toBe(PlacementFormula.Legacy)
   })
 
   it('fetching a meet keeps nothing until it is committed', async () => {

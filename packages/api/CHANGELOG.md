@@ -17,6 +17,45 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-18
+
+### Added
+
+* Table `meet_stats_settings` (migration `0015`): a meet's stats settings, one row per save, the
+  newest being the settings. `GET /stats/settings` for any member, `PUT /stats/settings` for admins
+  (400 for an invalid document, 409 once the meet is done)
+* Table `division_confirmations` (migration `0016`): each confirmation or withdrawal of a division's
+  prelim order or re-rank, with the order as it stood or the quizzes seated from it
+* A division's state gains `finals`, between `elim_running` and `division_done`. Moving on warns,
+  409 with `missing`, of scheduled quizzes of the stage it ends that are missing or not counting;
+  moving to `stats_break` confirms the prelim order and to `elim_running` the re-rank where the
+  division has intermediates; moving back withdraws it, 409 with `affected` first where quizzes
+  seated from it are stored, which are then flagged. `confirm` goes ahead
+* `GET /divisions/state` gives each division whether it is ready for its next step, what is missing,
+  who confirmed its orders, and the stages its schedule has
+* `POST /results/:id/keep` keeps a quiz seated from a withdrawn order as it is
+* `GET /stats` says whether the caller is one of the meet's admins, and `GET /stats/settings` tells
+  admins how many stored quizzes score level teams another way than the meet
+* `POST /results/formula` sets quizzes scored another way to the meet's way of scoring level teams,
+  each by an `edited` revision keeping its acceptance; `GET /results` marks such a quiz
+  `otherFormula`, and a quiz seated from a withdrawn order `withdrawnOrder`
+
+### Changed
+
+* `GET /stats` and `GET /stats/:division` answer every member, a guest included, cut to what the
+  meet's settings give them; admins still get everything, or what a viewer gets with `?as=viewer`.
+  An official also gets what is wrong with their own rooms' quizzes. Before `live`, anyone but an
+  admin gets nothing
+* Standings and the re-rank follow the meet's tie-break order and way of scoring level teams, and a
+  confirmed order stands as it was confirmed, admins seeing the current one beside it
+* Overtime played in a prelim or intermediate is a problem of the quiz where the meet plays them
+  without overtime, on by default
+* The division in a state route's path is taken as the meet spells it
+
+### Bundled contract
+
+* `@qzr/shared@1.14.0` - bumped from 1.13.0
+
 ## [0.27.1] - 2026-11-17
 
 ### Changed

@@ -15,6 +15,18 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-18
+
+### Changed
+
+* A quiz linked to a meet, or loaded from it, scores teams level in a quiz the meet's way, taken
+  when it is linked and before it is sent, so its placement points match the meet's tables. A sheet
+  that can't reach the meet keeps the quiz's own way.
+
+### Bundled contract
+
+* `@qzr/shared@1.14.0` - bumped from 1.13.0
+
 ## [0.24.0] - 2026-11-17
 
 ### Changed

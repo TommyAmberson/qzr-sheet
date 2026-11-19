@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
-import { MeetRole, type DivisionStats, type QuizFile } from '@qzr/shared'
+import {
+  DEFAULT_STATS_SETTINGS,
+  MeetRole,
+  PlacementFormula,
+  type DivisionStateValue,
+  type DivisionStats,
+  type QuizFile,
+  type StatsSettings,
+} from '@qzr/shared'
 import { eq, sql } from 'drizzle-orm'
 import { fifteenQuestionQuizFile } from '../../../../shared/src/scoring/__tests__/fixtures/fifteenQuestionQuiz'
 import type { Bindings } from '../../bindings'
@@ -139,6 +147,8 @@ describe('a save whose score cannot be kept', () => {
 describe('GET /api/meets/:id/stats', () => {
   it("lists the meet's divisions in its order, then any only a stored quiz names", async () => {
     await store(quiz('1', (file) => (file.quiz.division = 'Open')))
+    // A quiz with no division is in none
+    await store(quiz('2', (file) => (file.quiz.division = '')))
     await db.insert(schema.divisionStates).values({
       meetId,
       division: '2',
@@ -149,6 +159,7 @@ describe('GET /api/meets/:id/stats', () => {
     expect(res.status).toBe(200)
     expect(await jsonOf(res)).toEqual({
       phase: 'live',
+      admin: true,
       divisions: [
         { division: '1', state: 'prelim_running' },
         { division: '2', state: 'stats_break' },
@@ -202,12 +213,8 @@ describe('GET /api/meets/:id/stats/:division', () => {
     expect((await division('7')).status).toBe(404)
   })
 
-  it('refuses an account with no access to the meet, a guest viewer for now, and a caller with none', async () => {
+  it('refuses an account with no access to the meet, and a caller with none', async () => {
     expect((await division('1', testUser)).status).toBe(403)
-    const viewer = { meetId, role: MeetRole.Viewer } as GuestPayload
-    expect((await as(null, viewer).request(`/api/meets/${meetId}/stats/1`, {}, env)).status).toBe(
-      403,
-    )
     expect((await division('1', null)).status).toBe(401)
   })
 
@@ -240,5 +247,317 @@ describe('GET /api/meets/:id/stats/:division', () => {
     expect(res.status).toBe(200)
     expect((await jsonOf<DivisionStats>(res)).results[0]!.quizzes[0]!.name).toBe('D1 Q1')
     expect((await scoreRows())[0]!.sharedVersion).toBe(SHARED_VERSION)
+  })
+})
+
+describe('the stats settings', () => {
+  const read = (user: SessionUser | null, guest: GuestPayload | null = null) =>
+    as(user, guest).request(`/api/meets/${meetId}/stats/settings`, {}, env)
+  const save = (settings: unknown) =>
+    as(testSuperuser).request(
+      `/api/meets/${meetId}/stats/settings`,
+      jsonRequest('PUT', { settings }),
+      env,
+    )
+  const scoresForPrelims = {
+    ...DEFAULT_STATS_SETTINGS,
+    results: { ...DEFAULT_STATS_SETTINGS.results, prelim: { from: 'start', level: 'scores' } },
+  }
+
+  it('tell admins how many stored quizzes score level teams another way', async () => {
+    await store(quiz('1', (file) => (file.quiz.placementFormula = PlacementFormula.Legacy)))
+    expect(await jsonOf(await read(testSuperuser))).toMatchObject({ otherFormula: 1 })
+  })
+
+  it('are the defaults until an admin saves them, and any member may read them', async () => {
+    const viewer = { meetId, role: MeetRole.Viewer } as GuestPayload
+    const res = await read(null, viewer)
+    expect(res.status).toBe(200)
+    expect(await jsonOf(res)).toEqual({ settings: DEFAULT_STATS_SETTINGS })
+    expect((await read(testUser)).status).toBe(403)
+    expect((await read(null)).status).toBe(401)
+  })
+
+  it('keep each save with who made it and when, the newest being the settings', async () => {
+    expect((await save(DEFAULT_STATS_SETTINGS)).status).toBe(200)
+    const res = await save(scoresForPrelims)
+    expect(res.status).toBe(200)
+    expect(await jsonOf(res)).toMatchObject({
+      settings: scoresForPrelims,
+      changed: { by: testSuperuser.name },
+    })
+    expect(await db.select().from(schema.meetStatsSettings)).toHaveLength(2)
+    // Who changed them is for admins
+    const viewer = { meetId, role: MeetRole.Viewer } as GuestPayload
+    expect(await jsonOf(await read(null, viewer))).toEqual({ settings: scoresForPrelims })
+  })
+
+  it("refuse a document that isn't one, and a stage's results shown before it is played", async () => {
+    expect((await save({ ...DEFAULT_STATS_SETTINGS, tieBreaks: 'coinToss' })).status).toBe(400)
+    const early = {
+      ...DEFAULT_STATS_SETTINGS,
+      results: { ...DEFAULT_STATS_SETTINGS.results, finals: { from: 'start', level: 'places' } },
+    }
+    expect((await save(early)).status).toBe(400)
+    expect(await db.select().from(schema.meetStatsSettings)).toHaveLength(0)
+  })
+
+  it('are saved by admins alone, and not once the meet is done', async () => {
+    const viewer = { meetId, role: MeetRole.Viewer } as GuestPayload
+    const byViewer = await as(null, viewer).request(
+      `/api/meets/${meetId}/stats/settings`,
+      jsonRequest('PUT', { settings: DEFAULT_STATS_SETTINGS }),
+      env,
+    )
+    expect(byViewer.status).toBe(403)
+    await db.update(schema.quizMeets).set({ phase: 'done' }).where(eq(schema.quizMeets.id, meetId))
+    const done = await save(DEFAULT_STATS_SETTINGS)
+    expect(done.status).toBe(409)
+    expect(await jsonOf(done)).toMatchObject({ meetPhase: 'done' })
+  })
+})
+
+describe('what viewers, coaches and officials are given (FR-017 to FR-021, SC-005)', () => {
+  const viewer = () => ({ meetId, role: MeetRole.Viewer }) as GuestPayload
+  const asViewer = (path = '1') =>
+    as(null, viewer()).request(`/api/meets/${meetId}/stats/${path}`, {}, env)
+  const viewed = async () => jsonOf<DivisionStats>(await asViewer())
+  const saveSettings = (change: (s: StatsSettings) => void) => {
+    const settings = structuredClone(DEFAULT_STATS_SETTINGS)
+    change(settings)
+    return as(testSuperuser).request(
+      `/api/meets/${meetId}/stats/settings`,
+      jsonRequest('PUT', { settings }),
+      env,
+    )
+  }
+  const setState = (state: DivisionStateValue) =>
+    db
+      .insert(schema.divisionStates)
+      .values({ meetId, division: '1', state, transitionedAt: new Date() })
+
+  it('gives prelim results with places only by default, and no standings, warnings or ids', async () => {
+    await store(quiz('1'))
+    const body = await viewed()
+    expect(body.results).toEqual([
+      {
+        stage: 'prelim',
+        level: 'places',
+        quizzes: [
+          {
+            name: 'D1 Q1',
+            status: 'counted',
+            teams: [
+              { name: 'Team A', place: 1 },
+              { name: 'Team B', place: 3 },
+              { name: 'Team C', place: 2 },
+            ],
+          },
+        ],
+      },
+    ])
+    expect(body.prelimStandings).toBeUndefined()
+    expect(body.rerank).toBeUndefined()
+    expect(body.quizzers).toBeUndefined()
+    expect(body.warnings).toBeUndefined()
+  })
+
+  it('gives scores where the stage is set to them, and live standings where set', async () => {
+    await store(quiz('1'))
+    expect(
+      (
+        await saveSettings((s) => {
+          s.results.prelim.level = 'scores'
+          s.prelimStandingsLive = true
+        })
+      ).status,
+    ).toBe(200)
+    const body = await viewed()
+    expect(body.results[0]!.quizzes[0]!.teams[0]).toEqual({ name: 'Team A', place: 1, score: 200 })
+    expect(body.prelimStandings).toMatchObject({ state: 'livePreview' })
+    // The quizzes behind each total stay with admins
+    expect(body.prelimStandings!.teams.every((team) => team.lines.length === 0)).toBe(true)
+  })
+
+  it('lists a quiz in error as under review with its teams alone, and never one not counted', async () => {
+    await store(
+      quiz('1', (file) => (file.answers = file.answers.filter((a) => a.columnKey !== '15'))),
+    )
+    await store(quiz('2'), false)
+    const [prelims] = (await viewed()).results
+    expect(prelims!.quizzes).toEqual([
+      {
+        name: 'D1 Q1',
+        status: 'underReview',
+        teams: [{ name: 'Team A' }, { name: 'Team B' }, { name: 'Team C' }],
+      },
+    ])
+  })
+
+  it('gives each thing only from its moment', async () => {
+    await store(quiz('1'))
+    await saveSettings((s) => (s.quizzers = { from: 'prelimsConfirmed', update: 'byStage' }))
+    expect((await viewed()).quizzers).toBeUndefined()
+    await setState('stats_break')
+    const body = await viewed()
+    // Moved on with no order recorded as confirmed, the current order is no more than a preview
+    expect(body.prelimStandings).toMatchObject({ state: 'livePreview' })
+    expect(body.quizzers).toMatchObject({ state: 'preview', through: 'prelim' })
+    expect(body.quizzers!.lists[0]!.quizzers[0]!.flags).toEqual([])
+  })
+
+  it('gives an official what is wrong with the quizzes of their own rooms, and not of others', async () => {
+    const rooms = await db
+      .insert(schema.meetRooms)
+      .values([
+        { meetId, name: 'Room 1' },
+        { meetId, name: 'Room 2' },
+      ])
+      .returning()
+    const unanswered = (n: string) =>
+      quiz(n, (file) => (file.answers = file.answers.filter((a) => a.columnKey !== '15')))
+    const ours = await store(unanswered('1'))
+    const theirs = await store(unanswered('2'))
+    for (const [id, room] of [
+      [ours, rooms[0]!.id],
+      [theirs, rooms[1]!.id],
+    ]) {
+      await db
+        .update(schema.quizResultRevisions)
+        .set({ savedByRoomId: room })
+        .where(eq(schema.quizResultRevisions.resultId, id!))
+    }
+    const official = { meetId, role: MeetRole.Official, roomId: rooms[0]!.id } as GuestPayload
+    const body = await jsonOf<DivisionStats>(
+      await as(null, official).request(`/api/meets/${meetId}/stats/1`, {}, env),
+    )
+    const [first, second] = body.results[0]!.quizzes
+    // The fixture records no question types, so its types are incomplete
+    expect(first).toMatchObject({
+      id: ours,
+      problems: [{ kind: 'unanswered' }],
+      incompleteTypes: true,
+    })
+    expect(second!.id).toBeUndefined()
+    expect(second!.problems).toBeUndefined()
+    expect(second!.incompleteTypes).toBeUndefined()
+    expect(body.warnings).toBeUndefined()
+  })
+
+  it('gives an admin the page as a viewer sees it, when asked', async () => {
+    await store(quiz('1'))
+    const res = await as(testSuperuser).request(`/api/meets/${meetId}/stats/1?as=viewer`, {}, env)
+    const body = await jsonOf<DivisionStats>(res)
+    expect(body.results[0]!.level).toBe('places')
+    expect(body.warnings).toBeUndefined()
+  })
+
+  it('gives a signed-in member what a viewer gets', async () => {
+    await db.insert(schema.viewerMemberships).values({ accountId: testUser.id, meetId })
+    await store(quiz('1'))
+    const body = await jsonOf<DivisionStats>(await division('1', testUser))
+    expect(body.results[0]!.level).toBe('places')
+    expect(body.warnings).toBeUndefined()
+  })
+
+  it('gives anyone but an admin nothing while the meet is in registration or build', async () => {
+    await store(quiz('1'))
+    await saveSettings((s) => (s.prelimStandingsLive = true))
+    for (const phase of ['registration', 'build'] as const) {
+      await db.update(schema.quizMeets).set({ phase }).where(eq(schema.quizMeets.id, meetId))
+      const body = await viewed()
+      expect(body.results).toEqual([])
+      expect(body.prelimStandings).toBeUndefined()
+      const list = await as(null, viewer()).request(`/api/meets/${meetId}/stats`, {}, env)
+      expect(await jsonOf(list)).toEqual({ phase, admin: false, divisions: [] })
+      // An admin still sees everything
+      expect((await jsonOf<DivisionStats>(await division('1'))).results).toHaveLength(1)
+    }
+  })
+
+  it("lists the meet's divisions for a member", async () => {
+    const res = await as(null, viewer()).request(`/api/meets/${meetId}/stats`, {}, env)
+    expect(res.status).toBe(200)
+    expect(await jsonOf(res)).toMatchObject({ divisions: [{ division: '1' }, { division: '2' }] })
+  })
+})
+
+describe("quizzes scored another way than the meet's (FR-023a, FR-023b)", () => {
+  const legacy = (n: string) =>
+    quiz(n, (file) => (file.quiz.placementFormula = PlacementFormula.Legacy))
+  const listed = async () =>
+    jsonOf<{ id: number; revision: number; otherFormula?: true; accepted: boolean }[]>(
+      await as(testSuperuser).request(`/api/meets/${meetId}/results`, {}, env),
+    )
+  const setToMeet = () =>
+    as(testSuperuser).request(`/api/meets/${meetId}/results/formula`, { method: 'POST' }, env)
+
+  it('carry a note, and still count', async () => {
+    await store(legacy('1'))
+    await store(quiz('2'))
+    expect((await listed()).map((q) => q.otherFormula)).toEqual([true, undefined])
+    expect((await jsonOf<DivisionStats>(await division('1'))).results[0]!.quizzes).toHaveLength(2)
+  })
+
+  it("are set to the meet's way in one action, each by a new edited revision", async () => {
+    const id = await store(legacy('1'))
+    await store(quiz('2'))
+    const res = await setToMeet()
+    expect(res.status).toBe(200)
+    expect(await jsonOf(res)).toEqual({ changed: 1, remaining: 0 })
+    const after = await listed()
+    expect(after.find((q) => q.id === id)).toMatchObject({ revision: 2 })
+    expect(after.every((q) => q.otherFormula === undefined)).toBe(true)
+    expect(await jsonOf(await setToMeet())).toEqual({ changed: 0, remaining: 0 })
+  })
+
+  it('keep an acceptance across the new revision', async () => {
+    const id = await store(
+      quiz('1', (file) => {
+        file.quiz.placementFormula = PlacementFormula.Legacy
+        file.answers = file.answers.filter((a) => a.columnKey !== '15')
+      }),
+    )
+    const accepted = await as(testSuperuser).request(
+      `/api/meets/${meetId}/results/${id}/acceptance`,
+      jsonRequest('PUT', { revision: 1, accepted: true }),
+      env,
+    )
+    expect(accepted.status).toBe(200)
+    await setToMeet()
+    expect((await listed())[0]).toMatchObject({ revision: 2, accepted: true })
+  })
+
+  it('take a file that names no way of its own as scoring by the rulebook', async () => {
+    const settings = { ...DEFAULT_STATS_SETTINGS, levelTeams: PlacementFormula.Legacy }
+    await as(testSuperuser).request(
+      `/api/meets/${meetId}/stats/settings`,
+      jsonRequest('PUT', { settings }),
+      env,
+    )
+    const id = await store(quiz('1'))
+    // As an older file might be stored, with no way of its own
+    const [revision] = await db.select().from(schema.quizResultRevisions)
+    const file = JSON.parse(revision!.quizFile!) as { quiz: Record<string, unknown> }
+    delete file.quiz.placementFormula
+    await db
+      .update(schema.quizResultRevisions)
+      .set({ quizFile: JSON.stringify(file) })
+      .where(eq(schema.quizResultRevisions.resultId, id))
+    expect((await listed())[0]!.otherFormula).toBe(true)
+    expect(await jsonOf(await setToMeet())).toEqual({ changed: 1, remaining: 0 })
+  })
+
+  it('change no stored quiz when the setting is switched', async () => {
+    await store(legacy('1'))
+    const before = await scoreRows()
+    const settings = { ...DEFAULT_STATS_SETTINGS, levelTeams: PlacementFormula.Legacy }
+    await as(testSuperuser).request(
+      `/api/meets/${meetId}/stats/settings`,
+      jsonRequest('PUT', { settings }),
+      env,
+    )
+    expect(await scoreRows()).toEqual(before)
+    expect((await listed())[0]!.otherFormula).toBeUndefined()
   })
 })

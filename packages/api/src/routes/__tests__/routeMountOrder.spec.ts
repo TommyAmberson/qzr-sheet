@@ -260,9 +260,8 @@ describe('route mount order: a guest reaches the stats router', () => {
     const meet = await seedMeet(db, 'Stats Meet', { phase: 'live' })
     const app = mountRoutes(db, { meetId: meet.id, role: MeetRole.Viewer })
     const res = await app.request(`/api/meets/${meet.id}/stats`, {}, env)
-    // Stats are for admins until viewers are given them; an account-only router would say
-    // "Account required"
-    expect(res.status).toBe(403)
-    expect(await jsonOf(res)).toEqual({ error: 'Admin access required' })
+    // An account-only router would turn the guest away with "Account required"
+    expect(res.status).toBe(200)
+    expect(await jsonOf(res)).toEqual({ phase: 'live', admin: false, divisions: [] })
   })
 })

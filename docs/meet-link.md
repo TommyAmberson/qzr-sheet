@@ -18,6 +18,11 @@ gives it teams, rosters and divisions, and to one **scheduled quiz** of the meet
 schedule, which says which quiz this is. A scheduled quiz link implies the meet link. The header
 shows both in one place, with the menu that makes and removes them.
 
+Linking to a meet, or loading a quiz from it, also sets the quiz's way of scoring teams level in a
+quiz to the meet's, read from its stats settings, so the sheet's placement points match the meet's
+tables (specs/006-meet-stats, FR-023b). It is kept in the meet session with the rest of the meet. A
+sheet that can't read the settings keeps its own way.
+
 ## New, Open and Link
 
 Three actions, each doing one thing. Only New and Open replace what is on the sheet, and they ask

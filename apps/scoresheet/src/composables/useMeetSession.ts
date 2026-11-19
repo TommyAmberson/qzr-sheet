@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import {
   getMeetTeams,
   getScheduledQuiz,
+  getStatsSettings,
   getTeamQuizzers,
   type MeetTeam,
   type MeetTeamQuizzer,
@@ -14,6 +15,7 @@ import {
   teamDisplayName,
   teamNamed as rosterTeamNamed,
   teamsNearName as rosterTeamsNearName,
+  type PlacementFormula,
 } from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 import { senderOf } from './useSubmitToMeet'
@@ -62,6 +64,11 @@ export interface MeetSessionData {
   scheduledQuiz?: ScheduledQuizCopy | null
   /** Set when the user may send quizzes to this meet, and for which rooms */
   sender: Sender | null
+  /**
+   * How the meet scores teams level in a quiz, which a quiz worked on with it takes (FR-023b).
+   * Absent where the meet's settings couldn't be read: the sheet keeps its own then.
+   */
+  levelTeams?: PlacementFormula
 }
 
 const session = ref<MeetSessionData | null>(loadFromStorage())
@@ -80,6 +87,7 @@ export function useMeetSession() {
   const teamList = computed(() => session.value?.teamList ?? [])
   const quizId = computed(() => session.value?.quizId ?? null)
   const scheduledQuiz = computed(() => session.value?.scheduledQuiz ?? null)
+  const levelTeams = computed(() => session.value?.levelTeams)
 
   /** Division options for the scoresheet dropdown — the meet's canonical division list. */
   const divisionOptions = computed((): string[] => session.value?.meetDivisions ?? [])
@@ -127,14 +135,19 @@ export function useMeetSession() {
    * What a meet gives the sheet to link against, fetched and not yet kept: a link is worked out
    * from this and committed in one step, so one that is cancelled or fails changes nothing.
    */
-  async function fetchMeet(
-    meetId: number,
-  ): Promise<{ teams: MeetTeam[]; meetDivisions: string[]; sender: Sender | null | undefined }> {
-    const [{ teams, meetDivisions }, sender] = await Promise.all([
+  async function fetchMeet(meetId: number): Promise<{
+    teams: MeetTeam[]
+    meetDivisions: string[]
+    sender: Sender | null | undefined
+    levelTeams: PlacementFormula | undefined
+  }> {
+    const [{ teams, meetDivisions }, sender, settings] = await Promise.all([
       getMeetTeams(meetId),
       senderOf(meetId),
+      // The meet's way of scoring level teams is the sheet's to take, not to wait for
+      getStatsSettings(meetId).catch(() => null),
     ])
-    return { teams, meetDivisions, sender }
+    return { teams, meetDivisions, sender, levelTeams: settings?.settings.levelTeams }
   }
 
   /**
@@ -148,11 +161,14 @@ export function useMeetSession() {
     meetDivisions: string[]
     /** Undefined when who the user is there couldn't be told: what was known is kept */
     sender: Sender | null | undefined
+    /** Undefined when the meet's settings couldn't be read: what was known is kept */
+    levelTeams: PlacementFormula | undefined
     slots: (SlotSession | undefined)[]
     quizId: string | null
     scheduledQuiz: ScheduledQuizCopy | null
   }): void {
-    const known = session.value?.meetId === link.meetId ? session.value.sender : null
+    const same = session.value?.meetId === link.meetId
+    const known = same ? session.value!.sender : null
     quizEpoch++
     session.value = {
       meetId: link.meetId,
@@ -163,6 +179,7 @@ export function useMeetSession() {
       quizId: link.quizId,
       scheduledQuiz: link.scheduledQuiz,
       sender: link.sender === undefined ? known : link.sender,
+      levelTeams: link.levelTeams ?? (same ? session.value!.levelTeams : undefined),
     }
     persist()
   }
@@ -359,9 +376,10 @@ export function useMeetSession() {
     // with what was fetched for the meet and the quiz before it
     const { meetId: fetchedMeetId, quizId: fetchedQuizId, scheduledQuiz: held } = session.value
     try {
-      const [{ teams, meetDivisions }, sender, scheduled] = await Promise.all([
+      const [{ teams, meetDivisions }, sender, settings, scheduled] = await Promise.all([
         getMeetTeams(fetchedMeetId),
         senderOf(fetchedMeetId),
+        getStatsSettings(fetchedMeetId).catch(() => null),
         // The schedule failing leaves its copy held; the roster is still renewed
         fetchedQuizId === null
           ? null
@@ -375,6 +393,7 @@ export function useMeetSession() {
         teamList: teams,
         meetDivisions,
         sender: sender === undefined ? session.value.sender : sender,
+        levelTeams: settings?.settings.levelTeams ?? session.value.levelTeams,
         ...(sameQuiz && scheduled ? { scheduledQuiz: scheduled } : {}),
       }
       persist()
@@ -405,6 +424,7 @@ export function useMeetSession() {
     isActive,
     meetId,
     sender,
+    levelTeams,
     meetName,
     teamList,
     quizId,

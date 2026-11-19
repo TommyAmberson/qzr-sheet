@@ -267,13 +267,14 @@ rejected. Facts about the current code come from reading it on 2026-11-14 (maste
     missing from the quiz.
   * Schedule errors come from the match between a quiz and a scheduled quiz (R4), and from the
     quiz's stage: an elimination or Finals level with no overtime (the rulebook's rule), and, where
-    the meet's setting says its prelims have no overtime (not the rulebook, so a setting, on by
-    default, FR-023d), overtime played in a prelim or an intermediate. Scoring one revision keeps
-    each team's place, whose key shows a shared place, and will keep whether overtime was played
-    once the setting arrives, so the stage check needs no rescoring. Roster and schedule errors are
-    worked out when a quiz is read, never kept, so a corrected roster or a republished schedule
-    clears them with no rescoring. An acceptance covers every kind (R6), and stands for its revision
-    if the roster or schedule later changes.
+    the meet's setting says its prelims have no overtime (the rulebook is ambiguous, Types of
+    Quizzes 1.d against Scoring 1.e.iv, and these meets have long played prelims without it, so a
+    setting, on by default, FR-023d), overtime played in a prelim or an intermediate. Scoring one
+    revision keeps each team's place, whose key shows a shared place, and will keep whether overtime
+    was played once the setting arrives, so the stage check needs no rescoring. Roster and schedule
+    errors are worked out when a quiz is read, never kept, so a corrected roster or a republished
+    schedule clears them with no rescoring. An acceptance covers every kind (R6), and stands for its
+    revision if the roster or schedule later changes.
 * **Rationale**: The maintainer's ruling of 2026-11-14 with the scoresheet session: an error is
   wrong whatever the meet, and a roster or schedule problem is known only against a meet. The
   scoresheet shows the last two as warnings while linked; in the portal, which always has the meet,
