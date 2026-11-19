@@ -201,7 +201,10 @@ A seat the schedule hasn't decided (an elimination seat, until results fill it i
 nothing. Clicking the warning count opens the list with each fix as a button that says what it will
 do. A move swaps two whole teams, each with its name, quizzers, answers, timeouts and on-time mark
 (`swapTeams`), so no score changes, and undo takes it back; so does a replacement. A replaced slot
-keeps the quizzer names typed in it, held against the new team's roster.
+keeps the quizzer names typed in it, held against the new team's roster. Undo and redo otherwise
+treat the links as typing the names back would: after each, the seats are held against their
+quizzers by name again, and a team's pick stays, flagged if its name no longer names it. That is
+what an undo brought back by a reload does, since the session's own pick changes are not kept.
 
 Neither warnings nor scoring errors block a submission: both are listed and asked about once before
 it goes. Teams are only held against the roster when it has teams for the quiz's division. With no

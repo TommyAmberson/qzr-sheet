@@ -82,14 +82,17 @@ import {
   waiting,
   warnings,
 } from './linkedSheet'
+import { currentTab, startTab } from '../../persistence/autoSave'
 
-const session = () => useMeetSession().snapshotSession()
+// The link as the tab keeps it with its quiz
+const session = () => currentTab()!.link
 const pickedTeams = () => [0, 1, 2].map((slot) => useMeetSession().getSlot(slot)?.teamId)
 const alerts = vi.fn()
 
-beforeEach(() => {
+beforeEach(async () => {
   stubDialogs()
   localStorage.clear()
+  await startTab()
   useMeetSession().clearSession()
   window.history.replaceState(null, '', '/')
   vi.stubGlobal('alert', alerts)
@@ -156,43 +159,11 @@ describe('New from schedule', () => {
     expect(linkedDisplay(sheet)).toContain('Div 1 Quiz 7')
   })
 
-  it('asks before replacing names typed by hand, and not names it filled in itself', async () => {
-    const sheet = await mountSheet()
-    await typeTeam(sheet, 0, 'Lions')
-    vi.mocked(confirmAction).mockResolvedValue(false)
-
-    expect(await pickScheduled(sheet, 'New', 'New from schedule')).toBe(false)
-    expect(teamNames(sheet)).toEqual(['Lions', '', ''])
-
-    vi.mocked(confirmAction).mockClear().mockResolvedValue(true)
-    expect(await pickScheduled(sheet, 'New', 'New from schedule')).toBe(true)
-    vi.mocked(confirmAction).mockClear()
-    await sheet.vm.newQuiz()
-    expect(confirmAction).not.toHaveBeenCalled()
-  })
-
   it('is a 20-question quiz, whatever the sheet had', async () => {
     const sheet = await mountSheet()
     await sheet.vm.newQuiz(QuizFormat.FifteenQuestion)
     await pickScheduled(sheet, 'New', 'New from schedule')
     expect(sheet.text()).toContain('20 Q')
-  })
-
-  it('leaves everything as it was when the unsaved-changes question is declined', async () => {
-    const sheet = await autoSaved(
-      quizFile([
-        ['Calgary 1', 'Ann'],
-        ['Lions', 'Leo'],
-      ]),
-    )
-    vi.mocked(confirmAction).mockResolvedValue(false)
-
-    expect(await pickScheduled(sheet, 'New', 'New from schedule')).toBe(false)
-
-    expect(confirmAction).toHaveBeenCalled()
-    expect(getScheduledQuiz).not.toHaveBeenCalled()
-    expect(teamNames(sheet)).toEqual(['Calgary 1', 'Lions', ''])
-    expect(session()).toBeNull()
   })
 
   it('says so and changes nothing when the meet is out of reach', async () => {
@@ -391,9 +362,27 @@ describe('Link', () => {
     })
     const sheet = await mountSheet()
     await pickScheduled(sheet, 'Link', 'Link a scheduled quiz')
+    const quiz = (sheet.vm as unknown as { quiz: QuizFile['quiz'] }).quiz
+    expect(quiz.placementFormula).toBe(PlacementFormula.Legacy)
+    // Taken with the link on a sheet nothing was done to by hand: part of its start, not a step
+    expect(sheet.get('[title^="Undo"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('holds seats against their quizzers again when an undo after a reload moves them', async () => {
+    const first = await mountSheet()
+    await pickScheduled(first, 'Link', 'Link a scheduled quiz')
+    const [one, two] = quizzerNames(first)[0]!
+    ;(
+      first.vm as unknown as { moveQuizzerAndSync: (t: number, f: number, to: number) => void }
+    ).moveQuizzerAndSync(0, 0, 1)
     await autoSaveWritten()
-    const saved = JSON.parse(localStorage.getItem('qzr-sheet:current')!) as QuizFile
-    expect(saved.quiz.placementFormula).toBe(PlacementFormula.Legacy)
+    // The page reloads: the step comes back without the session's own pick reorder
+    const sheet = await mountSheet()
+    expect(quizzerNames(sheet)[0]!.slice(0, 2)).toEqual([two, one])
+    await sheet.get('[title^="Undo"]').trigger('click')
+    expect(quizzerNames(sheet)[0]!.slice(0, 2)).toEqual([one, two])
+    expect(useMeetSession().getDbName(0, 0)).toBe(one)
+    expect(useMeetSession().getDbName(0, 1)).toBe(two)
   })
 
   it('survives a reload', async () => {
@@ -467,7 +456,7 @@ describe('Link', () => {
   it('refreshes a link kept from before copies whose quiz the schedule has since dropped', async () => {
     const sheet = await mountSheet()
     await pickScheduled(sheet, 'New', 'New from schedule')
-    const kept = useMeetSession().snapshotSession()!
+    const kept = currentTab()!.link!
     useMeetSession().restoreSession({ ...kept, scheduledQuiz: undefined })
     vi.mocked(getScheduledQuiz).mockResolvedValue(null)
     await sheet.get('[aria-label="Refetch names from the meet and schedule"]').trigger('click')
@@ -631,7 +620,7 @@ describe('Open', () => {
     expect(pageText()).toContain('Nothing is stored for Div 1 Quiz 7')
   })
 
-  it('leaves the sheet and both links alone when declined, or cancelled while waiting', async () => {
+  it('leaves the sheet and both links alone when cancelled while waiting', async () => {
     const sheet = await autoSaved(
       quizFile([
         ['Calgary 1', 'Ann'],
@@ -643,11 +632,6 @@ describe('Open', () => {
     const file = quizFile([['Saskatoon 1', 'Sam']])
     const open = () => storedPick(sheet)(MEET_ID, MEET_NAME, file)
 
-    vi.mocked(confirmAction).mockResolvedValue(false)
-    expect(await open()).toBe(false)
-    expect({ names: teamNames(sheet), session: session() }).toEqual(before)
-
-    vi.mocked(confirmAction).mockResolvedValue(true)
     const meet = held<Awaited<ReturnType<typeof getMeetTeams>>>()
     vi.mocked(getMeetTeams).mockReturnValue(meet.promise)
     const opening = open()

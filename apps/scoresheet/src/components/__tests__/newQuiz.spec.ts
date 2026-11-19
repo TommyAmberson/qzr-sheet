@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { currentTab, startTab } from '../../persistence/autoSave'
 import { mount } from '@vue/test-utils'
 import Scoresheet from '../Scoresheet.vue'
 import { useMeetSession, type MeetSessionData } from '../../composables/useMeetSession'
@@ -13,8 +14,9 @@ const linked: MeetSessionData = {
   sender: { admin: false, rooms: [] },
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear()
+  await startTab()
   useMeetSession().restoreSession(structuredClone(linked))
 })
 
@@ -23,7 +25,7 @@ describe('starting a new quiz in a linked meet', () => {
     const wrapper = mount(Scoresheet)
     // Ctrl+N reaches newQuiz directly, not through the New menu
     await wrapper.vm.newQuiz()
-    const session = useMeetSession().snapshotSession()
+    const session = currentTab()!.link
     expect(session).toMatchObject({ meetId: 3, sender: { admin: false, rooms: [] }, quizId: null })
   })
 })

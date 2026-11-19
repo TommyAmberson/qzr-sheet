@@ -2,29 +2,14 @@ import { ref, computed, watch, nextTick } from 'vue'
 import {
   CellValue,
   type ColIdx,
-  type DeserializeResult,
-  NewerFileVersionError,
-  parseQuizFile,
   QUIZZERS_PER_TEAM,
   type SeatIdx,
   type TeamIdx,
   type Timeout,
 } from '@qzr/shared'
-import { serializeStore } from '../persistence/quizFile'
-import {
-  keepNewerAutoSave,
-  keepNewerInPlace,
-  hasNewerKeptInPlace,
-  removeOnceSaved,
-} from '../persistence/autoSave'
 import type { QuizStore } from '../stores/quizStore'
 import { standInNames, TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
 import { useMeetSession, type MeetSessionData } from './useMeetSession'
-
-const SNAPSHOT_KEY = 'qzr-sheet:tutorial-snapshot'
-const MEET_SNAPSHOT_KEY = 'qzr-sheet:tutorial-meet-snapshot'
-// Set while the tutorial holds aside a quiz opened from a newer file, so its warning comes back
-const FROM_NEWER_KEY = 'qzr-sheet:tutorial-from-newer-file'
 
 export interface ScoresheetAPI {
   store: QuizStore
@@ -35,7 +20,6 @@ export interface ScoresheetAPI {
   teams: { value: { id: number; seatOrder: number; name: string; onTime: boolean }[] }
   teamQuizzers: { value: { name: string; seatOrder: number }[][] }
   quiz: { value: { overtime: boolean } }
-  openedFromNewerFile: { value: boolean }
   setQuizzerName: (teamIdx: TeamIdx, seatIdx: SeatIdx, name: string) => void
   setTeamName: (teamIdx: TeamIdx, name: string) => void
   setCell: (teamIdx: TeamIdx, seatIdx: SeatIdx, colIdx: ColIdx, value: CellValue) => void
@@ -43,9 +27,9 @@ export interface ScoresheetAPI {
   toggleTimeout: (teamId: number, colKey: string) => void
   toggleOnTime: (teamIdx: TeamIdx) => void
   moveQuizzer: (teamIdx: TeamIdx, from: SeatIdx, to: SeatIdx) => void
-  loadFile: (data: DeserializeResult, options?: { fromNewerFile?: boolean }) => void
   resetStore: () => void
-  refreshKeptNewerAutoSaves: () => void
+  setAside: () => void
+  bringBack: () => void
   columns: { value: { key: string }[] }
 }
 
@@ -55,16 +39,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   const currentStepIndex = ref(0)
   const targetEls = ref<HTMLElement[]>([])
   const stepCompleted = ref(false)
-  // In-memory copy of the parsed snapshot — the normal `finish()` path restores
-  // from this, not from the serialized string, so a parse failure at finish time
-  // can't destroy the user's pre-tutorial state.
-  let snapshotData: DeserializeResult | null = null
-  // Pre-tutorial meet link. A linked meet keeps the real quiz's team picks and
-  // flags names against its roster, which would mark up the walkthrough's
-  // made-up teams, so we unlink for the walkthrough and re-link on finish.
-  let meetSnapshot: MeetSessionData | null = null
-  // Whether the snapshotted quiz carried the opened-from-newer-file warning
-  let snapshotFromNewer = false
+  // The tab's meet link while the walkthrough runs unlinked
+  let linkBefore: MeetSessionData | null = null
   let cleanupFns: (() => void)[] = []
 
   const currentStep = computed<TutorialStep | null>(() =>
@@ -74,50 +50,13 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   const totalSteps = TUTORIAL_STEPS.length
 
   function start() {
-    // A newer quiz kept in place pins the crash-recovery and auto-save slots the tutorial relies
-    // on, so the tutorial waits until it is discarded (a deliberate trade-off; see the spec)
-    if (hasNewerKeptInPlace()) return
-    const serialized = serializeStore(
-      scoresheet.store,
-      scoresheet.noJumpMap.value,
-      scoresheet.timeoutMap.value,
-    )
-    // Parse immediately to verify we can restore later, and keep the parsed
-    // form in memory. If this throws, refuse to start — the user's state is
-    // still intact because we haven't touched the store yet.
-    try {
-      snapshotData = parseQuizFile(serialized)
-    } catch (e) {
-      console.error('Tutorial: failed to snapshot current state, not starting', e)
-      return
-    }
-    try {
-      localStorage.setItem(SNAPSHOT_KEY, serialized)
-    } catch {
-      // localStorage full — proceed without crash recovery
-    }
-    snapshotFromNewer = scoresheet.openedFromNewerFile.value
-    try {
-      if (snapshotFromNewer) localStorage.setItem(FROM_NEWER_KEY, '1')
-      else localStorage.removeItem(FROM_NEWER_KEY)
-    } catch {
-      // localStorage full — the warning still returns on a normal finish
-    }
-
-    // Snapshot and clear the meet link so the walkthrough's names aren't
-    // checked against a real roster. Persist a copy too so a mid-tutorial
-    // crash recovery can restore the link along with the quiz state.
-    meetSnapshot = meetSession.snapshotSession()
-    if (meetSnapshot) {
-      try {
-        localStorage.setItem(MEET_SNAPSHOT_KEY, JSON.stringify(meetSnapshot))
-      } catch {
-        // localStorage full — proceed; the in-memory snapshot still restores on finish
-      }
-      meetSession.clearSession()
-    }
-
-    scoresheet.pauseAutoSave.value = true
+    // The quiz is set aside while the practice quiz is on the sheet, and comes back when the
+    // tutorial ends, or with a reload
+    scoresheet.setAside()
+    // A linked meet keeps the real quiz's team picks and flags names against its roster, which
+    // would mark up the walkthrough's made-up teams, so the walkthrough runs unlinked
+    linkBefore = meetSession.currentLink()
+    meetSession.clearSession()
     scoresheet.resetStore()
     standInNames(scoresheet)
 
@@ -332,91 +271,17 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   function finish() {
     cleanup()
     targetEls.value = []
-
-    // Prefer the in-memory snapshot (no parse needed) so the normal exit path
-    // is immune to parse failures. Fall back to localStorage only if the
-    // in-memory copy was lost (e.g. tutorial was entered via crash recovery).
-    if (snapshotData) {
-      scoresheet.loadFile(snapshotData, { fromNewerFile: snapshotFromNewer })
-    } else {
-      const saved = localStorage.getItem(SNAPSHOT_KEY)
-      if (saved) {
-        try {
-          scoresheet.loadFile(parseQuizFile(saved), {
-            fromNewerFile: localStorage.getItem(FROM_NEWER_KEY) === '1',
-          })
-        } catch (e) {
-          // Leave the current store state alone rather than wiping it —
-          // leaking tutorial state is strictly better than destroying user data.
-          console.error('Tutorial: failed to restore snapshot on finish', e)
-        }
-      }
-    }
-
-    // Restore the meet link if the user had one before starting.
-    if (meetSnapshot) {
-      meetSession.restoreSession(meetSnapshot)
-      meetSnapshot = null
-    }
-    try {
-      localStorage.removeItem(MEET_SNAPSHOT_KEY)
-    } catch {
-      // ignore
-    }
-
+    // The quiz set aside back, and its link
+    scoresheet.bringBack()
+    meetSession.restoreSession(linkBefore)
+    linkBefore = null
     scoresheet.pauseAutoSave.value = false
     active.value = false
-    snapshotData = null
-    snapshotFromNewer = false
-    try {
-      localStorage.removeItem(SNAPSHOT_KEY)
-      localStorage.removeItem(FROM_NEWER_KEY)
-    } catch {
-      // ignore
-    }
   }
 
   function cleanup() {
     cleanupFns.forEach((fn) => fn())
     cleanupFns = []
-  }
-
-  function recoverFromCrash(): boolean {
-    const saved = localStorage.getItem(SNAPSHOT_KEY)
-    if (!saved) return false
-    try {
-      const data = parseQuizFile(saved)
-      scoresheet.loadFile(data, { fromNewerFile: localStorage.getItem(FROM_NEWER_KEY) === '1' })
-      // The snapshot is the quiz's only copy until it is saved, which waits while auto-save is paused
-      removeOnceSaved(SNAPSHOT_KEY)
-      localStorage.removeItem(FROM_NEWER_KEY)
-    } catch (e) {
-      if (e instanceof NewerFileVersionError) {
-        // A newer build's snapshot is the only copy of its quiz: set it aside like a newer
-        // auto-save, or keep it where it is (listed, never overwritten) if that fails
-        if (keepNewerAutoSave(saved)) localStorage.removeItem(SNAPSHOT_KEY)
-        else keepNewerInPlace(SNAPSHOT_KEY)
-        scoresheet.refreshKeptNewerAutoSaves()
-      } else {
-        // The parse failed — clean up so we don't leak stale state.
-        localStorage.removeItem(SNAPSHOT_KEY)
-      }
-      localStorage.removeItem(MEET_SNAPSHOT_KEY)
-      localStorage.removeItem(FROM_NEWER_KEY)
-      return false
-    }
-    // Re-link the meet if a snapshot was persisted. Best-effort: if the
-    // payload is malformed we drop it and the user re-picks via the dialog.
-    const savedMeet = localStorage.getItem(MEET_SNAPSHOT_KEY)
-    if (savedMeet) {
-      try {
-        meetSession.restoreSession(JSON.parse(savedMeet) as MeetSessionData)
-      } catch {
-        // ignore — meet just stays unlinked
-      }
-      localStorage.removeItem(MEET_SNAPSHOT_KEY)
-    }
-    return true
   }
 
   return {
@@ -430,6 +295,5 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
     advance,
     onNext,
     finish,
-    recoverFromCrash,
   }
 }

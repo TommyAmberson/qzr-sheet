@@ -19,8 +19,7 @@ import {
 } from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 import { senderOf } from './useSubmitToMeet'
-
-const STORAGE_KEY = 'qzr-meet-session'
+import { currentTab, setTabLink } from '../persistence/autoSave'
 
 export interface SlotSession {
   teamId: number
@@ -71,7 +70,8 @@ export interface MeetSessionData {
   levelTeams?: PlacementFormula
 }
 
-const session = ref<MeetSessionData | null>(loadFromStorage())
+// The tab's own link, which it started with
+const session = ref<MeetSessionData | null>(currentTab()?.link ?? null)
 
 /**
  * Counts the quizzes the session has stood for: stepped whenever its picks are replaced wholesale
@@ -346,18 +346,12 @@ export function useMeetSession() {
     persist()
   }
 
-  /**
-   * Deep-clone the current session — used by the tutorial to stash the meet
-   * link before clearing it. JSON round-trip rather than structuredClone
-   * because session.value is a Vue reactive proxy and structuredClone rejects
-   * it; the existing localStorage persistence does the same coercion anyway.
-   */
-  function snapshotSession(): MeetSessionData | null {
-    if (!session.value) return null
-    return JSON.parse(JSON.stringify(session.value)) as MeetSessionData
+  /** The link as it stands, to put back later with restoreSession */
+  function currentLink(): MeetSessionData | null {
+    return session.value
   }
 
-  /** Restore a previously-snapshotted session (or clear if null). */
+  /** Put back a link kept with a quiz (or clear it, for null) */
   function restoreSession(data: MeetSessionData | null): void {
     quizEpoch++
     session.value = data
@@ -453,8 +447,8 @@ export function useMeetSession() {
     isTeamNameDiverged,
     getDbName,
     clearSession,
+    currentLink,
     startNewQuiz,
-    snapshotSession,
     restoreSession,
     refresh,
   }
@@ -604,27 +598,5 @@ function matchQuizzers(
 }
 
 function persist() {
-  if (session.value === null) {
-    localStorage.removeItem(STORAGE_KEY)
-  } else {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(session.value))
-  }
-}
-
-function loadFromStorage(): MeetSessionData | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const data = JSON.parse(raw) as MeetSessionData
-    // Migrate fields added after old sessions were persisted.
-    if (!data.meetDivisions) data.meetDivisions = []
-    if (data.quizId === undefined) data.quizId = null
-    // Quiz ids were numbers before schedules became documents; converted meets kept them as strings
-    if (typeof data.quizId === 'number') data.quizId = String(data.quizId)
-    if (data.sender === undefined) data.sender = null
-    if (data.scheduledQuiz === undefined) data.scheduledQuiz = null
-    return data
-  } catch {
-    return null
-  }
+  setTabLink(session.value)
 }

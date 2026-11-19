@@ -8,6 +8,8 @@ import { PlacementFormula, type QuizFile } from '@qzr/shared'
 
 import type { MeetTeam, MeetTeamQuizzer, ScheduledQuizDetails, StoredQuiz } from '../../api'
 import Scoresheet from '../Scoresheet.vue'
+import { startTab } from '../../persistence/autoSave'
+import { aRecord } from '../../persistence/__tests__/records'
 
 export const MEET_ID = 3
 export const MEET_NAME = 'Practice'
@@ -232,8 +234,9 @@ export const warnings = (sheet: Sheet) =>
 export const waiting = () => document.querySelector('.waiting-dialog__text') !== null
 
 /** A sheet restored from an auto-save: one with changes that a New or an Open would lose */
-export function autoSaved(file: QuizFile) {
-  localStorage.setItem('qzr-sheet:current', JSON.stringify(file))
+export async function autoSaved(file: QuizFile) {
+  const tab = await startTab()
+  tab.record = aRecord({ id: tab.id, current: { file: JSON.stringify(file), undo: [], redo: [] } })
   return mountSheet()
 }
 

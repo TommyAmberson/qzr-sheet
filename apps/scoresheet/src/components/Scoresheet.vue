@@ -34,7 +34,7 @@ import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
-import { serializeStore, storeToQuizFile } from '../persistence/quizFile'
+import { canonicalQuizFile, serializeStore, storeToQuizFile } from '../persistence/quizFile'
 import {
   saveQuizToFile,
   openAnyQuizFile,
@@ -74,6 +74,7 @@ import {
   type RoomCodeOptions,
   type Sender,
   DivisionInput,
+  type HistoryCommand,
 } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 import {
@@ -91,9 +92,20 @@ import { useTutorial } from '../composables/useTutorial'
 import MeetPickerDialog from './MeetPickerDialog.vue'
 import MeetWarningsDialog, { type MeetWarning } from './MeetWarningsDialog.vue'
 import StoredQuizPickerDialog from './StoredQuizPickerDialog.vue'
+import RecentQuizzesDialog from './RecentQuizzesDialog.vue'
+import {
+  findMatch,
+  startNotes,
+  takeDropped,
+  type Opened,
+  type QuizRecord,
+  type RecordClaim,
+  type StateKind,
+} from '../persistence/autoSave'
 import SchedulePickerDialog from './SchedulePickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
 import TutorialOverlay from './TutorialOverlay.vue'
+import { portalLink } from '../portalLink'
 
 const { theme, toggleTheme } = useTheme()
 
@@ -101,6 +113,7 @@ const meetSession = useMeetSession()
 const meetPickerRef = ref<InstanceType<typeof MeetPickerDialog> | null>(null)
 const schedulePickerRef = ref<InstanceType<typeof SchedulePickerDialog> | null>(null)
 const storedPickerRef = ref<InstanceType<typeof StoredQuizPickerDialog> | null>(null)
+const recentRef = ref<InstanceType<typeof RecentQuizzesDialog> | null>(null)
 const warningsDialogRef = ref<InstanceType<typeof MeetWarningsDialog> | null>(null)
 const waitingDialogRef = ref<HTMLDialogElement | null>(null)
 const openPickerSlot = ref<number | null>(null)
@@ -126,7 +139,76 @@ onMounted(() => {
   // from a link only to look at keeps the way it was scored
   void meetSession.refresh()
   void loadFromUrlParams()
+  const { offer, waiting, dropped } = startNotes()
+  if (offer.length > 0) recentRef.value?.offer(offer)
+  waitingQuizzes.value = waiting
+  droppedQuizzes.value = dropped
 })
+
+// ---- Recent quizzes ----
+
+/** Unsaved quizzes from closed tabs, said on a tab opened by a link, which offers none */
+const waitingQuizzes = ref(0)
+/** Unsaved quizzes dropped to stay within the limits, named once */
+const droppedQuizzes = ref<string[]>([])
+
+function seeRecentQuizzes() {
+  waitingQuizzes.value = 0
+  void listRecentQuizzes()
+}
+
+/** List the recent quizzes, and name the unsaved ones the limits dropped since they were last named */
+async function listRecentQuizzes() {
+  void recentRef.value?.list()
+  droppedQuizzes.value = [...droppedQuizzes.value, ...(await takeDropped())]
+}
+
+function openRecentQuizzes() {
+  closeMenus()
+  void listRecentQuizzes()
+}
+
+/** A recent quiz the tab has claimed replaces the one it shows, which goes to the recent quizzes */
+function restoreRecent(record: QuizRecord, claim: RecordClaim, state: StateKind) {
+  meetSession.restoreSession(restoreQuiz(record, claim, state))
+}
+
+/** A newer version's quiz opens as a copy, read as well as this version can; it stays listed */
+async function openNewerRecent(record: QuizRecord): Promise<boolean> {
+  if (!(await confirmAction(TRY_NEWER_PROMPT))) return false
+  try {
+    const data = parseQuizFileAttempt(record.newerRaw!)
+    replaceQuiz()
+    loadFile(data, { fromNewerFile: true })
+    meetSession.restoreSession(record.link)
+    return true
+  } catch (e) {
+    alert(`Failed to open the quiz: ${e instanceof Error ? e.message : e}`)
+    return false
+  }
+}
+
+/** An Open matched a quiz open in another tab, and opened as a separate one */
+const openedElsewhere = ref(false)
+
+/**
+ * Show an opened quiz: as the recent quiz it came from, continued in the matched state with its link
+ * and history, or else as a new quiz. True when it continued a recent quiz.
+ */
+async function showOpened(
+  data: DeserializeResult,
+  { fromNewerFile = false, fromMeet }: { fromNewerFile?: boolean; fromMeet?: Opened['fromMeet'] },
+): Promise<boolean> {
+  const match = await findMatch({ file: canonicalQuizFile(data), fromMeet })
+  openedElsewhere.value = match === 'held'
+  if (match && match !== 'held') {
+    restoreRecent(match.record, match.claim, match.state)
+    return true
+  }
+  replaceQuiz()
+  loadFile(data, { fromNewerFile })
+  return false
+}
 
 // ---- Waiting on the meet ----
 
@@ -439,7 +521,9 @@ function misspeltTeam(
  */
 function takeMeetScoring() {
   const levelTeams = meetSession.levelTeams.value
-  if (levelTeams !== undefined) quiz.value.placementFormula = levelTeams
+  if (levelTeams === undefined || quiz.value.placementFormula === levelTeams) return
+  // A change the sheet makes, so undone like the rest once something was done by hand
+  editBySheet(() => (quiz.value.placementFormula = levelTeams))
 }
 
 /** Make a link that `planLink` worked out, in one step */
@@ -452,16 +536,19 @@ function applyLink(plan: LinkPlan) {
     quizId: plan.quizId,
     scheduledQuiz: plan.scheduledQuiz,
   })
-  takeMeetScoring()
-  if (plan.quiz.division !== undefined) quiz.value.division = plan.quiz.division
-  if (plan.quiz.consolation !== undefined) quiz.value.consolation = plan.quiz.consolation
-  if (plan.quiz.quizNumber !== undefined) quiz.value.quizNumber = plan.quiz.quizNumber
-  for (const { slotIdx, teamName, seats } of plan.names) {
-    if (teamName !== undefined) setTeamName(slotIdx, teamName)
-    seats.forEach((name, seatIdx) => {
-      if (name !== undefined) setQuizzerName(slotIdx, seatIdx, name)
-    })
-  }
+  // Names a link fills in on a quiz with nothing done by hand are its start, not an edit
+  editBySheet(() => {
+    takeMeetScoring()
+    if (plan.quiz.division !== undefined) quiz.value.division = plan.quiz.division
+    if (plan.quiz.consolation !== undefined) quiz.value.consolation = plan.quiz.consolation
+    if (plan.quiz.quizNumber !== undefined) quiz.value.quizNumber = plan.quiz.quizNumber
+    for (const { slotIdx, teamName, seats } of plan.names) {
+      if (teamName !== undefined) setTeamName(slotIdx, teamName)
+      seats.forEach((name, seatIdx) => {
+        if (name !== undefined) setQuizzerName(slotIdx, seatIdx, name)
+      })
+    }
+  })
 }
 
 /** Link what is on the sheet. False when it was cancelled or the meet was out of reach. */
@@ -489,7 +576,6 @@ function linkPickedMeet(meet: MeetSummary) {
 }
 
 async function openPickedStored(meetId: number, meetName: string, quizFile: QuizFile) {
-  if (!(await confirmDiscard('Open this quiz from the meet?'))) return false
   return openStored(meetId, quizFile, { meetName })
 }
 
@@ -515,12 +601,6 @@ watch(waitingFor, (what) => {
 })
 
 // ---- New from schedule, and opening what the meet holds ----
-
-/** Ask before replacing a sheet with unsaved changes: true when there are none or the user agrees */
-async function confirmDiscard(question: string): Promise<boolean> {
-  if (!isDirty.value && !namesChanged.value) return true
-  return confirmAction(`${question} Unsaved changes will be lost.`)
-}
 
 /** The stored quiz that is a scheduled quiz: the one sharing its name, as the meet stores quizzes */
 function storedFor(
@@ -552,14 +632,9 @@ async function scheduleEntryOf(
   return quizId === undefined ? null : { quizId, schedule }
 }
 
-/** Start a scheduled quiz on a blank sheet, linked to it. Also what the portal's schedule links do */
-async function newFromSchedule(meetId: number, quizId: string): Promise<boolean> {
-  if (!(await confirmDiscard('Start this quiz?'))) return false
-  return startScheduled(meetId, quizId)
-}
-
 /**
- * Start a scheduled quiz, asking first when the meet already holds a result for it. Nothing changes
+ * Start a scheduled quiz on a blank sheet, linked to it, as the portal's schedule links do too.
+ * Asks first when the meet already holds a result for it. Nothing changes
  * until the schedule has arrived.
  */
 async function startScheduled(meetId: number, quizId: string): Promise<boolean> {
@@ -587,17 +662,16 @@ async function startScheduled(meetId: number, quizId: string): Promise<boolean> 
     if (!choice) return false
     if (choice === 'open') return openStored(meetId, stored.quizFile, { quizId })
   }
+  replaceQuiz()
   resetStore(QuizFormat.TwentyQuestion)
   applyLink(plan)
-  // The names the link filled in are the quiz's own, not typing a new quiz would lose
-  keepNames()
   return true
 }
 
 /**
  * Open a quiz the meet holds, exactly as if its file had been opened and then linked: to the
- * meet, and to its scheduled quiz when it has one. Nothing changes until the meet has answered.
- * The caller has asked about unsaved changes.
+ * meet, and to its scheduled quiz when it has one. Nothing changes until the meet has answered;
+ * the quiz it replaces then goes to the recent quizzes.
  */
 async function openStored(
   meetId: number,
@@ -626,15 +700,16 @@ async function openStored(
     })
   })
   if (!plan) return false
-  loadFile(data, { fromNewerFile })
+  const fromMeet = { meetId, quizId: plan.arrived.quizId }
+  await showOpened(data, { fromNewerFile, fromMeet })
   applyLink(plan.arrived)
-  keepNames()
+  // Opened as the meet holds it: as submitted, to the scheduled quiz it is linked to
+  markSubmitted(meetId, meetSession.quizId.value)
   return true
 }
 
 /** Open the stored quiz of a scheduled quiz; with none stored, offer to start it instead */
 async function openFromSchedule(meetId: number, quizId: string): Promise<boolean> {
-  if (!(await confirmDiscard('Open this quiz from the meet?'))) return false
   const found = await waitOnMeet('Opening the quiz', async () => {
     const [scheduled, stored] = await Promise.all([
       getScheduledQuiz(meetId, quizId),
@@ -663,32 +738,19 @@ async function openFromSchedule(meetId: number, quizId: string): Promise<boolean
 
 /** Open one version of a stored quiz: what the portal's stored quiz links do */
 async function openStoredVersion(meetId: number, resultId: number, revision: number) {
-  if (!(await confirmDiscard('Open this quiz from the meet?'))) return
   const fetched = await waitOnMeet('Opening the quiz', () =>
     getRevision(meetId, resultId, revision),
   )
   if (fetched) await openStored(meetId, fetched.arrived.quizFile)
 }
 
-/** Strip ?meetId=&quiz= from the URL after use — set by the
- *  portal's schedule view when the user clicks a quiz cell — or
- *  ?meetId=&result=&revision=, set by the portal's quiz page to open a
- *  stored quiz (`meet` in links shared before). Always strips the params so a refresh doesn't
- *  re-clobber edits. */
+/** Open what a portal link names, then take the link off the address so a reload doesn't open it again */
 async function loadFromUrlParams() {
-  const params = new URLSearchParams(window.location.search)
-  // Portal links name the meet in `meetId`; links shared before that used `meet`
-  const meetId = Number(params.get('meetId') ?? params.get('meet'))
-  const quizId = params.get('quiz') ?? ''
-  const resultId = Number(params.get('result'))
-  const revision = Number(params.get('revision'))
-  const scheduled = quizId !== ''
-  const stored =
-    resultId > 0 && Number.isInteger(resultId) && revision > 0 && Number.isInteger(revision)
-  if (!(meetId > 0 && Number.isInteger(meetId)) || !(scheduled || stored)) return
+  const link = portalLink(window.location.search)
+  if (!link) return
   try {
-    if (scheduled) await newFromSchedule(meetId, quizId)
-    else await openStoredVersion(meetId, resultId, revision)
+    if ('quizId' in link) await startScheduled(link.meetId, link.quizId)
+    else await openStoredVersion(link.meetId, link.resultId, link.revision)
   } finally {
     history.replaceState(null, '', window.location.pathname)
   }
@@ -706,7 +768,7 @@ function openStoredPicker() {
 
 /** What picking a quiz in the schedule picker does, set by the menu item that opened it */
 const SCHEDULE_PICKS = {
-  new: { title: 'New from schedule', pick: newFromSchedule },
+  new: { title: 'New from schedule', pick: startScheduled },
   open: { title: 'Open from the schedule', pick: openFromSchedule },
   link: {
     title: 'Link a scheduled quiz',
@@ -744,12 +806,14 @@ async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
   // Fill empty store seats with the DB names that were matched to those positions
   const slot = meetSession.getSlot(slotIdx)
   if (!slot) return
-  if (!keepName) setTeamName(slotIdx, slot.dbLabelFull)
-  for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-    if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
-      setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+  edit(() => {
+    if (!keepName) setTeamName(slotIdx, slot.dbLabelFull)
+    for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+      if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
+        setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+      }
     }
-  }
+  })
 }
 
 const filteredTeamList = computed(() =>
@@ -891,12 +955,6 @@ const {
   visibleOtRounds,
   rules,
   openedFromNewerFile,
-  keptNewerAutoSaves,
-  autoSavePausedForKept,
-  tutorialBlockedByKept,
-  refreshKeptNewerAutoSaves,
-  openKeptNewerAutoSave,
-  discardKeptNewerAutoSave,
   allQuestionsComplete,
   validationErrors,
   timeoutValidationErrors,
@@ -917,24 +975,29 @@ const {
   hasTimeoutAt,
   hasTimeoutAfterCol,
   pauseAutoSave,
+  keepFailed,
   loadFile,
   resetStore,
   clearAnswers,
   clearNames,
   canUndo,
   canRedo,
-  isDirty,
-  namesChanged,
-  keepNames,
+  unsaved,
+  edit,
+  editBySheet,
+  setQuizField,
+  markSubmitted,
+  replaceQuiz,
+  restoreQuiz,
   undo,
   redo,
   markSaved,
+  setAside,
+  bringBack,
 } = useScoresheet()
 
 const tutorial = useTutorial({
   store,
-  openedFromNewerFile,
-  refreshKeptNewerAutoSaves,
   noJumpMap,
   timeoutMap,
   pauseAutoSave,
@@ -950,10 +1013,10 @@ const tutorial = useTutorial({
   toggleTimeout,
   toggleOnTime,
   moveQuizzer,
-  loadFile,
   resetStore,
+  setAside,
+  bringBack,
 })
-tutorial.recoverFromCrash()
 
 /** What a warning calls a team: its name, or its place on the sheet while it has none */
 function teamCalled(slotIdx: number, name: string): string {
@@ -979,6 +1042,15 @@ function swapPicksIn(meetId: number | null, slotA: number, slotB: number) {
   return () => {
     if (meetSession.meetId.value === meetId) meetSession.swapSlots(slotA, slotB)
   }
+}
+
+/** What an edit does to the meet's picks, undone and redone only while its meet is still linked */
+function inThisMeet(change: HistoryCommand): HistoryCommand {
+  const meetId = meetSession.meetId.value
+  const guarded = (run: () => void) => () => {
+    if (meetSession.meetId.value === meetId) run()
+  }
+  return { undo: guarded(change.undo), redo: guarded(change.redo) }
 }
 
 /**
@@ -1051,10 +1123,11 @@ const meetWarningEntries = computed<MeetWarning[]>(() => {
             : `Division: none chosen, schedule has ${theirs}`,
           fix: {
             label: `Set division to ${theirs}`,
-            run: () => {
-              quiz.value.division = scheduled.division
-              quiz.value.consolation = scheduled.consolation
-            },
+            run: () =>
+              edit(() => {
+                quiz.value.division = scheduled.division
+                quiz.value.consolation = scheduled.consolation
+              }),
           },
         })
       }
@@ -1065,7 +1138,7 @@ const meetWarningEntries = computed<MeetWarning[]>(() => {
             : `Quiz: no number given, schedule has ${scheduled.quizNumber}`,
           fix: {
             label: `Set quiz to ${scheduled.quizNumber}`,
-            run: () => (quiz.value.quizNumber = scheduled.quizNumber),
+            run: () => edit(() => (quiz.value.quizNumber = scheduled.quizNumber)),
           },
         })
       }
@@ -1326,13 +1399,34 @@ const { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardM
     isBonusForTeam,
     isAfterOut,
     isFouledOnQuestion,
-    undo,
-    redo,
+    undo: undoEdit,
+    redo: redoEdit,
   })
 
+/**
+ * Undo and redo change the names as typing them back would, and the meet's picks follow them as
+ * they follow typing: each seat is held against its quizzer by name, as on leaving a name field,
+ * and a team's pick stays, flagged when the name no longer names it. Steps made in this session
+ * also put their own picks back, so this changes nothing for them.
+ */
+function undoEdit() {
+  undo()
+  relinkAllSeats()
+}
+
+function redoEdit() {
+  redo()
+  relinkAllSeats()
+}
+
+function relinkAllSeats() {
+  teams.value.forEach((_, slotIdx) => relinkSeats(slotIdx))
+}
+
 function moveQuizzerAndSync(teamIdx: number, from: number, to: number) {
-  moveQuizzer(teamIdx, from, to)
-  meetSession.reorderSlotQuizzers(teamIdx, from, to)
+  // A swap of seats is its own undoing
+  const reorder = () => meetSession.reorderSlotQuizzers(teamIdx, from, to)
+  moveQuizzer(teamIdx, from, to, inThisMeet({ undo: reorder, redo: reorder }))
 }
 const { dragState, dropTarget, dropIndicatorWidth, registerRowEl, onPointerDown } = useDragReorder(
   teamQuizzers,
@@ -1431,14 +1525,14 @@ async function saveFile() {
 }
 
 async function openFile() {
-  if (!(await confirmDiscard('Open a file?'))) return
   const result = await openAnyQuizFile()
   if (!result) return
   try {
     if (result.type === 'ods') {
       const data = deserialize(readOds(result.content))
-      loadFile(data)
-      meetSession.clearSession()
+      // A file stands by itself, unless it continues a recent quiz, which keeps its link
+      if (!(await showOpened(data, {}))) meetSession.clearSession()
+      markSaved()
     } else {
       await openJsonQuiz(result.content)
     }
@@ -1464,42 +1558,15 @@ async function parseForOpen(
   }
 }
 
-/** Open a quiz file. A file stands by itself: the sheet is linked to no meet afterwards. */
+/**
+ * Open a quiz file. A file stands by itself: the sheet is linked to no meet afterwards, unless it
+ * continues a recent quiz, which keeps its link.
+ */
 async function openJsonQuiz(json: string) {
   const opened = await parseForOpen(json)
   if (!opened) return
-  loadFile(opened.data, { fromNewerFile: opened.fromNewerFile })
-  meetSession.clearSession()
-}
-
-function startTutorial() {
-  if (tutorialBlockedByKept.value) {
-    alert(
-      'The tutorial is unavailable while a quiz from a newer version is kept. Discard it first ' +
-        '(to keep a copy, open it and save it to a file before discarding).',
-    )
-    return
-  }
-  tutorial.start()
-}
-
-async function tryOpenKeptAutoSave() {
-  if (!(await confirmDiscard('Open the kept quiz?'))) return
-  if (!(await confirmAction(TRY_NEWER_PROMPT))) return
-  try {
-    openKeptNewerAutoSave()
-    meetSession.clearSession()
-  } catch (e) {
-    alert(`Failed to open the kept quiz: ${e instanceof Error ? e.message : e}`)
-  }
-}
-
-async function discardKeptAutoSave() {
-  if (
-    !(await confirmAction('Discard the quiz auto-saved by a newer version? This cannot be undone.'))
-  )
-    return
-  discardKeptNewerAutoSave()
+  if (!(await showOpened(opened.data, opened))) meetSession.clearSession()
+  markSaved()
 }
 
 // A Record, so a new format fails type-checking until it has labels of its own
@@ -1514,7 +1581,7 @@ const QUIZ_FORMATS = Object.values(QuizFormat)
  * teams. With no format (Ctrl+N), repeat the current quiz's: practice meets run many in a row.
  */
 async function newQuiz(format = quiz.value.format) {
-  if (!(await confirmDiscard('Start a new quiz?'))) return
+  replaceQuiz()
   resetStore(format)
   meetSession.startNewQuiz()
 }
@@ -1714,6 +1781,10 @@ async function doSubmitToMeet() {
       outcome = await send(choice)
     }
     if (!outcome?.stored) return
+    markSubmitted(
+      target.id,
+      target.id === meetSession.meetId.value ? meetSession.quizId.value : null,
+    )
     // Name the room it was stored for
     const room = target.sender.rooms.find((r) => r.id === roomId)?.name
     const where = room ? `${meet}, ${room}` : meet
@@ -1742,16 +1813,21 @@ async function doNewQuiz(format: QuizFormat) {
 
 async function doClearAnswers() {
   closeMenus()
-  if (isDirty.value && !(await confirmAction('Clear all answers? This cannot be undone.'))) return
+  if (unsaved.value && !(await confirmAction('Clear all answers?'))) return
   clearAnswers()
 }
 
 async function doClearNames() {
   closeMenus()
-  if (!(await confirmAction('Clear all names? This cannot be undone.'))) return
-  clearNames()
-  // Blank names name no team: a linked sheet's picks go with them
-  for (let slotIdx = 0; slotIdx < 3; slotIdx++) meetSession.clearSlot(slotIdx)
+  if (!(await confirmAction('Clear all names?'))) return
+  // Blank names name no team: a linked sheet's picks go with them, and come back with an undo
+  const picks = [0, 1, 2].map((slotIdx) => meetSession.getSlot(slotIdx))
+  clearNames(
+    inThisMeet({
+      redo: () => picks.forEach((_, slotIdx) => meetSession.clearSlot(slotIdx)),
+      undo: () => picks.forEach((pick, slotIdx) => meetSession.setSlot(slotIdx, pick)),
+    }),
+  )
 }
 
 function doUnlinkMeet() {
@@ -1926,8 +2002,9 @@ const appVersion: string = __APP_VERSION__
                     v-if="
                       meetSession.isActive.value && meetSession.divisionOptions.value.length > 0
                     "
-                    v-model="quiz.division"
+                    :value="quiz.division"
                     class="division-select"
+                    @change="setQuizField('division', ($event.target as HTMLSelectElement).value)"
                   >
                     <!-- A lone division is chosen for the quiz, so there is no "none" to go back to -->
                     <option v-if="meetSession.divisionOptions.value.length !== 1" value="">
@@ -1943,17 +2020,18 @@ const appVersion: string = __APP_VERSION__
                   </select>
                   <DivisionInput
                     v-else
-                    v-model="quiz.division"
+                    :model-value="quiz.division"
                     class="division-text"
                     bare
                     type="text"
                     aria-label="Division"
+                    @update:model-value="setQuizField('division', $event ?? '')"
                   />
                 </label>
                 <span
                   class="consolation-toggle"
                   :class="{ 'consolation-toggle--active': quiz.consolation }"
-                  @click="quiz.consolation = !quiz.consolation"
+                  @click="setQuizField('consolation', !quiz.consolation)"
                 >
                   <span class="on-time-box">✓</span>
                   <span class="on-time-label" title="Consolation bracket">c</span>
@@ -1961,12 +2039,18 @@ const appVersion: string = __APP_VERSION__
                 <span class="meta-group-sep" />
                 <label class="meta-field">
                   <span class="meta-label">Quiz</span>
-                  <input v-model="quiz.quizNumber" type="text" />
+                  <input
+                    :value="quiz.quizNumber"
+                    type="text"
+                    @input="setQuizField('quizNumber', ($event.target as HTMLInputElement).value)"
+                  />
                 </label>
               </div>
               <div class="meta-field meta-field--undo">
-                <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
-                <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
+                <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undoEdit">↶</button>
+                <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redoEdit">
+                  ↷
+                </button>
               </div>
               <span
                 :class="[
@@ -2057,6 +2141,7 @@ const appVersion: string = __APP_VERSION__
                     <button @click="doOpenFile">⤒ From file…</button>
                     <button @click="openStoredPicker">🔗 From the meet…</button>
                     <button @click="openSchedulePicker('open')">📅 From the schedule…</button>
+                    <button @click="openRecentQuizzes">🕘 Recent quizzes…</button>
                   </div>
                 </div>
                 <div class="file-menu">
@@ -2071,7 +2156,7 @@ const appVersion: string = __APP_VERSION__
                     <button @click="doClearNames">✕ Clear names</button>
                   </div>
                 </div>
-                <button class="help-toggle" title="Interactive tutorial" @click="startTutorial">
+                <button class="help-toggle" title="Interactive tutorial" @click="tutorial.start">
                   ?
                 </button>
               </div>
@@ -2081,7 +2166,11 @@ const appVersion: string = __APP_VERSION__
                 FORMAT_LABELS[quiz.format].badge
               }}</span>
               <label class="meta-field meta-field--toggle" data-tutorial="overtime-toggle">
-                <input v-model="quiz.overtime" type="checkbox" />
+                <input
+                  :checked="quiz.overtime"
+                  type="checkbox"
+                  @change="setQuizField('overtime', ($event.target as HTMLInputElement).checked)"
+                />
                 <span class="toggle-track"><span class="toggle-thumb" /></span>
                 <span class="meta-label">Overtime</span>
               </label>
@@ -2097,20 +2186,49 @@ const appVersion: string = __APP_VERSION__
           </div>
         </div>
 
-        <div v-if="openedFromNewerFile || keptNewerAutoSaves.length" class="notice-row">
+        <div
+          v-if="
+            openedFromNewerFile ||
+            openedElsewhere ||
+            waitingQuizzes ||
+            droppedQuizzes.length ||
+            keepFailed
+          "
+          class="notice-row"
+        >
           <div class="col--left-spacer" />
           <div class="notice-row-inner">
+            <p v-if="keepFailed" class="notice">
+              {{
+                keepFailed === 'full'
+                  ? "This quiz can't be kept on this device: it is full. Save it to a file."
+                  : "This quiz couldn't be kept on this device. Save it to a file."
+              }}
+              <button class="notice-action" aria-label="Close" @click="keepFailed = null">×</button>
+            </p>
+            <p v-if="waitingQuizzes" class="notice">
+              {{ waitingQuizzes }} unsaved {{ waitingQuizzes === 1 ? 'quiz' : 'quizzes' }} from
+              closed tabs.
+              <button class="notice-action" @click="seeRecentQuizzes">See them</button>
+              <button class="notice-action" aria-label="Close" @click="waitingQuizzes = 0">
+                ×
+              </button>
+            </p>
+            <p v-if="droppedQuizzes.length" class="notice">
+              {{ droppedQuizzes.join(', ') }} {{ droppedQuizzes.length === 1 ? 'was' : 'were' }}
+              removed from recent quizzes to make room.
+              <button class="notice-action" aria-label="Close" @click="droppedQuizzes = []">
+                ×
+              </button>
+            </p>
             <p v-if="openedFromNewerFile" class="notice">
               Opened from a newer file; may be scored wrong.
             </p>
-            <p v-if="keptNewerAutoSaves.length" class="notice">
-              An auto-saved quiz from a newer version was kept{{
-                keptNewerAutoSaves.length > 1 ? ` (${keptNewerAutoSaves.length} kept)` : ''
-              }}.<template v-if="autoSavePausedForKept">
-                Auto-save is paused until it is discarded, so nothing overwrites it.</template
-              >
-              <button class="notice-action" @click="tryOpenKeptAutoSave">Try to open it</button>
-              <button class="notice-action" @click="discardKeptAutoSave">Discard</button>
+            <p v-if="openedElsewhere" class="notice">
+              This quiz is open in another tab. It opened here as a separate quiz.
+              <button class="notice-action" aria-label="Close" @click="openedElsewhere = false">
+                ×
+              </button>
             </p>
           </div>
         </div>
@@ -2678,6 +2796,11 @@ const appVersion: string = __APP_VERSION__
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @picked="linkPickedMeet" />
         <StoredQuizPickerDialog ref="storedPickerRef" :on-pick="openPickedStored" />
+        <RecentQuizzesDialog
+          ref="recentRef"
+          :on-restore="restoreRecent"
+          :on-open-newer="openNewerRecent"
+        />
         <MeetWarningsDialog ref="warningsDialogRef" :warnings="meetWarningEntries" />
         <ChoiceDialog ref="choiceDialog" />
         <RoomCodeDialog ref="roomCodeDialog" />

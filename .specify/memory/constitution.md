@@ -9,8 +9,8 @@
 * Connected features (sign-in, loading a quiz from a schedule, guest viewer links, and future ones
   such as submitting results) MUST degrade to the standalone tool when the network or the API is
   unavailable, and MUST NOT block entering or saving a score.
-* Auto-save to `localStorage` on every change, and explicit file save and load, MUST stay available
-  in every mode.
+* Auto-save, kept on the device on every change, and explicit file save and load, MUST stay
+  available in every mode.
 * Loading a scoresheet MUST NOT silently discard scores. A `QuizFile` from an earlier `FILE_VERSION`
   loads with defaults for the fields that version lacked; a file that fails schema validation fails
   with a message that says why.
@@ -178,4 +178,4 @@ Constitution Check and each merge against these principles; an exception MUST be
 plan's Complexity Tracking or the pull request body, and an exception that outlives its
 justification is a defect to be removed.
 
-**Version**: 1.4.1 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-02
+**Version**: 1.4.2 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-11-18

@@ -1,9 +1,5 @@
-import { ref, computed, shallowRef, watch } from 'vue'
-import { useHistory } from '@qzr/ui'
-import {
-  readOpenedFromNewerFile,
-  writeOpenedFromNewerFile,
-} from '../persistence/openedFromNewerFile'
+import { ref, computed, onScopeDispose, shallowRef, watch } from 'vue'
+import { type HistoryCommand, useHistory } from '@qzr/ui'
 import {
   assessQuiz,
   buildColumns,
@@ -14,7 +10,7 @@ import {
   type GreyedOutResult,
   isBonusSituation,
   isTimeoutAllowed as isTimeoutAllowedBy,
-  parseQuizFileAttempt,
+  parseQuizFile,
   QuestionCategory,
   QuestionType,
   type Quiz,
@@ -37,15 +33,23 @@ import {
   overtimeRoundsNeeded,
 } from '@qzr/shared'
 import { createQuizStore } from '../stores/quizStore'
+import { applyStep, mergeSteps, recordEdit, type UndoStep } from './undoSteps'
+import type { MeetSessionData } from './useMeetSession'
+import { canonicalStoreFile } from '../persistence/quizFile'
 import {
-  saveToStorage,
-  loadFromStorage,
-  clearStorage,
-  listKeptNewerAutoSaves,
-  isAutoSavePausedForNewer,
-  hasNewerKeptInPlace,
-  readKeptNewerAutoSave,
-  discardKeptNewerAutoSave as discardKeptAutoSaveKey,
+  currentTab,
+  onTabLinkChange,
+  type QuizRecord,
+  type QuizState,
+  type SubmittedState,
+  moveTab,
+  newRecordId,
+  type StateKind,
+  type RecordClaim,
+  storageFailedAtStart,
+  type Tab,
+  untouched,
+  writeRecord,
 } from '../persistence/autoSave'
 
 /**
@@ -56,19 +60,58 @@ import {
  * branded `TeamIdx` / `SeatIdx` / `ColIdx` types live in the scoring/store
  * layers; see `../types/indices.ts` for the full explanation.
  */
+/**
+ * A quiz is saved when its state, however it got there, is the one it was last saved to a file in,
+ * or the one it was last submitted in while still linked to the scheduled quiz it went to
+ */
+function isSaved(
+  file: string,
+  saved: QuizState | undefined,
+  submitted: SubmittedState | undefined,
+  link: MeetSessionData | null,
+): boolean {
+  if (saved?.file === file) return true
+  if (submitted?.file !== file) return false
+  const quizId = link?.quizId ?? null
+  return quizId === submitted.quizId && (quizId === null || link?.meetId === submitted.meetId)
+}
+
+/** Undo steps the sheet keeps: up to this many, the oldest falling off */
+const UNDO_LIMIT = 1000
+
+/** The quiz's settings an official sets on the sheet */
+type QuizField = 'division' | 'quizNumber' | 'consolation' | 'overtime'
+
+/** A quiz as a record keeps it, apart from which record it is and its link */
+type SheetState = Pick<
+  QuizRecord,
+  'current' | 'start' | 'saved' | 'submitted' | 'ahead' | 'fromNewerFile'
+>
+
+/**
+ * An undo step in the session: the step as data, and what it does outside the quiz (the meet picks
+ * a team swap moves), which is not kept beyond the page
+ */
+interface SheetStep extends HistoryCommand {
+  step: UndoStep
+}
+
 export function useScoresheet() {
   const store = createQuizStore()
-  const history = useHistory()
+  const history = useHistory<SheetStep>(UNDO_LIMIT)
 
   // --- Reactive wrappers around store data ---
   // store.quiz is a reactive proxy; ref() wraps it so consumer call sites
   // keep their `quiz.value.x` shape and reads track the proxy natively.
   const quiz = ref<Quiz>(store.quiz)
 
+  // The tab this sheet writes to. Before startTab, as in tests that start none, there is none.
+  const tab = currentTab()
+  /** The record the tab started with: its own quiz, on a reload or a restored session */
+  const startRecord = tab?.record
+
   /** The current quiz came from a newer scoresheet's file and may be scored wrong */
-  const openedFromNewerFile = ref(readOpenedFromNewerFile())
-  // Synchronous, so a reload right after opening such a file still shows the warning
-  watch(openedFromNewerFile, writeOpenedFromNewerFile, { flush: 'sync' })
+  const openedFromNewerFile = ref(startRecord?.fromNewerFile ?? false)
 
   /** Structural rules for the quiz's format */
   const rules = computed<QuizRules>(() => quizRules(quiz.value.format))
@@ -85,6 +128,132 @@ export function useScoresheet() {
   /** Timeouts per team — 0 to MAX_TIMEOUTS_PER_TEAM entries per team */
   const timeoutMap = ref(new Map<number, Timeout[]>())
 
+  const undoTarget = { store, noJumps: noJumpMap, timeouts: timeoutMap }
+
+  // Writes made while a step is recorded, undone or redone are part of that step, not steps of their own
+  let quiet = 0
+  function quietly<T>(run: () => T): T {
+    quiet++
+    try {
+      return run()
+    } finally {
+      quiet--
+    }
+  }
+
+  /** A step as the session runs it: its changes written back, then whatever runs alongside */
+  function sheetStep(step: UndoStep, alongside?: HistoryCommand): SheetStep {
+    return {
+      step,
+      undo: () =>
+        quietly(() => {
+          applyStep(undoTarget, step, 'undo')
+          alongside?.undo()
+        }),
+      redo: () =>
+        quietly(() => {
+          applyStep(undoTarget, step, 'redo')
+          alongside?.redo()
+        }),
+    }
+  }
+
+  /**
+   * Make `change` as one undoable step, with `alongside` run with it, and on each undo and redo,
+   * for what it writes outside the quiz. The step pushed, if any.
+   */
+  function edit(change: () => void, alongside?: HistoryCommand): UndoStep | undefined {
+    if (quiet > 0) {
+      change()
+      alongside?.redo()
+      return undefined
+    }
+    typing = null
+    // The state before the edit, read only while a later state is held, which the edit may leave
+    const before = aheadState.value ? currentState.value : undefined
+    const step = quietly(() =>
+      recordEdit(undoTarget, () => {
+        change()
+        alongside?.redo()
+      }),
+    )
+    if (step.changes.length === 0 && !alongside) return undefined
+    if (before !== undefined) splitAhead(before)
+    history.push(sheetStep(step, alongside))
+    return step
+  }
+
+  const lastStep = () => history.undoSteps.value[history.undoSteps.value.length - 1]
+
+  /** The step a visit to a typed field is making, while the visit lasts */
+  let typing: { field: string; step: UndoStep } | null = null
+
+  /**
+   * Make `change` to typed field `field`: a visit to the field, from entering it until leaving it
+   * or another edit, is one step. A visit that ends where it began leaves none.
+   */
+  function editTyped(field: string, change: () => void) {
+    if (quiet > 0) return change()
+    const top = lastStep()
+    const visiting = typing
+    if (visiting?.field !== field || top?.step !== visiting.step || history.canRedo.value) {
+      const step = edit(change)
+      typing = step ? { field, step } : null
+      return
+    }
+    mergeSteps(
+      visiting.step,
+      quietly(() => recordEdit(undoTarget, change)),
+    )
+    if (visiting.step.changes.length > 0) return
+    history.setStacks(history.undoSteps.value.slice(0, -1), history.redoSteps.value)
+    typing = null
+  }
+
+  /** The visit to a typed field is over: its next change is a new step */
+  function endTyping() {
+    typing = null
+  }
+
+  /**
+   * A change the sheet makes by itself, such as names a link fills in: while nothing has been done
+   * by hand it is part of the quiz's start, after that a step like any other
+   */
+  function editBySheet(change: () => void) {
+    if (!untouched(stateNow())) return void edit(change)
+    quietly(change)
+    startFile = currentState.value
+  }
+
+  function undo() {
+    typing = null
+    history.undo()
+  }
+
+  function redo() {
+    typing = null
+    history.redo()
+  }
+
+  /** The undo steps, oldest first, as kept beyond the page: without what runs alongside */
+  const keptUndo = () => history.undoSteps.value.map(({ step }) => step)
+
+  /** Take up a kept state's undo and redo steps, as a reload or a restore finds them */
+  function takeHistory(state: { undo: UndoStep[]; redo?: UndoStep[] } | undefined) {
+    const steps = (list: UndoStep[] = []) => list.map((step) => sheetStep(step))
+    history.setStacks(steps(state?.undo), steps(state?.redo))
+  }
+
+  /** A stored state's quiz, or null when there is none or it can't be read */
+  function readState(file: string | undefined): DeserializeResult | null {
+    if (!file) return null
+    try {
+      return parseQuizFile(file)
+    } catch {
+      return null
+    }
+  }
+
   /** OT rounds to allocate for a freshly loaded quiz: as many as its saved answers reach */
   function computeInitialOtRounds(loaded: DeserializeResult): number {
     if (!loaded.quiz.overtime) return 1
@@ -97,53 +266,17 @@ export function useScoresheet() {
     )
   }
 
-  // --- Restore persisted state from localStorage ---
-  const restored = loadFromStorage()
+  // --- Restore the tab's own quiz ---
+  const restored = readState(startRecord?.current?.file)
   if (restored) {
     store.loadState(restored)
     noJumpMap.value = restored.noJumps
     timeoutMap.value = restored.timeouts
     internalOtRounds.value = computeInitialOtRounds(restored)
-    const named = [...restored.teams, ...restored.quizzers].some(({ name }) => name.trim())
-    if (restored.answers.length > 0 || named) {
-      history.push({ undo: () => {}, redo: () => {} })
-    }
+    takeHistory(startRecord?.current)
   } else {
     // Nothing restored (empty, corrupt, or a newer auto-save set aside): no quiz to warn about
     openedFromNewerFile.value = false
-  }
-
-  /** Keys of auto-saves from a newer version, which loadFromStorage set aside above */
-  const keptNewerAutoSaves = shallowRef(listKeptNewerAutoSaves())
-  /** Auto-save is paused because a kept newer auto-save couldn't be moved out of its way */
-  const autoSavePausedForKept = shallowRef(isAutoSavePausedForNewer())
-  /** A newer quiz kept in place blocks the tutorial until it is discarded */
-  const tutorialBlockedByKept = shallowRef(hasNewerKeptInPlace())
-
-  function refreshKeptNewerAutoSaves(): void {
-    keptNewerAutoSaves.value = listKeptNewerAutoSaves()
-    autoSavePausedForKept.value = isAutoSavePausedForNewer()
-    tutorialBlockedByKept.value = hasNewerKeptInPlace()
-  }
-
-  /**
-   * Best-effort open of the most recent kept auto-save; throws if it can't be read. The kept
-   * original stays until it is discarded: the opened copy has lost whatever this build can't read.
-   */
-  function openKeptNewerAutoSave(): void {
-    const key = keptNewerAutoSaves.value[0]
-    if (!key) return
-    const json = readKeptNewerAutoSave(key)
-    if (json !== null) loadFile(parseQuizFileAttempt(json), { fromNewerFile: true })
-  }
-
-  function discardKeptNewerAutoSave(): void {
-    const key = keptNewerAutoSaves.value[0]
-    if (!key) return
-    discardKeptAutoSaveKey(key)
-    refreshKeptNewerAutoSaves()
-    // If that quiz was pausing auto-save, save the sheet now so work done meanwhile survives a reload
-    if (!pauseAutoSave.value) saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
 
   /** Columns built reactively — regulation when OT is off, + OT rounds when on */
@@ -174,11 +307,7 @@ export function useScoresheet() {
     if (!qzr || !col) return
     const prev = store.getAnswer(qzr.id, col.key)
     if (prev === value) return
-    store.setAnswer(qzr.id, col.key, value)
-    history.push({
-      undo: () => store.setAnswer(qzr.id, col.key, prev),
-      redo: () => store.setAnswer(qzr.id, col.key, value),
-    })
+    edit(() => store.setAnswer(qzr.id, col.key, value))
   }
 
   // --- Scoring ---
@@ -444,7 +573,7 @@ export function useScoresheet() {
   function setTeamName(teamIdx: number, name: string) {
     const team = teams.value[teamIdx]
     if (!team) return
-    store.setTeamName(team.id, name)
+    editTyped(`team:${team.id}:name`, () => store.setTeamName(team.id, name))
   }
 
   /**
@@ -456,25 +585,29 @@ export function useScoresheet() {
     const a = teams.value[teamIdxA]
     const b = teams.value[teamIdxB]
     if (!a || !b || a === b) return
-    const swap = () => {
-      store.swapTeams(a.id, b.id)
-      alongside()
-    }
-    swap()
     // A swap is its own undoing
-    history.push({ undo: swap, redo: swap })
+    edit(() => store.swapTeams(a.id, b.id), { undo: alongside, redo: alongside })
   }
 
-  /** Do an edit made of several writes as one, which undo takes back and redo makes again */
-  function editAsOne(edit: { redo: () => void; undo: () => void }) {
-    edit.redo()
-    history.push(edit)
+  /**
+   * Do an edit made of several writes as one, which undo takes back and redo makes again. Its own
+   * undo and redo run too, in the session, for what they write outside the quiz; their writes to
+   * the quiz repeat what the step already put back.
+   */
+  function editAsOne(change: HistoryCommand) {
+    edit(() => {}, change)
   }
 
-  function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
+  /** Two quizzers change seats; `alongside` runs with it each way, as `swapTeams`'s does */
+  function moveQuizzer(
+    teamIdx: number,
+    fromSeat: number,
+    toSeat: number,
+    alongside?: HistoryCommand,
+  ) {
     const team = teams.value[teamIdx]
     if (!team) return
-    store.moveQuizzer(team.id, toSeatIdx(fromSeat), toSeatIdx(toSeat))
+    edit(() => store.moveQuizzer(team.id, toSeatIdx(fromSeat), toSeatIdx(toSeat)), alongside)
   }
 
   function setQuizzerName(teamIdx: number, seatIdx: number, name: string) {
@@ -483,13 +616,20 @@ export function useScoresheet() {
     const qzrs = store.quizzersByTeam(team.id)
     const qzr = qzrs[seatIdx]
     if (!qzr) return
-    store.setQuizzerName(qzr.id, name)
+    editTyped(`quizzer:${qzr.id}:name`, () => store.setQuizzerName(qzr.id, name))
   }
 
   function toggleOnTime(teamIdx: number) {
     const team = teams.value[teamIdx]
     if (!team) return
-    team.onTime = !team.onTime
+    edit(() => (team.onTime = !team.onTime))
+  }
+
+  /** Set one of the quiz's settings; the division and number are typed, so a visit is one step */
+  function setQuizField<K extends QuizField>(field: K, value: Quiz[K]) {
+    const change = () => (store.quiz[field] = value)
+    if (field === 'division' || field === 'quizNumber') editTyped(`quiz:${field}`, change)
+    else edit(change)
   }
 
   /**
@@ -504,19 +644,10 @@ export function useScoresheet() {
   function toggleNoJump(colIdx: number) {
     const key = columns.value[colIdx]?.key
     if (!key) return
-    const prev = noJumpMap.value.get(key) ?? false
-    const next = !prev
-    noJumpMap.value.set(key, next)
-    noJumpMap.value = new Map(noJumpMap.value)
-    history.push({
-      undo: () => {
-        noJumpMap.value.set(key, prev)
-        noJumpMap.value = new Map(noJumpMap.value)
-      },
-      redo: () => {
-        noJumpMap.value.set(key, next)
-        noJumpMap.value = new Map(noJumpMap.value)
-      },
+    const next = !(noJumpMap.value.get(key) ?? false)
+    edit(() => {
+      noJumpMap.value.set(key, next)
+      noJumpMap.value = new Map(noJumpMap.value)
     })
   }
 
@@ -530,59 +661,41 @@ export function useScoresheet() {
     return teamTimeouts(teamId).length
   }
 
-  /** Snapshot the entire timeoutMap for undo/redo */
-  function snapshotTimeouts(): Map<number, Timeout[]> {
-    const snap = new Map<number, Timeout[]>()
-    for (const [k, v] of timeoutMap.value) snap.set(k, [...v])
-    return snap
-  }
-
-  function applyTimeoutSnapshot(snap: Map<number, Timeout[]>): void {
-    timeoutMap.value = new Map(snap)
-  }
-
   /** Timeouts can be called between questions until error points begin */
   function isTimeoutAllowed(columnKey: string): boolean {
     return isTimeoutAllowedBy(columnKey, rules.value)
   }
 
   function addTimeout(teamId: number, afterColumnKey: string | null): void {
-    const snapshot = snapshotTimeouts()
-    const current = teamTimeouts(teamId)
+    edit(() => {
+      const current = teamTimeouts(teamId)
 
-    // Only one team can have a timeout after a given question — clear the other team's
-    if (afterColumnKey !== null) {
-      for (const [otherId, otherTimeouts] of timeoutMap.value) {
-        if (otherId === teamId) continue
-        const filtered = otherTimeouts.filter((t) => t.afterColumnKey !== afterColumnKey)
-        if (filtered.length !== otherTimeouts.length) {
-          timeoutMap.value.set(otherId, filtered)
+      // Only one team can have a timeout after a given question — clear the other team's
+      if (afterColumnKey !== null) {
+        for (const [otherId, otherTimeouts] of timeoutMap.value) {
+          if (otherId === teamId) continue
+          const filtered = otherTimeouts.filter((t) => t.afterColumnKey !== afterColumnKey)
+          if (filtered.length !== otherTimeouts.length) {
+            timeoutMap.value.set(otherId, filtered)
+          }
         }
       }
-    }
 
-    // If a column is specified and this team has an untracked timeout, upgrade it
-    if (afterColumnKey !== null) {
-      const untrackedIdx = current.findIndex((t) => t.afterColumnKey === null)
-      if (untrackedIdx >= 0) {
-        const next = [...current]
-        next[untrackedIdx] = { afterColumnKey }
-        timeoutMap.value.set(teamId, next)
-        timeoutMap.value = new Map(timeoutMap.value)
-        history.push({
-          undo: () => applyTimeoutSnapshot(snapshot),
-          redo: () => addTimeout(teamId, afterColumnKey),
-        })
-        return
+      // If a column is specified and this team has an untracked timeout, upgrade it
+      if (afterColumnKey !== null) {
+        const untrackedIdx = current.findIndex((t) => t.afterColumnKey === null)
+        if (untrackedIdx >= 0) {
+          const next = [...current]
+          next[untrackedIdx] = { afterColumnKey }
+          timeoutMap.value.set(teamId, next)
+          timeoutMap.value = new Map(timeoutMap.value)
+          return
+        }
       }
-    }
 
-    const next = [...current, { afterColumnKey }]
-    timeoutMap.value.set(teamId, next)
-    timeoutMap.value = new Map(timeoutMap.value)
-    history.push({
-      undo: () => applyTimeoutSnapshot(snapshot),
-      redo: () => addTimeout(teamId, afterColumnKey),
+      const next = [...current, { afterColumnKey }]
+      timeoutMap.value.set(teamId, next)
+      timeoutMap.value = new Map(timeoutMap.value)
     })
   }
 
@@ -590,19 +703,9 @@ export function useScoresheet() {
     const current = teamTimeouts(teamId)
     if (current.length === 0) return
 
-    const prev = [...current]
-    const next = current.slice(0, -1)
-    timeoutMap.value.set(teamId, next)
-    timeoutMap.value = new Map(timeoutMap.value)
-    history.push({
-      undo: () => {
-        timeoutMap.value.set(teamId, prev)
-        timeoutMap.value = new Map(timeoutMap.value)
-      },
-      redo: () => {
-        timeoutMap.value.set(teamId, next)
-        timeoutMap.value = new Map(timeoutMap.value)
-      },
+    edit(() => {
+      timeoutMap.value.set(teamId, current.slice(0, -1))
+      timeoutMap.value = new Map(timeoutMap.value)
     })
   }
 
@@ -610,18 +713,14 @@ export function useScoresheet() {
   function toggleTimeout(teamId: number, columnKey: string): void {
     const current = teamTimeouts(teamId)
     const existingIdx = current.findIndex((t) => t.afterColumnKey === columnKey)
-    if (existingIdx >= 0) {
-      const snapshot = snapshotTimeouts()
-      const next = current.filter((_, i) => i !== existingIdx)
-      timeoutMap.value.set(teamId, next)
+    if (existingIdx < 0) return addTimeout(teamId, columnKey)
+    edit(() => {
+      timeoutMap.value.set(
+        teamId,
+        current.filter((_, i) => i !== existingIdx),
+      )
       timeoutMap.value = new Map(timeoutMap.value)
-      history.push({
-        undo: () => applyTimeoutSnapshot(snapshot),
-        redo: () => toggleTimeout(teamId, columnKey),
-      })
-    } else {
-      addTimeout(teamId, columnKey)
-    }
+    })
   }
 
   /** Check if a specific team has a timeout at a specific column */
@@ -641,33 +740,76 @@ export function useScoresheet() {
   function setQuestionType(colIdx: number, category: QuestionCategory | null) {
     const col = columns.value[colIdx]
     if (!col) return
-    store.setQuestionType(col.key, category)
+    edit(() => store.setQuestionType(col.key, category))
   }
 
-  // Names aren't kept in history, so typing them doesn't make the sheet dirty. What was typed since
-  // the sheet was last saved, started or opened is told apart from those names instead.
-  const namesNow = () =>
-    JSON.stringify(
-      store.teams.map((team) => [team.name, store.quizzersByTeam(team.id).map((q) => q.name)]),
-    )
-  const keptNames = ref(namesNow())
-  /** Take the names on the sheet as its own, as a save or a quiz just begun has them */
-  function keepNames() {
-    keptNames.value = namesNow()
-  }
-  /** Whether names were typed that the sheet would lose: changed since kept, and not all blank */
-  const namesChanged = computed(
-    () =>
-      namesNow() !== keptNames.value &&
-      store.teams.some(
-        (team) =>
-          team.name.trim() !== '' ||
-          store.quizzersByTeam(team.id).some((quizzer) => quizzer.name.trim() !== ''),
-      ),
+  // --- Saved and submitted states ---
+
+  /** The state last saved to a file in, or opened from one in */
+  const savedState = shallowRef<QuizState | undefined>(startRecord?.saved)
+  /** The state last sent to the meet in, or opened from it in, and where it went */
+  const submittedState = shallowRef<SubmittedState | undefined>(startRecord?.submitted)
+  /**
+   * While the quiz is positioned behind its latest state (an Open or a restore matched an earlier
+   * one): that latest state, kept until redone up to or split off by an edit
+   */
+  const aheadState = shallowRef<QuizState | undefined>(startRecord?.ahead)
+  /** The tab's meet link, as it changes */
+  const link = shallowRef<MeetSessionData | null>(tab?.link ?? null)
+  /** The quiz on the sheet as a canonical file, which states are compared by */
+  const currentState = computed(() => canonicalStoreFile(store, noJumpMap.value, timeoutMap.value))
+
+  const unsaved = computed(
+    () => !isSaved(currentState.value, savedState.value, submittedState.value, link.value),
   )
+
+  /**
+   * An edit made at state `here` leaves the latest state behind for good: it goes to the recent
+   * quizzes as a quiz of its own, with its history, the saved states that aren't this one's, and
+   * the same link
+   */
+  function splitAhead(here: string) {
+    const ahead = aheadState.value
+    if (!ahead || !tab) return
+    aheadState.value = undefined
+    // Redone up to it already: nothing is left behind
+    if (here === ahead.file) return
+    const keep = <S extends QuizState>(state: S | undefined) =>
+      state && state.file !== here ? state : undefined
+    const saved = keep(savedState.value)
+    const submitted = keep(submittedState.value)
+    const split: QuizRecord = {
+      id: newRecordId(),
+      current: { file: ahead.file, undo: ahead.undo, redo: [] },
+      start: startFile,
+      saved,
+      submitted,
+      link: tab.link,
+      fromNewerFile: openedFromNewerFile.value,
+      unsaved: !isSaved(ahead.file, saved, submitted, tab.link),
+      changedAt: Date.now(),
+      offered: true,
+    }
+    queueWrite(() => writeRecord(split))
+  }
+
+  /** The quiz was saved to a file, or opened from one, as it is now */
   function markSaved() {
-    history.markSaved()
-    keepNames()
+    // Its last step is kept as it is now: typing on is a step of its own
+    typing = null
+    savedState.value = { file: currentState.value, undo: keptUndo() }
+  }
+
+  /** The quiz was sent to the meet, or opened from it, as it is now, as scheduled quiz `quizId` */
+  function markSubmitted(meetId: number, quizId: string | null) {
+    typing = null
+    submittedState.value = {
+      file: currentState.value,
+      undo: keptUndo(),
+      meetId,
+      quizId,
+      link: link.value,
+    }
   }
 
   /** Load a deserialized quiz file into the store, replacing all state */
@@ -678,8 +820,7 @@ export function useScoresheet() {
     timeoutMap.value = data.timeouts
     internalOtRounds.value = computeInitialOtRounds(data)
     history.clear()
-    keepNames()
-    saveToStorage(store, data.noJumps, data.timeouts)
+    startFile = currentState.value
   }
   function resetStore(format = QuizFormat.TwentyQuestion) {
     openedFromNewerFile.value = false
@@ -694,8 +835,7 @@ export function useScoresheet() {
     timeoutMap.value = new Map()
     internalOtRounds.value = 1
     history.clear()
-    keepNames()
-    clearStorage()
+    startFile = currentState.value
   }
 
   /**
@@ -703,41 +843,220 @@ export function useScoresheet() {
    * question types, since a restarted quiz asks new questions
    */
   function clearAnswers() {
-    // Snapshot before calling loadState — loadState mutates the internal arrays in-place,
-    // so passing store.teams/quizzers directly would zero them out mid-iteration.
-    const teams = [...store.teams]
-    const quizzers = [...store.quizzers]
-    store.loadState({
-      quiz: { ...store.quiz, questionTypes: new Map() },
-      teams,
-      quizzers,
-      answers: [],
+    edit(() => {
+      // Snapshot before calling loadState — loadState mutates the internal arrays in-place,
+      // so passing store.teams/quizzers directly would zero them out mid-iteration.
+      const teams = [...store.teams]
+      const quizzers = [...store.quizzers]
+      store.loadState({
+        quiz: { ...store.quiz, questionTypes: new Map() },
+        teams,
+        quizzers,
+        answers: [],
+      })
+      noJumpMap.value = new Map()
+      timeoutMap.value = new Map()
+      internalOtRounds.value = 1
     })
-    noJumpMap.value = new Map()
-    timeoutMap.value = new Map()
-    internalOtRounds.value = 1
-    history.clear()
-    saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
 
-  /** Blank every team and quizzer name, as a new quiz has them */
-  function clearNames() {
-    for (const team of store.teams) {
-      store.setTeamName(team.id, '')
-      for (const quizzer of store.quizzersByTeam(team.id)) store.setQuizzerName(quizzer.id, '')
+  /**
+   * Blank every team and quizzer name, as a new quiz has them, as one step; `alongside` runs with
+   * it each way, for what goes with the names outside the quiz
+   */
+  function clearNames(alongside?: HistoryCommand) {
+    edit(() => {
+      for (const team of store.teams) {
+        store.setTeamName(team.id, '')
+        for (const quizzer of store.quizzersByTeam(team.id)) store.setQuizzerName(quizzer.id, '')
+      }
+    }, alongside)
+  }
+
+  // --- Writing the tab's quiz, link and history ---
+
+  /** The state the quiz began in, kept with it */
+  let startFile = startRecord?.start ?? currentState.value
+
+  /** The tab's record as the sheet now has it, in state `file` */
+  function recordNow(tab: Tab, file: string): QuizRecord {
+    const before = tab.record
+    return {
+      ...stateNow(file),
+      id: tab.id,
+      link: tab.link,
+      unsaved: unsaved.value,
+      changedAt: before?.current?.file === file ? before.changedAt : Date.now(),
+      offered: before?.offered ?? false,
     }
-    history.clear()
-    saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
 
-  // --- Auto-persist to localStorage ---
+  // Writes go one after another, so a slow one is never overtaken by an older state
+  let writing = Promise.resolve()
+  // A sheet taken down writes nothing more
+  let disposed = false
+  function persistNow({ offered = false } = {}) {
+    if (persistTimer) clearTimeout(persistTimer)
+    persistTimer = null
+    if (pauseAutoSave.value || !tab) return
+    const file = currentState.value
+    // Redone up to the latest state: no longer behind it
+    if (aheadState.value?.file === file) aheadState.value = undefined
+    // Written even with nothing done by hand, so a reload brings back the quiz and its link; such a
+    // quiz is not kept as a recent one once its tab has gone (isKept)
+    const record = recordNow(tab, file)
+    record.offered ||= offered
+    tab.record = record
+    queueWrite(() => writeRecord(record))
+  }
+
+  /** Why the tab's quiz couldn't be kept on the device, until a write of it succeeds */
+  const keepFailed = ref<'full' | 'failed' | null>(storageFailedAtStart() ? 'failed' : null)
+
+  /** Write after the writes before, unless the sheet is gone; a failure is said, and never stops the next */
+  function queueWrite(write: () => Promise<boolean | void>) {
+    writing = writing.then(async () => {
+      if (disposed) return
+      try {
+        // False: the device had no room, even without the saved recent quizzes
+        keepFailed.value = (await write()) === false ? 'full' : null
+      } catch (e) {
+        console.error('Could not keep the quiz on this device', e)
+        keepFailed.value = 'failed'
+      }
+    })
+  }
+
+  /**
+   * The sheet is about to show another quiz (New, Open, restore): the quiz it shows goes to the
+   * recent quizzes as it is, unless it is not worth keeping, and the tab begins a new record
+   */
+  function replaceQuiz() {
+    if (!tab) return
+    persistNow({ offered: true })
+    moveTab(tab, undefined, writing)
+    savedState.value = undefined
+    submittedState.value = undefined
+    aheadState.value = undefined
+  }
+
+  /**
+   * Show a recent quiz the tab has claimed, in one of its states: the quiz the tab showed goes to
+   * the recent quizzes. Left again by closing the tab, it is offered again.
+   */
+  function restoreQuiz(
+    record: QuizRecord,
+    claim: RecordClaim,
+    state: StateKind = 'current',
+  ): MeetSessionData | null {
+    if (!tab) return null
+    persistNow({ offered: true })
+    moveTab(
+      tab,
+      { id: record.id, claim, record: { ...positioned(record, state), offered: false } },
+      writing,
+    )
+    link.value = tab.link
+    showState(tab.record)
+    return tab.link
+  }
+
+  /**
+   * `record` positioned at one of its earlier states: that state is current, the latest is kept
+   * ahead, and the steps between are redo where the histories join
+   */
+  function positioned(record: QuizRecord, state: StateKind): QuizRecord {
+    const latest = record.current
+    const at = record[state]
+    // As submitted, the quiz comes back with the link it was sent with
+    const link = state === 'submitted' ? (record.submitted?.link ?? record.link) : record.link
+    if (!latest || !at || at.file === latest.file) return { ...record, link }
+    const joined = JSON.stringify(latest.undo.slice(0, at.undo.length)) === JSON.stringify(at.undo)
+    // Redo leads to the latest state, then on through the steps undone from it
+    const redo = joined ? [...latest.redo, ...latest.undo.slice(at.undo.length).reverse()] : []
+    return {
+      ...record,
+      link,
+      current: { file: at.file, undo: at.undo, redo },
+      ahead: { file: latest.file, undo: latest.undo },
+    }
+  }
+
+  /** Write the tab's quiz now, with whatever was waiting for the pause to end */
+  function flushAutoSave() {
+    persistNow()
+  }
+
+  /** The quiz as the sheet has it, in state `file`, as a record keeps it */
+  function stateNow(file = currentState.value): SheetState {
+    return {
+      current: { file, undo: keptUndo(), redo: history.redoSteps.value.map(({ step }) => step) },
+      start: startFile,
+      saved: savedState.value,
+      submitted: submittedState.value,
+      ahead: aheadState.value,
+      fromNewerFile: openedFromNewerFile.value,
+    }
+  }
+
+  /** Show a quiz as a record or the set-aside copy keeps it; with none, a blank quiz */
+  function showState(state: SheetState | undefined) {
+    const data = readState(state?.current?.file)
+    if (data) loadFile(data, { fromNewerFile: state?.fromNewerFile ?? false })
+    else resetStore()
+    if (state) startFile = state.start
+    savedState.value = state?.saved
+    submittedState.value = state?.submitted
+    aheadState.value = state?.ahead
+    takeHistory(state?.current)
+  }
+
+  /** The quiz set aside while the tutorial has the sheet, kept in memory whatever the device keeps */
+  let aside: SheetState | null = null
+
+  /**
+   * Set the quiz aside for the tutorial: written with what was waiting, then left alone, so a
+   * reload mid-tutorial brings it back, and kept in memory for when the tutorial ends
+   */
+  function setAside() {
+    flushAutoSave()
+    aside = stateNow()
+    pauseAutoSave.value = true
+    // The practice quiz is none of these: an edit to it must not split the latest state off
+    savedState.value = undefined
+    submittedState.value = undefined
+    aheadState.value = undefined
+  }
+
+  /** Show the quiz set aside again; auto-save stays paused until the caller resumes it */
+  function bringBack() {
+    showState(aside ?? tab?.record)
+    aside = null
+  }
+
   const pauseAutoSave = ref(false)
   let persistTimer: ReturnType<typeof setTimeout> | null = null
   function schedulePersist() {
     if (pauseAutoSave.value) return
     if (persistTimer) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => saveToStorage(store, noJumpMap.value, timeoutMap.value), 300)
+    persistTimer = setTimeout(persistNow, 300)
   }
+  const stopHearingLink = onTabLinkChange(() => {
+    link.value = tab?.link ?? null
+    schedulePersist()
+  })
+  watch([savedState, submittedState, openedFromNewerFile], schedulePersist)
+  // The page may go before the pause ends; what is waiting is written as it goes
+  window.addEventListener('pagehide', flushAutoSave)
+  // Leaving a typed field ends the visit to it
+  window.addEventListener('focusout', endTyping)
+  onScopeDispose(() => {
+    disposed = true
+    if (persistTimer) clearTimeout(persistTimer)
+    window.removeEventListener('pagehide', flushAutoSave)
+    window.removeEventListener('focusout', endTyping)
+    stopHearingLink()
+  })
   // Deep-watch the reactive store directly — the `teams`/`teamQuizzers`
   // computeds track array structure + seatOrder but not per-field edits
   // like names, onTime, or questionTypes, so we'd miss auto-saves on those.
@@ -754,12 +1073,6 @@ export function useScoresheet() {
     columns,
     rules,
     openedFromNewerFile,
-    keptNewerAutoSaves,
-    autoSavePausedForKept,
-    tutorialBlockedByKept,
-    refreshKeptNewerAutoSaves,
-    openKeptNewerAutoSave,
-    discardKeptNewerAutoSave,
     quiz,
     teams,
     teamQuizzers,
@@ -769,6 +1082,7 @@ export function useScoresheet() {
     setCell,
     toggleNoJump,
     toggleOnTime,
+    setQuizField,
     setTeamName,
     setQuizzerName,
     swapTeams,
@@ -810,18 +1124,25 @@ export function useScoresheet() {
     // Undo/redo
     canUndo: history.canUndo,
     canRedo: history.canRedo,
-    isDirty: history.isDirty,
-    namesChanged,
-    keepNames,
-    undo: history.undo,
-    redo: history.redo,
+    unsaved,
+    undo,
+    redo,
+    edit,
+    editBySheet,
     markSaved,
+    markSubmitted,
 
     // Persistence
     store,
     noJumpMap,
     timeoutMap,
     pauseAutoSave,
+    flushAutoSave,
+    setAside,
+    bringBack,
+    keepFailed,
+    replaceQuiz,
+    restoreQuiz,
     loadFile,
     resetStore,
     clearAnswers,
