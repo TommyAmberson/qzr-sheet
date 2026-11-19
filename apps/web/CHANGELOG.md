@@ -16,6 +16,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Changed
+
+* "+ Room" puts the cursor in the new room's label box, so its name can be typed straight away
+
 ### Fixed
 
 * The new meet form's division example is `2`, not `2C`: consolation lanes such as `2C` come from

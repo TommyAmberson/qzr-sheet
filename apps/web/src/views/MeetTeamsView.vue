@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useDragReorder } from '../composables/useDragReorder'
-
-const vFocus = { mounted: (el: HTMLElement) => el.focus() }
+import { vFocus } from '../directives'
 
 /**
  * v-fit-name="{ full, short }" — show full name if it fits, otherwise short name.

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vFocus } from '../directives'
 import { DivisionInput } from '@qzr/ui'
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
@@ -1029,6 +1030,7 @@ onMounted(load)
           <form v-if="showAddRoom" class="add-form" @submit.prevent="handleAddRoom">
             <input
               v-model="newRoomLabel"
+              v-focus
               class="field-input"
               placeholder="Label (e.g. Room 1)"
               required
