@@ -63,12 +63,14 @@ a:hover {
 
 /*
  * A printed page is only what the page is about: never the portal's header and footer, nor
- * anything outside the app (development overlays, browser extensions)
+ * anything outside the app (development overlays, browser extensions), nor what a page marks
+ * `no-print`
  */
 @media print {
   .site > .header,
   .site > .footer,
-  body > :not(#app) {
+  body > :not(#app),
+  .no-print {
     display: none !important;
   }
 

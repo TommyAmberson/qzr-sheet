@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ApiError, type DivisionStats, type Stage, divisionTitle } from '@qzr/shared'
+import { ApiError, type DivisionStats, divisionTitle } from '@qzr/shared'
 
 import { getDivisionStats, getMeet, keepQuiz, type MeetDetail } from '../api'
 import StandingState from '../components/StandingState.vue'
-import { TIE_BREAKS, flagText, placeLabel, problemText, warningText } from '../stats'
+import {
+  STAGE_LABELS,
+  TIE_BREAKS,
+  flagText,
+  placeLabel,
+  problemText,
+  quizzerCount,
+  warningText,
+} from '../stats'
 
 /**
  * A division's stats for every member of the meet, signed in or a guest, as far as the meet's
@@ -19,18 +27,15 @@ const router = useRouter()
 const asViewer = computed(() => route.query.as === 'viewer')
 /** Whether this reader is shown warnings, so is one of the meet's admins */
 const admin = computed(() => stats.value?.warnings !== undefined)
+/** Each bracket's first three from its one decided Finals */
+const medals = computed(
+  () => stats.value?.results.find((stage) => stage.stage === 'finals')?.medals ?? [],
+)
 
 const meet = ref<MeetDetail['meet'] | null>(null)
 const stats = ref<DivisionStats | null>(null)
 const loading = ref(true)
 const error = ref('')
-
-const STAGE_TITLES: Record<Stage, string> = {
-  prelim: 'Prelims',
-  intermediate: 'Intermediates',
-  elimination: 'Eliminations',
-  finals: 'Finals',
-}
 
 /** The newest load; one for a division the page has since left must not show */
 let loads = 0
@@ -75,7 +80,10 @@ async function keep(resultId: number) {
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'meet-stats', params: { slug } })">
+    <button
+      class="back-link no-print"
+      @click="router.push({ name: 'meet-stats', params: { slug } })"
+    >
       ← Stats
     </button>
 
@@ -84,14 +92,27 @@ async function keep(resultId: number) {
 
     <template v-else-if="meet && stats">
       <h2 class="page-title">{{ divisionTitle(stats.division) }} stats: {{ meet.name }}</h2>
-      <p v-if="asViewer" class="viewer-note">
+      <p v-if="asViewer" class="viewer-note no-print">
         As a viewer sees it.
         <router-link :to="{ query: {} }">See everything</router-link>
       </p>
 
-      <ul v-if="stats.warnings?.length" class="warnings">
+      <ul v-if="stats.warnings?.length" class="warnings no-print">
         <li v-for="(warning, i) in stats.warnings" :key="i">{{ warningText(warning) }}</li>
       </ul>
+
+      <!-- The Finals' first three, first, as the statistician's report has them -->
+      <section v-if="medals.length" class="block">
+        <h3 class="section-title">Finals</h3>
+        <ol v-for="bracket in medals" :key="String(bracket.consolation)" class="medals">
+          <li v-for="(team, i) in bracket.teams" :key="team">
+            <span class="note"
+              >{{ bracket.consolation ? 'Consolation ' : '' }}{{ placeLabel(i + 1) }}</span
+            >
+            {{ team }}
+          </li>
+        </ol>
+      </section>
 
       <section v-if="!stats.prelimStandings" class="block">
         <h3 class="section-title">Prelim standings</h3>
@@ -102,7 +123,7 @@ async function keep(resultId: number) {
           Prelim standings
           <StandingState :state="stats.prelimStandings.state" />
         </h3>
-        <p v-if="stats.prelimStandings.confirmed" class="note">
+        <p v-if="stats.prelimStandings.confirmed" class="note no-print">
           Confirmed by {{ stats.prelimStandings.confirmed.by }}, in the elimination draw.
         </p>
         <p v-if="stats.prelimStandings.teams.length === 0" class="state-msg">
@@ -116,19 +137,19 @@ async function keep(resultId: number) {
                 <th>Team</th>
                 <th title="Placement points">Points</th>
                 <th>Quizzes</th>
-                <th>Tie-break</th>
+                <th class="no-print">Tie-break</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="team in stats.prelimStandings.teams" :key="team.name">
                 <td>{{ team.tied ? `T${team.rank}` : team.rank }}</td>
-                <td>
+                <td class="name">
                   {{ team.name }}
                   <span v-if="team.finalist" class="finalist">Final</span>
                 </td>
                 <td>{{ team.placementPoints }}</td>
                 <td>{{ team.quizzes }}</td>
-                <td>
+                <td class="no-print">
                   {{ team.tied ? 'still tied' : team.decidedBy ? TIE_BREAKS[team.decidedBy] : '' }}
                 </td>
               </tr>
@@ -137,7 +158,7 @@ async function keep(resultId: number) {
         </div>
       </section>
 
-      <section v-if="stats.prelimStandings?.current" class="block">
+      <section v-if="stats.prelimStandings?.current" class="block no-print">
         <h3 class="section-title">Prelim standings as they stand now</h3>
         <p class="note">
           A prelim has changed since the order was confirmed. The confirmed order stands; this is
@@ -156,7 +177,7 @@ async function keep(resultId: number) {
             <tbody>
               <tr v-for="team in stats.prelimStandings.current" :key="team.name">
                 <td>{{ team.tied ? `T${team.rank}` : team.rank }}</td>
-                <td>{{ team.name }}</td>
+                <td class="name">{{ team.name }}</td>
                 <td>{{ team.placementPoints }}</td>
                 <td>{{ team.quizzes }}</td>
               </tr>
@@ -178,16 +199,16 @@ async function keep(resultId: number) {
                 <th>Team</th>
                 <th title="Prelim placement points plus the intermediate's">Points</th>
                 <th>Quizzes</th>
-                <th>Tie-break</th>
+                <th class="no-print">Tie-break</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="team in stats.rerank.teams" :key="team.name">
                 <td>{{ team.rank }}</td>
-                <td>{{ team.name }}</td>
+                <td class="name">{{ team.name }}</td>
                 <td>{{ team.placementPoints }}</td>
                 <td>{{ team.quizzes }}</td>
-                <td>
+                <td class="no-print">
                   {{ team.tied ? 'still tied' : team.decidedBy ? TIE_BREAKS[team.decidedBy] : '' }}
                 </td>
               </tr>
@@ -213,49 +234,51 @@ async function keep(resultId: number) {
           <div class="table-scroll">
             <table class="stats-table">
               <thead>
+                <!-- Place, name and the average it ranks by first, so a phone shows them -->
                 <tr>
                   <th>Place</th>
                   <th>Quizzer</th>
-                  <th>Team</th>
                   <th>Average</th>
+                  <th>Team</th>
                   <th>Errors</th>
                   <th>Jumps</th>
-                  <th title="Total points">Points</th>
-                  <th title="Quizzes the team played">Quizzes</th>
-                  <th></th>
+                  <th class="no-print" title="Total points">Points</th>
+                  <th class="no-print" title="Quizzes the team played">Quizzes</th>
+                  <th class="no-print"></th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="quizzer in list.quizzers" :key="`${quizzer.team}|${quizzer.name}`">
+                <!-- A quizzer with no jumps is left off the printed list, and still counted -->
+                <tr
+                  v-for="quizzer in list.quizzers"
+                  :key="`${quizzer.team}|${quizzer.name}`"
+                  :class="{ 'no-jumps': quizzer.jumps === 0 }"
+                >
                   <td>{{ quizzer.place }}</td>
-                  <td>{{ quizzer.name }}</td>
-                  <td>{{ quizzer.team }}</td>
+                  <td class="name">{{ quizzer.name }}</td>
                   <td>{{ quizzer.average.toFixed(2) }}</td>
+                  <td class="name">{{ quizzer.team }}</td>
                   <td>{{ quizzer.errors }}</td>
                   <td>{{ quizzer.jumps }}</td>
-                  <td>{{ quizzer.points }}</td>
-                  <td>{{ quizzer.quizzes }}</td>
-                  <td class="flags">
+                  <td class="no-print">{{ quizzer.points }}</td>
+                  <td class="no-print">{{ quizzer.quizzes }}</td>
+                  <td class="flags no-print">
                     <span v-for="(flag, i) in quizzer.flags" :key="i">{{ flagText(flag) }}</span>
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
+          <p class="count">{{ quizzerCount(stats.division, list) }}</p>
         </template>
       </section>
 
-      <p v-if="stats.results.length === 0" class="state-msg">No quiz results to show yet.</p>
-      <section v-for="stage in stats.results" :key="stage.stage" class="block">
-        <h3 class="section-title">{{ STAGE_TITLES[stage.stage] }}</h3>
-        <ol v-for="medals in stage.medals ?? []" :key="String(medals.consolation)" class="medals">
-          <li v-for="(team, i) in medals.teams" :key="team">
-            <span class="note"
-              >{{ medals.consolation ? 'Consolation ' : '' }}{{ placeLabel(i + 1) }}</span
-            >
-            {{ team }}
-          </li>
-        </ol>
+      <!-- The quizzes are on screen only: the printed report is the standings -->
+      <p v-if="stats.results.length === 0" class="state-msg no-print">
+        No quiz results to show yet.
+      </p>
+      <section v-for="stage in stats.results" :key="stage.stage" class="block no-print">
+        <h3 class="section-title">{{ STAGE_LABELS[stage.stage] }} quizzes</h3>
         <div class="table-scroll">
           <table class="stats-table">
             <thead>
@@ -275,7 +298,7 @@ async function keep(resultId: number) {
                   </router-link>
                   <template v-else>{{ quiz.name }}</template>
                 </td>
-                <td>
+                <td class="name">
                   <ul class="teams">
                     <li v-for="team in quiz.teams" :key="team.name">
                       {{ team.name }}
@@ -451,6 +474,55 @@ async function keep(resultId: number) {
 
 .problem {
   color: var(--palette-error);
+}
+
+.count {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* A table's figures stay on one line, so a narrow screen wraps names, not figures */
+.stats-table td:not(.name) {
+  white-space: nowrap;
+}
+
+/*
+ * Printed, the page is the statistician's report for one division: the Finals' first three, the
+ * standings, and the quizzers with their averages, errors and jumps and how many there were.
+ * Quizzers with no jumps are left off the list and still counted (FR-025, FR-026).
+ */
+@media print {
+  .no-jumps {
+    display: none !important;
+  }
+
+  .container {
+    max-width: none;
+    padding: 0;
+  }
+
+  .table-scroll {
+    overflow: visible;
+  }
+
+  .stats-table {
+    font-size: 9pt;
+  }
+
+  .stats-table tr {
+    break-inside: avoid;
+  }
+
+  /* A heading stays with what it heads, never alone at the foot of a page */
+  .section-title,
+  .list-title {
+    break-after: avoid;
+  }
+
+  .block {
+    margin-bottom: 1rem;
+  }
 }
 
 .viewer-note {

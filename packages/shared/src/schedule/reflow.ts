@@ -3,7 +3,7 @@ import { buildElimQuizzes } from './elims'
 import { buildFrame, DEFAULT_SHAPE, defaultRoomCount, eventCells } from './frame'
 import { placePrelims, sortPrelims, type PrelimDivision } from './placement'
 import { drawPrelims } from './prelimDraw'
-import { divisionName, quizNumber } from './names'
+import { quizLabel, quizNumber } from './names'
 import {
   lateLetters,
   type DivisionSettings,
@@ -265,7 +265,7 @@ export function reflowSchedule(
       id,
       division: d.id,
       phase: 'prelim',
-      label: `${divisionName(d.name)} Quiz ${n + 1}`,
+      label: quizLabel(d.name, n + 1),
     })
   const pinnedAt = (use: Use) =>
     pinned.flatMap((q) => {
@@ -427,7 +427,7 @@ export function reflowSchedule(
       if (prelimPinned(d, n, q.id)) return
       const cell = placement.cells.get(q.id)
       const slot = cell ? slots.prelim[Number(cell.slot.slice(1))] : undefined
-      const label = `${divisionName(d.name)} Quiz ${n + 1}`
+      const label = quizLabel(d.name, n + 1)
       quizzes.push({
         // The prelim already in the schedule keeps its id, so links to it still work
         id: idByKey.get(quizKey({ division: d.id, phase: 'prelim', label })) ?? q.id,

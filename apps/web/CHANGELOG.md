@@ -16,6 +16,24 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-19
+
+### Changed
+
+* A division's stats page reads as the statistician's report: the Finals' first three first, then
+  the standings, the quizzer standings with the consolation list apart, and the quizzes by stage.
+  Each table leads with its place, name and ranking figure so a phone shows them, and each quizzer
+  list says how many quizzers it ranks
+* Printed, the page is the report for that division: the Finals' first three, the standings and the
+  quizzers with averages, errors and jumps, without controls, warnings or the quizzes. Quizzers with
+  no jumps are left off the printed list and still counted
+* The stored quiz page's Division box shows no "Div" of its own, since its label already says
+  "Division"
+
+### Bundled contract
+
+* `@qzr/shared@1.15.0` - bumped from 1.14.0
+
 ## [0.28.0] - 2026-11-18
 
 ### Added

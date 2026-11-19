@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { foldName, type DivisionTeamNames } from '@qzr/shared'
+import { sameDivision, type DivisionTeamNames } from '@qzr/shared'
 import { TEAM_NAMES_KEY } from '@qzr/ui'
 import { getTeamNames } from '../api'
 
@@ -30,8 +30,7 @@ async function refreshTeamNames(meetId: number | null): Promise<void> {
 
 /** The team names listed for a division, matched ignoring case and spaces */
 function teamNamesFor(division: string): string[] {
-  const key = foldName(division)
-  return known.value?.lists.find((list) => foldName(list.division) === key)?.names ?? []
+  return known.value?.lists.find((list) => sameDivision(list.division, division))?.names ?? []
 }
 
 function keep(names: KnownNames | null) {

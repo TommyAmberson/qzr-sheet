@@ -93,6 +93,11 @@ export interface MeetFacts {
   claimed: Map<string, number>
   /** Null for a meet with no teams entered: it has no roster to hold names against */
   teams: MeetTeam[] | null
+  /**
+   * The teams of each division, by its folded name, which is what sameDivision compares: every
+   * stored quiz asks for its division's roster, so they are grouped once
+   */
+  rosters: Map<string, MeetTeam[]>
   /** Each division's standing confirmed orders, by its folded name */
   confirmed: Map<string, { prelims?: ConfirmedOrder; rerank?: ConfirmedOrder }>
   /** When an order each stored quiz was seated from was last withdrawn, by its id */
@@ -204,6 +209,7 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
     claimed: new Map(),
     confirmed,
     withdrawnAt,
+    rosters: new Map(),
     teams:
       teams.length === 0
         ? null
@@ -215,6 +221,7 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
             quizzers: quizzersOf.get(team.id) ?? [],
           })),
   }
+  facts.rosters = Map.groupBy(facts.teams ?? [], (team) => foldName(team.division))
   // Explicit links first, so a link by name never takes a scheduled quiz one of them holds
   for (const [resultId, quiz] of decisions) {
     if (quiz.link && facts.schedule?.quizzes.has(quiz.link.scheduleQuizId)) {
@@ -271,7 +278,7 @@ export async function linkTo(
 
 /** The meet's teams of a division, null for a meet with no roster */
 export function rosterOf(facts: MeetFacts, division: string): RosterTeam[] | null {
-  return facts.teams?.filter((team) => sameDivision(team.division, division)) ?? null
+  return facts.teams === null ? null : (facts.rosters.get(foldName(division)) ?? [])
 }
 
 /** A stored quiz's stage, link and acceptance, and what its problems are worked out against */

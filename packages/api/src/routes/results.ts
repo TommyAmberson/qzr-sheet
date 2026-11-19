@@ -4,6 +4,7 @@ import { alias } from 'drizzle-orm/sqlite-core'
 import {
   NewerFileVersionError,
   PlacementFormula,
+  divisionTitle,
   foldName,
   resultKey,
   isQuizFile,
@@ -1110,7 +1111,7 @@ function teamNamesFrom(body: unknown): DivisionTeamNames[] | string {
     const division = tidyName(given)
     if (division === '') return 'Each list needs its division'
     const divisionKey = foldName(division)
-    if (divisions.has(divisionKey)) return `Division ${division} is listed twice`
+    if (divisions.has(divisionKey)) return `${divisionTitle(division)} is listed twice`
     divisions.add(divisionKey)
     const keys = new Set<string>()
     const tidied = names.map(tidyName).filter((name) => name !== '')

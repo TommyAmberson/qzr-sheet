@@ -5,6 +5,7 @@ import {
   ApiError,
   CellValue,
   deserialize,
+  divisionTitle,
   endsRound,
   firstOvertimeQuestion,
   foldName,
@@ -16,6 +17,7 @@ import {
   parseQuizFileAttempt,
   quizName,
   resultKey,
+  sameDivision,
   scheduleQuizMeta,
   QuestionCategory,
   QuestionType,
@@ -1042,13 +1044,10 @@ const meetWarningEntries = computed<MeetWarning[]>(() => {
     if (scheduled) {
       // Whether it is a consolation quiz is part of which division's quiz it is: one warning
       const theirs = divisionCalled(scheduled.division, scheduled.consolation)
-      if (
-        foldName(division) !== foldName(scheduled.division) ||
-        consolation !== scheduled.consolation
-      ) {
+      if (!sameDivision(division, scheduled.division) || consolation !== scheduled.consolation) {
         warnings.push({
           line: division
-            ? `Division ${divisionCalled(division, consolation)}: schedule has ${theirs}`
+            ? `${divisionTitle(divisionCalled(division, consolation))}: schedule has ${theirs}`
             : `Division: none chosen, schedule has ${theirs}`,
           fix: {
             label: `Set division to ${theirs}`,
@@ -1074,7 +1073,7 @@ const meetWarningEntries = computed<MeetWarning[]>(() => {
       if (meetSession.lacksDivision(division)) {
         warnings.push({
           line: division
-            ? `Division ${division}: not one of the meet's divisions`
+            ? `${divisionTitle(division)}: not one of the meet's divisions`
             : 'Division: none chosen',
         })
       }
@@ -1946,7 +1945,7 @@ const appVersion: string = __APP_VERSION__
                     v-else
                     v-model="quiz.division"
                     class="division-text"
-                    prefix="D"
+                    bare
                     type="text"
                     aria-label="Division"
                   />
@@ -2969,8 +2968,7 @@ const appVersion: string = __APP_VERSION__
   letter-spacing: 0.03em;
 }
 
-.meta-field input[type='text'],
-.meta-field .division-text {
+.meta-field input[type='text'] {
   width: 3rem;
   padding: 0.2rem 0.3rem;
   border: 1px solid var(--color-meta-accent);
@@ -2981,13 +2979,11 @@ const appVersion: string = __APP_VERSION__
   background: var(--color-bg);
   color: var(--color-text);
 }
-/* Wide enough for `D` and a name such as `Junior` */
-.meta-field .division-text {
-  width: 4.5rem;
-  text-align: left;
+/* Wide enough for a name such as `Junior` */
+.meta-field input.division-text {
+  width: 4rem;
 }
-.meta-field input[type='text']:focus,
-.meta-field .division-text:focus-within {
+.meta-field input[type='text']:focus {
   outline: 1px solid var(--color-accent);
   outline-offset: 0;
   border-color: var(--color-accent);

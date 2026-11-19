@@ -11,6 +11,16 @@ describe('DivisionInput', () => {
     expect(box('Div 1').find('input').element.value).toBe('Div 1')
   })
 
+  it('shows no prefix where its label already says "Division", and still drops a typed one', async () => {
+    const wrapper = mount(DivisionInput, { props: { modelValue: '', bare: true } })
+    expect(wrapper.find('.division-input-prefix').exists()).toBe(false)
+    expect(wrapper.element.tagName).toBe('INPUT')
+    await wrapper.find('input').setValue('D 2')
+    expect(wrapper.find('input').element.value).toBe('2')
+    expect(wrapper.emitted('update:modelValue')!.pop()).toEqual(['2'])
+    expect(wrapper.emitted('change')).toEqual([['2']])
+  })
+
   it('drops a typed prefix once the box is left', async () => {
     const wrapper = box('')
     const input = wrapper.find('input')

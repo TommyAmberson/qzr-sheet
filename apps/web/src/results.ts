@@ -4,6 +4,7 @@ import {
   foldName,
   quizName,
   quizOutcome,
+  sameDivision,
   serialize,
   type QuizFile,
   type TeamOutcome,
@@ -115,10 +116,9 @@ export function mergeEdits(
   into: string,
 ): { id: number; quizFile: QuizFile }[] {
   const merged = foldName(from)
-  // Folded, since the stats that raised the look-alike name the division as the meet lists it
-  const inDivision = foldName(division)
+  // The stats that raised the look-alike name the division as the meet lists it
   return stored.flatMap(({ id, quizFile }) => {
-    if (foldName(quizFile.quiz.division) !== inDivision) return []
+    if (!sameDivision(quizFile.quiz.division, division)) return []
     const renamed = quizFile.teams.filter((team) => foldName(team.name) === merged)
     if (renamed.length === 0) return []
     const teamNames = new Map(renamed.map((team) => [team.id, into]))

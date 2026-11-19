@@ -45,7 +45,7 @@ const vFitName = {
 }
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
-import { effectiveAccountRole } from '@qzr/shared'
+import { DIVISION_PREFIX, effectiveAccountRole } from '@qzr/shared'
 import {
   getMeet,
   getMyMeets,
@@ -817,7 +817,7 @@ function isDropTailActive(containerId: string) {
               ></span>
               <span class="team-label-number">{{ teams.indexOf(team) + 1 }}</span>
             </span>
-            <span class="div-label">Div</span>
+            <span class="div-label">{{ DIVISION_PREFIX }}</span>
             <select
               v-model="team.division"
               class="division-select"
