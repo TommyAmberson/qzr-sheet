@@ -192,6 +192,9 @@ function churchSummary(church: Church): string {
 
 // ---- Team names (Story 6) ----
 
+// Hidden: team names come from the roster, and this separate list is to be removed (#186)
+const teamNamesShown = false
+
 /** Each division's team names as the admin edits them, one per line */
 const teamNameText = ref<Record<string, string>>({})
 const teamNamesOpen = ref(false)
@@ -822,8 +825,8 @@ onMounted(load)
         </div>
       </div>
 
-      <!-- Team names -->
-      <div v-if="isAdmin" class="section">
+      <!-- Team names, hidden until removed (#186) -->
+      <div v-if="isAdmin && teamNamesShown" class="section">
         <div class="section-header">
           <h3 class="section-title">Team names</h3>
           <div v-if="!teamNamesOpen" class="section-actions">
