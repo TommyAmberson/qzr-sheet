@@ -373,3 +373,11 @@ describe('canonical quiz file', () => {
     )
   })
 })
+
+describe('undo history and quiz files', () => {
+  it('stays out of a saved file, which holds only the quiz', () => {
+    const store = createQuizStore()
+    const file = JSON.parse(serializeStore(store, new Map(), new Map())) as Record<string, unknown>
+    expect(Object.keys(file).sort()).toEqual(['answers', 'noJumps', 'quiz', 'teams', 'version'])
+  })
+})

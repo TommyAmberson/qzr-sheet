@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   claimRecord,
-  deleteRecord,
+  discardRecent,
   listRecent,
   openTabCount,
   readMeta,
   readRecord,
   enforceLimits,
+  findMatch,
   startTab,
   takeDropped,
   writeMeta,
@@ -14,13 +15,12 @@ import {
 } from '../autoSave'
 import { aRecord } from './records'
 import { locks, removeWebLocks } from './webLocks'
-import { resetAutoSave } from './resetAutoSave'
 import { createQuizStore } from '../../stores/quizStore'
 import { CellValue, FILE_VERSION } from '@qzr/shared'
 import { serializeStore } from '../quizFile'
 
 beforeEach(() => {
-  resetAutoSave()
+  localStorage.clear()
 })
 
 describe('quiz records', () => {
@@ -67,10 +67,10 @@ describe('quiz records', () => {
     expect(await claimRecord('r2', { wait: 20 })).toBeNull()
   })
 
-  it('deletes records, and keeps the bookkeeping', async () => {
+  it('discards records, and keeps the bookkeeping', async () => {
     const record = aRecord()
     await writeRecord(record)
-    await deleteRecord(record.id)
+    expect(await discardRecent(record.id)).toBe(true)
     expect(await readRecord(record.id)).toBeUndefined()
     expect(await readMeta('dropped')).toBeUndefined()
     await writeMeta('dropped', ['Quiz 1'])
@@ -138,6 +138,30 @@ describe("a tab's start", () => {
     setTimeout(() => locks.closeOtherTab(`qzr-sheet:quiz:${record.id}`), 50)
     const tab = await startTab()
     expect(tab.id).toBe(record.id)
+  })
+
+  it("keeps a newer version's quiz as it was when its tab reloads, and begins another", async () => {
+    const newer = JSON.stringify({ version: FILE_VERSION + 1, quiz: {}, teams: [], answers: [] })
+    const record = aRecord({ current: { file: newer, undo: [], redo: [] } })
+    await writeRecord(record)
+    sessionStorage.setItem('qzr-sheet:quiz', record.id)
+    const tab = await startTab()
+    expect(tab.id).not.toBe(record.id)
+    expect(tab.record).toBeUndefined()
+    expect(await readRecord(record.id)).toMatchObject({ newerRaw: newer, current: undefined })
+  })
+
+  it("never makes room with the tab's own record, without Web Locks too", async () => {
+    removeWebLocks()
+    const tab = await startTab()
+    const own = aRecord({ id: tab.id, unsaved: false, changedAt: 1 })
+    await writeRecord(own)
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
+      throw new DOMException('No room', 'QuotaExceededError')
+    })
+    expect(await writeRecord(aRecord())).toBe(false)
+    put.mockRestore()
+    expect(await readRecord(tab.id)).toBeDefined()
   })
 
   it('copies the record when another tab holds it, as a duplicated tab finds', async () => {
@@ -223,6 +247,19 @@ describe('moving from the previous version', () => {
     expect(localStorage.length).toBe(0)
   })
 
+  it("keeps both when the tutorial's copy was a newer version's kept in place", async () => {
+    const newer = JSON.stringify({ version: FILE_VERSION + 1 })
+    localStorage.setItem('qzr-sheet:current', quiz())
+    localStorage.setItem('qzr-meet-session', JSON.stringify(meet))
+    localStorage.setItem('qzr-sheet:tutorial-snapshot', newer)
+    const tab = await startTab()
+    expect(JSON.parse(tab.record!.current!.file).answers).toHaveLength(1)
+    expect(tab.record!.link).toMatchObject({ meetId: 7 })
+    const recent = await listRecent(tab.id)
+    expect(recent.map((r) => r.newerRaw)).toEqual([newer])
+    expect(localStorage.length).toBe(0)
+  })
+
   it('moves nothing another tab moved meanwhile', async () => {
     localStorage.setItem('qzr-sheet:current', quiz())
     locks.holdAsOtherTab('qzr-sheet:migrate')
@@ -301,5 +338,52 @@ describe('the limits on recent quizzes', () => {
     expect(await readRecord(oldSaved.id)).toBeUndefined()
     expect(await readRecord(newSaved.id)).toBeDefined()
     expect(await readRecord(unsaved.id)).toBeDefined()
+  })
+})
+
+describe('an Open finding the quiz it came from', () => {
+  const state = (file: string) => ({ file, undo: [] })
+
+  it('continues a recent quiz in its current, saved or submitted state', async () => {
+    const a = aRecord({ current: { file: 'A', undo: [], redo: [] }, saved: state('A0') })
+    const b = aRecord({ submitted: { ...state('B'), meetId: 3, quizId: 'q', link: null } })
+    for (const r of [a, b]) await writeRecord(r)
+    const current = await findMatch({ file: 'A' }, 'own')
+    expect(current).toMatchObject({ record: a, state: 'current' })
+    if (current && current !== 'held') current.claim.release()
+    await Promise.resolve()
+    const saved = await findMatch({ file: 'A0' }, 'own')
+    expect(saved).toMatchObject({ record: { id: a.id }, state: 'saved' })
+  })
+
+  it('matches a submitted state only from the meet, as the same scheduled quiz', async () => {
+    const b = aRecord({ submitted: { ...state('B'), meetId: 3, quizId: 'q', link: null } })
+    await writeRecord(b)
+    expect(await findMatch({ file: 'B' }, 'own')).toBeNull()
+    expect(
+      await findMatch({ file: 'B', fromMeet: { meetId: 3, quizId: 'other' } }, 'own'),
+    ).toBeNull()
+    expect(
+      await findMatch({ file: 'B', fromMeet: { meetId: 3, quizId: 'q' } }, 'own'),
+    ).toMatchObject({
+      state: 'submitted',
+    })
+  })
+
+  it('takes the most recently changed of several, and says when each is open elsewhere', async () => {
+    const older = aRecord({ current: { file: 'X', undo: [], redo: [] }, changedAt: 1 })
+    const newer = aRecord({ current: { file: 'X', undo: [], redo: [] }, changedAt: 2 })
+    for (const r of [older, newer]) await writeRecord(r)
+    const match = await findMatch({ file: 'X' }, 'own')
+    expect(match).toMatchObject({ record: { id: newer.id } })
+    locks.holdAsOtherTab(`qzr-sheet:quiz:${older.id}`)
+    expect(await findMatch({ file: 'X' }, 'own')).toBe('held')
+  })
+
+  it("never continues the tab's own quiz, and finds nothing when nothing matches", async () => {
+    const own = aRecord({ current: { file: 'O', undo: [], redo: [] } })
+    await writeRecord(own)
+    expect(await findMatch({ file: 'O' }, own.id)).toBeNull()
+    expect(await findMatch({ file: 'nothing' }, own.id)).toBeNull()
   })
 })

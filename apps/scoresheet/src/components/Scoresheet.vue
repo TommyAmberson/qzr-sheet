@@ -34,7 +34,7 @@ import { useCellSelector } from '../composables/useCellSelector'
 import { useKeyboardNav } from '../composables/useKeyboardNav'
 import { useDragReorder } from '../composables/useDragReorder'
 import { useTheme } from '../composables/useTheme'
-import { serializeStore, storeToQuizFile } from '../persistence/quizFile'
+import { canonicalQuizFile, serializeStore, storeToQuizFile } from '../persistence/quizFile'
 import {
   saveQuizToFile,
   openAnyQuizFile,
@@ -92,7 +92,15 @@ import MeetPickerDialog from './MeetPickerDialog.vue'
 import MeetWarningsDialog, { type MeetWarning } from './MeetWarningsDialog.vue'
 import StoredQuizPickerDialog from './StoredQuizPickerDialog.vue'
 import RecentQuizzesDialog from './RecentQuizzesDialog.vue'
-import { startNotes, type QuizRecord, type RecordClaim } from '../persistence/autoSave'
+import {
+  findMatch,
+  startNotes,
+  takeDropped,
+  type Opened,
+  type QuizRecord,
+  type RecordClaim,
+  type StateKind,
+} from '../persistence/autoSave'
 import SchedulePickerDialog from './SchedulePickerDialog.vue'
 import SignInWidget from './SignInWidget.vue'
 import TutorialOverlay from './TutorialOverlay.vue'
@@ -145,12 +153,60 @@ const droppedQuizzes = ref<string[]>([])
 
 function seeRecentQuizzes() {
   waitingQuizzes.value = 0
+  void listRecentQuizzes()
+}
+
+/** List the recent quizzes, and name the unsaved ones the limits dropped since they were last named */
+async function listRecentQuizzes() {
   void recentRef.value?.list()
+  droppedQuizzes.value = [...droppedQuizzes.value, ...(await takeDropped())]
+}
+
+function openRecentQuizzes() {
+  closeMenus()
+  void listRecentQuizzes()
 }
 
 /** A recent quiz the tab has claimed replaces the one it shows, which goes to the recent quizzes */
-function restoreRecent(record: QuizRecord, claim: RecordClaim) {
-  meetSession.restoreSession(restoreQuiz(record, claim))
+function restoreRecent(record: QuizRecord, claim: RecordClaim, state: StateKind) {
+  meetSession.restoreSession(restoreQuiz(record, claim, state))
+}
+
+/** A newer version's quiz opens as a copy, read as well as this version can; it stays listed */
+async function openNewerRecent(record: QuizRecord): Promise<boolean> {
+  if (!(await confirmAction(TRY_NEWER_PROMPT))) return false
+  try {
+    const data = parseQuizFileAttempt(record.newerRaw!)
+    replaceQuiz()
+    loadFile(data, { fromNewerFile: true })
+    meetSession.restoreSession(record.link)
+    return true
+  } catch (e) {
+    alert(`Failed to open the quiz: ${e instanceof Error ? e.message : e}`)
+    return false
+  }
+}
+
+/** An Open matched a quiz open in another tab, and opened as a separate one */
+const openedElsewhere = ref(false)
+
+/**
+ * Show an opened quiz: as the recent quiz it came from, continued in the matched state with its link
+ * and history, or else as a new quiz. True when it continued a recent quiz.
+ */
+async function showOpened(
+  data: DeserializeResult,
+  { fromNewerFile = false, fromMeet }: { fromNewerFile?: boolean; fromMeet?: Opened['fromMeet'] },
+): Promise<boolean> {
+  const match = await findMatch({ file: canonicalQuizFile(data), fromMeet })
+  openedElsewhere.value = match === 'held'
+  if (match && match !== 'held') {
+    restoreRecent(match.record, match.claim, match.state)
+    return true
+  }
+  replaceQuiz()
+  loadFile(data, { fromNewerFile })
+  return false
 }
 
 // ---- Waiting on the meet ----
@@ -570,13 +626,9 @@ async function scheduleEntryOf(
   return quizId === undefined ? null : { quizId, schedule }
 }
 
-/** Start a scheduled quiz on a blank sheet, linked to it. Also what the portal's schedule links do */
-async function newFromSchedule(meetId: number, quizId: string): Promise<boolean> {
-  return startScheduled(meetId, quizId)
-}
-
 /**
- * Start a scheduled quiz, asking first when the meet already holds a result for it. Nothing changes
+ * Start a scheduled quiz on a blank sheet, linked to it, as the portal's schedule links do too.
+ * Asks first when the meet already holds a result for it. Nothing changes
  * until the schedule has arrived.
  */
 async function startScheduled(meetId: number, quizId: string): Promise<boolean> {
@@ -644,10 +696,10 @@ async function openStored(
     })
   })
   if (!plan) return false
-  replaceQuiz()
-  loadFile(data, { fromNewerFile })
+  const fromMeet = { meetId, quizId: plan.arrived.quizId }
+  const continued = await showOpened(data, { fromNewerFile, fromMeet })
   applyLink(plan.arrived)
-  retakeStart()
+  if (!continued) retakeStart()
   // Opened as the meet holds it: as submitted, to the scheduled quiz it is linked to
   markSubmitted(meetId, meetSession.quizId.value)
   return true
@@ -694,7 +746,7 @@ async function loadFromUrlParams() {
   const link = portalLink(window.location.search)
   if (!link) return
   try {
-    if ('quizId' in link) await newFromSchedule(link.meetId, link.quizId)
+    if ('quizId' in link) await startScheduled(link.meetId, link.quizId)
     else await openStoredVersion(link.meetId, link.resultId, link.revision)
   } finally {
     history.replaceState(null, '', window.location.pathname)
@@ -713,7 +765,7 @@ function openStoredPicker() {
 
 /** What picking a quiz in the schedule picker does, set by the menu item that opened it */
 const SCHEDULE_PICKS = {
-  new: { title: 'New from schedule', pick: newFromSchedule },
+  new: { title: 'New from schedule', pick: startScheduled },
   open: { title: 'Open from the schedule', pick: openFromSchedule },
   link: {
     title: 'Link a scheduled quiz',
@@ -898,11 +950,6 @@ const {
   visibleOtRounds,
   rules,
   openedFromNewerFile,
-  keptNewerAutoSaves,
-  autoSavePausedForKept,
-  tutorialBlockedByKept,
-  openKeptNewerAutoSave,
-  discardKeptNewerAutoSave,
   allQuestionsComplete,
   validationErrors,
   timeoutValidationErrors,
@@ -923,6 +970,7 @@ const {
   hasTimeoutAt,
   hasTimeoutAfterCol,
   pauseAutoSave,
+  keepFailed,
   loadFile,
   resetStore,
   clearAnswers,
@@ -1444,9 +1492,8 @@ async function openFile() {
   try {
     if (result.type === 'ods') {
       const data = deserialize(readOds(result.content))
-      replaceQuiz()
-      loadFile(data)
-      meetSession.clearSession()
+      // A file stands by itself, unless it continues a recent quiz, which keeps its link
+      if (!(await showOpened(data, {}))) meetSession.clearSession()
       markSaved()
     } else {
       await openJsonQuiz(result.content)
@@ -1473,44 +1520,15 @@ async function parseForOpen(
   }
 }
 
-/** Open a quiz file. A file stands by itself: the sheet is linked to no meet afterwards. */
+/**
+ * Open a quiz file. A file stands by itself: the sheet is linked to no meet afterwards, unless it
+ * continues a recent quiz, which keeps its link.
+ */
 async function openJsonQuiz(json: string) {
   const opened = await parseForOpen(json)
   if (!opened) return
-  replaceQuiz()
-  loadFile(opened.data, { fromNewerFile: opened.fromNewerFile })
-  meetSession.clearSession()
+  if (!(await showOpened(opened.data, opened))) meetSession.clearSession()
   markSaved()
-}
-
-function startTutorial() {
-  if (tutorialBlockedByKept.value) {
-    alert(
-      'The tutorial is unavailable while a quiz from a newer version is kept. Discard it first ' +
-        '(to keep a copy, open it and save it to a file before discarding).',
-    )
-    return
-  }
-  tutorial.start()
-}
-
-async function tryOpenKeptAutoSave() {
-  if (!(await confirmAction(TRY_NEWER_PROMPT))) return
-  try {
-    replaceQuiz()
-    openKeptNewerAutoSave()
-    meetSession.clearSession()
-  } catch (e) {
-    alert(`Failed to open the kept quiz: ${e instanceof Error ? e.message : e}`)
-  }
-}
-
-async function discardKeptAutoSave() {
-  if (
-    !(await confirmAction('Discard the quiz auto-saved by a newer version? This cannot be undone.'))
-  )
-    return
-  discardKeptNewerAutoSave()
 }
 
 // A Record, so a new format fails type-checking until it has labels of its own
@@ -2072,6 +2090,7 @@ const appVersion: string = __APP_VERSION__
                     <button @click="doOpenFile">⤒ From file…</button>
                     <button @click="openStoredPicker">🔗 From the meet…</button>
                     <button @click="openSchedulePicker('open')">📅 From the schedule…</button>
+                    <button @click="openRecentQuizzes">🕘 Recent quizzes…</button>
                   </div>
                 </div>
                 <div class="file-menu">
@@ -2086,7 +2105,7 @@ const appVersion: string = __APP_VERSION__
                     <button @click="doClearNames">✕ Clear names</button>
                   </div>
                 </div>
-                <button class="help-toggle" title="Interactive tutorial" @click="startTutorial">
+                <button class="help-toggle" title="Interactive tutorial" @click="tutorial.start">
                   ?
                 </button>
               </div>
@@ -2115,14 +2134,23 @@ const appVersion: string = __APP_VERSION__
         <div
           v-if="
             openedFromNewerFile ||
-            keptNewerAutoSaves.length ||
+            openedElsewhere ||
             waitingQuizzes ||
-            droppedQuizzes.length
+            droppedQuizzes.length ||
+            keepFailed
           "
           class="notice-row"
         >
           <div class="col--left-spacer" />
           <div class="notice-row-inner">
+            <p v-if="keepFailed" class="notice">
+              {{
+                keepFailed === 'full'
+                  ? "This quiz can't be kept on this device: it is full. Save it to a file."
+                  : "This quiz couldn't be kept on this device. Save it to a file."
+              }}
+              <button class="notice-action" aria-label="Close" @click="keepFailed = null">×</button>
+            </p>
             <p v-if="waitingQuizzes" class="notice">
               {{ waitingQuizzes }} unsaved {{ waitingQuizzes === 1 ? 'quiz' : 'quizzes' }} from
               closed tabs.
@@ -2141,14 +2169,11 @@ const appVersion: string = __APP_VERSION__
             <p v-if="openedFromNewerFile" class="notice">
               Opened from a newer file; may be scored wrong.
             </p>
-            <p v-if="keptNewerAutoSaves.length" class="notice">
-              An auto-saved quiz from a newer version was kept{{
-                keptNewerAutoSaves.length > 1 ? ` (${keptNewerAutoSaves.length} kept)` : ''
-              }}.<template v-if="autoSavePausedForKept">
-                Auto-save is paused until it is discarded, so nothing overwrites it.</template
-              >
-              <button class="notice-action" @click="tryOpenKeptAutoSave">Try to open it</button>
-              <button class="notice-action" @click="discardKeptAutoSave">Discard</button>
+            <p v-if="openedElsewhere" class="notice">
+              This quiz is open in another tab. It opened here as a separate quiz.
+              <button class="notice-action" aria-label="Close" @click="openedElsewhere = false">
+                ×
+              </button>
             </p>
           </div>
         </div>
@@ -2716,7 +2741,11 @@ const appVersion: string = __APP_VERSION__
       <Teleport to="body">
         <MeetPickerDialog ref="meetPickerRef" @picked="linkPickedMeet" />
         <StoredQuizPickerDialog ref="storedPickerRef" :on-pick="openPickedStored" />
-        <RecentQuizzesDialog ref="recentRef" :on-restore="restoreRecent" />
+        <RecentQuizzesDialog
+          ref="recentRef"
+          :on-restore="restoreRecent"
+          :on-open-newer="openNewerRecent"
+        />
         <MeetWarningsDialog ref="warningsDialogRef" :warnings="meetWarningEntries" />
         <ChoiceDialog ref="choiceDialog" />
         <RoomCodeDialog ref="roomCodeDialog" />

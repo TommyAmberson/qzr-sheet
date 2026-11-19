@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { resetAutoSave } from '../../persistence/__tests__/resetAutoSave'
 import { currentTab, startTab } from '../../persistence/autoSave'
 import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
@@ -12,7 +11,7 @@ const S = toSeatIdx
 const C = toColIdx
 
 beforeEach(async () => {
-  resetAutoSave()
+  localStorage.clear()
   await startTab()
 })
 

@@ -1,8 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { resetAutoSave } from '../../persistence/__tests__/resetAutoSave'
-import { nextTick } from 'vue'
+import { effectScope, nextTick } from 'vue'
 import { useScoresheet } from '../useScoresheet'
-import { currentTab, readRecord, setTabLink, startTab } from '../../persistence/autoSave'
+import {
+  claimRecord,
+  currentTab,
+  listRecent,
+  readRecord,
+  setTabLink,
+  startTab,
+  writeRecord,
+} from '../../persistence/autoSave'
 import { createQuizStore } from '../../stores/quizStore'
 import { aRecord } from '../../persistence/__tests__/records'
 import {
@@ -19,7 +26,7 @@ const S = toSeatIdx
 const C = toColIdx
 
 beforeEach(() => {
-  resetAutoSave()
+  localStorage.clear()
 })
 
 describe('useScoresheet — initial state', () => {
@@ -703,6 +710,50 @@ describe("useScoresheet — the tab's writer", () => {
   const answersWritten = async () =>
     JSON.parse((await written())?.current?.file ?? '{"answers":[]}').answers.length
 
+  it('says a write failed, and still writes the next change', async () => {
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
+      throw new DOMException('broken', 'UnknownError')
+    })
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.flushAutoSave()
+    await vi.waitFor(() => expect(s.keepFailed.value).toBe('failed'))
+    put.mockRestore()
+    s.setCell(T(0), S(0), C(1), CellValue.Correct)
+    s.flushAutoSave()
+    await vi.waitFor(async () => expect(await answersWritten()).toBe(2))
+    expect(s.keepFailed.value).toBeNull()
+    scope.stop()
+  })
+
+  it('says the device is full when no room can be made', async () => {
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError')
+    })
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.flushAutoSave()
+    await vi.waitFor(() => expect(s.keepFailed.value).toBe('full'))
+    put.mockRestore()
+    scope.stop()
+  })
+
+  it('lets another tab take the quiz it left only once its last edit is written', async () => {
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    const left = currentTab()!.id
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    // A write in flight, then an edit and New
+    s.flushAutoSave()
+    s.setCell(T(0), S(0), C(1), CellValue.Correct)
+    s.replaceQuiz()
+    expect(await claimRecord(left, { wait: 1000 })).not.toBeNull()
+    expect(JSON.parse((await readRecord(left))!.current!.file).answers).toHaveLength(2)
+    scope.stop()
+  })
+
   it("writes changes to the tab's record together, once they pause", async () => {
     const put = vi.spyOn(IDBObjectStore.prototype, 'put')
     const s = useScoresheet()
@@ -804,5 +855,142 @@ describe('useScoresheet — saved, and kept', () => {
     const other = useScoresheet()
     other.markSaved()
     await vi.waitFor(async () => expect(await kept()).toBe(true))
+  })
+})
+
+describe('useScoresheet — continuing a quiz from an earlier state', () => {
+  /** A quiz saved after one answer and edited since with two more, left by a closed tab */
+  async function savedThenEdited() {
+    await startTab()
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.markSaved()
+    s.setCell(T(0), S(0), C(1), CellValue.Correct)
+    s.setCell(T(0), S(0), C(2), CellValue.Correct)
+    setTabLink({ meetId: 5, meetName: 'Meet' } as never)
+    s.flushAutoSave()
+    await vi.waitFor(async () => expect(await readRecord(currentTab()!.id)).toBeDefined())
+    // The tab closes; a new one opens, and is offered nothing
+    scope.stop()
+    const record = { ...(await readRecord(currentTab()!.id))!, offered: true }
+    await writeRecord(record)
+    currentTab()!.claim.release()
+    sessionStorage.clear()
+    await startTab()
+    const sheet = useScoresheet()
+    sheet.restoreQuiz(record, (await claimRecord(record.id))!, 'saved')
+    return { sheet, record }
+  }
+  const answers = (s: ReturnType<typeof useScoresheet>) =>
+    s.cells.value[0]![0]!.filter((cell) => cell === CellValue.Correct).length
+
+  it('puts the quiz at that state, with redo up to the latest', async () => {
+    const { sheet } = await savedThenEdited()
+    expect(answers(sheet)).toBe(1)
+    expect(sheet.unsaved.value).toBe(false)
+    sheet.redo()
+    sheet.redo()
+    expect(answers(sheet)).toBe(3)
+    expect(sheet.canRedo.value).toBe(false)
+  })
+
+  it('keeps the latest state as a quiz of its own when an edit leaves it behind', async () => {
+    const { sheet, record } = await savedThenEdited()
+    sheet.setCell(T(1), S(0), C(0), CellValue.Correct)
+    await vi.waitFor(async () => {
+      const split = (await listRecent(currentTab()!.id)).find((r) => r.id !== record.id)
+      expect(split?.current?.file).toBe(record.current!.file)
+      expect(split?.current?.undo).toHaveLength(3)
+      expect(split?.link).toMatchObject({ meetId: 5 })
+    })
+  })
+
+  it('keeps nothing extra once redone up to the latest state', async () => {
+    const { sheet, record } = await savedThenEdited()
+    sheet.redo()
+    sheet.redo()
+    sheet.setCell(T(1), S(0), C(0), CellValue.Correct)
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    const files = (await listRecent(currentTab()!.id)).map((r) => r.current?.file)
+    expect(files).not.toContain(record.current!.file)
+  })
+
+  it('keeps the latest state too when the answers are cleared there', async () => {
+    const { sheet, record } = await savedThenEdited()
+    sheet.clearAnswers()
+    await vi.waitFor(async () => {
+      const recent = await listRecent(currentTab()!.id)
+      expect(recent.map((r) => r.current?.file)).toContain(record.current!.file)
+    })
+  })
+})
+
+describe('useScoresheet — undo across a reload and a restore', () => {
+  beforeEach(async () => {
+    await startTab()
+  })
+  const correct = (s: ReturnType<typeof useScoresheet>) =>
+    s.cells.value[0]![0]!.filter((cell) => cell === CellValue.Correct).length
+
+  /** The page reloads: a new sheet starts from the tab's record */
+  async function reload(
+    scope: ReturnType<typeof effectScope>,
+    s: ReturnType<typeof useScoresheet>,
+  ) {
+    s.flushAutoSave()
+    await vi.waitFor(async () => expect(await readRecord(currentTab()!.id)).toBeDefined())
+    scope.stop()
+    return useScoresheet()
+  }
+
+  it('steps through the same edits after a reload, newest first, and redoes them', async () => {
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    for (let col = 0; col < 5; col++) s.setCell(T(0), S(0), C(col), CellValue.Correct)
+    s.undo()
+    const after = await reload(scope, s)
+    expect(correct(after)).toBe(4)
+    after.undo()
+    expect(after.cells.value[0]![0]![3]).toBe(CellValue.Empty)
+    for (let i = 0; i < 3; i++) after.undo()
+    expect(correct(after)).toBe(0)
+    expect(after.canUndo.value).toBe(false)
+    for (let i = 0; i < 5; i++) after.redo()
+    expect(correct(after)).toBe(5)
+  })
+
+  it('brings a restored quiz back with the steps that led to it', async () => {
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.setCell(T(0), S(0), C(1), CellValue.Correct)
+    s.flushAutoSave()
+    await vi.waitFor(async () => expect(await readRecord(currentTab()!.id)).toBeDefined())
+    const record = (await readRecord(currentTab()!.id))!
+    scope.stop()
+    currentTab()!.claim.release()
+    sessionStorage.clear()
+    await startTab()
+    const sheet = useScoresheet()
+    sheet.restoreQuiz({ ...record, offered: true }, (await claimRecord(record.id))!)
+    sheet.undo()
+    expect(correct(sheet)).toBe(1)
+  })
+
+  it('keeps the last 1000 steps, and the saved state with its own', async () => {
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    s.setCell(T(0), S(0), C(5), CellValue.Correct)
+    s.markSaved()
+    for (let i = 0; i < 1001; i++) {
+      s.setCell(T(0), S(0), C(0), i % 2 === 0 ? CellValue.Correct : CellValue.Empty)
+    }
+    const after = await reload(scope, s)
+    const record = currentTab()!.record!
+    expect(record.current!.undo).toHaveLength(1000)
+    expect(record.saved!.undo).toHaveLength(1)
+    for (let i = 0; i < 1000; i++) after.undo()
+    expect(after.canUndo.value).toBe(false)
   })
 })

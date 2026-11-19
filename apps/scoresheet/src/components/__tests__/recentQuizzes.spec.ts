@@ -31,10 +31,11 @@ import {
   getTeamNames,
   getTeamQuizzers,
 } from '../../api'
-import { confirmAction } from '../../persistence/fileIO'
+import { confirmAction, openAnyQuizFile } from '../../persistence/fileIO'
 import {
   currentTab,
   listRecent,
+  claimRecord,
   readRecord,
   startTab,
   writeMeta,
@@ -42,7 +43,7 @@ import {
   type QuizRecord,
 } from '../../persistence/autoSave'
 import { aRecord } from '../../persistence/__tests__/records'
-import { locks } from '../../persistence/__tests__/webLocks'
+import { locks, removeWebLocks } from '../../persistence/__tests__/webLocks'
 import { useMeetSession } from '../../composables/useMeetSession'
 import { portalLink } from '../../portalLink'
 import {
@@ -50,6 +51,7 @@ import {
   MEET_NAME,
   button,
   calgary,
+  menu,
   mountSheet,
   pageText,
   pickScheduled,
@@ -130,10 +132,13 @@ describe('replacing a quiz', () => {
     await sheet.vm.newQuiz()
 
     expect(confirmAction).not.toHaveBeenCalled()
-    const kept = await readRecord(replaced)
-    expect(JSON.parse(kept!.current!.file).teams[0].name).toBe('Lions')
-    expect(kept).toMatchObject({ unsaved: true, offered: true })
-    expect((await listRecent()).map((r) => r.id)).toContain(replaced)
+    // Written, and let go, once the writes before it have landed
+    await vi.waitFor(async () => {
+      const kept = await readRecord(replaced)
+      expect(JSON.parse(kept!.current!.file).teams[0].name).toBe('Lions')
+      expect(kept).toMatchObject({ unsaved: true, offered: true })
+      expect((await listRecent()).map((r) => r.id)).toContain(replaced)
+    })
   })
 
   it('keeps nothing of a quiz with nothing done by hand', async () => {
@@ -213,6 +218,23 @@ describe('a new tab', () => {
     expect(after.offered).toBe(true)
   })
 
+  it('says nothing is left to restore once other tabs took every quiz offered', async () => {
+    const lions = await leftBehind('Lions')
+    const bears = await leftBehind('Bears')
+    await newTab()
+    await claimRecord(lions.id)
+    await claimRecord(bears.id)
+    for (const restore of [
+      ...document.querySelectorAll<HTMLButtonElement>('.recent-quizzes__row button'),
+    ].filter((b) => b.textContent?.trim() === 'Restore')) {
+      restore.click()
+      await vi.waitFor(() =>
+        expect(pageText()).toContain('That quiz was just opened in another tab.'),
+      )
+    }
+    await vi.waitFor(() => expect(pageText()).toContain('Nothing left to restore.'))
+  })
+
   it('never offers a saved quiz', async () => {
     const file = JSON.stringify(quizFile([['Lions', 'Ann']]))
     await leftBehind('Lions', { saved: { file, undo: [] }, unsaved: false })
@@ -239,5 +261,187 @@ describe('a new tab', () => {
     const sheet = await mountSheet()
     expect(teamNames(sheet)).toEqual(['Lions', '', ''])
     expect(offered()).toEqual([])
+  })
+})
+
+describe('Open ▸ Recent quizzes', () => {
+  const rows = () =>
+    [...document.querySelectorAll('.recent-quizzes__row')].map((r) => r.textContent)
+  const rowButton = (row: number, label: string) =>
+    [...document.querySelectorAll('.recent-quizzes__row')[row]!.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === label,
+    )!
+  async function openList(sheet: Awaited<ReturnType<typeof newTab>>) {
+    await menu(sheet, 'Open', 'Recent quizzes…')
+    await flushPromises()
+  }
+
+  it('lists every recent quiz, unsaved first and marked, with teams, answers and when', async () => {
+    const file = JSON.stringify(quizFile([['Bears', 'Bo']]))
+    await leftBehind('Bears', { saved: { file, undo: [] }, unsaved: false, changedAt: Date.now() })
+    await leftBehind('Lions', { offered: true, changedAt: Date.now() - 86_400_000 })
+    const sheet = await newTab()
+    await openList(sheet)
+    expect(rows()[0]).toContain('Unsaved')
+    expect(rows()[0]).toContain('Lions')
+    expect(rows()[0]).toContain('0 answers · yesterday')
+    expect(rows()[1]).not.toContain('Unsaved')
+    expect(rows()[1]).toContain('today')
+  })
+
+  it('shows a quiz saved, then submitted, then edited as three rows, each restoring its state', async () => {
+    const saved = JSON.stringify(quizFile([['Saved']]))
+    const sent = JSON.stringify(quizFile([['Sent']]))
+    const link = {
+      meetId: MEET_ID,
+      meetName: MEET_NAME,
+      slots: [],
+      teamList: [],
+      meetDivisions: [],
+      quizId: 'q7',
+      sender: null,
+    }
+    await leftBehind('Edited', {
+      offered: true,
+      link: { ...link, meetName: 'Other' },
+      saved: { file: saved, undo: [] },
+      submitted: { file: sent, undo: [], meetId: MEET_ID, quizId: 'q7', link },
+    })
+    const sheet = await newTab()
+    await typeTeam(sheet, 0, 'Mine')
+    await openList(sheet)
+    expect(rows()).toHaveLength(3)
+    expect(rows()[1]).toContain('As saved to a file')
+    expect(rows()[2]).toContain(`As submitted to ${MEET_NAME}`)
+
+    rowButton(2, 'Restore').click()
+    await flushPromises()
+    expect(teamNames(sheet)).toEqual(['Sent', '', ''])
+    expect(useMeetSession().meetName.value).toBe(MEET_NAME)
+    // The quiz the tab showed is recent now
+    await vi.waitFor(async () => {
+      const recent = await listRecent(currentTab()!.id)
+      expect(recent.some((r) => r.current?.file.includes('Mine'))).toBe(true)
+    })
+  })
+
+  it('discards a quiz, and all, asking first and keeping quizzes open in tabs', async () => {
+    await leftBehind('Lions', { offered: true })
+    await leftBehind('Bears', { offered: true })
+    const held = await leftBehind('Tigers', { offered: true })
+    locks.holdAsOtherTab(`qzr-sheet:quiz:${held.id}`)
+    const sheet = await newTab()
+    await openList(sheet)
+    expect(rows()).toHaveLength(2)
+    rowButton(0, 'Discard').click()
+    await vi.waitFor(() => expect(rows()).toHaveLength(1))
+    expect(confirmAction).toHaveBeenCalledWith(expect.stringContaining('cannot be undone'))
+    await button(sheet, 'Discard all').trigger('click')
+    await vi.waitFor(() => expect(pageText()).toContain('No recent quizzes.'))
+    expect(await readRecord(held.id)).toBeDefined()
+  })
+
+  it("leaves the tab's own quiz out, without Web Locks too", async () => {
+    removeWebLocks()
+    const sheet = await newTab()
+    await typeTeam(sheet, 0, 'Mine')
+    await vi.waitFor(async () => expect(await readRecord(currentTab()!.id)).toBeDefined())
+    await openList(sheet)
+    expect(pageText()).toContain('No recent quizzes.')
+    await button(sheet, 'Close').trigger('click')
+    await leftBehind('Lions', { offered: true })
+    await openList(sheet)
+    await button(sheet, 'Discard all').trigger('click')
+    await vi.waitFor(() => expect(pageText()).toContain('No recent quizzes.'))
+    expect(await readRecord(currentTab()!.id)).toBeDefined()
+  })
+
+  it('discards nothing another tab has just opened, and says so', async () => {
+    const lions = await leftBehind('Lions', { offered: true })
+    const sheet = await newTab()
+    await openList(sheet)
+    locks.holdAsOtherTab(`qzr-sheet:quiz:${lions.id}`)
+    rowButton(0, 'Discard').click()
+    await vi.waitFor(() =>
+      expect(pageText()).toContain('That quiz was just opened in another tab.'),
+    )
+    expect(await readRecord(lions.id)).toBeDefined()
+  })
+
+  it('says a quiz was just opened in another tab, and keeps the list open', async () => {
+    const lions = await leftBehind('Lions', { offered: true })
+    const sheet = await newTab()
+    await openList(sheet)
+    await claimRecord(lions.id)
+    rowButton(0, 'Restore').click()
+    await flushPromises()
+    expect(pageText()).toContain('That quiz was just opened in another tab.')
+    expect(teamNames(sheet)).toEqual(['', '', ''])
+  })
+
+  it('restores a quiz as another tab last left it, not as it was listed', async () => {
+    const lions = await leftBehind('Lions', { offered: true })
+    const sheet = await newTab()
+    await openList(sheet)
+    // Another tab restores it, edits it and closes, while the list is open here
+    const claim = (await claimRecord(lions.id))!
+    await writeRecord({
+      ...lions,
+      current: { file: JSON.stringify(quizFile([['Lions edited', 'Ann']])), undo: [], redo: [] },
+    })
+    claim.release()
+    await flushPromises()
+    rowButton(0, 'Restore').click()
+    await vi.waitFor(() => expect(teamNames(sheet)).toEqual(['Lions edited', '', '']))
+  })
+
+  it("lists a newer version's quiz, and asks before opening a copy of it", async () => {
+    const raw = JSON.stringify({ ...quizFile([['Future']]), version: 99 })
+    await writeRecord(
+      aRecord({ current: undefined, newerRaw: raw, offered: true, fromNewerFile: true }),
+    )
+    const sheet = await newTab()
+    await openList(sheet)
+    expect(rows()[0]).toContain('From a newer version')
+    rowButton(0, 'Restore').click()
+    await flushPromises()
+    expect(confirmAction).toHaveBeenCalledWith(expect.stringContaining('newer version'))
+    expect(teamNames(sheet)).toEqual(['Future', '', ''])
+    expect(await listRecent(currentTab()!.id)).toHaveLength(1)
+  })
+})
+
+describe('Open finding the quiz it came from', () => {
+  it('opens the file as a new quiz when the device storage fails', async () => {
+    const sheet = await newTab()
+    const transaction = vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(() => {
+      throw new DOMException('gone', 'InvalidStateError')
+    })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const file = JSON.stringify(quizFile([['Lions', 'Ann']]))
+    vi.mocked(openAnyQuizFile).mockResolvedValue({ type: 'json', content: file } as never)
+    await menu(sheet, 'Open', 'From file…')
+    await vi.waitFor(() => expect(teamNames(sheet)).toEqual(['Lions', '', '']))
+    expect(alert).not.toHaveBeenCalled()
+    transaction.mockRestore()
+  })
+
+  it('says so, and opens a separate quiz, when that quiz is open in another tab', async () => {
+    const file = JSON.stringify(quizFile([['Lions', 'Ann']]))
+    const elsewhere = await leftBehind('Lions', { offered: true, saved: { file: '', undo: [] } })
+    const { canonicalQuizFile } = await import('../../persistence/quizFile')
+    const { deserialize } = await import('@qzr/shared')
+    const canonical = canonicalQuizFile(deserialize(JSON.parse(file)))
+    await writeRecord({ ...elsewhere, current: { file: canonical, undo: [], redo: [] } })
+    locks.holdAsOtherTab(`qzr-sheet:quiz:${elsewhere.id}`)
+    const sheet = await newTab()
+    vi.mocked(openAnyQuizFile).mockResolvedValue({ type: 'json', content: file } as never)
+    await menu(sheet, 'Open', 'From file…')
+    await flushPromises()
+    expect(pageText()).toContain(
+      'This quiz is open in another tab. It opened here as a separate quiz.',
+    )
+    expect(teamNames(sheet)).toEqual(['Lions', '', ''])
+    expect(currentTab()!.id).not.toBe(elsewhere.id)
   })
 })

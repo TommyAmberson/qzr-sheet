@@ -1,4 +1,10 @@
-import { NewerFileVersionError, parseQuizFile, quizName, type QuizFile } from '@qzr/shared'
+import {
+  FILE_VERSION,
+  NewerFileVersionError,
+  parseQuizFile,
+  quizName,
+  type QuizFile,
+} from '@qzr/shared'
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
 import { canonicalQuizFile } from './quizFile'
 import type { UndoStep } from '../composables/undoSteps'
@@ -6,44 +12,6 @@ import type { MeetSessionData } from '../composables/useMeetSession'
 
 const STORAGE_KEY = 'qzr-sheet:current'
 const KEPT_NEWER_PREFIX = 'qzr-sheet:newer-autosave:'
-
-// Keys holding a newer quiz that couldn't be set aside, so it stays where it is and nothing may
-// write over it
-const keptInPlace = new Set<string>()
-
-/** Whether any newer quiz is kept where it was found; the tutorial won't start until none is */
-export function hasNewerKeptInPlace(): boolean {
-  return keptInPlace.size > 0
-}
-
-/** Keys of auto-saves from a newer version that were set aside on startup, most recent first */
-export function listKeptNewerAutoSaves(): string[] {
-  const keys: string[] = []
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith(KEPT_NEWER_PREFIX)) keys.push(key)
-    }
-  } catch {
-    return []
-  }
-  // ISO timestamps sort chronologically as strings
-  keys.sort().reverse()
-  return [...keptInPlace, ...keys]
-}
-
-/** Whether auto-save is paused to protect a newer auto-save that couldn't be set aside */
-export function isAutoSavePausedForNewer(): boolean {
-  return keptInPlace.has(STORAGE_KEY)
-}
-
-export function readKeptNewerAutoSave(key: string): string | null {
-  return localStorage.getItem(key)
-}
-
-export function discardKeptNewerAutoSave(key: string): void {
-  if (keptInPlace.delete(key) || key.startsWith(KEPT_NEWER_PREFIX)) localStorage.removeItem(key)
-}
 
 // --- Quiz records ---
 //
@@ -135,8 +103,9 @@ export async function readRecord(id: string): Promise<QuizRecord | undefined> {
 }
 
 /**
- * Write a record over any with its id. When the device refuses it for lack of room, saved recent
- * quizzes make room, oldest first; unsaved ones never do. False when there is still no room.
+ * Write a record over any with its id. When the device refuses it for lack of room, records no tab
+ * holds make room: those not kept first, then saved recent quizzes, oldest first; unsaved ones
+ * never do. False when there is still no room.
  */
 export async function writeRecord(record: QuizRecord): Promise<boolean> {
   for (;;) {
@@ -146,11 +115,15 @@ export async function writeRecord(record: QuizRecord): Promise<boolean> {
     } catch (e) {
       if ((e as { name?: string } | null)?.name !== 'QuotaExceededError') throw e
     }
-    const [oldest] = (await listRecent(record.id))
-      .filter((r) => !r.unsaved && r.id !== record.id)
-      .sort(byChange)
-    if (!oldest) return false
-    await deleteRecord(oldest.id)
+    // Never the record being written, nor the tab's own, which a tab without Web Locks can't tell
+    const left = (await unheld(record.id)).filter((r) => r.id !== record.id && r.id !== tab?.id)
+    const [first] = [
+      ...left.filter((r) => !isKept(r)),
+      ...left.filter((r) => isKept(r) && !r.unsaved).sort(byChange),
+    ]
+    if (!first) return false
+    // Taken by a tab meanwhile, it is held from now on, and the next pass looks past it
+    await deleteRecords([first.id])
   }
 }
 
@@ -159,38 +132,108 @@ const byChange = (a: QuizRecord, b: QuizRecord) => a.changedAt - b.changedAt
 const UNSAVED_LIMIT = 80
 const SAVED_LIMIT = 40
 
+/** A state's quiz file as stored, or null when there is none or it can't be read */
+export function storedQuizFile(file: string | undefined): QuizFile | null {
+  if (!file) return null
+  try {
+    return JSON.parse(file) as QuizFile
+  } catch {
+    return null
+  }
+}
+
 /** The quiz name a record's quiz goes by, for saying it was dropped */
 function recordName(record: QuizRecord): string {
-  try {
-    return quizName((JSON.parse(record.current!.file) as QuizFile).quiz)
-  } catch {
-    return 'A quiz from a newer version'
-  }
+  const file = storedQuizFile(record.current?.file)
+  return file ? quizName(file.quiz) : 'A quiz from a newer version'
 }
 
 /**
  * Keep the 80 most recently changed unsaved recent quizzes and the 40 saved ones, deleting the rest,
  * and remember the unsaved ones dropped so they can be named once. Quizzes in tabs don't count.
  */
-export async function enforceLimits(ownId?: string): Promise<void> {
-  const newestFirst = (await listRecent(ownId)).sort(byChange).reverse()
+export async function enforceLimits(ownId = tab?.id): Promise<void> {
+  const left = await unheld(ownId)
+  // A quiz with nothing done by hand was written only for its tab's reload
+  const newestFirst = left.filter(isKept).sort(byChange).reverse()
   const unsaved = newestFirst.filter((r) => r.unsaved).slice(UNSAVED_LIMIT)
   const saved = newestFirst.filter((r) => !r.unsaved).slice(SAVED_LIMIT)
-  for (const record of [...unsaved, ...saved]) await deleteRecord(record.id)
-  if (unsaved.length === 0) return
-  const dropped = (await readMeta('dropped')) ?? []
-  await writeMeta('dropped', [...dropped, ...unsaved.map(recordName)])
+  const notKept = left.filter((r) => !isKept(r))
+  await deleteRecords([...unsaved, ...saved, ...notKept].map((record) => record.id))
+  if (unsaved.length > 0) await changeDropped((dropped) => [...dropped, ...unsaved.map(recordName)])
 }
 
 /** Unsaved quizzes dropped by the limits since last asked, which are then forgotten */
 export async function takeDropped(): Promise<string[]> {
-  const dropped = (await readMeta('dropped')) ?? []
-  if (dropped.length > 0) await writeMeta('dropped', [])
-  return dropped
+  let taken: string[] = []
+  await changeDropped((dropped) => {
+    taken = dropped
+    return []
+  })
+  return taken
 }
 
-export async function deleteRecord(id: string): Promise<void> {
-  await (await records()).delete('quizzes', id)
+/** Change the names of dropped quizzes in one transaction, so two tabs at once lose none */
+async function changeDropped(change: (dropped: string[]) => string[]): Promise<void> {
+  const tx = (await records()).transaction('meta', 'readwrite')
+  const dropped = ((await tx.store.get('dropped')) as string[] | undefined) ?? []
+  const next = change(dropped)
+  if (next.length > 0 || dropped.length > 0) await tx.store.put(next, 'dropped')
+  await tx.done
+}
+
+/**
+ * Delete the records no tab holds, in one transaction, each held meanwhile so another tab can't
+ * take one as it goes. The ids deleted.
+ */
+async function deleteRecords(ids: string[]): Promise<string[]> {
+  const claims = (
+    await Promise.all(ids.map(async (id) => ({ id, claim: await holdRecord(id) })))
+  ).flatMap(({ id, claim }) => (claim ? [{ id, claim }] : []))
+  try {
+    if (claims.length === 0) return []
+    const tx = (await records()).transaction('quizzes', 'readwrite')
+    await Promise.all([...claims.map(({ id }) => tx.store.delete(id)), tx.done])
+    return claims.map(({ id }) => id)
+  } finally {
+    for (const { claim } of claims) claim.release()
+  }
+}
+
+/** Discard a recent quiz; false when a tab took it meanwhile */
+export async function discardRecent(id: string): Promise<boolean> {
+  return (await deleteRecords([id])).length > 0
+}
+
+/**
+ * A record as this version can show it: one whose quiz file a newer version wrote is kept as it
+ * was, as that version's quiz, listed and opened with a warning rather than shown and written over
+ */
+export function readable(record: QuizRecord): QuizRecord {
+  const file = record.current?.file
+  const version = storedQuizFile(file)?.version
+  if (!file || version === undefined || version <= FILE_VERSION) return record
+  return { ...record, current: undefined, newerRaw: file, fromNewerFile: true, offered: true }
+}
+
+/**
+ * Whether a record is kept as a recent quiz once no tab holds it: something was done by hand
+ * since its start, or it was saved or submitted. A record that isn't is the tab's own, written so
+ * a reload brings it back, and goes once its tab does.
+ */
+export function isKept(record: QuizRecord): boolean {
+  if (!record.current) return true
+  return Boolean(record.saved || record.submitted || !untouched(record))
+}
+
+/** Nothing done by hand since a quiz's start: no undo or redo steps, and its state as it began */
+export function untouched({ current, start }: Pick<QuizRecord, 'current' | 'start'>): boolean {
+  return (
+    current !== undefined &&
+    current.undo.length === 0 &&
+    current.redo.length === 0 &&
+    current.file === start
+  )
 }
 
 async function heldLocks(): Promise<Set<string>> {
@@ -200,9 +243,14 @@ async function heldLocks(): Promise<Set<string>> {
 
 /**
  * Records no open tab holds. Without Web Locks the tab is taken to be the only one, so every
- * record but its own is recent.
+ * record but its own (this tab's, unless another is named) is recent.
  */
-export async function listRecent(ownId?: string): Promise<QuizRecord[]> {
+export async function listRecent(ownId = tab?.id): Promise<QuizRecord[]> {
+  return (await unheld(ownId)).filter(isKept)
+}
+
+/** Every record no open tab holds, kept or not */
+async function unheld(ownId = tab?.id): Promise<QuizRecord[]> {
   const all = await (await records()).getAll('quizzes')
   if (!navigator.locks) return all.filter((r) => r.id !== ownId)
   const held = await heldLocks()
@@ -215,17 +263,34 @@ export async function openTabCount(): Promise<number> {
   return [...(await heldLocks())].filter((name) => name.startsWith(LOCK_PREFIX)).length
 }
 
-/** A record this tab holds until it lets it go */
+/** A record this tab holds until it lets it go, as the last tab to hold it left it */
 export interface RecordClaim {
   release: () => void
+  /** The record, read once the lock was granted; absent when there is none */
+  record?: QuizRecord
 }
 
 /**
- * Hold record `id` for this tab, or null when another tab holds it. The browser grants a lock to
- * one tab only, which settles two tabs claiming the same quiz. With `wait`, wait that many ms for
+ * Hold record `id` for this tab, or null when another tab holds it, with the record as it is once
+ * held: another tab may have changed it since it was last read. With `wait`, wait that many ms for
  * the tab holding it to let go.
  */
-export function claimRecord(id: string, { wait = 0 } = {}): Promise<RecordClaim | null> {
+export async function claimRecord(id: string, { wait = 0 } = {}): Promise<RecordClaim | null> {
+  const hold = await holdRecord(id, { wait })
+  if (!hold) return null
+  try {
+    return { ...hold, record: await readRecord(id) }
+  } catch (e) {
+    hold.release()
+    throw e
+  }
+}
+
+/**
+ * Take record `id`'s lock for this tab, or null when another tab holds it. The browser grants a
+ * lock to one tab only, which settles two tabs claiming the same quiz.
+ */
+function holdRecord(id: string, { wait = 0 } = {}): Promise<{ release: () => void } | null> {
   if (!navigator.locks) return Promise.resolve({ release: () => {} })
   return new Promise((resolve, reject) => {
     let release!: () => void
@@ -248,6 +313,68 @@ export function claimRecord(id: string, { wait = 0 } = {}): Promise<RecordClaim 
   })
 }
 
+/** Which of a record's states: its current one, or the one last saved or submitted */
+export type StateKind = 'current' | 'saved' | 'submitted'
+
+/** What an Open shows: its canonical file, and for a quiz from the meet, where it came from */
+export interface Opened {
+  file: string
+  fromMeet?: { meetId: number; quizId: string | null }
+}
+
+/** A recent quiz an Open continues, claimed by this tab, and which of its states it matched */
+export interface Match {
+  record: QuizRecord
+  claim: RecordClaim
+  state: StateKind
+}
+
+/** The state of `record` that `opened` is, if any: a submitted state only for the same meet's quiz */
+function matchingState(record: QuizRecord, { file, fromMeet }: Opened): StateKind | undefined {
+  if (record.current?.file === file) return 'current'
+  if (record.saved?.file === file) return 'saved'
+  const sent = record.submitted
+  if (sent?.file === file && fromMeet?.meetId === sent.meetId && fromMeet.quizId === sent.quizId) {
+    return 'submitted'
+  }
+  return undefined
+}
+
+/**
+ * The recent quiz an Open continues: the most recently changed whose current, saved or submitted
+ * state is what was opened, claimed for this tab. 'held' when every such quiz is open in another
+ * tab; null when none matches, or the device's storage fails, which must not stop the Open. The
+ * tab's own record, the one the Open replaces, is never a match.
+ */
+export async function findMatch(opened: Opened, ownId = tab?.id): Promise<Match | 'held' | null> {
+  try {
+    const candidates = (await (await records()).getAll('quizzes'))
+      .filter((r) => r.id !== ownId && isKept(r) && matchingState(r, opened))
+      .sort(byChange)
+      .reverse()
+    let held = false
+    for (const { id } of candidates) {
+      const claim = await claimRecord(id)
+      if (!claim) {
+        held = true
+        continue
+      }
+      const state = claim.record && matchingState(claim.record, opened)
+      if (claim.record && state) return { record: claim.record, claim, state }
+      claim.release()
+    }
+    return held ? 'held' : null
+  } catch (e) {
+    console.error('Could not look among the recent quizzes', e)
+    return null
+  }
+}
+
+/** Delete every recent quiz; quizzes open in tabs are kept */
+export async function discardAllRecent(): Promise<void> {
+  await deleteRecords((await unheld()).map((record) => record.id))
+}
+
 export async function readMeta<K extends keyof Meta>(key: K): Promise<Meta[K] | undefined> {
   return (await (await records()).get('meta', key)) as Meta[K] | undefined
 }
@@ -266,7 +393,7 @@ const RELOAD_WAIT_MS = 1000
 export interface Tab {
   id: string
   claim: RecordClaim
-  /** The record as last read or written; absent while the tab's quiz is not kept */
+  /** The record as last read or written; absent until the tab's quiz is first written */
   record?: QuizRecord
   /** The tab's meet link, written with its quiz */
   link: MeetSessionData | null
@@ -276,8 +403,11 @@ let tab: Tab | null = null
 let linkListener: (() => void) | null = null
 
 /** The tab's writer hears of every change to its meet link */
-export function onTabLinkChange(listener: () => void): void {
+export function onTabLinkChange(listener: () => void): () => void {
   linkListener = listener
+  return () => {
+    if (linkListener === listener) linkListener = null
+  }
 }
 
 /** The meet link changed: it goes with the tab's quiz, and nowhere shared */
@@ -316,11 +446,27 @@ export function startNotes(): StartNotes {
  * each offered once: one, with no other tab open, comes back by itself.
  */
 export async function startTab({ byLink = false } = {}): Promise<Tab> {
+  try {
+    return await startOwnTab(byLink)
+  } catch (e) {
+    storageFailed = true
+    throw e
+  }
+}
+
+let storageFailed = false
+
+/** The tab could not be started on the device's storage, so nothing it shows is kept */
+export function storageFailedAtStart(): boolean {
+  return storageFailed
+}
+
+async function startOwnTab(byLink: boolean): Promise<Tab> {
   notes = { offer: [], waiting: 0, dropped: [] }
   const migratedId = await migrate()
   const ownId = sessionStorage.getItem(TAB_KEY) ?? migratedId
   tab = ownId ? await takeBack(ownId) : await begin(newRecordId())
-  await enforceLimits(tab.id)
+  await enforceLimits()
   if (!ownId) {
     await lookForLeftBehind(tab, byLink)
     notes.dropped = await takeDropped()
@@ -330,7 +476,9 @@ export async function startTab({ byLink = false } = {}): Promise<Tab> {
 }
 
 async function lookForLeftBehind(newTab: Tab, byLink: boolean): Promise<void> {
-  const waiting = (await listRecent(newTab.id)).filter((r) => r.current && r.unsaved && !r.offered)
+  const waiting = (await listRecent(newTab.id))
+    .map(readable)
+    .filter((r) => r.current && r.unsaved && !r.offered)
   if (byLink) {
     notes.waiting = waiting.length
     return
@@ -338,9 +486,10 @@ async function lookForLeftBehind(newTab: Tab, byLink: boolean): Promise<void> {
   const [only] = waiting
   if (only && waiting.length === 1 && (await openTabCount()) === 1) {
     const claim = await claimRecord(only.id)
-    // As the last tab to hold it left it, which may be after it was listed
-    const record = claim && (await readRecord(only.id))
-    if (claim && record?.current) return moveTab(newTab, { id: only.id, claim, record })
+    const record = claim?.record
+    if (claim && record?.current) {
+      return moveTab(newTab, { id: only.id, claim, record }, Promise.resolve())
+    }
     claim?.release()
   }
   notes.offer = waiting
@@ -358,17 +507,23 @@ async function markOffered(ids: string[]): Promise<void> {
 }
 
 /**
- * The tab's quiz is replaced: its record becomes a recent quiz, and the tab shows `to`, a record it
- * has claimed, or else begins a new one. A new one has a fresh id no other tab can hold, so the tab
- * writes to it at once and takes its lock on the way.
+ * The tab's quiz is replaced: its record becomes a recent quiz, once `written` (the tab's writes to
+ * it) has settled, and the tab shows `to`, a record it has claimed, or else begins a new one. A new
+ * one has a fresh id no other tab can hold, so the tab writes to it at once and takes its lock on
+ * the way.
  */
 export function moveTab(
   tab: Tab,
-  to?: { id: string; claim: RecordClaim; record: QuizRecord },
+  to: { id: string; claim: RecordClaim; record: QuizRecord } | undefined,
+  written: Promise<unknown>,
 ): void {
-  tab.claim.release()
-  // The record it leaves may push the oldest of its kind out
-  void enforceLimits(to?.id)
+  const left = tab.claim
+  // Another tab may take the record left only as this one last wrote it
+  void written.then(() => {
+    left.release()
+    // The record it leaves may push the oldest of its kind out
+    enforceLimits().catch((e: unknown) => console.error('Could not trim recent quizzes', e))
+  })
   if (to) {
     Object.assign(tab, held(to.id, to.claim, to.record))
     sessionStorage.setItem(TAB_KEY, to.id)
@@ -377,10 +532,13 @@ export function moveTab(
   const id = newRecordId()
   Object.assign(tab, { id, record: undefined, claim: { release: () => {} } })
   sessionStorage.setItem(TAB_KEY, id)
-  void claimRecord(id).then((claim) => {
-    if (claim && tab.id === id) tab.claim = claim
-    else claim?.release()
-  })
+  claimRecord(id).then(
+    (claim) => {
+      if (claim && tab.id === id) tab.claim = claim
+      else claim?.release()
+    },
+    (e: unknown) => console.error('Could not hold the new quiz', e),
+  )
 }
 
 async function begin(id: string, record?: QuizRecord): Promise<Tab> {
@@ -390,25 +548,34 @@ async function begin(id: string, record?: QuizRecord): Promise<Tab> {
 }
 
 function held(id: string, claim: RecordClaim, record?: QuizRecord): Tab {
-  return { id, claim, record, link: record?.link ? upToDateSession({ ...record.link }) : null }
+  return { id, claim, record, link: record?.link ?? null }
 }
 
 async function takeBack(id: string): Promise<Tab> {
   const claim = await claimRecord(id, { wait: RELOAD_WAIT_MS })
+  if (claim) {
+    const record = claim.record && readable(claim.record)
+    if (record === claim.record) return held(id, claim, record)
+    // A newer version's quiz is kept as it was, and the tab begins a quiz of its own
+    await writeRecord(record!)
+    claim.release()
+    return begin(newRecordId())
+  }
   const record = await readRecord(id)
-  if (claim) return held(id, claim, record)
   // Still held: this tab is a copy of the one holding it, and from now on keeps its own, which a
   // new tab offers once this one closes like any other
-  if (!record) return begin(newRecordId())
+  if (!record || readable(record) !== record) return begin(newRecordId())
   const copy: QuizRecord = { ...record, id: newRecordId(), offered: false }
+  // Held before it is written, so no other tab takes it as a quiz left behind
+  const copied = await begin(copy.id, copy)
   await writeRecord(copy)
-  return begin(copy.id, copy)
+  return copied
 }
 
 // --- Moving from the previous version ---
 
 /** A meet link as kept by an earlier version, with the fields added since filled in */
-export function upToDateSession(data: MeetSessionData): MeetSessionData {
+function upToDateSession(data: MeetSessionData): MeetSessionData {
   if (!data.meetDivisions) data.meetDivisions = []
   if (data.quizId === undefined) data.quizId = null
   // Quiz ids were numbers before schedules became documents; converted meets kept them as strings
@@ -448,28 +615,49 @@ async function moveOldKeys(): Promise<string | undefined> {
     else failed = true
   }
 
-  // A tutorial that crashed left the quiz it replaced aside; the sheet holds its practice quiz
-  const fromTutorial = localStorage.getItem(OLD_KEYS.tutorialQuiz) !== null
-  const [quizKey, meetKey, newerKey] = fromTutorial
-    ? [OLD_KEYS.tutorialQuiz, OLD_KEYS.tutorialMeetSession, OLD_KEYS.tutorialFromNewerFile]
-    : [OLD_KEYS.quiz, OLD_KEYS.meetSession, OLD_KEYS.fromNewerFile]
-  const raw = localStorage.getItem(quizKey)
-  const meetRaw = localStorage.getItem(meetKey)
-  let link: MeetSessionData | null = null
-  try {
-    link = meetRaw ? upToDateSession(JSON.parse(meetRaw) as MeetSessionData) : null
-  } catch {
-    // An unreadable link is left behind, as the meet session's own load did
+  const sheetKeys = [OLD_KEYS.quiz, OLD_KEYS.meetSession, OLD_KEYS.fromNewerFile]
+  const tutorialKeys = [
+    OLD_KEYS.tutorialQuiz,
+    OLD_KEYS.tutorialMeetSession,
+    OLD_KEYS.tutorialFromNewerFile,
+  ]
+  /** The quiz kept under `keys` as a record; the record, unless there was none to keep */
+  const moveQuiz = async (names: string[]) => {
+    const [quizKey, meetKey, newerKey] = names
+    const raw = localStorage.getItem(quizKey!)
+    const meetRaw = localStorage.getItem(meetKey!)
+    let link: MeetSessionData | null = null
+    try {
+      link = meetRaw ? upToDateSession(JSON.parse(meetRaw) as MeetSessionData) : null
+    } catch {
+      // An unreadable link is left behind, as the meet session's own load did
+    }
+    const record = raw ? oldQuizRecord(raw, link, localStorage.getItem(newerKey!) === '1') : null
+    if (record) await keep(record, names)
+    else moved.push(...names)
+    return { record, link }
   }
-  const quizKeys = Object.values(OLD_KEYS)
+
+  // A tutorial that crashed left the quiz it replaced aside, and the sheet holds its practice
+  // quiz; unless the quiz set aside was a newer version's, kept where it was, and the sheet has
+  // been scored on since: then both are kept
   let sheetId: string | undefined
-  if (raw) {
-    const record = oldQuizRecord(raw, link, localStorage.getItem(newerKey) === '1')
-    if (record) {
-      await keep(record, quizKeys)
-      if (!record.newerRaw && !failed) sheetId = record.id
-    } else moved.push(...quizKeys)
-  } else moved.push(...quizKeys)
+  let link: MeetSessionData | null = null
+  const fromTutorial = localStorage.getItem(OLD_KEYS.tutorialQuiz) !== null
+  if (fromTutorial) {
+    const aside = await moveQuiz(tutorialKeys)
+    link = aside.link
+    if (aside.record && !aside.record.newerRaw && !failed) sheetId = aside.record.id
+    if (aside.record?.newerRaw) {
+      const sheet = await moveQuiz(sheetKeys)
+      if (sheet.record && !sheet.record.newerRaw && !failed) sheetId = sheet.record.id
+    } else moved.push(...sheetKeys)
+  } else {
+    const sheet = await moveQuiz(sheetKeys)
+    link = sheet.link
+    if (sheet.record && !sheet.record.newerRaw && !failed) sheetId = sheet.record.id
+    moved.push(...tutorialKeys)
+  }
 
   for (const key of listOldNewerKeys()) {
     const kept = localStorage.getItem(key)

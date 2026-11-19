@@ -7,7 +7,7 @@ import {
   type TeamIdx,
   type Timeout,
 } from '@qzr/shared'
-import { currentTab, hasNewerKeptInPlace } from '../persistence/autoSave'
+import { currentTab } from '../persistence/autoSave'
 import type { QuizStore } from '../stores/quizStore'
 import { standInNames, TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
 import { useMeetSession, type MeetSessionData } from './useMeetSession'
@@ -51,9 +51,6 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   const totalSteps = TUTORIAL_STEPS.length
 
   function start() {
-    // A newer quiz kept in place pins the auto-save slot the tutorial relies on, so the tutorial
-    // waits until it is discarded (a deliberate trade-off; see the spec)
-    if (hasNewerKeptInPlace()) return
     // The tab's record keeps its quiz and link while the practice quiz is on the sheet: written now
     // with what was waiting, then left alone until the tutorial ends, or a reload brings it back
     scoresheet.flushAutoSave()

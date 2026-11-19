@@ -1,26 +1,35 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 
-import { quizName, type QuizFile } from '@qzr/shared'
+import { quizName } from '@qzr/shared'
 
 import {
   claimRecord,
-  deleteRecord,
+  discardRecent,
+  discardAllRecent,
   listRecent,
-  takeDropped,
+  readable,
+  storedQuizFile,
   type QuizRecord,
   type RecordClaim,
+  type StateKind,
 } from '../persistence/autoSave'
 import { confirmAction } from '../persistence/fileIO'
 
 const props = defineProps<{
-  /** Show a recent quiz the tab has just claimed */
-  onRestore: (record: QuizRecord, claim: RecordClaim) => void
+  /** Show a recent quiz the tab has just claimed, in one of its states */
+  onRestore: (record: QuizRecord, claim: RecordClaim, state: StateKind) => void
+  /** Open a copy of a newer version's quiz, which stays listed; true when it was opened */
+  onOpenNewer: (record: QuizRecord) => Promise<boolean>
 }>()
 
-/** A row: one quiz, as listed */
+/** A row: one kept state of a quiz, as listed */
 interface Row {
+  key: string
   record: QuizRecord
+  state: StateKind | 'newer'
+  /** Which state it is, where it isn't simply the quiz as it was left */
+  kind: string
   name: string
   teams: string
   answers: number
@@ -30,37 +39,51 @@ interface Row {
 const dialogRef = ref<HTMLDialogElement | null>(null)
 /** Offer: quizzes left by closed tabs, shown to a new tab. List: every recent quiz. */
 const form = ref<'offer' | 'list'>('list')
-const records = ref<QuizRecord[]>([])
+const records = shallowRef<QuizRecord[]>([])
 /** Why the last restore didn't happen */
 const taken = ref('')
-/** Unsaved quizzes dropped to stay within the limits, named once */
-const dropped = ref<string[]>([])
 
+// Unsaved quizzes first; a quiz's rows together, its current state first
 const rows = computed<Row[]>(() =>
   [...records.value]
     .sort((a, b) => Number(b.unsaved) - Number(a.unsaved) || b.changedAt - a.changedAt)
-    .flatMap((record) => {
-      const file = readFile(record.current?.file)
-      if (!file) return []
-      return [
-        {
-          record,
-          name: quizName(file.quiz),
-          teams: file.teams.map((team, i) => team.name.trim() || `Team ${i + 1}`).join(' · '),
-          answers: file.answers.length,
-          when: changedWhen(record.changedAt),
-        },
-      ]
-    }),
+    .flatMap(rowsOf),
 )
 
-function readFile(file: string | undefined): QuizFile | null {
-  if (!file) return null
-  try {
-    return JSON.parse(file) as QuizFile
-  } catch {
-    return null
+function rowsOf(record: QuizRecord): Row[] {
+  const row = (state: Row['state'], kind: string, raw: string | undefined): Row[] => {
+    const file = storedQuizFile(raw)
+    if (!file?.quiz) return []
+    return [
+      {
+        key: `${record.id}:${state}`,
+        record,
+        state,
+        kind,
+        name: quizName(file.quiz),
+        teams: (file.teams ?? []).map((t, i) => t.name.trim() || `Team ${i + 1}`).join(' · '),
+        answers: file.answers?.length ?? 0,
+        when: changedWhen(record.changedAt),
+      },
+    ]
   }
+  if (record.newerRaw) return row('newer', 'From a newer version', record.newerRaw)
+  const { current, saved, submitted } = record
+  const shown = new Set([current?.file])
+  const other = (state: 'saved' | 'submitted', kind: string, file: string | undefined) => {
+    if (file === undefined || shown.has(file)) return []
+    shown.add(file)
+    return row(state, kind, file)
+  }
+  return [
+    ...row('current', record.unsaved ? 'Unsaved' : '', current?.file),
+    ...other('saved', 'As saved to a file', saved?.file),
+    ...other(
+      'submitted',
+      `As submitted to ${submitted?.link?.meetName ?? 'the meet'}`,
+      submitted?.file,
+    ),
+  ]
 }
 
 /** When a quiz last changed, as "today 14:02", "yesterday 09:15" or a date */
@@ -79,20 +102,36 @@ function startOfDay(date: Date): number {
 
 async function restore(row: Row) {
   taken.value = ''
+  if (row.state === 'newer') {
+    if (await props.onOpenNewer(row.record)) close()
+    return
+  }
   const claim = await claimRecord(row.record.id)
-  if (!claim) {
+  const record = claim?.record && readable(claim.record)
+  if (!claim || !record?.current) {
+    claim?.release()
     taken.value = 'That quiz was just opened in another tab.'
     records.value = records.value.filter((r) => r.id !== row.record.id)
     return
   }
-  props.onRestore(row.record, claim)
+  props.onRestore(record, claim, row.state)
   close()
+}
+
+async function discardAll() {
+  const question =
+    'Discard every recent quiz? Quizzes open in tabs are kept. This cannot be undone.'
+  if (!(await confirmAction(question))) return
+  await discardAllRecent()
+  records.value = []
 }
 
 async function discard(row: Row) {
   if (!(await confirmAction(`Discard ${row.name}? All its states go, and this cannot be undone.`)))
     return
-  await deleteRecord(row.record.id)
+  taken.value = (await discardRecent(row.record.id))
+    ? ''
+    : 'That quiz was just opened in another tab.'
   records.value = records.value.filter((r) => r.id !== row.record.id)
 }
 
@@ -100,11 +139,11 @@ function close() {
   dialogRef.value?.close()
 }
 
-function show(which: 'offer' | 'list', shown: QuizRecord[], droppedNow: string[] = []) {
+function show(which: 'offer' | 'list', shown: QuizRecord[]) {
   form.value = which
-  records.value = shown
+  // A newer version's quiz, as such: listed with a warning, never shown as one of this version's
+  records.value = shown.map(readable)
   taken.value = ''
-  dropped.value = droppedNow
   dialogRef.value?.showModal()
 }
 
@@ -115,8 +154,7 @@ function offer(left: QuizRecord[]) {
 
 /** List every recent quiz */
 async function list() {
-  const [recent, droppedNow] = await Promise.all([listRecent(), takeDropped()])
-  show('list', recent, droppedNow)
+  show('list', await listRecent())
 }
 
 defineExpose({ offer, list })
@@ -133,16 +171,20 @@ defineExpose({ offer, list })
       </div>
 
       <p v-if="taken" class="recent-quizzes__state recent-quizzes__state--error">{{ taken }}</p>
-      <p v-if="dropped.length" class="recent-quizzes__state recent-quizzes__state--error">
-        {{ dropped.join(', ') }} {{ dropped.length === 1 ? 'was' : 'were' }} removed from recent
-        quizzes to make room.
+      <p v-if="rows.length === 0" class="recent-quizzes__state">
+        {{ form === 'offer' ? 'Nothing left to restore.' : 'No recent quizzes.' }}
       </p>
-      <p v-if="rows.length === 0" class="recent-quizzes__state">No recent quizzes.</p>
       <ul v-else class="recent-quizzes__list">
-        <li v-for="row in rows" :key="row.record.id" class="recent-quizzes__row">
+        <li v-for="row in rows" :key="row.key" class="recent-quizzes__row">
           <div class="recent-quizzes__what">
             <span class="recent-quizzes__name">{{ row.name }}</span>
-            <span v-if="row.record.unsaved" class="recent-quizzes__kind--unsaved">Unsaved</span>
+            <span
+              v-if="row.kind"
+              :class="
+                row.kind === 'Unsaved' ? 'recent-quizzes__kind--unsaved' : 'recent-quizzes__kind'
+              "
+              >{{ row.kind }}</span
+            >
             <span class="recent-quizzes__teams">{{ row.teams }}</span>
             <span class="recent-quizzes__when">
               {{ row.answers }} {{ row.answers === 1 ? 'answer' : 'answers' }} · {{ row.when }}
@@ -153,8 +195,16 @@ defineExpose({ offer, list })
         </li>
       </ul>
 
-      <div v-if="form === 'offer'" class="recent-quizzes__footer">
-        <button class="recent-quizzes__action" @click="close">Start a blank quiz</button>
+      <div class="recent-quizzes__footer">
+        <button v-if="form === 'offer'" class="recent-quizzes__action" @click="close">
+          Start a blank quiz
+        </button>
+        <template v-else>
+          <button v-if="rows.length > 0" class="recent-quizzes__action" @click="discardAll">
+            Discard all
+          </button>
+          <button class="recent-quizzes__action" @click="close">Close</button>
+        </template>
       </div>
     </div>
   </dialog>
@@ -197,6 +247,7 @@ defineExpose({ offer, list })
 
 .recent-quizzes__footer {
   justify-content: flex-end;
+  gap: 4px;
 }
 
 .recent-quizzes__title {
@@ -256,6 +307,11 @@ defineExpose({ offer, list })
 
 .recent-quizzes__name {
   font-weight: 600;
+}
+
+.recent-quizzes__kind {
+  font-size: 0.7rem;
+  color: var(--color-text-faint);
 }
 
 .recent-quizzes__kind--unsaved {
