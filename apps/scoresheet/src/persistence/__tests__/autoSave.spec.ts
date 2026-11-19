@@ -8,7 +8,17 @@ import {
   discardKeptNewerAutoSave,
   isAutoSavePausedForNewer,
   keepNewerInPlace,
+  claimRecord,
+  deleteRecord,
+  listRecent,
+  openTabCount,
+  readMeta,
+  readRecord,
+  writeMeta,
+  writeRecord,
 } from '../autoSave'
+import { aRecord } from './records'
+import { locks, removeWebLocks } from './webLocks'
 import { resetAutoSave } from './resetAutoSave'
 import { createQuizStore } from '../../stores/quizStore'
 import { CellValue, FILE_VERSION } from '@qzr/shared'
@@ -140,5 +150,85 @@ describe('autoSave — another newer quiz kept in place', () => {
     discardKeptNewerAutoSave('qzr-sheet:tutorial-snapshot')
     expect(listKeptNewerAutoSaves()).toEqual([])
     expect(localStorage.getItem('qzr-sheet:tutorial-snapshot')).toBeNull()
+  })
+})
+
+describe('quiz records', () => {
+  it('reads back a record written, with every field', async () => {
+    const record = aRecord({
+      saved: { file: 'saved', undo: [{ changes: [] }] },
+      submitted: { file: 'sent', undo: [], meetId: 3, quizId: 'q1', link: null },
+      ahead: { file: 'ahead', undo: [] },
+      fromNewerFile: true,
+      unsaved: false,
+      offered: true,
+    })
+    expect(await writeRecord(record)).toBe(true)
+    expect(await readRecord(record.id)).toEqual(record)
+  })
+
+  it('lists as recent only records no tab holds', async () => {
+    const free = aRecord()
+    const held = aRecord()
+    await writeRecord(free)
+    await writeRecord(held)
+    locks.holdAsOtherTab(`qzr-sheet:quiz:${held.id}`)
+    expect((await listRecent()).map((r) => r.id)).toEqual([free.id])
+    locks.closeOtherTab(`qzr-sheet:quiz:${held.id}`)
+    expect((await listRecent()).map((r) => r.id).sort()).toEqual([free.id, held.id].sort())
+  })
+
+  it('lets one of two tabs claim a record, and the other once it is let go', async () => {
+    const record = aRecord()
+    await writeRecord(record)
+    const first = await claimRecord(record.id)
+    expect(first).not.toBeNull()
+    expect(await claimRecord(record.id)).toBeNull()
+    expect(await openTabCount()).toBe(1)
+    first!.release()
+    await vi.waitFor(async () => expect(await claimRecord(record.id)).not.toBeNull())
+  })
+
+  it('waits as long as asked for a record about to be let go', async () => {
+    locks.holdAsOtherTab('qzr-sheet:quiz:r1')
+    setTimeout(() => locks.closeOtherTab('qzr-sheet:quiz:r1'), 20)
+    expect(await claimRecord('r1', { wait: 1000 })).not.toBeNull()
+    locks.holdAsOtherTab('qzr-sheet:quiz:r2')
+    expect(await claimRecord('r2', { wait: 20 })).toBeNull()
+  })
+
+  it('deletes records, and keeps the bookkeeping', async () => {
+    const record = aRecord()
+    await writeRecord(record)
+    await deleteRecord(record.id)
+    expect(await readRecord(record.id)).toBeUndefined()
+    expect(await readMeta('dropped')).toBeUndefined()
+    await writeMeta('dropped', ['Quiz 1'])
+    await writeMeta('migrated', true)
+    expect(await readMeta('dropped')).toEqual(['Quiz 1'])
+    expect(await readMeta('migrated')).toBe(true)
+  })
+
+  it("without Web Locks, treats every record but the tab's own as recent", async () => {
+    removeWebLocks()
+    const own = aRecord()
+    const other = aRecord()
+    await writeRecord(own)
+    await writeRecord(other)
+    expect(await claimRecord(own.id)).not.toBeNull()
+    expect(await claimRecord(own.id)).not.toBeNull()
+    expect((await listRecent(own.id)).map((r) => r.id)).toEqual([other.id])
+    expect(await openTabCount()).toBe(1)
+  })
+
+  it('reports a write the device refuses for lack of room', async () => {
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+      throw new DOMException('No room', 'QuotaExceededError')
+    })
+    try {
+      expect(await writeRecord(aRecord())).toBe(false)
+    } finally {
+      put.mockRestore()
+    }
   })
 })

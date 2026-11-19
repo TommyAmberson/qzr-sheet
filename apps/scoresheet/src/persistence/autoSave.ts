@@ -4,8 +4,11 @@ import {
   parseQuizFile,
   type Timeout,
 } from '@qzr/shared'
+import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
 import { serializeStore } from './quizFile'
 import type { QuizStore } from '../stores/quizStore'
+import type { UndoStep } from '../composables/undoSteps'
+import type { MeetSessionData } from '../composables/useMeetSession'
 
 const STORAGE_KEY = 'qzr-sheet:current'
 const KEPT_NEWER_PREFIX = 'qzr-sheet:newer-autosave:'
@@ -111,4 +114,170 @@ export function discardKeptNewerAutoSave(key: string): void {
 export function clearStorage(): void {
   if (keptInPlace.has(STORAGE_KEY)) return
   localStorage.removeItem(STORAGE_KEY)
+}
+
+// --- Quiz records ---
+//
+// Every tab's quiz, and every quiz a tab no longer shows, is a record in IndexedDB, shared by the
+// tabs. A tab holds a Web Lock named after the record it shows; a record no tab holds is a recent
+// quiz. The browser lets a closed or crashed tab's lock go, so nothing needs writing as it closes.
+
+/** A state of a quiz: its canonical file and the undo steps that led to it, oldest first */
+export interface QuizState {
+  file: string
+  undo: UndoStep[]
+}
+
+/** The state a quiz was last sent to the meet in, and where it was sent */
+export interface SubmittedState extends QuizState {
+  meetId: number
+  /** The scheduled quiz it was sent as, or null */
+  quizId: string | null
+  /** The meet link the quiz was sent with */
+  link: MeetSessionData | null
+}
+
+/** One quiz: one undo history, and the states it keeps (data-model.md "Quiz record") */
+export interface QuizRecord {
+  id: string
+  /** The quiz as last shown, with its redo steps; absent only for a newer version's quiz */
+  current?: QuizState & { redo: UndoStep[] }
+  /** The state the quiz began in, after names a link filled in before any edit by hand */
+  start: string
+  saved?: QuizState
+  submitted?: SubmittedState
+  /** While positioned behind its latest state: that latest state */
+  ahead?: QuizState
+  link: MeetSessionData | null
+  /** The quiz came from a newer version's file and may be scored wrong */
+  fromNewerFile: boolean
+  /** A newer version's auto-save this version cannot read, kept as it was */
+  newerRaw?: string
+  /** Derived when written: the current state matches neither saved state */
+  unsaved: boolean
+  /** When the current state last changed, ms since the epoch */
+  changedAt: number
+  /** Already offered to a new tab, or replaced rather than left by a closed tab */
+  offered: boolean
+}
+
+interface Meta {
+  /** Names of unsaved quizzes dropped by the limits, not yet announced */
+  dropped: string[]
+  /** The previous version's keys were moved into records */
+  migrated: boolean
+}
+
+interface RecordsSchema extends DBSchema {
+  quizzes: { key: string; value: QuizRecord }
+  meta: { key: keyof Meta; value: Meta[keyof Meta] }
+}
+
+const DB_NAME = 'qzr-sheet'
+const LOCK_PREFIX = 'qzr-sheet:quiz:'
+const lockName = (id: string) => LOCK_PREFIX + id
+
+let connection: Promise<IDBPDatabase<RecordsSchema>> | null = null
+
+function records(): Promise<IDBPDatabase<RecordsSchema>> {
+  connection ??= openDB<RecordsSchema>(DB_NAME, 1, {
+    upgrade(db) {
+      db.createObjectStore('quizzes', { keyPath: 'id' })
+      db.createObjectStore('meta')
+    },
+    // Another tab needs the database closed (a newer version, or it is being deleted)
+    blocking(_current, _blocked, event) {
+      ;(event.target as IDBDatabase).close()
+      connection = null
+    },
+    terminated() {
+      connection = null
+    },
+  })
+  return connection
+}
+
+export function newRecordId(): string {
+  return crypto.randomUUID()
+}
+
+export async function readRecord(id: string): Promise<QuizRecord | undefined> {
+  return (await records()).get('quizzes', id)
+}
+
+/** Write a record over any with its id; false when the device refuses it for lack of room */
+export async function writeRecord(record: QuizRecord): Promise<boolean> {
+  try {
+    await (await records()).put('quizzes', record)
+    return true
+  } catch (e) {
+    if ((e as { name?: string } | null)?.name === 'QuotaExceededError') return false
+    throw e
+  }
+}
+
+export async function deleteRecord(id: string): Promise<void> {
+  await (await records()).delete('quizzes', id)
+}
+
+async function heldLocks(): Promise<Set<string>> {
+  const snapshot = await navigator.locks.query()
+  return new Set((snapshot.held ?? []).flatMap((lock) => (lock.name ? [lock.name] : [])))
+}
+
+/**
+ * Records no open tab holds. Without Web Locks the tab is taken to be the only one, so every
+ * record but its own is recent.
+ */
+export async function listRecent(ownId?: string): Promise<QuizRecord[]> {
+  const all = await (await records()).getAll('quizzes')
+  if (!navigator.locks) return all.filter((r) => r.id !== ownId)
+  const held = await heldLocks()
+  return all.filter((r) => !held.has(lockName(r.id)))
+}
+
+/** How many tabs show a quiz, this one included */
+export async function openTabCount(): Promise<number> {
+  if (!navigator.locks) return 1
+  return [...(await heldLocks())].filter((name) => name.startsWith(LOCK_PREFIX)).length
+}
+
+/** A record this tab holds until it lets it go */
+export interface RecordClaim {
+  release: () => void
+}
+
+/**
+ * Hold record `id` for this tab, or null when another tab holds it. The browser grants a lock to
+ * one tab only, which settles two tabs claiming the same quiz. With `wait`, wait that many ms for
+ * the tab holding it to let go.
+ */
+export function claimRecord(id: string, { wait = 0 } = {}): Promise<RecordClaim | null> {
+  if (!navigator.locks) return Promise.resolve({ release: () => {} })
+  return new Promise((resolve, reject) => {
+    let release!: () => void
+    const held = new Promise<void>((done) => (release = done))
+    const options: LockOptions =
+      wait > 0 ? { signal: AbortSignal.timeout(wait) } : { ifAvailable: true }
+    navigator.locks
+      .request(lockName(id), options, async (lock) => {
+        if (!lock) return resolve(null)
+        resolve({ release })
+        await held
+      })
+      // Not granted in time: another tab still holds it
+      .catch((e: unknown) => {
+        const name = (e as { name?: string } | null)?.name
+        if (name === 'AbortError' || name === 'TimeoutError') resolve(null)
+        else reject(e)
+      })
+  })
+}
+
+export async function readMeta<K extends keyof Meta>(key: K): Promise<Meta[K] | undefined> {
+  return (await (await records()).get('meta', key)) as Meta[K] | undefined
+}
+
+export async function writeMeta<K extends keyof Meta>(key: K, value: Meta[K]): Promise<void> {
+  await (await records()).put('meta', value, key)
 }
