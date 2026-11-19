@@ -22,6 +22,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Fixed
 
+* A new admin, coach or room code no longer reads as one-time: the dialog says it won't be shown
+  again, and that a lost code is replaced by generating a new one
 * The new meet form's division example is `2`, not `2C`: consolation lanes such as `2C` come from
   the schedule, not from the meet's divisions
 

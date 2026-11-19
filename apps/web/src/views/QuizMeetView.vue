@@ -1063,7 +1063,9 @@ onMounted(load)
             <button class="btn btn--secondary btn--sm" @click="copyCode">Copy</button>
           </div>
           <p v-if="accessDialog.revealedCode" class="dialog-hint">
-            This code is only shown now. Copy it before closing.
+            You won't see this code again, so copy it now. Lost it? Just generate a new one. This
+            one then stops working: signed-in members keep their access, and guests who joined with
+            it need the new code.
           </p>
 
           <div class="dialog-actions">
