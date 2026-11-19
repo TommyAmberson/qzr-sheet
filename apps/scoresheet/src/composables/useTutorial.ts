@@ -7,7 +7,6 @@ import {
   type TeamIdx,
   type Timeout,
 } from '@qzr/shared'
-import { currentTab } from '../persistence/autoSave'
 import type { QuizStore } from '../stores/quizStore'
 import { standInNames, TUTORIAL_STEPS, type TutorialStep } from '../tutorial/tutorialSteps'
 import { useMeetSession, type MeetSessionData } from './useMeetSession'
@@ -29,8 +28,8 @@ export interface ScoresheetAPI {
   toggleOnTime: (teamIdx: TeamIdx) => void
   moveQuizzer: (teamIdx: TeamIdx, from: SeatIdx, to: SeatIdx) => void
   resetStore: () => void
-  flushAutoSave: () => void
-  showTabQuiz: () => void
+  setAside: () => void
+  bringBack: () => void
   columns: { value: { key: string }[] }
 }
 
@@ -51,13 +50,12 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   const totalSteps = TUTORIAL_STEPS.length
 
   function start() {
-    // The tab's record keeps its quiz and link while the practice quiz is on the sheet: written now
-    // with what was waiting, then left alone until the tutorial ends, or a reload brings it back
-    scoresheet.flushAutoSave()
-    scoresheet.pauseAutoSave.value = true
+    // The quiz is set aside while the practice quiz is on the sheet, and comes back when the
+    // tutorial ends, or with a reload
+    scoresheet.setAside()
     // A linked meet keeps the real quiz's team picks and flags names against its roster, which
     // would mark up the walkthrough's made-up teams, so the walkthrough runs unlinked
-    linkBefore = currentTab()?.link ?? null
+    linkBefore = meetSession.currentLink()
     meetSession.clearSession()
     scoresheet.resetStore()
     standInNames(scoresheet)
@@ -273,8 +271,8 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   function finish() {
     cleanup()
     targetEls.value = []
-    // The tab's own quiz back, as its record kept it, and its link
-    scoresheet.showTabQuiz()
+    // The quiz set aside back, and its link
+    scoresheet.bringBack()
     meetSession.restoreSession(linkBefore)
     linkBefore = null
     scoresheet.pauseAutoSave.value = false

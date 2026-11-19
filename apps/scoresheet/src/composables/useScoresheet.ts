@@ -46,7 +46,9 @@ import {
   newRecordId,
   type StateKind,
   type RecordClaim,
+  storageFailedAtStart,
   type Tab,
+  untouched,
   writeRecord,
 } from '../persistence/autoSave'
 
@@ -79,6 +81,12 @@ const UNDO_LIMIT = 1000
 
 /** The quiz's settings an official sets on the sheet */
 type QuizField = 'division' | 'quizNumber' | 'consolation' | 'overtime'
+
+/** A quiz as a record keeps it, apart from which record it is and its link */
+type SheetState = Pick<
+  QuizRecord,
+  'current' | 'start' | 'saved' | 'submitted' | 'ahead' | 'fromNewerFile'
+>
 
 /**
  * An undo step in the session: the step as data, and what it does outside the quiz (the meet picks
@@ -177,10 +185,6 @@ export function useScoresheet() {
 
   const lastStep = () => history.undoSteps.value[history.undoSteps.value.length - 1]
 
-  /** Nothing done by hand since the quiz's start: no steps, and the sheet as it began */
-  const untouched = () =>
-    !history.canUndo.value && !history.canRedo.value && currentState.value === startFile
-
   /** The step a visit to a typed field is making, while the visit lasts */
   let typing: { field: string; step: UndoStep } | null = null
 
@@ -216,7 +220,7 @@ export function useScoresheet() {
    * by hand it is part of the quiz's start, after that a step like any other
    */
   function editBySheet(change: () => void) {
-    if (!untouched()) return void edit(change)
+    if (!untouched(stateNow())) return void edit(change)
     quietly(change)
     startFile = currentState.value
   }
@@ -878,19 +882,9 @@ export function useScoresheet() {
   function recordNow(tab: Tab, file: string): QuizRecord {
     const before = tab.record
     return {
-      ...before,
+      ...stateNow(file),
       id: tab.id,
-      current: {
-        file,
-        undo: keptUndo(),
-        redo: history.redoSteps.value.map(({ step }) => step),
-      },
-      start: startFile,
-      saved: savedState.value,
-      submitted: submittedState.value,
-      ahead: aheadState.value,
       link: tab.link,
-      fromNewerFile: openedFromNewerFile.value,
       unsaved: unsaved.value,
       changedAt: before?.current?.file === file ? before.changedAt : Date.now(),
       offered: before?.offered ?? false,
@@ -917,7 +911,7 @@ export function useScoresheet() {
   }
 
   /** Why the tab's quiz couldn't be kept on the device, until a write of it succeeds */
-  const keepFailed = ref<'full' | 'failed' | null>(null)
+  const keepFailed = ref<'full' | 'failed' | null>(storageFailedAtStart() ? 'failed' : null)
 
   /** Write after the writes before, unless the sheet is gone; a failure is said, and never stops the next */
   function queueWrite(write: () => Promise<boolean | void>) {
@@ -963,7 +957,7 @@ export function useScoresheet() {
       writing,
     )
     link.value = tab.link
-    showTabQuiz()
+    showState(tab.record)
     return tab.link
   }
 
@@ -993,22 +987,51 @@ export function useScoresheet() {
     persistNow()
   }
 
-  /**
-   * Show the tab's own quiz as its record has it: the record is left alone while the tutorial
-   * runs, so this is what the tutorial ends with. A quiz not worth keeping has no record, and is
-   * still as it started.
-   */
-  function showTabQuiz() {
-    const record = tab?.record
-    const start = startFile
-    const data = readState(record?.current?.file ?? start)
-    if (data) loadFile(data, { fromNewerFile: record?.fromNewerFile ?? false })
+  /** The quiz as the sheet has it, in state `file`, as a record keeps it */
+  function stateNow(file = currentState.value): SheetState {
+    return {
+      current: { file, undo: keptUndo(), redo: history.redoSteps.value.map(({ step }) => step) },
+      start: startFile,
+      saved: savedState.value,
+      submitted: submittedState.value,
+      ahead: aheadState.value,
+      fromNewerFile: openedFromNewerFile.value,
+    }
+  }
+
+  /** Show a quiz as a record or the set-aside copy keeps it; with none, a blank quiz */
+  function showState(state: SheetState | undefined) {
+    const data = readState(state?.current?.file)
+    if (data) loadFile(data, { fromNewerFile: state?.fromNewerFile ?? false })
     else resetStore()
-    startFile = record?.start ?? start
-    savedState.value = record?.saved
-    submittedState.value = record?.submitted
-    aheadState.value = record?.ahead
-    takeHistory(record?.current)
+    if (state) startFile = state.start
+    savedState.value = state?.saved
+    submittedState.value = state?.submitted
+    aheadState.value = state?.ahead
+    takeHistory(state?.current)
+  }
+
+  /** The quiz set aside while the tutorial has the sheet, kept in memory whatever the device keeps */
+  let aside: SheetState | null = null
+
+  /**
+   * Set the quiz aside for the tutorial: written with what was waiting, then left alone, so a
+   * reload mid-tutorial brings it back, and kept in memory for when the tutorial ends
+   */
+  function setAside() {
+    flushAutoSave()
+    aside = stateNow()
+    pauseAutoSave.value = true
+    // The practice quiz is none of these: an edit to it must not split the latest state off
+    savedState.value = undefined
+    submittedState.value = undefined
+    aheadState.value = undefined
+  }
+
+  /** Show the quiz set aside again; auto-save stays paused until the caller resumes it */
+  function bringBack() {
+    showState(aside ?? tab?.record)
+    aside = null
   }
 
   const pauseAutoSave = ref(false)
@@ -1018,7 +1041,7 @@ export function useScoresheet() {
     if (persistTimer) clearTimeout(persistTimer)
     persistTimer = setTimeout(persistNow, 300)
   }
-  onTabLinkChange(() => {
+  const stopHearingLink = onTabLinkChange(() => {
     link.value = tab?.link ?? null
     schedulePersist()
   })
@@ -1032,6 +1055,7 @@ export function useScoresheet() {
     if (persistTimer) clearTimeout(persistTimer)
     window.removeEventListener('pagehide', flushAutoSave)
     window.removeEventListener('focusout', endTyping)
+    stopHearingLink()
   })
   // Deep-watch the reactive store directly — the `teams`/`teamQuizzers`
   // computeds track array structure + seatOrder but not per-field edits
@@ -1114,8 +1138,9 @@ export function useScoresheet() {
     timeoutMap,
     pauseAutoSave,
     flushAutoSave,
+    setAside,
+    bringBack,
     keepFailed,
-    showTabQuiz,
     replaceQuiz,
     restoreQuiz,
     loadFile,

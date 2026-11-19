@@ -992,8 +992,8 @@ const {
   undo,
   redo,
   markSaved,
-  flushAutoSave,
-  showTabQuiz,
+  setAside,
+  bringBack,
 } = useScoresheet()
 
 const tutorial = useTutorial({
@@ -1014,8 +1014,8 @@ const tutorial = useTutorial({
   toggleOnTime,
   moveQuizzer,
   resetStore,
-  flushAutoSave,
-  showTabQuiz,
+  setAside,
+  bringBack,
 })
 
 /** What a warning calls a team: its name, or its place on the sheet while it has none */

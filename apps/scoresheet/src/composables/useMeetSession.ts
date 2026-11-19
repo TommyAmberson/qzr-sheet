@@ -346,6 +346,11 @@ export function useMeetSession() {
     persist()
   }
 
+  /** The link as it stands, to put back later with restoreSession */
+  function currentLink(): MeetSessionData | null {
+    return session.value
+  }
+
   /** Put back a link kept with a quiz (or clear it, for null) */
   function restoreSession(data: MeetSessionData | null): void {
     quizEpoch++
@@ -442,6 +447,7 @@ export function useMeetSession() {
     isTeamNameDiverged,
     getDbName,
     clearSession,
+    currentLink,
     startNewQuiz,
     restoreSession,
     refresh,

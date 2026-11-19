@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { currentTab, startTab } from '../../persistence/autoSave'
+import {
+  claimRecord,
+  currentTab,
+  listRecent,
+  readRecord,
+  startTab,
+  writeRecord,
+} from '../../persistence/autoSave'
 import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
 import { useMeetSession } from '../useMeetSession'
@@ -164,6 +171,40 @@ describe('useTutorial — meet link', () => {
     expect(meet.meetName.value).toBe('Test Meet')
 
     meet.clearSession()
+  })
+
+  it('gives back the names a link filled in, with nothing done by hand', () => {
+    const s = useScoresheet()
+    // Names a link fills in are the quiz's start, so it is not kept
+    s.editBySheet(() => s.setTeamName(T(0), 'Lions'))
+    const t = useTutorial(s)
+    t.start()
+    t.finish()
+    expect(s.teams.value[0]!.name).toBe('Lions')
+  })
+
+  it('keeps no stray copy of a quiz restored at an earlier state', async () => {
+    const s = useScoresheet()
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.markSaved()
+    s.setCell(T(0), S(0), C(1), CellValue.Correct)
+    s.flushAutoSave()
+    await vi.waitFor(async () => expect(await readRecord(currentTab()!.id)).toBeDefined())
+    const record = { ...(await readRecord(currentTab()!.id))!, offered: true }
+    await writeRecord(record)
+    s.restoreQuiz(record, (await claimRecord(record.id))!, 'saved')
+    const t = useTutorial(s)
+    t.start()
+    s.setCell(T(1), S(0), C(3), CellValue.Correct)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    // No copy of its latest state split off by the practice quiz's edit
+    const copies = (await listRecent()).filter(
+      (r) => r.id !== record.id && r.current?.file === record.current!.file,
+    )
+    expect(copies).toEqual([])
+    t.finish()
+    // The quiz comes back at the state it was restored in, still behind its latest
+    expect(s.canRedo.value).toBe(true)
   })
 
   it("a reload mid-tutorial gives back the tab's quiz and link", () => {
