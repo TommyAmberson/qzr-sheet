@@ -212,9 +212,9 @@ Each pull request rebases onto master first and carries its own changelog entrie
 
 ### Implementation for User Story 5
 
-- [ ] T041 [US5] The division stats page in `apps/web/src/views/` laid out for reading (FR-024, FR-025): the Finals' first three, prelim standings with any re-rank, quizzer standings with the consolation list apart, the division's quizzes by stage; each table's place, name and ranking figure fitting a phone's width with no sideways scrolling, the rest of a wide table scrolling inside its own container; the page reading well when a table is absent
-- [ ] T042 [US5] Print styles for the same page: one division to a sheet with places, teams, quizzers, averages, errors and jumps and the number of quizzers in the division, no controls or navigation, and quizzers with no jumps left off the printed list while still counted in that number and in the places (FR-026); on screen every quizzer is listed
-- [ ] T043 [US5] In the same pull request: record in `docs/scoring-rules-explained.md`, under "Rules Not in the Rulebook", that quizzers with no jumps are left off the printed list and still counted
+- [X] T041 [US5] The division stats page in `apps/web/src/views/` laid out for reading (FR-024, FR-025): the Finals' first three, prelim standings with any re-rank, quizzer standings with the consolation list apart, the division's quizzes by stage; each table's place, name and ranking figure fitting a phone's width with no sideways scrolling, the rest of a wide table scrolling inside its own container; the page reading well when a table is absent
+- [X] T042 [US5] Print styles for the same page: one division to a sheet with places, teams, quizzers, averages, errors and jumps and the number of quizzers in the division, no controls or navigation, and quizzers with no jumps left off the printed list while still counted in that number and in the places (FR-026); on screen every quizzer is listed
+- [X] T043 [US5] In the same pull request: record in `docs/scoring-rules-explained.md`, under "Rules Not in the Rulebook", that quizzers with no jumps are left off the printed list and still counted
 
 **Checkpoint**: A printed division page can be handed out in place of the statistician's report (SC-004)
 

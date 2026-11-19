@@ -281,6 +281,7 @@ meet's workbook.
 | A Finals counts for nobody's average; every other counting quiz does                                                        | The workbook has no rows for Finals                                                            |
 | Quizzers of teams that played in a division's consolation bracket are ranked apart, over every quiz their team played       | The published report lists them separately                                                     |
 | A quizzer is a name on a team; names that differ only in case and spaces are one quizzer                                    | Officials type names by hand                                                                   |
+| The printed list leaves off quizzers with no jumps, who are still counted in the number of quizzers and in the places       | The statistician's printed report, whose place numbers skip where such rows are hidden         |
 
 ### Meet stats settings
 
