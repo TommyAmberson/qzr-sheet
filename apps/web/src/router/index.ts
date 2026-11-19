@@ -75,8 +75,23 @@ const router = createRouter({
           }),
         },
         {
+          path: 'stats',
+          name: 'meet-stats',
+          // A guest viewer who joined with the meet's code may open it
+          meta: { guestAccess: true },
+          component: () => import('../views/StatsView.vue'),
+          props: (route) => ({ slug: route.params.slug as string }),
+        },
+        {
+          path: 'stats/settings',
+          name: 'meet-stats-settings',
+          component: () => import('../views/StatsSettingsView.vue'),
+          props: (route) => ({ slug: route.params.slug as string }),
+        },
+        {
           path: 'stats/:division',
           name: 'meet-division-stats',
+          meta: { guestAccess: true },
           component: () => import('../views/DivisionStatsView.vue'),
           props: (route) => ({
             slug: route.params.slug as string,

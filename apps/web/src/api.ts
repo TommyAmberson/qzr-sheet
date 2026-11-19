@@ -14,6 +14,7 @@ import type {
   Stage,
   StageChoice,
   StageFrom,
+  StatsSettings,
 } from '@qzr/shared'
 import {
   withGuestToken,
@@ -51,7 +52,14 @@ export interface QuizMeet {
 export interface DivisionState {
   division: string
   state: DivisionStateValue
-  transitionedAt: string
+  transitionedAt?: string
+  /** Whether every scheduled quiz of the stage it ends is stored and counting */
+  ready: boolean
+  /** The scheduled quizzes holding it back: missing, or stored and not counting */
+  missing: { name: string }[]
+  confirmed: { prelims?: { by: string; at: string }; rerank?: { by: string; at: string } }
+  /** The stages the schedule has for the division */
+  stages: Stage[]
 }
 
 export interface OfficialCode {
@@ -171,19 +179,29 @@ export function setMeetPhase(
   })
 }
 
+/**
+ * Move a division one step. Without `confirm` the API answers 409 with the scheduled quizzes
+ * missing (`missing`), or the stored quizzes seated from an order being withdrawn (`affected`), in
+ * the error's body.
+ */
 export function setDivisionState(
   meetId: number,
   division: string,
   state: DivisionStateValue,
+  confirm = false,
 ): Promise<{ state: DivisionStateValue; reversed: boolean; unchanged?: boolean }> {
-  return request(`/api/meets/${meetId}/divisions/${encodeURIComponent(division)}/state`, {
-    method: 'POST',
-    body: JSON.stringify({ state }),
-  })
+  // The API answers 503 before it changes anything, while it prepares the division's stats
+  return whenPrepared(() =>
+    request(`/api/meets/${meetId}/divisions/${encodeURIComponent(division)}/state`, {
+      method: 'POST',
+      body: JSON.stringify({ state, ...(confirm ? { confirm } : {}) }),
+    }),
+  )
 }
 
+/** Each division's state and readiness, which asks again while the API prepares the stats */
 export function getDivisionStates(meetId: number): Promise<{ divisionStates: DivisionState[] }> {
-  return request(`/api/meets/${meetId}/divisions/state`)
+  return whenPrepared(() => request(`/api/meets/${meetId}/divisions/state`))
 }
 
 // ---- Join / memberships ----
@@ -477,6 +495,10 @@ export interface StoredQuiz {
   problems: QuizProblem[] | null
   /** Whether an admin accepted its current content as scored */
   accepted: boolean
+  /** Seated from an order since withdrawn, and not kept by an admin since */
+  withdrawnOrder?: true
+  /** Its own way of scoring level teams differs from the meet's, which the tables use */
+  otherFormula?: true
   revision: number
   /** How the newest revision was saved */
   action: ResultAction
@@ -626,13 +648,83 @@ export function setAcceptance(
 const STATS_TRIES = 60
 
 /**
- * One division's stats. The API answers 503 while it is still scoring the division's stored
- * quizzes, a few with each request, so this asks again until they are ready.
+ * The meet's divisions with their states, and whether the caller is one of its admins: empty for
+ * anyone but an admin before the meet is live
  */
-export async function getDivisionStats(meetId: number, division: string): Promise<DivisionStats> {
+export function getStatsDivisions(meetId: number): Promise<{
+  phase: MeetPhase
+  admin: boolean
+  divisions: { division: string; state: DivisionStateValue }[]
+}> {
+  return request(`/api/meets/${meetId}/stats`)
+}
+
+/**
+ * The meet's stats settings; for admins, who saved them last, and how many stored quizzes score
+ * level teams another way than the meet
+ */
+export interface StatsSettingsRead {
+  settings: StatsSettings
+  changed?: { by: string; at: string }
+  otherFormula?: number
+}
+
+export function getStatsSettings(meetId: number): Promise<StatsSettingsRead> {
+  return request(`/api/meets/${meetId}/stats/settings`)
+}
+
+export function saveStatsSettings(
+  meetId: number,
+  settings: StatsSettings,
+): Promise<StatsSettingsRead> {
+  return request(`/api/meets/${meetId}/stats/settings`, {
+    method: 'PUT',
+    body: JSON.stringify({ settings }),
+  })
+}
+
+/** Set stored quizzes scored another way to the meet's way of scoring level teams, a few a time */
+export async function setQuizzesToMeetFormula(meetId: number): Promise<number> {
+  let changed = 0
+  for (;;) {
+    const res = await request<{ changed: number; remaining: number }>(
+      `/api/meets/${meetId}/results/formula`,
+      { method: 'POST' },
+    )
+    changed += res.changed
+    if (res.remaining === 0 || res.changed === 0) return changed
+  }
+}
+
+/** Keep a quiz as it is after an order it was seated from was withdrawn */
+export function keepQuiz(meetId: number, resultId: number): Promise<{ kept: true }> {
+  return request(`/api/meets/${meetId}/results/${resultId}/keep`, { method: 'POST' })
+}
+
+/**
+ * One division's stats; an admin may ask for them as a viewer sees them, which asks again while
+ * the API prepares them
+ */
+export function getDivisionStats(
+  meetId: number,
+  division: string,
+  asViewer = false,
+): Promise<DivisionStats> {
+  return whenPrepared(() =>
+    request(
+      `/api/meets/${meetId}/stats/${encodeURIComponent(division)}${asViewer ? '?as=viewer' : ''}`,
+    ),
+  )
+}
+
+/**
+ * A request for stats, asked again until they are ready. The API answers 503 while it is still
+ * scoring a division's stored quizzes, a few with each request.
+ */
+async function whenPrepared<T>(read: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await request(`/api/meets/${meetId}/stats/${encodeURIComponent(division)}`)
+      return await read()
     } catch (e) {
       if (!(e instanceof ApiError) || e.status !== 503 || attempt >= STATS_TRIES) throw e
       await new Promise((resolve) => setTimeout(resolve, 1000))

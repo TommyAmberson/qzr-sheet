@@ -1,0 +1,780 @@
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import {
+  ApiError,
+  DIVISION_STATES,
+  MOMENTS,
+  PlacementFormula,
+  STAGES,
+  divisionTitle,
+  viewerHas,
+  type DivisionStateValue,
+  type ShownFrom,
+  type StatsSettings,
+} from '@qzr/shared'
+
+import { formatWhen } from '@qzr/ui'
+
+import {
+  getDivisionStates,
+  getMeet,
+  getStatsSettings,
+  saveStatsSettings,
+  setDivisionState,
+  setMeetPhase,
+  setQuizzesToMeetFormula,
+  type DivisionState,
+  type MeetDetail,
+  type StatsSettingsRead,
+} from '../api'
+import {
+  MOMENT_WORDS,
+  THING_NAMES,
+  momentsFor,
+  nextMove,
+  previousState,
+  rightNow,
+  stepNames,
+  viewerChanges,
+  type ViewerThing,
+} from '../stats'
+
+/**
+ * A meet's stats settings, in one place (FR-023c): each division's steps through the day, what
+ * viewers see and from when, and how the meet scores and ranks
+ */
+const props = defineProps<{ slug: string }>()
+const router = useRouter()
+
+const meet = ref<MeetDetail['meet'] | null>(null)
+const divisions = ref<DivisionState[]>([])
+const saved = ref<StatsSettings | null>(null)
+const draft = ref<StatsSettings | null>(null)
+const changed = ref<{ by: string; at: string } | undefined>()
+/** Stored quizzes whose own way of scoring level teams isn't the meet's */
+const otherFormula = ref(0)
+const loading = ref(true)
+const busy = ref(false)
+const error = ref('')
+
+/** A warning shown in the page before a move goes ahead, never as a browser dialog */
+const ask = ref<{
+  division: string
+  text: string
+  names: string[]
+  yes: string
+  go: () => Promise<void>
+} | null>(null)
+/** Every division finished: offer to move the meet to review, which it never does on its own */
+const offerReview = ref(false)
+
+/** Each division with the control that confirms its next step, if it has one */
+const rows = computed(() => divisions.value.map((d) => ({ d, move: nextMove(d.state, d.stages) })))
+
+const phase = computed(() => meet.value?.phase ?? 'registration')
+const done = computed(() => phase.value === 'done')
+/** Divisions move only while the meet is live or in review */
+const canMove = computed(() => phase.value === 'live' || phase.value === 'review')
+const dirty = computed(() => JSON.stringify(saved.value) !== JSON.stringify(draft.value))
+/** Quizzes are set to the saved way of scoring level teams, so not while another is chosen */
+const levelTeamsUnsaved = computed(() => saved.value?.levelTeams !== draft.value?.levelTeams)
+const changes = computed(() =>
+  saved.value && draft.value
+    ? viewerChanges(saved.value, draft.value, divisions.value, phase.value)
+    : [],
+)
+
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    const { meet: detail } = await getMeet(props.slug)
+    const [states, read] = await Promise.all([
+      getDivisionStates(detail.id),
+      getStatsSettings(detail.id),
+    ])
+    meet.value = detail
+    divisions.value = states.divisionStates
+    took(read)
+  } catch (e) {
+    error.value =
+      e instanceof ApiError && e.status === 403
+        ? "Only the meet's admins can change its stats settings."
+        : (e as Error).message
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(load)
+watch(() => props.slug, load)
+
+/** Take the settings as the API answers them */
+function took(read: StatsSettingsRead) {
+  saved.value = read.settings
+  draft.value = structuredClone(read.settings)
+  changed.value = read.changed
+  otherFormula.value = read.otherFormula ?? 0
+}
+
+async function reloadDivisions() {
+  if (!meet.value) return
+  divisions.value = (await getDivisionStates(meet.value.id)).divisionStates
+}
+
+/** Run an action, keeping its error in the page */
+async function run(action: () => Promise<void>) {
+  busy.value = true
+  error.value = ''
+  try {
+    await action()
+  } catch (e) {
+    error.value = (e as Error).message
+  } finally {
+    busy.value = false
+  }
+}
+
+/** The quizzes a 409 names, from its body */
+function namesIn(e: unknown, key: 'missing' | 'affected'): string[] | null {
+  if (!(e instanceof ApiError) || e.status !== 409) return null
+  const listed = (e.body as Record<string, { name: string }[] | undefined> | undefined)?.[key]
+  return listed ? listed.map((quiz) => quiz.name) : null
+}
+
+/** Confirm a division's next step: one move, or two for "Start Finals" */
+function forward(d: DivisionState, confirm = false) {
+  const move = nextMove(d.state, d.stages)
+  if (!move || !meet.value) return
+  const meetId = meet.value.id
+  void run(async () => {
+    ask.value = null
+    for (const to of move.to) {
+      // The second move of two may already be made, if the first warned and was retried
+      if (DIVISION_STATES.indexOf(to) <= DIVISION_STATES.indexOf(d.state)) continue
+      try {
+        await setDivisionState(meetId, d.division, to, confirm)
+      } catch (e) {
+        // An earlier move may have been made, so the rows show where the division is now
+        await reloadDivisions().catch(() => {})
+        const missing = namesIn(e, 'missing')
+        if (!missing) throw e
+        ask.value = {
+          division: d.division,
+          text: 'Not every scheduled quiz is stored and counting:',
+          names: missing,
+          yes: `${move.label} anyway`,
+          go: async () => forward(divisions.value.find((x) => x.division === d.division)!, true),
+        }
+        return
+      }
+    }
+    await reloadDivisions()
+    if (move.to.includes('division_done') && phase.value === 'live') {
+      offerReview.value = divisions.value.every((x) => x.state === 'division_done')
+    }
+  })
+}
+
+/** Take a division's last step back, withdrawing the order it confirmed */
+function back(d: DivisionState, confirm = false) {
+  const to = previousState(d.state)
+  if (!to || !meet.value) return
+  const meetId = meet.value.id
+  void run(async () => {
+    ask.value = null
+    offerReview.value = false
+    try {
+      await setDivisionState(meetId, d.division, to, confirm)
+    } catch (e) {
+      const affected = namesIn(e, 'affected')
+      if (!affected) throw e
+      ask.value = {
+        division: d.division,
+        text:
+          'These quizzes were seated from the order you are withdrawing and may no longer be valid. ' +
+          'They stay stored, flagged until you keep each one or set it to not counted:',
+        names: affected,
+        yes: 'Take back anyway',
+        go: async () => back(d, true),
+      }
+      return
+    }
+    await reloadDivisions()
+  })
+}
+
+function moveMeetToReview() {
+  if (!meet.value) return
+  const meetId = meet.value.id
+  void run(async () => {
+    await setMeetPhase(meetId, 'review')
+    offerReview.value = false
+    meet.value = (await getMeet(props.slug)).meet
+  })
+}
+
+function save() {
+  if (!meet.value || !draft.value) return
+  const [meetId, settings] = [meet.value.id, draft.value]
+  void run(async () => {
+    took(await saveStatsSettings(meetId, settings))
+  })
+}
+
+function discard() {
+  if (saved.value) draft.value = structuredClone(saved.value)
+}
+
+function setToMatch() {
+  if (!meet.value) return
+  const meetId = meet.value.id
+  void run(async () => {
+    await setQuizzesToMeetFormula(meetId)
+    otherFormula.value = (await getStatsSettings(meetId)).otherFormula ?? 0
+  })
+}
+
+/** What each division's viewers have of a thing right now, by the saved settings */
+function nowFor(thing: ViewerThing): { division: string; has: string }[] {
+  if (!saved.value) return []
+  const settings = saved.value
+  return divisions.value.map((d) => ({
+    division: d.division,
+    has: rightNow(viewerHas(settings, d.state, phase.value), thing),
+  }))
+}
+
+/** How quizzer standings update means something only before the eliminations are in */
+const updateMatters = computed(() => {
+  const from = draft.value?.quizzers.from
+  return (
+    from !== undefined &&
+    from !== 'never' &&
+    MOMENTS.indexOf(from) < MOMENTS.indexOf('eliminationsIn')
+  )
+})
+
+const QUIZZER_MOMENTS: ShownFrom[] = [...MOMENTS, 'never']
+
+const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
+function stepClass(d: DivisionState, state: DivisionStateValue) {
+  const [at, step] = [DIVISION_STATES.indexOf(d.state), DIVISION_STATES.indexOf(state)]
+  return step < at ? 'step step--past' : step === at ? 'step step--here' : 'step'
+}
+</script>
+
+<template>
+  <div class="container">
+    <button class="back-link" @click="router.push({ name: 'meet-stats', params: { slug } })">
+      ← Stats
+    </button>
+
+    <p v-if="loading" class="state-msg">Loading…</p>
+    <p v-else-if="error && !meet" class="state-msg state-msg--error">{{ error }}</p>
+
+    <template v-else-if="meet && draft">
+      <h2 class="page-title">Stats settings: {{ meet.name }}</h2>
+      <p v-if="error" class="state-msg state-msg--error">{{ error }}</p>
+      <p v-if="done" class="locked">
+        <strong>The meet is done.</strong> Settings are locked; reopen it for review to change them.
+      </p>
+
+      <!-- Each division's steps through the day (FR-019a) -->
+      <section class="block">
+        <h3 class="section-title">Divisions</h3>
+        <p v-if="!canMove && !done" class="state-msg">
+          Divisions move through their steps once the meet is live.
+        </p>
+        <p v-if="divisions.length === 0" class="state-msg">The meet has no divisions yet.</p>
+        <div v-for="{ d, move } in rows" :key="d.division" class="division">
+          <div class="division-head">
+            <strong>{{ divisionTitle(d.division) }}</strong>
+            <router-link
+              class="as-viewer"
+              :to="{
+                name: 'meet-division-stats',
+                params: { slug, division: d.division },
+                query: { as: 'viewer' },
+              }"
+            >
+              As a viewer sees it
+            </router-link>
+          </div>
+          <ol class="steps">
+            <li v-for="state in DIVISION_STATES" :key="state" :class="stepClass(d, state)">
+              {{ stepNames(d.stages)[state] }}
+            </li>
+          </ol>
+          <p v-if="move" class="readiness">
+            <template v-if="d.ready">Ready: {{ move.label }}.</template>
+            <template v-else-if="d.missing.length">
+              Waiting for {{ d.missing.map((quiz) => quiz.name).join(', ') }}.
+            </template>
+          </p>
+          <p v-if="d.confirmed.prelims" class="note">
+            Prelim order confirmed by {{ d.confirmed.prelims.by }},
+            {{ formatWhen(d.confirmed.prelims.at) }}.
+          </p>
+          <p v-if="d.confirmed.rerank" class="note">
+            Re-rank confirmed by {{ d.confirmed.rerank.by }},
+            {{ formatWhen(d.confirmed.rerank.at) }}.
+          </p>
+          <div v-if="canMove" class="actions">
+            <button
+              v-if="move"
+              class="btn btn--primary btn--sm"
+              :disabled="busy"
+              @click="forward(d)"
+            >
+              {{ move.label }}
+            </button>
+            <button
+              v-if="previousState(d.state)"
+              class="btn btn--secondary btn--sm"
+              :disabled="busy"
+              @click="back(d)"
+            >
+              Take back
+            </button>
+          </div>
+          <div v-if="ask?.division === d.division" class="ask" role="alert">
+            <p>{{ ask.text }}</p>
+            <ul>
+              <li v-for="name in ask.names" :key="name">{{ name }}</li>
+            </ul>
+            <div class="actions">
+              <button class="btn btn--primary btn--sm" :disabled="busy" @click="ask.go()">
+                {{ ask.yes }}
+              </button>
+              <button class="btn btn--secondary btn--sm" @click="ask = null">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <div v-if="offerReview" class="ask" role="status">
+          <p>Every division is finished. Move the meet to review?</p>
+          <div class="actions">
+            <button class="btn btn--primary btn--sm" :disabled="busy" @click="moveMeetToReview">
+              Move to review
+            </button>
+            <button class="btn btn--secondary btn--sm" @click="offerReview = false">Not now</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- What viewers see, and from when (FR-018) -->
+      <section class="block">
+        <h3 class="section-title">What viewers see</h3>
+        <p class="hint">Coaches and officials see what viewers see. Admins see everything.</p>
+        <div class="lines">
+          <div v-for="stage in STAGES" :key="stage" class="line">
+            <div class="line-say">
+              <span class="thing">{{ capitalized(THING_NAMES[stage]) }}</span>
+              show
+              <select
+                v-model="draft.results[stage].from"
+                :disabled="done"
+                :aria-label="`${THING_NAMES[stage]}: when`"
+              >
+                <option v-for="moment in momentsFor(stage)" :key="moment" :value="moment">
+                  {{ MOMENT_WORDS[moment] }}
+                </option>
+              </select>
+              <select
+                v-if="draft.results[stage].from !== 'never'"
+                v-model="draft.results[stage].level"
+                :disabled="done"
+                :aria-label="`${THING_NAMES[stage]}: how much`"
+              >
+                <option value="places">places only</option>
+                <option value="scores">places and scores</option>
+              </select>
+            </div>
+            <div class="now">
+              <span v-for="now in nowFor(stage)" :key="now.division" class="chip">
+                {{ now.division }}: {{ now.has }}
+              </span>
+            </div>
+          </div>
+
+          <div class="line">
+            <div class="line-say">
+              <span class="thing">Prelim standings and the re-rank</span>
+              shown, locked in, once you confirm them: they are what seeds the next quizzes.
+              <label class="check">
+                <input v-model="draft.prelimStandingsLive" type="checkbox" :disabled="done" />
+                Live preview: also show them before that, changing as quizzes come in
+              </label>
+            </div>
+            <div class="now">
+              <span v-for="now in nowFor('prelimStandings')" :key="now.division" class="chip">
+                {{ now.division }}: {{ now.has }}
+              </span>
+            </div>
+          </div>
+
+          <div class="line">
+            <div class="line-say">
+              <span class="thing">Quizzer standings</span>
+              show
+              <select
+                v-model="draft.quizzers.from"
+                :disabled="done"
+                aria-label="Quizzer standings: when"
+              >
+                <option v-for="moment in QUIZZER_MOMENTS" :key="moment" :value="moment">
+                  {{ MOMENT_WORDS[moment] }}
+                </option>
+              </select>
+              <template v-if="updateMatters">
+                , updated
+                <select
+                  v-model="draft.quizzers.update"
+                  :disabled="done"
+                  aria-label="Quizzer standings: how they update"
+                >
+                  <option value="live">after every quiz</option>
+                  <option value="byStage">only when you confirm a step</option>
+                </select>
+              </template>
+            </div>
+            <div class="now">
+              <span v-for="now in nowFor('quizzers')" :key="now.division" class="chip">
+                {{ now.division }}: {{ now.has }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- How the meet scores and ranks (FR-023, FR-023a, FR-023d) -->
+      <section class="block">
+        <h3 class="section-title">Scoring</h3>
+        <fieldset class="choice" :disabled="done">
+          <legend>Ties between teams</legend>
+          <label>
+            <input v-model="draft.tieBreaks" type="radio" value="rulebook" />
+            Head-to-head, then total points, then fewest errors <span class="note">rulebook</span>
+          </label>
+          <label>
+            <input v-model="draft.tieBreaks" type="radio" value="pointsThenErrors" />
+            Total points, then fewest errors
+          </label>
+        </fieldset>
+        <fieldset class="choice" :disabled="done">
+          <legend>Teams level in a quiz</legend>
+          <label>
+            <input v-model="draft.levelTeams" type="radio" :value="PlacementFormula.Rules" />
+            Each gets the points of the place they share <span class="note">rulebook</span>
+          </label>
+          <label>
+            <input v-model="draft.levelTeams" type="radio" :value="PlacementFormula.Legacy" />
+            Reduced points for a shared place
+          </label>
+        </fieldset>
+        <fieldset class="choice" :disabled="done">
+          <legend>Overtime</legend>
+          <label>
+            <input v-model="draft.prelimsWithoutOvertime" type="checkbox" />
+            Prelims and intermediates are played without overtime: a tie stands, and overtime played
+            in one is an error
+          </label>
+        </fieldset>
+        <p v-if="otherFormula > 0" class="other-formula">
+          {{ otherFormula }} {{ otherFormula === 1 ? 'quiz was' : 'quizzes were' }} scored the other
+          way on their device, so their scoresheets show other placement points than the tables.
+          <button
+            class="btn btn--secondary btn--sm"
+            :disabled="busy || done || levelTeamsUnsaved"
+            :title="levelTeamsUnsaved ? 'Save the way level teams are scored first' : undefined"
+            @click="setToMatch"
+          >
+            Set them to match
+          </button>
+        </p>
+      </section>
+
+      <!-- Saved, not instant: what viewers will newly see and stop seeing (FR-023c) -->
+      <div class="save-bar">
+        <template v-if="dirty">
+          <div v-if="changes.length" class="changes">
+            <strong>On save, straight away:</strong>
+            <ul>
+              <li v-for="line in changes" :key="line">{{ line }}</li>
+            </ul>
+          </div>
+          <p v-else class="note">
+            Unsaved changes. Nothing changes for viewers right now; it will at a later step.
+          </p>
+        </template>
+        <p v-else-if="changed" class="note">
+          Saved. Last changed by {{ changed.by }}, {{ formatWhen(changed.at) }}.
+        </p>
+        <div class="actions">
+          <button class="btn btn--secondary btn--sm" :disabled="!dirty || busy" @click="discard">
+            Discard
+          </button>
+          <button class="btn btn--primary btn--sm" :disabled="!dirty || busy || done" @click="save">
+            Save
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.container {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 6rem;
+}
+
+.back-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: 1.5rem;
+  display: inline-block;
+}
+
+.back-link:hover {
+  color: var(--color-text-muted);
+}
+
+.page-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  margin-bottom: 1.25rem;
+}
+
+.state-msg,
+.hint {
+  font-size: 0.85rem;
+  color: var(--color-text-faint);
+}
+
+.state-msg--error {
+  color: var(--palette-error);
+}
+
+.locked {
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.block {
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  margin-bottom: 0.6rem;
+}
+
+.division {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.division-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.as-viewer {
+  font-size: 0.8rem;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.step {
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--color-text-faint);
+}
+
+.step--past {
+  color: var(--color-text-muted);
+}
+
+.step--here {
+  border-color: var(--color-accent);
+  color: var(--color-heading);
+  font-weight: 600;
+}
+
+.readiness,
+.note {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0.2rem 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.ask {
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--palette-error);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.ask ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.lines {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 40rem) {
+  .line {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.thing {
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.check {
+  display: block;
+  margin-top: 0.35rem;
+}
+
+.now {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-content: flex-start;
+}
+
+.chip {
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.choice {
+  border: none;
+  padding: 0;
+  margin: 0 0 0.9rem;
+  font-size: 0.85rem;
+}
+
+.choice legend {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.choice label {
+  display: block;
+  margin: 0.2rem 0;
+}
+
+.other-formula {
+  font-size: 0.85rem;
+}
+
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  padding: 0.75rem 0;
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+  font-size: 0.85rem;
+}
+
+.changes ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.btn--sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.btn--primary {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border-color: var(--color-accent);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.btn--secondary {
+  background: transparent;
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+</style>

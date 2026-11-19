@@ -68,11 +68,11 @@ async function handleCode() {
       const joined = await joinByCode(c, joinMeetGuest)
       if (!joined) throw new Error('That code did not open a meet')
       code.value = ''
-      // An official's room's quizzes are on the meet's results page; a viewer's meet is listed
-      // here, since no other page admits guest viewers yet
-      if (joined.role === MeetRole.Official) {
-        router.push({ name: 'meet-results', params: { slug: joined.meetId } })
-      }
+      // An official's room's quizzes are on the meet's results page; a viewer reads its stats
+      router.push({
+        name: joined.role === MeetRole.Official ? 'meet-results' : 'meet-stats',
+        params: { slug: joined.meetId },
+      })
     }
   } catch (e) {
     codeError.value = (e as Error).message
@@ -159,13 +159,16 @@ watch(
         <ul v-else-if="guestStateRef.joined.length" class="qm-list">
           <li v-for="g in guestStateRef.joined" :key="g.meetId" class="qm-row">
             <button
-              v-if="g.role === MeetRole.Official"
               class="qm-name"
-              @click="router.push({ name: 'meet-results', params: { slug: g.meetId } })"
+              @click="
+                router.push({
+                  name: g.role === MeetRole.Official ? 'meet-results' : 'meet-stats',
+                  params: { slug: g.meetId },
+                })
+              "
             >
               {{ g.meetName }}
             </button>
-            <span v-else class="qm-name qm-name--plain">{{ g.meetName }}</span>
             <span class="qm-role">{{ g.room ? `${g.role}, ${g.room.name}` : g.role }}</span>
             <button class="qm-leave" @click="leaveGuestMeet(g.meetId)">Leave</button>
           </li>
@@ -347,10 +350,6 @@ watch(
   font-size: 0.75rem;
   color: var(--color-text-faint);
   text-transform: capitalize;
-}
-
-.qm-name--plain {
-  cursor: default;
 }
 
 .qm-leave {
