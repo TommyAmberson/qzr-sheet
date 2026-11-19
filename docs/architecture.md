@@ -153,8 +153,8 @@ Scoresheet.vue  (main grid component, delegates to UI composables)
 Persistence is a side-channel — not part of the reactive graph:
 
 ```
-useScoresheet  ──setCell/toggleNoJump──▶  autoSave  ──▶  localStorage
-               ◀─────────────────────── loadFromStorage (on startup)
+useScoresheet  ──debounced write──▶  autoSave  ──▶  IndexedDB record (the tab's own)
+               ◀── startTab (main.ts, before mounting) ──
 
 useScoresheet  ──serialize()──▶  fileIO  ──▶  .json / .ods file
                ◀──deserialize()─  fileIO  ◀──  .json / .ods file
@@ -282,21 +282,45 @@ Key reactive dependencies:
 `internalOtRounds`. All scoring/greyout/validation computeds depend on `rules`, `columns`, and
 `cells`. Grey-out, validation, timeout errors and placements come from one `assessQuiz` call, the
 same function that places stored quizzes, so the sheet and the portal can't disagree about a
-placement. `openedFromNewerFile` marks a quiz opened through the try-anyway path, and
-`keptNewerAutoSaves` lists the keys of set-aside newer auto-saves, with `openKeptNewerAutoSave` and
-`discardKeptNewerAutoSave` acting on the first listed.
+placement. `openedFromNewerFile` marks a quiz opened through the try-anyway path.
+
+The sheet is the one writer to its tab's record: every change, the meet link and the undo history go
+through one debounced write, queued after the writes before it. A write that fails is said in a
+notice and never stops the next, and a record the tab leaves is let go only once its last write has
+landed, so another tab never takes it without that write. `unsaved` compares the canonical quiz file
+(`canonicalQuizFile`) with the state the quiz was last saved to a file in, or last submitted in
+while still linked to that scheduled quiz, so undoing back to a save makes the quiz saved again. A
+quiz with nothing done by hand since New or Open (`editBySheet` takes names a link fills in then as
+its start) and nothing saved is still written, so a reload brings it and its link back, but is not
+kept (`isKept`): it is never listed, offered or matched, and goes once no tab holds it.
+`replaceQuiz` hands the quiz to the recent quizzes before New or Open shows another; `restoreQuiz`
+shows a recent one in any of its states, positioned behind its latest state when that was an earlier
+one: redo leads back to the latest, and the first edit there keeps the latest as a recent quiz of
+its own.
+
+Every change to what a quiz file holds is an undo step, made through `edit`: answers, no-jumps,
+timeouts, names, on-time marks, quizzer order, question types and the quiz's settings, and Clear
+answers and Clear names, one step each. A quiz's history so begins only at New or Open, which is
+what lets an earlier state redo to exactly its latest. Typing goes through `editTyped`, which folds
+each keystroke into the step on top until the field loses focus or another edit is made, so a visit
+to a field is one step. Changes the sheet makes by itself go through `editBySheet`: part of the
+quiz's start while nothing has been done by hand, a step after.
 
 ### `useMeetSession.ts`
 
 The link to a meet: its roster, which roster team each of the three slots is picked as, and which
-roster quizzer each seat stands for. Kept in `localStorage`, apart from the quiz, since a pick is a
-helper for the name cells and is never saved or submitted. [meet-link.md](./meet-link.md) describes
-how names, picks and warnings behave.
+roster quizzer each seat stands for. Kept in the tab's record with its quiz, though a pick is a
+helper for the name cells and is never saved to a file or submitted. [meet-link.md](./meet-link.md)
+describes how names, picks and warnings behave.
 
 ### `useHistory.ts`
 
-Generic command stack (undo/redo), in `packages/ui` so the schedule builder uses it too. Capped at
-100 entries by default. `setCell` and `toggleNoJump` in `useScoresheet` push commands here.
+Generic undo and redo over steps of the caller's own type, in `packages/ui` so the schedule builder
+uses it too. Capped at 100 entries by default; the scoresheet keeps 1000. Its stacks can be read and
+set, oldest step first, so the scoresheet keeps them with the quiz. The scoresheet's steps are data
+(`undoSteps.ts`): for each part of the quiz an edit changed, its value before and after, so a step
+survives a reload. What a step does outside the quiz, the meet picks a team swap moves, runs in the
+session only.
 
 ### `useCellSelector.ts`
 
@@ -344,17 +368,26 @@ Exports: `saveQuizToFile`, `openAnyQuizFile` (handles `.json` and `.ods`), `expo
 
 ### `autoSave.ts`
 
-Debounced (300 ms) `saveToStorage` writes serialized state to `localStorage`. `loadFromStorage`
-returns the saved state on startup; `clearStorage` is called on New Quiz / Reset. An auto-save from
-a newer version is never deleted: it moves to its own `qzr-sheet:newer-autosave:<timestamp>` key
-(`listKeptNewerAutoSaves`, `readKeptNewerAutoSave`, `discardKeptNewerAutoSave`), and the sheet
-offers to try opening it. If storage is too full to move it, it stays where it is, listed first, and
-auto-save pauses until it is discarded. The tutorial's crash snapshot from a newer version is set
-aside the same way, or kept in place (`keepNewerInPlace`). While anything is kept in place the
-tutorial won't start (a deliberate trade-off), and while auto-save is paused crash recovery leaves
-its own snapshot until auto-save resumes and saves the quiz (`removeOnceSaved`; full-disk save
-failures aren't detected, #92). `persistence/openedFromNewerFile.ts` persists the "may be scored
-wrong" warning across reloads.
+The quiz records store: every tab's quiz, and every quiz a tab no longer shows (a recent quiz), is a
+record in the IndexedDB database `qzr-sheet`, shared by the tabs, with its current state, the states
+it was last saved and submitted in, each with its undo history, and its meet link
+([data-model.md](../specs/008-tab-autosaves/data-model.md) has the fields).
+
+A tab knows its record by an id in `sessionStorage` and holds a Web Lock named after it; a record no
+tab holds is recent, so a tab that closes or crashes needs no write. `startTab` runs in `main.ts`
+before the sheet mounts: a reload takes its record back (waiting a moment for the page it replaces
+to let go of the lock), a duplicated tab copies its original's record, and a new tab brings back the
+one unsaved quiz a closed tab left, or offers several (`RecentQuizzesDialog`), each once. The first
+start of a version moves the previous version's `localStorage` quiz, meet link and set-aside newer
+quizzes into records. `findMatch` gives an Open the recent quiz it continues. The 80 most recently
+changed unsaved recent quizzes and the 40 saved ones are kept, an unsaved one dropped being named
+once; a write the device refuses makes room from saved quizzes only. Without Web Locks a tab acts as
+the only one.
+
+The tutorial sets the quiz aside (`setAside`): written, then the writer paused, so the record keeps
+the tab's quiz while the practice quiz is on the sheet and a reload mid-tutorial finds it there, and
+held in memory too, so the tutorial's end (`bringBack`) shows it again even when the device's
+storage failed.
 
 ## Export (`src/export/`)
 
