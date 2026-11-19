@@ -57,6 +57,16 @@ export async function otherFormulaCount(
   return row?.n ?? 0
 }
 
+/** Every one of a meet's stored quizzes that scores level teams another way, by id and key */
+export function otherFormulaKeys(db: Db, meetId: number, formula: PlacementFormula) {
+  return db
+    .select({ id: schema.quizResults.id, quizKey: schema.quizResults.quizKey })
+    .from(schema.quizResults)
+    .innerJoin(current, toCurrent)
+    .innerJoin(content, toContent)
+    .where(scoredAnotherWay(meetId, formula))
+}
+
 /** Some of a meet's stored quizzes that score level teams another way, with the content shown */
 export function otherFormulaQuizzes(
   db: Db,

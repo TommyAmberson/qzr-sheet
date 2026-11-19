@@ -16,6 +16,22 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-19
+
+### Added
+
+* The results page opens, for an admin, on what needs attention across the meet, each item leading
+  to what clears it; quizzer names merge across a team's quizzes as team names do, and look-alike
+  names can be marked as different
+* The list of stored quizzes narrows by division, stage and whether a quiz needs attention
+* On a division's stats page, a team or a quizzer opens to the quizzes behind its totals
+* An admin downloads a division's stats as three CSV files: teams by quiz, quizzers by quiz, and the
+  standings
+
+### Bundled contract
+
+* `@qzr/shared@1.16.0` - bumped from 1.15.0
+
 ## [0.29.0] - 2026-11-19
 
 ### Changed

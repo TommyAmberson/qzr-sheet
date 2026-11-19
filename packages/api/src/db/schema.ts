@@ -562,6 +562,34 @@ export const divisionConfirmations = sqliteTable(
   (t) => [index('division_confirmations_meet_id_idx').on(t.meetId)],
 )
 
+/**
+ * Two names an admin said are different (FR-032): two teams of a division, or two quizzers of one
+ * team, whose look-alike flag is not raised again
+ */
+export const meetNameDismissals = sqliteTable(
+  'meet_name_dismissals',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    // Folded, as a result key holds it
+    division: text('division').notNull(),
+    // For two quizzers, their team's folded name; empty for two team names
+    team: text('team').notNull(),
+    // The two names, folded, in a fixed order
+    nameA: text('name_a').notNull(),
+    nameB: text('name_b').notNull(),
+    byAccountId: text('by_account_id').references(() => user.id, { onDelete: 'set null' }),
+    // Who did it, as named at the time, so the history survives a deleted account
+    byName: text('by_name').notNull(),
+    at: integer('at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('meet_name_dismissals_unique').on(t.meetId, t.division, t.team, t.nameA, t.nameB),
+  ],
+)
+
 // ---- Inferred types ----
 
 export type User = typeof user.$inferSelect

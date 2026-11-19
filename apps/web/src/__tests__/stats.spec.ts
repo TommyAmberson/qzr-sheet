@@ -3,11 +3,13 @@ import {
   DEFAULT_STATS_SETTINGS,
   ValidationCode,
   viewerHas,
+  type DivisionStats,
   type QuizProblem,
   type StatsSettings,
 } from '@qzr/shared'
 import {
   changeText,
+  statsCsv,
   flagText,
   momentsFor,
   nextMove,
@@ -252,5 +254,92 @@ describe('quizzerCount', () => {
     expect(quizzerCount('2', { consolation: true, quizzers: [1] })).toBe(
       'There was 1 quizzer in the Division 2 consolation list',
     )
+  })
+})
+
+describe('statsCsv', () => {
+  const stats: DivisionStats = {
+    division: '1',
+    state: 'stats_break',
+    phase: 'live',
+    results: [
+      {
+        stage: 'prelim',
+        level: 'scores',
+        quizzes: [
+          {
+            name: 'D1 Q1',
+            status: 'counted',
+            teams: [
+              { name: 'Maple, 1', place: 1, score: 120, placementPoints: 20, errors: 1 },
+              { name: '=Cedar "1"', place: 2, score: 60, placementPoints: 10, errors: 0 },
+            ],
+          },
+          { name: 'D1 Q2', status: 'underReview', teams: [{ name: 'Maple, 1' }] },
+        ],
+      },
+    ],
+    prelimStandings: {
+      state: 'livePreview',
+      teams: [
+        {
+          name: 'Maple, 1',
+          rank: 1,
+          placementPoints: 20,
+          quizzes: 1,
+          tied: false,
+          decidedBy: null,
+          lines: [],
+        },
+      ],
+    },
+    quizzers: {
+      state: 'livePreview',
+      through: 'prelim',
+      lists: [
+        {
+          consolation: false,
+          quizzers: [
+            {
+              name: 'Sam Park',
+              team: 'Maple, 1',
+              place: 1,
+              average: 60,
+              points: 60,
+              errors: 0,
+              jumps: 3,
+              quizzes: 1,
+              types: { INT: 2, FTV: 1 },
+              flags: [],
+              lines: [
+                { quiz: 'D1 Q1', points: 60, errors: 0, jumps: 3, types: { INT: 2, FTV: 1 } },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  }
+
+  it("writes a row per team per quiz in the workbook's columns, leaving out quizzes under review", () => {
+    expect(statsCsv(stats).teams.split('\r\n')).toEqual([
+      'Team,Quiz,Place,Score,Points,Errors',
+      '"Maple, 1",D1 Q1,1,120,20,1',
+      `"'=Cedar ""1""",D1 Q1,2,60,10,0`,
+      '',
+    ])
+  })
+
+  it('writes a row per quizzer per quiz with correct answers by type in fixed columns', () => {
+    expect(statsCsv(stats).quizzers.split('\r\n').slice(0, 2)).toEqual([
+      'Quizzer,Team,Quiz,Points,Errors,Jumps,REF,FTV,INT,MA,Q,SIT',
+      'Sam Park,"Maple, 1",D1 Q1,60,0,3,0,1,2,0,0,0',
+    ])
+  })
+
+  it('writes the team standings, then the quizzer standings', () => {
+    const rows = statsCsv(stats).standings.split('\r\n')
+    expect(rows).toContain('Prelims,1,,"Maple, 1",20,1')
+    expect(rows).toContain('Main,1,Sam Park,"Maple, 1",60,60,0,3,1')
   })
 })

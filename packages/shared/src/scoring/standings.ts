@@ -142,11 +142,11 @@ export function divisionStandings(
 const TEAM_MARK = /(?:^|\s)(\d+|[a-z])$/
 
 /**
- * Whether two teams' names look like one team misspelt (R11): within one edit of each other once
- * folded, or two when both are at least six characters long. Names ending in different numbers or
- * letters are different teams, as one church's "Calgary 1" and "Calgary 2" are.
+ * Whether two names look like one name misspelt (R11), a team's or a quizzer's: within one edit of
+ * each other once folded, or two when both are at least six characters long. Names ending in
+ * different numbers or letters are different, as one church's "Calgary 1" and "Calgary 2" are.
  */
-function looksAlike(name: string, other: string): boolean {
+export function looksAlike(name: string, other: string): boolean {
   const [a, b] = [foldName(name), foldName(other)]
   const [markA, markB] = [TEAM_MARK.exec(a)?.[1], TEAM_MARK.exec(b)?.[1]]
   if (markA !== undefined && markB !== undefined && markA !== markB) return false

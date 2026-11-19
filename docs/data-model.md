@@ -221,6 +221,17 @@ DivisionConfirmation   -- append-only: one row each time an admin confirms or wi
   byName               -- who did it, as named then
   at
 
+MeetNameDismissal      -- two names an admin said are different, so their look-alike flag is
+                          not raised again; UNIQUE(meetId, division, team, nameA, nameB)
+  id
+  meetId               -- FK → QuizMeet (cascade delete)
+  division             -- folded, as a result key holds it
+  team                 -- for two quizzers, their team's folded name; empty for two team names
+  nameA, nameB         -- the two names, folded, in sorted order, so either way round is one pair
+  byAccountId          -- FK → User (set null if deleted)
+  byName               -- who did it, as named then
+  at
+
 DivisionState          -- one row per meet and division the admin has moved, updated in place
   id
   meetId               -- FK → QuizMeet (cascade delete)

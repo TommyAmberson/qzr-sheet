@@ -315,6 +315,20 @@ export async function createTestDb(): Promise<Db> {
     );
     CREATE INDEX division_confirmations_meet_id_idx ON division_confirmations (meet_id);
 
+    CREATE TABLE meet_name_dismissals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,
+      division TEXT NOT NULL,
+      team TEXT NOT NULL,
+      name_a TEXT NOT NULL,
+      name_b TEXT NOT NULL,
+      by_account_id TEXT REFERENCES user(id) ON DELETE SET NULL,
+      by_name TEXT NOT NULL,
+      at INTEGER NOT NULL
+    );
+    CREATE UNIQUE INDEX meet_name_dismissals_unique
+      ON meet_name_dismissals (meet_id, division, team, name_a, name_b);
+
     CREATE TABLE meet_team_names (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,

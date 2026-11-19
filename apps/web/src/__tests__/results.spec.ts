@@ -149,4 +149,20 @@ describe('mergeEdits', () => {
   it("leaves other divisions' quizzes alone", () => {
     expect(mergeEdits([named(1, '2', 'Calgry 1')], '1', 'Calgry 1', 'Calgary 1')).toEqual([])
   })
+
+  it('renames a quizzer on the team given, and not a quizzer of that name on another team', () => {
+    const quiz = stored(1, '1', '1')
+    const [first, second] = quiz.quizFile.teams
+    const spelt = (id: number, name: string) => ({ id, name, seatOrder: 0 })
+    quiz.quizFile.teams = [
+      { ...first!, quizzers: [spelt(9, 'Jordon Lee')] },
+      { ...second!, quizzers: [spelt(10, 'Jordon Lee')] },
+    ]
+    const edits = mergeEdits([quiz], '1', 'jordon lee', 'Jordan Lee', first!.name)
+    expect(edits).toHaveLength(1)
+    expect(edits[0]!.quizFile.teams.map((t) => t.quizzers.map((q) => q.name))).toEqual([
+      ['Jordan Lee'],
+      ['Jordon Lee'],
+    ])
+  })
 })

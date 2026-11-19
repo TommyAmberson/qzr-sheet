@@ -12,6 +12,7 @@ import {
   placeLabel,
   problemText,
   quizzerCount,
+  statsCsv,
   warningText,
 } from '../stats'
 
@@ -66,6 +67,43 @@ async function load() {
 onMounted(load)
 watch(() => [props.slug, props.division, asViewer.value], load)
 
+/** The rows opened to show the quizzes behind their totals (FR-027), by table and name */
+const opened = ref(new Set<string>())
+function toggle(key: string) {
+  const next = new Set(opened.value)
+  if (!next.delete(key)) next.add(key)
+  opened.value = next
+}
+
+/** Correct answers by question type, as "INT 2, FTV 1" */
+const typesText = (types: Record<string, number>) =>
+  Object.entries(types)
+    .filter(([, n]) => n > 0)
+    .map(([type, n]) => `${type} ${n}`)
+    .join(', ')
+
+/** The files of the statistician's workbook, made here from the admin's stats (FR-028) */
+const FILES = [
+  { key: 'teams', label: 'Teams by quiz' },
+  { key: 'quizzers', label: 'Quizzers by quiz' },
+  { key: 'standings', label: 'Standings' },
+] as const
+
+/** Save one of a division's stats files */
+function download(key: (typeof FILES)[number]['key']) {
+  if (!stats.value || !meet.value) return
+  // A byte-order mark tells a spreadsheet the file is UTF-8, so accented names open as written
+  const blob = new Blob(['\ufeff', statsCsv(stats.value)[key]], { type: 'text/csv' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `${meet.value.name} ${divisionTitle(stats.value.division)} ${key}.csv`
+  // Attached while clicked, and the file let go only once the browser has started saving it
+  document.body.append(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(link.href))
+}
+
 /** Keep a quiz seated from a withdrawn order as it is, clearing its flag */
 async function keep(resultId: number) {
   if (!meet.value) return
@@ -95,6 +133,18 @@ async function keep(resultId: number) {
       <p v-if="asViewer" class="viewer-note no-print">
         As a viewer sees it.
         <router-link :to="{ query: {} }">See everything</router-link>
+      </p>
+
+      <p v-if="admin" class="downloads no-print">
+        Download:
+        <button
+          v-for="file in FILES"
+          :key="file.key"
+          class="btn btn--secondary btn--sm"
+          @click="download(file.key)"
+        >
+          {{ file.label }}
+        </button>
       </p>
 
       <ul v-if="stats.warnings?.length" class="warnings no-print">
@@ -141,18 +191,56 @@ async function keep(resultId: number) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="team in stats.prelimStandings.teams" :key="team.name">
-                <td>{{ team.tied ? `T${team.rank}` : team.rank }}</td>
-                <td class="name">
-                  {{ team.name }}
-                  <span v-if="team.finalist" class="finalist">Final</span>
-                </td>
-                <td>{{ team.placementPoints }}</td>
-                <td>{{ team.quizzes }}</td>
-                <td class="no-print">
-                  {{ team.tied ? 'still tied' : team.decidedBy ? TIE_BREAKS[team.decidedBy] : '' }}
-                </td>
-              </tr>
+              <template v-for="team in stats.prelimStandings.teams" :key="team.name">
+                <tr>
+                  <td>{{ team.tied ? `T${team.rank}` : team.rank }}</td>
+                  <td class="name">
+                    <button
+                      v-if="team.lines.length"
+                      class="open-name"
+                      :aria-expanded="opened.has(`prelim|${team.name}`)"
+                      @click="toggle(`prelim|${team.name}`)"
+                    >
+                      {{ team.name }}
+                    </button>
+                    <template v-else>{{ team.name }}</template>
+                    <span v-if="team.finalist" class="finalist">Final</span>
+                  </td>
+                  <td>{{ team.placementPoints }}</td>
+                  <td>{{ team.quizzes }}</td>
+                  <td class="no-print">
+                    {{
+                      team.tied ? 'still tied' : team.decidedBy ? TIE_BREAKS[team.decidedBy] : ''
+                    }}
+                  </td>
+                </tr>
+                <tr v-if="opened.has(`prelim|${team.name}`)" class="lines no-print">
+                  <td :colspan="5">
+                    <table class="lines-table">
+                      <thead>
+                        <tr>
+                          <th>Quiz</th>
+                          <th>Stage</th>
+                          <th>Place</th>
+                          <th>Score</th>
+                          <th title="Placement points">Points</th>
+                          <th>Errors</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="line in team.lines" :key="line.quiz">
+                          <td class="name">{{ line.quiz }}</td>
+                          <td>{{ STAGE_LABELS[line.stage] }}</td>
+                          <td>{{ line.place === null ? '' : placeLabel(line.place) }}</td>
+                          <td>{{ line.score ?? '' }}</td>
+                          <td>{{ line.placementPoints ?? '' }}</td>
+                          <td>{{ line.errors ?? '' }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -203,15 +291,55 @@ async function keep(resultId: number) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="team in stats.rerank.teams" :key="team.name">
-                <td>{{ team.rank }}</td>
-                <td class="name">{{ team.name }}</td>
-                <td>{{ team.placementPoints }}</td>
-                <td>{{ team.quizzes }}</td>
-                <td class="no-print">
-                  {{ team.tied ? 'still tied' : team.decidedBy ? TIE_BREAKS[team.decidedBy] : '' }}
-                </td>
-              </tr>
+              <template v-for="team in stats.rerank.teams" :key="team.name">
+                <tr>
+                  <td>{{ team.rank }}</td>
+                  <td class="name">
+                    <button
+                      v-if="team.lines.length"
+                      class="open-name"
+                      :aria-expanded="opened.has(`rerank|${team.name}`)"
+                      @click="toggle(`rerank|${team.name}`)"
+                    >
+                      {{ team.name }}
+                    </button>
+                    <template v-else>{{ team.name }}</template>
+                  </td>
+                  <td>{{ team.placementPoints }}</td>
+                  <td>{{ team.quizzes }}</td>
+                  <td class="no-print">
+                    {{
+                      team.tied ? 'still tied' : team.decidedBy ? TIE_BREAKS[team.decidedBy] : ''
+                    }}
+                  </td>
+                </tr>
+                <tr v-if="opened.has(`rerank|${team.name}`)" class="lines no-print">
+                  <td :colspan="5">
+                    <table class="lines-table">
+                      <thead>
+                        <tr>
+                          <th>Quiz</th>
+                          <th>Stage</th>
+                          <th>Place</th>
+                          <th>Score</th>
+                          <th title="Placement points">Points</th>
+                          <th>Errors</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="line in team.lines" :key="line.quiz">
+                          <td class="name">{{ line.quiz }}</td>
+                          <td>{{ STAGE_LABELS[line.stage] }}</td>
+                          <td>{{ line.place === null ? '' : placeLabel(line.place) }}</td>
+                          <td>{{ line.score ?? '' }}</td>
+                          <td>{{ line.placementPoints ?? '' }}</td>
+                          <td>{{ line.errors ?? '' }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -249,23 +377,55 @@ async function keep(resultId: number) {
               </thead>
               <tbody>
                 <!-- A quizzer with no jumps is left off the printed list, and still counted -->
-                <tr
-                  v-for="quizzer in list.quizzers"
-                  :key="`${quizzer.team}|${quizzer.name}`"
-                  :class="{ 'no-jumps': quizzer.jumps === 0 }"
-                >
-                  <td>{{ quizzer.place }}</td>
-                  <td class="name">{{ quizzer.name }}</td>
-                  <td>{{ quizzer.average.toFixed(2) }}</td>
-                  <td class="name">{{ quizzer.team }}</td>
-                  <td>{{ quizzer.errors }}</td>
-                  <td>{{ quizzer.jumps }}</td>
-                  <td class="no-print">{{ quizzer.points }}</td>
-                  <td class="no-print">{{ quizzer.quizzes }}</td>
-                  <td class="flags no-print">
-                    <span v-for="(flag, i) in quizzer.flags" :key="i">{{ flagText(flag) }}</span>
-                  </td>
-                </tr>
+                <template v-for="quizzer in list.quizzers" :key="`${quizzer.team}|${quizzer.name}`">
+                  <tr :class="{ 'no-jumps': quizzer.jumps === 0 }">
+                    <td>{{ quizzer.place }}</td>
+                    <td class="name">
+                      <button
+                        v-if="quizzer.lines.length"
+                        class="open-name"
+                        :aria-expanded="opened.has(`q|${quizzer.team}|${quizzer.name}`)"
+                        @click="toggle(`q|${quizzer.team}|${quizzer.name}`)"
+                      >
+                        {{ quizzer.name }}
+                      </button>
+                      <template v-else>{{ quizzer.name }}</template>
+                    </td>
+                    <td>{{ quizzer.average.toFixed(2) }}</td>
+                    <td class="name">{{ quizzer.team }}</td>
+                    <td>{{ quizzer.errors }}</td>
+                    <td>{{ quizzer.jumps }}</td>
+                    <td class="no-print">{{ quizzer.points }}</td>
+                    <td class="no-print">{{ quizzer.quizzes }}</td>
+                    <td class="flags no-print">
+                      <span v-for="(flag, i) in quizzer.flags" :key="i">{{ flagText(flag) }}</span>
+                    </td>
+                  </tr>
+                  <tr v-if="opened.has(`q|${quizzer.team}|${quizzer.name}`)" class="lines no-print">
+                    <td colspan="9">
+                      <table class="lines-table">
+                        <thead>
+                          <tr>
+                            <th>Quiz</th>
+                            <th>Points</th>
+                            <th>Errors</th>
+                            <th>Jumps</th>
+                            <th>Correct by type</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="line in quizzer.lines" :key="line.quiz">
+                            <td class="name">{{ line.quiz }}</td>
+                            <td>{{ line.points }}</td>
+                            <td>{{ line.errors }}</td>
+                            <td>{{ line.jumps }}</td>
+                            <td class="name">{{ typesText(line.types) }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -424,6 +584,53 @@ async function keep(resultId: number) {
   margin-left: 0.3rem;
 }
 
+/* A name that opens the quizzes behind its totals */
+.open-name {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+}
+
+.open-name[aria-expanded='true'] {
+  font-weight: 600;
+}
+
+.lines > td {
+  background: var(--color-bg-raised);
+  padding: 0.25rem 0.5rem 0.5rem 1.5rem;
+}
+
+.lines-table {
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.lines-table th,
+.lines-table td {
+  text-align: left;
+  padding: 0.2rem 0.6rem 0.2rem 0;
+}
+
+.lines-table th {
+  color: var(--color-text-faint);
+  font-weight: 600;
+}
+
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
 .finalist {
   margin-left: 0.4rem;
   font-size: 0.7rem;
@@ -529,6 +736,33 @@ async function keep(resultId: number) {
   margin: -0.75rem 0 1.25rem;
   font-size: 0.8rem;
   color: var(--color-text-muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.btn--sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.btn--secondary {
+  background: transparent;
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}
+
+.btn--secondary:hover {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
 .keep {

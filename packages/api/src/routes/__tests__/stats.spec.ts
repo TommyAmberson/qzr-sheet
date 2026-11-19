@@ -4,6 +4,7 @@ import {
   DEFAULT_STATS_SETTINGS,
   MeetRole,
   PlacementFormula,
+  type AttentionItem,
   type DivisionStateValue,
   type DivisionStats,
   type QuizFile,
@@ -375,8 +376,25 @@ describe('what viewers, coaches and officials are given (FR-017 to FR-021, SC-00
     const body = await viewed()
     expect(body.results[0]!.quizzes[0]!.teams[0]).toEqual({ name: 'Team A', place: 1, score: 200 })
     expect(body.prelimStandings).toMatchObject({ state: 'livePreview' })
-    // The quizzes behind each total stay with admins
-    expect(body.prelimStandings!.teams.every((team) => team.lines.length === 0)).toBe(true)
+    // The quizzes behind each total, with their scores, since the stage shows them (FR-027)
+    expect(body.prelimStandings!.teams[0]!.lines).toEqual([
+      expect.objectContaining({ quiz: 'D1 Q1', stage: 'prelim', place: 1, score: 200 }),
+    ])
+  })
+
+  it('gives the quizzes behind a total only as far as their stage shows', async () => {
+    await store(quiz('1'))
+    await saveSettings((s) => {
+      s.prelimStandingsLive = true
+      s.quizzers = { from: 'start', update: 'live' }
+    })
+    const body = await viewed()
+    // Places only: a team's place in each quiz, not its score, and no quizzer's points
+    const [line] = body.prelimStandings!.teams[0]!.lines
+    expect(line).toMatchObject({ quiz: 'D1 Q1', place: 1 })
+    expect(line!.score).toBeUndefined()
+    expect(line!.errors).toBeUndefined()
+    expect(body.quizzers!.lists[0]!.quizzers.every((q) => q.lines.length === 0)).toBe(true)
   })
 
   it('lists a quiz in error as under review with its teams alone, and never one not counted', async () => {
@@ -559,5 +577,95 @@ describe("quizzes scored another way than the meet's (FR-023a, FR-023b)", () => 
     )
     expect(await scoreRows()).toEqual(before)
     expect((await listed())[0]!.otherFormula).toBeUndefined()
+  })
+})
+
+describe('what needs attention (FR-030 to FR-032)', () => {
+  const attention = (user: SessionUser | null = testSuperuser) =>
+    as(user).request(`/api/meets/${meetId}/stats/attention`, {}, env)
+  const items = async () => (await jsonOf<{ items: AttentionItem[] }>(await attention())).items
+  const dismiss = (body: unknown) =>
+    as(testSuperuser).request(
+      `/api/meets/${meetId}/stats/dismissals`,
+      jsonRequest('POST', body),
+      env,
+    )
+
+  it('is for admins', async () => {
+    expect((await attention(testUser)).status).toBe(403)
+    expect((await attention(null)).status).toBe(401)
+  })
+
+  it('names a quiz with no stage, one in error with its problems, and quizzes scored another way', async () => {
+    const unstaged = await store(quiz('1'), false)
+    const wrong = await store(
+      quiz('2', (file) => (file.answers = file.answers.filter((a) => a.columnKey !== '15'))),
+    )
+    const legacy = await store(
+      quiz('3', (file) => (file.quiz.placementFormula = PlacementFormula.Legacy)),
+    )
+    const found = await items()
+    expect(found).toContainEqual({ kind: 'noStage', quiz: { id: unstaged, name: 'D1 Q1' } })
+    expect(found).toContainEqual(
+      expect.objectContaining({
+        kind: 'inError',
+        quiz: { id: wrong, name: 'D1 Q2' },
+        problems: [{ kind: 'unanswered', questions: ['15'] }],
+      }),
+    )
+    expect(found).toContainEqual({ kind: 'otherFormula', quizzes: [{ id: legacy, name: 'D1 Q3' }] })
+    // Every one of these quizzes records no question types
+    expect(found).toContainEqual({ kind: 'incompleteTypes', quiz: { id: legacy, name: 'D1 Q3' } })
+    // A quiz that needs nothing raises nothing
+    expect(found.filter((item) => item.kind === 'otherFormula')).toHaveLength(1)
+  })
+
+  it('leaves out a quiz an admin set not to count', async () => {
+    const id = await store(quiz('1'), false)
+    const notCounted = await as(testSuperuser).request(
+      `/api/meets/${meetId}/results/stage`,
+      jsonRequest('PATCH', { ids: [id], stage: 'notCounted' }),
+      env,
+    )
+    expect(notCounted.status).toBe(200)
+    expect((await items()).some((item) => item.kind === 'noStage')).toBe(false)
+  })
+
+  it('flags two quizzer names on one team that look alike, until an admin dismisses them', async () => {
+    await store(quiz('1'))
+    // The same quizzer spelt another way in a second quiz
+    await store(quiz('2', (file) => (file.teams[0]!.quizzers[0]!.name = 'A0x')))
+    const flagged = () =>
+      items().then((found) => found.filter((item) => item.kind === 'lookAlikeQuizzers'))
+    expect(await flagged()).toEqual([
+      { kind: 'lookAlikeQuizzers', division: '1', team: 'Team A', names: ['A0', 'A0x'] },
+    ])
+    const body = { division: '1', team: 'Team A', names: ['a0x', 'A0'] }
+    expect((await dismiss(body)).status).toBe(200)
+    // Dismissing again is no error and records nothing more
+    expect((await dismiss(body)).status).toBe(200)
+    expect(await db.select().from(schema.meetNameDismissals)).toHaveLength(1)
+    expect(await flagged()).toEqual([])
+  })
+
+  it('refuses a dismissal missing its names', async () => {
+    expect((await dismiss({ division: '1', names: ['A0'] })).status).toBe(400)
+    expect((await dismiss({ division: '1', names: ['A0', 'a0'] })).status).toBe(400)
+  })
+
+  it('refuses a dismissal outside live and review', async () => {
+    for (const phase of ['build', 'done'] as const) {
+      await db.update(schema.quizMeets).set({ phase }).where(eq(schema.quizMeets.id, meetId))
+      expect((await dismiss({ division: '1', names: ['A0', 'A1'] })).status).toBe(409)
+    }
+  })
+
+  it('asks the caller to come back while revisions are still to be scored', async () => {
+    for (let n = 1; n <= 7; n++) await store(quiz(String(n)))
+    await db.delete(schema.quizResultScores)
+    const first = await attention()
+    expect(first.status).toBe(503)
+    expect(first.headers.get('Retry-After')).toBe('1')
+    expect((await attention()).status).toBe(200)
   })
 })

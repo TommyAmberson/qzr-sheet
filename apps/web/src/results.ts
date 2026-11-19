@@ -105,23 +105,33 @@ export function editQuizFile(file: QuizFile, edit: QuizEdit): QuizFile {
 }
 
 /**
- * The edits merging one team name into another across a division (R10): each stored quiz of the
- * division, as written, with a team named `from` once folded for case and spaces, that team renamed
- * `into`. Every other name, and every other quiz, is left as it is.
+ * The edits merging one name into another across a division (R10, FR-031): each stored quiz of the
+ * division, as written, with a team named `from` once folded for case and spaces renamed `into`, or
+ * given `team`, a quizzer of that team named `from` renamed `into`. Every other name, and every
+ * other quiz, is left as it is.
  */
 export function mergeEdits(
   stored: StoredQuiz[],
   division: string,
   from: string,
   into: string,
+  team?: string,
 ): { id: number; quizFile: QuizFile }[] {
   const merged = foldName(from)
   // The stats that raised the look-alike name the division as the meet lists it
   return stored.flatMap(({ id, quizFile }) => {
     if (!sameDivision(quizFile.quiz.division, division)) return []
-    const renamed = quizFile.teams.filter((team) => foldName(team.name) === merged)
+    if (team === undefined) {
+      const renamed = quizFile.teams.filter((t) => foldName(t.name) === merged)
+      if (renamed.length === 0) return []
+      const teamNames = new Map(renamed.map((t) => [t.id, into]))
+      return [{ id, quizFile: editQuizFile(quizFile, { teamNames }) }]
+    }
+    const renamed = quizFile.teams
+      .filter((t) => foldName(t.name) === foldName(team))
+      .flatMap((t) => t.quizzers.filter((quizzer) => foldName(quizzer.name) === merged))
     if (renamed.length === 0) return []
-    const teamNames = new Map(renamed.map((team) => [team.id, into]))
-    return [{ id, quizFile: editQuizFile(quizFile, { teamNames }) }]
+    const quizzerNames = new Map(renamed.map((quizzer) => [quizzer.id, into]))
+    return [{ id, quizFile: editQuizFile(quizFile, { quizzerNames }) }]
   })
 }

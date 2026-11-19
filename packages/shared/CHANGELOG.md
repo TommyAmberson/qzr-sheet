@@ -23,6 +23,26 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-11-19
+
+### Added
+
+* `lookAlikeQuizzers`, a division's warning of two quizzer names on one team that look like one
+  quizzer spelt two ways, by the test team names use (`looksAlike`, now exported). Two names in one
+  quiz are two quizzers, and never flagged.
+* `AttentionItem`, everything that needs an admin's attention across a meet, and `attentionOf`, a
+  division's share of it: its warnings, its quizzers listed in another number of quizzes than their
+  team with the quizzes they're missing from, and its quizzes whose question types don't add up.
+* `NameDismissal` and `nameDismissal`: two names an admin said are different, held folded and in a
+  fixed order. `DivisionStatsInput.dismissed` leaves those pairs unflagged.
+* A quiz result's teams carry, for admins in a quiz that counts, the placement points it gives
+  (`placementPoints`) and the team's `errors`.
+
+### Changed
+
+* A standings row's line for a quiz may leave out `score` and `errors`, as the API does for a viewer
+  where that stage's results show places only.
+
 ## [1.15.0] - 2026-11-19
 
 ### Added

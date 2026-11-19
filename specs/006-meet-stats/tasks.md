@@ -250,13 +250,13 @@ Each pull request rebases onto master first and carries its own changelog entrie
 
 ### Tests for User Story 7
 
-- [ ] T050 [P] [US7] Route specs in `packages/api/src/routes/__tests__/stats.spec.ts`: `GET /stats/attention` is for admins, is built from scored rows with no ranking, answers 503 with `Retry-After` while revisions are still to be scored as a division's stats does, and lists every `AttentionItem` kind of `contracts/stats-api.md` when its condition holds and not otherwise; roster errors appear under `inError` with the quiz's other problems and there is no separate roster kind; two quizzer names on one team that look alike are flagged; `POST /stats/dismissals` is idempotent and a dismissed pair of team or quizzer names is not flagged again (FR-032)
+- [X] T050 [P] [US7] Route specs in `packages/api/src/routes/__tests__/stats.spec.ts`: `GET /stats/attention` is for admins, is built from each division's stats under one scoring budget for the request, answers 503 with `Retry-After` while revisions are still to be scored as a division's stats does, and lists every `AttentionItem` kind of `contracts/stats-api.md` when its condition holds and not otherwise; roster errors appear under `inError` with the quiz's other problems and there is no separate roster kind; two quizzer names on one team that look alike are flagged; `POST /stats/dismissals` is idempotent and a dismissed pair of team or quizzer names is not flagged again (FR-032)
 
 ### Implementation for User Story 7
 
-- [ ] T051 [US7] What needs attention, collected across divisions by `packages/api/src/routes/stats.ts` from the warnings a division's stats already give (plan: Reuse and Ownership): roster errors come from the quizzes in error, already found in Phase 4; look-alike quizzer names on a team by the test `packages/shared/src/scoring/standings.ts` uses for teams; the `meet_name_dismissals` table of `data-model.md` ("unique per meet, division, team and pair"; names "folded, in a fixed order") in `packages/api/src/db/schema.ts` through `db:generate` with its DDL in `packages/api/src/test-db.ts`, and `POST /stats/dismissals`; covered by T050
-- [ ] T052 [US7] `apps/web/src/views/ResultsView.vue` becomes results management (FR-029 to FR-032): the list narrowed by division, stage and whether a quiz needs attention; the list of what needs attention, each item saying what is wrong and leading to the action that fixes it; merging one quizzer name into another across a team's quizzes through `editQuizFile` and `mergeEdits` in `apps/web/src/results.ts`, as team names are merged; dismissing a look-alike flag; every action the page has today kept
-- [ ] T053 [US7] In the same pull request: `docs/data-model.md` gains the `meet_name_dismissals` table, `docs/roles-and-access.md` the results management actions
+- [X] T051 [US7] What needs attention, collected across divisions by `packages/api/src/routes/stats.ts` from the warnings a division's stats already give (plan: Reuse and Ownership): roster errors come from the quizzes in error, already found in Phase 4; look-alike quizzer names on a team by the test `packages/shared/src/scoring/standings.ts` uses for teams; the `meet_name_dismissals` table of `data-model.md` ("unique per meet, division, team and pair"; names "folded, in a fixed order") in `packages/api/src/db/schema.ts` through `db:generate` with its DDL in `packages/api/src/test-db.ts`, and `POST /stats/dismissals`; covered by T050
+- [X] T052 [US7] `apps/web/src/views/ResultsView.vue` becomes results management (FR-029 to FR-032): the list narrowed by division, stage and whether a quiz needs attention; the list of what needs attention, each item saying what is wrong and leading to the action that fixes it; merging one quizzer name into another across a team's quizzes through `editQuizFile` and `mergeEdits` in `apps/web/src/results.ts`, as team names are merged; dismissing a look-alike flag; every action the page has today kept
+- [X] T053 [US7] In the same pull request: `docs/data-model.md` gains the `meet_name_dismissals` table, `docs/roles-and-access.md` the results management actions
 
 **Checkpoint**: Everything that keeps a stored quiz out of the tables is named in one list and can be cleared from there (SC-007)
 
@@ -270,8 +270,8 @@ Each pull request rebases onto master first and carries its own changelog entrie
 
 ### Implementation for User Story 8
 
-- [ ] T054 [US8] On the division stats page in `apps/web/src/views/`, anyone who may see a table can open a team or a quizzer in it and see the quizzes behind their totals from the `lines` the response already carries: for a quizzer, points, errors, jumps and correct answers by type per quiz; for a team, stage, place, score, placement points and errors per quiz (FR-027, SC-006)
-- [ ] T055 [US8] An admin downloads a division's stats as three CSV files made in the browser from the admin's stats response, in `apps/web/src/stats.ts`: a row per team per quiz, a row per quizzer per quiz, and the standings, in the workbook's column order (R13, FR-028); covered by a spec in `apps/web/src/__tests__/` on the rows and their escaping
+- [X] T054 [US8] On the division stats page in `apps/web/src/views/`, anyone who may see a table can open a team or a quizzer in it and see the quizzes behind their totals from the `lines` the response carries, which a viewer's cut now passes through with a quiz's score only where that stage's results show scores: for a quizzer, points, errors, jumps and correct answers by type per quiz; for a team, stage, place, score, placement points and errors per quiz (FR-027, SC-006)
+- [X] T055 [US8] An admin downloads a division's stats as three CSV files made in the browser from the admin's stats response, in `apps/web/src/stats.ts`: a row per team per quiz, a row per quizzer per quiz, and the standings, in the workbook's column order (R13, FR-028); covered by a spec in `apps/web/src/__tests__/` on the rows and their escaping
 
 **Checkpoint**: A doubted number is traced in two steps; the statistician can compare with their workbook
 
@@ -362,3 +362,12 @@ Task: "Send scheduleQuizId with a submission in apps/scoresheet/src/api.ts and u
 - Commit after each task or logical group
 - No real name from the reference meet in any file, commit or issue
 - `tasks.md` is excluded from dprint: keep `- [ ]` and `- [X]` as they are
+
+---
+
+## Phase 12: Convergence
+
+- [X] T058 Bring `specs/006-meet-stats/contracts/stats-api.md` up to the code: `QuizResult.teams` gains admin-only `placementPoints` and `errors`; a team line's `score` is optional; viewers get team lines for stages whose results they see, with `score` only at `scores`, and quizzer lines only where the quiz's stage shows scores; `GET /stats/attention` answers `{ items: AttentionItem[] }`; `POST /stats/dismissals` answers 400 for a missing or repeated name per plan: contracts/stats-api.md (partial)
+- [X] T059 Refuse `POST /stats/dismissals` with 409 and `meetPhase` outside `live` and `review` in `packages/api/src/routes/stats.ts`, as the contract's write rule and `docs/roles-and-access.md` say, with a spec in `packages/api/src/routes/__tests__/stats.spec.ts` per contracts/stats-api.md (contradicts)
+- [X] T060 Make an attention item's "Show" in `apps/web/src/views/ResultsView.vue` clear any division, stage or attention filter that hides the quiz before jumping to its row per FR-030 (partial)
+- [X] T061 Make the `quizzerCount` and `unequalPrelims` items in `apps/web/src/views/ResultsView.vue` show that division's quizzes in the list, where their fix is, rather than only linking to the division's stats per FR-030 (partial)
