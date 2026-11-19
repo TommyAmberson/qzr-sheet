@@ -3,7 +3,7 @@ import { BRACKET_LIBRARY } from '../bracketLibrary'
 import { buildElimQuizzes, defaultElims } from '../elims'
 import type { DivisionSettings, ScheduleQuiz, Seat } from '../scheduleFile'
 
-function division(teams: number, name = 'Div 2'): DivisionSettings {
+function division(teams: number, name = '2'): DivisionSettings {
   return { id: 'd2', name, teams, elims: defaultElims(teams) }
 }
 

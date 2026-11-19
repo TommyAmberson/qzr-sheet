@@ -1,4 +1,4 @@
-import { ordinal, quizNumber } from './names'
+import { divisionName, ordinal, quizNumber } from './names'
 import { eventRooms } from './frame'
 import { DIVISION_COLOURS, type DivisionColour } from './scheduleFile'
 import type { FrameRow, ScheduleDocument, ScheduleEvent, ScheduleQuiz, Seat } from './scheduleFile'
@@ -137,7 +137,7 @@ export function roomDivisions(doc: ScheduleDocument, room: string): string[] {
       .filter((q) => q.cell?.room === room && !(q.deciding && q.label.endsWith('Finals')))
       .map((q) => q.division),
   )
-  return doc.settings.divisions.filter((d) => ids.has(d.id)).map((d) => d.name)
+  return doc.settings.divisions.filter((d) => ids.has(d.id)).map((d) => divisionName(d.name))
 }
 
 /**

@@ -85,7 +85,7 @@ describe('the printed sheet', () => {
     })
     d.settings.divisions.push({
       id: 'd2',
-      name: 'Div 2',
+      name: '2',
       teams: 6,
       elims: { lanes: [], lines: [] },
     })

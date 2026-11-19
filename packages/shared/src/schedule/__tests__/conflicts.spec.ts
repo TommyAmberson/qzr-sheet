@@ -244,7 +244,7 @@ describe('checkSchedule', () => {
     const d = doc({}, 3)
     d.settings.divisions.push({
       id: 'd2',
-      name: 'Div 2',
+      name: '2',
       teams: 3,
       elims: { lanes: [], lines: [] },
     })
@@ -410,7 +410,7 @@ describe('H-9 and result names', () => {
       Object.assign(newScheduleDocument('x'), {
         settings: {
           ...newScheduleDocument('x').settings,
-          divisions: [{ id: '1', name: 'Div 1', teams: 6, elims: { lanes: [], lines: [] } }],
+          divisions: [{ id: '1', name: '1', teams: 6, elims: { lanes: [], lines: [] } }],
         },
       }),
     )
@@ -437,7 +437,7 @@ describe('H-9 and result names', () => {
 describe('H-3 with an event across every room', () => {
   it('flags the quizzes in a slot the event overlaps', () => {
     const d = generateSchedule(newScheduleDocument('x'))
-    d.settings.divisions = [{ id: '1', name: 'Div 1', teams: 6, elims: { lanes: [], lines: [] } }]
+    d.settings.divisions = [{ id: '1', name: '1', teams: 6, elims: { lanes: [], lines: [] } }]
     const doc = generateSchedule(d)
     const slot = doc.frame.find(
       (r) => r.kind === 'slot' && doc.quizzes.some((q) => q.cell?.slot === r.id),
@@ -459,7 +459,7 @@ describe('H-3 with an event across every room', () => {
 describe('H-16 with a round robin', () => {
   it("counts a New rank seated across a round robin's quizzes as one use", () => {
     const d = newScheduleDocument('x')
-    d.settings.divisions = [{ id: '2', name: 'Div 2', teams: 17, elims: defaultElims(17) }]
+    d.settings.divisions = [{ id: '2', name: '2', teams: 17, elims: defaultElims(17) }]
     // The consolation lane, fed by the XY's New ranks, as a round robin of 2 each
     d.settings.divisions[0]!.elims.lanes[1] = {
       ...d.settings.divisions[0]!.elims.lanes[1]!,

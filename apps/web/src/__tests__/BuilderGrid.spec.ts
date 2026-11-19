@@ -347,7 +347,7 @@ describe('Elim settings (story 4)', () => {
     const doc = newScheduleDocument('Nine')
     const elims = defaultElims(9)
     elims.lanes[0]!.bracket = '9b'
-    doc.settings.divisions = [{ id: 'd1', name: 'Div 1', teams: 9, elims }]
+    doc.settings.divisions = [{ id: 'd1', name: '1', teams: 9, elims }]
     const saved = generateSchedule(doc)
     keepSchedule(saved)
     wrapper = mount(BuilderView, { props: { id: saved.id }, attachTo: document.body })
@@ -371,7 +371,7 @@ describe('Elim settings (story 4)', () => {
     const doc = newScheduleDocument('Three divisions')
     doc.settings.divisions = [6, 17, 16].map((teams, i) => ({
       id: `d${i + 1}`,
-      name: `Div ${i + 1}`,
+      name: `${i + 1}`,
       teams,
       elims: defaultElims(teams),
     }))

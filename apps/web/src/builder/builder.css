@@ -109,8 +109,14 @@
   text-decoration: underline;
 }
 
+/* A division box (DivisionInput) is drawn as one input, its prefix inside */
 :is(.builder, .builder-list, .linked)
-  :is(input:not([type='checkbox'], [type='radio'], [type='file']), select, textarea) {
+  :is(
+    input:not([type='checkbox'], [type='radio'], [type='file']),
+    select,
+    textarea,
+    .division-input
+  ) {
   min-width: 0;
   padding: 0.25rem 0.4rem;
   border: 1px solid var(--color-meta-accent);
@@ -120,7 +126,8 @@
 }
 
 :is(.builder, .builder-list, .linked)
-  :is(input:not([type='checkbox'], [type='radio'], [type='file']), select, textarea):focus {
+  :is(input:not([type='checkbox'], [type='radio'], [type='file']), select, textarea):focus,
+:is(.builder, .builder-list, .linked) .division-input:focus-within {
   border-color: var(--color-accent);
   outline: 1px solid var(--color-accent);
   outline-offset: 0;

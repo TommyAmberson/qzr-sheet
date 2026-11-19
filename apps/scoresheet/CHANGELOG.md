@@ -15,6 +15,17 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-17
+
+### Changed
+
+* The division box of a sheet not linked to a meet shows its prefix ("D"), and drops a prefix typed
+  into it, so `Div 1` is saved as `1`
+
+### Bundled contract
+
+* `@qzr/shared@1.13.0` - bumped from 1.12.0
+
 ## [0.23.0] - 2026-11-16
 
 ### Added

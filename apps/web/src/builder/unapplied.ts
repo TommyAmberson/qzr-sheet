@@ -5,6 +5,7 @@ import {
   unappliedSettings,
   type ScheduleDocument,
   type ScheduleSettings,
+  divisionName,
 } from '@qzr/shared'
 
 export const DRAW_NAMES: Record<ScheduleSettings['prelimDraw'], string> = {
@@ -74,7 +75,9 @@ export function describeUnapplied(doc: ScheduleDocument): string[] {
       // What went and what came, since a division can go and another of its name come back
       const ids = (s: ScheduleSettings) => new Set(s.divisions.map((d) => d.id))
       const list = (ds: ScheduleSettings['divisions']) =>
-        ds.map((d) => `${d.name} (${d.teams} ${d.teams === 1 ? 'team' : 'teams'})`).join(', ')
+        ds
+          .map((d) => `${divisionName(d.name)} (${d.teams} ${d.teams === 1 ? 'team' : 'teams'})`)
+          .join(', ')
       const gone = was.divisions.filter((d) => !ids(now).has(d.id))
       const added = now.divisions.filter((d) => !ids(was).has(d.id))
       const parts = [
@@ -83,15 +86,18 @@ export function describeUnapplied(doc: ScheduleDocument): string[] {
       ]
       lines.push(`Divisions: ${parts.join('; ')}`)
     } else if (division && field === 'name') {
-      lines.push(`${before?.name ?? division.name} renamed ${division.name}`)
+      lines.push(
+        `${divisionName(before?.name ?? division.name)} renamed ${divisionName(division.name)}`,
+      )
     } else if (division && field === 'teams') {
       const follow = list.some((x) => x.key === `${id}.elims`) && followsTeams(division)
       lines.push(
-        `${division.name}: ${before?.teams ?? 0} to ${division.teams} teams${follow ? ', its elims to suit' : ''}`,
+        `${divisionName(division.name)}: ${before?.teams ?? 0} to ${division.teams} teams${follow ? ', its elims to suit' : ''}`,
       )
     } else if (division && field === 'elims') {
       const teamsToo = list.some((x) => x.key === `${id}.teams`)
-      if (!(teamsToo && followsTeams(division))) lines.push(`${division.name}: elim settings`)
+      if (!(teamsToo && followsTeams(division)))
+        lines.push(`${divisionName(division.name)}: elim settings`)
     }
   }
   return lines

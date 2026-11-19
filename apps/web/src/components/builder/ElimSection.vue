@@ -12,6 +12,7 @@ import {
   type LaneSettings,
   type ScheduleDocument,
   type UnappliedSetting,
+  divisionName,
 } from '@qzr/shared'
 
 import { CONSOLATION_FINALS_NAMES, consolationFinals } from '../../builder/unapplied'
@@ -225,7 +226,7 @@ function laneNote(l: LaneSettings) {
     >
       <div class="ehead">
         <span class="tick" />
-        <strong>{{ d.name }}</strong>
+        <strong>{{ divisionName(d.name) }}</strong>
         <span class="hint">{{ d.teams }} teams, by prelim rank</span>
         <span v-if="unapplied(d.id)" class="unapplied">Unapplied</span>
       </div>
@@ -498,7 +499,7 @@ function laneNote(l: LaneSettings) {
           :style="{ '--qc': colourOf(d) }"
           @click="replacing = [d.id]"
         >
-          <span class="tick" />{{ d.name }}
+          <span class="tick" />{{ divisionName(d.name) }}
         </button>
       </div>
       <div v-if="replacing" class="choice" role="group" aria-label="Re-place elims">

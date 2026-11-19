@@ -1,5 +1,6 @@
 import { BRACKET_LIBRARY } from './bracketLibrary'
 import { indexOfLetter, letterOf } from './letters'
+import { divisionName } from './names'
 import { drawPrelims } from './prelimDraw'
 import type {
   DivisionSettings,
@@ -98,8 +99,8 @@ export function lineRanges(division: DivisionSettings): (LineRange | null)[] {
 export function laneName(division: DivisionSettings, index: number): string {
   const label = division.elims.lanes[index]!.label
   if (label.kind === 'own') return label.name
-  if (label.kind === 'division' || index === 0) return division.name
-  return `${division.name}${'C'.repeat(index)}`
+  if (label.kind === 'division' || index === 0) return divisionName(division.name)
+  return `${divisionName(division.name)}${'C'.repeat(index)}`
 }
 
 /**
@@ -123,7 +124,7 @@ export function buildElimQuizzes(division: DivisionSettings): ScheduleQuiz[] {
     intermediateSeating(inter.quizzes, inter.seating === 'alternate').forEach((ranks, j) => {
       quizzes.push({
         id: interId(line, names[j]!),
-        label: `${division.name} Quiz ${names[j]}`,
+        label: `${divisionName(division.name)} Quiz ${names[j]}`,
         division: division.id,
         phase: 'elim',
         line,

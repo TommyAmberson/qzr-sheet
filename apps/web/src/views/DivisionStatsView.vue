@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ApiError, type DivisionStats, type Stage } from '@qzr/shared'
+import { ApiError, type DivisionStats, type Stage, divisionTitle } from '@qzr/shared'
 
 import { getDivisionStats, getMeet, type MeetDetail } from '../api'
 import { TIE_BREAKS, flagText, placeLabel, problemText, warningText } from '../stats'
@@ -61,7 +61,7 @@ watch(() => [props.slug, props.division], load)
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
 
     <template v-else-if="meet && stats">
-      <h2 class="page-title">Division {{ stats.division }} stats: {{ meet.name }}</h2>
+      <h2 class="page-title">{{ divisionTitle(stats.division) }} stats: {{ meet.name }}</h2>
 
       <ul v-if="stats.warnings?.length" class="warnings">
         <li v-for="(warning, i) in stats.warnings" :key="i">{{ warningText(warning) }}</li>

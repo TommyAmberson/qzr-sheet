@@ -22,7 +22,7 @@ function sample(): ScheduleDocument {
     divisions: [
       {
         id: 'd1',
-        name: 'Div 1',
+        name: '1',
         teams: 6,
         elims: {
           lanes: [

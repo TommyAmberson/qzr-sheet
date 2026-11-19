@@ -199,7 +199,7 @@ const matching = computed(() => {
     ...doc.settings.divisions.map((d) => {
       const known = meet.value!.divisions.includes(d.id) || count(d.id) > 0
       return {
-        name: d.name,
+        name: divisionName(d.name),
         teams: d.teams,
         meetCount: count(d.id),
         ok: known && count(d.id) === d.teams,
@@ -241,7 +241,7 @@ function confirmLink() {
   }
   // The meet's teams decide each division's count, and divisions only the meet has are added
   for (const id of meetOnlyDivisions(doc)) {
-    doc.settings.divisions.push({ id, name: divisionName(id), teams: 0, elims: defaultElims(0) })
+    doc.settings.divisions.push({ id, name: id, teams: 0, elims: defaultElims(0) })
   }
   let recount = false
   for (const d of doc.settings.divisions) {

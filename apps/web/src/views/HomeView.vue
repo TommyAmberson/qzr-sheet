@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { AccountRole, MeetRole, effectiveAccountRole } from '@qzr/shared'
+import {
+  AccountRole,
+  MeetRole,
+  bareDivision,
+  effectiveAccountRole,
+  findDivision,
+} from '@qzr/shared'
 import { useAuth } from '../composables/useAuth'
-import { guestStateRef, joinByCode, leaveGuestMeet } from '@qzr/ui'
+import { guestStateRef, joinByCode, leaveGuestMeet, DivisionInput } from '@qzr/ui'
 import { getMyMeets, joinMeet, joinMeetGuest, createMeet, type MeetMembership } from '../api'
 
 const scoresheetUrl = __SCORESHEET_URL__
@@ -80,7 +86,10 @@ async function handleCreateMeet() {
   creatingMeet.value = true
   try {
     const f = meetForm.value
-    const divisions = f.divisions.map((d) => d.trim()).filter(Boolean)
+    const divisions: string[] = []
+    for (const d of f.divisions.map(bareDivision)) {
+      if (d && findDivision(divisions, d) === undefined) divisions.push(d)
+    }
     if (divisions.length === 0) {
       createMeetError.value = 'At least one division is required'
       return
@@ -189,10 +198,11 @@ watch(
             <div class="divisions-edit">
               <span class="divisions-label">Divisions</span>
               <div v-for="(_, i) in meetForm.divisions" :key="i" class="division-field">
-                <input
+                <DivisionInput
                   v-model="meetForm.divisions[i]"
                   class="field-input"
-                  placeholder="Division name"
+                  placeholder="e.g. 2C"
+                  aria-label="Division"
                 />
                 <button
                   v-if="meetForm.divisions.length > 1"
