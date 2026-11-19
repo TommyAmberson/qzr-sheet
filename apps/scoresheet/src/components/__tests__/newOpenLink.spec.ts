@@ -368,6 +368,23 @@ describe('Link', () => {
     expect(sheet.get('[title^="Undo"]').attributes('disabled')).toBeDefined()
   })
 
+  it('holds seats against their quizzers again when an undo after a reload moves them', async () => {
+    const first = await mountSheet()
+    await pickScheduled(first, 'Link', 'Link a scheduled quiz')
+    const [one, two] = quizzerNames(first)[0]!
+    ;(
+      first.vm as unknown as { moveQuizzerAndSync: (t: number, f: number, to: number) => void }
+    ).moveQuizzerAndSync(0, 0, 1)
+    await autoSaveWritten()
+    // The page reloads: the step comes back without the session's own pick reorder
+    const sheet = await mountSheet()
+    expect(quizzerNames(sheet)[0]!.slice(0, 2)).toEqual([two, one])
+    await sheet.get('[title^="Undo"]').trigger('click')
+    expect(quizzerNames(sheet)[0]!.slice(0, 2)).toEqual([one, two])
+    expect(useMeetSession().getDbName(0, 0)).toBe(one)
+    expect(useMeetSession().getDbName(0, 1)).toBe(two)
+  })
+
   it('survives a reload', async () => {
     const first = await mountSheet()
     await pickScheduled(first, 'Link', 'Link a scheduled quiz')

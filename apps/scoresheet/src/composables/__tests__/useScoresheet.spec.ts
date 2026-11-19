@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { effectScope, nextTick } from 'vue'
+import { type EffectScope, effectScope, nextTick } from 'vue'
 import { useScoresheet } from '../useScoresheet'
 import {
   claimRecord,
   currentTab,
+  isKept,
   listRecent,
   readRecord,
   setTabLink,
@@ -11,15 +12,46 @@ import {
   writeRecord,
 } from '../../persistence/autoSave'
 import { createQuizStore } from '../../stores/quizStore'
+import { serializeStore } from '../../persistence/quizFile'
 import { aRecord } from '../../persistence/__tests__/records'
 import {
   CellValue,
+  parseQuizFile,
   QuestionCategory,
   QuizFormat,
   toColIdx,
   toSeatIdx,
   toTeamIdx,
 } from '@qzr/shared'
+
+/** Focus leaves a typed field, ending the visit to it */
+const leaveField = () => window.dispatchEvent(new FocusEvent('focusout'))
+
+/** Long enough for the writer's debounce to have run */
+const pause = () => new Promise((resolve) => setTimeout(resolve, 400))
+
+/** The answers marked correct in the first quizzer's row */
+const correct = (s: ReturnType<typeof useScoresheet>) =>
+  s.cells.value[0]![0]!.filter((cell) => cell === CellValue.Correct).length
+
+/** The tab closes, leaving its quiz; a new tab restores it in one of its states */
+async function leaveAndRestore(
+  scope: EffectScope,
+  s: ReturnType<typeof useScoresheet>,
+  state: 'current' | 'saved',
+) {
+  s.flushAutoSave()
+  await vi.waitFor(async () => expect(await readRecord(currentTab()!.id)).toBeDefined())
+  scope.stop()
+  const record = { ...(await readRecord(currentTab()!.id))!, offered: true }
+  await writeRecord(record)
+  currentTab()!.claim.release()
+  sessionStorage.clear()
+  await startTab()
+  const sheet = useScoresheet()
+  sheet.restoreQuiz(record, (await claimRecord(record.id))!, state)
+  return { record, sheet }
+}
 
 const T = toTeamIdx
 const S = toSeatIdx
@@ -239,11 +271,20 @@ describe('useScoresheet — clearAnswers', () => {
     expect(s.quiz.value.division).toBe('2C')
   })
 
-  it('resets undo/redo history', () => {
+  it('is one step, which undo takes back', () => {
     const s = useScoresheet()
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.toggleNoJump(C(1))
+    s.addTimeout(0, '2')
+    s.setQuestionType(C(3), QuestionCategory.FTV)
     s.clearAnswers()
-    expect(s.canUndo.value).toBe(false)
+    s.undo()
+    expect(s.cells.value[0]![0]![0]).toBe(CellValue.Correct)
+    expect(s.noJumps.value[1]).toBe(true)
+    expect(s.timeoutCount(0)).toBe(1)
+    expect(s.quiz.value.questionTypes.size).toBe(1)
+    s.undo()
+    expect(s.quiz.value.questionTypes.size).toBe(0)
   })
 })
 
@@ -320,13 +361,101 @@ describe('useScoresheet — undo steps', () => {
     expect(s.cells.value[0]![0]![0]).toBe(CellValue.Correct)
   })
 
-  it('keeps names, on-time marks, question types and quizzer order out of history', () => {
+  it('takes back names, on-time marks, question types, quizzer order and settings, one by one', () => {
     const s = useScoresheet()
-    s.setTeamName(T(0), 'Lions')
     s.setQuizzerName(T(0), S(0), 'Alice')
+    leaveField()
+    s.setTeamName(T(0), 'Lions')
+    leaveField()
     s.toggleOnTime(T(1))
     s.setQuestionType(C(0), QuestionCategory.Q)
     s.moveQuizzer(T(0), S(0), S(1))
+    s.setQuizField('division', '2C')
+    leaveField()
+    s.setQuizField('quizNumber', '7')
+    leaveField()
+    s.setQuizField('consolation', true)
+    s.setQuizField('overtime', true)
+    const undone: unknown[] = []
+    const look = () => [
+      s.teams.value[0]!.name,
+      s.teamQuizzers.value[0]![0]!.name,
+      s.teams.value[1]!.onTime,
+      s.quiz.value.questionTypes.size,
+      s.quiz.value.division,
+      s.quiz.value.quizNumber,
+      s.quiz.value.consolation,
+      s.quiz.value.overtime,
+    ]
+    while (s.canUndo.value) {
+      s.undo()
+      undone.push(look())
+    }
+    expect(undone).toHaveLength(9)
+    expect(undone[undone.length - 1]).toEqual([
+      '',
+      '',
+      expect.any(Boolean),
+      0,
+      '',
+      '',
+      false,
+      false,
+    ])
+    while (s.canRedo.value) s.redo()
+    expect(s.teamQuizzers.value[0]![1]!.name).toBe('Alice')
+    expect(look().slice(0, 1)).toEqual(['Lions'])
+    expect(s.quiz.value.division).toBe('2C')
+  })
+
+  it('makes a visit to a typed field one step', () => {
+    const s = useScoresheet()
+    for (const name of ['L', 'Li', 'Lio', 'Lion', 'Lions']) s.setTeamName(T(0), name)
+    s.undo()
+    expect(s.teams.value[0]!.name).toBe('')
+    s.redo()
+    expect(s.teams.value[0]!.name).toBe('Lions')
+    // Leaving the field ends the visit: the next one is a step of its own
+    leaveField()
+    s.setTeamName(T(0), 'Lionsx')
+    s.setTeamName(T(0), 'Lions!')
+    s.undo()
+    expect(s.teams.value[0]!.name).toBe('Lions')
+  })
+
+  it('ends a visit at another edit, and takes back a visit so far mid-way', () => {
+    const s = useScoresheet()
+    s.setQuizField('quizNumber', '1')
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.setQuizField('quizNumber', '12')
+    s.undo()
+    expect(s.quiz.value.quizNumber).toBe('1')
+    // Undone mid-visit, typing on is a new step
+    s.setQuizField('quizNumber', '13')
+    s.undo()
+    expect(s.quiz.value.quizNumber).toBe('1')
+  })
+
+  it('leaves no step for a visit that ends where it began', () => {
+    const s = useScoresheet()
+    s.setTeamName(T(0), 'L')
+    s.setTeamName(T(0), '')
+    expect(s.canUndo.value).toBe(false)
+  })
+
+  it("takes the sheet's own changes as the start until the first edit by hand", () => {
+    const s = useScoresheet()
+    s.editBySheet(() => s.setTeamName(T(0), 'Linked'))
+    expect(s.canUndo.value).toBe(false)
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.editBySheet(() => {
+      s.setTeamName(T(0), 'Relinked')
+      s.setQuizField('division', '3')
+    })
+    s.undo()
+    expect(s.teams.value[0]!.name).toBe('Linked')
+    expect(s.quiz.value.division).toBe('')
+    s.undo()
     expect(s.canUndo.value).toBe(false)
   })
 
@@ -369,6 +498,20 @@ describe('useScoresheet — clearNames', () => {
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
     s.clearNames()
     expect(s.cells.value[0]![0]![0]).toBe(CellValue.Correct)
+  })
+
+  it('is one step, which undo takes back with what runs alongside', () => {
+    const s = useScoresheet()
+    s.setTeamName(T(0), 'Alpha')
+    leaveField()
+    s.setQuizzerName(T(1), S(2), 'Bo')
+    const alongside = { undo: vi.fn(), redo: vi.fn() }
+    s.clearNames(alongside)
+    expect(alongside.redo).toHaveBeenCalledTimes(1)
+    s.undo()
+    expect(s.teams.value[0]!.name).toBe('Alpha')
+    expect(s.teamQuizzers.value[1]![2]!.name).toBe('Bo')
+    expect(alongside.undo).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -710,6 +853,28 @@ describe("useScoresheet — the tab's writer", () => {
   const answersWritten = async () =>
     JSON.parse((await written())?.current?.file ?? '{"answers":[]}').answers.length
 
+  it('writes a quiz with nothing done by hand for a reload, and never lists it', async () => {
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    s.editBySheet(() => s.setTeamName(T(0), 'Linked'))
+    setTabLink({ meetId: 5, meetName: 'Meet' } as never)
+    s.flushAutoSave()
+    await vi.waitFor(async () => expect(await written()).toBeDefined())
+    scope.stop()
+    // The page reloads: the old one lets go, and the tab takes its record back
+    currentTab()!.claim.release()
+    const tab = await startTab()
+    expect(tab.link).toMatchObject({ meetId: 5 })
+    expect(useScoresheet().teams.value[0]!.name).toBe('Linked')
+    expect(isKept(tab.record!)).toBe(false)
+    // Left by a closed tab, it is no recent quiz, and goes when the limits are next kept
+    currentTab()!.claim.release()
+    sessionStorage.clear()
+    await startTab()
+    expect(await listRecent(currentTab()!.id)).toEqual([])
+    expect(await readRecord(tab.id)).toBeUndefined()
+  })
+
   it('says a write failed, and still writes the next change', async () => {
     const scope = effectScope()
     const s = scope.run(() => useScoresheet())!
@@ -737,6 +902,19 @@ describe("useScoresheet — the tab's writer", () => {
     s.flushAutoSave()
     await vi.waitFor(() => expect(s.keepFailed.value).toBe('full'))
     put.mockRestore()
+    scope.stop()
+  })
+
+  it('keeps a saved state as it was saved while typing goes on in the field', async () => {
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    s.setTeamName(T(0), 'Li')
+    s.markSaved()
+    s.setTeamName(T(0), 'Lions')
+    s.flushAutoSave()
+    const record = currentTab()!.record!
+    expect(record.saved!.undo.map((step) => step.changes[0]!.after)).toEqual(['Li'])
+    expect(record.current!.undo).toHaveLength(2)
     scope.stop()
   })
 
@@ -789,7 +967,7 @@ describe("useScoresheet — the tab's writer", () => {
     const s = useScoresheet()
     s.pauseAutoSave.value = true
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
-    await new Promise((resolve) => setTimeout(resolve, 400))
+    await pause()
     expect(await written()).toBeUndefined()
   })
 
@@ -804,8 +982,10 @@ describe('useScoresheet — saved, and kept', () => {
   beforeEach(async () => {
     await startTab()
   })
-  const pause = () => new Promise((resolve) => setTimeout(resolve, 400))
-  const kept = async () => (await readRecord(currentTab()!.id)) !== undefined
+  const kept = async () => {
+    const record = await readRecord(currentTab()!.id)
+    return record !== undefined && isKept(record)
+  }
 
   it('is saved as saved to a file, and again when undone or edited back to it', () => {
     const s = useScoresheet()
@@ -835,9 +1015,8 @@ describe('useScoresheet — saved, and kept', () => {
   it('is not kept while nothing was done by hand, names a link filled in included', async () => {
     const s = useScoresheet()
     s.resetStore()
-    // The link routine fills in the rosters' names, then takes that as the quiz's start
-    s.setTeamName(T(0), 'Calgary 1')
-    s.retakeStart()
+    // The link routine fills in the rosters' names, which are the quiz's start
+    s.editBySheet(() => s.setTeamName(T(0), 'Calgary 1'))
     await pause()
     expect(await kept()).toBe(false)
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
@@ -869,29 +1048,16 @@ describe('useScoresheet — continuing a quiz from an earlier state', () => {
     s.setCell(T(0), S(0), C(1), CellValue.Correct)
     s.setCell(T(0), S(0), C(2), CellValue.Correct)
     setTabLink({ meetId: 5, meetName: 'Meet' } as never)
-    s.flushAutoSave()
-    await vi.waitFor(async () => expect(await readRecord(currentTab()!.id)).toBeDefined())
-    // The tab closes; a new one opens, and is offered nothing
-    scope.stop()
-    const record = { ...(await readRecord(currentTab()!.id))!, offered: true }
-    await writeRecord(record)
-    currentTab()!.claim.release()
-    sessionStorage.clear()
-    await startTab()
-    const sheet = useScoresheet()
-    sheet.restoreQuiz(record, (await claimRecord(record.id))!, 'saved')
-    return { sheet, record }
+    return leaveAndRestore(scope, s, 'saved')
   }
-  const answers = (s: ReturnType<typeof useScoresheet>) =>
-    s.cells.value[0]![0]!.filter((cell) => cell === CellValue.Correct).length
 
   it('puts the quiz at that state, with redo up to the latest', async () => {
     const { sheet } = await savedThenEdited()
-    expect(answers(sheet)).toBe(1)
+    expect(correct(sheet)).toBe(1)
     expect(sheet.unsaved.value).toBe(false)
     sheet.redo()
     sheet.redo()
-    expect(answers(sheet)).toBe(3)
+    expect(correct(sheet)).toBe(3)
     expect(sheet.canRedo.value).toBe(false)
   })
 
@@ -911,9 +1077,74 @@ describe('useScoresheet — continuing a quiz from an earlier state', () => {
     sheet.redo()
     sheet.redo()
     sheet.setCell(T(1), S(0), C(0), CellValue.Correct)
-    await new Promise((resolve) => setTimeout(resolve, 400))
+    await pause()
     const files = (await listRecent(currentTab()!.id)).map((r) => r.current?.file)
     expect(files).not.toContain(record.current!.file)
+  })
+
+  it('redoes to exactly the latest state when names changed after the save', async () => {
+    await startTab()
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.markSaved()
+    s.setTeamName(T(0), 'Lions')
+    s.setCell(T(0), S(0), C(1), CellValue.Correct)
+    const { record, sheet } = await leaveAndRestore(scope, s, 'saved')
+    expect(sheet.teams.value[0]!.name).toBe('')
+    while (sheet.canRedo.value) sheet.redo()
+    expect(sheet.teams.value[0]!.name).toBe('Lions')
+    expect(correct(sheet)).toBe(2)
+    sheet.flushAutoSave()
+    expect(currentTab()!.record!.current!.file).toBe(record.current!.file)
+    expect(currentTab()!.record!.ahead).toBeUndefined()
+  })
+
+  it('redoes across a Clear answers to exactly the latest state', async () => {
+    await startTab()
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    // Opened from a file: the saved state has no steps of its own
+    s.loadFile(parseQuizFile(serializeStore(s.store, s.noJumpMap.value, s.timeoutMap.value)))
+    s.markSaved()
+    s.clearAnswers()
+    s.setCell(T(0), S(0), C(1), CellValue.Correct)
+    s.setCell(T(0), S(0), C(2), CellValue.Correct)
+    const { sheet } = await leaveAndRestore(scope, s, 'saved')
+    expect(correct(sheet)).toBe(1)
+    while (sheet.canRedo.value) sheet.redo()
+    expect(sheet.cells.value[0]![0]![0]).toBe(CellValue.Empty)
+    expect(correct(sheet)).toBe(2)
+  })
+
+  it('keeps nothing extra when a change the sheet makes changes nothing', async () => {
+    const { sheet, record } = await savedThenEdited()
+    sheet.editBySheet(() => sheet.setTeamName(T(0), ''))
+    await pause()
+    // No copy of the latest state split off: redo still reaches it
+    const copies = (await listRecent(currentTab()!.id)).filter(
+      (r) => r.id !== record.id && r.current?.file === record.current!.file,
+    )
+    expect(copies).toEqual([])
+    expect(sheet.canRedo.value).toBe(true)
+  })
+
+  it('redoes on past the latest state through the steps undone from it', async () => {
+    await startTab()
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.markSaved()
+    s.setCell(T(0), S(0), C(1), CellValue.Correct)
+    s.setCell(T(0), S(0), C(2), CellValue.Correct)
+    s.undo()
+    const { sheet } = await leaveAndRestore(scope, s, 'saved')
+    sheet.redo()
+    expect(correct(sheet)).toBe(2)
+    sheet.redo()
+    expect(correct(sheet)).toBe(3)
+    expect(sheet.canRedo.value).toBe(false)
   })
 
   it('keeps the latest state too when the answers are cleared there', async () => {
@@ -930,8 +1161,6 @@ describe('useScoresheet — undo across a reload and a restore', () => {
   beforeEach(async () => {
     await startTab()
   })
-  const correct = (s: ReturnType<typeof useScoresheet>) =>
-    s.cells.value[0]![0]!.filter((cell) => cell === CellValue.Correct).length
 
   /** The page reloads: a new sheet starts from the tab's record */
   async function reload(
@@ -960,20 +1189,23 @@ describe('useScoresheet — undo across a reload and a restore', () => {
     expect(correct(after)).toBe(5)
   })
 
+  it('undoes a name typed before the reload', async () => {
+    const scope = effectScope()
+    const s = scope.run(() => useScoresheet())!
+    s.setTeamName(T(0), 'Lions')
+    s.toggleOnTime(T(0))
+    const after = await reload(scope, s)
+    after.undo()
+    after.undo()
+    expect(after.teams.value[0]!.name).toBe('')
+  })
+
   it('brings a restored quiz back with the steps that led to it', async () => {
     const scope = effectScope()
     const s = scope.run(() => useScoresheet())!
     s.setCell(T(0), S(0), C(0), CellValue.Correct)
     s.setCell(T(0), S(0), C(1), CellValue.Correct)
-    s.flushAutoSave()
-    await vi.waitFor(async () => expect(await readRecord(currentTab()!.id)).toBeDefined())
-    const record = (await readRecord(currentTab()!.id))!
-    scope.stop()
-    currentTab()!.claim.release()
-    sessionStorage.clear()
-    await startTab()
-    const sheet = useScoresheet()
-    sheet.restoreQuiz({ ...record, offered: true }, (await claimRecord(record.id))!)
+    const { sheet } = await leaveAndRestore(scope, s, 'current')
     sheet.undo()
     expect(correct(sheet)).toBe(1)
   })

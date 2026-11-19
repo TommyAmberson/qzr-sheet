@@ -94,6 +94,20 @@ export function recordEdit(target: UndoTarget, change: () => void): UndoStep {
   return { changes }
 }
 
+/**
+ * Fold `later` into `step`, so it goes from `step`'s before to `later`'s after as one edit; a part
+ * that ends where it began drops out
+ */
+export function mergeSteps(step: UndoStep, later: UndoStep): void {
+  for (const change of later.changes) {
+    const key = JSON.stringify(change.part)
+    const same = step.changes.find((c) => JSON.stringify(c.part) === key)
+    if (same) same.after = change.after
+    else step.changes.push(change)
+  }
+  step.changes = step.changes.filter((c) => JSON.stringify(c.before) !== JSON.stringify(c.after))
+}
+
 /** Put the quiz back as it was before `step` (undo), or as it was after it (redo) */
 export function applyStep(
   { store, noJumps, timeouts }: UndoTarget,

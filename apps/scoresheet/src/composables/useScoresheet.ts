@@ -33,7 +33,7 @@ import {
   overtimeRoundsNeeded,
 } from '@qzr/shared'
 import { createQuizStore } from '../stores/quizStore'
-import { applyStep, recordEdit, type UndoStep } from './undoSteps'
+import { applyStep, mergeSteps, recordEdit, type UndoStep } from './undoSteps'
 import type { MeetSessionData } from './useMeetSession'
 import { canonicalStoreFile } from '../persistence/quizFile'
 import {
@@ -42,7 +42,6 @@ import {
   type QuizRecord,
   type QuizState,
   type SubmittedState,
-  deleteRecord,
   moveTab,
   newRecordId,
   type StateKind,
@@ -77,6 +76,9 @@ function isSaved(
 
 /** Undo steps the sheet keeps: up to this many, the oldest falling off */
 const UNDO_LIMIT = 1000
+
+/** The quiz's settings an official sets on the sheet */
+type QuizField = 'division' | 'quizNumber' | 'consolation' | 'overtime'
 
 /**
  * An undo step in the session: the step as data, and what it does outside the quiz (the meet picks
@@ -120,26 +122,113 @@ export function useScoresheet() {
 
   const undoTarget = { store, noJumps: noJumpMap, timeouts: timeoutMap }
 
+  // Writes made while a step is recorded, undone or redone are part of that step, not steps of their own
+  let quiet = 0
+  function quietly<T>(run: () => T): T {
+    quiet++
+    try {
+      return run()
+    } finally {
+      quiet--
+    }
+  }
+
   /** A step as the session runs it: its changes written back, then whatever runs alongside */
   function sheetStep(step: UndoStep, alongside?: HistoryCommand): SheetStep {
     return {
       step,
-      undo: () => {
-        applyStep(undoTarget, step, 'undo')
-        alongside?.undo()
-      },
-      redo: () => {
-        applyStep(undoTarget, step, 'redo')
-        alongside?.redo()
-      },
+      undo: () =>
+        quietly(() => {
+          applyStep(undoTarget, step, 'undo')
+          alongside?.undo()
+        }),
+      redo: () =>
+        quietly(() => {
+          applyStep(undoTarget, step, 'redo')
+          alongside?.redo()
+        }),
     }
   }
 
-  /** Make `change` as one undoable step, with `alongside` run on each undo and redo */
-  function edit(change: () => void, alongside?: HistoryCommand) {
-    splitAhead()
-    const step = recordEdit(undoTarget, change)
-    if (step.changes.length > 0 || alongside) history.push(sheetStep(step, alongside))
+  /**
+   * Make `change` as one undoable step, with `alongside` run with it, and on each undo and redo,
+   * for what it writes outside the quiz. The step pushed, if any.
+   */
+  function edit(change: () => void, alongside?: HistoryCommand): UndoStep | undefined {
+    if (quiet > 0) {
+      change()
+      alongside?.redo()
+      return undefined
+    }
+    typing = null
+    // The state before the edit, read only while a later state is held, which the edit may leave
+    const before = aheadState.value ? currentState.value : undefined
+    const step = quietly(() =>
+      recordEdit(undoTarget, () => {
+        change()
+        alongside?.redo()
+      }),
+    )
+    if (step.changes.length === 0 && !alongside) return undefined
+    if (before !== undefined) splitAhead(before)
+    history.push(sheetStep(step, alongside))
+    return step
+  }
+
+  const lastStep = () => history.undoSteps.value[history.undoSteps.value.length - 1]
+
+  /** Nothing done by hand since the quiz's start: no steps, and the sheet as it began */
+  const untouched = () =>
+    !history.canUndo.value && !history.canRedo.value && currentState.value === startFile
+
+  /** The step a visit to a typed field is making, while the visit lasts */
+  let typing: { field: string; step: UndoStep } | null = null
+
+  /**
+   * Make `change` to typed field `field`: a visit to the field, from entering it until leaving it
+   * or another edit, is one step. A visit that ends where it began leaves none.
+   */
+  function editTyped(field: string, change: () => void) {
+    if (quiet > 0) return change()
+    const top = lastStep()
+    const visiting = typing
+    if (visiting?.field !== field || top?.step !== visiting.step || history.canRedo.value) {
+      const step = edit(change)
+      typing = step ? { field, step } : null
+      return
+    }
+    mergeSteps(
+      visiting.step,
+      quietly(() => recordEdit(undoTarget, change)),
+    )
+    if (visiting.step.changes.length > 0) return
+    history.setStacks(history.undoSteps.value.slice(0, -1), history.redoSteps.value)
+    typing = null
+  }
+
+  /** The visit to a typed field is over: its next change is a new step */
+  function endTyping() {
+    typing = null
+  }
+
+  /**
+   * A change the sheet makes by itself, such as names a link fills in: while nothing has been done
+   * by hand it is part of the quiz's start, after that a step like any other
+   */
+  function editBySheet(change: () => void) {
+    if (!untouched()) return void edit(change)
+    quietly(change)
+    startFile = currentState.value
+  }
+
+  function undo() {
+    typing = null
+    history.undo()
+  }
+
+  function redo() {
+    typing = null
+    history.redo()
   }
 
   /** The undo steps, oldest first, as kept beyond the page: without what runs alongside */
@@ -480,7 +569,7 @@ export function useScoresheet() {
   function setTeamName(teamIdx: number, name: string) {
     const team = teams.value[teamIdx]
     if (!team) return
-    store.setTeamName(team.id, name)
+    editTyped(`team:${team.id}:name`, () => store.setTeamName(team.id, name))
   }
 
   /**
@@ -492,14 +581,8 @@ export function useScoresheet() {
     const a = teams.value[teamIdxA]
     const b = teams.value[teamIdxB]
     if (!a || !b || a === b) return
-    edit(
-      () => {
-        store.swapTeams(a.id, b.id)
-        alongside()
-      },
-      // A swap is its own undoing
-      { undo: alongside, redo: alongside },
-    )
+    // A swap is its own undoing
+    edit(() => store.swapTeams(a.id, b.id), { undo: alongside, redo: alongside })
   }
 
   /**
@@ -508,13 +591,19 @@ export function useScoresheet() {
    * the quiz repeat what the step already put back.
    */
   function editAsOne(change: HistoryCommand) {
-    edit(change.redo, change)
+    edit(() => {}, change)
   }
 
-  function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
+  /** Two quizzers change seats; `alongside` runs with it each way, as `swapTeams`'s does */
+  function moveQuizzer(
+    teamIdx: number,
+    fromSeat: number,
+    toSeat: number,
+    alongside?: HistoryCommand,
+  ) {
     const team = teams.value[teamIdx]
     if (!team) return
-    store.moveQuizzer(team.id, toSeatIdx(fromSeat), toSeatIdx(toSeat))
+    edit(() => store.moveQuizzer(team.id, toSeatIdx(fromSeat), toSeatIdx(toSeat)), alongside)
   }
 
   function setQuizzerName(teamIdx: number, seatIdx: number, name: string) {
@@ -523,13 +612,20 @@ export function useScoresheet() {
     const qzrs = store.quizzersByTeam(team.id)
     const qzr = qzrs[seatIdx]
     if (!qzr) return
-    store.setQuizzerName(qzr.id, name)
+    editTyped(`quizzer:${qzr.id}:name`, () => store.setQuizzerName(qzr.id, name))
   }
 
   function toggleOnTime(teamIdx: number) {
     const team = teams.value[teamIdx]
     if (!team) return
-    team.onTime = !team.onTime
+    edit(() => (team.onTime = !team.onTime))
+  }
+
+  /** Set one of the quiz's settings; the division and number are typed, so a visit is one step */
+  function setQuizField<K extends QuizField>(field: K, value: Quiz[K]) {
+    const change = () => (store.quiz[field] = value)
+    if (field === 'division' || field === 'quizNumber') editTyped(`quiz:${field}`, change)
+    else edit(change)
   }
 
   /**
@@ -567,38 +663,36 @@ export function useScoresheet() {
   }
 
   function addTimeout(teamId: number, afterColumnKey: string | null): void {
-    edit(() => addTimeoutNow(teamId, afterColumnKey))
-  }
+    edit(() => {
+      const current = teamTimeouts(teamId)
 
-  function addTimeoutNow(teamId: number, afterColumnKey: string | null): void {
-    const current = teamTimeouts(teamId)
-
-    // Only one team can have a timeout after a given question — clear the other team's
-    if (afterColumnKey !== null) {
-      for (const [otherId, otherTimeouts] of timeoutMap.value) {
-        if (otherId === teamId) continue
-        const filtered = otherTimeouts.filter((t) => t.afterColumnKey !== afterColumnKey)
-        if (filtered.length !== otherTimeouts.length) {
-          timeoutMap.value.set(otherId, filtered)
+      // Only one team can have a timeout after a given question — clear the other team's
+      if (afterColumnKey !== null) {
+        for (const [otherId, otherTimeouts] of timeoutMap.value) {
+          if (otherId === teamId) continue
+          const filtered = otherTimeouts.filter((t) => t.afterColumnKey !== afterColumnKey)
+          if (filtered.length !== otherTimeouts.length) {
+            timeoutMap.value.set(otherId, filtered)
+          }
         }
       }
-    }
 
-    // If a column is specified and this team has an untracked timeout, upgrade it
-    if (afterColumnKey !== null) {
-      const untrackedIdx = current.findIndex((t) => t.afterColumnKey === null)
-      if (untrackedIdx >= 0) {
-        const next = [...current]
-        next[untrackedIdx] = { afterColumnKey }
-        timeoutMap.value.set(teamId, next)
-        timeoutMap.value = new Map(timeoutMap.value)
-        return
+      // If a column is specified and this team has an untracked timeout, upgrade it
+      if (afterColumnKey !== null) {
+        const untrackedIdx = current.findIndex((t) => t.afterColumnKey === null)
+        if (untrackedIdx >= 0) {
+          const next = [...current]
+          next[untrackedIdx] = { afterColumnKey }
+          timeoutMap.value.set(teamId, next)
+          timeoutMap.value = new Map(timeoutMap.value)
+          return
+        }
       }
-    }
 
-    const next = [...current, { afterColumnKey }]
-    timeoutMap.value.set(teamId, next)
-    timeoutMap.value = new Map(timeoutMap.value)
+      const next = [...current, { afterColumnKey }]
+      timeoutMap.value.set(teamId, next)
+      timeoutMap.value = new Map(timeoutMap.value)
+    })
   }
 
   function removeLastTimeout(teamId: number): void {
@@ -642,7 +736,7 @@ export function useScoresheet() {
   function setQuestionType(colIdx: number, category: QuestionCategory | null) {
     const col = columns.value[colIdx]
     if (!col) return
-    store.setQuestionType(col.key, category)
+    edit(() => store.setQuestionType(col.key, category))
   }
 
   // --- Saved and submitted states ---
@@ -666,14 +760,14 @@ export function useScoresheet() {
   )
 
   /**
-   * An edit is about to leave the latest state behind for good: it goes to the recent quizzes as a
-   * quiz of its own, with its history, the saved states that aren't this one's, and the same link
+   * An edit made at state `here` leaves the latest state behind for good: it goes to the recent
+   * quizzes as a quiz of its own, with its history, the saved states that aren't this one's, and
+   * the same link
    */
-  function splitAhead() {
+  function splitAhead(here: string) {
     const ahead = aheadState.value
     if (!ahead || !tab) return
     aheadState.value = undefined
-    const here = currentState.value
     // Redone up to it already: nothing is left behind
     if (here === ahead.file) return
     const keep = <S extends QuizState>(state: S | undefined) =>
@@ -697,11 +791,14 @@ export function useScoresheet() {
 
   /** The quiz was saved to a file, or opened from one, as it is now */
   function markSaved() {
+    // Its last step is kept as it is now: typing on is a step of its own
+    typing = null
     savedState.value = { file: currentState.value, undo: keptUndo() }
   }
 
   /** The quiz was sent to the meet, or opened from it, as it is now, as scheduled quiz `quizId` */
   function markSubmitted(meetId: number, quizId: string | null) {
+    typing = null
     submittedState.value = {
       file: currentState.value,
       undo: keptUndo(),
@@ -709,14 +806,6 @@ export function useScoresheet() {
       quizId,
       link: link.value,
     }
-  }
-
-  /**
-   * Take the sheet as the quiz's start again: names a link filled in, right after New or Open and
-   * before any edit by hand, don't make a quiz worth keeping
-   */
-  function retakeStart() {
-    startFile = currentState.value
   }
 
   /** Load a deserialized quiz file into the store, replacing all state */
@@ -750,31 +839,34 @@ export function useScoresheet() {
    * question types, since a restarted quiz asks new questions
    */
   function clearAnswers() {
-    splitAhead()
-    // Snapshot before calling loadState — loadState mutates the internal arrays in-place,
-    // so passing store.teams/quizzers directly would zero them out mid-iteration.
-    const teams = [...store.teams]
-    const quizzers = [...store.quizzers]
-    store.loadState({
-      quiz: { ...store.quiz, questionTypes: new Map() },
-      teams,
-      quizzers,
-      answers: [],
+    edit(() => {
+      // Snapshot before calling loadState — loadState mutates the internal arrays in-place,
+      // so passing store.teams/quizzers directly would zero them out mid-iteration.
+      const teams = [...store.teams]
+      const quizzers = [...store.quizzers]
+      store.loadState({
+        quiz: { ...store.quiz, questionTypes: new Map() },
+        teams,
+        quizzers,
+        answers: [],
+      })
+      noJumpMap.value = new Map()
+      timeoutMap.value = new Map()
+      internalOtRounds.value = 1
     })
-    noJumpMap.value = new Map()
-    timeoutMap.value = new Map()
-    internalOtRounds.value = 1
-    history.clear()
   }
 
-  /** Blank every team and quizzer name, as a new quiz has them */
-  function clearNames() {
-    splitAhead()
-    for (const team of store.teams) {
-      store.setTeamName(team.id, '')
-      for (const quizzer of store.quizzersByTeam(team.id)) store.setQuizzerName(quizzer.id, '')
-    }
-    history.clear()
+  /**
+   * Blank every team and quizzer name, as a new quiz has them, as one step; `alongside` runs with
+   * it each way, for what goes with the names outside the quiz
+   */
+  function clearNames(alongside?: HistoryCommand) {
+    edit(() => {
+      for (const team of store.teams) {
+        store.setTeamName(team.id, '')
+        for (const quizzer of store.quizzersByTeam(team.id)) store.setQuizzerName(quizzer.id, '')
+      }
+    }, alongside)
   }
 
   // --- Writing the tab's quiz, link and history ---
@@ -816,21 +908,8 @@ export function useScoresheet() {
     const file = currentState.value
     // Redone up to the latest state: no longer behind it
     if (aheadState.value?.file === file) aheadState.value = undefined
-    // Nothing done by hand since New or Open, and nothing saved: not a quiz worth keeping. The tab
-    // keeps its id, and writes the record on the first change that is.
-    const worthKeeping =
-      savedState.value ||
-      submittedState.value ||
-      history.canUndo.value ||
-      history.canRedo.value ||
-      file !== startFile
-    if (!worthKeeping) {
-      if (!tab.record) return
-      tab.record = undefined
-      const { id } = tab
-      queueWrite(() => deleteRecord(id))
-      return
-    }
+    // Written even with nothing done by hand, so a reload brings back the quiz and its link; such a
+    // quiz is not kept as a recent one once its tab has gone (isKept)
     const record = recordNow(tab, file)
     record.offered ||= offered
     tab.record = record
@@ -899,7 +978,8 @@ export function useScoresheet() {
     const link = state === 'submitted' ? (record.submitted?.link ?? record.link) : record.link
     if (!latest || !at || at.file === latest.file) return { ...record, link }
     const joined = JSON.stringify(latest.undo.slice(0, at.undo.length)) === JSON.stringify(at.undo)
-    const redo = joined ? latest.undo.slice(at.undo.length).reverse() : []
+    // Redo leads to the latest state, then on through the steps undone from it
+    const redo = joined ? [...latest.redo, ...latest.undo.slice(at.undo.length).reverse()] : []
     return {
       ...record,
       link,
@@ -942,14 +1022,16 @@ export function useScoresheet() {
     link.value = tab?.link ?? null
     schedulePersist()
   })
-  watch([savedState, submittedState], schedulePersist)
-  watch(openedFromNewerFile, schedulePersist)
+  watch([savedState, submittedState, openedFromNewerFile], schedulePersist)
   // The page may go before the pause ends; what is waiting is written as it goes
   window.addEventListener('pagehide', flushAutoSave)
+  // Leaving a typed field ends the visit to it
+  window.addEventListener('focusout', endTyping)
   onScopeDispose(() => {
     disposed = true
     if (persistTimer) clearTimeout(persistTimer)
     window.removeEventListener('pagehide', flushAutoSave)
+    window.removeEventListener('focusout', endTyping)
   })
   // Deep-watch the reactive store directly — the `teams`/`teamQuizzers`
   // computeds track array structure + seatOrder but not per-field edits
@@ -976,6 +1058,7 @@ export function useScoresheet() {
     setCell,
     toggleNoJump,
     toggleOnTime,
+    setQuizField,
     setTeamName,
     setQuizzerName,
     swapTeams,
@@ -1018,9 +1101,10 @@ export function useScoresheet() {
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     unsaved,
-    retakeStart,
-    undo: history.undo,
-    redo: history.redo,
+    undo,
+    redo,
+    edit,
+    editBySheet,
     markSaved,
     markSubmitted,
 

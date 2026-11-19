@@ -74,6 +74,7 @@ import {
   type RoomCodeOptions,
   type Sender,
   DivisionInput,
+  type HistoryCommand,
 } from '@qzr/ui'
 import { useAuth } from '../composables/useAuth'
 import {
@@ -520,7 +521,9 @@ function misspeltTeam(
  */
 function takeMeetScoring() {
   const levelTeams = meetSession.levelTeams.value
-  if (levelTeams !== undefined) quiz.value.placementFormula = levelTeams
+  if (levelTeams === undefined || quiz.value.placementFormula === levelTeams) return
+  // A change the sheet makes, so undone like the rest once something was done by hand
+  editBySheet(() => (quiz.value.placementFormula = levelTeams))
 }
 
 /** Make a link that `planLink` worked out, in one step */
@@ -533,16 +536,19 @@ function applyLink(plan: LinkPlan) {
     quizId: plan.quizId,
     scheduledQuiz: plan.scheduledQuiz,
   })
-  takeMeetScoring()
-  if (plan.quiz.division !== undefined) quiz.value.division = plan.quiz.division
-  if (plan.quiz.consolation !== undefined) quiz.value.consolation = plan.quiz.consolation
-  if (plan.quiz.quizNumber !== undefined) quiz.value.quizNumber = plan.quiz.quizNumber
-  for (const { slotIdx, teamName, seats } of plan.names) {
-    if (teamName !== undefined) setTeamName(slotIdx, teamName)
-    seats.forEach((name, seatIdx) => {
-      if (name !== undefined) setQuizzerName(slotIdx, seatIdx, name)
-    })
-  }
+  // Names a link fills in on a quiz with nothing done by hand are its start, not an edit
+  editBySheet(() => {
+    takeMeetScoring()
+    if (plan.quiz.division !== undefined) quiz.value.division = plan.quiz.division
+    if (plan.quiz.consolation !== undefined) quiz.value.consolation = plan.quiz.consolation
+    if (plan.quiz.quizNumber !== undefined) quiz.value.quizNumber = plan.quiz.quizNumber
+    for (const { slotIdx, teamName, seats } of plan.names) {
+      if (teamName !== undefined) setTeamName(slotIdx, teamName)
+      seats.forEach((name, seatIdx) => {
+        if (name !== undefined) setQuizzerName(slotIdx, seatIdx, name)
+      })
+    }
+  })
 }
 
 /** Link what is on the sheet. False when it was cancelled or the meet was out of reach. */
@@ -659,8 +665,6 @@ async function startScheduled(meetId: number, quizId: string): Promise<boolean> 
   replaceQuiz()
   resetStore(QuizFormat.TwentyQuestion)
   applyLink(plan)
-  // The names the link filled in are the quiz's start, not edits that make it worth keeping
-  retakeStart()
   return true
 }
 
@@ -697,9 +701,8 @@ async function openStored(
   })
   if (!plan) return false
   const fromMeet = { meetId, quizId: plan.arrived.quizId }
-  const continued = await showOpened(data, { fromNewerFile, fromMeet })
+  await showOpened(data, { fromNewerFile, fromMeet })
   applyLink(plan.arrived)
-  if (!continued) retakeStart()
   // Opened as the meet holds it: as submitted, to the scheduled quiz it is linked to
   markSubmitted(meetId, meetSession.quizId.value)
   return true
@@ -803,12 +806,14 @@ async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
   // Fill empty store seats with the DB names that were matched to those positions
   const slot = meetSession.getSlot(slotIdx)
   if (!slot) return
-  if (!keepName) setTeamName(slotIdx, slot.dbLabelFull)
-  for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
-    if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
-      setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+  edit(() => {
+    if (!keepName) setTeamName(slotIdx, slot.dbLabelFull)
+    for (let seatIdx = 0; seatIdx < QUIZZERS_PER_TEAM; seatIdx++) {
+      if (!store.quizzersByTeam(storeTeamId)[seatIdx]?.name.trim()) {
+        setQuizzerName(slotIdx, seatIdx, slot.quizzers[seatIdx]!.dbName)
+      }
     }
-  }
+  })
 }
 
 const filteredTeamList = computed(() =>
@@ -978,7 +983,9 @@ const {
   canUndo,
   canRedo,
   unsaved,
-  retakeStart,
+  edit,
+  editBySheet,
+  setQuizField,
   markSubmitted,
   replaceQuiz,
   restoreQuiz,
@@ -1035,6 +1042,15 @@ function swapPicksIn(meetId: number | null, slotA: number, slotB: number) {
   return () => {
     if (meetSession.meetId.value === meetId) meetSession.swapSlots(slotA, slotB)
   }
+}
+
+/** What an edit does to the meet's picks, undone and redone only while its meet is still linked */
+function inThisMeet(change: HistoryCommand): HistoryCommand {
+  const meetId = meetSession.meetId.value
+  const guarded = (run: () => void) => () => {
+    if (meetSession.meetId.value === meetId) run()
+  }
+  return { undo: guarded(change.undo), redo: guarded(change.redo) }
 }
 
 /**
@@ -1107,10 +1123,11 @@ const meetWarningEntries = computed<MeetWarning[]>(() => {
             : `Division: none chosen, schedule has ${theirs}`,
           fix: {
             label: `Set division to ${theirs}`,
-            run: () => {
-              quiz.value.division = scheduled.division
-              quiz.value.consolation = scheduled.consolation
-            },
+            run: () =>
+              edit(() => {
+                quiz.value.division = scheduled.division
+                quiz.value.consolation = scheduled.consolation
+              }),
           },
         })
       }
@@ -1121,7 +1138,7 @@ const meetWarningEntries = computed<MeetWarning[]>(() => {
             : `Quiz: no number given, schedule has ${scheduled.quizNumber}`,
           fix: {
             label: `Set quiz to ${scheduled.quizNumber}`,
-            run: () => (quiz.value.quizNumber = scheduled.quizNumber),
+            run: () => edit(() => (quiz.value.quizNumber = scheduled.quizNumber)),
           },
         })
       }
@@ -1382,13 +1399,34 @@ const { focusedCell, focusCell, isNoJumpFocus, keyboardMode, deactivateKeyboardM
     isBonusForTeam,
     isAfterOut,
     isFouledOnQuestion,
-    undo,
-    redo,
+    undo: undoEdit,
+    redo: redoEdit,
   })
 
+/**
+ * Undo and redo change the names as typing them back would, and the meet's picks follow them as
+ * they follow typing: each seat is held against its quizzer by name, as on leaving a name field,
+ * and a team's pick stays, flagged when the name no longer names it. Steps made in this session
+ * also put their own picks back, so this changes nothing for them.
+ */
+function undoEdit() {
+  undo()
+  relinkAllSeats()
+}
+
+function redoEdit() {
+  redo()
+  relinkAllSeats()
+}
+
+function relinkAllSeats() {
+  teams.value.forEach((_, slotIdx) => relinkSeats(slotIdx))
+}
+
 function moveQuizzerAndSync(teamIdx: number, from: number, to: number) {
-  moveQuizzer(teamIdx, from, to)
-  meetSession.reorderSlotQuizzers(teamIdx, from, to)
+  // A swap of seats is its own undoing
+  const reorder = () => meetSession.reorderSlotQuizzers(teamIdx, from, to)
+  moveQuizzer(teamIdx, from, to, inThisMeet({ undo: reorder, redo: reorder }))
 }
 const { dragState, dropTarget, dropIndicatorWidth, registerRowEl, onPointerDown } = useDragReorder(
   teamQuizzers,
@@ -1775,16 +1813,21 @@ async function doNewQuiz(format: QuizFormat) {
 
 async function doClearAnswers() {
   closeMenus()
-  if (unsaved.value && !(await confirmAction('Clear all answers? This cannot be undone.'))) return
+  if (unsaved.value && !(await confirmAction('Clear all answers?'))) return
   clearAnswers()
 }
 
 async function doClearNames() {
   closeMenus()
-  if (!(await confirmAction('Clear all names? This cannot be undone.'))) return
-  clearNames()
-  // Blank names name no team: a linked sheet's picks go with them
-  for (let slotIdx = 0; slotIdx < 3; slotIdx++) meetSession.clearSlot(slotIdx)
+  if (!(await confirmAction('Clear all names?'))) return
+  // Blank names name no team: a linked sheet's picks go with them, and come back with an undo
+  const picks = [0, 1, 2].map((slotIdx) => meetSession.getSlot(slotIdx))
+  clearNames(
+    inThisMeet({
+      redo: () => picks.forEach((_, slotIdx) => meetSession.clearSlot(slotIdx)),
+      undo: () => picks.forEach((pick, slotIdx) => meetSession.setSlot(slotIdx, pick)),
+    }),
+  )
 }
 
 function doUnlinkMeet() {
@@ -1959,8 +2002,9 @@ const appVersion: string = __APP_VERSION__
                     v-if="
                       meetSession.isActive.value && meetSession.divisionOptions.value.length > 0
                     "
-                    v-model="quiz.division"
+                    :value="quiz.division"
                     class="division-select"
+                    @change="setQuizField('division', ($event.target as HTMLSelectElement).value)"
                   >
                     <!-- A lone division is chosen for the quiz, so there is no "none" to go back to -->
                     <option v-if="meetSession.divisionOptions.value.length !== 1" value="">
@@ -1976,17 +2020,18 @@ const appVersion: string = __APP_VERSION__
                   </select>
                   <DivisionInput
                     v-else
-                    v-model="quiz.division"
+                    :model-value="quiz.division"
                     class="division-text"
                     bare
                     type="text"
                     aria-label="Division"
+                    @update:model-value="setQuizField('division', $event ?? '')"
                   />
                 </label>
                 <span
                   class="consolation-toggle"
                   :class="{ 'consolation-toggle--active': quiz.consolation }"
-                  @click="quiz.consolation = !quiz.consolation"
+                  @click="setQuizField('consolation', !quiz.consolation)"
                 >
                   <span class="on-time-box">✓</span>
                   <span class="on-time-label" title="Consolation bracket">c</span>
@@ -1994,12 +2039,18 @@ const appVersion: string = __APP_VERSION__
                 <span class="meta-group-sep" />
                 <label class="meta-field">
                   <span class="meta-label">Quiz</span>
-                  <input v-model="quiz.quizNumber" type="text" />
+                  <input
+                    :value="quiz.quizNumber"
+                    type="text"
+                    @input="setQuizField('quizNumber', ($event.target as HTMLInputElement).value)"
+                  />
                 </label>
               </div>
               <div class="meta-field meta-field--undo">
-                <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undo">↶</button>
-                <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redo">↷</button>
+                <button :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undoEdit">↶</button>
+                <button :disabled="!canRedo" title="Redo (Ctrl+Shift+Z)" @click="redoEdit">
+                  ↷
+                </button>
               </div>
               <span
                 :class="[
@@ -2115,7 +2166,11 @@ const appVersion: string = __APP_VERSION__
                 FORMAT_LABELS[quiz.format].badge
               }}</span>
               <label class="meta-field meta-field--toggle" data-tutorial="overtime-toggle">
-                <input v-model="quiz.overtime" type="checkbox" />
+                <input
+                  :checked="quiz.overtime"
+                  type="checkbox"
+                  @change="setQuizField('overtime', ($event.target as HTMLInputElement).checked)"
+                />
                 <span class="toggle-track"><span class="toggle-thumb" /></span>
                 <span class="meta-label">Overtime</span>
               </label>
