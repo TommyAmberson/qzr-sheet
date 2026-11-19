@@ -60,6 +60,7 @@ import {
   waiting,
   warnings,
 } from './linkedSheet'
+import { startTab } from '../../persistence/autoSave'
 
 type Sheet = Awaited<ReturnType<typeof mountSheet>>
 const pickedTeams = () => [0, 1, 2].map((slot) => useMeetSession().getSlot(slot)?.teamId)
@@ -76,9 +77,10 @@ async function takeFix(sheet: Sheet, label: string) {
   await flushPromises()
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   stubDialogs()
   localStorage.clear()
+  await startTab()
   useMeetSession().clearSession()
   vi.stubGlobal('alert', vi.fn())
   vi.mocked(confirmAction).mockReset().mockResolvedValue(false)

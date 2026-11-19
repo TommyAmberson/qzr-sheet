@@ -82,14 +82,17 @@ import {
   waiting,
   warnings,
 } from './linkedSheet'
+import { currentTab, startTab } from '../../persistence/autoSave'
 
-const session = () => useMeetSession().snapshotSession()
+// The link as the tab keeps it with its quiz
+const session = () => currentTab()!.link
 const pickedTeams = () => [0, 1, 2].map((slot) => useMeetSession().getSlot(slot)?.teamId)
 const alerts = vi.fn()
 
-beforeEach(() => {
+beforeEach(async () => {
   stubDialogs()
   localStorage.clear()
+  await startTab()
   useMeetSession().clearSession()
   window.history.replaceState(null, '', '/')
   vi.stubGlobal('alert', alerts)
@@ -391,9 +394,10 @@ describe('Link', () => {
     })
     const sheet = await mountSheet()
     await pickScheduled(sheet, 'Link', 'Link a scheduled quiz')
-    await autoSaveWritten()
-    const saved = JSON.parse(localStorage.getItem('qzr-sheet:current')!) as QuizFile
-    expect(saved.quiz.placementFormula).toBe(PlacementFormula.Legacy)
+    const quiz = (sheet.vm as unknown as { quiz: QuizFile['quiz'] }).quiz
+    expect(quiz.placementFormula).toBe(PlacementFormula.Legacy)
+    // Taken with the link on a sheet nothing was done to by hand: part of its start, not a step
+    expect(sheet.get('[title^="Undo"]').attributes('disabled')).toBeDefined()
   })
 
   it('survives a reload', async () => {
@@ -467,7 +471,7 @@ describe('Link', () => {
   it('refreshes a link kept from before copies whose quiz the schedule has since dropped', async () => {
     const sheet = await mountSheet()
     await pickScheduled(sheet, 'New', 'New from schedule')
-    const kept = useMeetSession().snapshotSession()!
+    const kept = currentTab()!.link!
     useMeetSession().restoreSession({ ...kept, scheduledQuiz: undefined })
     vi.mocked(getScheduledQuiz).mockResolvedValue(null)
     await sheet.get('[aria-label="Refetch names from the meet and schedule"]').trigger('click')

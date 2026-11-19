@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { resetAutoSave } from '../../persistence/__tests__/resetAutoSave'
 import { nextTick } from 'vue'
 import { useScoresheet } from '../useScoresheet'
+import { currentTab, readRecord, setTabLink, startTab } from '../../persistence/autoSave'
+import { createQuizStore } from '../../stores/quizStore'
+import { aRecord } from '../../persistence/__tests__/records'
 import {
   CellValue,
   QuestionCategory,
@@ -628,15 +631,10 @@ describe('useScoresheet — keeping a 15-question quiz', () => {
   })
 
   it('restores a 15-question quiz from auto-save', async () => {
-    vi.useFakeTimers()
-    try {
-      fifteenWithAnswer()
-      await nextTick()
-      // Auto-save is debounced
-      vi.advanceTimersByTime(1000)
-    } finally {
-      vi.useRealTimers()
-    }
+    await startTab()
+    fifteenWithAnswer()
+    // Auto-save is debounced
+    await vi.waitFor(() => expect(currentTab()!.record).toBeDefined())
     const restored = useScoresheet()
     expect(restored.quiz.value.format).toBe(QuizFormat.FifteenQuestion)
     expect(restored.cells.value[0]![0]![0]).toBe(CellValue.Correct)
@@ -663,7 +661,8 @@ describe('useScoresheet — keeping a 15-question quiz', () => {
     expect(s.openedFromNewerFile.value).toBe(false)
   })
 
-  it('keeps the opened-from-newer-file warning across a reload', () => {
+  it('keeps the opened-from-newer-file warning across a reload', async () => {
+    await startTab()
     const s = fifteenWithAnswer()
     const { id: _, ...quiz } = s.store.quiz
     s.loadFile(
@@ -677,64 +676,71 @@ describe('useScoresheet — keeping a 15-question quiz', () => {
       },
       { fromNewerFile: true },
     )
+    await vi.waitFor(() => expect(currentTab()!.record?.fromNewerFile).toBe(true))
     expect(useScoresheet().openedFromNewerFile.value).toBe(true)
   })
 })
 
-describe('useScoresheet — an auto-save from a newer version', () => {
-  it('is offered back and opens on request, flagged as from a newer file', () => {
-    const { id: _, ...quiz } = useScoresheet().store.quiz
-    const newer = {
-      version: 99,
-      quiz: { ...quiz, division: '8', questionTypes: [] },
-      teams: [],
-      answers: [],
-      noJumps: [],
-    }
-    localStorage.setItem('qzr-sheet:current', JSON.stringify(newer))
-    const s = useScoresheet()
-    expect(s.keptNewerAutoSaves.value).toHaveLength(1)
-    s.openKeptNewerAutoSave()
-    expect(s.quiz.value.division).toBe('8')
-    expect(s.openedFromNewerFile.value).toBe(true)
-    // Only Discard removes the kept original
-    expect(s.keptNewerAutoSaves.value).toHaveLength(1)
-  })
-
-  it('can be discarded', () => {
-    localStorage.setItem('qzr-sheet:current', JSON.stringify({ version: 99 }))
-    const s = useScoresheet()
-    expect(s.keptNewerAutoSaves.value).toHaveLength(1)
-    s.discardKeptNewerAutoSave()
-    expect(s.keptNewerAutoSaves.value).toHaveLength(0)
-  })
-})
-
-describe('useScoresheet — discarding a newer auto-save that paused auto-save', () => {
-  it('saves the sheet straight away, keeping work done during the pause', () => {
-    localStorage.setItem('qzr-sheet:current', JSON.stringify({ version: 99 }))
-    // Storage is full: the newer auto-save can't be set aside, so auto-save pauses
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (key) {
-      if (String(key).startsWith('qzr-sheet:newer-autosave:')) throw new Error('quota')
-    })
-    let s: ReturnType<typeof useScoresheet>
-    try {
-      s = useScoresheet()
-    } finally {
-      setItem.mockRestore()
-    }
-    expect(s.autoSavePausedForKept.value).toBe(true)
-    s.setCell(T(0), S(0), C(0), CellValue.Correct)
-    s.discardKeptNewerAutoSave()
-    const saved = JSON.parse(localStorage.getItem('qzr-sheet:current')!)
-    expect(saved.answers).toHaveLength(1)
-  })
-})
-
 describe('useScoresheet — the newer-file warning with nothing restored', () => {
-  it('is cleared when the auto-save could not be restored', () => {
-    localStorage.setItem('qzr-sheet:opened-from-newer-file', '1')
-    localStorage.setItem('qzr-sheet:current', '{not json')
+  it('is cleared when the auto-save could not be restored', async () => {
+    const tab = await startTab()
+    tab.record = aRecord({
+      id: tab.id,
+      fromNewerFile: true,
+      current: { file: '{not json', undo: [], redo: [] },
+    })
     expect(useScoresheet().openedFromNewerFile.value).toBe(false)
+  })
+})
+
+describe("useScoresheet — the tab's writer", () => {
+  beforeEach(async () => {
+    await startTab()
+  })
+  const written = () => readRecord(currentTab()!.id)
+  const answersWritten = async () =>
+    JSON.parse((await written())?.current?.file ?? '{"answers":[]}').answers.length
+
+  it("writes changes to the tab's record together, once they pause", async () => {
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put')
+    const s = useScoresheet()
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.setCell(T(0), S(1), C(1), CellValue.Correct)
+    await vi.waitFor(async () => expect(await answersWritten()).toBe(2))
+    expect(put).toHaveBeenCalledTimes(1)
+    put.mockRestore()
+  })
+
+  it('writes what loading, resetting and clearing do, through the same writer', async () => {
+    const s = useScoresheet()
+    const other = createQuizStore()
+    other.setAnswer(other.quizzers[0]!.id, '1', CellValue.Correct)
+    s.loadFile({ ...other, answers: other.answers, noJumps: new Map(), timeouts: new Map() })
+    await vi.waitFor(async () => expect(await answersWritten()).toBe(1))
+    s.clearAnswers()
+    await vi.waitFor(async () => expect(await answersWritten()).toBe(0))
+    s.setTeamName(T(0), 'Lions')
+    s.clearNames()
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    s.resetStore()
+    await vi.waitFor(async () => {
+      const file = JSON.parse((await written())!.current!.file)
+      expect(file.answers).toHaveLength(0)
+      expect(file.teams[0].name).toBe('')
+    })
+  })
+
+  it('writes nothing while paused', async () => {
+    const s = useScoresheet()
+    s.pauseAutoSave.value = true
+    s.setCell(T(0), S(0), C(0), CellValue.Correct)
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(await written()).toBeUndefined()
+  })
+
+  it('writes the meet link with the quiz', async () => {
+    useScoresheet()
+    setTabLink({ meetId: 4, meetName: 'Meet' } as never)
+    await vi.waitFor(async () => expect((await written())?.link).toMatchObject({ meetId: 4 }))
   })
 })

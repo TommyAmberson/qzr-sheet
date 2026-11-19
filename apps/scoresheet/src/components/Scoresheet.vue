@@ -894,7 +894,6 @@ const {
   keptNewerAutoSaves,
   autoSavePausedForKept,
   tutorialBlockedByKept,
-  refreshKeptNewerAutoSaves,
   openKeptNewerAutoSave,
   discardKeptNewerAutoSave,
   allQuestionsComplete,
@@ -929,12 +928,12 @@ const {
   undo,
   redo,
   markSaved,
+  flushAutoSave,
+  showTabQuiz,
 } = useScoresheet()
 
 const tutorial = useTutorial({
   store,
-  openedFromNewerFile,
-  refreshKeptNewerAutoSaves,
   noJumpMap,
   timeoutMap,
   pauseAutoSave,
@@ -950,10 +949,10 @@ const tutorial = useTutorial({
   toggleTimeout,
   toggleOnTime,
   moveQuizzer,
-  loadFile,
   resetStore,
+  flushAutoSave,
+  showTabQuiz,
 })
-tutorial.recoverFromCrash()
 
 /** What a warning calls a team: its name, or its place on the sheet while it has none */
 function teamCalled(slotIdx: number, name: string): string {

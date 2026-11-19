@@ -1,10 +1,6 @@
 import { ref, computed, shallowRef, watch } from 'vue'
 import { type HistoryCommand, useHistory } from '@qzr/ui'
 import {
-  readOpenedFromNewerFile,
-  writeOpenedFromNewerFile,
-} from '../persistence/openedFromNewerFile'
-import {
   assessQuiz,
   buildColumns,
   CellValue,
@@ -14,6 +10,7 @@ import {
   type GreyedOutResult,
   isBonusSituation,
   isTimeoutAllowed as isTimeoutAllowedBy,
+  parseQuizFile,
   parseQuizFileAttempt,
   QuestionCategory,
   QuestionType,
@@ -38,10 +35,13 @@ import {
 } from '@qzr/shared'
 import { createQuizStore } from '../stores/quizStore'
 import { applyStep, recordEdit, type UndoStep } from './undoSteps'
+import { canonicalQuizFile } from '../persistence/quizFile'
 import {
-  saveToStorage,
-  loadFromStorage,
-  clearStorage,
+  currentTab,
+  onTabLinkChange,
+  type QuizRecord,
+  type Tab,
+  writeRecord,
   listKeptNewerAutoSaves,
   isAutoSavePausedForNewer,
   hasNewerKeptInPlace,
@@ -77,10 +77,13 @@ export function useScoresheet() {
   // keep their `quiz.value.x` shape and reads track the proxy natively.
   const quiz = ref<Quiz>(store.quiz)
 
+  // The tab this sheet writes to. Before startTab, as in tests that start none, there is none.
+  const tab = currentTab()
+  /** The record the tab started with: its own quiz, on a reload or a restored session */
+  const startRecord = tab?.record
+
   /** The current quiz came from a newer scoresheet's file and may be scored wrong */
-  const openedFromNewerFile = ref(readOpenedFromNewerFile())
-  // Synchronous, so a reload right after opening such a file still shows the warning
-  watch(openedFromNewerFile, writeOpenedFromNewerFile, { flush: 'sync' })
+  const openedFromNewerFile = ref(startRecord?.fromNewerFile ?? false)
 
   /** Structural rules for the quiz's format */
   const rules = computed<QuizRules>(() => quizRules(quiz.value.format))
@@ -120,6 +123,16 @@ export function useScoresheet() {
     if (step.changes.length > 0 || alongside) history.push(sheetStep(step, alongside))
   }
 
+  /** A stored state's quiz, or null when there is none or it can't be read */
+  function readState(file: string | undefined): DeserializeResult | null {
+    if (!file) return null
+    try {
+      return parseQuizFile(file)
+    } catch {
+      return null
+    }
+  }
+
   /** OT rounds to allocate for a freshly loaded quiz: as many as its saved answers reach */
   function computeInitialOtRounds(loaded: DeserializeResult): number {
     if (!loaded.quiz.overtime) return 1
@@ -132,8 +145,8 @@ export function useScoresheet() {
     )
   }
 
-  // --- Restore persisted state from localStorage ---
-  const restored = loadFromStorage()
+  // --- Restore the tab's own quiz ---
+  const restored = readState(startRecord?.current?.file)
   if (restored) {
     store.loadState(restored)
     noJumpMap.value = restored.noJumps
@@ -146,7 +159,7 @@ export function useScoresheet() {
     openedFromNewerFile.value = false
   }
 
-  /** Keys of auto-saves from a newer version, which loadFromStorage set aside above */
+  /** Keys of auto-saves from a newer version, set aside by the previous version */
   const keptNewerAutoSaves = shallowRef(listKeptNewerAutoSaves())
   /** Auto-save is paused because a kept newer auto-save couldn't be moved out of its way */
   const autoSavePausedForKept = shallowRef(isAutoSavePausedForNewer())
@@ -176,7 +189,7 @@ export function useScoresheet() {
     discardKeptAutoSaveKey(key)
     refreshKeptNewerAutoSaves()
     // If that quiz was pausing auto-save, save the sheet now so work done meanwhile survives a reload
-    if (!pauseAutoSave.value) saveToStorage(store, noJumpMap.value, timeoutMap.value)
+    schedulePersist()
   }
 
   /** Columns built reactively — regulation when OT is off, + OT rounds when on */
@@ -673,7 +686,7 @@ export function useScoresheet() {
     internalOtRounds.value = computeInitialOtRounds(data)
     history.clear()
     keepNames()
-    saveToStorage(store, data.noJumps, data.timeouts)
+    startFile = stateNow()
   }
   function resetStore(format = QuizFormat.TwentyQuestion) {
     openedFromNewerFile.value = false
@@ -689,7 +702,7 @@ export function useScoresheet() {
     internalOtRounds.value = 1
     history.clear()
     keepNames()
-    clearStorage()
+    startFile = stateNow()
   }
 
   /**
@@ -711,7 +724,6 @@ export function useScoresheet() {
     timeoutMap.value = new Map()
     internalOtRounds.value = 1
     history.clear()
-    saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
 
   /** Blank every team and quizzer name, as a new quiz has them */
@@ -721,17 +733,84 @@ export function useScoresheet() {
       for (const quizzer of store.quizzersByTeam(team.id)) store.setQuizzerName(quizzer.id, '')
     }
     history.clear()
-    saveToStorage(store, noJumpMap.value, timeoutMap.value)
   }
 
-  // --- Auto-persist to localStorage ---
+  // --- Writing the tab's quiz, link and history ---
+
+  /** The quiz on the sheet as a canonical file, which states are compared by */
+  function stateNow(): string {
+    return canonicalQuizFile({
+      quiz: store.quiz,
+      teams: store.teams,
+      quizzers: store.quizzers,
+      answers: store.answers,
+      noJumps: noJumpMap.value,
+      timeouts: timeoutMap.value,
+    })
+  }
+
+  /** The state the quiz began in, kept with it */
+  let startFile = startRecord?.start ?? stateNow()
+
+  /** The tab's record as the sheet now has it */
+  function recordNow(tab: Tab): QuizRecord {
+    const file = stateNow()
+    const before = tab.record
+    return {
+      ...before,
+      id: tab.id,
+      current: { file, undo: [], redo: [] },
+      start: startFile,
+      link: tab.link,
+      fromNewerFile: openedFromNewerFile.value,
+      unsaved: true,
+      changedAt: before?.current?.file === file ? before.changedAt : Date.now(),
+      offered: before?.offered ?? false,
+    }
+  }
+
+  // Writes go one after another, so a slow one is never overtaken by an older state
+  let writing = Promise.resolve()
+  function persistNow() {
+    if (persistTimer) clearTimeout(persistTimer)
+    persistTimer = null
+    if (pauseAutoSave.value || !tab) return
+    const record = recordNow(tab)
+    tab.record = record
+    writing = writing.then(async () => {
+      await writeRecord(record)
+    })
+  }
+
+  /** Write the tab's quiz now, with whatever was waiting for the pause to end */
+  function flushAutoSave() {
+    persistNow()
+  }
+
+  /**
+   * Show the tab's own quiz as its record has it, and give back its meet link: the record is left
+   * alone while the tutorial runs, so this is what the tutorial ends with
+   */
+  function showTabQuiz() {
+    const record = tab?.record
+    const data = readState(record?.current?.file)
+    if (data) loadFile(data, { fromNewerFile: record!.fromNewerFile })
+    else resetStore()
+    startFile = record?.start ?? startFile
+    return record?.link ?? null
+  }
+
   const pauseAutoSave = ref(false)
   let persistTimer: ReturnType<typeof setTimeout> | null = null
   function schedulePersist() {
     if (pauseAutoSave.value) return
     if (persistTimer) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => saveToStorage(store, noJumpMap.value, timeoutMap.value), 300)
+    persistTimer = setTimeout(persistNow, 300)
   }
+  onTabLinkChange(schedulePersist)
+  watch(openedFromNewerFile, schedulePersist)
+  // The page may go before the pause ends; what is waiting is written as it goes
+  window.addEventListener('pagehide', flushAutoSave)
   // Deep-watch the reactive store directly — the `teams`/`teamQuizzers`
   // computeds track array structure + seatOrder but not per-field edits
   // like names, onTime, or questionTypes, so we'd miss auto-saves on those.
@@ -751,7 +830,6 @@ export function useScoresheet() {
     keptNewerAutoSaves,
     autoSavePausedForKept,
     tutorialBlockedByKept,
-    refreshKeptNewerAutoSaves,
     openKeptNewerAutoSave,
     discardKeptNewerAutoSave,
     quiz,
@@ -816,6 +894,8 @@ export function useScoresheet() {
     noJumpMap,
     timeoutMap,
     pauseAutoSave,
+    flushAutoSave,
+    showTabQuiz,
     loadFile,
     resetStore,
     clearAnswers,

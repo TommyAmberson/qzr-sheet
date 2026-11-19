@@ -1,12 +1,6 @@
-import {
-  type DeserializeResult,
-  NewerFileVersionError,
-  parseQuizFile,
-  type Timeout,
-} from '@qzr/shared'
+import { NewerFileVersionError, parseQuizFile } from '@qzr/shared'
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb'
-import { serializeStore } from './quizFile'
-import type { QuizStore } from '../stores/quizStore'
+import { canonicalQuizFile } from './quizFile'
 import type { UndoStep } from '../composables/undoSteps'
 import type { MeetSessionData } from '../composables/useMeetSession'
 
@@ -14,67 +8,12 @@ const STORAGE_KEY = 'qzr-sheet:current'
 const KEPT_NEWER_PREFIX = 'qzr-sheet:newer-autosave:'
 
 // Keys holding a newer quiz that couldn't be set aside, so it stays where it is and nothing may
-// write over it. For STORAGE_KEY that means auto-save pauses until the official discards it.
+// write over it
 const keptInPlace = new Set<string>()
-
-export function saveToStorage(
-  store: QuizStore,
-  noJumps: Map<string, boolean>,
-  timeouts: Map<number, Timeout[]>,
-): void {
-  if (keptInPlace.has(STORAGE_KEY)) return
-  try {
-    localStorage.setItem(STORAGE_KEY, serializeStore(store, noJumps, timeouts))
-  } catch {
-    // localStorage full or unavailable — silently ignore
-    return
-  }
-  // The quiz is now saved, so copies held back until it was can go
-  for (const key of removeAfterSave) localStorage.removeItem(key)
-  removeAfterSave.clear()
-}
-
-// Keys holding the only copy of the current quiz until auto-save next succeeds
-const removeAfterSave = new Set<string>()
-
-/** Remove `key` once the current quiz has actually been auto-saved (now, unless auto-save is paused) */
-export function removeOnceSaved(key: string): void {
-  if (keptInPlace.has(STORAGE_KEY)) removeAfterSave.add(key)
-  else localStorage.removeItem(key)
-}
 
 /** Whether any newer quiz is kept where it was found; the tutorial won't start until none is */
 export function hasNewerKeptInPlace(): boolean {
   return keptInPlace.size > 0
-}
-
-/** Set a newer build's quiz aside, under its own key so later auto-saves can't overwrite it */
-export function keepNewerAutoSave(raw: string): boolean {
-  try {
-    localStorage.setItem(KEPT_NEWER_PREFIX + new Date().toISOString(), raw)
-    return true
-  } catch {
-    return false
-  }
-}
-
-export function loadFromStorage(): DeserializeResult | null {
-  let raw: string | null = null
-  try {
-    raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    return parseQuizFile(raw)
-  } catch (e) {
-    // A newer build's quiz can't be scored here but mustn't be lost: if it can't be set aside,
-    // it stays where it is and auto-save pauses
-    if (e instanceof NewerFileVersionError && raw) {
-      if (keepNewerAutoSave(raw)) localStorage.removeItem(STORAGE_KEY)
-      else keptInPlace.add(STORAGE_KEY)
-      return null
-    }
-    localStorage.removeItem(STORAGE_KEY)
-    return null
-  }
 }
 
 /** Keys of auto-saves from a newer version that were set aside on startup, most recent first */
@@ -102,18 +41,8 @@ export function readKeptNewerAutoSave(key: string): string | null {
   return localStorage.getItem(key)
 }
 
-/** Record a newer quiz that couldn't be set aside: it stays at `key`, listed and never overwritten */
-export function keepNewerInPlace(key: string): void {
-  keptInPlace.add(key)
-}
-
 export function discardKeptNewerAutoSave(key: string): void {
   if (keptInPlace.delete(key) || key.startsWith(KEPT_NEWER_PREFIX)) localStorage.removeItem(key)
-}
-
-export function clearStorage(): void {
-  if (keptInPlace.has(STORAGE_KEY)) return
-  localStorage.removeItem(STORAGE_KEY)
 }
 
 // --- Quiz records ---
@@ -257,18 +186,19 @@ export function claimRecord(id: string, { wait = 0 } = {}): Promise<RecordClaim 
   return new Promise((resolve, reject) => {
     let release!: () => void
     const held = new Promise<void>((done) => (release = done))
-    const options: LockOptions =
-      wait > 0 ? { signal: AbortSignal.timeout(wait) } : { ifAvailable: true }
+    const giveUp = new AbortController()
+    const timer = wait > 0 ? setTimeout(() => giveUp.abort(), wait) : undefined
+    const options: LockOptions = wait > 0 ? { signal: giveUp.signal } : { ifAvailable: true }
     navigator.locks
       .request(lockName(id), options, async (lock) => {
+        clearTimeout(timer)
         if (!lock) return resolve(null)
         resolve({ release })
         await held
       })
       // Not granted in time: another tab still holds it
       .catch((e: unknown) => {
-        const name = (e as { name?: string } | null)?.name
-        if (name === 'AbortError' || name === 'TimeoutError') resolve(null)
+        if ((e as { name?: string } | null)?.name === 'AbortError') resolve(null)
         else reject(e)
       })
   })
@@ -280,4 +210,202 @@ export async function readMeta<K extends keyof Meta>(key: K): Promise<Meta[K] | 
 
 export async function writeMeta<K extends keyof Meta>(key: K, value: Meta[K]): Promise<void> {
   await (await records()).put('meta', value, key)
+}
+
+// --- The tab's own record ---
+
+const TAB_KEY = 'qzr-sheet:quiz'
+// A reload's old page may still hold the tab's lock for a moment as the new one starts
+const RELOAD_WAIT_MS = 1000
+
+/** The record this tab shows, and its lock */
+export interface Tab {
+  id: string
+  claim: RecordClaim
+  /** The record as last read or written; absent while the tab's quiz is not kept */
+  record?: QuizRecord
+  /** The tab's meet link, written with its quiz */
+  link: MeetSessionData | null
+}
+
+let tab: Tab | null = null
+let linkListener: (() => void) | null = null
+
+/** The tab's writer hears of every change to its meet link */
+export function onTabLinkChange(listener: () => void): void {
+  linkListener = listener
+}
+
+/** The meet link changed: it goes with the tab's quiz, and nowhere shared */
+export function setTabLink(link: MeetSessionData | null): void {
+  if (!tab) return
+  // A plain copy: the link is a reactive object, which IndexedDB can't store
+  tab.link = link && (JSON.parse(JSON.stringify(link)) as MeetSessionData)
+  linkListener?.()
+}
+
+/** This tab's record, once startTab has run */
+export function currentTab(): Tab | null {
+  return tab
+}
+
+/**
+ * Start the tab, before the sheet mounts: move the previous version's keys once, then take the
+ * tab's own record (a reload or restored session), copy it (a duplicated tab, whose original still
+ * holds it), or begin a new one.
+ */
+export async function startTab(): Promise<Tab> {
+  const migratedId = await migrate()
+  const ownId = sessionStorage.getItem(TAB_KEY) ?? migratedId
+  tab = ownId ? await takeBack(ownId) : await begin(newRecordId())
+  sessionStorage.setItem(TAB_KEY, tab.id)
+  return tab
+}
+
+async function begin(id: string, record?: QuizRecord): Promise<Tab> {
+  // A fresh id no other tab can hold
+  const claim = (await claimRecord(id))!
+  return held(id, claim, record)
+}
+
+function held(id: string, claim: RecordClaim, record?: QuizRecord): Tab {
+  return { id, claim, record, link: record?.link ? upToDateSession({ ...record.link }) : null }
+}
+
+async function takeBack(id: string): Promise<Tab> {
+  const claim = await claimRecord(id, { wait: RELOAD_WAIT_MS })
+  const record = await readRecord(id)
+  if (claim) return held(id, claim, record)
+  // Still held: this tab is a copy of the one holding it, and from now on keeps its own
+  if (!record) return begin(newRecordId())
+  const copy: QuizRecord = { ...record, id: newRecordId(), offered: true }
+  await writeRecord(copy)
+  return begin(copy.id, copy)
+}
+
+// --- Moving from the previous version ---
+
+/** A meet link as kept by an earlier version, with the fields added since filled in */
+export function upToDateSession(data: MeetSessionData): MeetSessionData {
+  if (!data.meetDivisions) data.meetDivisions = []
+  if (data.quizId === undefined) data.quizId = null
+  // Quiz ids were numbers before schedules became documents; converted meets kept them as strings
+  if (typeof data.quizId === 'number') data.quizId = String(data.quizId)
+  if (data.sender === undefined) data.sender = null
+  if (data.scheduledQuiz === undefined) data.scheduledQuiz = null
+  return data
+}
+
+const OLD_KEYS = {
+  quiz: STORAGE_KEY,
+  meetSession: 'qzr-meet-session',
+  fromNewerFile: 'qzr-sheet:opened-from-newer-file',
+  tutorialQuiz: 'qzr-sheet:tutorial-snapshot',
+  tutorialMeetSession: 'qzr-sheet:tutorial-meet-snapshot',
+  tutorialFromNewerFile: 'qzr-sheet:tutorial-from-newer-file',
+}
+
+/**
+ * Move the previous version's quiz, meet link and set-aside newer quizzes into records, once, with
+ * other tabs kept out meanwhile. Returns the id of the record made from the quiz on the sheet,
+ * which becomes the starting tab's.
+ */
+async function migrate(): Promise<string | undefined> {
+  if (await readMeta('migrated')) return undefined
+  if (!navigator.locks) return moveOldKeys()
+  return navigator.locks.request('qzr-sheet:migrate', async () =>
+    (await readMeta('migrated')) ? undefined : moveOldKeys(),
+  )
+}
+
+async function moveOldKeys(): Promise<string | undefined> {
+  const moved: string[] = []
+  let failed = false
+  const keep = async (record: QuizRecord, keys: string[]) => {
+    if (await writeRecord(record)) moved.push(...keys)
+    else failed = true
+  }
+
+  // A tutorial that crashed left the quiz it replaced aside; the sheet holds its practice quiz
+  const fromTutorial = localStorage.getItem(OLD_KEYS.tutorialQuiz) !== null
+  const [quizKey, meetKey, newerKey] = fromTutorial
+    ? [OLD_KEYS.tutorialQuiz, OLD_KEYS.tutorialMeetSession, OLD_KEYS.tutorialFromNewerFile]
+    : [OLD_KEYS.quiz, OLD_KEYS.meetSession, OLD_KEYS.fromNewerFile]
+  const raw = localStorage.getItem(quizKey)
+  const meetRaw = localStorage.getItem(meetKey)
+  let link: MeetSessionData | null = null
+  try {
+    link = meetRaw ? upToDateSession(JSON.parse(meetRaw) as MeetSessionData) : null
+  } catch {
+    // An unreadable link is left behind, as the meet session's own load did
+  }
+  const quizKeys = Object.values(OLD_KEYS)
+  let sheetId: string | undefined
+  if (raw) {
+    const record = oldQuizRecord(raw, link, localStorage.getItem(newerKey) === '1')
+    if (record) {
+      await keep(record, quizKeys)
+      if (!record.newerRaw && !failed) sheetId = record.id
+    } else moved.push(...quizKeys)
+  } else moved.push(...quizKeys)
+
+  for (const key of listOldNewerKeys()) {
+    const kept = localStorage.getItem(key)
+    if (kept === null) continue
+    const at = Date.parse(key.slice(KEPT_NEWER_PREFIX.length))
+    await keep(newerRecord(kept, link, Number.isNaN(at) ? Date.now() : at), [key])
+  }
+
+  for (const key of moved) localStorage.removeItem(key)
+  if (!failed) await writeMeta('migrated', true)
+  return sheetId
+}
+
+function listOldNewerKeys(): string[] {
+  const keys: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key?.startsWith(KEPT_NEWER_PREFIX)) keys.push(key)
+  }
+  return keys
+}
+
+/** The previous version's quiz as a record, or null when it can't be read at all */
+function oldQuizRecord(
+  raw: string,
+  link: MeetSessionData | null,
+  fromNewerFile: boolean,
+): QuizRecord | null {
+  try {
+    const file = canonicalQuizFile(parseQuizFile(raw))
+    return {
+      id: newRecordId(),
+      current: { file, undo: [], redo: [] },
+      // Begun before this version: never its start, so it is kept even if left untouched
+      start: '',
+      link,
+      fromNewerFile,
+      unsaved: true,
+      changedAt: Date.now(),
+      offered: false,
+    }
+  } catch (e) {
+    if (e instanceof NewerFileVersionError) return newerRecord(raw, link, Date.now())
+    return null
+  }
+}
+
+/** A newer version's quiz this version cannot read: listed, and kept as it was until discarded */
+function newerRecord(raw: string, link: MeetSessionData | null, changedAt: number): QuizRecord {
+  return {
+    id: newRecordId(),
+    start: '',
+    link,
+    fromNewerFile: true,
+    newerRaw: raw,
+    unsaved: true,
+    changedAt,
+    // Listed, never offered: restoring one warns it may be scored wrong
+    offered: true,
+  }
 }

@@ -19,6 +19,14 @@ import {
   getTeamQuizzers,
 } from '../../api'
 import { quizzersConfirmTeam, teamNamed, teamsNearName, useMeetSession } from '../useMeetSession'
+import {
+  currentTab,
+  onTabLinkChange,
+  startTab,
+  writeMeta,
+  writeRecord,
+} from '../../persistence/autoSave'
+import { aRecord } from '../../persistence/__tests__/records'
 
 const mockTeams: MeetTeam[] = [
   {
@@ -49,13 +57,13 @@ const mockQuizzers = [
 /** Empty storeNames — simulates all-default (cleared) names */
 const emptyNames = Array<string>(5).fill('')
 
-let setItemSpy: ReturnType<typeof vi.spyOn>
-function localStorageWriteCount() {
-  return setItemSpy.mock.calls.length
-}
+let linkWrites = 0
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear()
+  await startTab()
+  linkWrites = 0
+  onTabLinkChange(() => linkWrites++)
   // Reset singleton session state between tests
   const { clearSession } = useMeetSession()
   clearSession()
@@ -63,7 +71,6 @@ beforeEach(() => {
   vi.mocked(getMeetTeams).mockResolvedValue({ teams: mockTeams, meetDivisions: ['1', '2'] })
   vi.mocked(getTeamQuizzers).mockResolvedValue({ quizzers: mockQuizzers })
   vi.mocked(getStatsSettings).mockResolvedValue({ settings: DEFAULT_STATS_SETTINGS })
-  setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
 })
 
 describe('useMeetSession — initial state', () => {
@@ -111,12 +118,11 @@ describe('useMeetSession — loadMeet', () => {
     expect(getSlot(2)).toBeUndefined()
   })
 
-  it('persists session to localStorage', async () => {
+  it("keeps the link with the tab's quiz, and nowhere shared", async () => {
     const { loadMeet } = useMeetSession()
     await loadMeet(42, 'District Finals')
-    const stored = JSON.parse(localStorage.getItem('qzr-meet-session')!)
-    expect(stored.meetId).toBe(42)
-    expect(stored.meetName).toBe('District Finals')
+    expect(currentTab()!.link).toMatchObject({ meetId: 42, meetName: 'District Finals' })
+    expect(localStorage.getItem('qzr-meet-session')).toBeNull()
   })
 
   it('calls getMeetTeams with the given meetId', async () => {
@@ -285,7 +291,7 @@ describe('useMeetSession — slotFor + commitLink', () => {
     const { fetchMeet, slotFor, commitLink, getSlot, quizId, meetName, teamList } = useMeetSession()
     const meet = await fetchMeet(42)
     const slot = slotFor(mockTeams[0]!, mockQuizzers, emptyNames)
-    const writesBefore = localStorageWriteCount()
+    const writesBefore = linkWrites
     commitLink({
       meetId: 42,
       meetName: 'Finals',
@@ -295,7 +301,7 @@ describe('useMeetSession — slotFor + commitLink', () => {
       scheduledQuiz: null,
     })
 
-    expect(localStorageWriteCount() - writesBefore).toBe(1)
+    expect(linkWrites - writesBefore).toBe(1)
     expect(meetName.value).toBe('Finals')
     expect(teamList.value).toHaveLength(2)
     expect(getSlot(0)?.teamId).toBe(1)
@@ -655,11 +661,11 @@ describe('useMeetSession — clearSession', () => {
     expect(isActive.value).toBe(false)
   })
 
-  it('removes session from localStorage', async () => {
+  it("removes the link from the tab's quiz", async () => {
     const { loadMeet, clearSession } = useMeetSession()
     await loadMeet(42, 'Finals')
     clearSession()
-    expect(localStorage.getItem('qzr-meet-session')).toBeNull()
+    expect(currentTab()!.link).toBeNull()
   })
 })
 
@@ -1035,5 +1041,23 @@ describe('who may submit to the linked meet', () => {
     guestOfficial()
     await meet.refresh()
     expect(meet.sender.value).not.toBeNull()
+  })
+})
+
+describe('useMeetSession — the link a tab starts with', () => {
+  it("is the tab's own, up to date, and never the old shared copy", async () => {
+    localStorage.setItem('qzr-meet-session', JSON.stringify({ meetId: 1, meetName: 'Old' }))
+    await writeMeta('migrated', true)
+    const record = aRecord({ link: { meetId: 9, meetName: 'Ours' } as never })
+    await writeRecord(record)
+    currentTab()!.claim.release()
+    sessionStorage.setItem('qzr-sheet:quiz', record.id)
+    // A reload: the page starts its tab before the sheet's modules load
+    vi.resetModules()
+    await (await import('../../persistence/autoSave')).startTab()
+    const fresh = await import('../useMeetSession')
+    const { meetId, quizId } = fresh.useMeetSession()
+    expect(meetId.value).toBe(9)
+    expect(quizId.value).toBeNull()
   })
 })
