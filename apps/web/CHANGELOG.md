@@ -18,6 +18,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Changed
 
+* Stats settings' "As a viewer sees it" link reads "Preview as viewer", and the page it opens says
+  "Previewing as a viewer"
 * The results page's quiz list drops its From column, which mostly repeated Last saved beside it
 * The meet page no longer shows a separate Team names list: a meet's team names come from its roster
   under Churches

@@ -131,7 +131,7 @@ async function keep(resultId: number) {
     <template v-else-if="meet && stats">
       <h2 class="page-title">{{ divisionTitle(stats.division) }} stats: {{ meet.name }}</h2>
       <p v-if="asViewer" class="viewer-note no-print">
-        As a viewer sees it.
+        Previewing as a viewer.
         <router-link :to="{ query: {} }">See everything</router-link>
       </p>
 
