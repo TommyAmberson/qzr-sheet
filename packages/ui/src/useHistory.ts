@@ -18,16 +18,10 @@ export function useHistory<Step extends HistoryCommand = HistoryCommand>(maxHist
   const undoStack = shallowRef<readonly Step[]>([])
   const redoStack = shallowRef<readonly Step[]>([])
 
-  // Tracks the command at the top of the undo stack when last saved.
-  // null means "saved at empty state" (fresh/cleared).
-  const savedCommand = shallowRef<Step | null>(null)
-
   const canUndo = computed(() => undoStack.value.length > 0)
   const canRedo = computed(() => redoStack.value.length > 0)
   const undoSteps = computed(() => undoStack.value)
   const redoSteps = computed(() => redoStack.value)
-
-  const isDirty = computed(() => (last(undoStack.value) ?? null) !== savedCommand.value)
 
   function push(command: Step) {
     undoStack.value = [...undoStack.value, command].slice(-maxHistory)
@@ -53,18 +47,12 @@ export function useHistory<Step extends HistoryCommand = HistoryCommand>(maxHist
   function clear() {
     undoStack.value = []
     redoStack.value = []
-    savedCommand.value = null
   }
 
   /** Replace both stacks, as a caller kept them: `redo`'s last step is the next one redone */
   function setStacks(undo: readonly Step[], redo: readonly Step[]) {
     undoStack.value = undo.slice(-maxHistory)
     redoStack.value = [...redo]
-    savedCommand.value = null
-  }
-
-  function markSaved() {
-    savedCommand.value = last(undoStack.value) ?? null
   }
 
   return {
@@ -72,12 +60,10 @@ export function useHistory<Step extends HistoryCommand = HistoryCommand>(maxHist
     canRedo,
     undoSteps,
     redoSteps,
-    isDirty,
     push,
     undo,
     redo,
     clear,
     setStacks,
-    markSaved,
   }
 }
