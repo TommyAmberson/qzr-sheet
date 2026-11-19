@@ -62,7 +62,7 @@ description: "Task list for each scoresheet tab keeping its own quiz, and recent
 
 **Purpose**: dependencies, test environment, and the constitution wording the design relies on
 
-- [ ] T001 Add `idb` to `apps/scoresheet/package.json` dependencies and `fake-indexeddb` to its devDependencies (`pnpm install`), and give the scoresheet's Vitest run IndexedDB from `fake-indexeddb` and a small Web Locks stand-in (exclusive locks, `ifAvailable`, `query`, released on demand to imitate a closed tab) through a setup file named in `apps/scoresheet/vitest.config.ts`. No test setup file exists today, and jsdom has neither API, so this is the one shared fixture the storage tests extend (research R16).
+- [X] T001 Add `idb` to `apps/scoresheet/package.json` dependencies and `fake-indexeddb` to its devDependencies (`pnpm install`), and give the scoresheet's Vitest run IndexedDB from `fake-indexeddb` and a small Web Locks stand-in (exclusive locks, `ifAvailable`, `query`, released on demand to imitate a closed tab) through a setup file named in `apps/scoresheet/vitest.config.ts`. No test setup file exists today, and jsdom has neither API, so this is the one shared fixture the storage tests extend (research R16).
 - [ ] T002 [P] Reword principle I's auto-save line in `.specify/memory/constitution.md` from `localStorage` to "kept on the device on every change" through `/speckit-constitution`, as a PATCH amendment (version and amendment date updated), its gate in `.specify/templates/overrides/plan-template.md` unchanged (plan: Complexity Tracking). Keep its Sync Impact Report in `~/notes/sheet/notes.md` for the pull request body (constitution Governance).
 
 ---
