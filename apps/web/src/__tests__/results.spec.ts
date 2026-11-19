@@ -73,7 +73,6 @@ describe('groupResults', () => {
     expect(row).toMatchObject({
       id: 5,
       name: 'D1 Q3',
-      from: 'Room 1',
       revision: 2,
       action: 'restored',
       savedBy: 'Pat',
@@ -88,17 +87,11 @@ describe('groupResults', () => {
     expect(row!.placed).toBe(false)
   })
 
-  it('says who uploaded a quiz, and keeps consolation quizzes apart', () => {
+  it('keeps consolation quizzes apart', () => {
     const consolation = stored(2, '1', '3')
     consolation.quizFile.quiz.consolation = true
-    const [group] = groupResults([
-      consolation,
-      stored(1, '1', '3', { origin: { action: 'uploaded', name: 'Pat' } }),
-    ])
-    expect(group!.quizzes.map((q) => [q.name, q.from])).toEqual([
-      ['D1 Q3', 'Uploaded by Pat'],
-      ['D1c Q3', 'Room 1'],
-    ])
+    const [group] = groupResults([consolation, stored(1, '1', '3')])
+    expect(group!.quizzes.map((q) => q.name)).toEqual(['D1 Q3', 'D1c Q3'])
   })
 })
 

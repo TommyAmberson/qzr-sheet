@@ -602,7 +602,6 @@ onMounted(load)
             <tr>
               <th>Quiz</th>
               <th>Teams</th>
-              <th>From</th>
               <th>Revision</th>
               <th>Last saved</th>
               <th>Stage and link</th>
@@ -641,7 +640,6 @@ onMounted(load)
                   {{ quiz.accepted ? 'Withdraw acceptance' : 'Accept as scored' }}
                 </button>
               </td>
-              <td class="cell-from" data-label="From">{{ quiz.from }}</td>
               <td class="cell-revision" data-label="Revision">{{ quiz.revision }}</td>
               <td class="cell-saved" data-label="Last saved">
                 {{ quiz.savedBy }}, {{ quiz.action }}, {{ formatSlotTime(quiz.savedAt) }}
@@ -801,7 +799,6 @@ onMounted(load)
       'quiz quiz'
       'teams teams'
       'stage stage'
-      'from from'
       'revision revision'
       'saved saved';
     padding: 0.6rem 0;
@@ -829,10 +826,6 @@ onMounted(load)
 
   .cell-teams {
     grid-area: teams;
-  }
-
-  .cell-from {
-    grid-area: from;
   }
 
   .cell-revision {

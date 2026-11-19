@@ -18,6 +18,7 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Changed
 
+* The results page's quiz list drops its From column, which mostly repeated Last saved beside it
 * The meet page no longer shows a separate Team names list: a meet's team names come from its roster
   under Churches
 * "+ Room" and the new meet form's "+ Division" put the cursor in the new box, so its name can be
