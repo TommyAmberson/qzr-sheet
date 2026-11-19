@@ -178,8 +178,8 @@ description: "Task list for each scoresheet tab keeping its own quiz, and recent
 **Purpose**: documentation, release, and the by-hand pass
 
 - [X] T032 [P] Update `docs/architecture.md` where it describes auto-save (`autoSave.ts`), the meet session's `localStorage` copy, the tutorial's snapshot and the newer-quiz handling, to the records store, the tab's record and lock, recent quizzes and undo as data.
-- [ ] T033 [P] Record the feature in `apps/scoresheet/CHANGELOG.md` and bump scoresheet MINOR with the `release` skill, naming the bundled shared version on master at the time; no other package bumps.
-- [ ] T034 Run `pnpm test:unit`, `pnpm type-check` and `pnpm lint`, then quickstart.md's by-hand blocks 1 to 6 in Chrome and Firefox, the duplicate-tab and crash checks included.
+- [X] T033 [P] Record the feature in `apps/scoresheet/CHANGELOG.md` and bump scoresheet MINOR with the `release` skill, naming the bundled shared version on master at the time; no other package bumps.
+- [X] T034 Run `pnpm test:unit`, `pnpm type-check` and `pnpm lint`, then quickstart.md's by-hand blocks 1 to 6 in Chrome and Firefox, the duplicate-tab and crash checks included.
 
 ---
 

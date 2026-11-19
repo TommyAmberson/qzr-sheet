@@ -15,6 +15,41 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-19
+
+### Added
+
+* **Each tab keeps its own quiz** and meet link. Quizzes opened side by side from the portal no
+  longer overwrite each other, a reload brings back the tab's own quiz and link, and a duplicated
+  tab keeps its own copy from then on
+* **Recent quizzes**: every quiz a tab stops showing, because the tab closed or New, Open or a
+  restore replaced it, is kept on the device. Open ▸ Recent quizzes… lists them, unsaved ones first,
+  with a row for the state it was left in, saved to a file in and submitted in, to restore or
+  discard, offline too. Up to 80 unsaved and 40 saved quizzes are kept
+* A new tab brings back the one unsaved quiz a closed tab left, or offers several, each once. A tab
+  opened by a portal link says how many wait instead
+* Undo and redo survive a reload and a restore, and go back up to 1000 steps (was 100)
+* Undo and redo take back every change to the quiz: names, on-time marks, quizzer order, question
+  types, division, quiz number, consolation, overtime and the way level teams are scored too. Typing
+  a name is one step
+* Clear answers and Clear names can be undone
+* The sheet says when the quiz can't be kept on the device, such as when it is full
+* Opening a file or a quiz from the meet continues the recent quiz it came from, with its link and
+  undo history, rather than starting afresh
+
+### Changed
+
+* New and Open no longer ask about unsaved changes: the quiz they replace is kept as a recent quiz
+* A quiz counts as saved when it matches the state it was last saved or submitted in, however it got
+  there, so undoing back to a save makes it saved again
+* A quiz auto-saved by a newer version is listed among the recent quizzes instead of in a notice
+* Quizzes are kept in the browser's IndexedDB rather than localStorage, moved over on the first
+  start of this version
+
+### Bundled contract
+
+* `@qzr/shared@1.16.0` - bumped from 1.15.0
+
 ## [0.25.1] - 2026-11-19
 
 ### Fixed
