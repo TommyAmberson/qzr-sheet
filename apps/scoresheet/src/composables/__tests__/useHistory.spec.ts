@@ -166,4 +166,55 @@ describe('useHistory', () => {
       expect(h.isDirty.value).toBe(true)
     })
   })
+
+  describe("steps of the caller's own type", () => {
+    interface Step {
+      label: string
+      undo: () => void
+      redo: () => void
+    }
+    const step = (label: string, log: string[]): Step => ({
+      label,
+      undo: () => log.push(`undo ${label}`),
+      redo: () => log.push(`redo ${label}`),
+    })
+
+    it('go in and come out as they went in', () => {
+      const h = useHistory<Step>()
+      const log: string[] = []
+      h.push(step('a', log))
+      h.push(step('b', log))
+      h.undo()
+      expect(h.undoSteps.value.map((s) => s.label)).toEqual(['a'])
+      expect(h.redoSteps.value.map((s) => s.label)).toEqual(['b'])
+    })
+
+    it('can be set as stacks, and undone and redone from there', () => {
+      const h = useHistory<Step>()
+      const log: string[] = []
+      h.setStacks([step('a', log), step('b', log)], [step('c', log)])
+      expect(h.canUndo.value).toBe(true)
+      expect(h.canRedo.value).toBe(true)
+      h.redo()
+      h.undo()
+      h.undo()
+      expect(log).toEqual(['redo c', 'undo c', 'undo b'])
+      expect(h.undoSteps.value.map((s) => s.label)).toEqual(['a'])
+      expect(h.redoSteps.value.map((s) => s.label)).toEqual(['c', 'b'])
+    })
+
+    it('keep to the limit passed in, the oldest falling off', () => {
+      const h = useHistory<Step>(1000)
+      const log: string[] = []
+      for (let i = 0; i < 1001; i++) h.push(step(String(i), log))
+      expect(h.undoSteps.value).toHaveLength(1000)
+      expect(h.undoSteps.value[0]!.label).toBe('1')
+      h.setStacks(
+        Array.from({ length: 1001 }, (_, i) => step(String(i), log)),
+        [],
+      )
+      expect(h.undoSteps.value).toHaveLength(1000)
+      expect(h.undoSteps.value[0]!.label).toBe('1')
+    })
+  })
 })
