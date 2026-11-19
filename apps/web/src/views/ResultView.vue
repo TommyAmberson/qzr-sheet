@@ -239,7 +239,8 @@ onMounted(load)
         <form class="quick-form" @submit.prevent="saveForm">
           <label>
             Division
-            <DivisionInput v-model="form.division" class="division-box" required />
+            <!-- Its label says "Division", so the box shows no prefix of its own -->
+            <DivisionInput v-model="form.division" class="division-box" prefix="" required />
           </label>
           <label>
             Quiz number

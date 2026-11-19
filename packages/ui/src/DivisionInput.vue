@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * A box for a division's name with its prefix shown inside it, so the name is typed bare: `2`, not
- * `Div 2`. A prefix typed anyway is dropped once the box is left; a stored name shows as it is, so
+ * `Div 2`. A box whose label already says "Division" takes an empty `prefix`, so it doesn't read
+ * "Division Div 2". A prefix typed anyway is dropped once the box is left; a stored name shows as it is, so
  * one saved with its prefix by mistake shows `Div Div 2` until it is retyped. `class` and `style`
  * style the whole box, so a page's own field class gives it the page's look; every other
  * attribute, such as `placeholder`, `aria-label` or `required`, goes to the input.
@@ -35,7 +36,7 @@ function settle(event: Event) {
 
 <template>
   <span class="division-input" v-bind="boxAttrs">
-    <span class="division-input-prefix" aria-hidden="true">{{ prefix }}</span>
+    <span v-if="prefix" class="division-input-prefix" aria-hidden="true">{{ prefix }}</span>
     <input v-bind="inputAttrs" v-model="model" class="division-input-field" @change="settle" />
   </span>
 </template>

@@ -1946,7 +1946,7 @@ const appVersion: string = __APP_VERSION__
                     v-else
                     v-model="quiz.division"
                     class="division-text"
-                    prefix="D"
+                    prefix=""
                     type="text"
                     aria-label="Division"
                   />
@@ -2981,10 +2981,9 @@ const appVersion: string = __APP_VERSION__
   background: var(--color-bg);
   color: var(--color-text);
 }
-/* Wide enough for `D` and a name such as `Junior` */
+/* Wide enough for a name such as `Junior` */
 .meta-field .division-text {
-  width: 4.5rem;
-  text-align: left;
+  width: 4rem;
 }
 .meta-field input[type='text']:focus,
 .meta-field .division-text:focus-within {
