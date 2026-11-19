@@ -13,7 +13,7 @@ import {
   QuizFormat,
   serialize,
 } from '@qzr/shared'
-import { serializeStore } from '../quizFile'
+import { canonicalStoreFile, serializeStore } from '../quizFile'
 import { createQuizStore } from '../../stores/quizStore'
 
 function makeFile(overrides: Partial<QuizFile> = {}): QuizFile {
@@ -309,5 +309,67 @@ describe('files from a newer scoresheet', () => {
     const file = newer()
     const json = JSON.stringify({ ...file, quiz: { ...file.quiz, format: 'two-team' } })
     expect(() => parseQuizFileAttempt(json)).toThrow(/two-team/)
+  })
+})
+
+describe('canonical quiz file', () => {
+  // A blank sheet, or a copy of `from`'s teams and quizzers
+  function sheet(from?: ReturnType<typeof createQuizStore>) {
+    const store = createQuizStore()
+    // Through a file, so the copy shares no objects with `from`
+    if (from) store.loadState(deserialize(JSON.parse(serializeStore(from, new Map(), new Map()))))
+    const [a, b] = store.quizzers
+    return { store, a: a!.id, b: b!.id, noJumps: new Map<string, boolean>(), timeouts: new Map() }
+  }
+  const canonical = (s: ReturnType<typeof sheet>) =>
+    canonicalStoreFile(s.store, s.noJumps, s.timeouts)
+
+  it('is the same for the same quiz reached in another order', () => {
+    const one = sheet()
+    const two = sheet(one.store)
+    one.store.setAnswer(one.a, '1', CellValue.Correct)
+    one.store.setAnswer(one.b, '2', CellValue.Error)
+    one.store.setQuestionType('1', QuestionCategory.Q)
+    one.store.setQuestionType('2', QuestionCategory.FTV)
+    one.noJumps.set('3', true).set('4', true)
+    two.noJumps.set('4', true).set('3', true)
+    two.store.setQuestionType('2', QuestionCategory.FTV)
+    two.store.setQuestionType('1', QuestionCategory.Q)
+    two.store.setAnswer(one.b, '2', CellValue.Error)
+    two.store.setAnswer(one.a, '1', CellValue.Correct)
+    one.timeouts.set(one.store.teams[0]!.id, [{ afterColumnKey: '5' }, { afterColumnKey: null }])
+    two.timeouts.set(one.store.teams[0]!.id, [{ afterColumnKey: null }, { afterColumnKey: '5' }])
+    expect(canonical(two)).toBe(canonical(one))
+  })
+
+  it('differs when anything a file holds differs', () => {
+    const base = sheet()
+    const before = canonical(base)
+    const edits: ((s: ReturnType<typeof sheet>) => void)[] = [
+      (s) => s.store.setAnswer(s.a, '1', CellValue.Correct),
+      (s) => s.store.setTeamName(s.store.teams[0]!.id, 'Red'),
+      (s) => s.store.setQuizzerName(s.a, 'Alice'),
+      (s) => s.timeouts.set(s.store.teams[0]!.id, [{ afterColumnKey: '3' }]),
+      (s) => (s.store.teams[0]!.onTime = !s.store.teams[0]!.onTime),
+      (s) => s.store.setQuestionType('1', QuestionCategory.Q),
+      (s) => (s.store.quiz.overtime = !s.store.quiz.overtime),
+      (s) => s.noJumps.set('1', true),
+    ]
+    for (const edit of edits) {
+      const s = sheet(base.store)
+      edit(s)
+      expect(canonical(s)).not.toBe(before)
+    }
+  })
+
+  it('leaves out the meet link, which a file does not hold', () => {
+    const s = sheet()
+    expect(JSON.parse(canonical(s))).toEqual(
+      JSON.parse(
+        JSON.stringify(
+          serialize({ ...s.store, answers: [], noJumps: new Map(), timeouts: new Map() }),
+        ),
+      ),
+    )
   })
 })
