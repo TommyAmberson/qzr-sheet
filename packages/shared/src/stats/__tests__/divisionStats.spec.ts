@@ -7,6 +7,7 @@ import { divisionStandings } from '../../scoring/standings'
 import { fifteenQuestionQuizFile } from '../../scoring/__tests__/fixtures/fifteenQuestionQuiz'
 import { referenceMeet } from '../../scoring/__tests__/fixtures/referenceMeet'
 import { divisionStats, type DivisionStatsInput, type StatsQuiz } from '../divisionStats'
+import { DEFAULT_STATS_SETTINGS } from '../settings'
 import type { Stage } from '../stages'
 import { scoreStoredQuiz, type ScoredQuiz } from '../scoredQuiz'
 
@@ -19,9 +20,7 @@ function quizOf(name: string, stage: Stage | null, scored: ScoredQuiz): StatsQui
 }
 function stats(
   quizzes: StatsQuiz[],
-  more: Partial<
-    Pick<DivisionStatsInput, 'roster' | 'laterStagesScheduled' | 'schedulePublished'>
-  > = {},
+  more: Partial<Omit<DivisionStatsInput, 'division' | 'state' | 'phase' | 'quizzes'>> = {},
 ) {
   return divisionStats({
     division: '1',
@@ -31,6 +30,7 @@ function stats(
     roster: null,
     laterStagesScheduled: false,
     schedulePublished: false,
+    settings: DEFAULT_STATS_SETTINGS,
     ...more,
   })
 }
@@ -40,7 +40,6 @@ function scoredQuiz(first: string, second: string, third: string): ScoredQuiz {
   return {
     name: 'D1 Q1',
     consolation: false,
-    formula: PlacementFormula.Rules,
     teams: [first, second, third].map((name, i) => ({
       name,
       score: 100 - i * 40,
@@ -49,6 +48,7 @@ function scoredQuiz(first: string, second: string, third: string): ScoredQuiz {
       place: (i + 1) as 1 | 2 | 3,
       quizzers: [],
     })),
+    overtimePlayed: false,
     problems: [],
   }
 }
@@ -98,7 +98,7 @@ describe('divisionStats', () => {
     ])
   })
 
-  it("works placement points out from each team's place and score, by the quiz's formula", () => {
+  it("works placement points out from each team's place and score, by the meet's formula", () => {
     const { prelimStandings } = stats([stored('D1 Q1', 'prelim', fifteenQuestionQuizFile())])
     expect(prelimStandings!.teams.map((t) => [t.name, t.placementPoints])).toEqual([
       ['Team A', 20],
@@ -108,6 +108,25 @@ describe('divisionStats', () => {
     expect(prelimStandings!.teams[0]!.lines).toEqual([
       { quiz: 'D1 Q1', stage: 'prelim', place: 1, score: 200, placementPoints: 20, errors: 1 },
     ])
+  })
+
+  it("scores teams level in a quiz the meet's way, whatever the quiz file says (FR-023a)", () => {
+    // A and B level on 100, each holding a shared first place
+    const level = scoredQuiz('A', 'B', 'C')
+    level.teams[1]!.score = level.teams[1]!.regulationScore = 100
+    level.teams[0]!.place = level.teams[1]!.place = 1.2
+    const points = (levelTeams: PlacementFormula) =>
+      stats([quizOf('D1 Q1', 'prelim', level)], {
+        settings: { ...DEFAULT_STATS_SETTINGS, levelTeams },
+      }).prelimStandings!.teams.map((t) => [t.name, t.placementPoints])
+    const rulebook = points(PlacementFormula.Rules)
+    // The rulebook gives each level team the points of the place they share
+    expect(rulebook.slice(0, 2)).toEqual([
+      ['A', 10],
+      ['B', 10],
+    ])
+    expect(points(PlacementFormula.Legacy).slice(0, 2)).not.toEqual(rulebook.slice(0, 2))
+    expect(points(PlacementFormula.Rules)).toEqual(rulebook)
   })
 
   it('names a quiz in error, lists it as under review, and adds nothing for it', () => {
@@ -124,6 +143,8 @@ describe('divisionStats', () => {
       teams: [{ name: 'Team A' }, { name: 'Team B' }, { name: 'Team C' }],
       id: broken.id,
       problems: [{ kind: 'unanswered', questions: ['15'] }],
+      // The quiz records no question types, so its correct answers by type can't add up
+      incompleteTypes: true,
     })
     expect(prelimStandings!.teams.map((t) => t.name)).toEqual(['A', 'B', 'C'])
     expect(prelimStandings!.covers).toEqual({ counted: 1, scheduled: null })
@@ -440,6 +461,22 @@ describe("divisionStats: the reference meet's second division", () => {
       accepted: true,
     }))
 
+  it('ranks two teams level on prelim points as the workbook did only by points, then errors (SC-002)', () => {
+    const prelims = quizzes.filter((quiz) => quiz.stage === 'prelim')
+    const theirs = referenceMeet.prelimStandings
+      .filter((row) => row.division === '2' && row.placementPoints === 24)
+      .sort((a, b) => a.rank - b.rank)
+      .map((row) => foldName(row.team))
+    expect(theirs).toHaveLength(2)
+    const levelOn24 = (tieBreaks: 'rulebook' | 'pointsThenErrors') =>
+      stats(prelims, { settings: { ...DEFAULT_STATS_SETTINGS, tieBreaks } })
+        .prelimStandings!.teams.filter((t) => t.placementPoints === 24)
+        .map((t) => [foldName(t.name), t.decidedBy])
+    // The workbook broke this tie by errors; head-to-head would have put the other team first
+    expect(levelOn24('pointsThenErrors')).toEqual(theirs.map((team) => [team, 'errors']))
+    expect(levelOn24('rulebook').map(([team]) => team)).toEqual([...theirs].reverse())
+  })
+
   it('re-ranks the teams of its intermediates as the meet seeded them', () => {
     const { rerank } = stats(quizzes)
     const theirs = referenceMeet.rerank
@@ -472,5 +509,76 @@ describe('divisionStats against the reference meet', () => {
     expect(
       prelimStandings!.teams.map((t) => [foldName(t.name), t.rank, t.placementPoints, t.quizzes]),
     ).toEqual(theirs.map((t) => [foldName(t.team), t.rank, t.placementPoints, t.quizzes]))
+  })
+})
+
+describe('divisionStats: confirmed orders (FR-019b, FR-019c)', () => {
+  const quizzes = [
+    quizOf('D1 Q1', 'prelim', scoredQuiz('A', 'B', 'C')),
+    quizOf('D1 Q2', 'prelim', scoredQuiz('A', 'C', 'B')),
+  ]
+  const confirmedNow = () => {
+    const { teams } = stats(quizzes).prelimStandings!
+    return { teams, by: 'Test Admin', at: '2026-11-18T10:00:00.000Z' }
+  }
+
+  it('shows the confirmed prelim order locked in, with who confirmed it', () => {
+    const { prelimStandings, warnings } = stats(quizzes, { confirmed: { prelims: confirmedNow() } })
+    expect(prelimStandings).toMatchObject({
+      state: 'lockedIn',
+      confirmed: { by: 'Test Admin', at: '2026-11-18T10:00:00.000Z' },
+    })
+    expect(prelimStandings!.current).toBeUndefined()
+    expect(warnings!.filter((w) => w.kind === 'orderChanged')).toEqual([])
+  })
+
+  it('keeps the confirmed order when a prelim changes later, the current one beside it', () => {
+    const confirmed = confirmedNow()
+    const corrected = [quizzes[0]!, quizOf('D1 Q2', 'prelim', scoredQuiz('C', 'B', 'A'))]
+    const { prelimStandings, warnings } = stats(corrected, { confirmed: { prelims: confirmed } })
+    expect(prelimStandings!.teams).toEqual(confirmed.teams)
+    expect(prelimStandings!.current!.map((t) => t.name)).not.toEqual(
+      confirmed.teams.map((t) => t.name),
+    )
+    expect(warnings).toContainEqual({ kind: 'orderChanged', division: '1', what: 'prelims' })
+  })
+
+  it('flags a quiz seated from an order since withdrawn, which still counts', () => {
+    const elimination = { ...quizOf('D1 QA', 'elimination', scoredQuiz('A', 'B', 'C')) }
+    const { results, warnings } = stats([...quizzes, { ...elimination, withdrawnOrder: true }])
+    expect(results[0]!.quizzes[0]).toMatchObject({ status: 'counted', withdrawnOrder: true })
+    expect(warnings).toContainEqual({
+      kind: 'withdrawnOrder',
+      quiz: { id: elimination.id, name: 'D1 QA' },
+    })
+  })
+})
+
+describe('divisionStats: question types', () => {
+  it("marks a quiz whose quizzers' correct answers by type don't add up, and not one whose do", () => {
+    const untyped = scoredQuiz('A', 'B', 'C')
+    untyped.teams[0]!.quizzers = [{ name: 'Q', points: 20, errors: 0, correct: 1, types: {} }]
+    const typed = structuredClone(untyped)
+    typed.teams[0]!.quizzers[0]!.types = { INT: 1 }
+    const [first, second] = stats([
+      quizOf('D1 Q1', 'prelim', untyped),
+      quizOf('D1 Q2', 'prelim', typed),
+    ]).results[0]!.quizzes
+    expect(first!.incompleteTypes).toBe(true)
+    expect(second!.incompleteTypes).toBeUndefined()
+  })
+})
+
+describe('divisionStats: quizzer standings by stage (FR-018a)', () => {
+  it('covers only the quizzes up to the stage given, as they now stand', () => {
+    const quizzes = [
+      stored('D1 Q1', 'prelim', fifteenQuestionQuizFile()),
+      stored('D1 QA', 'elimination', fifteenQuestionQuizFile()),
+    ]
+    const through = (quizzersThrough?: 'prelim' | 'elimination') =>
+      stats(quizzes, { quizzersThrough }).quizzers!
+    expect(through('prelim')).toMatchObject({ through: 'prelim' })
+    expect(through('prelim').lists[0]!.quizzers[0]!.quizzes).toBe(1)
+    expect(through().lists[0]!.quizzers[0]!.quizzes).toBe(2)
   })
 })

@@ -66,6 +66,46 @@ describe('divisionStandings', () => {
     ])
   })
 
+  describe("the meet's tie-break order (FR-023)", () => {
+    // A and B are level on 30; B finished above A, and A scored more points
+    const level = [
+      quiz('Q1', [
+        ['B', 1, 20, 100],
+        ['A', 2, 10, 90],
+        ['C', 3, 5],
+      ]),
+      quiz('Q2', [
+        ['A', 1, 20, 150],
+        ['C', 2, 10],
+        ['D', 3, 5],
+      ]),
+      quiz('Q3', [
+        ['B', 2, 10, 60],
+        ['D', 1, 20],
+        ['C', 3, 1],
+      ]),
+    ]
+    const top = (tieBreaks: 'rulebook' | 'pointsThenErrors') =>
+      divisionStandings(level, { tieBreaks })
+        .teams.slice(0, 2)
+        .map((t) => [t.name, t.rank, t.decidedBy])
+
+    it("is the rulebook's unless the meet says otherwise", () => {
+      expect(top('rulebook')).toEqual([
+        ['B', 1, 'headToHead'],
+        ['A', 2, 'headToHead'],
+      ])
+      expect(ranking(level).slice(0, 2)).toEqual(top('rulebook'))
+    })
+
+    it('leaves head-to-head out when the meet ranks by points, then errors', () => {
+      expect(top('pointsThenErrors')).toEqual([
+        ['A', 1, 'points'],
+        ['B', 2, 'points'],
+      ])
+    })
+  })
+
   describe('head-to-head (FR-011a)', () => {
     it('ranks the one of two tied teams that finished above the other more often', () => {
       expect(

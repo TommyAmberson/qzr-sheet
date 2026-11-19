@@ -1,4 +1,5 @@
-import { sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/sqlite-core'
 import * as schema from '../db/schema'
 
 /**
@@ -19,3 +20,22 @@ export const isCounted = sql`COALESCE((
   WHERE newest.result_id = ${storedQuizId}
   ORDER BY newest.id DESC LIMIT 1
 ), 0)`.mapWith(Boolean)
+
+/** A stored quiz's current revision, and the revision whose content it shows */
+export const current = alias(schema.quizResultRevisions, 'current')
+export const content = alias(schema.quizResultRevisions, 'content')
+
+/** Joins a stored quiz to its current revision, as `current` */
+export const toCurrent = and(
+  eq(current.resultId, schema.quizResults.id),
+  eq(current.revision, latestRevision),
+)
+
+/**
+ * Joins a stored quiz to the revision whose content is current, as `content`, after `toCurrent`:
+ * a restoring revision shows the content of the revision it restores
+ */
+export const toContent = and(
+  eq(content.resultId, schema.quizResults.id),
+  eq(content.revision, sql`COALESCE(${current.restoredFrom}, ${current.revision})`),
+)

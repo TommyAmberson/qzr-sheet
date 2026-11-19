@@ -7,9 +7,16 @@ import {
   placeTieCount,
 } from '../scoring/placement'
 import { quizzerStandings, type QuizzerList } from '../scoring/quizzerStandings'
-import { divisionStandings, type CountedQuiz, type TieBreak } from '../scoring/standings'
+import {
+  divisionStandings,
+  type CountedQuiz,
+  type TieBreak,
+  type TieBreakOrder,
+} from '../scoring/standings'
+import type { PlacementFormula } from '../quizFile'
 import { playing, quizProblems, type QuizProblem, type ScheduledQuiz } from './quizProblems'
-import type { ScoredQuiz, ScoredTeam } from './scoredQuiz'
+import type { ScoredQuiz } from './scoredQuiz'
+import { QUIZZER_STAGES, type QuizzerStage, type StatsSettings } from './settings'
 import { STAGES, type Stage } from './stages'
 import { teamNamed, type RosterTeam } from './teamNames'
 
@@ -30,6 +37,10 @@ export interface QuizResult {
   /** For admins: the stored quiz's id, and what is wrong with it */
   id?: number
   problems?: QuizProblem[]
+  /** For admins: it was seated from an order since withdrawn, and no admin has kept it since */
+  withdrawnOrder?: true
+  /** For admins: a quizzer's correct answers by type don't add up (FR-007); not an error */
+  incompleteTypes?: true
 }
 
 export interface StageResults {
@@ -45,33 +56,43 @@ export interface TeamTable {
   state: 'livePreview' | 'lockedIn'
   /** With `livePreview`: how many of the stage's quizzes it covers */
   covers?: { counted: number; scheduled: number | null }
-  teams: {
-    name: string
-    rank: number
-    placementPoints: number
-    quizzes: number
-    tied: boolean
-    decidedBy: TieBreak | null
-    finalist?: boolean
-    /** The quizzes behind the totals */
-    lines: {
-      quiz: string
-      stage: Stage
-      place: number | null
-      score: number
-      placementPoints: number | null
-      errors: number
-    }[]
-  }[]
+  teams: TeamRow[]
+  /** For admins: the current order, where it no longer matches the confirmed one */
+  current?: TeamRow[]
+  /** Who confirmed the order shown, and when */
+  confirmed?: { by: string; at: string }
 }
 
-/** The stages that count for individuals: every one but the Finals */
-const QUIZZER_STAGES = ['prelim', 'intermediate', 'elimination'] as const
+/** An order an admin confirmed, as it stood then (FR-019b, FR-019c) */
+export interface ConfirmedOrder {
+  teams: TeamRow[]
+  by: string
+  at: string
+}
+
+export interface TeamRow {
+  name: string
+  rank: number
+  placementPoints: number
+  quizzes: number
+  tied: boolean
+  decidedBy: TieBreak | null
+  finalist?: boolean
+  /** The quizzes behind the totals */
+  lines: {
+    quiz: string
+    stage: Stage
+    place: number | null
+    score: number
+    placementPoints: number | null
+    errors: number
+  }[]
+}
 
 export interface QuizzerTable {
   state: 'livePreview' | 'preview' | 'lockedIn'
   /** The last stage it covers */
-  through: (typeof QUIZZER_STAGES)[number]
+  through: QuizzerStage
   /** The division's main list, then its consolation list where there is one */
   lists: QuizzerList[]
 }
@@ -84,6 +105,10 @@ export type StatsWarning =
   | { kind: 'finalTie'; division: string; teams: string[] }
   /** More than one Finals for a bracket, so none of them gives its first three */
   | { kind: 'twoFinals'; division: string; consolation: boolean; quizzes: QuizRef[] }
+  /** The current order differs from the one the admin confirmed, which stands */
+  | { kind: 'orderChanged'; division: string; what: 'prelims' | 'rerank' }
+  /** A quiz seated from an order since withdrawn, until an admin keeps it or stops it counting */
+  | { kind: 'withdrawnOrder'; quiz: QuizRef }
 
 export interface DivisionStats {
   division: string
@@ -112,6 +137,8 @@ export interface StatsQuiz extends QuizRef {
   line?: number
   /** Whether an admin accepted its current content as scored */
   accepted: boolean
+  /** Whether it was seated from an order since withdrawn, and no admin has kept it since */
+  withdrawnOrder?: boolean
 }
 
 export interface DivisionStatsInput {
@@ -125,6 +152,14 @@ export interface DivisionStatsInput {
   laterStagesScheduled: boolean
   /** Whether the meet has a published schedule: a quiz linked to none of its quizzes is in error */
   schedulePublished: boolean
+  settings: Pick<StatsSettings, 'tieBreaks' | 'levelTeams' | 'prelimsWithoutOvertime'>
+  /** The prelim order and the re-rank the admin confirmed, where they stand confirmed */
+  confirmed?: { prelims?: ConfirmedOrder; rerank?: ConfirmedOrder }
+  /**
+   * The last stage quizzer standings cover, for standings that update by stage: the quizzes up to
+   * the last step the admin confirmed, as they now stand (FR-018a). Every stage when left out.
+   */
+  quizzersThrough?: QuizzerStage
 }
 
 /** A quiz with a stage, its names as the roster has them, and what is wrong with it */
@@ -135,6 +170,44 @@ interface Staged extends QuizRef {
   problems: QuizProblem[]
   /** Whether it adds to the tables: one in error does only once accepted */
   counts: boolean
+  withdrawnOrder: boolean
+}
+
+/**
+ * The quizzes of a division that have a stage, each with whether it adds to the tables, without
+ * working the tables out: what a division needs to know whether it is ready for its next step
+ */
+export function heldQuizzes(
+  input: DivisionStatsInput,
+): { id: number; stage: Stage; counts: boolean }[] {
+  return stageQuizzes(input).map(({ id, stage, counts }) => ({ id, stage, counts }))
+}
+
+/** A division's quizzes with a stage, in the order people count them, held against everything */
+function stageQuizzes(input: DivisionStatsInput): Staged[] {
+  return input.quizzes
+    .filter((quiz): quiz is StatsQuiz & { stage: Stage } => quiz.stage !== null)
+    .sort((a, b) => byNumber.compare(a.name, b.name))
+    .map((quiz): Staged => {
+      const problems = quizProblems(quiz.scored, {
+        stage: quiz.stage,
+        key: quiz.key,
+        linked: quiz.linked,
+        roster: input.roster,
+        schedulePublished: input.schedulePublished,
+        prelimsWithoutOvertime: input.settings.prelimsWithoutOvertime,
+      })
+      return {
+        id: quiz.id,
+        name: quiz.name,
+        stage: quiz.stage,
+        line: quiz.line ?? 0,
+        scored: namedByRoster(placedAsTheyStand(quiz.scored), input.roster),
+        problems,
+        counts: problems.length === 0 || quiz.accepted,
+        withdrawnOrder: quiz.withdrawnOrder ?? false,
+      }
+    })
 }
 
 /**
@@ -143,34 +216,26 @@ interface Staged extends QuizRef {
  * each team's place and its score before overtime.
  */
 export function divisionStats(input: DivisionStatsInput): DivisionStats {
-  const { division, state, phase, roster } = input
-  const staged = input.quizzes
-    .filter((quiz): quiz is StatsQuiz & { stage: Stage } => quiz.stage !== null)
-    .sort((a, b) => byNumber.compare(a.name, b.name))
-    .map((quiz): Staged => {
-      const problems = quizProblems(quiz.scored, {
-        stage: quiz.stage,
-        key: quiz.key,
-        linked: quiz.linked,
-        roster,
-        schedulePublished: input.schedulePublished,
-      })
-      return {
-        id: quiz.id,
-        name: quiz.name,
-        stage: quiz.stage,
-        line: quiz.line ?? 0,
-        scored: namedByRoster(placedAsTheyStand(quiz.scored), roster),
-        problems,
-        counts: problems.length === 0 || quiz.accepted,
-      }
-    })
+  const { division, state, phase, settings } = input
+  const { tieBreaks, levelTeams } = settings
+  const staged = stageQuizzes(input)
   const counting = staged.filter((quiz) => quiz.counts)
   const ofStage = (stage: Stage) => counting.filter((quiz) => quiz.stage === stage)
 
-  const warnings: StatsWarning[] = staged
-    .filter((quiz) => !quiz.counts)
-    .map(({ id, name, problems }) => ({ kind: 'inError', quiz: { id, name }, problems }))
+  const warnings: StatsWarning[] = [
+    ...staged
+      .filter((quiz) => !quiz.counts)
+      .map(
+        ({ id, name, problems }): StatsWarning => ({
+          kind: 'inError',
+          quiz: { id, name },
+          problems,
+        }),
+      ),
+    ...staged
+      .filter((quiz) => quiz.withdrawnOrder)
+      .map(({ id, name }): StatsWarning => ({ kind: 'withdrawnOrder', quiz: { id, name } })),
+  ]
 
   const results = [...STAGES]
     .reverse()
@@ -203,7 +268,10 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
   const leadsToFinals =
     !input.laterStagesScheduled &&
     !staged.some((quiz) => quiz.stage === 'intermediate' || quiz.stage === 'elimination')
-  const standings = divisionStandings(prelims.map(counted), { finalists: leadsToFinals })
+  const standings = divisionStandings(
+    prelims.map((quiz) => counted(quiz, levelTeams)),
+    { finalists: leadsToFinals, tieBreaks },
+  )
   for (const warning of standings.warnings) {
     if (warning.kind === 'unequalQuizCounts') {
       warnings.push({
@@ -217,29 +285,49 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
       warnings.push({ kind: 'finalTie', division, teams: warning.teams })
     }
   }
-  const prelimLines = teamLines(prelims)
-  const prelimStandings: TeamTable = {
-    state: 'livePreview',
-    covers: { counted: prelims.length, scheduled: null },
-    teams: standings.teams.map(({ finalist, ...team }) => ({
-      ...team,
-      ...(leadsToFinals ? { finalist } : {}),
-      lines: prelimLines.get(foldName(team.name)) ?? [],
-    })),
+  const prelimLines = teamLines(prelims, levelTeams)
+  const prelimStandings = asConfirmed(
+    {
+      state: 'livePreview',
+      covers: { counted: prelims.length, scheduled: null },
+      teams: standings.teams.map(({ finalist, ...team }) => ({
+        ...team,
+        ...(leadsToFinals ? { finalist } : {}),
+        lines: prelimLines.get(foldName(team.name)) ?? [],
+      })),
+    },
+    input.confirmed?.prelims,
+  )
+
+  // The confirmed prelim order is what the re-rank starts from: it seated the intermediates
+  const rerank =
+    intermediates.length > 0
+      ? asConfirmed(
+          rerankOf(prelimStandings.teams, prelims, intermediates, levelTeams, tieBreaks),
+          input.confirmed?.rerank,
+        )
+      : null
+  for (const [what, table] of [
+    ['prelims', prelimStandings],
+    ['rerank', rerank],
+  ] as const) {
+    if (table?.current) warnings.push({ kind: 'orderChanged', division, what })
   }
 
-  const rerank = intermediates.length > 0 ? rerankOf(standings.teams, prelims, intermediates) : null
-
-  // A Finals counts for nobody's average
+  // A Finals counts for nobody's average, and standings by stage stop at the last step confirmed
+  const lastStage = QUIZZER_STAGES.indexOf(input.quizzersThrough ?? 'elimination')
   const individual = counting.filter(
-    (quiz): quiz is Staged & { stage: QuizzerTable['through'] } => quiz.stage !== 'finals',
+    (quiz): quiz is Staged & { stage: QuizzerStage } =>
+      quiz.stage !== 'finals' && QUIZZER_STAGES.indexOf(quiz.stage) <= lastStage,
   )
   const quizzers: QuizzerTable = {
     state: 'livePreview',
     through:
+      input.quizzersThrough ??
       [...QUIZZER_STAGES]
         .reverse()
-        .find((stage) => individual.some((quiz) => quiz.stage === stage)) ?? 'prelim',
+        .find((stage) => individual.some((quiz) => quiz.stage === stage)) ??
+      'prelim',
     lists: quizzerStandings(
       individual.map(({ name, scored }) => ({
         name,
@@ -258,6 +346,30 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
     ...(rerank ? { rerank } : {}),
     quizzers,
     warnings,
+  }
+}
+
+/**
+ * A table as the admin confirmed it, where they did: their order stands locked in whatever later
+ * corrections do, and the current order is kept beside it where it differs (FR-019b)
+ */
+function asConfirmed(table: TeamTable, confirmed: ConfirmedOrder | undefined): TeamTable {
+  if (!confirmed) return table
+  const sameOrder =
+    table.teams.length === confirmed.teams.length &&
+    table.teams.every((team, i) => {
+      const was = confirmed.teams[i]!
+      return (
+        foldName(team.name) === foldName(was.name) &&
+        team.rank === was.rank &&
+        team.placementPoints === was.placementPoints
+      )
+    })
+  return {
+    state: 'lockedIn',
+    teams: confirmed.teams,
+    ...(sameOrder ? {} : { current: table.teams }),
+    confirmed: { by: confirmed.by, at: confirmed.at },
   }
 }
 
@@ -310,27 +422,26 @@ function namedByRoster(scored: ScoredQuiz, roster: RosterTeam[] | null): ScoredQ
   }
 }
 
-function placementPointsOf(team: ScoredTeam, scored: ScoredQuiz): number | null {
-  return computePlacementPoints(team.regulationScore, team.place, scored.formula)
-}
-
-/** A quiz that counts, as the standings take it */
-function counted({ name, scored }: Staged): CountedQuiz {
+/**
+ * A quiz that counts, as the standings take it: teams level in it are given placement points the
+ * meet's way, whatever the quiz file carries (FR-023a)
+ */
+function counted({ name, scored }: Staged, levelTeams: PlacementFormula): CountedQuiz {
   return {
     name,
     teams: scored.teams.map((team) => ({
       name: team.name,
       score: team.score,
       place: team.place,
-      placementPoints: placementPointsOf(team, scored),
+      placementPoints: computePlacementPoints(team.regulationScore, team.place, levelTeams),
       errors: team.errors,
     })),
   }
 }
 
 /** The quizzes behind each team's total, by the team's folded name */
-function teamLines(quizzes: Staged[]): Map<string, TeamTable['teams'][number]['lines']> {
-  const linesOf = new Map<string, TeamTable['teams'][number]['lines']>()
+function teamLines(quizzes: Staged[], levelTeams: PlacementFormula): Map<string, TeamRow['lines']> {
+  const linesOf = new Map<string, TeamRow['lines']>()
   for (const { name, stage, scored } of quizzes) {
     for (const team of scored.teams) {
       const key = foldName(team.name)
@@ -340,7 +451,7 @@ function teamLines(quizzes: Staged[]): Map<string, TeamTable['teams'][number]['l
         stage,
         place: team.place === null ? null : placeRank(team.place),
         score: team.score,
-        placementPoints: placementPointsOf(team, scored),
+        placementPoints: computePlacementPoints(team.regulationScore, team.place, levelTeams),
         errors: team.errors,
       })
       linesOf.set(key, lines)
@@ -356,9 +467,11 @@ function teamLines(quizzes: Staged[]): Map<string, TeamTable['teams'][number]['l
  * between them.
  */
 function rerankOf(
-  prelimTeams: { name: string; rank: number }[],
+  prelimTeams: { name: string }[],
   prelims: Staged[],
   intermediates: Staged[],
+  levelTeams: PlacementFormula,
+  tieBreaks: TieBreakOrder,
 ): TeamTable {
   // A team's place in the prelim order, which tied teams hold one after the other, so teams an
   // intermediate separates take places of their own
@@ -372,15 +485,17 @@ function rerankOf(
       played.flatMap((quiz) => quiz.scored.teams.map((team) => foldName(team.name))),
     )
     const together = [...prelims, ...played]
-    const lines = teamLines(together)
+    const lines = teamLines(together, levelTeams)
     // Ranked among the line's teams alone: their points from every quiz, and ties broken between
     // them, never against a team outside the line
     const order = divisionStandings(
-      together.map(counted).map((quiz) => ({
-        ...quiz,
-        teams: quiz.teams.filter((team) => inLine.has(foldName(team.name))),
-      })),
-      { finalists: false },
+      together
+        .map((quiz) => counted(quiz, levelTeams))
+        .map((quiz) => ({
+          ...quiz,
+          teams: quiz.teams.filter((team) => inLine.has(foldName(team.name))),
+        })),
+      { finalists: false, tieBreaks },
     ).teams
     const held = order
       .map((team) => position.get(foldName(team.name)) ?? ++unplaced)
@@ -412,8 +527,21 @@ function firstThree(scored: ScoredQuiz): [string, string, string] | null {
   return [tidyName(first[0]!.name), tidyName(second[0]!.name), tidyName(third[0]!.name)]
 }
 
+/** Whether some quizzer of a quiz has correct answers no question type accounts for */
+function typesIncomplete(scored: ScoredQuiz): boolean {
+  return scored.teams.some((team) =>
+    team.quizzers.some(
+      (quizzer) => Object.values(quizzer.types).reduce((sum, n) => sum + n, 0) !== quizzer.correct,
+    ),
+  )
+}
+
 function quizResult(quiz: Staged): QuizResult {
   const named = quiz.scored.teams.filter((team) => tidyName(team.name) !== '')
+  const flags = {
+    ...(quiz.withdrawnOrder ? { withdrawnOrder: true as const } : {}),
+    ...(typesIncomplete(quiz.scored) ? { incompleteTypes: true as const } : {}),
+  }
   if (!quiz.counts) {
     return {
       name: quiz.name,
@@ -421,6 +549,7 @@ function quizResult(quiz: Staged): QuizResult {
       teams: named.map((team) => ({ name: tidyName(team.name) })),
       id: quiz.id,
       problems: quiz.problems,
+      ...flags,
     }
   }
   return {
@@ -438,5 +567,6 @@ function quizResult(quiz: Staged): QuizResult {
     }),
     id: quiz.id,
     ...(quiz.problems.length > 0 ? { problems: quiz.problems } : {}),
+    ...flags,
   }
 }

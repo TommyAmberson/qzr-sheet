@@ -1,6 +1,24 @@
 import { describe, it, expect } from 'vitest'
-import { ValidationCode, type QuizProblem } from '@qzr/shared'
-import { changeText, flagText, placeLabel, problemText, warningText } from '../stats'
+import {
+  DEFAULT_STATS_SETTINGS,
+  ValidationCode,
+  viewerHas,
+  type QuizProblem,
+  type StatsSettings,
+} from '@qzr/shared'
+import {
+  changeText,
+  flagText,
+  momentsFor,
+  nextMove,
+  placeLabel,
+  previousState,
+  problemText,
+  rightNow,
+  viewerChanges,
+  warningText,
+  type DivisionAt,
+} from '../stats'
 
 describe('changeText', () => {
   it('says what was decided about a stored quiz', () => {
@@ -74,6 +92,7 @@ describe('problemText', () => {
     expect(problemText({ kind: 'tieLeftStanding' })).toBe(
       'It ended level with no overtime, and this quiz must have a winner.',
     )
+    expect(problemText({ kind: 'overtimePlayed' })).toMatch(/overtime/)
   })
 
   it('lists the unanswered questions', () => {
@@ -95,6 +114,15 @@ describe('flagText', () => {
 })
 
 describe('warningText', () => {
+  it('says when a confirmed order has changed, and names a quiz seated from a withdrawn one', () => {
+    expect(warningText({ kind: 'orderChanged', division: '1', what: 'rerank' })).toMatch(
+      /^The re-rank has changed since it was confirmed/,
+    )
+    expect(warningText({ kind: 'withdrawnOrder', quiz: { id: 1, name: 'D1 QA' } })).toMatch(
+      /^D1 QA was seated from an order since withdrawn/,
+    )
+  })
+
   it('names a quiz in error and how many errors it has', () => {
     const quiz = { id: 1, name: 'D1 Q3' }
     const problem: QuizProblem = { kind: 'unanswered', questions: ['15'] }
@@ -135,5 +163,82 @@ describe('warningText', () => {
     ).toBe(
       'Teams have played different numbers of counted quizzes: Maple Hill 1 3, Cedar Grove 1 2.',
     )
+  })
+})
+
+describe('the stats settings page', () => {
+  const settings = (change: (s: StatsSettings) => void = () => {}) => {
+    const s = structuredClone(DEFAULT_STATS_SETTINGS)
+    change(s)
+    return s
+  }
+  const divisions: DivisionAt[] = [
+    { division: '1', state: 'stats_break' },
+    { division: '2', state: 'prelim_running' },
+  ]
+
+  it('offers no moment before a stage is played', () => {
+    expect(momentsFor('prelim')[0]).toBe('start')
+    expect(momentsFor('finals')).toEqual([
+      'eliminationsIn',
+      'finalsDone',
+      'meetReview',
+      'meetDone',
+      'never',
+    ])
+  })
+
+  it('says what viewers will newly see and stop seeing on save, by division', () => {
+    const draft = settings((s) => {
+      s.prelimStandingsLive = true
+      s.results.prelim.level = 'scores'
+      s.results.intermediate.from = 'never'
+    })
+    expect(viewerChanges(DEFAULT_STATS_SETTINGS, draft, divisions, 'live')).toEqual([
+      'Division 1 viewers will now see scores in prelim results',
+      'Division 1 viewers will stop seeing intermediate results',
+      'Division 1 viewers will now see the re-rank',
+      'Division 2 viewers will now see scores in prelim results',
+      'Division 2 viewers will now see prelim standings',
+    ])
+  })
+
+  it('says nothing changes for viewers when nothing would show yet', () => {
+    const draft = settings((s) => (s.quizzers.from = 'meetReview'))
+    expect(viewerChanges(DEFAULT_STATS_SETTINGS, draft, divisions, 'live')).toEqual([])
+  })
+
+  it('says when the standings will be worked out another way', () => {
+    const draft = settings((s) => (s.tieBreaks = 'pointsThenErrors'))
+    expect(viewerChanges(DEFAULT_STATS_SETTINGS, draft, divisions, 'live')).toEqual([
+      expect.stringMatching(/^Standings will be worked out the new way/),
+    ])
+  })
+
+  it("names what a division's viewers have right now", () => {
+    const has = viewerHas(DEFAULT_STATS_SETTINGS, 'stats_break', 'live')
+    expect(rightNow(has, 'prelim')).toBe('places')
+    expect(rightNow(has, 'prelimStandings')).toBe('Locked in')
+    expect(rightNow(has, 'quizzers')).toBe('none')
+  })
+
+  it("offers each division's next step, Start Finals where it has no eliminations", () => {
+    expect(nextMove('prelim_running', ['prelim'])).toEqual({
+      to: ['stats_break'],
+      label: 'Confirm prelims',
+    })
+    expect(nextMove('stats_break', ['prelim', 'intermediate', 'elimination'])).toEqual({
+      to: ['elim_running'],
+      label: 'Confirm intermediates',
+    })
+    expect(nextMove('stats_break', ['prelim', 'finals'])).toEqual({
+      to: ['elim_running', 'finals'],
+      label: 'Start Finals',
+    })
+    // A meet with no published schedule has no stages to go by
+    expect(nextMove('stats_break', [])?.label).toBe('Start eliminations')
+    expect(nextMove('division_done', ['prelim'])).toBeNull()
+    expect(previousState('prelim_running')).toBeNull()
+    expect(previousState('finals')).toBe('elim_running')
   })
 })

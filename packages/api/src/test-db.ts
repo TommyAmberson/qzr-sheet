@@ -291,6 +291,30 @@ export async function createTestDb(): Promise<Db> {
       UNIQUE (meet_id, version)
     );
 
+    CREATE TABLE meet_stats_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,
+      settings TEXT NOT NULL,
+      saved_by_account_id TEXT REFERENCES user(id) ON DELETE SET NULL,
+      saved_by_name TEXT NOT NULL,
+      saved_at INTEGER NOT NULL
+    );
+    CREATE INDEX meet_stats_settings_meet_id_idx ON meet_stats_settings (meet_id);
+
+    CREATE TABLE division_confirmations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+      meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,
+      division TEXT NOT NULL,
+      what TEXT NOT NULL,
+      confirmed INTEGER NOT NULL,
+      teams TEXT,
+      affected TEXT,
+      by_account_id TEXT REFERENCES user(id) ON DELETE SET NULL,
+      by_name TEXT NOT NULL,
+      at INTEGER NOT NULL
+    );
+    CREATE INDEX division_confirmations_meet_id_idx ON division_confirmations (meet_id);
+
     CREATE TABLE meet_team_names (
       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
       meet_id INTEGER NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,

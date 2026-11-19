@@ -106,6 +106,20 @@
       "when": 1794791760133,
       "tag": "0014_sweet_triton",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1795062669576,
+      "tag": "0015_plain_guardsmen",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1795063132178,
+      "tag": "0016_naive_madripoor",
+      "breakpoints": true
     }
   ]
 }

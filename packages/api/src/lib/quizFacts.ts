@@ -1,12 +1,15 @@
 import { asc, eq } from 'drizzle-orm'
 import {
+  foldName,
   resultKeyDivision,
   resultName,
   sameDivision,
   scheduledQuizOf,
   scheduledStage,
   storedStage,
+  STAGES,
   teamDisplayName,
+  type ConfirmedOrder,
   type LinkHow,
   type RosterTeam,
   type ScheduleDocument,
@@ -40,6 +43,8 @@ interface Decisions {
   linkBy: LinkHow | null
   /** Each revision's newest acceptance: accepted as scored, or withdrawn */
   accepted: Map<number, boolean>
+  /** When an admin last kept it as it is, after an order it was seated from was withdrawn */
+  keptAt: number | null
 }
 
 type Change = typeof schema.quizResultChanges.$inferInsert
@@ -88,10 +93,14 @@ export interface MeetFacts {
   claimed: Map<string, number>
   /** Null for a meet with no teams entered: it has no roster to hold names against */
   teams: MeetTeam[] | null
+  /** Each division's standing confirmed orders, by its folded name */
+  confirmed: Map<string, { prelims?: ConfirmedOrder; rerank?: ConfirmedOrder }>
+  /** When an order each stored quiz was seated from was last withdrawn, by its id */
+  withdrawnAt: Map<number, number>
 }
 
 export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
-  const [changes, version, teams, quizzers] = await Promise.all([
+  const [changes, version, teams, quizzers, confirmations] = await Promise.all([
     db
       .select({
         resultId: schema.quizResultChanges.resultId,
@@ -101,6 +110,7 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
         how: schema.quizResultChanges.how,
         revision: schema.quizResultChanges.revision,
         accepted: schema.quizResultChanges.accepted,
+        changedAt: schema.quizResultChanges.changedAt,
       })
       .from(schema.quizResultChanges)
       .innerJoin(schema.quizResults, eq(schema.quizResults.id, schema.quizResultChanges.resultId))
@@ -123,6 +133,11 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
       .from(schema.teamRosters)
       .innerJoin(schema.teams, eq(schema.teams.id, schema.teamRosters.teamId))
       .where(eq(schema.teams.meetId, meetId)),
+    db
+      .select()
+      .from(schema.divisionConfirmations)
+      .where(eq(schema.divisionConfirmations.meetId, meetId))
+      .orderBy(asc(schema.divisionConfirmations.id)),
   ])
 
   // Rows come oldest first, so each kind's last row is its current value
@@ -130,7 +145,7 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
   for (const change of changes) {
     let quiz = decisions.get(change.resultId)
     if (!quiz) {
-      quiz = { stage: null, link: null, linkBy: null, accepted: new Map() }
+      quiz = { stage: null, link: null, linkBy: null, accepted: new Map(), keptAt: null }
       decisions.set(change.resultId, quiz)
     }
     if (change.kind === 'stage') quiz.stage = change.stage
@@ -142,7 +157,30 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
           : { scheduleQuizId: change.scheduleQuizId, how: change.how ?? 'hand' }
     } else if (change.kind === 'acceptance' && change.revision !== null) {
       quiz.accepted.set(change.revision, change.accepted ?? false)
+    } else if (change.kind === 'kept') {
+      quiz.keptAt = change.changedAt.getTime()
     }
+  }
+
+  // Oldest first too: a division's newest row of each order says whether it stands confirmed
+  const confirmed: MeetFacts['confirmed'] = new Map()
+  const withdrawnAt = new Map<number, number>()
+  for (const row of confirmations) {
+    const division = foldName(row.division)
+    const orders = confirmed.get(division) ?? {}
+    if (row.confirmed && row.teams !== null) {
+      orders[row.what] = {
+        teams: JSON.parse(row.teams) as ConfirmedOrder['teams'],
+        by: row.byName,
+        at: row.at.toISOString(),
+      }
+    } else {
+      delete orders[row.what]
+      for (const id of JSON.parse(row.affected ?? '[]') as number[]) {
+        withdrawnAt.set(id, row.at.getTime())
+      }
+    }
+    confirmed.set(division, orders)
   }
 
   const document = version ? (JSON.parse(version.document) as ScheduleDocument) : null
@@ -164,6 +202,8 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
       byKey,
     },
     claimed: new Map(),
+    confirmed,
+    withdrawnAt,
     teams:
       teams.length === 0
         ? null
@@ -252,6 +292,8 @@ export function quizFacts(
   linked: ScheduledQuiz | null
   line: number | undefined
   accepted: boolean
+  /** Seated from an order since withdrawn, and not kept by an admin since */
+  withdrawnOrder: boolean
   roster: RosterTeam[] | null
   schedulePublished: boolean
 } {
@@ -270,21 +312,24 @@ export function quizFacts(
     linked: link ? scheduledQuiz(facts, link.scheduleQuizId) : null,
     line: scheduleQuiz?.line,
     accepted: decided?.accepted.get(quiz.contentRevision) ?? false,
+    withdrawnOrder:
+      stage !== null && (facts.withdrawnAt.get(quiz.id) ?? 0) > (decided?.keptAt ?? 0),
     roster: rosterOf(facts, resultKeyDivision(quiz.quizKey)),
     schedulePublished: facts.schedule !== null,
   }
 }
 
+/** The stages the schedule has for a division, in the order they are played */
+export function scheduledStages(facts: MeetFacts, division: string): Stage[] {
+  const stages = new Set<Stage>()
+  for (const quiz of facts.schedule?.quizzes.values() ?? []) {
+    if (sameDivision(quiz.division, division)) stages.add(scheduledStage(quiz))
+  }
+  return STAGES.filter((stage) => stages.has(stage))
+}
+
 /** Whether the schedule has an intermediate or an elimination quiz for a division */
 export function hasLaterStages(facts: MeetFacts, division: string): boolean {
-  for (const quiz of facts.schedule?.quizzes.values() ?? []) {
-    const stage = scheduledStage(quiz)
-    if (
-      sameDivision(quiz.division, division) &&
-      (stage === 'intermediate' || stage === 'elimination')
-    ) {
-      return true
-    }
-  }
-  return false
+  const stages = scheduledStages(facts, division)
+  return stages.includes('intermediate') || stages.includes('elimination')
 }

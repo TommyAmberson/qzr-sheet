@@ -257,7 +257,7 @@ export const teamRosters = sqliteTable(
 // ---- Schedule ----
 
 // Per-division state machine inside the `live` meet phase.
-// Transitions: prelim_running → stats_break → elim_running → division_done.
+// Transitions: prelim_running → stats_break → elim_running → finals → division_done.
 export const divisionStates = sqliteTable(
   'division_states',
   {
@@ -513,6 +513,53 @@ export const meetScheduleVersions = sqliteTable(
     publishedByName: text('published_by_name').notNull(),
   },
   (t) => [unique().on(t.meetId, t.version)],
+)
+
+// A meet's stats settings, append-only: the newest row is the meet's settings, and a meet with no
+// row has the defaults. The document is validated by the shared schema before it is stored
+export const meetStatsSettings = sqliteTable(
+  'meet_stats_settings',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    settings: text('settings').notNull(),
+    savedByAccountId: text('saved_by_account_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    // Who saved it, as named at the time, so the history survives a deleted account
+    savedByName: text('saved_by_name').notNull(),
+    savedAt: integer('saved_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('meet_stats_settings_meet_id_idx').on(t.meetId)],
+)
+
+// Each time an admin confirms or withdraws a division's prelim order or re-rank, append-only. A
+// division's confirmed order is the `order` of its newest row of that `what`, when that row confirms
+export const CONFIRMED_ORDERS = ['prelims', 'rerank'] as const
+export const divisionConfirmations = sqliteTable(
+  'division_confirmations',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetId: integer('meet_id')
+      .notNull()
+      .references(() => quizMeets.id, { onDelete: 'cascade' }),
+    // The division as the meet spells it
+    division: text('division').notNull(),
+    what: text('what', { enum: CONFIRMED_ORDERS }).notNull(),
+    // Confirmed, or withdrawn
+    confirmed: integer('confirmed', { mode: 'boolean' }).notNull(),
+    // On a confirmation: the teams in order as they stood, JSON
+    teams: text('teams'),
+    // On a withdrawal: the stored quizzes of later stages seated from the order withdrawn, JSON
+    affected: text('affected'),
+    byAccountId: text('by_account_id').references(() => user.id, { onDelete: 'set null' }),
+    // Who did it, as named at the time, so the history survives a deleted account
+    byName: text('by_name').notNull(),
+    at: integer('at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('division_confirmations_meet_id_idx').on(t.meetId)],
 )
 
 // ---- Inferred types ----

@@ -20,6 +20,7 @@ export const DIVISION_STATES = [
   'prelim_running',
   'stats_break',
   'elim_running',
+  'finals',
   'division_done',
 ] as const
 export type DivisionStateValue = (typeof DIVISION_STATES)[number]

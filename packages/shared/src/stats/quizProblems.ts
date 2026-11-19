@@ -25,6 +25,8 @@ export type ScheduleProblem =
   | { kind: 'teamsDiffer'; scheduled: string[] }
   /** An elimination or Finals that ended level with no overtime, where there must be a winner */
   | { kind: 'tieLeftStanding' }
+  /** Overtime played in a prelim or an intermediate of a meet that plays them without it */
+  | { kind: 'overtimePlayed' }
 
 /** What is wrong with a stored quiz; any one keeps it out of every table until fixed or accepted */
 export type QuizProblem = ScoringProblem | RosterProblem | ScheduleProblem
@@ -97,18 +99,27 @@ function sameTeams(teams: SeatedTeam[], scheduled: Pick<RosterTeam, 'name' | 'sh
   return true
 }
 
+/** What a stored quiz is held against, beside the quiz itself */
+export interface QuizHeld {
+  stage: Stage | null
+  /** The quiz's own name, as a result key */
+  key: string
+  linked: ScheduledQuiz | null
+  /** The division's teams with their quizzers, or null for a meet with no roster */
+  roster: RosterTeam[] | null
+  /** Whether the meet has a published schedule, so that every quiz should be one of its quizzes */
+  schedulePublished: boolean
+  /** Whether the meet plays its prelims and intermediates without overtime, a tie standing */
+  prelimsWithoutOvertime: boolean
+}
+
 /**
  * How a quiz disagrees with the scheduled quiz it is linked to and with its stage. On an unlinked
  * quiz the differences are no error: they are why it did not link itself.
  */
 export function scheduleProblems(
   scored: ScoredQuiz,
-  stage: Stage | null,
-  /** The quiz's own name, as a result key */
-  key: string,
-  linked: ScheduledQuiz | null,
-  /** Whether the meet has a published schedule, so that every quiz should be one of its quizzes */
-  schedulePublished: boolean,
+  { stage, key, linked, schedulePublished, prelimsWithoutOvertime }: Omit<QuizHeld, 'roster'>,
 ): ScheduleProblem[] {
   const problems: ScheduleProblem[] = []
   if (!linked && schedulePublished) problems.push({ kind: 'notLinked' })
@@ -122,6 +133,11 @@ export function scheduleProblems(
   const mustHaveWinner = stage === 'elimination' || stage === 'finals'
   if (mustHaveWinner && scored.teams.some((t) => t.place !== null && placeTieCount(t.place) > 1)) {
     problems.push({ kind: 'tieLeftStanding' })
+  }
+  // Where a tie stands, overtime changes who places where, so the quiz isn't what was played for
+  const tieStands = stage === 'prelim' || stage === 'intermediate'
+  if (tieStands && prelimsWithoutOvertime && scored.overtimePlayed) {
+    problems.push({ kind: 'overtimePlayed' })
   }
   return problems
 }
@@ -191,20 +207,10 @@ export function rosterProblems(scored: ScoredQuiz, teams: RosterTeam[] | null): 
 }
 
 /** Everything wrong with a stored quiz: what the quiz alone shows, then its roster, then its schedule */
-export function quizProblems(
-  scored: ScoredQuiz,
-  held: {
-    stage: Stage | null
-    /** The quiz's own name, as a result key */
-    key: string
-    linked: ScheduledQuiz | null
-    roster: RosterTeam[] | null
-    schedulePublished: boolean
-  },
-): QuizProblem[] {
+export function quizProblems(scored: ScoredQuiz, held: QuizHeld): QuizProblem[] {
   return [
     ...scored.problems,
     ...rosterProblems(scored, held.roster),
-    ...scheduleProblems(scored, held.stage, held.key, held.linked, held.schedulePublished),
+    ...scheduleProblems(scored, held),
   ]
 }
