@@ -1,7 +1,7 @@
 import {
   WEEKDAYS,
   defaultElims,
-  divisionName,
+  quizLabel,
   newScheduleDocument,
   ordinal,
   quizNumber,
@@ -238,7 +238,7 @@ export function documentFromLegacy(old: LegacySchedule, timeZone: string): Sched
   doc.quizzes = quizzes.map((q): ScheduleQuiz => {
     const quiz: ScheduleQuiz = {
       id: String(q.id),
-      label: `${divisionName(q.division)} Quiz ${oldNumber(q)}`,
+      label: quizLabel(q.division, oldNumber(q)),
       division: q.division,
       phase: q.phase,
       cell: { slot: String(q.slotId), room: String(q.roomId) },

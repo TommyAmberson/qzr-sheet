@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { bareDivision, divisionName, divisionTitle, findDivision, sameDivision } from '../names'
+import {
+  bareDivision,
+  divisionName,
+  divisionTitle,
+  findDivision,
+  quizLabel,
+  quizNumber,
+  sameDivision,
+} from '../names'
 
 describe('bareDivision', () => {
   it('drops a prefix typed before the division', () => {
@@ -60,5 +68,12 @@ describe('findDivision', () => {
   it('finds a name in a list as the list spells it, or nothing', () => {
     expect(findDivision(['1', '2C'], '2c')).toBe('2C')
     expect(findDivision(['1', '2C'], 'Div 1')).toBeUndefined()
+  })
+})
+
+describe('quizLabel', () => {
+  it("labels a quiz from its division's bare name, and quizNumber reads its own name back", () => {
+    expect(quizLabel('2C', 'A')).toBe('Div 2C Quiz A')
+    expect(quizNumber({ label: quizLabel('1', 7) })).toBe('7')
   })
 })

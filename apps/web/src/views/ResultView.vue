@@ -240,7 +240,7 @@ onMounted(load)
           <label>
             Division
             <!-- Its label says "Division", so the box shows no prefix of its own -->
-            <DivisionInput v-model="form.division" class="division-box" prefix="" required />
+            <DivisionInput v-model="form.division" bare required />
           </label>
           <label>
             Quiz number
@@ -397,8 +397,7 @@ onMounted(load)
   max-width: 16rem;
 }
 
-.quick-form input,
-.quick-form .division-box {
+.quick-form input {
   font: inherit;
   padding: 0.3rem 0.5rem;
   border: 1px solid var(--color-border);

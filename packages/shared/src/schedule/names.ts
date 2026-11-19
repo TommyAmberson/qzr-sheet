@@ -7,6 +7,11 @@ export function ordinal(n: number): string {
   return `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : suffix}`
 }
 
+/** A scheduled quiz's label, from its division's bare name and its own name: `Div 2 Quiz A` */
+export function quizLabel(division: string, number: string | number): string {
+  return `${divisionName(division)} Quiz ${number}`
+}
+
 /** A quiz's own name within its division, its label's last word: `A` of `Div 2 Quiz A` */
 export function quizNumber(q: Pick<ScheduleQuiz, 'label'>): string {
   return q.label.trim().split(/\s+/).pop() ?? ''
@@ -38,9 +43,12 @@ export function divisionTitle(name: string): string {
   return `Division ${name}`
 }
 
+/** The prefix a division's name is shown with on a schedule, in labels and in its boxes */
+export const DIVISION_PREFIX = 'Div'
+
 /** A division shown on a schedule and in its quizzes' labels, from its bare name: `Div 2` */
 export function divisionName(name: string): string {
-  return `Div ${name}`
+  return `${DIVISION_PREFIX} ${name}`
 }
 
 /**

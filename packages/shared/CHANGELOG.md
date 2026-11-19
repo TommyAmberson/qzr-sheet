@@ -23,6 +23,16 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-11-19
+
+### Added
+
+* `DIVISION_PREFIX`, the `Div` a division's name is shown with on schedules, in labels and in its
+  boxes, which `divisionName` now uses.
+* `quizLabel`, a scheduled quiz's label from its division's bare name and its own name
+  (`Div 2 Quiz A`), beside `quizNumber`, which reads the name back. The schedule's prelims,
+  intermediates and eliminations are labelled through it.
+
 ## [1.14.0] - 2026-11-18
 
 ### Added
