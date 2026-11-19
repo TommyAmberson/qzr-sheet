@@ -296,6 +296,48 @@ describe('useScoresheet — swapTeams', () => {
   })
 })
 
+describe('useScoresheet — undo steps', () => {
+  it('keeps up to 1000 steps, the oldest falling off', () => {
+    const s = useScoresheet()
+    for (let i = 0; i < 1001; i++) {
+      s.setCell(T(0), S(0), C(0), i % 2 === 0 ? CellValue.Correct : CellValue.Empty)
+    }
+    for (let i = 0; i < 999; i++) s.undo()
+    expect(s.canUndo.value).toBe(true)
+    s.undo()
+    expect(s.canUndo.value).toBe(false)
+    // The first step fell off, so undoing stops at the state it left
+    expect(s.cells.value[0]![0]![0]).toBe(CellValue.Correct)
+  })
+
+  it('keeps names, on-time marks, question types and quizzer order out of history', () => {
+    const s = useScoresheet()
+    s.setTeamName(T(0), 'Lions')
+    s.setQuizzerName(T(0), S(0), 'Alice')
+    s.toggleOnTime(T(1))
+    s.setQuestionType(C(0), QuestionCategory.Q)
+    s.moveQuizzer(T(0), S(0), S(1))
+    expect(s.canUndo.value).toBe(false)
+  })
+
+  it('takes back an edit made as one, and redoes it', () => {
+    const s = useScoresheet()
+    const alongside = vi.fn()
+    const write = (name: string) => {
+      s.setTeamName(T(0), name)
+      s.setQuizzerName(T(0), S(0), name && `${name} one`)
+      alongside(name)
+    }
+    s.editAsOne({ redo: () => write('Lions'), undo: () => write('') })
+    s.undo()
+    expect(s.teams.value[0]!.name).toBe('')
+    expect(s.teamQuizzers.value[0]![0]!.name).toBe('')
+    s.redo()
+    expect(s.teams.value[0]!.name).toBe('Lions')
+    expect(alongside.mock.calls).toEqual([['Lions'], [''], ['Lions']])
+  })
+})
+
 describe('useScoresheet — clearNames', () => {
   it('blanks team names', () => {
     const s = useScoresheet()

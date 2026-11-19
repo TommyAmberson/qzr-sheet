@@ -1,5 +1,5 @@
 import { ref, computed, shallowRef, watch } from 'vue'
-import { useHistory } from '@qzr/ui'
+import { type HistoryCommand, useHistory } from '@qzr/ui'
 import {
   readOpenedFromNewerFile,
   writeOpenedFromNewerFile,
@@ -37,6 +37,7 @@ import {
   overtimeRoundsNeeded,
 } from '@qzr/shared'
 import { createQuizStore } from '../stores/quizStore'
+import { applyStep, recordEdit, type UndoStep } from './undoSteps'
 import {
   saveToStorage,
   loadFromStorage,
@@ -56,9 +57,20 @@ import {
  * branded `TeamIdx` / `SeatIdx` / `ColIdx` types live in the scoring/store
  * layers; see `../types/indices.ts` for the full explanation.
  */
+/** Undo steps the sheet keeps: up to this many, the oldest falling off */
+const UNDO_LIMIT = 1000
+
+/**
+ * An undo step in the session: the step as data, and what it does outside the quiz (the meet picks
+ * a team swap moves), which is not kept beyond the page
+ */
+interface SheetStep extends HistoryCommand {
+  step: UndoStep
+}
+
 export function useScoresheet() {
   const store = createQuizStore()
-  const history = useHistory()
+  const history = useHistory<SheetStep>(UNDO_LIMIT)
 
   // --- Reactive wrappers around store data ---
   // store.quiz is a reactive proxy; ref() wraps it so consumer call sites
@@ -85,6 +97,29 @@ export function useScoresheet() {
   /** Timeouts per team — 0 to MAX_TIMEOUTS_PER_TEAM entries per team */
   const timeoutMap = ref(new Map<number, Timeout[]>())
 
+  const undoTarget = { store, noJumps: noJumpMap, timeouts: timeoutMap }
+
+  /** A step as the session runs it: its changes written back, then whatever runs alongside */
+  function sheetStep(step: UndoStep, alongside?: HistoryCommand): SheetStep {
+    return {
+      step,
+      undo: () => {
+        applyStep(undoTarget, step, 'undo')
+        alongside?.undo()
+      },
+      redo: () => {
+        applyStep(undoTarget, step, 'redo')
+        alongside?.redo()
+      },
+    }
+  }
+
+  /** Make `change` as one undoable step, with `alongside` run on each undo and redo */
+  function edit(change: () => void, alongside?: HistoryCommand) {
+    const step = recordEdit(undoTarget, change)
+    if (step.changes.length > 0 || alongside) history.push(sheetStep(step, alongside))
+  }
+
   /** OT rounds to allocate for a freshly loaded quiz: as many as its saved answers reach */
   function computeInitialOtRounds(loaded: DeserializeResult): number {
     if (!loaded.quiz.overtime) return 1
@@ -105,9 +140,7 @@ export function useScoresheet() {
     timeoutMap.value = restored.timeouts
     internalOtRounds.value = computeInitialOtRounds(restored)
     const named = [...restored.teams, ...restored.quizzers].some(({ name }) => name.trim())
-    if (restored.answers.length > 0 || named) {
-      history.push({ undo: () => {}, redo: () => {} })
-    }
+    if (restored.answers.length > 0 || named) history.push(sheetStep({ changes: [] }))
   } else {
     // Nothing restored (empty, corrupt, or a newer auto-save set aside): no quiz to warn about
     openedFromNewerFile.value = false
@@ -174,11 +207,7 @@ export function useScoresheet() {
     if (!qzr || !col) return
     const prev = store.getAnswer(qzr.id, col.key)
     if (prev === value) return
-    store.setAnswer(qzr.id, col.key, value)
-    history.push({
-      undo: () => store.setAnswer(qzr.id, col.key, prev),
-      redo: () => store.setAnswer(qzr.id, col.key, value),
-    })
+    edit(() => store.setAnswer(qzr.id, col.key, value))
   }
 
   // --- Scoring ---
@@ -456,19 +485,23 @@ export function useScoresheet() {
     const a = teams.value[teamIdxA]
     const b = teams.value[teamIdxB]
     if (!a || !b || a === b) return
-    const swap = () => {
-      store.swapTeams(a.id, b.id)
-      alongside()
-    }
-    swap()
-    // A swap is its own undoing
-    history.push({ undo: swap, redo: swap })
+    edit(
+      () => {
+        store.swapTeams(a.id, b.id)
+        alongside()
+      },
+      // A swap is its own undoing
+      { undo: alongside, redo: alongside },
+    )
   }
 
-  /** Do an edit made of several writes as one, which undo takes back and redo makes again */
-  function editAsOne(edit: { redo: () => void; undo: () => void }) {
-    edit.redo()
-    history.push(edit)
+  /**
+   * Do an edit made of several writes as one, which undo takes back and redo makes again. Its own
+   * undo and redo run too, in the session, for what they write outside the quiz; their writes to
+   * the quiz repeat what the step already put back.
+   */
+  function editAsOne(change: HistoryCommand) {
+    edit(change.redo, change)
   }
 
   function moveQuizzer(teamIdx: number, fromSeat: number, toSeat: number) {
@@ -504,19 +537,10 @@ export function useScoresheet() {
   function toggleNoJump(colIdx: number) {
     const key = columns.value[colIdx]?.key
     if (!key) return
-    const prev = noJumpMap.value.get(key) ?? false
-    const next = !prev
-    noJumpMap.value.set(key, next)
-    noJumpMap.value = new Map(noJumpMap.value)
-    history.push({
-      undo: () => {
-        noJumpMap.value.set(key, prev)
-        noJumpMap.value = new Map(noJumpMap.value)
-      },
-      redo: () => {
-        noJumpMap.value.set(key, next)
-        noJumpMap.value = new Map(noJumpMap.value)
-      },
+    const next = !(noJumpMap.value.get(key) ?? false)
+    edit(() => {
+      noJumpMap.value.set(key, next)
+      noJumpMap.value = new Map(noJumpMap.value)
     })
   }
 
@@ -530,24 +554,16 @@ export function useScoresheet() {
     return teamTimeouts(teamId).length
   }
 
-  /** Snapshot the entire timeoutMap for undo/redo */
-  function snapshotTimeouts(): Map<number, Timeout[]> {
-    const snap = new Map<number, Timeout[]>()
-    for (const [k, v] of timeoutMap.value) snap.set(k, [...v])
-    return snap
-  }
-
-  function applyTimeoutSnapshot(snap: Map<number, Timeout[]>): void {
-    timeoutMap.value = new Map(snap)
-  }
-
   /** Timeouts can be called between questions until error points begin */
   function isTimeoutAllowed(columnKey: string): boolean {
     return isTimeoutAllowedBy(columnKey, rules.value)
   }
 
   function addTimeout(teamId: number, afterColumnKey: string | null): void {
-    const snapshot = snapshotTimeouts()
+    edit(() => addTimeoutNow(teamId, afterColumnKey))
+  }
+
+  function addTimeoutNow(teamId: number, afterColumnKey: string | null): void {
     const current = teamTimeouts(teamId)
 
     // Only one team can have a timeout after a given question — clear the other team's
@@ -569,10 +585,6 @@ export function useScoresheet() {
         next[untrackedIdx] = { afterColumnKey }
         timeoutMap.value.set(teamId, next)
         timeoutMap.value = new Map(timeoutMap.value)
-        history.push({
-          undo: () => applyTimeoutSnapshot(snapshot),
-          redo: () => addTimeout(teamId, afterColumnKey),
-        })
         return
       }
     }
@@ -580,29 +592,15 @@ export function useScoresheet() {
     const next = [...current, { afterColumnKey }]
     timeoutMap.value.set(teamId, next)
     timeoutMap.value = new Map(timeoutMap.value)
-    history.push({
-      undo: () => applyTimeoutSnapshot(snapshot),
-      redo: () => addTimeout(teamId, afterColumnKey),
-    })
   }
 
   function removeLastTimeout(teamId: number): void {
     const current = teamTimeouts(teamId)
     if (current.length === 0) return
 
-    const prev = [...current]
-    const next = current.slice(0, -1)
-    timeoutMap.value.set(teamId, next)
-    timeoutMap.value = new Map(timeoutMap.value)
-    history.push({
-      undo: () => {
-        timeoutMap.value.set(teamId, prev)
-        timeoutMap.value = new Map(timeoutMap.value)
-      },
-      redo: () => {
-        timeoutMap.value.set(teamId, next)
-        timeoutMap.value = new Map(timeoutMap.value)
-      },
+    edit(() => {
+      timeoutMap.value.set(teamId, current.slice(0, -1))
+      timeoutMap.value = new Map(timeoutMap.value)
     })
   }
 
@@ -610,18 +608,14 @@ export function useScoresheet() {
   function toggleTimeout(teamId: number, columnKey: string): void {
     const current = teamTimeouts(teamId)
     const existingIdx = current.findIndex((t) => t.afterColumnKey === columnKey)
-    if (existingIdx >= 0) {
-      const snapshot = snapshotTimeouts()
-      const next = current.filter((_, i) => i !== existingIdx)
-      timeoutMap.value.set(teamId, next)
+    if (existingIdx < 0) return addTimeout(teamId, columnKey)
+    edit(() => {
+      timeoutMap.value.set(
+        teamId,
+        current.filter((_, i) => i !== existingIdx),
+      )
       timeoutMap.value = new Map(timeoutMap.value)
-      history.push({
-        undo: () => applyTimeoutSnapshot(snapshot),
-        redo: () => toggleTimeout(teamId, columnKey),
-      })
-    } else {
-      addTimeout(teamId, columnKey)
-    }
+    })
   }
 
   /** Check if a specific team has a timeout at a specific column */
