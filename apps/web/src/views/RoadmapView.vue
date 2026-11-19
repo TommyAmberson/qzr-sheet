@@ -49,19 +49,21 @@
               filters the team picker automatically when linked to a meet.
             </dd>
           </div>
+          <div class="feature-item">
+            <dt class="feature-name">Stats</dt>
+            <dd class="feature-desc">
+              Quizzer averages and team standings through prelims, the re-rank and eliminations to
+              the Finals' first three, shown to viewers when the meet's settings say. A page that
+              reads on a phone and prints as the statistician's report, with any total traced to its
+              quizzes and the tables downloadable for a spreadsheet.
+            </dd>
+          </div>
         </dl>
       </section>
 
       <section class="section">
         <h2 class="section-title">Coming soon</h2>
         <dl class="feature-list">
-          <div class="feature-item">
-            <dt class="feature-name">Stats</dt>
-            <dd class="feature-desc">
-              Team and individual totals computed from submitted results: points, correct/incorrect
-              counts, and placement finishes.
-            </dd>
-          </div>
           <div class="feature-item">
             <dt class="feature-name">Separate results for every consolation lane</dt>
             <dd class="feature-desc">

@@ -7,18 +7,16 @@ pointer in suggested build order. See `CHANGELOG.md` for what has shipped, and t
 
 ## Suggested order
 
-Results (#7, specs/003-practice-meet-results) and the schedule builder (#9,
-specs/005-schedule-redesign) have shipped: submitting and uploading, standings, corrections with
-history, generation from team counts with pins, the draw, elim lanes, and linked publishing with
-versions.
+Results (#7, specs/003-practice-meet-results), the schedule builder (#9,
+specs/005-schedule-redesign) and stats (#8, specs/006-meet-stats) have shipped: submitting and
+uploading, standings, corrections with history, generation from team counts with pins, the draw,
+elim lanes, linked publishing with versions, quizzer standings, stages and the re-rank, what viewers
+see and when, results management, and the statistician's report and download.
 
-1. [#8 Stats](https://github.com/TommyAmberson/qzr-sheet/issues/8) — individual and question-type
-   stats, placement finishes, and a stats page that reads well. Standings already exist
-   (`packages/shared/src/scoring/standings.ts`). With it, real data to check against:
+1. Real data to check stats against:
    * [#52 Mass results importer for backfilling real meets](https://github.com/TommyAmberson/qzr-sheet/issues/52)
    * [#116 Store score-only quiz results](https://github.com/TommyAmberson/qzr-sheet/issues/116)
 2. [#16 Fill elim seats with teams as results come in](https://github.com/TommyAmberson/qzr-sheet/issues/16)
-   — blocked by #8
 3. [#117 Add a review phase between live and done](https://github.com/TommyAmberson/qzr-sheet/issues/117),
    with [#154 Dispute quiz results](https://github.com/TommyAmberson/qzr-sheet/issues/154)
 4. [#11 Quizzer identity linking](https://github.com/TommyAmberson/qzr-sheet/issues/11) — persistent
