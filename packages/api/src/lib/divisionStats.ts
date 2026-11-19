@@ -6,6 +6,7 @@ import {
   type DivisionStateValue,
   type DivisionStatsInput,
   type MeetPhase,
+  type NameDismissal,
   type QuizzerStage,
   type ScoredQuiz,
   type Stage,
@@ -90,14 +91,25 @@ export interface StatsGround {
   states: StateRows
   facts: MeetFacts
   settings: StatsSettings
+  /** Look-alike pairs an admin said are different names, by folded division */
+  dismissed: Map<string, NameDismissal[]>
 }
 
 export async function statsGround(db: Db, meetId: number): Promise<StatsGround | null> {
-  const [meets, states, facts, { settings }] = await Promise.all([
+  const [meets, states, facts, { settings }, dismissals] = await Promise.all([
     meetQuery(db, meetId),
     divisionStatesQuery(db, meetId),
     meetFacts(db, meetId),
     statsSettingsOf(db, meetId),
+    db
+      .select({
+        division: schema.meetNameDismissals.division,
+        team: schema.meetNameDismissals.team,
+        nameA: schema.meetNameDismissals.nameA,
+        nameB: schema.meetNameDismissals.nameB,
+      })
+      .from(schema.meetNameDismissals)
+      .where(eq(schema.meetNameDismissals.meetId, meetId)),
   ])
   const meet = meets[0]
   if (!meet) return null
@@ -106,6 +118,14 @@ export async function statsGround(db: Db, meetId: number): Promise<StatsGround |
     states,
     facts,
     settings,
+    dismissed: Map.groupBy(
+      dismissals.map(({ division, team, nameA, nameB }) => ({
+        division,
+        team,
+        names: [nameA, nameB] as [string, string],
+      })),
+      (dismissal) => dismissal.division,
+    ),
   }
 }
 
@@ -114,6 +134,8 @@ export interface DivisionQuiz {
   id: number
   name: string
   stage: Stage | null
+  /** An admin's choice, where the stage is theirs; with no stage, set not to count */
+  admin: boolean
   scheduleQuizId: string | null
 }
 
@@ -206,11 +228,13 @@ export async function divisionOf(
       settings: ground.settings,
       confirmed: facts.confirmed.get(folded),
       quizzersThrough,
+      dismissed: ground.dismissed.get(folded),
     },
     quizzes: held.map(({ quiz, scored, facts: of }) => ({
       id: quiz.id,
       name: scored.name,
       stage: of.stage,
+      admin: of.stageFrom === 'admin',
       scheduleQuizId: of.link?.scheduleQuizId ?? null,
     })),
   }

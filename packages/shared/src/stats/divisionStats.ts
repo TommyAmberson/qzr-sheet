@@ -6,12 +6,17 @@ import {
   placeRank,
   placeTieCount,
 } from '../scoring/placement'
-import { quizzerStandings, type QuizzerList } from '../scoring/quizzerStandings'
+import {
+  quizzerStandings,
+  type QuizzerList,
+  type QuizzerStanding,
+} from '../scoring/quizzerStandings'
 import {
   divisionStandings,
   type CountedQuiz,
   type TieBreak,
   type TieBreakOrder,
+  looksAlike,
 } from '../scoring/standings'
 import type { PlacementFormula } from '../quizFile'
 import { playing, quizProblems, type QuizProblem, type ScheduledQuiz } from './quizProblems'
@@ -109,6 +114,85 @@ export type StatsWarning =
   | { kind: 'orderChanged'; division: string; what: 'prelims' | 'rerank' }
   /** A quiz seated from an order since withdrawn, until an admin keeps it or stops it counting */
   | { kind: 'withdrawnOrder'; quiz: QuizRef }
+  /** Two quizzer names on one team that look like one quizzer misspelt */
+  | { kind: 'lookAlikeQuizzers'; division: string; team: string; names: [string, string] }
+
+/**
+ * What needs an admin's attention (FR-030): a division's warnings, its quizzers listed in another
+ * number of quizzes than their team played, its quizzes whose question types don't add up, and
+ * what only the meet as a whole knows: stored quizzes with no stage, and quizzes scored another way
+ */
+export type AttentionItem =
+  | StatsWarning
+  | { kind: 'noStage'; quiz: QuizRef }
+  | {
+      kind: 'quizzerCount'
+      division: string
+      team: string
+      quizzer: string
+      listed: number
+      teamQuizzes: number
+      /** The team's quizzes the quizzer isn't listed in, most likely left off the sheet */
+      missing: QuizRef[]
+    }
+  | { kind: 'incompleteTypes'; quiz: QuizRef }
+  | { kind: 'otherFormula'; quizzes: QuizRef[] }
+
+/** Two names an admin said are different: two teams, or with `team` two quizzers on that team */
+export interface NameDismissal {
+  /** Folded; empty for two team names */
+  team: string
+  /** Folded, in a fixed order */
+  names: [string, string]
+}
+
+/** Two names as a dismissal holds them, so the same pair is the same dismissal whichever way round */
+export function nameDismissal(team: string | null, names: [string, string]): NameDismissal {
+  const [a, b] = names.map(foldName).sort() as [string, string]
+  return { team: team === null ? '' : foldName(team), names: [a, b] }
+}
+
+/** A division's warnings and flags as items of what needs attention */
+export function attentionOf(stats: DivisionStats): AttentionItem[] {
+  const items: AttentionItem[] = [...(stats.warnings ?? [])]
+  // The quizzes that count for a quizzer's average: every counting quiz but a Finals
+  const individual = stats.results
+    .filter((stage) => stage.stage !== 'finals')
+    .flatMap((stage) => stage.quizzes)
+    .filter((quiz) => quiz.status !== 'underReview' && quiz.id !== undefined)
+  for (const list of stats.quizzers?.lists ?? []) {
+    for (const quizzer of list.quizzers) {
+      for (const flag of quizzer.flags) {
+        if (flag.kind !== 'quizCount') continue
+        const listedIn = new Set(quizzer.lines.map((line) => line.quiz))
+        const missing = individual
+          .filter(
+            (quiz) =>
+              !listedIn.has(quiz.name) &&
+              quiz.teams.some((team) => foldName(team.name) === foldName(quizzer.team)),
+          )
+          .map((quiz) => ({ id: quiz.id!, name: quiz.name }))
+        items.push({
+          kind: 'quizzerCount',
+          division: stats.division,
+          team: quizzer.team,
+          quizzer: quizzer.name,
+          listed: flag.listed,
+          teamQuizzes: flag.teamQuizzes,
+          missing,
+        })
+      }
+    }
+  }
+  for (const stage of stats.results) {
+    for (const quiz of stage.quizzes) {
+      if (quiz.incompleteTypes && quiz.id !== undefined) {
+        items.push({ kind: 'incompleteTypes', quiz: { id: quiz.id, name: quiz.name } })
+      }
+    }
+  }
+  return items
+}
 
 export interface DivisionStats {
   division: string
@@ -160,6 +244,8 @@ export interface DivisionStatsInput {
    * the last step the admin confirmed, as they now stand (FR-018a). Every stage when left out.
    */
   quizzersThrough?: QuizzerStage
+  /** Look-alike pairs an admin said are different names, which are not flagged again (FR-032) */
+  dismissed?: NameDismissal[]
 }
 
 /** A quiz with a stage, its names as the roster has them, and what is wrong with it */
@@ -280,7 +366,9 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
         teams: standings.teams.map(({ name, quizzes }) => ({ name, quizzes })),
       })
     } else if (warning.kind === 'lookAlike') {
-      warnings.push({ kind: 'lookAlikeTeams', division, names: warning.teams })
+      if (!isDismissed(input.dismissed, null, warning.teams)) {
+        warnings.push({ kind: 'lookAlikeTeams', division, names: warning.teams })
+      }
     } else if (warning.kind === 'finalTie') {
       warnings.push({ kind: 'finalTie', division, teams: warning.teams })
     }
@@ -337,6 +425,32 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
     ),
   }
 
+  // Two quizzer names on one team that look like one quizzer misspelt. Two names in one quiz are
+  // two quizzers, however alike, and merging them would add their lines together
+  const together = (a: QuizzerStanding, b: QuizzerStanding) =>
+    a.lines.some((line) => b.lines.some((other) => other.quiz === line.quiz))
+  for (const list of quizzers.lists) {
+    const byTeam = new Map<string, QuizzerStanding[]>()
+    for (const quizzer of list.quizzers) {
+      const key = foldName(quizzer.team)
+      byTeam.set(key, [...(byTeam.get(key) ?? []), quizzer])
+    }
+    for (const team of byTeam.values()) {
+      team.forEach((quizzer, i) => {
+        for (const other of team.slice(i + 1)) {
+          const names: [string, string] = [quizzer.name, other.name]
+          if (
+            looksAlike(...names) &&
+            !together(quizzer, other) &&
+            !isDismissed(input.dismissed, quizzer.team, names)
+          ) {
+            warnings.push({ kind: 'lookAlikeQuizzers', division, team: quizzer.team, names })
+          }
+        }
+      })
+    }
+  }
+
   return {
     division,
     state,
@@ -347,6 +461,19 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
     quizzers,
     warnings,
   }
+}
+
+/** Whether an admin said two names are different */
+function isDismissed(
+  dismissed: NameDismissal[] | undefined,
+  team: string | null,
+  names: [string, string],
+): boolean {
+  if (!dismissed?.length) return false
+  const pair = nameDismissal(team, names)
+  return dismissed.some(
+    (d) => d.team === pair.team && d.names[0] === pair.names[0] && d.names[1] === pair.names[1],
+  )
 }
 
 /**

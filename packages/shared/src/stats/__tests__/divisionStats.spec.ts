@@ -6,7 +6,13 @@ import { quizOutcome } from '../../scoring/quizOutcome'
 import { divisionStandings } from '../../scoring/standings'
 import { fifteenQuestionQuizFile } from '../../scoring/__tests__/fixtures/fifteenQuestionQuiz'
 import { referenceMeet } from '../../scoring/__tests__/fixtures/referenceMeet'
-import { divisionStats, type DivisionStatsInput, type StatsQuiz } from '../divisionStats'
+import {
+  attentionOf,
+  divisionStats,
+  nameDismissal,
+  type DivisionStatsInput,
+  type StatsQuiz,
+} from '../divisionStats'
 import { DEFAULT_STATS_SETTINGS } from '../settings'
 import type { Stage } from '../stages'
 import { scoreStoredQuiz, type ScoredQuiz } from '../scoredQuiz'
@@ -580,5 +586,75 @@ describe('divisionStats: quizzer standings by stage (FR-018a)', () => {
     expect(through('prelim')).toMatchObject({ through: 'prelim' })
     expect(through('prelim').lists[0]!.quizzers[0]!.quizzes).toBe(1)
     expect(through().lists[0]!.quizzers[0]!.quizzes).toBe(2)
+  })
+})
+
+describe('divisionStats: what needs attention (FR-030, FR-032)', () => {
+  /** A quiz Maple 1 won, with the quizzers given on Maple 1 */
+  function withQuizzers(...names: string[]): StatsQuiz {
+    const scored = scoredQuiz('Maple 1', 'Cedar 1', 'Stone 1')
+    scored.teams[0]!.quizzers = names.map((name) => ({
+      name,
+      points: 20,
+      errors: 0,
+      correct: 1,
+      types: { INT: 1 },
+    }))
+    return quizOf('D1 Q1', 'prelim', scored)
+  }
+
+  it('flags two quizzer names on one team that look alike, and not two that differ', () => {
+    const { warnings } = stats([
+      withQuizzers('Jordan Lee', 'Sam Park'),
+      { ...withQuizzers('Jordon Lee', 'Sam Park'), name: 'D1 Q2', key: 'D1 Q2' },
+    ])
+    expect(warnings!.filter((w) => w.kind === 'lookAlikeQuizzers')).toEqual([
+      {
+        kind: 'lookAlikeQuizzers',
+        division: '1',
+        team: 'Maple 1',
+        names: ['Jordan Lee', 'Jordon Lee'],
+      },
+    ])
+  })
+
+  it('never flags two names that quizzed together in one quiz', () => {
+    const { warnings } = stats([withQuizzers('Jordan Lee', 'Jordon Lee')])
+    expect(warnings!.filter((w) => w.kind === 'lookAlikeQuizzers')).toEqual([])
+  })
+
+  it('leaves out a pair an admin dismissed, whichever way round it was dismissed', () => {
+    const { warnings } = stats(
+      [
+        withQuizzers('Jordan Lee'),
+        { ...withQuizzers('Jordon Lee'), name: 'D1 Q3', key: 'D1 Q3' },
+        quizOf('D1 Q2', 'prelim', scoredQuiz('Maple 1', 'Cedar 1', 'Stome 1')),
+      ],
+      {
+        dismissed: [
+          nameDismissal('maple 1', ['Jordon Lee', 'Jordan Lee']),
+          nameDismissal(null, ['Stome 1', 'Stone 1']),
+        ],
+      },
+    )
+    expect(warnings!.filter((w) => w.kind.startsWith('lookAlike'))).toEqual([])
+  })
+
+  it("adds a division's quizzer counts and incomplete types to its warnings", () => {
+    const short = withQuizzers('Jordan Lee')
+    short.scored!.teams[0]!.quizzers[0]!.types = {}
+    const items = attentionOf(
+      stats([withQuizzers('Jordan Lee', 'Sam Park'), { ...short, name: 'D1 Q2', key: 'D1 Q2' }]),
+    )
+    expect(items).toContainEqual({ kind: 'incompleteTypes', quiz: { id: short.id, name: 'D1 Q2' } })
+    expect(items).toContainEqual({
+      kind: 'quizzerCount',
+      division: '1',
+      team: 'Maple 1',
+      quizzer: 'Sam Park',
+      listed: 1,
+      teamQuizzes: 2,
+      missing: [{ id: short.id, name: 'D1 Q2' }],
+    })
   })
 })

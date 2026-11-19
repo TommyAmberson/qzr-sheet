@@ -1,12 +1,17 @@
 import { Hono, type Context } from 'hono'
 import { and, eq, inArray } from 'drizzle-orm'
 import {
+  attentionOf,
+  mayChangeQuizzes,
   divisionStats,
   foldName,
+  nameDismissal,
   resultKeyDivision,
+  resultKeyName,
   statsSettingsError,
   viewerHas,
   viewersSeeStats,
+  type AttentionItem,
   type DivisionStats,
   type QuizResult,
   type StageResults,
@@ -20,6 +25,7 @@ import type { SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
 import {
+  REVISIONS_SCORED_PER_REQUEST,
   divisionOf,
   divisionStatesQuery,
   meetQuery,
@@ -28,7 +34,7 @@ import {
 } from '../lib/divisionStats'
 import { isAdminOrSuperuser, isViewerOf, officialRoomsOf } from '../lib/permissions'
 import { jsonBody, meetIdOf } from '../lib/request'
-import { otherFormulaCount, statsSettingsOf } from '../lib/statsSettings'
+import { otherFormulaCount, otherFormulaKeys, statsSettingsOf } from '../lib/statsSettings'
 import * as schema from '../db/schema'
 
 type Env = { Bindings: Bindings; Variables: SessionVariables & { db: Db } }
@@ -154,6 +160,97 @@ stats.get('/:id/stats', async (c) => {
       state: stateOf(states, division),
     })),
   })
+})
+
+// What needs attention across the meet (FR-030), before a division's path, which would take its name
+stats.get('/:id/stats/attention', async (c) => {
+  const admin = await forAdmin(c)
+  if (admin instanceof Response) return admin
+  const { meetId, db } = admin
+  const [ground, keys] = await Promise.all([
+    statsGround(db, meetId),
+    db
+      .select({ quizKey: schema.quizResults.quizKey })
+      .from(schema.quizResults)
+      .where(eq(schema.quizResults.meetId, meetId)),
+  ])
+  if (!ground) return c.json({ error: 'Meet not found' }, 404)
+
+  // Every division the meet lists or a stored quiz names, and quizzes in none, which have no
+  // standings but can still be unstaged
+  const listed = new Set(ground.meet.divisions.map(foldName))
+  const divisions = [
+    ...ground.meet.divisions,
+    ...new Set(keys.map(({ quizKey }) => resultKeyDivision(quizKey)).filter((d) => !listed.has(d))),
+  ]
+  const items: AttentionItem[] = []
+  // The whole request shares one scoring budget, as the divisions' states do
+  const scoring = { left: REVISIONS_SCORED_PER_REQUEST }
+  for (const division of divisions) {
+    const answer = await divisionOf(db, meetId, ground, division, undefined, scoring)
+    if (answer.kind === 'notFound') continue
+    if (answer.kind === 'preparing') {
+      c.header('Retry-After', '1')
+      return c.json({ error: 'Stats are being prepared' }, 503)
+    }
+    // A quiz an admin set not to count has no stage by their choice, which needs nothing
+    for (const quiz of answer.quizzes) {
+      if (quiz.stage === null && !quiz.admin) {
+        items.push({ kind: 'noStage', quiz: { id: quiz.id, name: quiz.name } })
+      }
+    }
+    if (division !== '') items.push(...attentionOf(divisionStats(answer.input)))
+  }
+  const other = await otherFormulaKeys(db, meetId, ground.settings.levelTeams)
+  if (other.length > 0) {
+    items.push({
+      kind: 'otherFormula',
+      quizzes: other.map(({ id, quizKey }) => ({ id, name: resultKeyName(quizKey) })),
+    })
+  }
+  return c.json({ items })
+})
+
+// Two names an admin says are different, so their look-alike flag is not raised again (FR-032)
+stats.post('/:id/stats/dismissals', async (c) => {
+  const admin = await forAdmin(c)
+  if (admin instanceof Response) return admin
+  const { meetId, db } = admin
+  const body = await jsonBody<{ division?: unknown; team?: unknown; names?: unknown }>(c)
+  const { division, team, names } = body ?? {}
+  const isName = (value: unknown): value is string => typeof value === 'string' && value !== ''
+  if (
+    typeof division !== 'string' ||
+    (team !== undefined && !isName(team)) ||
+    !Array.isArray(names) ||
+    names.length !== 2 ||
+    !names.every(isName)
+  ) {
+    return c.json({ error: 'A division, two names, and a team for two quizzers' }, 400)
+  }
+  const pair = nameDismissal(team ?? null, names as [string, string])
+  if (pair.names[0] === pair.names[1]) return c.json({ error: 'The two names are the same' }, 400)
+  // Names change with the quizzes, so only while an admin may change those
+  const [meet] = await meetQuery(db, meetId)
+  if (!meet) return c.json({ error: 'Meet not found' }, 404)
+  if (!mayChangeQuizzes(meet.phase, true)) {
+    return c.json({ error: 'Quizzes cannot change now', meetPhase: meet.phase }, 409)
+  }
+  const user = c.get('user')!
+  await db
+    .insert(schema.meetNameDismissals)
+    .values({
+      meetId,
+      division: foldName(division),
+      team: pair.team,
+      nameA: pair.names[0],
+      nameB: pair.names[1],
+      byAccountId: user.id,
+      byName: user.name,
+      at: new Date(),
+    })
+    .onConflictDoNothing()
+  return c.json({ ok: true })
 })
 
 stats.get('/:id/stats/:division', async (c) => {

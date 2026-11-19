@@ -15,7 +15,7 @@ import {
   type StageChoice,
   type StandingsState,
   type StatsSettings,
-  type StatsWarning,
+  type AttentionItem,
   type TieBreak,
   type ViewerHas,
 } from '@qzr/shared'
@@ -119,8 +119,8 @@ export function flagText(flag: QuizzerFlag): string {
   }
 }
 
-/** A warning on a division's stats, as a sentence */
-export function warningText(warning: StatsWarning): string {
+/** A warning on a division's stats, or anything else that needs attention, as a sentence */
+export function warningText(warning: AttentionItem): string {
   switch (warning.kind) {
     case 'inError': {
       const count = warning.problems.length
@@ -140,6 +140,18 @@ export function warningText(warning: StatsWarning): string {
       return `The ${warning.what === 'prelims' ? 'prelim order' : 're-rank'} has changed since it was confirmed. The confirmed order stands; the current one is shown beside it.`
     case 'withdrawnOrder':
       return `${warning.quiz.name} was seated from an order since withdrawn. Keep it as it is, or set it to not counted.`
+    case 'lookAlikeQuizzers':
+      return `${warning.names[0]} and ${warning.names[1]} on ${warning.team} look like one quizzer spelt two ways.`
+    case 'noStage':
+      return `${warning.quiz.name} has no stage, so it counts for nothing. Link it to the schedule or set its stage.`
+    case 'quizzerCount':
+      return `${warning.quizzer} of ${warning.team} is listed in ${warning.listed} of the team's ${warning.teamQuizzes} quizzes${warning.missing.length ? `, not in ${warning.missing.map((quiz) => quiz.name).join(', ')}` : ''}.`
+    case 'incompleteTypes':
+      return `${warning.quiz.name} doesn't give a question type for every correct answer.`
+    case 'otherFormula': {
+      const n = warning.quizzes.length
+      return `${n === 1 ? '1 quiz scores' : `${n} quizzes score`} teams level on points another way than the meet.`
+    }
   }
 }
 
