@@ -18,7 +18,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Changed
 
-* "+ Room" puts the cursor in the new room's label box, so its name can be typed straight away
+* "+ Room" and the new meet form's "+ Division" put the cursor in the new box, so its name can be
+  typed straight away
 
 ### Fixed
 

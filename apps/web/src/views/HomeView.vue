@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vFocus } from '../directives'
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -113,9 +114,16 @@ async function handleCreateMeet() {
   }
 }
 
+/** The division box "+ Division" just added, which takes the focus as it appears; -1 for none */
+const addedDivision = ref(-1)
+
 function addDivisionField() {
+  addedDivision.value = meetForm.value.divisions.length
   meetForm.value.divisions.push('')
 }
+
+// Reopening the form remounts every box; none of them was just added
+watch(showCreateMeet, () => (addedDivision.value = -1))
 
 function removeDivisionField(i: number) {
   meetForm.value.divisions.splice(i, 1)
@@ -201,8 +209,10 @@ watch(
             <div class="divisions-edit">
               <span class="divisions-label">Divisions</span>
               <div v-for="(_, i) in meetForm.divisions" :key="i" class="division-field">
+                <!-- Only a box just added with "+ Division" takes the focus, not those the form opens with -->
                 <DivisionInput
                   v-model="meetForm.divisions[i]"
+                  v-focus="i === addedDivision"
                   class="field-input"
                   placeholder="e.g. 2"
                   aria-label="Division"
