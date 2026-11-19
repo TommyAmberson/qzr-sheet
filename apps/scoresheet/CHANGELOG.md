@@ -15,6 +15,11 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Fixed
+
+* The division picker and quiz box in the sheet's header use the header's font and weight, so a
+  picked division matches the quiz number beside it
+
 ## [0.26.1] - 2026-11-19
 
 ### Fixed
