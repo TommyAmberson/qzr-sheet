@@ -376,8 +376,25 @@ describe('what viewers, coaches and officials are given (FR-017 to FR-021, SC-00
     const body = await viewed()
     expect(body.results[0]!.quizzes[0]!.teams[0]).toEqual({ name: 'Team A', place: 1, score: 200 })
     expect(body.prelimStandings).toMatchObject({ state: 'livePreview' })
-    // The quizzes behind each total stay with admins
-    expect(body.prelimStandings!.teams.every((team) => team.lines.length === 0)).toBe(true)
+    // The quizzes behind each total, with their scores, since the stage shows them (FR-027)
+    expect(body.prelimStandings!.teams[0]!.lines).toEqual([
+      expect.objectContaining({ quiz: 'D1 Q1', stage: 'prelim', place: 1, score: 200 }),
+    ])
+  })
+
+  it('gives the quizzes behind a total only as far as their stage shows', async () => {
+    await store(quiz('1'))
+    await saveSettings((s) => {
+      s.prelimStandingsLive = true
+      s.quizzers = { from: 'start', update: 'live' }
+    })
+    const body = await viewed()
+    // Places only: a team's place in each quiz, not its score, and no quizzer's points
+    const [line] = body.prelimStandings!.teams[0]!.lines
+    expect(line).toMatchObject({ quiz: 'D1 Q1', place: 1 })
+    expect(line!.score).toBeUndefined()
+    expect(line!.errors).toBeUndefined()
+    expect(body.quizzers!.lists[0]!.quizzers.every((q) => q.lines.length === 0)).toBe(true)
   })
 
   it('lists a quiz in error as under review with its teams alone, and never one not counted', async () => {

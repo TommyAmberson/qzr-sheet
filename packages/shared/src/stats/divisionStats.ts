@@ -88,9 +88,11 @@ export interface TeamRow {
     quiz: string
     stage: Stage
     place: number | null
-    score: number
+    /** Left out for a viewer where the stage's results show places only */
+    score?: number
     placementPoints: number | null
-    errors: number
+    /** Left out with `score`: errors show only with the full sheet */
+    errors?: number
   }[]
 }
 

@@ -36,6 +36,11 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `NameDismissal` and `nameDismissal`: two names an admin said are different, held folded and in a
   fixed order. `DivisionStatsInput.dismissed` leaves those pairs unflagged.
 
+### Changed
+
+* A standings row's line for a quiz may leave out `score` and `errors`, as the API does for a viewer
+  where that stage's results show places only.
+
 ## [1.15.0] - 2026-11-19
 
 ### Added

@@ -302,7 +302,7 @@ async function ownQuizzes(c: Context<Env>, db: Db, meetId: number): Promise<Set<
  * is rebuilt from the fields a viewer may have, so a field added for admins stays with them: each
  * table only from its moment, results at the level the settings give, and no warnings or flags.
  * An official keeps what is wrong with the quizzes of their own rooms (FR-020a). The quizzes behind
- * each total stay with admins for now.
+ * each total go as far as each quiz's stage shows (FR-027).
  */
 function cutTo(stats: DivisionStats, has: ViewerHas, own: Set<number>): DivisionStats {
   const results = stats.results.flatMap((stage): StageResults[] => {
@@ -330,6 +330,23 @@ function cutTo(stats: DivisionStats, has: ViewerHas, own: Set<number>): Division
     )
     return [{ stage: stage.stage, level, quizzes, medals: stage.medals }]
   })
+  // The quizzes behind a total are shown as far as their stage's results are: a team's place in
+  // each wherever the stage shows, its score and errors and a quizzer's points only where it shows
+  // the full sheet
+  const stageOf = new Map(
+    stats.results.flatMap((stage) => stage.quizzes.map((quiz) => [quiz.name, stage.stage])),
+  )
+  const scoresShown = (quiz: string) => {
+    const stage = stageOf.get(quiz)
+    return stage !== undefined && has.results[stage] === 'scores'
+  }
+  const teamLines = (lines: TeamRow['lines']): TeamRow['lines'] =>
+    lines.flatMap(({ quiz, stage, place, placementPoints, score, errors }) => {
+      const level = has.results[stage]
+      if (!level) return []
+      const sheet = level === 'scores' ? { score, errors } : {}
+      return [{ quiz, stage, place, placementPoints, ...sheet }]
+    })
   const table = (shown: TeamTable | undefined, state: ViewerHas['prelimStandings']) =>
     shown && state
       ? {
@@ -338,9 +355,18 @@ function cutTo(stats: DivisionStats, has: ViewerHas, own: Set<number>): Division
           state: shown.state === 'lockedIn' ? state : ('livePreview' as const),
           covers: shown.covers,
           teams: shown.teams.map(
-            ({ name, rank, placementPoints, quizzes, tied, decidedBy, finalist }): TeamRow => ({
+            ({
+              name,
+              rank,
+              placementPoints,
+              quizzes,
+              tied,
+              decidedBy,
+              finalist,
+              lines,
+            }): TeamRow => ({
               ...{ name, rank, placementPoints, quizzes, tied, decidedBy, finalist },
-              lines: [],
+              lines: teamLines(lines),
             }),
           ),
         }
@@ -353,10 +379,14 @@ function cutTo(stats: DivisionStats, has: ViewerHas, own: Set<number>): Division
           lists: stats.quizzers.lists.map((list) => ({
             consolation: list.consolation,
             quizzers: list.quizzers.map(
-              ({ name, team, place, average, points, errors, jumps, quizzes, types }) => ({
+              ({ name, team, place, average, points, errors, jumps, quizzes, types, lines }) => ({
                 ...{ name, team, place, average, points, errors, jumps, quizzes, types },
                 flags: [],
-                lines: [],
+                lines: lines
+                  .filter((line) => scoresShown(line.quiz))
+                  .map(({ quiz, points, errors, jumps, types }) => ({
+                    ...{ quiz, points, errors, jumps, types },
+                  })),
               }),
             ),
           })),

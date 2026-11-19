@@ -270,7 +270,7 @@ Each pull request rebases onto master first and carries its own changelog entrie
 
 ### Implementation for User Story 8
 
-- [ ] T054 [US8] On the division stats page in `apps/web/src/views/`, anyone who may see a table can open a team or a quizzer in it and see the quizzes behind their totals from the `lines` the response carries, which a viewer's cut now passes through with a quiz's score only where that stage's results show scores: for a quizzer, points, errors, jumps and correct answers by type per quiz; for a team, stage, place, score, placement points and errors per quiz (FR-027, SC-006)
+- [X] T054 [US8] On the division stats page in `apps/web/src/views/`, anyone who may see a table can open a team or a quizzer in it and see the quizzes behind their totals from the `lines` the response carries, which a viewer's cut now passes through with a quiz's score only where that stage's results show scores: for a quizzer, points, errors, jumps and correct answers by type per quiz; for a team, stage, place, score, placement points and errors per quiz (FR-027, SC-006)
 - [ ] T055 [US8] An admin downloads a division's stats as three CSV files made in the browser from the admin's stats response, in `apps/web/src/stats.ts`: a row per team per quiz, a row per quizzer per quiz, and the standings, in the workbook's column order (R13, FR-028); covered by a spec in `apps/web/src/__tests__/` on the rows and their escaping
 
 **Checkpoint**: A doubted number is traced in two steps; the statistician can compare with their workbook
