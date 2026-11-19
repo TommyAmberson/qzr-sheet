@@ -103,6 +103,8 @@ throughout; superuser includes admin.
 | A quiz's stage                   | -            | -           | own O: R; A: RW  | own O: R; A: RW | own O: R; A: R |
 | A quiz's link to the schedule    | -            | -           | own O: RW; A: RW | own O: R; A: RW | own O: R; A: R |
 | Accepting a quiz as scored       | -            | -           | own O: R; A: RW  | own O: R; A: RW | own O: R; A: R |
+| What needs attention             | -            | -           | A: R             | A: R            | A: R           |
+| Merging names, dismissing flags  | -            | -           | A: RW            | A: RW           | -              |
 | Results and standings, as set    | -            | -           | V: R; A: R       | V: R; A: R      | V: R; A: R     |
 | Stats settings                   | A: RW        | A: RW       | V: R; A: RW      | V: R; A: RW     | V: R; A: R     |
 | The meet's team-name list        | A: RW        | A: RW       | V: R; A: RW      | V: R; A: RW     | V: R           |
