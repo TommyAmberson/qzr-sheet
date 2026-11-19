@@ -54,7 +54,8 @@ interface QuizResult {
   name: string // "D1 Q3"
   /** `underReview` carries team names only: no places, no scores */
   status: 'counted' | 'accepted' | 'underReview'
-  teams: { name: string; place?: 1 | 2 | 3; tiedWith?: number; score?: number }[]
+  /** Admins also get, in a quiz that counts, the placement points it gives and the team's errors */
+  teams: { name: string; place?: 1 | 2 | 3; tiedWith?: number; score?: number; placementPoints?: number; errors?: number }[]
   /** Admins, and the quiz's room officials: the stored quiz's id, and what is wrong with it */
   id?: number
   problems?: QuizProblem[]
@@ -76,7 +77,8 @@ interface TeamTable {
     /** Only where prelims lead straight to a Finals (FR-011) */
     finalist?: boolean
     /** The quizzes behind the totals (FR-027) */
-    lines: { quiz: string; stage: string; place: number | null; score: number; placementPoints: number | null; errors: number }[]
+    /** `score` and `errors` are left out for a viewer where the stage's results show places only */
+    lines: { quiz: string; stage: string; place: number | null; score?: number; placementPoints: number | null; errors?: number }[]
   }[]
   /** Admins only: the current order, when it no longer matches the confirmed one */
   current?: TeamTable['teams']
@@ -113,6 +115,10 @@ interface QuizzerTable {
 * A viewer, coach or official gets a table only from its moment on, and results at the level the
   settings give (R11). An admin gets every table that exists, results at `scores`, and `warnings`.
 * An official additionally gets `id` and `problems` on quizzes of their own rooms (FR-020a).
+* A viewer, coach or official gets the quizzes behind a total (FR-027) as far as each quiz's stage
+  shows: a team's line wherever the stage's results show, with its score and errors only where they
+  show scores, the full sheet; a quizzer's line only where the stage shows scores. A quizzer's
+  errors show wherever their average does, in the quizzer standings.
 * An admin who asks with `?as=viewer` gets what a viewer gets, to look at the page as viewers see it
   (FR-023c).
 * A quiz that is not counted is never listed. A quiz with a stage that is in error and not accepted
@@ -125,9 +131,13 @@ interface QuizzerTable {
 ### `GET /stats/attention` (admin)
 
 Everything that needs attention across the meet (FR-030), each item naming what it is about and what
-would clear it. Built from the meet's scored revisions and its names, with no ranking, so one
-request covers every division; 503 with `Retry-After: 1`, as a division's stats, while some
-revisions are still to be scored (R2).
+would clear it. Built from each division's stats as an admin sees them, with the meet's stored
+quizzes that have no stage, so one request covers every division; it scores at most a few revisions
+for the whole request, and answers 503 with `Retry-After: 1`, as a division's stats, while some are
+still to be scored (R2). A look-alike pair an admin dismissed is left out.
+
+Answers `{ items: AttentionItem[] }`. A `quizzerCount` item names the team's quizzes the quizzer
+isn't listed in, `missing`, most likely left off the sheet.
 
 ```ts
 /** A stored quiz, as a warning or a list names it */
@@ -143,10 +153,11 @@ type AttentionItem =
   | { kind: 'finalTie'; division: string; teams: string[] }
   | { kind: 'lookAlikeTeams'; division: string; names: [string, string] }
   | { kind: 'lookAlikeQuizzers'; division: string; team: string; names: [string, string] }
-  | { kind: 'quizzerCount'; division: string; team: string; quizzer: string; listed: number; teamQuizzes: number }
+  | { kind: 'quizzerCount'; division: string; team: string; quizzer: string; listed: number; teamQuizzes: number; missing: QuizRef[] }
   | { kind: 'incompleteTypes'; quiz: QuizRef }
   | { kind: 'twoFinals'; division: string; consolation: boolean; quizzes: QuizRef[] }
   | { kind: 'withdrawnOrder'; quiz: QuizRef }
+  | { kind: 'orderChanged'; division: string; what: 'prelims' | 'rerank' }
   | { kind: 'otherFormula'; quizzes: QuizRef[] }
 
 type QuizProblem =
@@ -256,7 +267,9 @@ beside the existing `revision` and `counting` entries.
 ### `POST /stats/dismissals` (admin)
 
 Body: `{ division: string, team?: string, names: [string, string] }`. Records that the two names are
-different teams, or with `team` different quizzers on that team (FR-032). Idempotent.
+different teams, or with `team` different quizzers on that team (FR-032). Idempotent. 400 for a
+missing name or two names that are the same once folded; 409 with `meetPhase` outside `live` and
+`review`, as the quizzes' names can change only then.
 
 ## Division state
 
