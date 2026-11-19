@@ -197,9 +197,6 @@ onMounted(load)
 }
 
 @media print {
-  .no-print {
-    display: none !important;
-  }
   .container {
     max-width: none;
     padding: 0;

@@ -14,6 +14,7 @@ import {
   placeLabel,
   previousState,
   problemText,
+  quizzerCount,
   rightNow,
   viewerChanges,
   warningText,
@@ -240,5 +241,16 @@ describe('the stats settings page', () => {
     expect(nextMove('division_done', ['prelim'])).toBeNull()
     expect(previousState('prelim_running')).toBeNull()
     expect(previousState('finals')).toBe('elim_running')
+  })
+})
+
+describe('quizzerCount', () => {
+  it("says how many quizzers a list ranks, as the statistician's report does", () => {
+    expect(quizzerCount('1', { consolation: false, quizzers: [1, 2, 3] })).toBe(
+      'There were 3 quizzers in Division 1',
+    )
+    expect(quizzerCount('2', { consolation: true, quizzers: [1] })).toBe(
+      'There was 1 quizzer in the Division 2 consolation list',
+    )
   })
 })

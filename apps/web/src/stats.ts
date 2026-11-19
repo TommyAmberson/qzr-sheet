@@ -298,3 +298,18 @@ export function nextMove(
 export function previousState(state: DivisionStateValue): DivisionStateValue | null {
   return DIVISION_STATES[DIVISION_STATES.indexOf(state) - 1] ?? null
 }
+
+/**
+ * How many quizzers a list ranks, as the statistician's report says it: every quizzer, those with
+ * no jumps included, though the printed list leaves them off (FR-026)
+ */
+export function quizzerCount(
+  division: string,
+  list: { consolation: boolean; quizzers: unknown[] },
+) {
+  const n = list.quizzers.length
+  const where = list.consolation
+    ? `the ${divisionTitle(division)} consolation list`
+    : divisionTitle(division)
+  return `There ${n === 1 ? 'was 1 quizzer' : `were ${n} quizzers`} in ${where}`
+}
