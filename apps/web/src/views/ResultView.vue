@@ -69,6 +69,10 @@ const form = ref({
   teams: [] as { id: number; name: string; quizzers: { id: number; name: string }[] }[],
 })
 
+/** Seat columns in the names grid: the most quizzers any team has */
+// At least one column, so the grid's template stays valid for a quiz with no seats listed
+const seatCount = computed(() => Math.max(1, ...form.value.teams.map((t) => t.quizzers.length)))
+
 function fillForm(file: QuizFile) {
   form.value = {
     division: file.quiz.division,
@@ -237,26 +241,44 @@ onMounted(load)
       <section class="section">
         <h3 class="section-title">Names</h3>
         <form class="quick-form" @submit.prevent="saveForm">
-          <label>
-            Division
-            <!-- Its label says "Division", so the box shows no prefix of its own -->
-            <DivisionInput v-model="form.division" bare required />
-          </label>
-          <label>
-            Quiz number
-            <input v-model="form.quizNumber" required />
-          </label>
-          <fieldset v-for="team in form.teams" :key="team.id" class="team-fields">
-            <legend>Team</legend>
-            <input v-model="team.name" required :aria-label="`Team ${team.id} name`" />
-            <input
-              v-for="quizzer in team.quizzers"
-              :key="quizzer.id"
-              v-model="quizzer.name"
-              class="quizzer-name"
-              :aria-label="`Quizzer ${quizzer.id} name`"
-            />
-          </fieldset>
+          <div class="quiz-fields">
+            <label class="division-field">
+              Division
+              <!-- Its label says "Division", so the box shows no prefix of its own -->
+              <DivisionInput v-model="form.division" bare required />
+            </label>
+            <label class="quiz-number-field">
+              Quiz number
+              <input v-model="form.quizNumber" required />
+            </label>
+          </div>
+          <!-- One row per team, its seats in columns, so the names line up across teams -->
+          <div class="names-grid" :style="{ '--seats': seatCount }">
+            <span class="names-grid-head" aria-hidden="true">Team</span>
+            <span
+              v-for="n in seatCount"
+              :key="`seat${n}`"
+              class="names-grid-head"
+              aria-hidden="true"
+            >
+              Seat {{ n }}
+            </span>
+            <template v-for="team in form.teams" :key="team.id">
+              <input
+                v-model="team.name"
+                class="team-name"
+                required
+                :aria-label="`Team ${team.id} name`"
+              />
+              <input
+                v-for="quizzer in team.quizzers"
+                :key="quizzer.id"
+                v-model="quizzer.name"
+                placeholder="Empty seat"
+                :aria-label="`Quizzer ${quizzer.id} name`"
+              />
+            </template>
+          </div>
           <div class="form-actions">
             <button class="btn btn--primary btn--sm" type="submit" :disabled="saving">
               Save names
@@ -394,7 +416,20 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  max-width: 16rem;
+}
+
+.quiz-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.division-field {
+  width: 10rem;
+}
+
+.quiz-number-field {
+  width: 6rem;
 }
 
 .quick-form input {
@@ -406,21 +441,45 @@ onMounted(load)
   color: inherit;
 }
 
-.team-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
+.names-grid {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.4fr) repeat(var(--seats), minmax(0, 1fr));
+  gap: 0.4rem 0.5rem;
+  align-items: center;
 }
 
-.team-fields legend {
+.names-grid input {
+  min-width: 0;
+}
+
+.names-grid-head {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--color-text-faint);
 }
 
-.quizzer-name {
-  max-width: 10rem;
+.team-name {
+  /* Each team starts its own row, however many seats the one before it filled */
+  grid-column: 1;
+  font-weight: 600;
+}
+
+/* On a phone each team stacks: its name across the top, its seats two to a row */
+@media (max-width: 640px) {
+  .names-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .names-grid-head {
+    display: none;
+  }
+
+  .team-name {
+    grid-column: 1 / -1;
+    margin-top: 0.5rem;
+  }
 }
 
 .form-actions,

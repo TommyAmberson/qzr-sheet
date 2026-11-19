@@ -18,6 +18,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Changed
 
+* A stored quiz's Names form lines its teams up in one grid, a row per team and a column per seat,
+  with empty seats marked, in place of a boxed group per team whose names wrapped unevenly
 * Picking which room to upload saved quizzes for has a Cancel button, not only Escape
 * Stats settings' "As a viewer sees it" link reads "Preview as viewer", and the page it opens says
   "Previewing as a viewer"
