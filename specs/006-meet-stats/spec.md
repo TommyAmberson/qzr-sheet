@@ -104,10 +104,12 @@ Decisions from the working session:
 * Q: Does a quiz's overtime have to fit its stage? → A: Yes. Eliminations and Finals must have a
   winner, as the rulebook has it, so one that ends level with no overtime is in error. Prelims and
   intermediates, which are prelims of a special kind, are played at these meets with no overtime: a
-  tie stands and the level teams share the place. That is not the rulebook, which sends every tied
-  quiz to overtime, so it is a setting of the meet, on unless an admin turns it off. With it on,
-  overtime played in a prelim or an intermediate is an error, since it changes placement points; a
-  prelim with overtime switched on but never played is not, its result being the same (FR-014,
+  tie stands and the level teams share the place. The rulebook is ambiguous here: a three-team quiz
+  that ends level goes to overtime (Types of Quizzes 1.d), yet a tie gives placement points by the
+  score at the end of question 20 (Scoring 1.e.iv). Playing prelims without overtime has long been
+  the rule at these meets, so it is a setting of the meet, on unless an admin turns it off. With it
+  on, overtime played in a prelim or an intermediate is an error, since it changes placement points;
+  a prelim with overtime switched on but never played is not, its result being the same (FR-014,
   FR-023d).
 * Q: Are all of a quiz's scoring errors shown? → A: Yes, each with its team, seat, question and
   message, to admins and the quiz's room officials (FR-014).
@@ -758,8 +760,9 @@ download the division's tables and open them in a spreadsheet.
   MUST score level teams the meet's way.
 * **FR-023d**: The meet's settings MUST say whether its prelims and intermediates are played without
   overtime, a tie standing and the level teams sharing the place. It is on unless an admin turns it
-  off, since these meets are run that way; off is the rulebook, under which every tied quiz goes to
-  overtime and overtime in a prelim is no error. Changing it changes no stored quiz.
+  off, since these meets have long been run that way where the rulebook is ambiguous (Types of
+  Quizzes 1.d against Scoring 1.e.iv); off sends every tied quiz to overtime, and overtime in a
+  prelim is no error. Changing it changes no stored quiz.
 * **FR-023c**: The stats settings MUST be one place holding two things. First, each division's
   progress as a row of its steps (prelims, intermediates or stats break, eliminations, Finals,
   finished), with the step it is in marked, whether it is ready for the next, and the control to
