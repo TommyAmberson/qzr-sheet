@@ -17,6 +17,17 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-11-19
+
+### Changed
+
+* A request indexes the meet's rosters once, rather than filtering every team for each stored quiz
+* Old schedules are converted with the shared quiz labels
+
+### Bundled contract
+
+* `@qzr/shared@1.15.0` - bumped from 1.14.0
+
 ## [0.28.0] - 2026-11-18
 
 ### Added
