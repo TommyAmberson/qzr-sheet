@@ -1,5 +1,6 @@
 import { ApiError, createApiClient, MeetRole } from '@qzr/shared'
 import type {
+  AttentionItem,
   DivisionStateValue,
   ChangeKind,
   DivisionStats,
@@ -699,6 +700,24 @@ export async function setQuizzesToMeetFormula(meetId: number): Promise<number> {
 /** Keep a quiz as it is after an order it was seated from was withdrawn */
 export function keepQuiz(meetId: number, resultId: number): Promise<{ kept: true }> {
   return request(`/api/meets/${meetId}/results/${resultId}/keep`, { method: 'POST' })
+}
+
+/** Everything that needs an admin's attention across the meet, asked again while being prepared */
+export function getAttention(meetId: number): Promise<{ items: AttentionItem[] }> {
+  return whenPrepared(() => request(`/api/meets/${meetId}/stats/attention`))
+}
+
+/** Say two look-alike names are different teams, or with `team` different quizzers on it */
+export function dismissNames(
+  meetId: number,
+  division: string,
+  names: [string, string],
+  team?: string,
+): Promise<{ ok: true }> {
+  return request(`/api/meets/${meetId}/stats/dismissals`, {
+    method: 'POST',
+    body: JSON.stringify({ division, names, ...(team === undefined ? {} : { team }) }),
+  })
 }
 
 /**
