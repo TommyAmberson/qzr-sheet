@@ -15,9 +15,10 @@ alone in `review`, refused with 409 and `meetPhase` otherwise. Types named here 
 
 ### `GET /stats` (member)
 
-What there is to open. `{ phase, divisions: [{ division, state }] }`, divisions in the meet's order,
-plus any division name that only stored quizzes carry. 200 with an empty list while the meet is in
-`registration` or `build`, for anyone but an admin.
+What there is to open. `{ phase, admin, divisions: [{ division, state }] }`, `admin` saying whether
+the caller is one of the meet's admins, divisions in the meet's order, plus any division name that
+only stored quizzes carry. 200 with an empty list while the meet is in `registration` or `build`,
+for anyone but an admin.
 
 ### `GET /stats/:division` (member)
 
@@ -112,6 +113,8 @@ interface QuizzerTable {
 * A viewer, coach or official gets a table only from its moment on, and results at the level the
   settings give (R11). An admin gets every table that exists, results at `scores`, and `warnings`.
 * An official additionally gets `id` and `problems` on quizzes of their own rooms (FR-020a).
+* An admin who asks with `?as=viewer` gets what a viewer gets, to look at the page as viewers see it
+  (FR-023c).
 * A quiz that is not counted is never listed. A quiz with a stage that is in error and not accepted
   is listed as `underReview`.
 * 503 `{ error: "Stats are being prepared" }` with `Retry-After: 1` while some of the division's
@@ -178,9 +181,10 @@ errors are worked out when read, from the roster and schedule as they then stand
 
 ### `GET /stats/settings` (member)
 
-`{ settings: StatsSettings, changed?: { by: string; at: string } }`. `changed` is for admins. Every
-member may read the settings: a scoresheet working with the meet needs the way level teams are
-scored (FR-023b), and they hold nothing private.
+`{ settings: StatsSettings, changed?: { by: string; at: string }, otherFormula?: number }`.
+`changed` and `otherFormula`, how many stored quizzes score level teams another way than the meet,
+are for admins. Every member may read the settings: a scoresheet working with the meet needs the way
+level teams are scored (FR-023b), and they hold nothing private.
 
 ### `PUT /stats/settings` (admin)
 
@@ -240,7 +244,8 @@ Clears the quiz's "played under a withdrawn order" flag (FR-019b). No body.
 
 Sets every stored quiz whose own way of scoring level teams differs from the meet's to the meet's
 way (FR-023b): one new revision each, action `edited`, any acceptance carried to the new revision.
-`{ changed: number }`.
+`{ changed: number, remaining: number }`: a request sets a few, within the free plan's queries per
+request, and the caller asks again while `remaining` is above zero.
 
 ### `GET /results/:id/revisions`, changed
 
@@ -263,7 +268,8 @@ Body: `{ state: DivisionStateValue, confirm?: boolean }`. `finals` is a state. S
 time, forward or back, while the meet is `live` or in `review`.
 
 * Forward, with scheduled quizzes of the stage that is ending missing or not counting: 409
-  `{ error, missing: QuizRef[] }` unless `confirm` (FR-019a).
+  `{ error, missing: { name: string }[] }` unless `confirm` (FR-019a): each by its scheduled name.
+* The division is taken as the meet spells it, for its state and its confirmations alike.
 * Back, with quizzes of later stages stored: 409 `{ error, affected: QuizRef[] }` unless `confirm`;
   with it, the withdrawal records them and they are flagged (FR-019b, FR-019c).
 * To `stats_break`: records the prelim order as confirmed. To `elim_running`, where the division has
@@ -272,6 +278,7 @@ time, forward or back, while the meet is `live` or in `review`.
 
 ### `GET /divisions/state` (admin), changed
 
-Each division gains `ready: boolean`, `missing: QuizRef[]` for its next step, and
-`confirmed: { prelims?: { by, at }, rerank?: { by, at } }`, which the settings page's division rows
-read (FR-023c).
+The meet's divisions, then any only a state names. Each gains `ready: boolean`, `missing` (as above)
+for its next step, `confirmed: { prelims?: { by, at }, rerank?: { by, at } }`, and `stages`, the
+stages the schedule has for the division, so the page offers "Start Finals" to a division with no
+eliminations. The settings page's division rows read them (FR-023c).
