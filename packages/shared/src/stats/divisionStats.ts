@@ -38,7 +38,15 @@ export interface QuizResult {
    * one in error and not accepted: it carries team names only, no places and no scores.
    */
   status: 'counted' | 'accepted' | 'underReview'
-  teams: { name: string; place?: 1 | 2 | 3; tiedWith?: number; score?: number }[]
+  teams: {
+    name: string
+    place?: 1 | 2 | 3
+    tiedWith?: number
+    score?: number
+    /** For admins, in a quiz that counts: the placement points it gives and the team's errors */
+    placementPoints?: number
+    errors?: number
+  }[]
   /** For admins: the stored quiz's id, and what is wrong with it */
   id?: number
   problems?: QuizProblem[]
@@ -329,7 +337,11 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
     .reverse()
     .map((stage): StageResults => {
       const quizzes = staged.filter((quiz) => quiz.stage === stage)
-      return { stage, level: 'scores', quizzes: quizzes.map(quizResult) }
+      return {
+        stage,
+        level: 'scores',
+        quizzes: quizzes.map((quiz) => quizResult(quiz, levelTeams)),
+      }
     })
     .filter((stage) => stage.quizzes.length > 0)
   const finals = results.find((stage) => stage.stage === 'finals')
@@ -665,7 +677,7 @@ function typesIncomplete(scored: ScoredQuiz): boolean {
   )
 }
 
-function quizResult(quiz: Staged): QuizResult {
+function quizResult(quiz: Staged, levelTeams: PlacementFormula): QuizResult {
   const named = quiz.scored.teams.filter((team) => tidyName(team.name) !== '')
   const flags = {
     ...(quiz.withdrawnOrder ? { withdrawnOrder: true as const } : {}),
@@ -687,11 +699,14 @@ function quizResult(quiz: Staged): QuizResult {
     teams: named.map((team) => {
       const place = team.place === null ? undefined : placeRank(team.place)
       const tiedWith = team.place === null ? 1 : placeTieCount(team.place)
+      const placementPoints = computePlacementPoints(team.regulationScore, team.place, levelTeams)
       return {
         name: tidyName(team.name),
         ...(place ? { place } : {}),
         ...(tiedWith > 1 ? { tiedWith } : {}),
         score: team.score,
+        ...(placementPoints === null ? {} : { placementPoints }),
+        errors: team.errors,
       }
     }),
     id: quiz.id,

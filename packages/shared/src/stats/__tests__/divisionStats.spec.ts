@@ -98,9 +98,9 @@ describe('divisionStats', () => {
     quiz.scored.teams[0]!.place = 1.2
     quiz.scored.teams[1]!.place = 1.2
     expect(stats([quiz]).results[0]!.quizzes[0]!.teams).toEqual([
-      { name: 'A', place: 1, tiedWith: 2, score: 100 },
-      { name: 'B', place: 1, tiedWith: 2, score: 60 },
-      { name: 'C', place: 3, score: 20 },
+      expect.objectContaining({ name: 'A', place: 1, tiedWith: 2, score: 100 }),
+      expect.objectContaining({ name: 'B', place: 1, tiedWith: 2, score: 60 }),
+      { name: 'C', place: 3, score: 20, placementPoints: expect.any(Number), errors: 2 },
     ])
   })
 

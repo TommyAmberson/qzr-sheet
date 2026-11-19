@@ -12,6 +12,7 @@ import {
   placeLabel,
   problemText,
   quizzerCount,
+  statsCsv,
   warningText,
 } from '../stats'
 
@@ -81,6 +82,28 @@ const typesText = (types: Record<string, number>) =>
     .map(([type, n]) => `${type} ${n}`)
     .join(', ')
 
+/** The files of the statistician's workbook, made here from the admin's stats (FR-028) */
+const FILES = [
+  { key: 'teams', label: 'Teams by quiz' },
+  { key: 'quizzers', label: 'Quizzers by quiz' },
+  { key: 'standings', label: 'Standings' },
+] as const
+
+/** Save one of a division's stats files */
+function download(key: (typeof FILES)[number]['key']) {
+  if (!stats.value || !meet.value) return
+  // A byte-order mark tells a spreadsheet the file is UTF-8, so accented names open as written
+  const blob = new Blob(['\ufeff', statsCsv(stats.value)[key]], { type: 'text/csv' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `${meet.value.name} ${divisionTitle(stats.value.division)} ${key}.csv`
+  // Attached while clicked, and the file let go only once the browser has started saving it
+  document.body.append(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(link.href))
+}
+
 /** Keep a quiz seated from a withdrawn order as it is, clearing its flag */
 async function keep(resultId: number) {
   if (!meet.value) return
@@ -110,6 +133,18 @@ async function keep(resultId: number) {
       <p v-if="asViewer" class="viewer-note no-print">
         As a viewer sees it.
         <router-link :to="{ query: {} }">See everything</router-link>
+      </p>
+
+      <p v-if="admin" class="downloads no-print">
+        Download:
+        <button
+          v-for="file in FILES"
+          :key="file.key"
+          class="btn btn--secondary btn--sm"
+          @click="download(file.key)"
+        >
+          {{ file.label }}
+        </button>
       </p>
 
       <ul v-if="stats.warnings?.length" class="warnings no-print">
@@ -587,6 +622,15 @@ async function keep(resultId: number) {
   font-weight: 600;
 }
 
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
 .finalist {
   margin-left: 0.4rem;
   font-size: 0.7rem;
@@ -692,6 +736,33 @@ async function keep(resultId: number) {
   margin: -0.75rem 0 1.25rem;
   font-size: 0.8rem;
   color: var(--color-text-muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.btn--sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.btn--secondary {
+  background: transparent;
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}
+
+.btn--secondary:hover {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
 .keep {

@@ -7,6 +7,7 @@ import {
   validationMessage,
   viewerHas,
   type DivisionStateValue,
+  type DivisionStats,
   type MeetPhase,
   type QuizProblem,
   type QuizzerFlag,
@@ -324,4 +325,102 @@ export function quizzerCount(
     ? `the ${divisionTitle(division)} consolation list`
     : divisionTitle(division)
   return `There ${n === 1 ? 'was 1 quizzer' : `were ${n} quizzers`} in ${where}`
+}
+
+type Cell = string | number | null | undefined
+
+/**
+ * A cell as CSV writes it, quoted where it holds a comma, a quote or a line break. Text a
+ * spreadsheet would read as a formula is written as plain text, since names are typed by anyone.
+ */
+function csvCell(value: Cell): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'number') return String(value)
+  const text = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+function csv(rows: Cell[][]): string {
+  return rows.map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n'
+}
+
+/** The question types in the workbook's column order */
+const TYPE_COLUMNS = ['REF', 'FTV', 'INT', 'MA', 'Q', 'SIT'] as const
+
+/**
+ * A division's stats as the three files the statistician's workbook holds (FR-028, R13), from the
+ * admin's stats: a row per team per quiz, a row per quizzer per quiz, and the standings
+ */
+export function statsCsv(stats: DivisionStats): {
+  teams: string
+  quizzers: string
+  standings: string
+} {
+  // The quizzes in the order they were played; quizzes under review carry no figures
+  const played = [...stats.results]
+    .reverse()
+    .flatMap((stage) => stage.quizzes.filter((quiz) => quiz.status !== 'underReview'))
+  const teams = csv([
+    ['Team', 'Quiz', 'Place', 'Score', 'Points', 'Errors'],
+    ...played.flatMap((quiz) =>
+      quiz.teams.map((team) => [
+        team.name,
+        quiz.name,
+        team.place,
+        team.score,
+        team.placementPoints,
+        team.errors,
+      ]),
+    ),
+  ])
+  const lists = stats.quizzers?.lists ?? []
+  const quizzers = csv([
+    ['Quizzer', 'Team', 'Quiz', 'Points', 'Errors', 'Jumps', ...TYPE_COLUMNS],
+    ...lists.flatMap((list) =>
+      list.quizzers.flatMap((quizzer) =>
+        quizzer.lines.map((line) => [
+          quizzer.name,
+          quizzer.team,
+          line.quiz,
+          line.points,
+          line.errors,
+          line.jumps,
+          ...TYPE_COLUMNS.map((type) => line.types[type] ?? 0),
+        ]),
+      ),
+    ),
+  ])
+  const tables = [
+    ['Prelims', stats.prelimStandings],
+    ['After the intermediates', stats.rerank],
+  ] as const
+  const standings = csv([
+    ['Table', 'Rank', 'Tied', 'Team', 'Points', 'Quizzes'],
+    ...tables.flatMap(([table, shown]) =>
+      (shown?.teams ?? []).map((team) => [
+        table,
+        team.rank,
+        team.tied ? 'yes' : '',
+        team.name,
+        team.placementPoints,
+        team.quizzes,
+      ]),
+    ),
+    [],
+    ['List', 'Place', 'Quizzer', 'Team', 'Average', 'Points', 'Errors', 'Jumps', 'Quizzes'],
+    ...lists.flatMap((list) =>
+      list.quizzers.map((quizzer) => [
+        list.consolation ? 'Consolation' : 'Main',
+        quizzer.place,
+        quizzer.name,
+        quizzer.team,
+        Number(quizzer.average.toFixed(2)),
+        quizzer.points,
+        quizzer.errors,
+        quizzer.jumps,
+        quizzer.quizzes,
+      ]),
+    ),
+  ])
+  return { teams, quizzers, standings }
 }

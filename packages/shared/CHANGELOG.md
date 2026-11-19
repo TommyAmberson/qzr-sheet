@@ -35,6 +35,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   team with the quizzes they're missing from, and its quizzes whose question types don't add up.
 * `NameDismissal` and `nameDismissal`: two names an admin said are different, held folded and in a
   fixed order. `DivisionStatsInput.dismissed` leaves those pairs unflagged.
+* A quiz result's teams carry, for admins in a quiz that counts, the placement points it gives
+  (`placementPoints`) and the team's `errors`.
 
 ### Changed
 
