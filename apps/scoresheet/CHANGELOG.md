@@ -15,6 +15,17 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-11-19
+
+### Fixed
+
+* The Division box of a sheet not linked to a meet no longer shows a "D" of its own: its label
+  already says "Division". A prefix typed into it is still dropped
+
+### Bundled contract
+
+* `@qzr/shared@1.15.0` - bumped from 1.14.0
+
 ## [0.25.0] - 2026-11-18
 
 ### Changed
