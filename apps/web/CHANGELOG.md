@@ -27,6 +27,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * The Results page downloads the quizzes it lists, as filtered, as one zip of quiz files (`.json`)
   or spreadsheets (`.ods`) filled from the meet's template. Spreadsheets leave out 15-question
   quizzes and questions past Q26, and the page lists what was left out (#52)
+* A stored quiz's page downloads each revision as a quiz file or a spreadsheet; a past revision's
+  file name says which revision it is (#52)
 
 ## [0.31.0] - 2026-11-19
 
