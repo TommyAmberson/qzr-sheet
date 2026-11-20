@@ -98,8 +98,8 @@ one unchanged with no prompt.
 
 - [X] T011 [US1] Make `readOds` turn an `mb` on an empty seat into a no-jump on that column, with a comment that allowing `mb` on an empty seat directly is a later option, in `packages/shared/src/ods/readOds.ts`; extend the shared changelog section; covered by T008
 - [X] T012 [US1] Answer an identical file as unchanged in `results.post('/:id/results')` in `packages/api/src/routes/results.ts`, before `alreadySubmitted`, comparing against the current revision's file as the restore path does (research R6); covered by T009
-- [ ] T013 [US1] Read `.ods` files, report unchanged files, and offer "apply to the rest" on the batch's "already stored" question in `packages/ui/src/sendQuizzes.ts` (`uploadPicked`, `sendOne`, `askAlreadySubmitted`), and widen the file inputs to accept `.ods` in `apps/web/src/views/ResultsView.vue` and `apps/scoresheet/src/components/Scoresheet.vue`; covered by T010
-- [ ] T014 [US1] Show unchanged and refused outcomes in the upload report of `apps/web/src/views/ResultsView.vue` and the scoresheet's upload report, reusing the existing `FileReport` list
+- [X] T013 [US1] Read `.ods` files, report unchanged files, and offer "apply to the rest" on the batch's "already stored" question in `packages/ui/src/sendQuizzes.ts` (`uploadPicked`, `sendOne`, `askAlreadySubmitted`), and widen the file input to accept `.ods` in `apps/web/src/views/ResultsView.vue`; covered by T010
+- [X] T014 [US1] Show unchanged and refused outcomes in the upload report of `apps/web/src/views/ResultsView.vue`, reusing the existing `FileReport` list
 
 **Checkpoint**: A whole meet's sheets can be uploaded from either app (one room per batch, as
 today).
@@ -142,7 +142,7 @@ two sheets of one quiz are flagged before sending.
 
 - [ ] T022 [P] [US3] Add failing cases to `apps/web/src/__tests__/sendQuizzes.spec.ts`: files whose quiz names match the published schedule are paired with their scheduled quiz and room; an unmatched one can be given a scheduled quiz, which rewrites its division, consolation and number before sending, or sent unlinked; duplicates in a batch are flagged; an admin's batch sends each quiz with its scheduled quiz's `roomId` and `scheduleQuizId`; a "Div 1" division shows as one the meet lacks
 - [ ] T023 [US3] Add the batch review to the shared upload in `packages/ui/src/sendQuizzes.ts`, matching by `resultKey`/`resultName` against the published schedule (research R7), replacing the single `chooseRoom` for an admin's batch with each quiz's scheduled room (FR-007), and sending an unmatched or unlinked sheet in an admin's batch with no room, while an official keeps their own room; covered by T022
-- [ ] T024 [US3] Show the review before sending in `apps/web/src/views/ResultsView.vue` and the scoresheet's upload, with a picker of the schedule's quizzes for unmatched files
+- [ ] T024 [US3] Show the review before sending in `apps/web/src/views/ResultsView.vue`, with a picker of the schedule's quizzes for unmatched files
 
 **Checkpoint**: A 75-quiz backfill goes in as one batch, each quiz in its own room.
 
@@ -195,7 +195,7 @@ Within a phase, a test task comes before the task it covers, and fails first.
 
 ## Implementation Strategy
 
-1. Phase 1, then US1: `.ods` uploads in both apps. Ship-ready on its own (MVP).
+1. Phase 1, then US1: `.ods` uploads in the portal. Ship-ready on its own (MVP).
 2. Phase 6: the roster fix, so a real meet can be loaded and checked.
 3. Phase 2 and US2: the way back to spreadsheets.
 4. US3: one batch across rooms, for backfills.
