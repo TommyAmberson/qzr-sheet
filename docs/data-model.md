@@ -42,6 +42,13 @@ QuizMeet
                     shown; one saved as "Div 1" shows as such until renamed
   createdAt
 
+MeetTemplate    -- the meet's scoring template (Scoresheet.ots); one per meet, replaced on upload
+  meetId         -- FK → QuizMeet (cascade), the key
+  fileName       -- as uploaded, for display and downloads
+  bytes          -- the file; refused unless it has the Quiz sheet .ods files fill, or over 2 MB
+  uploadedAt
+  uploadedById   -- FK → user (set null)
+
 # ---- Memberships ----
 
 AdminMembership        -- one per admin per meet
