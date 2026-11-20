@@ -16,6 +16,17 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-11-20
+
+### Changed
+
+* Officials see results and standings on the meet page as admins do, from before the meet is live;
+  Setup's stats section says the viewer settings are for viewers and coaches
+
+### Bundled contract
+
+* `@qzr/shared@1.20.0` - bumped from 1.19.0
+
 ## [0.36.1] - 2026-11-20
 
 ### Fixed
