@@ -17,6 +17,13 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+### Added
+
+* A scoring template per meet: `PUT /api/meets/:id/template` stores the admin's `Scoresheet.ots`,
+  replacing any earlier one, and refuses a file with no Quiz sheet, a filled sheet, one over 1.9 MB,
+  or any upload once the meet is done. `GET` (and `HEAD`) serves it to anyone who may read the
+  meet's rosters (#52)
+
 ## [0.30.0] - 2026-11-19
 
 ### Added

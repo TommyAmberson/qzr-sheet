@@ -43,7 +43,9 @@ app.use(
       return allowed.includes(origin) ? origin : null
     },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-File-Name'],
+    // A downloaded template's name and date, which the clients read
+    exposeHeaders: ['Content-Disposition', 'Last-Modified'],
     credentials: true,
   }),
 )

@@ -215,6 +215,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.0
         version: 0.31.10
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.2
       sql.js:
         specifier: ^1.12.0
         version: 1.14.1

@@ -127,6 +127,13 @@
       "when": 1795124099994,
       "tag": "0017_bizarre_venom",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1795145478781,
+      "tag": "0018_fancy_stick",
+      "breakpoints": true
     }
   ]
 }

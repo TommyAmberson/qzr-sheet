@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  blob,
   check,
   index,
   integer,
@@ -633,3 +634,16 @@ export const meetTeamNames = sqliteTable(
   },
   (t) => [unique().on(t.meetId, t.division, t.nameKey)],
 )
+
+// The meet's scoring template (Scoresheet.ots), which the portal and linked scoresheets fill to make
+// .ods sheets. One per meet; uploading again replaces it. A table of its own keeps the bytes out of
+// every meet query.
+export const meetTemplates = sqliteTable('meet_templates', {
+  meetId: integer('meet_id')
+    .primaryKey()
+    .references(() => quizMeets.id, { onDelete: 'cascade' }),
+  fileName: text('file_name').notNull(),
+  bytes: blob('bytes', { mode: 'buffer' }).notNull(),
+  uploadedAt: integer('uploaded_at', { mode: 'timestamp' }).notNull(),
+  uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
+})

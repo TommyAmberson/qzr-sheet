@@ -7,7 +7,8 @@ import { asOne, createDb, isUniqueViolation, viewerCodeIs, type Db } from '../li
 import { generateCode, hashCode, wantsClearMembers } from '../lib/codes'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
-import { AccountRole, MeetRole } from '@qzr/shared'
+import { meetIdOf } from '../lib/request'
+import { AccountRole, MeetRole, readOds } from '@qzr/shared'
 
 export interface MeetsVariables extends SessionVariables {
   db: Db
@@ -271,6 +272,120 @@ meets.get('/:id/team-counts', async (c) => {
   for (const r of rows) counts[r.division] = r.count
   return c.json({ counts })
 })
+
+// ---- Scoring template ----
+
+/** D1 keeps a row up to 2,000,000 bytes, file name included; a scoring template is about 100 KB */
+const MAX_TEMPLATE_BYTES = 1_900_000
+
+/**
+ * The meet's scoring template, for anyone who may read the meet's rosters (guests of the meet,
+ * officials among them, members and superusers), so a room can carry on in spreadsheets. HEAD
+ * answers from this route with the headers alone.
+ */
+meets.get('/:id/template', async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const db = getDb(c)
+  if (!(await isViewerOf(c, db, meetId))) return c.json({ error: 'Forbidden' }, 403)
+
+  // A HEAD asks only whether there is one, so the bytes stay in the database
+  const facts = {
+    fileName: schema.meetTemplates.fileName,
+    uploadedAt: schema.meetTemplates.uploadedAt,
+  }
+  const head = c.req.method === 'HEAD'
+  const [row] = await db
+    .select(head ? facts : { ...facts, bytes: schema.meetTemplates.bytes })
+    .from(schema.meetTemplates)
+    .where(eq(schema.meetTemplates.meetId, meetId))
+  if (!row) return c.json({ error: 'The meet has no scoring template yet' }, 404)
+  const body = 'bytes' in row ? new Uint8Array(row.bytes as Buffer) : null
+  return new Response(body, {
+    headers: {
+      // As uploaded: a template, or a sheet kept as one
+      'Content-Type': /\.ods$/i.test(row.fileName)
+        ? 'application/vnd.oasis.opendocument.spreadsheet'
+        : 'application/vnd.oasis.opendocument.spreadsheet-template',
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(row.fileName)}`,
+      'Last-Modified': row.uploadedAt.toUTCString(),
+    },
+  })
+})
+
+/**
+ * Store the meet's scoring template, replacing any earlier one. The body is the file itself and
+ * X-File-Name its name. Only a spreadsheet with the Quiz sheet the scoresheet fills is kept, so a
+ * wrong file is refused here rather than failing every download made from it later.
+ */
+meets.put('/:id/template', requireAuth(), async (c) => {
+  const meetId = meetIdOf(c)
+  if (meetId === null) return c.json({ error: 'Invalid meet ID' }, 400)
+
+  const user = getUser(c)
+  const db = getDb(c)
+  if (!(await isAdminOrSuperuser(db, user.id, user.role, meetId))) {
+    return c.json({ error: 'Admin or superuser access required' }, 403)
+  }
+  const [meet] = await db
+    .select({ phase: schema.quizMeets.phase })
+    .from(schema.quizMeets)
+    .where(eq(schema.quizMeets.id, meetId))
+  if (!meet) return c.json({ error: 'Meet not found' }, 404)
+  if (meet.phase === 'done') {
+    return c.json({ error: 'The template stays as it is once the meet is done' }, 409)
+  }
+
+  // A size the client declares is refused before the body is read
+  if (Number(c.req.header('Content-Length') ?? 0) > MAX_TEMPLATE_BYTES) {
+    return c.json({ error: 'A scoring template is at most 1.9 MB' }, 400)
+  }
+  const bytes = new Uint8Array(await c.req.arrayBuffer())
+  if (bytes.length > MAX_TEMPLATE_BYTES) {
+    return c.json({ error: 'A scoring template is at most 1.9 MB' }, 400)
+  }
+  let read: ReturnType<typeof readOds>
+  try {
+    read = readOds(bytes)
+  } catch {
+    return c.json({ error: 'Not a scoring template: it has no Quiz sheet to fill' }, 400)
+  }
+  // Filling patches only the cells a quiz uses, so a filled sheet would leave its own marks behind
+  const named = read.teams.some(
+    (team) =>
+      team.name.trim() !== '' || team.quizzers.some((quizzer) => quizzer.name.trim() !== ''),
+  )
+  // Question types aren't counted: the current template comes with its type row filled in
+  const marked = read.answers.length > 0 || read.noJumps.length > 0
+  if (named || marked) {
+    return c.json({ error: 'That sheet is filled in: upload the blank Scoresheet.ots' }, 400)
+  }
+
+  // Sent encoded, since a header carries only Latin-1
+  const fileName = decodedName(c.req.header('X-File-Name')) || 'Scoresheet.ots'
+  const values = {
+    fileName,
+    bytes: Buffer.from(bytes),
+    uploadedAt: new Date(),
+    uploadedById: user.id,
+  }
+  await db
+    .insert(schema.meetTemplates)
+    .values({ meetId, ...values })
+    .onConflictDoUpdate({ target: schema.meetTemplates.meetId, set: values })
+  return c.json({ fileName, uploadedAt: values.uploadedAt.toISOString() })
+})
+
+/** A file name as the client encoded it for its header; as sent when it isn't encoded */
+function decodedName(header: string | undefined): string {
+  if (!header) return ''
+  try {
+    return decodeURIComponent(header).trim()
+  } catch {
+    return header.trim()
+  }
+}
 
 // ---- Official codes ----
 
