@@ -26,13 +26,18 @@ export function useMeetDay(
   let timer: ReturnType<typeof setInterval> | undefined
   // A read answered after a newer one began is dropped, so the page never steps back
   let asked = 0
+  let reading = false
 
   /** Read the meet day; `wanted` for a reader's own refresh, which always moves the beat */
   async function refresh(wanted = true) {
     const id = meetId.value
     if (id === null) return
+    // A read already on its way answers for the 30 seconds too; each read may wait out the API
+    // preparing the day, so starting more would only poll it in parallel
+    if (!wanted && reading) return
     owed ||= wanted
     const ask = ++asked
+    reading = true
     try {
       const answer = await read(id)
       if (ask !== asked) return
@@ -49,6 +54,8 @@ export function useMeetDay(
     } catch (e) {
       if (ask !== asked) return
       error.value = e instanceof Error ? e.message : String(e)
+    } finally {
+      if (ask === asked) reading = false
     }
   }
 

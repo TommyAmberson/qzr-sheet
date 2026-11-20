@@ -121,7 +121,8 @@ throughout; superuser includes admin.
   access; an official who spots a mistake tells the admin.
 * **The scoring template** is the blank `Scoresheet.ots` a room scores in when it falls back to
   LibreOffice, and the sheet `.ods` downloads fill. It holds no meet data, so anyone the meet's
-  roster routes admit downloads it in every phase; only admins upload or replace it, until `done`.
+  roster routes admit downloads it in every phase, from the meet page's Roster tab (admins from
+  Setup); only admins upload or replace it, until `done`.
 * **`done`** locks the meet, admins included. A late correction moves the meet back to `review`.
   Moving the phase is the one write allowed in `done`.
 * Completed quizzes are immutable in the schedule in every phase

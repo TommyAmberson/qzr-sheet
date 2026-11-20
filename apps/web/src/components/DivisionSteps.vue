@@ -68,6 +68,7 @@ const canMove = computed(() => props.phase === 'live' || props.phase === 'review
 
 async function reloadDivisions() {
   divisions.value = (await getDivisionStates(props.meetId)).divisionStates
+  error.value = ''
   emit('read', divisions.value)
 }
 

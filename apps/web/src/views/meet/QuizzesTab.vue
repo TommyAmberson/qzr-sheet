@@ -179,7 +179,7 @@ const rows = computed<QuizRow[]>(() => {
   })
   const offSchedule = answer.notOnSchedule.map(
     (q): QuizRow => ({
-      key: `stored-${q.storedId ?? q.name}`,
+      key: `stored-${q.storedId ?? `${q.division}-${q.name}`}`,
       name: q.name,
       when: '',
       division: q.division,
@@ -223,6 +223,8 @@ const GROUP_TITLES: Record<Stage, string> = {
 
 /** The list in groups: each stage's scheduled quizzes, then the stored ones the schedule lacks */
 const groups = computed(() => {
+  // A viewer or coach sees no list before the meet is under way, only the line saying so
+  if (statsHidden.value && !manages.value) return []
   const listed = schedule.value !== null
   const out: { title: string; rows: QuizRow[] }[] = []
   for (const stage of STAGES) {

@@ -6,11 +6,14 @@ import { teamDisplayName } from '@qzr/shared'
 import {
   createChurch,
   deleteChurch,
+  downloadTemplate,
   exportRoster,
+  getTemplateInfo,
   importRoster,
   listChurches,
   updateChurch,
   type Church,
+  type TemplateInfo,
 } from '../../api'
 import MeetAccessDialog from '../../components/MeetAccessDialog.vue'
 import { saveFile } from '../../downloads'
@@ -55,6 +58,33 @@ async function load() {
     loading.value = false
   }
 }
+
+// ---- Scoring template ----
+
+/**
+ * The meet's scoring template, which its officials and coaches download here; its admins keep it
+ * in Setup, where they also replace it
+ */
+const template = ref<TemplateInfo | null>(null)
+const templateError = ref('')
+
+async function loadTemplate() {
+  const id = meet.value?.id
+  if (id === undefined || isAdmin.value) return
+  template.value = await getTemplateInfo(id).catch(() => null)
+}
+
+async function saveTemplate() {
+  templateError.value = ''
+  try {
+    const { bytes, fileName } = await downloadTemplate(meet.value!.id)
+    saveFile(bytes, fileName, 'application/vnd.oasis.opendocument.spreadsheet-template')
+  } catch (e) {
+    templateError.value = (e as Error).message
+  }
+}
+
+watch(() => meet.value?.id, loadTemplate, { immediate: true })
 
 watch(() => meet.value?.id, load, { immediate: true })
 // Refresh, and the page's beat, read the churches again too
@@ -182,8 +212,12 @@ async function handleExportRoster() {
 <template>
   <div class="roster-tab">
     <p v-if="loading" class="state-msg">Loading…</p>
-    <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
+    <p v-else-if="error && churches.length === 0" class="state-msg state-msg--error">
+      {{ error }}
+    </p>
     <template v-else>
+      <!-- A background read that failed leaves the churches shown as they were -->
+      <p v-if="error" class="state-msg state-msg--error">{{ error }}</p>
       <div id="churches" class="section">
         <div class="section-header">
           <h3 class="section-title">Churches</h3>
@@ -320,6 +354,18 @@ async function handleExportRoster() {
           </form>
           <button v-else class="dashed-add" @click="showAddChurch = true">+ Church</button>
         </template>
+      </div>
+
+      <div v-if="template" class="section">
+        <div class="section-header">
+          <h3 class="section-title">Scoring template</h3>
+          <div class="section-actions">
+            <button class="btn btn--secondary btn--sm" @click="saveTemplate">
+              ⤓ Download {{ template.fileName }}
+            </button>
+          </div>
+        </div>
+        <p v-if="templateError" class="field-error">{{ templateError }}</p>
       </div>
     </template>
     <MeetAccessDialog v-if="meet" ref="access" :meet-id="meet.id" :is-superuser="isSuperuser" />

@@ -55,7 +55,8 @@ let loads = 0
 async function load() {
   const current = ++loads
   const meetId = meet.value?.id
-  if (meetId === undefined || division.value === null) {
+  // Nothing is shown before the meet is under way, so nothing is read for it
+  if (meetId === undefined || division.value === null || statsHidden.value) {
     loading.value = false
     return
   }
@@ -139,9 +140,11 @@ async function keep(resultId: number) {
       Nothing to see yet: results and standings show once the meet is under way.
     </p>
     <p v-else-if="loading" class="state-msg">Loading…</p>
-    <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
+    <p v-else-if="error && !stats" class="state-msg state-msg--error">{{ error }}</p>
 
     <template v-else-if="meet && stats">
+      <!-- A background read that failed leaves the tables shown as they were -->
+      <p v-if="error" class="state-msg state-msg--error no-print">{{ error }}</p>
       <!-- The steps head an admin's division with its name -->
       <h3 v-if="!isAdmin || asViewer" class="division-title">
         {{ divisionTitle(stats.division) }}
