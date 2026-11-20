@@ -140,7 +140,11 @@ upload (`packages/ui/src/sendQuizzes.ts`) reads each file in the browser, a shee
 ODS reader, matches it to the published schedule by name for the user to review, then sends each
 quiz through the same `POST /api/meets/:id/results` the scoresheet uses, one request per quiz, with
 its scheduled quiz and, for an admin, that quiz's room. A file identical to the quiz's current
-revision is answered unchanged. Downloads are built in the browser too
+revision is answered unchanged. The review shows what each file reads as and how it matched, and
+suggests the scheduled quiz with the consolation flag the other way for a file that matches none.
+Each sent file gets an outcome; the header sums up the last batch in one line, which opens its
+report, and a file not sent, on a server error, a timeout or with the meet out of reach, stays in a
+Not sent list for another try while the page is open. Downloads are built in the browser too
 (`apps/web/src/downloads.ts`), from the quiz files the results list already carries, filling the
 meet's template for `.ods` and zipping with `fflate`, so the Worker does no extra work for them.
 
