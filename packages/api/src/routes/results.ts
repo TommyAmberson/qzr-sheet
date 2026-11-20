@@ -308,6 +308,18 @@ async function newestRevision(db: Db, resultId: number) {
   return newest
 }
 
+/** A save based on a revision that is no longer the newest, carrying the newest */
+class StaleRevision extends Error {
+  constructor(readonly newest: number) {
+    super('The quiz has changed since')
+  }
+}
+
+/** The 409 for a save made from a revision that is no longer the newest, carrying the newest */
+function staleSave(c: Context<Env>, newest: number) {
+  return c.json({ error: 'The quiz has changed since', revision: newest }, 409)
+}
+
 /**
  * Append revisions after the newest, in one statement, so a save can't leave the quiz
  * half-updated. A row with no file selects an earlier revision; `restoredFrom: 'current'` selects
@@ -320,10 +332,16 @@ async function addRevisions(
   rows: (Omit<RevisionRow, 'restoredFrom'> & { restoredFrom?: number | 'current' })[],
   /** Statements that must happen with the insert or not at all, built afresh for each try */
   together: () => PromiseLike<unknown>[] = () => [],
+  /**
+   * The revision the saved file was made from, when the caller knows it: anything newer by the time
+   * of the insert, a save that raced it included, throws `StaleRevision` rather than overwrite it
+   */
+  baseRevision?: number,
 ): Promise<number[]> {
   for (let attempt = 0; ; attempt++) {
     const newest = await newestRevision(db, resultId)
     const base = newest?.revision ?? 0
+    if (baseRevision !== undefined && base !== baseRevision) throw new StaleRevision(base)
     // A selection always points at a revision with a file, never at another selection
     const currentContent = newest ? contentOf(newest) : base
     const savedAt = new Date()
@@ -518,14 +536,25 @@ results.put('/:id/results/:resultId', async (c) => {
   if (access instanceof Response) return access
   const refused = await refusedByPhase(c, meetId, access.admin)
   if (refused) return refused
-  const body = await jsonBody<{ quizFile?: unknown; action?: unknown }>(c)
+  const body = await jsonBody<{ quizFile?: unknown; action?: unknown; baseRevision?: unknown }>(c)
   if (!body) return c.json({ error: 'Body must be JSON' }, 400)
+  // Optional, so a client that doesn't send it saves as before: whatever is newest is replaced
+  if (body.baseRevision !== undefined && !Number.isInteger(body.baseRevision)) {
+    return c.json({ error: 'baseRevision must be a revision number' }, 400)
+  }
   const db = c.get('db')
 
   const json = validFile(c, body.quizFile)
   if (json instanceof Response) return json
   const file = body.quizFile as QuizFile
 
+  // Stale first: a file made from an older revision may carry a name since given up, and the editor
+  // needs to know their base is old rather than that the name is taken
+  const base = body.baseRevision as number | undefined
+  if (base !== undefined) {
+    const newest = (await newestRevision(db, resultId))?.revision ?? 0
+    if (newest !== base) return staleSave(c, newest)
+  }
   // A changed name must stay unique in the meet, and changes with the revision or not at all
   const move = await nameMove(c, meetId, resultId, access.quizKey, file)
   if (move instanceof Response) return move
@@ -535,9 +564,13 @@ results.put('/:id/results/:resultId', async (c) => {
       resultId,
       [{ ...access.saver, quizFile: json, action: body.action === 'merged' ? 'merged' : 'edited' }],
       move,
+      // Checked again with the insert, for a save that raced this one
+      base,
     )
     return c.json({ id: resultId, revision })
   } catch (e) {
+    // Saved from an older revision: the caller reloads and saves again, rather than undo the newer
+    if (e instanceof StaleRevision) return staleSave(c, e.newest)
     if (isUniqueViolation(e) && !isRevisionClash(e)) return nameTaken(c, file)
     throw e
   }

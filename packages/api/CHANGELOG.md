@@ -17,6 +17,13 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+### Added
+
+* Saving a stored quiz's file (`PUT /api/meets/:id/results/:resultId`) takes an optional
+  `baseRevision`, the revision the file was made from. When a newer revision has been saved since, a
+  save racing it included, the API answers 409 with the newest `revision` instead of saving over it.
+  A save without `baseRevision` behaves as before
+
 ## [0.29.1] - 2026-11-19
 
 ### Fixed
