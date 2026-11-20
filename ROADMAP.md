@@ -15,16 +15,16 @@ see and when, results management, and the statistician's report and download. Me
 LibreOffice sheets and the app in both directions (#52, specs/009-ods-round-trip): sheets upload in
 bulk, matched to the schedule, and quizzes download as files or spreadsheets from the meet's own
 template. A meet is one page in tabs (specs/010-meet-day): its schedule with results as they come in
-and elimination benches filling with the teams that earned them, its quizzes, standings, roster and
-setup, kept current while open.
+and elimination benches filling with the teams that earned them (#16), on the schedule and in the
+scoresheet that opens them, its quizzes, standings, roster and setup, kept current while open.
+Officials see every result and standing as admins do; the viewer settings are for viewers and
+coaches.
 
 1. Real data to check stats against:
    [#116 Store score-only quiz results](https://github.com/TommyAmberson/qzr-sheet/issues/116)
-2. [#16 Fill elim seats with teams as results come in](https://github.com/TommyAmberson/qzr-sheet/issues/16):
-   the schedule shows them; the scoresheet filling them in when it opens a quiz is still to come
-3. [#117 Add a review phase between live and done](https://github.com/TommyAmberson/qzr-sheet/issues/117),
+2. [#117 Add a review phase between live and done](https://github.com/TommyAmberson/qzr-sheet/issues/117),
    with [#154 Dispute quiz results](https://github.com/TommyAmberson/qzr-sheet/issues/154)
-4. [#11 Quizzer identity linking](https://github.com/TommyAmberson/qzr-sheet/issues/11) — persistent
+3. [#11 Quizzer identity linking](https://github.com/TommyAmberson/qzr-sheet/issues/11) — persistent
    identity layer so stats can span multiple meets
 
 ## Bugs
