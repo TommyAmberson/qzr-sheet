@@ -151,7 +151,42 @@ function fromDay(q: {
   }
 }
 
+/**
+ * An admin's or official's stored quizzes listed on their own, while the meet day or the schedule
+ * the list is built from can't be had: still loading, or failed (research R7, rule 3)
+ */
+const withoutSchedule = computed(
+  () => manages.value && (!day.value || (day.value.scheduleVersion !== null && !schedule.value)),
+)
+
+function storedOnly(): QuizRow[] {
+  return groupResults(stored.value).flatMap((group) =>
+    group.quizzes.map(
+      (row): QuizRow => ({
+        key: `stored-${row.id}`,
+        name: row.name,
+        when: '',
+        division: group.division,
+        stage: row.stage,
+        status: row.problems?.length && !row.accepted ? 'attention' : 'played',
+        teams: row.teams.map((team) => ({
+          name: team.name,
+          score: team.score,
+          ...(team.place === null
+            ? {}
+            : { place: placeRank(team.place), tiedWith: placeTieCount(team.place) }),
+        })),
+        benches: [],
+        storedId: row.id,
+        row,
+        problems: row.problems ?? undefined,
+      }),
+    ),
+  )
+}
+
 const rows = computed<QuizRow[]>(() => {
+  if (withoutSchedule.value) return storedOnly()
   const answer = day.value
   if (!answer) return []
   const doc = schedule.value
@@ -712,10 +747,18 @@ async function mergeNames(division: string, names: [string, string], team?: stri
       </ul>
       <p v-if="changeError" class="state-msg state-msg--error">{{ changeError }}</p>
       <!-- The list is built from the meet day, so it waits for one (research R7, rule 3) -->
-      <p v-if="!day && dayError" class="state-msg">The quizzes show once the meet can be read.</p>
+      <p v-if="withoutSchedule && dayError" class="state-msg">
+        Listed without the schedule until the meet can be read.
+      </p>
+      <p v-if="!day && dayError && !manages" class="state-msg">
+        The quizzes show once the meet can be read.
+      </p>
       <!-- Scheduled quizzes are named from the schedule, so the list waits for it too -->
       <p
-        v-else-if="!day || (published === undefined && day.scheduleVersion !== null)"
+        v-else-if="
+          loading ||
+          (!withoutSchedule && (!day || (published === undefined && day.scheduleVersion !== null)))
+        "
         class="state-msg"
       >
         Loading…
