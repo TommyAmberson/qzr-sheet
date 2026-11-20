@@ -16,6 +16,23 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-11-20
+
+### Added
+
+* At phone width the Schedule tab lists the meet's quizzes by time, each with its room and benches,
+  results and settled teams as on the sheet, and marks the slot under way (specs/010-meet-day
+  FR-021)
+
+### Fixed
+
+* The Quizzes, Setup and Roster tabs' headers wrap their controls at phone width rather than push
+  the page sideways
+
+### Bundled contract
+
+* `@qzr/shared@1.21.0` - bumped from 1.20.0
+
 ## [0.37.0] - 2026-11-20
 
 ### Changed
