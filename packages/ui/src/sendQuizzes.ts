@@ -9,6 +9,7 @@ import {
   type QuizFile,
   type ScheduleDocument,
 } from '@qzr/shared'
+import { isRefusal } from './apiErrors'
 
 /** A quiz the meet already has under the name being sent */
 export interface ExistingQuiz {
@@ -40,11 +41,53 @@ export interface Sender {
   rooms: { id: number; name: string }[]
 }
 
+/**
+ * What became of one file: stored as a new quiz, as a new revision, or kept behind the current
+ * revision; unchanged, as the meet already had it; skipped by the user's choice; refused for what it
+ * is or by the API for a reason it gives; or not sent, as sending failed and may work another time
+ */
+export type FileOutcome =
+  | 'stored'
+  | 'revision'
+  | 'keptCurrent'
+  | 'unchanged'
+  | 'skipped'
+  | 'refused'
+  | 'notSent'
+
 /** What happened to one file */
 export interface FileReport {
-  file: string
-  stored: boolean
+  /** The file as it was reviewed, so one not sent can be sent again as it was */
+  item: PlannedFile
+  outcome: FileOutcome
+  /** Why it wasn't saved, in plain words, or what was saved */
   message: string
+}
+
+/** What a send that stored a quiz, as a new one or a revision, reports */
+const STORED: FileOutcome[] = ['stored', 'revision', 'keptCurrent']
+
+/** Whether the meet now has the file: stored, or found already stored */
+export function isSaved(outcome: FileOutcome): boolean {
+  return STORED.includes(outcome) || outcome === 'unchanged'
+}
+
+/** The words a batch's summary counts each outcome under, in order */
+const SUMMARY_COUNTS: [string, FileOutcome[]][] = [
+  ['stored', STORED],
+  ['unchanged', ['unchanged']],
+  ['skipped', ['skipped']],
+  ['refused', ['refused']],
+  ['not sent', ['notSent']],
+]
+
+/** A batch in one line, "5 files: 4 stored, 1 not sent", leaving out counts of none */
+export function summaryOf(reports: FileReport[]): string {
+  const counts = SUMMARY_COUNTS.map(([label, outcomes]) => {
+    const count = reports.filter((r) => outcomes.includes(r.outcome)).length
+    return count > 0 ? `${count} ${label}` : null
+  }).filter((count) => count !== null)
+  return `${reports.length} ${reports.length === 1 ? 'file' : 'files'}: ${counts.join(', ')}`
 }
 
 /** A dialog that asks a question with a button per choice, as `ChoiceDialog` does */
@@ -72,10 +115,33 @@ export type PickedFile =
   | { file: string; quizFile: QuizFile; refusal?: undefined }
   | { file: string; quizFile: null; refusal: string }
 
+/**
+ * How a planned file came to its scheduled quiz: its name matches it, it was picked by hand or as
+ * the review's suggestion, or it has none
+ */
+export type PlannedMatch = 'name' | 'hand' | 'suggestion' | 'none'
+
+/** How a planned file came to the scheduled quiz it is sent as */
+export function matchOf(item: PlannedFile, schedule: ScheduleDocument | null): PlannedMatch {
+  const name = nameOf(item.quizFile)
+  // A file sent with no scheduled quiz picked is still linked by its name, when the schedule has it
+  const scheduled = item.scheduleQuizId
+    ? schedule?.quizzes.find((q) => q.id === item.scheduleQuizId)
+    : schedule?.quizzes.find((q) => resultName(q) === name)
+  if (!scheduled) return 'none'
+  if (resultName(scheduled) === name) return 'name'
+  return item.scheduleQuizId === item.suggestion ? 'suggestion' : 'hand'
+}
+
 /** A picked file on its way to the meet, as the upload's review shows it */
 export type PlannedFile = PickedFile & {
   /** The published schedule's quiz it is sent as: the one its name matches, or one picked */
   scheduleQuizId: string | null
+  /**
+   * For a file no scheduled quiz is named as, the one named as it with the consolation flag the
+   * other way, as when a sheet's quiz number is missing its "c"; null when the schedule has none
+   */
+  suggestion: string | null
   /** Another file of the upload is sent as the same quiz */
   duplicate: boolean
 }
@@ -226,14 +292,20 @@ export function markDuplicates(
   }))
 }
 
-/** Each picked file with the scheduled quiz its name matches, if any, and whether another names it */
+/**
+ * Each picked file with the scheduled quiz its name matches, if any, or else the one suggested for
+ * it, and whether another names the same quiz
+ */
 export function planUpload(picked: PickedFile[], schedule: ScheduleDocument | null): PlannedFile[] {
   const scheduledByName = new Map((schedule?.quizzes ?? []).map((q) => [resultName(q), q.id]))
   return markDuplicates(
     picked.map((p) => {
-      const name = nameOf(p.quizFile)
-      const scheduleQuizId = name === null ? null : (scheduledByName.get(name) ?? null)
-      return { ...p, scheduleQuizId, duplicate: false }
+      const quiz = p.quizFile?.quiz
+      const scheduleQuizId = quiz ? (scheduledByName.get(resultKey(quiz)) ?? null) : null
+      const flipped = quiz && { ...quiz, consolation: !quiz.consolation }
+      const suggestion =
+        flipped && !scheduleQuizId ? (scheduledByName.get(resultKey(flipped)) ?? null) : null
+      return { ...p, scheduleQuizId, suggestion, duplicate: false }
     }),
     schedule,
   )
@@ -254,12 +326,12 @@ function namedAsScheduled(quizFile: QuizFile, schedule: ScheduleDocument, id: st
 }
 
 /**
- * Send an upload's files, in order, once reviewed. An admin's files go to their scheduled quizzes'
- * rooms, and any with none for the room the admin picks; an official's go for the room they
- * confirm or pick. A file sent as a scheduled quiz takes that quiz's name. Each name the meet already has
- * asks what to do, and that answer may be kept for the rest of the upload; skipping one moves on,
- * and one file failing doesn't stop the rest. Undefined when nothing was sent, as when the user
- * may no longer send to the meet.
+ * Send an upload's files, in order, once reviewed, reporting each. An admin's files go to their
+ * scheduled quizzes' rooms, and any with none for the room the admin picks; an official's go for
+ * the room they confirm or pick. A file sent as a scheduled quiz takes that quiz's name. Each name
+ * the meet already has asks what to do, and that answer may be kept for the rest of the upload;
+ * skipping one moves on, and one file failing doesn't stop the rest. Undefined when nothing was
+ * sent, as when the user may no longer send to the meet.
  */
 export async function sendPlanned(
   planned: PlannedFile[],
@@ -290,7 +362,7 @@ export async function sendPlanned(
   const reports: FileReport[] = []
   for (const [at, item] of planned.entries()) {
     if (!item.quizFile) {
-      reports.push({ file: item.file, stored: false, message: item.refusal })
+      reports.push({ item, outcome: 'refused', message: item.refusal })
       continue
     }
     const decide = async (existing: ExistingQuiz) => {
@@ -307,7 +379,7 @@ export async function sendPlanned(
     const quizFile = id && schedule ? namedAsScheduled(item.quizFile, schedule, id) : item.quizFile
     const roomId = (byScheduledRoom ? roomOf(item) : null) ?? chosenRoom
     reports.push({
-      file: item.file,
+      item,
       ...(await sendOne(
         quizFile,
         (file, onExisting) => send(file, roomId, onExisting, id),
@@ -322,26 +394,59 @@ async function sendOne(
   quizFile: QuizFile,
   send: (quizFile: QuizFile, onExisting?: OnExisting) => Promise<Stored>,
   decide: (existing: ExistingQuiz) => Promise<OnExisting | null>,
-): Promise<Omit<FileReport, 'file'>> {
+): Promise<Sent> {
   try {
-    return { stored: true, message: storedMessage(await send(quizFile)) }
+    return storedReport(await send(quizFile))
   } catch (e) {
     const existing = existingQuizOf(e)
-    if (!existing) return { stored: false, message: (e as Error).message }
+    if (!existing) return failedReport(e)
     const choice = await decide(existing)
     if (!choice)
-      return { stored: false, message: `Skipped: ${existing.name} was already submitted` }
+      return { outcome: 'skipped', message: `Skipped: ${existing.name} was already submitted` }
     try {
-      return { stored: true, message: storedMessage(await send(quizFile, choice)) }
+      return storedReport(await send(quizFile, choice))
     } catch (again) {
-      return { stored: false, message: (again as Error).message }
+      return failedReport(again)
     }
   }
 }
 
-function storedMessage({ created, revision, keptCurrent, unchanged }: Stored): string {
-  if (created) return 'Stored'
-  if (unchanged) return 'Unchanged'
-  if (keptCurrent) return `Saved as revision ${revision}; the earlier revision stays current`
-  return `Saved as revision ${revision}`
+/** A file's report but the file */
+type Sent = Omit<FileReport, 'item'>
+
+function storedReport({ created, revision, keptCurrent, unchanged }: Stored): Sent {
+  if (created) return { outcome: 'stored', message: 'Stored' }
+  if (unchanged) return { outcome: 'unchanged', message: 'Unchanged' }
+  if (keptCurrent) {
+    const message = `Saved as revision ${revision}; the earlier revision stays current`
+    return { outcome: 'keptCurrent', message }
+  }
+  return { outcome: 'revision', message: `Saved as revision ${revision}` }
+}
+
+/**
+ * A send that failed: not sent, when a server error, a busy or signed-out session, no answer in
+ * time, or a meet out of reach may pass, said in plain words rather than as the status the server
+ * gave; otherwise refused, with the reason the API or the browser gives, which sending again won't
+ * change
+ */
+function failedReport(e: unknown): Sent {
+  // fetch fails with a TypeError when the meet can't be reached, and a timeout with its own error
+  if (e instanceof TypeError) {
+    // The connection may also have dropped after the meet stored it; sending again finds it unchanged
+    const message = "The meet couldn't be reached, so this file may not have been saved"
+    return { outcome: 'notSent', message }
+  }
+  if (e instanceof DOMException && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+    // The meet may have stored it before the answer was lost; sending it again finds it unchanged
+    const message = 'No answer came from the meet, so this file may not have been saved'
+    return { outcome: 'notSent', message }
+  }
+  if (!(e instanceof ApiError) || isRefusal(e)) {
+    return { outcome: 'refused', message: (e as Error).message }
+  }
+  if (e.status === 401) {
+    return { outcome: 'notSent', message: "You were signed out, so this file wasn't saved" }
+  }
+  return { outcome: 'notSent', message: "The server was busy and this file wasn't saved" }
 }

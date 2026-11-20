@@ -12,15 +12,20 @@ export {
   existingQuizOf,
   markDuplicates,
   pickedFiles,
+  isSaved,
+  matchOf,
   planUpload,
   roomOfScheduled,
   sendPlanned,
+  summaryOf,
 } from './sendQuizzes'
 export type {
   ExistingQuiz,
+  FileOutcome,
   FileReport,
   OnExisting,
   PlannedFile,
+  PlannedMatch,
   Sender,
   Stored,
 } from './sendQuizzes'
