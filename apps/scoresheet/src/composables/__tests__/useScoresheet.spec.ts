@@ -867,12 +867,13 @@ describe("useScoresheet — the tab's writer", () => {
     expect(tab.link).toMatchObject({ meetId: 5 })
     expect(useScoresheet().teams.value[0]!.name).toBe('Linked')
     expect(isKept(tab.record!)).toBe(false)
-    // Left by a closed tab, it is no recent quiz, and goes when the limits are next kept
+    // Left by a closed tab, it is no recent quiz, but is kept a while, for a tab the browser
+    // restores but hasn't loaded yet
     currentTab()!.claim.release()
     sessionStorage.clear()
     await startTab()
     expect(await listRecent(currentTab()!.id)).toEqual([])
-    expect(await readRecord(tab.id)).toBeUndefined()
+    expect(await readRecord(tab.id)).toBeDefined()
   })
 
   it('says a write failed, and still writes the next change', async () => {
