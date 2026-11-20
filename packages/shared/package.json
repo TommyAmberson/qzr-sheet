@@ -1,6 +1,6 @@
 {
   "name": "@qzr/shared",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
@@ -10,7 +10,8 @@
     "test:unit": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@sinclair/typebox": "^0.34.0"
+    "@sinclair/typebox": "^0.34.0",
+    "fflate": "^0.8.2"
   },
   "peerDependencies": {
     "better-auth": "^1.6.33",

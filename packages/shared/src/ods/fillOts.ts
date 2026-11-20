@@ -1,15 +1,10 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
-import {
-  QuizFormat,
-  TWENTY_QUESTION_RULES,
-  answerLookup,
-  buildCellGrid,
-  buildColumns,
-  computeOvertimeRounds,
-  deserialize,
-  inSeatOrder,
-  type QuizFile,
-} from '@qzr/shared'
+import { QuizFormat, type QuizFile } from '../quizFile'
+import { deserialize } from '../quizFileCodec'
+import { answerLookup, buildCellGrid, inSeatOrder } from '../scoring/cellGrid'
+import { computeOvertimeRounds } from '../scoring/overtime'
+import { TWENTY_QUESTION_RULES } from '../scoring/quizRules'
+import { buildColumns } from '../types/scoresheet'
 import { patchCell } from './odsXml'
 
 /**

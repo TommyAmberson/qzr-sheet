@@ -73,13 +73,12 @@ apps/
       stores/                    # In-memory quiz store
       scoring/                   # Pure scoring, validation, placement, greyed-out logic
       composables/               # Vue reactivity layer, undo/redo, keyboard nav, drag reorder
-      export/                    # ODS template fill + import
       persistence/               # JSON schema, file I/O, localStorage auto-save
       components/                # Scoresheet.vue (single-component UI)
     src-tauri/                   # Tauri 2 Rust backend
   web/                           # Portal app: coach rosters, admin dashboard, schedules
 packages/
-  shared/                        # QuizFile schema, role enums, API + auth clients
+  shared/                        # QuizFile schema, scoring, ODS fill + import, API + auth clients
   ui/                            # Workspace-internal Vue components
   api/                           # Hono + D1 + Drizzle API (Cloudflare Workers)
 docs/

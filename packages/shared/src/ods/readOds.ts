@@ -1,27 +1,21 @@
 import { strFromU8, unzipSync } from 'fflate'
 import { readCell } from './odsXml'
 import {
-  answerLookup,
   BonusRule,
-  buildCellGrid,
-  buildColumns,
   CellValue,
-  ColStatus,
-  computeGreyedOut,
-  computeOtIneligibility,
-  countTowardsOut,
-  deserialize,
-  fileVersionFor,
-  hasLeftBench,
-  inSeatOrder,
-  isQuizzedOut,
-  newOutTally,
   PlacementFormula,
   QuestionCategory,
   type QuizFile,
   QuizFormat,
-  quizRules,
-} from '@qzr/shared'
+} from '../quizFile'
+import { deserialize, fileVersionFor } from '../quizFileCodec'
+import { answerLookup, buildCellGrid, inSeatOrder } from '../scoring/cellGrid'
+import { computeGreyedOut } from '../scoring/greyedOut'
+import { ColStatus } from '../scoring/helpers'
+import { countTowardsOut, hasLeftBench, isQuizzedOut, newOutTally } from '../scoring/outs'
+import { computeOtIneligibility } from '../scoring/overtime'
+import { quizRules } from '../scoring/quizRules'
+import { buildColumns } from '../types/scoresheet'
 
 /**
  * Team block addresses in the Quiz sheet (0-based row/col).

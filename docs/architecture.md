@@ -389,7 +389,9 @@ the tab's quiz while the practice quiz is on the sheet and a reload mid-tutorial
 held in memory too, so the tutorial's end (`bringBack`) shows it again even when the device's
 storage failed.
 
-## Export (`src/export/`)
+## ODS (`packages/shared/src/ods/`)
+
+The scoresheet and the portal share these, so a sheet reads and fills the same way in both.
 
 ### `fillOts.ts`
 
@@ -399,7 +401,7 @@ unchanged so the template's formulas recalculate in LibreOffice.
 
 ### `readOds.ts`
 
-Parses a filled `.ods` file and maps the fixed cell addresses back into store format (teams,
+Parses a filled `.ods` file and maps the fixed cell addresses back into a quiz file (teams,
 quizzers, answers, no-jumps, question types, metadata). The sheet has one column per question from
 16 on, so it places each mark on the question or its A or B sub-question by how the quiz went up to
 there (see [ods-format.md](./ods-format.md#ab-answer-guessing)).

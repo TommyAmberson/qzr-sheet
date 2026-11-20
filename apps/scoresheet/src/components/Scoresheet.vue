@@ -7,15 +7,19 @@ import {
   deserialize,
   divisionTitle,
   endsRound,
+  fillOts,
   firstOvertimeQuestion,
   foldName,
   lastQuestionThroughRound,
   FOULS_TO_FOUL_OUT,
   MeetRole,
   NewerFileVersionError,
+  ODS_TWENTY_ONLY,
+  odsSupportsFormat,
   parseQuizFile,
   parseQuizFileAttempt,
   quizName,
+  readOds,
   resultKey,
   sameDivision,
   scheduleQuizMeta,
@@ -42,8 +46,6 @@ import {
   exportOdsFile,
   openOtsTemplate,
 } from '../persistence/fileIO'
-import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
-import { readOds } from '../export/readOds'
 import {
   getMeetName,
   getPublishedSchedule,
