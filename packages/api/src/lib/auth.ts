@@ -308,6 +308,10 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
       google: {
         clientId: env.GOOGLE_CLIENT_ID,
         clientSecret: env.GOOGLE_CLIENT_SECRET,
+        // Always show Google's account chooser. Signing out here leaves the
+        // browser signed in to Google, which would otherwise reuse that
+        // account and leave no way to pick another (#181).
+        prompt: 'select_account',
         // Google speaks for an address only when it hosts the mail: Gmail,
         // or a Workspace account (an `hd` claim). For any other address
         // `email_verified` records a check made when the Google account was
