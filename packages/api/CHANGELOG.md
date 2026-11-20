@@ -17,6 +17,25 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-11-20
+
+### Added
+
+* `GET /api/meets/:id/day`: the published schedule's quizzes with their results and settled benches,
+  and the stored quizzes it doesn't have, cut to the reader as a division's stats are. A stage a
+  reader may not see yet hides every quiz of it, in or not. Admins also get how many things need
+  attention. Viewers and coaches share one copy, kept 20 seconds
+
+### Changed
+
+* An elimination or Finals quiz is held against the teams its benches settle to, from the confirmed
+  orders and the quizzes that count, so a swapped team is in error as in a prelim; while a bench is
+  unsettled it is matched on its name alone, as before (#16)
+
+### Bundled contract
+
+* `@qzr/shared@1.18.0` - bumped from 1.17.0
+
 ## [0.31.0] - 2026-11-20
 
 ### Added
