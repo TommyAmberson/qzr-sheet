@@ -1795,6 +1795,8 @@ async function doSubmitToMeet() {
     const room = target.sender.rooms.find((r) => r.id === roomId)?.name
     const where = room ? `${meet}, ${room}` : meet
     if (outcome.created) alert(`Submitted to ${where}.`)
+    else if (outcome.unchanged)
+      alert(`${where} already has this quiz as revision ${outcome.revision}; nothing changed.`)
     else if (outcome.keptCurrent) {
       alert(
         `Saved to ${where} as revision ${outcome.revision}; the earlier revision stays current.`,

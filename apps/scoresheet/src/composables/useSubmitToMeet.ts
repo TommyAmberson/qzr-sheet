@@ -20,7 +20,7 @@ export interface SubmitTarget {
 
 /** What happened to a submission: stored, or not, because the meet already has its name */
 export type SubmitOutcome =
-  | { stored: true; created: boolean; revision: number; keptCurrent: boolean }
+  | { stored: true; created: boolean; revision: number; keptCurrent: boolean; unchanged: boolean }
   | { stored: false; existing: ExistingQuiz }
 
 /** The meet roles that may send quizzes to a meet */
@@ -119,14 +119,20 @@ async function submitQuiz(
   scheduleQuizId?: string | null,
 ): Promise<SubmitOutcome> {
   try {
-    const { created, revision, keptCurrent } = await submitResult(
+    const { created, revision, keptCurrent, unchanged } = await submitResult(
       meetId,
       quizFile,
       roomId,
       onExisting,
       scheduleQuizId,
     )
-    return { stored: true, created, revision, keptCurrent: keptCurrent ?? false }
+    return {
+      stored: true,
+      created,
+      revision,
+      keptCurrent: keptCurrent ?? false,
+      unchanged: unchanged ?? false,
+    }
   } catch (e) {
     const existing = existingQuizOf(e)
     if (!existing) throw e

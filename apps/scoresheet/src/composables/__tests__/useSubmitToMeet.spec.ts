@@ -189,6 +189,7 @@ describe('submitting a quiz', () => {
       created: true,
       revision: 1,
       keptCurrent: false,
+      unchanged: false,
     })
     expect(submitResult).toHaveBeenCalledWith(3, file, 5, undefined, undefined)
   })
@@ -223,8 +224,19 @@ describe('submitting a quiz', () => {
       created: false,
       revision: 2,
       keptCurrent: true,
+      unchanged: false,
     })
     expect(submitResult).toHaveBeenLastCalledWith(3, file, 5, 'keepCurrent', undefined)
+  })
+
+  it('says when the meet already held the quiz unchanged', async () => {
+    vi.mocked(submitResult).mockResolvedValueOnce({ revision: 4, created: false, unchanged: true })
+    const { submitQuiz } = useSubmitToMeet()
+    expect(await submitQuiz(3, file, 5)).toMatchObject({
+      stored: true,
+      revision: 4,
+      unchanged: true,
+    })
   })
 
   it('passes other failures on', async () => {
