@@ -470,6 +470,29 @@ describe('what viewers, coaches and officials are given (FR-017 to FR-021, SC-00
     expect(body.warnings).toBeUndefined()
   })
 
+  it('gives an official every result with its scores, whatever viewers are shown', async () => {
+    const [room] = await db.insert(schema.meetRooms).values({ meetId, name: 'Room 1' }).returning()
+    await store(quiz('1'))
+    expect(
+      (
+        await saveSettings((s) => {
+          s.results.prelim = { from: 'never', level: 'places' }
+          s.quizzers.from = 'never'
+        })
+      ).status,
+    ).toBe(200)
+    // A viewer is shown nothing of the prelims
+    expect((await viewed()).results).toEqual([])
+    const official = { meetId, role: MeetRole.Official, roomId: room!.id } as GuestPayload
+    const body = await jsonOf<DivisionStats>(
+      await as(null, official).request(`/api/meets/${meetId}/stats/1`, {}, env),
+    )
+    expect(body.results[0]).toMatchObject({ stage: 'prelim', level: 'scores' })
+    expect(body.results[0]!.quizzes[0]!.teams[0]!.score).toBeDefined()
+    expect(body.quizzers).toBeDefined()
+    expect(body.warnings).toBeUndefined()
+  })
+
   it('gives an admin the page as a viewer sees it, when asked', async () => {
     await store(quiz('1'))
     const res = await as(testSuperuser).request(`/api/meets/${meetId}/stats/1?as=viewer`, {}, env)

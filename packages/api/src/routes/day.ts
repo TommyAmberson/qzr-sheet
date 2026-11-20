@@ -33,7 +33,7 @@ import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import { scheduleDivisionId } from '../lib/quizFacts'
 import { meetIdOf } from '../lib/request'
 import { otherFormulaKeys } from '../lib/statsSettings'
-import { cutQuizResult, ownQuizzes } from '../lib/viewerCut'
+import { cutQuizResult, OFFICIAL_RESULTS, statsReaderOf } from '../lib/viewerCut'
 
 type Env = { Bindings: Bindings; Variables: SessionVariables & { db: Db } }
 
@@ -59,13 +59,18 @@ day.get('/:id/day', async (c) => {
   const db = c.get('db')
   if (!(await isViewerOf(c, db, meetId))) return c.json({ error: 'Not a member of this meet' }, 403)
   const user = c.get('user')
-  const [admin, own] = await Promise.all([
+  const { kind, own } = await statsReaderOf(
+    c,
+    db,
+    meetId,
     !!user && isAdminOrSuperuser(db, user.id, user.role, meetId),
-    ownQuizzes(c, db, meetId),
-  ])
-  // Every viewer and coach, and an official with no quiz of their own yet, gets the same cut
-  const shared = !admin && own.size === 0
-  const cached = shared ? await viewerCopy(c, meetId) : undefined
+  )
+  // Viewers and coaches share one copy, and officials with no quiz of their own another, an
+  // official's own quizzes being all that tells them apart. An official's scoresheet asks afresh,
+  // so a bench settled moments ago fills the quiz it opens
+  const fresh = kind !== 'viewer' && c.req.query('fresh') !== undefined
+  const copy = kind === 'admin' || own.size > 0 || fresh ? undefined : kind
+  const cached = copy ? await viewerCopy(c, meetId, copy) : undefined
   if (cached) return cached
 
   const read = await meetDivisions(db, meetId)
@@ -75,7 +80,7 @@ day.get('/:id/day', async (c) => {
     return c.json({ error: 'Stats are being prepared' }, 503)
   }
   const { ground, divisions } = read
-  const reader: Reader = { admin, own: admin ? new Set() : own }
+  const reader: Reader = { admin: kind === 'admin', official: kind === 'official', own }
   // Each division's stats are worked out at most once, and only where something needs them
   const worked = new Map<ReadyDivision, DivisionStats>()
   const statsOf = (answer: ReadyDivision) => {
@@ -84,14 +89,14 @@ day.get('/:id/day', async (c) => {
     return stats
   }
   const body = meetDay(ground, divisions, statsOf, reader)
-  if (admin) {
+  if (reader.admin) {
     const other = await otherFormulaKeys(db, meetId, ground.settings.levelTeams)
     const all = divisions.map((answer) => ({ answer, stats: statsOf(answer) }))
     body.attention = attentionItems(all, other).length
   }
   const response = c.json(body)
-  if (shared) {
-    const keeping = keepViewerCopy(c, meetId, response)
+  if (copy) {
+    const keeping = keepViewerCopy(c, meetId, copy, response)
     // Kept after answering where the Workers runtime allows it; tests have no execution context
     try {
       c.executionCtx.waitUntil(keeping)
@@ -104,6 +109,11 @@ day.get('/:id/day', async (c) => {
 
 interface Reader {
   admin: boolean
+  /**
+   * An official of the meet's rooms, who sees every result as an admin does, and the benches it
+   * fills; the draw only as the schedule shows it to them (FR-019)
+   */
+  official: boolean
   /** An official's own stored quizzes */
   own: Set<number>
 }
@@ -134,7 +144,9 @@ function meetDay(
   const held = new Map<number, { quiz: DivisionQuiz; teams: () => string[] }>()
   const settled = new Map<string, SettledBench>()
   for (const answer of divisions) {
-    const has = viewerHas(ground.settings, stateOf(ground.states, answer.division), phase)
+    const has = reader.official
+      ? OFFICIAL_RESULTS
+      : viewerHas(ground.settings, stateOf(ground.states, answer.division), phase)
     const id = scheduleDivisionId(ground.facts, answer.division)
     if (id !== undefined) hasOf.set(id, has)
     for (const [key, bench] of answer.benches) settled.set(key, bench)
@@ -169,8 +181,8 @@ function meetDay(
       status === 'hidden' || status === 'notIn'
         ? []
         : quiz
-          ? // An official sees their own quiz even in a stage hidden from others, scores only where
-            // the stage shows them
+          ? // A stage's level is the settings' for a viewer or coach and the scores for an official,
+            // who also sees their own quiz in a stage hidden from others
             cutQuizResult(quiz.result, reader.admin ? 'scores' : (quiz.level ?? 'places'), false)
               .teams
           : (held.get(id)?.teams() ?? []).map((name) => ({ name })),
@@ -207,6 +219,8 @@ function meetDay(
       const key = benchKey(quiz.id, index)
       const team = settled.get(key)
       if (!team) return
+      // Admins see every bench; anyone else those whose source they may see, an official every
+      // result's but the draw only as the schedule shows it to them (FR-019)
       if (reader.admin || (has && benchShown(schedule!.quizzes, quiz, bench, has, phase))) {
         benches[key] = team
       }
@@ -237,23 +251,35 @@ function teamNames(answer: ReadyDivision): Map<number, string[]> {
 const workerCache = () => (caches as unknown as { default: Cache }).default
 
 /** A viewer's copy of a meet's day, while fresh; the Workers cache is absent in tests */
-async function viewerCopy(c: Context<Env>, meetId: number): Promise<Response | undefined> {
+async function viewerCopy(
+  c: Context<Env>,
+  meetId: number,
+  kind: SharedCut,
+): Promise<Response | undefined> {
   if (typeof caches === 'undefined') return undefined
-  const copy = await workerCache().match(copyKey(c, meetId))
+  const copy = await workerCache().match(copyKey(c, meetId, kind))
   // A response of its own, so the headers this request's middleware sets are this reader's
   return copy && c.body(await copy.text(), 200, { 'Content-Type': 'application/json' })
 }
 
-async function keepViewerCopy(c: Context<Env>, meetId: number, response: Response) {
+async function keepViewerCopy(
+  c: Context<Env>,
+  meetId: number,
+  kind: SharedCut,
+  response: Response,
+) {
   if (typeof caches === 'undefined') return
   // The body alone: the headers of the request that built it belong to that reader
   const copy = new Response(await response.clone().text(), {
     headers: { 'Cache-Control': `max-age=${VIEWER_COPY_SECONDS}` },
   })
-  await workerCache().put(copyKey(c, meetId), copy)
+  await workerCache().put(copyKey(c, meetId, kind), copy)
 }
 
-/** One copy per meet for every viewer, keyed apart from any real address */
-function copyKey(c: Context<Env>, meetId: number): Request {
-  return new Request(`${new URL(c.req.url).origin}/__meet-day/${meetId}`)
+/** A cut every reader of a kind shares: viewers and coaches, or officials with no quiz of their own */
+type SharedCut = 'viewer' | 'official'
+
+/** One copy per meet for each shared cut, keyed apart from any real address */
+function copyKey(c: Context<Env>, meetId: number, kind: SharedCut): Request {
+  return new Request(`${new URL(c.req.url).origin}/__meet-day/${meetId}/${kind}`)
 }

@@ -26,12 +26,12 @@ import {
  */
 const route = useRoute()
 const page = useMeetPage()
-const { slug, meet, isAdmin, beat, statsHidden, day, dayError } = page
+const { slug, meet, isAdmin, scores, beat, statsHidden, day, dayError } = page
 /**
- * A non-admin's results wait for the meet day, which says whether they are shown yet, while it is
+ * A viewer's or coach's results wait for the meet day, which says whether they are shown yet, while it is
  * read; if it can't be, they are read anyway and the API says (research R7, rule 3)
  */
-const waiting = computed(() => !isAdmin.value && day.value === null && !dayError.value)
+const waiting = computed(() => !scores.value && day.value === null && !dayError.value)
 /** The division shown: the one picked, or the meet's first */
 const division = computed(() => page.division.value ?? meet.value?.divisions[0] ?? null)
 

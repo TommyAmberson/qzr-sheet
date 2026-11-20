@@ -208,8 +208,8 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
       <section class="block">
         <h3 class="section-title">What viewers see</h3>
         <p class="hint">
-          Coaches and officials see what viewers see, officials with the warnings on their own
-          rooms' quizzes. Admins see everything.
+          Coaches see what viewers see. Officials see every result and standing as admins do, and
+          the warnings on their own rooms' quizzes; admins see every warning.
         </p>
         <div class="lines">
           <div v-for="stage in STAGES" :key="stage" class="line">

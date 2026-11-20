@@ -169,9 +169,10 @@ export interface ViewerHas {
 const NOTHING: ViewerHas = { results: {}, prelimStandings: null, rerank: null, quizzers: null }
 
 /**
- * What a viewer, coach or official is given of a division's stats (FR-018 to FR-020), from the
- * meet's settings, the division's state and the meet's phase. The API cuts every response to it,
- * and the settings page shows it, so the two can't disagree.
+ * What a viewer or coach is given of a division's stats (FR-018 to FR-020), from the meet's
+ * settings, the division's state and the meet's phase; officials and admins see everything
+ * (FR-019). The API cuts every response to it, and the settings page shows it, so the two can't
+ * disagree.
  */
 export function viewerHas(
   settings: StatsSettings,

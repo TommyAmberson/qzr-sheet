@@ -23,6 +23,14 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-11-20
+
+### Added
+
+* `SettledBench` carries `teamId`, the meet team's, where the draw or the division's roster names
+  one, and `BenchSources.teamIdOf` matches a name of the results against the roster, so a reader
+  fills a bench by id rather than by name (specs/010-meet-day FR-023)
+
 ## [1.19.0] - 2026-11-20
 
 ### Added

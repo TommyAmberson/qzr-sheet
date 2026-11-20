@@ -20,7 +20,13 @@ import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
-import { cutQuizResult, ownQuizzes } from '../lib/viewerCut'
+import {
+  cutQuizResult,
+  isOfficialOf,
+  officialHas,
+  statsReaderOf,
+  VIEWER_PREVIEW,
+} from '../lib/viewerCut'
 import {
   attentionItems,
   divisionOf,
@@ -129,17 +135,19 @@ stats.get('/:id/stats', async (c) => {
   const member = await forMember(c)
   if (member instanceof Response) return member
   const { meetId, db, admin } = member
-  const [meets, states, keys] = await Promise.all([
+  const [meets, states, keys, official] = await Promise.all([
     meetQuery(db, meetId),
     divisionStatesQuery(db, meetId),
     db
       .select({ quizKey: schema.quizResults.quizKey })
       .from(schema.quizResults)
       .where(eq(schema.quizResults.meetId, meetId)),
+    !admin && isOfficialOf(c, db, meetId),
   ])
   const meet = meets[0]
   if (!meet) return c.json({ error: 'Meet not found' }, 404)
-  if (!admin && !viewersSeeStats(meet.phase)) {
+  // The phase's gate is for viewers and coaches: an official sees the meet's stats as an admin does
+  if (!admin && !viewersSeeStats(meet.phase) && !official) {
     return c.json({ phase: meet.phase, admin, divisions: [] })
   }
 
@@ -225,18 +233,18 @@ stats.get('/:id/stats/:division', async (c) => {
   const member = await forMember(c)
   if (member instanceof Response) return member
   const { meetId, db } = member
-  // An admin may look at the page as its viewers see it
-  const admin = member.admin && c.req.query('as') !== 'viewer'
-  const [ground, own] = await Promise.all([
+  // An admin may look at the page as its viewers see it, whatever else they are at the meet
+  const preview = member.admin && c.req.query('as') === 'viewer'
+  const [ground, reader] = await Promise.all([
     statsGround(db, meetId),
-    admin ? new Set<number>() : ownQuizzes(c, db, meetId),
+    preview ? VIEWER_PREVIEW : statsReaderOf(c, db, meetId, member.admin),
   ])
   if (!ground) return c.json({ error: 'Meet not found' }, 404)
   const asked = c.req.param('division')
   const state = stateOf(ground.states, asked)
   const has = viewerHas(ground.settings, state, ground.meet.phase)
   // Quizzer standings by stage are worked out over the quizzes up to the last step confirmed
-  const through = admin ? undefined : has.quizzers?.through
+  const through = reader.kind === 'viewer' ? has.quizzers?.through : undefined
   const answer = await divisionOf(db, meetId, ground, asked, through)
   if (answer.kind === 'notFound') return c.json({ error: 'Division not found' }, 404)
   if (answer.kind === 'preparing') {
@@ -244,18 +252,32 @@ stats.get('/:id/stats/:division', async (c) => {
     return c.json({ error: 'Stats are being prepared' }, 503)
   }
   const stats = divisionStats(answer.input)
-  return c.json(admin ? stats : cutTo(stats, has, own))
+  if (reader.kind === 'admin') return c.json(stats)
+  // An official has everything an admin has but the warnings (FR-020a); a viewer or coach, the
+  // settings' share
+  return c.json(
+    reader.kind === 'official'
+      ? cutTo(stats, officialHas(stats), reader.own, true)
+      : cutTo(stats, has, reader.own, false),
+  )
 })
 
 /**
  * A division's stats cut to what a viewer, coach or official has of them (FR-018 to FR-021),
  * before the response is built, so nothing reaches them early by any route (SC-005). Each object
  * is rebuilt from the fields a viewer may have, so a field added for admins stays with them: each
- * table only from its moment, results at the level the settings give, and no warnings or flags.
- * An official keeps what is wrong with the quizzes of their own rooms (FR-020a). The quizzes behind
+ * table only from its moment, results at the level `has` gives (the settings' for a viewer or
+ * coach, every stage's scores for an official, FR-019), and no warnings or flags. An official
+ * keeps what is wrong with the quizzes of their own rooms (FR-020a). The quizzes behind
  * each total go as far as each quiz's stage shows (FR-027).
  */
-function cutTo(stats: DivisionStats, has: ViewerHas, own: Set<number>): DivisionStats {
+function cutTo(
+  stats: DivisionStats,
+  has: ViewerHas,
+  own: Set<number>,
+  /** An official's tables keep their state as an admin sees it, a preview included */
+  asTheyStand: boolean,
+): DivisionStats {
   const results = stats.results.flatMap((stage): StageResults[] => {
     const level = has.results[stage.stage]
     if (!level) return []
@@ -284,9 +306,14 @@ function cutTo(stats: DivisionStats, has: ViewerHas, own: Set<number>): Division
   const table = (shown: TeamTable | undefined, state: ViewerHas['prelimStandings']) =>
     shown && state
       ? {
-          // An order no admin confirmed, as for a division moved on before confirmations were
-          // kept, is the current one, so it is no more than a live preview whatever the moment
-          state: shown.state === 'lockedIn' ? state : ('livePreview' as const),
+          // An official sees each table's state as an admin does. For anyone else, an order no
+          // admin confirmed, as for a division moved on before confirmations were kept, is the
+          // current one, so it is no more than a live preview whatever the moment
+          state: asTheyStand
+            ? shown.state
+            : shown.state === 'lockedIn'
+              ? state
+              : ('livePreview' as const),
           covers: shown.covers,
           teams: shown.teams.map(
             ({

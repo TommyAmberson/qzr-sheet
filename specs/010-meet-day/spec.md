@@ -293,7 +293,9 @@ there today, if awkwardly, so this comes after the structure.
   soon as that source is settled: a prelim rank or re-rank once that order is confirmed, an earlier
   quiz's place once that quiz counts, a round robin's points once its quizzes count. Until then it
   MUST show its source alone, even where the reader is shown the live standings. A reader MUST see
-  the team only if they may see the source it comes from.
+  the team only if they may see the source it comes from: admins every source, officials every
+  result and confirmed order (FR-019 of meet stats) and the draw as the schedule shows it to them,
+  in letters until the meet is under way.
 * **FR-023**: A bench's team, once settled, MUST also fill that bench when the scoresheet opens the
   scheduled quiz, and MUST be what the check of a stored quiz's teams against its scheduled quiz
   compares with. The published schedule itself MUST stay as published.

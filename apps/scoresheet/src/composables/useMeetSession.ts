@@ -8,11 +8,11 @@ import {
   type MeetTeamQuizzer,
   type ScheduledQuizDetails,
 } from '../api'
+import { teamFullName, teamShortName } from '../meetTeams'
 import {
   QUIZZERS_PER_TEAM,
   editDistance,
   foldName,
-  teamDisplayName,
   teamNamed as rosterTeamNamed,
   teamsNearName as rosterTeamsNearName,
   type PlacementFormula,
@@ -113,12 +113,12 @@ export function useMeetSession() {
 
   /** Short label for dropdowns: "{shortName} {number}" */
   function teamLabel(team: MeetTeam): string {
-    return teamDisplayName({ shortName: team.churchShortName, number: team.number })
+    return teamShortName(team)
   }
 
   /** Full label for display: "{churchName} {number}" */
   function teamLabelFull(team: MeetTeam): string {
-    return `${team.churchName} ${team.number}`
+    return teamFullName(team)
   }
 
   /** Link a meet afresh: its teams and divisions, with no picks and no scheduled quiz */
@@ -485,7 +485,16 @@ async function scheduledQuizNow(
   held: ScheduledQuizCopy | null | undefined,
 ): Promise<ScheduledQuizCopy> {
   const details = await getScheduledQuiz(meetId, quizId, { rosters: false })
-  return details ? scheduledQuizCopy(details) : scheduledQuizGone(held)
+  if (!details) return scheduledQuizGone(held)
+  const copy = scheduledQuizCopy(details)
+  // Benches the meet day couldn't be read for keep the teams the held copy had; a letter is the
+  // draw's, read with the schedule
+  if (details.benchesRead === false && held) {
+    copy.seats = copy.seats.map((teamId, i) =>
+      details.seats[i]?.letter === null ? (held.seats[i] ?? null) : teamId,
+    )
+  }
+  return copy
 }
 
 /** How many typed quizzers must be on a team's roster before a misspelt name is taken for it */

@@ -140,11 +140,13 @@ throughout; superuser includes admin.
   a stage, accept a quiz as scored, or see the standings.
 * A quiz in error (a scoring error, a name not on the roster of its division, or a difference from
   its scheduled quiz) counts for nothing until it is fixed or an admin accepts it as scored.
-* What viewers, coaches and officials see of results and standings is the meet's stats settings' to
-  say (specs/006-meet-stats, FR-018): each thing from a moment reached by its division's state or
-  the meet's phase, and each stage's quiz results with places only or places and scores. Before
-  `live` they see nothing of either. The API cuts each response to what the caller may see before
-  answering, so nothing reaches them early by any route. Admins see everything.
+* What viewers and coaches see of results and standings is the meet's stats settings' to say
+  (specs/006-meet-stats, FR-018): each thing from a moment reached by its division's state or the
+  meet's phase, and each stage's quiz results with places only or places and scores. Before `live`
+  they see nothing of either. The API cuts each response to what the caller may see before
+  answering, so nothing reaches them early by any route. Admins and officials, who score the meet,
+  see every result and standings table whatever the settings (FR-019), including the teams that
+  settled benches name; officials still change only their own rooms' quizzes.
 * Prelim standings and the re-rank show as the order the admin confirmed, locked in, from the move
   that confirmed them; quizzer standings are locked in only once the meet is `done`, and a preview
   before that. Each table says which state it is in: live preview, preview or locked in.

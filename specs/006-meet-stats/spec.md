@@ -671,9 +671,10 @@ download the division's tables and open them in a spreadsheet.
 * **FR-018b**: Until an admin chooses otherwise: each stage's quiz results show from the start of
   that stage with places only, except the Finals result, which shows once the Finals is done; prelim
   standings are not shown live; quizzer standings show once the meet is done.
-* **FR-019**: Coaches and officials MUST see what viewers see. Officials keep their own rooms'
-  quizzes as today. Nobody without access to the meet, and nobody at all while the meet is in
-  registration or build, sees any stats but an admin.
+* **FR-019**: Coaches MUST see what viewers see. Officials, who score the meet, MUST see every
+  result and standings table as admins do, whatever the viewer settings, from whenever there are
+  any; they keep their own rooms' quizzes as today, and see warnings only as FR-020a says. Nobody
+  without access to the meet sees any stats; before the meet is live, only admins and officials do.
 * **FR-019a**: A division's state (prelims running, stats break, eliminations running, Finals, done:
   today's four with Finals added as its own state after the eliminations; a division's intermediates
   are played during its stats break; for a division with no eliminations the admin's one action

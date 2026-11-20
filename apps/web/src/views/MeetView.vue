@@ -50,9 +50,12 @@ const { day, error: dayError, beat, answered, refresh } = useMeetDay(meetId)
 const isAdmin = computed(() => sender.value?.admin ?? false)
 // The API answers who may send quizzes only for the meet's admins and its rooms' officials
 const scores = computed(() => sender.value !== null)
-/** Viewers and coaches see nothing of results and standings before the meet is under way */
+/**
+ * Viewers and coaches see nothing of results and standings before the meet is under way; admins and
+ * officials, who score it, see them as they come
+ */
 const statsHidden = computed(
-  () => !isAdmin.value && day.value !== null && !viewersSeeStats(day.value.phase),
+  () => !scores.value && day.value !== null && !viewersSeeStats(day.value.phase),
 )
 // Signed out once the session says so; while it is still being read, a member isn't a guest
 const isGuest = computed(() => !session.value?.isPending && !session.value?.data?.user)

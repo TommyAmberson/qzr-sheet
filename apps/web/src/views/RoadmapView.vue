@@ -72,7 +72,8 @@
             <dd class="feature-desc">
               A meet's schedule, quizzes, standings, roster and setup in tabs, filtered by division.
               Results show on the schedule as they come in, and elimination quizzes fill with the
-              teams that earned them. The page keeps itself current while it is open.
+              teams that earned them, on the schedule and in the scoresheet that opens them. The
+              page keeps itself current while it is open.
             </dd>
           </div>
         </dl>

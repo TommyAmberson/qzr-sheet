@@ -3,10 +3,14 @@ import {
   createApiClient,
   createFileClient,
   scheduleQuizMeta,
+  benchKey,
   drawnTeam,
   seatText,
   type DivisionTeamNames,
+  type MeetDay,
   type PublishedSchedule,
+  type ScheduleQuiz,
+  type SettledBench,
   type QuizFile,
   type StatsSettings,
 } from '@qzr/shared'
@@ -206,6 +210,8 @@ export interface ScheduledQuizSeat {
 export interface ScheduledQuizDetails {
   quiz: ScheduledQuizSummary
   seats: ScheduledQuizSeat[]
+  /** False when the quiz has benches the meet may have settled and the meet day couldn't be read */
+  benchesRead?: boolean
 }
 
 /** The meet's newest published schedule; a 404 `ApiError` when nothing is published */
@@ -215,18 +221,53 @@ export function getPublishedSchedule(meetId: number): Promise<PublishedSchedule>
   return request(`/api/meets/${meetId}/schedule/published?timeZone=${timeZone}`)
 }
 
+/** A bench the meet fills from orders and results: not a letter, which the draw fills, nor an empty seat */
+function settles(seat: ScheduleQuiz['seats'][number]): boolean {
+  return seat.kind !== 'letter' && seat.kind !== 'empty'
+}
+
+/**
+ * The benches the meet has settled on a team, from the meet day; null when it can't be had in a few
+ * seconds. The API may be preparing the day just after a quiz is stored, so that answer is asked
+ * again while time allows
+ */
+async function settledBenches(meetId: number): Promise<Record<string, SettledBench> | null> {
+  const signal = AbortSignal.timeout(6000)
+  for (;;) {
+    try {
+      return (await request<MeetDay>(`/api/meets/${meetId}/day?fresh`, { signal })).benches
+    } catch (e) {
+      if (!(e instanceof ApiError) || e.status !== 503 || signal.aborted) return null
+      // A second's wait, cut short when the time runs out
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(wait)
+          signal.removeEventListener('abort', done)
+          resolve()
+        }
+        const wait = setTimeout(done, 1000)
+        signal.addEventListener('abort', done, { once: true })
+      })
+    }
+  }
+}
+
 /**
  * One quiz of the published schedule with its seats resolved: a prelim letter to the team the draw
- * gave it, when the schedule shows teams, with that team's roster unless `rosters` is false. Other
- * seats have no team until the elims are filled in. Null when the published schedule has no such
- * quiz, or there is no published schedule. A `schedule` already fetched is used rather than fetched
- * again.
+ * gave it, when the schedule shows teams, and any other bench to the team the meet has settled on
+ * it from confirmed orders and counted quizzes (specs/010-meet-day FR-023), each with that team's
+ * roster unless `rosters` is false. Null when the published schedule has no such quiz, or there is
+ * no published schedule. A `schedule` already fetched is used rather than fetched again.
  */
 export async function getScheduledQuiz(
   meetId: number,
   quizId: string,
   { schedule, rosters = true }: { schedule?: PublishedSchedule; rosters?: boolean } = {},
 ): Promise<ScheduledQuizDetails | null> {
+  // With the schedule in hand, the meet day is asked for alongside the teams
+  const early = schedule?.document.quizzes.find((q) => q.id === quizId)?.seats.some(settles)
+    ? settledBenches(meetId)
+    : undefined
   // Only the schedule's 404 means there is none; any other refusal is the meet's to report
   const [published, { teams }] = await Promise.all([
     schedule ??
@@ -240,9 +281,17 @@ export async function getScheduledQuiz(
   const { document, meetName } = published
   const quiz = document.quizzes.find((q) => q.id === quizId)
   if (!quiz) return null
+  const read = early ? await early : quiz.seats.some(settles) ? await settledBenches(meetId) : {}
+  // Out of reach, the quiz opens as it would with no network (principle I)
+  const settled = read ?? {}
+  // The meet names each settled team by its id, from the draw or the division's roster
+  const settledTeamId = (i: number) => {
+    const bench = settled[benchKey(quiz.id, i)]
+    return bench && 'team' in bench ? bench.teamId : undefined
+  }
   const seats = await Promise.all(
     quiz.seats.map(async (seat, i): Promise<ScheduledQuizSeat> => {
-      const teamId = drawnTeam(document, quiz, seat)?.teamId
+      const teamId = settles(seat) ? settledTeamId(i) : drawnTeam(document, quiz, seat)?.teamId
       const team = teams.find((t) => t.id === teamId) ?? null
       return {
         seatNumber: i + 1,
@@ -257,6 +306,7 @@ export async function getScheduledQuiz(
   return {
     quiz: { id: quiz.id, meetName, label: quiz.label, ...scheduleQuizMeta(quiz), roomId },
     seats,
+    benchesRead: read !== null,
   }
 }
 

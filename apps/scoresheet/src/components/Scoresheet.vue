@@ -65,6 +65,7 @@ import {
   type StoredQuiz,
   getMeetTemplate,
 } from '../api'
+import { teamsByName } from '../meetTeams'
 import {
   ChoiceDialog,
   RoomCodeDialog,
@@ -824,15 +825,6 @@ async function pickTeam(slotIdx: number, teamId: number, keepName = false) {
 const filteredTeamList = computed(() =>
   meetSession.teamsForDivision(quiz.value.division ?? '', quiz.value.consolation ?? false),
 )
-
-/** Teams by the names a typed one is matched against */
-function teamsByName(teams: MeetTeam[]) {
-  return teams.map((team) => ({
-    id: team.id,
-    name: meetSession.teamLabelFull(team),
-    shortName: meetSession.teamLabel(team),
-  }))
-}
 
 /** What an empty name shows; the sizer measures it too, so the box fits it */
 const TEAM_PLACEHOLDER = 'Team name'

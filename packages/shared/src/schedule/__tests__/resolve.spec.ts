@@ -240,6 +240,39 @@ describe('resolveBenches', () => {
     expect(first('pointsThenErrors')).toEqual({ team: 'Maple 1' })
   })
 
+  it("gives a bench the results fill its meet team's id, where the roster names one", () => {
+    const fed = doc({
+      quizzes: [
+        quiz('p1', {
+          seats: [
+            { kind: 'rank', rank: 1 },
+            { kind: 'rank', rank: 2 },
+          ],
+        }),
+      ],
+    })
+    const settled = resolveBenches(
+      fed,
+      'd1',
+      sources({
+        orders: new Map([
+          [
+            'd1',
+            {
+              prelims: [
+                { name: 'Cedar 1', rank: 1, tied: false },
+                { name: 'Off Roster', rank: 2, tied: false },
+              ],
+            },
+          ],
+        ]),
+        teamIdOf: (name) => (name === 'Cedar 1' ? 7 : undefined),
+      }),
+    )
+    expect(settled.get(benchKey('p1', 0))).toEqual({ team: 'Cedar 1', teamId: 7 })
+    expect(settled.get(benchKey('p1', 1))).toEqual({ team: 'Off Roster' })
+  })
+
   it('names a letter bench from the draw, and never an empty bench', () => {
     const drawn = doc({ quizzes: [quiz('p1', { seats: seats('A', '_', 'B') })] })
     drawn.draw.d1 = {
@@ -258,7 +291,7 @@ describe('resolveBenches', () => {
       'd1',
       sources({ teamName: (id) => (id === 7 ? 'Cedar Hills 1' : undefined) }),
     )
-    expect(renamed.get(benchKey('p1', 0))).toEqual({ team: 'Cedar Hills 1' })
+    expect(renamed.get(benchKey('p1', 0))).toEqual({ team: 'Cedar Hills 1', teamId: 7 })
     // A team marked absent sits on no bench
     drawn.draw.d1!.teams[0]!.absent = true
     expect(resolveBenches(drawn, 'd1', sources()).has(benchKey('p1', 0))).toBe(false)
