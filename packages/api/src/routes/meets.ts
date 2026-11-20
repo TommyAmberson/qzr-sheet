@@ -8,7 +8,7 @@ import { generateCode, hashCode, wantsClearMembers } from '../lib/codes'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { meetIdOf } from '../lib/request'
-import { AccountRole, MeetRole, readOds } from '@qzr/shared'
+import { AccountRole, isBlankSheet, MeetRole, readOds } from '@qzr/shared'
 
 export interface MeetsVariables extends SessionVariables {
   db: Db
@@ -308,7 +308,7 @@ meets.get('/:id/template', async (c) => {
       'Content-Type': /\.ods$/i.test(row.fileName)
         ? 'application/vnd.oasis.opendocument.spreadsheet'
         : 'application/vnd.oasis.opendocument.spreadsheet-template',
-      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(row.fileName)}`,
+      'Content-Disposition': `attachment; filename*=UTF-8''${rfc5987(row.fileName)}`,
       'Last-Modified': row.uploadedAt.toUTCString(),
     },
   })
@@ -348,17 +348,15 @@ meets.put('/:id/template', requireAuth(), async (c) => {
   let read: ReturnType<typeof readOds>
   try {
     read = readOds(bytes)
-  } catch {
-    return c.json({ error: 'Not a scoring template: it has no Quiz sheet to fill' }, 400)
+  } catch (e) {
+    const tooLarge = e instanceof Error && /too large/.test(e.message)
+    const error = tooLarge
+      ? 'Not a scoring template: its files unpack to far more than a sheet holds'
+      : 'Not a scoring template: it has no Quiz sheet to fill'
+    return c.json({ error }, 400)
   }
   // Filling patches only the cells a quiz uses, so a filled sheet would leave its own marks behind
-  const named = read.teams.some(
-    (team) =>
-      team.name.trim() !== '' || team.quizzers.some((quizzer) => quizzer.name.trim() !== ''),
-  )
-  // Question types aren't counted: the current template comes with its type row filled in
-  const marked = read.answers.length > 0 || read.noJumps.length > 0
-  if (named || marked) {
+  if (!isBlankSheet(read)) {
     return c.json({ error: 'That sheet is filled in: upload the blank Scoresheet.ots' }, 400)
   }
 
@@ -376,6 +374,14 @@ meets.put('/:id/template', requireAuth(), async (c) => {
     .onConflictDoUpdate({ target: schema.meetTemplates.meetId, set: values })
   return c.json({ fileName, uploadedAt: values.uploadedAt.toISOString() })
 })
+
+/** A file name as a Content-Disposition filename* carries it, which also escapes ' ( ) * */
+function rfc5987(name: string): string {
+  return encodeURIComponent(name).replace(
+    /['()*]/g,
+    (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
+}
 
 /** A file name as the client encoded it for its header; as sent when it isn't encoded */
 function decodedName(header: string | undefined): string {

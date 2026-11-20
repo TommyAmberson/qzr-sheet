@@ -1,5 +1,6 @@
 import {
   ApiError,
+  isBlankSheet,
   isQuizFile,
   readOds,
   resultKey,
@@ -191,7 +192,8 @@ async function readPicked(file: File): Promise<PickedFile> {
       : JSON.parse(await file.text())
     // Checked as the API checks a quiz file, so the review only ever shows a quiz
     if (!isQuizFile(quizFile)) throw new Error('not a quiz')
-    if (sheet && isBlank(quizFile)) {
+    // A blank sheet, such as the template itself picked by mistake, holds no quiz to send
+    if (sheet && isBlankSheet(quizFile)) {
       return { file: file.name, quizFile: null, refusal: 'A blank sheet, with no quiz on it' }
     }
     return { file: file.name, quizFile }
@@ -199,12 +201,6 @@ async function readPicked(file: File): Promise<PickedFile> {
     const refusal = sheet ? 'Not a quiz file or scoring sheet' : 'Not a quiz file'
     return { file: file.name, quizFile: null, refusal }
   }
-}
-
-/** A sheet with nothing scored or named on it, such as the template itself picked by mistake */
-function isBlank(quizFile: QuizFile): boolean {
-  const named = quizFile.teams.some((team) => team.name.trim() !== '')
-  return !named && quizFile.answers.length === 0
 }
 
 /** The name a file's quiz is matched by; null for a file that is no quiz */

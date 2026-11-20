@@ -36,6 +36,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   a blank one), so the portal's downloads are named the same way.
 * `questionsPastSheet`, the questions of a quiz past the sheet's two overtime rounds (Q27 on), which
   an `.ods` export leaves out, so a download can say so.
+* `isBlankSheet`, whether a sheet holds nothing of a quiz, so the API's template check and the
+  upload's refusal of a blank sheet agree.
 
 ### Changed
 

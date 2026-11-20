@@ -168,6 +168,17 @@ function placeQuestion(
 }
 
 /**
+ * Whether a sheet holds nothing of a quiz: no team or quizzer named, no mark, no no-jump. Question
+ * types don't count, as the current template comes with its type row filled in.
+ */
+export function isBlankSheet(quizFile: QuizFile): boolean {
+  const named = quizFile.teams.some(
+    (team) => team.name.trim() !== '' || team.quizzers.some((q) => q.name.trim() !== ''),
+  )
+  return !named && quizFile.answers.length === 0 && quizFile.noJumps.length === 0
+}
+
+/**
  * Read an ODS/OTS file and return a QuizFile.
  *
  * Reads cell values from the known Quiz sheet layout and maps them
