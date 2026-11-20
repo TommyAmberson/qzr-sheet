@@ -6,67 +6,73 @@ import { getMeetDay } from '../api'
 export const MEET_DAY_SECONDS = 30
 
 /**
- * The meet day while its page is open (FR-022): read on opening, on `refresh` (a tab switch or the
- * Refresh button), when the browser tab comes back into view, and every 30 seconds while it is
- * visible, never while hidden. `beat` moves on each asked-for read and on any read that finds the
- * meet changed, so each tab re-reads its own data on the same beat, none keeps a timer of its own,
- * and a quiet meet costs one read every 30 seconds.
+ * Why the meet day is read, which decides what its answer asks of the tabs (research R7, rule 2):
+ * `poll`, the 30 seconds or coming back into view, moves the beat when the meet changed; `refresh`,
+ * the reader's Refresh, always moves it; `catchUp`, after a tab switch or the reader's own change in
+ * a tab, never does, since the tab shown reads what it shows itself.
+ */
+export type DayRead = 'poll' | 'refresh' | 'catchUp'
+
+/**
+ * The meet day while its page is open (FR-022): read on opening and on `refresh`, when the browser
+ * tab comes back into view, and every 30 seconds while it is visible, never while hidden. One read
+ * is on its way at a time; `beat` tells the tabs to read their own data again, so none keeps a
+ * timer of its own and a quiet meet costs one read every 30 seconds.
  */
 export function useMeetDay(
   meetId: Ref<number | null>,
-  read: (meetId: number) => Promise<MeetDay> = getMeetDay,
+  read: (meetId: number, signal: AbortSignal) => Promise<MeetDay> = getMeetDay,
 ) {
   const day = shallowRef<MeetDay | null>(null)
   const error = ref('')
   const beat = ref(0)
   /** The day as last read, to tell whether a read changed anything */
   let seen = ''
-  /** A reader asked for a read that hasn't yet moved the beat, so the next answer must */
-  let owed = false
-  let timer: ReturnType<typeof setInterval> | undefined
-  // A read answered after a newer one began is dropped, so the page never steps back
-  let asked = 0
-  let reading = false
+  /** A Refresh not yet answered: whichever read answers next moves the beat for it */
+  let refreshOwed = false
+  /** The read on its way, cancelled when another replaces it */
+  let current: AbortController | null = null
 
-  /**
-   * Read the meet day; `wanted` for a reader's own refresh, which always moves the beat, and `quiet`
-   * for a read whose reader has just read its own data, so a change alone doesn't move it
-   */
-  async function refresh(wanted = true, quiet = false) {
+  function cancel() {
+    current?.abort()
+    current = null
+  }
+
+  async function refresh(why: DayRead = 'refresh') {
     const id = meetId.value
     if (id === null) return
-    owed ||= wanted
-    const ask = ++asked
-    reading = true
+    // The 30 seconds wait for a read already on its way; anything else replaces it
+    if (why === 'poll' && current) return
+    cancel()
+    const mine = new AbortController()
+    current = mine
+    if (why === 'refresh') refreshOwed = true
     try {
-      const answer = await read(id)
-      if (ask !== asked) return
+      const answer = await read(id, mine.signal)
+      if (mine.signal.aborted) return
       error.value = ''
       const text = JSON.stringify(answer)
-      if (text === seen && !owed) return
-      // The tabs read their own data on opening, so the opening answer leaves the beat be; one a
-      // reader asked for moves it whenever it comes
-      const moves = owed || (seen !== '' && !quiet)
+      const changed = text !== seen
+      const moves = refreshOwed || (why === 'poll' && changed)
       seen = text
-      owed = false
-      day.value = answer
+      refreshOwed = false
+      if (changed) day.value = answer
       if (moves) beat.value++
     } catch (e) {
-      if (ask !== asked) return
+      if (mine.signal.aborted) return
       error.value = e instanceof Error ? e.message : String(e)
     } finally {
-      if (ask === asked) reading = false
+      if (current === mine) current = null
     }
   }
 
+  let timer: ReturnType<typeof setInterval> | undefined
   const visible = () => document.visibilityState === 'visible'
 
   function start() {
     stop()
-    // A read already on its way answers for the 30 seconds too; each read may wait out the API
-    // preparing the day, so starting more would only poll it in parallel
     timer = setInterval(() => {
-      if (visible() && !reading) void refresh(false)
+      if (visible()) void refresh('poll')
     }, MEET_DAY_SECONDS * 1000)
   }
 
@@ -78,31 +84,31 @@ export function useMeetDay(
   // Coming back into view reads at once and restarts the 30 seconds from there
   function onVisibility() {
     if (!visible()) return stop()
-    if (!reading) void refresh(false)
+    void refresh('poll')
     start()
   }
 
   // Another meet starts afresh: none of the last one's day shows against it
   watch(meetId, (id, was) => {
     if (id === null || id === was) return
+    cancel()
     day.value = null
+    error.value = ''
     seen = ''
-    owed = false
-    // A read of the last meet still on its way is dropped when it answers
-    asked++
-    reading = false
-    void refresh(false)
+    refreshOwed = false
+    void refresh('catchUp')
   })
 
   onMounted(() => {
     document.addEventListener('visibilitychange', onVisibility)
-    void refresh(false)
+    void refresh('catchUp')
     if (visible()) start()
   })
 
   onUnmounted(() => {
     document.removeEventListener('visibilitychange', onVisibility)
     stop()
+    cancel()
   })
 
   return { day, error, beat, refresh }

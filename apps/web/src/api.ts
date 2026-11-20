@@ -811,21 +811,24 @@ export function getDivisionStats(
  * The meet day: the published schedule's quizzes with their results and settled benches, as this
  * reader may see them, asked again while the API prepares them (specs/010-meet-day)
  */
-export function getMeetDay(meetId: number): Promise<MeetDay> {
-  return whenPrepared(() => request(`/api/meets/${meetId}/day`))
+export function getMeetDay(meetId: number, signal?: AbortSignal): Promise<MeetDay> {
+  return whenPrepared(() => request(`/api/meets/${meetId}/day`, { signal }), signal)
 }
 
 /**
  * A request for stats, asked again until they are ready. The API answers 503 while it is still
  * scoring a division's stored quizzes, a few with each request.
  */
-async function whenPrepared<T>(read: () => Promise<T>): Promise<T> {
+async function whenPrepared<T>(read: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await read()
     } catch (e) {
       if (!(e instanceof ApiError) || e.status !== 503 || attempt >= STATS_TRIES) throw e
+      if (signal?.aborted) throw e
       await new Promise((resolve) => setTimeout(resolve, 1000))
+      // A reader that stopped waiting asks no more
+      if (signal?.aborted) throw e
     }
   }
 }

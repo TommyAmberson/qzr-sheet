@@ -35,7 +35,7 @@ import {
  * A meet's stats settings, in one place (FR-023c): each division's steps through the day, what
  * viewers see and from when, and how the meet scores and ranks
  */
-const { slug, meet, reloadMeet } = useMeetPage()
+const { slug, meet, reloadMeet, beat, refresh } = useMeetPage()
 const route = useRoute()
 
 const divisions = ref<DivisionState[]>([])
@@ -169,7 +169,9 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
           :meet-id="meet.id"
           :slug="slug"
           :phase="phase"
+          :beat="beat"
           @read="divisions = $event"
+          @moved="refresh('catchUp')"
           @phase="reloadMeet"
         />
       </section>

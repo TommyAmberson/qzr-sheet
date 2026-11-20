@@ -123,11 +123,43 @@ stats API on master (`76a6875`) and the open #200 (`fix/papercuts`).
 
 ## R7. Keeping the page current
 
-* **Decision**: one composable re-reads the day response on tab switch, on `visibilitychange` to
-  visible, on a Refresh button, and every 30 seconds while `document.visibilityState` is visible; it
-  stops while hidden. The Standings tab re-reads its division's stats on the same beat. The Roster
-  and Setup tabs load once, as today.
-* **Rationale**: FR-022; #200 already refreshes the quiz page when its tab comes back into view.
+* **Decision**: one composable owns the meet day; the page derives the rest from it. Its rules:
+  1. **One read at a time.** A read asked for by the reader or by something the page did replaces
+     the read on its way, which is cancelled, so it stops waiting out the API preparing the day. The
+     30-second read and the read on coming back into view start only when none is on its way.
+     Leaving the page, or opening another meet, cancels the read on its way.
+  2. **What a read asks of the tabs.** The page shows one tab at a time, and each tab reads what it
+     shows on opening. A read's answer moves the tabs' beat, the signal to read again, by why it was
+     read:
+     * the 30 seconds, or coming back into view: when the meet day changed;
+     * the reader's Refresh, or an upload from the header, which no tab reads after: always;
+     * a tab switch, opening another meet, or the reader's own change in a tab: never, since the tab
+       shown has just read, or reads after the change, what it shows. These reads keep the header,
+       the attention count and what the tab derives from the meet day current.
+
+     A read that replaces a Refresh still moves the beat when it answers.
+  3. **What a tab reads, and when.** A tab reads on opening, on the beat, and when anything its read
+     depends on changes: the meet, the division, the viewer preview, and whether its reader may see
+     results yet. A tab whose reader may not see results yet, by the meet day, reads nothing. A
+     non-admin's tab waits for the meet day only while it is being read; if the read fails, the tab
+     reads anyway and shows what the API answers. After the reader's own change, the tab re-reads
+     what it shows itself, then the page reads the meet day (rule 2).
+  4. **The published schedule follows the meet day.** The page holds the schedule with the version
+     and phase of the meet day that asked for it, and reads it again whenever a meet day names
+     another version or phase, so the letters or team names follow the phase. It is not read before
+     the first meet day, so the two can't disagree from the start; if the meet day can't be read,
+     the schedule is read anyway, held for no version, and read again once a meet day answers. A
+     read for a meet the page has left, or overtaken by a newer read, is dropped.
+  5. **A failed read in the background** shows a line under the tab bar, or above the tab's own
+     content, and leaves what was shown.
+* **Rationale**: FR-022; #200 already refreshes the quiz page when its tab comes back into view. The
+  rules came out of four review rounds that each found a race between the flags a simpler version
+  grew one at a time; stating them lets each be tested on its own. Reading the schedule after the
+  first meet day costs one round trip before the Schedule tab first draws, and spares a contract
+  change (the published response naming its version) that would only shorten that.
+* **Alternatives considered**: moving the beat on every changed answer, even after a tab switch,
+  reads the tab shown twice on a busy meet day. Reading the schedule alongside the first meet day
+  leaves a window where a publish between the two reads goes unnoticed until the next one.
 
 ## R8. Docs the feature amends
 

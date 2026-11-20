@@ -61,6 +61,7 @@ const {
   setDivision,
   published,
   day,
+  dayError,
   beat,
   refresh,
   scoresheetHref,
@@ -400,7 +401,7 @@ async function change(action: (meetId: number) => Promise<unknown>) {
     // the meet day's statuses and benches follow
     await Promise.all([loadStored(), loadAttention()])
     saving.value = false
-    void refresh(false)
+    void refresh('catchUp')
   }
 }
 
@@ -542,7 +543,7 @@ async function mergeNames(division: string, names: [string, string], team?: stri
     // The list as the merge left it, then the meet day's statuses and benches
     await Promise.all([loadStored(), loadAttention()])
     merging.value = false
-    void refresh(false)
+    void refresh('catchUp')
   }
 }
 </script>
@@ -709,7 +710,9 @@ async function mergeNames(division: string, names: [string, string], team?: stri
         <li v-for="note in downloadNotes" :key="note">{{ note }}</li>
       </ul>
       <p v-if="changeError" class="state-msg state-msg--error">{{ changeError }}</p>
-      <p v-if="!day" class="state-msg">Loading…</p>
+      <!-- The list is built from the meet day, so it waits for one (research R7, rule 3) -->
+      <p v-if="!day && dayError" class="state-msg">The quizzes show once the meet can be read.</p>
+      <p v-else-if="!day" class="state-msg">Loading…</p>
       <p v-else-if="statsHidden && !manages" class="state-msg">
         Nothing to see yet: results and standings show once the meet is under way.
       </p>

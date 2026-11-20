@@ -57,7 +57,8 @@ function stubApi(
       if (path === '/api/meets/7/results/sender') {
         return sender ? reply(200, sender) : reply(403, { error: 'No' })
       }
-      if (path === '/api/meets/7/day') return reply(200, dayBody)
+      // A fresh copy each time, as a parsed response is
+      if (path === '/api/meets/7/day') return reply(200, structuredClone(dayBody))
       if (path === '/api/meets/7/schedule/published') return reply(answer.status, answer.body)
       return reply(404, { error: path })
     }),
@@ -148,5 +149,31 @@ describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
     stubApi({ status: 404, body: { error: 'Nothing is published yet' } })
     const w = await open()
     expect(w.text()).toMatch(/hasn't been published yet/)
+  })
+  // The schedule follows the meet day (research R7, rule 4)
+  it('reads the schedule again when a meet day names another version, and not otherwise', async () => {
+    const answer = { status: 404, body: { error: 'Nothing is published yet' } as unknown }
+    const dayNow = { ...day, scheduleVersion: null as number | null }
+    stubApi(answer, { day: dayNow })
+    const w = await open()
+    const reads = () =>
+      vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/schedule/published'))
+        .length
+    expect(reads()).toBe(1)
+    const refresh = () =>
+      w
+        .findAll('button')
+        .find((b) => b.text() === 'Refresh')!
+        .trigger('click')
+    await refresh()
+    await flushPromises()
+    expect(reads()).toBe(1)
+    answer.status = 200
+    answer.body = { document: published(), publishedAt: '2026-11-02', view: 'teams' }
+    dayNow.scheduleVersion = 1
+    await refresh()
+    await flushPromises()
+    expect(reads()).toBe(2)
+    expect(w.text()).toMatch(/Grace 1/)
   })
 })

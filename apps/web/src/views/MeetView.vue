@@ -1,14 +1,7 @@
 <script setup lang="ts">
 import { computed, provide, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  ApiError,
-  findDivision,
-  MeetRole,
-  sameDivision,
-  viewersSeeStats,
-  type MeetDay,
-} from '@qzr/shared'
+import { ApiError, findDivision, MeetRole, sameDivision, viewersSeeStats } from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 
 import { getMeet, getMyMeets, getPublishedSchedule, getSender, type MeetDetail } from '../api'
@@ -40,6 +33,14 @@ const sender = ref<Sender | null>(null)
 const isSuperuser = ref(false)
 const coachChurchIds = ref(new Set<number>())
 const published = shallowRef<PublishedOnPage | null | undefined>(undefined)
+
+/** The meet day's version and phase the held schedule was read for; null when read without one */
+let heldFor: string | null | undefined
+/** The same for a read on its way, so a second meet day naming it doesn't read it twice */
+let askedFor: string | null | undefined
+/** The newest read; an older one, or one for a meet the page has left, must not show */
+let publishedReads = 0
+
 const loading = ref(true)
 const error = ref('')
 
@@ -56,6 +57,10 @@ const statsHidden = computed(
 // Signed out once the session says so; while it is still being read, a member isn't a guest
 const isGuest = computed(() => !session.value?.isPending && !session.value?.data?.user)
 
+/** The address's division, the one part of it every tab shares (a viewer preview is Standings') */
+const divisionQuery = computed(() =>
+  route.query.division === undefined ? {} : { division: route.query.division },
+)
 /** The division asked for, as the meet spells it; one the meet doesn't have is every division */
 const division = computed(() => {
   const asked = route.query.division
@@ -121,10 +126,6 @@ async function publishedOf(id: number): Promise<PublishedOnPage | null> {
   }
 }
 
-async function readPublished(id: number) {
-  published.value = await publishedOf(id)
-}
-
 /** The newest load; an older one still waiting, for a meet left behind, must not overwrite it */
 let loads = 0
 
@@ -132,18 +133,18 @@ async function load() {
   const current = ++loads
   loading.value = true
   error.value = ''
+  // The schedule follows the new meet's day (research R7, rule 4)
   published.value = undefined
+  heldFor = undefined
+  askedFor = undefined
+  publishedReads++
   try {
     // A guest official's slug is the meet's id; their ended session is renewed on opening the page
     const loaded = await renew(Number(props.slug), async () => {
       const read = await getMeet(props.slug)
       const id = read.meet.id
-      const [who, membership, schedule] = await Promise.all([
-        senderOf(id),
-        membershipOf(id),
-        publishedOf(id),
-      ])
-      return { read, who, membership, schedule }
+      const [who, membership] = await Promise.all([senderOf(id), membershipOf(id)])
+      return { read, who, membership }
     })
     if (current !== loads) return
     if (!loaded) {
@@ -154,7 +155,6 @@ async function load() {
     sender.value = loaded.who
     isSuperuser.value = loaded.membership.superuser
     coachChurchIds.value = loaded.membership.coaches
-    published.value = loaded.schedule
   } catch (e) {
     if (current !== loads) return
     error.value =
@@ -180,48 +180,53 @@ async function reloadMeet() {
 
 watch(() => props.slug, load, { immediate: true })
 
-// A tab that moves the meet's phase reads the meet again; the meet day follows at once, so what
-// viewers see and the schedule's letters or names don't wait for the next 30 seconds
+// A tab that moves the meet's phase reads the meet again, and the meet day follows at once, so what
+// viewers see and the schedule's letters or names don't wait; the tab re-reads what it shows itself
 watch(
   () => meet.value?.phase,
   (phase, was) => {
-    if (was !== undefined && phase !== was) void refresh(false)
+    if (was !== undefined && phase !== was) void refresh('catchUp')
   },
 )
 
-// Switching tabs reads the meet again, so the tab opened is current (FR-022); the tab reads its own
-// data on opening, so the read leaves the beat be
+// Switching tabs reads the meet again (FR-022); the tab opened reads what it shows itself
 watch(
   () => route.name,
   (name, was) => {
-    if (was !== undefined && name !== was) void refresh(false, true)
+    if (was !== undefined && name !== was) void refresh('catchUp')
   },
 )
 
-/**
- * Whether the meet day names a schedule the page doesn't hold: one published since, or none now.
- * The first day is checked this way because the page read the schedule alongside it, not after.
- */
-function behind(answer: MeetDay): boolean {
-  const held = published.value
-  if (held === undefined) return false
-  if (answer.scheduleVersion === null) return held !== null
-  if (held === null) return true
-  const ids = new Set(held.document.quizzes.map((q) => q.id))
-  return answer.quizzes.some((q) => !ids.has(q.id))
+// ---- The published schedule (research R7, rule 4) ----
+
+async function readPublished(id: number, forDay: string | null) {
+  const mine = ++publishedReads
+  askedFor = forDay
+  try {
+    const schedule = await publishedOf(id)
+    if (mine !== publishedReads) return
+    published.value = schedule
+    heldFor = forDay
+    readError.value = ''
+  } catch (e) {
+    if (mine !== publishedReads) return
+    readError.value = `The schedule couldn't be read: ${(e as Error).message}`
+  } finally {
+    if (mine === publishedReads) askedFor = undefined
+  }
 }
 
-// Another published version, or none, is read once for every tab, as is the schedule after the
-// meet's phase moves, since the phase decides whether it shows letters or team names
-watch(day, (answer, was) => {
+// Read for each version and phase a meet day names, the phase deciding letters or team names; with
+// no meet day to go by, read once anyway so the Schedule tab isn't left waiting
+watch([day, dayError], () => {
   const id = meet.value?.id
-  if (id === undefined || !answer) return
-  const key = (d: MeetDay) => `${d.scheduleVersion}|${d.phase}`
-  if (was ? key(answer) === key(was) : !behind(answer)) return
-  readPublished(id).then(
-    () => (readError.value = ''),
-    (e: Error) => (readError.value = `The schedule couldn't be read again: ${e.message}`),
-  )
+  if (id === undefined) return
+  if (day.value) {
+    const forDay = `${day.value.scheduleVersion}|${day.value.phase}`
+    if (forDay !== heldFor && forDay !== askedFor) void readPublished(id, forDay)
+  } else if (dayError.value && published.value === undefined && askedFor === undefined) {
+    void readPublished(id, null)
+  }
 })
 
 function scoresheetHref(scheduleQuizId: string): string {
@@ -245,6 +250,7 @@ const page: MeetPage = {
   setDivision,
   published,
   day,
+  dayError,
   beat,
   refresh,
   reloadMeet,
@@ -283,7 +289,7 @@ const dates = computed(() => {
             v-for="tab in tabs"
             :key="tab.name"
             class="tab"
-            :to="{ name: tab.name, params: { slug }, query: route.query }"
+            :to="{ name: tab.name, params: { slug }, query: divisionQuery }"
             :aria-current="route.name === tab.name ? 'page' : undefined"
             >{{ tab.label
             }}<span

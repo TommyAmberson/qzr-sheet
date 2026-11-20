@@ -26,9 +26,12 @@ import {
  */
 const route = useRoute()
 const page = useMeetPage()
-const { slug, meet, isAdmin, beat, statsHidden, day } = page
-/** A non-admin's results wait for the meet day, which says whether they are shown yet */
-const waiting = computed(() => !isAdmin.value && day.value === null)
+const { slug, meet, isAdmin, beat, statsHidden, day, dayError } = page
+/**
+ * A non-admin's results wait for the meet day, which says whether they are shown yet, while it is
+ * read; if it can't be, they are read anyway and the API says (research R7, rule 3)
+ */
+const waiting = computed(() => !isAdmin.value && day.value === null && !dayError.value)
 /** The division shown: the one picked, or the meet's first */
 const division = computed(() => page.division.value ?? meet.value?.divisions[0] ?? null)
 
@@ -45,10 +48,15 @@ const stats = ref<DivisionStats | null>(null)
 const loading = ref(true)
 const error = ref('')
 
-/** The steps moved the meet on: the page shows its new phase and reads the meet again */
+/** A division moved: its stats are read again here, and the page's meet day catches up */
+function moved() {
+  void load()
+  void page.refresh('catchUp')
+}
+
+/** The steps moved the meet on: the page reads the meet again, and its meet day follows */
 function movedPhase() {
   void page.reloadMeet()
-  void page.refresh()
 }
 
 /** The newest load; one for a division the page has since left must not show */
@@ -84,7 +92,7 @@ async function load() {
 
 // Read on opening and for another division or the viewer's view, then kept current on the beat
 watch(
-  [() => meet.value?.id, division, asViewer, waiting],
+  [() => meet.value?.id, division, asViewer, statsHidden, waiting],
   () => {
     stats.value = null
     void load()
@@ -165,7 +173,7 @@ async function keep(resultId: number) {
         :phase="meet.phase ?? 'registration'"
         :division="stats.division"
         :beat="beat"
-        @moved="load"
+        @moved="moved"
         @phase="movedPhase"
       />
 

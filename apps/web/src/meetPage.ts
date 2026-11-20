@@ -2,6 +2,7 @@ import { inject, type ComputedRef, type InjectionKey, type Ref, type ShallowRef 
 import type { MeetDay, ScheduleDocument, SheetView } from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 import type { MeetDetail } from './api'
+import type { DayRead } from './composables/useMeetDay'
 
 /** The meet's published schedule as the page holds it */
 export interface PublishedOnPage {
@@ -54,14 +55,19 @@ export interface MeetPage {
   /** Pick a division for every tab, or every division with null */
   setDivision: (name: string | null) => Promise<unknown>
   /**
-   * The published schedule, read once and again when the meet day names a newer version; null
-   * with none published, undefined while it is first read
+   * The published schedule, read for each version and phase the meet day names; null with none
+   * published, undefined until it is first read
    */
   published: ShallowRef<PublishedOnPage | null | undefined>
   day: ShallowRef<MeetDay | null>
+  /** Why the meet day couldn't be read; shown under the tab bar */
+  dayError: Ref<string>
   beat: Ref<number>
-  /** Read the meet day again, moving the beat; with `wanted` false, only if the meet changed */
-  refresh: (wanted?: boolean) => Promise<void>
+  /**
+   * Read the meet day again: the reader's Refresh by default, which moves the beat; `catchUp` after
+   * the reader's own change in a tab, which re-reads what it shows itself (research R7, rule 2)
+   */
+  refresh: (why?: DayRead) => Promise<void>
   /** Read the meet itself again, after a tab changed it (its phase, its details) */
   reloadMeet: () => Promise<void>
   /** The scoresheet, opened on a scheduled quiz of the meet */
