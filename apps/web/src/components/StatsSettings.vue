@@ -171,7 +171,7 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
           :phase="phase"
           :beat="beat"
           @read="divisions = $event"
-          @moved="refresh('catchUp')"
+          @moved="refresh('check')"
           @phase="reloadMeet"
         />
       </section>

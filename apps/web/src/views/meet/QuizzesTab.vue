@@ -437,7 +437,7 @@ async function change(action: (meetId: number) => Promise<unknown>) {
     // the meet day's statuses and benches follow
     await Promise.all([loadStored(), loadAttention()])
     saving.value = false
-    void refresh('catchUp')
+    void refresh('check')
   }
 }
 
@@ -579,7 +579,7 @@ async function mergeNames(division: string, names: [string, string], team?: stri
     // The list as the merge left it, then the meet day's statuses and benches
     await Promise.all([loadStored(), loadAttention()])
     merging.value = false
-    void refresh('catchUp')
+    void refresh('check')
   }
 }
 </script>

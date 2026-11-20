@@ -64,8 +64,8 @@ export interface MeetPage {
   dayError: Ref<string>
   beat: Ref<number>
   /**
-   * Read the meet day again: the reader's Refresh by default, which moves the beat; `catchUp` after
-   * the reader's own change in a tab, which re-reads what it shows itself (research R7, rule 2)
+   * Read the meet day again: the reader's Refresh by default, which moves the beat; `check` after
+   * the reader's own change in a tab, which moves it only if the meet changed (research R7, rule 2)
    */
   refresh: (why?: DayRead) => Promise<void>
   /** Read the meet itself again, after a tab changed it (its phase, its details) */

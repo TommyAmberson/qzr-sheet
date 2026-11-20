@@ -7,11 +7,12 @@ export const MEET_DAY_SECONDS = 30
 
 /**
  * Why the meet day is read, which decides what its answer asks of the tabs (research R7, rule 2):
- * `poll`, the 30 seconds or coming back into view, moves the beat when the meet changed; `refresh`,
- * the reader's Refresh, always moves it; `catchUp`, after a tab switch or the reader's own change in
- * a tab, never does, since the tab shown reads what it shows itself.
+ * `open`, on opening a meet whose tabs read their own data as they open, never moves the beat;
+ * `poll`, the 30 seconds or coming back into view, waits for a read on its way and moves the beat
+ * when the meet changed; `check`, after a tab switch or the reader's own change, replaces a read on
+ * its way and moves it when the meet changed; `refresh`, the reader's Refresh, always moves it.
  */
-export type DayRead = 'poll' | 'refresh' | 'catchUp'
+export type DayRead = 'open' | 'poll' | 'check' | 'refresh'
 
 /**
  * The meet day while its page is open (FR-022): read on opening and on `refresh`, when the browser
@@ -55,7 +56,7 @@ export function useMeetDay(
       error.value = ''
       const text = JSON.stringify(answer)
       const changed = text !== seen
-      const moves = refreshOwed || (why === 'poll' && changed)
+      const moves = refreshOwed || (why !== 'open' && changed)
       seen = text
       refreshOwed = false
       if (changed) day.value = answer
@@ -99,12 +100,12 @@ export function useMeetDay(
     error.value = ''
     seen = ''
     refreshOwed = false
-    if (id !== null) void refresh('catchUp')
+    if (id !== null) void refresh('open')
   })
 
   onMounted(() => {
     document.addEventListener('visibilitychange', onVisibility)
-    void refresh('catchUp')
+    void refresh('open')
     if (visible()) start()
   })
 

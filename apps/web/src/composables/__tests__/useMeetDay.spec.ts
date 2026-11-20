@@ -155,24 +155,25 @@ describe('what an answer asks of the tabs (rule 2)', () => {
     expect(state().beat.value).toBe(1)
   })
 
-  it('never moves it to catch up, as after a tab switch, though the meet changed', async () => {
+  it('moves it when a check, as after a tab switch, finds the meet changed', async () => {
     let version = 1
     const { state } = open(vi.fn<Read>(async () => day(version)))
     await flush()
-    version = 2
-    await state().refresh('catchUp')
-    expect(state().day.value?.scheduleVersion).toBe(2)
+    await state().refresh('check')
     expect(state().beat.value).toBe(0)
+    version = 2
+    await state().refresh('check')
+    expect(state().beat.value).toBe(1)
   })
 
-  it('moves the beat for a Refresh that a read to catch up replaced', async () => {
+  it('moves the beat for a Refresh that a check replaced', async () => {
     const slow = held()
     const read = vi.fn<Read>(async () => day(1))
     const { state } = open(read)
     await flush()
     read.mockImplementationOnce(slow.read)
     void state().refresh()
-    await state().refresh('catchUp')
+    await state().refresh('check')
     expect(state().beat.value).toBe(1)
   })
 

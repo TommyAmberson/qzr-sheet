@@ -184,19 +184,19 @@ async function reloadMeet() {
 watch(() => props.slug, load, { immediate: true })
 
 // A tab that moves the meet's phase reads the meet again, and the meet day follows at once, so what
-// viewers see and the schedule's letters or names don't wait; the tab re-reads what it shows itself
+// viewers see and the schedule's letters or names don't wait
 watch(
   () => meet.value?.phase,
   (phase, was) => {
-    if (was !== undefined && phase !== was) void refresh('catchUp')
+    if (was !== undefined && phase !== was) void refresh('check')
   },
 )
 
-// Switching tabs reads the meet again (FR-022); the tab opened reads what it shows itself
+// Switching tabs reads the meet again (FR-022), and the tab opened reads again if the meet changed
 watch(
   () => route.name,
   (name, was) => {
-    if (was !== undefined && name !== was) void refresh('catchUp')
+    if (was !== undefined && name !== was) void refresh('check')
   },
 )
 

@@ -132,11 +132,12 @@ stats API on master (`76a6875`) and the open #200 (`fix/papercuts`).
   2. **What a read asks of the tabs.** The page shows one tab at a time, and each tab reads what it
      shows on opening. A read's answer moves the tabs' beat, the signal to read again, by why it was
      read:
-     * the 30 seconds, or coming back into view: when the meet day changed;
+     * opening a meet: never, since its tabs read as they open;
      * the reader's Refresh, or an upload from the header, which no tab reads after: always;
-     * a tab switch, opening another meet, or the reader's own change in a tab: never, since the tab
-       shown has just read, or reads after the change, what it shows. These reads keep the header,
-       the attention count and what the tab derives from the meet day current.
+     * anything else (the 30 seconds, coming back into view, a tab switch, the reader's own change
+       in a tab): when the meet day changed. After a tab switch or the reader's own change, the tab
+       may then read what it shows twice; that is the price of never missing a change someone else
+       made in the meantime to something only the beat re-reads.
 
      A read that replaces a Refresh still moves the beat when it answers.
   3. **What a tab reads, and when.** A tab reads on opening, on the beat, and when anything its read

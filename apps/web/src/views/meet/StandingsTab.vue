@@ -48,10 +48,10 @@ const stats = ref<DivisionStats | null>(null)
 const loading = ref(true)
 const error = ref('')
 
-/** A division moved: its stats are read again here, and the page's meet day catches up */
+/** A division moved: its stats are read again here, and the page reads the meet day */
 function moved() {
   void load()
-  void page.refresh('catchUp')
+  void page.refresh('check')
 }
 
 /** The steps moved the meet on: the page reads the meet again, its meet day follows, and the
