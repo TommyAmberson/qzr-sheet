@@ -1,5 +1,7 @@
 import {
   WEEKDAYS,
+  slotTimes,
+  wallClock,
   defaultElims,
   quizLabel,
   newScheduleDocument,
@@ -21,75 +23,9 @@ import type * as schema from '../db/schema'
 
 // ---- Time ----
 
-// Building a formatter is costly, and a conversion needs one per slot, so each zone keeps its own
-const formatters = new Map<string, Intl.DateTimeFormat>()
-
-function formatterFor(tz: string): Intl.DateTimeFormat {
-  const cached = formatters.get(tz)
-  if (cached) return cached
-  // A zone this runtime doesn't know (a typo in a request, say) reads as UTC rather than failing,
-  // and only zones that exist are kept, so made-up ones can't grow the cache
-  let zone = tz
-  try {
-    new Intl.DateTimeFormat('en-CA', { timeZone: tz })
-  } catch {
-    zone = 'UTC'
-  }
-  const f =
-    formatters.get(zone) ??
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: zone,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
-  formatters.set(zone, f)
-  return f
-}
-
-/** How far `tz`'s wall clock is ahead of UTC at `instant`, in milliseconds */
-function zoneOffset(instant: number, tz: string): number {
-  const parts = formatterFor(tz).formatToParts(new Date(instant))
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value)
-  const wall = Date.UTC(
-    get('year'),
-    get('month') - 1,
-    get('day'),
-    get('hour'),
-    get('minute'),
-    get('second'),
-  )
-  return wall - Math.floor(instant / 1000) * 1000
-}
-
-/** The day and minutes after midnight of an instant, on the meet's wall clock */
-export function wallClock(instant: Date, tz: string): { date: string; minutes: number } {
-  const wall = new Date(instant.getTime() + zoneOffset(instant.getTime(), tz))
-  return {
-    date: wall.toISOString().slice(0, 10),
-    minutes: wall.getUTCHours() * 60 + wall.getUTCMinutes(),
-  }
-}
-
-/** The instant a wall-clock time on a day falls at in the meet's time zone */
-export function instantOf(date: string, minutes: number, tz: string): Date {
-  const guess = Date.parse(`${date}T00:00:00Z`) + minutes * 60_000
-  // Twice, so a guess that lands across a daylight-saving change settles on the right side
-  const first = guess - zoneOffset(guess, tz)
-  return new Date(guess - zoneOffset(first, tz))
-}
-
 /** An old slot's length as a schedule row's: whole minutes, at least one */
 function wholeMinutes(minutes: number): number {
   return Math.max(1, Math.round(minutes))
-}
-
-function addDays(date: string, days: number): string {
-  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 }
 
 // ---- Old tables to a document ----
@@ -307,20 +243,6 @@ function fnv1a(text: string): number {
   return hash
 }
 
-/** The date a day row stands for: the first date from `from` on its weekday, or `from` itself */
-function dayDate(label: string, from: string, first: boolean): string {
-  const weekday = WEEKDAYS.indexOf(label.trim())
-  if (weekday < 0) return from
-  // The first day is the date nearest the meet's start with its weekday, which may come before a
-  // start entered a day late; each later one is the next date on its weekday
-  const steps = first ? [0, 1, -1, 2, -2, 3, -3] : [0, 1, 2, 3, 4, 5, 6]
-  for (const i of steps) {
-    const date = addDays(from, i)
-    if (new Date(`${date}T00:00:00Z`).getUTCDay() === weekday) return date
-  }
-  return from
-}
-
 export interface LegacyView {
   slots: {
     id: number
@@ -383,20 +305,15 @@ export function legacyFromDocument(
   const meetRoom = new Map(doc.rooms.map((r) => [r.id, r.meetRoomId]))
 
   const slots: LegacyView['slots'] = []
-  // Days follow on from the meet's first day, each on its weekday, so a gap between days holds
-  let date: string | null = null
+  // Timed as the meet page times them, so in the same time zone both agree on when a slot runs
+  const times = slotTimes(doc, meet.dateFrom, tz)
   for (const row of doc.frame) {
-    if (row.kind === 'day') {
-      date = date
-        ? dayDate(row.label, addDays(date, 1), false)
-        : dayDate(row.label, meet.dateFrom, true)
-    }
     if (row.kind !== 'slot') continue
     const event = eventLabel(row.id)
     slots.push({
       id: slotIds.get(row.id)!,
       meetId: meet.id,
-      startAt: instantOf(date ?? meet.dateFrom, row.at, tz).toISOString(),
+      startAt: new Date(times.get(row.id)!.start).toISOString(),
       durationMinutes: row.minutes,
       kind: event === null ? 'quiz' : 'event',
       eventLabel: event,
