@@ -2272,6 +2272,7 @@ const appVersion: string = __APP_VERSION__
                   <span v-else class="col-header-type">&nbsp;</span>
                   <select
                     class="question-type-select"
+                    :aria-label="`Question ${col.label} type`"
                     :value="quiz.questionTypes.get(col.key) ?? ''"
                     @change="
                       setQuestionType(

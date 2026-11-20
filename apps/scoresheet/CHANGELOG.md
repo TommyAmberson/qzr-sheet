@@ -15,6 +15,10 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Fixed
+
+* Each question type picker in the column headers is named for its question, for screen readers
+
 ## [0.27.0] - 2026-11-19
 
 ### Changed
