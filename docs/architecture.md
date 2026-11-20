@@ -99,6 +99,17 @@ What New, Open and Link each do to the sheet, and what linking never changes, is
 The portal's schedule page links each quiz as `?meetId=<meet>&quiz=<quiz id>`, the quiz's id in the
 published schedule document.
 
+### Uploads and downloads
+
+Quiz files and LibreOffice sheets go to and from a meet through the Results page, so a meet can
+switch format partway through. An upload (`packages/ui/src/sendQuizzes.ts`) reads each file in the
+browser, a sheet with the shared ODS reader, matches it to the published schedule by name for the
+user to review, then sends each quiz through the same `POST /api/meets/:id/results` the scoresheet
+uses, one request per quiz, with its scheduled quiz and, for an admin, that quiz's room. A file
+identical to the quiz's current revision is answered unchanged. Downloads are built in the browser
+too (`apps/web/src/downloads.ts`), from the quiz files the results list already carries, filling the
+meet's template for `.ods` and zipping with `fflate`, so the Worker does no extra work for them.
+
 ### Schedule builder
 
 The schedule builder is a portal page (`apps/web/src/views/BuilderView.vue`), at `/builder` for

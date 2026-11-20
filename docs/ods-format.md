@@ -67,15 +67,21 @@ sheet cells are patched.
 
 ## Fill Strategy
 
-The app fills a user-supplied OTS by patching `content.xml` in memory:
+The app fills a template by patching `content.xml` in memory. The code is
+`packages/shared/src/ods/`, shared by the scoresheet and the portal. The template is the meet's own,
+which an admin uploads on the meet page (`GET /api/meets/:id/template`), or one the user picks when
+the meet has none, the quiz isn't linked to a meet, or there is no network:
 
-1. User picks an `.ots` file via the native file dialog
+1. The template's bytes are fetched from the meet, or the user picks an `.ots` file
 2. `fflate.unzipSync` unpacks all entries into a `Record<string, Uint8Array>`
 3. `content.xml` is decoded to a string and cell values are written at **known fixed addresses** in
    the `Quiz` sheet (row/col indices derived from the layout table below)
 4. The modified `content.xml` is re-encoded and the archive is repacked with `fflate.zipSync`, with
    `mimetype` stored uncompressed (level 0)
-5. The resulting bytes are saved as `.ods` via the native save dialog
+5. The resulting bytes are saved as `.ods`: through the native save dialog in the scoresheet, or as
+   a download, alone or zipped with others, in the portal
+
+A no-jump on an A or B question goes in its question's column, as that question's answers do.
 
 Because the `Quiz` sheet layout is fixed, no named ranges or template markers are needed. The
 `Lists` sheet and all other entries are passed through byte-for-byte unchanged.
@@ -336,6 +342,10 @@ the seat of the bonus answer, or, when the bonus is a no-jump, a seat the third 
 A quizzer's row is taken as their seat for the first four listed; a fifth is a substitute, guessed
 to sit where the one teammate who has quizzed, errored or fouled out sat. When the seat favours
 neither error, the order they are listed in stands.
+
+Old sheets sometimes mark a bonus that falls to an empty chair as `mb` on the empty row. The app
+records that as a no-jump, so an `mb` on a row with no quizzer is read as a no-jump on that
+question.
 
 That order is a best guess. The sheet lists quizzers, not seats, and a team that swaps quizzers at a
 time-out and back again leaves no trace in it. The order changes no score, total or placing, only

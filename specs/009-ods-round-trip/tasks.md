@@ -161,10 +161,10 @@ import hit, is fixed by #200.)
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T028 [P] Update `docs/ods-format.md` (the code's new home, the meet template, the empty-seat `mb` reading) and `docs/architecture.md` (downloads built in the browser, uploads one `POST` per quiz)
-- [ ] T029 [P] Move #52 in `ROADMAP.md` and the matching entry in `apps/web/src/views/RoadmapView.vue` to available once the feature is in
-- [ ] T030 Bump api MINOR, web MINOR and scoresheet MINOR with changelog sections naming the bundled shared version under `### Bundled contract`
-- [ ] T031 Run `pnpm test:unit`, `pnpm type-check` and `pnpm lint`, then walk quickstart.md's scenarios on local dev with a real meet's sheets kept outside the repository
+- [X] T028 [P] Update `docs/ods-format.md` (the code's new home, the meet template, the empty-seat `mb` reading) and `docs/architecture.md` (downloads built in the browser, uploads one `POST` per quiz)
+- [X] T029 [P] Move #52 in `ROADMAP.md` and the matching entry in `apps/web/src/views/RoadmapView.vue` to available once the feature is in
+- [X] T030 Bump api MINOR, web MINOR and scoresheet MINOR with changelog sections naming the bundled shared version under `### Bundled contract`
+- [X] T031 Run `pnpm test:unit`, `pnpm type-check` and `pnpm lint`, then walk quickstart.md's scenarios on local dev with a real meet's sheets kept outside the repository
 
 ---
 
