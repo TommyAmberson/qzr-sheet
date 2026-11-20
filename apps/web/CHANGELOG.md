@@ -16,6 +16,23 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-11-20
+
+### Added
+
+* Every upload ends with a summary, such as "5 files: 4 stored, 1 not sent", shown as one line
+  beside the upload button in the meet page's header that opens the full report. Files not saved, on
+  a server error, a timeout or with the meet out of reach, stay in a Not sent list with the reason
+  in plain words, Retry and Dismiss, whatever is uploaded meanwhile (#52)
+* The upload review shows each file's division, consolation flag and quiz number as read, and says
+  whether it matched a scheduled quiz by name, was picked by hand or matched none. A file that
+  matches none is offered the scheduled quiz with the consolation flag the other way, in one click
+  (#52)
+
+### Bundled contract
+
+* `@qzr/shared@1.19.0` - unchanged
+
 ## [0.34.0] - 2026-11-20
 
 ### Added
