@@ -24,6 +24,9 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * The Results page uploads LibreOffice scoring sheets (`.ods`) alongside saved quiz files, read as
   the scoresheet reads them. A file the meet already holds exactly is reported unchanged, and the
   first "already submitted" question of an upload can be answered for the rest of it (#52)
+* The Results page downloads the quizzes it lists, as filtered, as one zip of quiz files (`.json`)
+  or spreadsheets (`.ods`) filled from the meet's template. Spreadsheets leave out 15-question
+  quizzes and questions past Q26, and the page lists what was left out (#52)
 
 ## [0.31.0] - 2026-11-19
 

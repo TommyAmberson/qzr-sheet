@@ -34,6 +34,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   than its JSON, and sends a body without a JSON content type.
 * `quizFileStem` and `BLANK_IN_FILE_NAME`, the scoresheet's file name for a quiz ("D1Q3", "D_Q_" for
   a blank one), so the portal's downloads are named the same way.
+* `questionsPastSheet`, the questions of a quiz past the sheet's two overtime rounds (Q27 on), which
+  an `.ods` export leaves out, so a download can say so.
 
 ### Changed
 

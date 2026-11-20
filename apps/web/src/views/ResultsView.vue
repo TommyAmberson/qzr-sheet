@@ -44,6 +44,7 @@ import {
   type MeetDetail,
   type StoredQuiz,
 } from '../api'
+import { quizArchive, saveFile, templateFor, type QuizFormatChoice } from '../downloads'
 import { groupResults, mergeEdits, type ResultRow } from '../results'
 import { STAGE_LABELS, placeLabel, problemText, warningText } from '../stats'
 import { useRoomCode } from '../composables/useRoomCode'
@@ -181,6 +182,38 @@ async function senderOf(meetId: number): Promise<Sender | null> {
   } catch (e) {
     if (e instanceof ApiError && (e.status === 401 || e.status === 403)) return null
     throw e
+  }
+}
+
+// ---- Downloads ----
+
+const downloadFormat = ref<QuizFormatChoice>('json')
+const downloading = ref(false)
+const downloadNotes = ref<string[]>([])
+const downloadError = ref('')
+
+/** The quizzes listed, of the division shown or all of them, as one zip in the chosen format */
+async function downloadQuizzes() {
+  if (!meet.value) return
+  downloading.value = true
+  downloadNotes.value = []
+  downloadError.value = ''
+  try {
+    const format = downloadFormat.value
+    const template = await templateFor(meet.value.id, format)
+    const listed = new Set(shownQuizzes.value.map((quiz) => quiz.id))
+    const files = stored.value.filter((quiz) => listed.has(quiz.id)).map((quiz) => quiz.quizFile)
+    const { zip, notes } = quizArchive(files, format, template)
+    downloadNotes.value = notes
+    if (!zip) {
+      downloadError.value = 'There are no quizzes to download.'
+      return
+    }
+    saveFile(zip, `${meet.value.name} quizzes (${format}).zip`, 'application/zip')
+  } catch (e) {
+    downloadError.value = (e as Error).message
+  } finally {
+    downloading.value = false
   }
 }
 
@@ -599,6 +632,23 @@ onMounted(load)
             Only those needing attention
           </label>
         </div>
+        <div class="downloads">
+          <select v-model="downloadFormat" class="stage-select" aria-label="Download as">
+            <option value="json">Quiz files (.json)</option>
+            <option value="ods">Spreadsheets (.ods)</option>
+          </select>
+          <button
+            class="btn btn--secondary btn--sm"
+            :disabled="downloading"
+            @click="downloadQuizzes"
+          >
+            {{ downloading ? 'Preparing…' : 'Download the quizzes listed' }}
+          </button>
+        </div>
+        <p v-if="downloadError" class="state-msg state-msg--error">{{ downloadError }}</p>
+        <ul v-if="downloadNotes.length > 0" class="upload-report">
+          <li v-for="note in downloadNotes" :key="note">{{ note }}</li>
+        </ul>
         <p v-if="changeError" class="state-msg state-msg--error">{{ changeError }}</p>
         <p v-if="shown.length === 0" class="state-msg">No quiz shown matches.</p>
       </template>
@@ -904,6 +954,14 @@ onMounted(load)
 
 .upload {
   margin-bottom: 1.5rem;
+}
+
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.5rem 0;
 }
 
 .upload-report {

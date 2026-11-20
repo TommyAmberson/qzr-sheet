@@ -23,6 +23,16 @@ import { patchCell } from './odsXml'
 /** The template's layout and formulas only score a 20-question quiz */
 export const ODS_TWENTY_ONLY = 'Spreadsheet export supports 20-question quizzes only'
 
+/** The last question a sheet has a column for: its two overtime rounds end at Q26 */
+const LAST_SHEET_QUESTION = 26
+
+/** The questions of a quiz a sheet has no column for, in order; an export leaves them out */
+export function questionsPastSheet(quizFile: QuizFile): number[] {
+  const keys = [...quizFile.answers.map((a) => a.columnKey), ...quizFile.noJumps]
+  const past = keys.map((key) => parseInt(key, 10)).filter((q) => q > LAST_SHEET_QUESTION)
+  return [...new Set(past)].sort((a, b) => a - b)
+}
+
 /** Whether the template can score this format; a file without a format is 20-question */
 export function odsSupportsFormat(format = QuizFormat.TwentyQuestion): boolean {
   return format === QuizFormat.TwentyQuestion
