@@ -17,6 +17,19 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-11-20
+
+### Changed
+
+* Officials are given every result, with its scores, and every standings table, as admins are,
+  whatever the viewer settings and from before the meet is live; the settings say what viewers and
+  coaches see. Warnings stay with admins, but for those on an official's own rooms' quizzes. An
+  official's meet day is no longer the viewers' shared copy
+
+### Bundled contract
+
+* `@qzr/shared@1.20.0` - bumped from 1.19.0
+
 ## [0.33.1] - 2026-11-20
 
 ### Fixed
