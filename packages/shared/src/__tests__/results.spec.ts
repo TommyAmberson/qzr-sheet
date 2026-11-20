@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { editDistance } from '../results'
+import { editDistance, quizFileStem } from '../results'
+
+describe('quizFileStem', () => {
+  it('names a file by its quiz, with "_" for a blank part', () => {
+    expect(quizFileStem({ division: '1', quizNumber: '3' })).toBe('D1Q3')
+    expect(quizFileStem({ division: '2', consolation: true, quizNumber: 'b' })).toBe('D2cQb')
+    expect(quizFileStem({ division: ' ', quizNumber: '_' })).toBe('D_Q_')
+    expect(quizFileStem({ division: 'Jr/Sr', quizNumber: '1' })).toBe('DJr-SrQ1')
+    expect(quizFileStem({ division: 'Jr: A', quizNumber: '3?' })).toBe('DJr- AQ3-')
+  })
+})
 
 describe('editDistance', () => {
   it('counts the insertions, deletions and substitutions between two strings', () => {

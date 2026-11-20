@@ -77,3 +77,23 @@ export function quizName(
 ): string {
   return `D${quiz.division}${quiz.consolation ? 'c' : ''} Q${quiz.quizNumber}`
 }
+
+/** What a file name shows where the quiz has no division or number */
+export const BLANK_IN_FILE_NAME = '_'
+
+/**
+ * A quiz's file name without its extension: its name without the space, "D1Q3" or "D1cQ3". A blank
+ * division or number shows as "_", so a new quiz saves as "D_Q_" and the name still says which part
+ * is which; a "_" copied back off a file name counts as blank too.
+ */
+export function quizFileStem(
+  quiz: Pick<QuizFile['quiz'], 'division' | 'consolation' | 'quizNumber'>,
+): string {
+  const part = (value: string) => {
+    // A slash would make a folder of the name, and Windows refuses the rest in a file name
+    const trimmed = value.trim().replace(/[/\\:*?"<>|]/g, '-')
+    return trimmed === '' || trimmed === BLANK_IN_FILE_NAME ? BLANK_IN_FILE_NAME : trimmed
+  }
+  const named = { ...quiz, division: part(quiz.division), quizNumber: part(quiz.quizNumber) }
+  return quizName(named).replace(' Q', 'Q')
+}

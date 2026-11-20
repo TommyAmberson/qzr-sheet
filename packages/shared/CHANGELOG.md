@@ -32,6 +32,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   way. `fflate` is now a dependency of this package.
 * `createFileClient`, the API client's twin for files: it answers with the response itself rather
   than its JSON, and sends a body without a JSON content type.
+* `quizFileStem` and `BLANK_IN_FILE_NAME`, the scoresheet's file name for a quiz ("D1Q3", "D_Q_" for
+  a blank one), so the portal's downloads are named the same way.
 
 ### Changed
 

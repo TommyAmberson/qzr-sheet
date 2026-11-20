@@ -121,7 +121,7 @@ stats.
 
 ### Implementation for User Story 2
 
-- [ ] T017 [US2] Move the scoresheet's file stem (`fileStem` in `apps/scoresheet/src/components/Scoresheet.vue`) to `packages/shared` beside `quizName`, so the portal names files the same way (research R12); the scoresheet keeps its behaviour; extend the shared changelog
+- [X] T017 [US2] Move the scoresheet's file stem (`fileStem` in `apps/scoresheet/src/components/Scoresheet.vue`) to `packages/shared` beside `quizName`, so the portal names files the same way (research R12); the scoresheet keeps its behaviour; extend the shared changelog
 - [ ] T018 [US2] Build downloads in the portal from the stored quizzes `GET /api/meets/:id/results` already returns (research R4): one quiz as `.json` (its current `quizFile`) or `.ods` (`fillOts` with the meet's template), and a meet's or a division's quizzes as one zip of either, with the warnings of FR-016, in `apps/web/src/` beside `results.ts`; covered by T015
 - [ ] T019 [US2] Add download controls to `apps/web/src/views/ResultsView.vue`: per quiz, and for the meet or a division; with no template, `.ods` says an admin needs to upload one and `.json` stays available (FR-014); a 15-question quiz offers `.json` only
 - [ ] T020 [US2] Add downloads to the quiz's own page, `apps/web/src/views/ResultView.vue`: the current revision as `.json` or `.ods`, and each past revision from its revision view, fetched through the existing `GET /api/meets/:id/results/:resultId/revisions/:revision`, using T018's download code (spec Story 2, Edge Cases)

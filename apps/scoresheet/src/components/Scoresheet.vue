@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   anyTeamHasAnswer,
   ApiError,
+  BLANK_IN_FILE_NAME,
   CellValue,
   deserialize,
   divisionTitle,
@@ -18,6 +19,7 @@ import {
   odsSupportsFormat,
   parseQuizFile,
   parseQuizFileAttempt,
+  quizFileStem,
   quizName,
   readOds,
   resultKey,
@@ -1524,7 +1526,7 @@ async function saveFile() {
   const json = serializeStore(store, noJumpMap.value, timeoutMap.value)
   // Saved as it was when the save began, whatever was scored while the dialog was open
   const state = stateToMark()
-  const filename = `${fileStem()}.json`
+  const filename = `${quizFileStem(quiz.value)}.json`
   const saved = await saveQuizToFile(json, filename)
   if (saved) markSaved(state)
 }
@@ -1604,9 +1606,6 @@ async function doExportOds() {
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
 const roomCodeDialog = ref<InstanceType<typeof RoomCodeDialog> | null>(null)
 
-/** What a file name shows where the quiz has no division or number */
-const BLANK_IN_FILE_NAME = '_'
-
 /**
  * A division or quiz number as given: none when blank, and none when it is the "_" a file name
  * puts in a blank's place, so a value copied back off a file name is no more a division than a
@@ -1615,16 +1614,6 @@ const BLANK_IN_FILE_NAME = '_'
 function given(value: string): string {
   const trimmed = value.trim()
   return trimmed === BLANK_IN_FILE_NAME ? '' : trimmed
-}
-
-/**
- * A saved file's name: the quiz's name without its space, "D1Q3" or "D1cQ3". A blank division or
- * number shows as "_", so a new quiz saves as "D_Q_" and the name still says which part is which.
- */
-function fileStem(): string {
-  const division = given(quiz.value.division) || BLANK_IN_FILE_NAME
-  const quizNumber = given(quiz.value.quizNumber) || BLANK_IN_FILE_NAME
-  return quizName({ ...quiz.value, division, quizNumber }).replace(' Q', 'Q')
 }
 
 const submitter = useSubmitToMeet()
@@ -1860,7 +1849,7 @@ async function exportOds() {
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
   try {
     const odsBytes = fillOts(otsBytes, quizFile)
-    const filename = `${fileStem()}.ods`
+    const filename = `${quizFileStem(quiz.value)}.ods`
     const saved = await exportOdsFile(odsBytes, filename)
     if (saved)
       alert('ODS exported.\n\nOpen in LibreOffice and press Ctrl+Shift+F9 to recalculate formulas.')
