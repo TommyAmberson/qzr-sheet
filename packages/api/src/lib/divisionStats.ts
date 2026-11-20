@@ -1,21 +1,37 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import {
+  attentionOf,
+  countingTeams,
   findDivision,
   foldName,
+  resultKeyDivision,
+  resultKeyName,
   sameDivision,
+  type AttentionItem,
+  type DivisionStats,
   type DivisionStateValue,
   type DivisionStatsInput,
   type MeetPhase,
   type NameDismissal,
   type QuizzerStage,
   type ScoredQuiz,
+  type SettledBench,
   type Stage,
   type StatsQuiz,
   type StatsSettings,
 } from '@qzr/shared'
 import * as schema from '../db/schema'
 import type { Db } from './db'
-import { hasLaterStages, meetFacts, quizFacts, rosterOf, type MeetFacts } from './quizFacts'
+import {
+  hasLaterStages,
+  meetFacts,
+  quizFacts,
+  rosterOf,
+  scheduleDivisionId,
+  scheduledQuiz,
+  type MeetFacts,
+} from './quizFacts'
+import { divisionBenches } from './benches'
 import { content, current, isCounted, toContent, toCurrent } from './resultsSql'
 import { SHARED_VERSION, keepScores } from './scores'
 import { statsSettingsOf } from './statsSettings'
@@ -150,6 +166,8 @@ export type DivisionAnswer =
       /** What its stats are worked out from, for `divisionStats` or `heldQuizzes` */
       input: DivisionStatsInput
       quizzes: DivisionQuiz[]
+      /** The settled benches of the division's scheduled quizzes, by `benchKey` */
+      benches: Map<string, SettledBench>
     }
 
 /**
@@ -201,35 +219,75 @@ export async function divisionOf(
     const scored = rescored.get(quiz.revisionId) ?? kept
     return scored ? [{ quiz, scored, facts: quizFacts(facts, quiz) }] : []
   })
+  const inputWith = (settled?: Map<string, SettledBench>): DivisionStatsInput => ({
+    division: named ?? folded,
+    state: stateOf(ground.states, division),
+    phase: ground.meet.phase,
+    quizzes: held.map(
+      ({ quiz, scored, facts: of }): StatsQuiz => ({
+        id: quiz.id,
+        name: scored.name,
+        key: quiz.quizKey,
+        stage: of.stage,
+        scored,
+        linked:
+          of.link && settled ? scheduledQuiz(facts, of.link.scheduleQuizId, settled) : of.linked,
+        line: of.line,
+        accepted: of.accepted,
+        withdrawnOrder: of.withdrawnOrder,
+      }),
+    ),
+    // Every quiz of the division is held against the same teams
+    roster: rosterOf(facts, folded),
+    laterStagesScheduled: hasLaterStages(facts, folded),
+    schedulePublished: facts.schedule !== null,
+    settings: ground.settings,
+    confirmed: facts.confirmed.get(folded),
+    quizzersThrough,
+    dismissed: ground.dismissed.get(folded),
+  })
+  // An elimination quiz's teams are checked once the benches they come from are settled: first which
+  // quizzes count with no bench's team yet known, which settles the benches. A quiz those benches then
+  // show was played by the wrong team stops counting, unsettling the benches it feeds, so they are
+  // settled again until nothing changes. Benches only come from earlier quizzes, so each round
+  // settles at least one more, and there are never more rounds than linked quizzes.
+  const links = new Map(
+    held.flatMap(({ quiz, facts: of }) => (of.link ? [[quiz.id, of.link.scheduleQuizId]] : [])),
+  )
+  const scheduleId = scheduleDivisionId(facts, folded)
+  const scheduled = (facts.schedule?.document.quizzes ?? []).filter(
+    (q) => q.division === scheduleId,
+  )
+  // Only benches filled from results need to know which quizzes count, and only a quiz whose own
+  // benches aren't drawn is checked against them
+  const fromResults = scheduled.some((q) =>
+    q.seats.some((bench) => bench.kind === 'place' || bench.kind === 'points'),
+  )
+  const checked = [...links.values()].some((id) =>
+    facts.schedule?.quizzes.get(id)?.seats.some((b) => b.kind !== 'letter' && b.kind !== 'empty'),
+  )
+  let settled = divisionBenches(
+    facts,
+    folded,
+    fromResults ? countingTeams(inputWith()) : new Map(),
+    links,
+    ground.settings.tieBreaks,
+  )
+  for (let round = 0; fromResults && checked && round <= links.size; round++) {
+    const next = divisionBenches(
+      facts,
+      folded,
+      countingTeams(inputWith(settled)),
+      links,
+      ground.settings.tieBreaks,
+    )
+    if (sameBenches(next, settled)) break
+    settled = next
+  }
   return {
     kind: 'ready',
     division: named ?? folded,
-    input: {
-      division: named ?? folded,
-      state: stateOf(ground.states, division),
-      phase: ground.meet.phase,
-      quizzes: held.map(
-        ({ quiz, scored, facts: of }): StatsQuiz => ({
-          id: quiz.id,
-          name: scored.name,
-          key: quiz.quizKey,
-          stage: of.stage,
-          scored,
-          linked: of.linked,
-          line: of.line,
-          accepted: of.accepted,
-          withdrawnOrder: of.withdrawnOrder,
-        }),
-      ),
-      // Every quiz of the division is held against the same teams
-      roster: rosterOf(facts, folded),
-      laterStagesScheduled: hasLaterStages(facts, folded),
-      schedulePublished: facts.schedule !== null,
-      settings: ground.settings,
-      confirmed: facts.confirmed.get(folded),
-      quizzersThrough,
-      dismissed: ground.dismissed.get(folded),
-    },
+    input: inputWith(settled),
     quizzes: held.map(({ quiz, scored, facts: of }) => ({
       id: quiz.id,
       name: scored.name,
@@ -237,5 +295,78 @@ export async function divisionOf(
       admin: of.stageFrom === 'admin',
       scheduleQuizId: of.link?.scheduleQuizId ?? null,
     })),
+    benches: settled,
   }
+}
+
+function sameBenches(a: Map<string, SettledBench>, b: Map<string, SettledBench>): boolean {
+  if (a.size !== b.size) return false
+  for (const [key, bench] of a) {
+    const other = b.get(key)
+    if (!other || JSON.stringify(other) !== JSON.stringify(bench)) return false
+  }
+  return true
+}
+
+export type ReadyDivision = Extract<DivisionAnswer, { kind: 'ready' }>
+
+/**
+ * Every division the meet lists or a stored quiz names, and quizzes in none, which have no
+ * standings but can still be unstaged, read under one scoring budget for the whole request, as the
+ * divisions' states are; `preparing` while some revisions are still to be scored
+ */
+export async function meetDivisions(
+  db: Db,
+  meetId: number,
+): Promise<{ ground: StatsGround; divisions: ReadyDivision[] } | 'notFound' | 'preparing'> {
+  const [ground, keys] = await Promise.all([
+    statsGround(db, meetId),
+    db
+      .select({ quizKey: schema.quizResults.quizKey })
+      .from(schema.quizResults)
+      .where(eq(schema.quizResults.meetId, meetId)),
+  ])
+  if (!ground) return 'notFound'
+  const listed = new Set(ground.meet.divisions.map(foldName))
+  const divisions = [
+    ...ground.meet.divisions,
+    ...new Set(keys.map(({ quizKey }) => resultKeyDivision(quizKey)).filter((d) => !listed.has(d))),
+  ]
+  const scoring = { left: REVISIONS_SCORED_PER_REQUEST }
+  const ready: ReadyDivision[] = []
+  for (const division of divisions) {
+    const answer = await divisionOf(db, meetId, ground, division, undefined, scoring)
+    if (answer.kind === 'notFound') continue
+    if (answer.kind === 'preparing') return 'preparing'
+    ready.push(answer)
+  }
+  return { ground, divisions: ready }
+}
+
+/**
+ * What needs attention across the meet (FR-030 of meet stats), from each division read and its
+ * stats: stored quizzes with no stage but by an admin's choice, each division's warnings and flags,
+ * and quizzes scored another way than the meet
+ */
+export function attentionItems(
+  divisions: { answer: ReadyDivision; stats: DivisionStats }[],
+  otherFormula: { id: number; quizKey: string }[],
+): AttentionItem[] {
+  const items: AttentionItem[] = []
+  for (const { answer, stats } of divisions) {
+    // A quiz an admin set not to count has no stage by their choice, which needs nothing
+    for (const quiz of answer.quizzes) {
+      if (quiz.stage === null && !quiz.admin) {
+        items.push({ kind: 'noStage', quiz: { id: quiz.id, name: quiz.name } })
+      }
+    }
+    if (answer.division !== '') items.push(...attentionOf(stats))
+  }
+  if (otherFormula.length > 0) {
+    items.push({
+      kind: 'otherFormula',
+      quizzes: otherFormula.map(({ id, quizKey }) => ({ id, name: resultKeyName(quizKey) })),
+    })
+  }
+  return items
 }

@@ -4,6 +4,7 @@ import {
   resultKeyDivision,
   resultName,
   sameDivision,
+  teamNamed,
   scheduledQuizOf,
   scheduledStage,
   storedStage,
@@ -15,6 +16,7 @@ import {
   type ScheduleDocument,
   type ScheduleQuiz,
   type ScheduledQuiz,
+  type SettledBench,
   type Stage,
   type StageChoice,
   type StageFrom,
@@ -85,6 +87,8 @@ export interface MeetFacts {
   decisions: Map<number, Decisions>
   schedule: {
     document: ScheduleDocument
+    /** The published version the document is */
+    version: number
     quizzes: Map<string, ScheduleQuiz>
     /** The scheduled quizzes by the result key they name their results under */
     byKey: Map<string, string[]>
@@ -203,6 +207,7 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
     decisions,
     schedule: document && {
       document,
+      version: version!.version,
       quizzes: new Map(document.quizzes.map((quiz) => [quiz.id, quiz])),
       byKey,
     },
@@ -232,11 +237,20 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
 }
 
 /** A scheduled quiz of the meet's schedule, as stored quizzes are held against it */
-export function scheduledQuiz(facts: MeetFacts, scheduleQuizId: string): ScheduledQuiz | null {
+export function scheduledQuiz(
+  facts: MeetFacts,
+  scheduleQuizId: string,
+  /** The schedule's settled benches, so an elimination quiz's teams are known once its benches are */
+  settled?: Map<string, SettledBench>,
+): ScheduledQuiz | null {
   const quiz = facts.schedule?.quizzes.get(scheduleQuizId)
   if (!facts.schedule || !quiz) return null
-  return scheduledQuizOf(facts.schedule.document, quiz, (teamId) =>
-    facts.teams?.find((team) => team.id === teamId),
+  return scheduledQuizOf(
+    facts.schedule.document,
+    quiz,
+    (teamId) => facts.teams?.find((team) => team.id === teamId),
+    settled,
+    (name) => teamNamed(name, rosterOf(facts, scheduleDivisionName(facts, quiz.division)) ?? []),
   )
 }
 
@@ -339,4 +353,24 @@ export function scheduledStages(facts: MeetFacts, division: string): Stage[] {
 export function hasLaterStages(facts: MeetFacts, division: string): boolean {
   const stages = scheduledStages(facts, division)
   return stages.includes('intermediate') || stages.includes('elimination')
+}
+
+/**
+ * The published schedule's id for a meet's division: the schedule names its divisions by id and
+ * keeps their names in its settings, the meet by name alone
+ */
+export function scheduleDivisionId(facts: MeetFacts, division: string): string | undefined {
+  // A schedule linked to the meet takes the meet's names as its ids, which a rename in the builder
+  // leaves alone; the name it shows is the fallback
+  const divisions = facts.schedule?.document.settings.divisions ?? []
+  return (
+    divisions.find((d) => sameDivision(d.id, division)) ??
+    divisions.find((d) => sameDivision(d.name, division))
+  )?.id
+}
+
+/** The meet's name for a division of the published schedule, by the schedule's id for it */
+export function scheduleDivisionName(facts: MeetFacts, id: string): string {
+  if (facts.rosters.has(foldName(id))) return id
+  return facts.schedule?.document.settings.divisions.find((d) => d.id === id)?.name ?? id
 }

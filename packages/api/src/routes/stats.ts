@@ -1,19 +1,15 @@
 import { Hono, type Context } from 'hono'
-import { and, eq, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import {
-  attentionOf,
   mayChangeQuizzes,
   divisionStats,
   foldName,
   nameDismissal,
   resultKeyDivision,
-  resultKeyName,
   statsSettingsError,
   viewerHas,
   viewersSeeStats,
-  type AttentionItem,
   type DivisionStats,
-  type QuizResult,
   type StageResults,
   type StatsSettings,
   type TeamRow,
@@ -24,15 +20,17 @@ import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuthOrGuest } from '../middleware/session'
 import { createDb, type Db } from '../lib/db'
+import { cutQuizResult, ownQuizzes } from '../lib/viewerCut'
 import {
-  REVISIONS_SCORED_PER_REQUEST,
+  attentionItems,
   divisionOf,
+  meetDivisions,
   divisionStatesQuery,
   meetQuery,
   stateOf,
   statsGround,
 } from '../lib/divisionStats'
-import { isAdminOrSuperuser, isViewerOf, officialRoomsOf } from '../lib/permissions'
+import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import { jsonBody, meetIdOf } from '../lib/request'
 import { otherFormulaCount, otherFormulaKeys, statsSettingsOf } from '../lib/statsSettings'
 import * as schema from '../db/schema'
@@ -167,47 +165,17 @@ stats.get('/:id/stats/attention', async (c) => {
   const admin = await forAdmin(c)
   if (admin instanceof Response) return admin
   const { meetId, db } = admin
-  const [ground, keys] = await Promise.all([
-    statsGround(db, meetId),
-    db
-      .select({ quizKey: schema.quizResults.quizKey })
-      .from(schema.quizResults)
-      .where(eq(schema.quizResults.meetId, meetId)),
-  ])
-  if (!ground) return c.json({ error: 'Meet not found' }, 404)
-
-  // Every division the meet lists or a stored quiz names, and quizzes in none, which have no
-  // standings but can still be unstaged
-  const listed = new Set(ground.meet.divisions.map(foldName))
-  const divisions = [
-    ...ground.meet.divisions,
-    ...new Set(keys.map(({ quizKey }) => resultKeyDivision(quizKey)).filter((d) => !listed.has(d))),
-  ]
-  const items: AttentionItem[] = []
-  // The whole request shares one scoring budget, as the divisions' states do
-  const scoring = { left: REVISIONS_SCORED_PER_REQUEST }
-  for (const division of divisions) {
-    const answer = await divisionOf(db, meetId, ground, division, undefined, scoring)
-    if (answer.kind === 'notFound') continue
-    if (answer.kind === 'preparing') {
-      c.header('Retry-After', '1')
-      return c.json({ error: 'Stats are being prepared' }, 503)
-    }
-    // A quiz an admin set not to count has no stage by their choice, which needs nothing
-    for (const quiz of answer.quizzes) {
-      if (quiz.stage === null && !quiz.admin) {
-        items.push({ kind: 'noStage', quiz: { id: quiz.id, name: quiz.name } })
-      }
-    }
-    if (division !== '') items.push(...attentionOf(divisionStats(answer.input)))
+  const read = await meetDivisions(db, meetId)
+  if (read === 'notFound') return c.json({ error: 'Meet not found' }, 404)
+  if (read === 'preparing') {
+    c.header('Retry-After', '1')
+    return c.json({ error: 'Stats are being prepared' }, 503)
   }
-  const other = await otherFormulaKeys(db, meetId, ground.settings.levelTeams)
-  if (other.length > 0) {
-    items.push({
-      kind: 'otherFormula',
-      quizzes: other.map(({ id, quizKey }) => ({ id, name: resultKeyName(quizKey) })),
-    })
-  }
+  const { ground, divisions } = read
+  const items = attentionItems(
+    divisions.map((answer) => ({ answer, stats: divisionStats(answer.input) })),
+    await otherFormulaKeys(db, meetId, ground.settings.levelTeams),
+  )
   return c.json({ items })
 })
 
@@ -279,23 +247,6 @@ stats.get('/:id/stats/:division', async (c) => {
   return c.json(admin ? stats : cutTo(stats, has, own))
 })
 
-/** The stored quizzes of the meet saved from a room the caller officiates */
-async function ownQuizzes(c: Context<Env>, db: Db, meetId: number): Promise<Set<number>> {
-  const rooms = await officialRoomsOf(c, db, meetId)
-  if (rooms.length === 0) return new Set()
-  const rows = await db
-    .selectDistinct({ id: schema.quizResultRevisions.resultId })
-    .from(schema.quizResultRevisions)
-    .innerJoin(schema.quizResults, eq(schema.quizResults.id, schema.quizResultRevisions.resultId))
-    .where(
-      and(
-        eq(schema.quizResults.meetId, meetId),
-        inArray(schema.quizResultRevisions.savedByRoomId, rooms),
-      ),
-    )
-  return new Set(rows.map((row) => row.id))
-}
-
 /**
  * A division's stats cut to what a viewer, coach or official has of them (FR-018 to FR-021),
  * before the response is built, so nothing reaches them early by any route (SC-005). Each object
@@ -308,25 +259,8 @@ function cutTo(stats: DivisionStats, has: ViewerHas, own: Set<number>): Division
   const results = stats.results.flatMap((stage): StageResults[] => {
     const level = has.results[stage.stage]
     if (!level) return []
-    const quizzes = stage.quizzes.map(
-      (quiz): QuizResult => ({
-        name: quiz.name,
-        status: quiz.status,
-        teams: quiz.teams.map(({ name, place, tiedWith, score }) => ({
-          name,
-          place,
-          tiedWith,
-          score: level === 'scores' ? score : undefined,
-        })),
-        ...(quiz.id !== undefined && own.has(quiz.id)
-          ? {
-              id: quiz.id,
-              problems: quiz.problems,
-              withdrawnOrder: quiz.withdrawnOrder,
-              incompleteTypes: quiz.incompleteTypes,
-            }
-          : {}),
-      }),
+    const quizzes = stage.quizzes.map((quiz) =>
+      cutQuizResult(quiz, level, quiz.id !== undefined && own.has(quiz.id)),
     )
     return [{ stage: stage.stage, level, quizzes, medals: stage.medals }]
   })

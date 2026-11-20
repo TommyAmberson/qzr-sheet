@@ -1,5 +1,6 @@
 import { editDistance, foldName, quizName, resultKey, tidyName } from '../results'
 import { scheduleQuizMeta } from '../schedule/conflicts'
+import { drawnTeam, benchKey, type SettledBench } from '../schedule/resolve'
 import type { ScheduleDocument, ScheduleQuiz } from '../schedule/scheduleFile'
 import { placeTieCount } from '../scoring/placement'
 import type { ScoredQuiz, ScoringProblem } from './scoredQuiz'
@@ -42,22 +43,33 @@ export interface ScheduledQuiz {
 
 /**
  * A quiz of the schedule as stored quizzes are held against it. The schedule names a quiz's teams
- * where every seat is a letter of the draw; a seat filled from a rank or another quiz's result is
- * not known from the schedule alone, and such a quiz is matched on its name.
+ * where every bench is a letter of the draw, or a bench whose team is settled from a confirmed order
+ * or a quiz that counts (`resolveBenches`); while any bench is unsettled or tied, the quiz is matched
+ * on its name alone.
  */
 export function scheduledQuizOf(
   doc: ScheduleDocument,
   quiz: ScheduleQuiz,
   /** A meet's team by its id, for a schedule linked to the meet */
   teamOf: (teamId: number) => Pick<RosterTeam, 'name' | 'shortName'> | undefined,
+  /** The schedule's settled benches, by `benchKey` */
+  settled?: Map<string, SettledBench>,
+  /** A meet's team by a settled bench's name, so a quiz may name it either way the roster does */
+  teamNamed?: (name: string) => Pick<RosterTeam, 'name' | 'shortName'> | undefined,
 ): ScheduledQuiz {
   const meta = scheduleQuizMeta(quiz)
-  const drawn = doc.draw[quiz.division]?.teams ?? []
   const teams: Pick<RosterTeam, 'name' | 'shortName'>[] = []
   let known = true
-  for (const seat of quiz.seats) {
+  for (const [index, seat] of quiz.seats.entries()) {
     if (seat.kind === 'empty') continue
-    const team = seat.kind === 'letter' ? drawn.find((t) => t.letter === seat.letter) : undefined
+    if (seat.kind !== 'letter') {
+      const found = settled?.get(benchKey(quiz.id, index))
+      if (found && 'team' in found) {
+        teams.push(teamNamed?.(found.team) ?? { name: found.team, shortName: found.team })
+      } else known = false
+      continue
+    }
+    const team = drawnTeam(doc, quiz, seat)
     const named =
       team?.teamId !== undefined
         ? teamOf(team.teamId)

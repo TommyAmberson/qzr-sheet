@@ -5,6 +5,14 @@ auth implementation see [auth.md](./auth.md). For roles and codes see
 [roles-and-access.md](./roles-and-access.md). For the database schema see
 [data-model.md](./data-model.md).
 
+## Terms
+
+* **Bench**: where a team sits in a quiz. A quiz has three, red, white and blue, one team each.
+* **Seat**: where a quizzer sits. A bench has four seats, and a fifth "seat" is off the bench, with
+  the coaches. The scoresheet gives each team a row per seat, five in all.
+* The schedule calls a quiz's benches its `seats` (`Seat`, `ScheduleQuiz.seats`, `ScheduleSeat`),
+  from before these terms were settled; prose says bench, and new code names them benches.
+
 ## Monorepo Structure
 
 ```

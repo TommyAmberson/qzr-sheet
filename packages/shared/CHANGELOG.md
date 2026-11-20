@@ -23,6 +23,31 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-11-20
+
+### Added
+
+* `resolveBenches`: which team sits on each bench of a division's quizzes, from where its team comes
+  from and what has since been settled: a prelim rank or re-rank once its order is confirmed, a
+  place in a quiz once that quiz counts, a round robin's place once all its quizzes count, ranked as
+  the prelims are, ties broken the meet's way. Teams level across a bench's place in a quiz leave it
+  tied; an order, or a round robin's standings, gives its teams by position even where it still
+  marks them tied. With `benchKey`, `drawnTeam` (a letter bench's drawn team, which
+  `scheduledQuizOf`, the scoresheet and the schedule's benches now share) and the `BenchSources` it
+  reads (#16). `countingTeams` gives the teams of a division's quizzes that count, as the tables
+  take them, for the benches they feed.
+
+* `MeetDay`, `DayQuiz`, `DayResult`, `DayTeam` and `dayQuizStatus`: the meet day response, and a
+  scheduled quiz's status for one reader, a stage they may not see yet hiding every quiz of it.
+  `benchShown`: whether a reader may see the team settled onto a bench. `notCounted` is the status
+  an admin or the quiz's official sees for one set not to count.
+
+### Changed
+
+* `scheduledQuizOf` takes the settled benches, so an elimination or Finals quiz is held against its
+  teams once every bench is settled, rather than matched on its name alone, and a lookup that takes
+  each settled team as the roster names it.
+
 ## [1.17.0] - 2026-11-19
 
 ### Added

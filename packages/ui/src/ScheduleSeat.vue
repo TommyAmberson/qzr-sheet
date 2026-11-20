@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { seatText, type ScheduleDocument, type ScheduleQuiz, type SheetView } from '@qzr/shared'
+import {
+  drawnTeam,
+  seatText,
+  type ScheduleDocument,
+  type ScheduleQuiz,
+  type SheetView,
+} from '@qzr/shared'
 import './seat.css'
 
 /**
@@ -17,14 +23,7 @@ const props = defineProps<{
 
 const seat = computed(() => props.quiz.seats[props.index]!)
 const source = computed(() => seatText(props.doc, props.quiz, seat.value, 'letters'))
-const absent = computed(() => {
-  const s = seat.value
-  return (
-    s.kind === 'letter' &&
-    (props.doc.draw[props.quiz.division]?.teams.some((t) => t.letter === s.letter && t.absent) ??
-      false)
-  )
-})
+const absent = computed(() => drawnTeam(props.doc, props.quiz, seat.value)?.absent ?? false)
 const team = computed(() =>
   absent.value
     ? 'Absent'

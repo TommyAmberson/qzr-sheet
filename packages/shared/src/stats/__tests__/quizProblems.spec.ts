@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { rosterProblems, scheduleProblems, type ScheduledQuiz } from '../quizProblems'
+import {
+  rosterProblems,
+  scheduledQuizOf,
+  scheduleProblems,
+  type ScheduledQuiz,
+} from '../quizProblems'
+import { benchKey } from '../../schedule/resolve'
+import { doc as scheduleDoc, quiz as scheduleQuiz, seats } from '../../schedule/__tests__/fixtures'
 import type { ScoredQuiz } from '../scoredQuiz'
 import type { Stage } from '../stages'
 import type { RosterTeam } from '../teamNames'
@@ -186,5 +193,61 @@ describe('rosterProblems', () => {
     expect(rosterProblems(scored({ 'First Church 1': ['Ann Lee', 'Ben Roy'] }), roster)).toEqual([
       { kind: 'quizzerMissing', team: 'First Church 1', quizzer: 'Cy Dunn' },
     ])
+  })
+})
+
+describe('scheduledQuizOf an elimination quiz', () => {
+  const elim = scheduleQuiz('A', { phase: 'elim', lane: 0, seats: seats('1', '4', '5') })
+  const schedule = scheduleDoc({ quizzes: [elim] })
+  const settled = (tiedBench?: number) =>
+    new Map(
+      ['First Church 1', "St. John's 1", 'Grace 1'].map((team, i) => [
+        benchKey('A', i),
+        i === tiedBench ? { tied: true as const } : { team },
+      ]),
+    )
+
+  it('is matched on its name alone while any bench is unsettled', () => {
+    expect(scheduledQuizOf(schedule, elim, () => undefined).teams).toBeNull()
+    expect(scheduledQuizOf(schedule, elim, () => undefined, settled(1)).teams).toBeNull()
+  })
+
+  it('has its teams checked once every bench is settled', () => {
+    const linked = scheduledQuizOf(schedule, elim, () => undefined, settled())
+    expect(linked.teams?.map((t) => t.name)).toEqual(['First Church 1', "St. John's 1", 'Grace 1'])
+    const swapped = scored({ 'First Church 1': [], "St. John's 1": [], 'Hope 2': [] })
+    expect(
+      scheduleProblems(swapped, {
+        stage: 'elimination',
+        key: linked.key,
+        linked,
+        schedulePublished: true,
+        prelimsWithoutOvertime: true,
+      }),
+    ).toContainEqual({
+      kind: 'teamsDiffer',
+      scheduled: ['First Church 1', "St. John's 1", 'Grace 1'],
+    })
+  })
+
+  it('takes a settled team as the roster names it, so a quiz may give either of its names', () => {
+    const roster = { name: 'First Church 1', shortName: 'FC1' }
+    const linked = scheduledQuizOf(
+      schedule,
+      elim,
+      () => undefined,
+      settled(),
+      (name) => (name === roster.name ? roster : undefined),
+    )
+    const short = scored({ FC1: [], "St. John's 1": [], 'Grace 1': [] })
+    expect(
+      scheduleProblems(short, {
+        stage: 'elimination',
+        key: linked.key,
+        linked,
+        schedulePublished: true,
+        prelimsWithoutOvertime: true,
+      }),
+    ).toEqual([])
   })
 })
