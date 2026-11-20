@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, toRaw, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   ApiError,
@@ -134,7 +134,8 @@ function save() {
 }
 
 function discard() {
-  if (saved.value) draft.value = structuredClone(saved.value)
+  // A ref holds a reactive proxy, which structuredClone refuses, so clone what it wraps
+  if (saved.value) draft.value = structuredClone(toRaw(saved.value))
 }
 
 function setToMatch() {
