@@ -245,6 +245,52 @@ describe('a quiz that differs from its scheduled quiz', () => {
     expect(waiting()).toBe(false)
   })
 
+  it('asks to submit for the room the schedule places the quiz in', async () => {
+    vi.mocked(getSender).mockResolvedValue({
+      admin: false,
+      rooms: [
+        { id: 3, name: 'Room 1' },
+        { id: 4, name: 'Room 2' },
+      ],
+    })
+    vi.mocked(getScheduledQuiz).mockResolvedValue(
+      scheduledQuiz([calgary, regina, saskatoon], { roomId: 4 }),
+    )
+    const sheet = await mountSheet()
+    await pickScheduled(sheet, 'New', 'New from schedule')
+
+    await button(sheet, 'Save').trigger('click')
+    await button(sheet, 'Submit to meet').trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('Submit for Room 2?')
+    expect(document.body.textContent).toContain('The schedule places Div 1 Quiz 7 in Room 2.')
+  })
+
+  it('names no room for a quiz the schedule has since dropped', async () => {
+    vi.mocked(getSender).mockResolvedValue({
+      admin: false,
+      rooms: [
+        { id: 3, name: 'Room 1' },
+        { id: 4, name: 'Room 2' },
+      ],
+    })
+    vi.mocked(getScheduledQuiz).mockResolvedValue(
+      scheduledQuiz([calgary, regina, saskatoon], { roomId: 4 }),
+    )
+    const sheet = await mountSheet()
+    await pickScheduled(sheet, 'New', 'New from schedule')
+    vi.mocked(getScheduledQuiz).mockResolvedValue(null)
+    await sheet.get('[aria-label="Refetch names from the meet and schedule"]').trigger('click')
+    await flushPromises()
+    // Sent anyway, past the warning that the quiz is gone
+    vi.mocked(confirmAction).mockResolvedValue(true)
+
+    await button(sheet, 'Save').trigger('click')
+    await button(sheet, 'Submit to meet').trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('Submit for which room?')
+  })
+
   it('cancelling the wait before the submit question sends nothing and asks nothing', async () => {
     const sheet = await mountSheet()
     await pickScheduled(sheet, 'New', 'New from schedule')

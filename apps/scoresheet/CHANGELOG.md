@@ -15,6 +15,11 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Changed
+
+* Submitting a quiz linked to a scheduled quiz asks to submit for the room the schedule places it
+  in, with another room a click away, instead of asking which room
+
 ### Fixed
 
 * Each question type picker in the column headers is named for its question, for screen readers

@@ -43,6 +43,8 @@ export interface ScheduledQuizCopy {
   seats: (number | null)[]
   /** False once the published schedule no longer has the quiz */
   inSchedule: boolean
+  /** The meet's room the schedule places it in, when it places it in one */
+  roomId?: number
 }
 
 export interface MeetSessionData {
@@ -461,8 +463,8 @@ function scheduledQuizCopy(details: ScheduledQuizDetails): ScheduledQuizCopy {
     if (seat.seatNumber >= 1 && seat.seatNumber <= 3)
       seats[seat.seatNumber - 1] = seat.team?.id ?? null
   }
-  const { label, division, consolation, quizNumber } = details.quiz
-  return { label, division, consolation, quizNumber, seats, inSchedule: true }
+  const { label, division, consolation, quizNumber, roomId } = details.quiz
+  return { label, division, consolation, quizNumber, seats, inSchedule: true, roomId }
 }
 
 /**
