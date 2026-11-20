@@ -9,6 +9,7 @@ import { useAuth } from '../composables/useAuth'
 import { useMeetDay } from '../composables/useMeetDay'
 import { useRoomCode } from '../composables/useRoomCode'
 import { MEET_TABS, meetPageKey, type MeetPage } from '../meetPage'
+import UploadQuizzes from '../components/UploadQuizzes.vue'
 
 /**
  * A meet's page (specs/010-meet-day): its header, the tabs Schedule, Quizzes, Standings, Roster and
@@ -136,7 +137,14 @@ const dates = computed(() => {
           <h2 class="page-title">{{ meet.name }}</h2>
           <span class="meet-meta">{{ dates }}</span>
         </div>
-        <div id="meet-actions" class="meet-actions no-print" />
+        <UploadQuizzes
+          v-if="sender"
+          v-model:sender="sender"
+          class="no-print"
+          :meet-id="meet.id"
+          :meet-name="meet.name"
+          @sent="refresh"
+        />
       </header>
 
       <div class="meet-bar no-print">
@@ -242,13 +250,6 @@ const dates = computed(() => {
 .meet-meta {
   color: var(--color-text-muted);
   font-size: 0.85rem;
-}
-
-.meet-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .meet-bar {

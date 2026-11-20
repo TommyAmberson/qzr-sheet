@@ -53,8 +53,7 @@ const router = createRouter({
               path: 'quizzes',
               name: 'meet-quizzes',
               meta: { guestAccess: true },
-              component: () => import('../views/ResultsView.vue'),
-              props: (route) => ({ slug: route.params.slug as string }),
+              component: () => import('../views/meet/QuizzesTab.vue'),
             },
             {
               path: 'standings',

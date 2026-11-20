@@ -16,7 +16,7 @@ vi.mock('../../views/NotFoundView.vue', () => ({ default: { template: '<div />' 
 vi.mock('../../views/AccountView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/MeetView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/meet/ScheduleTab.vue', () => ({ default: { template: '<div />' } }))
-vi.mock('../../views/ResultsView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../../views/meet/QuizzesTab.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/StatsView.vue', () => ({ default: { template: '<div />' } }))
 
 let router: Router
