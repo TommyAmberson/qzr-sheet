@@ -85,8 +85,6 @@ const mergeError = ref('')
 const attention = shallowRef<AttentionItem[]>([])
 const attentionError = ref('')
 
-/** Admins and officials manage stored quizzes; anyone else reads the meet day alone */
-
 // ---- The list ----
 
 /** One quiz of the list: a scheduled quiz, in or not, or a stored quiz the schedule lacks */
@@ -307,11 +305,9 @@ async function load() {
 
 watch(beat, () => void load())
 // Who manages the meet's quizzes decides what is read, so a change there reads again
-watch(
-  () => [meet.value?.id, sender.value?.admin ?? null],
-  () => void load(),
-  { immediate: true },
-)
+watch([() => meet.value?.id, () => sender.value?.admin ?? null], () => void load(), {
+  immediate: true,
+})
 
 /** The newest read of the attention list; an older one still waiting must not overwrite it */
 let attentionRead = 0
@@ -398,9 +394,11 @@ async function change(action: (meetId: number) => Promise<unknown>) {
   } catch (e) {
     changeError.value = (e as Error).message
   } finally {
-    // The meet day's statuses and benches follow what changed, and its beat reads the list again
-    await refresh()
+    // The list as the change left it, read here so a slow or failed meet day can't leave it stale;
+    // the meet day's statuses and benches follow
+    await Promise.all([loadStored(), loadAttention()])
     saving.value = false
+    void refresh(false)
   }
 }
 
@@ -446,6 +444,8 @@ async function showQuiz(id: number) {
     if (division.value !== null) await setDivision(null)
     await nextTick()
   }
+  // The row is the page's target, so it is outlined as well as scrolled to
+  location.hash = `quiz-${id}`
   document.getElementById(`quiz-${id}`)?.scrollIntoView({ block: 'center' })
 }
 
@@ -537,9 +537,10 @@ async function mergeNames(division: string, names: [string, string], team?: stri
   } catch (e) {
     mergeError.value = `Merged ${done} of ${edits.length} quizzes: ${(e as Error).message} Merge again to finish.`
   } finally {
-    // The meet day as the merge left it, whose beat reads the list and what needs attention again
-    await refresh()
+    // The list as the merge left it, then the meet day's statuses and benches
+    await Promise.all([loadStored(), loadAttention()])
     merging.value = false
+    void refresh(false)
   }
 }
 </script>
@@ -707,7 +708,7 @@ async function mergeNames(division: string, names: [string, string], team?: stri
       </ul>
       <p v-if="changeError" class="state-msg state-msg--error">{{ changeError }}</p>
       <p v-if="!day" class="state-msg">Loading…</p>
-      <p v-else-if="statsHidden" class="state-msg">
+      <p v-else-if="statsHidden && !manages" class="state-msg">
         Nothing to see yet: results and standings show once the meet is under way.
       </p>
       <p v-else-if="rows.length === 0" class="state-msg">No quizzes yet.</p>
@@ -896,8 +897,7 @@ async function mergeNames(division: string, names: [string, string], team?: stri
   margin: 0;
 }
 
-/* Vue drops the line break between a team's score and its place, so space them here */
-.teams li > .status {
+.status {
   font-size: 0.75rem;
   white-space: nowrap;
 }
@@ -933,7 +933,8 @@ async function mergeNames(division: string, names: [string, string], team?: stri
   font-size: 0.7rem;
 }
 
-.note {
+/* Vue drops the line break between a team's name and its note, so space them here */
+.teams li > .note {
   margin-left: 0.3rem;
 }
 
@@ -951,11 +952,10 @@ async function mergeNames(division: string, names: [string, string], team?: stri
     display: grid;
     grid-template-columns: 1fr auto;
     grid-template-areas:
-      'quiz quiz'
+      'quiz status'
+      'when when'
       'teams teams'
-      'stage stage'
-      'revision revision'
-      'saved saved';
+      'stage stage';
     padding: 0.6rem 0;
     border-bottom: 1px solid var(--color-border);
   }
@@ -977,6 +977,14 @@ async function mergeNames(division: string, names: [string, string], team?: stri
 
   .cell-stage {
     grid-area: stage;
+  }
+
+  .cell-when {
+    grid-area: when;
+  }
+
+  .cell-status {
+    grid-area: status;
   }
 
   .cell-teams {

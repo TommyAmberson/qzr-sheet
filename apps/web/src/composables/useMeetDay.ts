@@ -39,12 +39,13 @@ export function useMeetDay(
       error.value = ''
       const text = JSON.stringify(answer)
       if (text === seen && !owed) return
-      // The tabs read their own data on opening, so the first answer leaves the beat be
-      const first = seen === ''
+      // The tabs read their own data on opening, so the opening answer leaves the beat be; one a
+      // reader asked for moves it whenever it comes
+      const moves = owed || seen !== ''
       seen = text
       owed = false
       day.value = answer
-      if (!first) beat.value++
+      if (moves) beat.value++
     } catch (e) {
       if (ask !== asked) return
       error.value = e instanceof Error ? e.message : String(e)
@@ -78,12 +79,12 @@ export function useMeetDay(
     day.value = null
     seen = ''
     owed = false
-    void refresh()
+    void refresh(false)
   })
 
   onMounted(() => {
     document.addEventListener('visibilitychange', onVisibility)
-    void refresh()
+    void refresh(false)
     if (visible()) start()
   })
 

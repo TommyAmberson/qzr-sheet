@@ -155,6 +155,15 @@ async function reloadMeet() {
 
 watch(() => props.slug, load, { immediate: true })
 
+// A tab that moves the meet's phase reads the meet again; the meet day follows at once, so what
+// viewers see and the schedule's letters or names don't wait for the next 30 seconds
+watch(
+  () => meet.value?.phase,
+  (phase, was) => {
+    if (was !== undefined && phase !== was) void refresh(false)
+  },
+)
+
 // Switching tabs reads the meet again, so the tab opened is current (FR-022); the tab reads its own
 // data on opening, so the beat moves only if the meet changed
 watch(
@@ -229,7 +238,7 @@ const dates = computed(() => {
           <h2 class="page-title">{{ meet.name }}</h2>
           <span class="meet-meta">{{ dates }}</span>
         </div>
-        <UploadQuizzes v-if="sender" class="no-print" />
+        <div v-if="sender" class="no-print"><UploadQuizzes /></div>
       </header>
 
       <div class="meet-bar no-print">

@@ -81,7 +81,7 @@ async function load() {
 
 // Read on opening and for another division or the viewer's view, then kept current on the beat
 watch(
-  () => [meet.value?.id, division.value, asViewer.value],
+  [() => meet.value?.id, division, asViewer],
   () => {
     stats.value = null
     void load()

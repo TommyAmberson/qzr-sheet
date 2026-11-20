@@ -60,8 +60,8 @@ export interface MeetPage {
   published: ShallowRef<PublishedOnPage | null | undefined>
   day: ShallowRef<MeetDay | null>
   beat: Ref<number>
-  /** Read the meet day again, moving the beat */
-  refresh: () => Promise<void>
+  /** Read the meet day again, moving the beat; with `wanted` false, only if the meet changed */
+  refresh: (wanted?: boolean) => Promise<void>
   /** Read the meet itself again, after a tab changed it (its phase, its details) */
   reloadMeet: () => Promise<void>
   /** The scoresheet, opened on a scheduled quiz of the meet */

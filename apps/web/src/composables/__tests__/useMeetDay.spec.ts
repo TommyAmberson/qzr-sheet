@@ -112,6 +112,18 @@ describe('useMeetDay (FR-022)', () => {
     expect(state().beat.value).toBe(before + 1)
   })
 
+  it('moves the beat for a refresh after the opening read failed', async () => {
+    const read = vi
+      .fn<(meetId: number) => Promise<MeetDay>>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockImplementation(async () => day(1))
+    const { state } = open(read)
+    await flush()
+    expect(state().error.value).toBe('offline')
+    await state().refresh()
+    expect(state().beat.value).toBe(1)
+  })
+
   it('stops reading once the page is closed', async () => {
     const read = vi.fn(async () => day(1))
     const { wrapper } = open(read)
