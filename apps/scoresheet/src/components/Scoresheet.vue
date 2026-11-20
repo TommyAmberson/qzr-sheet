@@ -63,6 +63,7 @@ import {
   type ScheduledQuizDetails,
   type PublishedSchedule,
   type StoredQuiz,
+  getMeetTemplate,
 } from '../api'
 import {
   ChoiceDialog,
@@ -1598,9 +1599,9 @@ async function doSaveFile() {
   await saveFile()
 }
 
-async function doExportOds() {
+async function doExportOds(pickTemplate = false) {
   closeMenus()
-  await exportOds()
+  await exportOds(pickTemplate)
 }
 
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
@@ -1843,8 +1844,14 @@ function doUnlinkMeet() {
 // fillOts refuses other formats; disabling the menu item spares a pointless template dialog
 const canExportOds = computed(() => odsSupportsFormat(quiz.value.format))
 
-async function exportOds() {
-  const otsBytes = await openOtsTemplate()
+/**
+ * Export the quiz to .ods. A quiz linked to a meet fills the meet's own template; with none, no
+ * link, or no network, or when asked for another, the official picks a template.
+ */
+async function exportOds(pickTemplate = false) {
+  const meetId = meetSession.meetId.value
+  const meetTemplate = !pickTemplate && meetId !== null ? await getMeetTemplate(meetId) : null
+  const otsBytes = meetTemplate ?? (await openOtsTemplate())
   if (!otsBytes) return
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
   try {
@@ -2132,9 +2139,17 @@ const appVersion: string = __APP_VERSION__
                     <button
                       :disabled="!canExportOds"
                       :title="canExportOds ? undefined : ODS_TWENTY_ONLY"
-                      @click="doExportOds"
+                      @click="doExportOds()"
                     >
                       ⬡ Export ODS
+                    </button>
+                    <button
+                      v-if="meetSession.meetId.value !== null"
+                      :disabled="!canExportOds"
+                      :title="canExportOds ? undefined : ODS_TWENTY_ONLY"
+                      @click="doExportOds(true)"
+                    >
+                      ⬡ Export ODS, another template…
                     </button>
                   </div>
                 </div>

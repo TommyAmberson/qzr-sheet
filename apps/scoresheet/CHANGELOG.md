@@ -15,6 +15,16 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Changed
+
+* Export ODS fills the linked meet's own scoring template, when the meet has one, without asking for
+  a file; "Export ODS, another template…" picks one as before, and an unlinked sheet, a meet with no
+  template, or no network falls back to the picker (#52)
+
+### Fixed
+
+* Exported sheets keep their no-jumps on A and B questions (from `@qzr/shared`)
+
 ## [0.28.0] - 2026-11-20
 
 ### Changed

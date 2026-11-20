@@ -1,6 +1,7 @@
 import {
   ApiError,
   createApiClient,
+  createFileClient,
   scheduleQuizMeta,
   seatText,
   type DivisionTeamNames,
@@ -24,6 +25,24 @@ declare const __API_URL__: string
 /** Requests carry the guest token of the meet they're for (see `withGuestToken`) */
 const baseRequest = createApiClient(__API_URL__ || '')
 const request = withGuestToken(baseRequest, joinMeetGuest)
+/** The same, for files: answers with the response, whose bytes the caller reads */
+const fileRequest = withGuestToken(createFileClient(__API_URL__ || ''), joinMeetGuest)
+
+/**
+ * The meet's scoring template, for exporting to .ods; null when the meet has none, or the meet
+ * can't be reached, so the official picks one instead
+ */
+export async function getMeetTemplate(meetId: number): Promise<Uint8Array | null> {
+  try {
+    // A slow network gives up soon, so the official gets the picker rather than a wait
+    const res = await fileRequest<Response>(`/api/meets/${meetId}/template`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    return new Uint8Array(await res.arrayBuffer())
+  } catch {
+    return null
+  }
+}
 
 // ---- Types ----
 
