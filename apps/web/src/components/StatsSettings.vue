@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, toRaw, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   ApiError,
@@ -30,7 +30,6 @@ import {
   rightNow,
   settingsKey,
   viewerChanges,
-  withTypesChoice,
   type ViewerThing,
 } from '../stats'
 
@@ -42,7 +41,8 @@ const { slug, meet, reloadMeet, beat, refresh } = useMeetPage()
 const route = useRoute()
 
 const divisions = ref<DivisionState[]>([])
-const saved = ref<StatsSettings | null>(null)
+/** As last saved: only ever replaced whole, so not deeply reactive, and cloned as it is */
+const saved = shallowRef<StatsSettings | null>(null)
 const draft = ref<StatsSettings | null>(null)
 const changed = ref<{ by: string; at: string } | undefined>()
 /** Stored quizzes whose own way of scoring level teams isn't the meet's */
@@ -55,11 +55,16 @@ const phase = computed(() => meet.value?.phase ?? 'registration')
 const done = computed(() => phase.value === 'done')
 /** Quizzes are set to the saved way of scoring level teams, so not while another is chosen */
 const levelTeamsUnsaved = computed(() => saved.value?.levelTeams !== draft.value?.levelTeams)
-/** The question types choice, written only when off (`withTypesChoice`) */
+/**
+ * The question types choice, written only when off: on leaves it out, as its absence means, so an
+ * API from before the choice still takes the save
+ */
 const warnTypes = computed({
   get: () => (draft.value ? warnsIncompleteTypes(draft.value) : true),
   set: (warn: boolean) => {
-    if (draft.value) draft.value = withTypesChoice(draft.value, warn)
+    if (!draft.value) return
+    if (warn) delete draft.value.warnIncompleteTypes
+    else draft.value.warnIncompleteTypes = false
   },
 })
 /** The question types choice changed, which admins and officials see on save, viewers never */
@@ -130,12 +135,13 @@ function save() {
   const [meetId, settings] = [meet.value.id, draft.value]
   void run(async () => {
     took(await saveStatsSettings(meetId, settings))
+    // What needs attention, and the stats, follow the settings: the page reads the meet again
+    void refresh('check')
   })
 }
 
 function discard() {
-  // A ref holds a reactive proxy, which structuredClone refuses, so clone what it wraps
-  if (saved.value) draft.value = structuredClone(toRaw(saved.value))
+  if (saved.value) draft.value = structuredClone(saved.value)
 }
 
 function setToMatch() {
@@ -201,7 +207,10 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
       <!-- What viewers see, and from when (FR-018) -->
       <section class="block">
         <h3 class="section-title">What viewers see</h3>
-        <p class="hint">Coaches and officials see what viewers see. Admins see everything.</p>
+        <p class="hint">
+          Coaches and officials see what viewers see, officials with the warnings on their own
+          rooms' quizzes. Admins see everything.
+        </p>
         <div class="lines">
           <div v-for="stage in STAGES" :key="stage" class="line">
             <div class="line-say">
@@ -320,8 +329,8 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
           <legend>Question types</legend>
           <label>
             <input v-model="warnTypes" type="checkbox" />
-            Warn when a quizzer's correct answers by question type don't add up; leave it off for a
-            meet that doesn't record question types
+            Warn when correct answers by question type don't add up, on a quiz and its quizzers;
+            leave it off for a meet that doesn't record question types
           </label>
         </fieldset>
         <p v-if="otherFormula > 0" class="other-formula">
@@ -354,7 +363,7 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
             {{ othersChanged ? '' : 'Unsaved changes.' }} On save, admins and officials
             {{
               warnTypes ? 'see question type warnings again' : 'stop seeing question type warnings'
-            }}; viewers see no change.
+            }}.
           </p>
         </template>
         <p v-else-if="changed" class="note">
