@@ -281,8 +281,8 @@ Each pull request rebases onto master first and carries its own changelog entrie
 
 **Purpose**: The roadmap, and proof on the deployed plan
 
-- [ ] T056 Move stats from planned to available in `ROADMAP.md` and `apps/web/src/views/RoadmapView.vue` once the last story ships, and note on issue #8 what shipped, with the maintainer's leave
-- [ ] T057 Run every scenario of `specs/006-meet-stats/quickstart.md`, and measure on the deployed free-plan Worker, for the reference meet, the CPU time and the number of database queries of `GET /stats/:division` for its largest division, of `GET /stats/attention` and of `GET /results`; record the numbers in `specs/006-meet-stats/research.md` (R2) and adjust how many revisions a request scores if any is near 10 ms or 50 queries
+- [X] T056 Move stats from planned to available in `ROADMAP.md` and `apps/web/src/views/RoadmapView.vue` once the last story ships, and note on issue #8 what shipped, with the maintainer's leave
+- [X] T057 Run every scenario of `specs/006-meet-stats/quickstart.md`, and measure on the deployed free-plan Worker, for the reference meet, the CPU time and the number of database queries of `GET /stats/:division` for its largest division, of `GET /stats/attention` and of `GET /results`; record the numbers in `specs/006-meet-stats/research.md` (R2) and adjust how many revisions a request scores if any is near 10 ms or 50 queries
 
 ---
 

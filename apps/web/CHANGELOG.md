@@ -16,6 +16,16 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-11-20
+
+### Changed
+
+* The roadmap page lists stats as available, with what it does
+
+### Bundled contract
+
+* `@qzr/shared@1.16.0` - unchanged
+
 ## [0.30.0] - 2026-11-19
 
 ### Added

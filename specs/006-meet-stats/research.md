@@ -48,8 +48,24 @@ rejected. Facts about the current code come from reading it on 2026-11-14 (maste
   own formula. No placement points.
 * **Every route that needs scored facts reads the rows**: a division's stats, the list of what needs
   attention, and the problems shown beside each quiz in the results list. None of them scores a
-  division on the spot. What needs attention is built from scored facts and names alone, with no
-  ranking, so one request covers the meet.
+  division on the spot. What needs attention ranks every division from its rows, under one scoring
+  budget for the request, since half its items come from the standings.
+* **Measured on the deployed Worker** (2026-11-19, `wrangler tail`, the one production meet with
+  results: 11 stored quizzes in three divisions, each request sent twice): a division's stats took
+  15 to 60 ms of CPU the first time, 60 ms where it scored revisions and answered 503, and 16 to 24
+  ms after; the list of what needs attention 33 to 35 ms; the results list 19 to 32 ms; the list of
+  divisions 13 to 19 ms. A request refused for having no session took 19 to 41 ms, so most of the
+  time is the Worker starting and checking the session, not stats. Every request went over 10 ms and
+  none was stopped. Queries, counted from the code since the tail doesn't give them: about 13 to 16
+  for a division's stats and about 12 plus one a division for what needs attention, plus two for a
+  division that scores revisions; well under 50, and growing with divisions, not quizzes. Five
+  revisions a request stays: scoring is not what the time goes on.
+* **The Worker's last 31 days** (Cloudflare's analytics, to 2026-11-20): no request stopped for CPU
+  and no errors. Half of all requests used under 5 ms in October and 7 to 8 ms in November, once
+  stats and the schedule had shipped; the heaviest 1% used 13 to 67 ms a day and all completed. The
+  free plan judges the pattern, not each request, so this holds while the heavy requests stay a
+  small share; a meet day with many viewers on the stats page is the case to watch, and the median
+  creeping towards 10 ms the sign.
 * **The database's limit**: D1 on the free plan allows 50 queries in one Worker invocation and 100
   bound parameters in a query (Cloudflare's D1 limits page, read 2026-11-14). A stats request reads
   about a dozen tables once each; the rows it rescores are written in one statement, which with
