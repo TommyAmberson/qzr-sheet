@@ -189,11 +189,11 @@ on #200 (T007).
 ## Phase 9: Polish & Cross-Cutting Concerns
 
 - [X] T026 Remove the views the tabs replace (`ScheduleView.vue`, `ResultsView.vue`, `StatsView.vue`, `DivisionStatsView.vue`, `StatsSettingsView.vue`, and `QuizMeetView.vue`'s moved sections), once every action they hold, #209's included, is on a tab or in the header, their routes now redirects (FR-020); the stored quiz page, the church teams page and the builder stay
-- [ ] T027 Docs in the same PR as the change they describe: `docs/scheduling.md` (bench resolution built, replacing "still to come with #16"; missed in PR 1, so the first commit of PR 2), `docs/roles-and-access.md` (the tabs and who sees what, `GET /day`; with PR 2), `docs/architecture.md` (the meet page and its data flow; with PR 2)
+- [X] T027 Docs in the same PR as the change they describe: `docs/scheduling.md` (bench resolution built, replacing "still to come with #16"; missed in PR 1, so the first commit of PR 2), `docs/roles-and-access.md` (the tabs and who sees what, `GET /day`; with PR 2), `docs/architecture.md` (the meet page and its data flow; with PR 2)
 - [ ] T028 `ROADMAP.md` and `apps/web/src/views/RoadmapView.vue`: #16 shipped, the meet page described; close #16 with a comment on what shipped, with the maintainer's leave
 - [ ] T029 Measure on the deployed Worker with `wrangler tail`: the day response's CPU for the one production meet with results, and that viewers' requests are served from the cache (quickstart scenario 9); record in research R2
 - [ ] T030 Run every quickstart scenario in a browser, counting clicks for SC-001 (an admin from any tab to any item's fix: at most two, counting an upload from its planning step) and SC-002 (a viewer to a division's standings: at most two; to how a scheduled quiz went: one)
-- [ ] T031 Release commits last in each PR, one per package, at the levels in the Delivery table
+- [X] T031 Release commits last in each PR, one per package, at the levels in the Delivery table
 
 ---
 
