@@ -34,6 +34,11 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   `seatText`, `scheduledQuizOf`, the scoresheet and the schedule's benches now share) and the
   `BenchSources` it reads (#16).
 
+### Changed
+
+* `scheduledQuizOf` takes the settled benches, so an elimination or Finals quiz is held against its
+  teams once every bench is settled, rather than matched on its name alone.
+
 ## [1.17.0] - 2026-11-19
 
 ### Added

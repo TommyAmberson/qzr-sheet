@@ -19,6 +19,7 @@ import {
   looksAlike,
 } from '../scoring/standings'
 import type { PlacementFormula } from '../quizFile'
+import type { PlacedTeam } from '../schedule/resolve'
 import { playing, quizProblems, type QuizProblem, type ScheduledQuiz } from './quizProblems'
 import type { ScoredQuiz } from './scoredQuiz'
 import { QUIZZER_STAGES, type QuizzerStage, type StatsSettings } from './settings'
@@ -277,6 +278,31 @@ export function heldQuizzes(
   input: DivisionStatsInput,
 ): { id: number; stage: Stage; counts: boolean }[] {
   return stageQuizzes(input).map(({ id, stage, counts }) => ({ id, stage, counts }))
+}
+
+/**
+ * The teams of each quiz of a division that counts, by its stored id, as the tables take them: the
+ * places, ties and placement points the benches a quiz feeds are settled from (`resolveBenches`)
+ */
+export function countingTeams(input: DivisionStatsInput): Map<number, PlacedTeam[]> {
+  const { levelTeams } = input.settings
+  return new Map(
+    stageQuizzes(input)
+      .filter((quiz) => quiz.counts)
+      .map((quiz) => [
+        quiz.id,
+        quiz.scored.teams
+          .filter((team) => tidyName(team.name) !== '')
+          .map((team) => ({
+            name: tidyName(team.name),
+            place: team.place,
+            placementPoints:
+              computePlacementPoints(team.regulationScore, team.place, levelTeams) ?? 0,
+            score: team.score,
+            errors: team.errors,
+          })),
+      ]),
+  )
 }
 
 /** A division's quizzes with a stage, in the order people count them, held against everything */
