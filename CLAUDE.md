@@ -18,7 +18,9 @@ specs/          # Spec Kit artefacts, one NNN-slug/ per feature (spec, plan, tas
 .specify/       # Spec Kit scaffolding: templates, shell helpers, constitution
 ```
 
-See `docs/architecture.md` for full detail on internals, data flow, and design decisions.
+See `docs/architecture.md` for full detail on internals, data flow, and design decisions. Its
+"Terms" section says what a bench (a team's) and a seat (a quizzer's) are; the schedule's `seats`
+are benches.
 
 ## Commands
 
