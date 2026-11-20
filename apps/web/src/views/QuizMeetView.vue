@@ -604,14 +604,7 @@ async function handleExportRoster() {
     quizzerName: e.quizzerName,
     church: e.churchShortName,
   }))
-  const csv = serializeRosterCsv(entries)
-  const blob = new Blob([csv], { type: 'text/csv' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${detail.value?.meet.name ?? 'roster'}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+  saveFile(serializeRosterCsv(entries), `${detail.value?.meet.name ?? 'roster'}.csv`, 'text/csv')
 }
 
 onMounted(load)
