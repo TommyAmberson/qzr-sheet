@@ -42,6 +42,24 @@ describe('qzr-web worker', () => {
     expect(res.status).toBe(304)
   })
 
+  it("answers 404 for a build file that doesn't exist, not a shell", async () => {
+    for (const path of [
+      '/qzr/assets/QuizMeetView-DImZAsU7.js',
+      '/qzr/assets/index-BcZg07GA.css',
+      '/qzr/scoresheet/assets/index-abc123.js',
+    ]) {
+      const res = await get(path)
+      expect(res.status).toBe(404)
+      expect(res.headers.get('Cache-Control')).toBe('no-store')
+    }
+  })
+
+  it('still serves the shell for a meet whose code is `assets`', async () => {
+    const res = await get('/qzr/assets/schedule')
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('portal shell')
+  })
+
   it('rejects non-GET requests', async () => {
     const res = await get('/qzr/fall-2025', { method: 'POST' })
     expect(res.status).toBe(405)

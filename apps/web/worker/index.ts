@@ -5,6 +5,9 @@ export interface Env {
 }
 
 const SCORESHEET_PREFIX = '/qzr/scoresheet/'
+// A build file: under a Vite `assets/` folder and named with an extension, which no page's address
+// is, even a meet whose code is `assets`
+const BUILD_FILE = /^\/qzr\/(scoresheet\/)?assets\/[^/]+\.[a-z0-9]+$/i
 
 /** qzr's addresses from before it moved under /qzr/ (routes in wrangler.toml). */
 function legacyResponse(url: URL): Response | null {
@@ -40,6 +43,13 @@ export default {
 
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return new Response('Method Not Allowed', { status: 405, headers: { Allow: 'GET, HEAD' } })
+    }
+
+    // A build file that's missing, typically an old build's chunk asked for by a tab opened before a
+    // deploy, is a 404: a shell in its place reads as a 200 script with the wrong MIME type. Not
+    // stored, since mid-deploy the file may exist a moment later
+    if (BUILD_FILE.test(url.pathname)) {
+      return new Response('Not Found', { status: 404, headers: { 'Cache-Control': 'no-store' } })
     }
 
     const shell = url.pathname.startsWith(SCORESHEET_PREFIX) ? SCORESHEET_PREFIX : '/qzr/'
