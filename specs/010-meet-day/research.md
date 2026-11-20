@@ -150,20 +150,21 @@ stats API on master (`76a6875`) and the open #200 (`fix/papercuts`).
   4. **The published schedule follows the meet day.** The page holds the schedule with the version
      and phase of the meet day that asked for it, and reads it again whenever a meet day names
      another version or phase, so the letters or team names follow the phase; it checks on every
-     answer, so a read that failed is tried again with the next. It is not read before the first
-     meet day, so the two can't disagree from the start; if the meet day can't be read, the schedule
-     is read anyway, held for no version, and read again once a meet day answers. A read for a meet
+     answer, so a read that failed is tried again with the next. It is read as soon as the meet is
+     known, held for no version, so a meet day the API is still preparing doesn't hold the Schedule
+     tab up, and read again for the version and phase the first meet day names. A read for a meet
      the page has left, or overtaken by a newer read, is dropped.
   5. **A failed read in the background** shows a line under the tab bar, or above the tab's own
      content, and leaves what was shown.
 * **Rationale**: FR-022; #200 already refreshes the quiz page when its tab comes back into view. The
   rules came out of four review rounds that each found a race between the flags a simpler version
-  grew one at a time; stating them lets each be tested on its own. Reading the schedule after the
-  first meet day costs one round trip before the Schedule tab first draws, and spares a contract
-  change (the published response naming its version) that would only shorten that.
+  grew one at a time; stating them lets each be tested on its own. Reading the schedule at once and
+  again for the first meet day costs one extra read on opening, and spares a contract change (the
+  published response naming its version).
 * **Alternatives considered**: moving the beat on every changed answer, even after a tab switch,
-  reads the tab shown twice on a busy meet day. Reading the schedule alongside the first meet day
-  leaves a window where a publish between the two reads goes unnoticed until the next one.
+  reads the tab shown twice on a busy meet day. Reading the schedule only alongside the first meet
+  day leaves a window where a publish between the two reads goes unnoticed; reading it only after
+  the first meet day holds the Schedule tab up for as long as the API prepares the day.
 
 ## R8. Docs the feature amends
 

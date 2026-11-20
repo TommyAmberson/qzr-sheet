@@ -160,6 +160,11 @@ async function load() {
     coachChurchIds.value = loaded.membership.coaches
   } catch (e) {
     if (current !== loads) return
+    // A signed-in reader who isn't one of the meet's members is shown their own meets
+    if (e instanceof ApiError && e.status === 403 && !isGuest.value) {
+      void router.replace({ name: 'home' })
+      return
+    }
     error.value =
       e instanceof ApiError && (e.status === 401 || e.status === 403)
         ? 'Join the meet again with its code to see it.'
@@ -222,6 +227,14 @@ async function readPublished(id: number, forDay: string | null) {
     if (mine === publishedReads) askedFor = undefined
   }
 }
+
+// The schedule is read as soon as the meet is known, held for no version, so a meet day the API is
+// still preparing doesn't hold the Schedule tab up; the first meet day then reads it for its version
+watch(meetId, (id) => {
+  if (id !== null && published.value === undefined && askedFor === undefined) {
+    void readPublished(id, null)
+  }
+})
 
 // Read for each version and phase a meet day names, the phase deciding letters or team names, on
 // every answer so a read that failed is tried again; with no meet day to go by, read anyway so the

@@ -174,7 +174,7 @@ describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
     const reads = () =>
       vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/schedule/published'))
         .length
-    expect(reads()).toBe(1)
+    expect(reads()).toBe(2)
     const refresh = () =>
       w
         .findAll('button')
@@ -182,13 +182,13 @@ describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
         .trigger('click')
     await refresh()
     await flushPromises()
-    expect(reads()).toBe(1)
+    expect(reads()).toBe(2)
     answer.status = 200
     answer.body = { document: published(), publishedAt: '2026-11-02', view: 'teams' }
     dayNow.scheduleVersion = 1
     await refresh()
     await flushPromises()
-    expect(reads()).toBe(2)
+    expect(reads()).toBe(3)
     expect(w.text()).toMatch(/Grace 1/)
   })
 })

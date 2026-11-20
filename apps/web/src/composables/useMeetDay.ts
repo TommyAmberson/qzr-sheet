@@ -65,6 +65,11 @@ export function useMeetDay(
     } catch (e) {
       if (mine.signal.aborted) return
       error.value = e instanceof Error ? e.message : String(e)
+      // A Refresh reloads the tabs' own data even when the meet day can't be read
+      if (refreshOwed) {
+        refreshOwed = false
+        beat.value++
+      }
     } finally {
       if (current === mine) current = null
     }

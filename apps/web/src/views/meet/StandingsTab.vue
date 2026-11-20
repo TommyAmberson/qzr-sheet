@@ -139,6 +139,7 @@ async function keep(resultId: number) {
   try {
     await keepQuiz(meet.value.id, resultId)
     await load()
+    void page.refresh('check')
   } catch (e) {
     error.value = (e as Error).message
   }

@@ -71,7 +71,11 @@ const templateError = ref('')
 async function loadTemplate() {
   const id = meet.value?.id
   if (id === undefined || isAdmin.value) return
-  template.value = await getTemplateInfo(id).catch(() => null)
+  templateError.value = ''
+  template.value = await getTemplateInfo(id).catch((e: Error) => {
+    templateError.value = `Couldn't look up the meet's template: ${e.message}`
+    return null
+  })
 }
 
 async function saveTemplate() {
@@ -363,12 +367,12 @@ async function handleExportRoster() {
         </template>
       </div>
 
-      <div v-if="template" class="section">
+      <div v-if="template || templateError" class="section">
         <div class="section-header">
           <h3 class="section-title">Scoring template</h3>
           <div class="section-actions">
-            <button class="btn btn--secondary btn--sm" @click="saveTemplate">
-              ⤓ Download {{ template.fileName }}
+            <button v-if="template" class="btn btn--secondary btn--sm" @click="saveTemplate">
+              ⤓ Download {{ template?.fileName }}
             </button>
           </div>
         </div>

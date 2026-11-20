@@ -9,6 +9,7 @@ import {
   scheduleQuizMeta,
   scheduledStage,
   seatText,
+  drawnTeam,
   STAGE_CHOICES,
   STAGES,
   benchKey,
@@ -207,6 +208,8 @@ const rows = computed<QuizRow[]>(() => {
         benches: quiz.seats.map((bench, i) => {
           const settled = answer.benches[benchKey(quiz.id, i)]
           if (settled) return settledText(settled)
+          // An absent team sits on no bench, as the schedule shows it
+          if (bench.kind === 'letter' && drawnTeam(doc!, quiz, bench)?.absent) return 'Absent'
           return seatText(doc!, quiz, bench, view)
         }),
         scheduleQuizId: q.id,
@@ -524,7 +527,6 @@ async function dismiss(division: string, names: [string, string], team?: string)
 async function mergeNames(division: string, names: [string, string], team?: string) {
   if (!meet.value) return
   const meetId = meet.value.id
-  // How many quizzes use each name, so the more used is offered first
   // The quizzes using each name, by id
   const [usingFirst, usingSecond] = names.map(
     (name) => new Set(mergeEdits(stored.value, division, name, name, team).map(({ id }) => id)),

@@ -46,10 +46,8 @@ export function markQuiz(
     const team = at < 0 ? undefined : left.splice(at, 1)[0]
     return { settled, result: team }
   })
-  // A bench whose team the schedule can't name, as a tied one, holds the one result left over
-  const unnamed = benches.filter(
-    (b, i) => !b.result && benchTeam(doc, quiz, quiz.seats[i]!, b.settled) === undefined,
-  )
+  // A tied bench, whose team the schedule can't name, holds the one result left over
+  const unnamed = benches.filter((b) => !b.result && b.settled && !('team' in b.settled))
   if (unnamed.length === 1 && left.length === 1) unnamed[0]!.result = left.pop()
   return { benches, unplaced: left }
 }
