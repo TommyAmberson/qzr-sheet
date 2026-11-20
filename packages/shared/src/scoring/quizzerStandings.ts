@@ -81,7 +81,11 @@ function addTypes(into: Record<string, number>, types: Record<string, number>) {
  * played. None of this is in the rulebook: see "Rules Not in the Rulebook" in
  * `docs/scoring-rules-explained.md`.
  */
-export function quizzerStandings(quizzes: QuizzerQuiz[]): QuizzerList[] {
+export function quizzerStandings(
+  quizzes: QuizzerQuiz[],
+  /** `warnTypes` false for a meet that doesn't record question types: no quizzer is flagged for them */
+  { warnTypes = true }: { warnTypes?: boolean } = {},
+): QuizzerList[] {
   const teams = new Map<string, TeamTally>()
   for (const quiz of quizzes) {
     for (const team of quiz.teams) {
@@ -140,7 +144,7 @@ export function quizzerStandings(quizzes: QuizzerQuiz[]): QuizzerList[] {
               teamQuizzes: team.quizzes,
             })
           }
-          if (typed !== jumps - errors) flags.push({ kind: 'incompleteTypes' })
+          if (warnTypes && typed !== jumps - errors) flags.push({ kind: 'incompleteTypes' })
           return {
             name: mostUsedSpelling(quizzer.spellings),
             team: mostUsedSpelling(team.spellings),

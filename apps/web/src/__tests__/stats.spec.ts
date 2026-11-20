@@ -21,6 +21,8 @@ import {
   viewerChanges,
   warningText,
   type DivisionAt,
+  settingsKey,
+  withTypesChoice,
 } from '../stats'
 
 describe('changeText', () => {
@@ -341,5 +343,24 @@ describe('statsCsv', () => {
     const rows = statsCsv(stats).standings.split('\r\n')
     expect(rows).toContain('Prelims,1,,"Maple, 1",20,1')
     expect(rows).toContain('Main,1,Sam Park,"Maple, 1",60,60,0,3,1')
+  })
+})
+
+describe('the question types choice in the stats settings', () => {
+  const settings = DEFAULT_STATS_SETTINGS
+
+  it('writes the choice only when it is off, so an API from before it takes the save', () => {
+    expect(withTypesChoice(settings, false).warnIncompleteTypes).toBe(false)
+    expect(
+      'warnIncompleteTypes' in withTypesChoice({ ...settings, warnIncompleteTypes: false }, true),
+    ).toBe(false)
+  })
+
+  it('counts settings as unchanged whatever their keys order, and absent as on', () => {
+    const { tieBreaks, ...rest } = settings
+    const reordered = { ...rest, warnIncompleteTypes: true, tieBreaks }
+    expect(settingsKey(reordered)).toBe(settingsKey(settings))
+    expect(settingsKey(withTypesChoice(settings, false))).not.toBe(settingsKey(settings))
+    expect(settingsKey(withTypesChoice(settings, false), true)).toBe(settingsKey(settings, true))
   })
 })

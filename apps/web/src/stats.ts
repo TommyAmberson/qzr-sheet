@@ -19,6 +19,7 @@ import {
   type AttentionItem,
   type TieBreak,
   type ViewerHas,
+  warnsIncompleteTypes,
 } from '@qzr/shared'
 import type { HistoryEntry } from './api'
 
@@ -423,4 +424,27 @@ export function statsCsv(stats: DivisionStats): {
     ),
   ])
   return { teams, quizzers, standings }
+}
+
+/**
+ * Settings as text two equal settings share, whatever the order of their top-level keys (the
+ * question types choice is added or dropped there), the choice counting by what it means (absent
+ * and on both warn); `withoutTypes` leaves the choice out
+ */
+export function settingsKey(settings: StatsSettings, withoutTypes = false): string {
+  const all: Record<string, unknown> = { ...withTypesChoice(settings, true) }
+  if (!withoutTypes) all.warnIncompleteTypes = warnsIncompleteTypes(settings)
+  const sorted = Object.keys(all)
+    .sort()
+    .map((key) => [key, all[key]])
+  return JSON.stringify(Object.fromEntries(sorted))
+}
+
+/**
+ * Settings with the question types choice made. Off is written; on leaves the choice out, as its
+ * absence means, so an API from before the choice still takes the save
+ */
+export function withTypesChoice(settings: StatsSettings, warn: boolean): StatsSettings {
+  const { warnIncompleteTypes: _choice, ...rest } = settings
+  return warn ? rest : { ...rest, warnIncompleteTypes: false }
 }

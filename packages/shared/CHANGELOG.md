@@ -23,6 +23,16 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-11-20
+
+### Added
+
+* `StatsSettings.warnIncompleteTypes`: optional; false turns off the flags on a quiz and its
+  quizzers whose correct answers by question type don't add up, for a meet that doesn't record
+  question types. Absent, as in settings saved before it, means warned (specs/006-meet-stats FR-007)
+* `warnsIncompleteTypes(settings)`: whether a meet's admins are warned, absent meaning yes, and
+  `quizzerStandings` takes the same choice as `{ warnTypes }`
+
 ## [1.18.0] - 2026-11-20
 
 ### Added

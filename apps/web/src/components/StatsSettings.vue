@@ -9,6 +9,7 @@ import {
   viewerHas,
   type ShownFrom,
   type StatsSettings,
+  warnsIncompleteTypes,
 } from '@qzr/shared'
 
 import { formatWhen } from '@qzr/ui'
@@ -27,7 +28,9 @@ import {
   THING_NAMES,
   momentsFor,
   rightNow,
+  settingsKey,
   viewerChanges,
+  withTypesChoice,
   type ViewerThing,
 } from '../stats'
 
@@ -50,9 +53,27 @@ const error = ref('')
 
 const phase = computed(() => meet.value?.phase ?? 'registration')
 const done = computed(() => phase.value === 'done')
-const dirty = computed(() => JSON.stringify(saved.value) !== JSON.stringify(draft.value))
 /** Quizzes are set to the saved way of scoring level teams, so not while another is chosen */
 const levelTeamsUnsaved = computed(() => saved.value?.levelTeams !== draft.value?.levelTeams)
+/** The question types choice, written only when off (`withTypesChoice`) */
+const warnTypes = computed({
+  get: () => (draft.value ? warnsIncompleteTypes(draft.value) : true),
+  set: (warn: boolean) => {
+    if (draft.value) draft.value = withTypesChoice(draft.value, warn)
+  },
+})
+/** The question types choice changed, which admins and officials see on save, viewers never */
+const typesChanged = computed(
+  () => !!saved.value && !!draft.value && warnsIncompleteTypes(saved.value) !== warnTypes.value,
+)
+/** Anything else changed */
+const othersChanged = computed(
+  () =>
+    !!saved.value &&
+    !!draft.value &&
+    settingsKey(saved.value, true) !== settingsKey(draft.value, true),
+)
+const dirty = computed(() => typesChanged.value || othersChanged.value)
 const changes = computed(() =>
   saved.value && draft.value
     ? viewerChanges(saved.value, draft.value, divisions.value, phase.value)
@@ -294,6 +315,14 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
             in one is an error
           </label>
         </fieldset>
+        <fieldset class="choice" :disabled="done">
+          <legend>Question types</legend>
+          <label>
+            <input v-model="warnTypes" type="checkbox" />
+            Warn when a quizzer's correct answers by question type don't add up; leave it off for a
+            meet that doesn't record question types
+          </label>
+        </fieldset>
         <p v-if="otherFormula > 0" class="other-formula">
           {{ otherFormula }} {{ otherFormula === 1 ? 'quiz was' : 'quizzes were' }} scored the other
           way on their device, so their scoresheets show other placement points than the tables.
@@ -317,8 +346,14 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
               <li v-for="line in changes" :key="line">{{ line }}</li>
             </ul>
           </div>
-          <p v-else class="note">
+          <p v-else-if="othersChanged" class="note">
             Unsaved changes. Nothing changes for viewers right now; it will at a later step.
+          </p>
+          <p v-if="typesChanged" class="note">
+            {{ othersChanged ? '' : 'Unsaved changes.' }} On save, admins and officials
+            {{
+              warnTypes ? 'see question type warnings again' : 'stop seeing question type warnings'
+            }}; viewers see no change.
           </p>
         </template>
         <p v-else-if="changed" class="note">

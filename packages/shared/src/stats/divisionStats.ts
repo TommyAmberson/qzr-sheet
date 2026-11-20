@@ -22,7 +22,12 @@ import type { PlacementFormula } from '../quizFile'
 import type { PlacedTeam } from '../schedule/resolve'
 import { playing, quizProblems, type QuizProblem, type ScheduledQuiz } from './quizProblems'
 import type { ScoredQuiz } from './scoredQuiz'
-import { QUIZZER_STAGES, type QuizzerStage, type StatsSettings } from './settings'
+import {
+  QUIZZER_STAGES,
+  warnsIncompleteTypes,
+  type QuizzerStage,
+  type StatsSettings,
+} from './settings'
 import { STAGES, type Stage } from './stages'
 import { teamNamed, type RosterTeam } from './teamNames'
 
@@ -247,7 +252,10 @@ export interface DivisionStatsInput {
   laterStagesScheduled: boolean
   /** Whether the meet has a published schedule: a quiz linked to none of its quizzes is in error */
   schedulePublished: boolean
-  settings: Pick<StatsSettings, 'tieBreaks' | 'levelTeams' | 'prelimsWithoutOvertime'>
+  settings: Pick<
+    StatsSettings,
+    'tieBreaks' | 'levelTeams' | 'prelimsWithoutOvertime' | 'warnIncompleteTypes'
+  >
   /** The prelim order and the re-rank the admin confirmed, where they stand confirmed */
   confirmed?: { prelims?: ConfirmedOrder; rerank?: ConfirmedOrder }
   /**
@@ -340,6 +348,8 @@ function stageQuizzes(input: DivisionStatsInput): Staged[] {
 export function divisionStats(input: DivisionStatsInput): DivisionStats {
   const { division, state, phase, settings } = input
   const { tieBreaks, levelTeams } = settings
+  // A meet that doesn't record question types isn't warned that they don't add up
+  const warnTypes = warnsIncompleteTypes(settings)
   const staged = stageQuizzes(input)
   const counting = staged.filter((quiz) => quiz.counts)
   const ofStage = (stage: Stage) => counting.filter((quiz) => quiz.stage === stage)
@@ -366,7 +376,7 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
       return {
         stage,
         level: 'scores',
-        quizzes: quizzes.map((quiz) => quizResult(quiz, levelTeams)),
+        quizzes: quizzes.map((quiz) => quizResult(quiz, levelTeams, warnTypes)),
       }
     })
     .filter((stage) => stage.quizzes.length > 0)
@@ -462,6 +472,7 @@ export function divisionStats(input: DivisionStatsInput): DivisionStats {
         consolation: scored.consolation,
         teams: scored.teams,
       })),
+      { warnTypes },
     ),
   }
 
@@ -703,11 +714,11 @@ function typesIncomplete(scored: ScoredQuiz): boolean {
   )
 }
 
-function quizResult(quiz: Staged, levelTeams: PlacementFormula): QuizResult {
+function quizResult(quiz: Staged, levelTeams: PlacementFormula, warnTypes: boolean): QuizResult {
   const named = quiz.scored.teams.filter((team) => tidyName(team.name) !== '')
   const flags = {
     ...(quiz.withdrawnOrder ? { withdrawnOrder: true as const } : {}),
-    ...(typesIncomplete(quiz.scored) ? { incompleteTypes: true as const } : {}),
+    ...(warnTypes && typesIncomplete(quiz.scored) ? { incompleteTypes: true as const } : {}),
   }
   if (!quiz.counts) {
     return {
