@@ -87,6 +87,8 @@ export interface MeetFacts {
   decisions: Map<number, Decisions>
   schedule: {
     document: ScheduleDocument
+    /** The published version the document is */
+    version: number
     quizzes: Map<string, ScheduleQuiz>
     /** The scheduled quizzes by the result key they name their results under */
     byKey: Map<string, string[]>
@@ -205,6 +207,7 @@ export async function meetFacts(db: Db, meetId: number): Promise<MeetFacts> {
     decisions,
     schedule: document && {
       document,
+      version: version!.version,
       quizzes: new Map(document.quizzes.map((quiz) => [quiz.id, quiz])),
       byKey,
     },

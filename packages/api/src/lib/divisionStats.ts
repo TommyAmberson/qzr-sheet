@@ -1,9 +1,14 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import {
+  attentionOf,
   countingTeams,
   findDivision,
   foldName,
+  resultKeyDivision,
+  resultKeyName,
   sameDivision,
+  type AttentionItem,
+  type DivisionStats,
   type DivisionStateValue,
   type DivisionStatsInput,
   type MeetPhase,
@@ -161,6 +166,8 @@ export type DivisionAnswer =
       /** What its stats are worked out from, for `divisionStats` or `heldQuizzes` */
       input: DivisionStatsInput
       quizzes: DivisionQuiz[]
+      /** The settled benches of the division's scheduled quizzes, by `benchKey` */
+      benches: Map<string, SettledBench>
     }
 
 /**
@@ -288,6 +295,7 @@ export async function divisionOf(
       admin: of.stageFrom === 'admin',
       scheduleQuizId: of.link?.scheduleQuizId ?? null,
     })),
+    benches: settled,
   }
 }
 
@@ -298,4 +306,67 @@ function sameBenches(a: Map<string, SettledBench>, b: Map<string, SettledBench>)
     if (!other || JSON.stringify(other) !== JSON.stringify(bench)) return false
   }
   return true
+}
+
+export type ReadyDivision = Extract<DivisionAnswer, { kind: 'ready' }>
+
+/**
+ * Every division the meet lists or a stored quiz names, and quizzes in none, which have no
+ * standings but can still be unstaged, read under one scoring budget for the whole request, as the
+ * divisions' states are; `preparing` while some revisions are still to be scored
+ */
+export async function meetDivisions(
+  db: Db,
+  meetId: number,
+): Promise<{ ground: StatsGround; divisions: ReadyDivision[] } | 'notFound' | 'preparing'> {
+  const [ground, keys] = await Promise.all([
+    statsGround(db, meetId),
+    db
+      .select({ quizKey: schema.quizResults.quizKey })
+      .from(schema.quizResults)
+      .where(eq(schema.quizResults.meetId, meetId)),
+  ])
+  if (!ground) return 'notFound'
+  const listed = new Set(ground.meet.divisions.map(foldName))
+  const divisions = [
+    ...ground.meet.divisions,
+    ...new Set(keys.map(({ quizKey }) => resultKeyDivision(quizKey)).filter((d) => !listed.has(d))),
+  ]
+  const scoring = { left: REVISIONS_SCORED_PER_REQUEST }
+  const ready: ReadyDivision[] = []
+  for (const division of divisions) {
+    const answer = await divisionOf(db, meetId, ground, division, undefined, scoring)
+    if (answer.kind === 'notFound') continue
+    if (answer.kind === 'preparing') return 'preparing'
+    ready.push(answer)
+  }
+  return { ground, divisions: ready }
+}
+
+/**
+ * What needs attention across the meet (FR-030 of meet stats), from each division read and its
+ * stats: stored quizzes with no stage but by an admin's choice, each division's warnings and flags,
+ * and quizzes scored another way than the meet
+ */
+export function attentionItems(
+  divisions: { answer: ReadyDivision; stats: DivisionStats }[],
+  otherFormula: { id: number; quizKey: string }[],
+): AttentionItem[] {
+  const items: AttentionItem[] = []
+  for (const { answer, stats } of divisions) {
+    // A quiz an admin set not to count has no stage by their choice, which needs nothing
+    for (const quiz of answer.quizzes) {
+      if (quiz.stage === null && !quiz.admin) {
+        items.push({ kind: 'noStage', quiz: { id: quiz.id, name: quiz.name } })
+      }
+    }
+    if (answer.division !== '') items.push(...attentionOf(stats))
+  }
+  if (otherFormula.length > 0) {
+    items.push({
+      kind: 'otherFormula',
+      quizzes: otherFormula.map(({ id, quizKey }) => ({ id, name: resultKeyName(quizKey) })),
+    })
+  }
+  return items
 }
