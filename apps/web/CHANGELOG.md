@@ -16,6 +16,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-11-20
+
 ### Added
 
 * A Scoring template section on the meet page: an admin uploads or replaces the meet's
@@ -38,6 +40,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 * The meet page shows the roster as it is after any roster import, failed ones included, without a
   refresh
+
+### Bundled contract
+
+* `@qzr/shared@1.17.0` - bumped from 1.16.0
 
 ## [0.31.0] - 2026-11-19
 
