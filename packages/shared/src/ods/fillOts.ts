@@ -1,16 +1,11 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
-import {
-  QuizFormat,
-  TWENTY_QUESTION_RULES,
-  answerLookup,
-  buildCellGrid,
-  buildColumns,
-  computeOvertimeRounds,
-  deserialize,
-  inSeatOrder,
-  type QuizFile,
-} from '@qzr/shared'
-import { patchCell } from './odsXml'
+import { QuizFormat, type QuizFile } from '../quizFile'
+import { deserialize } from '../quizFileCodec'
+import { answerLookup, buildCellGrid, inSeatOrder } from '../scoring/cellGrid'
+import { computeOvertimeRounds } from '../scoring/overtime'
+import { TWENTY_QUESTION_RULES } from '../scoring/quizRules'
+import { buildColumns } from '../types/scoresheet'
+import { LAST_SHEET_QUESTION, patchCell } from './odsXml'
 
 /**
  * Fill an OTS template with quiz data and return an ODS file as bytes.
@@ -27,6 +22,13 @@ import { patchCell } from './odsXml'
  */
 /** The template's layout and formulas only score a 20-question quiz */
 export const ODS_TWENTY_ONLY = 'Spreadsheet export supports 20-question quizzes only'
+
+/** The questions of a quiz a sheet has no column for, in order; an export leaves them out */
+export function questionsPastSheet(quizFile: QuizFile): number[] {
+  const keys = [...quizFile.answers.map((a) => a.columnKey), ...quizFile.noJumps]
+  const past = keys.map((key) => parseInt(key, 10)).filter((q) => q > LAST_SHEET_QUESTION)
+  return [...new Set(past)].sort((a, b) => a - b)
+}
 
 /** Whether the template can score this format; a file without a format is 20-question */
 export function odsSupportsFormat(format = QuizFormat.TwentyQuestion): boolean {
@@ -69,7 +71,8 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   // --- 5. Fill metadata (row 2, 0-based) ---
   // Row 3 in 1-based = 0-based row 2: Div input at col C (idx 2), Quiz# input at col E (idx 4)
   sheetXml = patchCell(sheetXml, 2, 2, quiz.division)
-  sheetXml = patchCell(sheetXml, 2, 4, quiz.quizNumber)
+  // A consolation quiz is written "cA", as the sheets have always written it and readOds reads it
+  sheetXml = patchCell(sheetXml, 2, 4, `${quiz.consolation ? 'c' : ''}${quiz.quizNumber}`)
 
   // --- 6. Fill each team block ---
   // Team layout (0-based rows):
@@ -110,7 +113,8 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   let otCol = 23
   const seenOtNumbers = new Set<number>()
   for (const col of cols) {
-    if (!col.isOvertime) continue
+    // Questions past the sheet's last column have nowhere to go; questionsPastSheet names them
+    if (!col.isOvertime || col.number > LAST_SHEET_QUESTION) continue
     if (!seenOtNumbers.has(col.number)) {
       seenOtNumbers.add(col.number)
       colKeyToOdsCol.set(`${col.number}`, otCol)
@@ -119,6 +123,10 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
       otCol++
     }
   }
+
+  /** A column's place in the sheet: A and B questions share their question's */
+  const sheetColumnOf = (col: { key: string; number: number }) =>
+    colKeyToOdsCol.get(col.key) ?? colKeyToOdsCol.get(`${col.number}`)
 
   // No-jump row (row 27, 0-based) and question type row (row 28, 0-based)
   const noJumpRow = 27
@@ -154,7 +162,7 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
           if (cell === '') continue
 
           // Normal keys map directly; A/B keys use the parent question number
-          const odsColIdx = colKeyToOdsCol.get(col.key) ?? colKeyToOdsCol.get(`${col.number}`)
+          const odsColIdx = sheetColumnOf(col)
           if (odsColIdx !== undefined) {
             sheetXml = patchCell(sheetXml, qRow, odsColIdx, cell)
           }
@@ -165,7 +173,7 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
 
   // --- 7. No-jump row ---
   for (const col of cols) {
-    const odsColIdx = colKeyToOdsCol.get(col.key)
+    const odsColIdx = sheetColumnOf(col)
     if (odsColIdx === undefined) continue
     if (noJumps.get(col.key)) {
       sheetXml = patchCell(sheetXml, noJumpRow, odsColIdx, 'x')

@@ -38,7 +38,12 @@ import {
   type MeetMember,
   listMembers,
   revokeMember,
+  getTemplateInfo,
+  downloadTemplate,
+  uploadTemplate,
+  type TemplateInfo,
 } from '../api'
+import { saveFile } from '../downloads'
 import { parseRosterCsv, serializeRosterCsv, type RosterEntry } from '../rosterCsv'
 import { coachChurchIds as deriveCoachChurchIds } from '../meetAccess'
 
@@ -175,8 +180,17 @@ async function load() {
       return
     }
     myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, id)
-    const churchRes = await listChurches(id)
+    templateError.value = ''
+    const [churchRes, templateRes] = await Promise.all([
+      listChurches(id),
+      // A template that can't be looked up leaves the rest of the page as it is, and says so
+      getTemplateInfo(id).catch((e: Error) => {
+        templateError.value = `Couldn't look up the meet's template: ${e.message}`
+        return null
+      }),
+    ])
     churches.value = churchRes.churches
+    template.value = templateRes
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -188,6 +202,41 @@ function churchSummary(church: Church): string {
   const count = church.teamCount
   if (count === 0) return 'No teams'
   return count === 1 ? '1 team' : `${count} teams`
+}
+
+// ---- Scoring template ----
+
+/** The meet's Scoresheet.ots, which .ods downloads fill and a room falls back to; null with none */
+const template = ref<TemplateInfo | null>(null)
+const templateInput = ref<HTMLInputElement | null>(null)
+const uploadingTemplate = ref(false)
+const templateError = ref('')
+
+async function saveTemplate() {
+  templateError.value = ''
+  try {
+    const { bytes, fileName } = await downloadTemplate(meetId.value!)
+    saveFile(bytes, fileName, 'application/vnd.oasis.opendocument.spreadsheet-template')
+  } catch (e) {
+    templateError.value = (e as Error).message
+  }
+}
+
+async function onTemplatePicked(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  // Cleared, so picking the same file again still fires a change
+  input.value = ''
+  if (!file) return
+  uploadingTemplate.value = true
+  templateError.value = ''
+  try {
+    template.value = await uploadTemplate(meetId.value!, file)
+  } catch (e) {
+    templateError.value = (e as Error).message
+  } finally {
+    uploadingTemplate.value = false
+  }
 }
 
 // ---- Team names (Story 6) ----
@@ -525,13 +574,14 @@ async function handleRosterFile(event: Event) {
       return
     }
     await applyRosterImport(entries)
-    await load()
   } catch (e) {
     importRosterError.value = (e as Error).message
   } finally {
     importingRoster.value = false
     if (rosterFileInput.value) rosterFileInput.value.value = ''
   }
+  // Shown as the meet now has it, whatever the import did
+  await load()
 }
 
 async function applyRosterImport(entries: RosterEntry[]) {
@@ -554,14 +604,7 @@ async function handleExportRoster() {
     quizzerName: e.quizzerName,
     church: e.churchShortName,
   }))
-  const csv = serializeRosterCsv(entries)
-  const blob = new Blob([csv], { type: 'text/csv' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${detail.value?.meet.name ?? 'roster'}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
+  saveFile(serializeRosterCsv(entries), `${detail.value?.meet.name ?? 'roster'}.csv`, 'text/csv')
 }
 
 onMounted(load)
@@ -808,6 +851,43 @@ onMounted(load)
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Scoring template: the sheet rooms score in LibreOffice, and .ods downloads fill -->
+      <div v-if="template || (isAdmin && currentPhase !== 'done')" class="section">
+        <div class="section-header">
+          <h3 class="section-title">Scoring template</h3>
+          <div class="section-actions">
+            <button v-if="template" class="btn btn--secondary btn--sm" @click="saveTemplate">
+              ⤓ Download {{ template.fileName }}
+            </button>
+            <!-- A done meet's template stays as it is, as the API holds it -->
+            <template v-if="isAdmin && currentPhase !== 'done'">
+              <button
+                class="btn btn--secondary btn--sm"
+                :disabled="uploadingTemplate"
+                @click="templateInput?.click()"
+              >
+                {{ uploadingTemplate ? 'Uploading…' : template ? '⤒ Replace' : '⤒ Upload' }}
+              </button>
+              <input
+                ref="templateInput"
+                type="file"
+                accept=".ots,.ods"
+                style="display: none"
+                @change="onTemplatePicked"
+              />
+            </template>
+          </div>
+        </div>
+        <p v-if="template && isAdmin" class="state-msg">
+          Uploaded {{ template.uploadedAt.toLocaleString() }}
+        </p>
+        <p v-else-if="!template" class="state-msg">
+          No template yet. Upload the meet's Scoresheet.ots so rooms can download it, and quizzes
+          can be downloaded as spreadsheets.
+        </p>
+        <p v-if="templateError" class="field-error">{{ templateError }}</p>
       </div>
 
       <!-- Stats: what the meet's settings give each member, and everything for admins -->

@@ -15,6 +15,24 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-20
+
+### Changed
+
+* Export ODS fills the linked meet's own scoring template, when the meet has one, without asking for
+  a file; "Export ODS, another template…" picks one as before, and an unlinked sheet, a meet with no
+  template, or no network falls back to the picker (#52)
+
+### Fixed
+
+* Exported sheets keep their no-jumps on A and B questions (from `@qzr/shared`)
+* Submitting the quiz the meet already holds says nothing changed, rather than that it was stored as
+  a new revision
+
+### Bundled contract
+
+* `@qzr/shared@1.17.0` - bumped from 1.16.0
+
 ## [0.28.0] - 2026-11-20
 
 ### Changed

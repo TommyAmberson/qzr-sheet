@@ -24,6 +24,12 @@ function getRepeat(attrs: string, attr: string): number {
   return m ? parseInt(m[1]!, 10) : 1
 }
 
+/** Overtime rounds the Quiz sheet has columns for */
+export const SHEET_OT_ROUNDS = 2
+
+/** The last question the Quiz sheet has a column for: its two overtime rounds end at Q26 */
+export const LAST_SHEET_QUESTION = 26
+
 /** Unescape XML text content. */
 export function unescapeXml(s: string): string {
   return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')

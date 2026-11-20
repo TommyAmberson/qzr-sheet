@@ -5,6 +5,7 @@ import { ApiError, type DivisionStats, divisionTitle } from '@qzr/shared'
 
 import { getDivisionStats, getMeet, keepQuiz, type MeetDetail } from '../api'
 import StandingState from '../components/StandingState.vue'
+import { saveFile } from '../downloads'
 import {
   STAGE_LABELS,
   TIE_BREAKS,
@@ -93,15 +94,8 @@ const FILES = [
 function download(key: (typeof FILES)[number]['key']) {
   if (!stats.value || !meet.value) return
   // A byte-order mark tells a spreadsheet the file is UTF-8, so accented names open as written
-  const blob = new Blob(['\ufeff', statsCsv(stats.value)[key]], { type: 'text/csv' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = `${meet.value.name} ${divisionTitle(stats.value.division)} ${key}.csv`
-  // Attached while clicked, and the file let go only once the browser has started saving it
-  document.body.append(link)
-  link.click()
-  link.remove()
-  setTimeout(() => URL.revokeObjectURL(link.href))
+  const name = `${meet.value.name} ${divisionTitle(stats.value.division)} ${key}.csv`
+  saveFile(`\ufeff${statsCsv(stats.value)[key]}`, name, 'text/csv')
 }
 
 /** Keep a quiz seated from a withdrawn order as it is, clearing its flag */

@@ -35,9 +35,11 @@
           <div class="feature-item">
             <dt class="feature-name">Practice meet results</dt>
             <dd class="feature-desc">
-              Officials submit quizzes to the meet from the scoresheet, or upload saved files.
-              Admins choose which quizzes count and see each division's standings, with tie-breakers
-              and finalists. Every correction is kept in the quiz's history.
+              Officials submit quizzes to the meet from the scoresheet, or upload saved files and
+              LibreOffice sheets, matched to the schedule. Quizzes download as files or
+              spreadsheets, so a meet can switch to or from LibreOffice partway through. Admins
+              choose which quizzes count and see each division's standings, with tie-breakers and
+              finalists. Every correction is kept in the quiz's history.
             </dd>
           </div>
           <div class="feature-item">

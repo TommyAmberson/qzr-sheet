@@ -17,6 +17,31 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-20
+
+### Added
+
+* A scoring template per meet: `PUT /api/meets/:id/template` stores the admin's `Scoresheet.ots`,
+  replacing any earlier one, and refuses a file with no Quiz sheet, a filled sheet, one over 1.9 MB,
+  or any upload once the meet is done. `GET` (and `HEAD`) serves it to anyone who may read the
+  meet's rosters (#52)
+
+### Changed
+
+* `POST /api/meets/:id/results` answers `unchanged: true` with the current revision, and adds no
+  revision, when the file sent is exactly the quiz's current one, whatever `onExisting` says, so
+  uploading a meet's files a second time asks nothing (#52)
+
+### Fixed
+
+* The roster import takes a large meet's roster in one go (60 teams and more), where it failed above
+  about 15 teams on D1's bound-parameter cap. It is now one transaction: a failure adds nothing,
+  where it used to leave churches with no teams, and answers with a message saying so
+
+### Bundled contract
+
+* `@qzr/shared@1.17.0` - bumped from 1.16.0
+
 ## [0.30.0] - 2026-11-19
 
 ### Added

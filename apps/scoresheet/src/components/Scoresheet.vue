@@ -3,19 +3,25 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   anyTeamHasAnswer,
   ApiError,
+  BLANK_IN_FILE_NAME,
   CellValue,
   deserialize,
   divisionTitle,
   endsRound,
+  fillOts,
   firstOvertimeQuestion,
   foldName,
   lastQuestionThroughRound,
   FOULS_TO_FOUL_OUT,
   MeetRole,
   NewerFileVersionError,
+  ODS_TWENTY_ONLY,
+  odsSupportsFormat,
   parseQuizFile,
   parseQuizFileAttempt,
+  quizFileStem,
   quizName,
+  readOds,
   resultKey,
   sameDivision,
   scheduleQuizMeta,
@@ -42,8 +48,6 @@ import {
   exportOdsFile,
   openOtsTemplate,
 } from '../persistence/fileIO'
-import { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY } from '../export/fillOts'
-import { readOds } from '../export/readOds'
 import {
   getMeetName,
   getPublishedSchedule,
@@ -59,6 +63,7 @@ import {
   type ScheduledQuizDetails,
   type PublishedSchedule,
   type StoredQuiz,
+  getMeetTemplate,
 } from '../api'
 import {
   ChoiceDialog,
@@ -1522,7 +1527,7 @@ async function saveFile() {
   const json = serializeStore(store, noJumpMap.value, timeoutMap.value)
   // Saved as it was when the save began, whatever was scored while the dialog was open
   const state = stateToMark()
-  const filename = `${fileStem()}.json`
+  const filename = `${quizFileStem(quiz.value)}.json`
   const saved = await saveQuizToFile(json, filename)
   if (saved) markSaved(state)
 }
@@ -1594,16 +1599,13 @@ async function doSaveFile() {
   await saveFile()
 }
 
-async function doExportOds() {
+async function doExportOds(pickTemplate = false) {
   closeMenus()
-  await exportOds()
+  await exportOds(pickTemplate)
 }
 
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
 const roomCodeDialog = ref<InstanceType<typeof RoomCodeDialog> | null>(null)
-
-/** What a file name shows where the quiz has no division or number */
-const BLANK_IN_FILE_NAME = '_'
 
 /**
  * A division or quiz number as given: none when blank, and none when it is the "_" a file name
@@ -1613,16 +1615,6 @@ const BLANK_IN_FILE_NAME = '_'
 function given(value: string): string {
   const trimmed = value.trim()
   return trimmed === BLANK_IN_FILE_NAME ? '' : trimmed
-}
-
-/**
- * A saved file's name: the quiz's name without its space, "D1Q3" or "D1cQ3". A blank division or
- * number shows as "_", so a new quiz saves as "D_Q_" and the name still says which part is which.
- */
-function fileStem(): string {
-  const division = given(quiz.value.division) || BLANK_IN_FILE_NAME
-  const quizNumber = given(quiz.value.quizNumber) || BLANK_IN_FILE_NAME
-  return quizName({ ...quiz.value, division, quizNumber }).replace(' Q', 'Q')
 }
 
 const submitter = useSubmitToMeet()
@@ -1803,6 +1795,8 @@ async function doSubmitToMeet() {
     const room = target.sender.rooms.find((r) => r.id === roomId)?.name
     const where = room ? `${meet}, ${room}` : meet
     if (outcome.created) alert(`Submitted to ${where}.`)
+    else if (outcome.unchanged)
+      alert(`${where} already has this quiz as revision ${outcome.revision}; nothing changed.`)
     else if (outcome.keptCurrent) {
       alert(
         `Saved to ${where} as revision ${outcome.revision}; the earlier revision stays current.`,
@@ -1852,13 +1846,19 @@ function doUnlinkMeet() {
 // fillOts refuses other formats; disabling the menu item spares a pointless template dialog
 const canExportOds = computed(() => odsSupportsFormat(quiz.value.format))
 
-async function exportOds() {
-  const otsBytes = await openOtsTemplate()
+/**
+ * Export the quiz to .ods. A quiz linked to a meet fills the meet's own template; with none, no
+ * link, or no network, or when asked for another, the official picks a template.
+ */
+async function exportOds(pickTemplate = false) {
+  const meetId = meetSession.meetId.value
+  const meetTemplate = !pickTemplate && meetId !== null ? await getMeetTemplate(meetId) : null
+  const otsBytes = meetTemplate ?? (await openOtsTemplate())
   if (!otsBytes) return
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
   try {
     const odsBytes = fillOts(otsBytes, quizFile)
-    const filename = `${fileStem()}.ods`
+    const filename = `${quizFileStem(quiz.value)}.ods`
     const saved = await exportOdsFile(odsBytes, filename)
     if (saved)
       alert('ODS exported.\n\nOpen in LibreOffice and press Ctrl+Shift+F9 to recalculate formulas.')
@@ -2141,9 +2141,17 @@ const appVersion: string = __APP_VERSION__
                     <button
                       :disabled="!canExportOds"
                       :title="canExportOds ? undefined : ODS_TWENTY_ONLY"
-                      @click="doExportOds"
+                      @click="doExportOds()"
                     >
                       ⬡ Export ODS
+                    </button>
+                    <button
+                      v-if="meetSession.meetId.value !== null"
+                      :disabled="!canExportOds"
+                      :title="canExportOds ? undefined : ODS_TWENTY_ONLY"
+                      @click="doExportOds(true)"
+                    >
+                      ⬡ Export ODS, another template…
                     </button>
                   </div>
                 </div>

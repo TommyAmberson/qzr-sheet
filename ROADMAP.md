@@ -11,11 +11,13 @@ Results (#7, specs/003-practice-meet-results), the schedule builder (#9,
 specs/005-schedule-redesign) and stats (#8, specs/006-meet-stats) have shipped: submitting and
 uploading, standings, corrections with history, generation from team counts with pins, the draw,
 elim lanes, linked publishing with versions, quizzer standings, stages and the re-rank, what viewers
-see and when, results management, and the statistician's report and download.
+see and when, results management, and the statistician's report and download. Meets move between
+LibreOffice sheets and the app in both directions (#52, specs/009-ods-round-trip): sheets upload in
+bulk, matched to the schedule, and quizzes download as files or spreadsheets from the meet's own
+template.
 
 1. Real data to check stats against:
-   * [#52 Mass results importer for backfilling real meets](https://github.com/TommyAmberson/qzr-sheet/issues/52)
-   * [#116 Store score-only quiz results](https://github.com/TommyAmberson/qzr-sheet/issues/116)
+   [#116 Store score-only quiz results](https://github.com/TommyAmberson/qzr-sheet/issues/116)
 2. [#16 Fill elim seats with teams as results come in](https://github.com/TommyAmberson/qzr-sheet/issues/16)
 3. [#117 Add a review phase between live and done](https://github.com/TommyAmberson/qzr-sheet/issues/117),
    with [#154 Dispute quiz results](https://github.com/TommyAmberson/qzr-sheet/issues/154)

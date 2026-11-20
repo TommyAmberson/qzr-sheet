@@ -1,4 +1,14 @@
-import { ApiError, type QuizFile } from '@qzr/shared'
+import {
+  ApiError,
+  isBlankSheet,
+  isQuizFile,
+  readOds,
+  resultKey,
+  resultName,
+  scheduleQuizMeta,
+  type QuizFile,
+  type ScheduleDocument,
+} from '@qzr/shared'
 
 /** A quiz the meet already has under the name being sent */
 export interface ExistingQuiz {
@@ -17,6 +27,8 @@ export interface Stored {
   created: boolean
   revision: number
   keptCurrent?: boolean
+  /** The file was exactly the quiz's current revision, so nothing was stored */
+  unchanged?: boolean
 }
 
 /**
@@ -44,8 +56,29 @@ export interface Asker {
   ): Promise<T | null>
 }
 
-/** Sends one quiz to the meet for a room, by name; a name it already has is refused with a 409 */
-type Send = (quizFile: QuizFile, roomId: number | null, onExisting?: OnExisting) => Promise<Stored>
+/**
+ * Sends one quiz to the meet for a room, by name, as the scheduled quiz given; a name it already has
+ * is refused with a 409
+ */
+type Send = (
+  quizFile: QuizFile,
+  roomId: number | null,
+  onExisting?: OnExisting,
+  scheduleQuizId?: string,
+) => Promise<Stored>
+
+/** A picked file, read as a quiz, or why it can't be: it is neither a quiz file nor a sheet */
+export type PickedFile =
+  | { file: string; quizFile: QuizFile; refusal?: undefined }
+  | { file: string; quizFile: null; refusal: string }
+
+/** A picked file on its way to the meet, as the upload's review shows it */
+export type PlannedFile = PickedFile & {
+  /** The published schedule's quiz it is sent as: the one its name matches, or one picked */
+  scheduleQuizId: string | null
+  /** Another file of the upload is sent as the same quiz */
+  duplicate: boolean
+}
 
 /** The quiz the meet already has, when a send was refused for that reason */
 export function existingQuizOf(e: unknown): ExistingQuiz | undefined {
@@ -126,34 +159,159 @@ export async function chooseRoom(
   return answer === 'none' ? null : answer
 }
 
+/** Whether to answer the rest of an upload's stored quizzes as this one was answered */
+async function askSameForRest(dialog: Asker | null | undefined, remaining: number) {
+  const answer = await dialog?.ask<boolean>(
+    'The same for the rest of this upload?',
+    `${remaining} more ${remaining === 1 ? 'file is' : 'files are'} still to send. Any the meet already has can be answered the same way.`,
+    [
+      { label: 'Ask each time', value: false },
+      { label: 'Do the same', value: true, primary: true },
+    ],
+  )
+  return answer === true
+}
+
 /**
- * Upload the saved quiz files picked in a file input: the room is chosen, then the files are sent
- * one at a time, in order. Each name the meet already has asks what to do, and skipping one moves
- * on to the next; one file failing doesn't stop the rest. Undefined when nothing was sent, as when
- * the user may no longer send to the meet.
+ * The files picked in a file input, each read as a quiz: a scoring sheet as the scoresheet reads it,
+ * or a saved quiz file. The input is cleared, so picking the same files again fires a change.
  */
-export async function uploadPicked(
-  event: Event,
-  dialog: Asker | null | undefined,
-  sender: Sender | null,
-  meetName: string,
-  send: Send,
-): Promise<FileReport[] | undefined> {
-  // Cleared first, whatever happens, so picking the same files again fires a change
+export async function pickedFiles(event: Event): Promise<PickedFile[]> {
   const input = event.target as HTMLInputElement
   const files = [...(input.files ?? [])]
   input.value = ''
-  if (!sender || files.length === 0) return undefined
-  const roomId = await chooseRoom(dialog, sender, meetName, 'Upload')
-  if (roomId === undefined) return undefined
+  return Promise.all(files.map(readPicked))
+}
+
+/** A picked file's quiz: a scoring sheet read as the scoresheet reads it, or a saved quiz file */
+async function readPicked(file: File): Promise<PickedFile> {
+  const sheet = /\.o[dt]s$/i.test(file.name)
+  try {
+    const quizFile: unknown = sheet
+      ? readOds(new Uint8Array(await file.arrayBuffer()))
+      : JSON.parse(await file.text())
+    // Checked as the API checks a quiz file, so the review only ever shows a quiz
+    if (!isQuizFile(quizFile)) throw new Error('not a quiz')
+    // A blank sheet, such as the template itself picked by mistake, holds no quiz to send
+    if (sheet && isBlankSheet(quizFile)) {
+      return { file: file.name, quizFile: null, refusal: 'A blank sheet, with no quiz on it' }
+    }
+    return { file: file.name, quizFile }
+  } catch {
+    const refusal = sheet ? 'Not a quiz file or scoring sheet' : 'Not a quiz file'
+    return { file: file.name, quizFile: null, refusal }
+  }
+}
+
+/** The name a file's quiz is matched by; null for a file that is no quiz */
+function nameOf(quizFile: QuizFile | null): string | null {
+  return quizFile ? resultKey(quizFile.quiz) : null
+}
+
+/**
+ * The planned files, each flagged when another goes under the same name: its scheduled quiz's,
+ * which a file sent as it takes, or else its own
+ */
+export function markDuplicates(
+  planned: PlannedFile[],
+  schedule: ScheduleDocument | null,
+): PlannedFile[] {
+  const keys = planned.map((p) => {
+    const scheduled = schedule?.quizzes.find((q) => q.id === p.scheduleQuizId)
+    return scheduled ? resultName(scheduled) : nameOf(p.quizFile)
+  })
+  return planned.map((p, i) => ({
+    ...p,
+    duplicate: keys[i] !== null && keys.filter((key) => key === keys[i]).length > 1,
+  }))
+}
+
+/** Each picked file with the scheduled quiz its name matches, if any, and whether another names it */
+export function planUpload(picked: PickedFile[], schedule: ScheduleDocument | null): PlannedFile[] {
+  const scheduledByName = new Map((schedule?.quizzes ?? []).map((q) => [resultName(q), q.id]))
+  return markDuplicates(
+    picked.map((p) => {
+      const name = nameOf(p.quizFile)
+      const scheduleQuizId = name === null ? null : (scheduledByName.get(name) ?? null)
+      return { ...p, scheduleQuizId, duplicate: false }
+    }),
+    schedule,
+  )
+}
+
+/** The meet's room a scheduled quiz is placed in; null when it has none */
+export function roomOfScheduled(schedule: ScheduleDocument, scheduleQuizId: string): number | null {
+  const room = schedule.quizzes.find((q) => q.id === scheduleQuizId)?.cell?.room
+  return schedule.rooms.find((r) => r.id === room)?.meetRoomId ?? null
+}
+
+/** The quiz named as the scheduled quiz names it: its division, consolation flag and number */
+function namedAsScheduled(quizFile: QuizFile, schedule: ScheduleDocument, id: string): QuizFile {
+  const scheduled = schedule.quizzes.find((q) => q.id === id)
+  // A file already named as its scheduled quiz goes as it is, so an unchanged one stays unchanged
+  if (!scheduled || resultKey(quizFile.quiz) === resultName(scheduled)) return quizFile
+  return { ...quizFile, quiz: { ...quizFile.quiz, ...scheduleQuizMeta(scheduled) } }
+}
+
+/**
+ * Send an upload's files, in order, once reviewed. An admin's files go to their scheduled quizzes'
+ * rooms, and any with none for the room the admin picks; an official's go for the room they
+ * confirm or pick. A file sent as a scheduled quiz takes that quiz's name. Each name the meet already has
+ * asks what to do, and that answer may be kept for the rest of the upload; skipping one moves on,
+ * and one file failing doesn't stop the rest. Undefined when nothing was sent, as when the user
+ * may no longer send to the meet.
+ */
+export async function sendPlanned(
+  planned: PlannedFile[],
+  dialog: Asker | null | undefined,
+  sender: Sender | null,
+  meetName: string,
+  schedule: ScheduleDocument | null,
+  send: Send,
+): Promise<FileReport[] | undefined> {
+  if (!sender || planned.length === 0) return undefined
+  const byScheduledRoom =
+    sender.admin && schedule !== null && planned.some((p) => p.scheduleQuizId !== null)
+  // Files with no scheduled room, unmatched or matched to a quiz not placed in a room yet, go for a
+  // room the user picks, as a whole unmatched upload does
+  const roomOf = (p: PlannedFile) =>
+    schedule && p.scheduleQuizId ? roomOfScheduled(schedule, p.scheduleQuizId) : null
+  const sendable = planned.some((p) => p.quizFile !== null)
+  const unmatched = planned.some((p) => p.quizFile !== null && roomOf(p) === null)
+  const chosenRoom =
+    sendable && (!byScheduledRoom || unmatched)
+      ? await chooseRoom(dialog, sender, meetName, 'Upload')
+      : null
+  if (chosenRoom === undefined) return undefined
+  // The answer kept for the rest of the upload, once the user asks to; undefined until then. The
+  // question is put once, at the first quiz the meet already has
+  let kept: OnExisting | null | undefined
+  let askedForRest = false
   const reports: FileReport[] = []
-  for (const file of files) {
+  for (const [at, item] of planned.entries()) {
+    if (!item.quizFile) {
+      reports.push({ file: item.file, stored: false, message: item.refusal })
+      continue
+    }
+    const decide = async (existing: ExistingQuiz) => {
+      if (kept !== undefined) return kept
+      const choice = await askAlreadySubmitted(dialog, existing)
+      const remaining = planned.slice(at + 1).filter((p) => p.quizFile !== null).length
+      if (!askedForRest && remaining > 0) {
+        askedForRest = true
+        if (await askSameForRest(dialog, remaining)) kept = choice
+      }
+      return choice
+    }
+    const id = item.scheduleQuizId ?? undefined
+    const quizFile = id && schedule ? namedAsScheduled(item.quizFile, schedule, id) : item.quizFile
+    const roomId = (byScheduledRoom ? roomOf(item) : null) ?? chosenRoom
     reports.push({
-      file: file.name,
+      file: item.file,
       ...(await sendOne(
-        file,
-        (quizFile, onExisting) => send(quizFile, roomId, onExisting),
-        dialog,
+        quizFile,
+        (file, onExisting) => send(file, roomId, onExisting, id),
+        decide,
       )),
     })
   }
@@ -161,22 +319,16 @@ export async function uploadPicked(
 }
 
 async function sendOne(
-  file: File,
+  quizFile: QuizFile,
   send: (quizFile: QuizFile, onExisting?: OnExisting) => Promise<Stored>,
-  dialog: Asker | null | undefined,
+  decide: (existing: ExistingQuiz) => Promise<OnExisting | null>,
 ): Promise<Omit<FileReport, 'file'>> {
-  let quizFile: QuizFile
-  try {
-    quizFile = JSON.parse(await file.text()) as QuizFile
-  } catch {
-    return { stored: false, message: 'Not a quiz file' }
-  }
   try {
     return { stored: true, message: storedMessage(await send(quizFile)) }
   } catch (e) {
     const existing = existingQuizOf(e)
     if (!existing) return { stored: false, message: (e as Error).message }
-    const choice = await askAlreadySubmitted(dialog, existing)
+    const choice = await decide(existing)
     if (!choice)
       return { stored: false, message: `Skipped: ${existing.name} was already submitted` }
     try {
@@ -187,8 +339,9 @@ async function sendOne(
   }
 }
 
-function storedMessage({ created, revision, keptCurrent }: Stored): string {
+function storedMessage({ created, revision, keptCurrent, unchanged }: Stored): string {
   if (created) return 'Stored'
+  if (unchanged) return 'Unchanged'
   if (keptCurrent) return `Saved as revision ${revision}; the earlier revision stays current`
   return `Saved as revision ${revision}`
 }

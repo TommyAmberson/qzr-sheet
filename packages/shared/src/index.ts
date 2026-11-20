@@ -5,9 +5,11 @@ export {
   CHANGE_KINDS,
   LINK_HOWS,
   RESULT_ACTIONS,
+  BLANK_IN_FILE_NAME,
   byNumber,
   editDistance,
   foldName,
+  quizFileStem,
   quizName,
   resultKey,
   resultKeyDivision,
@@ -25,7 +27,7 @@ export {
   QuestionCategory,
 } from './quizFile'
 export type { QuizFile } from './quizFile'
-export { ApiError, createApiClient } from './apiClient'
+export { ApiError, createApiClient, createFileClient } from './apiClient'
 export { createAppAuthClient } from './authClient'
 export type { PendingProviderStep } from './authClient'
 export {
@@ -74,6 +76,8 @@ export * from './schedule/placement'
 export * from './schedule/elims'
 export * from './schedule/reflow'
 export * from './schedule/sheet'
+export { isBlankSheet, readOds } from './ods/readOds'
+export { fillOts, odsSupportsFormat, ODS_TWENTY_ONLY, questionsPastSheet } from './ods/fillOts'
 export * from './schedule/draw'
 export * from './schedule/names'
 export * from './schedule/letters'

@@ -55,6 +55,13 @@ function quizFile(overrides: Partial<QuizFile['quiz']> = {}): QuizFile {
   }
 }
 
+/** The same quiz with a different mark, so sending it changes what the meet holds */
+function edited(overrides: Partial<QuizFile['quiz']> = {}): QuizFile {
+  const file = quizFile(overrides)
+  file.answers = [{ quizzerId: 11, columnKey: '1', value: CellValue.Error }]
+  return file
+}
+
 interface ListedResult {
   id: number
   origin: { action: string; name: string }
@@ -125,6 +132,44 @@ async function list() {
 }
 
 describe('POST /api/meets/:id/results', () => {
+  describe('a file identical to the current revision', () => {
+    it('is answered unchanged and adds no revision, whatever onExisting says', async () => {
+      const created = await jsonOf<{ id: number }>(await asAdmin())
+      for (const onExisting of [undefined, 'newRevision', 'keepCurrent']) {
+        const res = await asAdmin(onExisting ? { onExisting } : {})
+        expect(res.status).toBe(200)
+        expect(await jsonOf(res)).toMatchObject({
+          id: created.id,
+          revision: 1,
+          created: false,
+          unchanged: true,
+        })
+      }
+      expect((await list())[0]!.revision).toBe(1)
+    })
+
+    it('is unchanged when the current revision restores it', async () => {
+      const { id } = await jsonOf<{ id: number }>(await asAdmin())
+      await asAdmin({
+        quizFile: quizFile({ quizNumber: '3', overtime: true }),
+        onExisting: 'newRevision',
+      })
+      await createApp(db, testSuperuser).request(
+        `/api/meets/${meetId}/results/${id}/restore`,
+        jsonRequest('POST', { revision: 1 }),
+        env,
+      )
+      const res = await asAdmin({ onExisting: 'newRevision' })
+      expect(await jsonOf(res)).toMatchObject({ unchanged: true, revision: 3 })
+    })
+
+    it('still asks about a changed file', async () => {
+      await asAdmin()
+      const res = await asAdmin({ quizFile: quizFile({ overtime: true }) })
+      expect(res.status).toBe(409)
+    })
+  })
+
   it('stores no quiz when its first revision fails', async () => {
     db.run(sql`create trigger refuse before insert on quiz_result_revisions
       begin select raise(abort, 'refused'); end`)
@@ -275,7 +320,7 @@ describe('submitting a name the meet already has', () => {
   it('warns with the stored revision, then adds a revision when asked', async () => {
     const { id } = await jsonOf<{ id: number }>(await submit(official(room1)))
 
-    const again = await submit(official(room1))
+    const again = await submit(official(room1), { quizFile: edited() })
     expect(again.status).toBe(409)
     const warning = await jsonOf<Existing>(again)
     expect(warning.error).toBe('D1 Q3 was already submitted')
@@ -286,7 +331,7 @@ describe('submitting a name the meet already has', () => {
       savedBy: { name: 'Room 1' },
     })
 
-    const res = await submit(official(room1), { onExisting: 'newRevision' })
+    const res = await submit(official(room1), { quizFile: edited(), onExisting: 'newRevision' })
     expect(res.status).toBe(200)
     expect(await jsonOf(res)).toEqual({
       id,
@@ -300,8 +345,9 @@ describe('submitting a name the meet already has', () => {
 
   it('treats another room the same way, recording that room on the revision', async () => {
     const { id } = await jsonOf<{ id: number }>(await submit(official(room1)))
-    expect((await submit(official(room2))).status).toBe(409)
-    expect(await jsonOf(await submit(official(room2), { onExisting: 'newRevision' }))).toEqual({
+    expect((await submit(official(room2), { quizFile: edited() })).status).toBe(409)
+    const sent = await submit(official(room2), { quizFile: edited(), onExisting: 'newRevision' })
+    expect(await jsonOf(sent)).toEqual({
       id,
       revision: 2,
       created: false,
@@ -331,7 +377,8 @@ describe('submitting a name the meet already has', () => {
     const [stored] = await list()
     expect(stored).toMatchObject({ revision: 3, action: 'restored', savedBy: { name: 'Room 1' } })
     expect(stored!.quizFile.teams[0]!.name).toBe('Calgary 1')
-    expect((await jsonOf<Existing>(await submit(official(room1)))).existing.revision).toBe(3)
+    const again = await submit(official(room1), { quizFile: changed })
+    expect((await jsonOf<Existing>(again)).existing.revision).toBe(3)
 
     // Keeping the current revision again still points at the original content, not a selection
     await submit(official(room1), { quizFile: changed, onExisting: 'keepCurrent' })
@@ -340,7 +387,8 @@ describe('submitting a name the meet already has', () => {
 
   it('reports again unless told what to do with the existing quiz', async () => {
     await submit(official(room1))
-    expect((await submit(official(room1), { onExisting: 'whatever' })).status).toBe(409)
+    const res = await submit(official(room1), { quizFile: edited(), onExisting: 'whatever' })
+    expect(res.status).toBe(409)
   })
 
   it('matches names regardless of case and spaces, and keeps consolation apart', async () => {
@@ -481,7 +529,7 @@ describe('GET /api/meets/:id/results', () => {
 
   it("adds another room's quiz once the official saves its name", async () => {
     await submit(official(room1), {
-      quizFile: quizFile({ quizNumber: '2' }),
+      quizFile: edited({ quizNumber: '2' }),
       onExisting: 'newRevision',
     })
     expect((await listAs(null, official(room1))).names.toSorted()).toEqual(['1', '2'])
@@ -843,7 +891,7 @@ describe('history and restore', () => {
   it("moves the quiz's name with a restore, so the restored name finds it", async () => {
     // Revision 1 is D1 Q3; the beforeEach edit made revision 2 D2 Q3
     await restore(1)
-    const res = await submit(official(room1))
+    const res = await submit(official(room1), { quizFile: edited() })
     expect(res.status).toBe(409)
     expect((await jsonOf<{ existing: { id: number } }>(res)).existing.id).toBe(id)
     expect(await list()).toHaveLength(1)

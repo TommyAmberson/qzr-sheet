@@ -5,6 +5,8 @@ import { useRouter } from 'vue-router'
 import {
   ApiError,
   deserialize,
+  odsSupportsFormat,
+  quizFileStem,
   quizName,
   quizOutcome,
   type QuizFile,
@@ -27,6 +29,14 @@ import {
   type StoredQuiz,
 } from '../api'
 import { editQuizFile, keepEdits, type NamesForm } from '../results'
+import {
+  ODS_TYPE,
+  quizFileBytes,
+  saveFile,
+  sheetNote,
+  templateFor,
+  type QuizFormatChoice,
+} from '../downloads'
 import { changeText, problemText } from '../stats'
 import { useRoomCode } from '../composables/useRoomCode'
 
@@ -46,6 +56,25 @@ const saving = ref(false)
 const saveError = ref('')
 
 type Save = Extract<HistoryEntry, { kind: 'revision' }>
+
+const downloadError = ref('')
+const downloadNote = ref('')
+
+/** Save one revision's file; a past revision's name says which revision it is */
+async function downloadRevision(entry: Save, format: QuizFormatChoice) {
+  if (!meet.value) return
+  downloadError.value = ''
+  downloadNote.value = ''
+  try {
+    const template = await templateFor(meet.value.id, format)
+    const bytes = quizFileBytes(entry.quizFile, format, template)
+    const stem = quizFileStem(entry.quizFile.quiz) + (entry.current ? '' : ` r${entry.revision}`)
+    saveFile(bytes, `${stem}.${format}`, format === 'ods' ? ODS_TYPE : 'application/json')
+    downloadNote.value = (format === 'ods' && sheetNote(entry.quizFile)) || ''
+  } catch (e) {
+    downloadError.value = (e as Error).message
+  }
+}
 
 /** The current revision: the newest save */
 const current = computed(() =>
@@ -348,6 +377,8 @@ onMounted(() => void load())
 
       <section class="section">
         <h3 class="section-title">History</h3>
+        <p v-if="downloadError" class="state-msg state-msg--error">{{ downloadError }}</p>
+        <p v-if="downloadNote" class="state-msg">{{ downloadNote }}</p>
         <ol class="history">
           <li v-for="(entry, i) in history" :key="i" class="entry">
             <template v-if="entry.kind === 'revision'">
@@ -385,6 +416,17 @@ onMounted(() => void load())
                 >
                   Open in scoresheet
                 </a>
+                <button class="btn btn--secondary btn--sm" @click="downloadRevision(entry, 'json')">
+                  ⤓ .json
+                </button>
+                <button
+                  class="btn btn--secondary btn--sm"
+                  :disabled="!odsSupportsFormat(entry.quizFile.quiz.format)"
+                  title="As a spreadsheet, filled from the meet's template"
+                  @click="downloadRevision(entry, 'ods')"
+                >
+                  ⤓ .ods
+                </button>
               </div>
             </template>
             <div v-else class="entry-head">

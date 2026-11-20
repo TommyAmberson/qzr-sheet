@@ -95,6 +95,7 @@ throughout; superuser includes admin.
 | Own church's teams and roster    | C: RW        | C: R; A: RW | C: R; A: RW      | C: R; A: RW     | C: R           |
 | All churches, teams, and rosters | A: RW        | A: RW       | V: R; A: RW      | V: R; A: RW     | V: R           |
 | Rooms and their codes            | A: RW        | A: RW       | A: RW            | A: RW           | A: R           |
+| The meet's scoring template      | V: R; A: RW  | V: R; A: RW | V: R; A: RW      | V: R; A: RW     | V: R; A: R     |
 | Published schedule               | A: RW        | A: RW       | V: R; A: RW      | V: R; A: RW     | V: R           |
 | Draft schedule                   | A: RW        | A: RW       | A: RW            | A: RW           | A: R           |
 | Send a quiz (submit or upload)   | -            | -           | own O: W; A: W   | A: W            | -              |
@@ -118,6 +119,9 @@ throughout; superuser includes admin.
 * **`review`** follows the last quiz, so the admin can check results while they stay put. Only
   admins change anything: they keep every power they have in `live`. Everyone else keeps read
   access; an official who spots a mistake tells the admin.
+* **The scoring template** is the blank `Scoresheet.ots` a room scores in when it falls back to
+  LibreOffice, and the sheet `.ods` downloads fill. It holds no meet data, so anyone the meet's
+  roster routes admit downloads it in every phase; only admins upload or replace it, until `done`.
 * **`done`** locks the meet, admins included. A late correction moves the meet back to `review`.
   Moving the phase is the one write allowed in `done`.
 * Completed quizzes are immutable in the schedule in every phase

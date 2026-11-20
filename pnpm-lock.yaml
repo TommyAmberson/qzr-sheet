@@ -68,9 +68,6 @@ importers:
       better-auth:
         specifier: ~1.6.33
         version: 1.6.33(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(vitest@4.0.18(@opentelemetry/api@1.9.1)(@types/node@24.10.13)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.30.2)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.28(typescript@5.9.3))
-      fflate:
-        specifier: ^0.8.2
-        version: 0.8.2
       idb:
         specifier: ^8.0.4
         version: 8.0.4
@@ -141,6 +138,9 @@ importers:
       better-auth:
         specifier: ~1.6.33
         version: 1.6.33(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(vitest@4.0.18(@opentelemetry/api@1.9.1)(@types/node@24.10.13)(jiti@2.6.1)(jsdom@28.1.0(@noble/hashes@2.0.1))(lightningcss@1.30.2)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))(vue@3.5.28(typescript@5.9.3))
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.2
       vue:
         specifier: ^3.5.28
         version: 3.5.28(typescript@5.9.3)
@@ -218,6 +218,9 @@ importers:
       drizzle-kit:
         specifier: ^0.31.0
         version: 0.31.10
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.2
       sql.js:
         specifier: ^1.12.0
         version: 1.14.1
@@ -236,6 +239,9 @@ importers:
       '@sinclair/typebox':
         specifier: ^0.34.0
         version: 0.34.49
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.2
     devDependencies:
       better-auth:
         specifier: ~1.6.33

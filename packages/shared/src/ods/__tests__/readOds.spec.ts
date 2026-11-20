@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { deflateRawSync } from 'node:zlib'
+import { strToU8, zipSync } from 'fflate'
 import { readOds } from '../readOds'
-import { CellValue, deserialize, quizOutcome, QuizFormat } from '@qzr/shared'
+import { CellValue, deserialize, quizOutcome, QuizFormat } from '../../index'
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -49,95 +49,10 @@ function makeOds(sheetXml: string): Uint8Array {
     `<?xml version="1.0"?><office:document-content><office:body><office:spreadsheet>` +
     sheetXml +
     `</office:spreadsheet></office:body></office:document-content>`
-  return buildZip([
-    {
-      name: 'mimetype',
-      data: Buffer.from('application/vnd.oasis.opendocument.spreadsheet'),
-      compress: false,
-    },
-    { name: 'content.xml', data: Buffer.from(contentXml), compress: true },
-  ])
-}
-
-/**
- * Build a minimal ZIP archive from an array of entries.
- * Uses Node's deflateRawSync for compressed entries (method 8) and stores
- * uncompressed entries as-is (method 0). No data-descriptor flags.
- */
-function buildZip(entries: { name: string; data: Buffer; compress: boolean }[]): Uint8Array {
-  const parts: Buffer[] = []
-  const centralDir: Buffer[] = []
-  let offset = 0
-
-  for (const entry of entries) {
-    const nameBytes = Buffer.from(entry.name)
-    const payload = entry.compress ? deflateRawSync(entry.data) : entry.data
-    const method = entry.compress ? 8 : 0
-    const crc = crc32(entry.data)
-
-    // Local file header
-    const local = Buffer.alloc(30 + nameBytes.length)
-    local.writeUInt32LE(0x04034b50, 0) // signature
-    local.writeUInt16LE(20, 4) // version needed
-    local.writeUInt16LE(0, 6) // flags
-    local.writeUInt16LE(method, 8) // compression method
-    local.writeUInt16LE(0, 10) // mod time
-    local.writeUInt16LE(0, 12) // mod date
-    local.writeUInt32LE(crc, 14) // CRC-32
-    local.writeUInt32LE(payload.length, 18) // compressed size
-    local.writeUInt32LE(entry.data.length, 22) // uncompressed size
-    local.writeUInt16LE(nameBytes.length, 26) // file name length
-    local.writeUInt16LE(0, 28) // extra field length
-    nameBytes.copy(local, 30)
-
-    // Central directory entry
-    const central = Buffer.alloc(46 + nameBytes.length)
-    central.writeUInt32LE(0x02014b50, 0) // signature
-    central.writeUInt16LE(20, 4) // version made by
-    central.writeUInt16LE(20, 6) // version needed
-    central.writeUInt16LE(0, 8) // flags
-    central.writeUInt16LE(method, 10) // compression method
-    central.writeUInt16LE(0, 12) // mod time
-    central.writeUInt16LE(0, 14) // mod date
-    central.writeUInt32LE(crc, 16) // CRC-32
-    central.writeUInt32LE(payload.length, 20) // compressed size
-    central.writeUInt32LE(entry.data.length, 24) // uncompressed size
-    central.writeUInt16LE(nameBytes.length, 28) // file name length
-    central.writeUInt16LE(0, 30) // extra field length
-    central.writeUInt16LE(0, 32) // file comment length
-    central.writeUInt16LE(0, 34) // disk number start
-    central.writeUInt16LE(0, 36) // internal attributes
-    central.writeUInt32LE(0, 38) // external attributes
-    central.writeUInt32LE(offset, 42) // local header offset
-    nameBytes.copy(central, 46)
-
-    parts.push(local, payload)
-    centralDir.push(central)
-    offset += local.length + payload.length
-  }
-
-  const cdBuf = Buffer.concat(centralDir)
-  const eocd = Buffer.alloc(22)
-  eocd.writeUInt32LE(0x06054b50, 0) // end-of-central-directory signature
-  eocd.writeUInt16LE(0, 4) // disk number
-  eocd.writeUInt16LE(0, 6) // disk with CD start
-  eocd.writeUInt16LE(entries.length, 8) // entries on disk
-  eocd.writeUInt16LE(entries.length, 10) // total entries
-  eocd.writeUInt32LE(cdBuf.length, 12) // CD size
-  eocd.writeUInt32LE(offset, 16) // CD offset
-  eocd.writeUInt16LE(0, 20) // comment length
-
-  return new Uint8Array(Buffer.concat([...parts, cdBuf, eocd]))
-}
-
-/** CRC-32 using the standard polynomial. */
-function crc32(buf: Buffer): number {
-  let crc = 0xffffffff
-  for (const byte of buf) {
-    crc ^= byte
-    for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
-  }
-  return (crc ^ 0xffffffff) >>> 0
+  return zipSync({
+    mimetype: [strToU8('application/vnd.oasis.opendocument.spreadsheet'), { level: 0 }],
+    'content.xml': strToU8(contentXml),
+  })
 }
 
 /** Convenience: set a single cell in a sparse cells map. */
@@ -183,6 +98,22 @@ const OT_COL = (q: number) => 23 + (q - 21) // Q21=23 … Q26=28
 // Metadata
 // ---------------------------------------------------------------------------
 
+describe('readOds, the archive', () => {
+  it('refuses a file that would unpack past any sheet, before unpacking it', () => {
+    for (const name of ['content.xml', 'Thumbnails/thumbnail.png']) {
+      const huge = zipSync({ [name]: new Uint8Array(33 * 1024 * 1024) })
+      expect(() => readOds(huge)).toThrow(/too large/)
+    }
+  })
+
+  it('refuses many files that together would unpack past any sheet', () => {
+    const parts = Object.fromEntries(
+      Array.from({ length: 5 }, (_, i) => [`part${i}.bin`, new Uint8Array(8 * 1024 * 1024)]),
+    )
+    expect(() => readOds(zipSync(parts))).toThrow(/too large/)
+  })
+})
+
 describe('readOds — metadata', () => {
   it('reads division and quizNumber from row 2', () => {
     const cells = minimalCells()
@@ -191,6 +122,31 @@ describe('readOds — metadata', () => {
     const { quiz } = readOds(makeOds(makeSheetXml(cells)))
     expect(quiz.division).toBe('EAST')
     expect(quiz.quizNumber).toBe('7')
+  })
+
+  it('reads a quiz number written with a leading "c" as a consolation quiz', () => {
+    const cells = minimalCells()
+    setCell(cells, 2, 2, '2')
+    setCell(cells, 2, 4, 'cb')
+    const { quiz } = readOds(makeOds(makeSheetXml(cells)))
+    expect(quiz).toMatchObject({ division: '2', quizNumber: 'b', consolation: true })
+  })
+
+  it('reads any consolation number the export writes, not only letters', () => {
+    const cells = minimalCells()
+    setCell(cells, 2, 4, 'c1-2')
+    const { quiz } = readOds(makeOds(makeSheetXml(cells)))
+    expect(quiz).toMatchObject({ quizNumber: '1-2', consolation: true })
+  })
+
+  it('keeps a quiz lettered C, and a number with no "c" in front, as they are', () => {
+    for (const quizNumber of ['C', '12', 'A']) {
+      const cells = minimalCells()
+      setCell(cells, 2, 4, quizNumber)
+      const { quiz } = readOds(makeOds(makeSheetXml(cells)))
+      expect(quiz.quizNumber).toBe(quizNumber)
+      expect(quiz.consolation).toBeUndefined()
+    }
   })
 
   it('defaults overtime to false when flag is absent', () => {
@@ -569,6 +525,28 @@ describe('readOds — Q16+ placement by the state of the quiz', () => {
     expect(answers).toContainEqual({ quizzerId: T2_Q1, columnKey: '19', value: CellValue.Error })
     expect(answers).toContainEqual({ quizzerId: T1_Q3, columnKey: '19A', value: CellValue.Error })
     expect(noJumps).toEqual(['19B'])
+  })
+
+  it('reads a bonus marked on an empty seat as a no-jump, the way the app records it', () => {
+    const cells = namedCells()
+    setCell(cells, T1_QUIZZER_ROW3, 1, 'Third seat')
+    setCell(cells, T1_QUIZZER_ROW3, Q_COL(19), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(19), 'e')
+    // Team 3 has nobody in its third seat, and the sheet marks the bonus on that empty row
+    setCell(cells, T3_QUIZZER_ROW + 2, Q_COL(19), 'mb')
+    const quiz = readOds(makeOds(makeSheetXml(cells)))
+    expect(quiz.answers).toContainEqual({
+      quizzerId: T2_Q1,
+      columnKey: '19',
+      value: CellValue.Error,
+    })
+    expect(quiz.answers).toContainEqual({
+      quizzerId: T1_Q3,
+      columnKey: '19A',
+      value: CellValue.Error,
+    })
+    expect(quiz.answers.filter((a) => a.columnKey.startsWith('19'))).toHaveLength(2)
+    expect(quiz.noJumps).toEqual(['19B'])
   })
 
   it('orders two errors before a no-jump by a seat whose quizzer errored out', () => {

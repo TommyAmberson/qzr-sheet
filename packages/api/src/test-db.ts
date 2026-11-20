@@ -338,6 +338,14 @@ export async function createTestDb(): Promise<Db> {
       sort_order INTEGER NOT NULL,
       UNIQUE (meet_id, division, name_key)
     );
+
+    CREATE TABLE meet_templates (
+      meet_id INTEGER PRIMARY KEY NOT NULL REFERENCES quiz_meets(id) ON DELETE CASCADE,
+      file_name TEXT NOT NULL,
+      bytes BLOB NOT NULL,
+      uploaded_at INTEGER NOT NULL,
+      uploaded_by_id TEXT REFERENCES user(id) ON DELETE SET NULL
+    );
   `)
 
   // Seed test users so FK constraints on membership tables are satisfied

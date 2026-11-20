@@ -23,6 +23,39 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-11-19
+
+### Added
+
+* The ODS reader and writer, `readOds` and `fillOts` (with `odsSupportsFormat` and
+  `ODS_TWENTY_ONLY`), moved here from the scoresheet so the portal reads and fills sheets the same
+  way. `fflate` is now a dependency of this package.
+* `createFileClient`, the API client's twin for files: it answers with the response itself rather
+  than its JSON, and sends a body without a JSON content type.
+* `quizFileStem` and `BLANK_IN_FILE_NAME`, the scoresheet's file name for a quiz ("D1Q3", "D_Q_" for
+  a blank one), so the portal's downloads are named the same way.
+* `questionsPastSheet`, the questions of a quiz past the sheet's two overtime rounds (Q27 on), which
+  an `.ods` export leaves out, so a download can say so.
+* `isBlankSheet`, whether a sheet holds nothing of a quiz, so the API's template check and the
+  upload's refusal of a blank sheet agree.
+
+### Changed
+
+* `readOds` reads an "mb" marked on an empty seat, a row with no quizzer or one whose quizzer has
+  left, as a no-jump on that question, which is how the app records a bonus that falls to an empty
+  chair, instead of as a mark in an empty seat.
+* `readOds` reads a quiz number written with a lowercase "c" in front ("cA") as that consolation
+  quiz, as the sheets have no consolation box, and `fillOts` writes a consolation quiz that way, so
+  an exported consolation quiz comes back as itself. A quiz lettered "C" stays as it is.
+
+### Fixed
+
+* `fillOts` writes a no-jump on an A or B question (`16A` to `20B`) into its question's column, as
+  it does that question's answers. It left them out, so an exported sheet lost them, and its
+  placements and scores could change when read back.
+* `fillOts` writes nothing past the sheet's last column (Q26). An overtime past its two rounds went
+  into the columns after it; `questionsPastSheet` names what is left out instead.
+
 ## [1.16.0] - 2026-11-19
 
 ### Added

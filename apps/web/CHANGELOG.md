@@ -16,6 +16,35 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-11-20
+
+### Added
+
+* A Scoring template section on the meet page: an admin uploads or replaces the meet's
+  `Scoresheet.ots`, and anyone on the page downloads it, so a room can fall back to LibreOffice
+  (#52)
+* The Results page uploads LibreOffice scoring sheets (`.ods`) alongside saved quiz files, read as
+  the scoresheet reads them. A file the meet already holds exactly is reported unchanged, and the
+  first "already submitted" question of an upload can be answered for the rest of it (#52)
+* The Results page downloads the quizzes it lists, as filtered, as one zip of quiz files (`.json`)
+  or spreadsheets (`.ods`) filled from the meet's template. Spreadsheets leave out 15-question
+  quizzes and questions past Q26, and the page lists what was left out (#52)
+* A stored quiz's page downloads each revision as a quiz file or a spreadsheet; a past revision's
+  file name says which revision it is (#52)
+* An upload shows each file's quiz before anything is sent, with the published schedule's quiz it
+  matches and, for an admin, that quiz's room. An unmatched file can be given a scheduled quiz,
+  whose name it then takes, or sent unlinked; two files of one quiz are flagged. An admin's upload
+  sends each quiz for its own room, so a whole meet goes in one batch (#52)
+
+### Fixed
+
+* The meet page shows the roster as it is after any roster import, failed ones included, without a
+  refresh
+
+### Bundled contract
+
+* `@qzr/shared@1.17.0` - bumped from 1.16.0
+
 ## [0.31.0] - 2026-11-19
 
 ### Changed

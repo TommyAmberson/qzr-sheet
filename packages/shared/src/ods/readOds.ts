@@ -1,27 +1,21 @@
 import { strFromU8, unzipSync } from 'fflate'
-import { readCell } from './odsXml'
+import { LAST_SHEET_QUESTION, readCell, SHEET_OT_ROUNDS } from './odsXml'
 import {
-  answerLookup,
   BonusRule,
-  buildCellGrid,
-  buildColumns,
   CellValue,
-  ColStatus,
-  computeGreyedOut,
-  computeOtIneligibility,
-  countTowardsOut,
-  deserialize,
-  fileVersionFor,
-  hasLeftBench,
-  inSeatOrder,
-  isQuizzedOut,
-  newOutTally,
   PlacementFormula,
   QuestionCategory,
   type QuizFile,
   QuizFormat,
-  quizRules,
-} from '@qzr/shared'
+} from '../quizFile'
+import { deserialize, fileVersionFor } from '../quizFileCodec'
+import { answerLookup, buildCellGrid, inSeatOrder } from '../scoring/cellGrid'
+import { computeGreyedOut } from '../scoring/greyedOut'
+import { ColStatus } from '../scoring/helpers'
+import { countTowardsOut, hasLeftBench, isQuizzedOut, newOutTally } from '../scoring/outs'
+import { computeOtIneligibility } from '../scoring/overtime'
+import { quizRules } from '../scoring/quizRules'
+import { buildColumns } from '../types/scoresheet'
 
 /**
  * Team block addresses in the Quiz sheet (0-based row/col).
@@ -31,6 +25,9 @@ const TEAM_BLOCKS = [
   { nameRow: 12, onTimeRow: 11, quizzerStart: 13 },
   { nameRow: 20, onTimeRow: 19, quizzerStart: 21 },
 ] as const
+
+/** Far more than a whole scoring sheet unpacks to; its content.xml, the largest file, is about 1 MB */
+const MAX_ENTRY_BYTES = 32 * 1024 * 1024
 
 const VALID_CELL_VALUES = new Set<string>(['c', 'e', 'f', 'b', 'mb'])
 const VALID_QUESTION_CATEGORIES = new Set<string>(Object.values(QuestionCategory))
@@ -43,9 +40,6 @@ function extractQuizSheet(xml: string): string {
   const quizSheetEnd = xml.indexOf('</table:table>', tableTagStart) + '</table:table>'.length
   return xml.slice(tableTagStart, quizSheetEnd)
 }
-
-/** Overtime rounds the spreadsheet has columns for (questions 21 to 26) */
-const OT_ROUNDS_IN_SHEET = 2
 
 /** One mark in a question's column of the spreadsheet */
 interface RawAnswer {
@@ -73,7 +67,7 @@ const RULES = quizRules(QuizFormat.TwentyQuestion)
  */
 function errorSkipsA(fileWithError: QuizFile, q: number): boolean {
   const { quiz, teams, quizzers, answers, noJumps } = deserialize(fileWithError)
-  const columns = buildColumns(RULES, OT_ROUNDS_IN_SHEET)
+  const columns = buildColumns(RULES, SHEET_OT_ROUNDS)
   const cells = buildCellGrid(teams, quizzers, columns, answerLookup(answers))
   // In overtime, teams that aren't tied are locked out of every question
   const notInOvertime = computeOtIneligibility(
@@ -174,6 +168,17 @@ function placeQuestion(
 }
 
 /**
+ * Whether a sheet holds nothing of a quiz: no team or quizzer named, no mark, no no-jump. Question
+ * types don't count, as the current template comes with its type row filled in.
+ */
+export function isBlankSheet(quizFile: QuizFile): boolean {
+  const named = quizFile.teams.some(
+    (team) => team.name.trim() !== '' || team.quizzers.some((q) => q.name.trim() !== ''),
+  )
+  return !named && quizFile.answers.length === 0 && quizFile.noJumps.length === 0
+}
+
+/**
  * Read an ODS/OTS file and return a QuizFile.
  *
  * Reads cell values from the known Quiz sheet layout and maps them
@@ -181,7 +186,16 @@ function placeQuestion(
  * sequentially since the ODS has no concept of IDs.
  */
 export function readOds(odsBytes: Uint8Array): QuizFile {
-  const files = unzipSync(odsBytes)
+  // Only content.xml is unpacked. An archive whose files together would unpack to far more than a
+  // sheet holds is refused before anything is unpacked, as filling it later would unpack them all
+  let unpackedBytes = 0
+  const files = unzipSync(odsBytes, {
+    filter: (entry) => {
+      unpackedBytes += entry.originalSize
+      if (unpackedBytes > MAX_ENTRY_BYTES) throw new Error(`${entry.name} is too large`)
+      return entry.name === 'content.xml'
+    },
+  })
   const contentBytes = files['content.xml']
   if (!contentBytes) throw new Error('content.xml not found in ODS file')
   const xml = strFromU8(contentBytes)
@@ -189,7 +203,11 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
 
   // --- Metadata ---
   const division = readCell(sheet, 2, 2)
-  const quizNumber = readCell(sheet, 2, 4)
+  // The sheet has no consolation box: a consolation quiz is written "cA", its number after the "c".
+  // Only a lowercase "c" with more after it counts, so a quiz lettered "C" stays one
+  const writtenNumber = readCell(sheet, 2, 4)
+  const consolationNumber = /^c(.+)$/.exec(writtenNumber)?.[1]
+  const quizNumber = consolationNumber ?? writtenNumber
   const overtimeFlag = readCell(sheet, 29, 2).toLowerCase() === 'y'
 
   // --- Question types ---
@@ -222,7 +240,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     }
   }
   // OT Q21–Q26: col 23–28
-  for (let q = 21; q <= 26; q++) {
+  for (let q = 21; q <= LAST_SHEET_QUESTION; q++) {
     const col = 23 + (q - 21)
     const normal = readCell(sheet, 28, col)
     if (normal && VALID_QUESTION_CATEGORIES.has(normal)) {
@@ -245,7 +263,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     if (readCell(sheet, 27, 3 + (q - 1)).toLowerCase() === 'x') noJumpQuestions.add(q)
   }
   // OT Q21–Q26: cols 23–28
-  for (let q = 21; q <= 26; q++) {
+  for (let q = 21; q <= LAST_SHEET_QUESTION; q++) {
     if (readCell(sheet, 27, 23 + (q - 21)).toLowerCase() === 'x') noJumpQuestions.add(q)
   }
 
@@ -279,7 +297,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
         }
       }
 
-      for (let q = 21; q <= 26; q++) {
+      for (let q = 21; q <= LAST_SHEET_QUESTION; q++) {
         const val = readCell(sheet, qRow, 23 + (q - 21)).toLowerCase()
         if (val && VALID_CELL_VALUES.has(val)) {
           if (!rawAnswersByQ.has(q)) rawAnswersByQ.set(q, [])
@@ -297,6 +315,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     quiz: {
       division,
       quizNumber,
+      ...(consolationNumber !== undefined ? { consolation: true } : {}),
       overtime: overtimeFlag,
       placementFormula: PlacementFormula.Rules,
       bonusRule: BonusRule.Seat,
@@ -340,8 +359,18 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     (a, b) => a - b,
   )
   for (const q of questions) {
-    const rawAnswers = rawAnswersByQ.get(q) ?? []
-    const noJump = noJumpQuestions.has(q)
+    // A bonus that falls to an empty chair is recorded in the app as a no-jump; old sheets sometimes
+    // mark it "mb" on the empty row instead. Accepting "mb" on an empty seat directly is an option
+    // for later.
+    const marks = rawAnswersByQ.get(q) ?? []
+    const onEmptyRow = (a: RawAnswer) => {
+      if (a.value !== CellValue.MissedBonus) return false
+      if (!named[a.teamIdx]![a.seatIdx]) return true
+      const seat = seatOf(a)
+      return seat !== undefined && isSeatEmpty(a.teamIdx, seat)
+    }
+    const rawAnswers = marks.filter((a) => !onEmptyRow(a))
+    const noJump = noJumpQuestions.has(q) || marks.some(onEmptyRow)
     const firstError = rawAnswers.find((a) => a.value === CellValue.Error)
     const tossUp =
       q >= RULES.firstAbQuestion &&
