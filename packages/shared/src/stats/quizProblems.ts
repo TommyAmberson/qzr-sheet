@@ -1,5 +1,6 @@
 import { editDistance, foldName, quizName, resultKey, tidyName } from '../results'
 import { scheduleQuizMeta } from '../schedule/conflicts'
+import { drawnTeam } from '../schedule/resolve'
 import type { ScheduleDocument, ScheduleQuiz } from '../schedule/scheduleFile'
 import { placeTieCount } from '../scoring/placement'
 import type { ScoredQuiz, ScoringProblem } from './scoredQuiz'
@@ -52,12 +53,11 @@ export function scheduledQuizOf(
   teamOf: (teamId: number) => Pick<RosterTeam, 'name' | 'shortName'> | undefined,
 ): ScheduledQuiz {
   const meta = scheduleQuizMeta(quiz)
-  const drawn = doc.draw[quiz.division]?.teams ?? []
   const teams: Pick<RosterTeam, 'name' | 'shortName'>[] = []
   let known = true
   for (const seat of quiz.seats) {
     if (seat.kind === 'empty') continue
-    const team = seat.kind === 'letter' ? drawn.find((t) => t.letter === seat.letter) : undefined
+    const team = drawnTeam(doc, quiz, seat)
     const named =
       team?.teamId !== undefined
         ? teamOf(team.teamId)

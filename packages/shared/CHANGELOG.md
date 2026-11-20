@@ -23,6 +23,17 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-11-20
+
+### Added
+
+* `resolveBenches`: which team sits on each bench of a schedule, from where its team comes from and
+  what has since been settled: a prelim rank or re-rank once its order is confirmed, a place in a
+  quiz once that quiz counts, a round robin's points once all its quizzes count. Teams level across
+  a bench's place leave it tied. With `benchKey`, `drawnTeam` (a letter bench's drawn team, which
+  `seatText`, `scheduledQuizOf`, the scoresheet and the schedule's benches now share) and the
+  `BenchSources` it reads (#16).
+
 ## [1.17.0] - 2026-11-19
 
 ### Added

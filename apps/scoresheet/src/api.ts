@@ -3,6 +3,7 @@ import {
   createApiClient,
   createFileClient,
   scheduleQuizMeta,
+  drawnTeam,
   seatText,
   type DivisionTeamNames,
   type PublishedSchedule,
@@ -239,11 +240,9 @@ export async function getScheduledQuiz(
   const { document, meetName } = published
   const quiz = document.quizzes.find((q) => q.id === quizId)
   if (!quiz) return null
-  const draw = document.draw[quiz.division]?.teams ?? []
   const seats = await Promise.all(
     quiz.seats.map(async (seat, i): Promise<ScheduledQuizSeat> => {
-      const teamId =
-        seat.kind === 'letter' ? draw.find((t) => t.letter === seat.letter)?.teamId : undefined
+      const teamId = drawnTeam(document, quiz, seat)?.teamId
       const team = teams.find((t) => t.id === teamId) ?? null
       return {
         seatNumber: i + 1,
