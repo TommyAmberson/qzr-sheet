@@ -18,6 +18,9 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Changed
 
+* Links from the portal to the scoresheet (header, footer, home page, schedule, a stored quiz's
+  "Open in scoresheet") open a new tab on a desktop, so the portal page stays open; on a phone they
+  still open in place
 * A stored quiz's Names form lines its teams up in one grid, a row per team and a column per seat,
   with empty seats marked, in place of a boxed group per team whose names wrapped unevenly
 * Picking which room to upload saved quizzes for has a Cancel button, not only Escape

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { vFocus } from '../directives'
+import { scoresheetLink } from '../scoresheetLink'
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -270,7 +271,9 @@ watch(
           columns, fouls, bonuses, and overtime. No account needed.
         </p>
         <div class="scoresheet-actions">
-          <a :href="scoresheetUrl" class="btn btn--primary">Open in browser</a>
+          <a :href="scoresheetUrl" v-bind="scoresheetLink" class="btn btn--primary"
+            >Open in browser</a
+          >
           <a
             href="https://github.com/TommyAmberson/qzr-sheet/releases/latest"
             target="_blank"

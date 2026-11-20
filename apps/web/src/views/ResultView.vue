@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { scoresheetLink } from '../scoresheetLink'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -287,6 +288,7 @@ onMounted(load)
               v-if="current"
               class="btn btn--secondary btn--sm"
               :href="scoresheetHref(current.revision)"
+              v-bind="scoresheetLink"
             >
               Open in scoresheet
             </a>
@@ -327,7 +329,11 @@ onMounted(load)
                 >
                   Restore
                 </button>
-                <a class="btn btn--secondary btn--sm" :href="scoresheetHref(entry.revision)">
+                <a
+                  class="btn btn--secondary btn--sm"
+                  :href="scoresheetHref(entry.revision)"
+                  v-bind="scoresheetLink"
+                >
                   Open in scoresheet
                 </a>
               </div>
