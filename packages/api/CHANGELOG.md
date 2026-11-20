@@ -17,6 +17,18 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-11-20
+
+### Changed
+
+* The older schedule routes time slots with `@qzr/shared`'s `slotTimes`, which the meet page now
+  shares; a slot before the schedule's first day now takes that day's date rather than the meet's
+  start, where the two differ, so slots keep the frame's order
+
+### Bundled contract
+
+* `@qzr/shared@1.21.0` - bumped from 1.20.0
+
 ## [0.34.0] - 2026-11-20
 
 ### Changed
