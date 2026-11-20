@@ -95,7 +95,7 @@ describe('initGuestSession — URL parsing', () => {
     expect(joinMeetGuest).not.toHaveBeenCalled()
   })
 
-  it('removes the viewer code from the address once the join succeeds', async () => {
+  it('keeps the viewer code in the address once the join succeeds, to bookmark or share', async () => {
     setSearch('?meet=fall-2025')
     const replace = vi.spyOn(window.history, 'replaceState')
     vi.mocked(joinMeetGuest).mockResolvedValue({
@@ -104,6 +104,42 @@ describe('initGuestSession — URL parsing', () => {
       role: MeetRole.Viewer,
     })
     await initGuestSession()
+    expect(replace).not.toHaveBeenCalled()
+    replace.mockRestore()
+  })
+
+  it("takes a kept link's code out of the address once its meet is left", async () => {
+    setSearch('?meet=fall-2025')
+    vi.mocked(joinMeetGuest).mockResolvedValue({
+      token: tokenExpiring(3600),
+      meet: { id: 7, name: 'Fall 2025' },
+      role: MeetRole.Viewer,
+    })
+    await initGuestSession()
+    const replace = vi.spyOn(window.history, 'replaceState')
+    leaveGuestMeet(7)
+    await flushPromises()
+    expect(replace.mock.calls[0]?.[2]).not.toContain('meet=')
+    replace.mockRestore()
+  })
+
+  it("refuses a link with a room code, even for that room's official", async () => {
+    setSearch('?meet=room-code')
+    const official = {
+      token: tokenExpiring(3600),
+      meetId: 7,
+      meetName: 'Fall',
+      role: MeetRole.Official as const,
+    }
+    setGuestState({ active: 7, joined: [official] })
+    vi.mocked(joinMeetGuest).mockResolvedValue({
+      token: tokenExpiring(3600),
+      meet: { id: 7, name: 'Fall' },
+      role: MeetRole.Official,
+      room: { id: 3, name: 'Room 1' },
+    })
+    const replace = vi.spyOn(window.history, 'replaceState')
+    expect(await initGuestSession()).toBeNull()
     expect(replace.mock.calls[0]?.[2]).not.toContain('meet=')
     replace.mockRestore()
   })
@@ -470,6 +506,21 @@ describe('withGuestToken: which token a request carries', () => {
     expect(await tokenSentFor('/api/meets/1/results')).toBe(joinedSession(1)!.token)
   })
 
+  it('sends the token of the session joined with the viewer code a path names', async () => {
+    setGuestState({
+      active: 1,
+      joined: [
+        session(1, tokenExpiring(3600, 'one')),
+        { ...session(2, tokenExpiring(3600, 'two')), role: MeetRole.Viewer, code: 'fall' },
+      ],
+    })
+    expect(await tokenSentFor('/api/meets/Fall')).toBe(joinedSession(2)!.token)
+  })
+
+  it('sends no token to a viewer code no session was joined with', async () => {
+    expect(await tokenSentFor('/api/meets/spring')).toBeNull()
+  })
+
   it("sends no token to a meet the guest hasn't joined", async () => {
     expect(await tokenSentFor('/api/meets/3/teams')).toBeNull()
   })
@@ -526,6 +577,24 @@ describe('withGuestToken: renewing a viewer session', () => {
     expect(await withGuestToken(asBase(base), join)('/api/meets/7/teams')).toBe('ok')
     expect(base).toHaveBeenCalledTimes(2)
     expect(joinedSession(7)?.token).toBe(fresh)
+  })
+
+  it('ends the session when its code no longer finds the meet, as after the admin changed it', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(3600, 'old'))] })
+    const join = vi.fn().mockRejectedValue(new ApiError(404, 'Invalid code'))
+    const base = vi.fn().mockRejectedValue(new ApiError(404, 'Meet not found'))
+    await expect(withGuestToken(asBase(base), join)('/api/meets/fall-2025')).rejects.toThrow()
+    expect(join).toHaveBeenCalledWith('fall-2025')
+    expect(joinedSession(7)).toBeNull()
+  })
+
+  it('ends the session for a meet whose code now opens another, on a 403 by code', async () => {
+    setGuestState({ active: 7, joined: [viewer(tokenExpiring(3600, 'old'))] })
+    const moved = { token: fresh, meet: { id: 8, name: 'Winter Meet' }, role: MeetRole.Viewer }
+    const join = vi.fn(async () => moved)
+    const base = vi.fn().mockRejectedValue(new ApiError(403, 'Forbidden'))
+    await expect(withGuestToken(asBase(base), join)('/api/meets/fall-2025')).rejects.toThrow()
+    expect(joinedSession(7)).toBeNull()
   })
 
   it('renews once for requests sent together', async () => {

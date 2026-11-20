@@ -31,9 +31,11 @@ export type {
 } from './sendQuizzes'
 export {
   getActiveSession,
+  guestSessionFor,
   guestStateRef,
   initGuestSession,
   joinByCode,
+  joinByLink,
   joinedSession,
   setActiveSession,
   setGuestState,
@@ -42,6 +44,8 @@ export {
   clearGuestData,
   guestNotice,
   leaveGuestMeet,
+  LINK_REFUSED,
+  notifyGuest,
   sessionLabel,
   upgradeOnSignIn,
   withGuestToken,

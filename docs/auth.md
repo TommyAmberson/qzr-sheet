@@ -287,18 +287,23 @@ so; a network failure, server error, or rate limit keeps it. Signing in upgrades
 the guest account's codes (`upgradeOnSignIn`); signing out in either app removes every guest session
 and the meet data kept for them (`clearGuestData`).
 
-**URL-shareable viewer access (scoresheet):** opening the scoresheet with `?meet=<viewer code>`
-joins as a guest viewer:
+**URL-shareable viewer access:** opening the scoresheet with `?meet=<viewer code>`, or the portal's
+address for a meet, joins as a guest viewer:
 
 ```
 https://www.versevault.ca/qzr/scoresheet/?meet=fall-2025
+https://www.versevault.ca/qzr/fall-2025/standings
 ```
 
-The scoresheet redeems the code at `/qzr/api/join/guest`, keeps the session, and removes the code
-from the address bar (a rejected link says so; when the server can't be reached the code stays for a
-reload). A value of digits only, or one beside a quiz link, is a meet id and never joined. The
-meet's teams become selectable in "Link a meet" without signing in. Room codes are never put in
-links: a link ends up in browser history, logs, and screenshots.
+Both redeem the code at `/qzr/api/join/guest` and keep the session, and the code stays in the
+address, so it can be bookmarked or shared. A request that names the meet by that code, as
+`/api/meets/<code>`, carries the token of the session joined with it, as one by the meet's id does.
+In the scoresheet the code leaves the address when the link is rejected (it says so; when the server
+can't be reached the code stays for a reload), and once its meet isn't the one in use: another meet
+picked, the meet left, signing out, or the sign-in upgrade. A value of digits only, or one beside a
+quiz link, is a meet id and never joined. The meet's teams become selectable in "Link a meet"
+without signing in. Room codes are never put in links: a link ends up in browser history, logs, and
+screenshots.
 
 ### Cross-site requests
 

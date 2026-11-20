@@ -71,10 +71,11 @@ async function handleCode() {
       const joined = await joinByCode(c, joinMeetGuest)
       if (!joined) throw new Error('That code did not open a meet')
       code.value = ''
-      // An official's room's quizzes are on the meet's Quizzes tab; a viewer starts on its schedule
+      // An official's room's quizzes are on the meet's Quizzes tab; a viewer starts on its schedule,
+      // at the meet's address by its code (an official keeps no code, so goes by its id)
       router.push({
         name: joined.role === MeetRole.Official ? 'meet-quizzes' : 'meet',
-        params: { slug: joined.meetId },
+        params: { slug: joined.code ?? joined.meetId },
       })
     }
   } catch (e) {
@@ -183,7 +184,7 @@ watch(
               @click="
                 router.push({
                   name: g.role === MeetRole.Official ? 'meet-quizzes' : 'meet',
-                  params: { slug: g.meetId },
+                  params: { slug: g.code ?? g.meetId },
                 })
               "
             >

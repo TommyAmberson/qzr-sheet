@@ -222,8 +222,8 @@ A room's code is `official_code` in older text and in the API's `official-codes`
 
 ## Join Flow
 
-A user joins by entering a code in the scoresheet or the portal, or by opening a viewer `?meet=`
-link.
+A user joins by entering a code in the scoresheet or the portal, or by opening a viewer link: the
+scoresheet's `?meet=` or the portal's address for the meet.
 
 **With an account**, `POST /api/join { code }` creates a membership:
 
@@ -254,8 +254,10 @@ code.
 ### Meet links
 
 The scoresheet accepts `?meet=<viewer code>`, which joins as a guest viewer
-([auth.md § Guest tokens](./auth.md#guest-tokens-officials-and-viewers-without-accounts)) and is
-then removed from the address bar. No other code is ever put in a link. The portal's links to a
+([auth.md § Guest tokens](./auth.md#guest-tokens-officials-and-viewers-without-accounts)). The
+portal's address for a meet, `/qzr/<viewer code>`, joins a signed-out visitor the same way. The code
+stays in the address in both apps, to bookmark or share. A guest official keeps no code, so the
+portal addresses their meet by its id. No other code is ever put in a link. The portal's links to a
 scheduled or stored quiz name the meet by id as `meetId`.
 
 ## Code Rotation

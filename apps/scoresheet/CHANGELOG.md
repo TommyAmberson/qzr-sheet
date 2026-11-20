@@ -15,6 +15,18 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.29.1] - 2026-11-20
+
+### Changed
+
+* A `?meet=` link's viewer code stays in the address once it has joined, so the page can be
+  bookmarked or shared, until another meet is picked, the meet is left, or you sign in or out; a
+  rejected code is still taken out
+
+### Bundled contract
+
+* `@qzr/shared@1.19.0` - unchanged
+
 ## [0.29.0] - 2026-11-20
 
 ### Changed

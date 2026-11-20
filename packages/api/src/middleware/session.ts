@@ -80,8 +80,9 @@ export function sessionMiddleware(): MiddlewareHandler<{
 }
 
 /**
- * A path about one meet, as the apps read it when deciding to renew a guest session
- * (`MEET_PATH` in packages/ui/src/guestSession.ts), allowing for the API's /qzr mount
+ * A path about one meet by its id, as the apps read it when deciding to renew a guest session
+ * (`MEET_PATH` in packages/ui/src/guestSession.ts, which also reads a viewer code there; the apps
+ * name a meet by code only to read it), allowing for the API's /qzr mount
  */
 const MEET_PATH = /^(?:\/qzr)?\/api\/meets\/(\d+)(?:\/|$)/
 
