@@ -15,6 +15,12 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Fixed
+
+* Opening a `?meet=` link on a sheet already linked to that meet, without a guest session for it,
+  reads the meet with the link's session: the requests sent while it joined went without one and
+  were refused until a reload (#229)
+
 ## [0.30.1] - 2026-11-20
 
 ### Changed
