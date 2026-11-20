@@ -2,10 +2,9 @@
 import { computed } from 'vue'
 import ScheduleSeat from './ScheduleSeat.vue'
 import { divisionColourVar } from './divisionColour'
-import { markQuiz, type MarkedQuiz, type ScheduleMarks } from './scheduleMarks'
+import { markQuiz, resultText, type MarkedQuiz, type ScheduleMarks } from './scheduleMarks'
 import {
   formatClock,
-  ordinal,
   roomDivisions,
   sheetRows,
   type Conflict,
@@ -202,8 +201,7 @@ function tickOf(quiz: ScheduleQuiz) {
                 v-for="t in marked.get(c.quiz.id)?.unplaced ?? []"
                 :key="t.name"
                 class="unplaced"
-                >{{ t.name }}{{ t.place ? ` · ${ordinal(t.place)}` : ''
-                }}{{ t.score !== undefined ? ` · ${t.score}` : '' }}</span
+                >{{ t.name }}{{ resultText(t) ? ` · ${resultText(t)}` : '' }}</span
               >
               <span
                 v-if="dayOf(c.quiz.id) && STATUS_TEXT[dayOf(c.quiz.id)!.status]"

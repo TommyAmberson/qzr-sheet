@@ -46,7 +46,8 @@ const scores = computed(() => sender.value !== null)
 const statsHidden = computed(
   () => !isAdmin.value && day.value !== null && !viewersSeeStats(day.value.phase),
 )
-const isGuest = computed(() => !session.value?.data?.user)
+// Signed out once the session says so; while it is still being read, a member isn't a guest
+const isGuest = computed(() => !session.value?.isPending && !session.value?.data?.user)
 
 /** The division asked for, as the meet spells it; one the meet doesn't have is every division */
 const division = computed(() => {
@@ -140,8 +141,16 @@ async function load() {
   }
 }
 
+/** A background read that failed, shown under the tab bar rather than in place of the page */
+const readError = ref('')
+
 async function reloadMeet() {
-  detail.value = await getMeet(props.slug)
+  try {
+    detail.value = await getMeet(props.slug)
+    readError.value = ''
+  } catch (e) {
+    readError.value = `The meet couldn't be read again: ${(e as Error).message}`
+  }
 }
 
 watch(() => props.slug, load, { immediate: true })
@@ -155,14 +164,18 @@ watch(
   },
 )
 
-// Another published version, or none, is read once for every tab; the first meet day names the
-// version the page read on opening
+// Another published version, or none, is read once for every tab, as is the schedule after the
+// meet's phase moves, since the phase decides whether it shows letters or team names. The first meet
+// day names what the page read on opening.
 watch(
-  () => day.value?.scheduleVersion,
-  (version, was) => {
+  () => (day.value ? `${day.value.scheduleVersion}|${day.value.phase}` : undefined),
+  (key, was) => {
     const id = meet.value?.id
-    if (id === undefined || was === undefined || version === was) return
-    void readPublished(id).catch((e: Error) => (error.value = e.message))
+    if (id === undefined || was === undefined || key === was) return
+    readPublished(id).then(
+      () => (readError.value = ''),
+      (e: Error) => (readError.value = `The schedule couldn't be read again: ${e.message}`),
+    )
   },
 )
 
@@ -259,6 +272,7 @@ const dates = computed(() => {
         </div>
       </div>
       <p v-if="dayError" class="state-msg state-msg--error no-print">{{ dayError }}</p>
+      <p v-if="readError" class="state-msg state-msg--error no-print">{{ readError }}</p>
 
       <RouterView />
     </template>

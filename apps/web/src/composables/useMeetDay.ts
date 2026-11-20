@@ -72,8 +72,13 @@ export function useMeetDay(
     start()
   }
 
+  // Another meet starts afresh: none of the last one's day shows against it
   watch(meetId, (id, was) => {
-    if (id !== null && id !== was) void refresh()
+    if (id === null || id === was) return
+    day.value = null
+    seen = ''
+    owed = false
+    void refresh()
   })
 
   onMounted(() => {

@@ -1,5 +1,6 @@
 import {
   drawnTeam,
+  ordinal,
   foldName,
   benchKey,
   type DayQuiz,
@@ -63,4 +64,11 @@ function benchTeam(
 /** A settled bench's team as a reader sees it; one the admin has yet to settle reads as tied */
 export function settledText(settled: SettledBench): string {
   return 'team' in settled ? settled.team : 'Tied'
+}
+
+/** A team's result as the sheet writes it: its place, `=` before one it shares, then its score */
+export function resultText(team: DayTeam): string {
+  if (team.place === undefined) return ''
+  const place = `${team.tiedWith && team.tiedWith > 1 ? '=' : ''}${ordinal(team.place)}`
+  return team.score === undefined ? place : `${place} · ${team.score}`
 }

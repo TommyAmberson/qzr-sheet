@@ -189,7 +189,12 @@ async function saveEdit() {
     detail.value = { ...detail.value, meet: res.meet }
     editing.value = false
     if (res.meet.viewerCode !== slug.value) {
-      router.replace({ name: 'meet', params: { slug: res.meet.viewerCode } })
+      // Setup again under the meet's new address, as the reader had it
+      router.replace({
+        name: 'meet-setup',
+        params: { slug: res.meet.viewerCode },
+        query: router.currentRoute.value.query,
+      })
     }
   } catch (e) {
     saveError.value = (e as Error).message

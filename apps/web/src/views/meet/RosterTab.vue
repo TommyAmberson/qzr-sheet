@@ -22,7 +22,7 @@ import { parseRosterCsv, serializeRosterCsv, type RosterEntry } from '../../rost
  * see them as today: admins manage them all and their coach codes, a church's coaches their own.
  */
 const router = useRouter()
-const { slug, meet, isAdmin, isSuperuser, coachChurchIds: myCoachChurchIds } = useMeetPage()
+const { slug, meet, isAdmin, isSuperuser, coachChurchIds: myCoachChurchIds, beat } = useMeetPage()
 const meetId = computed(() => meet.value?.id ?? 0)
 
 const churches = ref<Church[]>([])
@@ -57,6 +57,8 @@ async function load() {
 }
 
 watch(() => meet.value?.id, load, { immediate: true })
+// Refresh, and the page's beat, read the churches again too
+watch(beat, load)
 
 function churchSummary(church: Church): string {
   const count = church.teamCount

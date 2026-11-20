@@ -77,6 +77,19 @@ describe('results on the schedule', () => {
     expect(w.find('.unplaced').text()).toBe('Someone Else · 2nd')
   })
 
+  it('marks a shared place the same way on a bench and on the line below', () => {
+    const w = sheet({
+      id: quiz.id,
+      status: 'played',
+      teams: [
+        { name: drawn[0]!.name!, place: 1, tiedWith: 2, score: 120 },
+        { name: 'Someone Else', place: 1, tiedWith: 2, score: 120 },
+      ],
+    })
+    expect(bench(w, 0).find('.qz-seat-result').text()).toBe('=1st · 120')
+    expect(w.find('.unplaced').text()).toBe('Someone Else · =1st · 120')
+  })
+
   it.each([
     ['attention', 'Needs attention'],
     ['underReview', 'Under review'],
