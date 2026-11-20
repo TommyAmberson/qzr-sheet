@@ -1,4 +1,8 @@
+// A scoring sheet is zipped by fflate, whose checks for its own byte arrays fail across jsdom's
+// realm, so these tests run in Node, which has File
+// @vitest-environment node
 import { describe, it, expect, vi } from 'vitest'
+import { strToU8, zipSync } from 'fflate'
 import { ApiError, type QuizFile } from '@qzr/shared'
 import { chooseRoom, uploadPicked, type ExistingQuiz, type OnExisting, type Stored } from '@qzr/ui'
 
@@ -12,6 +16,27 @@ const existing: ExistingQuiz = {
 
 const quizFileNamed = (quizNumber: string) =>
   new File([JSON.stringify({ version: 2, quiz: { quizNumber } })], `D1Q${quizNumber}.json`)
+
+/** A scoring sheet as LibreOffice saves it, with the division and quiz number in its header */
+function sheetNamed(quizNumber: string) {
+  const cell = (value: string) =>
+    `<table:table-cell office:value-type="string"><text:p>${value}</text:p></table:table-cell>`
+  const empty = '<table:table-row><table:table-cell/></table:table-row>'
+  const header =
+    '<table:table-row><table:table-cell/><table:table-cell/>' +
+    cell('1') +
+    '<table:table-cell/>' +
+    cell(quizNumber) +
+    '</table:table-row>'
+  const content =
+    '<office:document-content><office:body><office:spreadsheet><table:table table:name="Quiz">' +
+    empty +
+    empty +
+    header +
+    '</table:table></office:spreadsheet></office:body></office:document-content>'
+  const bytes = zipSync({ 'content.xml': strToU8(content) })
+  return new File([bytes as Uint8Array<ArrayBuffer>], `D1Q${quizNumber}.ods`)
+}
 
 /** A file input's change event, with these files picked */
 function picked(...files: File[]) {
@@ -36,6 +61,9 @@ function answering(...answers: unknown[]) {
 }
 
 const official = { admin: false, rooms: [{ id: 5, name: 'Room 1' }] }
+
+/** The change event of a file input with these files picked */
+const event = (...files: File[]) => picked(...files).event
 
 describe('uploadPicked', () => {
   it('sends each file in order for the room, reports each, and clears the input', async () => {
@@ -67,13 +95,15 @@ describe('uploadPicked', () => {
       .mockRejectedValueOnce(conflict)
       .mockResolvedValueOnce({ created: false, revision: 3 })
       .mockRejectedValueOnce(conflict)
-    const dialog = answering(5, 'newRevision', null)
+    // Asked to answer the rest the same way, the user says no
+    const dialog = answering(5, 'newRevision', false, null)
     const { event } = picked(quizFileNamed('3'), quizFileNamed('3'))
     const reports = await uploadPicked(event, dialog, official, 'Practice', send)
     expect(send.mock.calls[1]![2]).toBe('newRevision')
     expect(dialog.asked).toEqual([
       'Upload for Room 1?',
       'D1 Q3 was already submitted',
+      'The same for the rest of this upload?',
       'D1 Q3 was already submitted',
     ])
     expect(reports!.map((r) => [r.stored, r.message])).toEqual([
@@ -98,6 +128,75 @@ describe('uploadPicked', () => {
       ['D1Q8.json', false, 'This file was saved by a newer version'],
       ['D1Q9.json', true, 'Stored'],
     ])
+  })
+
+  it('reads a scoring sheet and sends it like a quiz file', async () => {
+    const send = vi
+      .fn<(file: QuizFile) => Promise<Stored>>()
+      .mockResolvedValue({ created: true, revision: 1 })
+    const { event } = picked(sheetNamed('4'), quizFileNamed('5'))
+    const reports = await uploadPicked(event, answering(5), official, 'Practice', send)
+    expect(send.mock.calls.map(([file]) => [file.quiz.division, file.quiz.quizNumber])).toEqual([
+      ['1', '4'],
+      [undefined, '5'],
+    ])
+    expect(send.mock.calls[0]![0].teams).toHaveLength(3)
+    expect(reports!.map((r) => [r.file, r.stored])).toEqual([
+      ['D1Q4.ods', true],
+      ['D1Q5.json', true],
+    ])
+  })
+
+  it('refuses a spreadsheet that is not a scoring sheet, and carries on', async () => {
+    const send = vi.fn<(file: QuizFile) => Promise<Stored>>().mockResolvedValue({
+      created: true,
+      revision: 1,
+    })
+    const { event } = picked(new File(['not a zip'], 'budget.ods'), quizFileNamed('6'))
+    const reports = await uploadPicked(event, answering(5), official, 'Practice', send)
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(reports!.map((r) => [r.file, r.stored, r.message])).toEqual([
+      ['budget.ods', false, 'Not a quiz file or scoring sheet'],
+      ['D1Q6.json', true, 'Stored'],
+    ])
+  })
+
+  it('reports a file the meet already holds as unchanged, asking nothing', async () => {
+    const send = vi.fn<(file: QuizFile) => Promise<Stored>>().mockResolvedValue({
+      created: false,
+      revision: 2,
+      unchanged: true,
+    })
+    const dialog = answering(5)
+    const reports = await uploadPicked(
+      event(quizFileNamed('3')),
+      dialog,
+      official,
+      'Practice',
+      send,
+    )
+    expect(dialog.asked).toEqual(['Upload for Room 1?'])
+    expect(reports).toEqual([{ file: 'D1Q3.json', stored: true, message: 'Unchanged' }])
+  })
+
+  it("answers the rest of the batch's stored quizzes as the first was answered, when asked to", async () => {
+    const conflict = new ApiError(409, 'D1 Q3 was already submitted', { existing })
+    const send = vi
+      .fn<(file: QuizFile, roomId: number | null, onExisting?: OnExisting) => Promise<Stored>>()
+      .mockImplementation(async (_file, _room, onExisting) => {
+        if (!onExisting) throw conflict
+        return { created: false, revision: 3, keptCurrent: true }
+      })
+    const dialog = answering(5, 'keepCurrent', true)
+    const files = [quizFileNamed('3'), quizFileNamed('4'), quizFileNamed('5')]
+    const reports = await uploadPicked(event(...files), dialog, official, 'Practice', send)
+    expect(dialog.asked).toEqual([
+      'Upload for Room 1?',
+      'D1 Q3 was already submitted',
+      'The same for the rest of this upload?',
+    ])
+    expect(send.mock.calls.filter((call) => call[2] === 'keepCurrent')).toHaveLength(3)
+    expect(reports!.every((r) => r.stored)).toBe(true)
   })
 
   it('clears the input and sends nothing when the user may no longer send', async () => {

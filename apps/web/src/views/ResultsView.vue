@@ -431,12 +431,12 @@ onMounted(load)
           :disabled="uploading"
           @click="uploadInput?.click()"
         >
-          {{ uploading ? 'Uploading…' : 'Upload saved quiz files' }}
+          {{ uploading ? 'Uploading…' : 'Upload quiz files or sheets' }}
         </button>
         <input
           ref="uploadInput"
           type="file"
-          accept=".json,application/json"
+          accept=".json,application/json,.ods,.ots"
           multiple
           hidden
           @change="onUploadFiles"

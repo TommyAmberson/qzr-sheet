@@ -92,7 +92,7 @@ one unchanged with no prompt.
 
 - [X] T008 [P] [US1] Add a failing case to `packages/shared/src/ods/__tests__/readOds.spec.ts`: a sheet with `mb` on a seat that has no quizzer reads as a no-jump on that question's column and no mark in the empty seat (spec FR-005, research R8), extending the existing sheet fixtures
 - [X] T009 [P] [US1] Add failing cases to `packages/api/src/routes/__tests__/results.spec.ts`: sending a file identical to the quiz's current revision answers `200` with `unchanged: true` and adds no revision whatever `onExisting` says, including when the current revision is a restore; a changed file still gets today's `409` (contracts/api.md)
-- [ ] T010 [P] [US1] Add failing cases to `apps/web/src/__tests__/sendQuizzes.spec.ts`: an `.ods` in the batch is read and sent like a `.json`; a file that is neither is reported refused with a reason and the rest are still sent; an unchanged answer is reported as unchanged and asks nothing; answering the first "already stored" question with "apply to the rest" answers every later one in the batch
+- [X] T010 [P] [US1] Add failing cases to `apps/web/src/__tests__/sendQuizzes.spec.ts`: an `.ods` in the batch is read and sent like a `.json`; a file that is neither is reported refused with a reason and the rest are still sent; an unchanged answer is reported as unchanged and asks nothing; answering the first "already stored" question with "apply to the rest" answers every later one in the batch
 
 ### Implementation for User Story 1
 

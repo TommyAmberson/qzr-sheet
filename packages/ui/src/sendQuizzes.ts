@@ -1,4 +1,4 @@
-import { ApiError, type QuizFile } from '@qzr/shared'
+import { ApiError, readOds, type QuizFile } from '@qzr/shared'
 
 /** A quiz the meet already has under the name being sent */
 export interface ExistingQuiz {
@@ -17,6 +17,8 @@ export interface Stored {
   created: boolean
   revision: number
   keptCurrent?: boolean
+  /** The file was exactly the quiz's current revision, so nothing was stored */
+  unchanged?: boolean
 }
 
 /**
@@ -126,11 +128,25 @@ export async function chooseRoom(
   return answer === 'none' ? null : answer
 }
 
+/** Whether to answer the rest of an upload's stored quizzes as this one was answered */
+async function askSameForRest(dialog: Asker | null | undefined, remaining: number) {
+  const answer = await dialog?.ask<boolean>(
+    'The same for the rest of this upload?',
+    `${remaining} more ${remaining === 1 ? 'file is' : 'files are'} still to send. Any the meet already has can be answered the same way.`,
+    [
+      { label: 'Ask each time', value: false },
+      { label: 'Do the same', value: true, primary: true },
+    ],
+  )
+  return answer === true
+}
+
 /**
- * Upload the saved quiz files picked in a file input: the room is chosen, then the files are sent
- * one at a time, in order. Each name the meet already has asks what to do, and skipping one moves
- * on to the next; one file failing doesn't stop the rest. Undefined when nothing was sent, as when
- * the user may no longer send to the meet.
+ * Upload the saved quiz files and scoring sheets picked in a file input: the room is chosen, then
+ * the files are sent one at a time, in order. Each name the meet already has asks what to do, and
+ * that answer may be kept for the rest of the upload; skipping one moves on to the next, and one
+ * file failing doesn't stop the rest. Undefined when nothing was sent, as when the user may no
+ * longer send to the meet.
  */
 export async function uploadPicked(
   event: Event,
@@ -146,37 +162,58 @@ export async function uploadPicked(
   if (!sender || files.length === 0) return undefined
   const roomId = await chooseRoom(dialog, sender, meetName, 'Upload')
   if (roomId === undefined) return undefined
+  // The answer kept for the rest of the upload, once the user asks to; undefined until then
+  let kept: OnExisting | null | undefined
   const reports: FileReport[] = []
-  for (const file of files) {
+  for (const [at, file] of files.entries()) {
+    const decide = async (existing: ExistingQuiz) => {
+      if (kept !== undefined) return kept
+      const choice = await askAlreadySubmitted(dialog, existing)
+      const remaining = files.length - at - 1
+      if (remaining > 0 && (await askSameForRest(dialog, remaining))) kept = choice
+      return choice
+    }
     reports.push({
       file: file.name,
       ...(await sendOne(
         file,
         (quizFile, onExisting) => send(quizFile, roomId, onExisting),
-        dialog,
+        decide,
       )),
     })
   }
   return reports
 }
 
+/** A picked file's quiz: a scoring sheet read as the scoresheet reads it, or a saved quiz file */
+async function quizFileOf(file: File): Promise<QuizFile | null> {
+  try {
+    if (/\.o[dt]s$/i.test(file.name)) return readOds(new Uint8Array(await file.arrayBuffer()))
+    return JSON.parse(await file.text()) as QuizFile
+  } catch {
+    return null
+  }
+}
+
 async function sendOne(
   file: File,
   send: (quizFile: QuizFile, onExisting?: OnExisting) => Promise<Stored>,
-  dialog: Asker | null | undefined,
+  decide: (existing: ExistingQuiz) => Promise<OnExisting | null>,
 ): Promise<Omit<FileReport, 'file'>> {
-  let quizFile: QuizFile
-  try {
-    quizFile = JSON.parse(await file.text()) as QuizFile
-  } catch {
-    return { stored: false, message: 'Not a quiz file' }
+  const quizFile = await quizFileOf(file)
+  if (!quizFile) {
+    const sheet = /\.o[dt]s$/i.test(file.name)
+    return {
+      stored: false,
+      message: sheet ? 'Not a quiz file or scoring sheet' : 'Not a quiz file',
+    }
   }
   try {
     return { stored: true, message: storedMessage(await send(quizFile)) }
   } catch (e) {
     const existing = existingQuizOf(e)
     if (!existing) return { stored: false, message: (e as Error).message }
-    const choice = await askAlreadySubmitted(dialog, existing)
+    const choice = await decide(existing)
     if (!choice)
       return { stored: false, message: `Skipped: ${existing.name} was already submitted` }
     try {
@@ -187,8 +224,9 @@ async function sendOne(
   }
 }
 
-function storedMessage({ created, revision, keptCurrent }: Stored): string {
+function storedMessage({ created, revision, keptCurrent, unchanged }: Stored): string {
   if (created) return 'Stored'
+  if (unchanged) return 'Unchanged'
   if (keptCurrent) return `Saved as revision ${revision}; the earlier revision stays current`
   return `Saved as revision ${revision}`
 }

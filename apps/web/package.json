@@ -27,6 +27,7 @@
     "@vitejs/plugin-vue": "^6.0.4",
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.8.1",
+    "fflate": "^0.8.2",
     "jsdom": "^28.1.0",
     "npm-run-all2": "^8.0.4",
     "vite": "^7.3.1",
