@@ -582,6 +582,8 @@ watch(
 
 .page-header {
   display: flex;
+  /* Its controls wrap under the title at phone width rather than push the page sideways */
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
@@ -963,6 +965,8 @@ watch(
 
 .section-header {
   display: flex;
+  /* Its controls wrap under the title at phone width rather than push the page sideways */
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   margin-bottom: 0.75rem;

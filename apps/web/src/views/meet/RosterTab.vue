@@ -462,6 +462,8 @@ async function handleExportRoster() {
 }
 .section-header {
   display: flex;
+  /* Its controls wrap under the title at phone width rather than push the page sideways */
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   margin-bottom: 0.75rem;

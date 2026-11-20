@@ -26,6 +26,8 @@ const props = defineProps<{
   settled?: SettledBench
   /** The result of the team on the bench: its place, and its score where shown (FR-010) */
   result?: DayTeam
+  /** Drawn for reading alone, as on a reader's page: not a button, since a tap does nothing */
+  plain?: boolean
 }>()
 
 const seat = computed(() => props.quiz.seats[props.index]!)
@@ -43,7 +45,13 @@ const outcome = computed(() => (props.result ? resultText(props.result) : ''))
 </script>
 
 <template>
-  <button type="button" class="qz-seat" :data-seat="`${quiz.id}:${index}`" :title="source">
+  <component
+    :is="plain ? 'div' : 'button'"
+    :type="plain ? undefined : 'button'"
+    class="qz-seat"
+    :data-seat="`${quiz.id}:${index}`"
+    :title="source"
+  >
     <span class="qz-seat-src" :class="{ choose: seat.kind === 'empty' }">{{ source }}</span>
     <span class="qz-bench" :class="`qz-bench-${index}`" />
     <span class="qz-seat-line" :class="{ absent, tied: settled && 'tied' in settled }">{{
@@ -52,5 +60,5 @@ const outcome = computed(() => (props.result ? resultText(props.result) : ''))
     <span v-if="outcome" class="qz-seat-result" :class="`place-${result?.place}`">{{
       outcome
     }}</span>
-  </button>
+  </component>
 </template>

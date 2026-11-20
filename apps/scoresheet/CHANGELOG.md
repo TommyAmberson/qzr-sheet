@@ -15,6 +15,17 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-11-20
+
+### Changed
+
+* The schedule picker's benches are no longer buttons that do nothing; a quiz is picked by its
+  title, as before (from `@qzr/ui`)
+
+### Bundled contract
+
+* `@qzr/shared@1.21.0` - bumped from 1.20.0
+
 ## [0.30.0] - 2026-11-20
 
 ### Added

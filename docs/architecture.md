@@ -121,7 +121,10 @@ version and phase a meet day names. `specs/010-meet-day/research.md` (R7) states
 * **Schedule** draws the published schedule with `ScheduleSheet`, given the meet day as `marks`:
   each bench's settled team and result, and each quiz's status. A quiz's title opens its stored quiz
   for those who may, or the scoresheet for a quiz not in yet, as `?meetId=<meet>&quiz=<quiz id>`,
-  the quiz's id in the published schedule document.
+  the quiz's id in the published schedule document. At phone width the tab shows `ScheduleList`
+  instead: the same quizzes by time, each bench drawn by `ScheduleSeat` with the same marks, and the
+  slot under way marked, or a "now" line where none listed is. Both read `slotTimes`, when each slot
+  runs on the meet's clock, which the API's older routes time slots by too.
 * **Quizzes** lists each stage's scheduled quizzes, in or not, and the stored quizzes the schedule
   lacks, from the meet day; admins and officials also read the stored quizzes (`GET /results`) for
   their actions, and admins what needs attention.

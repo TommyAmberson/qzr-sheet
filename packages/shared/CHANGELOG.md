@@ -23,6 +23,16 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-11-20
+
+### Added
+
+* `scheduleDayDates` and `slotTimes`: each schedule day's date, the first nearest the meet's start
+  on its weekday and each later one the next on its weekday, and when each slot runs on the meet's
+  clock, slots before the first day on its date, for the phone schedule's time under way
+  (specs/010-meet-day FR-021); `wallClock` and `instantOf` moved from the API, which times slots by
+  `slotTimes` too
+
 ## [1.20.0] - 2026-11-20
 
 ### Added

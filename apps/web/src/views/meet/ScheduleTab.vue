@@ -1,19 +1,20 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import type { DayQuiz } from '@qzr/shared'
-import { ScheduleSheet, type ScheduleMarks } from '@qzr/ui'
+import { slotTimes, type DayQuiz } from '@qzr/shared'
+import { browserTimeZone, ScheduleList, ScheduleSheet, type ScheduleMarks } from '@qzr/ui'
 
+import QuizTitle from './QuizTitle.vue'
 import { useMeetPage } from '../../meetPage'
-import { scoresheetLink } from '../../scoresheetLink'
 import { problemText } from '../../stats'
+import { phone } from '../../viewport'
 
 /**
  * The Schedule tab (FR-008): the meet's published schedule, letters or team names as the API says
  * for the meet's phase, with the meet day's results and settled benches on it.
  */
 const router = useRouter()
-const { slug, isAdmin, scores, inScheduleDivision, published, day, scoresheetHref } = useMeetPage()
+const { slug, meet, isAdmin, division, inScheduleDivision, published, day } = useMeetPage()
 
 /** The schedule shown: the picked division's quizzes, or every division's (FR-004) */
 const shown = computed(() => {
@@ -32,6 +33,41 @@ const marks = computed<ScheduleMarks | null>(() =>
 const statusTitle = (quiz: DayQuiz) => (quiz.problems ?? []).map(problemText).join('\n')
 
 const storedOf = (quizId: string) => marks.value?.quizzes.get(quizId)?.storedId
+
+// ---- On a phone, a list by time with the slot under way marked (FR-021) ----
+
+/** The time, moved on each minute while the list is shown */
+const now = ref(new Date())
+let ticking: ReturnType<typeof setTimeout> | undefined
+/** The time now, and again at the start of each minute, so the mark moves on the minute */
+function tick() {
+  now.value = new Date()
+  ticking = setTimeout(tick, 60_000 - (now.value.getTime() % 60_000))
+}
+const stop = () => clearTimeout(ticking)
+// Stopped while the page is hidden; coming back into view catches up at once
+function onVisibility() {
+  stop()
+  if (document.visibilityState === 'visible') tick()
+}
+onMounted(() => {
+  if (!phone) return
+  tick()
+  document.addEventListener('visibilitychange', onVisibility)
+})
+onUnmounted(() => {
+  stop()
+  document.removeEventListener('visibilitychange', onVisibility)
+})
+
+const timeZone = computed(() => published.value?.document.link?.timeZone ?? browserTimeZone())
+
+/** When each slot runs, on the meet's clock: the linked schedule's time zone, or the reader's */
+const times = computed(() => {
+  const doc = published.value?.document
+  if (!doc || !meet.value) return null
+  return slotTimes(doc, meet.value.dateFrom, timeZone.value)
+})
 </script>
 
 <template>
@@ -48,6 +84,21 @@ const storedOf = (quizId: string) => marks.value?.quizzes.get(quizId)?.storedId
         </button>
       </div>
       <p v-if="published === null" class="state-msg">The schedule hasn't been published yet.</p>
+      <ScheduleList
+        v-else-if="shown && phone"
+        :doc="shown"
+        :view="published.view"
+        :marks="marks"
+        :times="times"
+        :now="now.getTime()"
+        :time-zone="timeZone"
+        :with-division="division === null && published.document.settings.divisions.length > 1"
+        :status-title="statusTitle"
+      >
+        <template #quiz-title="{ quiz }">
+          <QuizTitle :quiz="quiz" :stored-id="storedOf(quiz.id)" />
+        </template>
+      </ScheduleList>
       <div v-else-if="shown" class="sheet-scroll">
         <ScheduleSheet
           class="published"
@@ -58,20 +109,7 @@ const storedOf = (quizId: string) => marks.value?.quizzes.get(quizId)?.storedId
         >
           <!-- A stored quiz opens its page; one not in yet, the scoresheet for those who score (FR-012) -->
           <template #quiz-title="{ quiz }">
-            <RouterLink
-              v-if="storedOf(quiz.id) !== undefined"
-              class="quiz-title"
-              :to="{ name: 'meet-result', params: { slug, resultId: storedOf(quiz.id) } }"
-              >{{ quiz.label }}</RouterLink
-            >
-            <a
-              v-else-if="scores"
-              class="quiz-title"
-              :href="scoresheetHref(quiz.id)"
-              v-bind="scoresheetLink"
-              >{{ quiz.label }}</a
-            >
-            <span v-else class="quiz-title">{{ quiz.label }}</span>
+            <QuizTitle :quiz="quiz" :stored-id="storedOf(quiz.id)" />
           </template>
         </ScheduleSheet>
       </div>

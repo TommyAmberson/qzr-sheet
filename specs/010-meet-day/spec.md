@@ -348,8 +348,14 @@ there today, if awkwardly, so this comes after the structure.
 
 * **FR-021**: At phone width every tab MUST be reachable, the tabs and the division picker each
   scrolling sideways on their own where they don't fit, the page itself never; and the Schedule tab
-  MUST show the division's quizzes as a list by time, the one under way marked: the time slot that
-  contains the current time in the meet's time zone, or before the day's first slot, none.
+  MUST show the division's quizzes as a list by time (with every division picked, every quiz, each
+  with its division), the one under way marked: the time slot whose time holds the current instant;
+  while a schedule day runs (from its first slot's start to its last slot's end) and no slot listed
+  is under way (the reader's division has no quiz then), a "now" line before the next slot listed. A
+  slot's time is its time on its day's date in the meet's time zone, as the API's older schedule
+  routes take it too: the first day the date nearest the meet's start on its weekday, each later day
+  the next date on its weekday, slots before the first day on its date; the time zone is the linked
+  schedule's, or the reader's where it names none.
 
 ### Key Entities
 
