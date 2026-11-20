@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { teamDisplayName } from '@qzr/shared'
+import { divisionName, teamDisplayName } from '@qzr/shared'
 
 import {
   createChurch,
@@ -11,24 +11,39 @@ import {
   getTemplateInfo,
   importRoster,
   listChurches,
+  listMeetTeams,
   updateChurch,
   type Church,
+  type MeetTeamRow,
+  type RosterExportEntry,
   type TemplateInfo,
 } from '../../api'
 import MeetAccessDialog from '../../components/MeetAccessDialog.vue'
 import { saveFile } from '../../downloads'
 import { useMeetPage } from '../../meetPage'
 import { parseRosterCsv, serializeRosterCsv, type RosterEntry } from '../../rosterCsv'
+import { rosterByChurch } from '../../rosterView'
 
 /**
- * The Roster tab (FR-006): the meet's churches, each with its teams and quizzers, for whoever may
- * see them as today: admins manage them all and their coach codes, a church's coaches their own.
+ * The Roster tab (FR-006): the meet's churches, each with the teams and quizzers the reader may see
+ * in the meet's phase, which the API decides. Those who may edit a church (its admins, and its
+ * coaches) open its own page to do so; admins also manage the churches and their coach codes here.
  */
 const router = useRouter()
-const { slug, meet, isAdmin, isSuperuser, coachChurchIds: myCoachChurchIds, beat } = useMeetPage()
+const {
+  slug,
+  meet,
+  isAdmin,
+  isSuperuser,
+  coachChurchIds: myCoachChurchIds,
+  inDivision,
+  beat,
+} = useMeetPage()
 const meetId = computed(() => meet.value?.id ?? 0)
 
 const churches = ref<Church[]>([])
+const teams = ref<MeetTeamRow[]>([])
+const entries = ref<RosterExportEntry[]>([])
 const loading = ref(true)
 const error = ref('')
 const access = ref<InstanceType<typeof MeetAccessDialog> | null>(null)
@@ -41,17 +56,28 @@ const editingChurchId = ref<number | null>(null)
 const editChurchForm = ref({ name: '', shortName: '' })
 const savingChurch = ref(false)
 
-function canEditChurchName(churchId: number): boolean {
-  if (isAdmin.value) return true
-  return myCoachChurchIds.value.has(churchId)
+/**
+ * Read the teams and quizzers the reader may see; why they couldn't be read, or '' when they were.
+ * A failed read keeps those shown before, so the churches and their controls stay up.
+ */
+async function loadRoster(id: number): Promise<string> {
+  try {
+    const [teamRes, rosterRes] = await Promise.all([listMeetTeams(id), exportRoster(id)])
+    teams.value = teamRes.teams
+    entries.value = rosterRes.entries
+    return ''
+  } catch (e) {
+    return `Couldn't read the rosters: ${(e as Error).message}`
+  }
 }
 
 async function load() {
   const id = meet.value?.id
   if (id === undefined) return
   try {
-    churches.value = (await listChurches(id)).churches
-    error.value = ''
+    const [churchRes, roster] = await Promise.all([listChurches(id), loadRoster(id)])
+    churches.value = churchRes.churches
+    error.value = roster
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -100,6 +126,24 @@ watch(
 
 // Refresh, and the page's beat, read the churches again too
 watch(beat, load)
+
+const roster = computed(() => rosterByChurch(teams.value, entries.value, inDivision))
+
+// Churches whose rosters the reader may see; the others show only their team counts
+const readableChurchIds = computed(() => new Set(teams.value.map((t) => t.churchId)))
+
+/** The churches listed: with a division picked, those whose roster has none of its teams go */
+const listedChurches = computed(() =>
+  churches.value.filter((c) => !readableChurchIds.value.has(c.id) || roster.value.has(c.id)),
+)
+
+function canEditChurch(churchId: number): boolean {
+  return isAdmin.value || myCoachChurchIds.value.has(churchId)
+}
+
+function openChurch(churchId: number) {
+  void router.push({ name: 'meet-church-teams', params: { slug: slug.value, churchId } })
+}
 
 function churchSummary(church: Church): string {
   const count = church.teamCount
@@ -210,13 +254,13 @@ async function applyRosterImport(entries: RosterEntry[]) {
 
 async function handleExportRoster() {
   const res = await exportRoster(meetId.value)
-  const entries: RosterEntry[] = res.entries.map((e) => ({
+  const rows: RosterEntry[] = res.entries.map((e) => ({
     division: e.division,
     teamName: teamDisplayName({ shortName: e.churchShortName, number: e.teamNumber }),
     quizzerName: e.quizzerName,
     church: e.churchShortName,
   }))
-  saveFile(serializeRosterCsv(entries), `${meet.value?.name ?? 'roster'}.csv`, 'text/csv')
+  saveFile(serializeRosterCsv(rows), `${meet.value?.name ?? 'roster'}.csv`, 'text/csv')
 }
 </script>
 
@@ -258,86 +302,92 @@ async function handleExportRoster() {
         </div>
         <p v-if="importRosterError" class="field-error">{{ importRosterError }}</p>
         <p v-if="churches.length === 0 && !isAdmin" class="state-msg">No churches yet.</p>
-        <ul v-if="churches.length" class="item-list">
-          <li v-for="c in churches" :key="c.id" class="item-row">
-            <template v-if="editingChurchId === c.id">
-              <form class="church-edit-row" @submit.prevent="saveEditChurch(c.id)">
-                <input
-                  v-model="editChurchForm.name"
-                  class="field-input"
-                  placeholder="Full name"
-                  required
-                />
-                <input
-                  v-model="editChurchForm.shortName"
-                  class="field-input field-input--short"
-                  placeholder="Short (optional)"
-                />
-                <button type="submit" class="btn btn--primary btn--sm" :disabled="savingChurch">
-                  {{ savingChurch ? '…' : 'Save' }}
-                </button>
-                <button type="button" class="btn btn--ghost btn--sm" @click="cancelEditChurch">
-                  Cancel
-                </button>
-              </form>
-            </template>
-            <template v-else>
-              <span class="church-name">
-                <span class="church-name-full">{{ c.name }}</span>
-                <span v-if="c.shortName !== c.name" class="church-name-short">
-                  ({{ c.shortName }})
-                </span>
-                <button
-                  v-if="canEditChurchName(c.id)"
-                  class="church-pencil"
-                  title="Edit church name"
-                  @click.stop="startEditChurch(c)"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="10"
-                    height="10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+        <p v-if="churches.length && !listedChurches.length" class="state-msg">
+          No teams in this division.
+        </p>
+        <ul v-if="listedChurches.length" class="item-list">
+          <li v-for="c in listedChurches" :key="c.id" class="church-card">
+            <div class="item-row">
+              <template v-if="editingChurchId === c.id">
+                <form class="church-edit-row" @submit.prevent="saveEditChurch(c.id)">
+                  <input
+                    v-model="editChurchForm.name"
+                    class="field-input"
+                    placeholder="Full name"
+                    required
+                  />
+                  <input
+                    v-model="editChurchForm.shortName"
+                    class="field-input field-input--short"
+                    placeholder="Short (optional)"
+                  />
+                  <button type="submit" class="btn btn--primary btn--sm" :disabled="savingChurch">
+                    {{ savingChurch ? '…' : 'Save' }}
+                  </button>
+                  <button type="button" class="btn btn--ghost btn--sm" @click="cancelEditChurch">
+                    Cancel
+                  </button>
+                </form>
+              </template>
+              <template v-else>
+                <span class="church-name">
+                  <span class="church-name-full">{{ c.name }}</span>
+                  <span v-if="c.shortName !== c.name" class="church-name-short">
+                    ({{ c.shortName }})
+                  </span>
+                  <button
+                    v-if="canEditChurch(c.id)"
+                    class="church-pencil"
+                    title="Edit church name"
+                    @click.stop="startEditChurch(c)"
                   >
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </button>
+                </span>
+                <span v-if="!roster.has(c.id)" class="item-meta">{{ churchSummary(c) }}</span>
+                <button v-if="canEditChurch(c.id)" class="row-btn" @click="openChurch(c.id)">
+                  Edit
                 </button>
-              </span>
-              <span class="item-meta">{{ churchSummary(c) }}</span>
-              <button
-                v-if="isAdmin || myCoachChurchIds.has(c.id)"
-                class="row-btn"
-                @click="
-                  router.push({
-                    name: 'meet-church-teams',
-                    params: { slug, churchId: c.id },
-                  })
-                "
-              >
-                Roster
-              </button>
-              <button
-                v-if="isAdmin"
-                class="code-btn"
-                title="Manage coach code"
-                @click.stop="access?.openChurchCodeDialog(c)"
-              >
-                🔑
-              </button>
-              <button
-                v-if="isAdmin"
-                class="row-btn row-btn--danger"
-                @click.stop="handleDeleteChurch(c.id)"
-              >
-                Delete
-              </button>
-            </template>
+                <button
+                  v-if="isAdmin"
+                  class="code-btn"
+                  title="Manage coach code"
+                  @click.stop="access?.openChurchCodeDialog(c)"
+                >
+                  🔑
+                </button>
+                <button
+                  v-if="isAdmin"
+                  class="row-btn row-btn--danger"
+                  @click.stop="handleDeleteChurch(c.id)"
+                >
+                  Delete
+                </button>
+              </template>
+            </div>
+            <ul v-if="roster.has(c.id)" class="team-lines">
+              <li v-for="t in roster.get(c.id)" :key="t.id" class="team-line">
+                <span class="team-line-name">{{ t.name }}</span>
+                <span class="team-line-division">{{ divisionName(t.division) }}</span>
+                <span v-if="t.quizzers.length" class="team-line-quizzers">
+                  {{ t.quizzers.join(', ') }}
+                </span>
+                <span v-else class="team-line-quizzers team-line-quizzers--none">No quizzers</span>
+              </li>
+            </ul>
           </li>
         </ul>
         <template v-if="isAdmin">
@@ -434,14 +484,51 @@ async function handleExportRoster() {
   flex-direction: column;
   gap: 0.35rem;
 }
+.church-card {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-alt);
+  border-radius: 6px;
+}
 .item-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.55rem 0.875rem;
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-border-alt);
-  border-radius: 6px;
+}
+.team-lines {
+  list-style: none;
+  padding: 0 0.875rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.team-line {
+  display: grid;
+  grid-template-columns: 7rem 3.5rem 1fr;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.team-line-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-line-division {
+  color: var(--color-text-faint);
+}
+.team-line-quizzers--none {
+  color: var(--color-text-faint);
+  font-style: italic;
+}
+@media (max-width: 560px) {
+  .team-line {
+    grid-template-columns: auto 1fr;
+  }
+  .team-line-quizzers {
+    grid-column: 1 / -1;
+  }
 }
 .item-meta {
   font-size: 0.75rem;
