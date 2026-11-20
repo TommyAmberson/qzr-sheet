@@ -42,7 +42,7 @@ export interface ScheduledQuiz {
 
 /**
  * A quiz of the schedule as stored quizzes are held against it. The schedule names a quiz's teams
- * where every seat is a letter of the draw; a seat filled from a rank or another quiz's result is
+ * where every bench is a letter of the draw; a seat filled from a rank or another quiz's result is
  * not known from the schedule alone, and such a quiz is matched on its name.
  */
 export function scheduledQuizOf(
