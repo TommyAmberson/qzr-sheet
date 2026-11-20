@@ -1,5 +1,6 @@
 import { onMounted, ref, watch } from 'vue'
 import { ApiError, MeetRole } from '@qzr/shared'
+import { isRefusal } from './apiErrors'
 
 /**
  * Guest session state for visitors who don't have an account. Two entry points:
@@ -155,19 +156,6 @@ async function rejoin(join: GuestJoin, code: string): Promise<GuestJoinAnswer | 
     if (isRefusal(e)) return null
     throw e
   }
-}
-
-/**
- * Whether the server answered that a code is no good, rather than failing, timing out, limiting the
- * rate, or finding the account signed out
- */
-function isRefusal(e: unknown): boolean {
-  return (
-    e instanceof ApiError &&
-    e.status >= 400 &&
-    e.status < 500 &&
-    ![401, 408, 429].includes(e.status)
-  )
 }
 
 function isUnauthorized(e: unknown): boolean {

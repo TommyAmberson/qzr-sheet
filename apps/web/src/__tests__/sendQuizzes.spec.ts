@@ -8,9 +8,12 @@ import {
   chooseRoom,
   markDuplicates,
   pickedFiles,
+  matchOf,
   planUpload,
   sendPlanned,
+  summaryOf,
   type ExistingQuiz,
+  type FileReport,
   type OnExisting,
   type Sender,
   type Stored,
@@ -128,13 +131,9 @@ describe('uploadPicked', () => {
     const reports = await uploadPicked(event, answering(5), official, 'Practice', send)
     expect(send.mock.calls.map((call) => call[1])).toEqual([5, 5])
     expect(input.value).toBe('')
-    expect(reports).toEqual([
-      { file: 'D1Q1.json', stored: true, message: 'Stored' },
-      {
-        file: 'D1Q2.json',
-        stored: true,
-        message: 'Saved as revision 3; the earlier revision stays current',
-      },
+    expect(reports!.map((r) => [r.item.file, r.outcome, r.message])).toEqual([
+      ['D1Q1.json', 'stored', 'Stored'],
+      ['D1Q2.json', 'keptCurrent', 'Saved as revision 3; the earlier revision stays current'],
     ])
   })
 
@@ -156,9 +155,9 @@ describe('uploadPicked', () => {
       'The same for the rest of this upload?',
       'D1 Q3 was already submitted',
     ])
-    expect(reports!.map((r) => [r.stored, r.message])).toEqual([
-      [true, 'Saved as revision 3'],
-      [false, 'Skipped: D1 Q3 was already submitted'],
+    expect(reports!.map((r) => [r.outcome, r.message])).toEqual([
+      ['revision', 'Saved as revision 3'],
+      ['skipped', 'Skipped: D1 Q3 was already submitted'],
     ])
   })
 
@@ -173,10 +172,39 @@ describe('uploadPicked', () => {
       quizFileNamed('9'),
     )
     const reports = await uploadPicked(event, answering(5), official, 'Practice', send)
-    expect(reports!.map((r) => [r.file, r.stored, r.message])).toEqual([
-      ['notes.txt', false, 'Not a quiz file'],
-      ['D1Q8.json', false, 'This file was saved by a newer version'],
-      ['D1Q9.json', true, 'Stored'],
+    expect(reports!.map((r) => [r.item.file, r.outcome, r.message])).toEqual([
+      ['notes.txt', 'refused', 'Not a quiz file'],
+      ['D1Q8.json', 'refused', 'This file was saved by a newer version'],
+      ['D1Q9.json', 'stored', 'Stored'],
+    ])
+  })
+
+  it('reports a send that may work another time as not sent, in plain words', async () => {
+    const conflict = new ApiError(409, 'D1 Q3 was already submitted', { existing })
+    const send = vi
+      .fn<(file: QuizFile) => Promise<Stored>>()
+      .mockRejectedValueOnce(new ApiError(503, 'Service Unavailable'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new DOMException('The operation timed out.', 'TimeoutError'))
+      .mockRejectedValueOnce(conflict)
+      .mockRejectedValueOnce(new ApiError(500, 'Internal Server Error'))
+      .mockRejectedValueOnce(new ApiError(429, 'Too Many Requests'))
+      .mockRejectedValueOnce(new ApiError(401, 'Unauthorized'))
+      .mockRejectedValueOnce(new RangeError('Invalid array length'))
+    const files = ['1', '2', '3', '4', '5', '6', '7'].map(quizFileNamed)
+    const dialog = answering(5, 'newRevision', false)
+    const reports = await uploadPicked(event(...files), dialog, official, 'Practice', send)
+    const busy = "The server was busy and this file wasn't saved"
+    const unreachable = "The meet couldn't be reached, so this file may not have been saved"
+    expect(reports!.map((r) => [r.outcome, r.message])).toEqual([
+      ['notSent', busy],
+      ['notSent', unreachable],
+      ['notSent', 'No answer came from the meet, so this file may not have been saved'],
+      ['notSent', busy],
+      ['notSent', busy],
+      ['notSent', "You were signed out, so this file wasn't saved"],
+      // A fault in the page itself is shown as it is, as sending again won't mend it
+      ['refused', 'Invalid array length'],
     ])
   })
 
@@ -210,9 +238,9 @@ describe('uploadPicked', () => {
       ['1', '5'],
     ])
     expect(send.mock.calls[0]![0].teams).toHaveLength(3)
-    expect(reports!.map((r) => [r.file, r.stored])).toEqual([
-      ['D1Q4.ods', true],
-      ['D1Q5.json', true],
+    expect(reports!.map((r) => [r.item.file, r.outcome])).toEqual([
+      ['D1Q4.ods', 'stored'],
+      ['D1Q5.json', 'stored'],
     ])
   })
 
@@ -237,7 +265,9 @@ describe('uploadPicked', () => {
       send,
     )
     expect(dialog.asked).toEqual([])
-    expect(reports).toEqual([{ file: 'notes.txt', stored: false, message: 'Not a quiz file' }])
+    expect(reports!.map((r) => [r.item.file, r.outcome, r.message])).toEqual([
+      ['notes.txt', 'refused', 'Not a quiz file'],
+    ])
   })
 
   it('refuses a blank sheet, such as the template picked by mistake', async () => {
@@ -263,9 +293,9 @@ describe('uploadPicked', () => {
     const { event } = picked(new File(['not a zip'], 'budget.ods'), quizFileNamed('6'))
     const reports = await uploadPicked(event, answering(5), official, 'Practice', send)
     expect(send).toHaveBeenCalledTimes(1)
-    expect(reports!.map((r) => [r.file, r.stored, r.message])).toEqual([
-      ['budget.ods', false, 'Not a quiz file or scoring sheet'],
-      ['D1Q6.json', true, 'Stored'],
+    expect(reports!.map((r) => [r.item.file, r.outcome, r.message])).toEqual([
+      ['budget.ods', 'refused', 'Not a quiz file or scoring sheet'],
+      ['D1Q6.json', 'stored', 'Stored'],
     ])
   })
 
@@ -284,7 +314,9 @@ describe('uploadPicked', () => {
       send,
     )
     expect(dialog.asked).toEqual(['Upload for Room 1?'])
-    expect(reports).toEqual([{ file: 'D1Q3.json', stored: true, message: 'Unchanged' }])
+    expect(reports!.map((r) => [r.item.file, r.outcome, r.message])).toEqual([
+      ['D1Q3.json', 'unchanged', 'Unchanged'],
+    ])
   })
 
   it("answers the rest of the batch's stored quizzes as the first was answered, when asked to", async () => {
@@ -304,7 +336,7 @@ describe('uploadPicked', () => {
       'The same for the rest of this upload?',
     ])
     expect(send.mock.calls.filter((call) => call[2] === 'keepCurrent')).toHaveLength(3)
-    expect(reports!.every((r) => r.stored)).toBe(true)
+    expect(reports!.every((r) => r.outcome === 'keptCurrent')).toBe(true)
   })
 
   it('clears the input and sends nothing when the user may no longer send', async () => {
@@ -325,6 +357,26 @@ describe('uploadPicked', () => {
     expect(await uploadPicked(event, answering(null), admin, 'Practice', send)).toBe(undefined)
     expect(await uploadPicked(event, answering(null), official, 'Practice', send)).toBe(undefined)
     expect(send).not.toHaveBeenCalled()
+  })
+})
+
+describe('summaryOf', () => {
+  const report = (outcome: FileReport['outcome']): FileReport => ({
+    item: {} as FileReport['item'],
+    outcome,
+    message: '',
+  })
+
+  it('counts a batch by outcome, new revisions and kept-current files as stored, leaving out zeros', () => {
+    const reports = (['stored', 'revision', 'keptCurrent', 'unchanged', 'notSent'] as const).map(
+      report,
+    )
+    expect(summaryOf(reports)).toBe('5 files: 3 stored, 1 unchanged, 1 not sent')
+  })
+
+  it('says when nothing was saved', () => {
+    expect(summaryOf([report('notSent'), report('notSent')])).toBe('2 files: 2 not sent')
+    expect(summaryOf([report('refused'), report('skipped')])).toBe('2 files: 1 skipped, 1 refused')
   })
 })
 
@@ -403,6 +455,36 @@ describe('an upload matched to the schedule', () => {
       ['q3', true],
       [null, false],
     ])
+  })
+
+  it('says how each file matched, and suggests the quiz with the consolation flag the other way', async () => {
+    const doc = schedule()
+    // Consolation quiz D1c QP, which a sheet missing its "c" reads as main-bracket D1 Qp
+    doc.quizzes.push({ ...doc.quizzes[0]!, id: 'qcp', label: 'P', lane: 1 })
+    const plan = planUpload(
+      await pickedFiles(event(named('1', '3'), named('1', 'p'), named('1', '9'))),
+      doc,
+    )
+    expect(plan.map((p) => [matchOf(p, doc), p.scheduleQuizId, p.suggestion])).toEqual([
+      ['name', 'q3', null],
+      ['none', null, 'qcp'],
+      ['none', null, null],
+    ])
+  })
+
+  it('records a scheduled quiz picked as the suggestion, by hand, by its name, or none', async () => {
+    const doc = schedule()
+    doc.quizzes.push({ ...doc.quizzes[0]!, id: 'qcp', label: 'P', lane: 1 })
+    const [file] = planUpload(await pickedFiles(event(named('1', 'p'))), doc)
+    const [three] = planUpload(await pickedFiles(event(named('1', '3'))), doc)
+    const as = (item: typeof file, scheduleQuizId: string | null) =>
+      matchOf({ ...item!, scheduleQuizId }, doc)
+    expect(as(file, 'qcp')).toBe('suggestion')
+    expect(as(file, 'q4')).toBe('hand')
+    expect(as(file, null)).toBe('none')
+    expect(as(three, 'q3')).toBe('name')
+    // None picked, but linked by its name when sent
+    expect(as(three, null)).toBe('name')
   })
 
   it('flags a file given the scheduled quiz another file already matches', async () => {

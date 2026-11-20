@@ -589,6 +589,9 @@ export function listResults(meetId: number): Promise<StoredQuiz[]> {
   return request(`/api/meets/${meetId}/results`)
 }
 
+/** How long one quiz's upload waits for the meet's answer */
+const UPLOAD_TIMEOUT_MS = 30_000
+
 /** Upload a saved quiz file to a meet, by name, for a room or (an admin) none */
 export function uploadResult(
   meetId: number,
@@ -606,6 +609,8 @@ export function uploadResult(
       upload: true,
       scheduleQuizId,
     }),
+    // A send with no answer is given up, so a batch can't hang; the upload reports it as not sent
+    signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
   })
 }
 
