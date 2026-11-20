@@ -283,8 +283,10 @@ there today, if awkwardly, so this comes after the structure.
   rooms as columns with their divisions, time rows, day bands, events, and each quiz's benches with
   letter and team.
 * **FR-009**: Each scheduled quiz MUST show its status: played, needing attention (for admins and
-  its room's official), under review (for everyone else), not in yet, or result not shown yet (for a
-  reader who may not see that stage's results yet, whether the quiz is in or not).
+  its room's official), under review (for everyone else), not counted (for admins and its room's
+  official, where an admin set the quiz not to count; not in yet for everyone else), not in yet, or
+  result not shown yet (for a reader who may not see that stage's results yet, whether the quiz is
+  in or not).
 * **FR-010**: A played quiz MUST show each team's place beside it and its score where this reader
   may see the stage's scores.
 * **FR-011**: A bench whose team comes from a result (#16) MUST name its team beside its source as
@@ -353,8 +355,9 @@ there today, if awkwardly, so this comes after the structure.
   its benches. The unit every tab lists.
 * **Stored quiz**: a quiz as sent from a scoresheet or uploaded, with its revisions. Linked to the
   scheduled quiz it played, or listed apart as not on the schedule.
-* **Quiz status**: played, needing attention, under review, or not in yet: what a scheduled quiz's
-  stored result, its errors and its acceptance say, as this reader may see it.
+* **Quiz status**: played, needing attention, under review, not counted, not in yet, or result not
+  shown yet: what a scheduled quiz's stored result, its errors and its acceptance say, as this
+  reader may see it.
 * **Bench**: a place in a scheduled quiz: where its team comes from (a draw letter, a rank in a
   confirmed order, a place in an earlier quiz, points across a round robin), and which team that is
   once its source is settled.
