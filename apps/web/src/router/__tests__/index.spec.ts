@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { type Router } from 'vue-router'
+import { MeetRole } from '@qzr/shared'
 
 const mockGetSession = vi.fn()
 
@@ -13,6 +14,10 @@ vi.mock('../../views/QuizMeetView.vue', () => ({ default: { template: '<div />' 
 vi.mock('../../views/MeetTeamsView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/AccountView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../../views/MeetView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../../views/meet/ScheduleTab.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../../views/ResultsView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../../views/StatsView.vue', () => ({ default: { template: '<div />' } }))
 
 let router: Router
 
@@ -89,7 +94,8 @@ describe('route props', () => {
     await router.push('/fall-2025')
 
     const route = router.currentRoute.value
-    const matched = route.matched.find((r) => r.name === 'meet')!
+    // The meet's page, the shell around its tabs, takes the slug
+    const matched = route.matched.find((r) => typeof r.props.default === 'function')!
     const propsFn = matched.props.default as (r: typeof route) => Record<string, unknown>
     expect(propsFn(route)).toEqual({ slug: 'fall-2025' })
   })
@@ -116,5 +122,65 @@ describe('not-found route', () => {
     ['/roadmap', 'roadmap'],
   ])('still routes %s to %s', (path, name) => {
     expect(router.resolve(path).name).toBe(name)
+  })
+})
+
+describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.md)", () => {
+  const signedIn = () => mockGetSession.mockResolvedValue({ data: { user: { id: 'u1' } } })
+
+  it.each([
+    ['/fall', 'meet'],
+    ['/fall/quizzes', 'meet-quizzes'],
+    ['/fall/standings', 'meet-standings'],
+    ['/fall/roster', 'meet-roster'],
+    ['/fall/setup', 'meet-setup'],
+  ])('opens %s on its tab', async (path, name) => {
+    signedIn()
+    await router.push(`${path}?division=2`)
+    expect(router.currentRoute.value.name).toBe(name)
+    expect(router.currentRoute.value.query.division).toBe('2')
+  })
+
+  it.each([
+    ['/fall/schedule', 'meet', {}, ''],
+    ['/fall/results?division=2', 'meet-quizzes', { division: '2' }, ''],
+    ['/fall/stats', 'meet-standings', {}, ''],
+    ['/fall/stats/2C', 'meet-standings', { division: '2C' }, ''],
+    ['/fall/stats/settings', 'meet-setup', {}, '#stats'],
+  ])('takes the old address %s to its tab', async (path, name, query, hash) => {
+    signedIn()
+    await router.push(path)
+    const route = router.currentRoute.value
+    expect(route.name).toBe(name)
+    expect(route.params.slug).toBe('fall')
+    expect(route.query).toEqual(query)
+    expect(route.hash).toBe(hash)
+  })
+
+  it('asks a signed-out reader to sign in and brings them back to the tab and division (FR-005)', async () => {
+    mockGetSession.mockResolvedValue({ data: null })
+    await router.push('/fall/standings?division=2')
+    expect(router.currentRoute.value.name).toBe('home')
+    expect(router.currentRoute.value.query.next).toBe('/fall/standings?division=2')
+  })
+
+  it("keeps a guest who joined with the meet's code to its Schedule, Quizzes and Standings", async () => {
+    mockGetSession.mockResolvedValue({ data: null })
+    // The router's own copy of the guest sessions, fresh with the router
+    const { setGuestState } = await import('@qzr/ui')
+    setGuestState({
+      active: 7,
+      joined: [{ token: 't', meetId: 7, meetName: 'Fall', role: MeetRole.Viewer }],
+    })
+    for (const [path, name] of [
+      ['/7', 'meet'],
+      ['/7/quizzes', 'meet-quizzes'],
+      ['/7/standings', 'meet-standings'],
+      ['/7/roster', 'meet'],
+      ['/7/setup', 'meet'],
+    ]) {
+      await router.push(path!)
+      expect(router.currentRoute.value.name).toBe(name)
+    }
   })
 })

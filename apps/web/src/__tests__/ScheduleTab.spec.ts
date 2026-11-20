@@ -1,9 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { generateSchedule, newScheduleDocument, type ScheduleDocument } from '@qzr/shared'
 
+import { RouterView } from 'vue-router'
+
+// A signed-in member, so the meet page opens
+vi.mock('../composables/useAuth', () => {
+  const data = { user: { id: 'u1' } }
+  return {
+    authClient: { getSession: async () => ({ data }) },
+    useAuth: () => ({ session: ref({ data }) }),
+  }
+})
+
 import router from '../router'
-import ScheduleView from '../views/ScheduleView.vue'
 
 const meet = {
   id: 7,
@@ -40,21 +51,27 @@ function stubApi(answer: { status: number; body: unknown }) {
       const path = url.replace(/^https?:\/\/[^/]+/, '').replace(/\?.*$/, '')
       if (path === '/api/meets/fall') return reply(200, { meet, officialCodes: [] })
       if (path === '/api/my-meets') return reply(200, { memberships: [] })
+      if (path === '/api/meets/7/results/sender') return reply(403, { error: 'No' })
+      if (path === '/api/meets/7/day') return reply(200, day)
       if (path === '/api/meets/7/schedule/published') return reply(answer.status, answer.body)
       return reply(404, { error: path })
     }),
   )
 }
 
+const day = { phase: 'live', scheduleVersion: 1, quizzes: [], benches: {}, notOnSchedule: [] }
+
+/** The meet page on its Schedule tab, as a signed-in member opens it */
 async function open() {
-  const w = mount(ScheduleView, { props: { slug: 'fall' }, global: { plugins: [router] } })
+  await router.push('/fall')
+  const w = mount(RouterView, { global: { plugins: [router] } })
   await flushPromises()
   return w
 }
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe('the portal schedule (FR-050, FR-052)', () => {
+describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
   it('shows the published schedule in the view the API gives, quizzes linking to the scoresheet', async () => {
     const doc = published()
     stubApi({ status: 200, body: { document: doc, publishedAt: '2026-11-02', view: 'teams' } })

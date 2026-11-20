@@ -36,11 +36,87 @@ const router = createRouter({
       path: '/:slug',
       meta: { requiresAuth: true },
       children: [
+        // The meet's page: the tab in the path, the division in `?division=` (specs/010-meet-day)
         {
           path: '',
-          name: 'meet',
-          component: () => import('../views/QuizMeetView.vue'),
+          component: () => import('../views/MeetView.vue'),
           props: (route) => ({ slug: route.params.slug as string }),
+          children: [
+            {
+              path: '',
+              name: 'meet',
+              // A guest who joined with the meet's code reads the schedule too
+              meta: { guestAccess: true },
+              component: () => import('../views/meet/ScheduleTab.vue'),
+            },
+            {
+              path: 'quizzes',
+              name: 'meet-quizzes',
+              meta: { guestAccess: true },
+              component: () => import('../views/ResultsView.vue'),
+              props: (route) => ({ slug: route.params.slug as string }),
+            },
+            {
+              path: 'standings',
+              name: 'meet-standings',
+              meta: { guestAccess: true },
+              component: () => import('../views/StatsView.vue'),
+              props: (route) => ({ slug: route.params.slug as string }),
+            },
+            {
+              path: 'roster',
+              name: 'meet-roster',
+              component: () => import('../views/QuizMeetView.vue'),
+              props: (route) => ({ slug: route.params.slug as string }),
+            },
+            {
+              path: 'setup',
+              name: 'meet-setup',
+              component: () => import('../views/QuizMeetView.vue'),
+              props: (route) => ({ slug: route.params.slug as string }),
+            },
+          ],
+        },
+        // The pages the tabs replace, kept as addresses (FR-020)
+        {
+          path: 'schedule',
+          name: 'meet-schedule',
+          redirect: (to) => ({ name: 'meet', params: to.params, query: to.query, hash: to.hash }),
+        },
+        {
+          path: 'results',
+          name: 'meet-results',
+          redirect: (to) => ({
+            name: 'meet-quizzes',
+            params: to.params,
+            query: to.query,
+            hash: to.hash,
+          }),
+        },
+        {
+          path: 'stats',
+          name: 'meet-stats',
+          redirect: (to) => ({
+            name: 'meet-standings',
+            params: to.params,
+            query: to.query,
+            hash: to.hash,
+          }),
+        },
+        // Before `stats/:division`, which would take `settings` for a division
+        {
+          path: 'stats/settings',
+          name: 'meet-stats-settings',
+          redirect: (to) => ({ name: 'meet-setup', params: to.params, hash: '#stats' }),
+        },
+        {
+          path: 'stats/:division',
+          name: 'meet-division-stats',
+          redirect: (to) => ({
+            name: 'meet-standings',
+            params: { slug: to.params.slug },
+            query: { ...to.query, division: to.params.division as string },
+          }),
         },
         {
           path: 'churches/:churchId/teams',
@@ -52,20 +128,6 @@ const router = createRouter({
           }),
         },
         {
-          path: 'schedule',
-          name: 'meet-schedule',
-          component: () => import('../views/ScheduleView.vue'),
-          props: (route) => ({ slug: route.params.slug as string }),
-        },
-        {
-          path: 'results',
-          name: 'meet-results',
-          // A guest official who joined with a code may open it
-          meta: { guestAccess: true },
-          component: () => import('../views/ResultsView.vue'),
-          props: (route) => ({ slug: route.params.slug as string }),
-        },
-        {
           path: 'results/:resultId',
           name: 'meet-result',
           // The quiz's room officials, guests among them, correct it here
@@ -74,30 +136,6 @@ const router = createRouter({
           props: (route) => ({
             slug: route.params.slug as string,
             resultId: route.params.resultId as string,
-          }),
-        },
-        {
-          path: 'stats',
-          name: 'meet-stats',
-          // A guest viewer who joined with the meet's code may open it
-          meta: { guestAccess: true },
-          component: () => import('../views/StatsView.vue'),
-          props: (route) => ({ slug: route.params.slug as string }),
-        },
-        {
-          path: 'stats/settings',
-          name: 'meet-stats-settings',
-          component: () => import('../views/StatsSettingsView.vue'),
-          props: (route) => ({ slug: route.params.slug as string }),
-        },
-        {
-          path: 'stats/:division',
-          name: 'meet-division-stats',
-          meta: { guestAccess: true },
-          component: () => import('../views/DivisionStatsView.vue'),
-          props: (route) => ({
-            slug: route.params.slug as string,
-            division: route.params.division as string,
           }),
         },
         {
@@ -124,8 +162,12 @@ router.beforeEach(async (to) => {
   // A guest who joined this meet with a code may open its guest pages (`slug` is the meet's id then,
   // and only a value of digits is one: Number() would also read a code like 1e3)
   const slug = String(to.params.slug)
-  if (to.matched.some((r) => r.meta.guestAccess) && /^\d+$/.test(slug)) {
-    if (joinedSession(Number(slug))) return true
+  if (/^\d+$/.test(slug) && joinedSession(Number(slug))) {
+    if (to.matched.some((r) => r.meta.guestAccess)) return true
+    // The meet's other tabs are for its members: a guest is shown its schedule
+    if (to.name === 'meet-roster' || to.name === 'meet-setup') {
+      return { name: 'meet', params: to.params, query: to.query }
+    }
   }
   // Signed out: home, which asks them to sign in and then brings them back
   return { name: 'home', query: { next: to.fullPath } }
