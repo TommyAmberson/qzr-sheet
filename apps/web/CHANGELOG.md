@@ -16,6 +16,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-19
+
 ### Changed
 
 * The roadmap page lists guest access as available, and its Coming soon section follows the
@@ -45,6 +47,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   again, and that a lost code is replaced by generating a new one
 * The new meet form's division example is `2`, not `2C`: consolation lanes such as `2C` come from
   the schedule, not from the meet's divisions
+
+### Bundled contract
+
+* `@qzr/shared@1.16.0` - unchanged
 
 ## [0.30.1] - 2026-11-20
 
