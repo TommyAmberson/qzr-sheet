@@ -17,6 +17,18 @@ const errorOf = (res: Response) =>
 const userByEmail = async (test: AuthTestApp, email: string) =>
   (await test.db.select().from(schema.user).where(eq(schema.user.email, email)))[0]
 
+// Signing out leaves the browser signed in to Google, so without the
+// chooser Google would hand back the same account every time (#181).
+it('asks Google for its account chooser', async () => {
+  const test = await createAuthTestApp()
+  const start = await postAuth(test, 'sign-in/social', {
+    provider: 'google',
+    callbackURL: 'http://localhost:5174/qzr/',
+  })
+  const { url } = (await start.json()) as { url: string }
+  expect(new URL(url).searchParams.get('prompt')).toBe('select_account')
+})
+
 describe('provider sign-in onto an existing account', () => {
   it('lets Google sign into a verified Gmail account', async () => {
     const test = await createAuthTestApp()

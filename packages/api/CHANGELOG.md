@@ -17,6 +17,17 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.29.1] - 2026-11-19
+
+### Fixed
+
+* Signing in with Google after signing out shows Google's account chooser, instead of signing
+  straight back in as the account the browser is still signed in to (#181)
+
+### Bundled contract
+
+* `@qzr/shared@1.16.0` - unchanged
+
 ## [0.29.0] - 2026-11-19
 
 ### Added
