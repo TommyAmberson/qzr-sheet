@@ -28,13 +28,13 @@ export function useMeetDay(
   let asked = 0
   let reading = false
 
-  /** Read the meet day; `wanted` for a reader's own refresh, which always moves the beat */
-  async function refresh(wanted = true) {
+  /**
+   * Read the meet day; `wanted` for a reader's own refresh, which always moves the beat, and `quiet`
+   * for a read whose reader has just read its own data, so a change alone doesn't move it
+   */
+  async function refresh(wanted = true, quiet = false) {
     const id = meetId.value
     if (id === null) return
-    // A read already on its way answers for the 30 seconds too; each read may wait out the API
-    // preparing the day, so starting more would only poll it in parallel
-    if (!wanted && reading) return
     owed ||= wanted
     const ask = ++asked
     reading = true
@@ -46,7 +46,7 @@ export function useMeetDay(
       if (text === seen && !owed) return
       // The tabs read their own data on opening, so the opening answer leaves the beat be; one a
       // reader asked for moves it whenever it comes
-      const moves = owed || seen !== ''
+      const moves = owed || (seen !== '' && !quiet)
       seen = text
       owed = false
       day.value = answer
@@ -63,8 +63,10 @@ export function useMeetDay(
 
   function start() {
     stop()
+    // A read already on its way answers for the 30 seconds too; each read may wait out the API
+    // preparing the day, so starting more would only poll it in parallel
     timer = setInterval(() => {
-      if (visible()) void refresh(false)
+      if (visible() && !reading) void refresh(false)
     }, MEET_DAY_SECONDS * 1000)
   }
 
@@ -76,7 +78,7 @@ export function useMeetDay(
   // Coming back into view reads at once and restarts the 30 seconds from there
   function onVisibility() {
     if (!visible()) return stop()
-    void refresh(false)
+    if (!reading) void refresh(false)
     start()
   }
 
@@ -86,6 +88,9 @@ export function useMeetDay(
     day.value = null
     seen = ''
     owed = false
+    // A read of the last meet still on its way is dropped when it answers
+    asked++
+    reading = false
     void refresh(false)
   })
 

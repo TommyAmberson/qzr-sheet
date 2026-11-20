@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed, provide, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ApiError, findDivision, MeetRole, sameDivision, viewersSeeStats } from '@qzr/shared'
+import {
+  ApiError,
+  findDivision,
+  MeetRole,
+  sameDivision,
+  viewersSeeStats,
+  type MeetDay,
+} from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 
 import { getMeet, getMyMeets, getPublishedSchedule, getSender, type MeetDetail } from '../api'
@@ -90,30 +97,39 @@ async function senderOf(id: number): Promise<Sender | null> {
 }
 
 /** A signed-in reader's place in the meet: a superuser, and the churches they coach */
-async function readMembership(id: number) {
+async function membershipOf(id: number) {
   // Asked whatever the session shows, which may still be pending just after a reload
   const mine = await getMyMeets().catch((e: unknown) => {
     if (e instanceof ApiError && e.status === 401) return null
     throw e
   })
-  if (!mine) return
-  const { memberships } = mine
-  isSuperuser.value = memberships.some((m) => m.meetId === id && m.role === MeetRole.Superuser)
-  coachChurchIds.value = coachChurchIdsOf(memberships, id)
-}
-
-/** The published schedule; none published is null */
-async function readPublished(id: number) {
-  try {
-    const answer = await getPublishedSchedule(id)
-    published.value = { document: answer.document, view: answer.view }
-  } catch (e) {
-    if (!(e instanceof ApiError) || e.status !== 404) throw e
-    published.value = null
+  const memberships = mine?.memberships ?? []
+  return {
+    superuser: memberships.some((m) => m.meetId === id && m.role === MeetRole.Superuser),
+    coaches: coachChurchIdsOf(memberships, id),
   }
 }
 
+/** The published schedule; none published is null */
+async function publishedOf(id: number): Promise<PublishedOnPage | null> {
+  try {
+    const answer = await getPublishedSchedule(id)
+    return { document: answer.document, view: answer.view }
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== 404) throw e
+    return null
+  }
+}
+
+async function readPublished(id: number) {
+  published.value = await publishedOf(id)
+}
+
+/** The newest load; an older one still waiting, for a meet left behind, must not overwrite it */
+let loads = 0
+
 async function load() {
+  const current = ++loads
   loading.value = true
   error.value = ''
   published.value = undefined
@@ -122,22 +138,31 @@ async function load() {
     const loaded = await renew(Number(props.slug), async () => {
       const read = await getMeet(props.slug)
       const id = read.meet.id
-      const [who] = await Promise.all([senderOf(id), readMembership(id), readPublished(id)])
-      return { read, who }
+      const [who, membership, schedule] = await Promise.all([
+        senderOf(id),
+        membershipOf(id),
+        publishedOf(id),
+      ])
+      return { read, who, membership, schedule }
     })
+    if (current !== loads) return
     if (!loaded) {
       error.value = 'Join the meet again with its code to see it.'
       return
     }
     detail.value = loaded.read
     sender.value = loaded.who
+    isSuperuser.value = loaded.membership.superuser
+    coachChurchIds.value = loaded.membership.coaches
+    published.value = loaded.schedule
   } catch (e) {
+    if (current !== loads) return
     error.value =
       e instanceof ApiError && (e.status === 401 || e.status === 403)
         ? 'Join the meet again with its code to see it.'
         : (e as Error).message
   } finally {
-    loading.value = false
+    if (current === loads) loading.value = false
   }
 }
 
@@ -165,28 +190,39 @@ watch(
 )
 
 // Switching tabs reads the meet again, so the tab opened is current (FR-022); the tab reads its own
-// data on opening, so the beat moves only if the meet changed
+// data on opening, so the read leaves the beat be
 watch(
   () => route.name,
   (name, was) => {
-    if (was !== undefined && name !== was) void refresh(false)
+    if (was !== undefined && name !== was) void refresh(false, true)
   },
 )
 
+/**
+ * Whether the meet day names a schedule the page doesn't hold: one published since, or none now.
+ * The first day is checked this way because the page read the schedule alongside it, not after.
+ */
+function behind(answer: MeetDay): boolean {
+  const held = published.value
+  if (held === undefined) return false
+  if (answer.scheduleVersion === null) return held !== null
+  if (held === null) return true
+  const ids = new Set(held.document.quizzes.map((q) => q.id))
+  return answer.quizzes.some((q) => !ids.has(q.id))
+}
+
 // Another published version, or none, is read once for every tab, as is the schedule after the
-// meet's phase moves, since the phase decides whether it shows letters or team names. The first meet
-// day names what the page read on opening.
-watch(
-  () => (day.value ? `${day.value.scheduleVersion}|${day.value.phase}` : undefined),
-  (key, was) => {
-    const id = meet.value?.id
-    if (id === undefined || was === undefined || key === was) return
-    readPublished(id).then(
-      () => (readError.value = ''),
-      (e: Error) => (readError.value = `The schedule couldn't be read again: ${e.message}`),
-    )
-  },
-)
+// meet's phase moves, since the phase decides whether it shows letters or team names
+watch(day, (answer, was) => {
+  const id = meet.value?.id
+  if (id === undefined || !answer) return
+  const key = (d: MeetDay) => `${d.scheduleVersion}|${d.phase}`
+  if (was ? key(answer) === key(was) : !behind(answer)) return
+  readPublished(id).then(
+    () => (readError.value = ''),
+    (e: Error) => (readError.value = `The schedule couldn't be read again: ${e.message}`),
+  )
+})
 
 function scoresheetHref(scheduleQuizId: string): string {
   if (!meet.value) return '#'

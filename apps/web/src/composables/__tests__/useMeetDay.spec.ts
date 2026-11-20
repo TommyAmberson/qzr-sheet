@@ -124,6 +124,30 @@ describe('useMeetDay (FR-022)', () => {
     expect(state().beat.value).toBe(1)
   })
 
+  it('drops a read of the last meet that answers after switching to another', async () => {
+    let answer!: (d: MeetDay) => void
+    const read = vi
+      .fn<(meetId: number) => Promise<MeetDay>>()
+      .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
+      .mockImplementation(async () => day(2))
+    const meetId = ref<number | null>(7)
+    let state!: ReturnType<typeof useMeetDay>
+    mount(
+      defineComponent({
+        setup() {
+          state = useMeetDay(meetId, read)
+          return () => h('div')
+        },
+      }),
+    )
+    meetId.value = 8
+    await flush()
+    answer(day(1))
+    await flush()
+    expect(read).toHaveBeenLastCalledWith(8)
+    expect(state.day.value?.scheduleVersion).toBe(2)
+  })
+
   it('stops reading once the page is closed', async () => {
     const read = vi.fn(async () => day(1))
     const { wrapper } = open(read)

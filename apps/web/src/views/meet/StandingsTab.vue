@@ -26,7 +26,9 @@ import {
  */
 const route = useRoute()
 const page = useMeetPage()
-const { slug, meet, isAdmin, beat, statsHidden } = page
+const { slug, meet, isAdmin, beat, statsHidden, day } = page
+/** A non-admin's results wait for the meet day, which says whether they are shown yet */
+const waiting = computed(() => !isAdmin.value && day.value === null)
 /** The division shown: the one picked, or the meet's first */
 const division = computed(() => page.division.value ?? meet.value?.divisions[0] ?? null)
 
@@ -56,7 +58,7 @@ async function load() {
   const current = ++loads
   const meetId = meet.value?.id
   // Nothing is shown before the meet is under way, so nothing is read for it
-  if (meetId === undefined || division.value === null || statsHidden.value) {
+  if (meetId === undefined || division.value === null || statsHidden.value || waiting.value) {
     loading.value = false
     return
   }
@@ -82,7 +84,7 @@ async function load() {
 
 // Read on opening and for another division or the viewer's view, then kept current on the beat
 watch(
-  [() => meet.value?.id, division, asViewer],
+  [() => meet.value?.id, division, asViewer, waiting],
   () => {
     stats.value = null
     void load()
@@ -139,7 +141,7 @@ async function keep(resultId: number) {
     <p v-else-if="statsHidden" class="state-msg">
       Nothing to see yet: results and standings show once the meet is under way.
     </p>
-    <p v-else-if="loading" class="state-msg">Loading…</p>
+    <p v-else-if="loading || waiting" class="state-msg">Loading…</p>
     <p v-else-if="error && !stats" class="state-msg state-msg--error">{{ error }}</p>
 
     <template v-else-if="meet && stats">

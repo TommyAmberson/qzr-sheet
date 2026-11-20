@@ -11,12 +11,12 @@ import { isFailedImport, pageLoaded, recoverFromStaleBuild } from '../staleBuild
 
 /** A page the meet's tabs replace, sent to its tab with its address's division and hash */
 const toTab =
-  (name: string) =>
+  (name: string, hash?: string) =>
   (to: RouteLocation): RouteLocationRaw => ({
     name,
     params: to.params,
     query: to.query,
-    hash: to.hash,
+    hash: hash ?? to.hash,
   })
 
 const router = createRouter({
@@ -109,7 +109,7 @@ const router = createRouter({
         {
           path: 'stats/settings',
           name: 'meet-stats-settings',
-          redirect: (to) => ({ name: 'meet-setup', params: to.params, hash: '#stats' }),
+          redirect: toTab('meet-setup', '#stats'),
         },
         {
           path: 'stats/:division',
