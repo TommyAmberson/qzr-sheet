@@ -16,6 +16,12 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Added
+
+* A Scoring template section on the meet page: an admin uploads or replaces the meet's
+  `Scoresheet.ots`, and anyone on the page downloads it, so a room can fall back to LibreOffice
+  (#52)
+
 ## [0.31.0] - 2026-11-19
 
 ### Changed

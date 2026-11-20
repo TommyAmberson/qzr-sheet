@@ -25,7 +25,7 @@ export {
   QuestionCategory,
 } from './quizFile'
 export type { QuizFile } from './quizFile'
-export { ApiError, createApiClient } from './apiClient'
+export { ApiError, createApiClient, createFileClient } from './apiClient'
 export { createAppAuthClient } from './authClient'
 export type { PendingProviderStep } from './authClient'
 export {

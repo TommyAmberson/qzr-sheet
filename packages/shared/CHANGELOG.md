@@ -30,6 +30,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * The ODS reader and writer, `readOds` and `fillOts` (with `odsSupportsFormat` and
   `ODS_TWENTY_ONLY`), moved here from the scoresheet so the portal reads and fills sheets the same
   way. `fflate` is now a dependency of this package.
+* `createFileClient`, the API client's twin for files: it answers with the response itself rather
+  than its JSON, and sends a body without a JSON content type.
 
 ## [1.16.0] - 2026-11-19
 

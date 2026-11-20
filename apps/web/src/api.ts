@@ -1,4 +1,4 @@
-import { ApiError, createApiClient, MeetRole } from '@qzr/shared'
+import { ApiError, createApiClient, createFileClient, MeetRole } from '@qzr/shared'
 import type {
   AttentionItem,
   DivisionStateValue,
@@ -34,6 +34,8 @@ declare const __API_URL__: string
 /** Requests carry the guest token of the meet they're for (see `withGuestToken`) */
 const baseRequest = createApiClient(__API_URL__ || '')
 const request = withGuestToken(baseRequest, joinMeetGuest)
+/** The same, for files: answers with the response, whose bytes and headers the caller reads */
+const fileRequest = withGuestToken(createFileClient(__API_URL__ || ''), joinMeetGuest)
 
 // ---- Types ----
 
@@ -467,6 +469,65 @@ export function exportRoster(meetId: number): Promise<{ entries: RosterExportEnt
 }
 
 // ---- Rooms ----
+
+// ---- Scoring template ----
+
+/** The meet's scoring template as stored: its name and when it was uploaded */
+export interface TemplateInfo {
+  fileName: string
+  uploadedAt: Date
+}
+
+/** The file name a download's Content-Disposition gives, or null */
+function fileNameOf(res: Response): string | null {
+  const encoded = /filename\*=UTF-8''([^;]+)/.exec(
+    res.headers.get('Content-Disposition') ?? '',
+  )?.[1]
+  return encoded ? decodeURIComponent(encoded) : null
+}
+
+function templateInfoOf(res: Response): TemplateInfo {
+  return {
+    fileName: fileNameOf(res) ?? 'Scoresheet.ots',
+    uploadedAt: new Date(res.headers.get('Last-Modified') ?? Date.now()),
+  }
+}
+
+/** The meet's template, without its bytes; null while it has none */
+export async function getTemplateInfo(meetId: number): Promise<TemplateInfo | null> {
+  try {
+    return templateInfoOf(
+      await fileRequest<Response>(`/api/meets/${meetId}/template`, { method: 'HEAD' }),
+    )
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+}
+
+/** The meet's template file, to save or fill */
+export async function downloadTemplate(
+  meetId: number,
+): Promise<TemplateInfo & { bytes: Uint8Array<ArrayBuffer> }> {
+  const res = await fileRequest<Response>(`/api/meets/${meetId}/template`)
+  return { ...templateInfoOf(res), bytes: new Uint8Array(await res.arrayBuffer()) }
+}
+
+/** Store a file as the meet's template, replacing any earlier one */
+export async function uploadTemplate(meetId: number, file: File): Promise<TemplateInfo> {
+  const stored = await request<{ fileName: string; uploadedAt: string }>(
+    `/api/meets/${meetId}/template`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name),
+      },
+      body: file,
+    },
+  )
+  return { fileName: stored.fileName, uploadedAt: new Date(stored.uploadedAt) }
+}
 
 export interface MeetRoom {
   id: number
