@@ -16,6 +16,22 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-11-20
+
+### Added
+
+* Setup's stats section has a "Question types" choice: a meet that doesn't record question types can
+  turn off the warnings that a quizzer's correct answers by type don't add up
+
+### Fixed
+
+* Discard in the stats settings undoes unsaved changes again; it had stopped on an error, leaving
+  them
+
+### Bundled contract
+
+* `@qzr/shared@1.19.0` - bumped from 1.18.0
+
 ## [0.33.0] - 2026-11-20
 
 ### Added
