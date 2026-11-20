@@ -39,6 +39,12 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
   left, as a no-jump on that question, which is how the app records a bonus that falls to an empty
   chair, instead of as a mark in an empty seat.
 
+### Fixed
+
+* `fillOts` writes a no-jump on an A or B question (`16A` to `20B`) into its question's column, as
+  it does that question's answers. It left them out, so an exported sheet lost them, and its
+  placements and scores could change when read back.
+
 ## [1.16.0] - 2026-11-19
 
 ### Added

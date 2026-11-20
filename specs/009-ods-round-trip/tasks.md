@@ -117,7 +117,7 @@ stats.
 ### Tests for User Story 2
 
 - [ ] T015 [P] [US2] Add failing cases to `apps/web/src/__tests__/results.spec.ts` for the archive contents built from a results list: one file per quiz, named by the scoresheet's file stem, unique across divisions; a division's archive holds only that division; a 15-question quiz is left out of an `.ods` archive and listed; a quiz past Q26 is filled through Q26 and listed with the questions left out; an empty list builds nothing (spec FR-009, FR-010, FR-016)
-- [ ] T016 [P] [US2] Add a round-trip case to `packages/shared/src/ods/__tests__/fillOts.spec.ts`, extending its template fixture: a 20-question quiz with errors on A/B questions and two overtime rounds, filled with `fillOts` and read back with `readOds`, gives the same scores, placements and marks (spec FR-011, SC-005); and reading the filled sheet a second time gives an identical quiz, so a re-upload is unchanged (FR-003a)
+- [X] T016 [P] [US2] Add a round-trip case to `packages/shared/src/ods/__tests__/fillOts.spec.ts`, extending its template fixture: a 20-question quiz with errors on A/B questions and two overtime rounds, filled with `fillOts` and read back with `readOds`, gives the same scores, placements and marks (spec FR-011, SC-005); and reading the filled sheet a second time gives an identical quiz, so a re-upload is unchanged (FR-003a)
 
 ### Implementation for User Story 2
 

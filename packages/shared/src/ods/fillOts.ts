@@ -159,8 +159,9 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   }
 
   // --- 7. No-jump row ---
+  // A no-jump on an A or B question goes in its question's column, as its answers do
   for (const col of cols) {
-    const odsColIdx = colKeyToOdsCol.get(col.key)
+    const odsColIdx = colKeyToOdsCol.get(col.key) ?? colKeyToOdsCol.get(`${col.number}`)
     if (odsColIdx === undefined) continue
     if (noJumps.get(col.key)) {
       sheetXml = patchCell(sheetXml, noJumpRow, odsColIdx, 'x')
