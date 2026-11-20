@@ -64,13 +64,12 @@ const router = createRouter({
             {
               path: 'roster',
               name: 'meet-roster',
-              component: () => import('../views/QuizMeetView.vue'),
-              props: (route) => ({ slug: route.params.slug as string }),
+              component: () => import('../views/meet/RosterTab.vue'),
             },
             {
               path: 'setup',
               name: 'meet-setup',
-              component: () => import('../views/QuizMeetView.vue'),
+              component: () => import('../views/meet/SetupTab.vue'),
               props: (route) => ({ slug: route.params.slug as string }),
             },
           ],

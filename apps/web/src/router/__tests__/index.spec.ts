@@ -10,7 +10,8 @@ vi.mock('../../composables/useAuth', () => ({
 
 // Stub the view components so we don't need the full Vue compile chain
 vi.mock('../../views/HomeView.vue', () => ({ default: { template: '<div />' } }))
-vi.mock('../../views/QuizMeetView.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../../views/meet/RosterTab.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('../../views/meet/SetupTab.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/MeetTeamsView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/NotFoundView.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('../../views/AccountView.vue', () => ({ default: { template: '<div />' } }))

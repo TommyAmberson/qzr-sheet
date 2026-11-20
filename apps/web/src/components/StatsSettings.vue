@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   ApiError,
   MOMENTS,
@@ -38,7 +37,6 @@ import {
  * viewers see and from when, and how the meet scores and ranks
  */
 const props = defineProps<{ slug: string }>()
-const router = useRouter()
 
 const meet = ref<MeetDetail['meet'] | null>(null)
 const divisions = ref<DivisionState[]>([])
@@ -165,16 +163,12 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
 </script>
 
 <template>
-  <div class="container">
-    <button class="back-link" @click="router.push({ name: 'meet-stats', params: { slug } })">
-      ← Stats
-    </button>
-
+  <div class="stats-settings">
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error && !meet" class="state-msg state-msg--error">{{ error }}</p>
 
     <template v-else-if="meet && draft">
-      <h2 class="page-title">Stats settings: {{ meet.name }}</h2>
+      <h3 class="section-title">Stats</h3>
       <p v-if="error" class="state-msg state-msg--error">{{ error }}</p>
       <p v-if="done" class="locked">
         <strong>The meet is done.</strong> Settings are locked; reopen it for review to change them.

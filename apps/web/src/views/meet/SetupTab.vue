@@ -1,51 +1,26 @@
 <script setup lang="ts">
-import { vFocus } from '../directives'
+import { vFocus } from '../../directives'
 import { DivisionInput } from '@qzr/ui'
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  MeetRole,
-  MEET_PHASES,
-  teamDisplayName,
-  type DivisionTeamNames,
-  type MeetPhase,
-  bareDivision,
-  divisionTitle,
-  findDivision,
-} from '@qzr/shared'
+import { MeetRole, MEET_PHASES, type MeetPhase, bareDivision, findDivision } from '@qzr/shared'
 import {
   getMeet,
   getMyMeets,
-  getTeamNames,
-  setTeamNames,
   updateMeet,
-  listChurches,
-  rotateAdminCode,
-  createChurch,
-  deleteChurch,
-  updateChurch,
-  rotateChurchCoachCode,
   createOfficialCode,
   deleteOfficialCode,
-  rotateOfficialCode,
-  importRoster,
-  exportRoster,
   setMeetPhase,
   type MeetDetail,
   type MeetMembership,
-  type Church,
-  type OfficialCode,
-  type MeetMember,
-  listMembers,
-  revokeMember,
   getTemplateInfo,
   downloadTemplate,
   uploadTemplate,
   type TemplateInfo,
-} from '../api'
-import { saveFile } from '../downloads'
-import { parseRosterCsv, serializeRosterCsv, type RosterEntry } from '../rosterCsv'
-import { coachChurchIds as deriveCoachChurchIds } from '../meetAccess'
+} from '../../api'
+import { saveFile } from '../../downloads'
+import MeetAccessDialog from '../../components/MeetAccessDialog.vue'
+import StatsSettings from '../../components/StatsSettings.vue'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
@@ -53,22 +28,14 @@ const router = useRouter()
 const detail = ref<MeetDetail | null>(null)
 const meetId = computed(() => detail.value?.meet.id ?? null)
 const membership = ref<MeetMembership | null>(null)
-const churches = ref<Church[]>([])
 const loading = ref(true)
 const error = ref('')
 
 const role = computed(() => membership.value?.role ?? null)
 const isSuperuser = computed(() => role.value === MeetRole.Superuser)
 const isAdmin = computed(() => role.value === MeetRole.Admin || role.value === MeetRole.Superuser)
-/** An official sees their rooms' quizzes on the results page */
-const isOfficial = computed(() => role.value === MeetRole.Official)
 
-const myCoachChurchIds = ref<Set<number>>(new Set())
-
-function canEditChurchName(churchId: number): boolean {
-  if (isAdmin.value) return true
-  return myCoachChurchIds.value.has(churchId)
-}
+const access = ref<InstanceType<typeof MeetAccessDialog> | null>(null)
 
 // Inline editing
 const editing = ref(false)
@@ -82,17 +49,6 @@ const editForm = ref({
 const newDivision = ref('')
 const saving = ref(false)
 const saveError = ref('')
-
-// Add church
-const showAddChurch = ref(false)
-const newChurchForm = ref({ name: '', shortName: '' })
-const addingChurch = ref(false)
-const addChurchError = ref('')
-
-// Edit church
-const editingChurchId = ref<number | null>(null)
-const editChurchForm = ref({ name: '', shortName: '' })
-const savingChurch = ref(false)
 
 // Add room
 const showAddRoom = ref(false)
@@ -153,22 +109,6 @@ async function advancePhase(direction: 'advance' | 'revert') {
   }
 }
 
-// Access dialog
-interface AccessDialog {
-  kind: 'admin' | 'church' | 'official'
-  id?: number
-  title: string
-  description: string
-  revealedCode: string | null
-  busy: boolean
-  members: MeetMember[]
-  membersLoading: boolean
-}
-const accessDialog = ref<AccessDialog | null>(null)
-// Only a superuser removes admins, whether one at a time or by clearing on rotate
-const canRemoveMembers = computed(() => accessDialog.value?.kind !== 'admin' || isSuperuser.value)
-const dialogRef = ref<HTMLDialogElement | null>(null)
-
 async function load() {
   try {
     const [detailRes, myMeetsRes] = await Promise.all([getMeet(props.slug), getMyMeets()])
@@ -179,29 +119,17 @@ async function load() {
       router.replace({ name: 'home' })
       return
     }
-    myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, id)
     templateError.value = ''
-    const [churchRes, templateRes] = await Promise.all([
-      listChurches(id),
-      // A template that can't be looked up leaves the rest of the page as it is, and says so
-      getTemplateInfo(id).catch((e: Error) => {
-        templateError.value = `Couldn't look up the meet's template: ${e.message}`
-        return null
-      }),
-    ])
-    churches.value = churchRes.churches
-    template.value = templateRes
+    // A template that can't be looked up leaves the rest of the page as it is, and says so
+    template.value = await getTemplateInfo(id).catch((e: Error) => {
+      templateError.value = `Couldn't look up the meet's template: ${e.message}`
+      return null
+    })
   } catch (e) {
     error.value = (e as Error).message
   } finally {
     loading.value = false
   }
-}
-
-function churchSummary(church: Church): string {
-  const count = church.teamCount
-  if (count === 0) return 'No teams'
-  return count === 1 ? '1 team' : `${count} teams`
 }
 
 // ---- Scoring template ----
@@ -236,54 +164,6 @@ async function onTemplatePicked(event: Event) {
     templateError.value = (e as Error).message
   } finally {
     uploadingTemplate.value = false
-  }
-}
-
-// ---- Team names (Story 6) ----
-
-// Hidden: team names come from the roster, and this separate list is to be removed (#186)
-const teamNamesShown = false
-
-/** Each division's team names as the admin edits them, one per line */
-const teamNameText = ref<Record<string, string>>({})
-const teamNamesOpen = ref(false)
-const teamNamesSaving = ref(false)
-const teamNamesError = ref('')
-/** The divisions to list names for: the meet's, then any others the saved list has */
-const teamNameDivisions = computed(() => [
-  ...new Set([...(detail.value?.meet.divisions ?? []), ...Object.keys(teamNameText.value)]),
-])
-
-function showTeamNames(lists: DivisionTeamNames[]) {
-  teamNameText.value = Object.fromEntries(lists.map((l) => [l.division, l.names.join('\n')]))
-}
-
-async function openTeamNames() {
-  if (meetId.value === null) return
-  teamNamesError.value = ''
-  try {
-    showTeamNames(await getTeamNames(meetId.value))
-    teamNamesOpen.value = true
-  } catch (e) {
-    teamNamesError.value = (e as Error).message
-  }
-}
-
-async function saveTeamNames() {
-  if (meetId.value === null) return
-  teamNamesSaving.value = true
-  teamNamesError.value = ''
-  try {
-    const lists = teamNameDivisions.value.map((division) => ({
-      division,
-      names: (teamNameText.value[division] ?? '').split('\n'),
-    }))
-    showTeamNames(await setTeamNames(meetId.value, lists))
-    teamNamesOpen.value = false
-  } catch (e) {
-    teamNamesError.value = (e as Error).message
-  } finally {
-    teamNamesSaving.value = false
   }
 }
 
@@ -332,66 +212,6 @@ async function saveEdit() {
   }
 }
 
-// ---- Add church ----
-
-async function handleAddChurch() {
-  addChurchError.value = ''
-  addingChurch.value = true
-  try {
-    const res = await createChurch(meetId.value!, newChurchForm.value)
-    churches.value.push({ ...res.church, teamCount: 0 })
-    newChurchForm.value = { name: '', shortName: '' }
-    showAddChurch.value = false
-    openChurchCodeDialog(res.church, res.coachCode)
-  } catch (e) {
-    addChurchError.value = (e as Error).message
-  } finally {
-    addingChurch.value = false
-  }
-}
-
-async function handleDeleteChurch(churchId: number) {
-  const ch = churches.value.find((c) => c.id === churchId)
-  if (!ch) return
-  if (!confirm(`Delete ${ch.name}? This will remove all its teams, rosters, and coach access.`))
-    return
-  try {
-    await deleteChurch(churchId)
-    churches.value = churches.value.filter((c) => c.id !== churchId)
-  } catch (e) {
-    alert((e as Error).message)
-  }
-}
-
-function startEditChurch(c: Church) {
-  editingChurchId.value = c.id
-  editChurchForm.value = { name: c.name, shortName: c.shortName === c.name ? '' : c.shortName }
-}
-
-function cancelEditChurch() {
-  editingChurchId.value = null
-}
-
-async function saveEditChurch(churchId: number) {
-  const name = editChurchForm.value.name.trim()
-  if (!name) return
-  savingChurch.value = true
-  try {
-    const data: { name: string; shortName?: string } = { name }
-    const short = editChurchForm.value.shortName.trim()
-    if (short) data.shortName = short
-    else data.shortName = name
-    const res = await updateChurch(churchId, data)
-    const idx = churches.value.findIndex((c) => c.id === churchId)
-    if (idx !== -1) churches.value[idx] = res.church
-    editingChurchId.value = null
-  } catch (e) {
-    alert((e as Error).message)
-  } finally {
-    savingChurch.value = false
-  }
-}
-
 // ---- Add room ----
 
 async function handleAddRoom() {
@@ -402,7 +222,7 @@ async function handleAddRoom() {
     detail.value!.officialCodes.push(res.officialCode)
     newRoomLabel.value = ''
     showAddRoom.value = false
-    openRoomCodeDialog(res.officialCode, res.code)
+    access.value?.openRoomCodeDialog(res.officialCode, res.code)
   } catch (e) {
     addRoomError.value = (e as Error).message
   } finally {
@@ -418,121 +238,6 @@ async function handleDeleteRoom(codeId: number) {
   } catch (e) {
     alert((e as Error).message)
   }
-}
-
-// ---- Access dialog ----
-
-function openAccessDialog(d: Omit<AccessDialog, 'busy' | 'members' | 'membersLoading'>) {
-  accessDialog.value = { ...d, busy: false, members: [], membersLoading: false }
-  nextTick(() => dialogRef.value?.showModal())
-  // A code just created has no members yet
-  if (!d.revealedCode) loadDialogMembers()
-}
-
-function closeAccessDialog() {
-  dialogRef.value?.close()
-  accessDialog.value = null
-}
-
-async function loadDialogMembers(d = accessDialog.value) {
-  if (!d) return
-  d.membersLoading = true
-  const res = await listMembers(meetId.value!).catch(() => null)
-  if (res) {
-    d.members = res.members.filter((m) => {
-      if (d.kind === 'admin') return m.role === MeetRole.Admin
-      if (d.kind === 'church') return m.role === MeetRole.HeadCoach && m.churchId === d.id
-      if (d.kind === 'official') return m.role === MeetRole.Official && m.officialCodeId === d.id
-      return false
-    })
-  }
-  d.membersLoading = false
-}
-
-function openAdminCodeDialog() {
-  openAccessDialog({
-    kind: 'admin',
-    title: 'Admin Access',
-    description:
-      'Share this code with other admins. Anyone who joins with it gets full management access to this meet.',
-    revealedCode: null,
-  })
-}
-
-function openChurchCodeDialog(
-  ch: Pick<Church, 'id' | 'shortName'>,
-  revealedCode: string | null = null,
-) {
-  openAccessDialog({
-    kind: 'church',
-    id: ch.id,
-    title: `Coach Access — ${ch.shortName}`,
-    description:
-      'Share this code with the head coach. They can join the meet and manage their roster.',
-    revealedCode,
-  })
-}
-
-function openRoomCodeDialog(oc: OfficialCode, revealedCode: string | null = null) {
-  openAccessDialog({
-    kind: 'official',
-    id: oc.id,
-    title: `Room Access — ${oc.label}`,
-    description: 'Share this code with the quizmaster or official for this room.',
-    revealedCode,
-  })
-}
-
-async function handleGenerateCode(clearMembers: boolean) {
-  const d = accessDialog.value
-  if (!d) return
-  if (clearMembers && !confirm('Generate a new code and remove all current members?')) return
-  d.busy = true
-  d.revealedCode = null
-  try {
-    if (d.kind === 'admin') {
-      const res = await rotateAdminCode(meetId.value!, clearMembers)
-      d.revealedCode = res.adminCode
-    } else if (d.kind === 'church' && d.id) {
-      const res = await rotateChurchCoachCode(d.id, clearMembers)
-      d.revealedCode = res.coachCode
-    } else if (d.kind === 'official' && d.id) {
-      const res = await rotateOfficialCode(meetId.value!, d.id, clearMembers)
-      d.revealedCode = res.code
-    }
-    // Emptied at once, then read back from the server, which shows what the rotation actually
-    // removed (an API not yet updated rotates only); a failed read keeps it empty
-    if (clearMembers) d.members = []
-    await loadDialogMembers(d)
-  } catch (e) {
-    alert((e as Error).message)
-  } finally {
-    d.busy = false
-  }
-}
-
-async function handleRevokeMember(member: MeetMember) {
-  const d = accessDialog.value
-  if (!d) return
-  if (!confirm(`Remove ${member.name} (${member.email})?`)) return
-  d.busy = true
-  try {
-    await revokeMember(meetId.value!, member.userId, {
-      role: member.role,
-      churchId: member.churchId,
-      officialCodeId: member.officialCodeId,
-    })
-    d.members = d.members.filter((m) => m.userId !== member.userId)
-  } catch (e) {
-    alert((e as Error).message)
-  } finally {
-    d.busy = false
-  }
-}
-
-async function copyCode() {
-  const code = accessDialog.value?.revealedCode
-  if (code) await navigator.clipboard.writeText(code)
 }
 
 async function copyViewerCode() {
@@ -551,69 +256,11 @@ async function shareMeet() {
   }
 }
 
-// ---- Roster import / export ----
-
-const importingRoster = ref(false)
-const importRosterError = ref('')
-const rosterFileInput = ref<HTMLInputElement | null>(null)
-
-function triggerRosterImport() {
-  rosterFileInput.value?.click()
-}
-
-async function handleRosterFile(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  importingRoster.value = true
-  importRosterError.value = ''
-  try {
-    const text = await file.text()
-    const entries = parseRosterCsv(text)
-    if (entries.length === 0) {
-      importRosterError.value = 'No roster entries found in file.'
-      return
-    }
-    await applyRosterImport(entries)
-  } catch (e) {
-    importRosterError.value = (e as Error).message
-  } finally {
-    importingRoster.value = false
-    if (rosterFileInput.value) rosterFileInput.value.value = ''
-  }
-  // Shown as the meet now has it, whatever the import did
-  await load()
-}
-
-async function applyRosterImport(entries: RosterEntry[]) {
-  await importRoster(
-    meetId.value!,
-    entries.map((e) => ({
-      church: e.church,
-      division: e.division,
-      teamName: e.teamName,
-      quizzerName: e.quizzerName,
-    })),
-  )
-}
-
-async function handleExportRoster() {
-  const res = await exportRoster(meetId.value!)
-  const entries: RosterEntry[] = res.entries.map((e) => ({
-    division: e.division,
-    teamName: teamDisplayName({ shortName: e.churchShortName, number: e.teamNumber }),
-    quizzerName: e.quizzerName,
-    church: e.churchShortName,
-  }))
-  saveFile(serializeRosterCsv(entries), `${detail.value?.meet.name ?? 'roster'}.csv`, 'text/csv')
-}
-
 onMounted(load)
 </script>
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'home' })">← QuizMeets</button>
-
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
 
@@ -623,15 +270,7 @@ onMounted(load)
         <template v-if="!editing">
           <div class="meet-info">
             <div class="meet-title-row">
-              <h2 class="page-title">{{ detail.meet.name }}</h2>
-              <span class="meet-meta"
-                >{{ detail.meet.dateFrom
-                }}{{
-                  detail.meet.dateTo && detail.meet.dateTo !== detail.meet.dateFrom
-                    ? ` – ${detail.meet.dateTo}`
-                    : ''
-                }}</span
-              >
+              <h3 class="section-title">Details</h3>
             </div>
             <div v-if="detail.meet.divisions.length" class="division-tags">
               <span class="division-tags-label">Divisions:</span>
@@ -816,38 +455,12 @@ onMounted(load)
         <div class="item-list">
           <div class="item-row">
             <span class="item-name item-name--static">Admin code</span>
-            <button class="code-btn" title="Manage admin code" @click="openAdminCodeDialog">
+            <button
+              class="code-btn"
+              title="Manage admin code"
+              @click="access?.openAdminCodeDialog()"
+            >
               🔑
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Schedule -->
-      <div class="section">
-        <div class="section-header">
-          <h3 class="section-title">Schedule</h3>
-          <div class="section-actions">
-            <button
-              class="btn btn--secondary btn--sm"
-              @click="router.push({ name: 'meet-schedule', params: { slug } })"
-            >
-              Open schedule →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Results -->
-      <div v-if="isAdmin || isOfficial" class="section">
-        <div class="section-header">
-          <h3 class="section-title">Results</h3>
-          <div class="section-actions">
-            <button
-              class="btn btn--secondary btn--sm"
-              @click="router.push({ name: 'meet-results', params: { slug } })"
-            >
-              Open results →
             </button>
           </div>
         </div>
@@ -890,198 +503,6 @@ onMounted(load)
         <p v-if="templateError" class="field-error">{{ templateError }}</p>
       </div>
 
-      <!-- Stats: what the meet's settings give each member, and everything for admins -->
-      <div class="section">
-        <div class="section-header">
-          <h3 class="section-title">Stats</h3>
-          <div class="section-actions">
-            <button
-              class="btn btn--secondary btn--sm"
-              @click="router.push({ name: 'meet-stats', params: { slug } })"
-            >
-              Open stats →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Team names, hidden until removed (#186) -->
-      <div v-if="isAdmin && teamNamesShown" class="section">
-        <div class="section-header">
-          <h3 class="section-title">Team names</h3>
-          <div v-if="!teamNamesOpen" class="section-actions">
-            <button class="btn btn--secondary btn--sm" @click="openTeamNames">Edit</button>
-          </div>
-        </div>
-        <p v-if="!teamNamesOpen" class="state-msg">
-          Optional: each division's team names, offered in the scoresheet so officials rarely type
-          them.
-        </p>
-        <form v-else class="edit-card" @submit.prevent="saveTeamNames">
-          <p v-if="teamNameDivisions.length === 0" class="state-msg">
-            Add the meet's divisions first (Edit meet), then list each one's teams.
-          </p>
-          <label v-for="division in teamNameDivisions" :key="division" class="field-label">
-            {{ divisionTitle(division) }}
-            <span class="field-hint">One team per line</span>
-            <textarea v-model="teamNameText[division]" class="field-input" rows="5" />
-          </label>
-          <div class="edit-card-actions">
-            <button
-              type="button"
-              class="btn btn--secondary btn--sm"
-              :disabled="teamNamesSaving"
-              @click="teamNamesOpen = false"
-            >
-              Cancel
-            </button>
-            <button type="submit" class="btn btn--primary btn--sm" :disabled="teamNamesSaving">
-              Save
-            </button>
-          </div>
-        </form>
-        <p v-if="teamNamesError" class="state-msg state-msg--error">{{ teamNamesError }}</p>
-      </div>
-
-      <!-- Churches -->
-      <div id="churches" class="section">
-        <div class="section-header">
-          <h3 class="section-title">Churches</h3>
-          <div v-if="isAdmin" class="section-actions">
-            <button
-              class="btn btn--secondary btn--sm"
-              :disabled="importingRoster"
-              @click="triggerRosterImport"
-            >
-              {{ importingRoster ? 'Importing…' : '⤒ Import Roster' }}
-            </button>
-            <button
-              v-if="churches.length"
-              class="btn btn--secondary btn--sm"
-              @click="handleExportRoster"
-            >
-              ⤓ Export Roster
-            </button>
-            <input
-              ref="rosterFileInput"
-              type="file"
-              accept=".csv,.tsv,.txt"
-              style="display: none"
-              @change="handleRosterFile"
-            />
-          </div>
-        </div>
-        <p v-if="importRosterError" class="field-error">{{ importRosterError }}</p>
-        <p v-if="churches.length === 0 && !isAdmin" class="state-msg">No churches yet.</p>
-        <ul v-if="churches.length" class="item-list">
-          <li v-for="c in churches" :key="c.id" class="item-row">
-            <template v-if="editingChurchId === c.id">
-              <form class="church-edit-row" @submit.prevent="saveEditChurch(c.id)">
-                <input
-                  v-model="editChurchForm.name"
-                  class="field-input"
-                  placeholder="Full name"
-                  required
-                />
-                <input
-                  v-model="editChurchForm.shortName"
-                  class="field-input field-input--short"
-                  placeholder="Short (optional)"
-                />
-                <button type="submit" class="btn btn--primary btn--sm" :disabled="savingChurch">
-                  {{ savingChurch ? '…' : 'Save' }}
-                </button>
-                <button type="button" class="btn btn--ghost btn--sm" @click="cancelEditChurch">
-                  Cancel
-                </button>
-              </form>
-            </template>
-            <template v-else>
-              <span class="church-name">
-                <span class="church-name-full">{{ c.name }}</span>
-                <span v-if="c.shortName !== c.name" class="church-name-short">
-                  ({{ c.shortName }})
-                </span>
-                <button
-                  v-if="canEditChurchName(c.id)"
-                  class="church-pencil"
-                  title="Edit church name"
-                  @click.stop="startEditChurch(c)"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="10"
-                    height="10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </button>
-              </span>
-              <span class="item-meta">{{ churchSummary(c) }}</span>
-              <button
-                v-if="isAdmin || myCoachChurchIds.has(c.id)"
-                class="row-btn"
-                @click="
-                  router.push({
-                    name: 'meet-church-teams',
-                    params: { slug, churchId: c.id },
-                  })
-                "
-              >
-                Roster
-              </button>
-              <button
-                v-if="isAdmin"
-                class="code-btn"
-                title="Manage coach code"
-                @click.stop="openChurchCodeDialog(c)"
-              >
-                🔑
-              </button>
-              <button
-                v-if="isAdmin"
-                class="row-btn row-btn--danger"
-                @click.stop="handleDeleteChurch(c.id)"
-              >
-                Delete
-              </button>
-            </template>
-          </li>
-        </ul>
-        <template v-if="isAdmin">
-          <form v-if="showAddChurch" class="add-form" @submit.prevent="handleAddChurch">
-            <input
-              v-model="newChurchForm.name"
-              class="field-input"
-              placeholder="Full name (e.g. Grace Community Church)"
-              required
-            />
-            <input
-              v-model="newChurchForm.shortName"
-              class="field-input field-input--short"
-              placeholder="Short (e.g. GCC)"
-            />
-            <div class="add-form-actions">
-              <button type="submit" class="btn btn--primary btn--sm" :disabled="addingChurch">
-                {{ addingChurch ? 'Adding…' : 'Add' }}
-              </button>
-              <button type="button" class="btn btn--ghost btn--sm" @click="showAddChurch = false">
-                Cancel
-              </button>
-            </div>
-            <p v-if="addChurchError" class="field-error">{{ addChurchError }}</p>
-          </form>
-          <button v-else class="dashed-add" @click="showAddChurch = true">+ Church</button>
-        </template>
-      </div>
-
       <!-- Rooms -->
       <div class="section">
         <div class="section-header">
@@ -1096,7 +517,7 @@ onMounted(load)
               v-if="isAdmin"
               class="code-btn"
               title="Manage room code"
-              @click.stop="openRoomCodeDialog(oc)"
+              @click.stop="access?.openRoomCodeDialog(oc)"
             >
               🔑
             </button>
@@ -1132,65 +553,12 @@ onMounted(load)
         </template>
       </div>
 
-      <!-- Access management dialog -->
-      <dialog ref="dialogRef" class="code-dialog" @close="accessDialog = null">
-        <template v-if="accessDialog">
-          <div class="dialog-header">
-            <h3 class="dialog-title">{{ accessDialog.title }}</h3>
-            <button class="dialog-close" @click="closeAccessDialog">&times;</button>
-          </div>
-          <p class="dialog-desc">{{ accessDialog.description }}</p>
+      <!-- The meet's stats settings, with every division's steps (FR-019) -->
+      <section v-if="isAdmin" id="stats" class="section">
+        <StatsSettings :slug="slug" />
+      </section>
 
-          <div v-if="accessDialog.revealedCode" class="dialog-revealed">
-            <code class="dialog-code">{{ accessDialog.revealedCode }}</code>
-            <button class="btn btn--secondary btn--sm" @click="copyCode">Copy</button>
-          </div>
-          <p v-if="accessDialog.revealedCode" class="dialog-hint">
-            You won't see this code again, so copy it now. Lost it? Just generate a new one. This
-            one then stops working: signed-in members keep their access, and guests who joined with
-            it need the new code.
-          </p>
-
-          <div class="dialog-actions">
-            <button
-              class="btn btn--secondary"
-              :disabled="accessDialog.busy"
-              @click="handleGenerateCode(false)"
-            >
-              {{ accessDialog.busy ? '…' : 'Generate new code' }}
-            </button>
-            <button
-              v-if="canRemoveMembers"
-              class="btn btn--danger"
-              :disabled="accessDialog.busy"
-              @click="handleGenerateCode(true)"
-            >
-              Generate + remove all members
-            </button>
-          </div>
-          <p class="dialog-footnote">Generating a new code invalidates the old one immediately.</p>
-
-          <div class="dialog-members">
-            <h4 class="dialog-members-title">Members</h4>
-            <p v-if="accessDialog.membersLoading" class="state-msg">Loading…</p>
-            <p v-else-if="accessDialog.members.length === 0" class="state-msg">No members yet.</p>
-            <ul v-else class="member-list">
-              <li v-for="m in accessDialog.members" :key="m.userId" class="member-row">
-                <span class="member-name">{{ m.name }}</span>
-                <span class="member-email">{{ m.email }}</span>
-                <button
-                  v-if="canRemoveMembers"
-                  class="row-btn row-btn--danger"
-                  :disabled="accessDialog.busy || accessDialog.membersLoading"
-                  @click="handleRevokeMember(m)"
-                >
-                  Revoke
-                </button>
-              </li>
-            </ul>
-          </div>
-        </template>
-      </dialog>
+      <MeetAccessDialog ref="access" :meet-id="detail.meet.id" :is-superuser="isSuperuser" />
     </template>
   </div>
 </template>

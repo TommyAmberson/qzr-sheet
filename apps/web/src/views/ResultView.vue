@@ -287,8 +287,8 @@ onMounted(() => void load())
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'meet-results', params: { slug } })">
-      ← Results
+    <button class="back-link" @click="router.push({ name: 'meet-quizzes', params: { slug } })">
+      ← Quizzes
     </button>
 
     <p v-if="loading" class="state-msg">Loading…</p>
