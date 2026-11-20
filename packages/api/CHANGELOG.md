@@ -17,6 +17,17 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-20
+
+### Added
+
+* A meet's stats settings take `warnIncompleteTypes`: turned off, its division stats flag no quiz or
+  quizzer whose correct answers by question type don't add up
+
+### Bundled contract
+
+* `@qzr/shared@1.19.0` - bumped from 1.18.0
+
 ## [0.32.1] - 2026-11-20
 
 ### Fixed

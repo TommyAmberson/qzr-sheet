@@ -573,6 +573,21 @@ describe('divisionStats: question types', () => {
     expect(first!.incompleteTypes).toBe(true)
     expect(second!.incompleteTypes).toBeUndefined()
   })
+  it("warns of nothing for a meet that doesn't record question types, and still counts them", () => {
+    const untyped = scoredQuiz('A', 'B', 'C')
+    untyped.teams[0]!.quizzers = [
+      { name: 'Q', points: 40, errors: 0, correct: 2, types: { INT: 1 } },
+    ]
+    const result = stats([quizOf('D1 Q1', 'prelim', untyped)], {
+      settings: { ...DEFAULT_STATS_SETTINGS, warnIncompleteTypes: false },
+    })
+    expect(result.results[0]!.quizzes[0]!.incompleteTypes).toBeUndefined()
+    const flags = result.quizzers!.lists.flatMap((list) => list.quizzers.flatMap((q) => q.flags))
+    expect(flags).not.toContainEqual({ kind: 'incompleteTypes' })
+    expect(attentionOf(result).map((item) => item.kind)).not.toContain('incompleteTypes')
+    const quizzer = result.quizzers!.lists[0]!.quizzers.find((q) => q.name === 'Q')
+    expect(quizzer?.types).toEqual({ INT: 1 })
+  })
 })
 
 describe('divisionStats: quizzer standings by stage (FR-018a)', () => {

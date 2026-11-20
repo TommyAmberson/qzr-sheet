@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   ApiError,
@@ -9,6 +9,7 @@ import {
   viewerHas,
   type ShownFrom,
   type StatsSettings,
+  warnsIncompleteTypes,
 } from '@qzr/shared'
 
 import { formatWhen } from '@qzr/ui'
@@ -27,6 +28,7 @@ import {
   THING_NAMES,
   momentsFor,
   rightNow,
+  settingsKey,
   viewerChanges,
   type ViewerThing,
 } from '../stats'
@@ -39,7 +41,8 @@ const { slug, meet, reloadMeet, beat, refresh } = useMeetPage()
 const route = useRoute()
 
 const divisions = ref<DivisionState[]>([])
-const saved = ref<StatsSettings | null>(null)
+/** As last saved: only ever replaced whole, so not deeply reactive, and cloned as it is */
+const saved = shallowRef<StatsSettings | null>(null)
 const draft = ref<StatsSettings | null>(null)
 const changed = ref<{ by: string; at: string } | undefined>()
 /** Stored quizzes whose own way of scoring level teams isn't the meet's */
@@ -50,9 +53,32 @@ const error = ref('')
 
 const phase = computed(() => meet.value?.phase ?? 'registration')
 const done = computed(() => phase.value === 'done')
-const dirty = computed(() => JSON.stringify(saved.value) !== JSON.stringify(draft.value))
 /** Quizzes are set to the saved way of scoring level teams, so not while another is chosen */
 const levelTeamsUnsaved = computed(() => saved.value?.levelTeams !== draft.value?.levelTeams)
+/**
+ * The question types choice, written only when off: on leaves it out, as its absence means, so an
+ * API from before the choice still takes the save
+ */
+const warnTypes = computed({
+  get: () => (draft.value ? warnsIncompleteTypes(draft.value) : true),
+  set: (warn: boolean) => {
+    if (!draft.value) return
+    if (warn) delete draft.value.warnIncompleteTypes
+    else draft.value.warnIncompleteTypes = false
+  },
+})
+/** The question types choice changed, which admins and officials see on save, viewers never */
+const typesChanged = computed(
+  () => !!saved.value && !!draft.value && warnsIncompleteTypes(saved.value) !== warnTypes.value,
+)
+/** Anything else changed */
+const othersChanged = computed(
+  () =>
+    !!saved.value &&
+    !!draft.value &&
+    settingsKey(saved.value, true) !== settingsKey(draft.value, true),
+)
+const dirty = computed(() => typesChanged.value || othersChanged.value)
 const changes = computed(() =>
   saved.value && draft.value
     ? viewerChanges(saved.value, draft.value, divisions.value, phase.value)
@@ -109,6 +135,8 @@ function save() {
   const [meetId, settings] = [meet.value.id, draft.value]
   void run(async () => {
     took(await saveStatsSettings(meetId, settings))
+    // What needs attention, and the stats, follow the settings: the page reads the meet again
+    void refresh('check')
   })
 }
 
@@ -179,7 +207,10 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
       <!-- What viewers see, and from when (FR-018) -->
       <section class="block">
         <h3 class="section-title">What viewers see</h3>
-        <p class="hint">Coaches and officials see what viewers see. Admins see everything.</p>
+        <p class="hint">
+          Coaches and officials see what viewers see, officials with the warnings on their own
+          rooms' quizzes. Admins see everything.
+        </p>
         <div class="lines">
           <div v-for="stage in STAGES" :key="stage" class="line">
             <div class="line-say">
@@ -294,6 +325,14 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
             in one is an error
           </label>
         </fieldset>
+        <fieldset class="choice" :disabled="done">
+          <legend>Question types</legend>
+          <label>
+            <input v-model="warnTypes" type="checkbox" />
+            Warn when correct answers by question type don't add up, on a quiz and its quizzers;
+            leave it off for a meet that doesn't record question types
+          </label>
+        </fieldset>
         <p v-if="otherFormula > 0" class="other-formula">
           {{ otherFormula }} {{ otherFormula === 1 ? 'quiz was' : 'quizzes were' }} scored the other
           way on their device, so their scoresheets show other placement points than the tables.
@@ -317,8 +356,14 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
               <li v-for="line in changes" :key="line">{{ line }}</li>
             </ul>
           </div>
-          <p v-else class="note">
+          <p v-else-if="othersChanged" class="note">
             Unsaved changes. Nothing changes for viewers right now; it will at a later step.
+          </p>
+          <p v-if="typesChanged" class="note">
+            {{ othersChanged ? '' : 'Unsaved changes.' }} On save, admins and officials
+            {{
+              warnTypes ? 'see question type warnings again' : 'stop seeing question type warnings'
+            }}.
           </p>
         </template>
         <p v-else-if="changed" class="note">

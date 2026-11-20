@@ -303,6 +303,14 @@ describe('the stats settings', () => {
     expect(await db.select().from(schema.meetStatsSettings)).toHaveLength(0)
   })
 
+  it("turned off, flag no quiz or quizzer for question types the meet doesn't record (FR-007)", async () => {
+    await store(quiz('1'))
+    expect((await save({ ...DEFAULT_STATS_SETTINGS, warnIncompleteTypes: false })).status).toBe(200)
+    const body = await jsonOf<DivisionStats>(await division('1'))
+    expect(body.results[0]!.quizzes[0]!.incompleteTypes).toBeUndefined()
+    expect(body.quizzers!.lists[0]!.quizzers[0]!.flags).toEqual([])
+  })
+
   it('are saved by admins alone, and not once the meet is done', async () => {
     const viewer = { meetId, role: MeetRole.Viewer } as GuestPayload
     const byViewer = await as(null, viewer).request(

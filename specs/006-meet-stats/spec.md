@@ -202,7 +202,7 @@ each quizzer's points, errors, jumps, average and place against a hand calculati
    among themselves, with every quiz their team played counted except a Finals.
 6. **Given** quizzes whose questions have types recorded, **When** the admin looks at a quizzer,
    **Then** their correct answers are counted by question type, and a quizzer whose types don't add
-   up to their correct answers is flagged as incomplete.
+   up to their correct answers is flagged as incomplete, unless the meet has turned that off.
 
 ---
 
@@ -484,8 +484,8 @@ download the division's tables and open them in a spreadsheet.
   corrected or accepted.
 * A team sat a quiz with four quizzers listed where another quiz lists five: the fifth is listed in
   fewer quizzes than the team played and is flagged; the average rule doesn't change.
-* A quiz has no question types recorded: its quizzers' type counts are incomplete and flagged; no
-  other figure is affected.
+* A quiz has no question types recorded: its quizzers' type counts are incomplete and flagged,
+  unless the meet has turned the question types warnings off (FR-007); no other figure is affected.
 * A quiz read from the old spreadsheet scoresheet: on a question from 16 on, a type may be recorded
   against the wrong part of the question, so type counts from such quizzes are a best guess.
 * A division's name is spelt differently in some quizzes: its own group, as today, in every table.
@@ -566,7 +566,9 @@ download the division's tables and open them in a spreadsheet.
   counts for individuals.
 * **FR-007**: For each quizzer, correct answers MUST be counted by question type from the types
   recorded in each quiz, correct answers only, and a quizzer whose type counts don't add up to their
-  correct answers MUST be flagged as incomplete.
+  correct answers MUST be flagged as incomplete, as must the quiz. A meet that doesn't record
+  question types MAY turn these flags off in its stats settings (a "Question types" choice, on by
+  default); the counts by type are still shown.
 
 **Stages**
 
@@ -723,10 +725,10 @@ download the division's tables and open them in a spreadsheet.
   counts, look-alike names, an order differing from the confirmed one, an undecided Finals and the
   rest) MUST be shown in full to meet admins only. An official MUST see those about a quiz of their
   own rooms, on that quiz: its errors of all three kinds (FR-014), that it has no stage or link, its
-  incomplete question types, and that it was played under a withdrawn order; they do not see
-  warnings about standings or about other rooms' quizzes. Anyone else MUST see the tables without
-  warnings, with only these marks: on standings, their state (live preview, preview or locked in,
-  FR-020), and on a quiz, under review or accepted as scored.
+  incomplete question types (unless the meet has turned them off, FR-007), and that it was played
+  under a withdrawn order; they do not see warnings about standings or about other rooms' quizzes.
+  Anyone else MUST see the tables without warnings, with only these marks: on standings, their state
+  (live preview, preview or locked in, FR-020), and on a quiz, under review or accepted as scored.
 * **FR-021**: The quiz results a viewer is shown MUST list the quizzes that count, each with its
   teams and places, and its scores where the stage's setting says so, and the quizzes with a stage
   whose errors are not accepted, each as under review with its teams and nothing else. A quiz that
@@ -739,10 +741,11 @@ download the division's tables and open them in a spreadsheet.
 
 * **FR-022**: Each meet MUST have stats settings an admin can change while the meet is not done: the
   team tie-break order, how teams level in a quiz are given placement points, whether prelims are
-  played without overtime, and what viewers see and when (FR-018). A change MUST take effect when it
-  is saved (FR-023c) and MUST be recorded with who made it and when. A change MUST NOT alter a
-  confirmed prelim order or re-rank; where the current order then differs from a confirmed one, that
-  is shown as FR-019b and FR-019c say.
+  played without overtime, whether question types that don't add up are flagged (FR-007), and what
+  viewers see and when (FR-018). A change MUST take effect when it is saved (FR-023c) and MUST be
+  recorded with who made it and when. A change MUST NOT alter a confirmed prelim order or re-rank;
+  where the current order then differs from a confirmed one, that is shown as FR-019b and FR-019c
+  say.
 * **FR-023**: The tie-break order MUST be one of: head-to-head, then total points, then fewest
   errors (the rulebook's, and the default); or total points, then fewest errors. Standings and
   re-ranks MUST follow it, and each broken tie MUST name the criterion that decided it.
@@ -801,7 +804,8 @@ download the division's tables and open them in a spreadsheet.
   quiz in error that isn't accepted, with its scoring, roster and schedule errors; teams with
   different numbers of prelims; team names that look alike; quizzer names on one team that look
   alike; a quizzer listed in a different number of quizzes from their team; incomplete question
-  types; two Finals for one bracket; a quiz played under a withdrawn prelim order.
+  types, unless the meet has turned them off (FR-007); two Finals for one bracket; a quiz played
+  under a withdrawn prelim order.
 * **FR-031**: Meet admins MUST be able to merge one quizzer name into another across a team's
   quizzes in one action, each changed quiz getting a history entry, as team names are merged today.
 * **FR-032**: Meet admins MUST be able to dismiss a look-alike flag for two names that are different

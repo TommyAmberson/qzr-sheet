@@ -21,6 +21,7 @@ import {
   viewerChanges,
   warningText,
   type DivisionAt,
+  settingsKey,
 } from '../stats'
 
 describe('changeText', () => {
@@ -341,5 +342,18 @@ describe('statsCsv', () => {
     const rows = statsCsv(stats).standings.split('\r\n')
     expect(rows).toContain('Prelims,1,,"Maple, 1",20,1')
     expect(rows).toContain('Main,1,Sam Park,"Maple, 1",60,60,0,3,1')
+  })
+})
+
+describe('the question types choice in the stats settings', () => {
+  const settings = DEFAULT_STATS_SETTINGS
+
+  it('counts settings as unchanged whatever their keys order, and absent as on', () => {
+    const { tieBreaks, ...rest } = settings
+    const reordered = { ...rest, warnIncompleteTypes: true, tieBreaks }
+    expect(settingsKey(reordered)).toBe(settingsKey(settings))
+    const off = { ...settings, warnIncompleteTypes: false }
+    expect(settingsKey(off)).not.toBe(settingsKey(settings))
+    expect(settingsKey(off, true)).toBe(settingsKey(settings, true))
   })
 })

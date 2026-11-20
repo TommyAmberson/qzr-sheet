@@ -65,6 +65,12 @@ const StatsSettingsSchema = Type.Object(
     ),
     /** Whether prelim standings and the re-rank also show as a live preview before confirmed */
     prelimStandingsLive: Type.Boolean(),
+    /**
+     * Whether admins, and officials on their own quizzes, are warned of question types that don't
+     * add up (FR-007); false for a meet that doesn't record them. Absent, as in settings saved
+     * before it, means warned
+     */
+    warnIncompleteTypes: Type.Optional(Type.Boolean()),
     quizzers: Type.Object(
       {
         from: ShownFromSchema,
@@ -90,6 +96,13 @@ export const DEFAULT_STATS_SETTINGS: StatsSettings = {
   },
   prelimStandingsLive: false,
   quizzers: { from: 'meetDone', update: 'live' },
+}
+
+/** Whether a meet warns of question types that don't add up; absent, the choice means yes */
+export function warnsIncompleteTypes(
+  settings: Pick<StatsSettings, 'warnIncompleteTypes'>,
+): boolean {
+  return settings.warnIncompleteTypes !== false
 }
 
 /** Why a settings document can't be saved, or null when it can */
