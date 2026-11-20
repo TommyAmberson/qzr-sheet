@@ -26,6 +26,8 @@ export function useMeetDay(
   const day = shallowRef<MeetDay | null>(null)
   const error = ref('')
   const beat = ref(0)
+  /** Moves on every answer, changed or not, for what must follow each one (research R7, rule 4) */
+  const answered = ref(0)
   /** The day as last read, to tell whether a read changed anything */
   let seen = ''
   /** A Refresh not yet answered: whichever read answers next moves the beat for it */
@@ -58,6 +60,7 @@ export function useMeetDay(
       refreshOwed = false
       if (changed) day.value = answer
       if (moves) beat.value++
+      answered.value++
     } catch (e) {
       if (mine.signal.aborted) return
       error.value = e instanceof Error ? e.message : String(e)
@@ -90,13 +93,13 @@ export function useMeetDay(
 
   // Another meet starts afresh: none of the last one's day shows against it
   watch(meetId, (id, was) => {
-    if (id === null || id === was) return
+    if (id === was) return
     cancel()
     day.value = null
     error.value = ''
     seen = ''
     refreshOwed = false
-    void refresh('catchUp')
+    if (id !== null) void refresh('catchUp')
   })
 
   onMounted(() => {
@@ -111,5 +114,5 @@ export function useMeetDay(
     cancel()
   })
 
-  return { day, error, beat, refresh }
+  return { day, error, beat, answered, refresh }
 }

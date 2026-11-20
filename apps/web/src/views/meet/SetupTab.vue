@@ -253,7 +253,9 @@ watch(meetId, load, { immediate: true })
 watch(
   () => [detail.value !== null, isAdmin.value],
   ([loaded, admin]) => {
-    if (loaded && !admin) void router.replace({ name: 'meet', params: { slug: slug.value } })
+    if (!loaded || admin) return
+    const { query } = router.currentRoute.value
+    void router.replace({ name: 'meet', params: { slug: slug.value }, query })
   },
   { immediate: true },
 )

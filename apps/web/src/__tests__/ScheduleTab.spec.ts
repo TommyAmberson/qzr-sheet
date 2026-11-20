@@ -151,6 +151,21 @@ describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
     expect(w.text()).toMatch(/hasn't been published yet/)
   })
   // The schedule follows the meet day (research R7, rule 4)
+  it('tries a failed schedule read again with the next meet day, though it is unchanged', async () => {
+    const answer = { status: 500, body: { error: 'Down' } as unknown }
+    stubApi(answer)
+    const w = await open()
+    expect(w.text()).not.toMatch(/Grace 1/)
+    answer.status = 200
+    answer.body = { document: published(), publishedAt: '2026-11-02', view: 'teams' }
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Refresh')!
+      .trigger('click')
+    await flushPromises()
+    expect(w.text()).toMatch(/Grace 1/)
+  })
+
   it('reads the schedule again when a meet day names another version, and not otherwise', async () => {
     const answer = { status: 404, body: { error: 'Nothing is published yet' } as unknown }
     const dayNow = { ...day, scheduleVersion: null as number | null }

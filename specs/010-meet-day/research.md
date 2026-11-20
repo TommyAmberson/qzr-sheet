@@ -127,7 +127,8 @@ stats API on master (`76a6875`) and the open #200 (`fix/papercuts`).
   1. **One read at a time.** A read asked for by the reader or by something the page did replaces
      the read on its way, which is cancelled, so it stops waiting out the API preparing the day. The
      30-second read and the read on coming back into view start only when none is on its way.
-     Leaving the page, or opening another meet, cancels the read on its way.
+     Leaving the page, or opening another meet, cancels the read on its way, and another meet shows
+     nothing of the last one, nor reads anything for it, while it loads.
   2. **What a read asks of the tabs.** The page shows one tab at a time, and each tab reads what it
      shows on opening. A read's answer moves the tabs' beat, the signal to read again, by why it was
      read:
@@ -140,16 +141,18 @@ stats API on master (`76a6875`) and the open #200 (`fix/papercuts`).
      A read that replaces a Refresh still moves the beat when it answers.
   3. **What a tab reads, and when.** A tab reads on opening, on the beat, and when anything its read
      depends on changes: the meet, the division, the viewer preview, and whether its reader may see
-     results yet. A tab whose reader may not see results yet, by the meet day, reads nothing. A
-     non-admin's tab waits for the meet day only while it is being read; if the read fails, the tab
-     reads anyway and shows what the API answers. After the reader's own change, the tab re-reads
-     what it shows itself, then the page reads the meet day (rule 2).
+     results yet. A tab built from the published schedule as well, as Quizzes is, waits for it. A
+     tab whose reader may not see results yet, by the meet day, reads nothing. A non-admin's tab
+     waits for the meet day only while it is being read; if the read fails, the tab reads anyway and
+     shows what the API answers. After the reader's own change, the tab re-reads what it shows
+     itself, then the page reads the meet day (rule 2).
   4. **The published schedule follows the meet day.** The page holds the schedule with the version
      and phase of the meet day that asked for it, and reads it again whenever a meet day names
-     another version or phase, so the letters or team names follow the phase. It is not read before
-     the first meet day, so the two can't disagree from the start; if the meet day can't be read,
-     the schedule is read anyway, held for no version, and read again once a meet day answers. A
-     read for a meet the page has left, or overtaken by a newer read, is dropped.
+     another version or phase, so the letters or team names follow the phase; it checks on every
+     answer, so a read that failed is tried again with the next. It is not read before the first
+     meet day, so the two can't disagree from the start; if the meet day can't be read, the schedule
+     is read anyway, held for no version, and read again once a meet day answers. A read for a meet
+     the page has left, or overtaken by a newer read, is dropped.
   5. **A failed read in the background** shows a line under the tab bar, or above the tab's own
      content, and leaves what was shown.
 * **Rationale**: FR-022; #200 already refreshes the quiz page when its tab comes back into view. The

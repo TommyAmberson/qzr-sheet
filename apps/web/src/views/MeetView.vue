@@ -45,7 +45,7 @@ const loading = ref(true)
 const error = ref('')
 
 const meetId = computed(() => meet.value?.id ?? null)
-const { day, error: dayError, beat, refresh } = useMeetDay(meetId)
+const { day, error: dayError, beat, answered, refresh } = useMeetDay(meetId)
 
 const isAdmin = computed(() => sender.value?.admin ?? false)
 // The API answers who may send quizzes only for the meet's admins and its rooms' officials
@@ -133,6 +133,9 @@ async function load() {
   const current = ++loads
   loading.value = true
   error.value = ''
+  // Another meet starts afresh: nothing of the last one shows, or is read, while it loads
+  detail.value = null
+  sender.value = null
   // The schedule follows the new meet's day (research R7, rule 4)
   published.value = undefined
   heldFor = undefined
@@ -216,9 +219,10 @@ async function readPublished(id: number, forDay: string | null) {
   }
 }
 
-// Read for each version and phase a meet day names, the phase deciding letters or team names; with
-// no meet day to go by, read once anyway so the Schedule tab isn't left waiting
-watch([day, dayError], () => {
+// Read for each version and phase a meet day names, the phase deciding letters or team names, on
+// every answer so a read that failed is tried again; with no meet day to go by, read anyway so the
+// Schedule tab isn't left waiting
+watch([answered, dayError], () => {
   const id = meet.value?.id
   if (id === undefined) return
   if (day.value) {

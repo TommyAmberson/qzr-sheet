@@ -66,8 +66,14 @@ const done = computed(() => props.phase === 'done')
 /** Divisions move only while the meet is live or in review */
 const canMove = computed(() => props.phase === 'live' || props.phase === 'review')
 
+/** The newest read; an older one answering late must not put back a step since taken */
+let reads = 0
+
 async function reloadDivisions() {
-  divisions.value = (await getDivisionStates(props.meetId)).divisionStates
+  const mine = ++reads
+  const { divisionStates } = await getDivisionStates(props.meetId)
+  if (mine !== reads) return
+  divisions.value = divisionStates
   error.value = ''
   emit('read', divisions.value)
 }

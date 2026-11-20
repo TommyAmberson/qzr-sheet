@@ -54,9 +54,11 @@ function moved() {
   void page.refresh('catchUp')
 }
 
-/** The steps moved the meet on: the page reads the meet again, and its meet day follows */
+/** The steps moved the meet on: the page reads the meet again, its meet day follows, and the
+ * stats are read again here, as after any change the reader makes (research R7, rule 3) */
 function movedPhase() {
   void page.reloadMeet()
+  void load()
 }
 
 /** The newest load; one for a division the page has since left must not show */

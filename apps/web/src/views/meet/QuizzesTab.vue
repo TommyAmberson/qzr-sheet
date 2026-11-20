@@ -179,8 +179,9 @@ const rows = computed<QuizRow[]>(() => {
     ]
   })
   const offSchedule = answer.notOnSchedule.map(
-    (q): QuizRow => ({
-      key: `stored-${q.storedId ?? `${q.division}-${q.name}`}`,
+    (q, i): QuizRow => ({
+      // A viewer isn't given stored ids, and two quizzes may share a name
+      key: q.storedId === undefined ? `off-${i}` : `stored-${q.storedId}`,
       name: q.name,
       when: '',
       division: q.division,
@@ -712,7 +713,13 @@ async function mergeNames(division: string, names: [string, string], team?: stri
       <p v-if="changeError" class="state-msg state-msg--error">{{ changeError }}</p>
       <!-- The list is built from the meet day, so it waits for one (research R7, rule 3) -->
       <p v-if="!day && dayError" class="state-msg">The quizzes show once the meet can be read.</p>
-      <p v-else-if="!day" class="state-msg">Loading…</p>
+      <!-- Scheduled quizzes are named from the schedule, so the list waits for it too -->
+      <p
+        v-else-if="!day || (published === undefined && day.scheduleVersion !== null)"
+        class="state-msg"
+      >
+        Loading…
+      </p>
       <p v-else-if="statsHidden && !manages" class="state-msg">
         Nothing to see yet: results and standings show once the meet is under way.
       </p>

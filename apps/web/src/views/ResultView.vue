@@ -283,13 +283,17 @@ function scoresheetHref(revision: number): string {
 }
 
 onMounted(() => void load())
+
+/** Back to the tab and division the quiz was opened from; opened from outside, the Quizzes tab */
+function goBack() {
+  if (window.history.state?.back) return router.back()
+  void router.push({ name: 'meet-quizzes', params: { slug: props.slug } })
+}
 </script>
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'meet-quizzes', params: { slug } })">
-      ← Quizzes
-    </button>
+    <button class="back-link" @click="goBack">← Back</button>
 
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
