@@ -732,18 +732,6 @@ export function setAcceptance(
 const STATS_TRIES = 60
 
 /**
- * The meet's divisions with their states, and whether the caller is one of its admins: empty for
- * anyone but an admin before the meet is live
- */
-export function getStatsDivisions(meetId: number): Promise<{
-  phase: MeetPhase
-  admin: boolean
-  divisions: { division: string; state: DivisionStateValue }[]
-}> {
-  return request(`/api/meets/${meetId}/stats`)
-}
-
-/**
  * The meet's stats settings; for admins, who saved them last, and how many stored quizzes score
  * level teams another way than the meet
  */
