@@ -442,11 +442,13 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
   font-size: 0.85rem;
 }
 
+/* The page's own background, so the bar reads as part of the page as it stays in view, with room
+   under its buttons at the foot of the window */
 .save-bar {
   position: sticky;
   bottom: 0;
-  padding: 0.75rem 0;
-  background: var(--color-bg);
+  padding: 0.75rem 0 1.25rem;
+  background: var(--color-bg-warm);
   border-top: 1px solid var(--color-border);
   font-size: 0.85rem;
 }
