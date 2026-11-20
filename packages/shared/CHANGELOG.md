@@ -48,6 +48,8 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `fillOts` writes a no-jump on an A or B question (`16A` to `20B`) into its question's column, as
   it does that question's answers. It left them out, so an exported sheet lost them, and its
   placements and scores could change when read back.
+* `fillOts` writes nothing past the sheet's last column (Q26). An overtime past its two rounds went
+  into the columns after it; `questionsPastSheet` names what is left out instead.
 
 ## [1.16.0] - 2026-11-19
 

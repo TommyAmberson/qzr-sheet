@@ -5,7 +5,7 @@ import { answerLookup, buildCellGrid, inSeatOrder } from '../scoring/cellGrid'
 import { computeOvertimeRounds } from '../scoring/overtime'
 import { TWENTY_QUESTION_RULES } from '../scoring/quizRules'
 import { buildColumns } from '../types/scoresheet'
-import { patchCell } from './odsXml'
+import { LAST_SHEET_QUESTION, patchCell } from './odsXml'
 
 /**
  * Fill an OTS template with quiz data and return an ODS file as bytes.
@@ -22,9 +22,6 @@ import { patchCell } from './odsXml'
  */
 /** The template's layout and formulas only score a 20-question quiz */
 export const ODS_TWENTY_ONLY = 'Spreadsheet export supports 20-question quizzes only'
-
-/** The last question a sheet has a column for: its two overtime rounds end at Q26 */
-const LAST_SHEET_QUESTION = 26
 
 /** The questions of a quiz a sheet has no column for, in order; an export leaves them out */
 export function questionsPastSheet(quizFile: QuizFile): number[] {
@@ -115,7 +112,8 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   let otCol = 23
   const seenOtNumbers = new Set<number>()
   for (const col of cols) {
-    if (!col.isOvertime) continue
+    // Questions past the sheet's last column have nowhere to go; questionsPastSheet names them
+    if (!col.isOvertime || col.number > LAST_SHEET_QUESTION) continue
     if (!seenOtNumbers.has(col.number)) {
       seenOtNumbers.add(col.number)
       colKeyToOdsCol.set(`${col.number}`, otCol)
@@ -124,6 +122,10 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
       otCol++
     }
   }
+
+  /** A column's place in the sheet: A and B questions share their question's */
+  const sheetColumnOf = (col: { key: string; number: number }) =>
+    colKeyToOdsCol.get(col.key) ?? colKeyToOdsCol.get(`${col.number}`)
 
   // No-jump row (row 27, 0-based) and question type row (row 28, 0-based)
   const noJumpRow = 27
@@ -159,7 +161,7 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
           if (cell === '') continue
 
           // Normal keys map directly; A/B keys use the parent question number
-          const odsColIdx = colKeyToOdsCol.get(col.key) ?? colKeyToOdsCol.get(`${col.number}`)
+          const odsColIdx = sheetColumnOf(col)
           if (odsColIdx !== undefined) {
             sheetXml = patchCell(sheetXml, qRow, odsColIdx, cell)
           }
@@ -169,9 +171,8 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   }
 
   // --- 7. No-jump row ---
-  // A no-jump on an A or B question goes in its question's column, as its answers do
   for (const col of cols) {
-    const odsColIdx = colKeyToOdsCol.get(col.key) ?? colKeyToOdsCol.get(`${col.number}`)
+    const odsColIdx = sheetColumnOf(col)
     if (odsColIdx === undefined) continue
     if (noJumps.get(col.key)) {
       sheetXml = patchCell(sheetXml, noJumpRow, odsColIdx, 'x')

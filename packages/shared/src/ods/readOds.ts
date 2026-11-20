@@ -1,5 +1,5 @@
 import { strFromU8, unzipSync } from 'fflate'
-import { readCell } from './odsXml'
+import { LAST_SHEET_QUESTION, readCell, SHEET_OT_ROUNDS } from './odsXml'
 import {
   BonusRule,
   CellValue,
@@ -38,9 +38,6 @@ function extractQuizSheet(xml: string): string {
   return xml.slice(tableTagStart, quizSheetEnd)
 }
 
-/** Overtime rounds the spreadsheet has columns for (questions 21 to 26) */
-const OT_ROUNDS_IN_SHEET = 2
-
 /** One mark in a question's column of the spreadsheet */
 interface RawAnswer {
   quizzerId: number
@@ -67,7 +64,7 @@ const RULES = quizRules(QuizFormat.TwentyQuestion)
  */
 function errorSkipsA(fileWithError: QuizFile, q: number): boolean {
   const { quiz, teams, quizzers, answers, noJumps } = deserialize(fileWithError)
-  const columns = buildColumns(RULES, OT_ROUNDS_IN_SHEET)
+  const columns = buildColumns(RULES, SHEET_OT_ROUNDS)
   const cells = buildCellGrid(teams, quizzers, columns, answerLookup(answers))
   // In overtime, teams that aren't tied are locked out of every question
   const notInOvertime = computeOtIneligibility(
@@ -216,7 +213,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     }
   }
   // OT Q21–Q26: col 23–28
-  for (let q = 21; q <= 26; q++) {
+  for (let q = 21; q <= LAST_SHEET_QUESTION; q++) {
     const col = 23 + (q - 21)
     const normal = readCell(sheet, 28, col)
     if (normal && VALID_QUESTION_CATEGORIES.has(normal)) {
@@ -239,7 +236,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     if (readCell(sheet, 27, 3 + (q - 1)).toLowerCase() === 'x') noJumpQuestions.add(q)
   }
   // OT Q21–Q26: cols 23–28
-  for (let q = 21; q <= 26; q++) {
+  for (let q = 21; q <= LAST_SHEET_QUESTION; q++) {
     if (readCell(sheet, 27, 23 + (q - 21)).toLowerCase() === 'x') noJumpQuestions.add(q)
   }
 
@@ -273,7 +270,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
         }
       }
 
-      for (let q = 21; q <= 26; q++) {
+      for (let q = 21; q <= LAST_SHEET_QUESTION; q++) {
         const val = readCell(sheet, qRow, 23 + (q - 21)).toLowerCase()
         if (val && VALID_CELL_VALUES.has(val)) {
           if (!rawAnswersByQ.has(q)) rawAnswersByQ.set(q, [])
