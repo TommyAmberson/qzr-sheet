@@ -33,6 +33,8 @@ export interface MeetPage {
   /** Who may send quizzes to the meet: its admins and its rooms' officials; null for anyone else */
   sender: Ref<Sender | null>
   isAdmin: ComputedRef<boolean>
+  /** Admins and the meet's officials score its quizzes, so a quiz not in yet opens the scoresheet */
+  scores: ComputedRef<boolean>
   /** A superuser, who alone removes the meet's admins */
   isSuperuser: Ref<boolean>
   /** The churches the reader coaches at this meet */

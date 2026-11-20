@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   ApiError,
   MOMENTS,
@@ -36,6 +37,7 @@ import {
  * viewers see and from when, and how the meet scores and ranks
  */
 const { slug, meet, reloadMeet } = useMeetPage()
+const route = useRoute()
 
 const divisions = ref<DivisionState[]>([])
 const saved = ref<StatsSettings | null>(null)
@@ -74,6 +76,10 @@ async function load() {
         : (e as Error).message
   } finally {
     loading.value = false
+    // Asked for by address, the stats section is scrolled to once it is there
+    if (route.hash === '#stats') {
+      void nextTick(() => document.getElementById('stats')?.scrollIntoView({ block: 'start' }))
+    }
   }
 }
 

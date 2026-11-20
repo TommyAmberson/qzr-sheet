@@ -52,3 +52,8 @@ export function markQuiz(
   })
   return { benches, unplaced: left }
 }
+
+/** A settled bench's team as a reader sees it; one the admin has yet to settle reads as tied */
+export function settledText(settled: SettledBench): string {
+  return 'team' in settled ? settled.team : 'Tied'
+}

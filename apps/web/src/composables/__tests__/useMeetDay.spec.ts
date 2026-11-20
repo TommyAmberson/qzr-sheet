@@ -94,6 +94,24 @@ describe('useMeetDay (FR-022)', () => {
     expect(state().day.value?.scheduleVersion).toBe(2)
   })
 
+  it('moves the beat for an asked-for read that a background read overtook', async () => {
+    let answer!: (d: MeetDay) => void
+    const read = vi
+      .fn<(meetId: number) => Promise<MeetDay>>()
+      .mockImplementation(async () => day(1))
+    const { state } = open(read)
+    await flush()
+    const before = state().beat.value
+    read.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
+    const asked = state().refresh()
+    // The 30 seconds come round while it waits, and find the meet unchanged
+    await vi.advanceTimersByTimeAsync(MEET_DAY_SECONDS * 1000)
+    answer(day(1))
+    await asked
+    await flush()
+    expect(state().beat.value).toBe(before + 1)
+  })
+
   it('stops reading once the page is closed', async () => {
     const read = vi.fn(async () => day(1))
     const { wrapper } = open(read)

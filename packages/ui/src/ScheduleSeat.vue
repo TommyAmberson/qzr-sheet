@@ -10,6 +10,7 @@ import {
   type SettledBench,
   type SheetView,
 } from '@qzr/shared'
+import { settledText } from './scheduleMarks'
 import './seat.css'
 
 /**
@@ -35,9 +36,7 @@ const team = computed(() =>
   absent.value
     ? 'Absent'
     : props.settled
-      ? 'team' in props.settled
-        ? props.settled.team
-        : 'Tied'
+      ? settledText(props.settled)
       : props.view === 'teams' && seat.value.kind === 'letter'
         ? seatText(props.doc, props.quiz, seat.value, 'teams')
         : '',

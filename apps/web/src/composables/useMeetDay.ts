@@ -21,6 +21,8 @@ export function useMeetDay(
   const beat = ref(0)
   /** The day as last read, to tell whether a read changed anything */
   let seen = ''
+  /** A reader asked for a read that hasn't yet moved the beat, so the next answer must */
+  let owed = false
   let timer: ReturnType<typeof setInterval> | undefined
   // A read answered after a newer one began is dropped, so the page never steps back
   let asked = 0
@@ -29,14 +31,16 @@ export function useMeetDay(
   async function refresh(wanted = true) {
     const id = meetId.value
     if (id === null) return
+    owed ||= wanted
     const ask = ++asked
     try {
       const answer = await read(id)
       if (ask !== asked) return
       error.value = ''
       const text = JSON.stringify(answer)
-      if (text === seen && !wanted) return
+      if (text === seen && !owed) return
       seen = text
+      owed = false
       day.value = answer
       beat.value++
     } catch (e) {

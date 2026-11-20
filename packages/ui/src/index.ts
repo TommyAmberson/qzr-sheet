@@ -3,7 +3,7 @@ export { default as ChoiceDialog } from './ChoiceDialog.vue'
 export { default as RoomCodeDialog } from './RoomCodeDialog.vue'
 export { default as GuestNotice } from './GuestNotice.vue'
 export { default as DivisionInput } from './DivisionInput.vue'
-export type { ScheduleMarks } from './scheduleMarks'
+export { settledText, type ScheduleMarks } from './scheduleMarks'
 export { useHistory } from './useHistory'
 export type { HistoryCommand } from './useHistory'
 export {

@@ -13,7 +13,7 @@ import { problemText } from '../../stats'
  * for the meet's phase, with the meet day's results and settled benches on it.
  */
 const router = useRouter()
-const { slug, isAdmin, sender, inDivision, published, day, scoresheetHref } = useMeetPage()
+const { slug, isAdmin, scores, inDivision, published, day, scoresheetHref } = useMeetPage()
 
 /** The schedule shown: the picked division's quizzes, or every division's (FR-004) */
 const shown = computed(() => {
@@ -37,8 +37,6 @@ const marks = computed<ScheduleMarks | null>(() =>
 /** What is wrong with a quiz, for an admin or its room's official, who are given its problems */
 const statusTitle = (quiz: DayQuiz) => (quiz.problems ?? []).map(problemText).join('\n')
 
-/** Admins and the meet's officials score quizzes, so a quiz not in yet opens the scoresheet */
-const scores = computed(() => isAdmin.value || (sender.value?.rooms.length ?? 0) > 0)
 const storedOf = (quizId: string) => marks.value?.quizzes.get(quizId)?.storedId
 </script>
 

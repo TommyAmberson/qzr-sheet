@@ -23,7 +23,7 @@ import {
   mayChangeQuizzes,
   divisionTitle,
 } from '@qzr/shared'
-import { ChoiceDialog, formatSlotTime } from '@qzr/ui'
+import { ChoiceDialog, formatSlotTime, settledText } from '@qzr/ui'
 
 import {
   dismissNames,
@@ -53,7 +53,7 @@ import { scoresheetLink } from '../../scoresheetLink'
 const page = useMeetPage()
 const { slug, meet, sender, isAdmin, division, inDivision, setDivision, published, day, beat } =
   page
-const { refresh, scoresheetHref } = page
+const { refresh, scoresheetHref, scores } = page
 
 /** The meet's stored quizzes as listed, for admins and officials: replaced whole */
 const stored = shallowRef<StoredQuiz[]>([])
@@ -76,7 +76,6 @@ const attentionError = ref('')
 
 /** Admins and officials manage stored quizzes; anyone else reads the meet day alone */
 const manages = computed(() => sender.value !== null)
-const scores = computed(() => isAdmin.value || (sender.value?.rooms.length ?? 0) > 0)
 
 // ---- The list ----
 
@@ -163,7 +162,7 @@ const rows = computed<QuizRow[]>(() => {
         ...fromDay(q),
         benches: quiz.seats.map((bench, i) => {
           const settled = answer.benches[benchKey(quiz.id, i)]
-          if (settled) return 'team' in settled ? settled.team : 'Tied'
+          if (settled) return settledText(settled)
           return seatText(doc!, quiz, bench, view)
         }),
         scheduleQuizId: q.id,
@@ -268,13 +267,20 @@ function teamText(team: DayTeam): string {
 
 // ---- Loading ----
 
+/** The newest read of the stored quizzes; an older one still waiting must not overwrite it */
+let storedRead = 0
+
 async function loadStored() {
   const meetId = meet.value?.id
   if (meetId === undefined || !manages.value) return
+  const read = ++storedRead
   try {
-    stored.value = await listResults(meetId)
+    const quizzes = await listResults(meetId)
+    if (read !== storedRead) return
+    stored.value = quizzes
     error.value = ''
   } catch (e) {
+    if (read !== storedRead) return
     error.value =
       e instanceof ApiError && e.status === 403
         ? "Only the meet's admins and officials manage its quizzes."
@@ -282,7 +288,7 @@ async function loadStored() {
   }
 }
 
-/** Read what the tab shows: on the page's beat, which reads it on opening it too */
+/** Read what the tab shows: on opening it, and again on the page's beat */
 async function load() {
   await loadStored()
   void loadAttention()
@@ -292,10 +298,9 @@ async function load() {
 watch(beat, () => void load())
 // Who manages the meet's quizzes decides what is read, so a change there reads again
 watch(
-  () => sender.value?.admin ?? null,
-  (admin, was) => {
-    if (was !== undefined && admin !== was) void load()
-  },
+  () => [meet.value?.id, sender.value?.admin ?? null],
+  () => void load(),
+  { immediate: true },
 )
 
 /** The newest read of the attention list; an older one still waiting must not overwrite it */
@@ -522,12 +527,10 @@ async function mergeNames(division: string, names: [string, string], team?: stri
   } catch (e) {
     mergeError.value = `Merged ${done} of ${edits.length} quizzes: ${(e as Error).message} Merge again to finish.`
   } finally {
-    try {
-      stored.value = await listResults(meetId)
-      void loadAttention()
-    } catch (e) {
-      mergeError.value ||= (e as Error).message
-    }
+    // The list, the attention list and the meet day as the merge left them
+    await loadStored()
+    void loadAttention()
+    void refresh()
     merging.value = false
   }
 }

@@ -79,14 +79,14 @@ async function load() {
   }
 }
 
-// The page's beat reads the tab on opening it and keeps it current; another division or the
-// viewer's view is read at once
+// Read on opening and for another division or the viewer's view, then kept current on the beat
 watch(
   () => [meet.value?.id, division.value, asViewer.value],
   () => {
     stats.value = null
     void load()
   },
+  { immediate: true },
 )
 watch(beat, () => void load())
 

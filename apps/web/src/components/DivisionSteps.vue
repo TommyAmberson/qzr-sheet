@@ -68,14 +68,14 @@ async function reloadDivisions() {
   divisions.value = (await getDivisionStates(props.meetId)).divisionStates
 }
 
-// On the page's beat, which reads it on opening too; read at once where there is none
+// Read on opening, then again on the page's beat where there is one
 watch(
   () => [props.meetId, props.beat],
   () => {
     if (busy.value) return
     reloadDivisions().catch((e: Error) => (error.value = e.message))
   },
-  { immediate: props.beat === undefined },
+  { immediate: true },
 )
 
 /** Run an action, keeping its error in the page */

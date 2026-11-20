@@ -40,6 +40,7 @@ const meetId = computed(() => meet.value?.id ?? null)
 const { day, error: dayError, beat, refresh } = useMeetDay(meetId)
 
 const isAdmin = computed(() => sender.value?.admin ?? false)
+const scores = computed(() => isAdmin.value || (sender.value?.rooms.length ?? 0) > 0)
 const isGuest = computed(() => !session.value?.data?.user)
 
 /** The division asked for, as the meet spells it; one the meet doesn't have is every division */
@@ -77,8 +78,13 @@ async function senderOf(id: number): Promise<Sender | null> {
 
 /** A signed-in reader's place in the meet: a superuser, and the churches they coach */
 async function readMembership(id: number) {
-  if (isGuest.value) return
-  const { memberships } = await getMyMeets()
+  // Asked whatever the session shows, which may still be pending just after a reload
+  const mine = await getMyMeets().catch((e: unknown) => {
+    if (e instanceof ApiError && e.status === 401) return null
+    throw e
+  })
+  if (!mine) return
+  const { memberships } = mine
   isSuperuser.value = memberships.some((m) => m.meetId === id && m.role === MeetRole.Superuser)
   coachChurchIds.value = coachChurchIdsOf(memberships, id)
 }
@@ -97,6 +103,7 @@ async function readPublished(id: number) {
 async function load() {
   loading.value = true
   error.value = ''
+  published.value = undefined
   try {
     // A guest official's slug is the meet's id; their ended session is renewed on opening the page
     const loaded = await renew(Number(props.slug), async () => {
@@ -126,24 +133,23 @@ async function reloadMeet() {
 
 watch(() => props.slug, load, { immediate: true })
 
-// Switching tabs reads the meet again, so the tab opened is current (FR-022)
+// Switching tabs reads the meet again, so the tab opened is current (FR-022); the tab reads its own
+// data on opening, so the beat moves only if the meet changed
 watch(
   () => route.name,
   (name, was) => {
-    if (was !== undefined && name !== was) void refresh()
+    if (was !== undefined && name !== was) void refresh(false)
   },
 )
 
-// A newer published version is read once, for every tab
-let shownVersion: number | null = null
+// Another published version, or none, is read once for every tab; the first meet day names the
+// version the page read on opening
 watch(
-  () => day.value?.scheduleVersion ?? null,
-  (version) => {
+  () => day.value?.scheduleVersion,
+  (version, was) => {
     const id = meet.value?.id
-    if (id === undefined || version === shownVersion) return
-    const first = shownVersion === null && published.value !== null
-    shownVersion = version
-    if (!first) void readPublished(id).catch((e: Error) => (error.value = e.message))
+    if (id === undefined || was === undefined || version === was) return
+    void readPublished(id).catch((e: Error) => (error.value = e.message))
   },
 )
 
@@ -158,6 +164,7 @@ const page: MeetPage = {
   meet,
   sender,
   isAdmin,
+  scores,
   isSuperuser,
   coachChurchIds,
   division,
