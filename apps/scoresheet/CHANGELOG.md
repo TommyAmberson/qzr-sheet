@@ -15,6 +15,8 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-20
+
 ### Changed
 
 * Submitting a quiz linked to a scheduled quiz asks to submit for the room the schedule places it
@@ -23,6 +25,10 @@ portal/API/infra work shipped on that tag.
 ### Fixed
 
 * Each question type picker in the column headers is named for its question, for screen readers
+
+### Bundled contract
+
+* `@qzr/shared@1.16.0` - unchanged
 
 ## [0.27.0] - 2026-11-19
 
