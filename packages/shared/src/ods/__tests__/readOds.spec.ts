@@ -486,6 +486,28 @@ describe('readOds — Q16+ placement by the state of the quiz', () => {
     expect(noJumps).toEqual(['19B'])
   })
 
+  it('reads a bonus marked on an empty seat as a no-jump, the way the app records it', () => {
+    const cells = namedCells()
+    setCell(cells, T1_QUIZZER_ROW3, 1, 'Third seat')
+    setCell(cells, T1_QUIZZER_ROW3, Q_COL(19), 'e')
+    setCell(cells, T2_QUIZZER_ROW, Q_COL(19), 'e')
+    // Team 3 has nobody in its third seat, and the sheet marks the bonus on that empty row
+    setCell(cells, T3_QUIZZER_ROW + 2, Q_COL(19), 'mb')
+    const quiz = readOds(makeOds(makeSheetXml(cells)))
+    expect(quiz.answers).toContainEqual({
+      quizzerId: T2_Q1,
+      columnKey: '19',
+      value: CellValue.Error,
+    })
+    expect(quiz.answers).toContainEqual({
+      quizzerId: T1_Q3,
+      columnKey: '19A',
+      value: CellValue.Error,
+    })
+    expect(quiz.answers.filter((a) => a.columnKey.startsWith('19'))).toHaveLength(2)
+    expect(quiz.noJumps).toEqual(['19B'])
+  })
+
   it('orders two errors before a no-jump by a seat whose quizzer errored out', () => {
     const cells = namedCells()
     setCell(cells, T1_QUIZZER_ROW3, 1, 'Third seat')

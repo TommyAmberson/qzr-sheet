@@ -334,8 +334,18 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     (a, b) => a - b,
   )
   for (const q of questions) {
-    const rawAnswers = rawAnswersByQ.get(q) ?? []
-    const noJump = noJumpQuestions.has(q)
+    // A bonus that falls to an empty chair is recorded in the app as a no-jump; old sheets sometimes
+    // mark it "mb" on the empty row instead. Accepting "mb" on an empty seat directly is an option
+    // for later.
+    const marks = rawAnswersByQ.get(q) ?? []
+    const onEmptyRow = (a: RawAnswer) => {
+      if (a.value !== CellValue.MissedBonus) return false
+      if (!named[a.teamIdx]![a.seatIdx]) return true
+      const seat = seatOf(a)
+      return seat !== undefined && isSeatEmpty(a.teamIdx, seat)
+    }
+    const rawAnswers = marks.filter((a) => !onEmptyRow(a))
+    const noJump = noJumpQuestions.has(q) || marks.some(onEmptyRow)
     const firstError = rawAnswers.find((a) => a.value === CellValue.Error)
     const tossUp =
       q >= RULES.firstAbQuestion &&

@@ -33,6 +33,12 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `createFileClient`, the API client's twin for files: it answers with the response itself rather
   than its JSON, and sends a body without a JSON content type.
 
+### Changed
+
+* `readOds` reads an "mb" marked on an empty seat, a row with no quizzer or one whose quizzer has
+  left, as a no-jump on that question, which is how the app records a bonus that falls to an empty
+  chair, instead of as a mark in an empty seat.
+
 ## [1.16.0] - 2026-11-19
 
 ### Added
