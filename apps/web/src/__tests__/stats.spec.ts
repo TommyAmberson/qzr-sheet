@@ -130,10 +130,10 @@ describe('warningText', () => {
     const quiz = { id: 1, name: 'D1 Q3' }
     const problem: QuizProblem = { kind: 'unanswered', questions: ['15'] }
     expect(warningText({ kind: 'inError', quiz, problems: [problem] })).toBe(
-      'D1 Q3 has an error, so it adds nothing.',
+      "D1 Q3 has an error, so it doesn't count toward the standings until fixed or accepted as scored.",
     )
     expect(warningText({ kind: 'inError', quiz, problems: [problem, problem] })).toBe(
-      'D1 Q3 has 2 errors, so it adds nothing.',
+      "D1 Q3 has 2 errors, so it doesn't count toward the standings until fixed or accepted as scored.",
     )
   })
 

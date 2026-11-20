@@ -93,11 +93,11 @@ on #200 (T007).
 
 ### The page and its tab bar (PR 2)
 
-- [ ] T007 Rebase on master once #200 is merged; re-read the files it changed (`router/index.ts`, `QuizMeetView.vue`, `ScheduleView.vue`, `ResultsView.vue`, `ResultView.vue`, `DivisionStatsView.vue`, `StatsSettingsView.vue`) before moving them
-- [ ] T008 The meet page shell: one `/:slug` route with the tab in the path (`quizzes`, `standings`, `roster`, `setup`; none for Schedule) and the division in `?division=`, in `apps/web/src/router/index.ts` and a new `apps/web/src/views/MeetView.vue` holding the meet's header with uploading quiz files for those allowed to send quizzes (FR-007, moved from `ResultsView.vue`), a tab bar of router links (the builder's `.seg` look, research R5), the division picker and Refresh; guests (meet id as slug) reach Schedule, Quizzes and Standings and are sent to Schedule from Roster and Setup; the page always opens on Schedule (FR-001); covered by T009
-- [ ] T009 [P] Spec in `apps/web/src/__tests__/` for the page's routes: each tab's path, `?division=` kept across tabs, every old address of contracts/meet-day-api.md's table redirecting (`/stats/settings` matched before `/stats/:division`), guests kept to the three tabs
-- [ ] T010 Keeping the page current, owned by a new `apps/web/src/composables/useMeetDay.ts` (plan.md: "Re-reading while open"), reading `GET /day` through a new `getMeetDay` in `apps/web/src/api.ts` with `whenPrepared`: reads the day response on switching tabs, when the browser tab comes back into view, on Refresh, and every 30 seconds while the browser tab is visible, never while hidden (FR-022), re-reading the published schedule when the day response names a newer version, and giving the open tab the same beat to re-read its own data, so every tab refreshes together and none keeps its own timer; covered by a spec beside the other composables' specs using fake timers and `visibilityState`
-- [ ] T011 Roster and Setup tabs (FR-006): `apps/web/src/views/meet/RosterTab.vue` takes the churches section of `QuizMeetView.vue`, and `apps/web/src/views/meet/SetupTab.vue` takes the rest (details and phase, admin code, rooms and codes, members) with `StatsSettingsView.vue`'s settings as a section, the team names section not brought back (#186); both with the same visibility and controls as today; covered by the existing meet page specs, moved
+- [X] T007 Rebase on master once #200 is merged; re-read the files it changed (`router/index.ts`, `QuizMeetView.vue`, `ScheduleView.vue`, `ResultsView.vue`, `ResultView.vue`, `DivisionStatsView.vue`, `StatsSettingsView.vue`) before moving them. PR 2 starts from master after #200 and #209 (ODS round trip), whose additions to `ResultsView.vue`, `ResultView.vue`, `QuizMeetView.vue` and `DivisionStatsView.vue` are re-read too
+- [X] T008 The meet page shell: one `/:slug` route with the tab in the path (`quizzes`, `standings`, `roster`, `setup`; none for Schedule) and the division in `?division=`, in `apps/web/src/router/index.ts` and a new `apps/web/src/views/MeetView.vue` holding the meet's header with uploading quiz files for those allowed to send quizzes (FR-007, moved from `ResultsView.vue` with #209's planning step whole: each file matched to its scheduled quiz before it is sent), a tab bar of router links (the builder's `.seg` look, research R5), the division picker and Refresh; guests (meet id as slug) reach Schedule, Quizzes and Standings and are sent to Schedule from Roster and Setup; the page always opens on Schedule (FR-001); covered by T009
+- [X] T009 [P] Spec in `apps/web/src/__tests__/` for the page's routes: each tab's path, `?division=` kept across tabs, every old address of contracts/meet-day-api.md's table redirecting (`/stats/settings` matched before `/stats/:division`), guests kept to the three tabs
+- [X] T010 Keeping the page current, owned by a new `apps/web/src/composables/useMeetDay.ts` (plan.md: "Re-reading while open"), reading `GET /day` through a new `getMeetDay` in `apps/web/src/api.ts` with `whenPrepared`: reads the day response on switching tabs, when the browser tab comes back into view, on Refresh, and every 30 seconds while the browser tab is visible, never while hidden (FR-022), re-reading the published schedule when the day response names a newer version, and giving the open tab the same beat to re-read its own data, so every tab refreshes together and none keeps its own timer; covered by a spec beside the other composables' specs using fake timers and `visibilityState`
+- [X] T011 Roster and Setup tabs (FR-006): `apps/web/src/views/meet/RosterTab.vue` takes the churches section of `QuizMeetView.vue`, and `apps/web/src/views/meet/SetupTab.vue` takes the rest (details and phase, admin code, rooms and codes, members, and #209's scoring template: its lookup, upload and download, for admins) with `StatsSettingsView.vue`'s settings as a section, the team names section not brought back (#186); both with the same visibility and controls as today; covered by the existing meet page specs, moved
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -111,12 +111,12 @@ on #200 (T007).
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Spec in `packages/ui/src/__tests__/` for the schedule's marks: a played quiz shows each team's place and, where given, score beside the bench holding that team, matched by folded name, a team it can't bench listed under the quiz; a quiz needing attention or under review is marked so with its few words; a `hidden` quiz shows "result not shown yet"; a settled bench shows its team on the team line beside its source; with no marks the sheet renders as today (the builder's case)
+- [X] T012 [P] [US1] Spec in `apps/web/src/__tests__/ScheduleMarks.spec.ts` (`packages/ui` has no test setup; the portal's specs mount its components) for the schedule's marks: a played quiz shows each team's place and, where given, score beside the bench holding that team, matched by folded name, a team it can't bench listed under the quiz; a quiz needing attention or under review is marked so with its few words; a quiz set not to count is marked so for admins and its room's official; a `hidden` quiz shows "result not shown yet"; a settled bench shows its team on the team line beside its source; with no marks the sheet renders as today (the builder's case)
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Results on the schedule, owned by `ScheduleSheet` and `ScheduleSeat` in `packages/ui/src/` (plan.md: "Drawing the schedule with results"): an optional marks input per schedule quiz (status, its teams' results placed by name, settled benches), the sheet's layout unchanged (FR-008 to FR-011); covered by T012
-- [ ] T014 [US1] The Schedule tab, `apps/web/src/views/meet/ScheduleTab.vue` from `ScheduleView.vue`: the published schedule with the day response's marks for the picked division or every division, quiz titles opening the stored quiz's page or, for its room's official and admins, the scoresheet in a new tab on desktop (#200's `scoresheetLink`) (FR-012), "the schedule hasn't been published" when none is (FR-007's edge case), the schedule's Edit link for admins; covered by T012 and quickstart scenario 1
+- [X] T013 [US1] Results on the schedule, owned by `ScheduleSheet` and `ScheduleSeat` in `packages/ui/src/` (plan.md: "Drawing the schedule with results"): an optional marks input per schedule quiz (status, not counted among them, its teams' results placed by name, settled benches), the sheet's layout unchanged (FR-008 to FR-011); covered by T012
+- [X] T014 [US1] The Schedule tab, `apps/web/src/views/meet/ScheduleTab.vue` from `ScheduleView.vue`: the published schedule with the day response's marks for the picked division or every division, quiz titles opening the stored quiz's page or, for its room's official and admins, the scoresheet in a new tab on desktop (#200's `scoresheetLink`) (FR-012), "the schedule hasn't been published" when none is (FR-007's edge case), the schedule's Edit link for admins; covered by T012 and quickstart scenario 1
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -130,8 +130,8 @@ on #200 (T007).
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] The Quizzes tab, `apps/web/src/views/meet/QuizzesTab.vue` from `ResultsView.vue`, keeping every action it has but uploading, which moves to the page's header (T008) (FR-013): its stage groups list each scheduled quiz in or not, from the day response, a quiz not in yet showing when and where (FR-014); stored quizzes the schedule doesn't match in their own group from `notOnSchedule`; the division, stage and attention filters acting on the quizzes shown (FR-015). For a viewer or coach the tab is built from the day response alone, which already holds only what FR-024 gives them, with no stored-quiz controls and no attention list; the results list and the attention list are read for admins and officials only (FR-016), re-read on the page's beat (T010); covered by the existing results page specs, moved, a case for a scheduled quiz not in yet, and a case for a viewer's tab in a meet with no published schedule
-- [ ] T016 [US2] The attention count on the Quizzes tab's label for admins (FR-003), from the day response's `attention`, in `MeetView.vue`; covered by T009's spec
+- [X] T015 [US2] The Quizzes tab, `apps/web/src/views/meet/QuizzesTab.vue` from `ResultsView.vue`, keeping every action it has but uploading, which moves to the page's header (T008), downloading the quizzes shown (#209) among them (FR-013): its stage groups list each scheduled quiz in or not, from the day response, a quiz not in yet showing when and where (FR-014); stored quizzes the schedule doesn't match in their own group from `notOnSchedule`; the division, stage and attention filters acting on the quizzes shown (FR-015). For a viewer or coach the tab is built from the day response alone, which already holds only what FR-024 gives them, with no stored-quiz controls and no attention list; the results list and the attention list are read for admins and officials only (FR-016), re-read on the page's beat (T010); covered by the existing results page specs, moved, a case for a scheduled quiz not in yet, and a case for a viewer's tab in a meet with no published schedule
+- [X] T016 [US2] The attention count on the Quizzes tab's label for admins (FR-003), from the day response's `attention`, in `MeetView.vue`; covered by T009's spec
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -145,9 +145,9 @@ on #200 (T007).
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] A division's steps as one component both tabs mount, moved from `StatsSettingsView.vue` (plan.md: "A division's steps"), with its warnings, confirmations and "Preview as viewer"; covered by the existing stats settings specs, moved
-- [ ] T018 [US3] The Standings tab, `apps/web/src/views/meet/StandingsTab.vue` from `DivisionStatsView.vue`: one division at a time ("every division" picked shows the first), its tables as today with print and download, the steps for admins (FR-017, FR-018), what will appear and when for a viewer with nothing yet (FR-002), re-reading on the page's beat (T010), what a viewer gets unchanged from today's division stats; covered by the existing division stats specs, moved
-- [ ] T019 [US3] The steps in the Setup tab's stats section too (FR-019), the same component as T017; covered by T017's specs
+- [X] T017 [US3] A division's steps as one component both tabs mount, moved from `StatsSettingsView.vue` (plan.md: "A division's steps"), with its warnings, confirmations and "Preview as viewer"; covered by the existing stats settings specs, moved
+- [X] T018 [US3] The Standings tab, `apps/web/src/views/meet/StandingsTab.vue` from `DivisionStatsView.vue`: one division at a time ("every division" picked shows the first), its tables as today with print and download, the steps for admins (FR-017, FR-018), what will appear and when for a viewer with nothing yet (FR-002), re-reading on the page's beat (T010), what a viewer gets unchanged from today's division stats; covered by the existing division stats specs, moved
+- [X] T019 [US3] The steps in the Setup tab's stats section too (FR-019), the same component as T017; covered by T017's specs
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -161,8 +161,8 @@ on #200 (T007).
 
 ### Implementation for User Story 4
 
-- [ ] T020 [US4] The division picker in `MeetView.vue`: starts on every division unless `?division=` names one, remembers nothing between visits (FR-004), kept in the query as the reader switches tabs, every division offered where the tab allows it; covered by T009
-- [ ] T021 [US4] Signed-out readers of a tab's address are asked to sign in and taken back to it, through #200's `returnPath`; covered by #200's `returnPath.spec.ts` and a case in T009's spec
+- [X] T020 [US4] The division picker in `MeetView.vue`: starts on every division unless `?division=` names one, remembers nothing between visits (FR-004), kept in the query as the reader switches tabs, every division offered where the tab allows it; covered by T009
+- [X] T021 [US4] Signed-out readers of a tab's address are asked to sign in and taken back to it, through #200's `returnPath`; covered by #200's `returnPath.spec.ts` and a case in T009's spec
 
 ---
 
@@ -188,12 +188,12 @@ on #200 (T007).
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T026 Remove the views the tabs replace (`ScheduleView.vue`, `ResultsView.vue`, `StatsView.vue`, `DivisionStatsView.vue`, `StatsSettingsView.vue`, and `QuizMeetView.vue`'s moved sections), their routes now redirects (FR-020); the stored quiz page, the church teams page and the builder stay
-- [ ] T027 Docs in the same PR as the change they describe: `docs/scheduling.md` (bench resolution built, replacing "still to come with #16"; with PR 1), `docs/roles-and-access.md` (the tabs and who sees what, `GET /day`; with PR 2), `docs/architecture.md` (the meet page and its data flow; with PR 2)
+- [X] T026 Remove the views the tabs replace (`ScheduleView.vue`, `ResultsView.vue`, `StatsView.vue`, `DivisionStatsView.vue`, `StatsSettingsView.vue`, and `QuizMeetView.vue`'s moved sections), once every action they hold, #209's included, is on a tab or in the header, their routes now redirects (FR-020); the stored quiz page, the church teams page and the builder stay
+- [X] T027 Docs in the same PR as the change they describe: `docs/scheduling.md` (bench resolution built, replacing "still to come with #16"; missed in PR 1, so the first commit of PR 2), `docs/roles-and-access.md` (the tabs and who sees what, `GET /day`; with PR 2), `docs/architecture.md` (the meet page and its data flow; with PR 2)
 - [ ] T028 `ROADMAP.md` and `apps/web/src/views/RoadmapView.vue`: #16 shipped, the meet page described; close #16 with a comment on what shipped, with the maintainer's leave
 - [ ] T029 Measure on the deployed Worker with `wrangler tail`: the day response's CPU for the one production meet with results, and that viewers' requests are served from the cache (quickstart scenario 9); record in research R2
-- [ ] T030 Run every quickstart scenario in a browser, counting clicks for SC-001 (an admin from any tab to any item's fix: at most two) and SC-002 (a viewer to a division's standings: at most two; to how a scheduled quiz went: one)
-- [ ] T031 Release commits last in each PR, one per package, at the levels in the Delivery table
+- [ ] T030 Run every quickstart scenario in a browser, counting clicks for SC-001 (an admin from any tab to any item's fix: at most two, counting an upload from its planning step) and SC-002 (a viewer to a division's standings: at most two; to how a scheduled quiz went: one)
+- [X] T031 Release commits last in each PR, one per package, at the levels in the Delivery table
 
 ---
 

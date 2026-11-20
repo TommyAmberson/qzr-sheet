@@ -1,41 +1,32 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   ApiError,
-  DIVISION_STATES,
   MOMENTS,
   PlacementFormula,
   STAGES,
-  divisionTitle,
   viewerHas,
-  type DivisionStateValue,
   type ShownFrom,
   type StatsSettings,
 } from '@qzr/shared'
 
 import { formatWhen } from '@qzr/ui'
 
+import DivisionSteps from './DivisionSteps.vue'
+import { useMeetPage } from '../meetPage'
 import {
-  getDivisionStates,
-  getMeet,
   getStatsSettings,
   saveStatsSettings,
-  setDivisionState,
-  setMeetPhase,
   setQuizzesToMeetFormula,
   type DivisionState,
-  type MeetDetail,
   type StatsSettingsRead,
 } from '../api'
 import {
   MOMENT_WORDS,
   THING_NAMES,
   momentsFor,
-  nextMove,
-  previousState,
   rightNow,
-  stepNames,
   viewerChanges,
   type ViewerThing,
 } from '../stats'
@@ -44,10 +35,9 @@ import {
  * A meet's stats settings, in one place (FR-023c): each division's steps through the day, what
  * viewers see and from when, and how the meet scores and ranks
  */
-const props = defineProps<{ slug: string }>()
-const router = useRouter()
+const { slug, meet, reloadMeet, beat, refresh } = useMeetPage()
+const route = useRoute()
 
-const meet = ref<MeetDetail['meet'] | null>(null)
 const divisions = ref<DivisionState[]>([])
 const saved = ref<StatsSettings | null>(null)
 const draft = ref<StatsSettings | null>(null)
@@ -58,24 +48,8 @@ const loading = ref(true)
 const busy = ref(false)
 const error = ref('')
 
-/** A warning shown in the page before a move goes ahead, never as a browser dialog */
-const ask = ref<{
-  division: string
-  text: string
-  names: string[]
-  yes: string
-  go: () => Promise<void>
-} | null>(null)
-/** Every division finished: offer to move the meet to review, which it never does on its own */
-const offerReview = ref(false)
-
-/** Each division with the control that confirms its next step, if it has one */
-const rows = computed(() => divisions.value.map((d) => ({ d, move: nextMove(d.state, d.stages) })))
-
 const phase = computed(() => meet.value?.phase ?? 'registration')
 const done = computed(() => phase.value === 'done')
-/** Divisions move only while the meet is live or in review */
-const canMove = computed(() => phase.value === 'live' || phase.value === 'review')
 const dirty = computed(() => JSON.stringify(saved.value) !== JSON.stringify(draft.value))
 /** Quizzes are set to the saved way of scoring level teams, so not while another is chosen */
 const levelTeamsUnsaved = computed(() => saved.value?.levelTeams !== draft.value?.levelTeams)
@@ -86,17 +60,13 @@ const changes = computed(() =>
 )
 
 async function load() {
+  const id = meet.value?.id
+  if (id === undefined) return
   loading.value = true
   error.value = ''
   try {
-    const { meet: detail } = await getMeet(props.slug)
-    const [states, read] = await Promise.all([
-      getDivisionStates(detail.id),
-      getStatsSettings(detail.id),
-    ])
-    meet.value = detail
-    divisions.value = states.divisionStates
-    took(read)
+    // The division states come from the steps below, which read them
+    took(await getStatsSettings(id))
   } catch (e) {
     error.value =
       e instanceof ApiError && e.status === 403
@@ -104,11 +74,14 @@ async function load() {
         : (e as Error).message
   } finally {
     loading.value = false
+    // Asked for by address, the stats section is scrolled to once it is there
+    if (route.hash === '#stats') {
+      void nextTick(() => document.getElementById('stats')?.scrollIntoView({ block: 'start' }))
+    }
   }
 }
 
-onMounted(load)
-watch(() => props.slug, load)
+watch(() => meet.value?.id, load, { immediate: true })
 
 /** Take the settings as the API answers them */
 function took(read: StatsSettingsRead) {
@@ -116,11 +89,6 @@ function took(read: StatsSettingsRead) {
   draft.value = structuredClone(read.settings)
   changed.value = read.changed
   otherFormula.value = read.otherFormula ?? 0
-}
-
-async function reloadDivisions() {
-  if (!meet.value) return
-  divisions.value = (await getDivisionStates(meet.value.id)).divisionStates
 }
 
 /** Run an action, keeping its error in the page */
@@ -134,85 +102,6 @@ async function run(action: () => Promise<void>) {
   } finally {
     busy.value = false
   }
-}
-
-/** The quizzes a 409 names, from its body */
-function namesIn(e: unknown, key: 'missing' | 'affected'): string[] | null {
-  if (!(e instanceof ApiError) || e.status !== 409) return null
-  const listed = (e.body as Record<string, { name: string }[] | undefined> | undefined)?.[key]
-  return listed ? listed.map((quiz) => quiz.name) : null
-}
-
-/** Confirm a division's next step: one move, or two for "Start Finals" */
-function forward(d: DivisionState, confirm = false) {
-  const move = nextMove(d.state, d.stages)
-  if (!move || !meet.value) return
-  const meetId = meet.value.id
-  void run(async () => {
-    ask.value = null
-    for (const to of move.to) {
-      // The second move of two may already be made, if the first warned and was retried
-      if (DIVISION_STATES.indexOf(to) <= DIVISION_STATES.indexOf(d.state)) continue
-      try {
-        await setDivisionState(meetId, d.division, to, confirm)
-      } catch (e) {
-        // An earlier move may have been made, so the rows show where the division is now
-        await reloadDivisions().catch(() => {})
-        const missing = namesIn(e, 'missing')
-        if (!missing) throw e
-        ask.value = {
-          division: d.division,
-          text: 'Not every scheduled quiz is stored and counting:',
-          names: missing,
-          yes: `${move.label} anyway`,
-          go: async () => forward(divisions.value.find((x) => x.division === d.division)!, true),
-        }
-        return
-      }
-    }
-    await reloadDivisions()
-    if (move.to.includes('division_done') && phase.value === 'live') {
-      offerReview.value = divisions.value.every((x) => x.state === 'division_done')
-    }
-  })
-}
-
-/** Take a division's last step back, withdrawing the order it confirmed */
-function back(d: DivisionState, confirm = false) {
-  const to = previousState(d.state)
-  if (!to || !meet.value) return
-  const meetId = meet.value.id
-  void run(async () => {
-    ask.value = null
-    offerReview.value = false
-    try {
-      await setDivisionState(meetId, d.division, to, confirm)
-    } catch (e) {
-      const affected = namesIn(e, 'affected')
-      if (!affected) throw e
-      ask.value = {
-        division: d.division,
-        text:
-          'These quizzes were seated from the order you are withdrawing and may no longer be valid. ' +
-          'They stay stored, flagged until you keep each one or set it to not counted:',
-        names: affected,
-        yes: 'Take back anyway',
-        go: async () => back(d, true),
-      }
-      return
-    }
-    await reloadDivisions()
-  })
-}
-
-function moveMeetToReview() {
-  if (!meet.value) return
-  const meetId = meet.value.id
-  void run(async () => {
-    await setMeetPhase(meetId, 'review')
-    offerReview.value = false
-    meet.value = (await getMeet(props.slug)).meet
-  })
 }
 
 function save() {
@@ -259,24 +148,15 @@ const updateMatters = computed(() => {
 const QUIZZER_MOMENTS: ShownFrom[] = [...MOMENTS, 'never']
 
 const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
-
-function stepClass(d: DivisionState, state: DivisionStateValue) {
-  const [at, step] = [DIVISION_STATES.indexOf(d.state), DIVISION_STATES.indexOf(state)]
-  return step < at ? 'step step--past' : step === at ? 'step step--here' : 'step'
-}
 </script>
 
 <template>
-  <div class="container">
-    <button class="back-link" @click="router.push({ name: 'meet-stats', params: { slug } })">
-      ← Stats
-    </button>
-
+  <div class="stats-settings">
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error && !meet" class="state-msg state-msg--error">{{ error }}</p>
 
     <template v-else-if="meet && draft">
-      <h2 class="page-title">Stats settings: {{ meet.name }}</h2>
+      <h3 class="section-title">Stats</h3>
       <p v-if="error" class="state-msg state-msg--error">{{ error }}</p>
       <p v-if="done" class="locked">
         <strong>The meet is done.</strong> Settings are locked; reopen it for review to change them.
@@ -285,83 +165,15 @@ function stepClass(d: DivisionState, state: DivisionStateValue) {
       <!-- Each division's steps through the day (FR-019a) -->
       <section class="block">
         <h3 class="section-title">Divisions</h3>
-        <p v-if="!canMove && !done" class="state-msg">
-          Divisions move through their steps once the meet is live.
-        </p>
-        <p v-if="divisions.length === 0" class="state-msg">The meet has no divisions yet.</p>
-        <div v-for="{ d, move } in rows" :key="d.division" class="division">
-          <div class="division-head">
-            <strong>{{ divisionTitle(d.division) }}</strong>
-            <router-link
-              class="as-viewer"
-              :to="{
-                name: 'meet-division-stats',
-                params: { slug, division: d.division },
-                query: { as: 'viewer' },
-              }"
-            >
-              Preview as viewer
-            </router-link>
-          </div>
-          <ol class="steps">
-            <li v-for="state in DIVISION_STATES" :key="state" :class="stepClass(d, state)">
-              {{ stepNames(d.stages)[state] }}
-            </li>
-          </ol>
-          <p v-if="move" class="readiness">
-            <template v-if="d.ready">Ready: {{ move.label }}.</template>
-            <template v-else-if="d.missing.length">
-              Waiting for {{ d.missing.map((quiz) => quiz.name).join(', ') }}.
-            </template>
-          </p>
-          <p v-if="d.confirmed.prelims" class="note">
-            Prelim order confirmed by {{ d.confirmed.prelims.by }},
-            {{ formatWhen(d.confirmed.prelims.at) }}.
-          </p>
-          <p v-if="d.confirmed.rerank" class="note">
-            Re-rank confirmed by {{ d.confirmed.rerank.by }},
-            {{ formatWhen(d.confirmed.rerank.at) }}.
-          </p>
-          <div v-if="canMove" class="actions">
-            <button
-              v-if="move"
-              class="btn btn--primary btn--sm"
-              :disabled="busy"
-              @click="forward(d)"
-            >
-              {{ move.label }}
-            </button>
-            <button
-              v-if="previousState(d.state)"
-              class="btn btn--secondary btn--sm"
-              :disabled="busy"
-              @click="back(d)"
-            >
-              Take back
-            </button>
-          </div>
-          <div v-if="ask?.division === d.division" class="ask" role="alert">
-            <p>{{ ask.text }}</p>
-            <ul>
-              <li v-for="name in ask.names" :key="name">{{ name }}</li>
-            </ul>
-            <div class="actions">
-              <button class="btn btn--primary btn--sm" :disabled="busy" @click="ask.go()">
-                {{ ask.yes }}
-              </button>
-              <button class="btn btn--secondary btn--sm" @click="ask = null">Cancel</button>
-            </div>
-          </div>
-        </div>
-        <div v-if="offerReview" class="ask" role="status">
-          <p>Every division is finished. Move the meet to review?</p>
-          <div class="actions">
-            <button class="btn btn--primary btn--sm" :disabled="busy" @click="moveMeetToReview">
-              Move to review
-            </button>
-            <button class="btn btn--secondary btn--sm" @click="offerReview = false">Not now</button>
-          </div>
-        </div>
+        <DivisionSteps
+          :meet-id="meet.id"
+          :slug="slug"
+          :phase="phase"
+          :beat="beat"
+          @read="divisions = $event"
+          @moved="refresh('check')"
+          @phase="reloadMeet"
+        />
       </section>
 
       <!-- What viewers see, and from when (FR-018) -->
@@ -526,35 +338,6 @@ function stepClass(d: DivisionState, state: DivisionStateValue) {
 </template>
 
 <style scoped>
-.container {
-  max-width: 56rem;
-  margin: 0 auto;
-  padding: 2rem 1.5rem 6rem;
-}
-
-.back-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  font-family: inherit;
-  margin-bottom: 1.5rem;
-  display: inline-block;
-}
-
-.back-link:hover {
-  color: var(--color-text-muted);
-}
-
-.page-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  margin-bottom: 1.25rem;
-}
-
 .state-msg,
 .hint {
   font-size: 0.85rem;
@@ -581,74 +364,16 @@ function stepClass(d: DivisionState, state: DivisionStateValue) {
   margin-bottom: 0.6rem;
 }
 
-.division {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.division-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.as-viewer {
-  font-size: 0.8rem;
-}
-
-.steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  list-style: none;
-  padding: 0;
-  margin: 0.5rem 0;
-}
-
-.step {
-  padding: 0.1rem 0.55rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  font-size: 0.75rem;
-  color: var(--color-text-faint);
-}
-
-.step--past {
-  color: var(--color-text-muted);
-}
-
-.step--here {
-  border-color: var(--color-accent);
-  color: var(--color-heading);
-  font-weight: 600;
-}
-
-.readiness,
 .note {
   font-size: 0.8rem;
   color: var(--color-text-muted);
   margin: 0.2rem 0;
 }
-
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.5rem;
-}
-
-.ask {
-  margin-top: 0.6rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--palette-error);
-  border-radius: 6px;
-  font-size: 0.85rem;
-}
-
-.ask ul {
-  margin: 0.3rem 0 0;
-  padding-left: 1.1rem;
 }
 
 .lines {
@@ -717,11 +442,13 @@ function stepClass(d: DivisionState, state: DivisionStateValue) {
   font-size: 0.85rem;
 }
 
+/* The page's own background, so the bar reads as part of the page as it stays in view, with room
+   under its buttons at the foot of the window */
 .save-bar {
   position: sticky;
   bottom: 0;
-  padding: 0.75rem 0;
-  background: var(--color-bg);
+  padding: 0.75rem 0 1.25rem;
+  background: var(--color-bg-warm);
   border-top: 1px solid var(--color-border);
   font-size: 0.85rem;
 }

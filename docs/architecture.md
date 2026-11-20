@@ -104,18 +104,44 @@ quiz on a blank sheet, linked to it, as its own "New from schedule" does.
 What New, Open and Link each do to the sheet, and what linking never changes, is in
 [meet-link.md](./meet-link.md).
 
-The portal's schedule page links each quiz as `?meetId=<meet>&quiz=<quiz id>`, the quiz's id in the
-published schedule document.
+### The meet's page
+
+A meet is one page in tabs (specs/010-meet-day): Schedule at `/:slug`, then `/quizzes`,
+`/standings`, `/roster` and `/setup`, the division picked in `?division=`, so a reload or a shared
+link opens the same view. `MeetView` is the shell: it loads the meet and who the reader is in it
+(`GET /results/sender`) once, keeps the meet day current through `useMeetDay`, and shares both with
+its tabs through `meetPage.ts`. The meet day (`GET /api/meets/:id/day`) holds the published
+schedule's quizzes with each one's status and result as this reader may see them, the settled
+benches, and the stored quizzes the schedule lacks. `useMeetDay` reads it on opening, on a tab
+switch, when the browser tab comes back into view, on Refresh, and every 30 seconds while visible,
+one read at a time. Its `beat` tells the open tab to re-read its own data: on Refresh, and when a
+read finds the meet changed, so no tab keeps a timer. The published schedule is read for each
+version and phase a meet day names. `specs/010-meet-day/research.md` (R7) states the rules.
+
+* **Schedule** draws the published schedule with `ScheduleSheet`, given the meet day as `marks`:
+  each bench's settled team and result, and each quiz's status. A quiz's title opens its stored quiz
+  for those who may, or the scoresheet for a quiz not in yet, as `?meetId=<meet>&quiz=<quiz id>`,
+  the quiz's id in the published schedule document.
+* **Quizzes** lists each stage's scheduled quizzes, in or not, and the stored quizzes the schedule
+  lacks, from the meet day; admins and officials also read the stored quizzes (`GET /results`) for
+  their actions, and admins what needs attention.
+* **Standings** shows one division's stats, with its steps for admins (`DivisionSteps`, which Setup
+  mounts for every division).
+* **Roster** and **Setup** hold the meet page's former sections; Setup includes the stats settings.
+
+The old addresses (`/schedule`, `/results`, `/stats`, `/stats/:division`, `/stats/settings`)
+redirect to their tabs.
 
 ### Uploads and downloads
 
-Quiz files and LibreOffice sheets go to and from a meet through the Results page, so a meet can
-switch format partway through. An upload (`packages/ui/src/sendQuizzes.ts`) reads each file in the
-browser, a sheet with the shared ODS reader, matches it to the published schedule by name for the
-user to review, then sends each quiz through the same `POST /api/meets/:id/results` the scoresheet
-uses, one request per quiz, with its scheduled quiz and, for an admin, that quiz's room. A file
-identical to the quiz's current revision is answered unchanged. Downloads are built in the browser
-too (`apps/web/src/downloads.ts`), from the quiz files the results list already carries, filling the
+Quiz files and LibreOffice sheets go to a meet through the upload in its page's header, on every
+tab, and come from it through the Quizzes tab, so a meet can switch format partway through. An
+upload (`packages/ui/src/sendQuizzes.ts`) reads each file in the browser, a sheet with the shared
+ODS reader, matches it to the published schedule by name for the user to review, then sends each
+quiz through the same `POST /api/meets/:id/results` the scoresheet uses, one request per quiz, with
+its scheduled quiz and, for an admin, that quiz's room. A file identical to the quiz's current
+revision is answered unchanged. Downloads are built in the browser too
+(`apps/web/src/downloads.ts`), from the quiz files the results list already carries, filling the
 meet's template for `.ods` and zipping with `fflate`, so the Worker does no extra work for them.
 
 ### Schedule builder
@@ -127,7 +153,7 @@ schedules kept in the browser with no account, and on a meet's schedule edit pag
 document is kept in `localStorage` on each change, saved to and opened from `.qzrschedule.json`
 files, and, when linked, sent to the API as the meet's draft and published as numbered versions. The
 logic it runs is pure and lives in `packages/shared/src/schedule/`; the grid it draws is
-`ScheduleSheet` in `packages/ui`, which the portal's schedule page and the scoresheet's picker draw
+`ScheduleSheet` in `packages/ui`, which the meet's Schedule tab and the scoresheet's picker draw
 too.
 
 ## Shared Package (`packages/shared`)

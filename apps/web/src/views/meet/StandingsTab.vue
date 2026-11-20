@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ApiError, type DivisionStats, divisionTitle } from '@qzr/shared'
+import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { ApiError, divisionTitle, type DivisionStats } from '@qzr/shared'
 
-import { getDivisionStats, getMeet, keepQuiz, type MeetDetail } from '../api'
-import StandingState from '../components/StandingState.vue'
-import { saveFile } from '../downloads'
+import { getDivisionStats, keepQuiz } from '../../api'
+import DivisionSteps from '../../components/DivisionSteps.vue'
+import StandingState from '../../components/StandingState.vue'
+import { useMeetPage } from '../../meetPage'
+import { saveFile } from '../../downloads'
 import {
   STAGE_LABELS,
   TIE_BREAKS,
@@ -15,15 +17,23 @@ import {
   quizzerCount,
   statsCsv,
   warningText,
-} from '../stats'
+} from '../../stats'
 
 /**
- * A division's stats for every member of the meet, signed in or a guest, as far as the meet's
- * settings give them (FR-018 to FR-021); an admin sees everything, and may look as a viewer
+ * The Standings tab (FR-017, FR-018): one division's stats for every member of the meet, signed in
+ * or a guest, as far as the meet's settings give them; an admin sees everything, with the
+ * division's steps, and may look as a viewer. Every division picked shows the first.
  */
-const props = defineProps<{ slug: string; division: string }>()
 const route = useRoute()
-const router = useRouter()
+const page = useMeetPage()
+const { slug, meet, isAdmin, beat, statsHidden, day, dayError } = page
+/**
+ * A non-admin's results wait for the meet day, which says whether they are shown yet, while it is
+ * read; if it can't be, they are read anyway and the API says (research R7, rule 3)
+ */
+const waiting = computed(() => !isAdmin.value && day.value === null && !dayError.value)
+/** The division shown: the one picked, or the meet's first */
+const division = computed(() => page.division.value ?? meet.value?.divisions[0] ?? null)
 
 /** An admin looking at the page as its viewers see it (FR-023c) */
 const asViewer = computed(() => route.query.as === 'viewer')
@@ -34,23 +44,40 @@ const medals = computed(
   () => stats.value?.results.find((stage) => stage.stage === 'finals')?.medals ?? [],
 )
 
-const meet = ref<MeetDetail['meet'] | null>(null)
 const stats = ref<DivisionStats | null>(null)
 const loading = ref(true)
 const error = ref('')
+
+/** A division moved: its stats are read again here, and the page reads the meet day */
+function moved() {
+  void load()
+  void page.refresh('check')
+}
+
+/** The steps moved the meet on: the page reads the meet again, its meet day follows, and the
+ * stats are read again here, as after any change the reader makes (research R7, rule 3) */
+function movedPhase() {
+  void page.reloadMeet()
+  void load()
+}
 
 /** The newest load; one for a division the page has since left must not show */
 let loads = 0
 
 async function load() {
   const current = ++loads
-  loading.value = true
+  const meetId = meet.value?.id
+  // Nothing is shown before the meet is under way, so nothing is read for it
+  if (meetId === undefined || division.value === null || statsHidden.value || waiting.value) {
+    loading.value = false
+    return
+  }
+  // A re-read on the page's beat keeps the tables in view while it runs
+  if (!stats.value) loading.value = true
   error.value = ''
   try {
-    const { meet: detail } = await getMeet(props.slug)
-    const read = await getDivisionStats(detail.id, props.division, asViewer.value)
+    const read = await getDivisionStats(meetId, division.value, asViewer.value)
     if (current !== loads) return
-    meet.value = detail
     stats.value = read
   } catch (e) {
     if (current !== loads) return
@@ -65,8 +92,16 @@ async function load() {
   }
 }
 
-onMounted(load)
-watch(() => [props.slug, props.division, asViewer.value], load)
+// Read on opening and for another division or the viewer's view, then kept current on the beat
+watch(
+  [() => meet.value?.id, division, asViewer, statsHidden, waiting],
+  () => {
+    stats.value = null
+    void load()
+  },
+  { immediate: true },
+)
+watch(beat, () => void load())
 
 /** The rows opened to show the quizzes behind their totals (FR-027), by table and name */
 const opened = ref(new Set<string>())
@@ -104,6 +139,7 @@ async function keep(resultId: number) {
   try {
     await keepQuiz(meet.value.id, resultId)
     await load()
+    void page.refresh('check')
   } catch (e) {
     error.value = (e as Error).message
   }
@@ -111,23 +147,38 @@ async function keep(resultId: number) {
 </script>
 
 <template>
-  <div class="container">
-    <button
-      class="back-link no-print"
-      @click="router.push({ name: 'meet-stats', params: { slug } })"
-    >
-      ← Stats
-    </button>
-
-    <p v-if="loading" class="state-msg">Loading…</p>
-    <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
+  <div class="standings-tab">
+    <p v-if="division === null" class="state-msg">The meet has no divisions yet.</p>
+    <p v-else-if="statsHidden" class="state-msg">
+      Nothing to see yet: results and standings show once the meet is under way.
+    </p>
+    <p v-else-if="loading || waiting" class="state-msg">Loading…</p>
+    <p v-else-if="error && !stats" class="state-msg state-msg--error">{{ error }}</p>
 
     <template v-else-if="meet && stats">
-      <h2 class="page-title">{{ divisionTitle(stats.division) }} stats: {{ meet.name }}</h2>
+      <!-- A background read that failed leaves the tables shown as they were -->
+      <p v-if="error" class="state-msg state-msg--error no-print">{{ error }}</p>
+      <!-- The steps head an admin's division with its name -->
+      <h3 v-if="!isAdmin || asViewer" class="division-title">
+        {{ divisionTitle(stats.division) }}
+      </h3>
       <p v-if="asViewer" class="viewer-note no-print">
         Previewing as a viewer.
-        <router-link :to="{ query: {} }">See everything</router-link>
+        <router-link :to="{ query: { ...route.query, as: undefined } }">See everything</router-link>
       </p>
+
+      <!-- The division's steps through the day, for its admins (FR-018) -->
+      <DivisionSteps
+        v-if="isAdmin && !asViewer"
+        class="no-print"
+        :meet-id="meet.id"
+        :slug="slug"
+        :phase="meet.phase ?? 'registration'"
+        :division="stats.division"
+        :beat="beat"
+        @moved="moved"
+        @phase="movedPhase"
+      />
 
       <p v-if="admin" class="downloads no-print">
         Download:
@@ -160,7 +211,7 @@ async function keep(resultId: number) {
 
       <section v-if="!stats.prelimStandings" class="block">
         <h3 class="section-title">Prelim standings</h3>
-        <p class="state-msg">Not available yet.</p>
+        <p class="state-msg">Not shown yet: the meet's settings show it later in the day.</p>
       </section>
       <section v-else class="block">
         <h3 class="section-title">
@@ -341,7 +392,7 @@ async function keep(resultId: number) {
 
       <section v-if="!stats.quizzers" class="block">
         <h3 class="section-title">Quizzer standings</h3>
-        <p class="state-msg">Not available yet.</p>
+        <p class="state-msg">Not shown yet: the meet's settings show it later in the day.</p>
       </section>
       <section v-else class="block">
         <h3 class="section-title">
@@ -489,26 +540,11 @@ async function keep(resultId: number) {
 </template>
 
 <style scoped>
-.container {
-  max-width: 64rem;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
-}
-
-.back-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  font-family: inherit;
-  margin-bottom: 1.5rem;
-  display: inline-block;
-}
-
-.back-link:hover {
-  color: var(--color-text-muted);
+.division-title {
+  margin-bottom: 0.75rem;
+  color: var(--color-heading);
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .state-msg {
@@ -518,13 +554,6 @@ async function keep(resultId: number) {
 
 .state-msg--error {
   color: var(--palette-error);
-}
-
-.page-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  margin-bottom: 1.25rem;
 }
 
 .block {
@@ -696,11 +725,6 @@ async function keep(resultId: number) {
 @media print {
   .no-jumps {
     display: none !important;
-  }
-
-  .container {
-    max-width: none;
-    padding: 0;
   }
 
   .table-scroll {

@@ -1,8 +1,23 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import {
+  createRouter,
+  createWebHistory,
+  type RouteLocation,
+  type RouteLocationRaw,
+} from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { authClient } from '../composables/useAuth'
 import { joinedSession } from '@qzr/ui'
 import { isFailedImport, pageLoaded, recoverFromStaleBuild } from '../staleBuild'
+
+/** A page the meet's tabs replace, sent to its tab with its address's division and hash */
+const toTab =
+  (name: string, hash?: string) =>
+  (to: RouteLocation): RouteLocationRaw => ({
+    name,
+    params: to.params,
+    query: to.query,
+    hash: hash ?? to.hash,
+  })
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -36,11 +51,74 @@ const router = createRouter({
       path: '/:slug',
       meta: { requiresAuth: true },
       children: [
+        // The meet's page: the tab in the path, the division in `?division=` (specs/010-meet-day)
         {
           path: '',
-          name: 'meet',
-          component: () => import('../views/QuizMeetView.vue'),
+          name: 'meet-tabs',
+          component: () => import('../views/MeetView.vue'),
           props: (route) => ({ slug: route.params.slug as string }),
+          children: [
+            {
+              path: '',
+              name: 'meet',
+              // A guest who joined with the meet's code reads the schedule too
+              meta: { guestAccess: true },
+              component: () => import('../views/meet/ScheduleTab.vue'),
+            },
+            {
+              path: 'quizzes',
+              name: 'meet-quizzes',
+              meta: { guestAccess: true },
+              component: () => import('../views/meet/QuizzesTab.vue'),
+            },
+            {
+              path: 'standings',
+              name: 'meet-standings',
+              meta: { guestAccess: true },
+              component: () => import('../views/meet/StandingsTab.vue'),
+            },
+            {
+              path: 'roster',
+              name: 'meet-roster',
+              component: () => import('../views/meet/RosterTab.vue'),
+            },
+            {
+              path: 'setup',
+              name: 'meet-setup',
+              component: () => import('../views/meet/SetupTab.vue'),
+            },
+          ],
+        },
+        // The pages the tabs replace, kept as addresses (FR-020)
+        {
+          path: 'schedule',
+          name: 'meet-schedule',
+          redirect: toTab('meet'),
+        },
+        {
+          path: 'results',
+          name: 'meet-results',
+          redirect: toTab('meet-quizzes'),
+        },
+        {
+          path: 'stats',
+          name: 'meet-stats',
+          redirect: toTab('meet-standings'),
+        },
+        // Before `stats/:division`, which would take `settings` for a division
+        {
+          path: 'stats/settings',
+          name: 'meet-stats-settings',
+          redirect: toTab('meet-setup', '#stats'),
+        },
+        {
+          path: 'stats/:division',
+          name: 'meet-division-stats',
+          redirect: (to) => ({
+            name: 'meet-standings',
+            params: { slug: to.params.slug },
+            query: { ...to.query, division: to.params.division as string },
+          }),
         },
         {
           path: 'churches/:churchId/teams',
@@ -52,20 +130,6 @@ const router = createRouter({
           }),
         },
         {
-          path: 'schedule',
-          name: 'meet-schedule',
-          component: () => import('../views/ScheduleView.vue'),
-          props: (route) => ({ slug: route.params.slug as string }),
-        },
-        {
-          path: 'results',
-          name: 'meet-results',
-          // A guest official who joined with a code may open it
-          meta: { guestAccess: true },
-          component: () => import('../views/ResultsView.vue'),
-          props: (route) => ({ slug: route.params.slug as string }),
-        },
-        {
           path: 'results/:resultId',
           name: 'meet-result',
           // The quiz's room officials, guests among them, correct it here
@@ -74,30 +138,6 @@ const router = createRouter({
           props: (route) => ({
             slug: route.params.slug as string,
             resultId: route.params.resultId as string,
-          }),
-        },
-        {
-          path: 'stats',
-          name: 'meet-stats',
-          // A guest viewer who joined with the meet's code may open it
-          meta: { guestAccess: true },
-          component: () => import('../views/StatsView.vue'),
-          props: (route) => ({ slug: route.params.slug as string }),
-        },
-        {
-          path: 'stats/settings',
-          name: 'meet-stats-settings',
-          component: () => import('../views/StatsSettingsView.vue'),
-          props: (route) => ({ slug: route.params.slug as string }),
-        },
-        {
-          path: 'stats/:division',
-          name: 'meet-division-stats',
-          meta: { guestAccess: true },
-          component: () => import('../views/DivisionStatsView.vue'),
-          props: (route) => ({
-            slug: route.params.slug as string,
-            division: route.params.division as string,
           }),
         },
         {
@@ -124,8 +164,12 @@ router.beforeEach(async (to) => {
   // A guest who joined this meet with a code may open its guest pages (`slug` is the meet's id then,
   // and only a value of digits is one: Number() would also read a code like 1e3)
   const slug = String(to.params.slug)
-  if (to.matched.some((r) => r.meta.guestAccess) && /^\d+$/.test(slug)) {
-    if (joinedSession(Number(slug))) return true
+  if (/^\d+$/.test(slug) && joinedSession(Number(slug))) {
+    if (to.matched.some((r) => r.meta.guestAccess)) return true
+    // The meet's other tabs are for its members: a guest is shown its schedule
+    if (to.matched.some((r) => r.name === 'meet-tabs')) {
+      return { name: 'meet', params: to.params, query: to.query }
+    }
   }
   // Signed out: home, which asks them to sign in and then brings them back
   return { name: 'home', query: { next: to.fullPath } }

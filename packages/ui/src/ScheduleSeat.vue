@@ -3,10 +3,13 @@ import { computed } from 'vue'
 import {
   drawnTeam,
   seatText,
+  type DayTeam,
   type ScheduleDocument,
   type ScheduleQuiz,
+  type SettledBench,
   type SheetView,
 } from '@qzr/shared'
+import { resultText, settledText } from './scheduleMarks'
 import './seat.css'
 
 /**
@@ -19,24 +22,35 @@ const props = defineProps<{
   quiz: ScheduleQuiz
   index: number
   view: SheetView
+  /** The team settled onto the bench from results or a confirmed order (FR-011) */
+  settled?: SettledBench
+  /** The result of the team on the bench: its place, and its score where shown (FR-010) */
+  result?: DayTeam
 }>()
 
 const seat = computed(() => props.quiz.seats[props.index]!)
 const source = computed(() => seatText(props.doc, props.quiz, seat.value, 'letters'))
 const absent = computed(() => drawnTeam(props.doc, props.quiz, seat.value)?.absent ?? false)
-const team = computed(() =>
-  absent.value
-    ? 'Absent'
-    : props.view === 'teams' && seat.value.kind === 'letter'
-      ? seatText(props.doc, props.quiz, seat.value, 'teams')
-      : '',
-)
+const team = computed(() => {
+  if (absent.value) return 'Absent'
+  if (props.settled) return settledText(props.settled)
+  if (props.view === 'teams' && seat.value.kind === 'letter') {
+    return seatText(props.doc, props.quiz, seat.value, 'teams')
+  }
+  return ''
+})
+const outcome = computed(() => (props.result ? resultText(props.result) : ''))
 </script>
 
 <template>
   <button type="button" class="qz-seat" :data-seat="`${quiz.id}:${index}`" :title="source">
     <span class="qz-seat-src" :class="{ choose: seat.kind === 'empty' }">{{ source }}</span>
     <span class="qz-bench" :class="`qz-bench-${index}`" />
-    <span class="qz-seat-line" :class="{ absent }">{{ team }}</span>
+    <span class="qz-seat-line" :class="{ absent, tied: settled && 'tied' in settled }">{{
+      team
+    }}</span>
+    <span v-if="outcome" class="qz-seat-result" :class="`place-${result?.place}`">{{
+      outcome
+    }}</span>
   </button>
 </template>

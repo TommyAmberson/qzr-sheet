@@ -67,6 +67,14 @@
               quizzes and the tables downloadable for a spreadsheet.
             </dd>
           </div>
+          <div class="feature-item">
+            <dt class="feature-name">The meet day on one page</dt>
+            <dd class="feature-desc">
+              A meet's schedule, quizzes, standings, roster and setup in tabs, filtered by division.
+              Results show on the schedule as they come in, and elimination quizzes fill with the
+              teams that earned them. The page keeps itself current while it is open.
+            </dd>
+          </div>
         </dl>
       </section>
 
@@ -78,13 +86,6 @@
             <dd class="feature-desc">
               Bring in a meet's saved scoresheets in one go, or just its final scores, so earlier
               meets have results and stats too.
-            </dd>
-          </div>
-          <div class="feature-item">
-            <dt class="feature-name">Elim brackets that fill themselves</dt>
-            <dd class="feature-desc">
-              As results come in, each elimination quiz's seats fill with the teams that earned
-              them.
             </dd>
           </div>
           <div class="feature-item">

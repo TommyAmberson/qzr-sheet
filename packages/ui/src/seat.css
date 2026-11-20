@@ -73,6 +73,26 @@
   font-weight: 500;
 }
 
+.qz-seat-line.tied {
+  color: var(--color-text-muted, #6b6560);
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* A bench's result, right of its line: its team's place, and its score where shown */
+.qz-seat-result {
+  justify-self: start;
+  color: var(--color-text-muted, #6b6560);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.qz-seat-result.place-1 {
+  color: var(--color-heading, #1c1a17);
+  font-weight: 700;
+}
+
 .qz-seat:hover .qz-seat-line {
   border-bottom-color: var(--qc, var(--color-accent));
   background: color-mix(in srgb, var(--qc, var(--color-accent)) 12%, transparent);

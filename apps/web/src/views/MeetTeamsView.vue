@@ -321,7 +321,7 @@ async function load() {
     myCoachChurchIds.value = deriveCoachChurchIds(myMeetsRes.memberships, id)
 
     if (!isSuperuserOrAdmin.value && !myCoachChurchIds.value.has(props.churchId)) {
-      router.replace({ name: 'meet', params: { slug: props.slug } })
+      router.replace({ name: 'meet-roster', params: { slug: props.slug } })
       return
     }
 
@@ -586,7 +586,7 @@ function isDropTailActive(containerId: string) {
 
 <template>
   <div class="container">
-    <button class="back-link" @click="router.push({ name: 'meet', params: { slug } })">
+    <button class="back-link" @click="router.push({ name: 'meet-roster', params: { slug } })">
       ← {{ meet?.name || 'QuizMeet' }}
     </button>
 

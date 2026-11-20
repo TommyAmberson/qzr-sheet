@@ -314,10 +314,30 @@ above.
 ### Def vs resolution layering
 
 A seat carries only the **def**: where its team comes from. The **resolution**, which team that
-currently is, is kept apart, because one source can feed several seats. Prelim letters resolve
-through the schedule document's draw. Resolving elim seats from results is still to come with
-[#16](https://github.com/TommyAmberson/qzr-sheet/issues/16); the old design's `seed_resolutions`
-table (§8) is no longer written.
+currently is, is kept apart, because one source can feed several seats. A quiz's seats are its
+benches, where its teams sit; the schedule keeps the older name (`docs/architecture.md`, "Terms",
+[#206](https://github.com/TommyAmberson/qzr-sheet/issues/206)).
+
+`resolveBenches` (`packages/shared/src/schedule/resolve.ts`) works the resolution out on each read,
+from what has been settled, and writes nothing into the published schedule
+([#16](https://github.com/TommyAmberson/qzr-sheet/issues/16)):
+
+* a prelim letter: the team the draw gives it, as the roster spells the team now; a team marked
+  absent sits on no bench;
+* rank `n` and new `n`: the team at that position of the division's confirmed prelim order or
+  re-rank, once confirmed. Teams the order still marks tied after every tie-breaker are taken in the
+  order it lists them, until the admin can record how they settled the tie
+  ([#211](https://github.com/TommyAmberson/qzr-sheet/issues/211));
+* place in `q`: the team placed `p` in quiz `q` once that quiz counts; teams sharing the place leave
+  the bench tied;
+* points `p`: the team placed `p` in the standings of the lane's round robin, once every quiz of it
+  counts, ranked as the prelims are with the meet's tie-breakers. Only a lane the settings make a
+  round robin has one.
+
+So a withdrawn order, or a quiz that stops counting, unsettles its benches with nothing to undo. An
+elimination quiz is checked against the teams its benches settle to, as a prelim is against its
+draw; a quiz that check shows was played by other teams stops counting, which unsettles the benches
+it feeds in turn. The old design's `seed_resolutions` table (§8) is no longer written.
 
 ## 8. Data model
 

@@ -121,7 +121,8 @@ throughout; superuser includes admin.
   access; an official who spots a mistake tells the admin.
 * **The scoring template** is the blank `Scoresheet.ots` a room scores in when it falls back to
   LibreOffice, and the sheet `.ods` downloads fill. It holds no meet data, so anyone the meet's
-  roster routes admit downloads it in every phase; only admins upload or replace it, until `done`.
+  roster routes admit downloads it in every phase, from the meet page's Roster tab (admins from
+  Setup); only admins upload or replace it, until `done`.
 * **`done`** locks the meet, admins included. A late correction moves the meet back to `review`.
   Moving the phase is the one write allowed in `done`.
 * Completed quizzes are immutable in the schedule in every phase
@@ -152,20 +153,30 @@ throughout; superuser includes admin.
 * A division's state now matters within `live`: moving it on confirms the order a step ends with,
   and moving it back withdraws it (see [scheduling.md](./scheduling.md)). Stats settings change
   while the meet is not `done`.
+* A meet's page has five tabs (specs/010-meet-day). Schedule, Quizzes and Standings are for everyone
+  who may read the meet, guests included; Roster is for its members, and Setup for its admins, a
+  guest who opens either being shown the Schedule. Each tab gives a reader exactly what the rules
+  above give them: the schedule's results and the Quizzes list come from the meet day
+  (`GET /api/meets/:id/day`), which cuts each quiz as a division's stats do, so a stage a reader may
+  not see yet shows every quiz of it as not shown yet, in or not, and a bench's team shows only once
+  the reader may see where it comes from. Admins and officials also have the stored quizzes behind
+  the list, as above; viewers and coaches share one copy of the meet day, kept 20 seconds, since it
+  is the same for all of them.
 
 ## Actions by credential
 
 Which principal can perform each action, given the role and phase allow it.
 
-| Action                                                         | Performed as      |
-| -------------------------------------------------------------- | ----------------- |
-| Read what the phase allows a viewer                            | account or guest  |
-| Send, read, and correct a room's quizzes, as its official      | account or guest  |
-| Coach and admin actions                                        | account           |
-| Create, list, or delete meets                                  | superuser account |
-| Redeem any code for a membership (`POST /api/join`)            | account           |
-| Redeem a viewer or room code for a guest token (`/join/guest`) | anyone            |
-| List one's own memberships                                     | account           |
+| Action                                                          | Performed as      |
+| --------------------------------------------------------------- | ----------------- |
+| Read what the phase allows a viewer                             | account or guest  |
+| Read the meet day (`GET /api/meets/:id/day`), cut to the caller | account or guest  |
+| Send, read, and correct a room's quizzes, as its official       | account or guest  |
+| Coach and admin actions                                         | account           |
+| Create, list, or delete meets                                   | superuser account |
+| Redeem any code for a membership (`POST /api/join`)             | account           |
+| Redeem a viewer or room code for a guest token (`/join/guest`)  | anyone            |
+| List one's own memberships                                      | account           |
 
 ## Invariants
 

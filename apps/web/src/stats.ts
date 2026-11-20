@@ -125,7 +125,7 @@ export function warningText(warning: AttentionItem): string {
   switch (warning.kind) {
     case 'inError': {
       const count = warning.problems.length
-      return `${warning.quiz.name} has ${count === 1 ? 'an error' : `${count} errors`}, so it adds nothing.`
+      return `${warning.quiz.name} has ${count === 1 ? 'an error' : `${count} errors`}, so it doesn't count toward the standings until fixed or accepted as scored.`
     }
     case 'unequalPrelims':
       return `Teams have played different numbers of counted quizzes: ${warning.teams

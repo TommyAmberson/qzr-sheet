@@ -6,6 +6,7 @@ import type {
   DivisionStats,
   DivisionTeamNames,
   LinkHow,
+  MeetDay,
   MeetPhase,
   PublishedSchedule,
   QuizFile,
@@ -731,18 +732,6 @@ export function setAcceptance(
 const STATS_TRIES = 60
 
 /**
- * The meet's divisions with their states, and whether the caller is one of its admins: empty for
- * anyone but an admin before the meet is live
- */
-export function getStatsDivisions(meetId: number): Promise<{
-  phase: MeetPhase
-  admin: boolean
-  divisions: { division: string; state: DivisionStateValue }[]
-}> {
-  return request(`/api/meets/${meetId}/stats`)
-}
-
-/**
  * The meet's stats settings; for admins, who saved them last, and how many stored quizzes score
  * level teams another way than the meet
  */
@@ -819,16 +808,27 @@ export function getDivisionStats(
 }
 
 /**
+ * The meet day: the published schedule's quizzes with their results and settled benches, as this
+ * reader may see them, asked again while the API prepares them (specs/010-meet-day)
+ */
+export function getMeetDay(meetId: number, signal?: AbortSignal): Promise<MeetDay> {
+  return whenPrepared(() => request(`/api/meets/${meetId}/day`, { signal }), signal)
+}
+
+/**
  * A request for stats, asked again until they are ready. The API answers 503 while it is still
  * scoring a division's stored quizzes, a few with each request.
  */
-async function whenPrepared<T>(read: () => Promise<T>): Promise<T> {
+async function whenPrepared<T>(read: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await read()
     } catch (e) {
       if (!(e instanceof ApiError) || e.status !== 503 || attempt >= STATS_TRIES) throw e
+      if (signal?.aborted) throw e
       await new Promise((resolve) => setTimeout(resolve, 1000))
+      // A reader that stopped waiting asks no more
+      if (signal?.aborted) throw e
     }
   }
 }
