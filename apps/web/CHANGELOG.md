@@ -30,6 +30,11 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * A stored quiz's page downloads each revision as a quiz file or a spreadsheet; a past revision's
   file name says which revision it is (#52)
 
+### Fixed
+
+* The meet page shows the roster as it is after any roster import, failed ones included, without a
+  refresh
+
 ## [0.31.0] - 2026-11-19
 
 ### Changed

@@ -574,13 +574,14 @@ async function handleRosterFile(event: Event) {
       return
     }
     await applyRosterImport(entries)
-    await load()
   } catch (e) {
     importRosterError.value = (e as Error).message
   } finally {
     importingRoster.value = false
     if (rosterFileInput.value) rosterFileInput.value.value = ''
   }
+  // Shown as the meet now has it, whatever the import did
+  await load()
 }
 
 async function applyRosterImport(entries: RosterEntry[]) {
