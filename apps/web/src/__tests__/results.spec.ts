@@ -87,6 +87,16 @@ describe('groupResults', () => {
     expect(row!.placed).toBe(false)
   })
 
+  it('places a quiz accepted as scored by its scores, as the standings do', () => {
+    // One question answered of fifteen: unplaceable as it stands, placed once accepted
+    const [row] = groupResults([stored(1, '1', '3', { accepted: true })])[0]!.quizzes
+    expect(row!.placed).toBe(true)
+    expect(row!.teams.map((t) => [t.name, t.place, t.placementPoints])).toEqual([
+      ['Calgary 1', 1, 10],
+      ['Regina 1', 2, 5],
+    ])
+  })
+
   it('keeps consolation quizzes apart', () => {
     const consolation = stored(2, '1', '3')
     consolation.quizFile.quiz.consolation = true

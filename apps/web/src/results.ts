@@ -1,12 +1,15 @@
 import {
   byNumber,
+  computePlacementPoints,
   deserialize,
   foldName,
   quizName,
   quizOutcome,
   sameDivision,
+  scoreStoredQuiz,
   serialize,
   type QuizFile,
+  type QuizOutcome,
   type TeamOutcome,
 } from '@qzr/shared'
 import type { StoredQuiz } from './api'
@@ -34,12 +37,34 @@ export interface DivisionResults {
   quizzes: ResultRow[]
 }
 
+/**
+ * A quiz accepted as scored, placed by its scores whatever its errors, as the standings take it.
+ * Placement points follow the quiz's own formula, as for any other quiz on this page.
+ */
+function acceptedOutcome(file: QuizFile): QuizOutcome {
+  const scored = scoreStoredQuiz(file)
+  return {
+    placed: scored.teams.every((team) => team.place !== null),
+    teams: scored.teams.map((team) => ({
+      name: team.name,
+      score: team.score,
+      place: team.place,
+      placementPoints: computePlacementPoints(
+        team.regulationScore,
+        team.place,
+        file.quiz.placementFormula,
+      ),
+      errors: team.errors,
+    })),
+  }
+}
+
 /** A meet's stored quizzes grouped by the division each one records, as written */
 export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
   const divisions = new Map<string, ResultRow[]>()
   for (const s of stored) {
     const content = deserialize(s.quizFile)
-    const outcome = quizOutcome(content)
+    const outcome = s.accepted ? acceptedOutcome(s.quizFile) : quizOutcome(content)
     const row: ResultRow = {
       id: s.id,
       name: quizName(content.quiz),

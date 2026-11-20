@@ -34,6 +34,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Fixed
 
+* The results page places a quiz accepted as scored by its scores, instead of showing it "not placed
+  yet" with no places. Teams level in an overtime that wasn't played stay unplaced for now (#199)
 * A new admin, coach or room code no longer reads as one-time: the dialog says it won't be shown
   again, and that a lost code is replaced by generating a new one
 * The new meet form's division example is `2`, not `2C`: consolation lanes such as `2C` come from
