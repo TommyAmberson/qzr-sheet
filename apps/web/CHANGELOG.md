@@ -16,6 +16,36 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-20
+
+### Added
+
+* A meet is one page in tabs: Schedule, Quizzes, Standings, Roster and Setup, with the tab in the
+  address and the division picked in `?division=`, so a reload or a shared link opens the same view
+  (specs/010-meet-day)
+* The Schedule tab shows each quiz's result on the published schedule: every team's place, and its
+  score where the meet shows scores, beside its bench, and a quiz needing attention, under review,
+  not counted or not shown yet says so. Elimination benches name the team that earned them as orders
+  are confirmed and quizzes count (#16)
+* The Quizzes tab lists each stage's scheduled quizzes, in or not, with when and where, then the
+  quizzes the schedule doesn't have. Viewers and coaches see it too, cut as the stats are
+* The page keeps itself current while open: it reads the meet again every 30 seconds while the
+  browser tab is visible, on switching tabs, on coming back to it, and on Refresh
+* Admins see on the Quizzes tab how many things need attention, and on the Standings tab the
+  division's steps
+
+### Changed
+
+* Uploading quiz files and sheets is in the meet page's header, on every tab
+* The Standings tab shows one division at a time, the meet's first when every division is picked;
+  the stats settings, with every division's steps, are a section of the Setup tab
+* The results, stats, division stats and stats settings pages give way to the tabs; their addresses
+  redirect there. A guest's code opens the meet's Schedule, or for an official its Quizzes
+
+### Bundled contract
+
+* `@qzr/shared@1.18.0` - unchanged
+
 ## [0.32.1] - 2026-11-20
 
 ### Fixed
