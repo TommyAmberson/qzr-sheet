@@ -74,28 +74,38 @@ export async function askAlreadySubmitted(
 }
 
 /**
- * The room to send for. An official of one room confirms it; an official of several rooms picks
- * one, and an admin any room of the meet or "No room" (null). Undefined when the user cancels.
+ * The room to send for. A quiz the schedule `placed` in a room the user may send for confirms that
+ * room, or picks another. Otherwise an official of one room confirms it; an official of several
+ * rooms picks one, and an admin any room of the meet or "No room" (null). Undefined when the user
+ * cancels.
  */
 export async function chooseRoom(
   dialog: Asker | null | undefined,
   sender: Sender,
   meetName: string,
   action: string,
+  placed?: { roomId: number; quizLabel: string },
 ): Promise<number | null | undefined> {
-  if (!sender.admin && sender.rooms.length <= 1) {
-    const [room] = sender.rooms
-    if (!room) return null
-    // Named before sending, so an official who typed a room's code can see it was the right one
+  const onlyRoom = !sender.admin && sender.rooms.length <= 1
+  if (onlyRoom && sender.rooms.length === 0) return null
+  // The room the schedule places the quiz in, when the user may send for it, or an official's only
+  // room: named before sending, so an official who typed a room's code can see it was the right one
+  const placedIn = placed && sender.rooms.find((room) => room.id === placed.roomId)
+  const room = placedIn ?? (onlyRoom ? sender.rooms[0] : undefined)
+  if (room) {
+    const choices: { label: string; value: number | 'other' | null; primary?: boolean }[] = [
+      { label: 'Cancel', value: null },
+    ]
+    if (!onlyRoom) choices.push({ label: 'Another room…', value: 'other' })
+    choices.push({ label: action, value: room.id, primary: true })
     const answer = await dialog?.ask(
       `${action} for ${room.name}?`,
-      `You officiate ${room.name} of ${meetName}.`,
-      [
-        { label: 'Cancel', value: null },
-        { label: action, value: room.id, primary: true },
-      ],
+      placedIn
+        ? `The schedule places ${placed.quizLabel} in ${room.name}.`
+        : `You officiate ${room.name} of ${meetName}.`,
+      choices,
     )
-    return answer ?? undefined
+    if (answer !== 'other') return answer ?? undefined
   }
   if (sender.admin && sender.rooms.length === 0) return null
   const choices: { label: string; value: number | 'none' | null }[] = sender.rooms.map((room) => ({

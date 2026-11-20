@@ -34,6 +34,10 @@ describe('getScheduledQuiz (research R10)', () => {
       ],
     }
     const quiz = doc.quizzes.find((q) => q.phase === 'prelim')!
+    // Its room is linked to the meet's room 3
+    doc.rooms = doc.rooms.map((room) =>
+      room.id === quiz.cell!.room ? { ...room, meetRoomId: 3 } : room,
+    )
     const reply = (body: unknown) =>
       Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
     vi.stubGlobal(
@@ -60,6 +64,7 @@ describe('getScheduledQuiz (research R10)', () => {
       quiz.seats.map((s) => (s.kind === 'letter' ? byLetter[s.letter] : undefined)),
     )
     expect(details.seats[0]!.quizzers[0]!.name).toMatch(/Quizzer of/)
+    expect(details.quiz.roomId).toBe(3)
     const { division, consolation, quizNumber } = details.quiz
     expect(
       resultName({ ...quiz, division, lane: consolation ? 1 : 0, label: `Quiz ${quizNumber}` }),

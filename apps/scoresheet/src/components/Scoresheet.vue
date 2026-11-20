@@ -1760,7 +1760,15 @@ async function doSubmitToMeet() {
   const concerns = submitConcerns(target.id)
   if (concerns && !(await confirmAction(`${concerns}\n\nSubmit anyway?`))) return
   const meet = target.name
-  const roomId = await chooseRoom(choiceDialog.value, target.sender, meet, 'Submit')
+  const scheduled = meetSession.scheduleQuizIdFor(target.id)
+    ? meetSession.scheduledQuiz.value
+    : null
+  // A quiz the schedule has dropped is placed nowhere now
+  const placed =
+    scheduled?.inSchedule && scheduled.roomId !== undefined
+      ? { roomId: scheduled.roomId, quizLabel: scheduled.label }
+      : undefined
+  const roomId = await chooseRoom(choiceDialog.value, target.sender, meet, 'Submit', placed)
   if (roomId === undefined) return
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
   // Submitted as it was sent, whatever was scored while the meet answered
@@ -2272,6 +2280,7 @@ const appVersion: string = __APP_VERSION__
                   <span v-else class="col-header-type">&nbsp;</span>
                   <select
                     class="question-type-select"
+                    :aria-label="`Question ${col.label} type`"
                     :value="quiz.questionTypes.get(col.key) ?? ''"
                     @change="
                       setQuestionType(

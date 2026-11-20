@@ -170,6 +170,8 @@ export interface ScheduledQuizSummary {
   division: string
   consolation: boolean
   quizNumber: string
+  /** The meet's room the schedule places the quiz in, when it places it in one */
+  roomId?: number
 }
 
 export interface ScheduledQuizSeat {
@@ -233,8 +235,9 @@ export async function getScheduledQuiz(
       }
     }),
   )
+  const roomId = document.rooms.find((room) => room.id === quiz.cell?.room)?.meetRoomId
   return {
-    quiz: { id: quiz.id, meetName, label: quiz.label, ...scheduleQuizMeta(quiz) },
+    quiz: { id: quiz.id, meetName, label: quiz.label, ...scheduleQuizMeta(quiz), roomId },
     seats,
   }
 }

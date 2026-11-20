@@ -161,4 +161,31 @@ describe('chooseRoom', () => {
     expect(await chooseRoom(answering('none'), admin, 'Practice', 'Submit')).toBeNull()
     expect(await chooseRoom(answering(null), admin, 'Practice', 'Submit')).toBe(undefined)
   })
+
+  it('asks for the room the schedule places the quiz in, with another room a choice away', async () => {
+    const placed = { roomId: 6, quizLabel: 'D1 Q3' }
+    const dialog = answering(6)
+    expect(await chooseRoom(dialog, { admin: false, rooms }, 'Practice', 'Submit', placed)).toBe(6)
+    expect(dialog.asked).toEqual(['Submit for Room 2?'])
+    expect(dialog.offered[0]).toEqual(['Cancel', 'Another room…', 'Submit'])
+
+    const elsewhere = answering('other', 5)
+    expect(await chooseRoom(elsewhere, { admin: false, rooms }, 'Practice', 'Submit', placed)).toBe(
+      5,
+    )
+    expect(elsewhere.asked).toEqual(['Submit for Room 2?', 'Submit for which room?'])
+
+    // The only room an official has: nothing else to offer
+    const only = answering(5)
+    const inRoom1 = { roomId: 5, quizLabel: 'D1 Q3' }
+    expect(await chooseRoom(only, official, 'Practice', 'Submit', inRoom1)).toBe(5)
+    expect(only.offered[0]).toEqual(['Cancel', 'Submit'])
+  })
+
+  it('asks as before when the schedule places the quiz in a room the user may not send for', async () => {
+    const dialog = answering(5)
+    const placed = { roomId: 9, quizLabel: 'D1 Q3' }
+    expect(await chooseRoom(dialog, official, 'Practice', 'Submit', placed)).toBe(5)
+    expect(dialog.asked).toEqual(['Submit for Room 1?'])
+  })
 })
