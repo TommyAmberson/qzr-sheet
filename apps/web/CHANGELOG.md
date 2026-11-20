@@ -34,6 +34,8 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Fixed
 
+* A link to a meet's page opened while signed out lands on the home page asking to sign in, then
+  goes on to that page once signed in, instead of dropping the link
 * The results page places a quiz accepted as scored by its scores, instead of showing it "not placed
   yet" with no places. Teams level in an overtime that wasn't played stay unplaced for now (#199)
 * A new admin, coach or room code no longer reads as one-time: the dialog says it won't be shown

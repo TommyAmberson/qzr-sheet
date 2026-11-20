@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { vFocus } from '../directives'
+import { returnPath } from '../returnPath'
 import { scoresheetLink } from '../scoresheetLink'
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   AccountRole,
   MeetRole,
@@ -130,11 +131,18 @@ function removeDivisionField(i: number) {
   meetForm.value.divisions.splice(i, 1)
 }
 
-// Load meets once session resolves to a signed-in user
+// A signed-out deep link lands here with the page it wanted; once signed in, go there
+const route = useRoute()
+const next = computed(() => returnPath(route.query.next))
+
+// Load meets once session resolves to a signed-in user. Loaded even with a deep link waiting, so
+// the page is whole if the router sends them back here instead.
 watch(
   () => session.value?.data?.user,
   (user) => {
-    if (user) loadMeets()
+    if (!user) return
+    loadMeets()
+    if (next.value) router.replace(next.value)
   },
   { immediate: true },
 )
@@ -146,6 +154,9 @@ watch(
       <!-- QuizMeets -->
       <section class="section">
         <h2 class="section-title">QuizMeets</h2>
+        <p v-if="next && !session.isPending && !session.data?.user" class="return-notice">
+          Sign in to see that page. You'll go straight there once you're signed in.
+        </p>
 
         <!-- Saved meets (signed in) -->
         <template v-if="session.data?.user">
@@ -409,6 +420,14 @@ watch(
   font-size: 0.8rem;
   color: var(--color-text-faint);
   margin-top: 0.75rem;
+}
+
+.return-notice {
+  font-size: 0.85rem;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 6px;
 }
 
 .link {
