@@ -98,6 +98,22 @@ const OT_COL = (q: number) => 23 + (q - 21) // Q21=23 … Q26=28
 // Metadata
 // ---------------------------------------------------------------------------
 
+describe('readOds, the archive', () => {
+  it('refuses a file that would unpack past any sheet, before unpacking it', () => {
+    for (const name of ['content.xml', 'Thumbnails/thumbnail.png']) {
+      const huge = zipSync({ [name]: new Uint8Array(33 * 1024 * 1024) })
+      expect(() => readOds(huge)).toThrow(/too large/)
+    }
+  })
+
+  it('refuses many files that together would unpack past any sheet', () => {
+    const parts = Object.fromEntries(
+      Array.from({ length: 5 }, (_, i) => [`part${i}.bin`, new Uint8Array(8 * 1024 * 1024)]),
+    )
+    expect(() => readOds(zipSync(parts))).toThrow(/too large/)
+  })
+})
+
 describe('readOds — metadata', () => {
   it('reads division and quizNumber from row 2', () => {
     const cells = minimalCells()

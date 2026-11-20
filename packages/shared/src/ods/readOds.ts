@@ -26,6 +26,9 @@ const TEAM_BLOCKS = [
   { nameRow: 20, onTimeRow: 19, quizzerStart: 21 },
 ] as const
 
+/** Far more than a whole scoring sheet unpacks to; its content.xml, the largest file, is about 1 MB */
+const MAX_ENTRY_BYTES = 32 * 1024 * 1024
+
 const VALID_CELL_VALUES = new Set<string>(['c', 'e', 'f', 'b', 'mb'])
 const VALID_QUESTION_CATEGORIES = new Set<string>(Object.values(QuestionCategory))
 
@@ -172,7 +175,16 @@ function placeQuestion(
  * sequentially since the ODS has no concept of IDs.
  */
 export function readOds(odsBytes: Uint8Array): QuizFile {
-  const files = unzipSync(odsBytes)
+  // Only content.xml is unpacked. An archive whose files together would unpack to far more than a
+  // sheet holds is refused before anything is unpacked, as filling it later would unpack them all
+  let unpackedBytes = 0
+  const files = unzipSync(odsBytes, {
+    filter: (entry) => {
+      unpackedBytes += entry.originalSize
+      if (unpackedBytes > MAX_ENTRY_BYTES) throw new Error(`${entry.name} is too large`)
+      return entry.name === 'content.xml'
+    },
+  })
   const contentBytes = files['content.xml']
   if (!contentBytes) throw new Error('content.xml not found in ODS file')
   const xml = strFromU8(contentBytes)
