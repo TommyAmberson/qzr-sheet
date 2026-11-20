@@ -16,6 +16,19 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-11-20
+
+### Added
+
+* The Roster tab lists each church's teams with their division and quizzers, for whoever may read
+  them in the meet's phase: its admins always, each church's coach their own, its officials from
+  `build` on and everyone from `live` on. The division picker narrows the teams, and a church's page
+  for editing opens from its Edit button
+
+### Bundled contract
+
+* `@qzr/shared@1.19.0` - unchanged
+
 ## [0.35.0] - 2026-11-20
 
 ### Added
