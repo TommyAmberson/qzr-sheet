@@ -1,20 +1,23 @@
 <script setup lang="ts">
-import { computed, provide, ref, watch } from 'vue'
+import { computed, provide, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ApiError, foldName } from '@qzr/shared'
+import { ApiError, findDivision, MeetRole, sameDivision } from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 
-import { getMeet, getSender, type MeetDetail } from '../api'
+import { getMeet, getMyMeets, getPublishedSchedule, getSender, type MeetDetail } from '../api'
 import { useAuth } from '../composables/useAuth'
 import { useMeetDay } from '../composables/useMeetDay'
 import { useRoomCode } from '../composables/useRoomCode'
-import { MEET_TABS, meetPageKey, type MeetPage } from '../meetPage'
+import { coachChurchIds as coachChurchIdsOf } from '../meetAccess'
+import { MEET_TABS, meetPageKey, type MeetPage, type PublishedOnPage } from '../meetPage'
 import UploadQuizzes from '../components/UploadQuizzes.vue'
 
 /**
  * A meet's page (specs/010-meet-day): its header, the tabs Schedule, Quizzes, Standings, Roster and
  * Setup, the division picker and Refresh. The tab is the path and the division `?division=`, so
- * both survive a reload and a shared link (FR-005). Each tab reads its own data on the page's beat.
+ * both survive a reload and a shared link (FR-005). The page reads the meet, who the reader is in
+ * it and the published schedule once, for every tab; each tab reads its own data on the page's
+ * beat.
  */
 const props = defineProps<{ slug: string }>()
 const route = useRoute()
@@ -22,8 +25,14 @@ const router = useRouter()
 const { session } = useAuth()
 const { renew } = useRoomCode()
 
-const meet = ref<MeetDetail['meet'] | null>(null)
+declare const __SCORESHEET_URL__: string
+
+const detail = ref<MeetDetail | null>(null)
+const meet = computed(() => detail.value?.meet ?? null)
 const sender = ref<Sender | null>(null)
+const isSuperuser = ref(false)
+const coachChurchIds = ref(new Set<number>())
+const published = shallowRef<PublishedOnPage | null | undefined>(undefined)
 const loading = ref(true)
 const error = ref('')
 
@@ -37,8 +46,16 @@ const isGuest = computed(() => !session.value?.data?.user)
 const division = computed(() => {
   const asked = route.query.division
   if (typeof asked !== 'string' || !meet.value) return null
-  return meet.value.divisions.find((d) => foldName(d) === foldName(asked)) ?? null
+  return findDivision(meet.value.divisions, asked) ?? null
 })
+const inDivision = (name: string) => division.value === null || sameDivision(name, division.value)
+
+function setDivision(name: string | null) {
+  const query = { ...route.query }
+  if (name) query.division = name
+  else delete query.division
+  return router.replace({ query, hash: route.hash })
+}
 
 const tabs = computed(() =>
   MEET_TABS.filter((tab) => {
@@ -58,21 +75,41 @@ async function senderOf(id: number): Promise<Sender | null> {
   }
 }
 
+/** A signed-in reader's place in the meet: a superuser, and the churches they coach */
+async function readMembership(id: number) {
+  if (isGuest.value) return
+  const { memberships } = await getMyMeets()
+  isSuperuser.value = memberships.some((m) => m.meetId === id && m.role === MeetRole.Superuser)
+  coachChurchIds.value = coachChurchIdsOf(memberships, id)
+}
+
+/** The published schedule; none published is null */
+async function readPublished(id: number) {
+  try {
+    const answer = await getPublishedSchedule(id)
+    published.value = { document: answer.document, view: answer.view }
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== 404) throw e
+    published.value = null
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
   try {
     // A guest official's slug is the meet's id; their ended session is renewed on opening the page
     const loaded = await renew(Number(props.slug), async () => {
-      const { meet: detail } = await getMeet(props.slug)
-      return { detail, who: await senderOf(detail.id) }
+      const read = await getMeet(props.slug)
+      return { read, who: await senderOf(read.meet.id) }
     })
     if (!loaded) {
       error.value = 'Join the meet again with its code to see it.'
       return
     }
-    meet.value = loaded.detail
+    detail.value = loaded.read
     sender.value = loaded.who
+    await Promise.all([readMembership(loaded.read.meet.id), readPublished(loaded.read.meet.id)])
   } catch (e) {
     error.value =
       e instanceof ApiError && (e.status === 401 || e.status === 403)
@@ -81,6 +118,10 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+async function reloadMeet() {
+  detail.value = await getMeet(props.slug)
 }
 
 watch(() => props.slug, load, { immediate: true })
@@ -93,25 +134,41 @@ watch(
   },
 )
 
-function pickDivision(event: Event) {
-  const value = (event.target as HTMLSelectElement).value
-  const query = { ...route.query }
-  if (value) query.division = value
-  else delete query.division
-  void router.replace({ query, hash: route.hash })
+// A newer published version is read once, for every tab
+let shownVersion: number | null = null
+watch(
+  () => day.value?.scheduleVersion ?? null,
+  (version) => {
+    const id = meet.value?.id
+    if (id === undefined || version === shownVersion) return
+    const first = shownVersion === null && published.value !== null
+    shownVersion = version
+    if (!first) void readPublished(id).catch((e: Error) => (error.value = e.message))
+  },
+)
+
+function scoresheetHref(scheduleQuizId: string): string {
+  if (!meet.value) return '#'
+  return `${__SCORESHEET_URL__}?meetId=${meet.value.id}&quiz=${encodeURIComponent(scheduleQuizId)}`
 }
 
 const page: MeetPage = {
   slug: computed(() => props.slug),
+  detail,
   meet,
   sender,
   isAdmin,
-  isGuest,
+  isSuperuser,
+  coachChurchIds,
   division,
+  inDivision,
+  setDivision,
+  published,
   day,
-  dayError,
   beat,
   refresh,
+  reloadMeet,
+  scoresheetHref,
 }
 provide(meetPageKey, page)
 
@@ -170,7 +227,7 @@ const dates = computed(() => {
             class="division-pick"
             aria-label="Division"
             :value="division ?? ''"
-            @change="pickDivision"
+            @change="setDivision(($event.target as HTMLSelectElement).value || null)"
           >
             <option value="">Every division</option>
             <option v-for="d in meet.divisions" :key="d" :value="d">Division {{ d }}</option>
@@ -180,7 +237,7 @@ const dates = computed(() => {
             class="btn btn--secondary btn--sm"
             :disabled="loading"
             title="Read the meet again"
-            @click="refresh"
+            @click="refresh()"
           >
             Refresh
           </button>
@@ -220,15 +277,6 @@ const dates = computed(() => {
   color: var(--color-heading);
   font-size: 1.1rem;
   font-weight: 700;
-}
-
-.state-msg {
-  color: var(--color-text-faint);
-  font-size: 0.875rem;
-}
-
-.state-msg--error {
-  color: var(--palette-error);
 }
 
 .meet-head {
@@ -319,42 +367,6 @@ const dates = computed(() => {
   color: var(--color-text);
   font: inherit;
   font-size: 0.9rem;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  font-family: inherit;
-  white-space: nowrap;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.btn--sm {
-  padding: 0.25rem 0.6rem;
-  font-size: 0.75rem;
-}
-
-.btn--secondary {
-  background: transparent;
-  color: var(--color-text-muted);
-  border-color: var(--color-border);
-}
-
-.btn--secondary:hover:not(:disabled) {
-  border-color: var(--color-text-muted);
-  color: var(--color-text);
 }
 
 @media (max-width: 600px) {

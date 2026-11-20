@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   ApiError,
   MOMENTS,
@@ -12,15 +12,14 @@ import {
 
 import { formatWhen } from '@qzr/ui'
 
-import DivisionSteps from '../components/DivisionSteps.vue'
+import DivisionSteps from './DivisionSteps.vue'
+import { useMeetPage } from '../meetPage'
 import {
   getDivisionStates,
-  getMeet,
   getStatsSettings,
   saveStatsSettings,
   setQuizzesToMeetFormula,
   type DivisionState,
-  type MeetDetail,
   type StatsSettingsRead,
 } from '../api'
 import {
@@ -36,9 +35,8 @@ import {
  * A meet's stats settings, in one place (FR-023c): each division's steps through the day, what
  * viewers see and from when, and how the meet scores and ranks
  */
-const props = defineProps<{ slug: string }>()
+const { slug, meet, reloadMeet } = useMeetPage()
 
-const meet = ref<MeetDetail['meet'] | null>(null)
 const divisions = ref<DivisionState[]>([])
 const saved = ref<StatsSettings | null>(null)
 const draft = ref<StatsSettings | null>(null)
@@ -61,15 +59,12 @@ const changes = computed(() =>
 )
 
 async function load() {
+  const id = meet.value?.id
+  if (id === undefined) return
   loading.value = true
   error.value = ''
   try {
-    const { meet: detail } = await getMeet(props.slug)
-    const [states, read] = await Promise.all([
-      getDivisionStates(detail.id),
-      getStatsSettings(detail.id),
-    ])
-    meet.value = detail
+    const [states, read] = await Promise.all([getDivisionStates(id), getStatsSettings(id)])
     divisions.value = states.divisionStates
     took(read)
   } catch (e) {
@@ -82,8 +77,7 @@ async function load() {
   }
 }
 
-onMounted(load)
-watch(() => props.slug, load)
+watch(() => meet.value?.id, load, { immediate: true })
 
 /** Take the settings as the API answers them */
 function took(read: StatsSettingsRead) {
@@ -109,11 +103,6 @@ async function run(action: () => Promise<void>) {
   } finally {
     busy.value = false
   }
-}
-
-/** The meet again, once the steps moved it to review */
-async function reloadMeet() {
-  meet.value = (await getMeet(props.slug)).meet
 }
 
 function save() {
@@ -348,35 +337,6 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
 </template>
 
 <style scoped>
-.container {
-  max-width: 56rem;
-  margin: 0 auto;
-  padding: 2rem 1.5rem 6rem;
-}
-
-.back-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  font-family: inherit;
-  margin-bottom: 1.5rem;
-  display: inline-block;
-}
-
-.back-link:hover {
-  color: var(--color-text-muted);
-}
-
-.page-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  margin-bottom: 1.25rem;
-}
-
 .state-msg,
 .hint {
   font-size: 0.85rem;
@@ -403,74 +363,16 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
   margin-bottom: 0.6rem;
 }
 
-.division {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.division-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.as-viewer {
-  font-size: 0.8rem;
-}
-
-.steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  list-style: none;
-  padding: 0;
-  margin: 0.5rem 0;
-}
-
-.step {
-  padding: 0.1rem 0.55rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  font-size: 0.75rem;
-  color: var(--color-text-faint);
-}
-
-.step--past {
-  color: var(--color-text-muted);
-}
-
-.step--here {
-  border-color: var(--color-accent);
-  color: var(--color-heading);
-  font-weight: 600;
-}
-
-.readiness,
 .note {
   font-size: 0.8rem;
   color: var(--color-text-muted);
   margin: 0.2rem 0;
 }
-
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.5rem;
-}
-
-.ask {
-  margin-top: 0.6rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--palette-error);
-  border-radius: 6px;
-  font-size: 0.85rem;
-}
-
-.ask ul {
-  margin: 0.3rem 0 0;
-  padding-left: 1.1rem;
 }
 
 .lines {

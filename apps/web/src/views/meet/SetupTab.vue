@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import { vFocus } from '../../directives'
 import { DivisionInput } from '@qzr/ui'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { MeetRole, MEET_PHASES, type MeetPhase, bareDivision, findDivision } from '@qzr/shared'
+import { MEET_PHASES, type MeetPhase, bareDivision, findDivision } from '@qzr/shared'
 import {
-  getMeet,
-  getMyMeets,
   updateMeet,
   createOfficialCode,
   deleteOfficialCode,
   setMeetPhase,
-  type MeetDetail,
-  type MeetMembership,
   getTemplateInfo,
   downloadTemplate,
   uploadTemplate,
@@ -21,19 +17,16 @@ import {
 import { saveFile } from '../../downloads'
 import MeetAccessDialog from '../../components/MeetAccessDialog.vue'
 import StatsSettings from '../../components/StatsSettings.vue'
+import { useMeetPage } from '../../meetPage'
 
 const props = defineProps<{ slug: string }>()
 const router = useRouter()
 
-const detail = ref<MeetDetail | null>(null)
+// The page's one copy of the meet, so an edit here shows in its header and every tab
+const { detail, isAdmin, isSuperuser } = useMeetPage()
 const meetId = computed(() => detail.value?.meet.id ?? null)
-const membership = ref<MeetMembership | null>(null)
 const loading = ref(true)
 const error = ref('')
-
-const role = computed(() => membership.value?.role ?? null)
-const isSuperuser = computed(() => role.value === MeetRole.Superuser)
-const isAdmin = computed(() => role.value === MeetRole.Admin || role.value === MeetRole.Superuser)
 
 const access = ref<InstanceType<typeof MeetAccessDialog> | null>(null)
 
@@ -110,15 +103,9 @@ async function advancePhase(direction: 'advance' | 'revert') {
 }
 
 async function load() {
+  const id = meetId.value
+  if (id === null) return
   try {
-    const [detailRes, myMeetsRes] = await Promise.all([getMeet(props.slug), getMyMeets()])
-    detail.value = detailRes
-    const id = detailRes.meet.id
-    membership.value = myMeetsRes.memberships.find((m) => m.meetId === id) ?? null
-    if (!membership.value) {
-      router.replace({ name: 'home' })
-      return
-    }
     templateError.value = ''
     // A template that can't be looked up leaves the rest of the page as it is, and says so
     template.value = await getTemplateInfo(id).catch((e: Error) => {
@@ -256,11 +243,11 @@ async function shareMeet() {
   }
 }
 
-onMounted(load)
+watch(meetId, load, { immediate: true })
 </script>
 
 <template>
-  <div class="container">
+  <div class="setup-tab">
     <p v-if="loading" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
 
@@ -555,7 +542,7 @@ onMounted(load)
 
       <!-- The meet's stats settings, with every division's steps (FR-019) -->
       <section v-if="isAdmin" id="stats" class="section">
-        <StatsSettings :slug="slug" />
+        <StatsSettings />
       </section>
 
       <MeetAccessDialog ref="access" :meet-id="detail.meet.id" :is-superuser="isSuperuser" />
@@ -564,26 +551,9 @@ onMounted(load)
 </template>
 
 <style scoped>
-.container {
+.setup-tab {
   max-width: 52rem;
   margin: 0 auto;
-  padding: 2rem 1.5rem;
-}
-
-.back-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  font-family: inherit;
-  margin-bottom: 1.5rem;
-  display: inline-block;
-}
-
-.back-link:hover {
-  color: var(--color-text-muted);
 }
 
 .state-msg {
@@ -608,17 +578,6 @@ onMounted(load)
   flex-direction: column;
   gap: 0.4rem;
   flex: 1;
-}
-
-.page-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--color-heading);
-}
-
-.meet-meta {
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
 }
 
 .meet-title-row {
@@ -747,10 +706,6 @@ onMounted(load)
   width: 100%;
 }
 
-.field-input--short {
-  max-width: 7rem;
-}
-
 .field-input:focus {
   border-color: var(--color-accent);
 }
@@ -813,16 +768,6 @@ onMounted(load)
 
 .btn--ghost:hover:not(:disabled) {
   color: var(--color-text-muted);
-}
-
-.btn--danger {
-  background: transparent;
-  color: var(--palette-error);
-  border-color: var(--palette-error);
-}
-
-.btn--danger:hover:not(:disabled) {
-  background: var(--palette-error-alt, rgba(220, 38, 38, 0.08));
 }
 
 .btn:disabled {
@@ -1064,68 +1009,6 @@ onMounted(load)
   cursor: default;
 }
 
-.item-sublabel {
-  font-size: 0.8rem;
-  font-weight: 400;
-  color: var(--color-text-faint);
-  flex: 1;
-  min-width: 0;
-}
-
-.item-meta {
-  font-size: 0.75rem;
-  color: var(--color-text-faint);
-  flex-shrink: 0;
-}
-
-.church-name {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  overflow: hidden;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.church-name-full {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.church-name-short {
-  font-weight: 400;
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
-  margin-left: 0.3rem;
-}
-
-.church-pencil {
-  background: none;
-  border: none;
-  padding: 0.15rem 0.25rem;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-.church-name:hover .church-pencil {
-  opacity: 1;
-}
-
-.church-pencil:hover {
-  color: var(--color-accent);
-  background: var(--color-bg);
-}
-
 .item-spacer {
   flex: 1;
 }
@@ -1178,24 +1061,12 @@ onMounted(load)
   width: auto;
 }
 
-.church-edit-row .field-input {
-  width: auto;
-}
-
 .add-form {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-top: 0.5rem;
-}
-
-.church-edit-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1;
-  min-width: 0;
 }
 
 .add-form-actions {
@@ -1285,150 +1156,5 @@ onMounted(load)
 .division-add .field-input {
   max-width: 14rem;
   width: auto;
-}
-
-/* Code dialog */
-.code-dialog {
-  border: 1px solid var(--color-border-alt);
-  border-radius: 10px;
-  background: var(--color-bg);
-  color: var(--color-text);
-  padding: 1.5rem;
-  max-width: 26rem;
-  width: calc(100vw - 3rem);
-  margin: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-}
-
-.code-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-}
-
-.dialog-title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--color-heading);
-}
-
-.dialog-close {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  padding: 0.1rem 0.3rem;
-  border-radius: 4px;
-  line-height: 1;
-  font-family: inherit;
-}
-
-.dialog-close:hover {
-  color: var(--color-text-muted);
-  background: var(--color-bg-raised);
-}
-
-.dialog-desc {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  line-height: 1.5;
-  margin-bottom: 1rem;
-}
-
-.dialog-revealed {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--color-bg-raised);
-  border: 1px solid var(--color-border-alt);
-  border-radius: 6px;
-  padding: 0.6rem 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.dialog-code {
-  flex: 1;
-  font-family: monospace;
-  font-size: 0.9rem;
-  color: var(--color-text);
-  word-break: break-all;
-}
-
-.dialog-hint {
-  font-size: 0.72rem;
-  color: var(--palette-warning, #b45309);
-  margin-bottom: 1rem;
-}
-
-.dialog-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.dialog-actions .btn {
-  justify-content: center;
-}
-
-.dialog-footnote {
-  font-size: 0.72rem;
-  color: var(--color-text-faint);
-  line-height: 1.4;
-}
-
-.dialog-members {
-  margin-top: 1.25rem;
-  border-top: 1px solid var(--color-border-alt);
-  padding-top: 0.875rem;
-}
-
-.dialog-members-title {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-faint);
-  margin-bottom: 0.5rem;
-}
-
-.member-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.member-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0;
-  border-bottom: 1px solid var(--color-border-alt);
-}
-
-.member-row:last-child {
-  border-bottom: none;
-}
-
-.member-name {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.member-email {
-  font-size: 0.75rem;
-  color: var(--color-text-faint);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 </style>

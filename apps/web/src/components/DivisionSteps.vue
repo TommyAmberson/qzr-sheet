@@ -4,7 +4,7 @@ import {
   ApiError,
   DIVISION_STATES,
   divisionTitle,
-  foldName,
+  sameDivision,
   type DivisionStateValue,
   type MeetPhase,
 } from '@qzr/shared'
@@ -26,10 +26,10 @@ const props = withDefaults(
     phase: MeetPhase
     /** Only this division's steps; null for every division */
     division?: string | null
-    /** Read the divisions again whenever it moves: the meet page's beat */
+    /** Read the divisions again whenever it moves: the meet page's beat; without it, read once */
     beat?: number
   }>(),
-  { division: null, beat: 0 },
+  { division: null, beat: undefined },
 )
 const emit = defineEmits<{
   /** A division moved, so the stats around it may have changed */
@@ -55,7 +55,7 @@ const offerReview = ref(false)
 
 const shown = computed(() =>
   divisions.value.filter(
-    (d) => props.division === null || foldName(d.division) === foldName(props.division),
+    (d) => props.division === null || sameDivision(d.division, props.division),
   ),
 )
 /** Each division with the control that confirms its next step, if it has one */
@@ -68,13 +68,14 @@ async function reloadDivisions() {
   divisions.value = (await getDivisionStates(props.meetId)).divisionStates
 }
 
+// On the page's beat, which reads it on opening too; read at once where there is none
 watch(
   () => [props.meetId, props.beat],
   () => {
     if (busy.value) return
     reloadDivisions().catch((e: Error) => (error.value = e.message))
   },
-  { immediate: true },
+  { immediate: props.beat === undefined },
 )
 
 /** Run an action, keeping its error in the page */
@@ -253,22 +254,6 @@ function stepClass(d: DivisionState, state: DivisionStateValue) {
 
 <style scoped>
 .state-msg,
-.hint {
-  font-size: 0.85rem;
-  color: var(--color-text-faint);
-}
-
-.state-msg--error {
-  color: var(--palette-error);
-}
-
-.section-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--color-heading);
-  margin-bottom: 0.6rem;
-}
-
 .division {
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--color-border);
@@ -337,52 +322,5 @@ function stepClass(d: DivisionState, state: DivisionStateValue) {
 .ask ul {
   margin: 0.3rem 0 0;
   padding-left: 1.1rem;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  font-family: inherit;
-  white-space: nowrap;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
-}
-
-.btn--sm {
-  padding: 0.25rem 0.6rem;
-  font-size: 0.75rem;
-}
-
-.btn--primary {
-  background: var(--color-accent);
-  color: var(--color-bg);
-  border-color: var(--color-accent);
-}
-
-.btn--primary:hover:not(:disabled) {
-  background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
-}
-
-.btn--secondary {
-  background: transparent;
-  color: var(--color-text-muted);
-  border-color: var(--color-border);
-}
-
-.btn--secondary:hover:not(:disabled) {
-  border-color: var(--color-text-muted);
-  color: var(--color-text);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 </style>

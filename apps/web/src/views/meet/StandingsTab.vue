@@ -1,13 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import {
-  ApiError,
-  divisionTitle,
-  viewersSeeStats,
-  type DivisionStats,
-  type MeetPhase,
-} from '@qzr/shared'
+import { ApiError, divisionTitle, viewersSeeStats, type DivisionStats } from '@qzr/shared'
 
 import { getDivisionStats, keepQuiz } from '../../api'
 import DivisionSteps from '../../components/DivisionSteps.vue'
@@ -50,8 +44,8 @@ const loading = ref(true)
 const error = ref('')
 
 /** The steps moved the meet on: the page shows its new phase and reads the meet again */
-function movedPhase(phase: MeetPhase) {
-  if (meet.value) meet.value = { ...meet.value, phase }
+function movedPhase() {
+  void page.reloadMeet()
   void page.refresh()
 }
 
@@ -85,13 +79,14 @@ async function load() {
   }
 }
 
+// The page's beat reads the tab on opening it and keeps it current; another division or the
+// viewer's view is read at once
 watch(
   () => [meet.value?.id, division.value, asViewer.value],
   () => {
     stats.value = null
     void load()
   },
-  { immediate: true },
 )
 watch(beat, () => void load())
 

@@ -207,58 +207,6 @@ async function sendUpload() {
   background: var(--color-bg-raised);
 }
 
-.state-msg--error {
-  color: var(--palette-error);
-  font-size: 0.875rem;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-family: inherit;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn--sm {
-  padding: 0.25rem 0.6rem;
-  font-size: 0.75rem;
-}
-
-.btn--primary {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-  color: var(--color-bg);
-}
-
-.btn--primary:hover:not(:disabled) {
-  border-color: var(--color-accent-hover);
-  background: var(--color-accent-hover);
-}
-
-.btn--secondary {
-  border-color: var(--color-border);
-  background: transparent;
-  color: var(--color-text-muted);
-}
-
-.btn--secondary:hover:not(:disabled) {
-  border-color: var(--color-text-muted);
-  color: var(--color-text);
-}
-
 .refused {
   color: var(--palette-error);
 }

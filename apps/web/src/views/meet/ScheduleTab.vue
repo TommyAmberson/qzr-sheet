@@ -1,50 +1,29 @@
 <script setup lang="ts">
 import { scoresheetLink } from '../../scoresheetLink'
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  ApiError,
-  sameDivision,
-  type DayQuiz,
-  type ScheduleDocument,
-  type SheetView,
-} from '@qzr/shared'
+import type { DayQuiz } from '@qzr/shared'
 import { ScheduleSheet, type ScheduleMarks } from '@qzr/ui'
 
-import { getPublishedSchedule } from '../../api'
 import { useMeetPage } from '../../meetPage'
 import { problemText } from '../../stats'
 
 /**
  * The Schedule tab (FR-008): the meet's published schedule, letters or team names as the API says
- * for the meet's phase, each quiz linking to the scoresheet. Read again when the meet day names a
- * newer published version.
+ * for the meet's phase, with the meet day's results and settled benches on it.
  */
 const router = useRouter()
-const { slug, meet, isAdmin, sender, division, day } = useMeetPage()
-
-declare const __SCORESHEET_URL__: string
-
-const doc = shallowRef<ScheduleDocument | null>(null)
-const view = ref<SheetView>('letters')
-const loading = ref(true)
-const error = ref('')
-const unpublished = ref(false)
-/** The published version shown; the meet day names a newer one once it is published */
-let shownVersion: number | null = null
+const { slug, isAdmin, sender, inDivision, published, day, scoresheetHref } = useMeetPage()
 
 /** The schedule shown: the picked division's quizzes, or every division's (FR-004) */
 const shown = computed(() => {
-  const all = doc.value
-  if (!all || division.value === null) return all
-  const picked = division.value
-  const ids = new Set(
-    all.settings.divisions.filter((d) => sameDivision(d.name, picked)).map((d) => d.id),
-  )
+  const all = published.value?.document
+  if (!all) return null
   // A schedule linked to the meet names its divisions as the meet does
+  const named = new Map(all.settings.divisions.map((d) => [d.id, d.name]))
   return {
     ...all,
-    quizzes: all.quizzes.filter((q) => ids.has(q.division) || sameDivision(q.division, picked)),
+    quizzes: all.quizzes.filter((q) => inDivision(named.get(q.division) ?? q.division)),
   }
 })
 
@@ -60,52 +39,12 @@ const statusTitle = (quiz: DayQuiz) => (quiz.problems ?? []).map(problemText).jo
 
 /** Admins and the meet's officials score quizzes, so a quiz not in yet opens the scoresheet */
 const scores = computed(() => isAdmin.value || (sender.value?.rooms.length ?? 0) > 0)
-const storedOf = (quizId: string) => day.value?.quizzes.find((q) => q.id === quizId)?.storedId
-
-/** The scoresheet opens a schedule quiz by the meet and the quiz's id in the schedule */
-function scoresheetHref(quizId: string): string {
-  if (!meet.value) return '#'
-  return `${__SCORESHEET_URL__}?meetId=${meet.value.id}&quiz=${encodeURIComponent(quizId)}`
-}
-
-async function load(meetId: number) {
-  error.value = ''
-  try {
-    const published = await getPublishedSchedule(meetId)
-    doc.value = published.document
-    view.value = published.view
-    unpublished.value = false
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 404) unpublished.value = true
-    else error.value = e instanceof Error ? e.message : String(e)
-  } finally {
-    loading.value = false
-  }
-}
-
-watch(
-  () => meet.value?.id,
-  (id) => {
-    if (id !== undefined) void load(id)
-  },
-  { immediate: true },
-)
-
-watch(
-  () => day.value?.scheduleVersion ?? null,
-  (version) => {
-    const id = meet.value?.id
-    if (id === undefined || version === shownVersion) return
-    if (shownVersion !== null || (version !== null && unpublished.value)) void load(id)
-    shownVersion = version
-  },
-)
+const storedOf = (quizId: string) => marks.value?.quizzes.get(quizId)?.storedId
 </script>
 
 <template>
   <div class="schedule-tab">
-    <p v-if="loading" class="state-msg">Loading…</p>
-    <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
+    <p v-if="published === undefined" class="state-msg">Loading…</p>
     <template v-else>
       <div v-if="isAdmin" class="tab-tools no-print">
         <button
@@ -116,12 +55,12 @@ watch(
           Edit →
         </button>
       </div>
-      <p v-if="unpublished" class="state-msg">The schedule hasn't been published yet.</p>
-      <div v-else-if="doc" class="sheet-scroll">
+      <p v-if="published === null" class="state-msg">The schedule hasn't been published yet.</p>
+      <div v-else-if="shown" class="sheet-scroll">
         <ScheduleSheet
           class="published"
-          :doc="shown!"
-          :view="view"
+          :doc="shown"
+          :view="published.view"
           :marks="marks"
           :status-title="statusTitle"
         >
@@ -149,15 +88,6 @@ watch(
 </template>
 
 <style scoped>
-.state-msg {
-  font-size: 0.875rem;
-  color: var(--color-text-faint);
-}
-
-.state-msg--error {
-  color: var(--palette-error);
-}
-
 /* The sheet scrolls in its own box, so the page and its header stay put on a narrow screen. Once
    the header scrolls away the box fills the window, with room names and times in view. A sheet
    narrower than the window sits in its centre */

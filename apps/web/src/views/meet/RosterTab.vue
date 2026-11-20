@@ -7,7 +7,6 @@ import {
   createChurch,
   deleteChurch,
   exportRoster,
-  getMyMeets,
   importRoster,
   listChurches,
   updateChurch,
@@ -15,22 +14,18 @@ import {
 } from '../../api'
 import MeetAccessDialog from '../../components/MeetAccessDialog.vue'
 import { saveFile } from '../../downloads'
-import { coachChurchIds as deriveCoachChurchIds } from '../../meetAccess'
 import { useMeetPage } from '../../meetPage'
 import { parseRosterCsv, serializeRosterCsv, type RosterEntry } from '../../rosterCsv'
-import { MeetRole } from '@qzr/shared'
 
 /**
  * The Roster tab (FR-006): the meet's churches, each with its teams and quizzers, for whoever may
  * see them as today: admins manage them all and their coach codes, a church's coaches their own.
  */
 const router = useRouter()
-const { slug, meet, isAdmin } = useMeetPage()
+const { slug, meet, isAdmin, isSuperuser, coachChurchIds: myCoachChurchIds } = useMeetPage()
 const meetId = computed(() => meet.value?.id ?? 0)
 
 const churches = ref<Church[]>([])
-const myCoachChurchIds = ref<Set<number>>(new Set())
-const isSuperuser = ref(false)
 const loading = ref(true)
 const error = ref('')
 const access = ref<InstanceType<typeof MeetAccessDialog> | null>(null)
@@ -52,12 +47,7 @@ async function load() {
   const id = meet.value?.id
   if (id === undefined) return
   try {
-    const [churchRes, mine] = await Promise.all([listChurches(id), getMyMeets()])
-    churches.value = churchRes.churches
-    myCoachChurchIds.value = deriveCoachChurchIds(mine.memberships, id)
-    isSuperuser.value = mine.memberships.some(
-      (m) => m.meetId === id && m.role === MeetRole.Superuser,
-    )
+    churches.value = (await listChurches(id)).churches
     error.value = ''
   } catch (e) {
     error.value = (e as Error).message
@@ -335,10 +325,6 @@ async function handleExportRoster() {
 </template>
 
 <style scoped>
-.state-msg {
-  font-size: 0.875rem;
-  color: var(--color-text-faint);
-}
 .field-input {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
@@ -361,56 +347,6 @@ async function handleExportRoster() {
   font-size: 0.8rem;
   color: var(--palette-error);
   width: 100%;
-}
-.btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.85rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  font-family: inherit;
-  white-space: nowrap;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
-}
-.btn--sm {
-  padding: 0.25rem 0.6rem;
-  font-size: 0.75rem;
-}
-.btn--primary {
-  background: var(--color-accent);
-  color: var(--color-bg);
-  border-color: var(--color-accent);
-}
-.btn--primary:hover:not(:disabled) {
-  background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
-}
-.btn--secondary {
-  background: transparent;
-  color: var(--color-text-muted);
-  border-color: var(--color-border);
-}
-.btn--secondary:hover:not(:disabled) {
-  border-color: var(--color-text-muted);
-  color: var(--color-text);
-}
-.btn--ghost {
-  background: transparent;
-  color: var(--color-text-faint);
-  border-color: transparent;
-}
-.btn--ghost:hover:not(:disabled) {
-  color: var(--color-text-muted);
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 .section {
   margin-bottom: 2rem;

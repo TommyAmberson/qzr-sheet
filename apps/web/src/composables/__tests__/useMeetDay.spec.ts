@@ -54,13 +54,18 @@ afterEach(() => {
 
 describe('useMeetDay (FR-022)', () => {
   it('reads on opening and every 30 seconds while the browser tab is visible', async () => {
-    const read = vi.fn(async () => day(1))
+    let version = 1
+    const read = vi.fn(async () => day(version))
     const { state } = open(read)
     await flush()
     expect(read).toHaveBeenCalledTimes(1)
     expect(state().day.value?.scheduleVersion).toBe(1)
+    // A read that finds nothing changed leaves the tabs be
     await vi.advanceTimersByTimeAsync(MEET_DAY_SECONDS * 1000)
     expect(read).toHaveBeenCalledTimes(2)
+    expect(state().beat.value).toBe(1)
+    version = 2
+    await vi.advanceTimersByTimeAsync(MEET_DAY_SECONDS * 1000)
     expect(state().beat.value).toBe(2)
   })
 

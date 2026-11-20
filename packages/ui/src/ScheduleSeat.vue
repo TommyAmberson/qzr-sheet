@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import {
   drawnTeam,
+  ordinal,
   seatText,
   type DayTeam,
   type ScheduleDocument,
@@ -9,7 +10,6 @@ import {
   type SettledBench,
   type SheetView,
 } from '@qzr/shared'
-import { placeText } from './scheduleMarks'
 import './seat.css'
 
 /**
@@ -45,7 +45,7 @@ const team = computed(() =>
 const outcome = computed(() => {
   const r = props.result
   if (!r || r.place === undefined) return ''
-  const place = r.tiedWith && r.tiedWith > 1 ? `=${placeText(r.place)}` : placeText(r.place)
+  const place = r.tiedWith && r.tiedWith > 1 ? `=${ordinal(r.place)}` : ordinal(r.place)
   return r.score === undefined ? place : `${place} · ${r.score}`
 })
 </script>

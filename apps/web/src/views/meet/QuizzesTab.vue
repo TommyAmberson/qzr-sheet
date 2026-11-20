@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, shallowRef, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   ApiError,
-  foldName,
   formatClock,
   placeRank,
   placeTieCount,
@@ -19,9 +17,7 @@ import {
   type DayStatus,
   type DayTeam,
   type QuizProblem,
-  type ScheduleDocument,
   type ScheduleQuiz,
-  type SheetView,
   type Stage,
   type StageChoice,
   mayChangeQuizzes,
@@ -34,7 +30,6 @@ import {
   editResult,
   isStaleSave,
   getAttention,
-  getPublishedSchedule,
   keepQuiz,
   linkResult,
   listResults,
@@ -55,10 +50,10 @@ import { scoresheetLink } from '../../scoresheetLink'
  * quizzes behind them, with every action of the results page it replaces; an admin has what
  * needs attention across the meet above them. Uploading is in the page's header (FR-007).
  */
-const router = useRouter()
-const { slug, meet, sender, isAdmin, division, day, beat, refresh } = useMeetPage()
-
-declare const __SCORESHEET_URL__: string
+const page = useMeetPage()
+const { slug, meet, sender, isAdmin, division, inDivision, setDivision, published, day, beat } =
+  page
+const { refresh, scoresheetHref } = page
 
 /** The meet's stored quizzes as listed, for admins and officials: replaced whole */
 const stored = shallowRef<StoredQuiz[]>([])
@@ -68,8 +63,7 @@ const error = ref('')
 const saving = ref(false)
 const changeError = ref('')
 /** The published schedule, for when and where each quiz is and what links to; null with none */
-const schedule = shallowRef<ScheduleDocument | null>(null)
-const view = ref<SheetView>('letters')
+const schedule = computed(() => published.value?.document ?? null)
 const scheduled = computed<ScheduleQuiz[]>(() => schedule.value?.quizzes ?? [])
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
 const { renew } = useRoomCode()
@@ -121,9 +115,10 @@ const whereOf = computed(() => {
     if (row.kind === 'day') dayLabel = row.label
     else if (row.kind === 'slot') times.set(row.id, `${dayLabel} ${formatClock(row.at)}`.trim())
   }
+  const rooms = new Map(doc.rooms.map((r) => [r.id, r.name]))
   for (const quiz of doc.quizzes) {
     if (!quiz.cell) continue
-    const room = doc.rooms.find((r) => r.id === quiz.cell!.room)?.name ?? ''
+    const room = rooms.get(quiz.cell.room) ?? ''
     places.set(quiz.id, [times.get(quiz.cell.slot), room].filter(Boolean).join(' · '))
   }
   return places
@@ -132,10 +127,27 @@ const whereOf = computed(() => {
 const storedById = computed(() => new Map(storedRows.value.map((row) => [row.id, row])))
 const nameOfScheduled = (quiz: ScheduleQuiz) => quizName(scheduleQuizMeta(quiz))
 
+/** What a row takes from the meet day, scheduled or not, with its stored quiz where managed */
+function fromDay(q: {
+  status: DayStatus
+  teams: DayTeam[]
+  storedId?: number
+  problems?: QuizProblem[]
+}) {
+  return {
+    status: q.status,
+    teams: q.teams,
+    storedId: q.storedId,
+    row: q.storedId === undefined ? undefined : storedById.value.get(q.storedId),
+    problems: q.problems,
+  }
+}
+
 const rows = computed<QuizRow[]>(() => {
   const answer = day.value
   if (!answer) return []
   const doc = schedule.value
+  const view = published.value?.view ?? 'letters'
   const byId = new Map(doc?.quizzes.map((q) => [q.id, q]))
   const onSchedule = answer.quizzes.flatMap((q): QuizRow[] => {
     const quiz = byId.get(q.id)
@@ -148,17 +160,13 @@ const rows = computed<QuizRow[]>(() => {
         when: whereOf.value.get(q.id) ?? '',
         division: name,
         stage: scheduledStage(quiz),
-        status: q.status,
-        teams: q.teams,
+        ...fromDay(q),
         benches: quiz.seats.map((bench, i) => {
           const settled = answer.benches[benchKey(quiz.id, i)]
           if (settled) return 'team' in settled ? settled.team : 'Tied'
-          return seatText(doc!, quiz, bench, view.value)
+          return seatText(doc!, quiz, bench, view)
         }),
         scheduleQuizId: q.id,
-        storedId: q.storedId,
-        row: q.storedId === undefined ? undefined : storedById.value.get(q.storedId),
-        problems: q.problems,
       },
     ]
   })
@@ -169,12 +177,8 @@ const rows = computed<QuizRow[]>(() => {
       when: '',
       division: q.division,
       stage: q.stage,
-      status: q.status,
-      teams: q.teams,
       benches: [],
-      storedId: q.storedId,
-      row: q.storedId === undefined ? undefined : storedById.value.get(q.storedId),
-      problems: q.problems,
+      ...fromDay(q),
     }),
   )
   return [...onSchedule, ...offSchedule]
@@ -195,7 +199,7 @@ const needsAttention = (row: QuizRow) =>
 const shownRows = computed(() =>
   rows.value.filter(
     (row) =>
-      (division.value === null || foldName(row.division) === foldName(division.value)) &&
+      inDivision(row.division) &&
       (shownStage.value === '' || (row.stage ?? 'none') === shownStage.value) &&
       (!onlyAttention.value || needsAttention(row)) &&
       (showNotIn.value || row.status !== 'notIn'),
@@ -262,12 +266,6 @@ function teamText(team: DayTeam): string {
     .join(' ')
 }
 
-/** The scoresheet opens a schedule quiz by the meet and the quiz's id in the schedule */
-function scoresheetHref(quizId: string): string {
-  if (!meet.value) return '#'
-  return `${__SCORESHEET_URL__}?meetId=${meet.value.id}&quiz=${encodeURIComponent(quizId)}`
-}
-
 // ---- Loading ----
 
 async function loadStored() {
@@ -284,39 +282,19 @@ async function loadStored() {
   }
 }
 
-/** The schedule's quizzes, for when and where and to link to; none with no schedule */
-async function loadSchedule() {
-  const meetId = meet.value?.id
-  if (meetId === undefined) return
-  try {
-    const published = await getPublishedSchedule(meetId)
-    schedule.value = published.document
-    view.value = published.view
-  } catch (e) {
-    if (!(e instanceof ApiError) || e.status !== 404) changeError.value = (e as Error).message
-  }
-}
-
-/** Read what the tab shows; it reads again on the page's beat */
+/** Read what the tab shows: on the page's beat, which reads it on opening it too */
 async function load() {
-  await Promise.all([loadStored(), loadSchedule()])
+  await loadStored()
   void loadAttention()
   loading.value = false
 }
 
+watch(beat, () => void load())
+// Who manages the meet's quizzes decides what is read, so a change there reads again
 watch(
-  () => [meet.value?.id, sender.value],
-  () => void load(),
-  { immediate: true },
-)
-watch(beat, () => {
-  void loadStored()
-  void loadAttention()
-})
-watch(
-  () => day.value?.scheduleVersion,
-  (version, was) => {
-    if (was !== undefined && version !== was) void loadSchedule()
+  () => sender.value?.admin ?? null,
+  (admin, was) => {
+    if (was !== undefined && admin !== was) void load()
   },
 )
 
@@ -405,14 +383,8 @@ async function change(action: (meetId: number) => Promise<unknown>) {
   } catch (e) {
     changeError.value = (e as Error).message
   } finally {
-    try {
-      stored.value = await listResults(meetId)
-      void loadAttention()
-      // The meet day's statuses and benches follow what changed
-      void refresh()
-    } catch (e) {
-      changeError.value ||= (e as Error).message
-    }
+    // The meet day's statuses and benches follow what changed, and its beat reads the list again
+    await refresh()
     saving.value = false
   }
 }
@@ -456,7 +428,7 @@ async function showQuiz(id: number) {
     shownStage.value = ''
     onlyAttention.value = false
     showNotIn.value = true
-    if (division.value !== null) await pickDivision(null)
+    if (division.value !== null) await setDivision(null)
     await nextTick()
   }
   document.getElementById(`quiz-${id}`)?.scrollIntoView({ block: 'center' })
@@ -466,17 +438,9 @@ async function showQuiz(id: number) {
 async function showPrelims(name: string) {
   shownStage.value = 'prelim'
   onlyAttention.value = false
-  await pickDivision(name)
+  await setDivision(name)
   await nextTick()
   document.getElementById('quizzes')?.scrollIntoView({ block: 'start' })
-}
-
-/** Pick a division for the whole page, as its picker does (FR-004) */
-function pickDivision(name: string | null) {
-  const query = { ...router.currentRoute.value.query }
-  if (name === null) delete query.division
-  else query.division = name
-  return router.replace({ query })
 }
 
 /** Keep a quiz seated from an order since withdrawn as it is */
@@ -1007,14 +971,6 @@ async function mergeNames(division: string, names: [string, string], team?: stri
   .cell-teams {
     grid-area: teams;
   }
-
-  .cell-revision {
-    grid-area: revision;
-  }
-
-  .cell-saved {
-    grid-area: saved;
-  }
 }
 
 .section-title {
@@ -1087,10 +1043,6 @@ async function mergeNames(division: string, names: [string, string], team?: stri
   font-size: 0.8rem;
 }
 
-.upload-report .refused {
-  color: var(--palette-error);
-}
-
 .warnings {
   margin-top: 0.5rem;
   padding-left: 1.25rem;
@@ -1119,10 +1071,6 @@ async function mergeNames(division: string, names: [string, string], team?: stri
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-}
-
-.stats-link {
-  font-size: 0.85rem;
 }
 
 /* A quiz an attention item's "Show" leads to */

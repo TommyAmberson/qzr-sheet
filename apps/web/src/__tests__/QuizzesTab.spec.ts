@@ -107,6 +107,7 @@ function stubApi({
     vi.fn((url: string) => {
       const path = url.replace(/^https?:\/\/[^/]+/, '').replace(/\?.*$/, '')
       if (path === '/api/meets/fall') return reply(200, { meet, officialCodes: [] })
+      if (path === '/api/my-meets') return reply(200, { memberships: [] })
       if (path === '/api/meets/7/results/sender') {
         return sender ? reply(200, sender) : reply(403, { error: 'No' })
       }

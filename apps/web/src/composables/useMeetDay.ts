@@ -8,8 +8,9 @@ export const MEET_DAY_SECONDS = 30
 /**
  * The meet day while its page is open (FR-022): read on opening, on `refresh` (a tab switch or the
  * Refresh button), when the browser tab comes back into view, and every 30 seconds while it is
- * visible, never while hidden. `beat` counts the reads, so each tab re-reads its own data on the
- * same beat and none keeps a timer of its own.
+ * visible, never while hidden. `beat` moves on each asked-for read and on any read that finds the
+ * meet changed, so each tab re-reads its own data on the same beat, none keeps a timer of its own,
+ * and a quiet meet costs one read every 30 seconds.
  */
 export function useMeetDay(
   meetId: Ref<number | null>,
@@ -17,30 +18,30 @@ export function useMeetDay(
 ) {
   const day = shallowRef<MeetDay | null>(null)
   const error = ref('')
-  const loading = ref(false)
   const beat = ref(0)
+  /** The day as last read, to tell whether a read changed anything */
+  let seen = ''
   let timer: ReturnType<typeof setInterval> | undefined
   // A read answered after a newer one began is dropped, so the page never steps back
   let asked = 0
 
-  async function refresh() {
+  /** Read the meet day; `asked` for a reader's own refresh, which always moves the beat */
+  async function refresh(wanted = true) {
     const id = meetId.value
     if (id === null) return
     const ask = ++asked
-    loading.value = true
     try {
       const answer = await read(id)
       if (ask !== asked) return
-      day.value = answer
       error.value = ''
+      const text = JSON.stringify(answer)
+      if (text === seen && !wanted) return
+      seen = text
+      day.value = answer
+      beat.value++
     } catch (e) {
       if (ask !== asked) return
       error.value = e instanceof Error ? e.message : String(e)
-    } finally {
-      if (ask === asked) {
-        loading.value = false
-        beat.value++
-      }
     }
   }
 
@@ -49,7 +50,7 @@ export function useMeetDay(
   function start() {
     stop()
     timer = setInterval(() => {
-      if (visible()) void refresh()
+      if (visible()) void refresh(false)
     }, MEET_DAY_SECONDS * 1000)
   }
 
@@ -61,7 +62,7 @@ export function useMeetDay(
   // Coming back into view reads at once and restarts the 30 seconds from there
   function onVisibility() {
     if (!visible()) return stop()
-    void refresh()
+    void refresh(false)
     start()
   }
 
@@ -80,5 +81,5 @@ export function useMeetDay(
     stop()
   })
 
-  return { day, error, loading, beat, refresh }
+  return { day, error, beat, refresh }
 }

@@ -2,9 +2,10 @@
 import { computed } from 'vue'
 import ScheduleSeat from './ScheduleSeat.vue'
 import { divisionColourVar } from './divisionColour'
-import { markQuiz, placeText, type MarkedQuiz, type ScheduleMarks } from './scheduleMarks'
+import { markQuiz, type MarkedQuiz, type ScheduleMarks } from './scheduleMarks'
 import {
   formatClock,
+  ordinal,
   roomDivisions,
   sheetRows,
   type Conflict,
@@ -201,7 +202,7 @@ function tickOf(quiz: ScheduleQuiz) {
                 v-for="t in marked.get(c.quiz.id)?.unplaced ?? []"
                 :key="t.name"
                 class="unplaced"
-                >{{ t.name }}{{ t.place ? ` · ${placeText(t.place)}` : ''
+                >{{ t.name }}{{ t.place ? ` · ${ordinal(t.place)}` : ''
                 }}{{ t.score !== undefined ? ` · ${t.score}` : '' }}</span
               >
               <span

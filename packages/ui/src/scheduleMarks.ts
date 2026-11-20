@@ -52,8 +52,3 @@ export function markQuiz(
   })
   return { benches, unplaced: left }
 }
-
-/** A place as a schedule reader says it */
-export function placeText(place: number): string {
-  return place === 1 ? '1st' : place === 2 ? '2nd' : place === 3 ? '3rd' : `${place}th`
-}
