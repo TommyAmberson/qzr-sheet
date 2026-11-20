@@ -6,7 +6,8 @@ import { isRefusal } from './apiErrors'
  * Guest session state for visitors who don't have an account. Two entry points:
  *
  * 1. Shareable URL — `/qzr/scoresheet/?meet=<viewerCode>` auto-joins as viewer on
- *    page load. Restricted to viewer codes only (the URL is shareable, so we
+ *    page load, and so does the portal's meet address (`/qzr/<viewerCode>`; see
+ *    `joinByLink`). Restricted to viewer codes only (the URL is shareable, so we
  *    can't trust the recipient with an official code).
  * 2. "Have a code?" form in the meet picker — accepts viewer or official
  *    codes, the user is typing them in directly.
@@ -85,13 +86,16 @@ const EMPTY_STATE: GuestState = { active: null, joined: [] }
 
 export const guestStateRef = ref<GuestState>(loadFromStorage())
 
-const MEET_PATH = /^\/api\/meets\/(\d+)(?:[/?]|$)/
+const MEET_PATH = /^\/api\/meets\/([^/?]+)(?:[/?]|$)/
+
+/** What the apps say about a meet link whose code the server refused */
+export const LINK_REFUSED = "This meet link isn't valid. Ask the meet's admin for a new one."
 
 /** What the apps tell the user about a guest session that ended on its own: shown, then dismissed */
 export const guestNotice = ref<string | null>(null)
 
 /** Tell the user something through the guest notice, after anything it already says */
-function notify(message: string): void {
+export function notifyGuest(message: string): void {
   guestNotice.value = guestNotice.value ? `${guestNotice.value}\n${message}` : message
 }
 
@@ -117,7 +121,7 @@ export function withGuestToken(
         token ? { ...init, headers: { ...init?.headers, Authorization: `Bearer ${token}` } } : init,
       )
     const id = requestMeetId(path, meetId)
-    let session = id === undefined ? getActiveSession() : joinedSession(id)
+    let session = id === undefined ? getActiveSession() : id === null ? null : joinedSession(id)
     // Only for a request about its meet: one about none, such as the signed-in join, doesn't need it
     if (id !== undefined && session?.role === MeetRole.Viewer && !tokenIsFresh(session.token)) {
       const stale = session
@@ -126,8 +130,11 @@ export function withGuestToken(
     try {
       return await send(session?.token ?? null)
     } catch (e) {
-      // A 401 to a request about no meet, such as the account's own meets, says nothing of the token
-      if (id === undefined || session?.role !== MeetRole.Viewer || !isUnauthorized(e)) throw e
+      // A 401 to a request about no meet, such as the account's own meets, says nothing of the token.
+      // A 404 or 403 to one naming the meet by its code says the admin changed or moved the code; the
+      // renewal finds out which, and ends the session if it no longer opens its meet.
+      const ended = isUnauthorized(e) || (isGone(e) && namesMeetByCode(path))
+      if (id === undefined || session?.role !== MeetRole.Viewer || !ended) throw e
       const renewed = await renewViewer(session, join).catch(() => null)
       if (!renewed) throw e
       return send(renewed.token)
@@ -136,13 +143,25 @@ export function withGuestToken(
 }
 
 /**
- * The meet a request is about: `meetId` when given, else the one the path names. Its token is that
- * meet's joined session's, whichever meet is active, so a guest who has joined several meets never
- * sends one meet's token to another; a request about no meet carries the active session's.
+ * The meet a request is about: `meetId` when given, else the one the path names, by id or by the
+ * viewer code a session was joined with (a portal address's slug), or null for a meet the guest
+ * hasn't joined. Its token is that meet's joined session's, whichever meet is active, so a guest who
+ * has joined several meets never sends one meet's token to another; a request about no meet carries
+ * the active session's.
  */
-function requestMeetId(path: string, meetId?: number): number | undefined {
-  const pathMeetId = MEET_PATH.exec(path)?.[1]
-  return meetId ?? (pathMeetId === undefined ? undefined : Number(pathMeetId))
+function requestMeetId(path: string, meetId?: number): number | null | undefined {
+  if (meetId !== undefined) return meetId
+  const segment = MEET_PATH.exec(path)?.[1]
+  if (segment === undefined) return undefined
+  if (/^\d+$/.test(segment)) return Number(segment)
+  // A code no session was joined with names a meet this guest hasn't joined: no token
+  let code = segment
+  try {
+    code = decodeURIComponent(segment)
+  } catch {
+    // Not an encoded code; matched as it is
+  }
+  return sessionWithCode(code)?.meetId ?? null
 }
 
 /**
@@ -160,6 +179,16 @@ async function rejoin(join: GuestJoin, code: string): Promise<GuestJoinAnswer | 
 
 function isUnauthorized(e: unknown): boolean {
   return e instanceof ApiError && e.status === 401
+}
+
+function isGone(e: unknown): boolean {
+  return e instanceof ApiError && (e.status === 404 || e.status === 403)
+}
+
+/** Whether a path names its meet by a viewer code rather than by id */
+function namesMeetByCode(path: string): boolean {
+  const segment = MEET_PATH.exec(path)?.[1]
+  return segment !== undefined && !/^\d+$/.test(segment)
 }
 
 /** Renewals in flight, by meet, so requests sent together renew a session once */
@@ -197,7 +226,7 @@ async function doRenewViewer(
 }
 
 function noticeCodeEnded(session: GuestSessionData): void {
-  notify(`The code for ${session.meetName} is no longer valid. Join again with the new code.`)
+  notifyGuest(`The code for ${session.meetName} is no longer valid. Join again with the new code.`)
 }
 
 /** A room the room-code dialog asks about */
@@ -356,15 +385,20 @@ export function setActiveSession(meetId: number | null): void {
 }
 
 /**
- * Add (or replace by meetId) a guest session in the joined list. The new
+ * Add (or replace by meetId, or by viewer code) a guest session in the joined list. The new
  * session is also made active when `makeActive` is true; the URL `?meet=` flow
  * passes true, the "Have a code?" form passes false.
  */
 export function addJoinedSession(data: GuestSessionData, makeActive: boolean): void {
   const state = guestStateRef.value
-  const filtered = state.joined.filter((j) => j.meetId !== data.meetId)
+  // One session per meet, and per viewer code: a code that moved to this meet no longer opens another
+  const code = data.code?.toLowerCase()
+  const filtered = state.joined.filter(
+    (j) => j.meetId !== data.meetId && (code === undefined || j.code?.toLowerCase() !== code),
+  )
+  const kept = state.active === data.meetId || filtered.some((j) => j.meetId === state.active)
   guestStateRef.value = {
-    active: makeActive ? data.meetId : state.active,
+    active: makeActive ? data.meetId : kept ? state.active : null,
     joined: [...filtered, data],
   }
   persist()
@@ -446,7 +480,7 @@ async function doUpgrade(opts: UpgradeOptions): Promise<void> {
     } else if (result.value.meet.id !== s.meetId) {
       // The join has added the meet the code now opens, so say that rather than that it failed
       const now = result.value.meet.name
-      notify(`The code for ${s.meetName} now opens ${now}; ${now} was added to your account.`)
+      notifyGuest(`The code for ${s.meetName} now opens ${now}; ${now} was added to your account.`)
     }
     return true
   })
@@ -533,32 +567,83 @@ async function doInitGuestSession(join: GuestJoin): Promise<GuestSessionData | n
   // Quiz links name a meet by id; a value of digits only is a meet id, never a viewer code
   if (!slug || params.has('quiz') || params.has('result') || /^\d+$/.test(slug)) return null
 
-  // The server matches viewer codes ignoring case
-  const existing = guestStateRef.value.joined.find(
-    (j) => j.code?.toLowerCase() === slug.toLowerCase(),
+  // A network failure keeps the code in the address, so a reload once online tries again
+  const data = await joinByLink(slug, join).catch(() => undefined)
+  if (data === undefined) return null
+  if (data) {
+    keepLinkCodeWhileInUse(data.meetId)
+    return data
+  }
+  dropLinkCode(params)
+  notifyGuest(LINK_REFUSED)
+  return null
+}
+
+/**
+ * A working link's code stays in the address, to bookmark or share, while its meet is the one in
+ * use. Switching meets, leaving, signing out, or the sign-in upgrade takes it out, so a reload
+ * doesn't undo that by joining again.
+ */
+function keepLinkCodeWhileInUse(meetId: number): void {
+  const stop = watch(
+    () => guestStateRef.value.active === meetId && joinedSession(meetId) !== null,
+    (inUse) => {
+      if (inUse) return
+      stop()
+      dropLinkCode(new URLSearchParams(window.location.search))
+    },
   )
+}
+
+/**
+ * The viewer session a meet link's code opens: a fresh one kept for the code, or a new join, made
+ * active unless `makeActive` is false. A guest official of the code's meet keeps their session, and
+ * gets it back, since a viewer's would take their room away. Null when the server refuses the code
+ * or it isn't a viewer code: a link is shareable, so it never joins as an official. A network
+ * failure or server error throws.
+ */
+export async function joinByLink(
+  code: string,
+  join: GuestJoin,
+  makeActive = true,
+): Promise<GuestSessionData | null> {
+  const existing = sessionWithCode(code)
   if (existing && tokenIsFresh(existing.token)) {
-    setActiveSession(existing.meetId)
-    dropLinkCode(params)
+    if (makeActive) setActiveSession(existing.meetId)
     return existing
   }
 
-  // A network failure keeps the code in the address, so a reload once online tries again
-  const res = await rejoin(join, slug).catch(() => undefined)
-  if (res === undefined) return null
-  dropLinkCode(params)
-  const data = res?.role === MeetRole.Viewer ? sessionFrom(res, slug) : null
+  const res = await rejoin(join, code)
+  const official = res?.role === MeetRole.Viewer ? joinedSession(res.meet.id) : null
+  if (official?.role === MeetRole.Official) {
+    if (makeActive) setActiveSession(official.meetId)
+    return official
+  }
+  const data = res?.role === MeetRole.Viewer ? sessionFrom(res, code) : null
   if (!data) {
     // A session kept for the link's code has ended with it
     if (existing) leaveGuestMeet(existing.meetId)
-    notify("This meet link isn't valid. Ask the meet's admin for a new one.")
     return null
   }
-  addJoinedSession(data, true)
+  addJoinedSession(data, makeActive)
   return data
 }
 
-/** Take a meet link's viewer code out of the address bar, keeping anything else, without a reload */
+/** The session joined with a viewer code, matched ignoring case as the server does */
+function sessionWithCode(code: string): GuestSessionData | null {
+  const wanted = code.toLowerCase()
+  return guestStateRef.value.joined.find((j) => j.code?.toLowerCase() === wanted) ?? null
+}
+
+/**
+ * The joined session a portal address's slug names: the meet's id when it is digits (Number() would
+ * also read a code like 1e3), its viewer code otherwise
+ */
+export function guestSessionFor(slug: string): GuestSessionData | null {
+  return /^\d+$/.test(slug) ? joinedSession(Number(slug)) : sessionWithCode(slug)
+}
+
+/** Take a meet link's code out of the address bar, keeping anything else, without a reload */
 function dropLinkCode(params: URLSearchParams): void {
   params.delete(URL_PARAM)
   const query = params.toString()
