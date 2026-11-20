@@ -264,7 +264,7 @@ const GROUP_TITLES: Record<Stage, string> = {
 /** The list in groups: each stage's scheduled quizzes, then the stored ones the schedule lacks */
 const groups = computed(() => {
   // A viewer or coach sees no list before the meet is under way, only the line saying so
-  if (statsHidden.value && !manages.value) return []
+  if (statsHidden.value) return []
   const listed = schedule.value !== null
   const out: { title: string; rows: QuizRow[] }[] = []
   for (const stage of STAGES) {
@@ -766,7 +766,7 @@ async function mergeNames(division: string, names: [string, string], team?: stri
       >
         Loading…
       </p>
-      <p v-else-if="statsHidden && !manages" class="state-msg">
+      <p v-else-if="statsHidden" class="state-msg">
         Nothing to see yet: results and standings show once the meet is under way.
       </p>
       <p v-else-if="rows.length === 0" class="state-msg">No quizzes yet.</p>

@@ -165,6 +165,22 @@ describe('GET /api/meets/:id/day', () => {
     expect((await asAdmin()).quizzes[0]!.status).toBe('played')
   })
 
+  it('gives an official every result with its scores, whatever viewers are shown', async () => {
+    await store('1')
+    expect(
+      (await saveSettings((s) => (s.results.prelim = { from: 'meetDone', level: 'places' })))
+        .status,
+    ).toBe(200)
+    const [room] = await db.insert(schema.meetRooms).values({ meetId, name: 'Room 1' }).returning()
+    const official = { meetId, role: MeetRole.Official, roomId: room!.id } as GuestPayload
+    const body = await jsonOf<MeetDay>(await read(null, official))
+    expect(body.quizzes[0]!.status).toBe('played')
+    expect(body.quizzes[0]!.teams[0]).toMatchObject({ name: 'Team A', place: 1 })
+    expect(body.quizzes[0]!.teams[0]!.score).toBeDefined()
+    // Not their room's quiz, so nothing to act on
+    expect(body.quizzes[0]).not.toHaveProperty('storedId')
+  })
+
   it('shows a quiz in error as needing attention to an admin and under review to a viewer', async () => {
     await store('1', (file) => (file.answers = file.answers.filter((a) => a.columnKey !== '15')))
     expect((await asAdmin()).quizzes[0]).toMatchObject({
