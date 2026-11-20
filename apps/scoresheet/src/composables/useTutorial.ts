@@ -28,7 +28,7 @@ export interface ScoresheetAPI {
   toggleOnTime: (teamIdx: TeamIdx) => void
   moveQuizzer: (teamIdx: TeamIdx, from: SeatIdx, to: SeatIdx) => void
   resetStore: () => void
-  setAside: () => void
+  setAside: (onReplaced: () => void) => void
   bringBack: () => void
   columns: { value: { key: string }[] }
 }
@@ -50,9 +50,12 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   const totalSteps = TUTORIAL_STEPS.length
 
   function start() {
+    // Started again while running, it would set the practice quiz aside in place of the real one
+    if (active.value) return
     // The quiz is set aside while the practice quiz is on the sheet, and comes back when the
     // tutorial ends, or with a reload
-    scoresheet.setAside()
+    // Ended by the sheet if its quiz is replaced meanwhile (New, Open, a restore)
+    scoresheet.setAside(finish)
     // A linked meet keeps the real quiz's team picks and flags names against its roster, which
     // would mark up the walkthrough's made-up teams, so the walkthrough runs unlinked
     linkBefore = meetSession.currentLink()
@@ -269,6 +272,7 @@ export function useTutorial(scoresheet: ScoresheetAPI) {
   }
 
   function finish() {
+    if (!active.value) return
     cleanup()
     targetEls.value = []
     // The quiz set aside back, and its link

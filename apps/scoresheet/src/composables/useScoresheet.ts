@@ -46,6 +46,9 @@ import {
   newRecordId,
   type StateKind,
   type RecordClaim,
+  deleteOwnRecord,
+  discardRecent,
+  isKept,
   storageFailedAtStart,
   type Tab,
   untouched,
@@ -81,6 +84,9 @@ const UNDO_LIMIT = 1000
 
 /** The quiz's settings an official sets on the sheet */
 type QuizField = 'division' | 'quizNumber' | 'consolation' | 'overtime'
+
+/** A state to mark saved or submitted, and which quiz shown it was taken from */
+type MarkedState = QuizState & { of: number }
 
 /** A quiz as a record keeps it, apart from which record it is and its link */
 type SheetState = Pick<
@@ -162,7 +168,10 @@ export function useScoresheet() {
    * Make `change` as one undoable step, with `alongside` run with it, and on each undo and redo,
    * for what it writes outside the quiz. The step pushed, if any.
    */
-  function edit(change: () => void, alongside?: HistoryCommand): UndoStep | undefined {
+  function edit(
+    change: () => void,
+    alongside?: HistoryCommand,
+  ): { step: UndoStep; split: string | undefined } | undefined {
     if (quiet > 0) {
       change()
       alongside?.redo()
@@ -178,15 +187,25 @@ export function useScoresheet() {
       }),
     )
     if (step.changes.length === 0 && !alongside) return undefined
-    if (before !== undefined) splitAhead(before)
+    const split = before !== undefined ? splitAhead(before) : undefined
     history.push(sheetStep(step, alongside))
-    return step
+    return { step, split }
   }
 
   const lastStep = () => history.undoSteps.value[history.undoSteps.value.length - 1]
 
   /** The step a visit to a typed field is making, while the visit lasts */
-  let typing: { field: string; step: UndoStep } | null = null
+  let typing: {
+    field: string
+    step: UndoStep
+    /** As the visit found the history, to put back if it ends where it began */
+    before: {
+      undo: readonly SheetStep[]
+      redo: readonly SheetStep[]
+      ahead: QuizState | undefined
+      split: string | undefined
+    }
+  } | null = null
 
   /**
    * Make `change` to typed field `field`: a visit to the field, from entering it until leaving it
@@ -197,8 +216,13 @@ export function useScoresheet() {
     const top = lastStep()
     const visiting = typing
     if (visiting?.field !== field || top?.step !== visiting.step || history.canRedo.value) {
-      const step = edit(change)
-      typing = step ? { field, step } : null
+      const redo = history.redoSteps.value
+      const undo = history.undoSteps.value
+      const ahead = aheadState.value
+      const made = edit(change)
+      typing = made
+        ? { field, step: made.step, before: { undo, redo, ahead, split: made.split } }
+        : null
       return
     }
     mergeSteps(
@@ -206,8 +230,20 @@ export function useScoresheet() {
       quietly(() => recordEdit(undoTarget, change)),
     )
     if (visiting.step.changes.length > 0) return
-    history.setStacks(history.undoSteps.value.slice(0, -1), history.redoSteps.value)
+    // A visit that ends where it began changed nothing: what its first keystroke dropped comes back
+    const { undo, redo, ahead, split } = visiting.before
+    history.setStacks(undo, redo)
     typing = null
+    if (!split) {
+      aheadState.value = ahead
+      return
+    }
+    // The latest state is held again and its split copy goes; unless a tab took the copy meanwhile,
+    // when it is that tab's
+    aheadState.value = ahead
+    queueWrite(async () => {
+      if (!(await discardRecent(split)) && aheadState.value === ahead) aheadState.value = undefined
+    })
   }
 
   /** The visit to a typed field is over: its next change is a new step */
@@ -759,21 +795,23 @@ export function useScoresheet() {
   /** The quiz on the sheet as a canonical file, which states are compared by */
   const currentState = computed(() => canonicalStoreFile(store, noJumpMap.value, timeoutMap.value))
 
-  const unsaved = computed(
-    () => !isSaved(currentState.value, savedState.value, submittedState.value, link.value),
-  )
+  /** Whether state `file` is one the quiz was saved or submitted in */
+  const savedAt = (file: string) =>
+    isSaved(file, savedState.value, submittedState.value, link.value)
+
+  const unsaved = computed(() => !savedAt(currentState.value))
 
   /**
    * An edit made at state `here` leaves the latest state behind for good: it goes to the recent
    * quizzes as a quiz of its own, with its history, the saved states that aren't this one's, and
    * the same link
    */
-  function splitAhead(here: string) {
+  function splitAhead(here: string): string | undefined {
     const ahead = aheadState.value
-    if (!ahead || !tab) return
+    if (!ahead || !tab) return undefined
     aheadState.value = undefined
     // Redone up to it already: nothing is left behind
-    if (here === ahead.file) return
+    if (here === ahead.file) return undefined
     const keep = <S extends QuizState>(state: S | undefined) =>
       state && state.file !== here ? state : undefined
     const saved = keep(savedState.value)
@@ -791,21 +829,42 @@ export function useScoresheet() {
       offered: true,
     }
     queueWrite(() => writeRecord(split))
+    return split.id
   }
 
-  /** The quiz was saved to a file, or opened from one, as it is now */
-  function markSaved() {
+  /** The quiz as it is now, for marking it saved or submitted once the save or send is done */
+  function stateToMark(): MarkedState {
     // Its last step is kept as it is now: typing on is a step of its own
     typing = null
-    savedState.value = { file: currentState.value, undo: keptUndo() }
+    return { file: currentState.value, undo: keptUndo(), of: replaced }
+  }
+
+  /** How many times the quiz shown was replaced (New, Open, a restore) */
+  let replaced = 0
+
+  /** The state to mark, unless the quiz it was taken from was replaced meanwhile */
+  function stillOurs({ of, ...state }: MarkedState): QuizState | undefined {
+    return of === replaced ? state : undefined
+  }
+
+  /**
+   * The quiz was saved to a file, or opened from one, in state `state`: as it is now, unless the
+   * caller took it before waiting on the save, while edits went on
+   */
+  function markSaved(state: MarkedState = stateToMark()) {
+    savedState.value = stillOurs(state) ?? savedState.value
   }
 
   /** The quiz was sent to the meet, or opened from it, as it is now, as scheduled quiz `quizId` */
-  function markSubmitted(meetId: number, quizId: string | null) {
-    typing = null
+  function markSubmitted(
+    meetId: number,
+    quizId: string | null,
+    marked: MarkedState = stateToMark(),
+  ) {
+    const state = stillOurs(marked)
+    if (!state) return
     submittedState.value = {
-      file: currentState.value,
-      undo: keptUndo(),
+      ...state,
       meetId,
       quizId,
       link: link.value,
@@ -885,7 +944,8 @@ export function useScoresheet() {
       ...stateNow(file),
       id: tab.id,
       link: tab.link,
-      unsaved: unsaved.value,
+      // Unsaved too while the latest state, held ahead, is: it is the quiz's own work
+      unsaved: unsaved.value || (aheadState.value !== undefined && !savedAt(aheadState.value.file)),
       changedAt: before?.current?.file === file ? before.changedAt : Date.now(),
       offered: before?.offered ?? false,
     }
@@ -928,12 +988,25 @@ export function useScoresheet() {
   }
 
   /**
-   * The sheet is about to show another quiz (New, Open, restore): the quiz it shows goes to the
-   * recent quizzes as it is, unless it is not worth keeping, and the tab begins a new record
+   * The tab's record is left, for New, Open or a restore: written as it is, a recent quiz, or
+   * deleted, while still held, when nothing was done by hand, since no reload comes back to it
+   */
+  function leaveRecord(tab: Tab) {
+    persistNow({ offered: true })
+    const left = tab.record
+    const { id } = tab
+    if (left && !isKept(left)) queueWrite(() => deleteOwnRecord(id))
+  }
+
+  /**
+   * The sheet is about to show another quiz (New, Open): the quiz it shows goes to the recent
+   * quizzes as it is, unless it is not worth keeping, and the tab begins a new record
    */
   function replaceQuiz() {
+    endAside()
+    replaced++
     if (!tab) return
-    persistNow({ offered: true })
+    leaveRecord(tab)
     moveTab(tab, undefined, writing)
     savedState.value = undefined
     submittedState.value = undefined
@@ -949,8 +1022,10 @@ export function useScoresheet() {
     claim: RecordClaim,
     state: StateKind = 'current',
   ): MeetSessionData | null {
+    endAside()
+    replaced++
     if (!tab) return null
-    persistNow({ offered: true })
+    leaveRecord(tab)
     moveTab(
       tab,
       { id: record.id, claim, record: { ...positioned(record, state), offered: false } },
@@ -982,9 +1057,13 @@ export function useScoresheet() {
     }
   }
 
-  /** Write the tab's quiz now, with whatever was waiting for the pause to end */
-  function flushAutoSave() {
+  /**
+   * Write the tab's quiz now, with whatever was waiting for the pause to end; resolves once written,
+   * or once the write has failed
+   */
+  function flushAutoSave(): Promise<unknown> {
     persistNow()
+    return writing
   }
 
   /** The quiz as the sheet has it, in state `file`, as a record keeps it */
@@ -1018,9 +1097,10 @@ export function useScoresheet() {
    * Set the quiz aside for the tutorial: written with what was waiting, then left alone, so a
    * reload mid-tutorial brings it back, and kept in memory for when the tutorial ends
    */
-  function setAside() {
+  function setAside(onReplaced: () => void) {
     flushAutoSave()
     aside = stateNow()
+    asideReplaced = onReplaced
     pauseAutoSave.value = true
     // The practice quiz is none of these: an edit to it must not split the latest state off
     savedState.value = undefined
@@ -1028,10 +1108,23 @@ export function useScoresheet() {
     aheadState.value = undefined
   }
 
+  /**
+   * The quiz is replaced while one is set aside: whoever set it aside ends that first (the
+   * tutorial ends), so the quiz set aside comes back and goes to the recent quizzes, never written
+   * over the quiz that replaces it
+   */
+  function endAside() {
+    if (aside) asideReplaced?.()
+  }
+
+  /** Called when the quiz set aside is replaced, by whoever set it aside */
+  let asideReplaced: (() => void) | null = null
+
   /** Show the quiz set aside again; auto-save stays paused until the caller resumes it */
   function bringBack() {
     showState(aside ?? tab?.record)
     aside = null
+    asideReplaced = null
   }
 
   const pauseAutoSave = ref(false)
@@ -1131,6 +1224,7 @@ export function useScoresheet() {
     editBySheet,
     markSaved,
     markSubmitted,
+    stateToMark,
 
     // Persistence
     store,
