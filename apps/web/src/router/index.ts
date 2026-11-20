@@ -6,7 +6,8 @@ import {
 } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { authClient } from '../composables/useAuth'
-import { joinedSession } from '@qzr/ui'
+import { guestSessionFor, joinByLink, LINK_REFUSED, notifyGuest } from '@qzr/ui'
+import { joinMeetGuest } from '../api'
 import { isFailedImport, pageLoaded, recoverFromStaleBuild } from '../staleBuild'
 
 /** A page the meet's tabs replace, sent to its tab with its address's division and hash */
@@ -156,19 +157,45 @@ const router = createRouter({
   ],
 })
 
+/** Join with an address's viewer code, saying why when it can't, as the scoresheet's link does */
+async function joinFrom(code: string) {
+  try {
+    const joined = await joinByLink(code, joinMeetGuest, false)
+    if (!joined) notifyGuest(LINK_REFUSED)
+    return joined
+  } catch {
+    notifyGuest("The meet couldn't be opened just now. Open the link again in a moment.")
+    return null
+  }
+}
+
 router.beforeEach(async (to) => {
   if (!to.matched.some((r) => r.meta.requiresAuth)) return true
 
   const { data } = await authClient.getSession()
   if (data?.user) return true
-  // A guest who joined this meet with a code may open its guest pages (`slug` is the meet's id then,
-  // and only a value of digits is one: Number() would also read a code like 1e3)
-  const slug = String(to.params.slug)
-  if (/^\d+$/.test(slug) && joinedSession(Number(slug))) {
-    if (to.matched.some((r) => r.meta.guestAccess)) return true
-    // The meet's other tabs are for its members: a guest is shown its schedule
-    if (to.matched.some((r) => r.name === 'meet-tabs')) {
-      return { name: 'meet', params: to.params, query: to.query }
+  // A meet's address names it by its viewer code, so opening it joins a signed-out visitor as a
+  // viewer, keeping the address. A guest official keeps no code, so goes by the meet's id.
+  const slug = to.params.slug
+  // Only a page a guest may see joins: a members' page, such as an admin's bookmarked Setup, sends
+  // them to sign in as it is
+  const forGuests = !!to.matched[to.matched.length - 1]?.meta.guestAccess
+  if (typeof slug === 'string') {
+    const joinable = forGuests && !/^\d+$/.test(slug)
+    const guest = guestSessionFor(slug) ?? (joinable ? await joinFrom(slug) : null)
+    if (guest && !guest.code && slug !== String(guest.meetId)) {
+      return {
+        name: to.name,
+        params: { ...to.params, slug: String(guest.meetId) },
+        query: to.query,
+      }
+    }
+    if (guest) {
+      if (to.matched.some((r) => r.meta.guestAccess)) return true
+      // The meet's other tabs are for its members: a guest is shown its schedule
+      if (to.matched.some((r) => r.name === 'meet-tabs')) {
+        return { name: 'meet', params: to.params, query: to.query }
+      }
     }
   }
   // Signed out: home, which asks them to sign in and then brings them back

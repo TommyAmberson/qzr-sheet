@@ -16,6 +16,13 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Fixed
+
+* A meet's address opens it for a signed-out visitor: `/qzr/<viewer code>` joins them as a viewer,
+  as the scoresheet's `?meet=` link does, rather than asking them to sign in, and the address stays
+  as it is for bookmarks and sharing. A viewer who joins with the code on the home page goes to the
+  same address, not one by the meet's number
+
 ## [0.36.0] - 2026-11-20
 
 ### Added

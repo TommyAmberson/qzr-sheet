@@ -3,6 +3,11 @@ import { type Router } from 'vue-router'
 import { MeetRole } from '@qzr/shared'
 
 const mockGetSession = vi.fn()
+const mockJoinMeetGuest = vi.fn()
+
+vi.mock('../../api', () => ({
+  joinMeetGuest: (...args: unknown[]) => mockJoinMeetGuest(...args),
+}))
 
 vi.mock('../../composables/useAuth', () => ({
   authClient: { getSession: (...args: unknown[]) => mockGetSession(...args) },
@@ -24,6 +29,13 @@ let router: Router
 
 beforeEach(async () => {
   mockGetSession.mockReset()
+  // Guest sessions are kept in storage, and the router's copy loads from it
+  localStorage.clear()
+  // Unless a test says otherwise, the server refuses the address's slug as a code
+  mockJoinMeetGuest.mockReset().mockImplementation(async () => {
+    const { ApiError } = await import('@qzr/shared')
+    throw new ApiError(404, 'Invalid code')
+  })
   // Re-import the router fresh each test to avoid stale state
   vi.resetModules()
   const mod = await import('../index')
@@ -183,5 +195,83 @@ describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.
       await router.push(path!)
       expect(router.currentRoute.value.name).toBe(name)
     }
+  })
+
+  it("joins a signed-out visitor with the viewer code in the meet's address, keeping it", async () => {
+    mockGetSession.mockResolvedValue({ data: null })
+    mockJoinMeetGuest.mockResolvedValue({
+      token: 't',
+      meet: { id: 7, name: 'Fall' },
+      role: MeetRole.Viewer,
+    })
+    await router.push('/fall/standings?division=2')
+    expect(mockJoinMeetGuest).toHaveBeenCalledWith('fall')
+    expect(router.currentRoute.value.name).toBe('meet-standings')
+    expect(router.currentRoute.value.fullPath).toBe('/fall/standings?division=2')
+    const { joinedSession } = await import('@qzr/ui')
+    expect(joinedSession(7)?.code).toBe('fall')
+  })
+
+  it('opens a meet by the code a guest joined with, without joining again', async () => {
+    mockGetSession.mockResolvedValue({ data: null })
+    const { setGuestState } = await import('@qzr/ui')
+    setGuestState({
+      active: null,
+      joined: [{ token: 't', meetId: 7, meetName: 'Fall', role: MeetRole.Viewer, code: 'fall' }],
+    })
+    await router.push('/Fall/roster')
+    expect(router.currentRoute.value.fullPath).toBe('/Fall')
+    expect(mockJoinMeetGuest).not.toHaveBeenCalled()
+  })
+
+  it("keeps a guest official's session when they open the meet's viewer address", async () => {
+    mockGetSession.mockResolvedValue({ data: null })
+    const { joinedSession, setGuestState } = await import('@qzr/ui')
+    const official = { token: 't', meetId: 7, meetName: 'Fall', role: MeetRole.Official as const }
+    setGuestState({ active: 7, joined: [official] })
+    mockJoinMeetGuest.mockResolvedValue({
+      token: 'v',
+      meet: { id: 7, name: 'Fall' },
+      role: MeetRole.Viewer,
+    })
+    await router.push('/fall/quizzes')
+    expect(router.currentRoute.value.fullPath).toBe('/7/quizzes')
+    expect(joinedSession(7)).toEqual(official)
+  })
+
+  it("says a rejected meet address isn't a valid link", async () => {
+    mockGetSession.mockResolvedValue({ data: null })
+    await router.push('/old-code')
+    expect(router.currentRoute.value.name).toBe('home')
+    const { guestNotice } = await import('@qzr/ui')
+    expect(guestNotice.value).toMatch(/isn't valid/)
+  })
+
+  it("asks a signed-out member at a members' page to sign in, without joining", async () => {
+    mockGetSession.mockResolvedValue({ data: null })
+    await router.push('/fall/setup')
+    expect(router.currentRoute.value.name).toBe('home')
+    expect(mockJoinMeetGuest).not.toHaveBeenCalled()
+  })
+
+  it('never takes a page without a meet as a code', async () => {
+    mockGetSession.mockResolvedValue({ data: null })
+    await router.push('/account')
+    expect(router.currentRoute.value.name).toBe('home')
+    expect(mockJoinMeetGuest).not.toHaveBeenCalled()
+  })
+
+  it('never joins as an official from an address', async () => {
+    mockGetSession.mockResolvedValue({ data: null })
+    mockJoinMeetGuest.mockResolvedValue({
+      token: 't',
+      meet: { id: 7, name: 'Fall' },
+      role: MeetRole.Official,
+      room: { id: 3, name: 'Room 1' },
+    })
+    await router.push('/a-room-code')
+    expect(router.currentRoute.value.name).toBe('home')
+    const { joinedSession } = await import('@qzr/ui')
+    expect(joinedSession(7)).toBeNull()
   })
 })
