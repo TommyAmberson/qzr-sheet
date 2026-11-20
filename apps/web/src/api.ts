@@ -6,6 +6,7 @@ import type {
   DivisionStats,
   DivisionTeamNames,
   LinkHow,
+  MeetDay,
   MeetPhase,
   PublishedSchedule,
   QuizFile,
@@ -816,6 +817,14 @@ export function getDivisionStats(
       `/api/meets/${meetId}/stats/${encodeURIComponent(division)}${asViewer ? '?as=viewer' : ''}`,
     ),
   )
+}
+
+/**
+ * The meet day: the published schedule's quizzes with their results and settled benches, as this
+ * reader may see them, asked again while the API prepares them (specs/010-meet-day)
+ */
+export function getMeetDay(meetId: number): Promise<MeetDay> {
+  return whenPrepared(() => request(`/api/meets/${meetId}/day`))
 }
 
 /**
