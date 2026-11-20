@@ -93,7 +93,7 @@ throughout; superuser includes admin.
 | Meet info, phase, team counts    | V: R         | V: R        | V: R             | V: R            | V: R           |
 | Viewer code                      | V: R         | V: R        | V: R             | V: R            | V: R           |
 | Own church's teams and roster    | C: RW        | C: R; A: RW | C: R; A: RW      | C: R; A: RW     | C: R           |
-| All churches, teams, and rosters | A: RW        | A: RW       | V: R; A: RW      | V: R; A: RW     | V: R           |
+| All churches, teams, and rosters | A: RW        | O: R; A: RW | V: R; A: RW      | V: R; A: RW     | V: R           |
 | Rooms and their codes            | A: RW        | A: RW       | A: RW            | A: RW           | A: R           |
 | The meet's scoring template      | V: R; A: RW  | V: R; A: RW | V: R; A: RW      | V: R; A: RW     | V: R; A: R     |
 | Published schedule               | A: RW        | A: RW       | V: R; A: RW      | V: R; A: RW     | V: R           |
@@ -115,7 +115,8 @@ throughout; superuser includes admin.
 | Redeem a code (join)             | anyone       | anyone      | anyone           | anyone          | anyone         |
 
 * **Before `live`**, a meet's teams, rosters, and schedule are private to the admin and, for its own
-  church, the coach. Others see the meet's details and team counts only.
+  church, the coach. Others see the meet's details and team counts only, except that its officials,
+  guests among them, read every roster from `build` on, so rooms can get ready for the quizzers.
 * **`review`** follows the last quiz, so the admin can check results while they stay put. Only
   admins change anything: they keep every power they have in `live`. Everyone else keeps read
   access; an official who spots a mistake tells the admin.

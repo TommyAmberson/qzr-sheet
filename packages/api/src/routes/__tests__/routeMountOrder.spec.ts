@@ -15,7 +15,7 @@ import { createTestDb } from '../../test-db'
 import type { Db } from '../../lib/db'
 import { generateCode, hashCode } from '../../lib/codes'
 import * as schema from '../../db/schema'
-import { MeetRole, PlacementFormula, newScheduleDocument } from '@qzr/shared'
+import { MeetRole, PlacementFormula, newScheduleDocument, type MeetPhase } from '@qzr/shared'
 import { codeTagFor, signGuestJwt, type GuestPayload } from '../../lib/jwt'
 import { sessionMiddleware } from '../../middleware/session'
 import { eq } from 'drizzle-orm'
@@ -62,8 +62,9 @@ function mountRoutes(db: Db, guest: GuestPayload | null | 'bearer') {
   return app
 }
 
-async function seedMeetWithTeam(db: Db) {
-  const meet = await seedMeet(db, 'Guest Meet')
+// Live, so that a viewer may read every roster
+async function seedMeetWithTeam(db: Db, phase: MeetPhase = 'live') {
+  const meet = await seedMeet(db, 'Guest Meet', { phase })
   const [church] = await db
     .insert(schema.churches)
     .values({
@@ -93,6 +94,17 @@ describe('route mount order — guest can read /api/meets/:meetId/teams', () => 
     const body = await jsonOf<{ teams: { id: number }[]; meetDivisions: string[] }>(res)
     expect(body.teams).toHaveLength(1)
     expect(Array.isArray(body.meetDivisions)).toBe(true)
+  })
+
+  it.each([
+    [MeetRole.Official, 1],
+    [MeetRole.Viewer, 0],
+  ] as const)('gives a guest %s in build %i teams', async (role, count) => {
+    const meet = await seedMeetWithTeam(db, 'build')
+    const app = mountRoutes(db, { meetId: meet.id, role })
+    const res = await app.request(`/api/meets/${meet.id}/teams`, {}, env)
+    expect(res.status).toBe(200)
+    expect((await jsonOf<{ teams: unknown[] }>(res)).teams).toHaveLength(count)
   })
 
   it('returns 403 when the guest JWT is for a different meet', async () => {

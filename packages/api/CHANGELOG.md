@@ -17,6 +17,18 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-11-20
+
+### Fixed
+
+* A meet's rosters stay private until its phase allows them: before `live`, its officials read every
+  church's teams and quizzers from `build` on, a coach their own church's, and its other members
+  none, where any member could read them all before
+
+### Bundled contract
+
+* `@qzr/shared@1.19.0` - unchanged
+
 ## [0.33.0] - 2026-11-20
 
 ### Added

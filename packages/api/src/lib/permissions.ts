@@ -123,3 +123,55 @@ export async function officialRoomsOf<E extends { Variables: SessionVariables }>
     )
   return rows.map((row) => row.roomId)
 }
+
+/** Every church of a meet, or the ids of those whose rosters a reader is limited to */
+export type RosterScope = 'all' | ReadonlySet<number>
+
+/**
+ * Whose rosters (teams and quizzers) the requester may read in a meet, which depends on its phase
+ * (docs/roles-and-access.md): every church for its admins, for its officials from `build` on, and
+ * for anyone who may read the meet from `live` on; otherwise only the churches the account
+ * coaches. Null for someone who may not read the meet at all.
+ */
+export async function rosterScopeOf<E extends { Variables: SessionVariables }>(
+  c: Context<E>,
+  db: Db,
+  meetId: number,
+): Promise<RosterScope | null> {
+  const [viewer, [meet]] = await Promise.all([
+    isViewerOf(c, db, meetId),
+    db
+      .select({ phase: schema.quizMeets.phase })
+      .from(schema.quizMeets)
+      .where(eq(schema.quizMeets.id, meetId)),
+  ])
+  if (!viewer || !meet) return null
+  if (meet.phase !== 'registration' && meet.phase !== 'build') return 'all'
+
+  const user = c.get('user')
+  // A guest who may read the meet holds a token for it, as an official or a viewer
+  const guestOfficial = c.get('guest')?.role === MeetRole.Official
+  const [admin, officiates, coached] = await Promise.all([
+    user ? isAdminOrSuperuser(db, user.id, user.role, meetId) : false,
+    meet.phase === 'build' &&
+      (guestOfficial || officialRoomsOf(c, db, meetId).then((rooms) => rooms.length > 0)),
+    user
+      ? db
+          .select({ churchId: schema.coachMemberships.churchId })
+          .from(schema.coachMemberships)
+          .where(
+            and(
+              eq(schema.coachMemberships.accountId, user.id),
+              eq(schema.coachMemberships.meetId, meetId),
+            ),
+          )
+      : [],
+  ])
+  if (admin || officiates) return 'all'
+  return new Set(coached.map((row) => row.churchId))
+}
+
+/** Whether a roster scope covers the given church; no scope covers none */
+export function scopeCovers(scope: RosterScope | null, churchId: number): boolean {
+  return scope === 'all' || (scope?.has(churchId) ?? false)
+}
