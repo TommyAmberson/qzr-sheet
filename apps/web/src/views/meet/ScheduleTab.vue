@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { scoresheetLink } from '../../scoresheetLink'
-import { ref, shallowRef, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ApiError, type ScheduleDocument, type SheetView } from '@qzr/shared'
-import { ScheduleSheet } from '@qzr/ui'
+import {
+  ApiError,
+  sameDivision,
+  type DayQuiz,
+  type ScheduleDocument,
+  type SheetView,
+} from '@qzr/shared'
+import { ScheduleSheet, type ScheduleMarks } from '@qzr/ui'
 
 import { getPublishedSchedule } from '../../api'
 import { useMeetPage } from '../../meetPage'
+import { problemText } from '../../stats'
 
 /**
  * The Schedule tab (FR-008): the meet's published schedule, letters or team names as the API says
@@ -14,7 +21,7 @@ import { useMeetPage } from '../../meetPage'
  * newer published version.
  */
 const router = useRouter()
-const { slug, meet, isAdmin, day } = useMeetPage()
+const { slug, meet, isAdmin, sender, division, day } = useMeetPage()
 
 declare const __SCORESHEET_URL__: string
 
@@ -25,6 +32,35 @@ const error = ref('')
 const unpublished = ref(false)
 /** The published version shown; the meet day names a newer one once it is published */
 let shownVersion: number | null = null
+
+/** The schedule shown: the picked division's quizzes, or every division's (FR-004) */
+const shown = computed(() => {
+  const all = doc.value
+  if (!all || division.value === null) return all
+  const picked = division.value
+  const ids = new Set(
+    all.settings.divisions.filter((d) => sameDivision(d.name, picked)).map((d) => d.id),
+  )
+  // A schedule linked to the meet names its divisions as the meet does
+  return {
+    ...all,
+    quizzes: all.quizzes.filter((q) => ids.has(q.division) || sameDivision(q.division, picked)),
+  }
+})
+
+/** The meet day's results and settled benches on the sheet (FR-009 to FR-011) */
+const marks = computed<ScheduleMarks | null>(() =>
+  day.value
+    ? { quizzes: new Map(day.value.quizzes.map((q) => [q.id, q])), benches: day.value.benches }
+    : null,
+)
+
+/** What is wrong with a quiz, for an admin or its room's official, who are given its problems */
+const statusTitle = (quiz: DayQuiz) => (quiz.problems ?? []).map(problemText).join('\n')
+
+/** Admins and the meet's officials score quizzes, so a quiz not in yet opens the scoresheet */
+const scores = computed(() => isAdmin.value || (sender.value?.rooms.length ?? 0) > 0)
+const storedOf = (quizId: string) => day.value?.quizzes.find((q) => q.id === quizId)?.storedId
 
 /** The scoresheet opens a schedule quiz by the meet and the quiz's id in the schedule */
 function scoresheetHref(quizId: string): string {
@@ -82,11 +118,29 @@ watch(
       </div>
       <p v-if="unpublished" class="state-msg">The schedule hasn't been published yet.</p>
       <div v-else-if="doc" class="sheet-scroll">
-        <ScheduleSheet class="published" :doc="doc" :view="view">
+        <ScheduleSheet
+          class="published"
+          :doc="shown!"
+          :view="view"
+          :marks="marks"
+          :status-title="statusTitle"
+        >
+          <!-- A stored quiz opens its page; one not in yet, the scoresheet for those who score (FR-012) -->
           <template #quiz-title="{ quiz }">
-            <a class="quiz-title" :href="scoresheetHref(quiz.id)" v-bind="scoresheetLink">{{
-              quiz.label
-            }}</a>
+            <RouterLink
+              v-if="storedOf(quiz.id) !== undefined"
+              class="quiz-title"
+              :to="{ name: 'meet-result', params: { slug, resultId: storedOf(quiz.id) } }"
+              >{{ quiz.label }}</RouterLink
+            >
+            <a
+              v-else-if="scores"
+              class="quiz-title"
+              :href="scoresheetHref(quiz.id)"
+              v-bind="scoresheetLink"
+              >{{ quiz.label }}</a
+            >
+            <span v-else class="quiz-title">{{ quiz.label }}</span>
           </template>
         </ScheduleSheet>
       </div>

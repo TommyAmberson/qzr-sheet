@@ -2,11 +2,14 @@
 import { computed } from 'vue'
 import ScheduleSeat from './ScheduleSeat.vue'
 import { divisionColourVar } from './divisionColour'
+import { markQuiz, placeText, type MarkedQuiz, type ScheduleMarks } from './scheduleMarks'
 import {
   formatClock,
   roomDivisions,
   sheetRows,
   type Conflict,
+  type DayQuiz,
+  type DayStatus,
   type ScheduleDocument,
   type ScheduleQuiz,
   type SheetView,
@@ -27,8 +30,19 @@ const props = withDefaults(
     selected?: string | null
     /** The builder's grid, whose empty cells offer to add a quiz */
     editable?: boolean
+    /** The meet day's results, statuses and settled benches, on a reader's page (FR-009 to FR-011) */
+    marks?: ScheduleMarks | null
+    /** What a quiz's status note says on hover: what is wrong with it, for those told */
+    statusTitle?: (quiz: DayQuiz) => string
   }>(),
-  { view: 'letters', issues: () => new Map(), selected: null, editable: false },
+  {
+    view: 'letters',
+    issues: () => new Map(),
+    selected: null,
+    editable: false,
+    marks: null,
+    statusTitle: undefined,
+  },
 )
 
 const emit = defineEmits<{
@@ -41,6 +55,22 @@ const emit = defineEmits<{
 }>()
 
 const rows = computed(() => sheetRows(props.doc))
+
+/** Each quiz's benches as marked, worked out once per marks */
+const marked = computed(() => {
+  const marks = props.marks
+  if (!marks) return new Map<string, MarkedQuiz>()
+  return new Map(props.doc.quizzes.map((q) => [q.id, markQuiz(props.doc, q, marks)]))
+})
+
+/** The few words a quiz's status takes on the sheet; a played quiz shows its places instead */
+const STATUS_TEXT: Partial<Record<DayStatus, string>> = {
+  attention: 'Needs attention',
+  underReview: 'Under review',
+  notCounted: 'Not counted',
+  hidden: 'Result not shown yet',
+}
+const dayOf = (id: string) => props.marks?.quizzes.get(id)
 
 /** Days with quizzes, which each start a printed page; a day of only events follows on */
 const quizDays = computed(() => {
@@ -162,8 +192,25 @@ function tickOf(quiz: ScheduleQuiz) {
                 :quiz="c.quiz"
                 :index="i"
                 :view="view"
+                :settled="marked.get(c.quiz.id)?.benches[i]?.settled"
+                :result="marked.get(c.quiz.id)?.benches[i]?.result"
                 @click="emit('seat', c.quiz.id, i, target($event))"
               />
+              <!-- Teams of the result its benches don't name, and the quiz's status, if marked -->
+              <span
+                v-for="t in marked.get(c.quiz.id)?.unplaced ?? []"
+                :key="t.name"
+                class="unplaced"
+                >{{ t.name }}{{ t.place ? ` · ${placeText(t.place)}` : ''
+                }}{{ t.score !== undefined ? ` · ${t.score}` : '' }}</span
+              >
+              <span
+                v-if="dayOf(c.quiz.id) && STATUS_TEXT[dayOf(c.quiz.id)!.status]"
+                class="status"
+                :class="`status-${dayOf(c.quiz.id)!.status}`"
+                :title="statusTitle?.(dayOf(c.quiz.id)!) || undefined"
+                >{{ STATUS_TEXT[dayOf(c.quiz.id)!.status] }}</span
+              >
             </div>
             <button
               v-else-if="c.kind === 'event'"
@@ -374,6 +421,36 @@ function tickOf(quiz: ScheduleQuiz) {
   transition:
     background 0.12s,
     box-shadow 0.12s;
+}
+
+/* A result team no bench names, and a quiz's status: small, under its benches */
+.unplaced,
+.status {
+  font-size: 0.7rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.unplaced {
+  color: var(--color-text-muted, #6b6560);
+}
+
+.status {
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  color: var(--color-text-muted, #6b6560);
+  font-style: italic;
+}
+
+.status-attention {
+  background: var(--color-warn-bg, #fdf2e2);
+  color: var(--color-warn, #a60);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.status-underReview {
+  color: var(--color-warn, #a60);
 }
 
 .quiz:hover {
