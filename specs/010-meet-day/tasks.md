@@ -145,8 +145,8 @@ on #200 (T007).
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] A division's steps as one component both tabs mount, moved from `StatsSettingsView.vue` (plan.md: "A division's steps"), with its warnings, confirmations and "Preview as viewer"; covered by the existing stats settings specs, moved
-- [ ] T018 [US3] The Standings tab, `apps/web/src/views/meet/StandingsTab.vue` from `DivisionStatsView.vue`: one division at a time ("every division" picked shows the first), its tables as today with print and download, the steps for admins (FR-017, FR-018), what will appear and when for a viewer with nothing yet (FR-002), re-reading on the page's beat (T010), what a viewer gets unchanged from today's division stats; covered by the existing division stats specs, moved
+- [X] T017 [US3] A division's steps as one component both tabs mount, moved from `StatsSettingsView.vue` (plan.md: "A division's steps"), with its warnings, confirmations and "Preview as viewer"; covered by the existing stats settings specs, moved
+- [X] T018 [US3] The Standings tab, `apps/web/src/views/meet/StandingsTab.vue` from `DivisionStatsView.vue`: one division at a time ("every division" picked shows the first), its tables as today with print and download, the steps for admins (FR-017, FR-018), what will appear and when for a viewer with nothing yet (FR-002), re-reading on the page's beat (T010), what a viewer gets unchanged from today's division stats; covered by the existing division stats specs, moved
 - [ ] T019 [US3] The steps in the Setup tab's stats section too (FR-019), the same component as T017; covered by T017's specs
 
 **Checkpoint**: All user stories should now be independently functional

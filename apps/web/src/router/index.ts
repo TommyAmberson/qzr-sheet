@@ -59,8 +59,7 @@ const router = createRouter({
               path: 'standings',
               name: 'meet-standings',
               meta: { guestAccess: true },
-              component: () => import('../views/StatsView.vue'),
-              props: (route) => ({ slug: route.params.slug as string }),
+              component: () => import('../views/meet/StandingsTab.vue'),
             },
             {
               path: 'roster',
