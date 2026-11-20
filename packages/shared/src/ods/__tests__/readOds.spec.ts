@@ -108,6 +108,31 @@ describe('readOds — metadata', () => {
     expect(quiz.quizNumber).toBe('7')
   })
 
+  it('reads a quiz number written with a leading "c" as a consolation quiz', () => {
+    const cells = minimalCells()
+    setCell(cells, 2, 2, '2')
+    setCell(cells, 2, 4, 'cb')
+    const { quiz } = readOds(makeOds(makeSheetXml(cells)))
+    expect(quiz).toMatchObject({ division: '2', quizNumber: 'b', consolation: true })
+  })
+
+  it('reads any consolation number the export writes, not only letters', () => {
+    const cells = minimalCells()
+    setCell(cells, 2, 4, 'c1-2')
+    const { quiz } = readOds(makeOds(makeSheetXml(cells)))
+    expect(quiz).toMatchObject({ quizNumber: '1-2', consolation: true })
+  })
+
+  it('keeps a quiz lettered C, and a number with no "c" in front, as they are', () => {
+    for (const quizNumber of ['C', '12', 'A']) {
+      const cells = minimalCells()
+      setCell(cells, 2, 4, quizNumber)
+      const { quiz } = readOds(makeOds(makeSheetXml(cells)))
+      expect(quiz.quizNumber).toBe(quizNumber)
+      expect(quiz.consolation).toBeUndefined()
+    }
+  })
+
   it('defaults overtime to false when flag is absent', () => {
     const { quiz } = readOds(makeOds(makeSheetXml(minimalCells())))
     expect(quiz.overtime).toBe(false)

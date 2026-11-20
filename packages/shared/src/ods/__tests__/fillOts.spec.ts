@@ -46,6 +46,18 @@ describe('fillOts', () => {
       },
     )
 
+    it('gives a quiz its name back, consolation included', () => {
+      const { file } = quizzes[0]!
+      for (const quiz of [
+        { ...file.quiz, division: '2', quizNumber: '7', consolation: false },
+        { ...file.quiz, division: '2', quizNumber: 'B', consolation: true },
+      ]) {
+        const back = readOds(fillOts(template, { ...file, quiz }))
+        expect(back.quiz).toMatchObject({ division: '2', quizNumber: quiz.quizNumber })
+        expect(back.quiz.consolation ?? false).toBe(quiz.consolation)
+      }
+    })
+
     it('gives a bonus to an empty chair back as a no-jump', () => {
       const file = referenceMeet.quizzes.find((q) => q.sheet === EMPTY_CHAIR_BONUS)!.file
       const back = readOds(fillOts(template, file))

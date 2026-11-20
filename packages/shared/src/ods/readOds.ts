@@ -180,7 +180,11 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
 
   // --- Metadata ---
   const division = readCell(sheet, 2, 2)
-  const quizNumber = readCell(sheet, 2, 4)
+  // The sheet has no consolation box: a consolation quiz is written "cA", its number after the "c".
+  // Only a lowercase "c" with more after it counts, so a quiz lettered "C" stays one
+  const writtenNumber = readCell(sheet, 2, 4)
+  const consolationNumber = /^c(.+)$/.exec(writtenNumber)?.[1]
+  const quizNumber = consolationNumber ?? writtenNumber
   const overtimeFlag = readCell(sheet, 29, 2).toLowerCase() === 'y'
 
   // --- Question types ---
@@ -288,6 +292,7 @@ export function readOds(odsBytes: Uint8Array): QuizFile {
     quiz: {
       division,
       quizNumber,
+      ...(consolationNumber !== undefined ? { consolation: true } : {}),
       overtime: overtimeFlag,
       placementFormula: PlacementFormula.Rules,
       bonusRule: BonusRule.Seat,

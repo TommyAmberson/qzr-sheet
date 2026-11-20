@@ -71,7 +71,8 @@ export function fillOts(otsBytes: Uint8Array, quizFile: QuizFile): Uint8Array {
   // --- 5. Fill metadata (row 2, 0-based) ---
   // Row 3 in 1-based = 0-based row 2: Div input at col C (idx 2), Quiz# input at col E (idx 4)
   sheetXml = patchCell(sheetXml, 2, 2, quiz.division)
-  sheetXml = patchCell(sheetXml, 2, 4, quiz.quizNumber)
+  // A consolation quiz is written "cA", as the sheets have always written it and readOds reads it
+  sheetXml = patchCell(sheetXml, 2, 4, `${quiz.consolation ? 'c' : ''}${quiz.quizNumber}`)
 
   // --- 6. Fill each team block ---
   // Team layout (0-based rows):

@@ -42,6 +42,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * `readOds` reads an "mb" marked on an empty seat, a row with no quizzer or one whose quizzer has
   left, as a no-jump on that question, which is how the app records a bonus that falls to an empty
   chair, instead of as a mark in an empty seat.
+* `readOds` reads a quiz number written with a lowercase "c" in front ("cA") as that consolation
+  quiz, as the sheets have no consolation box, and `fillOts` writes a consolation quiz that way, so
+  an exported consolation quiz comes back as itself. A quiz lettered "C" stays as it is.
 
 ### Fixed
 
