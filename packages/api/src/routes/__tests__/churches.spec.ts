@@ -6,6 +6,7 @@ import type { ChurchesVariables } from '../churches'
 import { churches } from '../churches'
 import { mockSession, mockDb, testSuperuser, testUser, jsonOf, seedMeet } from '../../test-utils'
 import { createTestDb } from '../../test-db'
+import type { MeetPhase } from '@qzr/shared'
 import type { Db } from '../../lib/db'
 import * as schema from '../../db/schema'
 import { generateCode, hashCode } from '../../lib/codes'
@@ -417,6 +418,80 @@ describe('GET /api/churches/:churchId/teams', () => {
 
     const res = await app.request(`/api/churches/${church.id}/teams`, {}, env)
     expect(res.status).toBe(200)
+  })
+})
+
+describe('roster reads follow the meet phase', () => {
+  let db: Db
+
+  beforeEach(async () => {
+    db = await createTestDb()
+  })
+
+  type Role = 'official' | 'viewer' | 'coach'
+
+  // A meet with the reader's own church (coached by a coach) and another's
+  async function seedReader(role: Role, phase: MeetPhase) {
+    const meet = await seedMeet(db, 'Phase Meet', { phase })
+    const own = await seedChurch(db, meet.id, 'Own')
+    const other = await seedChurch(db, meet.id, 'Other')
+    await seedTeam(db, meet.id, own.id)
+    const otherTeam = await seedTeam(db, meet.id, other.id)
+    if (role === 'coach') await seedCoachMembership(db, testUser.id, own.id, meet.id)
+    if (role === 'viewer') {
+      await db.insert(schema.viewerMemberships).values({ accountId: testUser.id, meetId: meet.id })
+    }
+    if (role === 'official') {
+      const [room] = await db
+        .insert(schema.meetRooms)
+        .values({ meetId: meet.id, name: 'Room 1' })
+        .returning()
+      await db
+        .insert(schema.officialMemberships)
+        .values({ accountId: testUser.id, meetId: meet.id, roomId: room!.id })
+    }
+    return { meet, own, other, otherTeam }
+  }
+
+  it.each<[Role, MeetPhase, boolean]>([
+    ['official', 'registration', false],
+    ['official', 'build', true],
+    ['official', 'live', true],
+    ['viewer', 'build', false],
+    ['viewer', 'live', true],
+    ['viewer', 'done', true],
+    ['coach', 'registration', false],
+    ['coach', 'build', false],
+    ['coach', 'review', true],
+  ])('a %s in %s reads every church: %s', async (role, phase, readsAll) => {
+    const app = createApp(testUser, db)
+    const { meet, other, otherTeam } = await seedReader(role, phase)
+
+    const teams = await app.request(`/api/churches/${other.id}/teams`, {}, env)
+    expect(teams.status).toBe(readsAll ? 200 : 403)
+    const quizzers = await app.request(`/api/teams/${otherTeam.id}/quizzers`, {}, env)
+    expect(quizzers.status).toBe(readsAll ? 200 : 403)
+
+    const meetTeams = await jsonOf<{ teams: { churchId: number }[] }>(
+      await app.request(`/api/meets/${meet.id}/teams`, {}, env),
+    )
+    expect(meetTeams.teams.some((t) => t.churchId === other.id)).toBe(readsAll)
+  })
+
+  it("keeps a coach to their own church's roster before live", async () => {
+    const app = createApp(testUser, db)
+    const { meet, own } = await seedReader('coach', 'registration')
+    await seedQuizzer(db, (await seedTeam(db, meet.id, own.id)).id, 'Alice')
+
+    expect((await app.request(`/api/churches/${own.id}/teams`, {}, env)).status).toBe(200)
+    const meetTeams = await jsonOf<{ teams: { churchId: number }[] }>(
+      await app.request(`/api/meets/${meet.id}/teams`, {}, env),
+    )
+    expect(meetTeams.teams.map((t) => t.churchId)).toEqual([own.id, own.id])
+    const exported = await jsonOf<{ entries: { churchId: number }[] }>(
+      await app.request(`/api/meets/${meet.id}/roster/export`, {}, env),
+    )
+    expect(exported.entries.map((e) => e.churchId)).toEqual([own.id])
   })
 })
 

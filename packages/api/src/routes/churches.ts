@@ -6,7 +6,7 @@ import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireAuthOrGuest, requireSuperuser, getUser } from '../middleware/session'
 import { asOne, chunksOf, createDb, inChunks, isUniqueViolation, type Db } from '../lib/db'
 import { generateCode, hashCode, wantsClearMembers } from '../lib/codes'
-import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
+import { isAdminOrSuperuser, isViewerOf, rosterScopeOf, scopeCovers } from '../lib/permissions'
 import * as schema from '../db/schema'
 import { AccountRole } from '@qzr/shared'
 
@@ -232,7 +232,7 @@ churches.post('/churches/:churchId/rotate-coach-code', requireAuth(), async (c) 
 /**
  * GET /api/churches/:churchId/teams
  *
- * Returns all teams under a church. Any authenticated member can read.
+ * Returns all teams under a church, to whoever may read its roster in the meet's phase.
  */
 churches.get('/churches/:churchId/teams', async (c) => {
   const churchId = Number(c.req.param('churchId'))
@@ -241,7 +241,8 @@ churches.get('/churches/:churchId/teams', async (c) => {
   const db = getDb(c)
   const [church] = await db.select().from(schema.churches).where(eq(schema.churches.id, churchId))
   if (!church) return c.json({ error: 'Church not found' }, 404)
-  if (!(await isViewerOf(c, db, church.meetId))) return c.json({ error: 'Forbidden' }, 403)
+  const scope = await rosterScopeOf(c, db, church.meetId)
+  if (!scopeCovers(scope, church.id)) return c.json({ error: 'Forbidden' }, 403)
 
   const rows = await db
     .select({
@@ -426,6 +427,8 @@ churches.delete('/teams/:teamId/consolation', requireAuth(), async (c) => {
 
 /**
  * GET /api/teams/:teamId/quizzers
+ *
+ * Returns a team's quizzers, to whoever may read its church's roster in the meet's phase.
  */
 churches.get('/teams/:teamId/quizzers', async (c) => {
   const teamId = Number(c.req.param('teamId'))
@@ -433,11 +436,12 @@ churches.get('/teams/:teamId/quizzers', async (c) => {
 
   const db = getDb(c)
   const [team] = await db
-    .select({ meetId: schema.teams.meetId })
+    .select({ meetId: schema.teams.meetId, churchId: schema.teams.churchId })
     .from(schema.teams)
     .where(eq(schema.teams.id, teamId))
   if (!team) return c.json({ error: 'Team not found' }, 404)
-  if (!(await isViewerOf(c, db, team.meetId))) return c.json({ error: 'Forbidden' }, 403)
+  const scope = await rosterScopeOf(c, db, team.meetId)
+  if (!scopeCovers(scope, team.churchId)) return c.json({ error: 'Forbidden' }, 403)
 
   const rows = await db
     .select({ quizzerId: schema.teamRosters.quizzerId, name: schema.teamRosters.name })
@@ -772,16 +776,18 @@ churches.post('/churches/:churchId/roster/sync', requireAuth(), async (c) => {
  * Returns all teams for a meet with their church label in one query, plus the
  * meet's canonical division list. Used by the scoresheet to populate the
  * division dropdown and team picker in quizmeet mode.
- * Any authenticated member of the meet can read.
+ * Any member of the meet can read; the teams are those whose rosters the reader may see in the
+ * meet's phase.
  */
 churches.get('/meets/:meetId/teams', async (c) => {
   const meetId = Number(c.req.param('meetId'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const db = getDb(c)
-  if (!(await isViewerOf(c, db, meetId))) return c.json({ error: 'Forbidden' }, 403)
+  const scope = await rosterScopeOf(c, db, meetId)
+  if (!scope) return c.json({ error: 'Forbidden' }, 403)
 
-  const [[meetRow], rows] = await Promise.all([
+  const [[meetRow], allRows] = await Promise.all([
     db
       .select({ divisions: schema.quizMeets.divisions })
       .from(schema.quizMeets)
@@ -804,6 +810,7 @@ churches.get('/meets/:meetId/teams', async (c) => {
   ])
 
   const meetDivisions: string[] = meetRow ? (JSON.parse(meetRow.divisions) as string[]) : []
+  const rows = allRows.filter((row) => scopeCovers(scope, row.churchId))
 
   return c.json({ teams: rows, meetDivisions })
 })
@@ -812,14 +819,16 @@ churches.get('/meets/:meetId/teams', async (c) => {
  * GET /api/meets/:meetId/roster/export
  *
  * Returns a flat list of all quizzers across all teams in a meet,
- * with church and team metadata. Any authenticated user can read.
+ * with church and team metadata. Any member of the meet can read; the entries are those of the
+ * churches whose rosters the reader may see in the meet's phase.
  */
 churches.get('/meets/:meetId/roster/export', async (c) => {
   const meetId = Number(c.req.param('meetId'))
   if (Number.isNaN(meetId)) return c.json({ error: 'Invalid meet ID' }, 400)
 
   const db = getDb(c)
-  if (!(await isViewerOf(c, db, meetId))) return c.json({ error: 'Forbidden' }, 403)
+  const scope = await rosterScopeOf(c, db, meetId)
+  if (!scope) return c.json({ error: 'Forbidden' }, 403)
 
   const rows = await db
     .select({
@@ -837,7 +846,7 @@ churches.get('/meets/:meetId/roster/export', async (c) => {
     .where(eq(schema.churches.meetId, meetId))
     .orderBy(schema.churches.id, schema.teams.number, schema.teamRosters.name)
 
-  return c.json({ entries: rows })
+  return c.json({ entries: rows.filter((row) => scopeCovers(scope, row.churchId)) })
 })
 
 // ---- Roster import ----
