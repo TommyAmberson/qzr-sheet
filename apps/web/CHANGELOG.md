@@ -18,6 +18,9 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Changed
 
+* The roadmap page lists guest access as available, and its Coming soon section follows the
+  project's roadmap: past meets' results, elim brackets that fill themselves, a review step and
+  stats across meets
 * Links from the portal to the scoresheet (header, footer, home page, schedule, a stored quiz's
   "Open in scoresheet") open a new tab on a desktop, so the portal page stays open; on a phone they
   still open in place

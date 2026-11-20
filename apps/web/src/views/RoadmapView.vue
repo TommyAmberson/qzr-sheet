@@ -22,7 +22,14 @@
             <dt class="feature-name">QuizMeets</dt>
             <dd class="feature-desc">
               Join a meet with a code. Coaches build team rosters; officials are assigned to rooms.
-              Sign in to link the scoresheet to your meet and load teams automatically.
+              Linked to a meet, the scoresheet loads its teams automatically.
+            </dd>
+          </div>
+          <div class="feature-item">
+            <dt class="feature-name">Guest access</dt>
+            <dd class="feature-desc">
+              Join with just a code, no account needed. Viewers follow the meet, and officials
+              submit quizzes from their room.
             </dd>
           </div>
           <div class="feature-item">
@@ -65,17 +72,30 @@
         <h2 class="section-title">Coming soon</h2>
         <dl class="feature-list">
           <div class="feature-item">
-            <dt class="feature-name">Separate results for every consolation lane</dt>
+            <dt class="feature-name">Past meets' results</dt>
             <dd class="feature-desc">
-              The scoresheet records which lane a quiz belongs to, so lanes that each letter their
-              quizzes from A never mix up their results.
+              Bring in a meet's saved scoresheets in one go, or just its final scores, so earlier
+              meets have results and stats too.
             </dd>
           </div>
           <div class="feature-item">
-            <dt class="feature-name">Guest access</dt>
+            <dt class="feature-name">Elim brackets that fill themselves</dt>
             <dd class="feature-desc">
-              Join with just a code — no account required. Officials and viewers can participate
-              without signing in.
+              As results come in, each elimination quiz's seats fill with the teams that earned
+              them.
+            </dd>
+          </div>
+          <div class="feature-item">
+            <dt class="feature-name">Review before a meet closes</dt>
+            <dd class="feature-desc">
+              A review step between live and done, where a result can be disputed before the
+              standings are final.
+            </dd>
+          </div>
+          <div class="feature-item">
+            <dt class="feature-name">Stats across meets</dt>
+            <dd class="feature-desc">
+              A quizzer's figures followed from meet to meet, for season averages.
             </dd>
           </div>
         </dl>
