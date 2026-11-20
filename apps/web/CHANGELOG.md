@@ -16,6 +16,19 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-11-20
+
+### Fixed
+
+* Opening a page in a tab left open over a deploy no longer does nothing: the portal reloads onto
+  the page to pick up the new build, and asks to try again if the page still won't load
+* A file missing from the build answers 404 instead of a page, so a failure to load one says what
+  went wrong
+
+### Bundled contract
+
+* `@qzr/shared@1.18.0` - bumped from 1.17.0
+
 ## [0.32.0] - 2026-11-20
 
 ### Added
