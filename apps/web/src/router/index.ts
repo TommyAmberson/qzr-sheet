@@ -1,8 +1,23 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import {
+  createRouter,
+  createWebHistory,
+  type RouteLocation,
+  type RouteLocationRaw,
+} from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { authClient } from '../composables/useAuth'
 import { joinedSession } from '@qzr/ui'
 import { isFailedImport, pageLoaded, recoverFromStaleBuild } from '../staleBuild'
+
+/** A page the meet's tabs replace, sent to its tab with its address's division and hash */
+const toTab =
+  (name: string) =>
+  (to: RouteLocation): RouteLocationRaw => ({
+    name,
+    params: to.params,
+    query: to.query,
+    hash: to.hash,
+  })
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -39,6 +54,7 @@ const router = createRouter({
         // The meet's page: the tab in the path, the division in `?division=` (specs/010-meet-day)
         {
           path: '',
+          name: 'meet-tabs',
           component: () => import('../views/MeetView.vue'),
           props: (route) => ({ slug: route.params.slug as string }),
           children: [
@@ -70,7 +86,6 @@ const router = createRouter({
               path: 'setup',
               name: 'meet-setup',
               component: () => import('../views/meet/SetupTab.vue'),
-              props: (route) => ({ slug: route.params.slug as string }),
             },
           ],
         },
@@ -78,27 +93,17 @@ const router = createRouter({
         {
           path: 'schedule',
           name: 'meet-schedule',
-          redirect: (to) => ({ name: 'meet', params: to.params, query: to.query, hash: to.hash }),
+          redirect: toTab('meet'),
         },
         {
           path: 'results',
           name: 'meet-results',
-          redirect: (to) => ({
-            name: 'meet-quizzes',
-            params: to.params,
-            query: to.query,
-            hash: to.hash,
-          }),
+          redirect: toTab('meet-quizzes'),
         },
         {
           path: 'stats',
           name: 'meet-stats',
-          redirect: (to) => ({
-            name: 'meet-standings',
-            params: to.params,
-            query: to.query,
-            hash: to.hash,
-          }),
+          redirect: toTab('meet-standings'),
         },
         // Before `stats/:division`, which would take `settings` for a division
         {
@@ -162,7 +167,7 @@ router.beforeEach(async (to) => {
   if (/^\d+$/.test(slug) && joinedSession(Number(slug))) {
     if (to.matched.some((r) => r.meta.guestAccess)) return true
     // The meet's other tabs are for its members: a guest is shown its schedule
-    if (to.name === 'meet-roster' || to.name === 'meet-setup') {
+    if (to.matched.some((r) => r.name === 'meet-tabs')) {
       return { name: 'meet', params: to.params, query: to.query }
     }
   }

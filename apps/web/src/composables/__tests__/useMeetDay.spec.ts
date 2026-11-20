@@ -60,13 +60,13 @@ describe('useMeetDay (FR-022)', () => {
     await flush()
     expect(read).toHaveBeenCalledTimes(1)
     expect(state().day.value?.scheduleVersion).toBe(1)
-    // A read that finds nothing changed leaves the tabs be
+    // The first read and one that finds nothing changed leave the tabs be
     await vi.advanceTimersByTimeAsync(MEET_DAY_SECONDS * 1000)
     expect(read).toHaveBeenCalledTimes(2)
-    expect(state().beat.value).toBe(1)
+    expect(state().beat.value).toBe(0)
     version = 2
     await vi.advanceTimersByTimeAsync(MEET_DAY_SECONDS * 1000)
-    expect(state().beat.value).toBe(2)
+    expect(state().beat.value).toBe(1)
   })
 
   it('never reads while hidden, and reads at once on coming back into view', async () => {

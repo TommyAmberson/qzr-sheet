@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ApiError, divisionTitle, viewersSeeStats, type DivisionStats } from '@qzr/shared'
+import { ApiError, divisionTitle, type DivisionStats } from '@qzr/shared'
 
 import { getDivisionStats, keepQuiz } from '../../api'
 import DivisionSteps from '../../components/DivisionSteps.vue'
@@ -26,7 +26,7 @@ import {
  */
 const route = useRoute()
 const page = useMeetPage()
-const { slug, meet, isAdmin, beat, day } = page
+const { slug, meet, isAdmin, beat, statsHidden } = page
 /** The division shown: the one picked, or the meet's first */
 const division = computed(() => page.division.value ?? meet.value?.divisions[0] ?? null)
 
@@ -135,7 +135,7 @@ async function keep(resultId: number) {
 <template>
   <div class="standings-tab">
     <p v-if="division === null" class="state-msg">The meet has no divisions yet.</p>
-    <p v-else-if="!isAdmin && day && !viewersSeeStats(day.phase)" class="state-msg">
+    <p v-else-if="statsHidden" class="state-msg">
       Nothing to see yet: results and standings show once the meet is under way.
     </p>
     <p v-else-if="loading" class="state-msg">Loading…</p>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref } from 'vue'
 import {
-  ApiError,
   MeetRole,
   quizName,
   scheduleQuizMeta,
@@ -18,20 +17,18 @@ import {
   sendPlanned,
   type FileReport,
   type PlannedFile,
-  type Sender,
 } from '@qzr/ui'
 
-import { getPublishedSchedule, getSender, uploadResult } from '../api'
+import { getSender, uploadResult } from '../api'
 import { useRoomCode } from '../composables/useRoomCode'
+import { useMeetPage } from '../meetPage'
 
 /**
  * Uploading quiz files or sheets to a meet, in the meet page's header on every tab (FR-007): the
  * files picked are matched to their scheduled quizzes for review, then sent, each reported.
  */
-const props = defineProps<{ meetId: number; meetName: string }>()
-/** Who sends: the meet's admin, or an official, whose ended guest session is renewed first */
-const sender = defineModel<Sender>('sender', { required: true })
-const emit = defineEmits<{ sent: [] }>()
+// Who sends: the meet's admin, or an official, whose ended guest session is renewed first
+const { meet, sender, published, refresh } = useMeetPage()
 
 const { renew } = useRoomCode()
 const choiceDialog = ref<InstanceType<typeof ChoiceDialog> | null>(null)
@@ -41,28 +38,17 @@ const uploadError = ref('')
 const uploadReports = ref<FileReport[]>([])
 /** The files picked, awaiting review before they are sent; empty when none are */
 const planned = ref<PlannedFile[]>([])
-/** The published schedule the files are matched to; null when there is none */
-const schedule = shallowRef<ScheduleDocument | null>(null)
+/** The published schedule the files are matched to, as the page holds it; null when there is none */
+const schedule = computed<ScheduleDocument | null>(() => published.value?.document ?? null)
 const scheduled = computed<ScheduleQuiz[]>(() => schedule.value?.quizzes ?? [])
 const nameOfScheduled = (quiz: ScheduleQuiz) => quizName(scheduleQuizMeta(quiz))
-
-/** The schedule's quizzes, read as files are picked so a newer version is the one matched */
-async function loadSchedule() {
-  try {
-    schedule.value = (await getPublishedSchedule(props.meetId)).document
-  } catch (e) {
-    if (!(e instanceof ApiError) || e.status !== 404) throw e
-    schedule.value = null
-  }
-}
 
 /** Read the picked files and match each to its scheduled quiz, for review before sending */
 async function onUploadFiles(event: Event) {
   uploadError.value = ''
   uploadReports.value = []
   try {
-    const [files] = await Promise.all([pickedFiles(event), loadSchedule()])
-    planned.value = planUpload(files, schedule.value)
+    planned.value = planUpload(await pickedFiles(event), schedule.value)
   } catch (e) {
     uploadError.value = (e as Error).message
   }
@@ -70,7 +56,7 @@ async function onUploadFiles(event: Event) {
 
 /** The room a planned file goes to, as the review shows it */
 function plannedRoom(item: PlannedFile): string {
-  if (!sender.value.admin || !schedule.value) return ''
+  if (!sender.value?.admin || !schedule.value) return ''
   // An admin picks a room for any file with no scheduled room, once the upload is sent
   const roomId = item.scheduleQuizId ? roomOfScheduled(schedule.value, item.scheduleQuizId) : null
   return sender.value.rooms.find((room) => room.id === roomId)?.name ?? 'Picked when sent'
@@ -78,7 +64,8 @@ function plannedRoom(item: PlannedFile): string {
 
 /** Send the reviewed files, report each, then have the page read the meet again */
 async function sendUpload() {
-  const meetId = props.meetId
+  if (!meet.value) return
+  const { id: meetId, name: meetName } = meet.value
   uploading.value = true
   uploadError.value = ''
   try {
@@ -93,7 +80,7 @@ async function sendUpload() {
       planned.value,
       choiceDialog.value,
       sender.value,
-      props.meetName,
+      meetName,
       schedule.value,
       (quizFile, roomId, onExisting, scheduleQuizId) =>
         uploadResult(meetId, quizFile, roomId, onExisting, scheduleQuizId),
@@ -101,7 +88,8 @@ async function sendUpload() {
     if (!reports) return
     uploadReports.value = reports
     planned.value = []
-    emit('sent')
+    // The page reads the meet again, every tab with it
+    void refresh()
   } catch (e) {
     uploadError.value = (e as Error).message
   } finally {
@@ -133,7 +121,7 @@ async function sendUpload() {
             <th>File</th>
             <th>Quiz</th>
             <th>Scheduled quiz</th>
-            <th v-if="sender.admin && schedule">Room</th>
+            <th v-if="sender?.admin && schedule">Room</th>
           </tr>
         </thead>
         <tbody>
@@ -164,7 +152,7 @@ async function sendUpload() {
                   </option>
                 </select>
               </td>
-              <td v-if="sender.admin && schedule">{{ plannedRoom(item) }}</td>
+              <td v-if="sender?.admin && schedule">{{ plannedRoom(item) }}</td>
             </template>
           </tr>
         </tbody>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, provide, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ApiError, findDivision, MeetRole, sameDivision } from '@qzr/shared'
+import { ApiError, findDivision, MeetRole, sameDivision, viewersSeeStats } from '@qzr/shared'
 import type { Sender } from '@qzr/ui'
 
 import { getMeet, getMyMeets, getPublishedSchedule, getSender, type MeetDetail } from '../api'
@@ -40,7 +40,12 @@ const meetId = computed(() => meet.value?.id ?? null)
 const { day, error: dayError, beat, refresh } = useMeetDay(meetId)
 
 const isAdmin = computed(() => sender.value?.admin ?? false)
-const scores = computed(() => isAdmin.value || (sender.value?.rooms.length ?? 0) > 0)
+// The API answers who may send quizzes only for the meet's admins and its rooms' officials
+const scores = computed(() => sender.value !== null)
+/** Viewers and coaches see nothing of results and standings before the meet is under way */
+const statsHidden = computed(
+  () => !isAdmin.value && day.value !== null && !viewersSeeStats(day.value.phase),
+)
 const isGuest = computed(() => !session.value?.data?.user)
 
 /** The division asked for, as the meet spells it; one the meet doesn't have is every division */
@@ -50,6 +55,12 @@ const division = computed(() => {
   return findDivision(meet.value.divisions, asked) ?? null
 })
 const inDivision = (name: string) => division.value === null || sameDivision(name, division.value)
+/** A schedule quiz's division as the meet names it: a linked schedule's ids are the meet's names */
+const inScheduleDivision = (divisionId: string) =>
+  inDivision(
+    published.value?.document.settings.divisions.find((d) => d.id === divisionId)?.name ??
+      divisionId,
+  )
 
 function setDivision(name: string | null) {
   const query = { ...route.query }
@@ -58,10 +69,11 @@ function setDivision(name: string | null) {
   return router.replace({ query, hash: route.hash })
 }
 
+// The routes say which tabs a guest may open, as the router enforces it
 const tabs = computed(() =>
   MEET_TABS.filter((tab) => {
-    if (tab.guests) return true
-    if (isGuest.value) return false
+    if (isGuest.value && !router.resolve({ name: tab.name, params: route.params }).meta.guestAccess)
+      return false
     return tab.name !== 'meet-setup' || isAdmin.value
   }),
 )
@@ -108,7 +120,9 @@ async function load() {
     // A guest official's slug is the meet's id; their ended session is renewed on opening the page
     const loaded = await renew(Number(props.slug), async () => {
       const read = await getMeet(props.slug)
-      return { read, who: await senderOf(read.meet.id) }
+      const id = read.meet.id
+      const [who] = await Promise.all([senderOf(id), readMembership(id), readPublished(id)])
+      return { read, who }
     })
     if (!loaded) {
       error.value = 'Join the meet again with its code to see it.'
@@ -116,7 +130,6 @@ async function load() {
     }
     detail.value = loaded.read
     sender.value = loaded.who
-    await Promise.all([readMembership(loaded.read.meet.id), readPublished(loaded.read.meet.id)])
   } catch (e) {
     error.value =
       e instanceof ApiError && (e.status === 401 || e.status === 403)
@@ -165,10 +178,12 @@ const page: MeetPage = {
   sender,
   isAdmin,
   scores,
+  statsHidden,
   isSuperuser,
   coachChurchIds,
   division,
   inDivision,
+  inScheduleDivision,
   setDivision,
   published,
   day,
@@ -201,14 +216,7 @@ const dates = computed(() => {
           <h2 class="page-title">{{ meet.name }}</h2>
           <span class="meet-meta">{{ dates }}</span>
         </div>
-        <UploadQuizzes
-          v-if="sender"
-          v-model:sender="sender"
-          class="no-print"
-          :meet-id="meet.id"
-          :meet-name="meet.name"
-          @sent="refresh"
-        />
+        <UploadQuizzes v-if="sender" class="no-print" />
       </header>
 
       <div class="meet-bar no-print">

@@ -16,7 +16,6 @@ import { formatWhen } from '@qzr/ui'
 import DivisionSteps from './DivisionSteps.vue'
 import { useMeetPage } from '../meetPage'
 import {
-  getDivisionStates,
   getStatsSettings,
   saveStatsSettings,
   setQuizzesToMeetFormula,
@@ -66,9 +65,8 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [states, read] = await Promise.all([getDivisionStates(id), getStatsSettings(id)])
-    divisions.value = states.divisionStates
-    took(read)
+    // The division states come from the steps below, which read them
+    took(await getStatsSettings(id))
   } catch (e) {
     error.value =
       e instanceof ApiError && e.status === 403
@@ -91,11 +89,6 @@ function took(read: StatsSettingsRead) {
   draft.value = structuredClone(read.settings)
   changed.value = read.changed
   otherFormula.value = read.otherFormula ?? 0
-}
-
-async function reloadDivisions() {
-  if (!meet.value) return
-  divisions.value = (await getDivisionStates(meet.value.id)).divisionStates
 }
 
 /** Run an action, keeping its error in the page */
@@ -176,7 +169,7 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
           :meet-id="meet.id"
           :slug="slug"
           :phase="phase"
-          @moved="reloadDivisions"
+          @read="divisions = $event"
           @phase="reloadMeet"
         />
       </section>

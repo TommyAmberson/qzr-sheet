@@ -9,16 +9,17 @@ export interface PublishedOnPage {
   view: SheetView
 }
 
-/** The tabs of a meet's page, by route name, in the order the tab bar shows them */
+/**
+ * The tabs of a meet's page, by route name, in the order the tab bar shows them; which a guest may
+ * open is the route's `guestAccess`
+ */
 export const MEET_TABS = [
-  { name: 'meet', label: 'Schedule', guests: true },
-  { name: 'meet-quizzes', label: 'Quizzes', guests: true },
-  { name: 'meet-standings', label: 'Standings', guests: true },
-  { name: 'meet-roster', label: 'Roster', guests: false },
-  { name: 'meet-setup', label: 'Setup', guests: false },
+  { name: 'meet', label: 'Schedule' },
+  { name: 'meet-quizzes', label: 'Quizzes' },
+  { name: 'meet-standings', label: 'Standings' },
+  { name: 'meet-roster', label: 'Roster' },
+  { name: 'meet-setup', label: 'Setup' },
 ] as const
-
-export type MeetTabName = (typeof MEET_TABS)[number]['name']
 
 /**
  * What the meet page shares with its tabs (specs/010-meet-day): the meet, who the reader is in it,
@@ -33,8 +34,13 @@ export interface MeetPage {
   /** Who may send quizzes to the meet: its admins and its rooms' officials; null for anyone else */
   sender: Ref<Sender | null>
   isAdmin: ComputedRef<boolean>
-  /** Admins and the meet's officials score its quizzes, so a quiz not in yet opens the scoresheet */
+  /**
+   * Admins and the meet's officials score and manage its quizzes, so a quiz not in yet opens the
+   * scoresheet, and the stored quizzes behind the Quizzes list are theirs to read
+   */
   scores: ComputedRef<boolean>
+  /** A viewer or coach before the meet is under way, who sees nothing of results yet (FR-002) */
+  statsHidden: ComputedRef<boolean>
   /** A superuser, who alone removes the meet's admins */
   isSuperuser: Ref<boolean>
   /** The churches the reader coaches at this meet */
@@ -43,6 +49,8 @@ export interface MeetPage {
   division: ComputedRef<string | null>
   /** Whether a division name, as anything spells it, is the one picked; any is, with none picked */
   inDivision: (name: string) => boolean
+  /** Whether a schedule quiz's division, by the schedule's id for it, is the one picked */
+  inScheduleDivision: (divisionId: string) => boolean
   /** Pick a division for every tab, or every division with null */
   setDivision: (name: string | null) => Promise<unknown>
   /**

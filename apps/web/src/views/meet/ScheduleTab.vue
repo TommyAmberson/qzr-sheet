@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { scoresheetLink } from '../../scoresheetLink'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { DayQuiz } from '@qzr/shared'
 import { ScheduleSheet, type ScheduleMarks } from '@qzr/ui'
 
 import { useMeetPage } from '../../meetPage'
+import { scoresheetLink } from '../../scoresheetLink'
 import { problemText } from '../../stats'
 
 /**
@@ -13,18 +13,12 @@ import { problemText } from '../../stats'
  * for the meet's phase, with the meet day's results and settled benches on it.
  */
 const router = useRouter()
-const { slug, isAdmin, scores, inDivision, published, day, scoresheetHref } = useMeetPage()
+const { slug, isAdmin, scores, inScheduleDivision, published, day, scoresheetHref } = useMeetPage()
 
 /** The schedule shown: the picked division's quizzes, or every division's (FR-004) */
 const shown = computed(() => {
   const all = published.value?.document
-  if (!all) return null
-  // A schedule linked to the meet names its divisions as the meet does
-  const named = new Map(all.settings.divisions.map((d) => [d.id, d.name]))
-  return {
-    ...all,
-    quizzes: all.quizzes.filter((q) => inDivision(named.get(q.division) ?? q.division)),
-  }
+  return all && { ...all, quizzes: all.quizzes.filter((q) => inScheduleDivision(q.division)) }
 })
 
 /** The meet day's results and settled benches on the sheet (FR-009 to FR-011) */

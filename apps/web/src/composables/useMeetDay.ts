@@ -27,7 +27,7 @@ export function useMeetDay(
   // A read answered after a newer one began is dropped, so the page never steps back
   let asked = 0
 
-  /** Read the meet day; `asked` for a reader's own refresh, which always moves the beat */
+  /** Read the meet day; `wanted` for a reader's own refresh, which always moves the beat */
   async function refresh(wanted = true) {
     const id = meetId.value
     if (id === null) return
@@ -39,10 +39,12 @@ export function useMeetDay(
       error.value = ''
       const text = JSON.stringify(answer)
       if (text === seen && !owed) return
+      // The tabs read their own data on opening, so the first answer leaves the beat be
+      const first = seen === ''
       seen = text
       owed = false
       day.value = answer
-      beat.value++
+      if (!first) beat.value++
     } catch (e) {
       if (ask !== asked) return
       error.value = e instanceof Error ? e.message : String(e)

@@ -40,17 +40,24 @@ export function markQuiz(
   const left = [...result]
   const benches = quiz.seats.map((bench, index) => {
     const settled = marks.benches[benchKey(quiz.id, index)]
-    const name =
-      settled && 'team' in settled
-        ? settled.team
-        : bench.kind === 'letter'
-          ? drawnTeam(doc, quiz, bench)?.name
-          : undefined
+    const name = benchTeam(doc, quiz, bench, settled)
     const at = name === undefined ? -1 : left.findIndex((t) => foldName(t.name) === foldName(name))
     const team = at < 0 ? undefined : left.splice(at, 1)[0]
     return { settled, result: team }
   })
   return { benches, unplaced: left }
+}
+
+/** The team on a bench to match a result to: its settled team, or a drawn letter's */
+function benchTeam(
+  doc: ScheduleDocument,
+  quiz: ScheduleQuiz,
+  bench: ScheduleQuiz['seats'][number],
+  settled: SettledBench | undefined,
+): string | undefined {
+  if (settled) return 'team' in settled ? settled.team : undefined
+  if (bench.kind === 'letter') return drawnTeam(doc, quiz, bench)?.name
+  return undefined
 }
 
 /** A settled bench's team as a reader sees it; one the admin has yet to settle reads as tied */

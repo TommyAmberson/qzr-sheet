@@ -32,15 +32,14 @@ const props = defineProps<{
 const seat = computed(() => props.quiz.seats[props.index]!)
 const source = computed(() => seatText(props.doc, props.quiz, seat.value, 'letters'))
 const absent = computed(() => drawnTeam(props.doc, props.quiz, seat.value)?.absent ?? false)
-const team = computed(() =>
-  absent.value
-    ? 'Absent'
-    : props.settled
-      ? settledText(props.settled)
-      : props.view === 'teams' && seat.value.kind === 'letter'
-        ? seatText(props.doc, props.quiz, seat.value, 'teams')
-        : '',
-)
+const team = computed(() => {
+  if (absent.value) return 'Absent'
+  if (props.settled) return settledText(props.settled)
+  if (props.view === 'teams' && seat.value.kind === 'letter') {
+    return seatText(props.doc, props.quiz, seat.value, 'teams')
+  }
+  return ''
+})
 const outcome = computed(() => {
   const r = props.result
   if (!r || r.place === undefined) return ''

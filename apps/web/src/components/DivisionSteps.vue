@@ -29,13 +29,15 @@ const props = withDefaults(
     /** Read the divisions again whenever it moves: the meet page's beat; without it, read once */
     beat?: number
   }>(),
-  { division: null, beat: undefined },
+  { division: null },
 )
 const emit = defineEmits<{
   /** A division moved, so the stats around it may have changed */
   moved: []
   /** The meet moved to review */
-  phase: [phase: MeetPhase]
+  phase: []
+  /** Each division's state as just read, for a page that shows more of them */
+  read: [divisions: DivisionState[]]
 }>()
 
 const divisions = ref<DivisionState[]>([])
@@ -66,6 +68,7 @@ const canMove = computed(() => props.phase === 'live' || props.phase === 'review
 
 async function reloadDivisions() {
   divisions.value = (await getDivisionStates(props.meetId)).divisionStates
+  emit('read', divisions.value)
 }
 
 // Read on opening, then again on the page's beat where there is one
@@ -165,7 +168,7 @@ function moveMeetToReview() {
   void run(async () => {
     await setMeetPhase(props.meetId, 'review')
     offerReview.value = false
-    emit('phase', 'review')
+    emit('phase')
   })
 }
 

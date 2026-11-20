@@ -19,11 +19,10 @@ import MeetAccessDialog from '../../components/MeetAccessDialog.vue'
 import StatsSettings from '../../components/StatsSettings.vue'
 import { useMeetPage } from '../../meetPage'
 
-const props = defineProps<{ slug: string }>()
 const router = useRouter()
 
 // The page's one copy of the meet, so an edit here shows in its header and every tab
-const { detail, isAdmin, isSuperuser } = useMeetPage()
+const { slug, detail, isAdmin, isSuperuser } = useMeetPage()
 const meetId = computed(() => detail.value?.meet.id ?? null)
 const loading = ref(true)
 const error = ref('')
@@ -189,7 +188,7 @@ async function saveEdit() {
     const res = await updateMeet(detail.value.meet.id, { ...editForm.value })
     detail.value = { ...detail.value, meet: res.meet }
     editing.value = false
-    if (res.meet.viewerCode !== props.slug) {
+    if (res.meet.viewerCode !== slug.value) {
       router.replace({ name: 'meet', params: { slug: res.meet.viewerCode } })
     }
   } catch (e) {
@@ -244,6 +243,15 @@ async function shareMeet() {
 }
 
 watch(meetId, load, { immediate: true })
+
+// Setup is its admins' tab: a member who opens it by address is shown the schedule instead
+watch(
+  () => [detail.value !== null, isAdmin.value],
+  ([loaded, admin]) => {
+    if (loaded && !admin) void router.replace({ name: 'meet', params: { slug: slug.value } })
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

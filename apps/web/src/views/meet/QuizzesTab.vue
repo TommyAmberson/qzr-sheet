@@ -8,7 +8,6 @@ import {
   quizName,
   scheduleQuizMeta,
   scheduledStage,
-  viewersSeeStats,
   seatText,
   STAGE_CHOICES,
   STAGES,
@@ -50,10 +49,22 @@ import { scoresheetLink } from '../../scoresheetLink'
  * quizzes behind them, with every action of the results page it replaces; an admin has what
  * needs attention across the meet above them. Uploading is in the page's header (FR-007).
  */
-const page = useMeetPage()
-const { slug, meet, sender, isAdmin, division, inDivision, setDivision, published, day, beat } =
-  page
-const { refresh, scoresheetHref, scores } = page
+const {
+  slug,
+  meet,
+  sender,
+  isAdmin,
+  scores: manages,
+  statsHidden,
+  division,
+  inDivision,
+  setDivision,
+  published,
+  day,
+  beat,
+  refresh,
+  scoresheetHref,
+} = useMeetPage()
 
 /** The meet's stored quizzes as listed, for admins and officials: replaced whole */
 const stored = shallowRef<StoredQuiz[]>([])
@@ -75,7 +86,6 @@ const attention = shallowRef<AttentionItem[]>([])
 const attentionError = ref('')
 
 /** Admins and officials manage stored quizzes; anyone else reads the meet day alone */
-const manages = computed(() => sender.value !== null)
 
 // ---- The list ----
 
@@ -527,10 +537,8 @@ async function mergeNames(division: string, names: [string, string], team?: stri
   } catch (e) {
     mergeError.value = `Merged ${done} of ${edits.length} quizzes: ${(e as Error).message} Merge again to finish.`
   } finally {
-    // The list, the attention list and the meet day as the merge left them
-    await loadStored()
-    void loadAttention()
-    void refresh()
+    // The meet day as the merge left it, whose beat reads the list and what needs attention again
+    await refresh()
     merging.value = false
   }
 }
@@ -699,7 +707,7 @@ async function mergeNames(division: string, names: [string, string], team?: stri
       </ul>
       <p v-if="changeError" class="state-msg state-msg--error">{{ changeError }}</p>
       <p v-if="!day" class="state-msg">Loading…</p>
-      <p v-else-if="!isAdmin && day && !viewersSeeStats(day.phase)" class="state-msg">
+      <p v-else-if="statsHidden" class="state-msg">
         Nothing to see yet: results and standings show once the meet is under way.
       </p>
       <p v-else-if="rows.length === 0" class="state-msg">No quizzes yet.</p>
@@ -732,7 +740,7 @@ async function mergeNames(division: string, names: [string, string], team?: stri
                   {{ row.name }}
                 </router-link>
                 <a
-                  v-else-if="row.status === 'notIn' && scores && row.scheduleQuizId"
+                  v-else-if="row.status === 'notIn' && manages && row.scheduleQuizId"
                   :href="scoresheetHref(row.scheduleQuizId)"
                   v-bind="scoresheetLink"
                   >{{ row.name }}</a
