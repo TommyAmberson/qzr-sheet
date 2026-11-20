@@ -4,7 +4,18 @@
 import { describe, it, expect, vi } from 'vitest'
 import { strToU8, zipSync } from 'fflate'
 import { ApiError, type QuizFile } from '@qzr/shared'
-import { chooseRoom, uploadPicked, type ExistingQuiz, type OnExisting, type Stored } from '@qzr/ui'
+import {
+  chooseRoom,
+  markDuplicates,
+  pickedFiles,
+  planUpload,
+  sendPlanned,
+  type ExistingQuiz,
+  type OnExisting,
+  type Sender,
+  type Stored,
+} from '@qzr/ui'
+import { newScheduleDocument, PlacementFormula, type ScheduleDocument } from '@qzr/shared'
 
 const existing: ExistingQuiz = {
   id: 7,
@@ -14,8 +25,24 @@ const existing: ExistingQuiz = {
   savedAt: '2026-10-02T10:00:00.000Z',
 }
 
+/** A saved quiz file, valid as the API checks one, with no teams */
+const quizJson = (division: string, quizNumber: string) =>
+  JSON.stringify({
+    version: 2,
+    quiz: {
+      division,
+      quizNumber,
+      overtime: false,
+      placementFormula: PlacementFormula.Rules,
+      questionTypes: [],
+    },
+    teams: [],
+    answers: [],
+    noJumps: [],
+  })
+
 const quizFileNamed = (quizNumber: string) =>
-  new File([JSON.stringify({ version: 2, quiz: { quizNumber } })], `D1Q${quizNumber}.json`)
+  new File([quizJson('1', quizNumber)], `D1Q${quizNumber}.json`)
 
 /** A scoring sheet as LibreOffice saves it, with the division and quiz number in its header */
 function sheetNamed(quizNumber: string) {
@@ -33,6 +60,8 @@ function sheetNamed(quizNumber: string) {
     empty +
     empty +
     header +
+    empty +
+    `<table:table-row><table:table-cell/>${cell('Calgary 1')}</table:table-row>` +
     '</table:table></office:spreadsheet></office:body></office:document-content>'
   const bytes = zipSync({ 'content.xml': strToU8(content) })
   return new File([bytes as Uint8Array<ArrayBuffer>], `D1Q${quizNumber}.ods`)
@@ -61,6 +90,27 @@ function answering(...answers: unknown[]) {
 }
 
 const official = { admin: false, rooms: [{ id: 5, name: 'Room 1' }] }
+
+type SendFn = Parameters<typeof sendPlanned>[5]
+
+/** Read, plan and send the picked files, as the Results page does once they are reviewed */
+async function uploadPicked(
+  event: Event,
+  dialog: Parameters<typeof sendPlanned>[1],
+  sender: Sender | null,
+  meetName: string,
+  send: SendFn,
+  schedule: ScheduleDocument | null = null,
+) {
+  return sendPlanned(
+    planUpload(await pickedFiles(event), schedule),
+    dialog,
+    sender,
+    meetName,
+    schedule,
+    send,
+  )
+}
 
 /** The change event of a file input with these files picked */
 const event = (...files: File[]) => picked(...files).event
@@ -95,7 +145,7 @@ describe('uploadPicked', () => {
       .mockRejectedValueOnce(conflict)
       .mockResolvedValueOnce({ created: false, revision: 3 })
       .mockRejectedValueOnce(conflict)
-    // Asked to answer the rest the same way, the user says no
+    // Asked once to answer the rest the same way, the user says no
     const dialog = answering(5, 'newRevision', false, null)
     const { event } = picked(quizFileNamed('3'), quizFileNamed('3'))
     const reports = await uploadPicked(event, dialog, official, 'Practice', send)
@@ -130,6 +180,25 @@ describe('uploadPicked', () => {
     ])
   })
 
+  it('asks about answering the rest only once, counting files that can still be sent', async () => {
+    const conflict = new ApiError(409, 'D1 Q3 was already submitted', { existing })
+    const send = vi
+      .fn<(file: QuizFile, roomId: number | null, onExisting?: OnExisting) => Promise<Stored>>()
+      .mockImplementation(async (_file, _room, onExisting) => {
+        if (!onExisting) throw conflict
+        return { created: false, revision: 3 }
+      })
+    const dialog = answering(5, 'newRevision', false, 'newRevision', 'newRevision')
+    const files = [
+      quizFileNamed('3'),
+      quizFileNamed('4'),
+      new File(['x'], 'notes.txt'),
+      quizFileNamed('5'),
+    ]
+    await uploadPicked(event(...files), dialog, official, 'Practice', send)
+    expect(dialog.asked.filter((title) => title.startsWith('The same'))).toHaveLength(1)
+  })
+
   it('reads a scoring sheet and sends it like a quiz file', async () => {
     const send = vi
       .fn<(file: QuizFile) => Promise<Stored>>()
@@ -138,13 +207,52 @@ describe('uploadPicked', () => {
     const reports = await uploadPicked(event, answering(5), official, 'Practice', send)
     expect(send.mock.calls.map(([file]) => [file.quiz.division, file.quiz.quizNumber])).toEqual([
       ['1', '4'],
-      [undefined, '5'],
+      ['1', '5'],
     ])
     expect(send.mock.calls[0]![0].teams).toHaveLength(3)
     expect(reports!.map((r) => [r.file, r.stored])).toEqual([
       ['D1Q4.ods', true],
       ['D1Q5.json', true],
     ])
+  })
+
+  it('refuses a .json that holds no quiz', async () => {
+    const picked = await pickedFiles(
+      event(new File(['null'], 'empty.json'), new File(['{"name":"app"}'], 'package.json')),
+    )
+    expect(picked.map((p) => [p.file, p.quizFile, p.refusal])).toEqual([
+      ['empty.json', null, 'Not a quiz file'],
+      ['package.json', null, 'Not a quiz file'],
+    ])
+  })
+
+  it('asks nothing when no file of the upload can be sent', async () => {
+    const send = vi.fn<(file: QuizFile) => Promise<Stored>>()
+    const dialog = answering()
+    const reports = await uploadPicked(
+      event(new File(['x'], 'notes.txt')),
+      dialog,
+      official,
+      'Practice',
+      send,
+    )
+    expect(dialog.asked).toEqual([])
+    expect(reports).toEqual([{ file: 'notes.txt', stored: false, message: 'Not a quiz file' }])
+  })
+
+  it('refuses a blank sheet, such as the template picked by mistake', async () => {
+    const blank = new File(
+      [
+        zipSync({
+          'content.xml': strToU8(
+            '<office:document-content><office:body><office:spreadsheet><table:table table:name="Quiz"></table:table></office:spreadsheet></office:body></office:document-content>',
+          ),
+        }) as Uint8Array<ArrayBuffer>,
+      ],
+      'Scoresheet.ots',
+    )
+    const [picked] = await pickedFiles(event(blank))
+    expect(picked).toMatchObject({ quizFile: null, refusal: 'A blank sheet, with no quiz on it' })
   })
 
   it('refuses a spreadsheet that is not a scoring sheet, and carries on', async () => {
@@ -217,6 +325,131 @@ describe('uploadPicked', () => {
     expect(await uploadPicked(event, answering(null), admin, 'Practice', send)).toBe(undefined)
     expect(await uploadPicked(event, answering(null), official, 'Practice', send)).toBe(undefined)
     expect(send).not.toHaveBeenCalled()
+  })
+})
+
+describe('an upload matched to the schedule', () => {
+  const admin = {
+    admin: true,
+    rooms: [
+      { id: 5, name: 'Room 1' },
+      { id: 6, name: 'Room 2' },
+    ],
+  }
+  const schedule = (): ScheduleDocument => {
+    const doc = newScheduleDocument('Meet')
+    doc.rooms = [
+      { id: 'r1', name: 'Room 1', meetRoomId: 5 },
+      { id: 'r2', name: 'Room 2', meetRoomId: 6 },
+    ]
+    const quiz = (id: string, label: string, room: string) => ({
+      id,
+      label,
+      division: '1',
+      phase: 'prelim' as const,
+      cell: { slot: 's1', room },
+      seats: [],
+      pinned: false,
+    })
+    doc.quizzes = [quiz('q3', '3', 'r1'), quiz('q4', '4', 'r2')]
+    return doc
+  }
+  const named = (division: string, quizNumber: string) =>
+    new File([quizJson(division, quizNumber)], `D${division}Q${quizNumber}.json`)
+  const stored = () => vi.fn<SendFn>().mockResolvedValue({ created: true, revision: 1 })
+
+  it("pairs each file with its scheduled quiz, and sends an admin's to each quiz's room", async () => {
+    const send = stored()
+    const dialog = answering()
+    await uploadPicked(
+      event(named('1', '3'), named('1', '4')),
+      dialog,
+      admin,
+      'Practice',
+      send,
+      schedule(),
+    )
+    expect(dialog.asked).toEqual([])
+    expect(send.mock.calls.map((call) => [call[1], call[3]])).toEqual([
+      [5, 'q3'],
+      [6, 'q4'],
+    ])
+  })
+
+  it('sends a file already named as its scheduled quiz exactly as it was read', async () => {
+    const send = stored()
+    const file = named('1', '3')
+    await uploadPicked(event(file), answering(), admin, 'Practice', send, schedule())
+    expect(JSON.stringify(send.mock.calls[0]![0])).toBe(await file.text())
+  })
+
+  it('sends a file given a scheduled quiz as that quiz, in its room', async () => {
+    const send = stored()
+    const plan = planUpload(await pickedFiles(event(named('1', '9'))), schedule())
+    expect(plan[0]!.scheduleQuizId).toBeNull()
+    plan[0]!.scheduleQuizId = 'q4'
+    await sendPlanned(plan, answering(), admin, 'Practice', schedule(), send)
+    expect(send.mock.calls[0]![0].quiz).toMatchObject({ division: '1', quizNumber: '4' })
+    expect(send.mock.calls[0]![1]).toBe(6)
+  })
+
+  it('flags two files naming one quiz, and a division the schedule spells otherwise', async () => {
+    const plan = planUpload(
+      await pickedFiles(event(named('1', '3'), named('1', '3'), named('Div 1', '4'))),
+      schedule(),
+    )
+    expect(plan.map((p) => [p.scheduleQuizId, p.duplicate])).toEqual([
+      ['q3', true],
+      ['q3', true],
+      [null, false],
+    ])
+  })
+
+  it('flags a file given the scheduled quiz another file already matches', async () => {
+    const plan = planUpload(await pickedFiles(event(named('1', '3'), named('1', '9'))), schedule())
+    plan[1]!.scheduleQuizId = 'q3'
+    expect(markDuplicates(plan, schedule()).map((p) => p.duplicate)).toEqual([true, true])
+  })
+
+  it('flags a file sent unlinked under the name another is given by its scheduled quiz', async () => {
+    const plan = planUpload(await pickedFiles(event(named('1', '9'), named('1', '3'))), schedule())
+    plan[0]!.scheduleQuizId = 'q3'
+    plan[1]!.scheduleQuizId = null
+    expect(markDuplicates(plan, schedule()).map((p) => p.duplicate)).toEqual([true, true])
+  })
+
+  it('asks an admin the room for a file whose scheduled quiz has no room yet', async () => {
+    const send = stored()
+    const doc = schedule()
+    doc.quizzes[1]!.cell = null
+    await uploadPicked(
+      event(named('1', '3'), named('1', '4')),
+      answering(6),
+      admin,
+      'Practice',
+      send,
+      doc,
+    )
+    expect(send.mock.calls.map((call) => [call[1], call[3]])).toEqual([
+      [5, 'q3'],
+      [6, 'q4'],
+    ])
+  })
+
+  it("asks an admin the room for files the schedule doesn't match", async () => {
+    const send = stored()
+    await uploadPicked(
+      event(named('1', '3'), named('1', '9')),
+      answering('none'),
+      admin,
+      'Practice',
+      send,
+      schedule(),
+    )
+    expect(send.mock.calls.map((call) => [call[1], call[3]])).toEqual([
+      [5, 'q3'],
+      [null, undefined],
+    ])
   })
 })
 

@@ -140,9 +140,9 @@ admin sends one batch across many rooms.
 marked unmatched, the uploader picks its quiz, and it is stored as that quiz in that quiz's room;
 two sheets of one quiz are flagged before sending.
 
-- [ ] T022 [P] [US3] Add failing cases to `apps/web/src/__tests__/sendQuizzes.spec.ts`: files whose quiz names match the published schedule are paired with their scheduled quiz and room; an unmatched one can be given a scheduled quiz, which rewrites its division, consolation and number before sending, or sent unlinked; duplicates in a batch are flagged; an admin's batch sends each quiz with its scheduled quiz's `roomId` and `scheduleQuizId`; a "Div 1" division shows as one the meet lacks
-- [ ] T023 [US3] Add the batch review to the shared upload in `packages/ui/src/sendQuizzes.ts`, matching by `resultKey`/`resultName` against the published schedule (research R7), replacing the single `chooseRoom` for an admin's batch with each quiz's scheduled room (FR-007), and sending an unmatched or unlinked sheet in an admin's batch with no room, while an official keeps their own room; covered by T022
-- [ ] T024 [US3] Show the review before sending in `apps/web/src/views/ResultsView.vue`, with a picker of the schedule's quizzes for unmatched files
+- [X] T022 [P] [US3] Add failing cases to `apps/web/src/__tests__/sendQuizzes.spec.ts`: files whose quiz names match the published schedule are paired with their scheduled quiz and room; an unmatched one can be given a scheduled quiz, which rewrites its division, consolation and number before sending, or sent unlinked; duplicates in a batch are flagged; an admin's batch sends each quiz with its scheduled quiz's `roomId` and `scheduleQuizId`; a "Div 1" division shows as one the meet lacks
+- [X] T023 [US3] Add the batch review to the shared upload in `packages/ui/src/sendQuizzes.ts`, matching by `resultKey`/`resultName` against the published schedule (research R7), replacing the single `chooseRoom` for an admin's batch with each quiz's scheduled room (FR-007), and sending an unmatched or unlinked sheet in an admin's batch with no room, while an official keeps their own room; covered by T022
+- [X] T024 [US3] Show the review before sending in `apps/web/src/views/ResultsView.vue`, with a picker of the schedule's quizzes for unmatched files
 
 **Checkpoint**: A 75-quiz backfill goes in as one batch, each quiz in its own room.
 

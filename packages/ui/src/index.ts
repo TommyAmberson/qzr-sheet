@@ -5,8 +5,24 @@ export { default as GuestNotice } from './GuestNotice.vue'
 export { default as DivisionInput } from './DivisionInput.vue'
 export { useHistory } from './useHistory'
 export type { HistoryCommand } from './useHistory'
-export { askAlreadySubmitted, chooseRoom, existingQuizOf, uploadPicked } from './sendQuizzes'
-export type { ExistingQuiz, FileReport, OnExisting, Sender, Stored } from './sendQuizzes'
+export {
+  askAlreadySubmitted,
+  chooseRoom,
+  existingQuizOf,
+  markDuplicates,
+  pickedFiles,
+  planUpload,
+  roomOfScheduled,
+  sendPlanned,
+} from './sendQuizzes'
+export type {
+  ExistingQuiz,
+  FileReport,
+  OnExisting,
+  PlannedFile,
+  Sender,
+  Stored,
+} from './sendQuizzes'
 export {
   getActiveSession,
   guestStateRef,

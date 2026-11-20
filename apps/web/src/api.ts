@@ -594,10 +594,17 @@ export function uploadResult(
   quizFile: QuizFile,
   roomId: number | null,
   onExisting?: OnExisting,
+  scheduleQuizId?: string,
 ): Promise<Stored> {
   return request(`/api/meets/${meetId}/results`, {
     method: 'POST',
-    body: JSON.stringify({ quizFile, roomId: roomId ?? undefined, onExisting, upload: true }),
+    body: JSON.stringify({
+      quizFile,
+      roomId: roomId ?? undefined,
+      onExisting,
+      upload: true,
+      scheduleQuizId,
+    }),
   })
 }
 

@@ -29,6 +29,10 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
   quizzes and questions past Q26, and the page lists what was left out (#52)
 * A stored quiz's page downloads each revision as a quiz file or a spreadsheet; a past revision's
   file name says which revision it is (#52)
+* An upload shows each file's quiz before anything is sent, with the published schedule's quiz it
+  matches and, for an admin, that quiz's room. An unmatched file can be given a scheduled quiz,
+  whose name it then takes, or sent unlinked; two files of one quiz are flagged. An admin's upload
+  sends each quiz for its own room, so a whole meet goes in one batch (#52)
 
 ### Fixed
 

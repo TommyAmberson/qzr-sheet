@@ -12,6 +12,7 @@ import {
   scheduleQuizMeta,
   quizName,
   type AttentionItem,
+  type ScheduleDocument,
   type ScheduleQuiz,
   type Stage,
   type StageChoice,
@@ -22,8 +23,13 @@ import {
   ChoiceDialog,
   formatSlotTime,
   joinedSession,
-  uploadPicked,
+  markDuplicates,
+  pickedFiles,
+  planUpload,
+  roomOfScheduled,
+  sendPlanned,
   type FileReport,
+  type PlannedFile,
   type Sender,
 } from '@qzr/ui'
 
@@ -60,8 +66,10 @@ const loading = ref(true)
 const error = ref('')
 const saving = ref(false)
 const changeError = ref('')
-/** The published schedule's quizzes, which stored quizzes are linked to; none when there is no schedule */
-const scheduled = shallowRef<ScheduleQuiz[]>([])
+/** The published schedule, which stored quizzes are linked to; null when there is none */
+const schedule = shallowRef<ScheduleDocument | null>(null)
+/** The published schedule's quizzes; none when there is no schedule */
+const scheduled = computed<ScheduleQuiz[]>(() => schedule.value?.quizzes ?? [])
 /** Who the user is in this meet: an admin counts quizzes and reads the standings; an official doesn't */
 const sender = ref<Sender | null>(null)
 const isAdmin = computed(() => sender.value?.admin ?? false)
@@ -217,8 +225,26 @@ async function downloadQuizzes() {
   }
 }
 
-/** Upload the picked saved quiz files, report each, then show the list as it is now */
+/** The files picked, awaiting review before they are sent; empty when none are */
+const planned = ref<PlannedFile[]>([])
+
+/** Read the picked files and match each to its scheduled quiz, for review before sending */
 async function onUploadFiles(event: Event) {
+  uploadError.value = ''
+  uploadReports.value = []
+  planned.value = planUpload(await pickedFiles(event), schedule.value)
+}
+
+/** The room a planned file goes to, as the review shows it */
+function plannedRoom(item: PlannedFile): string {
+  if (!sender.value?.admin || !schedule.value) return ''
+  // An admin picks a room for any file with no scheduled room, once the upload is sent
+  const roomId = item.scheduleQuizId ? roomOfScheduled(schedule.value, item.scheduleQuizId) : null
+  return sender.value.rooms.find((room) => room.id === roomId)?.name ?? 'Picked when sent'
+}
+
+/** Send the reviewed files, report each, then show the list as it is now */
+async function sendUpload() {
   if (!meet.value) return
   const meetId = meet.value.id
   uploading.value = true
@@ -231,22 +257,23 @@ async function onUploadFiles(event: Event) {
       if (!who) return
       sender.value = who
     }
-    const reports = await uploadPicked(
-      event,
+    const reports = await sendPlanned(
+      planned.value,
       choiceDialog.value,
       sender.value,
       meet.value.name,
-      (quizFile, roomId, onExisting) => uploadResult(meetId, quizFile, roomId, onExisting),
+      schedule.value,
+      (quizFile, roomId, onExisting, scheduleQuizId) =>
+        uploadResult(meetId, quizFile, roomId, onExisting, scheduleQuizId),
     )
     if (!reports) return
     uploadReports.value = reports
+    planned.value = []
     stored.value = await listResults(meetId)
     void loadAttention()
   } catch (e) {
     uploadError.value = (e as Error).message
   } finally {
-    // Cleared however it ended, so picking the same files again fires a change
-    ;(event.target as HTMLInputElement).value = ''
     uploading.value = false
   }
 }
@@ -255,7 +282,7 @@ async function onUploadFiles(event: Event) {
 async function loadSchedule() {
   if (!meet.value) return
   try {
-    scheduled.value = (await getPublishedSchedule(meet.value.id)).document.quizzes
+    schedule.value = (await getPublishedSchedule(meet.value.id)).document
   } catch (e) {
     if (!(e instanceof ApiError) || e.status !== 404) changeError.value = (e as Error).message
   }
@@ -475,6 +502,62 @@ onMounted(load)
           @change="onUploadFiles"
         />
         <p v-if="uploadError" class="state-msg state-msg--error">{{ uploadError }}</p>
+        <div v-if="planned.length > 0" class="upload-review">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Quiz</th>
+                <th>Scheduled quiz</th>
+                <th v-if="sender.admin && schedule">Room</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in planned" :key="item.file" :class="{ refused: !item.quizFile }">
+                <td>{{ item.file }}</td>
+                <td v-if="!item.quizFile" colspan="3">{{ item.refusal }}</td>
+                <template v-else>
+                  <td>
+                    {{ quizName(item.quizFile.quiz) }}
+                    <span v-if="item.duplicate" class="note">another file names this quiz</span>
+                  </td>
+                  <td>
+                    <select
+                      v-model="item.scheduleQuizId"
+                      class="stage-select"
+                      :aria-label="`Scheduled quiz for ${item.file}`"
+                      @change="planned = markDuplicates(planned, schedule)"
+                    >
+                      <option :value="null">
+                        {{
+                          schedule
+                            ? 'None picked: linked by its name, if the schedule has it'
+                            : 'No schedule'
+                        }}
+                      </option>
+                      <option v-for="quiz in scheduled" :key="quiz.id" :value="quiz.id">
+                        {{ nameOfScheduled(quiz) }}
+                      </option>
+                    </select>
+                  </td>
+                  <td v-if="sender.admin && schedule">{{ plannedRoom(item) }}</td>
+                </template>
+              </tr>
+            </tbody>
+          </table>
+          <div class="downloads">
+            <button class="btn btn--primary btn--sm" :disabled="uploading" @click="sendUpload">
+              {{
+                uploading
+                  ? 'Sending…'
+                  : `Send ${planned.length} file${planned.length === 1 ? '' : 's'}`
+              }}
+            </button>
+            <button class="btn btn--secondary btn--sm" :disabled="uploading" @click="planned = []">
+              Cancel
+            </button>
+          </div>
+        </div>
         <ul v-if="uploadReports.length > 0" class="upload-report">
           <li
             v-for="report in uploadReports"
