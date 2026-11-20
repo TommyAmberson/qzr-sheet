@@ -364,8 +364,7 @@ async function loadAttention() {
     // The list shows no problems for a quiz whose score was still to be made when it was read;
     // reading what needs attention has made those scores, so read the list again to show them
     if (stored.value.some((quiz) => quiz.problems === null)) {
-      const quizzes = await listResults(meetId)
-      if (read === attentionRead) stored.value = quizzes
+      await loadStored()
     }
   } catch (e) {
     if (read === attentionRead)
@@ -587,9 +586,11 @@ async function mergeNames(division: string, names: [string, string], team?: stri
 <template>
   <div class="quizzes-tab">
     <p v-if="loading" class="state-msg">Loading…</p>
-    <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
+    <p v-else-if="error && stored.length === 0" class="state-msg state-msg--error">{{ error }}</p>
 
     <template v-else>
+      <!-- A background read that failed leaves the list shown as it was (research R7, rule 5) -->
+      <p v-if="error" class="state-msg state-msg--error">{{ error }}</p>
       <template v-if="isAdmin">
         <div class="quizzes-header">
           <h3 class="section-title">Needs attention</h3>

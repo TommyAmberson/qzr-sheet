@@ -46,6 +46,11 @@ export function markQuiz(
     const team = at < 0 ? undefined : left.splice(at, 1)[0]
     return { settled, result: team }
   })
+  // A bench whose team the schedule can't name, as a tied one, holds the one result left over
+  const unnamed = benches.filter(
+    (b, i) => !b.result && benchTeam(doc, quiz, quiz.seats[i]!, b.settled) === undefined,
+  )
+  if (unnamed.length === 1 && left.length === 1) unnamed[0]!.result = left.pop()
   return { benches, unplaced: left }
 }
 
@@ -57,7 +62,11 @@ function benchTeam(
   settled: SettledBench | undefined,
 ): string | undefined {
   if (settled) return 'team' in settled ? settled.team : undefined
-  if (bench.kind === 'letter') return drawnTeam(doc, quiz, bench)?.name
+  // An absent team sits on no bench, so no result is matched to it
+  if (bench.kind === 'letter') {
+    const team = drawnTeam(doc, quiz, bench)
+    return team?.absent ? undefined : team?.name
+  }
   return undefined
 }
 

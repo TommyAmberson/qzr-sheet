@@ -84,9 +84,16 @@ async function saveTemplate() {
   }
 }
 
-watch(() => meet.value?.id, loadTemplate, { immediate: true })
+// The churches and the template, read on opening and for another meet
+watch(
+  () => meet.value?.id,
+  () => {
+    void load()
+    void loadTemplate()
+  },
+  { immediate: true },
+)
 
-watch(() => meet.value?.id, load, { immediate: true })
 // Refresh, and the page's beat, read the churches again too
 watch(beat, load)
 

@@ -173,8 +173,12 @@ async function load() {
 const readError = ref('')
 
 async function reloadMeet() {
+  const slug = props.slug
   try {
-    detail.value = await getMeet(props.slug)
+    const read = await getMeet(slug)
+    // A read for a meet the page has since left must not show
+    if (slug !== props.slug) return
+    detail.value = read
     readError.value = ''
   } catch (e) {
     readError.value = `The meet couldn't be read again: ${(e as Error).message}`
