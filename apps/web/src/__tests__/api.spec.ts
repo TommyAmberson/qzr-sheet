@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 import { ApiError } from '@qzr/shared'
 
-import { listMeets, createMeet, deleteMeet, joinMeet } from '../api'
+import { listMeets, createMeet, deleteMeet, joinMeet, isStaleSave } from '../api'
 
 const mockFetch = vi.fn()
 
@@ -148,5 +148,15 @@ describe('request()', () => {
     expect(url).toMatch(/\/api\/join$/)
     expect(init.method).toBe('POST')
     expect(JSON.parse(init.body)).toEqual({ code: 'some-code' })
+  })
+})
+
+describe('isStaleSave', () => {
+  it("tells a save refused as stale from the edit route's other refusals", () => {
+    const stale = new ApiError(409, 'The quiz has changed since', { revision: 4 })
+    expect(isStaleSave(stale)).toBe(true)
+    expect(isStaleSave(new ApiError(409, 'Another quiz is already named D2 Q6', {}))).toBe(false)
+    expect(isStaleSave(new ApiError(500, 'Server error', { revision: 4 }))).toBe(false)
+    expect(isStaleSave(new Error('offline'))).toBe(false)
   })
 })

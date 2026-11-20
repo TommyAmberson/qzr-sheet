@@ -586,18 +586,32 @@ export function restoreRevision(
 }
 
 /**
+ * Whether a save was refused because a newer revision was saved since its base. The edit route
+ * answers 409 for a taken name or a closed phase too; only this one carries the newest revision.
+ */
+export function isStaleSave(e: unknown): boolean {
+  return (
+    e instanceof ApiError &&
+    e.status === 409 &&
+    typeof (e.body as { revision?: unknown } | undefined)?.revision === 'number'
+  )
+}
+
+/**
  * Save an edited stored quiz as a new revision, labelled `merged` for a merge of team names (R10). A
- * rename onto another quiz's name is refused.
+ * rename onto another quiz's name is refused. With `baseRevision`, the revision the file was made
+ * from, the API also refuses (409, see `isStaleSave`) when a newer one has been saved since, rather
+ * than undo it.
  */
 export function editResult(
   meetId: number,
   resultId: number,
   quizFile: QuizFile,
-  action?: 'merged',
+  { action, baseRevision }: { action?: 'merged'; baseRevision?: number } = {},
 ): Promise<{ id: number; revision: number }> {
   return request(`/api/meets/${meetId}/results/${resultId}`, {
     method: 'PUT',
-    body: JSON.stringify({ quizFile, action }),
+    body: JSON.stringify({ quizFile, action, baseRevision }),
   })
 }
 

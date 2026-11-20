@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CellValue, PlacementFormula, type QuizFile } from '@qzr/shared'
 import type { StoredQuiz } from '../api'
-import { editQuizFile, groupResults, mergeEdits } from '../results'
+import { editQuizFile, groupResults, keepEdits, mergeEdits, type NamesForm } from '../results'
 
 function stored(
   id: number,
@@ -136,7 +136,10 @@ describe('mergeEdits', () => {
       named(3, '1', 'Calgary 1'),
     ]
     const edits = mergeEdits(quizzes, '1', 'Calgry 1', 'Calgary 1')
-    expect(edits.map((edit) => edit.id)).toEqual([1, 2])
+    expect(edits.map((edit) => [edit.id, edit.revision])).toEqual([
+      [1, 1],
+      [2, 1],
+    ])
     for (const { quizFile } of edits) {
       expect(quizFile.teams.map((t) => t.name)).toEqual(['Calgary 1', 'Regina 1'])
       expect(quizFile.quiz).toMatchObject({ division: '1' })
@@ -167,5 +170,27 @@ describe('mergeEdits', () => {
       ['Jordan Lee'],
       ['Jordon Lee'],
     ])
+  })
+})
+
+describe('keepEdits', () => {
+  const form = (team: string, quizzer: string, quizNumber = '6'): NamesForm => ({
+    division: '2',
+    quizNumber,
+    teams: [{ id: 1, name: team, quizzers: [{ id: 11, name: quizzer }] }],
+  })
+
+  it('keeps what the user changed, and takes everything else from the newer revision', () => {
+    const was = form('Oak Meadow 2', 'Gray Vance')
+    const typed = form('Oak Meadow 2', 'Grey Vance')
+    // Renamed elsewhere since: the team, which the user left alone, and the quiz number
+    const fresh = form('Oak Meadow Two', 'Gray Vance', '7')
+    expect(keepEdits(fresh, was, typed)).toEqual(form('Oak Meadow Two', 'Grey Vance', '7'))
+  })
+
+  it('leaves the newer revision as it is when the user changed nothing', () => {
+    const was = form('Oak Meadow 2', 'Gray Vance')
+    const fresh = form('Oak Meadow Two', 'Gray Vance')
+    expect(keepEdits(fresh, was, was)).toEqual(fresh)
   })
 })

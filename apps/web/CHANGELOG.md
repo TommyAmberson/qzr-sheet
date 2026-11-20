@@ -39,6 +39,11 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ### Fixed
 
+* Saving names on a stored quiz's page, or merging names on the results page, no longer undoes a
+  change saved since the page loaded, such as a correction sent from the scoresheet: the API refuses
+  the stale save. The quiz's page then brings itself up to date, keeping the user's changes where
+  they still apply, for them to save again; a merge skips such quizzes and says how many to merge
+  again
 * A link to a meet's page opened while signed out lands on the home page asking to sign in, then
   goes on to that page once signed in, instead of dropping the link
 * The results page places a quiz accepted as scored by its scores, instead of showing it "not placed
