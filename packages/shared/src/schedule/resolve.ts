@@ -36,10 +36,17 @@ export interface BenchSources {
   tieBreaks: TieBreakOrder
   /** A meet team's name by its id, for a drawn team of a schedule linked to the meet */
   teamName?: (teamId: number) => string | undefined
+  /**
+   * The meet team a name of the results is, matched against the division's roster as stored
+   * quizzes' names are; undefined for a name not on it
+   */
+  teamIdOf?: (name: string) => number | undefined
 }
 
 /** A settled bench: its team, or teams level across it that the admin has yet to settle */
-export type SettledBench = { team: string } | { tied: true }
+export type SettledBench =
+  /** `teamId`, the meet team's, where the draw or the division's roster names one */
+  { team: string; teamId?: number } | { tied: true }
 
 /** How a bench is keyed, by its quiz and its place in the quiz's benches */
 export function benchKey(quizId: string, index: number): string {
@@ -71,7 +78,10 @@ export function resolveBenches(
     if (quiz.division !== division) continue
     quiz.seats.forEach((bench, index) => {
       const team = benchTeam(doc, quiz, bench, sources)
-      if (team) settled.set(benchKey(quiz.id, index), team)
+      if (!team) return
+      // A team the results name is the meet's by the division's roster, so a reader needn't guess
+      const teamId = 'team' in team ? (team.teamId ?? sources.teamIdOf?.(team.team)) : undefined
+      settled.set(benchKey(quiz.id, index), teamId === undefined ? team : { ...team, teamId })
     })
   }
   return settled
@@ -91,7 +101,9 @@ function benchTeam(
       if (drawn?.absent) return undefined
       const name =
         (drawn?.teamId !== undefined ? sources.teamName?.(drawn.teamId) : undefined) ?? drawn?.name
-      return name ? { team: name } : undefined
+      return name
+        ? { team: name, ...(drawn?.teamId !== undefined ? { teamId: drawn.teamId } : {}) }
+        : undefined
     }
     case 'rank':
     case 'new': {

@@ -13,7 +13,10 @@ const team = (id: number, number: number) => ({
   consolation: false,
 })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 
 describe('getScheduledQuiz (research R10)', () => {
   it("resolves a quiz's letters to the drawn teams, with the fields that name its results", async () => {
@@ -69,6 +72,81 @@ describe('getScheduledQuiz (research R10)', () => {
     expect(
       resultName({ ...quiz, division, lane: consolation ? 1 : 0, label: `Quiz ${quizNumber}` }),
     ).toBe(resultName(quiz))
+  })
+
+  // A bench filled from results (specs/010-meet-day FR-023)
+  it('fills a bench the meet has settled with the team it names by id', async () => {
+    const base = newScheduleDocument('Fall Meet')
+    base.settings.divisions = [
+      { id: '1', name: 'Div 1', teams: 6, elims: { lanes: [], lines: [] } },
+    ]
+    const doc = generateSchedule(base)
+    const quiz = doc.quizzes.find((q) => q.phase === 'prelim')!
+    // Seated by rank, as an elimination quiz is: the draw names no team for it
+    quiz.seats = [
+      { kind: 'rank', rank: 1 },
+      { kind: 'rank', rank: 2 },
+      { kind: 'rank', rank: 3 },
+    ]
+    const reply = (body: unknown) =>
+      Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
+    const read = (day: () => Promise<unknown>) =>
+      vi.fn((url: string) => {
+        if (url.includes('/schedule/published')) {
+          return reply({ document: doc, publishedAt: '2026-11-02', view: 'teams' })
+        }
+        if (url.endsWith('/api/meets/4/teams')) {
+          return reply({ teams: [team(20, 1), team(21, 2)], meetDivisions: ['1'] })
+        }
+        if (url.includes('/api/meets/4/day')) return day()
+        return reply({ quizzers: [] })
+      })
+    const day = { phase: 'live', scheduleVersion: 1, quizzes: [], notOnSchedule: [] }
+    vi.stubGlobal(
+      'fetch',
+      read(() =>
+        reply({
+          ...day,
+          // The second team the roster doesn't name, so it has no id and the bench stays empty
+          benches: {
+            [`${quiz.id}:0`]: { team: 'Grace 2', teamId: 21 },
+            [`${quiz.id}:1`]: { tied: true },
+            [`${quiz.id}:2`]: { team: 'Not on the roster' },
+          },
+        }),
+      ),
+    )
+    const details = (await getScheduledQuiz(4, quiz.id))!
+    expect(details.seats.map((s) => s.team?.id)).toEqual([21, undefined, undefined])
+
+    // While the API prepares the meet day it is asked again
+    let preparing = true
+    vi.stubGlobal(
+      'fetch',
+      read(() => {
+        if (!preparing) {
+          return reply({ ...day, benches: { [`${quiz.id}:2`]: { team: 'Grace 1', teamId: 20 } } })
+        }
+        preparing = false
+        return Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) })
+      }),
+    )
+    // The retry's one-second wait runs on fake time, so the test doesn't sleep
+    vi.useFakeTimers()
+    const asked = getScheduledQuiz(4, quiz.id)
+    await vi.advanceTimersByTimeAsync(1000)
+    const prepared = (await asked)!
+    expect(prepared.seats[2]!.team?.id).toBe(20)
+
+    // With the meet day out of reach the quiz opens as it would offline, benches empty
+    vi.stubGlobal(
+      'fetch',
+      read(() => Promise.reject(new TypeError('Failed to fetch'))),
+    )
+    const offline = (await getScheduledQuiz(4, quiz.id))!
+    expect(offline.seats.map((s) => s.team)).toEqual([null, null, null])
+    // It says so, so a refresh keeps the benches its copy already had
+    expect(offline.benchesRead).toBe(false)
   })
 
   it('is null when the meet has no published schedule', async () => {

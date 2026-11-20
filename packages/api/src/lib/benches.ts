@@ -1,5 +1,11 @@
-import { resolveBenches, type PlacedTeam, type SettledBench, type TieBreakOrder } from '@qzr/shared'
-import { scheduleDivisionId, type MeetFacts } from './quizFacts'
+import {
+  resolveBenches,
+  teamNamed,
+  type PlacedTeam,
+  type SettledBench,
+  type TieBreakOrder,
+} from '@qzr/shared'
+import { rosterOf, scheduleDivisionId, type MeetFacts } from './quizFacts'
 
 /**
  * The settled benches of a division's scheduled quizzes (spec FR-011, research R3 and R4), from its
@@ -30,10 +36,12 @@ export function divisionBenches(
     if (scheduleQuizId !== undefined) placed.set(scheduleQuizId, teams)
   }
   const teamNames = new Map((facts.teams ?? []).map((team) => [team.id, team.name]))
+  const roster = rosterOf(facts, folded) ?? []
   return resolveBenches(doc, division, {
     orders,
     placed,
     tieBreaks,
     teamName: (teamId) => teamNames.get(teamId),
+    teamIdOf: (name) => teamNamed(name, roster)?.id,
   })
 }
