@@ -209,6 +209,28 @@ const setStage = (ids: number[], stage: string | null) =>
   admin().request(`/api/meets/${meetId}/results/stage`, jsonRequest('PATCH', { ids, stage }), env)
 
 describe('a submission and the schedule', () => {
+  it('keeps the link a quiz has when an unchanged file names another scheduled quiz', async () => {
+    const file = quiz('3')
+    const { id, link } = await stored({ quizFile: file, scheduleQuizId: 'p3' })
+    expect(link).toEqual({ scheduleQuizId: 'p3', how: 'sheet' })
+    const again = await jsonOf<{ unchanged: boolean }>(
+      await submit({ quizFile: file, scheduleQuizId: 'eA' }),
+    )
+    expect(again).toMatchObject({ unchanged: true })
+    expect((await listed(id)).link).toEqual({ scheduleQuizId: 'p3', how: 'sheet' })
+  })
+
+  it('links an unchanged file to the scheduled quiz it is sent as', async () => {
+    const file = quiz('3', (f) => (f.quiz.quizNumber = '33'))
+    const { id, link } = await stored({ quizFile: file })
+    expect(link).toBeNull()
+    const again = await jsonOf<{ unchanged: boolean; link: unknown }>(
+      await submit({ quizFile: file, scheduleQuizId: 'p3' }),
+    )
+    expect(again).toMatchObject({ unchanged: true, link: { scheduleQuizId: 'p3', how: 'sheet' } })
+    expect((await listed(id)).link).toEqual({ scheduleQuizId: 'p3', how: 'sheet' })
+  })
+
   it('arrives linked when the sheet names its scheduled quiz, and counts with nothing more done', async () => {
     const { id, link } = await stored({ quizFile: quiz('3'), scheduleQuizId: 'p3' })
     expect(link).toEqual({ scheduleQuizId: 'p3', how: 'sheet' })

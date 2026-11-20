@@ -308,6 +308,18 @@ async function newestRevision(db: Db, resultId: number) {
   return newest
 }
 
+/** The newest revision's number and the file it shows, its own or the one it restores */
+async function currentFileOf(db: Db, resultId: number) {
+  const [current] = await db
+    .select({ revision: schema.quizResultRevisions.revision, quizFile: revisionFile })
+    .from(schema.quizResultRevisions)
+    .leftJoin(source, restoredSource)
+    .where(eq(schema.quizResultRevisions.resultId, resultId))
+    .orderBy(desc(schema.quizResultRevisions.revision))
+    .limit(1)
+  return current
+}
+
 /** A save based on a revision that is no longer the newest, carrying the newest */
 class StaleRevision extends Error {
   constructor(readonly newest: number) {
@@ -509,6 +521,21 @@ results.post('/:id/results', async (c) => {
       resultId = await existingId()
       if (resultId === undefined) throw e
     }
+  }
+  // The very file the quiz holds now changes nothing, so there is nothing to ask about or store
+  const current = await currentFileOf(db, resultId)
+  if (current?.quizFile === json) {
+    // The scheduled quiz it names is recorded only when the quiz has no link yet: an unchanged
+    // file asks nothing, so it never moves a link someone already made
+    const linked = linkOf(await factsOf(), resultId, key)
+    const link = linked ?? (await linkOnSubmit(resultId))
+    return c.json({
+      id: resultId,
+      revision: current.revision,
+      created: false,
+      unchanged: true,
+      link,
+    })
   }
   // The submitter decides: make it the current revision, or store it and keep the current one
   if (body.onExisting !== 'newRevision' && body.onExisting !== 'keepCurrent') {

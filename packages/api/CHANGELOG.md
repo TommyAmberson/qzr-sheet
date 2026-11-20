@@ -24,6 +24,12 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
   or any upload once the meet is done. `GET` (and `HEAD`) serves it to anyone who may read the
   meet's rosters (#52)
 
+### Changed
+
+* `POST /api/meets/:id/results` answers `unchanged: true` with the current revision, and adds no
+  revision, when the file sent is exactly the quiz's current one, whatever `onExisting` says, so
+  uploading a meet's files a second time asks nothing (#52)
+
 ## [0.30.0] - 2026-11-19
 
 ### Added
