@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { vFocus } from '../directives'
+import { returnPath } from '../returnPath'
+import { scoresheetLink } from '../scoresheetLink'
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   AccountRole,
   MeetRole,
@@ -113,19 +116,33 @@ async function handleCreateMeet() {
   }
 }
 
+/** The division box "+ Division" just added, which takes the focus as it appears; -1 for none */
+const addedDivision = ref(-1)
+
 function addDivisionField() {
+  addedDivision.value = meetForm.value.divisions.length
   meetForm.value.divisions.push('')
 }
+
+// Reopening the form remounts every box; none of them was just added
+watch(showCreateMeet, () => (addedDivision.value = -1))
 
 function removeDivisionField(i: number) {
   meetForm.value.divisions.splice(i, 1)
 }
 
-// Load meets once session resolves to a signed-in user
+// A signed-out deep link lands here with the page it wanted; once signed in, go there
+const route = useRoute()
+const next = computed(() => returnPath(route.query.next))
+
+// Load meets once session resolves to a signed-in user. Loaded even with a deep link waiting, so
+// the page is whole if the router sends them back here instead.
 watch(
   () => session.value?.data?.user,
   (user) => {
-    if (user) loadMeets()
+    if (!user) return
+    loadMeets()
+    if (next.value) router.replace(next.value)
   },
   { immediate: true },
 )
@@ -137,6 +154,9 @@ watch(
       <!-- QuizMeets -->
       <section class="section">
         <h2 class="section-title">QuizMeets</h2>
+        <p v-if="next && !session.isPending && !session.data?.user" class="return-notice">
+          Sign in to see that page. You'll go straight there once you're signed in.
+        </p>
 
         <!-- Saved meets (signed in) -->
         <template v-if="session.data?.user">
@@ -201,10 +221,12 @@ watch(
             <div class="divisions-edit">
               <span class="divisions-label">Divisions</span>
               <div v-for="(_, i) in meetForm.divisions" :key="i" class="division-field">
+                <!-- Only a box just added with "+ Division" takes the focus, not those the form opens with -->
                 <DivisionInput
                   v-model="meetForm.divisions[i]"
+                  v-focus="i === addedDivision"
                   class="field-input"
-                  placeholder="e.g. 2C"
+                  placeholder="e.g. 2"
                   aria-label="Division"
                 />
                 <button
@@ -260,7 +282,9 @@ watch(
           columns, fouls, bonuses, and overtime. No account needed.
         </p>
         <div class="scoresheet-actions">
-          <a :href="scoresheetUrl" class="btn btn--primary">Open in browser</a>
+          <a :href="scoresheetUrl" v-bind="scoresheetLink" class="btn btn--primary"
+            >Open in browser</a
+          >
           <a
             href="https://github.com/TommyAmberson/qzr-sheet/releases/latest"
             target="_blank"
@@ -396,6 +420,14 @@ watch(
   font-size: 0.8rem;
   color: var(--color-text-faint);
   margin-top: 0.75rem;
+}
+
+.return-notice {
+  font-size: 0.85rem;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 6px;
 }
 
 .link {

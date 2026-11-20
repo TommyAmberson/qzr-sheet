@@ -388,6 +388,30 @@ describe('PUT /api/meets/:id/results/:resultId', () => {
     expect((await list())[0]).toMatchObject({ revision: 3, action: 'merged' })
   })
 
+  it('saves onto the revision the editor started from, and refuses a stale one', async () => {
+    const id = await submitted()
+    const admin = createApp(db, testSuperuser)
+    expect((await put(admin, id, { baseRevision: 1 })).status).toBe(200)
+    // Revision 2 is current now; a save still based on revision 1 would undo it
+    const stale = await put(admin, id, { baseRevision: 1 })
+    expect(stale.status).toBe(409)
+    expect(await jsonOf(stale)).toMatchObject({ revision: 2 })
+    expect((await list())[0]).toMatchObject({ revision: 2 })
+    expect((await put(admin, id, { baseRevision: 'two' })).status).toBe(400)
+  })
+
+  it('reports a stale save as stale, even when its old name has since been taken', async () => {
+    const id = await submitted('3')
+    const admin = createApp(db, testSuperuser)
+    // Revision 2 renames the quiz to Q4, and another quiz then takes Q3
+    const renamed = { quizFile: quizFile({ quizNumber: '4' }), baseRevision: 1 }
+    expect((await put(admin, id, renamed)).status).toBe(200)
+    await submitted('3')
+    const stale = await put(admin, id, { quizFile: quizFile({ quizNumber: '3' }), baseRevision: 1 })
+    expect(stale.status).toBe(409)
+    expect(await jsonOf(stale)).toMatchObject({ revision: 2 })
+  })
+
   it("lets the quiz's room official edit it, recorded for their room", async () => {
     const id = await submitted()
     expect((await put(createApp(db, null, official(room1)), id)).status).toBe(200)

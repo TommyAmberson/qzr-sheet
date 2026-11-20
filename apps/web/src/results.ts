@@ -1,12 +1,15 @@
 import {
   byNumber,
+  computePlacementPoints,
   deserialize,
   foldName,
   quizName,
   quizOutcome,
   sameDivision,
+  scoreStoredQuiz,
   serialize,
   type QuizFile,
+  type QuizOutcome,
   type TeamOutcome,
 } from '@qzr/shared'
 import type { StoredQuiz } from './api'
@@ -15,8 +18,6 @@ export interface ResultRow {
   id: number
   /** "D1 Q3", or "D1c Q3" in consolation */
   name: string
-  /** The room that first submitted the quiz, as named then, or who uploaded it */
-  from: string
   /** In seat order, with each team's score and, once placed, its place and placement points */
   teams: TeamOutcome[]
   placed: boolean
@@ -36,16 +37,37 @@ export interface DivisionResults {
   quizzes: ResultRow[]
 }
 
+/**
+ * A quiz accepted as scored, placed by its scores whatever its errors, as the standings take it.
+ * Placement points follow the quiz's own formula, as for any other quiz on this page.
+ */
+function acceptedOutcome(file: QuizFile): QuizOutcome {
+  const scored = scoreStoredQuiz(file)
+  return {
+    placed: scored.teams.every((team) => team.place !== null),
+    teams: scored.teams.map((team) => ({
+      name: team.name,
+      score: team.score,
+      place: team.place,
+      placementPoints: computePlacementPoints(
+        team.regulationScore,
+        team.place,
+        file.quiz.placementFormula,
+      ),
+      errors: team.errors,
+    })),
+  }
+}
+
 /** A meet's stored quizzes grouped by the division each one records, as written */
 export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
   const divisions = new Map<string, ResultRow[]>()
   for (const s of stored) {
     const content = deserialize(s.quizFile)
-    const outcome = quizOutcome(content)
+    const outcome = s.accepted ? acceptedOutcome(s.quizFile) : quizOutcome(content)
     const row: ResultRow = {
       id: s.id,
       name: quizName(content.quiz),
-      from: s.origin.action === 'uploaded' ? `Uploaded by ${s.origin.name}` : s.origin.name,
       teams: outcome.teams,
       placed: outcome.placed,
       stage: s.stage,
@@ -68,6 +90,43 @@ export function groupResults(stored: StoredQuiz[]): DivisionResults[] {
       division,
       quizzes: quizzes.sort((a, b) => byNumber.compare(a.name, b.name)),
     }))
+}
+
+/** The names form on a stored quiz's page, as the user edits it */
+export interface NamesForm {
+  division: string
+  quizNumber: string
+  teams: { id: number; name: string; quizzers: { id: number; name: string }[] }[]
+}
+
+/**
+ * The names form for a newer revision (`fresh`), with each name the user changed from what the
+ * form was filled with (`was` to `typed`) put back. A name changed in the newer revision and left
+ * alone by the user keeps its new spelling.
+ */
+export function keepEdits(fresh: NamesForm, was: NamesForm, typed: NamesForm): NamesForm {
+  const edited = (now: string, before: string | undefined, fallback: string) =>
+    before !== undefined && now !== before ? now : fallback
+  return {
+    division: edited(typed.division, was.division, fresh.division),
+    quizNumber: edited(typed.quizNumber, was.quizNumber, fresh.quizNumber),
+    teams: fresh.teams.map((team) => {
+      const typedTeam = typed.teams.find((t) => t.id === team.id)
+      const wasTeam = was.teams.find((t) => t.id === team.id)
+      return {
+        id: team.id,
+        name: typedTeam ? edited(typedTeam.name, wasTeam?.name, team.name) : team.name,
+        quizzers: team.quizzers.map((quizzer) => {
+          const typedName = typedTeam?.quizzers.find((q) => q.id === quizzer.id)?.name
+          const wasName = wasTeam?.quizzers.find((q) => q.id === quizzer.id)?.name
+          return {
+            id: quizzer.id,
+            name: typedName === undefined ? quizzer.name : edited(typedName, wasName, quizzer.name),
+          }
+        }),
+      }
+    }),
+  }
 }
 
 /** The names the quick form can change in a stored quiz's file; what's left out stays as it is */
@@ -116,22 +175,23 @@ export function mergeEdits(
   from: string,
   into: string,
   team?: string,
-): { id: number; quizFile: QuizFile }[] {
+): { id: number; revision: number; quizFile: QuizFile }[] {
   const merged = foldName(from)
   // The stats that raised the look-alike name the division as the meet lists it
-  return stored.flatMap(({ id, quizFile }) => {
+  // Each edit carries the revision it was made from, for the save to name as its base
+  return stored.flatMap(({ id, revision, quizFile }) => {
     if (!sameDivision(quizFile.quiz.division, division)) return []
     if (team === undefined) {
       const renamed = quizFile.teams.filter((t) => foldName(t.name) === merged)
       if (renamed.length === 0) return []
       const teamNames = new Map(renamed.map((t) => [t.id, into]))
-      return [{ id, quizFile: editQuizFile(quizFile, { teamNames }) }]
+      return [{ id, revision, quizFile: editQuizFile(quizFile, { teamNames }) }]
     }
     const renamed = quizFile.teams
       .filter((t) => foldName(t.name) === foldName(team))
       .flatMap((t) => t.quizzers.filter((quizzer) => foldName(quizzer.name) === merged))
     if (renamed.length === 0) return []
     const quizzerNames = new Map(renamed.map((quizzer) => [quizzer.id, into]))
-    return [{ id, quizFile: editQuizFile(quizFile, { quizzerNames }) }]
+    return [{ id, revision, quizFile: editQuizFile(quizFile, { quizzerNames }) }]
   })
 }

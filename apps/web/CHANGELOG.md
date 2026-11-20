@@ -16,6 +16,47 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-19
+
+### Changed
+
+* The roadmap page lists guest access as available, and its Coming soon section follows the
+  project's roadmap: past meets' results, elim brackets that fill themselves, a review step and
+  stats across meets
+* Links from the portal to the scoresheet (header, footer, home page, schedule, a stored quiz's
+  "Open in scoresheet") open a new tab on a desktop, so the portal page stays open; on a phone they
+  still open in place
+* A stored quiz's Names form lines its teams up in one grid, a row per team and a column per seat,
+  with empty seats marked, in place of a boxed group per team whose names wrapped unevenly
+* Picking which room to upload saved quizzes for has a Cancel button, not only Escape
+* Stats settings' "As a viewer sees it" link reads "Preview as viewer", and the page it opens says
+  "Previewing as a viewer"
+* The results page's quiz list drops its From column, which mostly repeated Last saved beside it
+* The meet page no longer shows a separate Team names list: a meet's team names come from its roster
+  under Churches
+* "+ Room" and the new meet form's "+ Division" put the cursor in the new box, so its name can be
+  typed straight away
+
+### Fixed
+
+* Saving names on a stored quiz's page, or merging names on the results page, no longer undoes a
+  change saved since the page loaded, such as a correction sent from the scoresheet: the API refuses
+  the stale save. The quiz's page then brings itself up to date, keeping the user's changes where
+  they still apply, for them to save again; a merge skips such quizzes and says how many to merge
+  again
+* A link to a meet's page opened while signed out lands on the home page asking to sign in, then
+  goes on to that page once signed in, instead of dropping the link
+* The results page places a quiz accepted as scored by its scores, instead of showing it "not placed
+  yet" with no places. Teams level in an overtime that wasn't played stay unplaced for now (#199)
+* A new admin, coach or room code no longer reads as one-time: the dialog says it won't be shown
+  again, and that a lost code is replaced by generating a new one
+* The new meet form's division example is `2`, not `2C`: consolation lanes such as `2C` come from
+  the schedule, not from the meet's divisions
+
+### Bundled contract
+
+* `@qzr/shared@1.16.0` - unchanged
+
 ## [0.30.1] - 2026-11-20
 
 ### Changed

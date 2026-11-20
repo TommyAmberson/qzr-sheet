@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { scoresheetLink } from '../scoresheetLink'
 const scoresheetUrl = __SCORESHEET_URL__
 </script>
 
@@ -7,7 +8,7 @@ const scoresheetUrl = __SCORESHEET_URL__
     <div class="footer-inner">
       <span class="footer-copy">qzr-sheet</span>
       <div class="footer-links">
-        <a :href="scoresheetUrl" class="footer-link">Scoresheet</a>
+        <a :href="scoresheetUrl" v-bind="scoresheetLink" class="footer-link">Scoresheet</a>
         <RouterLink to="/roadmap" class="footer-link">Roadmap</RouterLink>
         <a
           href="https://github.com/TommyAmberson/qzr-sheet"

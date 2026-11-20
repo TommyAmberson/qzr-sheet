@@ -125,7 +125,8 @@ router.beforeEach(async (to) => {
   if (to.matched.some((r) => r.meta.guestAccess) && /^\d+$/.test(slug)) {
     if (joinedSession(Number(slug))) return true
   }
-  return { name: 'home' }
+  // Signed out: home, which asks them to sign in and then brings them back
+  return { name: 'home', query: { next: to.fullPath } }
 })
 
 export default router

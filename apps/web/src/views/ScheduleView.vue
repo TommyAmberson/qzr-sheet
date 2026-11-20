@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { scoresheetLink } from '../scoresheetLink'
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError, type ScheduleDocument, type SheetView } from '@qzr/shared'
@@ -95,7 +96,9 @@ onMounted(load)
       <div v-else-if="doc" class="sheet-scroll">
         <ScheduleSheet class="published" :doc="doc" :view="view">
           <template #quiz-title="{ quiz }">
-            <a class="quiz-title" :href="scoresheetHref(quiz.id)">{{ quiz.label }}</a>
+            <a class="quiz-title" :href="scoresheetHref(quiz.id)" v-bind="scoresheetLink">{{
+              quiz.label
+            }}</a>
           </template>
         </ScheduleSheet>
       </div>

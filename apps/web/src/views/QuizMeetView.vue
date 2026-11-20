@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vFocus } from '../directives'
 import { DivisionInput } from '@qzr/ui'
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
@@ -190,6 +191,9 @@ function churchSummary(church: Church): string {
 }
 
 // ---- Team names (Story 6) ----
+
+// Hidden: team names come from the roster, and this separate list is to be removed (#186)
+const teamNamesShown = false
 
 /** Each division's team names as the admin edits them, one per line */
 const teamNameText = ref<Record<string, string>>({})
@@ -821,8 +825,8 @@ onMounted(load)
         </div>
       </div>
 
-      <!-- Team names -->
-      <div v-if="isAdmin" class="section">
+      <!-- Team names, hidden until removed (#186) -->
+      <div v-if="isAdmin && teamNamesShown" class="section">
         <div class="section-header">
           <h3 class="section-title">Team names</h3>
           <div v-if="!teamNamesOpen" class="section-actions">
@@ -1029,6 +1033,7 @@ onMounted(load)
           <form v-if="showAddRoom" class="add-form" @submit.prevent="handleAddRoom">
             <input
               v-model="newRoomLabel"
+              v-focus
               class="field-input"
               placeholder="Label (e.g. Room 1)"
               required
@@ -1061,7 +1066,9 @@ onMounted(load)
             <button class="btn btn--secondary btn--sm" @click="copyCode">Copy</button>
           </div>
           <p v-if="accessDialog.revealedCode" class="dialog-hint">
-            This code is only shown now. Copy it before closing.
+            You won't see this code again, so copy it now. Lost it? Just generate a new one. This
+            one then stops working: signed-in members keep their access, and guests who joined with
+            it need the new code.
           </p>
 
           <div class="dialog-actions">

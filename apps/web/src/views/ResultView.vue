@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { scoresheetLink } from '../scoresheetLink'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -14,6 +15,7 @@ import { formatWhen, DivisionInput } from '@qzr/ui'
 
 import {
   editResult,
+  isStaleSave,
   getHistory,
   getMeet,
   getSender,
@@ -24,7 +26,7 @@ import {
   type MeetDetail,
   type StoredQuiz,
 } from '../api'
-import { editQuizFile } from '../results'
+import { editQuizFile, keepEdits, type NamesForm } from '../results'
 import { changeText, problemText } from '../stats'
 import { useRoomCode } from '../composables/useRoomCode'
 
@@ -63,14 +65,21 @@ const teamsByRevision = computed(
 )
 
 // The quick form (T026), filled from the current file
-const form = ref({
-  division: '',
-  quizNumber: '',
-  teams: [] as { id: number; name: string; quizzers: { id: number; name: string }[] }[],
-})
+const form = ref<NamesForm>({ division: '', quizNumber: '', teams: [] })
 
-function fillForm(file: QuizFile) {
-  form.value = {
+/** Seat columns in the names grid: the most quizzers any team has */
+// At least one column, so the grid's template stays valid for a quiz with no seats listed
+const seatCount = computed(() => Math.max(1, ...form.value.teams.map((t) => t.quizzers.length)))
+
+/**
+ * The form as last filled from a revision, and that revision. The save names it as its base, so the
+ * API refuses a save made from an older revision instead of letting it undo a newer one.
+ */
+const filledForm = ref<NamesForm>({ division: '', quizNumber: '', teams: [] })
+const formBase = ref<number | null>(null)
+
+function namesOf(file: QuizFile): NamesForm {
+  return {
     division: file.quiz.division,
     quizNumber: file.quiz.quizNumber,
     teams: file.teams.map((team) => ({
@@ -81,8 +90,19 @@ function fillForm(file: QuizFile) {
   }
 }
 
-async function load() {
-  loading.value = true
+function fillForm(file: QuizFile, revision: number) {
+  filledForm.value = namesOf(file)
+  form.value = namesOf(file)
+  formBase.value = revision
+}
+
+/**
+ * Load the quiz and its history, and fill the names form from the newest revision. `quiet` refreshes
+ * the page in place: no loading state, and a failure is returned rather than shown in place of the
+ * page, so whatever the user typed stays on screen. Null when it loaded.
+ */
+async function load({ quiet = false } = {}): Promise<string | null> {
+  if (!quiet) loading.value = true
   error.value = ''
   try {
     // A guest official's slug is the meet's id; their ended session is renewed on opening the page
@@ -95,24 +115,28 @@ async function load() {
       ])
       return { detail, history: entries, quizzes, who }
     })
-    if (!loaded) {
-      error.value = 'Join the meet again with your room code to see this quiz.'
-      return
-    }
+    if (!loaded) return failed('Join the meet again with your room code to see this quiz.')
     meet.value = loaded.detail
     history.value = loaded.history
     listed.value = loaded.quizzes.find((quiz) => quiz.id === resultId) ?? null
     isAdmin.value = loaded.who.admin
-    if (currentFile.value) fillForm(currentFile.value)
+    if (current.value) fillForm(current.value.quizFile, current.value.revision)
+    return null
   } catch (e) {
-    error.value =
+    return failed(
       e instanceof ApiError && e.status === 401
         ? 'Join the meet again with your room code to see this quiz.'
         : e instanceof ApiError && e.status === 403
           ? "Only the meet's admins and this quiz's room officials can see it."
-          : (e as Error).message
+          : (e as Error).message,
+    )
   } finally {
     loading.value = false
+  }
+
+  function failed(message: string): string {
+    if (!quiet) error.value = message
+    return message
   }
 }
 
@@ -124,16 +148,19 @@ function meetDivisionOf(typed: string): string {
   return findDivision(meet.value?.divisions ?? [], typed) ?? typed
 }
 
-/** Save the quick form's names as a new revision */
+/** Save the quick form's names as a new revision, made from the revision the form was filled from */
 async function saveForm() {
-  if (!meet.value || !currentFile.value) return
+  const base = history.value.find(
+    (entry): entry is Save => entry.kind === 'revision' && entry.revision === formBase.value,
+  )
+  if (!meet.value || !base) return
   saving.value = true
   saveError.value = ''
   try {
-    const edited = editQuizFile(currentFile.value, {
+    const edited = editQuizFile(base.quizFile, {
       // A division left as it was keeps its spelling, so editing a name never moves the quiz
       division:
-        form.value.division === currentFile.value.quiz.division
+        form.value.division === base.quizFile.quiz.division
           ? form.value.division
           : meetDivisionOf(bareDivision(form.value.division)),
       quizNumber: form.value.quizNumber,
@@ -143,14 +170,41 @@ async function saveForm() {
       ),
     })
     const meetId = meet.value.id
-    if (!(await renew(meetId, () => editResult(meetId, resultId, edited), { sameRoom: true })))
-      return
+    const saved = await renew(
+      meetId,
+      () => editResult(meetId, resultId, edited, { baseRevision: base.revision }),
+      { sameRoom: true },
+    )
+    if (!saved) return
     await load()
   } catch (e) {
-    saveError.value = (e as Error).message
+    if (isStaleSave(e)) await carryEditsForward()
+    else saveError.value = (e as Error).message
   } finally {
     saving.value = false
   }
+}
+
+/**
+ * After a save refused as stale (a correction sent from the scoresheet's tab, say): bring the page
+ * up to date, and keep the names the user changed, for them to save onto the newest revision
+ */
+async function carryEditsForward() {
+  const was = filledForm.value
+  const typed = form.value
+  const failed = await load({ quiet: true })
+  if (failed) {
+    // The page and the typed names stay as they were; saving again retries, and is refused again
+    // until the newest revision can be loaded
+    saveError.value =
+      `This quiz was changed somewhere else since this page loaded, and the latest version ` +
+      `couldn't be loaded (${failed}). Your changes are still here: try saving again.`
+    return
+  }
+  form.value = keepEdits(filledForm.value, was, typed)
+  saveError.value =
+    'This quiz was changed somewhere else since this page loaded, so the page has been brought ' +
+    'up to date. Your changes are kept where they still apply: check them and save again.'
 }
 
 async function restore(revision: number) {
@@ -199,7 +253,7 @@ function scoresheetHref(revision: number): string {
   return `${__SCORESHEET_URL__}?${query}`
 }
 
-onMounted(load)
+onMounted(() => void load())
 </script>
 
 <template>
@@ -237,26 +291,44 @@ onMounted(load)
       <section class="section">
         <h3 class="section-title">Names</h3>
         <form class="quick-form" @submit.prevent="saveForm">
-          <label>
-            Division
-            <!-- Its label says "Division", so the box shows no prefix of its own -->
-            <DivisionInput v-model="form.division" bare required />
-          </label>
-          <label>
-            Quiz number
-            <input v-model="form.quizNumber" required />
-          </label>
-          <fieldset v-for="team in form.teams" :key="team.id" class="team-fields">
-            <legend>Team</legend>
-            <input v-model="team.name" required :aria-label="`Team ${team.id} name`" />
-            <input
-              v-for="quizzer in team.quizzers"
-              :key="quizzer.id"
-              v-model="quizzer.name"
-              class="quizzer-name"
-              :aria-label="`Quizzer ${quizzer.id} name`"
-            />
-          </fieldset>
+          <div class="quiz-fields">
+            <label class="division-field">
+              Division
+              <!-- Its label says "Division", so the box shows no prefix of its own -->
+              <DivisionInput v-model="form.division" bare required />
+            </label>
+            <label class="quiz-number-field">
+              Quiz number
+              <input v-model="form.quizNumber" required />
+            </label>
+          </div>
+          <!-- One row per team, its seats in columns, so the names line up across teams -->
+          <div class="names-grid" :style="{ '--seats': seatCount }">
+            <span class="names-grid-head" aria-hidden="true">Team</span>
+            <span
+              v-for="n in seatCount"
+              :key="`seat${n}`"
+              class="names-grid-head"
+              aria-hidden="true"
+            >
+              Seat {{ n }}
+            </span>
+            <template v-for="team in form.teams" :key="team.id">
+              <input
+                v-model="team.name"
+                class="team-name"
+                required
+                :aria-label="`Team ${team.id} name`"
+              />
+              <input
+                v-for="quizzer in team.quizzers"
+                :key="quizzer.id"
+                v-model="quizzer.name"
+                placeholder="Empty seat"
+                :aria-label="`Quizzer ${quizzer.id} name`"
+              />
+            </template>
+          </div>
           <div class="form-actions">
             <button class="btn btn--primary btn--sm" type="submit" :disabled="saving">
               Save names
@@ -265,6 +337,7 @@ onMounted(load)
               v-if="current"
               class="btn btn--secondary btn--sm"
               :href="scoresheetHref(current.revision)"
+              v-bind="scoresheetLink"
             >
               Open in scoresheet
             </a>
@@ -305,7 +378,11 @@ onMounted(load)
                 >
                   Restore
                 </button>
-                <a class="btn btn--secondary btn--sm" :href="scoresheetHref(entry.revision)">
+                <a
+                  class="btn btn--secondary btn--sm"
+                  :href="scoresheetHref(entry.revision)"
+                  v-bind="scoresheetLink"
+                >
                   Open in scoresheet
                 </a>
               </div>
@@ -394,7 +471,20 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  max-width: 16rem;
+}
+
+.quiz-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.division-field {
+  width: 10rem;
+}
+
+.quiz-number-field {
+  width: 6rem;
 }
 
 .quick-form input {
@@ -406,21 +496,45 @@ onMounted(load)
   color: inherit;
 }
 
-.team-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
+.names-grid {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.4fr) repeat(var(--seats), minmax(0, 1fr));
+  gap: 0.4rem 0.5rem;
+  align-items: center;
 }
 
-.team-fields legend {
+.names-grid input {
+  min-width: 0;
+}
+
+.names-grid-head {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--color-text-faint);
 }
 
-.quizzer-name {
-  max-width: 10rem;
+.team-name {
+  /* Each team starts its own row, however many seats the one before it filled */
+  grid-column: 1;
+  font-weight: 600;
+}
+
+/* On a phone each team stacks: its name across the top, its seats two to a row */
+@media (max-width: 640px) {
+  .names-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .names-grid-head {
+    display: none;
+  }
+
+  .team-name {
+    grid-column: 1 / -1;
+    margin-top: 0.5rem;
+  }
 }
 
 .form-actions,

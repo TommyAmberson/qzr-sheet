@@ -300,7 +300,7 @@ function stepClass(d: DivisionState, state: DivisionStateValue) {
                 query: { as: 'viewer' },
               }"
             >
-              As a viewer sees it
+              Preview as viewer
             </router-link>
           </div>
           <ol class="steps">

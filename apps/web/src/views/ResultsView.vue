@@ -30,6 +30,7 @@ import {
 import {
   dismissNames,
   editResult,
+  isStaleSave,
   getAttention,
   getMeet,
   getPublishedSchedule,
@@ -377,16 +378,24 @@ async function mergeNames(division: string, names: [string, string], team?: stri
   merging.value = true
   mergeError.value = ''
   let done = 0
+  // A quiz saved again since the list loaded is left alone rather than overwritten, and the merge
+  // carries on with the rest; merging again, from the reloaded list, picks it up
+  let changed = 0
   try {
-    for (const { id, quizFile } of edits) {
-      if (
-        !(await renew(meetId, () => editResult(meetId, id, quizFile, 'merged'), { sameRoom: true }))
-      )
-        break
-      done += 1
+    for (const { id, revision, quizFile } of edits) {
+      const save = () =>
+        editResult(meetId, id, quizFile, { action: 'merged', baseRevision: revision })
+      try {
+        if (!(await renew(meetId, save, { sameRoom: true }))) break
+        done += 1
+      } catch (e) {
+        if (!isStaleSave(e)) throw e
+        changed += 1
+      }
     }
     if (done < edits.length && !mergeError.value) {
-      mergeError.value = `Merged ${done} of ${edits.length} quizzes. Merge again to finish.`
+      const why = changed ? ` ${changed} changed since this page loaded.` : ''
+      mergeError.value = `Merged ${done} of ${edits.length} quizzes.${why} Merge again to finish.`
     }
   } catch (e) {
     mergeError.value = `Merged ${done} of ${edits.length} quizzes: ${(e as Error).message} Merge again to finish.`
@@ -602,7 +611,6 @@ onMounted(load)
             <tr>
               <th>Quiz</th>
               <th>Teams</th>
-              <th>From</th>
               <th>Revision</th>
               <th>Last saved</th>
               <th>Stage and link</th>
@@ -641,7 +649,6 @@ onMounted(load)
                   {{ quiz.accepted ? 'Withdraw acceptance' : 'Accept as scored' }}
                 </button>
               </td>
-              <td class="cell-from" data-label="From">{{ quiz.from }}</td>
               <td class="cell-revision" data-label="Revision">{{ quiz.revision }}</td>
               <td class="cell-saved" data-label="Last saved">
                 {{ quiz.savedBy }}, {{ quiz.action }}, {{ formatSlotTime(quiz.savedAt) }}
@@ -801,7 +808,6 @@ onMounted(load)
       'quiz quiz'
       'teams teams'
       'stage stage'
-      'from from'
       'revision revision'
       'saved saved';
     padding: 0.6rem 0;
@@ -829,10 +835,6 @@ onMounted(load)
 
   .cell-teams {
     grid-area: teams;
-  }
-
-  .cell-from {
-    grid-area: from;
   }
 
   .cell-revision {

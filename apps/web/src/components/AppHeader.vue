@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { scoresheetLink } from '../scoresheetLink'
+import { phone as mobile } from '../viewport'
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
@@ -13,12 +15,10 @@ const { session, signOut } = useAuth()
 const signInHeld = ref(false)
 
 // After a failed social sign-in, open the sign-in menu the user can see: the
-// nav's on desktop, the sidebar's on mobile (opening the sidebar too). Keep
-// the breakpoint in step with the `.nav--desktop` media query below. Each copy
-// gets the error only when it is the visible one.
+// nav's on desktop, the sidebar's on mobile (opening the sidebar too), as
+// `viewport.ts` tells them apart. Each copy gets the error only when it is the
+// visible one.
 const { error: oauthError, clear: clearOauthError } = useSocialSignInError(useRouter())
-const mobile =
-  typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches
 
 const menuOpen = ref(false)
 // Opened once the session is known: signed in, the error is a failed
@@ -58,7 +58,7 @@ function handleSignOut() {
 
       <!-- Desktop nav -->
       <nav class="nav nav--desktop">
-        <a :href="scoresheetUrl" class="nav-link">Scoresheet</a>
+        <a :href="scoresheetUrl" v-bind="scoresheetLink" class="nav-link">Scoresheet</a>
         <RouterLink to="/roadmap" class="nav-link">Roadmap</RouterLink>
         <a
           href="https://github.com/TommyAmberson/qzr-sheet"
@@ -97,7 +97,9 @@ function handleSignOut() {
       <div v-if="menuOpen" class="sidebar-backdrop" @click="closeMenu" />
       <nav class="sidebar" :class="{ 'sidebar--open': menuOpen }">
         <button class="sidebar-close" aria-label="Close menu" @click="closeMenu">×</button>
-        <a :href="scoresheetUrl" class="sidebar-link" @click="closeMenu">Scoresheet</a>
+        <a :href="scoresheetUrl" v-bind="scoresheetLink" class="sidebar-link" @click="closeMenu"
+          >Scoresheet</a
+        >
         <RouterLink to="/roadmap" class="sidebar-link" @click="closeMenu">Roadmap</RouterLink>
         <a
           href="https://github.com/TommyAmberson/qzr-sheet"
