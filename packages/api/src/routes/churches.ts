@@ -1,9 +1,10 @@
 import { Hono } from 'hono'
-import { eq, and, inArray, sql } from 'drizzle-orm'
+import { eq, and, getTableColumns, getTableName, inArray, sql } from 'drizzle-orm'
+import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 import type { Bindings } from '../bindings'
 import type { SessionVariables } from '../middleware/session'
 import { requireAuth, requireAuthOrGuest, requireSuperuser, getUser } from '../middleware/session'
-import { asOne, createDb, type Db } from '../lib/db'
+import { asOne, chunksOf, createDb, inChunks, isUniqueViolation, type Db } from '../lib/db'
 import { generateCode, hashCode, wantsClearMembers } from '../lib/codes'
 import { isAdminOrSuperuser, isViewerOf } from '../lib/permissions'
 import * as schema from '../db/schema'
@@ -886,22 +887,40 @@ churches.post('/meets/:meetId/roster/import', requireAuth(), async (c) => {
   const churchNameToId = new Map<string, number>() // raw name → churchId
   const uniqueChurchNames = [...new Set(body.map((e) => e.church.trim()).filter(Boolean))]
 
-  let churchesCreated = 0
+  // Every row is written in one batch at the end, so a failure adds nothing. Rows refer to rows
+  // of the same batch, so their ids are given here, after the highest in use; another write
+  // taking one first makes the batch fail whole, on the key, rather than half-apply.
+  // A coach code for each church that may be new, hashed before the ids are read, so the window in
+  // which another write can take one of those ids stays as short as it can be
+  const isNew = (name: string) =>
+    !churchByName.has(name.toLowerCase()) && !churchByShortName.has(name.toLowerCase())
+  const codeHashes = new Map(
+    await Promise.all(
+      [...new Set(uniqueChurchNames.filter(isNew).map((n) => n.toLowerCase()))].map(
+        async (lower) => [lower, await hashCode(generateCode())] as const,
+      ),
+    ),
+  )
+  const nextIds = await nextIdsOf(db)
+  const newChurches: (typeof schema.churches.$inferInsert)[] = []
   for (const rawName of uniqueChurchNames) {
     const lower = rawName.toLowerCase()
     const existing = churchByName.get(lower) ?? churchByShortName.get(lower) ?? null
     if (existing) {
       churchNameToId.set(rawName, existing.id)
     } else {
-      const coachCode = generateCode()
-      const coachCodeHash = await hashCode(coachCode)
-      const [created] = await db
-        .insert(schema.churches)
-        .values({ meetId, name: rawName, shortName: rawName, coachCodeHash })
-        .returning()
-      churchNameToId.set(rawName, created!.id)
-      churchByName.set(lower, created!)
-      churchesCreated++
+      const coachCodeHash = codeHashes.get(lower)!
+      const church = {
+        id: nextIds.church++,
+        meetId,
+        name: rawName,
+        shortName: rawName,
+        coachCodeHash,
+      }
+      newChurches.push(church)
+      churchNameToId.set(rawName, church.id)
+      // A later spelling of the same name, in another case, joins this church
+      churchByName.set(lower, church as schema.Church)
     }
   }
 
@@ -932,22 +951,15 @@ churches.post('/meets/:meetId/roster/import', requireAuth(), async (c) => {
 
   // Load existing teams + rosters across all involved churches in two queries.
   const allChurchIds = [...new Set([...teamGroupMap.values()].map((g) => g.key.churchId))]
-  const existingTeams =
-    allChurchIds.length > 0
-      ? await db.select().from(schema.teams).where(inArray(schema.teams.churchId, allChurchIds))
-      : []
-  const existingRosterRows =
-    existingTeams.length > 0
-      ? await db
-          .select()
-          .from(schema.teamRosters)
-          .where(
-            inArray(
-              schema.teamRosters.teamId,
-              existingTeams.map((t) => t.id),
-            ),
-          )
-      : []
+  // Looked up in chunks, as a meet re-imported can hold more teams than D1 binds in one statement
+  const existingTeams = await inChunks(allChurchIds, 1, (ids) =>
+    db.select().from(schema.teams).where(inArray(schema.teams.churchId, ids)),
+  )
+  const existingRosterRows = await inChunks(
+    existingTeams.map((t) => t.id),
+    1,
+    (ids) => db.select().from(schema.teamRosters).where(inArray(schema.teamRosters.teamId, ids)),
+  )
 
   const rosterByTeam = new Map<number, string[]>()
   for (const row of existingRosterRows) {
@@ -971,8 +983,7 @@ churches.post('/meets/:meetId/roster/import', requireAuth(), async (c) => {
     }
   }
 
-  // Decide new teams + their quizzer lists up front, then write in two phases:
-  // (1) batch-insert teams, (2) batch-create quizzers pairing identity ids by slot.
+  // Decide new teams and their quizzer lists up front; they are written in the one batch below
   const teamPlans: Array<{
     insert: { meetId: number; churchId: number; division: string; number: number }
     names: string[]
@@ -995,27 +1006,73 @@ churches.post('/meets/:meetId/roster/import', requireAuth(), async (c) => {
     })
   }
 
-  const insertedTeams =
-    teamPlans.length > 0
-      ? await db
-          .insert(schema.teams)
-          .values(teamPlans.map((p) => p.insert))
-          .returning()
-      : []
+  const newTeams = teamPlans.map((plan) => ({ id: nextIds.team++, ...plan.insert }))
+  const rosterRows = teamPlans.flatMap((plan, idx) =>
+    plan.names.map((name) => ({ teamId: newTeams[idx]!.id, quizzerId: nextIds.quizzer++, name })),
+  )
+  const identities = rosterRows.map((row) => ({ id: row.quizzerId }))
 
-  const quizzerSlots: Array<{ teamId: number; name: string }> = []
-  insertedTeams.forEach((team, idx) => {
-    for (const name of teamPlans[idx]!.names) {
-      quizzerSlots.push({ teamId: team.id, name })
+  // Chunked by the table's columns, not a row's: Drizzle binds every column of an insert, the unset
+  // ones too, and D1 refuses a statement over its parameter cap. The test database has no such cap.
+  const chunked = <T>(table: Parameters<Db['insert']>[0], rows: T[]) =>
+    chunksOf(rows, Object.keys(getTableColumns(table)).length).map((chunk) =>
+      db.insert(table).values(chunk as never),
+    )
+  const statements = [
+    ...chunked(schema.churches, newChurches),
+    ...chunked(schema.teams, newTeams),
+    ...chunked(schema.quizzerIdentities, identities),
+    ...chunked(schema.teamRosters, rosterRows),
+  ]
+  try {
+    if (statements.length > 0) await asOne(db, statements)
+  } catch (e) {
+    console.error('Roster import failed', e)
+    if (isUniqueViolation(e)) {
+      return c.json({ error: 'The roster changed while it was importing; import it again' }, 409)
     }
-  })
-  await batchCreateQuizzers(db, quizzerSlots)
+    // The database's own words stay in the log
+    return c.json({ error: "The roster couldn't be imported, and nothing was added" }, 500)
+  }
 
   return c.json(
-    { churchesCreated, teamsCreated: insertedTeams.length, quizzersAdded: quizzerSlots.length },
+    {
+      churchesCreated: newChurches.length,
+      teamsCreated: newTeams.length,
+      quizzersAdded: rosterRows.length,
+    },
     201,
   )
 })
+
+/**
+ * The next free id of each table a roster import writes, so its rows can refer to each other. Past
+ * the highest id ever given, as AUTOINCREMENT keeps it, so a deleted row's id isn't given again.
+ */
+async function nextIdsOf(db: Db): Promise<{ church: number; team: number; quizzer: number }> {
+  const next = async (column: AnySQLiteColumn) => {
+    const table = getTableName(column.table)
+    const highest = sql<number>`coalesce(max(${column}), 0)`
+    const everGiven = sql<number>`coalesce((select seq from sqlite_sequence where name = ${table}), 0)`
+    try {
+      const [row] = await db
+        .select({ id: sql<number>`max(${highest}, ${everGiven}) + 1` })
+        .from(column.table)
+      return Number(row!.id)
+    } catch {
+      // Should the database refuse a read of its own sqlite_sequence, the highest id in use will do:
+      // it gives again only the id of a top row since deleted
+      const [row] = await db.select({ id: sql<number>`${highest} + 1` }).from(column.table)
+      return Number(row!.id)
+    }
+  }
+  const [church, team, quizzer] = await Promise.all([
+    next(schema.churches.id),
+    next(schema.teams.id),
+    next(schema.quizzerIdentities.id),
+  ])
+  return { church, team, quizzer }
+}
 
 // ---- Helpers ----
 

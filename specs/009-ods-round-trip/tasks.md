@@ -153,9 +153,9 @@ two sheets of one quiz are flagged before sending.
 **Purpose**: FR-017. Independent of the stories; can run any time. (FR-018, the other defect that
 import hit, is fixed by #200.)
 
-- [ ] T025 [P] Add failing cases to `packages/api/src/routes/__tests__/churches.spec.ts`: a 60-team, 300-quizzer roster imports in one call; an import that fails partway (for example a quizzer row the database refuses) leaves no churches, teams or quizzers, and answers with an error message (contracts/api.md)
-- [ ] T026 Make the roster import in `churches.post('/meets/:meetId/roster/import')` in `packages/api/src/routes/churches.ts` one batch through `asOne`, with every insert chunked by `chunksOf`, and later rows finding earlier rows' ids by sub-select on their natural keys (research R10), reusing `batchCreateQuizzers`; covered by T025
-- [ ] T027 Reload the roster after every import attempt, failed or not, and show the API's message, in `handleRosterFile` in `apps/web/src/views/QuizMeetView.vue`
+- [X] T025 [P] Add failing cases to `packages/api/src/routes/__tests__/churches.spec.ts`: a 60-team, 300-quizzer roster imports in one call; an import that fails partway (for example a quizzer row the database refuses) leaves no churches, teams or quizzers, and answers with an error message (contracts/api.md)
+- [X] T026 Make the roster import in `churches.post('/meets/:meetId/roster/import')` in `packages/api/src/routes/churches.ts` one batch through `asOne`, with every insert chunked by `chunksOf`, and later rows finding earlier rows' ids by sub-select on their natural keys (research R10), reusing `batchCreateQuizzers`; covered by T025
+- [X] T027 Reload the roster after every import attempt, failed or not, and show the API's message, in `handleRosterFile` in `apps/web/src/views/QuizMeetView.vue`
 
 ---
 

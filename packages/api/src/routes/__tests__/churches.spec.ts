@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { Bindings } from '../../bindings'
 import type { ChurchesVariables } from '../churches'
 import { churches } from '../churches'
@@ -1393,6 +1393,78 @@ describe('POST /api/meets/:meetId/roster/import', () => {
       env,
     )
     expect(res.status).toBe(403)
+  })
+
+  it('imports a large meet in one call: 60 teams, 300 quizzers', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const entries: ImportEntry[] = []
+    for (let t = 1; t <= 60; t++) {
+      for (let q = 1; q <= 5; q++) {
+        entries.push({
+          church: `Church ${Math.ceil(t / 3)}`,
+          division: `${(t % 3) + 1}`,
+          teamName: `Team ${t}`,
+          quizzerName: `Quizzer ${t}-${q}`,
+        })
+      }
+    }
+    const res = await app.request(`/api/meets/${meet.id}/roster/import`, importBody(entries), env)
+    expect(res.status).toBe(201)
+    expect(await res.json()).toEqual({ churchesCreated: 20, teamsCreated: 60, quizzersAdded: 300 })
+    expect(await db.select().from(schema.teams)).toHaveLength(60)
+    expect(await db.select().from(schema.teamRosters)).toHaveLength(300)
+  })
+
+  it('takes one church however its name is cased, and gives no deleted id again', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    const first = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([{ church: 'Grace', division: '1', teamName: 'A', quizzerName: 'Ann' }]),
+      env,
+    )
+    expect(first.status).toBe(201)
+    const [old] = await db.select().from(schema.teams)
+    await db.delete(schema.teams).where(eq(schema.teams.id, old!.id))
+    const res = await app.request(
+      `/api/meets/${meet.id}/roster/import`,
+      importBody([
+        { church: 'First Baptist', division: '1', teamName: 'B', quizzerName: 'Bo' },
+        { church: 'first baptist', division: '1', teamName: 'C', quizzerName: 'Cy' },
+      ]),
+      env,
+    )
+    expect(await res.json()).toMatchObject({ churchesCreated: 1, teamsCreated: 2 })
+    const teams = await db.select().from(schema.teams)
+    expect(teams.every((team) => team.id > old!.id)).toBe(true)
+  })
+
+  it('adds nothing when the import fails partway, and says why', async () => {
+    const app = createApp(testSuperuser, db)
+    const meet = await seedMeet(db)
+    db.run(sql`create trigger refuse before insert on team_rosters
+      begin select raise(abort, 'refused'); end`)
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const res = await app.request(
+        `/api/meets/${meet.id}/roster/import`,
+        importBody([
+          { church: 'Grace', division: 'Open', teamName: 'Eagles', quizzerName: 'Alice' },
+        ]),
+        env,
+      )
+      expect(res.status).toBe(500)
+      expect((await res.json()) as { error: string }).toMatchObject({
+        error: expect.stringMatching(/nothing was added/),
+      })
+    } finally {
+      logged.mockRestore()
+      db.run(sql`drop trigger refuse`)
+    }
+    expect(await db.select().from(schema.churches)).toEqual([])
+    expect(await db.select().from(schema.teams)).toEqual([])
+    expect(await db.select().from(schema.quizzerIdentities)).toEqual([])
   })
 
   it('creates churches, teams, and quizzers from scratch', async () => {
