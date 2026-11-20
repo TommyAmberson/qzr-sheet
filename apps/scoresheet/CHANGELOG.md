@@ -15,6 +15,18 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-20
+
+### Added
+
+* Opening a scheduled elimination quiz fills each bench the meet has settled with its team and
+  roster, from the confirmed orders and the quizzes that count, as a prelim quiz's drawn teams fill;
+  with the meet out of reach it opens as before (#16)
+
+### Bundled contract
+
+* `@qzr/shared@1.20.0` - bumped from 1.19.0
+
 ## [0.29.1] - 2026-11-20
 
 ### Changed
