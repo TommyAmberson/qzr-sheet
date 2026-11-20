@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import ScheduleSeat from './ScheduleSeat.vue'
+import ScheduleQuizMarks from './ScheduleQuizMarks.vue'
 import { divisionColourVar } from './divisionColour'
-import { markQuiz, resultText, type MarkedQuiz, type ScheduleMarks } from './scheduleMarks'
+import { markQuizzes, type ScheduleMarks } from './scheduleMarks'
 import {
   formatClock,
   roomDivisions,
   sheetRows,
   type Conflict,
   type DayQuiz,
-  type DayStatus,
   type ScheduleDocument,
   type ScheduleQuiz,
   type SheetView,
@@ -57,20 +56,7 @@ const emit = defineEmits<{
 const rows = computed(() => sheetRows(props.doc))
 
 /** Each quiz's benches as marked, worked out once per marks */
-const marked = computed(() => {
-  const marks = props.marks
-  if (!marks) return new Map<string, MarkedQuiz>()
-  return new Map(props.doc.quizzes.map((q) => [q.id, markQuiz(props.doc, q, marks)]))
-})
-
-/** The few words a quiz's status takes on the sheet; a played quiz shows its places instead */
-const STATUS_TEXT: Partial<Record<DayStatus, string>> = {
-  attention: 'Needs attention',
-  underReview: 'Under review',
-  notCounted: 'Not counted',
-  hidden: 'Result not shown yet',
-}
-const dayOf = (id: string) => props.marks?.quizzes.get(id)
+const marked = computed(() => markQuizzes(props.doc, props.marks))
 
 /** Days with quizzes, which each start a printed page; a day of only events follows on */
 const quizDays = computed(() => {
@@ -184,32 +170,16 @@ function tickOf(quiz: ScheduleQuiz) {
                   {{ c.quiz.label }}
                 </button>
               </slot>
-              <ScheduleSeat
-                v-for="(_, i) in c.quiz.seats"
-                :key="i"
-                class="seat"
+              <ScheduleQuizMarks
                 :doc="doc"
                 :quiz="c.quiz"
-                :index="i"
                 :view="view"
-                :settled="marked.get(c.quiz.id)?.benches[i]?.settled"
-                :result="marked.get(c.quiz.id)?.benches[i]?.result"
-                @click="emit('seat', c.quiz.id, i, target($event))"
+                :marked="marked.get(c.quiz.id)"
+                :day="marks?.quizzes.get(c.quiz.id)"
+                :status-title="statusTitle"
+                :plain="!editable"
+                @seat="(i, e) => emit('seat', c.quiz.id, i, target(e))"
               />
-              <!-- Teams of the result its benches don't name, and the quiz's status, if marked -->
-              <span
-                v-for="t in marked.get(c.quiz.id)?.unplaced ?? []"
-                :key="t.name"
-                class="unplaced"
-                >{{ t.name }}{{ resultText(t) ? ` · ${resultText(t)}` : '' }}</span
-              >
-              <span
-                v-if="dayOf(c.quiz.id) && STATUS_TEXT[dayOf(c.quiz.id)!.status]"
-                class="status"
-                :class="`status-${dayOf(c.quiz.id)!.status}`"
-                :title="statusTitle?.(dayOf(c.quiz.id)!) || undefined"
-                >{{ STATUS_TEXT[dayOf(c.quiz.id)!.status] }}</span
-              >
             </div>
             <button
               v-else-if="c.kind === 'event'"
@@ -422,36 +392,6 @@ function tickOf(quiz: ScheduleQuiz) {
     box-shadow 0.12s;
 }
 
-/* A result team no bench names, and a quiz's status: small, under its benches */
-.unplaced,
-.status {
-  font-size: 0.7rem;
-  line-height: 1.2;
-  text-align: center;
-}
-
-.unplaced {
-  color: var(--color-text-muted, #6b6560);
-}
-
-.status {
-  padding: 0 0.35rem;
-  border-radius: 999px;
-  color: var(--color-text-muted, #6b6560);
-  font-style: italic;
-}
-
-.status-attention {
-  background: var(--color-warn-bg, #fdf2e2);
-  color: var(--color-warn, #a60);
-  font-style: normal;
-  font-weight: 600;
-}
-
-.status-underReview {
-  color: var(--color-warn, #a60);
-}
-
 .quiz:hover {
   box-shadow: inset 0 0 0 1px var(--color-meta-accent, #c9c0a8);
 }
@@ -478,7 +418,7 @@ function tickOf(quiz: ScheduleQuiz) {
 }
 
 /* Room for a long source beside a centred line */
-.sheet .seat {
+.sheet :deep(.seat) {
   min-width: 12rem;
 }
 
@@ -616,7 +556,7 @@ function tickOf(quiz: ScheduleQuiz) {
     font-size: 7.5pt;
   }
 
-  .sheet .seat {
+  .sheet :deep(.seat) {
     min-width: 0;
   }
 

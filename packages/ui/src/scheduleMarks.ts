@@ -4,6 +4,7 @@ import {
   foldName,
   benchKey,
   type DayQuiz,
+  type DayStatus,
   type DayTeam,
   type ScheduleDocument,
   type ScheduleQuiz,
@@ -52,6 +53,15 @@ export function markQuiz(
   return { benches, unplaced: left }
 }
 
+/** Every quiz of the schedule marked, by id; none without marks, as the builder has */
+export function markQuizzes(
+  doc: ScheduleDocument,
+  marks: ScheduleMarks | null,
+): Map<string, MarkedQuiz> {
+  if (!marks) return new Map()
+  return new Map(doc.quizzes.map((q) => [q.id, markQuiz(doc, q, marks)]))
+}
+
 /** The team on a bench to match a result to: its settled team, or a drawn letter's */
 function benchTeam(
   doc: ScheduleDocument,
@@ -78,4 +88,12 @@ export function resultText(team: DayTeam): string {
   if (team.place === undefined) return ''
   const place = `${team.tiedWith && team.tiedWith > 1 ? '=' : ''}${ordinal(team.place)}`
   return team.score === undefined ? place : `${place} · ${team.score}`
+}
+
+/** The few words a quiz's status reads as on the schedule; a quiz played or not in says nothing */
+export const STATUS_TEXT: Partial<Record<DayStatus, string>> = {
+  attention: 'Needs attention',
+  underReview: 'Under review',
+  notCounted: 'Not counted',
+  hidden: 'Result not shown yet',
 }

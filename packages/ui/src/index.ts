@@ -59,6 +59,7 @@ export type {
 } from './guestSession'
 export { default as ScheduleSheet } from './ScheduleSheet.vue'
 export { default as ScheduleSeat } from './ScheduleSeat.vue'
+export { default as ScheduleList } from './ScheduleList.vue'
 export { divisionColourVar } from './divisionColour'
 export { browserTimeZone, formatSlotTime, formatWhen } from './formatTime'
 export { default as ScheduleBasic } from './ScheduleBasic.vue'

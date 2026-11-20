@@ -93,12 +93,12 @@
   font-weight: 700;
 }
 
-.qz-seat:hover .qz-seat-line {
+button.qz-seat:hover .qz-seat-line {
   border-bottom-color: var(--qc, var(--color-accent));
   background: color-mix(in srgb, var(--qc, var(--color-accent)) 12%, transparent);
 }
 
-.qz-seat:hover .qz-seat-src {
+button.qz-seat:hover .qz-seat-src {
   color: var(--qc, var(--color-accent));
 }
 

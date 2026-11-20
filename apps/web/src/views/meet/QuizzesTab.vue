@@ -1061,6 +1061,8 @@ async function mergeNames(division: string, names: [string, string], team?: stri
 
 .quizzes-header {
   display: flex;
+  /* Its controls wrap under the title at phone width rather than push the page sideways (SC-005) */
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
   margin-top: 1rem;
