@@ -56,9 +56,13 @@ What a step does outside the quiz (the meet picks a team swap moves) is not stor
 * **Kept** (FR-008): a record is a recent quiz only while it has `saved` or `submitted`, its undo or
   redo steps are not empty, or `current`'s file differs from `start`. A tab writes its record either
   way, so a reload brings back the quiz and its link (FR-002); one that isn't kept is never listed,
-  offered or matched, and is deleted once no tab holds it.
+  offered or matched. The 40 most recent such records no tab holds are kept, for a tab the browser
+  restores but hasn't loaded yet; older ones are deleted. One a tab leaves for New, Open or a
+  restore is deleted at once, since no reload comes back to it.
 * **One per quiz** (FR-008): a record is written over in place; continuing it by Open or restore
   claims the same record.
+* **Unsaved** (FR-009): `unsaved` is true when `current` matches neither saved state, or when the
+  latest state held as `ahead` matches neither: the work it holds is the quiz's own.
 * **Matching an Open** (FR-023): the opened file, canonical, equals `current`'s, `saved`'s or
   `submitted`'s file of a recent record (for `submitted`, from the meet and with the same scheduled
   quiz too). The most recent `changedAt` wins among records the tab can claim. The tab's own record,
@@ -83,8 +87,8 @@ What a step does outside the quiz (the meet picks a team swap moves) is not stor
 
 * **In a tab ⇄ recent** is only the lock: nothing is written when a tab closes (research R2).
 * **Not kept**: a record whose state is still its start, with no undo or redo steps and nothing
-  saved or submitted, is written for its tab's reload only; once no tab holds it, the next pass that
-  keeps the limits deletes it.
+  saved or submitted, is written for its tab's reload only; once no tab holds it, it is kept among
+  the 40 most recent such records, then deleted.
 * **Positioned behind**: after Open or restore matches `saved` or `submitted` rather than `current`,
   the old `current` moves to `ahead` and the matched state becomes `current`, with the steps between
   as redo when the histories join. Redoing up to `ahead` clears it. The first edit while `ahead` is
