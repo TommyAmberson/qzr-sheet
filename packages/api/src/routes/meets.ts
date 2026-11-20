@@ -39,8 +39,18 @@ function getDb(c: { get(key: 'db'): Db }): Db {
 /** A path parameter made only of digits names a meet by id; anything else is a viewer code */
 const MEET_ID = /^\d+$/
 
-/** Top-level portal paths a meet's viewer code can't take. */
-const RESERVED_VIEWER_CODES = new Set(['account', 'builder', 'roadmap'])
+/**
+ * Top-level paths under `/qzr/` a meet's viewer code can't take: the portal's own pages, the
+ * scoresheet app, this API, and the portal's build files.
+ */
+const RESERVED_VIEWER_CODES = new Set([
+  'account',
+  'api',
+  'assets',
+  'builder',
+  'roadmap',
+  'scoresheet',
+])
 
 /**
  * Why a viewer code is refused, or null. Codes are slugs, and never all digits so a `?meet=` link
@@ -49,9 +59,16 @@ const RESERVED_VIEWER_CODES = new Set(['account', 'builder', 'roadmap'])
 function viewerCodeProblem(code: string): string | null {
   if (!/^[A-Za-z0-9-]+$/.test(code)) return 'Viewer code may use only letters, digits, and hyphens'
   if (MEET_ID.test(code)) return "Viewer code can't be only digits; add a letter"
-  // The portal's own pages sit beside meets at the top level.
   if (RESERVED_VIEWER_CODES.has(code.toLowerCase())) return 'That viewer code is reserved'
   return null
+}
+
+async function currentViewerCode(db: Db, id: number): Promise<string | undefined> {
+  const [meet] = await db
+    .select({ viewerCode: schema.quizMeets.viewerCode })
+    .from(schema.quizMeets)
+    .where(eq(schema.quizMeets.id, id))
+  return meet?.viewerCode
 }
 
 function viewerCodeTaken(c: Context<Env>) {
@@ -158,7 +175,12 @@ meets.patch('/:id', requireAuth(), async (c) => {
   const viewerCode = body.viewerCode?.trim()
   if (viewerCode) {
     const problem = viewerCodeProblem(viewerCode)
-    if (problem) return c.json({ error: problem }, 400)
+    // The edit form sends the code with every change, so a meet keeps the address it has, even one a
+    // later rule refuses; only a new address is checked, and case doesn't change an address
+    const current = problem ? await currentViewerCode(db, id) : undefined
+    if (problem && viewerCode.toLowerCase() !== current?.toLowerCase()) {
+      return c.json({ error: problem }, 400)
+    }
     updates.viewerCode = viewerCode
   }
   if (Array.isArray(body.divisions) && body.divisions.length > 0) {

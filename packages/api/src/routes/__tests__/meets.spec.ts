@@ -132,6 +132,9 @@ describe('meet CRUD', () => {
       ['fall_2025', 'an underscore'],
       ['Account', 'the portal account page'],
       ['builder', 'the schedule builder page'],
+      ['Scoresheet', 'the scoresheet app'],
+      ['api', 'the API'],
+      ['assets', "the portal's build files"],
     ])('refuses viewer code %j (%s) with 400', async (viewerCode) => {
       const res = await app.request('/api/meets', json({ ...newMeet, viewerCode }), env)
       expect(res.status).toBe(400)
@@ -290,6 +293,41 @@ describe('meet CRUD', () => {
       const body = await jsonOf<MeetBody>(res)
       expect(body.meet.name).toBe('New Name')
       expect(body.meet.dateFrom).toBe('2025-01-01')
+    })
+
+    it('saves a meet that kept a code reserved after it was taken', async () => {
+      const createRes = await app.request('/api/meets', json({ ...newMeet, viewerCode: 'x' }), env)
+      const { meet } = (await createRes.json()) as MeetBody
+      await db
+        .update(schema.quizMeets)
+        .set({ viewerCode: 'assets' })
+        .where(eq(schema.quizMeets.id, meet.id))
+
+      // The edit form sends the meet's code along with every change
+      const res = await app.request(
+        `/api/meets/${meet.id}`,
+        patch({ name: 'Renamed', viewerCode: 'assets' }),
+        env,
+      )
+      expect(res.status).toBe(200)
+      const refused = await app.request(
+        `/api/meets/${meet.id}`,
+        patch({ viewerCode: 'scoresheet' }),
+        env,
+      )
+      expect(refused.status).toBe(400)
+    })
+
+    it("keeps a now-reserved code when only its case changes, since the address doesn't", async () => {
+      const createRes = await app.request('/api/meets', json({ ...newMeet, viewerCode: 'x' }), env)
+      const { meet } = (await createRes.json()) as MeetBody
+      await db
+        .update(schema.quizMeets)
+        .set({ viewerCode: 'Assets' })
+        .where(eq(schema.quizMeets.id, meet.id))
+
+      const res = await app.request(`/api/meets/${meet.id}`, patch({ viewerCode: 'assets' }), env)
+      expect(res.status).toBe(200)
     })
 
     it('returns 404 for non-existent meet', async () => {

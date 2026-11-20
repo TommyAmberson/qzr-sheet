@@ -17,6 +17,17 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-11-20
+
+### Fixed
+
+* A meet's viewer code can't be `scoresheet`, `api` or `assets`, which the app's own addresses use,
+  so its page would never open
+
+### Bundled contract
+
+* `@qzr/shared@1.18.0` - unchanged
+
 ## [0.32.0] - 2026-11-20
 
 ### Added
