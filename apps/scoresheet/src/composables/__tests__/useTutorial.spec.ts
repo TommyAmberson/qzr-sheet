@@ -7,6 +7,7 @@ import {
   startTab,
   writeRecord,
 } from '../../persistence/autoSave'
+import { aRecord } from '../../persistence/__tests__/records'
 import { useScoresheet } from '../useScoresheet'
 import { useTutorial } from '../useTutorial'
 import { useMeetSession } from '../useMeetSession'
@@ -181,6 +182,31 @@ describe('useTutorial — meet link', () => {
     t.start()
     t.finish()
     expect(s.teams.value[0]!.name).toBe('Lions')
+  })
+
+  it('gives back the quiz set aside, never over a quiz restored while it runs', async () => {
+    const other = aRecord({ offered: true })
+    await writeRecord(other)
+    const s = useScoresheet()
+    s.setTeamName(T(0), 'Mine')
+    const t = useTutorial(s)
+    t.start()
+    s.restoreQuiz(other, (await claimRecord(other.id))!, 'current')
+    t.finish()
+    s.flushAutoSave()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(JSON.parse((await readRecord(other.id))!.current!.file).teams[0].name).toBe('')
+    expect((await listRecent()).some((r) => r.current?.file.includes('Mine'))).toBe(true)
+  })
+
+  it('sets nothing aside twice when started again while it runs', () => {
+    const s = useScoresheet()
+    s.setTeamName(T(0), 'Mine')
+    const t = useTutorial(s)
+    t.start()
+    t.start()
+    t.finish()
+    expect(s.teams.value[0]!.name).toBe('Mine')
   })
 
   it('keeps no stray copy of a quiz restored at an earlier state', async () => {

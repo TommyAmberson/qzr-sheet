@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   claimRecord,
+  currentTab,
   discardRecent,
   listRecent,
   openTabCount,
@@ -164,6 +165,30 @@ describe("a tab's start", () => {
     expect(await readRecord(tab.id)).toBeDefined()
   })
 
+  it("never continues a newer version's quiz on Open", async () => {
+    const file = aRecord().current!.file
+    await writeRecord(
+      aRecord({ current: undefined, newerRaw: '{"version":999}', saved: { file, undo: [] } }),
+    )
+    await startTab()
+    expect(await findMatch({ file })).toBeNull()
+    // Nor one a newer version wrote itself, its current file still in place
+    const newer = JSON.stringify({ version: FILE_VERSION + 1 })
+    await writeRecord(
+      aRecord({ current: { file: newer, undo: [], redo: [] }, saved: { file, undo: [] } }),
+    )
+    expect(await findMatch({ file })).toBeNull()
+  })
+
+  it('keeps the records written only for a reload a while, for tabs not loaded yet', async () => {
+    const file = aRecord().current!.file
+    const lazy = aRecord({ current: { file, undo: [], redo: [] }, start: file })
+    await writeRecord(lazy)
+    await startTab()
+    expect(await readRecord(lazy.id)).toBeDefined()
+    expect(await listRecent()).toEqual([])
+  })
+
   it('copies the record when another tab holds it, as a duplicated tab finds', async () => {
     const record = aRecord({
       link,
@@ -260,11 +285,96 @@ describe('moving from the previous version', () => {
     expect(localStorage.length).toBe(0)
   })
 
+  it('moves what a previous version tab wrote after the first move, as a recent quiz', async () => {
+    await writeMeta('migrated', true)
+    const left = quiz()
+    localStorage.setItem('qzr-sheet:current', left)
+    const tab = await startTab({ byLink: true })
+    expect(tab.record).toBeUndefined()
+    expect(await listRecent(tab.id)).toHaveLength(1)
+    expect(localStorage.getItem('qzr-sheet:current')).toBeNull()
+    // Written again as it stands, it is not moved twice
+    localStorage.setItem('qzr-sheet:current', left)
+    currentTab()!.claim.release()
+    sessionStorage.clear()
+    await startTab({ byLink: true })
+    expect(await listRecent(currentTab()!.id)).toHaveLength(1)
+  })
+
+  it('lists a later copy rather than offering it, replacing the last one while unchanged', async () => {
+    localStorage.setItem('qzr-sheet:current', quiz())
+    await startTab()
+    // The previous version's tab, still open, scores on
+    const scored = (n: number) => {
+      const store = createQuizStore()
+      for (let q = 1; q <= n; q++)
+        store.setAnswer(store.quizzers[0]!.id, String(q), CellValue.Correct)
+      return serializeStore(store, new Map(), new Map())
+    }
+    const restart = async () => {
+      currentTab()!.claim.release()
+      sessionStorage.clear()
+      await startTab()
+    }
+    const copies = async () =>
+      (await listRecent(currentTab()!.id)).filter((r) => r.id !== currentTab()!.id)
+    for (const n of [2, 3]) {
+      localStorage.setItem('qzr-sheet:current', scored(n))
+      await restart()
+    }
+    const late = (await copies()).filter((r) => JSON.parse(r.current!.file).answers.length > 1)
+    expect(late).toHaveLength(1)
+    expect(late[0]!.offered).toBe(true)
+    // Continued in this version, the copy is no longer the tab's to replace
+    const continued = { ...late[0]!, current: { ...late[0]!.current!, file: scored(5) } }
+    await writeRecord(continued)
+    localStorage.setItem('qzr-sheet:current', scored(4))
+    await restart()
+    const files = (await copies()).map((r) => JSON.parse(r.current!.file).answers.length)
+    expect(files).toContain(5)
+    expect(files).toContain(4)
+  })
+
+  it('moves a later copy with the link written with it, and none when it is gone', async () => {
+    localStorage.setItem('qzr-sheet:current', quiz())
+    localStorage.setItem('qzr-meet-session', JSON.stringify(meet))
+    await startTab()
+    // Unlinked: the previous version removes its link key
+    const store = createQuizStore()
+    store.setAnswer(store.quizzers[0]!.id, '1', CellValue.Correct)
+    store.setAnswer(store.quizzers[0]!.id, '2', CellValue.Correct)
+    localStorage.setItem('qzr-sheet:current', serializeStore(store, new Map(), new Map()))
+    currentTab()!.claim.release()
+    sessionStorage.clear()
+    await startTab()
+    const copy = (await listRecent(currentTab()!.id)).find(
+      (r) => JSON.parse(r.current!.file).answers.length === 2,
+    )
+    expect(copy!.link).toBeNull()
+    // A link written alone waits for the quiz it goes with
+    localStorage.setItem('qzr-meet-session', JSON.stringify(meet))
+    currentTab()!.claim.release()
+    sessionStorage.clear()
+    await startTab()
+    expect(localStorage.getItem('qzr-meet-session')).not.toBeNull()
+  })
+
+  it("keeps a newer version's quiz the sheet held beside a readable tutorial copy", async () => {
+    const newer = JSON.stringify({ version: FILE_VERSION + 1 })
+    localStorage.setItem('qzr-sheet:current', newer)
+    localStorage.setItem('qzr-sheet:tutorial-snapshot', quiz())
+    const tab = await startTab()
+    expect(JSON.parse(tab.record!.current!.file).answers).toHaveLength(1)
+    expect((await listRecent(tab.id)).map((r) => r.newerRaw)).toEqual([newer])
+  })
+
   it('moves nothing another tab moved meanwhile', async () => {
     localStorage.setItem('qzr-sheet:current', quiz())
     locks.holdAsOtherTab('qzr-sheet:migrate')
     const started = startTab()
+    // The other tab moves the key into a record of its own, and removes it
     await writeMeta('migrated', true)
+    localStorage.removeItem('qzr-sheet:current')
     locks.closeOtherTab('qzr-sheet:migrate')
     const tab = await started
     expect(tab.record).toBeUndefined()

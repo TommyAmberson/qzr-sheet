@@ -17,6 +17,15 @@ describe("useTutorial — without the device's storage", () => {
     expect(s.canUndo.value).toBe(true)
   })
 
+  it('ends when the quiz is replaced while it runs', () => {
+    const s = useScoresheet()
+    s.setCell(toTeamIdx(0), toSeatIdx(0), toColIdx(0), CellValue.Correct)
+    const t = useTutorial(s)
+    t.start()
+    s.replaceQuiz()
+    expect(t.active.value).toBe(false)
+  })
+
   it('says the quiz is not being kept when the tab could not start', async () => {
     const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
       throw new DOMException('blocked', 'SecurityError')

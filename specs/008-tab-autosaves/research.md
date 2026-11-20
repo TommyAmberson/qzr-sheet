@@ -222,7 +222,13 @@ does it, moves the old keys into records and removes them (FR-017):
   the previous version kept in place while scoring went on in `qzr-sheet:current`: then the snapshot
   becomes a newer record and `qzr-sheet:current` the tab's record.
 
-A key is removed only after its record is written, so a failure leaves it for the next start.
+A key is removed only after its record is written, so a failure leaves it for the next start. A tab
+of the previous version still open after the first move keeps writing its keys; any start that finds
+them moves them again, as recent quizzes listed rather than offered or taken as the starting tab's
+own, skipping a quiz already moved as it stands. A later copy of its sheet replaces the last one
+while no tab holds it and nothing was done to it since. Its meet link is the one written with it:
+that tab writes the link only when it changes, so a link written alone stays until the quiz it goes
+with is moved.
 
 ## R12. The tutorial
 

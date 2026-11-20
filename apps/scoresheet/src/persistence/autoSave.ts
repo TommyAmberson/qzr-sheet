@@ -63,6 +63,11 @@ interface Meta {
   dropped: string[]
   /** The previous version's keys were moved into records */
   migrated: boolean
+  /**
+   * The record a previous version's sheet quiz was last moved to, as it was moved: what a tab of
+   * that version, still open, writes later replaces it there while it is still that copy
+   */
+  previousSheet: { id: string; file: string }
 }
 
 interface RecordsSchema extends DBSchema {
@@ -131,6 +136,9 @@ const byChange = (a: QuizRecord, b: QuizRecord) => a.changedAt - b.changedAt
 
 const UNSAVED_LIMIT = 80
 const SAVED_LIMIT = 40
+// Records written only for a tab's reload, kept a while so a tab the browser restores but hasn't
+// loaded yet still finds its own
+const UNKEPT_LIMIT = 40
 
 /** A state's quiz file as stored, or null when there is none or it can't be read */
 export function storedQuizFile(file: string | undefined): QuizFile | null {
@@ -149,16 +157,17 @@ function recordName(record: QuizRecord): string {
 }
 
 /**
- * Keep the 80 most recently changed unsaved recent quizzes and the 40 saved ones, deleting the rest,
- * and remember the unsaved ones dropped so they can be named once. Quizzes in tabs don't count.
+ * Keep the 80 most recently changed unsaved recent quizzes, the 40 saved ones and the 40 records
+ * written only for a tab's reload, deleting the rest, and remember the unsaved ones dropped so they
+ * can be named once. Quizzes in tabs don't count.
  */
 export async function enforceLimits(ownId = tab?.id): Promise<void> {
-  const left = await unheld(ownId)
+  const newestFirst = (await unheld(ownId)).sort(byChange).reverse()
+  const kept = newestFirst.filter(isKept)
+  const unsaved = kept.filter((r) => r.unsaved).slice(UNSAVED_LIMIT)
+  const saved = kept.filter((r) => !r.unsaved).slice(SAVED_LIMIT)
   // A quiz with nothing done by hand was written only for its tab's reload
-  const newestFirst = left.filter(isKept).sort(byChange).reverse()
-  const unsaved = newestFirst.filter((r) => r.unsaved).slice(UNSAVED_LIMIT)
-  const saved = newestFirst.filter((r) => !r.unsaved).slice(SAVED_LIMIT)
-  const notKept = left.filter((r) => !isKept(r))
+  const notKept = newestFirst.filter((r) => !isKept(r)).slice(UNKEPT_LIMIT)
   await deleteRecords([...unsaved, ...saved, ...notKept].map((record) => record.id))
   if (unsaved.length > 0) await changeDropped((dropped) => [...dropped, ...unsaved.map(recordName)])
 }
@@ -200,6 +209,11 @@ async function deleteRecords(ids: string[]): Promise<string[]> {
   }
 }
 
+/** Delete the record this tab holds, which no other tab can take meanwhile */
+export async function deleteOwnRecord(id: string): Promise<void> {
+  await (await records()).delete('quizzes', id)
+}
+
 /** Discard a recent quiz; false when a tab took it meanwhile */
 export async function discardRecent(id: string): Promise<boolean> {
   return (await deleteRecords([id])).length > 0
@@ -211,9 +225,14 @@ export async function discardRecent(id: string): Promise<boolean> {
  */
 export function readable(record: QuizRecord): QuizRecord {
   const file = record.current?.file
-  const version = storedQuizFile(file)?.version
-  if (!file || version === undefined || version <= FILE_VERSION) return record
+  if (!file || !isNewerFile(file)) return record
   return { ...record, current: undefined, newerRaw: file, fromNewerFile: true, offered: true }
+}
+
+/** A quiz file a newer version wrote, which this version can't read */
+function isNewerFile(file: string | null | undefined): boolean {
+  const version = storedQuizFile(file ?? undefined)?.version
+  return version !== undefined && version > FILE_VERSION
 }
 
 /**
@@ -348,8 +367,10 @@ function matchingState(record: QuizRecord, { file, fromMeet }: Opened): StateKin
  */
 export async function findMatch(opened: Opened, ownId = tab?.id): Promise<Match | 'held' | null> {
   try {
+    // A newer version's quiz is none to continue: this version can't show it
+    const continuable = (r: QuizRecord) => readable(r).current !== undefined
     const candidates = (await (await records()).getAll('quizzes'))
-      .filter((r) => r.id !== ownId && isKept(r) && matchingState(r, opened))
+      .filter((r) => r.id !== ownId && continuable(r) && isKept(r) && matchingState(r, opened))
       .sort(byChange)
       .reverse()
     let held = false
@@ -359,8 +380,9 @@ export async function findMatch(opened: Opened, ownId = tab?.id): Promise<Match 
         held = true
         continue
       }
-      const state = claim.record && matchingState(claim.record, opened)
-      if (claim.record && state) return { record: claim.record, claim, state }
+      const now = claim.record && continuable(claim.record) ? claim.record : undefined
+      const state = now && matchingState(now, opened)
+      if (now && state) return { record: now, claim, state }
       claim.release()
     }
     return held ? 'held' : null
@@ -600,19 +622,46 @@ const OLD_KEYS = {
  * which becomes the starting tab's.
  */
 async function migrate(): Promise<string | undefined> {
-  if (await readMeta('migrated')) return undefined
-  if (!navigator.locks) return moveOldKeys()
-  return navigator.locks.request('qzr-sheet:migrate', async () =>
-    (await readMeta('migrated')) ? undefined : moveOldKeys(),
+  if ((await readMeta('migrated')) && !hasOldKeys()) return undefined
+  const move = async () => {
+    // A tab of the previous version, still open after the first move, kept writing its keys:
+    // what it left is moved too, as recent quizzes, never as this tab's own
+    const first = !(await readMeta('migrated'))
+    const sheetId = await moveOldKeys({ first })
+    return first ? sheetId : undefined
+  }
+  if (!navigator.locks) return move()
+  return navigator.locks.request('qzr-sheet:migrate', move)
+}
+
+function hasOldKeys(): boolean {
+  return (
+    Object.values(OLD_KEYS).some((key) => localStorage.getItem(key) !== null) ||
+    listOldNewerKeys().length > 0
   )
 }
 
-async function moveOldKeys(): Promise<string | undefined> {
+async function moveOldKeys({ first = true } = {}): Promise<string | undefined> {
   const moved: string[] = []
   let failed = false
+  // What earlier starts moved already, as it still stands: moved again, it would be a second copy
+  const known = new Set(
+    (await (await records()).getAll('quizzes')).flatMap((r) => r.current?.file ?? r.newerRaw ?? []),
+  )
+  /** Write `record` and let its keys go; false when it was moved already, or couldn't be */
   const keep = async (record: QuizRecord, keys: string[]) => {
-    if (await writeRecord(record)) moved.push(...keys)
-    else failed = true
+    const as = record.current?.file ?? record.newerRaw!
+    if (known.has(as)) {
+      moved.push(...keys)
+      return false
+    }
+    if (!(await writeRecord(record))) {
+      failed = true
+      return false
+    }
+    known.add(as)
+    moved.push(...keys)
+    return true
   }
 
   const sheetKeys = [OLD_KEYS.quiz, OLD_KEYS.meetSession, OLD_KEYS.fromNewerFile]
@@ -622,8 +671,10 @@ async function moveOldKeys(): Promise<string | undefined> {
     OLD_KEYS.tutorialFromNewerFile,
   ]
   /** The quiz kept under `keys` as a record; the record, unless there was none to keep */
+  const previous = first ? undefined : await readMeta('previousSheet')
   const moveQuiz = async (names: string[]) => {
     const [quizKey, meetKey, newerKey] = names
+    const isSheet = quizKey === OLD_KEYS.quiz
     const raw = localStorage.getItem(quizKey!)
     const meetRaw = localStorage.getItem(meetKey!)
     let link: MeetSessionData | null = null
@@ -632,10 +683,32 @@ async function moveOldKeys(): Promise<string | undefined> {
     } catch {
       // An unreadable link is left behind, as the meet session's own load did
     }
-    const record = raw ? oldQuizRecord(raw, link, localStorage.getItem(newerKey!) === '1') : null
-    if (record) await keep(record, names)
-    else moved.push(...names)
-    return { record, link }
+    let record = raw ? oldQuizRecord(raw, link, localStorage.getItem(newerKey!) === '1') : null
+    if (!record) {
+      // After the first move a link written alone waits for the quiz it goes with
+      moved.push(...(first ? names : names.filter((name) => name !== meetKey)))
+      return { record: null, link }
+    }
+    let hold: RecordClaim | null = null
+    try {
+      if (!first) {
+        // Moved after the first move, by a tab of the previous version that may still be open: a
+        // recent quiz, listed rather than brought back, which replaces its own last copy while no
+        // tab holds it and nothing was done to it since
+        record = { ...record, offered: true }
+        hold = isSheet && previous ? await claimRecord(previous.id) : null
+        if (hold?.record && hold.record.current?.file === previous!.file) {
+          record = { ...record, id: previous!.id }
+        }
+      }
+      const kept = await keep(record, names)
+      if (kept && isSheet && record.current) {
+        await writeMeta('previousSheet', { id: record.id, file: record.current.file })
+      }
+      return { record: kept ? record : null, link }
+    } finally {
+      hold?.release()
+    }
   }
 
   // A tutorial that crashed left the quiz it replaced aside, and the sheet holds its practice
@@ -648,7 +721,8 @@ async function moveOldKeys(): Promise<string | undefined> {
     const aside = await moveQuiz(tutorialKeys)
     link = aside.link
     if (aside.record && !aside.record.newerRaw && !failed) sheetId = aside.record.id
-    if (aside.record?.newerRaw) {
+    // Either newer version's quiz was kept where it was, so the sheet holds a real quiz too
+    if (aside.record?.newerRaw || isNewerFile(localStorage.getItem(OLD_KEYS.quiz))) {
       const sheet = await moveQuiz(sheetKeys)
       if (sheet.record && !sheet.record.newerRaw && !failed) sheetId = sheet.record.id
     } else moved.push(...sheetKeys)

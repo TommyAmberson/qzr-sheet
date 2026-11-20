@@ -989,6 +989,7 @@ const {
   markSubmitted,
   replaceQuiz,
   restoreQuiz,
+  stateToMark,
   undo,
   redo,
   markSaved,
@@ -1519,9 +1520,11 @@ function closeMenus() {
 
 async function saveFile() {
   const json = serializeStore(store, noJumpMap.value, timeoutMap.value)
+  // Saved as it was when the save began, whatever was scored while the dialog was open
+  const state = stateToMark()
   const filename = `${fileStem()}.json`
   const saved = await saveQuizToFile(json, filename)
-  if (saved) markSaved()
+  if (saved) markSaved(state)
 }
 
 async function openFile() {
@@ -1760,6 +1763,8 @@ async function doSubmitToMeet() {
   const roomId = await chooseRoom(choiceDialog.value, target.sender, meet, 'Submit')
   if (roomId === undefined) return
   const quizFile = storeToQuizFile(store, noJumpMap.value, timeoutMap.value)
+  // Submitted as it was sent, whatever was scored while the meet answered
+  const sent = stateToMark()
   const scheduleQuizId = meetSession.scheduleQuizIdFor(target.id)
   // A guest official whose session ends on the way is asked for the room code, and the send
   // retried; the room is confirmed by now, so only its code will do
@@ -1784,6 +1789,7 @@ async function doSubmitToMeet() {
     markSubmitted(
       target.id,
       target.id === meetSession.meetId.value ? meetSession.quizId.value : null,
+      sent,
     )
     // Name the room it was stored for
     const room = target.sender.rooms.find((r) => r.id === roomId)?.name
