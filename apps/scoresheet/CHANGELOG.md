@@ -15,6 +15,29 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-11-19
+
+### Fixed
+
+* A quiz set aside by the tutorial is no longer written over a quiz opened, restored or started
+  while the tutorial runs, nor replaced by the practice quiz when the tutorial is started twice
+* A tab the browser restores later, with nothing scored yet, keeps its quiz and meet link
+* A quiz saved to a file or submitted is marked as it was saved or sent, not with edits made while
+  waiting
+* A quiz restored at its saved state keeps counting as unsaved while its later, unsaved work is
+  held, so it is offered and never dropped first
+* Typing in a field and back to what it was no longer drops the redo steps
+* A scoresheet tab of the previous version left open after updating no longer loses what it saves
+  afterwards, nor fills Recent quizzes with copies of one quiz, and opening a file no longer writes
+  over a newer version's quiz
+* A quiz replaced while it was being saved or submitted is not marked with the other quiz's state
+* Starting a new quiz or opening one while the tutorial runs ends it even when the device can't keep
+  quizzes
+
+### Bundled contract
+
+* `@qzr/shared@1.16.0` - unchanged
+
 ## [0.26.0] - 2026-11-19
 
 ### Added
