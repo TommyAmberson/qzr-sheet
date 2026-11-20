@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { authClient } from '../composables/useAuth'
 import { joinedSession } from '@qzr/ui'
+import { isFailedImport, pageLoaded, recoverFromStaleBuild } from '../staleBuild'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -127,6 +128,16 @@ router.beforeEach(async (to) => {
   }
   // Signed out: home, which asks them to sign in and then brings them back
   return { name: 'home', query: { next: to.fullPath } }
+})
+
+// Without this a page whose chunk is gone after a deploy aborts the navigation silently
+router.onError((error, to) => {
+  if (isFailedImport(error)) void recoverFromStaleBuild(router.resolve(to).href)
+  // With a handler registered the router no longer logs navigation errors itself
+  else console.error(error)
+})
+router.afterEach((_to, _from, failure) => {
+  if (!failure) pageLoaded()
 })
 
 export default router

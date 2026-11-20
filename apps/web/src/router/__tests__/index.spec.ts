@@ -72,6 +72,15 @@ describe('router guard', () => {
     await router.push('/fall-2025/churches/3/teams')
     expect(router.currentRoute.value.name).toBe('home')
   })
+
+  it('still logs a navigation error that is not a failed page load', async () => {
+    const error = new Error('auth is down')
+    mockGetSession.mockRejectedValue(error)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await router.push('/fall-2025').catch(() => {})
+    expect(log).toHaveBeenCalledWith(error)
+    log.mockRestore()
+  })
 })
 
 describe('route props', () => {
