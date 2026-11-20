@@ -174,8 +174,8 @@ on #200 (T007).
 
 ### Implementation for User Story 5
 
-- [ ] T022 [US5] A division's quizzes by time for phones, a new `apps/web/src/components/ScheduleList.vue` reusing `ScheduleSeat` for each bench with the same marks, the quiz under way marked, by FR-021's rule (the slot containing the current time in the meet's time zone); `ScheduleSheet` was checked and stays the table it is, since a list by time for one division has no columns to share
-- [ ] T023 [US5] The Schedule tab shows the list at phone width (#200's `viewport.ts`) and the sheet otherwise; the tab bar and the division picker scroll sideways on their own, the page never (SC-005)
+- [ ] T022 [US5] A division's quizzes by time for phones, a new `apps/web/src/components/ScheduleList.vue` reusing `ScheduleSeat` for each bench with the same marks, the quiz under way marked, by FR-021's rule (the slot containing the current time in the meet's time zone; a day's date by the rule `dayDate` in `packages/api/src/lib/scheduleLegacy.ts` follows, moved to `packages/shared` so the API and the page share it); with every division picked, every quiz with its division; `ScheduleSheet` was checked and stays the table it is, since a list by time for one division has no columns to share
+- [ ] T023 [US5] The Schedule tab shows the list at phone width (#200's `viewport.ts`, worked out when the page opens, as #200's pages do) and the sheet otherwise; the tab bar and the division picker scroll sideways on their own, the page never (SC-005)
 - [ ] T024 [US5] Browser check at 390 px of every tab (quickstart scenario 8)
 
 ---
