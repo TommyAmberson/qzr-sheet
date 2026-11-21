@@ -44,7 +44,11 @@ let publishedReads = 0
 const loading = ref(true)
 const error = ref('')
 
-const meetId = computed(() => meet.value?.id ?? null)
+/**
+ * The meet's id as soon as the meet is read, before the reader's place in it is: the meet day and
+ * the published schedule start then, alongside it, rather than after it
+ */
+const meetId = ref<number | null>(null)
 const { day, error: dayError, beat, answered, refresh } = useMeetDay(meetId)
 
 const isAdmin = computed(() => sender.value?.admin ?? false)
@@ -139,6 +143,7 @@ async function load() {
   // Another meet starts afresh: nothing of the last one shows, or is read, while it loads
   detail.value = null
   sender.value = null
+  meetId.value = null
   // The schedule follows the new meet's day (research R7, rule 4)
   published.value = undefined
   heldFor = undefined
@@ -149,11 +154,13 @@ async function load() {
     const loaded = await renew(Number(props.slug), async () => {
       const read = await getMeet(props.slug)
       const id = read.meet.id
+      if (current === loads) meetId.value = id
       const [who, membership] = await Promise.all([senderOf(id), membershipOf(id)])
       return { read, who, membership }
     })
     if (current !== loads) return
     if (!loaded) {
+      meetId.value = null
       error.value = 'Join the meet again with its code to see it.'
       return
     }
@@ -163,6 +170,8 @@ async function load() {
     coachChurchIds.value = loaded.membership.coaches
   } catch (e) {
     if (current !== loads) return
+    // A page showing an error reads nothing of the meet in the background
+    meetId.value = null
     // A signed-in reader who isn't one of the meet's members is shown their own meets
     if (e instanceof ApiError && e.status === 403 && !isGuest.value) {
       void router.replace({ name: 'home' })
@@ -243,8 +252,8 @@ watch(meetId, (id) => {
 // every answer so a read that failed is tried again; with no meet day to go by, read anyway so the
 // Schedule tab isn't left waiting
 watch([answered, dayError], () => {
-  const id = meet.value?.id
-  if (id === undefined) return
+  const id = meetId.value
+  if (id === null) return
   if (day.value) {
     const forDay = `${day.value.scheduleVersion}|${day.value.phase}`
     if (forDay !== heldFor && forDay !== askedFor) void readPublished(id, forDay)
