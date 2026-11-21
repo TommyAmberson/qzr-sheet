@@ -112,6 +112,26 @@ describe('results on the schedule', () => {
     expect(bench(w, 1).find('.qz-seat-line').text()).toBe('Tied')
   })
 
+  it("writes a settled team by the draw's short name, whatever room the line has, the full one in its tooltip", () => {
+    const withIds = structuredClone(doc)
+    const team = withIds.draw['1']!.teams[0]!
+    team.teamId = 41
+    team.name = 'GF 1'
+    const w = mount(ScheduleSheet, {
+      props: {
+        doc: withIds,
+        view: 'teams',
+        marks: {
+          quizzes: new Map([[quiz.id, { id: quiz.id, status: 'notIn', teams: [] } as DayQuiz]]),
+          benches: { [benchKey(quiz.id, 0)]: { team: 'Grace Fellowship 1', teamId: 41 } },
+        },
+      },
+    })
+    const seat = w.find(`[data-seat="${benchKey(quiz.id, 0)}"]`)
+    expect(seat.find('.qz-seat-line').text()).toBe('GF 1')
+    expect(seat.attributes('title')).toMatch(/ · Grace Fellowship 1$/)
+  })
+
   it("keeps a team's number apart from its name, so cutting the name short keeps it", () => {
     const w = sheet(
       { id: quiz.id, status: 'notIn', teams: [] },
@@ -131,5 +151,58 @@ describe('results on the schedule', () => {
     expect(w.find('.qz-seat-result').exists()).toBe(false)
     expect(w.find('.status').exists()).toBe(false)
     expect(bench(w, 0).find('.qz-seat-line').text()).toBe(drawn[0]!.name!)
+  })
+})
+
+describe("a seat's source beyond the draw", () => {
+  /** The quiz with its first bench filled from a re-rank and its second from a rank, the third drawn */
+  function ranked() {
+    const withRanks = structuredClone(doc)
+    const q = withRanks.quizzes.find((x) => x.id === quiz.id)!
+    q.seats[0] = { kind: 'new', rank: 11 }
+    q.seats[1] = { kind: 'rank', rank: 3 }
+    return withRanks
+  }
+  const seatOf = (w: ReturnType<typeof mount>, i: number) =>
+    w.find(`[data-seat="${benchKey(quiz.id, i)}"]`)
+
+  it('is written faintly on the line until its team is known, nothing left of the bench', () => {
+    const w = mount(ScheduleSheet, { props: { doc: ranked(), view: 'teams' } })
+    const seat = seatOf(w, 0)
+    expect(seat.find('.qz-seat-src').text()).toBe('')
+    const line = seat.find('.qz-seat-line')
+    expect(line.classes()).toContain('ghost')
+    expect(line.text()).toBe(seat.attributes('title'))
+    expect(line.text()).toMatch(/11/)
+    // A drawn letter stays left of the bench
+    expect(seatOf(w, 2).find('.qz-seat-src').text()).toBe(
+      quiz.seats[2]!.kind === 'letter' ? quiz.seats[2]!.letter : '',
+    )
+  })
+
+  it('gives way to the team once known, the source kept for the tooltip', () => {
+    const w = mount(ScheduleSheet, {
+      props: {
+        doc: ranked(),
+        view: 'teams',
+        marks: {
+          quizzes: new Map([[quiz.id, { id: quiz.id, status: 'notIn', teams: [] } as DayQuiz]]),
+          benches: { [benchKey(quiz.id, 0)]: { team: 'Maple Hill 2' } },
+        },
+      },
+    })
+    const seat = seatOf(w, 0)
+    const line = seat.find('.qz-seat-line')
+    expect(line.classes()).not.toContain('ghost')
+    expect(line.text()).toBe('Maple Hill 2')
+    expect(seat.find('.qz-seat-src').text()).toBe('')
+    expect(seat.attributes('title')).toMatch(/11 · Maple Hill 2$/)
+  })
+
+  it('stays left of the bench in the builder, where seats are edited', () => {
+    const w = mount(ScheduleSheet, { props: { doc: ranked(), view: 'teams', editable: true } })
+    const seat = seatOf(w, 0)
+    expect(seat.find('.qz-seat-src').text()).toMatch(/11/)
+    expect(seat.find('.qz-seat-line').classes()).not.toContain('ghost')
   })
 })

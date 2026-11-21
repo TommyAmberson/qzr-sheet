@@ -15,6 +15,11 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Changed
+
+* The schedule picker shows a seat filled from a place or a re-rank ("1 of F", "New 11") faintly on
+  its line rather than left of the bench colour, as the portal's schedule does
+
 ## [0.31.2] - 2026-11-21
 
 ### Fixed
