@@ -28,6 +28,7 @@ import {
   seedMeet,
 } from '../../test-utils'
 import { createTestDb } from '../../test-db'
+import { REVISIONS_SCORED_PER_REQUEST } from '../../lib/divisionStats'
 import type { Db } from '../../lib/db'
 
 // The meet day (specs/010-meet-day, contracts/meet-day-api.md)
@@ -116,6 +117,32 @@ const saveSettings = (change: (s: StatsSettings) => void) => {
 }
 
 describe('GET /api/meets/:id/day', () => {
+  it('scores what is missing a few at a time across every division, then answers', async () => {
+    await db
+      .update(schema.quizMeets)
+      .set({ divisions: JSON.stringify(['1', '2']) })
+      .where(eq(schema.quizMeets.id, meetId))
+    for (const division of ['1', '2']) {
+      for (let n = 1; n <= 4; n++) {
+        await store(String(n), (file) => (file.quiz.division = division))
+      }
+    }
+    await db.delete(schema.quizResultScores)
+    const kept = async () => (await db.select().from(schema.quizResultScores)).length
+
+    const first = await read(testSuperuser)
+    expect(first.status).toBe(503)
+    // One budget for the request, not one per division
+    expect(await kept()).toBe(REVISIONS_SCORED_PER_REQUEST)
+
+    let res = await read(testSuperuser)
+    for (let tries = 0; res.status === 503 && tries < 8; tries++) res = await read(testSuperuser)
+    expect(res.status).toBe(200)
+    expect(await kept()).toBe(8)
+    const body = await jsonOf<MeetDay>(res)
+    expect(body.notOnSchedule.length + body.quizzes.filter((q) => q.storedId).length).toBe(8)
+  })
+
   it('gives an admin each scheduled quiz with its result, the quizzes not on it, and a count', async () => {
     const id = await store('1')
     const unscheduled = await store('9')
