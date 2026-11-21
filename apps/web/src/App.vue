@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { ChoiceDialog, GuestNotice, RoomCodeDialog, upgradeOnSignIn } from '@qzr/ui'
 import { joinMeet } from './api'
 import { useAuth } from './composables/useAuth'
@@ -8,6 +10,9 @@ import { roomCodeDialog } from './composables/useRoomCode'
 import { staleBuildDialog } from './staleBuild'
 
 const { session } = useAuth()
+/** A page for a screen, such as a meet's display schedule, shows without the site's header and footer */
+const route = useRoute()
+const bare = computed(() => !!route.meta.bare)
 // Signing in, or starting signed in, upgrades the account with the guest sessions' codes
 upgradeOnSignIn(
   () => session.value?.data?.user.id,
@@ -17,11 +22,11 @@ upgradeOnSignIn(
 
 <template>
   <div class="site">
-    <AppHeader />
+    <AppHeader v-if="!bare" />
     <main class="site-main">
       <RouterView />
     </main>
-    <AppFooter />
+    <AppFooter v-if="!bare" />
     <GuestNotice />
     <RoomCodeDialog ref="roomCodeDialog" />
     <ChoiceDialog ref="staleBuildDialog" />

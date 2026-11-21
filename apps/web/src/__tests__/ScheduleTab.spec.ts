@@ -138,6 +138,39 @@ describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
     expect(w.findAll('[data-quiz]').length).toBe(doc.quizzes.filter((q) => q.cell).length - 1)
   })
 
+  it('shows the schedule alone on the display, with its results, a way back and nothing to open', async () => {
+    const doc = published()
+    const quiz = doc.quizzes.find((q) => q.cell)!
+    stubApi(
+      { status: 200, body: { document: doc, publishedAt: '2026-11-02', view: 'teams' } },
+      {
+        sender: { admin: true, rooms: [] },
+        day: { ...day, quizzes: [{ id: quiz.id, status: 'played', teams: [], storedId: 42 }] },
+      },
+    )
+    const w = await open('/fall/display?division=1')
+    expect(w.text()).toMatch(/Grace 1/)
+    expect(w.find('nav.tabs').exists()).toBe(false)
+    expect(w.text()).not.toMatch(/Fall Meet/)
+    // Even an admin's stored quiz opens nothing, nor does a quiz not in yet
+    expect(w.find(`[data-quiz="${quiz.id}"] a`).exists()).toBe(false)
+    expect(w.find('[data-quiz] a').exists()).toBe(false)
+
+    await w.find('.back-link').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/fall?division=1')
+  })
+
+  it('opens the display from the Schedule tab, keeping the division', async () => {
+    stubApi({
+      status: 200,
+      body: { document: published(), publishedAt: '2026-11-02', view: 'teams' },
+    })
+    const w = await open('/fall?division=1')
+    const link = w.findAll('a').find((a) => a.text() === 'Display')!
+    expect(link.attributes('href')).toMatch(/\/fall\/display\?division=1$/)
+  })
+
   it('shows letters when the API says so', async () => {
     const doc = published()
     stubApi({ status: 200, body: { document: doc, publishedAt: '2026-11-02', view: 'letters' } })

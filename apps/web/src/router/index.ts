@@ -88,6 +88,13 @@ const router = createRouter({
               name: 'meet-setup',
               component: () => import('../views/meet/SetupTab.vue'),
             },
+            // The schedule alone, for a screen in the room: no tabs, header or footer
+            {
+              path: 'display',
+              name: 'meet-display',
+              meta: { guestAccess: true, bare: true },
+              component: () => import('../views/meet/DisplayTab.vue'),
+            },
           ],
         },
         // The pages the tabs replace, kept as addresses (FR-020)

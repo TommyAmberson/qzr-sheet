@@ -177,7 +177,7 @@ describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.
     expect(router.currentRoute.value.query.next).toBe('/fall/standings?division=2')
   })
 
-  it("keeps a guest who joined with the meet's code to its Schedule, Quizzes and Standings", async () => {
+  it("keeps a guest who joined with the meet's code to its Schedule, Quizzes, Standings and display", async () => {
     mockGetSession.mockResolvedValue({ data: null })
     // The router's own copy of the guest sessions, fresh with the router
     const { setGuestState } = await import('@qzr/ui')
@@ -189,6 +189,7 @@ describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.
       ['/7', 'meet'],
       ['/7/quizzes', 'meet-quizzes'],
       ['/7/standings', 'meet-standings'],
+      ['/7/display', 'meet-display'],
       ['/7/roster', 'meet'],
       ['/7/setup', 'meet'],
     ]) {

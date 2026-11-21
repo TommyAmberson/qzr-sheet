@@ -282,6 +282,14 @@ const page: MeetPage = {
 }
 provide(meetPageKey, page)
 
+/** A page for a screen, such as the display schedule: the tab alone, without the meet's header */
+const bare = computed(() => !!route.meta.bare)
+
+/** Back from the display to the Schedule tab, keeping the division */
+function leaveDisplay() {
+  return router.push({ name: 'meet', params: { slug: props.slug }, query: divisionQuery.value })
+}
+
 const dates = computed(() => {
   if (!meet.value) return ''
   const { dateFrom, dateTo } = meet.value
@@ -290,14 +298,17 @@ const dates = computed(() => {
 </script>
 
 <template>
-  <div class="container meet-page">
-    <button v-if="!isGuest" class="back-link no-print" @click="router.push({ name: 'home' })">
+  <div class="container meet-page" :class="{ bare }">
+    <button v-if="bare" class="back-link no-print" @click="leaveDisplay">← Schedule</button>
+    <button v-else-if="!isGuest" class="back-link no-print" @click="router.push({ name: 'home' })">
       ← QuizMeets
     </button>
 
     <p v-if="loading && !meet" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
 
+    <!-- A page for a screen is the tab alone, under the button back -->
+    <RouterView v-else-if="meet && bare" />
     <template v-else-if="meet">
       <header class="meet-head">
         <div class="meet-info">
@@ -375,6 +386,14 @@ const dates = computed(() => {
 
 .back-link:hover {
   color: var(--color-text-muted);
+}
+
+.bare {
+  padding: 0.75rem 1rem;
+}
+
+.bare .back-link {
+  margin-bottom: 0.75rem;
 }
 
 .page-title {
