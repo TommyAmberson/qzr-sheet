@@ -16,6 +16,20 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.38.2] - 2026-11-21
+
+### Fixed
+
+* A team on the schedule shows its full name where its line has room and its short name where it
+  doesn't, and its number always: a name too long is cut short before the number, never through it
+  (#236)
+* A quiz's benches on the schedule share their columns, so each team's line takes the room beside
+  its source and result; on a narrow phone the source and result are cut short before the line
+
+### Bundled contract
+
+* `@qzr/shared@1.21.0` - unchanged
+
 ## [0.38.1] - 2026-11-21
 
 ### Fixed
