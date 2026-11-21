@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   anyTeamHasAnswer,
   ApiError,
@@ -65,7 +65,8 @@ import {
   type StoredQuiz,
   getMeetTemplate,
 } from '../api'
-import { teamsByName } from '../meetTeams'
+import { teamShortName, teamsByName } from '../meetTeams'
+import { compactName } from '../compactName'
 import {
   ChoiceDialog,
   RoomCodeDialog,
@@ -840,7 +841,16 @@ const quizzerPlaceholder = (seatIdx: number) => `Seat ${seatIdx + 1}`
 /** A click anywhere in a name cell types into its name, not only on the input's own width (#144) */
 function focusName(e: MouseEvent) {
   if ((e.target as HTMLElement).closest('input, button, .drag-handle')) return
-  ;(e.currentTarget as HTMLElement).querySelector<HTMLInputElement>('input.editable-name')?.focus()
+  const cell = e.currentTarget as HTMLElement
+  const input = () => cell.querySelector<HTMLInputElement>('input.editable-name')
+  // A short name stands for a name the narrow column can't edit: back to the start, where it can
+  if (compact.value && wrapperRef.value) {
+    wrapperRef.value.scrollLeft = 0
+    updateVisibleCols()
+    void nextTick(() => input()?.focus())
+    return
+  }
+  input()?.focus()
 }
 
 /**
@@ -1459,12 +1469,98 @@ const firstVisibleColIdx = ref(0)
 const lastVisibleColIdx = ref(0)
 let scrollRaf = 0
 
+/**
+ * On a phone's width the name column takes much of the screen. As the sheet scrolls, the part of
+ * it that shows narrows with the scroll: its edge follows the first question's until it is
+ * `NARROWEST_NAMES` wide, and then the questions slide under it. Only what shows is narrowed
+ * (`clip-path`), never the column, so no question moves and no row changes height; the names that
+ * fit are drawn over the cells (`.name-overlay`), and back at the start the column is whole again.
+ */
+const PHONE_WIDTH = '(max-width: 767px)'
+const NARROWEST_NAMES = 108
+/** How wide the name column is, and how much of it shows; `shown` is null where it all does */
+const names = ref<{ full: number; shown: number | null }>({ full: 0, shown: null })
+const compact = computed(() => names.value.shown !== null)
+function updateNamesShown() {
+  const wrapper = wrapperRef.value
+  const sticky = stickyAreaRef.value
+  const phone = typeof window.matchMedia === 'function' && window.matchMedia(PHONE_WIDTH).matches
+  if (!wrapper || !sticky || !phone) {
+    if (names.value.shown !== null) names.value = { full: names.value.full, shown: null }
+    return
+  }
+  const full = sticky.offsetWidth
+  // The spacer left of the names scrolls away first, before the questions reach the column
+  const spacer = wrapper.querySelector<HTMLElement>('.col--left-spacer')?.offsetWidth ?? 0
+  const edge = Math.round(full + spacer - wrapper.scrollLeft)
+  const shown = edge >= full ? null : Math.max(edge, NARROWEST_NAMES)
+  if (names.value.full !== full || names.value.shown !== shown) names.value = { full, shown }
+}
+
+/** Where the narrowed column's labels start their text: padding, and a seat number or swatch */
+const QUIZZER_INSET = 30
+const TEAM_INSET = 36
+let fontFamily = ''
+let measuring: OffscreenCanvasRenderingContext2D | null | undefined
+const textWidths = new Map<string, number>()
+/** A label's width in its font, measured once per text */
+function textWidth(text: string, size: number, weight: number): number {
+  const key = `${size}|${weight}|${text}`
+  const known = textWidths.get(key)
+  if (known !== undefined) return known
+  if (measuring === undefined) {
+    measuring =
+      typeof OffscreenCanvas === 'undefined' ? null : new OffscreenCanvas(1, 1).getContext('2d')
+    fontFamily = getComputedStyle(document.body).fontFamily || 'sans-serif'
+  }
+  let width = text.length * size * 0.56
+  if (measuring) {
+    measuring.font = `${weight} ${size}px ${fontFamily}`
+    width = measuring.measureText(text).width
+  }
+  textWidths.set(key, width)
+  return width
+}
+const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+
+/**
+ * A quizzer's name in the narrowed column: the longest that fits of their full name, their first
+ * name and last initial, and their first name alone, which an ellipsis cuts if even that doesn't
+ */
+function quizzerLabel(name: string): string {
+  const shown = names.value.shown
+  if (shown === null) return name
+  const room = shown - QUIZZER_INSET
+  const { first, initial } = compactName(name)
+  const forms = [name.trim(), `${first}${initial}`]
+  return forms.find((form) => textWidth(form, 0.8 * rem(), 600) <= room) ?? first
+}
+
+/** A team's name in the narrowed column: its full name where it fits, else its meet team's short one */
+function teamLabel(slotIdx: number, name: string): string {
+  const full = teamCalled(slotIdx, name)
+  const shown = names.value.shown
+  if (shown === null || textWidth(full, 0.85 * rem(), 700) <= shown - TEAM_INSET) return full
+  const teams = meetSession.teamList.value
+  const slot = meetSession.getSlot(slotIdx)
+  const team = slot
+    ? teams.find((t) => t.id === slot.teamId)
+    : name.trim()
+      ? teams.find((t) => teamNamed(name, teamsByName([t])) !== undefined)
+      : undefined
+  return team ? teamShortName(team) : full
+}
+
 function updateVisibleCols() {
   scrollRaf = 0
+  updateNamesShown()
   const stickyEl = stickyAreaRef.value ?? nameColRef.value
   const wrapper = wrapperRef.value
   if (!stickyEl || !wrapper || colHeaderEls.size === 0) return
-  const stickyRight = stickyEl.getBoundingClientRect().right
+  // The column's edge is where it shows to, narrowed or not
+  const stickyBox = stickyEl.getBoundingClientRect()
+  const shown = names.value.shown
+  const stickyRight = shown === null ? stickyBox.right : stickyBox.left + shown
   const wrapperRight = wrapper.getBoundingClientRect().right
 
   let first: number | null = null
@@ -1492,11 +1588,14 @@ function baselineScore(teamIdx: number): number {
   return boundaryTotal(teamIdx, idx - 1) ?? scoring.value[teamIdx]?.onTimeBonus ?? 0
 }
 
+const phoneWidth = typeof window.matchMedia === 'function' ? window.matchMedia(PHONE_WIDTH) : null
 onMounted(() => {
   wrapperRef.value?.addEventListener('scroll', onWrapperScroll, { passive: true })
+  phoneWidth?.addEventListener?.('change', updateVisibleCols)
   updateVisibleCols()
 })
 onUnmounted(() => {
+  phoneWidth?.removeEventListener?.('change', updateVisibleCols)
   wrapperRef.value?.removeEventListener('scroll', onWrapperScroll)
   if (scrollRaf) cancelAnimationFrame(scrollRaf)
 })
@@ -2247,7 +2346,17 @@ const appVersion: string = __APP_VERSION__
           </div>
         </div>
 
-        <table class="scoresheet" :style="{ '--drop-indicator-width': dropIndicatorWidth } as any">
+        <table
+          class="scoresheet"
+          :class="{ compact }"
+          :style="
+            {
+              '--drop-indicator-width': dropIndicatorWidth,
+              '--names-shown': `${names.shown ?? names.full}px`,
+              '--names-hidden': `${names.shown === null ? 0 : names.full - names.shown}px`,
+            } as any
+          "
+        >
           <!-- Question header row -->
           <thead>
             <tr>
@@ -2373,6 +2482,11 @@ const appVersion: string = __APP_VERSION__
                               : '3rd'
                         }}</span
                       >
+                    </span>
+                    <!-- The name as much as the narrowed column shows, over the hidden cell -->
+                    <span v-if="compact" class="name-overlay" aria-hidden="true">
+                      <span class="overlay-swatch" />
+                      <span class="overlay-text">{{ teamLabel(teamIdx, team.name) }}</span>
                     </span>
                   </div>
                 </td>
@@ -2512,6 +2626,10 @@ const appVersion: string = __APP_VERSION__
                       >
                         ×
                       </button>
+                    </span>
+                    <span v-if="compact" class="name-overlay" aria-hidden="true">
+                      <span class="overlay-seat">{{ seatIdx + 1 }}</span>
+                      <span class="overlay-text">{{ quizzerLabel(quizzer.name) }}</span>
                     </span>
                     <span v-if="scoring[teamIdx]?.quizzers[seatIdx]" class="quizzer-stats">
                       <span
@@ -2679,7 +2797,7 @@ const appVersion: string = __APP_VERSION__
                     <span class="on-time-box">✓</span>
                     <span class="on-time-label">on time</span>
                   </span>
-                  Score
+                  <span class="running-score-word">Score</span>
                   <span class="baseline-score">{{ baselineScore(teamIdx) }}</span>
                 </td>
                 <td
@@ -4283,6 +4401,83 @@ thead tr th.sticky-col {
   margin-left: auto;
 }
 
+/*
+ * The name column narrowed on a phone's width as the sheet scrolls (`compact`): only as much of it
+ * shows as `--names-shown`, the rest clipped away, and over each name cell the name that fits there
+ * (`.name-overlay`). The cells keep their contents and sizes, hidden, so nothing else moves; an
+ * individual score and a quiz-out or error-out badge are left out, its colour showing it still.
+ */
+.name-overlay {
+  display: none;
+}
+.scoresheet.compact .sticky-col {
+  clip-path: inset(0 var(--names-hidden) 0 0);
+}
+.scoresheet.compact .sticky-col .name-cell-inner {
+  visibility: hidden;
+}
+.scoresheet.compact .name-overlay {
+  visibility: visible;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--names-shown);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.4rem;
+  box-shadow: inset -1px 0 0 var(--color-border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+.row--team-header .name-overlay {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.overlay-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.overlay-seat {
+  flex: none;
+  width: 0.6rem;
+  color: var(--color-text-faint);
+  font-size: 0.7rem;
+  text-align: right;
+}
+:is(.row--quizzed-out, .row--errored-out, .row--fouled-out) > .col--name .overlay-seat {
+  color: var(--out-light);
+}
+.overlay-swatch {
+  flex: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  box-sizing: border-box;
+  border-radius: 3px;
+  border: 1px solid var(--color-text-faint);
+}
+.team--red .overlay-swatch {
+  background: var(--color-team-red);
+}
+.team--white .overlay-swatch {
+  background: var(--color-team-white);
+}
+.team--blue .overlay-swatch {
+  background: var(--color-team-blue);
+}
+/* Right-aligned labels keep to the part that shows: the score under the last seat, and No Jump */
+.scoresheet.compact :is(.running-total-label, .no-jump-label) {
+  padding-right: calc(0.6rem + var(--names-hidden)) !important;
+}
+.scoresheet.compact :is(.on-time-label, .running-score-word) {
+  display: none;
+}
 /* Name cell inner wrapper — flex row; wraps only when badges don't fit.
  * .name-main keeps drag handle + sizer as one unbreakable unit. */
 .name-cell-inner {

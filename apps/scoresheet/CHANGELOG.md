@@ -15,6 +15,14 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Changed
+
+* On a phone the team and quizzer column narrows as the sheet scrolls to the questions, its edge
+  following the first question's until it is about a third as wide, then the questions slide under
+  it. Each name shows as much as fits: a quizzer's full name, else first name and last initial
+  ("Hannah K."), else the first name alone, cut short with "…"; a team's full name, else its short
+  one. Back at the start it is whole again, and a tap on a name goes there to edit it
+
 ## [0.31.2] - 2026-11-21
 
 ### Fixed
