@@ -44,10 +44,10 @@ import { statsSettingsOf } from './statsSettings'
 export const REVISIONS_SCORED_PER_REQUEST = 5
 
 /**
- * A division's stored quizzes, each with its current content's revision and that revision's score.
- * `foldedDivision` is the division as a result key folds it.
+ * A division's stored quizzes, each with its current content's revision and that revision's score;
+ * every division's without one. `foldedDivision` is the division as a result key folds it.
  */
-function storedQuizzes(db: Db, meetId: number, foldedDivision: string) {
+function storedQuizzes(db: Db, meetId: number, foldedDivision?: string) {
   // A result key starts with its division and a bar
   const prefix = `${foldedDivision}|`
   return (
@@ -69,10 +69,26 @@ function storedQuizzes(db: Db, meetId: number, foldedDivision: string) {
       .where(
         and(
           eq(schema.quizResults.meetId, meetId),
-          sql`substr(${schema.quizResults.quizKey}, 1, ${prefix.length}) = ${prefix}`,
+          foldedDivision === undefined
+            ? undefined
+            : sql`substr(${schema.quizResults.quizKey}, 1, ${prefix.length}) = ${prefix}`,
         ),
       )
   )
+}
+
+type StoredQuiz = Awaited<ReturnType<typeof storedQuizzes>>[number]
+
+/**
+ * Every division's stored quizzes in one read, by the division as their keys fold it, for a
+ * request that reads several divisions: each then has its own without a read of its own
+ */
+export async function meetStoredQuizzes(
+  db: Db,
+  meetId: number,
+): Promise<Map<string, StoredQuiz[]>> {
+  const quizzes = await storedQuizzes(db, meetId)
+  return Map.groupBy(quizzes, (quiz) => resultKeyDivision(quiz.quizKey))
 }
 
 export function meetQuery(db: Db, meetId: number) {
@@ -182,9 +198,13 @@ export async function divisionOf(
   quizzersThrough?: QuizzerStage,
   /** How many more revisions this request may score, shared by every division it reads */
   scoring: { left: number } = { left: REVISIONS_SCORED_PER_REQUEST },
+  /** Every division's stored quizzes, read once for a request that reads several (`meetStoredQuizzes`) */
+  stored?: Map<string, StoredQuiz[]>,
 ): Promise<DivisionAnswer> {
   const folded = foldName(division)
-  const quizzes = await storedQuizzes(db, meetId, folded)
+  // Taken from the meet's read without waiting, so divisions read together take from the scoring
+  // budget in their order, as they would one after another
+  const quizzes = stored ? (stored.get(folded) ?? []) : await storedQuizzes(db, meetId, folded)
   const named = findDivision(ground.meet.divisions, division)
   if (named === undefined && quizzes.length === 0) return { kind: 'notFound' }
 
@@ -319,28 +339,22 @@ export async function meetDivisions(
   db: Db,
   meetId: number,
 ): Promise<{ ground: StatsGround; divisions: ReadyDivision[] } | 'notFound' | 'preparing'> {
-  const [ground, keys] = await Promise.all([
+  const [ground, stored] = await Promise.all([
     statsGround(db, meetId),
-    db
-      .select({ quizKey: schema.quizResults.quizKey })
-      .from(schema.quizResults)
-      .where(eq(schema.quizResults.meetId, meetId)),
+    meetStoredQuizzes(db, meetId),
   ])
   if (!ground) return 'notFound'
   const listed = new Set(ground.meet.divisions.map(foldName))
-  const divisions = [
-    ...ground.meet.divisions,
-    ...new Set(keys.map(({ quizKey }) => resultKeyDivision(quizKey)).filter((d) => !listed.has(d))),
-  ]
+  const divisions = [...ground.meet.divisions, ...[...stored.keys()].filter((d) => !listed.has(d))]
   const scoring = { left: REVISIONS_SCORED_PER_REQUEST }
-  const ready: ReadyDivision[] = []
-  for (const division of divisions) {
-    const answer = await divisionOf(db, meetId, ground, division, undefined, scoring)
-    if (answer.kind === 'notFound') continue
-    if (answer.kind === 'preparing') return 'preparing'
-    ready.push(answer)
-  }
-  return { ground, divisions: ready }
+  // Together rather than one after another: only a division still scoring waits on the database
+  const answers = await Promise.all(
+    divisions.map((division) =>
+      divisionOf(db, meetId, ground, division, undefined, scoring, stored),
+    ),
+  )
+  if (answers.some((answer) => answer.kind === 'preparing')) return 'preparing'
+  return { ground, divisions: answers.filter((answer) => answer.kind === 'ready') }
 }
 
 /**

@@ -167,6 +167,14 @@ The cookies carry the `qzr` prefix (`__Secure-qzr.session_token`, ...) via `adva
 verse-vault runs Better Auth on the same host with the default `better-auth` prefix, and sharing the
 names let each app overwrite the other's session.
 
+Better Auth also keeps a signed copy of the session in a cookie for a minute (`session.cookieCache`,
+`__Secure-qzr.session_data`), so the API's routes needn't read the session from the database on
+every request. Only requests that read (`GET`, `HEAD`) trust the copy: Better Auth's own routes,
+`get-session` among them, and anything that changes something have it stripped
+(`withoutCachedSession` in `middleware/session.ts`) and read the database. A session ended
+elsewhere, by a password reset, a takeover or a disconnect, can still read for up to that minute,
+but never change anything, and the app shows it signed out at once.
+
 ## OAuth redirects
 
 The provider sends the user back to Better Auth's callback,

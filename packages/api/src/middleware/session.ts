@@ -26,6 +26,36 @@ export interface SessionVariables {
   session: { token: string; createdAt: Date } | null
 }
 
+/** The cookies holding Better Auth's cached copy of the session, chunked or not, prefixed or not */
+const CACHED_SESSION = /\.session_data(?:\.\d+)?$/
+
+/**
+ * The request's headers without the session's cached copy (`session.cookieCache` in lib/auth.ts),
+ * so Better Auth reads the session from the database: a session ended elsewhere, by a password
+ * reset or "That's not me", stops at once rather than when the copy lapses
+ */
+export function withoutCachedSession(headers: Headers): Headers {
+  const cookie = headers.get('cookie')
+  if (!cookie) return headers
+  const kept = cookie
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => !CACHED_SESSION.test(part.split('=')[0]!))
+  const without = new Headers(headers)
+  if (kept.length > 0) without.set('cookie', kept.join('; '))
+  else without.delete('cookie')
+  return without
+}
+
+/**
+ * Whether a request may trust the session's cached copy: one that only reads. Anything that
+ * changes something checks the database, so a session ended elsewhere can at most read, for the
+ * minute its copy lasts.
+ */
+function readsOnly(method: string) {
+  return method === 'GET' || method === 'HEAD'
+}
+
 /**
  * Read the Better Auth session from request cookies and/or a guest JWT from
  * the `Authorization: Bearer` header. Sets `c.var.user` and `c.var.guest` —
@@ -46,7 +76,10 @@ export function sessionMiddleware(): MiddlewareHandler<{
     // sends no email; a router without a sender doesn't send any.
     const auth = createAuth(c.env, c.get('db'), c.get('sendEmail') ?? (() => {}))
     c.set('auth', auth)
-    const session = await auth.api.getSession({ headers: c.req.raw.headers })
+    const headers = readsOnly(c.req.method)
+      ? c.req.raw.headers
+      : withoutCachedSession(c.req.raw.headers)
+    const session = await auth.api.getSession({ headers })
     c.set(
       'session',
       session ? { token: session.session.token, createdAt: session.session.createdAt } : null,

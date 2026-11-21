@@ -23,6 +23,13 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-11-21
+
+### Added
+
+* `PublishedSchedule` carries the `version` read and the meet's `phase` it was read in, so a page
+  holding it can tell whether a meet day naming a version and phase needs it read again
+
 ## [1.21.0] - 2026-11-20
 
 ### Added
