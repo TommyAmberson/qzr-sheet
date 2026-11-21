@@ -15,6 +15,11 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+### Fixed
+
+* Greyed-out cells, and the no-jump cells of answered questions, have darker stripes, in light and
+  dark, so they can be told from blank cells on a dim or washed-out screen (#241)
+
 ## [0.31.0] - 2026-11-21
 
 ### Added

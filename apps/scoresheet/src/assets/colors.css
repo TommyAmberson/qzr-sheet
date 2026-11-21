@@ -84,8 +84,9 @@
   --color-text-faint: var(--palette-stone);
   --color-meta-bg: var(--palette-cream);
   --color-meta-accent: var(--palette-tan);
-  --color-grey-stripe-a: var(--palette-cream);
-  --color-grey-stripe-b: var(--palette-eggshell);
+  /* Cells that can't be marked: told from blank ones even on a dim or washed-out screen */
+  --color-grey-stripe-a: var(--palette-tan);
+  --color-grey-stripe-b: var(--palette-cream);
 }
 
 /* ── Dark theme ── */
@@ -102,7 +103,7 @@
   --color-meta-bg: var(--palette-shadow);
   --color-meta-accent: var(--palette-slate);
   --color-error-alt: #3a2220;
-  --color-grey-stripe-a: var(--palette-flint);
+  --color-grey-stripe-a: var(--palette-slate);
   --color-grey-stripe-b: var(--palette-charcoal);
   /* Badge chips: swap to saturated bg + light text in dark mode */
   --color-badge-correct-text: var(--palette-correct-alt);
