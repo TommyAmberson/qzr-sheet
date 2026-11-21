@@ -149,6 +149,43 @@ describe('the Quizzes tab', () => {
     expect(row.find('.cell-when').text()).toContain(room.name)
   })
 
+  it('lists scheduled quizzes by time, then room, whatever order the schedule keeps them in', async () => {
+    const base = newScheduleDocument('Fall Meet')
+    base.settings.divisions = ['1', '2'].map((id) => ({
+      id,
+      name: id,
+      teams: 6,
+      elims: { lanes: [], lines: [] },
+    }))
+    const schedule = generateSchedule(base)
+    const slotAt = new Map(schedule.frame.map((row, i) => [row.id, i]))
+    const roomAt = new Map(schedule.rooms.map((room, i) => [room.id, i]))
+    const placed = schedule.quizzes
+      .filter((q) => q.cell && q.phase === 'prelim')
+      .sort(
+        (a, b) =>
+          slotAt.get(a.cell!.slot)! - slotAt.get(b.cell!.slot)! ||
+          roomAt.get(a.cell!.room)! - roomAt.get(b.cell!.room)!,
+      )
+      .slice(0, 4)
+    // Two rooms at once, so the room decides between them
+    expect(placed[0]!.cell!.slot).toBe(placed[1]!.cell!.slot)
+    stubApi({
+      schedule,
+      // The meet day, as the schedule, may keep them in another order: here, backwards
+      day: {
+        ...baseDay,
+        quizzes: [...placed].reverse().map((q) => ({ id: q.id, status: 'notIn', teams: [] })),
+      },
+    })
+    const w = await open()
+    const rooms = new Map(schedule.rooms.map((room) => [room.id, room.name]))
+    const whens = w.findAll('tbody tr .cell-when').map((cell) => cell.text())
+    expect(whens).toHaveLength(4)
+    placed.forEach((quiz, i) => expect(whens[i]).toContain(rooms.get(quiz.cell!.room)!))
+    expect(whens[0]).not.toBe(whens[1])
+  })
+
   it("gives a viewer the meet's quizzes from the day alone, with no schedule published", async () => {
     stubApi({
       day: {

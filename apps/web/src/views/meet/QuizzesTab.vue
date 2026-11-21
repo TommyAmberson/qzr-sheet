@@ -133,6 +133,35 @@ const whereOf = computed(() => {
   return places
 })
 
+/**
+ * Where each scheduled quiz falls on the sheet, to list them in: its slot's place in the schedule's
+ * days and times, then its room's place in the schedule's rooms, so quizzes at the same time list
+ * Room 1 before Room 2. A quiz not placed on the sheet comes after every placed one.
+ */
+const sheetOrder = computed(() => {
+  const doc = schedule.value
+  const order = new Map<string, [number, number]>()
+  if (!doc) return order
+  const slots = new Map(doc.frame.map((row, i) => [row.id, i]))
+  const rooms = new Map(doc.rooms.map((room, i) => [room.id, i]))
+  for (const quiz of doc.quizzes) {
+    if (!quiz.cell) continue
+    order.set(quiz.id, [
+      slots.get(quiz.cell.slot) ?? Infinity,
+      rooms.get(quiz.cell.room) ?? Infinity,
+    ])
+  }
+  return order
+})
+
+/** Scheduled quizzes by when, then where, they are on the sheet */
+function bySheet(a: QuizRow, b: QuizRow): number {
+  const at = (row: QuizRow) => sheetOrder.value.get(row.key) ?? [Infinity, Infinity]
+  const [aSlot, aRoom] = at(a)
+  const [bSlot, bRoom] = at(b)
+  return aSlot - bSlot || aRoom - bRoom
+}
+
 const storedById = computed(() => new Map(storedRows.value.map((row) => [row.id, row])))
 const nameOfScheduled = (quiz: ScheduleQuiz) => quizName(scheduleQuizMeta(quiz))
 
@@ -228,7 +257,8 @@ const rows = computed<QuizRow[]>(() => {
       ...fromDay(q),
     }),
   )
-  return [...onSchedule, ...offSchedule]
+  // Infinity minus Infinity is NaN, which a sort takes as equal: unplaced quizzes keep their order
+  return [...onSchedule.sort((a, b) => bySheet(a, b) || 0), ...offSchedule]
 })
 
 /** The stored quizzes something on the attention list names */

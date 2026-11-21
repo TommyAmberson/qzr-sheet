@@ -16,6 +16,11 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Fixed
+
+* The Quizzes tab lists scheduled quizzes by their time, then their room, so quizzes at the same
+  time list Room 1 before Room 2
+
 ## [0.38.3] - 2026-11-21
 
 ### Fixed
