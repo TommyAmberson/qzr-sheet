@@ -3986,8 +3986,8 @@ thead tr th.sticky-col {
 .col-header-type {
   font-size: 0.6rem;
   font-weight: 700;
+  /* Unfaded: small as it is, a fade lost it on a dim or washed-out screen */
   color: inherit;
-  opacity: 0.7;
   line-height: 1;
   margin-top: 0.15rem;
   pointer-events: none;

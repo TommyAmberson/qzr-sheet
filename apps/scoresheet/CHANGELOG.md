@@ -25,6 +25,7 @@ portal/API/infra work shipped on that tag.
   surface, in light and dark, so their text can be read on a dim screen; in dark mode it was red on
   dark red. An invalid timeout's mark takes the validation red too
 * The "Team name" prompt on a team's bar can be read, where it was grey on the bar's own grey
+* Question types under the column numbers are no longer faded
 
 ## [0.31.0] - 2026-11-21
 
