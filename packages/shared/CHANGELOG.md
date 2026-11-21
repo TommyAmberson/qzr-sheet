@@ -23,6 +23,14 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-11-21
+
+### Fixed
+
+* `resolveBenches` fills a "New n" bench from a confirmed re-rank. A re-rank lists only its lines'
+  teams, at the prelim places they held between them (7 to 12, say), but a bench was looked up by
+  counting from the top, so every re-rank bench past the list's length stayed empty
+
 ## [1.21.0] - 2026-11-20
 
 ### Added

@@ -110,7 +110,7 @@ function benchTeam(
       // A position in the confirmed order, even among teams it still marks tied: three tie-breakers
       // leave next to none, and the app has no way yet to record how the admin settled one
       const orders = sources.orders.get(quiz.division)
-      const row = (bench.kind === 'rank' ? orders?.prelims : orders?.rerank)?.[bench.rank - 1]
+      const row = atPosition(bench.kind === 'rank' ? orders?.prelims : orders?.rerank, bench.rank)
       return row && { team: row.name }
     }
     case 'place':
@@ -120,6 +120,22 @@ function benchTeam(
     case 'empty':
       return undefined
   }
+}
+
+/**
+ * The team of a confirmed order at a position in the division: a re-rank lists only its lines'
+ * teams, at the prelim places they held between them (7 to 12, say), so a position is found by the
+ * ranks the order gives rather than by counting from the top. Teams level on a rank take the
+ * positions after it in turn, as the prelim order's tied teams do.
+ */
+function atPosition(order: OrderedTeam[] | undefined, position: number): OrderedTeam | undefined {
+  let held = 0
+  for (const team of order ?? []) {
+    held = Math.max(team.rank, held + 1)
+    if (held === position) return team
+    if (held > position) return undefined
+  }
+  return undefined
 }
 
 /** The team in place `place` of a quiz that counts; teams sharing it leave the bench tied */
