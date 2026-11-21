@@ -20,6 +20,7 @@ import { asOne, createDb, type Db } from '../lib/db'
 import {
   REVISIONS_SCORED_PER_REQUEST,
   divisionOf,
+  meetStoredQuizzes,
   stateOf,
   statsGround,
   type DivisionAnswer,
@@ -311,21 +312,29 @@ phase.get('/:id/divisions/state', async (c) => {
     return c.json({ error: 'Admin or superuser access required' }, 403)
   }
 
-  const ground = await statsGround(db, meetId)
+  const [ground, stored] = await Promise.all([
+    statsGround(db, meetId),
+    meetStoredQuizzes(db, meetId),
+  ])
   if (!ground) return c.json({ error: 'Meet not found' }, 404)
   const divisions = [...ground.meet.divisions]
   for (const row of ground.states) {
     if (findDivision(divisions, row.division) === undefined) divisions.push(row.division)
   }
   const divisionStates = []
-  // One budget for the request, however many divisions it reads
+  // One budget for the request, however many divisions it reads, and the divisions read together
   const scoring = { left: REVISIONS_SCORED_PER_REQUEST }
-  for (const division of divisions) {
-    const answer = await divisionOf(db, meetId, ground, division, undefined, scoring)
-    if (answer.kind === 'preparing') {
-      c.header('Retry-After', '1')
-      return c.json({ error: 'Stats are being prepared' }, 503)
-    }
+  const answers = await Promise.all(
+    divisions.map((division) =>
+      divisionOf(db, meetId, ground, division, undefined, scoring, stored),
+    ),
+  )
+  if (answers.some((answer) => answer.kind === 'preparing')) {
+    c.header('Retry-After', '1')
+    return c.json({ error: 'Stats are being prepared' }, 503)
+  }
+  for (const [at, division] of divisions.entries()) {
+    const answer = answers[at]!
     const row = ground.states.find((state) => sameDivision(state.division, division))
     const state = stateOf(ground.states, division)
     const ending = ENDING[state]
