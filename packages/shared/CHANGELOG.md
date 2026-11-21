@@ -23,6 +23,14 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 
 ## [Unreleased]
 
+## [1.21.2] - 2026-11-21
+
+### Fixed
+
+* The 3rd, 4th and 5th unique-quizzer bonus counts a quizzer's first correct answer in overtime
+  (`scoreTeam`). It is a team bonus, and the rulebook keeps only individual points out of overtime,
+  as the quiz-out bonus already did
+
 ## [1.21.1] - 2026-11-21
 
 ### Fixed

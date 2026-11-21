@@ -500,6 +500,40 @@ describe('scoreTeam', () => {
     expect(quizzer.teamQuizoutBonus).toBe(true)
   })
 
+  describe('team bonuses in overtime', () => {
+    const otColumns = buildColumns(TWENTY, 1)
+    const at = (key: string) => {
+      const idx = otColumns.findIndex((c) => c.key === key)
+      if (idx === -1) throw new Error(`Column ${key} not found`)
+      return idx
+    }
+    const otCells = () => Array.from({ length: 5 }, () => otColumns.map(() => _))
+
+    it("gives the team the 3rd quizzer's bonus for a first correct answer in overtime", () => {
+      const cells = otCells()
+      cells[0]![at('1')] = C
+      cells[1]![at('2')] = C
+      cells[2]![at('22')] = C // the 3rd quizzer to answer correctly, in overtime: +10
+      const result = scoreTeam(cells, otColumns, false, TWENTY)
+      expect(result.total).toBe(70)
+      expect(result.uniqueQuizzerBonusCols.get(at('22'))).toBe(3)
+      // Still no individual credit for the overtime answer
+      expect(result.quizzers[2]!.points).toBe(0)
+      expect(result.quizzers[2]!.correctCount).toBe(0)
+    })
+
+    it('gives no second bonus to a quizzer who answered correctly in regulation', () => {
+      const cells = otCells()
+      cells[0]![at('1')] = C
+      cells[1]![at('2')] = C
+      cells[2]![at('3')] = C // the 3rd quizzer: +10 in regulation
+      cells[2]![at('22')] = C // the same quizzer again in overtime: +20 only
+      const result = scoreTeam(cells, otColumns, false, TWENTY)
+      expect(result.total).toBe(90)
+      expect(result.uniqueQuizzerBonusCols.has(at('22'))).toBe(false)
+    })
+  })
+
   describe('overtime counts towards outs, not towards the quizzer', () => {
     const otColumns = buildColumns(TWENTY, 1)
     const at = (key: string) => {

@@ -139,17 +139,16 @@ export function scoreTeam(
         // +20 for correct (non-bonus, non-OT gets individual credit)
         colPoints += 20
 
-        if (!isOvertime) {
-          qCorrect[seatIdx]!++
+        if (!isOvertime) qCorrect[seatIdx]!++
 
-          // 3rd/4th/5th unique quizzer bonus
-          if (!seatHasCorrect[seatIdx]) {
-            seatHasCorrect[seatIdx] = true
-            uniqueCorrectCount++
-            if (uniqueCorrectCount >= 3) {
-              colPoints += 10
-              uniqueBonusCols.set(colIdx, uniqueCorrectCount)
-            }
+        // 3rd/4th/5th unique quizzer bonus, a team bonus, so overtime earns it too: the rulebook
+        // keeps only individual points out of overtime
+        if (!seatHasCorrect[seatIdx]) {
+          seatHasCorrect[seatIdx] = true
+          uniqueCorrectCount++
+          if (uniqueCorrectCount >= 3) {
+            colPoints += 10
+            uniqueBonusCols.set(colIdx, uniqueCorrectCount)
           }
         }
 
