@@ -83,6 +83,21 @@ export function settledText(settled: SettledBench): string {
   return 'team' in settled ? settled.team : 'Tied'
 }
 
+/**
+ * A settled bench's team as the schedule writes it: by the name the draw gives a meet team, its
+ * short one ("FC 1"), so the line leaves room for the result beside it. A team the draw doesn't
+ * hold keeps the name it settled under.
+ */
+export function settledShortText(
+  doc: ScheduleDocument,
+  quiz: ScheduleQuiz,
+  settled: SettledBench,
+): string {
+  if (!('team' in settled) || settled.teamId === undefined) return settledText(settled)
+  const drawn = doc.draw[quiz.division]?.teams.find((t) => t.teamId === settled.teamId)
+  return drawn?.name ?? settled.team
+}
+
 /** A team's result as the sheet writes it: its place, `=` before one it shares, then its score */
 export function resultText(team: DayTeam): string {
   if (team.place === undefined) return ''

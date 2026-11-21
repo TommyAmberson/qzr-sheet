@@ -149,7 +149,7 @@ function tickOf(quiz: ScheduleQuiz) {
             <!-- A quiz an event clashes with still shows, marked, so it can be moved (H-3) -->
             <div
               v-if="c.kind === 'quiz'"
-              class="quiz"
+              class="quiz qz-seats"
               :class="{
                 conflict: hasHard(c.quiz.id),
                 warning: !hasHard(c.quiz.id) && hasWarning(c.quiz.id),
@@ -384,7 +384,10 @@ function tickOf(quiz: ScheduleQuiz) {
   position: relative;
   display: grid;
   justify-items: center;
-  gap: 0.15rem;
+  /* Rows only: the columns are the seats' (seat.css) */
+  row-gap: 0.15rem;
+  /* Room for a team's short name beside its result */
+  min-width: 12.9rem;
   padding: 0.3rem 0.45rem 0.4rem;
   border-radius: 5px;
   transition:
@@ -415,11 +418,6 @@ function tickOf(quiz: ScheduleQuiz) {
   border-radius: 50%;
   background: var(--qt, var(--qc));
   box-shadow: 0 0 0 1px var(--qc);
-}
-
-/* Room for a long source beside a centred line */
-.sheet :deep(.seat) {
-  min-width: 12rem;
 }
 
 /* A pinned quiz carries a small mark in its corner */
@@ -556,8 +554,10 @@ function tickOf(quiz: ScheduleQuiz) {
     font-size: 7.5pt;
   }
 
-  .sheet :deep(.seat) {
+  /* The page's columns are fixed, so the line keeps a set share of them rather than growing */
+  .sheet .quiz.qz-seats {
     min-width: 0;
+    grid-template-columns: minmax(0, 1fr) 3px min(7rem, 50%) minmax(0, 1fr);
   }
 
   .sheet .quiz-title {
