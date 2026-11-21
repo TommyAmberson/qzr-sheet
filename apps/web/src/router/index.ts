@@ -5,7 +5,7 @@ import {
   type RouteLocationRaw,
 } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
-import { authClient } from '../composables/useAuth'
+import { settledSession } from '../composables/useAuth'
 import { guestSessionFor, joinByLink, LINK_REFUSED, notifyGuest } from '@qzr/ui'
 import { joinMeetGuest } from '../api'
 import { isFailedImport, pageLoaded, recoverFromStaleBuild } from '../staleBuild'
@@ -172,7 +172,8 @@ async function joinFrom(code: string) {
 router.beforeEach(async (to) => {
   if (!to.matched.some((r) => r.meta.requiresAuth)) return true
 
-  const { data } = await authClient.getSession()
+  // The session the app's store reads, so the page's opening asks for it once
+  const data = await settledSession()
   if (data?.user) return true
   // A meet's address names it by its viewer code, so opening it joins a signed-out visitor as a
   // viewer, keeping the address. A guest official keeps no code, so goes by the meet's id.

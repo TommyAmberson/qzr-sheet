@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { RoomCodeDialog, withRoomCode } from '@qzr/ui'
 import { joinMeetGuest } from '../api'
-import { authClient, useAuth } from './useAuth'
+import { settledSession, useAuth } from './useAuth'
 
 /** The portal's one room-code dialog, mounted by App.vue */
 export const roomCodeDialog = ref<InstanceType<typeof RoomCodeDialog> | null>(null)
@@ -25,7 +25,7 @@ export function useRoomCode() {
   ): Promise<T | undefined> {
     // A page loading just after sign-in can run before the session has; an account decides then
     const signedIn = session.value?.isPending
-      ? !!(await authClient.getSession()).data?.user
+      ? !!(await settledSession())?.user
       : !!session.value?.data?.user
     return withRoomCode(meetId, action, {
       join: joinMeetGuest,

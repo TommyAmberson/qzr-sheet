@@ -9,7 +9,7 @@ import { RouterView } from 'vue-router'
 vi.mock('../composables/useAuth', () => {
   const data = { user: { id: 'u1' } }
   return {
-    authClient: { getSession: async () => ({ data }) },
+    settledSession: async () => data,
     useAuth: () => ({ session: ref({ data }) }),
   }
 })

@@ -4,10 +4,10 @@ import { ApiError, MeetRole } from '@qzr/shared'
 import { setGuestState, type RoomCodeRequest } from '@qzr/ui'
 
 const session = ref<{ data: { user: { id: string } } | null; isPending?: boolean }>({ data: null })
-const getSession = vi.fn(async () => ({ data: null as { user: { id: string } } | null }))
+const settledSession = vi.fn(async () => null as { user: { id: string } } | null)
 vi.mock('../useAuth', () => ({
   useAuth: () => ({ session }),
-  authClient: { getSession: () => getSession() },
+  settledSession: () => settledSession(),
 }))
 vi.mock('../../api', () => ({
   joinMeetGuest: vi.fn(async () => ({
@@ -67,11 +67,11 @@ describe('useRoomCode', () => {
 
   it('waits for a session still loading, and asks nothing when it turns out signed in', async () => {
     session.value = { data: null, isPending: true }
-    getSession.mockResolvedValueOnce({ data: { user: { id: 'u1' } } })
+    settledSession.mockResolvedValueOnce({ user: { id: 'u1' } })
     const { renew, ask } = withDialogTyping('NEW-CODE')
     const action = vi.fn().mockRejectedValue(new ApiError(401, 'Authentication required'))
     await expect(renew(4, action)).rejects.toThrow()
-    expect(getSession).toHaveBeenCalled()
+    expect(settledSession).toHaveBeenCalled()
     expect(ask).not.toHaveBeenCalled()
   })
 })
