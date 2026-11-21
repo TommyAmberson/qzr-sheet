@@ -21,6 +21,31 @@
   text-align: left;
 }
 
+/*
+ * A quiz's seats drawn together: the seats share their container's columns, so the sources and
+ * results each take the room their longest needs, and the lines, all one width, fill the rest. That
+ * is the room a quiz gets beside its column's widest, and the seat shows a team's full name in it
+ * where it fits and its short name where it doesn't (`v-fit-name`).
+ */
+.qz-seats {
+  display: grid;
+  grid-template-columns: auto 3px minmax(var(--seat-line, 7rem), 1fr) auto;
+  column-gap: 0.3rem;
+}
+
+/* A line's width comes from the quiz, never its name, or switching names would resize it */
+.qz-seats .qz-seat-line {
+  contain: inline-size;
+}
+
+.qz-seats > * {
+  grid-column: 1 / -1;
+}
+
+.qz-seats > .qz-seat.qz-seat.qz-seat {
+  grid-template-columns: subgrid;
+}
+
 .qz-bench {
   width: 3px;
   height: 1em;

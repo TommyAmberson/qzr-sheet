@@ -126,7 +126,7 @@ const marked = computed(() => markQuizzes(props.doc, props.marks))
             <span v-if="slot.events.length > 0" class="events">{{ slot.events.join(' · ') }}</span>
             <span v-if="slot.id === clock.underWay" class="now">Under way</span>
           </p>
-          <article v-for="{ room, quiz } in slot.quizzes" :key="quiz.id" class="list-quiz">
+          <article v-for="{ room, quiz } in slot.quizzes" :key="quiz.id" class="list-quiz qz-seats">
             <header class="quiz-head">
               <slot name="quiz-title" :quiz="quiz">
                 <span class="quiz-title">{{ quiz.label }}</span>

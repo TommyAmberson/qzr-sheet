@@ -9,7 +9,8 @@ import {
   type SettledBench,
   type SheetView,
 } from '@qzr/shared'
-import { resultText, settledText } from './scheduleMarks'
+import { vFitName, type FitName } from './fitName'
+import { resultText, settledShortText, settledText } from './scheduleMarks'
 import './seat.css'
 
 /**
@@ -33,13 +34,20 @@ const props = defineProps<{
 const seat = computed(() => props.quiz.seats[props.index]!)
 const source = computed(() => seatText(props.doc, props.quiz, seat.value, 'letters'))
 const absent = computed(() => drawnTeam(props.doc, props.quiz, seat.value)?.absent ?? false)
-const team = computed(() => {
-  if (absent.value) return 'Absent'
-  if (props.settled) return settledText(props.settled)
-  if (props.view === 'teams' && seat.value.kind === 'letter') {
-    return seatText(props.doc, props.quiz, seat.value, 'teams')
+/** The line's team: a settled one by its full name where the line has room, else its short one */
+const team = computed((): FitName => {
+  const one = (name: string) => ({ full: name, short: name })
+  if (absent.value) return one('Absent')
+  if (props.settled) {
+    return {
+      full: settledText(props.settled),
+      short: settledShortText(props.doc, props.quiz, props.settled),
+    }
   }
-  return ''
+  if (props.view === 'teams' && seat.value.kind === 'letter') {
+    return one(seatText(props.doc, props.quiz, seat.value, 'teams'))
+  }
+  return one('')
 })
 const outcome = computed(() => (props.result ? resultText(props.result) : ''))
 </script>
@@ -54,9 +62,11 @@ const outcome = computed(() => (props.result ? resultText(props.result) : ''))
   >
     <span class="qz-seat-src" :class="{ choose: seat.kind === 'empty' }">{{ source }}</span>
     <span class="qz-bench" :class="`qz-bench-${index}`" />
-    <span class="qz-seat-line" :class="{ absent, tied: settled && 'tied' in settled }">{{
-      team
-    }}</span>
+    <span
+      v-fit-name="team"
+      class="qz-seat-line"
+      :class="{ absent, tied: settled && 'tied' in settled }"
+    />
     <span v-if="outcome" class="qz-seat-result" :class="`place-${result?.place}`">{{
       outcome
     }}</span>
