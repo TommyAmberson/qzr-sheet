@@ -16,6 +16,12 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Fixed
+
+* The home page lists each meet once: an official of several rooms of a meet saw it once per room,
+  in identical rows. A meet's row names each of the account's roles in it, an official's with its
+  rooms ("official: Room 1, Room 2") (#234)
+
 ## [0.38.0] - 2026-11-20
 
 ### Added

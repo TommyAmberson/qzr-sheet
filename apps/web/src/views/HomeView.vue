@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { vFocus } from '../directives'
+import { meetRows } from '../meetRows'
 import { returnPath } from '../returnPath'
 import { scoresheetLink } from '../scoresheetLink'
 import { ref, computed, watch } from 'vue'
@@ -20,6 +21,7 @@ const router = useRouter()
 const { session } = useAuth()
 
 const memberships = ref<MeetMembership[]>([])
+const myMeets = computed(() => meetRows(memberships.value))
 const loadingMeets = ref(false)
 const meetsError = ref('')
 
@@ -163,15 +165,15 @@ watch(
         <template v-if="session.data?.user">
           <p v-if="loadingMeets" class="state-msg">Loading…</p>
           <p v-else-if="meetsError" class="state-msg state-msg--error">{{ meetsError }}</p>
-          <ul v-else-if="memberships.length" class="qm-list">
-            <li v-for="m in memberships" :key="m.meetId" class="qm-row">
+          <ul v-else-if="myMeets.length" class="qm-list">
+            <li v-for="m in myMeets" :key="m.meetId" class="qm-row">
               <button
                 class="qm-name"
                 @click="router.push({ name: 'meet', params: { slug: m.viewerCode } })"
               >
                 {{ m.meetName }}
               </button>
-              <span class="qm-role">{{ m.role.replace('_', ' ') }}</span>
+              <span class="qm-role">{{ m.roles }}</span>
             </li>
           </ul>
         </template>
