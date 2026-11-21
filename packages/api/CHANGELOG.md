@@ -17,6 +17,16 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.34.2] - 2026-11-21
+
+### Fixed
+
+* The meet day settles "New n" benches from a confirmed re-rank (from `@qzr/shared`)
+
+### Bundled contract
+
+* `@qzr/shared@1.21.1` - bumped from 1.21.0
+
 ## [0.34.1] - 2026-11-20
 
 ### Changed
