@@ -99,6 +99,27 @@ describe('resolveBenches', () => {
     expect(settled.get(benchKey('X', 2))).toEqual({ team: 'Maple 1' })
   })
 
+  it("finds a re-rank bench by the prelim places a line's teams took, not from the top", () => {
+    // A line of the re-rank holds prelim places 7 to 9 between its teams, as meet 3's did
+    const rerank = [
+      { name: 'Stone 1', rank: 7, tied: false },
+      { name: 'Cedar 1', rank: 8, tied: true },
+      { name: 'Maple 1', rank: 8, tied: true },
+    ]
+    const doc = structuredClone(schedule)
+    doc.quizzes.find((q) => q.id === 'X')!.seats = [
+      { kind: 'new', rank: 7 },
+      { kind: 'new', rank: 9 },
+      { kind: 'new', rank: 1 },
+    ]
+    const settled = resolveBenches(doc, 'd1', sources({ orders: new Map([['d1', { rerank }]]) }))
+    expect(settled.get(benchKey('X', 0))).toEqual({ team: 'Stone 1' })
+    // Behind the tie on 8, the second level team takes place 9
+    expect(settled.get(benchKey('X', 1))).toEqual({ team: 'Maple 1' })
+    // A place no line holds settles nothing
+    expect(settled.has(benchKey('X', 2))).toBe(false)
+  })
+
   it('names a bench fed by a quiz once that quiz counts, and marks a shared place tied', () => {
     const placed = new Map<string, PlacedTeam[]>([
       [
