@@ -4037,6 +4037,68 @@ thead tr th.sticky-col {
   outline-offset: -2px;
 }
 
+/* A quizzer who is out: their name in the colour of how they went out, as the answer cells show it,
+ * readable from across the room (#243). The badge inverts to stand out on it, and the score keeps a
+ * chip of the sheet's own background. A quizzer can be out two ways (quizzed out, then fouled out on
+ * bonuses): the colour follows the badge shown, quiz-out first, so the later rule wins. An error-out
+ * row is never also a foul-out row. */
+.row--errored-out > .col--name {
+  --out: var(--color-error);
+  --out-light: var(--color-badge-circle-error);
+}
+.row--fouled-out > .col--name {
+  --out: var(--color-foul);
+  --out-light: var(--color-badge-circle-foul);
+}
+.row--quizzed-out > .col--name {
+  --out: var(--color-correct);
+  --out-light: var(--color-badge-circle-correct);
+}
+:is(.row--quizzed-out, .row--errored-out, .row--fouled-out) > .col--name {
+  background: var(--out);
+  color: var(--out-light);
+}
+:is(.row--quizzed-out, .row--errored-out, .row--fouled-out)
+  > .col--name
+  :is(.drag-handle, .name-clear) {
+  color: var(--out-light);
+}
+/* Hovered, they invert as the badge does, so they don't vanish into a light hover background */
+:is(.row--quizzed-out, .row--errored-out, .row--fouled-out)
+  > .col--name
+  :is(.drag-handle, .name-clear):hover {
+  background: var(--out-light);
+  color: var(--out);
+}
+/* The hover and selected outline, in a shade that shows on the fill */
+:is(.row--quizzed-out, .row--errored-out, .row--fouled-out):hover > .col--name,
+:is(.row--quizzed-out, .row--errored-out, .row--fouled-out) > .col--name.col--name--active {
+  outline-color: var(--out-light);
+}
+/* A name that differs from the meet's roster keeps its amber warning, heavier, since amber is
+ * harder to see on the fill (the foul colour especially): a thicker underline, and a bold restore
+ * button edged in the fill's light shade, which is what catches the eye */
+:is(.row--quizzed-out, .row--errored-out, .row--fouled-out) > .col--name .editable-name--diverged {
+  /* Over the warning underline's own !important */
+  border-bottom-width: 2.5px !important;
+}
+:is(.row--quizzed-out, .row--errored-out, .row--fouled-out) > .col--name .name-restore {
+  font-weight: 800;
+  -webkit-text-stroke: 0.6px currentColor;
+  text-shadow:
+    0 0 1px var(--out-light),
+    0 0 1px var(--out-light),
+    0 0 2px var(--out-light);
+}
+:is(.row--quizzed-out, .row--errored-out, .row--fouled-out) > .col--name .stat-badge {
+  background: var(--out-light);
+  color: var(--out);
+}
+:is(.row--quizzed-out, .row--errored-out, .row--fouled-out) > .col--name .stat-count--individual {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
 /* Sticky quizzer name cell needs explicit border-top so it shows
  * through the sticky layer above the team-header's border-bottom */
 .row--quizzer > .col--name {
@@ -4432,6 +4494,8 @@ thead tr th.sticky-col {
   color: var(--color-badge-circle-correct);
   border-radius: 3px;
   transform: rotate(45deg);
+  /* Turned, its corners reach past its box: room so they don't touch the score beside it */
+  margin-inline: 0.25rem;
 }
 .stat-badge--quizout-bonus .stat-badge__label {
   transform: rotate(-45deg);
