@@ -119,6 +119,12 @@
   font-weight: 500;
 }
 
+/* A seat's source written where its team will go, faintly, until the team is known */
+.qz-seat-line.ghost {
+  color: var(--color-text-faint, #a8a29e);
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+}
+
 .qz-seat-line.tied {
   color: var(--color-text-muted, #6b6560);
   font-style: italic;

@@ -16,6 +16,18 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+### Changed
+
+* Every team on the schedule is written by its short name ("FC 1"), its full name kept for the
+  tooltip, so a quiz's lines read alike
+* A seat filled from a place or a re-rank ("1 of F", "New 11") shows its source faintly on its line
+  until its team is known, rather than left of the bench colour; the tooltip still names it, and the
+  builder still shows it beside the bench
+
+### Fixed
+
+* A bench's source is never cut short to "3 of …": on a phone's width the result gives way instead
+
 ## [0.38.3] - 2026-11-21
 
 ### Fixed
