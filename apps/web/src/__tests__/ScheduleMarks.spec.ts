@@ -112,6 +112,26 @@ describe('results on the schedule', () => {
     expect(bench(w, 1).find('.qz-seat-line').text()).toBe('Tied')
   })
 
+  it("writes a settled team by the draw's short name, whatever room the line has, the full one in its tooltip", () => {
+    const withIds = structuredClone(doc)
+    const team = withIds.draw['1']!.teams[0]!
+    team.teamId = 41
+    team.name = 'GF 1'
+    const w = mount(ScheduleSheet, {
+      props: {
+        doc: withIds,
+        view: 'teams',
+        marks: {
+          quizzes: new Map([[quiz.id, { id: quiz.id, status: 'notIn', teams: [] } as DayQuiz]]),
+          benches: { [benchKey(quiz.id, 0)]: { team: 'Grace Fellowship 1', teamId: 41 } },
+        },
+      },
+    })
+    const seat = w.find(`[data-seat="${benchKey(quiz.id, 0)}"]`)
+    expect(seat.find('.qz-seat-line').text()).toBe('GF 1')
+    expect(seat.attributes('title')).toMatch(/ · Grace Fellowship 1$/)
+  })
+
   it("keeps a team's number apart from its name, so cutting the name short keeps it", () => {
     const w = sheet(
       { id: quiz.id, status: 'notIn', teams: [] },

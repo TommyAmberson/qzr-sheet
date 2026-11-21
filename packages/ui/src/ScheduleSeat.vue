@@ -34,8 +34,11 @@ const props = defineProps<{
 const seat = computed(() => props.quiz.seats[props.index]!)
 const source = computed(() => seatText(props.doc, props.quiz, seat.value, 'letters'))
 const absent = computed(() => drawnTeam(props.doc, props.quiz, seat.value)?.absent ?? false)
-/** The line's team: a settled one by its full name where the line has room, else its short one */
-const team = computed((): FitName => {
+/**
+ * The line's team, by its short name ("FC 1") wherever the line is, so every line of the schedule
+ * reads alike and leaves room for the result beside it; its full name is kept for the tooltip
+ */
+const names = computed((): FitName => {
   const one = (name: string) => ({ full: name, short: name })
   if (absent.value) return one('Absent')
   if (props.settled) {
@@ -49,8 +52,10 @@ const team = computed((): FitName => {
   }
   return one('')
 })
+/** The short name alone on the line, which keeps its number in sight if it is cut short */
+const team = computed((): FitName => ({ full: names.value.short, short: names.value.short }))
 const outcome = computed(() => (props.result ? resultText(props.result) : ''))
-/** Where the bench comes from, and its team's full name, which the line may have cut or shortened */
+/** Where the bench comes from, and its team's full name, which the line shortens */
 const tooltip = computed(() => {
   // An absent bench names the team that is absent; Tied is no team's name
   if (absent.value) {
@@ -58,8 +63,8 @@ const tooltip = computed(() => {
     return name ? `${source.value} · ${name} (absent)` : source.value
   }
   const named = !(props.settled && 'tied' in props.settled)
-  return named && team.value.full && team.value.full !== source.value
-    ? `${source.value} · ${team.value.full}`
+  return named && names.value.full && names.value.full !== source.value
+    ? `${source.value} · ${names.value.full}`
     : source.value
 })
 </script>
