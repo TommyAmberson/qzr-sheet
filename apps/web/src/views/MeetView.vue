@@ -2,7 +2,7 @@
 import { computed, provide, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, findDivision, MeetRole, sameDivision, viewersSeeStats } from '@qzr/shared'
-import type { Sender } from '@qzr/ui'
+import { browserTimeZone, type Sender } from '@qzr/ui'
 
 import { getMeet, getMyMeets, getPublishedSchedule, getSender, type MeetDetail } from '../api'
 import { useAuth } from '../composables/useAuth'
@@ -10,6 +10,7 @@ import { useMeetDay } from '../composables/useMeetDay'
 import { useRoomCode } from '../composables/useRoomCode'
 import { coachChurchIds as coachChurchIdsOf } from '../meetAccess'
 import { MEET_TABS, meetPageKey, type MeetPage, type PublishedOnPage } from '../meetPage'
+import DisplayClock from '../components/DisplayClock.vue'
 import UploadQuizzes from '../components/UploadQuizzes.vue'
 
 /**
@@ -282,6 +283,17 @@ const page: MeetPage = {
 }
 provide(meetPageKey, page)
 
+/** A page for a screen, such as the display schedule: the tab alone, without the meet's header */
+const bare = computed(() => !!route.meta.bare)
+
+/** The meet's clock: its linked schedule's time zone, or the reader's */
+const meetTimeZone = computed(() => published.value?.document.link?.timeZone ?? browserTimeZone())
+
+/** Back from the display to the Schedule tab, keeping the division */
+function leaveDisplay() {
+  return router.push({ name: 'meet', params: { slug: props.slug }, query: divisionQuery.value })
+}
+
 const dates = computed(() => {
   if (!meet.value) return ''
   const { dateFrom, dateTo } = meet.value
@@ -290,14 +302,21 @@ const dates = computed(() => {
 </script>
 
 <template>
-  <div class="container meet-page">
-    <button v-if="!isGuest" class="back-link no-print" @click="router.push({ name: 'home' })">
+  <div class="container meet-page" :class="{ bare }">
+    <!-- A page for a screen: the button back, and the time now on the meet's clock -->
+    <div v-if="bare" class="bare-bar no-print">
+      <button class="back-link" @click="leaveDisplay">← Schedule</button>
+      <DisplayClock :time-zone="meetTimeZone" />
+    </div>
+    <button v-else-if="!isGuest" class="back-link no-print" @click="router.push({ name: 'home' })">
       ← QuizMeets
     </button>
 
     <p v-if="loading && !meet" class="state-msg">Loading…</p>
     <p v-else-if="error" class="state-msg state-msg--error">{{ error }}</p>
 
+    <!-- A page for a screen is the tab alone, under the button back -->
+    <RouterView v-else-if="meet && bare" />
     <template v-else-if="meet">
       <header class="meet-head">
         <div class="meet-info">
@@ -375,6 +394,27 @@ const dates = computed(() => {
 
 .back-link:hover {
   color: var(--color-text-muted);
+}
+
+/* A page for a screen fills it exactly, its tab scrolling inside rather than the page */
+.container.bare {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  padding: 0.75rem 1rem;
+}
+
+.bare-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.bare-bar .back-link {
+  margin-bottom: 0;
 }
 
 .page-title {

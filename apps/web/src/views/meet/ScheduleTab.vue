@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { slotTimes, type DayQuiz } from '@qzr/shared'
-import { browserTimeZone, ScheduleList, ScheduleSheet, type ScheduleMarks } from '@qzr/ui'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import type { DayQuiz } from '@qzr/shared'
+import { ScheduleList, ScheduleSheet, type ScheduleMarks } from '@qzr/ui'
 
 import QuizTitle from './QuizTitle.vue'
+import { useScheduleClock } from './useScheduleClock'
 import { useMeetPage } from '../../meetPage'
 import { problemText } from '../../stats'
 import { phone } from '../../viewport'
@@ -14,6 +15,7 @@ import { phone } from '../../viewport'
  * for the meet's phase, with the meet day's results and settled benches on it.
  */
 const router = useRouter()
+const route = useRoute()
 const { slug, meet, isAdmin, division, inScheduleDivision, published, day } = useMeetPage()
 
 /** The schedule shown: the picked division's quizzes, or every division's (FR-004) */
@@ -34,48 +36,24 @@ const statusTitle = (quiz: DayQuiz) => (quiz.problems ?? []).map(problemText).jo
 
 const storedOf = (quizId: string) => marks.value?.quizzes.get(quizId)?.storedId
 
-// ---- On a phone, a list by time with the slot under way marked (FR-021) ----
-
-/** The time, moved on each minute while the list is shown */
-const now = ref(new Date())
-let ticking: ReturnType<typeof setTimeout> | undefined
-/** The time now, and again at the start of each minute, so the mark moves on the minute */
-function tick() {
-  now.value = new Date()
-  ticking = setTimeout(tick, 60_000 - (now.value.getTime() % 60_000))
-}
-const stop = () => clearTimeout(ticking)
-// Stopped while the page is hidden; coming back into view catches up at once
-function onVisibility() {
-  stop()
-  if (document.visibilityState === 'visible') tick()
-}
-onMounted(() => {
-  if (!phone) return
-  tick()
-  document.addEventListener('visibilitychange', onVisibility)
-})
-onUnmounted(() => {
-  stop()
-  document.removeEventListener('visibilitychange', onVisibility)
-})
-
-const timeZone = computed(() => published.value?.document.link?.timeZone ?? browserTimeZone())
-
-/** When each slot runs, on the meet's clock: the linked schedule's time zone, or the reader's */
-const times = computed(() => {
-  const doc = published.value?.document
-  if (!doc || !meet.value) return null
-  return slotTimes(doc, meet.value.dateFrom, timeZone.value)
-})
+// On a phone, a list by time with the slot under way marked (FR-021)
+const { now, timeZone, times } = useScheduleClock(published, meet)
 </script>
 
 <template>
   <div class="schedule-tab">
     <p v-if="published === undefined" class="state-msg">Loading…</p>
     <template v-else>
-      <div v-if="isAdmin" class="tab-tools no-print">
+      <div class="tab-tools no-print">
+        <!-- The schedule alone, for a screen in the room -->
+        <RouterLink
+          v-if="published"
+          class="edit-link"
+          :to="{ name: 'meet-display', params: { slug }, query: route.query }"
+          >Display</RouterLink
+        >
         <button
+          v-if="isAdmin"
           type="button"
           class="edit-link"
           @click="router.push({ name: 'meet-schedule-edit', params: { slug } })"
@@ -135,7 +113,12 @@ const times = computed(() => {
 .tab-tools {
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
   margin-bottom: 0.75rem;
+}
+
+.tab-tools:empty {
+  display: none;
 }
 
 .edit-link {

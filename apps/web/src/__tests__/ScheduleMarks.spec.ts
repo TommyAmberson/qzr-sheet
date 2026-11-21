@@ -133,3 +133,20 @@ describe('results on the schedule', () => {
     expect(bench(w, 0).find('.qz-seat-line').text()).toBe(drawn[0]!.name!)
   })
 })
+
+describe('the slot under way on the sheet', () => {
+  it('marks its row alone, with "Now" beside its time', () => {
+    const slot = quiz.cell!.slot
+    const w = mount(ScheduleSheet, { props: { doc, view: 'teams', current: slot } })
+    const marked = w.findAll('tr.slot.current')
+    expect(marked).toHaveLength(1)
+    expect(marked[0]!.attributes('data-slot')).toBe(slot)
+    expect(marked[0]!.find('.time').text()).toMatch(/Now$/)
+  })
+
+  it('marks none without one, as the Schedule tab and the builder draw it', () => {
+    const w = mount(ScheduleSheet, { props: { doc, view: 'teams' } })
+    expect(w.find('tr.current').exists()).toBe(false)
+    expect(w.text()).not.toMatch(/Now/)
+  })
+})

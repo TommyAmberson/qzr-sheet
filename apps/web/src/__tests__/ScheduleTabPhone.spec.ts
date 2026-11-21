@@ -69,4 +69,15 @@ describe('the Schedule tab on a phone', () => {
     expect(w.find('.where').text()).toMatch(/· [12]$/)
     w.unmount()
   })
+
+  it('lists the display schedule by time too, its quizzes opening nothing', async () => {
+    stubApi(published())
+    await router.push('/fall/display')
+    const w = mount(RouterView, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(w.find('.schedule-list').exists()).toBe(true)
+    expect(w.find('.sheet').exists()).toBe(false)
+    expect(w.find('.schedule-list a').exists()).toBe(false)
+    w.unmount()
+  })
 })

@@ -120,7 +120,11 @@ const marked = computed(() => markQuizzes(props.doc, props.marks))
         <p v-if="clock.line?.before === slot.id && (i > 0 || clock.line.inDay)" class="now-line">
           Now · {{ clock.line.label }}
         </p>
-        <div class="list-slot" :class="{ 'under-way': slot.id === clock.underWay }">
+        <div
+          class="list-slot"
+          :class="{ 'under-way': slot.id === clock.underWay }"
+          :data-slot="slot.id"
+        >
           <p class="slot-time">
             {{ formatClock(slot.at) }}
             <span v-if="slot.events.length > 0" class="events">{{ slot.events.join(' · ') }}</span>
