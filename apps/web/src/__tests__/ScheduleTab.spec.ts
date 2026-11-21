@@ -151,6 +151,7 @@ describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
     const w = await open('/fall/display?division=1')
     expect(w.text()).toMatch(/Grace 1/)
     expect(w.find('nav.tabs').exists()).toBe(false)
+    expect(w.find('.display-clock').exists()).toBe(true)
     expect(w.text()).not.toMatch(/Fall Meet/)
     // Even an admin's stored quiz opens nothing, nor does a quiz not in yet
     expect(w.find(`[data-quiz="${quiz.id}"] a`).exists()).toBe(false)

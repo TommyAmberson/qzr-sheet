@@ -2,7 +2,7 @@
 import { computed, provide, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, findDivision, MeetRole, sameDivision, viewersSeeStats } from '@qzr/shared'
-import type { Sender } from '@qzr/ui'
+import { browserTimeZone, type Sender } from '@qzr/ui'
 
 import { getMeet, getMyMeets, getPublishedSchedule, getSender, type MeetDetail } from '../api'
 import { useAuth } from '../composables/useAuth'
@@ -10,6 +10,7 @@ import { useMeetDay } from '../composables/useMeetDay'
 import { useRoomCode } from '../composables/useRoomCode'
 import { coachChurchIds as coachChurchIdsOf } from '../meetAccess'
 import { MEET_TABS, meetPageKey, type MeetPage, type PublishedOnPage } from '../meetPage'
+import DisplayClock from '../components/DisplayClock.vue'
 import UploadQuizzes from '../components/UploadQuizzes.vue'
 
 /**
@@ -285,6 +286,9 @@ provide(meetPageKey, page)
 /** A page for a screen, such as the display schedule: the tab alone, without the meet's header */
 const bare = computed(() => !!route.meta.bare)
 
+/** The meet's clock: its linked schedule's time zone, or the reader's */
+const meetTimeZone = computed(() => published.value?.document.link?.timeZone ?? browserTimeZone())
+
 /** Back from the display to the Schedule tab, keeping the division */
 function leaveDisplay() {
   return router.push({ name: 'meet', params: { slug: props.slug }, query: divisionQuery.value })
@@ -299,7 +303,11 @@ const dates = computed(() => {
 
 <template>
   <div class="container meet-page" :class="{ bare }">
-    <button v-if="bare" class="back-link no-print" @click="leaveDisplay">← Schedule</button>
+    <!-- A page for a screen: the button back, and the time now on the meet's clock -->
+    <div v-if="bare" class="bare-bar no-print">
+      <button class="back-link" @click="leaveDisplay">← Schedule</button>
+      <DisplayClock :time-zone="meetTimeZone" />
+    </div>
     <button v-else-if="!isGuest" class="back-link no-print" @click="router.push({ name: 'home' })">
       ← QuizMeets
     </button>
@@ -397,9 +405,16 @@ const dates = computed(() => {
   padding: 0.75rem 1rem;
 }
 
-.bare .back-link {
-  align-self: flex-start;
+.bare-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 0.5rem;
+}
+
+.bare-bar .back-link {
+  margin-bottom: 0;
 }
 
 .page-title {
