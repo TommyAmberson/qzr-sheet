@@ -3763,6 +3763,12 @@ thead tr th.sticky-col {
   background: transparent !important;
   border: none !important;
 }
+/* The team bar is the muted grey, close to the faint grey of a prompt, so its prompt takes the bar's
+ * own text colour, faded */
+.row--team-header .editable-name--team::placeholder {
+  color: inherit;
+  opacity: 0.7;
+}
 .row--team-header .team-name {
   font-weight: 700;
   font-size: 0.85rem;
