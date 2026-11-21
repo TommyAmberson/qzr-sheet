@@ -385,6 +385,15 @@ export function createAuth(env: Bindings, db: Db, sendEmail: SendEmail, basePath
       // The email-code plugin sends this as a code (FR-006).
       sendOnSignUp: true,
     },
+    session: {
+      // Every API request reads the session, so a signed copy kept in a cookie
+      // spares the database that read for a minute at a time. Only requests
+      // that read trust it: Better Auth's own routes and anything that
+      // changes something read the database (`withoutCachedSession`), so a
+      // session ended elsewhere (a password reset, "That's not me") can at
+      // most read for the minute its copy lasts.
+      cookieCache: { enabled: true, maxAge: 60 },
+    },
     user: {
       additionalFields: {
         role: {

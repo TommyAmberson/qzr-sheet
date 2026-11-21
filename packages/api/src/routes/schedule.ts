@@ -1011,7 +1011,7 @@ publishedSchedule.get('/:id/schedule/published', async (c) => {
     newestVersion(db, meetId),
     readerView(c, db, meetId),
     db
-      .select({ name: schema.quizMeets.name })
+      .select({ name: schema.quizMeets.name, phase: schema.quizMeets.phase })
       .from(schema.quizMeets)
       .where(eq(schema.quizMeets.id, meetId)),
   ])
@@ -1046,7 +1046,15 @@ publishedSchedule.get('/:id/schedule/published', async (c) => {
       }
     }
   }
-  return c.json({ document: doc, publishedAt, view, meetName: meet?.name ?? doc.name })
+  // The version and phase let a page holding this tell whether a meet day needs it read again
+  return c.json({
+    document: doc,
+    publishedAt,
+    view,
+    meetName: meet?.name ?? doc.name,
+    version: row?.version ?? null,
+    phase: meet?.phase,
+  })
 })
 
 /** Each team's name as the portal shows it */

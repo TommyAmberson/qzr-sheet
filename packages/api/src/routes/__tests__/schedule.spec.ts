@@ -736,6 +736,17 @@ describe('GET /api/meets/:id/schedule/published', () => {
     }
   })
 
+  it('names the version and the phase it was read in, as the meet day does', async () => {
+    const { meet } = await publish('live')
+    const res = await guestApp(db, meet.id).request(
+      `/api/meets/${meet.id}/schedule/published`,
+      {},
+      env,
+    )
+    const body = await jsonOf<Published & { version: number; phase: string }>(res)
+    expect(body).toMatchObject({ version: 1, phase: 'live', view: 'teams' })
+  })
+
   it('lists letters in letter order, so they cannot be paired with the meet team list', async () => {
     const linked = await linkedMeet(db, 'build')
     linked.doc.draw['1']!.teams.reverse()

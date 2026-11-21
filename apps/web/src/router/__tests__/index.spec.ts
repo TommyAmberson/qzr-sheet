@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { type Router } from 'vue-router'
 import { MeetRole } from '@qzr/shared'
 
-const mockGetSession = vi.fn()
+const mockSettledSession = vi.fn()
 const mockJoinMeetGuest = vi.fn()
 
 vi.mock('../../api', () => ({
@@ -10,7 +10,7 @@ vi.mock('../../api', () => ({
 }))
 
 vi.mock('../../composables/useAuth', () => ({
-  authClient: { getSession: (...args: unknown[]) => mockGetSession(...args) },
+  settledSession: (...args: unknown[]) => mockSettledSession(...args),
 }))
 
 // Stub the view components so we don't need the full Vue compile chain
@@ -28,7 +28,7 @@ vi.mock('../../views/meet/StandingsTab.vue', () => ({ default: { template: '<div
 let router: Router
 
 beforeEach(async () => {
-  mockGetSession.mockReset()
+  mockSettledSession.mockReset()
   // Guest sessions are kept in storage, and the router's copy loads from it
   localStorage.clear()
   // Unless a test says otherwise, the server refuses the address's slug as a code
@@ -44,13 +44,13 @@ beforeEach(async () => {
 
 describe('router guard', () => {
   it('opens account settings, not a meet, for a signed-in user', async () => {
-    mockGetSession.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockSettledSession.mockResolvedValue({ user: { id: 'u1' } })
     await router.push('/account')
     expect(router.currentRoute.value.name).toBe('account')
   })
 
   it('opens the provider step signed out, not a meet', async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     await router.push('/account/provider')
     expect(router.currentRoute.value.name).toBe('account-provider')
   })
@@ -58,42 +58,42 @@ describe('router guard', () => {
   it('allows navigation to public routes without auth', async () => {
     await router.push('/')
     expect(router.currentRoute.value.name).toBe('home')
-    expect(mockGetSession).not.toHaveBeenCalled()
+    expect(mockSettledSession).not.toHaveBeenCalled()
   })
 
   it('redirects to home when navigating to a protected route without a session', async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     await router.push('/fall-2025')
     expect(router.currentRoute.value.name).toBe('home')
   })
 
   it('redirects to home when session exists but user is null', async () => {
-    mockGetSession.mockResolvedValue({ data: { user: null } })
+    mockSettledSession.mockResolvedValue({ user: null })
     await router.push('/fall-2025')
     expect(router.currentRoute.value.name).toBe('home')
   })
 
   it('allows navigation to a protected route with a valid session', async () => {
-    mockGetSession.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@b.com' } } })
+    mockSettledSession.mockResolvedValue({ user: { id: 'u1', email: 'a@b.com' } })
     await router.push('/fall-2025')
     expect(router.currentRoute.value.name).toBe('meet')
   })
 
   it('allows nested protected routes with a valid session', async () => {
-    mockGetSession.mockResolvedValue({ data: { user: { id: 'u1', email: 'a@b.com' } } })
+    mockSettledSession.mockResolvedValue({ user: { id: 'u1', email: 'a@b.com' } })
     await router.push('/fall-2025/churches/3/teams')
     expect(router.currentRoute.value.name).toBe('meet-church-teams')
   })
 
   it('redirects nested protected routes to home without a session', async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     await router.push('/fall-2025/churches/3/teams')
     expect(router.currentRoute.value.name).toBe('home')
   })
 
   it('still logs a navigation error that is not a failed page load', async () => {
     const error = new Error('auth is down')
-    mockGetSession.mockRejectedValue(error)
+    mockSettledSession.mockRejectedValue(error)
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     await router.push('/fall-2025').catch(() => {})
     expect(log).toHaveBeenCalledWith(error)
@@ -103,7 +103,7 @@ describe('router guard', () => {
 
 describe('route props', () => {
   it('meet route extracts slug from params', async () => {
-    mockGetSession.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockSettledSession.mockResolvedValue({ user: { id: 'u1' } })
     await router.push('/fall-2025')
 
     const route = router.currentRoute.value
@@ -114,7 +114,7 @@ describe('route props', () => {
   })
 
   it('meet-church-teams route extracts slug and numeric churchId', async () => {
-    mockGetSession.mockResolvedValue({ data: { user: { id: 'u1' } } })
+    mockSettledSession.mockResolvedValue({ user: { id: 'u1' } })
     await router.push('/fall-2025/churches/7/teams')
 
     const route = router.currentRoute.value
@@ -139,7 +139,7 @@ describe('not-found route', () => {
 })
 
 describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.md)", () => {
-  const signedIn = () => mockGetSession.mockResolvedValue({ data: { user: { id: 'u1' } } })
+  const signedIn = () => mockSettledSession.mockResolvedValue({ user: { id: 'u1' } })
 
   it.each([
     ['/fall', 'meet'],
@@ -171,14 +171,14 @@ describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.
   })
 
   it('asks a signed-out reader to sign in and brings them back to the tab and division (FR-005)', async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     await router.push('/fall/standings?division=2')
     expect(router.currentRoute.value.name).toBe('home')
     expect(router.currentRoute.value.query.next).toBe('/fall/standings?division=2')
   })
 
   it("keeps a guest who joined with the meet's code to its Schedule, Quizzes and Standings", async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     // The router's own copy of the guest sessions, fresh with the router
     const { setGuestState } = await import('@qzr/ui')
     setGuestState({
@@ -198,7 +198,7 @@ describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.
   })
 
   it("joins a signed-out visitor with the viewer code in the meet's address, keeping it", async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     mockJoinMeetGuest.mockResolvedValue({
       token: 't',
       meet: { id: 7, name: 'Fall' },
@@ -213,7 +213,7 @@ describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.
   })
 
   it('opens a meet by the code a guest joined with, without joining again', async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     const { setGuestState } = await import('@qzr/ui')
     setGuestState({
       active: null,
@@ -225,7 +225,7 @@ describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.
   })
 
   it("keeps a guest official's session when they open the meet's viewer address", async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     const { joinedSession, setGuestState } = await import('@qzr/ui')
     const official = { token: 't', meetId: 7, meetName: 'Fall', role: MeetRole.Official as const }
     setGuestState({ active: 7, joined: [official] })
@@ -240,7 +240,7 @@ describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.
   })
 
   it("says a rejected meet address isn't a valid link", async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     await router.push('/old-code')
     expect(router.currentRoute.value.name).toBe('home')
     const { guestNotice } = await import('@qzr/ui')
@@ -248,21 +248,21 @@ describe("the meet page's addresses (specs/010-meet-day, contracts/meet-day-api.
   })
 
   it("asks a signed-out member at a members' page to sign in, without joining", async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     await router.push('/fall/setup')
     expect(router.currentRoute.value.name).toBe('home')
     expect(mockJoinMeetGuest).not.toHaveBeenCalled()
   })
 
   it('never takes a page without a meet as a code', async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     await router.push('/account')
     expect(router.currentRoute.value.name).toBe('home')
     expect(mockJoinMeetGuest).not.toHaveBeenCalled()
   })
 
   it('never joins as an official from an address', async () => {
-    mockGetSession.mockResolvedValue({ data: null })
+    mockSettledSession.mockResolvedValue(null)
     mockJoinMeetGuest.mockResolvedValue({
       token: 't',
       meet: { id: 7, name: 'Fall' },

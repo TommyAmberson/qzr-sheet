@@ -9,7 +9,7 @@ import { RouterView } from 'vue-router'
 vi.mock('../composables/useAuth', () => {
   const data = { user: { id: 'u1' } }
   return {
-    authClient: { getSession: async () => ({ data }) },
+    settledSession: async () => data,
     useAuth: () => ({ session: ref({ data }) }),
   }
 })
@@ -138,6 +138,29 @@ describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
     expect(w.findAll('[data-quiz]').length).toBe(doc.quizzes.filter((q) => q.cell).length - 1)
   })
 
+  it('reads the meet day and the schedule alongside who the reader is, not after it', async () => {
+    stubApi({
+      status: 200,
+      body: { document: published(), publishedAt: '2026-11-02', view: 'teams' },
+    })
+    const stubbed = vi.mocked(fetch).getMockImplementation()!
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      if (String(url).includes('/results/sender')) await held
+      return stubbed(url)
+    })
+    const w = await open()
+    const asked = vi.mocked(fetch).mock.calls.map(([url]) => String(url))
+    expect(asked.some((url) => url.includes('/api/meets/7/day'))).toBe(true)
+    expect(asked.some((url) => url.includes('/schedule/published'))).toBe(true)
+    // The page itself waits to know who the reader is, so an admin's tabs don't change under them
+    expect(w.text()).not.toMatch(/Grace 1/)
+    release()
+    await flushPromises()
+    expect(w.text()).toMatch(/Grace 1/)
+  })
+
   it('shows letters when the API says so', async () => {
     const doc = published()
     stubApi({ status: 200, body: { document: doc, publishedAt: '2026-11-02', view: 'letters' } })
@@ -190,5 +213,44 @@ describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
     await flushPromises()
     expect(reads()).toBe(3)
     expect(w.text()).toMatch(/Grace 1/)
+  })
+
+  it('reads the schedule once on opening when it names the meet day it answers for', async () => {
+    const answer = {
+      status: 200,
+      body: {
+        document: published(),
+        publishedAt: '2026-11-02',
+        view: 'teams',
+        version: 1,
+        phase: 'live',
+      } as unknown,
+    }
+    const dayNow = { ...day }
+    stubApi(answer, { day: dayNow })
+    // The schedule answers after the meet day, as the larger read usually does
+    const stubbed = vi.mocked(fetch).getMockImplementation()!
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      if (String(url).includes('/schedule/published')) await held
+      return stubbed(url)
+    })
+    const w = await open()
+    release()
+    await flushPromises()
+    const reads = () =>
+      vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/schedule/published'))
+        .length
+    expect(reads()).toBe(1)
+    expect(w.text()).toMatch(/Grace 1/)
+    // Another version still reads it again
+    dayNow.scheduleVersion = 2
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Refresh')!
+      .trigger('click')
+    await flushPromises()
+    expect(reads()).toBe(2)
   })
 })
