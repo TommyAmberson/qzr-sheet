@@ -84,12 +84,25 @@
 }
 
 .qz-seat-line {
+  display: flex;
   min-height: 1.2em;
   overflow: hidden;
   border-bottom: 1px solid color-mix(in srgb, var(--color-text, #2a2724) 30%, transparent);
   font-weight: 600;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A line too narrow cuts the team's name short, never its number after it */
+.qz-seat-line .fit-name-head {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qz-seat-line .fit-name-number {
+  flex: none;
+  /* Its leading space parts it from the name, which a flex line would otherwise drop */
+  white-space: pre;
 }
 
 .qz-seat-line.absent {

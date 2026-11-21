@@ -8,7 +8,7 @@ import {
   type ScheduleDocument,
   type SettledBench,
 } from '@qzr/shared'
-import { ScheduleSheet } from '@qzr/ui'
+import { ScheduleSheet, nameAndNumber } from '@qzr/ui'
 
 // Results on the schedule (specs/010-meet-day, FR-009 to FR-011)
 
@@ -110,6 +110,20 @@ describe('results on the schedule', () => {
     )
     expect(bench(w, 0).find('.qz-seat-line').text()).toBe('Maple Hill 2')
     expect(bench(w, 1).find('.qz-seat-line').text()).toBe('Tied')
+  })
+
+  it("keeps a team's number apart from its name, so cutting the name short keeps it", () => {
+    const w = sheet(
+      { id: quiz.id, status: 'notIn', teams: [] },
+      { [benchKey(quiz.id, 0)]: { team: 'Maple Hill Bible Fellowship 12' } },
+    )
+    const line = bench(w, 0).find('.qz-seat-line')
+    expect(line.find('.fit-name-head').text()).toBe('Maple Hill Bible Fellowship')
+    expect(line.find('.fit-name-number').text()).toBe('12')
+    // The bench's source, and the name the line may have cut short
+    expect(bench(w, 0).attributes('title')).toMatch(/ · Maple Hill Bible Fellowship 12$/)
+    expect(nameAndNumber('Grace 2B')).toEqual({ head: 'Grace', number: ' 2B' })
+    expect(nameAndNumber('Absent')).toEqual({ head: 'Absent', number: '' })
   })
 
   it('draws the sheet as before with no marks, as the builder does', () => {
