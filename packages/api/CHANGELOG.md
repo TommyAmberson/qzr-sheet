@@ -17,6 +17,17 @@ wire/state compatibility signal — see CONTRIBUTING.md "Contract package versio
 
 ## [Unreleased]
 
+## [0.34.3] - 2026-11-21
+
+### Fixed
+
+* Stored quizzes are scored with the 3rd, 4th and 5th unique-quizzer bonus for a first correct
+  answer in overtime (from `@qzr/shared`)
+
+### Bundled contract
+
+* `@qzr/shared@1.21.2` - bumped from 1.21.1
+
 ## [0.34.2] - 2026-11-21
 
 ### Fixed
