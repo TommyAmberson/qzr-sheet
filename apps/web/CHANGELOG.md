@@ -21,8 +21,9 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 * A display schedule for a screen in the room, at `/<meet>/display` and linked from the Schedule
   tab: the sheet alone across the whole width with its results, kept current, with a button back and
   nothing else; on a phone, the list by time with the slot under way marked. It scrolls with the
-  rooms and the day held at the top, opens on the quiz that last started, and shows the time on the
-  meet's clock at the top right
+  rooms and the day held at the top, opens on the quiz that last started, marks that quiz's row with
+  a bar beside its time and "Now", moving on as the next starts, and shows the time on the meet's
+  clock at the top right
 
 ## [0.38.3] - 2026-11-21
 

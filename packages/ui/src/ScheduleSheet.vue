@@ -33,6 +33,8 @@ const props = withDefaults(
     marks?: ScheduleMarks | null
     /** What a quiz's status note says on hover: what is wrong with it, for those told */
     statusTitle?: (quiz: DayQuiz) => string
+    /** The slot under way, marked across its row, as a display schedule shows it */
+    current?: string | null
   }>(),
   {
     view: 'letters',
@@ -41,6 +43,7 @@ const props = withDefaults(
     editable: false,
     marks: null,
     statusTitle: undefined,
+    current: null,
   },
 )
 
@@ -132,11 +135,17 @@ function tickOf(quiz: ScheduleQuiz) {
           </td>
         </tr>
         <!-- A row of only events is drawn short, as the paper schedules draw Lunch (FR-017) -->
-        <tr v-else class="slot" :class="{ event: r.short }" :data-slot="r.row.id">
+        <tr
+          v-else
+          class="slot"
+          :class="{ event: r.short, current: r.row.id === current }"
+          :data-slot="r.row.id"
+        >
           <td class="time">
             <button type="button" class="row-button" @click="emit('row', r.row.id, target($event))">
               {{ formatClock(r.row.at) }}
             </button>
+            <span v-if="r.row.id === current" class="now-tag">Now</span>
           </td>
           <td
             v-for="(c, ci) in r.cells"
@@ -327,6 +336,39 @@ function tickOf(quiz: ScheduleQuiz) {
   font-family: var(--sheet-mono);
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The slot under way: a bar down the time beside it, which sticks with the times when the sheet
+ * scrolls sideways, its time and "Now" in the accent, and a wash across the whole row. The wash is
+ * mixed into the background, since the time cell must stay opaque to cover what scrolls under it.
+ */
+.slot.current > td {
+  background: color-mix(in srgb, var(--color-accent, #2563eb) 9%, var(--color-bg, #fff));
+}
+
+.slot.current > .time {
+  box-shadow: inset 4px 0 0 var(--color-accent, #2563eb);
+}
+
+.sheet .slot.current .time .row-button {
+  color: var(--color-accent, #2563eb);
+  font-weight: 700;
+}
+
+.now-tag {
+  display: block;
+  width: fit-content;
+  margin: 0.2rem 0 0 0.25rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--color-accent, #2563eb);
+  color: var(--color-bg, #fff);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-transform: uppercase;
 }
 
 /* Day and note labels, and a long event's name, stay in view when the grid scrolls sideways */

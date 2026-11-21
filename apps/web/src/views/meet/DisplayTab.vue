@@ -28,7 +28,13 @@ const marks = computed<ScheduleMarks | null>(() =>
     : null,
 )
 
-const { now, timeZone, times } = useScheduleClock(published, meet)
+// The time moves on at any width, since the sheet marks the slot under way too
+const { now, timeZone, times } = useScheduleClock(published, meet, true)
+
+/** The slot under way, the one the display opens on: the last to have started, until the next does */
+const current = computed(() =>
+  shown.value && times.value ? currentSlot(shown.value, times.value, now.value.getTime()) : null,
+)
 
 /** The box the schedule scrolls in */
 const box = ref<HTMLElement | null>(null)
@@ -98,7 +104,7 @@ watch(
     if (day.value === null && !dayError.value) return
     opened = true
     await nextTick()
-    const id = currentSlot(shown.value, times.value, Date.now())
+    const id = current.value
     if (id) scrollToSlot(el, id)
   },
   { flush: 'post' },
@@ -124,7 +130,14 @@ watch(
           <span class="quiz-title">{{ quiz.label }}</span>
         </template>
       </ScheduleList>
-      <ScheduleSheet v-else class="published" :doc="shown" :view="published.view" :marks="marks">
+      <ScheduleSheet
+        v-else
+        class="published"
+        :doc="shown"
+        :view="published.view"
+        :marks="marks"
+        :current="current"
+      >
         <template #quiz-title="{ quiz }">
           <span class="quiz-title">{{ quiz.label }}</span>
         </template>
