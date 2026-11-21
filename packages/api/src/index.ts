@@ -5,7 +5,7 @@ import { csrf } from 'hono/csrf'
 import type { ScheduledController, ExecutionContext } from '@cloudflare/workers-types'
 import type { Bindings } from './bindings'
 import type { SessionVariables } from './middleware/session'
-import { sessionMiddleware } from './middleware/session'
+import { sessionMiddleware, withoutCachedSession } from './middleware/session'
 import { health } from './routes/health'
 import { meets } from './routes/meets'
 import { join } from './routes/join'
@@ -81,10 +81,12 @@ api.use('*', async (c, next) => {
 
 api.route('/health', health)
 // Better Auth's base path is the mount that matched (`/qzr/api/auth/*` -> `/qzr/api/auth`).
-// Mounting leaves `c.req.raw` untouched, so Better Auth matches it against the real path.
+// Mounting leaves `c.req.raw` untouched, so Better Auth matches it against the real path. Its own
+// routes, `get-session` among them, read the session from the database, never the cached copy.
 api.on(['GET', 'POST', 'OPTIONS'], '/api/auth/*', (c) => {
   const basePath = routePath(c).replace(/\/\*$/, '')
-  return createAuth(c.env, c.get('db'), c.get('sendEmail'), basePath).handler(c.req.raw)
+  const request = new Request(c.req.raw, { headers: withoutCachedSession(c.req.raw.headers) })
+  return createAuth(c.env, c.get('db'), c.get('sendEmail'), basePath).handler(request)
 })
 
 // Session middleware for all /api/* routes (except auth, handled above)
