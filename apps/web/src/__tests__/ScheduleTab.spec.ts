@@ -138,6 +138,29 @@ describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
     expect(w.findAll('[data-quiz]').length).toBe(doc.quizzes.filter((q) => q.cell).length - 1)
   })
 
+  it('reads the meet day and the schedule alongside who the reader is, not after it', async () => {
+    stubApi({
+      status: 200,
+      body: { document: published(), publishedAt: '2026-11-02', view: 'teams' },
+    })
+    const stubbed = vi.mocked(fetch).getMockImplementation()!
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      if (String(url).includes('/results/sender')) await held
+      return stubbed(url)
+    })
+    const w = await open()
+    const asked = vi.mocked(fetch).mock.calls.map(([url]) => String(url))
+    expect(asked.some((url) => url.includes('/api/meets/7/day'))).toBe(true)
+    expect(asked.some((url) => url.includes('/schedule/published'))).toBe(true)
+    // The page itself waits to know who the reader is, so an admin's tabs don't change under them
+    expect(w.text()).not.toMatch(/Grace 1/)
+    release()
+    await flushPromises()
+    expect(w.text()).toMatch(/Grace 1/)
+  })
+
   it('shows letters when the API says so', async () => {
     const doc = published()
     stubApi({ status: 200, body: { document: doc, publishedAt: '2026-11-02', view: 'letters' } })
