@@ -122,14 +122,24 @@ async function membershipOf(id: number) {
   }
 }
 
-/** The published schedule; none published is null */
-async function publishedOf(id: number): Promise<PublishedOnPage | null> {
+/** A meet day's schedule version and phase, the phase deciding letters or team names */
+const dayKey = (version: number | null, phase: string) => `${version}|${phase}`
+
+/**
+ * The published schedule, none published being null, and the meet day it answers for where the
+ * API names it (an older API doesn't)
+ */
+async function publishedOf(
+  id: number,
+): Promise<{ schedule: PublishedOnPage | null; answers?: string }> {
   try {
     const answer = await getPublishedSchedule(id)
-    return { document: answer.document, view: answer.view }
+    const schedule = { document: answer.document, view: answer.view }
+    if (answer.version === undefined || answer.phase === undefined) return { schedule }
+    return { schedule, answers: dayKey(answer.version, answer.phase) }
   } catch (e) {
     if (!(e instanceof ApiError) || e.status !== 404) throw e
-    return null
+    return { schedule: null }
   }
 }
 
@@ -227,16 +237,20 @@ async function readPublished(id: number, forDay: string | null) {
   const mine = ++publishedReads
   askedFor = forDay
   try {
-    const schedule = await publishedOf(id)
+    const { schedule, answers } = await publishedOf(id)
     if (mine !== publishedReads) return
     published.value = schedule
-    heldFor = forDay
+    heldFor = answers ?? forDay
     readError.value = ''
   } catch (e) {
     if (mine !== publishedReads) return
     readError.value = `The schedule couldn't be read: ${(e as Error).message}`
   } finally {
-    if (mine === publishedReads) askedFor = undefined
+    if (mine === publishedReads) {
+      askedFor = undefined
+      // A meet day that answered while this read, for none, was on its way is followed now
+      if (forDay === null) followDay()
+    }
   }
 }
 
@@ -248,19 +262,24 @@ watch(meetId, (id) => {
   }
 })
 
-// Read for each version and phase a meet day names, the phase deciding letters or team names, on
-// every answer so a read that failed is tried again; with no meet day to go by, read anyway so the
-// Schedule tab isn't left waiting
-watch([answered, dayError], () => {
+/**
+ * Read for each version and phase a meet day names, on every answer so a read that failed is tried
+ * again; with no meet day to go by, read anyway so the Schedule tab isn't left waiting. A read on
+ * its way for none is waited for, since it names the version and phase it answers for.
+ */
+function followDay() {
   const id = meetId.value
   if (id === null) return
   if (day.value) {
-    const forDay = `${day.value.scheduleVersion}|${day.value.phase}`
+    const forDay = dayKey(day.value.scheduleVersion, day.value.phase)
+    if (askedFor === null) return
     if (forDay !== heldFor && forDay !== askedFor) void readPublished(id, forDay)
   } else if (dayError.value && published.value === undefined && askedFor === undefined) {
     void readPublished(id, null)
   }
-})
+}
+
+watch([answered, dayError], followDay)
 
 function scoresheetHref(scheduleQuizId: string): string {
   if (!meet.value) return '#'

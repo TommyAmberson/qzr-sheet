@@ -214,4 +214,43 @@ describe('the Schedule tab (FR-008; FR-050, FR-052 of schedules)', () => {
     expect(reads()).toBe(3)
     expect(w.text()).toMatch(/Grace 1/)
   })
+
+  it('reads the schedule once on opening when it names the meet day it answers for', async () => {
+    const answer = {
+      status: 200,
+      body: {
+        document: published(),
+        publishedAt: '2026-11-02',
+        view: 'teams',
+        version: 1,
+        phase: 'live',
+      } as unknown,
+    }
+    const dayNow = { ...day }
+    stubApi(answer, { day: dayNow })
+    // The schedule answers after the meet day, as the larger read usually does
+    const stubbed = vi.mocked(fetch).getMockImplementation()!
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      if (String(url).includes('/schedule/published')) await held
+      return stubbed(url)
+    })
+    const w = await open()
+    release()
+    await flushPromises()
+    const reads = () =>
+      vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/schedule/published'))
+        .length
+    expect(reads()).toBe(1)
+    expect(w.text()).toMatch(/Grace 1/)
+    // Another version still reads it again
+    dayNow.scheduleVersion = 2
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Refresh')!
+      .trigger('click')
+    await flushPromises()
+    expect(reads()).toBe(2)
+  })
 })

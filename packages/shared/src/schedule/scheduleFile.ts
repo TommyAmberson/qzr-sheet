@@ -1,6 +1,7 @@
 import { Type, type Static } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 
+import type { MeetPhase } from '../phases'
 import type { SheetView } from './sheet'
 
 /**
@@ -248,6 +249,13 @@ export interface PublishedSchedule {
   view: SheetView
   /** The meet's own name, which the schedule's may not be */
   meetName: string
+  /**
+   * The version read, null for a meet still on the old tables, and the meet's phase it was read
+   * in, which decides `view` (the meet day's `scheduleVersion` and `phase`); an older API sends
+   * neither
+   */
+  version?: number | null
+  phase?: MeetPhase
 }
 
 // ---- Codec ----
