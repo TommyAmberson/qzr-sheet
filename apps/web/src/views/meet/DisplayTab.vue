@@ -35,13 +35,24 @@ const box = ref<HTMLElement | null>(null)
 
 // ---- The rooms, and the day's name under them, held at the top ----
 
-/** The rooms' header, measured so the day's name sticks just under it, whatever its height */
+/** The heights of what is held at the top of the box: the rooms, and the day's name under them */
+function heldAtTop(el: HTMLElement) {
+  const rooms = el.querySelector<HTMLElement>('thead')?.offsetHeight ?? 0
+  const dayName = el.querySelector<HTMLElement>('.day th, .day-label')?.offsetHeight ?? 0
+  return { rooms, dayName }
+}
+
+/**
+ * Measured so the day's name sticks just under the rooms, whatever their height, and the space
+ * after the schedule lets its last slot come up under them too
+ */
 let measuring: ResizeObserver | undefined
 function measureRooms() {
   const el = box.value
-  const rooms = el?.querySelector('thead')
   if (!el) return
-  el.style.setProperty('--rooms-height', `${rooms?.offsetHeight ?? 0}px`)
+  const { rooms, dayName } = heldAtTop(el)
+  el.style.setProperty('--rooms-height', `${rooms}px`)
+  el.style.setProperty('--held-height', `${rooms + dayName}px`)
 }
 watch(
   [box, shown],
@@ -68,8 +79,7 @@ function scrollToSlot(el: HTMLElement, id: string) {
     (r) => r.dataset.slot === id,
   )
   if (!row) return
-  const rooms = el.querySelector<HTMLElement>('thead')?.offsetHeight ?? 0
-  const dayName = el.querySelector<HTMLElement>('.day th, .day-label')?.offsetHeight ?? 0
+  const { rooms, dayName } = heldAtTop(el)
   const offset = row.getBoundingClientRect().top - el.getBoundingClientRect().top
   el.scrollTop += offset - rooms - dayName
 }
@@ -137,6 +147,14 @@ watch(
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+}
+
+/* Room after the schedule for its last slot to come up under the rooms and the day, as every
+   other slot can, rather than the box running out of schedule first */
+.display-scroll::after {
+  content: '';
+  display: block;
+  height: calc(100% - var(--held-height, 0px));
 }
 
 /* The sheet across the whole screen, its rooms sharing the width, a little larger than on the
