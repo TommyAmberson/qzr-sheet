@@ -388,12 +388,18 @@ const dates = computed(() => {
   color: var(--color-text-muted);
 }
 
-.bare {
+/* A page for a screen fills it exactly, its tab scrolling inside rather than the page */
+.container.bare {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
   padding: 0.75rem 1rem;
 }
 
 .bare .back-link {
-  margin-bottom: 0.75rem;
+  align-self: flex-start;
+  margin-bottom: 0.5rem;
 }
 
 .page-title {

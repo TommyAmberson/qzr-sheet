@@ -132,7 +132,7 @@ function tickOf(quiz: ScheduleQuiz) {
           </td>
         </tr>
         <!-- A row of only events is drawn short, as the paper schedules draw Lunch (FR-017) -->
-        <tr v-else class="slot" :class="{ event: r.short }">
+        <tr v-else class="slot" :class="{ event: r.short }" :data-slot="r.row.id">
           <td class="time">
             <button type="button" class="row-button" @click="emit('row', r.row.id, target($event))">
               {{ formatClock(r.row.at) }}
