@@ -16,11 +16,17 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-11-21
+
 ### Fixed
 
 * The home page lists each meet once: an official of several rooms of a meet saw it once per room,
   in identical rows. A meet's row names each of the account's roles in it, an official's with its
   rooms ("official: Room 1, Room 2") (#234)
+
+### Bundled contract
+
+* `@qzr/shared@1.21.0` - unchanged
 
 ## [0.38.0] - 2026-11-20
 
