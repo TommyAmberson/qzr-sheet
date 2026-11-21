@@ -4,6 +4,7 @@ export { default as RoomCodeDialog } from './RoomCodeDialog.vue'
 export { default as GuestNotice } from './GuestNotice.vue'
 export { default as DivisionInput } from './DivisionInput.vue'
 export { settledText, type ScheduleMarks } from './scheduleMarks'
+export { nameAndNumber } from './fitName'
 export { useHistory } from './useHistory'
 export type { HistoryCommand } from './useHistory'
 export {

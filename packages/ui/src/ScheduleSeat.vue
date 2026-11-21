@@ -50,6 +50,18 @@ const team = computed((): FitName => {
   return one('')
 })
 const outcome = computed(() => (props.result ? resultText(props.result) : ''))
+/** Where the bench comes from, and its team's full name, which the line may have cut or shortened */
+const tooltip = computed(() => {
+  // An absent bench names the team that is absent; Tied is no team's name
+  if (absent.value) {
+    const name = drawnTeam(props.doc, props.quiz, seat.value)?.name
+    return name ? `${source.value} · ${name} (absent)` : source.value
+  }
+  const named = !(props.settled && 'tied' in props.settled)
+  return named && team.value.full && team.value.full !== source.value
+    ? `${source.value} · ${team.value.full}`
+    : source.value
+})
 </script>
 
 <template>
@@ -58,7 +70,7 @@ const outcome = computed(() => (props.result ? resultText(props.result) : ''))
     :type="plain ? undefined : 'button'"
     class="qz-seat"
     :data-seat="`${quiz.id}:${index}`"
-    :title="source"
+    :title="tooltip"
   >
     <span class="qz-seat-src" :class="{ choose: seat.kind === 'empty' }">{{ source }}</span>
     <span class="qz-bench" :class="`qz-bench-${index}`" />
