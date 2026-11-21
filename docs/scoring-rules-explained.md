@@ -156,6 +156,8 @@ are eligible to answer overtime questions.
 * A new round is shown only when the previous round is complete and teams are still tied.
 * Overtime answers give a quizzer **no individual points or stats**: correct answers, errors and
   fouls in overtime score for the team only.
+* Team bonuses still apply in overtime: a quizzer's first correct answer there counts towards the
+  3rd, 4th and 5th unique-quizzer bonuses, which go to the team.
 * Overtime answers **do** count towards quizzing, erroring and fouling out. A fourth correct answer
   in overtime, with no errors, quizzes the quizzer out and gives the team the +10 quiz-out bonus
   (not the quizzer). A third foul in overtime is a foul-out and costs the team 10, not the quizzer.

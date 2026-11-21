@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
+import { CellValue } from '../../quizFile'
 import { deserialize } from '../../quizFileCodec'
-import { quizOutcome } from '../quizOutcome'
+import { answerLookup } from '../cellGrid'
+import { overtimeRoundsNeeded, quizOutcome } from '../quizOutcome'
 import { fifteenQuestionQuizFile } from './fixtures/fifteenQuestionQuiz'
 
 describe('quizOutcome', () => {
@@ -35,5 +37,19 @@ describe('quizOutcome', () => {
     // An answer from a seat with no quizzer named is a validation error
     file.teams[0]!.quizzers[4]!.name = ''
     expect(quizOutcome(deserialize(file)).placed).toBe(false)
+  })
+
+  it('keeps an overtime round that holds answers, though the scoring needs none', () => {
+    // Not tied after 15, so no overtime is needed; an answer in the second round (19 to 21), as a
+    // scoresheet on an older rule might have played, still keeps that round
+    const file = fifteenQuestionQuizFile()
+    file.quiz.overtime = true
+    file.answers.push({
+      quizzerId: file.teams[0]!.quizzers[0]!.id,
+      columnKey: '19',
+      value: CellValue.Correct,
+    })
+    const { quiz, teams, quizzers, answers, noJumps } = deserialize(file)
+    expect(overtimeRoundsNeeded(quiz, teams, quizzers, answerLookup(answers), noJumps)).toBe(2)
   })
 })

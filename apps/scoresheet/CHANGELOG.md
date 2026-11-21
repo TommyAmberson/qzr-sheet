@@ -15,6 +15,17 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-11-21
+
+### Fixed
+
+* The scoresheet scores with the 3rd, 4th and 5th unique-quizzer bonus for a first correct answer in
+  overtime (from `@qzr/shared`)
+
+### Bundled contract
+
+* `@qzr/shared@1.21.2` - bumped from 1.21.1
+
 ## [0.31.1] - 2026-11-21
 
 ### Fixed

@@ -16,6 +16,17 @@ portal. This per-package changelog starts fresh from 0.9.1 as the baseline.
 
 ## [Unreleased]
 
+## [0.38.3] - 2026-11-21
+
+### Fixed
+
+* Stored quizzes show their scores with the 3rd, 4th and 5th unique-quizzer bonus for a first
+  correct answer in overtime (from `@qzr/shared`)
+
+### Bundled contract
+
+* `@qzr/shared@1.21.2` - bumped from 1.21.1
+
 ## [0.38.2] - 2026-11-21
 
 ### Fixed
