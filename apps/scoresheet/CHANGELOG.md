@@ -15,6 +15,24 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-11-21
+
+### Fixed
+
+* Greyed-out cells, and the no-jump cells of answered questions, have darker stripes, in light and
+  dark, so they can be told from blank cells on a dim or washed-out screen (#241)
+* An error cell's E is light on the red in dark mode, as the other answer letters are, where it was
+  dark red on red
+* The error notice and the quiz header's error state show a validation red on the header's own
+  surface, in light and dark, so their text can be read on a dim screen; in dark mode it was red on
+  dark red. An invalid timeout's mark takes the validation red too
+* The "Team name" prompt on a team's bar can be read, where it was grey on the bar's own grey
+* Question types under the column numbers are no longer faded
+
+### Bundled contract
+
+* `@qzr/shared@1.21.0` - unchanged
+
 ## [0.31.0] - 2026-11-21
 
 ### Added

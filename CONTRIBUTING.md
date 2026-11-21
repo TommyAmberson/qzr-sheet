@@ -11,6 +11,11 @@ implement are in the [constitution](./.specify/memory/constitution.md). Coding a
 CI runs them as the required `check` status, along with the deploy's contract check for any package
 the PR bumps.
 
+Before settling on colours in a styling change, check them in light and dark and as they look washed
+out, as on the dim projectors and older laptops at meets, where a scorekeeper couldn't tell
+greyed-out cells from blank ones. Take colours from the app's palette (`src/assets/colors.css` in
+each app), and add a palette colour there rather than writing a new value in a component.
+
 ## Hooks
 
 Hooks are wired via `simple-git-hooks` + `lint-staged` and installed by `pnpm install` (see the
