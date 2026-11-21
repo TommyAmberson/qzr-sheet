@@ -100,6 +100,15 @@ export function notifyGuest(message: string): void {
 }
 
 /**
+ * Cached promise from the first initGuestSession() call. Subsequent callers
+ * await the same promise so the join round-trip happens once. App.vue kicks
+ * this off at startup; consumers (e.g. MeetPickerDialog) await it before
+ * branching on guest state to avoid a click-before-init race, and
+ * `withGuestToken` awaits it before choosing a request's token.
+ */
+let initPromise: Promise<GuestSessionData | null> | null = null
+
+/**
  * Wrap an app's API client so each request carries the guest token for its meet (see
  * `requestMeetId`); pass `meetId` when the path doesn't name the meet. A signed-in user's cookie
  * takes precedence on the server, so they never need the header.
@@ -115,6 +124,9 @@ export function withGuestToken(
   join: GuestJoin,
 ): <T>(path: string, init?: RequestInit, meetId?: number) => Promise<T> {
   return async <T>(path: string, init?: RequestInit, meetId?: number) => {
+    // A meet link's join at start decides the session: a request sent at the same time, such as a
+    // linked sheet's refresh, would otherwise go without the token it is joining for
+    await initPromise?.catch(() => null)
     const send = (token: string | null) =>
       baseRequest<T>(
         path,
@@ -539,14 +551,6 @@ function leaveGuestMeets(meetIds: number[]): void {
   }
   persist()
 }
-
-/**
- * Cached promise from the first initGuestSession() call. Subsequent callers
- * await the same promise so the join round-trip happens once. App.vue kicks
- * this off at startup; consumers (e.g. MeetPickerDialog) await it before
- * branching on guest state to avoid a click-before-init race.
- */
-let initPromise: Promise<GuestSessionData | null> | null = null
 
 /**
  * Bootstrap from the URL: read `?meet=<slug>` and either reuse a fresh stored

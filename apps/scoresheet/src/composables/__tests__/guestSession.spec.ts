@@ -521,6 +521,18 @@ describe('withGuestToken: which token a request carries', () => {
     expect(await tokenSentFor('/api/meets/spring')).toBeNull()
   })
 
+  it('waits for the meet link joining at start, so a request sent meanwhile carries its token', async () => {
+    setSearch('?meet=fall-2025')
+    let answer!: (a: Awaited<ReturnType<typeof joinMeetGuest>>) => void
+    vi.mocked(joinMeetGuest).mockImplementation(() => new Promise((resolve) => (answer = resolve)))
+    const joining = initGuestSession()
+    const sent = tokenSentFor('/api/meets/7/teams')
+    const token = tokenExpiring(3600, 'link')
+    answer({ token, meet: { id: 7, name: 'Fall 2025' }, role: MeetRole.Viewer })
+    await joining
+    expect(await sent).toBe(token)
+  })
+
   it("sends no token to a meet the guest hasn't joined", async () => {
     expect(await tokenSentFor('/api/meets/3/teams')).toBeNull()
   })
