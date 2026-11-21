@@ -2942,8 +2942,9 @@ const appVersion: string = __APP_VERSION__
   padding: 0.35rem 0.6rem;
   border: 1px solid var(--color-invalid);
   border-radius: 4px;
-  background: var(--color-error-alt);
-  color: var(--color-error);
+  /* The header's own surface: the red border is the warning */
+  background: var(--color-meta-bg);
+  color: var(--color-invalid-text);
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -2984,12 +2985,11 @@ const appVersion: string = __APP_VERSION__
 }
 
 .quiz-meta--error {
-  background: var(--color-error-alt);
   border-color: var(--color-invalid);
   border-left-color: var(--color-invalid);
 }
 .quiz-meta--error .meta-label {
-  color: var(--color-error);
+  color: var(--color-invalid-text);
 }
 
 .quiz-meta--complete {
@@ -3048,7 +3048,7 @@ const appVersion: string = __APP_VERSION__
   color: var(--color-accent);
 }
 .meta-status--error + .meta-label {
-  color: var(--color-invalid);
+  color: var(--color-invalid-text);
 }
 
 .meta-sep {
@@ -4740,10 +4740,10 @@ thead tr th.sticky-col {
 }
 .timeout-toggle.timeout-invalid::after {
   opacity: 1;
-  color: var(--color-error, #dc2626);
+  color: var(--color-invalid-text);
 }
 .timeout-toggle.timeout-invalid {
-  background: color-mix(in srgb, var(--color-error, #dc2626) 10%, transparent);
+  background: color-mix(in srgb, var(--color-invalid) 10%, transparent);
 }
 
 /* Elevate cell selector above tutorial overlay during allowSelectorPopup steps */
