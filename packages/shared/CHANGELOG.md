@@ -30,6 +30,9 @@ subsection to name the current `@qzr/shared` version. CI verifies this in each d
 * The 3rd, 4th and 5th unique-quizzer bonus counts a quizzer's first correct answer in overtime
   (`scoreTeam`). It is a team bonus, and the rulebook keeps only individual points out of overtime,
   as the quiz-out bonus already did
+* `overtimeRoundsNeeded` keeps every overtime round that holds answers, even where the scoring ends
+  overtime sooner, so a round played under an older rule shows as a problem to settle rather than
+  dropping out of the result
 
 ## [1.21.1] - 2026-11-21
 
