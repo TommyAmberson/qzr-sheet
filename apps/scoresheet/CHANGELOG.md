@@ -15,6 +15,8 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-11-21
+
 ### Fixed
 
 * Greyed-out cells, and the no-jump cells of answered questions, have darker stripes, in light and
@@ -26,6 +28,10 @@ portal/API/infra work shipped on that tag.
   dark red. An invalid timeout's mark takes the validation red too
 * The "Team name" prompt on a team's bar can be read, where it was grey on the bar's own grey
 * Question types under the column numbers are no longer faded
+
+### Bundled contract
+
+* `@qzr/shared@1.21.0` - unchanged
 
 ## [0.31.0] - 2026-11-21
 
