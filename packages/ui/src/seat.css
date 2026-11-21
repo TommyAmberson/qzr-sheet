@@ -29,8 +29,22 @@
  */
 .qz-seats {
   display: grid;
-  grid-template-columns: auto 3px minmax(var(--seat-line, 7rem), 1fr) auto;
+  /*
+   * On a phone's width a long source and result could push the quiz wider than the screen: they
+   * give way before the line does, and before the screen
+   */
+  --qz-shrink: minmax(0, max-content);
+  grid-template-columns: var(--qz-shrink) 3px minmax(var(--seat-line, 7rem), 1fr) var(--qz-shrink);
   column-gap: 0.3rem;
+}
+
+/* A source or result cut short ends in an ellipsis, as the line does, rather than spilling out */
+.qz-seats .qz-seat-src,
+.qz-seats .qz-seat-result {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* A line's width comes from the quiz, never its name, or switching names would resize it */
@@ -66,7 +80,7 @@
   background: var(--color-team-blue, #1d4ed8);
 }
 
-/* Ends at the bar; a long source spills left rather than being cut short */
+/* Ends at the bar; outside a quiz's shared columns a long source spills left rather than being cut */
 .qz-seat-src {
   justify-self: end;
   color: var(--color-text, #2a2724);
