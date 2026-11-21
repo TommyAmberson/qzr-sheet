@@ -15,11 +15,17 @@ portal/API/infra work shipped on that tag.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-21
+
 ### Added
 
 * A quizzer who quizzes out, errors out or fouls out has their name shown in that answer's colour,
   as the answer cells are, in light and dark: green, red or the foul colour, with the badge beside
   it inverted and their score on a chip (#243)
+
+### Bundled contract
+
+* `@qzr/shared@1.21.0` - unchanged
 
 ## [0.30.3] - 2026-11-21
 
